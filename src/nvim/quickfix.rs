@@ -5130,9 +5130,9 @@ fn vgr_match_buflines(
                 None,
             ) > 0
             {
-                let mesg_cstr = unsafe {
-                    CStr::from_ptr((ml_get_buf(buf, regmatch.startpos[0].lnum + lnum)).as_ptr())
-                };
+                let mesg_cstr = crate::memory::cstr_from_ptr(
+                    (ml_get_buf(buf, regmatch.startpos[0].lnum + lnum)).as_ptr(),
+                );
                 if qf_add_entry(
                     qfl,
                     None,
@@ -5187,7 +5187,7 @@ fn vgr_match_buflines(
                     fname,
                     None,
                     if duplicate_name != 0 { 0 } else { buf.b_fnum },
-                    unsafe { CStr::from_ptr(str_) },
+                    crate::memory::cstr_from_ptr(str_),
                     lnum,
                     0,
                     matches[0] as Colnr + col + 1,
@@ -6985,7 +6985,7 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
     while !vim_fgets(g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int {
         let line = iobuff_ptr;
 
-        if vim_regexec(p_regmatch, unsafe { CStr::from_ptr(line) }, 0) {
+        if vim_regexec(p_regmatch, crate::memory::cstr_from_ptr(line), 0) {
             let mut l = crate::memory::cstr_len(line);
             while l > 0 && (g_st().iobuff[l - 1] as u8) <= b' ' {
                 l -= 1;
@@ -6998,7 +6998,7 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
                 Some(fname),
                 None,
                 0,
-                unsafe { CStr::from_ptr(line) },
+                crate::memory::cstr_from_ptr(line),
                 lnum,
                 0,
                 (crate::memory::ptr_offset_from(p_regmatch.startp[0], line.cast()) as i32) + 1,

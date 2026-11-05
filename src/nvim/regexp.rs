@@ -1800,7 +1800,7 @@ pub fn skip_regexp_slice(start: &[u8], dirc: i32, magic: i32) -> &[u8] {
 pub fn skip_regexp(start: &std::ffi::CStr, delim: i32, magic: i32) -> &std::ffi::CStr {
     let bytes = start.to_bytes();
     let rem = skip_regexp_slice(bytes, delim, magic);
-    unsafe { std::ffi::CStr::from_ptr(start.as_ptr().wrapping_add(bytes.len() - rem.len())) }
+    crate::memory::CStrSubslice::advance(start, bytes.len() - rem.len())
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return `None`.
@@ -2270,9 +2270,9 @@ pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
     if lnum > maxline {
         return Some(c"");
     }
-    Some(unsafe {
-        std::ffi::CStr::from_ptr((ml_get_buf(re_st().rex.buf_mut(), firstlnum)).as_ptr())
-    })
+    Some(crate::memory::cstr_from_ptr(
+        (ml_get_buf(re_st().rex.buf_mut(), firstlnum)).as_ptr(),
+    ))
 }
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
@@ -2922,7 +2922,7 @@ fn vim_regsub_both(
                     let s_cstr = if s.is_null() {
                         c""
                     } else {
-                        unsafe { CStr::from_ptr(s) }
+                        crate::memory::cstr_from_ptr(s)
                     };
                     call_func(s_cstr, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 } else if expr.v_type == VarType::VarPartial {
@@ -2941,11 +2941,8 @@ fn vim_regsub_both(
                 }
                 tv_clear(&mut rettv);
             } else if let Some(src) = source {
-                *eval_slot = eval_to_string(
-                    unsafe { CStr::from_ptr(src.as_ptr().wrapping_add(2)) },
-                    true,
-                    false,
-                );
+                *eval_slot =
+                    eval_to_string(crate::memory::CStrSubslice::advance(src, 2), true, false);
             }
             re_st().regsub_nesting -= 1;
 
@@ -3340,7 +3337,7 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
         list = tv_list_alloc(1);
         tv_list_append_string(
             list,
-            Some(unsafe { CStr::from_ptr(s.cast()) }),
+            Some(crate::memory::cstr_from_ptr(s)),
             crate::memory::ptr_offset_from(e, s),
         );
     }
@@ -3515,7 +3512,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
             || newengine == NFA_ENGINE
         {
             re_st().regexp_engine = newengine;
-            expr = unsafe { CStr::from_ptr(expr.as_ptr().wrapping_add(5)) };
+            expr = crate::memory::CStrSubslice::advance(expr, 5);
         } else {
             emsg(tr(
                 c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used ",

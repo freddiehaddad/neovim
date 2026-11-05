@@ -746,7 +746,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                 && regmatch.regprog.is_null()
             {
                 let Some(s_cstr) = skip_regexp_err(
-                    unsafe { CStr::from_ptr(p.wrapping_add(1)) },
+                    crate::memory::cstr_from_ptr(p.wrapping_add(1)),
                     (crate::memory::cstr_first_byte(p)) as i32,
                     1,
                 ) else {
@@ -767,7 +767,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
                 } else {
                     regmatch.set_prog(vim_regcomp(
-                        unsafe { CStr::from_ptr(p.wrapping_add(1)) },
+                        crate::memory::cstr_from_ptr(p.wrapping_add(1)),
                         RE_MAGIC,
                     ));
                 }
@@ -798,7 +798,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
             if !regmatch.regprog.is_null()
-                && vim_regexec(&mut regmatch, unsafe { CStr::from_ptr(s) }, 0)
+                && vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(s), 0)
             {
                 if excmds_st().sort_rx {
                     start_col =
@@ -1028,9 +1028,11 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 eap.nextcmd = crate::strings::CStrCursor::from_ptr(nc.as_ptr());
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
-                let Some(s_cstr) =
-                    skip_regexp_err(unsafe { CStr::from_ptr(p.wrapping_add(1)) }, b0 as i32, 1)
-                else {
+                let Some(s_cstr) = skip_regexp_err(
+                    crate::memory::cstr_from_ptr(p.wrapping_add(1)),
+                    b0 as i32,
+                    1,
+                ) else {
                     break 'uniqend;
                 };
                 let s =
@@ -1048,7 +1050,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
                 } else {
                     regmatch.set_prog(vim_regcomp(
-                        unsafe { CStr::from_ptr(p.wrapping_add(1)) },
+                        crate::memory::cstr_from_ptr(p.wrapping_add(1)),
                         RE_MAGIC,
                     ));
                 }
@@ -1090,7 +1092,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
             if !regmatch.regprog.is_null()
-                && vim_regexec(&mut regmatch, unsafe { CStr::from_ptr(s) }, 0)
+                && vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(s), 0)
             {
                 if excmds_st().sort_rx {
                     start_col =
@@ -4362,7 +4364,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         g_st().textlock += 1;
                         let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
-                        let sub_cstr = unsafe { CStr::from_ptr(sub) };
+                        let sub_cstr = crate::memory::cstr_from_ptr(sub);
                         let sublen_i = vim_regsub_multi(
                             &mut regmatch,
                             rel_lnum,
@@ -5317,7 +5319,7 @@ pub fn skip_vimgrep_pat<'a>(
         return None;
     } else {
         let c = i32::from(first_b);
-        let after_delim = unsafe { CStr::from_ptr(p_base.wrapping_add(1)) };
+        let after_delim = crate::memory::cstr_from_ptr(p_base.wrapping_add(1));
         let end_cstr = skip_regexp(after_delim, c, 1);
         let pat_len = (end_cstr.as_ptr() as usize) - (after_delim.as_ptr() as usize);
         off = 1 + pat_len;
@@ -5347,7 +5349,7 @@ pub fn skip_vimgrep_pat<'a>(
         }
         off += count;
     }
-    Some(unsafe { CStr::from_ptr(p_base.wrapping_add(off)) })
+    Some(crate::memory::cstr_from_ptr(p_base.wrapping_add(off)))
 }
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).

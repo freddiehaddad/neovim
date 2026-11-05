@@ -563,7 +563,7 @@ fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
         }
         let mut len: usize = 0;
         let ptr = lua_tolstring(lstate, -1, &mut len);
-        (!ptr.is_null()).then(|| (CStr::from_ptr(ptr), len))
+        (!ptr.is_null()).then(|| (crate::memory::cstr_from_ptr(ptr), len))
     }
 }
 
@@ -1592,7 +1592,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let _ = call_func(
-            unsafe { CStr::from_ptr(name) },
+            crate::memory::cstr_from_ptr(name),
             name_len as i32,
             &mut rettv,
             nargs,

@@ -497,6 +497,34 @@ pub fn ptr_offset_from<P: IntoConstPtr>(
     unsafe { p.into_const_ptr().offset_from(origin.into_const_ptr()) }
 }
 
+/// Safe O(1) sub-slicing of a `&CStr`.
+pub trait CStrSubslice<'a> {
+    fn advance(self, n: usize) -> &'a CStr;
+}
+
+impl<'a> CStrSubslice<'a> for &'a CStr {
+    #[inline]
+    fn advance(self, n: usize) -> &'a CStr {
+        let bytes = self.to_bytes_with_nul();
+        let off = n.min(bytes.len() - 1);
+        unsafe { CStr::from_bytes_with_nul_unchecked(&bytes[off..]) }
+    }
+}
+
+impl<'a> CStrSubslice<'a> for &&'a CStr {
+    #[inline]
+    fn advance(self, n: usize) -> &'a CStr {
+        (*self).advance(n)
+    }
+}
+
+impl<'a> CStrSubslice<'a> for &mut &'a CStr {
+    #[inline]
+    fn advance(self, n: usize) -> &'a CStr {
+        (*self).advance(n)
+    }
+}
+
 /// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
 #[inline]
 pub fn cstr_from_ptr<'a>(s: impl AsCStrPtr) -> &'a CStr {

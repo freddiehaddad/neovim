@@ -3247,7 +3247,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                     pat_vec[pat_end_idx] = if attempt < 2 { 0 } else { b'$' };
                 }
                 let pat_start = usize::from(pat_vec[0] == b'^' && (attempt & 1) == 0);
-                let p = unsafe { CStr::from_ptr(pat_vec[pat_start..].as_ptr().cast()) };
+                let p = crate::memory::cstr_from_ptr(pat_vec[pat_start..].as_ptr());
 
                 let mut regmatch: Regmatch = Regmatch::new();
                 regmatch.set_prog(vim_regcomp(

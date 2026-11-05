@@ -2056,7 +2056,7 @@ fn ins_compl_dictionaries(
         let mut ptr_vec = vec![0u8; len];
         let ptr = ptr_vec.as_mut_ptr();
         vim_snprintf!(ptr.cast(), len, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
-        regmatch.set_prog(vim_regcomp(unsafe { CStr::from_ptr(ptr.cast()) }, RE_MAGIC));
+        regmatch.set_prog(vim_regcomp(crate::memory::cstr_from_ptr(ptr), RE_MAGIC));
     } else {
         regmatch.set_prog(vim_regcomp(
             crate::memory::cstr_from_ptr(pat),

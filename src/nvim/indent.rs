@@ -729,14 +729,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         regmatch.rm_ic = false;
         if vim_regexec(
             &mut regmatch,
-            unsafe {
-                CStr::from_ptr(
-                    ml_get(lnum)
-                        .as_ptr()
-                        .cast_mut()
-                        .wrapping_add(lead_len as usize),
-                )
-            },
+            crate::memory::CStrSubslice::advance(ml_get(lnum), lead_len as usize),
             0,
         ) {
             pos.lnum = lnum;

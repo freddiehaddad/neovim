@@ -1790,7 +1790,7 @@ pub fn os_scandir_next(dir_in: &mut Directory) -> Option<&'static CStr> {
     let err = unsafe { uv_fs_scandir_next(req, ent) };
     if err != UV_EOF {
         let name = unsafe { (*ent).name };
-        (!name.is_null()).then(|| unsafe { CStr::from_ptr(name.cast()) })
+        (!name.is_null()).then(|| crate::memory::cstr_from_ptr(name))
     } else {
         None
     }

@@ -873,7 +873,7 @@ pub fn can_compound(slang: &mut Slang, word: &[u8], flags: &[u8]) -> bool {
     if !vim_regexec_prog(
         slang.sl_compprog.as_deref(),
         false,
-        unsafe { std::ffi::CStr::from_ptr(p.cast()) },
+        crate::memory::cstr_from_ptr(p),
         0,
     ) {
         return false;
@@ -2225,11 +2225,8 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             if p == line || spell_iswordp_nmw(crate::memory::cstr_as_bytes(p), wp) {
                 break;
             }
-            if vim_regexec(
-                &mut regmatch,
-                unsafe { std::ffi::CStr::from_ptr(p.cast()) },
-                0,
-            ) && regmatch.endp[0].as_ptr() == line.wrapping_add(endcol as usize).cast()
+            if vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(p), 0)
+                && regmatch.endp[0].as_ptr() == line.wrapping_add(endcol as usize).cast()
             {
                 need_cap = true;
                 break;

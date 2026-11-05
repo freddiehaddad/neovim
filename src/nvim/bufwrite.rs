@@ -825,7 +825,7 @@ pub fn buf_get_backup_name(
     let mut dirp_bytes = dirp.to_bytes();
     let old_len = dirp_bytes.len();
     let dir_len = copy_option_part(&mut dirp_bytes, g_st().iobuff_bytes_mut(), c",");
-    *dirp = unsafe { CStr::from_ptr(dirp.as_ptr().wrapping_add(old_len - dirp_bytes.len())) };
+    *dirp = crate::memory::CStrSubslice::advance(*dirp, old_len - dirp_bytes.len());
     let p = iobuf.wrapping_add(dir_len);
     if dirp.to_bytes().is_empty() && !os_isdir(crate::memory::cstr_from_ptr(iobuf)) {
         let mut failed_dir: Option<std::ffi::CString> = None;

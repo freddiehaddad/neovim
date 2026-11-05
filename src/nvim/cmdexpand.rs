@@ -3450,7 +3450,7 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
         if !crate::memory::cstr_is_empty(p) {
             xp.xp_context = EXPAND_NOTHING;
             p = skip_regexp(
-                unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) },
+                crate::memory::cstr_from_ptr(p.wrapping_add(1)),
                 crate::memory::cstr_first_byte(p) as i32,
                 i32::from(opt_vars().p_magic),
             )
@@ -3458,7 +3458,7 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
             .cast();
         }
     }
-    find_nextcmd(unsafe { CStr::from_ptr(p.cast()) })
+    find_nextcmd(crate::memory::cstr_from_ptr(p))
 }
 
 /// Returns a slice to the next command after a :global or a :v command.
@@ -3488,7 +3488,7 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
     let delim = crate::memory::cstr_first_byte(p);
     if delim != 0 {
         p = skip_regexp(
-            unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) },
+            crate::memory::cstr_from_ptr(p.wrapping_add(1)),
             i32::from(delim),
             i32::from(opt_vars().p_magic),
         )
@@ -3513,7 +3513,7 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
     bytes
         .iter()
         .position(|&b| matches!(b, b'|' | b'"' | b'#'))
-        .map(|pos| unsafe { CStr::from_ptr(p.wrapping_add(pos).cast()) })
+        .map(|pos| crate::memory::cstr_from_ptr(p.wrapping_add(pos)))
 }
 
 /// Returns a slice to the next command after an :isearch/:dsearch/etc. command.
@@ -4167,10 +4167,10 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
     }
 
     if crate::memory::cstr_first_byte(cmd) == b'|' || crate::memory::cstr_first_byte(cmd) == b'\n' {
-        return Some(unsafe { CStr::from_ptr(cmd.wrapping_add(1).cast()) });
+        return Some(crate::memory::cstr_from_ptr(cmd.wrapping_add(1)));
     }
 
-    let cmd_cstr = unsafe { CStr::from_ptr(cmd.cast()) };
+    let cmd_cstr = crate::memory::cstr_from_ptr(cmd);
     let mut p: *const u8 = set_cmd_index(cmd_cstr, &mut ea, xp, &mut context)?
         .as_ptr()
         .cast();
@@ -4198,7 +4198,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
             }
 
             if crate::memory::cstr_is_empty(p) && (ea.argt & EX_ARGOPT) != 0 {
-                set_context_in_argopt(xp, unsafe { CStr::from_ptr(arg.wrapping_add(2).cast()) });
+                set_context_in_argopt(xp, crate::memory::cstr_from_ptr(arg.wrapping_add(2)));
                 return None;
             }
 
@@ -4242,7 +4242,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
             .cast();
 
         if crate::memory::cstr_is_empty(arg) {
-            return Some(unsafe { CStr::from_ptr(p.cast()) });
+            return Some(crate::memory::cstr_from_ptr(p));
         }
 
         arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
@@ -4267,7 +4267,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
                 && (idx == 0 || p_bytes[idx - 1] != b'\\')
             {
                 if b == b'|' || b == b'\n' {
-                    return Some(unsafe { CStr::from_ptr(p_base.wrapping_add(idx + 1).cast()) });
+                    return Some(crate::memory::cstr_from_ptr(p_base.wrapping_add(idx + 1)));
                 }
                 return None;
             }
@@ -4297,7 +4297,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         }
     }
 
-    let arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+    let arg_cstr = crate::memory::cstr_from_ptr(arg);
     if (ea.argt & EX_XFILE) != 0 {
         set_context_for_wildcard_arg(Some(&ea), arg_cstr, usefilter, xp, &mut context);
     }
@@ -4535,7 +4535,7 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     let si = script_item(idx + 1);
     let name_buff = g_st().name_buff.as_mut_ptr();
     home_replace(None, (*si).name_cstr(), g_st().name_buff_bytes_mut(), true);
-    Some(unsafe { CStr::from_ptr(name_buff) })
+    Some(crate::memory::cstr_from_ptr(name_buff))
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":retab".
@@ -4582,7 +4582,7 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
     {
         let item = cmdexp().healthcheck_names.data.array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(unsafe { CStr::from_ptr(item.data.string().data) });
+            return Some(crate::memory::cstr_from_ptr(item.data.string().data));
         }
     }
     None
@@ -4636,7 +4636,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
     {
         let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(unsafe { CStr::from_ptr(item.data.string().data) });
+            return Some(crate::memory::cstr_from_ptr(item.data.string().data));
         }
     }
     None
@@ -5048,7 +5048,7 @@ fn expand_from_context(
             c"^<SNR>\\d\\+_%s",
             pat_cstr.as_ptr().wrapping_add(3)
         );
-        pat_cstr = unsafe { CStr::from_ptr(buf.as_ptr().cast()) };
+        pat_cstr = crate::memory::cstr_from_ptr(buf.as_ptr());
         tofree = Some(buf);
     }
 
@@ -5314,7 +5314,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
             buf_vec[pathlen + patlen] = 0;
 
             expand_shellcmd_onedir(
-                unsafe { CStr::from_ptr(buf_vec.as_ptr().cast()) },
+                crate::memory::cstr_from_ptr(buf_vec.as_ptr()),
                 pathlen,
                 flags,
                 &mut found_ht,
@@ -5576,7 +5576,7 @@ pub fn globpath(
             buf_vec[pathlen + filelen] = 0;
 
             let mut p: Vec<CString> = Vec::new();
-            let pat_cstr = unsafe { CStr::from_ptr(buf_vec.as_ptr().cast()) };
+            let pat_cstr = crate::memory::cstr_from_ptr(buf_vec.as_ptr());
             expand_from_context(&mut xpc, pat_cstr, &mut p, WILD_SILENT | expand_options);
             if !p.is_empty() {
                 expand_escape(

@@ -388,7 +388,7 @@ fn os_uv_homedir() -> Option<&'static CStr> {
         let mut homedir_size = MAXPATHL;
         let ret_value = uv_os_homedir(buf.cast(), &mut homedir_size);
         if ret_value == 0 && homedir_size < MAXPATHL {
-            return Some(CStr::from_ptr(buf.cast()));
+            return Some(crate::memory::cstr_from_ptr(buf));
         }
         *buf = 0;
         None
@@ -533,7 +533,7 @@ pub fn expand_env_esc(
         if src_bytes.starts_with(b"`=") {
             let var = src;
             src = src.wrapping_add(2);
-            let mut src_cstr = unsafe { CStr::from_ptr(src.cast()) };
+            let mut src_cstr = crate::memory::cstr_from_ptr(src);
             let _ = skip_expr(&mut src_cstr, None);
             src = src_cstr.as_ptr().cast_mut().cast();
             if crate::memory::cstr_first_byte(src) == b'`' {
@@ -1137,7 +1137,7 @@ pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
         crate::memory::copy_bytes_to_c_buf(&mut xp.xp_buf, envname.to_bytes());
-        return Some(unsafe { CStr::from_ptr(xp.xp_buf.as_ptr().cast()) });
+        return Some(crate::memory::cstr_from_ptr(xp.xp_buf.as_ptr()));
     }
     None
 }

@@ -548,7 +548,7 @@ fn get_locale_val(what: i32) -> Option<&'static CStr> {
     if p.is_null() {
         None
     } else {
-        Some(unsafe { CStr::from_ptr(p.cast()) })
+        Some(crate::memory::cstr_from_ptr(p))
     }
 }
 
@@ -582,10 +582,10 @@ fn get_mess_env(
     #[cfg(windows)]
     {
         if let Some(p) = os_getenv_buf(c"LC_ALL", buf) {
-            return Some(unsafe { CStr::from_ptr(p.as_ptr()) });
+            return Some(crate::memory::cstr_from_ptr(p.as_ptr()));
         }
         if let Some(p) = os_getenv_buf(c"LC_MESSAGES", buf) {
-            return Some(unsafe { CStr::from_ptr(p.as_ptr()) });
+            return Some(crate::memory::cstr_from_ptr(p.as_ptr()));
         }
         let mut p = os_getenv_buf(c"LANG", buf);
         if p.is_some_and(|s| s.to_bytes().first().is_some_and(u8::is_ascii_digit)) {
@@ -594,7 +594,7 @@ fn get_mess_env(
         let Some(p) = p else {
             return get_locale_val(LC_CTYPE);
         };
-        Some(unsafe { CStr::from_ptr(p.as_ptr()) })
+        Some(crate::memory::cstr_from_ptr(p.as_ptr()))
     }
 }
 

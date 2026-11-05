@@ -1669,7 +1669,11 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
         let l2 = tv_list_alloc(2);
         tv_list_append_list(rettv.vval.v_list_ref(), Some(&mut *l2));
         tv_list_append_number(&mut *l2, idx);
-        tv_list_append_string(&mut *l2, Some(unsafe { CStr::from_ptr(p) }), len as isize);
+        tv_list_append_string(
+            &mut *l2,
+            Some(crate::memory::cstr_from_ptr(p)),
+            len as isize,
+        );
         p = p.wrapping_add(len as usize);
         idx += 1;
     }
@@ -2140,7 +2144,7 @@ fn item_compare2(
     funcexe.fe_partial = crate::globals::GraphPtr::new(partial);
     funcexe.fe_selfdict = info.item_compare_selfdict;
     let ok = call_func(
-        unsafe { std::ffi::CStr::from_ptr(func_name) },
+        crate::memory::cstr_from_ptr(func_name),
         -1,
         &mut rettv,
         2,
@@ -2615,7 +2619,7 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
             tv_set_string(&mut *tv, funcref);
             tv.v_type = VarType::VarFunc;
             let s = tv.vval.v_string();
-            func_ref((!s.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(s) }));
+            func_ref(crate::memory::cstr_as_opt_cstr(s));
         }
         _ => {
             tv.v_type = VarType::VarSpecial;
@@ -3080,7 +3084,7 @@ pub fn tv_dict_wrong_func_name(d: &mut TvDict, tv: &mut TypVal, name: &CStr) -> 
 
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
-    let key = unsafe { std::ffi::CStr::from_ptr(item.di_key.as_ptr().cast()) };
+    let key = crate::memory::cstr_from_ptr(item.di_key.as_ptr());
     if tv_dict_wrong_func_name(d, &mut item.di_tv, key) != 0 {
         return false;
     }
@@ -3199,7 +3203,7 @@ pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &mut UserFunc)
     );
     item.di_tv.v_type = VarType::VarFunc;
     let s = item.di_tv.vval.v_string();
-    func_ref((!s.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(s) }));
+    func_ref(crate::memory::cstr_as_opt_cstr(s));
     if !tv_dict_add(d, item) {
         tv_dict_item_free(item);
         return false;
@@ -3244,7 +3248,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
         }
         if let Some(di2) = d2.dv_hashtab.ht_array[i].di_opt() {
             todo -= 1;
-            let key2 = unsafe { std::ffi::CStr::from_ptr(di2.di_key.as_ptr().cast()) };
+            let key2 = crate::memory::cstr_from_ptr(di2.di_key.as_ptr());
             let di1_opt = tv_dict_find_opt(Some(d1), key2, -1);
             if d1.dv_scope != VAR_NO_SCOPE && !valid_varname(di2.key_cstr()) {
                 break;
@@ -3342,7 +3346,7 @@ pub fn tv_dict_copy(
         if g_st().got_int {
             break;
         }
-        let key_cstr = unsafe { std::ffi::CStr::from_ptr(di.di_key.as_ptr().cast()) };
+        let key_cstr = di.key_cstr();
         let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
             let key_bytes = key_cstr.to_bytes();
             let mut len = key_bytes.len();
@@ -3674,7 +3678,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
     };
 
     for (_, di) in d.dv_hashtab.iter_items_mut() {
-        let key_cstr = unsafe { std::ffi::CStr::from_ptr(di.di_key.as_ptr().cast()) };
+        let key_cstr = di.key_cstr();
         let mut tv_item = tv_initial_value();
 
         match what {
@@ -3793,7 +3797,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
         }
     } else {
         let fun = tv.vval.v_string();
-        func_unref((!fun.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(fun) }));
+        func_unref(crate::memory::cstr_as_opt_cstr(fun));
         if !fun.is_null() && !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
             drop(unsafe { std::ffi::CString::from_raw(fun) });
         }
@@ -4151,7 +4155,7 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
                 );
                 if from.v_type == VarType::VarFunc {
                     let s = to.vval.v_string();
-                    func_ref((!s.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(s) }));
+                    func_ref(crate::memory::cstr_as_opt_cstr(s));
                 }
             }
         }

@@ -5015,9 +5015,9 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 option_set_callback_func(value.data.string().as_bytes(), &mut cb);
             } else if value.data.string().size > 0 {
                 let s_ptr = value.data.string().data;
-                let funcref = if let Some(name) = get_scriptlocal_funcname(
-                    (!s_ptr.is_null()).then(|| unsafe { CStr::from_ptr(s_ptr) }),
-                ) {
+                let funcref = if let Some(name) =
+                    get_scriptlocal_funcname(crate::memory::cstr_as_opt_cstr(s_ptr))
+                {
                     name
                 } else {
                     crate::memory::cstr_to_cstring(s_ptr)

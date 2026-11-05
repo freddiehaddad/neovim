@@ -1128,7 +1128,7 @@ pub fn ex_catch(eap: &mut Exarg) {
     } else {
         let pat = eap.arg.wrapping_add(1).as_ptr();
         let end_opt = skip_regexp_err(
-            unsafe { CStr::from_ptr(pat) },
+            crate::memory::cstr_from_ptr(pat),
             i32::from(eap.arg.first_byte()),
             1,
         );
@@ -1172,7 +1172,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 };
                 let pat_ref: &CStr = pat_cstr
                     .as_deref()
-                    .unwrap_or_else(|| unsafe { CStr::from_ptr(pat) });
+                    .unwrap_or_else(|| crate::memory::cstr_from_ptr(pat));
                 let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
                 g_st().emsg_off += 1;
                 let mut regmatch: Regmatch = Regmatch::new();

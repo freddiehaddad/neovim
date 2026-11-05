@@ -196,7 +196,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
         if expr.data.is_null() {
             c""
         } else {
-            unsafe { std::ffi::CStr::from_ptr(expr.data) }
+            crate::memory::cstr_from_ptr(expr.data)
         },
         &mut rettv,
         None,
@@ -279,7 +279,7 @@ fn call_function_impl(
     try_enter(&mut tstate);
     let save_current_sctx = api_set_sctx(channel_id);
     let _ = call_func(
-        unsafe { std::ffi::CStr::from_ptr(fn_name.data) },
+        crate::memory::cstr_from_ptr(fn_name.data),
         fn_name.size as i32,
         &mut rettv,
         args.size as i32,
@@ -356,7 +356,7 @@ pub fn nvim_call_dict_function(
                 if s_ptr.is_null() {
                     c""
                 } else {
-                    unsafe { std::ffi::CStr::from_ptr(s_ptr) }
+                    crate::memory::cstr_from_ptr(s_ptr)
                 },
                 &mut rettv,
                 None,
@@ -396,7 +396,7 @@ pub fn nvim_call_dict_function(
         {
             let Some(di) = crate::eval::typval::tv_dict_find_opt(
                 Some(self_dict_ref),
-                unsafe { std::ffi::CStr::from_ptr(fn_name.data) },
+                crate::memory::cstr_from_ptr(fn_name.data),
                 fn_name.size as isize,
             ) else {
                 api_set_error!(

@@ -842,14 +842,14 @@ pub fn skiptobin_slice(mut s: &[u8]) -> &[u8] {
 pub fn skipwhite(p: &CStr) -> &CStr {
     let bytes = p.to_bytes();
     let rem = skipwhite_slice(bytes);
-    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(bytes.len() - rem.len())) }
+    crate::memory::CStrSubslice::advance(p, bytes.len() - rem.len())
 }
 
 pub fn skipwhite_at(p: &CStr, offset: usize) -> &CStr {
     let bytes = p.to_bytes();
     let off = offset.min(bytes.len());
     let rem = skipwhite_slice(&bytes[off..]);
-    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(bytes.len() - rem.len())) }
+    crate::memory::CStrSubslice::advance(p, bytes.len() - rem.len())
 }
 
 pub trait CStrPtrSkip: Copy {

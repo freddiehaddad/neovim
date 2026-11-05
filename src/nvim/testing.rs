@@ -580,11 +580,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let first_tv = &list_ref.first_opt().unwrap().li_tv;
                 let expected = tv_get_string_buf_chk(first_tv, &mut buf);
                 if let Some(expected) = expected {
-                    if pattern_match(
-                        expected,
-                        (!actual.is_null()).then(|| unsafe { CStr::from_ptr(actual) }),
-                        false,
-                    ) == 0
+                    if pattern_match(expected, crate::memory::cstr_as_opt_cstr(actual), false) == 0
                     {
                         error_found = true;
                         expected_str = Some(expected);
@@ -597,7 +593,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         if let Some(expected2) = expected2 {
                             if pattern_match(
                                 expected2,
-                                (!actual.is_null()).then(|| unsafe { CStr::from_ptr(actual) }),
+                                crate::memory::cstr_as_opt_cstr(actual),
                                 false,
                             ) == 0
                             {
@@ -643,7 +639,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                     valid_args = false;
                 } else if !arg4.vval.v_string().is_null()
                     && pattern_match(
-                        unsafe { CStr::from_ptr(arg4.vval.v_string()) },
+                        crate::memory::cstr_from_ptr(arg4.vval.v_string()),
                         g_st().emsg_assert_fails_context.as_deref(),
                         false,
                     ) == 0

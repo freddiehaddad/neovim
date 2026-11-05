@@ -370,7 +370,9 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
     }
 
     let rest = crate::charset::skipwhite_slice(p_rem);
-    Some(unsafe { CStr::from_ptr(arg_base.wrapping_add(full_bytes.len() - rest.len()).cast()) })
+    Some(crate::memory::cstr_from_ptr(
+        arg_base.wrapping_add(full_bytes.len() - rest.len()),
+    ))
 }
 
 /// Set the completion context for the argument of a user defined command (`set_context_in_user_cmdarg`).
@@ -618,7 +620,9 @@ fn uc_list(name_prefix: &[u8]) {
                     len -= 1;
                 }
                 if len != 0 {
-                    msg_puts(unsafe { CStr::from_ptr(c"    ".as_ptr().wrapping_add(4 - len)) });
+                    msg_puts(crate::memory::cstr_from_ptr(
+                        c"    ".as_ptr().wrapping_add(4 - len),
+                    ));
                 }
 
                 msg_outtrans(&cmd.uc_name, HLF_D, false);
@@ -626,7 +630,7 @@ fn uc_list(name_prefix: &[u8]) {
 
                 if len < 21 {
                     const SPACES: &CStr = c"                 ";
-                    msg_puts(unsafe { CStr::from_ptr(SPACES.as_ptr().wrapping_add(len - 4)) });
+                    msg_puts(crate::memory::CStrSubslice::advance(SPACES, len - 4));
                     len = 21;
                 }
                 msg_putchar(b' ' as i32);

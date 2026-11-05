@@ -1786,7 +1786,7 @@ fn expand_rtdir_int(
             if (flags & DIP_NORTP) == 0 {
                 globpath(
                     opt_vars().p_rtp.as_cstr(),
-                    unsafe { CStr::from_ptr(buf.cast()) },
+                    crate::memory::cstr_from_ptr(buf),
                     gap,
                     glob_flags,
                     expand_dirs,
@@ -1811,7 +1811,7 @@ fn expand_rtdir_int(
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
-                    unsafe { CStr::from_ptr(buf.cast()) },
+                    crate::memory::cstr_from_ptr(buf),
                     gap,
                     glob_flags,
                     expand_dirs,
@@ -1828,7 +1828,7 @@ fn expand_rtdir_int(
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
-                    unsafe { CStr::from_ptr(buf.cast()) },
+                    crate::memory::cstr_from_ptr(buf),
                     gap,
                     glob_flags,
                     expand_dirs,
@@ -1847,7 +1847,7 @@ fn expand_rtdir_int(
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
-                    unsafe { CStr::from_ptr(buf.cast()) },
+                    crate::memory::cstr_from_ptr(buf),
                     gap,
                     glob_flags,
                     expand_dirs,
@@ -1864,7 +1864,7 @@ fn expand_rtdir_int(
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
-                    unsafe { CStr::from_ptr(buf.cast()) },
+                    crate::memory::cstr_from_ptr(buf),
                     gap,
                     glob_flags,
                     expand_dirs,
@@ -1990,7 +1990,7 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     vim_snprintf!(s.cast(), buflen, c"pack/*/opt/%s*", pat);
     globpath(
         opt_vars().p_pp.as_cstr(),
-        unsafe { CStr::from_ptr(s.cast()) },
+        crate::memory::cstr_from_ptr(s),
         file,
         0,
         true,
@@ -1998,7 +1998,7 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     vim_snprintf!(s.cast(), buflen, c"opt/%s*", pat);
     globpath(
         opt_vars().p_pp.as_cstr(),
-        unsafe { CStr::from_ptr(s.cast()) },
+        crate::memory::cstr_from_ptr(s),
         file,
         0,
         true,

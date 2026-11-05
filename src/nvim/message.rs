@@ -2691,7 +2691,7 @@ pub fn msg_puts(s: &std::ffi::CStr) {
 
 pub fn msg_puts_title(mut s: &std::ffi::CStr) {
     if ui_has(K_UIMESSAGES) && s.to_bytes().first() == Some(&b'\n') {
-        s = unsafe { std::ffi::CStr::from_ptr(s.as_ptr().wrapping_add(1)) };
+        s = crate::memory::CStrSubslice::advance(s, 1);
     }
     msg_puts_hl(s, HLF_T, false);
 }

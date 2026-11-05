@@ -518,7 +518,7 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
         };
         let mut len: usize = 0;
         let name = luaL_checklstring(lstate, 3, &raw mut len);
-        let name_cstr = std::ffi::CStr::from_ptr(name);
+        let name_cstr = crate::memory::cstr_from_ptr(name);
 
         let mut di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
         if di.is_none() && ptr::eq(dict, get_globvar_dict()) {

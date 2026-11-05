@@ -2472,7 +2472,7 @@ fn highlight_list() {
 fn highlight_list_two(cnt: i32, id: i32) {
     const MSG: &CStr = c"N \x08I \x08!  \x08";
     msg_puts_hl(
-        unsafe { CStr::from_ptr(MSG.as_ptr().wrapping_add((cnt / 11) as usize)) },
+        crate::memory::CStrSubslice::advance(MSG, (cnt / 11) as usize),
         id,
         false,
     );

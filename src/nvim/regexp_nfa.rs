@@ -3431,8 +3431,7 @@ fn failure_chance(states: &[NfaState], state: Option<usize>, depth: i32) -> i32 
 }
 
 fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
-    let s_cstr =
-        unsafe { std::ffi::CStr::from_ptr(re_st().rex.line.wrapping_add(*colp as usize).cast()) };
+    let s_cstr = crate::memory::cstr_from_ptr(re_st().rex.line.wrapping_add(*colp as usize));
     let Some(off) = cstrchr(s_cstr, c) else {
         return false;
     };

@@ -462,7 +462,7 @@ pub fn lua_getglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
 #[inline]
 pub fn lua_tostring(lstate: *mut lua_State, i: i32) -> Option<&'static CStr> {
     let ptr = unsafe { lua_tolstring(lstate, i, std::ptr::null_mut()) };
-    (!ptr.is_null()).then(|| unsafe { CStr::from_ptr(ptr) })
+    crate::memory::cstr_as_opt_cstr(ptr)
 }
 
 #[inline]
@@ -493,7 +493,7 @@ pub fn lua_isnoneornil(lstate: *mut lua_State, n: i32) -> bool {
 #[inline]
 #[allow(non_snake_case)]
 pub fn luaL_typename(lstate: *mut lua_State, i: i32) -> &'static CStr {
-    unsafe { CStr::from_ptr(lua_typename(lstate, lua_type(lstate, i))) }
+    crate::memory::cstr_from_ptr(unsafe { lua_typename(lstate, lua_type(lstate, i)) })
 }
 
 #[inline]
@@ -513,7 +513,7 @@ pub fn luaL_argcheck(lstate: *mut lua_State, cond: bool, numarg: i32, extramsg: 
 #[inline]
 #[allow(non_snake_case)]
 pub fn luaL_checkstring(lstate: *mut lua_State, n: i32) -> &'static CStr {
-    unsafe { CStr::from_ptr(luaL_checklstring(lstate, n, std::ptr::null_mut())) }
+    crate::memory::cstr_from_ptr(unsafe { luaL_checklstring(lstate, n, std::ptr::null_mut()) })
 }
 
 #[inline]
@@ -1084,7 +1084,7 @@ fn lua_convert_one_value(
             VarType::VarFunc => {
                 let fun = tv_ref.vval.v_string();
                 if !fun.is_null() {
-                    if let Some(fp) = find_func(Some(CStr::from_ptr(fun)))
+                    if let Some(fp) = find_func(Some(crate::memory::cstr_from_ptr(fun)))
                         && (fp.uf_flags & FC_LUAREF) != 0
                     {
                         nlua_pushref(lstate, fp.uf_luaref);

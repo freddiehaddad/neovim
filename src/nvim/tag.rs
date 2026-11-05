@@ -1212,7 +1212,7 @@ fn tagfunc_cmd_kind(cmd: &std::ffi::CStr) -> Tagcmd {
     }
     if first_b == b'/' || first_b == b'?' {
         let end = skip_regexp(
-            unsafe { CStr::from_ptr(cmd.wrapping_add(1)) },
+            crate::memory::cstr_from_ptr(cmd.wrapping_add(1)),
             first_b as i32,
             0,
         );
@@ -2800,7 +2800,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             let mut str_ = pbuf;
             if pbuf_vec[0] == b'/' || pbuf_vec[0] == b'?' {
                 str_ = skip_regexp(
-                    unsafe { CStr::from_ptr(pbuf.wrapping_add(1).cast()) },
+                    crate::memory::cstr_from_ptr(pbuf.wrapping_add(1)),
                     i32::from(pbuf_vec[0]),
                     0,
                 )
@@ -3102,7 +3102,7 @@ pub fn expand_tags(
     let mut raw_matches: Vec<Vec<u8>> = Vec::new();
     let b_ffname = curbuf_mut().ffname_opt();
     let ret = if pat.to_bytes().first() == Some(&b'/') {
-        let pat_after = unsafe { CStr::from_ptr(pat.as_ptr().wrapping_add(1)) };
+        let pat_after = crate::memory::CStrSubslice::advance(pat, 1);
         find_tags(
             pat_after,
             &mut raw_matches,

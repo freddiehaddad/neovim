@@ -1239,7 +1239,7 @@ pub fn ex_match(eap: &mut Exarg) {
                 return;
             }
             end = skip_regexp(
-                unsafe { std::ffi::CStr::from_ptr(p.wrapping_add(1)) },
+                crate::memory::cstr_from_ptr(p.wrapping_add(1)),
                 i32::from(crate::memory::cstr_first_byte(p)),
                 1,
             )

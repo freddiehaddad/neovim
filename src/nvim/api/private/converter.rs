@@ -92,7 +92,7 @@ fn convert_one_value(
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
             let obj = if !fun.is_null()
-                && let Some(fp) = find_func(Some(unsafe { std::ffi::CStr::from_ptr(fun) }))
+                && let Some(fp) = find_func(Some(crate::memory::cstr_from_ptr(fun)))
                 && (fp.uf_flags & FC_LUAREF) != 0
             {
                 Object {

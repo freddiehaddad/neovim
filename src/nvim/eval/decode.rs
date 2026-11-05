@@ -186,8 +186,7 @@ fn json_decoder_pop(
             tv_list_append_owned_tv(&mut *kv_pair, obj.val);
         } else {
             assert!(!(key.is_special_string || key.val.vval.v_string().is_null()));
-            let obj_di =
-                tv_dict_item_alloc(unsafe { std::ffi::CStr::from_ptr(key.val.vval.v_string()) });
+            let obj_di = tv_dict_item_alloc(crate::memory::cstr_from_ptr(key.val.vval.v_string()));
             tv_clear(&mut key.val);
             let dict = last_container.container.vval.v_dict_ref();
             if !tv_dict_add(dict, obj_di) {
@@ -219,7 +218,7 @@ fn json_decoder_pop(
                 || obj.val.vval.v_string().is_null()
                 || tv_dict_find(
                     dict.as_deref(),
-                    unsafe { std::ffi::CStr::from_ptr(obj.val.vval.v_string()) },
+                    crate::memory::cstr_from_ptr(obj.val.vval.v_string()),
                     -1,
                 )
                 .is_some())

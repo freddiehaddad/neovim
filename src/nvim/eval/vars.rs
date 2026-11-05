@@ -918,7 +918,7 @@ pub fn eval_one_expr_in_str<'a>(
         );
         return None;
     }
-    let mut block_end_cstr = unsafe { CStr::from_ptr(block_end.cast()) };
+    let mut block_end_cstr = crate::memory::cstr_from_ptr(block_end);
     if !skip_expr(&mut block_end_cstr, None) {
         return None;
     }
@@ -940,7 +940,7 @@ pub fn eval_one_expr_in_str<'a>(
         }
     }
 
-    Some(unsafe { CStr::from_ptr(block_end.wrapping_add(1).cast()) })
+    Some(crate::memory::cstr_from_ptr(block_end.wrapping_add(1)))
 }
 
 /// Evaluate all the Vim expressions {expr} in "str" and return the resulting string as an owned `CString`.
@@ -983,7 +983,7 @@ fn eval_all_expr_in_str(str_arg_in: &CStr) -> Option<std::ffi::CString> {
         }
 
         let p = str_arg.wrapping_add(full_bytes.len() - rem.len());
-        let next_p = eval_one_expr_in_str(unsafe { CStr::from_ptr(p.cast()) }, &mut buf, true)?;
+        let next_p = eval_one_expr_in_str(crate::memory::cstr_from_ptr(p), &mut buf, true)?;
         let consumed = (next_p.as_ptr() as usize).wrapping_sub(str_arg as usize);
         rem = &full_bytes[consumed.min(full_bytes.len())..];
     }
@@ -1137,13 +1137,14 @@ pub fn heredoc_get(
 
         let str_line = theline.as_ptr().wrapping_add(ti as usize);
         if evalstr && !eap.skip {
-            let Some(evaluated) = eval_all_expr_in_str(unsafe { CStr::from_ptr(str_line) }) else {
+            let Some(evaluated) = eval_all_expr_in_str(crate::memory::cstr_from_ptr(str_line))
+            else {
                 eval_failed = true;
                 continue;
             };
             tv_list_append_string(&mut *l, Some(evaluated.as_c_str()), -1);
         } else {
-            tv_list_append_string(&mut *l, Some(unsafe { CStr::from_ptr(str_line) }), -1);
+            tv_list_append_string(&mut *l, Some(crate::memory::cstr_from_ptr(str_line)), -1);
         }
     }
     if heredoc_in_string {
@@ -1208,7 +1209,11 @@ pub fn ex_let(eap: &mut Exarg) {
     }
 
     if expr_bytes.starts_with(b"=<<") {
-        if let Some(l) = heredoc_get(eap, unsafe { CStr::from_ptr(expr.wrapping_add(3)) }, false) {
+        if let Some(l) = heredoc_get(
+            eap,
+            crate::memory::cstr_from_ptr(expr.wrapping_add(3)),
+            false,
+        ) {
             tv_list_set_ret(&mut rettv, Some(l));
             if !eap.skip {
                 op[0] = b'=';
@@ -1254,7 +1259,7 @@ pub fn ex_let(eap: &mut Exarg) {
     let mut evalarg = Evalarg::new();
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
     let eval_res = eval0(
-        unsafe { CStr::from_ptr(expr) },
+        crate::memory::cstr_from_ptr(expr),
         &mut rettv,
         Some(&mut *eap),
         &mut evalarg,
@@ -1371,7 +1376,7 @@ pub fn skip_var_list<'a>(
         let mut p = arg_in.as_ptr().cast::<u8>();
         loop {
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
-            let p_cstr = unsafe { CStr::from_ptr(p.cast()) };
+            let p_cstr = crate::memory::cstr_from_ptr(p);
             let s = skip_var_one(p_cstr).as_ptr().cast::<u8>();
             if s == p {
                 if !silent {
@@ -1399,7 +1404,7 @@ pub fn skip_var_list<'a>(
                 return None;
             }
         }
-        return Some(unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) });
+        return Some(crate::memory::cstr_from_ptr(p.wrapping_add(1)));
     }
     Some(skip_var_one(arg_in))
 }
@@ -1409,11 +1414,11 @@ fn skip_var_one(arg_in: &CStr) -> &CStr {
     let arg = arg_in.as_ptr().cast::<u8>();
     let arg_bytes = arg_in.to_bytes();
     if arg_bytes.first() == Some(&b'@') && arg_bytes.len() > 1 {
-        return unsafe { CStr::from_ptr(arg.wrapping_add(2).cast()) };
+        return crate::memory::cstr_from_ptr(arg.wrapping_add(2));
     }
     find_name_end(
         if matches!(arg_bytes.first(), Some(&b'$' | &b'&')) {
-            unsafe { CStr::from_ptr(arg.wrapping_add(1).cast()) }
+            crate::memory::cstr_from_ptr(arg.wrapping_add(1))
         } else {
             arg_in
         },
@@ -1490,7 +1495,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
     while ends_excmd(crate::memory::cstr_first_byte(arg)) == 0 && !g_st().got_int {
         if error || eap.skip {
             arg = find_name_end(
-                unsafe { CStr::from_ptr(arg.cast()) },
+                crate::memory::cstr_from_ptr(arg),
                 None,
                 FNE_INCL_BR | FNE_CHECK_START,
             )
@@ -1508,7 +1513,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             let name_start = arg;
             let mut name = arg;
             let mut tofree: Option<std::ffi::CString> = None;
-            let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+            let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
             let len = get_name_len(&mut arg_cstr, &mut tofree, true, true);
             arg = arg_cstr.as_ptr().cast_mut().cast();
             if len <= 0 {
@@ -1523,7 +1528,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                     name = tf.as_ptr().cast();
                 }
                 if !eval_variable(
-                    unsafe { CStr::from_ptr(name.cast()) },
+                    crate::memory::cstr_from_ptr(name),
                     len,
                     Some(&mut tv),
                     None,
@@ -1533,7 +1538,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                     error = true;
                 } else {
                     let arg_subsc = arg;
-                    let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+                    let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
                     let subsc_ok = handle_subscript(
                         &mut arg_cstr,
                         &mut tv,
@@ -1592,7 +1597,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
         arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
     }
 
-    unsafe { CStr::from_ptr(arg.cast()) }
+    crate::memory::cstr_from_ptr(arg)
 }
 
 /// Set an environment variable, part of ex_let_one().
@@ -1612,7 +1617,7 @@ fn ex_let_env<'a>(
     let mut arg_end: *mut u8 = ptr::null_mut();
     arg = arg.wrapping_add(1);
     let name = arg;
-    let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+    let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
     let len = get_env_len(&mut arg_cstr) as usize;
     arg = arg_cstr.as_ptr().cast_mut().cast();
     let op_b = op.and_then(|s| s.to_bytes().first().copied()).unwrap_or(0);
@@ -1782,7 +1787,7 @@ fn ex_let_option<'a>(
 
     optval_free(curval);
     optval_free(newval);
-    Some(unsafe { CStr::from_ptr(p.cast()) })
+    Some(crate::memory::cstr_from_ptr(p))
 }
 
 /// Set a register, part of ex_let_one().
@@ -1941,7 +1946,7 @@ fn ex_unletlock(
             lv.ll_name = Some(crate::memory::cstr_from_ptr(arg));
             lv.ll_tv = crate::globals::GraphPtr::NULL;
             arg = arg.wrapping_add(1);
-            let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+            let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
             if get_env_len(&mut arg_cstr) == 0 {
                 semsg!(gettext(E_INVARG2), arg.wrapping_sub(1));
                 return;
@@ -1954,7 +1959,7 @@ fn ex_unletlock(
             name_end = arg;
         } else {
             name_end = get_lval(
-                unsafe { CStr::from_ptr(arg.cast()) },
+                crate::memory::cstr_from_ptr(arg),
                 None,
                 &mut lv,
                 true,
@@ -2109,7 +2114,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             hash_find(unsafe { &*ht }, crate::memory::cstr_from_ptr(varname));
         if hashitem_empty(unsafe { &*hi }) {
             let mut ht_opt: Option<&'static mut Hashtab> = Some(unsafe { &mut *ht });
-            hi = find_hi_in_scoped_ht(unsafe { CStr::from_ptr(name) }, &mut ht_opt)
+            hi = find_hi_in_scoped_ht(crate::memory::cstr_from_ptr(name), &mut ht_opt)
                 .map_or(ptr::null_mut(), ptr::from_mut);
             if let Some(h) = ht_opt {
                 ht = h;
@@ -2745,7 +2750,7 @@ fn find_var_ht_dict<'a>(
         return Some(unsafe { &mut (*glob_d).dv_hashtab });
     }
 
-    *varname = Some(unsafe { CStr::from_ptr(name.wrapping_add(2).cast()) });
+    *varname = Some(crate::memory::cstr_from_ptr(name.wrapping_add(2)));
     let scope_b = name_slice[0];
     let mut dict_ptr: *mut TvDict = ptr::null_mut();
     if scope_b == b'g' {
@@ -3092,7 +3097,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
     }
 
     if watched {
-        let key_cstr = unsafe { CStr::from_ptr(di.di_key.as_ptr().cast()) };
+        let key_cstr = di.key_cstr();
         tv_dict_watcher_notify(dict_opt.unwrap(), key_cstr, Some(&di.di_tv), Some(&oldtv));
         tv_clear(&mut oldtv);
     }
@@ -3263,7 +3268,7 @@ fn get_var_from(
                     tv_dict_set_ret(rettv, Some(opts));
                     done = true;
                 } else {
-                    let mut varname_c = unsafe { CStr::from_ptr(varname) };
+                    let mut varname_c = crate::memory::cstr_from_ptr(varname);
                     if eval_option(&mut varname_c, Some(rettv), true) {
                         done = true;
                     }
@@ -3505,7 +3510,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         )
     {
         if crate::memory::cstr_first_byte(varname) == b'&' {
-            set_option_from_tv(unsafe { CStr::from_ptr(varname.wrapping_add(1)) }, varp);
+            set_option_from_tv(crate::memory::cstr_from_ptr(varname.wrapping_add(1)), varp);
         } else {
             let varname_len = crate::memory::cstr_len(varname);
             let mut winvarname = Vec::with_capacity(varname_len + 3);
@@ -3830,7 +3835,7 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if crate::memory::cstr_first_byte(varname) == b'&' {
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(buf), 0);
-        set_option_from_tv(unsafe { CStr::from_ptr(varname.wrapping_add(1)) }, arg2);
+        set_option_from_tv(crate::memory::cstr_from_ptr(varname.wrapping_add(1)), arg2);
         ctx_restore(&mut aco);
     } else {
         let varname_len = crate::memory::cstr_len(varname);

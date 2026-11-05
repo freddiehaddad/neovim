@@ -1536,10 +1536,10 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
     let mut tofree: Option<std::ffi::CString> = None;
     if argvars[0].v_type == VarType::VarString {
-        let mut p = unsafe { CStr::from_ptr(func) };
+        let mut p = crate::memory::cstr_from_ptr(func);
         tofree = trans_function_name(&mut p, false, TFN_INT | TFN_QUIET, None, None);
         let Some(ref tf) = tofree else {
-            emsg_funcname(E_UNKNOWN_FUNCTION_STR, unsafe { CStr::from_ptr(func) });
+            emsg_funcname(E_UNKNOWN_FUNCTION_STR, crate::memory::cstr_from_ptr(func));
             return;
         };
         func = tf.as_ptr().cast_mut();
@@ -1555,7 +1555,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
 
         func_call(
-            unsafe { CStr::from_ptr(func) },
+            crate::memory::cstr_from_ptr(func),
             &mut argvars[1],
             unsafe { partial.as_mut() },
             unsafe { selfdict.as_mut() },
@@ -1564,7 +1564,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
 
     if owned {
-        func_unref(Some(unsafe { CStr::from_ptr(func) }));
+        func_unref(Some(crate::memory::cstr_from_ptr(func)));
     }
     drop(tofree);
 }
@@ -2095,7 +2095,7 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut s_cstr = if s.is_null() {
         c""
     } else {
-        unsafe { CStr::from_ptr(s) }
+        crate::memory::cstr_from_ptr(s)
     };
     let ok = !s.is_null() && eval1(&mut s_cstr, &mut *rettv, Some(&mut g_st().evalarg_evaluate));
     s = s_cstr.as_ptr().cast_mut();
@@ -2223,7 +2223,7 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             }
         }
         Some(&b'&' | &b'+') => {
-            let mut p_cstr = unsafe { CStr::from_ptr(p) };
+            let mut p_cstr = crate::memory::cstr_from_ptr(p);
             n = i32::from(eval_option(&mut p_cstr, None, true));
             p = p_cstr.as_ptr();
             if !crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(p)).is_empty() {
@@ -2234,7 +2234,7 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             n = i32::from(if p_bytes.starts_with(b"*v:lua.") {
                 nlua_func_exists(crate::memory::cstr_from_ptr(p.wrapping_add(7)))
             } else {
-                function_exists(unsafe { CStr::from_ptr(p.wrapping_add(1)) }, false)
+                function_exists(crate::memory::cstr_from_ptr(p.wrapping_add(1)), false)
             });
         }
         Some(&b':') => {
@@ -2242,11 +2242,11 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
         Some(&b'#') => {
             if p_bytes.get(1) == Some(&b'#') {
-                n = i32::from(autocmd_supported(unsafe {
-                    CStr::from_ptr(p.wrapping_add(2))
-                }));
+                n = i32::from(autocmd_supported(crate::memory::cstr_from_ptr(
+                    p.wrapping_add(2),
+                )));
             } else {
-                n = i32::from(au_exists(unsafe { CStr::from_ptr(p.wrapping_add(1)) }));
+                n = i32::from(au_exists(crate::memory::cstr_from_ptr(p.wrapping_add(1))));
             }
         }
         _ => {
@@ -2549,7 +2549,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
     if (use_string && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr(s), AUTOLOAD_CHAR))
         || is_funcref
     {
-        let mut name_cstr = unsafe { CStr::from_ptr(s) };
+        let mut name_cstr = crate::memory::cstr_from_ptr(s);
         trans_name_owned = save_function_name(
             &mut name_cstr,
             false,
@@ -2579,9 +2579,9 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             );
         } else if !trans_name.is_null()
             && if is_funcref {
-                find_func(Some(unsafe { CStr::from_ptr(trans_name) })).is_none()
+                find_func(Some(crate::memory::cstr_from_ptr(trans_name))).is_none()
             } else {
-                !translated_function_exists(unsafe { CStr::from_ptr(trans_name) })
+                !translated_function_exists(crate::memory::cstr_from_ptr(trans_name))
             }
         {
             semsg!(gettext(c"E700: Unknown function: %s"), s);
@@ -2591,7 +2591,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             let mut list: *mut TvList = ptr::null_mut();
             let s_bytes = crate::memory::cstr_as_bytes(s);
             let name_cstr = if s_bytes.starts_with(b"s:") || s_bytes.starts_with(b"<SID>") {
-                get_scriptlocal_funcname(Some(unsafe { CStr::from_ptr(s) })).unwrap_or_default()
+                get_scriptlocal_funcname(Some(crate::memory::cstr_from_ptr(s))).unwrap_or_default()
             } else {
                 cstr_to_cstring(s)
             };
@@ -2624,7 +2624,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                     if tv_list_len(unsafe { list.as_ref() }) == 0 {
                         arg_idx = 0;
                     } else if (tv_list_len(unsafe { list.as_ref() }) as usize) > MAX_FUNC_ARGS {
-                        emsg_funcname(E_TOOMANYARG, unsafe { CStr::from_ptr(s) });
+                        emsg_funcname(E_TOOMANYARG, crate::memory::cstr_from_ptr(s));
                         break 'theend;
                     }
                 }
@@ -2677,7 +2677,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                     func_ptr_ref(pt.pt_func.opt_mut());
                 } else if is_funcref {
                     pt.pt_func = crate::globals::GraphPtr::from(find_func(
-                        (!trans_name.is_null()).then(|| unsafe { CStr::from_ptr(trans_name) }),
+                        crate::memory::cstr_as_opt_cstr(trans_name),
                     ));
 
                     func_ptr_ref(pt.pt_func.opt_mut());
@@ -2692,7 +2692,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 crate::eval::typval::tv_set_string(&mut *rettv, Some(&name_cstr));
                 rettv.v_type = VarType::VarFunc;
                 let s_ptr = rettv.vval.v_string();
-                func_ref((!s_ptr.is_null()).then(|| unsafe { CStr::from_ptr(s_ptr) }));
+                func_ref(crate::memory::cstr_as_opt_cstr(s_ptr));
             }
         }
     }
@@ -4355,7 +4355,7 @@ pub fn create_environment(
                 }
                 tv_dict_add_str(
                     &mut *env,
-                    unsafe { CStr::from_ptr(name) },
+                    crate::memory::cstr_from_ptr(name),
                     crate::memory::cstr_as_opt_cstr(item.value),
                 );
             }
@@ -4407,7 +4407,7 @@ pub fn create_environment(
                         namelen = mb_strup_buf(key_b, g_st().name_buff_bytes_mut());
                         name = g_st().name_buff.as_ptr();
                     }
-                    let name_cstr = unsafe { CStr::from_ptr(name) };
+                    let name_cstr = crate::memory::cstr_from_ptr(name);
                     if let Some(dv) = crate::eval::typval::tv_dict_find_opt(
                         Some(&*env),
                         name_cstr,
@@ -4609,7 +4609,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         clear_env,
         pty,
         true,
-        (!term_name.is_null()).then(|| unsafe { CStr::from_ptr(term_name) }),
+        crate::memory::cstr_as_opt_cstr(term_name),
     );
     let chan = channel_job_start(
         argv,
@@ -5293,7 +5293,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             } else {
                                 tv_list_append_string(
                                     rettv.vval.v_list_ref(),
-                                    Some(unsafe { CStr::from_ptr(regmatch.startp[i].cast()) }),
+                                    Some(crate::memory::cstr_from_ptr(regmatch.startp[i])),
                                     crate::memory::ptr_offset_from(
                                         regmatch.endp[i],
                                         regmatch.startp[i],
@@ -5398,7 +5398,7 @@ fn get_matches_in_str(
                 } else {
                     tv_list_append_string(
                         &mut *sml,
-                        Some(unsafe { CStr::from_ptr(rmp.startp[i].cast()) }),
+                        Some(crate::memory::cstr_from_ptr(rmp.startp[i])),
                         crate::memory::ptr_offset_from(rmp.endp[i], rmp.startp[i]),
                     );
                 }
@@ -5495,7 +5495,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             let str_ = ml_get_buf(unsafe { &mut *buf }, slnum).as_ptr().cast_mut();
 
             get_matches_in_str(
-                unsafe { CStr::from_ptr(str_) },
+                crate::memory::cstr_from_ptr(str_),
                 &mut regmatch,
                 unsafe { &mut *retlist },
                 slnum,
@@ -5583,7 +5583,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let li_tv = &li.li_tv;
                 if li_tv.v_type == VarType::VarString && !li_tv.vval.v_string().is_null() {
                     get_matches_in_str(
-                        unsafe { CStr::from_ptr(li_tv.vval.v_string()) },
+                        crate::memory::cstr_from_ptr(li_tv.vval.v_string()),
                         &mut regmatch,
                         unsafe { &mut *retlist },
                         idx,
@@ -7108,9 +7108,9 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         };
 
         retval = do_searchpair(
-            unsafe { CStr::from_ptr(spat) },
-            unsafe { CStr::from_ptr(mpat) },
-            unsafe { CStr::from_ptr(epat) },
+            crate::memory::cstr_from_ptr(spat),
+            crate::memory::cstr_from_ptr(mpat),
+            crate::memory::cstr_from_ptr(epat),
             dir,
             unsafe { skip.as_ref() },
             flags,
@@ -8006,7 +8006,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     tv_list_alloc_ret(rettv, 2);
     tv_list_append_string(
         rettv.vval.v_list_ref(),
-        Some(unsafe { CStr::from_ptr(word) }),
+        Some(crate::memory::cstr_from_ptr(word)),
         len as isize,
     );
     match attr {
@@ -8122,7 +8122,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 {
                     tv_list_append_string(
                         rettv.vval.v_list_ref(),
-                        Some(unsafe { CStr::from_ptr(str_) }),
+                        Some(crate::memory::cstr_from_ptr(str_)),
                         crate::memory::ptr_offset_from(end, str_),
                     );
                 }
@@ -8223,7 +8223,7 @@ pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
         p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
     }
-    string2float(unsafe { CStr::from_ptr(p) }, rettv.vval.v_float_mut());
+    string2float(crate::memory::cstr_from_ptr(p), rettv.vval.v_float_mut());
     if isneg {
         *rettv.vval.v_float_mut() *= -1.0;
     }
@@ -8408,14 +8408,14 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let sub_res = do_string_sub(
             str_,
             str_.to_bytes().len(),
-            unsafe { CStr::from_ptr(pat) },
+            crate::memory::cstr_from_ptr(pat),
             if sub.is_null() {
                 c""
             } else {
-                unsafe { CStr::from_ptr(sub) }
+                crate::memory::cstr_from_ptr(sub)
             },
             unsafe { expr.as_ref() },
-            unsafe { CStr::from_ptr(flg) },
+            crate::memory::cstr_from_ptr(flg),
         );
         crate::eval::typval::tv_set_string_len(rettv, Some(sub_res.as_bytes()));
     }

@@ -5674,7 +5674,7 @@ fn skip_colon_white(p: &CStr, skipleadingwhite: bool) -> &CStr {
     while crate::memory::cstr_first_byte(p_ptr) == b':' {
         p_ptr = crate::charset::skipwhite_ptr(p_ptr.wrapping_add(1));
     }
-    unsafe { CStr::from_ptr(p_ptr) }
+    crate::memory::cstr_from_ptr(p_ptr)
 }
 
 pub fn set_cmd_addr_type(eap: &mut Exarg, p: Option<&CStr>) {
@@ -5884,7 +5884,7 @@ fn parse_bang(eap: &Exarg, p: &mut &'static CStr) -> bool {
         && eap.cmdidx != Cmdidx::CmdSmagic
         && eap.cmdidx != Cmdidx::CmdSnomagic
     {
-        *p = unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(1)) };
+        *p = crate::memory::CStrSubslice::advance(*p, 1);
         return true;
     }
     false
@@ -6013,7 +6013,7 @@ pub fn parse_cmdline(
             {
                 let start = arg;
                 g_st().emsg_skip += 1;
-                let mut arg_cstr = unsafe { CStr::from_ptr(arg) };
+                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
                 skip_expr(&mut arg_cstr, None);
                 arg = arg.wrapping_add((arg_cstr.as_ptr() as usize) - (start as usize));
                 g_st().emsg_skip -= 1;
@@ -7750,7 +7750,7 @@ pub fn skip_range<'a>(cmd_in: &'a CStr, mut ctx: Option<&mut i32>) -> &'a CStr {
             }
         } else if b0 == b'/' || b0 == b'?' {
             cmd = skip_regexp(
-                unsafe { CStr::from_ptr(cmd.wrapping_add(1)) },
+                crate::memory::cstr_from_ptr(cmd.wrapping_add(1)),
                 i32::from(b0),
                 i32::from(opt_vars().p_magic),
             )
@@ -7766,13 +7766,13 @@ pub fn skip_range<'a>(cmd_in: &'a CStr, mut ctx: Option<&mut i32>) -> &'a CStr {
         }
     }
 
-    cmd = skip_colon_white(unsafe { CStr::from_ptr(cmd) }, false).as_ptr();
+    cmd = skip_colon_white(crate::memory::cstr_from_ptr(cmd), false).as_ptr();
 
     if crate::memory::cstr_first_byte(cmd) == b'*' {
         cmd = crate::charset::skipwhite_ptr(cmd.wrapping_add(1));
     }
 
-    unsafe { CStr::from_ptr(cmd) }
+    crate::memory::cstr_from_ptr(cmd)
 }
 
 fn addr_error(addr_type: CmdAddr) -> &'static std::ffi::CStr {
@@ -7911,7 +7911,7 @@ pub fn get_address(
                     }
                     if skip {
                         cmd = skip_regexp(
-                            unsafe { CStr::from_ptr(cmd) },
+                            crate::memory::cstr_from_ptr(cmd),
                             c,
                             i32::from(opt_vars().p_magic),
                         )
@@ -8117,7 +8117,7 @@ pub fn get_address(
     *cmd_opt = if cmd.is_null() {
         None
     } else {
-        Some(unsafe { CStr::from_ptr(cmd) })
+        Some(crate::memory::cstr_from_ptr(cmd))
     };
 
     lnum
@@ -8309,7 +8309,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
     while !crate::memory::cstr_is_empty(p) {
         if crate::memory::cstr_as_bytes(p).starts_with(b"`=") {
             p = p.wrapping_add(2);
-            let mut p_cstr = unsafe { CStr::from_ptr(p) };
+            let mut p_cstr = crate::memory::cstr_from_ptr(p);
             skip_expr(&mut p_cstr, None);
             p = p_cstr.as_ptr().cast_mut();
             if crate::memory::cstr_first_byte(p) == b'`' {
@@ -8536,7 +8536,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             && (eap.argt & EX_XFILE) != 0
         {
             p = p.wrapping_add(2);
-            let mut p_cstr = unsafe { CStr::from_ptr(p) };
+            let mut p_cstr = crate::memory::cstr_from_ptr(p);
             skip_expr(&mut p_cstr, None);
             p = p.wrapping_add((p_cstr.as_ptr() as usize) - (p as usize));
             if unsafe { *p } == 0 {
@@ -8635,7 +8635,7 @@ pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
     if rembs {
         let buf = unsafe { std::slice::from_raw_parts_mut(p_ptr, len + 1) };
         let idx = skip_cmd_arg_mut(buf);
-        return unsafe { CStr::from_ptr(p_ptr.wrapping_add(idx).cast()) };
+        return crate::memory::cstr_from_ptr(p_ptr.wrapping_add(idx));
     }
     let bytes = p.to_bytes();
     let mut idx = 0;
@@ -8647,7 +8647,7 @@ pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
             idx += crate::mbyte::utfc_slice2len(&bytes[idx..len]);
         }
     }
-    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(idx)) }
+    crate::memory::CStrSubslice::advance(p, idx)
 }
 
 pub fn get_bad_opt(bytes: &[u8], eap: &mut Exarg) -> bool {
@@ -9019,13 +9019,13 @@ pub fn find_nextcmd(p: &CStr) -> Option<&CStr> {
         }
         ptr = ptr.wrapping_add(1);
     }
-    Some(unsafe { CStr::from_ptr(ptr.wrapping_add(1)) })
+    Some(crate::memory::cstr_from_ptr(ptr.wrapping_add(1)))
 }
 
 pub fn check_nextcmd(p: &CStr) -> Option<&CStr> {
     let s = crate::charset::skipwhite_ptr(p.as_ptr());
     if crate::memory::cstr_first_byte(s) == b'|' || crate::memory::cstr_first_byte(s) == b'\n' {
-        return Some(unsafe { CStr::from_ptr(s.wrapping_add(1)) });
+        return Some(crate::memory::cstr_from_ptr(s.wrapping_add(1)));
     }
     None
 }
@@ -11951,14 +11951,10 @@ fn ex_findpat(eap: &mut Exarg) {
 
 fn ex_ptag(eap: &mut Exarg) {
     g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
-    ex_tag_cmd(eap, unsafe {
-        CStr::from_ptr(
-            CMDNAMES[eap.cmdidx as usize]
-                .cmd_name
-                .as_ptr()
-                .wrapping_add(1),
-        )
-    });
+    ex_tag_cmd(
+        eap,
+        crate::memory::CStrSubslice::advance(CMDNAMES[eap.cmdidx as usize].cmd_name, 1),
+    );
 }
 
 fn ex_pedit(eap: &mut Exarg) {
@@ -11994,14 +11990,10 @@ fn ex_stag(eap: &mut Exarg) {
     g_st().postponed_split = -1;
     g_st().postponed_split_flags = g_st().cmdmod.cmod_split;
     g_st().postponed_split_tab = g_st().cmdmod.cmod_tab;
-    ex_tag_cmd(eap, unsafe {
-        CStr::from_ptr(
-            CMDNAMES[eap.cmdidx as usize]
-                .cmd_name
-                .as_ptr()
-                .wrapping_add(1),
-        )
-    });
+    ex_tag_cmd(
+        eap,
+        crate::memory::CStrSubslice::advance(CMDNAMES[eap.cmdidx as usize].cmd_name, 1),
+    );
     g_st().postponed_split_flags = 0;
     g_st().postponed_split_tab = 0;
 }

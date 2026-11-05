@@ -462,7 +462,7 @@ pub fn modify_fname(
                                 &pat,
                                 &sub,
                                 None,
-                                unsafe { CStr::from_ptr(flags) },
+                                crate::memory::cstr_from_ptr(flags),
                             );
                             *fnamelen = sub_res.as_bytes().len();
                             *fbuf = sub_res.into_bytes_with_nul();

@@ -1516,7 +1516,7 @@ pub extern "C" fn build_stl_str_hl(
         set_var(b"g:statusline_winid", &mut tv, false);
 
         owned_usefmt = eval_to_string_safe(
-            unsafe { std::ffi::CStr::from_ptr(fmt.wrapping_add(2).cast()) },
+            crate::memory::cstr_from_ptr(fmt.wrapping_add(2)),
             use_sandbox,
             false,
         );
@@ -2034,7 +2034,7 @@ pub extern "C" fn build_stl_str_hl(
                     }
 
                     owned_str = eval_to_string_safe(
-                        unsafe { std::ffi::CStr::from_ptr(out_p.cast()) },
+                        crate::memory::cstr_from_ptr(out_p),
                         use_sandbox,
                         false,
                     );
@@ -2650,9 +2650,9 @@ pub extern "C" fn build_stl_str_hl(
                     | StlItemType::HighlightFold
                     | StlItemType::HighlightSign
             ) {
-                stl_hltab!()[sp_idx].start = Some(unsafe {
-                    std::ffi::CStr::from_ptr(out_data.wrapping_add(item.start_off).cast())
-                });
+                stl_hltab!()[sp_idx].start = Some(crate::memory::cstr_from_ptr(
+                    out_data.wrapping_add(item.start_off),
+                ));
                 stl_hltab!()[sp_idx].userhl = item.minwid;
                 stl_hltab!()[sp_idx].item = match item.type_ {
                     StlItemType::HighlightSign => i32::from(STL_SIGNCOL),
@@ -2683,9 +2683,9 @@ pub extern "C" fn build_stl_str_hl(
         for item in &mut stl_items!()[(evalstart as usize)..(stl_st().curitem as usize)] {
             if item.type_ == StlItemType::TabPage {
                 let rec = &mut stl_tabtab!()[tab_idx];
-                rec.start = Some(unsafe {
-                    std::ffi::CStr::from_ptr(out_data.wrapping_add(item.start_off).cast())
-                });
+                rec.start = Some(crate::memory::cstr_from_ptr(
+                    out_data.wrapping_add(item.start_off),
+                ));
                 if item.minwid == 0 {
                     rec.def.type_ = K_STL_CLICK_DISABLED;
                     rec.def.tabnr = 0;
@@ -2703,9 +2703,9 @@ pub extern "C" fn build_stl_str_hl(
                 tab_idx += 1;
             } else if item.type_ == StlItemType::ClickFunc {
                 let rec = &mut stl_tabtab!()[tab_idx];
-                rec.start = Some(unsafe {
-                    std::ffi::CStr::from_ptr(out_data.wrapping_add(item.start_off).cast())
-                });
+                rec.start = Some(crate::memory::cstr_from_ptr(
+                    out_data.wrapping_add(item.start_off),
+                ));
                 rec.def.type_ = K_STL_CLICK_FUNC_RUN;
                 rec.def.tabnr = item.minwid;
                 rec.def.func = item.cmd.take();

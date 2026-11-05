@@ -95,7 +95,7 @@ mod tests {
         let s = c"++deny   file.lua";
         let len = crate::charset::skiptowhite_len(s.to_bytes());
         assert_eq!(len, 6);
-        let p = unsafe { std::ffi::CStr::from_ptr(s.as_ptr().wrapping_add(len)) };
+        let p = crate::memory::CStrSubslice::advance(s, len);
         let q = crate::charset::skipwhite(p);
         assert_eq!(q.to_bytes(), b"file.lua");
     }

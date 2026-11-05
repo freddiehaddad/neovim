@@ -970,7 +970,7 @@ fn readfile_progress(
 
     let trunc = s.is_some();
     let rv = msg_progress(s, msg_id, status, percent, 0, hist, trunc, false)
-        .map(|cs| unsafe { CStr::from_ptr(cs.as_ptr()) });
+        .map(|cs| crate::memory::cstr_from_ptr(cs.as_ptr()));
 
     buf.b_locked -= 1;
 
@@ -4494,7 +4494,7 @@ pub fn delete_recursive(name: &CStr) -> i32 {
                     c"%s",
                     entry.as_ptr(),
                 );
-                let sub_cstr = unsafe { CStr::from_ptr(g_st().name_buff.as_ptr()) };
+                let sub_cstr = crate::memory::cstr_from_ptr(g_st().name_buff.as_ptr());
                 if delete_recursive(sub_cstr) != 0 {
                     result = -1;
                 }
@@ -4668,8 +4668,9 @@ pub fn match_file_pat(
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: &CStr, sfname: Option<&CStr>, ffname: &CStr) -> bool {
     let sfname_ptr = sfname.map_or(ptr::null(), CStr::as_ptr);
-    let tail =
-        unsafe { CStr::from_ptr((path_tail(crate::memory::cstr_from_ptr(sfname_ptr))).as_ptr()) };
+    let tail = crate::memory::cstr_from_ptr(
+        (path_tail(crate::memory::cstr_from_ptr(sfname_ptr))).as_ptr(),
+    );
 
     let mut p = list.to_bytes();
     while !p.is_empty() {

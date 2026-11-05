@@ -2038,9 +2038,9 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 pat_len += 1;
             }
             if pat_len < pat_bytes.len() {
-                cmd = unsafe { CStr::from_ptr(pat.as_ptr().wrapping_add(pat_len + 1)) };
+                cmd = crate::memory::cstr_from_ptr(pat.as_ptr().wrapping_add(pat_len + 1));
                 let p_cstr = CString::new(&pat_bytes[..pat_len]).unwrap_or_default();
-                pat = unsafe { CStr::from_ptr(p_cstr.as_ptr()) };
+                pat = crate::memory::cstr_from_ptr(p_cstr.as_ptr());
                 pat_owned = Some(p_cstr);
             } else {
                 cmd = c"";
@@ -2050,7 +2050,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 || crate::strings::vim_haschr(pat, b'~' as i32)
             {
                 let ep = expand_env_save(pat);
-                pat = unsafe { CStr::from_ptr(ep.as_ptr()) };
+                pat = crate::memory::cstr_from_ptr(ep.as_ptr());
                 envpat = Some(ep);
             }
 
@@ -2073,7 +2073,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
             if !cmd.to_bytes().is_empty() {
                 cmd_owned = expand_sfile(cmd);
                 match cmd_owned {
-                    Some(ref co) => cmd = unsafe { CStr::from_ptr(co.as_ptr()) },
+                    Some(ref co) => cmd = crate::memory::cstr_from_ptr(co.as_ptr()),
                     None => break 'run,
                 }
             }
@@ -2387,7 +2387,7 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
         let arg_bytes = arg.to_bytes();
         let mut rem = arg_bytes;
         let ev = event_name2nr(&mut rem);
-        arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(arg_bytes.len() - rem.len())) };
+        arg = crate::memory::CStrSubslice::advance(arg, arg_bytes.len() - rem.len());
         if apply_autocmds_group(
             ev,
             Some(fname),
@@ -2461,7 +2461,7 @@ pub fn check_nomodeline(argp: &mut &CStr) -> bool {
     let bytes = argp.to_bytes();
     if let Some(rest) = bytes.strip_prefix(b"<nomodeline>") {
         let skipped = crate::charset::skipwhite_slice(rest);
-        *argp = unsafe { CStr::from_ptr(argp.as_ptr().wrapping_add(bytes.len() - skipped.len())) };
+        *argp = crate::memory::CStrSubslice::advance(*argp, bytes.len() - skipped.len());
         return false;
     }
     true
@@ -3155,10 +3155,9 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 continue;
             }
             let matches = if ap.buflocal_nr == 0 {
-                let tail_cstr = apc
-                    .fname
-                    .as_deref()
-                    .map_or(c"", |f| unsafe { CStr::from_ptr((path_tail(f)).as_ptr()) });
+                let tail_cstr = apc.fname.as_deref().map_or(c"", |f| {
+                    crate::memory::cstr_from_ptr((path_tail(f)).as_ptr())
+                });
                 match_file_pat(
                     None,
                     ap.reg_prog.as_deref(),
@@ -3389,7 +3388,7 @@ fn has_autocmd_ext(
                     ap.reg_prog.as_deref(),
                     Some(&fname),
                     sfname,
-                    unsafe { CStr::from_ptr((tail).as_ptr()) },
+                    crate::memory::cstr_from_ptr((tail).as_ptr()),
                     i32::from(ap.allow_dirs),
                 )
             } else {
@@ -3443,7 +3442,7 @@ pub fn aucmd_set_expand_context<'a>(
     let mut p_idx = 0usize;
     while p_idx < arg_bytes.len() && !ascii_iswhite(arg_bytes[p_idx] as i32) {
         if arg_bytes[p_idx] == b',' {
-            arg = unsafe { CStr::from_ptr(ev_base.wrapping_add(p_idx + 1)) };
+            arg = crate::memory::cstr_from_ptr(ev_base.wrapping_add(p_idx + 1));
         }
         p_idx += 1;
     }
@@ -3457,7 +3456,7 @@ pub fn aucmd_set_expand_context<'a>(
     }
 
     let p_ptr = ev_base.wrapping_add(p_idx);
-    arg = unsafe { CStr::from_ptr(crate::charset::skipwhite_ptr(p_ptr)) };
+    arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p_ptr));
     let pat_bytes = arg.to_bytes();
     let mut pat_idx = 0usize;
     while pat_idx < pat_bytes.len()
@@ -3466,7 +3465,7 @@ pub fn aucmd_set_expand_context<'a>(
     {
         pat_idx += 1;
     }
-    arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(pat_idx)) };
+    arg = crate::memory::CStrSubslice::advance(arg, pat_idx);
     if pat_idx < pat_bytes.len() {
         arg = crate::charset::skipwhite(arg);
         for _ in 0..2 {
@@ -3687,7 +3686,7 @@ fn arg_event_skip(arg: &CStr, have_group: bool) -> Option<&CStr> {
             semsg!(tr(c"E215: Illegal character after *: %s"), arg.as_ptr());
             return None;
         }
-        Some(unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) })
+        Some(crate::memory::CStrSubslice::advance(arg, 1))
     } else {
         let mut rem = arg_bytes;
         while !rem.is_empty() && rem[0] != b'|' && !ascii_iswhite(i32::from(rem[0])) {
@@ -3702,7 +3701,10 @@ fn arg_event_skip(arg: &CStr, have_group: bool) -> Option<&CStr> {
                 return None;
             }
         }
-        Some(unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(arg_bytes.len() - rem.len())) })
+        Some(crate::memory::CStrSubslice::advance(
+            arg,
+            arg_bytes.len() - rem.len(),
+        ))
     }
 }
 

@@ -1764,7 +1764,7 @@ fn set_argf_var() {
             );
             tv_list_append_string(
                 &mut *list,
-                Some(unsafe { std::ffi::CStr::from_ptr(g_st().name_buff.as_ptr()) }),
+                Some(crate::memory::cstr_from_ptr(g_st().name_buff.as_ptr())),
                 -1,
             );
         }

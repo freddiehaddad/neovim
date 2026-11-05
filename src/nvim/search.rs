@@ -3205,7 +3205,7 @@ pub fn find_pattern_in_path(
 
         loop {
             if !incl_regmatch.regprog.is_null()
-                && vim_regexec(&mut incl_regmatch, unsafe { CStr::from_ptr(line) }, 0)
+                && vim_regexec(&mut incl_regmatch, crate::memory::cstr_from_ptr(line), 0)
             {
                 let p_fname_opt = if curr_fname == curbuf_mut().fname_opt() {
                     curbuf_mut().ffname_opt()
@@ -3416,7 +3416,7 @@ pub fn find_pattern_in_path(
                 loop {
                     define_matched = false;
                     if !def_regmatch.regprog.is_null()
-                        && vim_regexec(&mut def_regmatch, unsafe { CStr::from_ptr(line) }, 0)
+                        && vim_regexec(&mut def_regmatch, crate::memory::cstr_from_ptr(line), 0)
                     {
                         p = def_regmatch.endp[0].cast();
                         let p_bytes = crate::memory::cstr_as_bytes(p);
@@ -3453,7 +3453,7 @@ pub fn find_pattern_in_path(
                         } else if !regmatch.regprog.is_null()
                             && vim_regexec(
                                 &mut regmatch,
-                                unsafe { CStr::from_ptr(line) },
+                                crate::memory::cstr_from_ptr(line),
                                 crate::memory::ptr_offset_from(p, line) as Colnr,
                             )
                         {

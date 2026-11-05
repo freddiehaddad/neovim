@@ -3474,7 +3474,7 @@ fn get_group_name<'a>(arg: &'a CStr, name_len: &mut usize) -> Option<&'a CStr> {
     {
         return None;
     }
-    Some(unsafe { CStr::from_ptr(rest) })
+    Some(crate::memory::cstr_from_ptr(rest))
 }
 
 fn get_syn_options<'a>(
@@ -3566,19 +3566,19 @@ fn get_syn_options<'a>(
                     emsg(gettext(E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE));
                     return None;
                 }
-                let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
                 if !get_id_list(&mut arg_cstr, 8, &mut opt.cont_list, skip) {
                     return None;
                 }
                 arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 2 {
-                let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
                 if !get_id_list(&mut arg_cstr, 11, &mut opt.cont_in_list, skip) {
                     return None;
                 }
                 arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 3 {
-                let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
+                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
                 if !get_id_list(&mut arg_cstr, 9, &mut opt.next_list, skip) {
                     return None;
                 }
@@ -3642,7 +3642,7 @@ fn get_syn_options<'a>(
             }
         }
 
-        Some(unsafe { CStr::from_ptr(arg.cast()) })
+        Some(crate::memory::cstr_from_ptr(arg))
     }
 }
 
@@ -3785,7 +3785,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 p = p.wrapping_add(1);
                 cnt += 1;
                 let next_rest = crate::charset::skipwhite_ptr(rest);
-                rest_opt = Some(unsafe { CStr::from_ptr(next_rest) });
+                rest_opt = Some(crate::memory::cstr_from_ptr(next_rest));
             }
 
             if !eap.skip {
@@ -3998,7 +3998,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
             break;
         }
         rest = crate::charset::skipwhite_ptr(rest.wrapping_add(1));
-        rest_opt = Some(unsafe { CStr::from_ptr(rest) });
+        rest_opt = Some(crate::memory::cstr_from_ptr(rest));
         if crate::memory::cstr_is_empty(rest) {
             not_enough = true;
             break;
@@ -4022,7 +4022,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
                 }
             }
             rest = crate::charset::skipwhite_ptr(p);
-            rest_opt = Some(unsafe { CStr::from_ptr(rest) });
+            rest_opt = Some(crate::memory::cstr_from_ptr(rest));
         } else {
             let mut synp = Synpat::new();
 
@@ -4315,7 +4315,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
 
         let delim = arg_bytes[0];
         let mut end = skip_regexp(
-            unsafe { std::ffi::CStr::from_ptr(arg.wrapping_add(1).cast()) },
+            crate::memory::cstr_from_ptr(arg.wrapping_add(1)),
             delim as i32,
             1,
         )
@@ -4409,11 +4409,9 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             );
             return None;
         }
-        Some(unsafe {
-            CStr::from_ptr(crate::charset::skipwhite_ptr(
-                end.cast::<std::ffi::c_char>(),
-            ))
-        })
+        Some(crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
+            end.cast::<std::ffi::c_char>(),
+        )))
     }
 }
 
@@ -4664,10 +4662,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     name_buf[0] = b'^';
                     name_buf[1 + item_len] = b'$';
                     name_buf[2 + item_len] = 0;
-                    regmatch.set_prog(vim_regcomp(
-                        unsafe { std::ffi::CStr::from_ptr(name.cast()) },
-                        RE_MAGIC,
-                    ));
+                    regmatch.set_prog(vim_regcomp(crate::memory::cstr_from_ptr(name), RE_MAGIC));
                     if regmatch.regprog.is_null() {
                         failed = true;
                         break;
@@ -4732,7 +4727,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             round += 1;
         }
 
-        *arg = unsafe { CStr::from_ptr(p.cast()) };
+        *arg = crate::memory::cstr_from_ptr(p);
         if failed || retval.is_empty() {
             return false;
         }

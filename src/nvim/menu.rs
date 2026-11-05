@@ -1191,7 +1191,9 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                 menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
             }
 
-            Some(unsafe { CStr::from_ptr((&raw const menu_st().get_menu_names_tbuffer[0]).cast()) })
+            Some(crate::memory::cstr_from_ptr(
+                (&raw const menu_st().get_menu_names_tbuffer[0]),
+            ))
         } else if menu_st().get_menu_names_advance {
             menu.en_dname.as_deref()
         } else {

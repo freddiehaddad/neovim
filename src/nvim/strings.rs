@@ -226,7 +226,7 @@ pub fn gettext(msgid: &CStr) -> &'static CStr {
     {
         return tr;
     }
-    unsafe { CStr::from_ptr(msgid.as_ptr()) }
+    crate::memory::cstr_from_ptr(msgid.as_ptr())
 }
 
 pub trait IntoNgettextCount {
@@ -284,9 +284,9 @@ pub fn ngettext<N: IntoNgettextCount>(msgid1: &CStr, msgid2: &CStr, n: N) -> &'s
         return tr;
     }
     if count == 1 {
-        unsafe { CStr::from_ptr(msgid1.as_ptr()) }
+        crate::memory::cstr_from_ptr(msgid1.as_ptr())
     } else {
-        unsafe { CStr::from_ptr(msgid2.as_ptr()) }
+        crate::memory::cstr_from_ptr(msgid2.as_ptr())
     }
 }
 
@@ -1201,9 +1201,9 @@ impl<'a> FmtVal<'a> {
         match self {
             Self::CStr(s) => s,
             Self::Addr(0) | Self::Signed(0) | Self::Unsigned(0) | Self::Float(_) => None,
-            Self::Addr(p) => Some(unsafe { CStr::from_ptr(p as *const c_char) }),
-            Self::Signed(v) => Some(unsafe { CStr::from_ptr(v as usize as *const c_char) }),
-            Self::Unsigned(v) => Some(unsafe { CStr::from_ptr(v as usize as *const c_char) }),
+            Self::Addr(p) => Some(crate::memory::cstr_from_ptr(p as *const c_char)),
+            Self::Signed(v) => Some(crate::memory::cstr_from_ptr(v as usize as *const c_char)),
+            Self::Unsigned(v) => Some(crate::memory::cstr_from_ptr(v as usize as *const c_char)),
         }
     }
 }

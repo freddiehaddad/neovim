@@ -980,7 +980,7 @@ fn read_prefcond_section(fd: &CFile, lp: &mut Slang) -> i32 {
             }
             buf[(n + 1) as usize] = 0;
             lp.sl_prefprog.as_mut_slice()[i as usize] = crate::regexp::vim_regcomp_box(
-                unsafe { std::ffi::CStr::from_ptr(buf.as_ptr().cast()) },
+                crate::memory::cstr_from_ptr(buf.as_ptr()),
                 RE_MAGIC | RE_STRING,
             );
         }
@@ -2198,7 +2198,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             items[4].as_ptr(),
                         );
                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                            unsafe { std::ffi::CStr::from_ptr(buf.as_ptr().cast()) },
+                            crate::memory::cstr_from_ptr(buf.as_ptr()),
                             RE_MAGIC + RE_STRING + RE_STRICT,
                         );
                         if aff_entry.ae_prog.is_none() {
@@ -2251,9 +2251,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                                         );
                                         aff_entry.ae_cond = Some(cond_cstr);
                                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                                            unsafe {
-                                                std::ffi::CStr::from_ptr(buf.as_ptr().cast())
-                                            },
+                                            crate::memory::cstr_from_ptr(buf.as_ptr()),
                                             RE_MAGIC + RE_STRING,
                                         );
                                     }
@@ -3129,7 +3127,7 @@ fn store_aff_word(
                         || vim_regexec_prog(
                             ae.ae_prog.as_deref(),
                             false,
-                            unsafe { std::ffi::CStr::from_ptr(word.cast()) },
+                            crate::memory::cstr_from_ptr(word),
                             0,
                         ))
                     && (((condit & CONDIT_CFIX) == 0)
