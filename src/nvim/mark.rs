@@ -1022,7 +1022,7 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
     let mut len: i32 = 0;
     let mut p = line;
     let end = line.wrapping_add(max_bytes);
-    while p < end && !crate::memory::cstr_is_empty(p) {
+    while p < end && !p.is_empty() {
         len += ptr2cells(p);
         if len >= g_st().columns_global - lead_len {
             break;

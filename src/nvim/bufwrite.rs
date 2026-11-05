@@ -367,17 +367,17 @@ fn buf_write_do_autocmds(
     orig_start: CursorPos,
     orig_end: CursorPos,
 ) -> Option<bool> {
-    let mut buf = bufref.br_buf.as_ptr();
-    let old_line_count = unsafe { (*buf).b_ml.ml_line_count };
+    let mut buf = bufref.br_buf;
+    let old_line_count = buf.b_ml.ml_line_count;
     let msg_save = g_st().msg_scroll;
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut did_cmd = false;
     let mut nofile_err = false;
-    let empty_memline = unsafe { (*buf).b_ml.ml_mfp.is_none() };
+    let empty_memline = buf.b_ml.ml_mfp.is_none();
 
-    let _ = ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
-    set_bufref(bufref, unsafe { buf.as_mut() });
+    let _ = ctx_switch(&mut aco, None, None, buf.opt_mut(), 0);
+    set_bufref(bufref, buf.opt_mut());
 
     let sfname_opt = names.sfname.as_deref();
     if append {
@@ -467,16 +467,16 @@ fn buf_write_do_autocmds(
     ctx_restore(&mut aco);
 
     if !bufref_valid(Some(bufref)) {
-        buf = ptr::null_mut();
+        buf = crate::globals::GraphPtr::NULL;
         bufref.br_buf = crate::globals::BufPtr::NULL;
     }
     if buf.is_null()
-        || (unsafe { (*buf).b_ml.ml_mfp.is_none() } && !empty_memline)
+        || (buf.b_ml.ml_mfp.is_none() && !empty_memline)
         || did_cmd
         || nofile_err
         || aborting()
     {
-        if let Some(b) = unsafe { buf.as_mut() }
+        if let Some(b) = buf.opt_mut()
             && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0
         {
             b.b_op_start = orig_start;
@@ -496,7 +496,7 @@ fn buf_write_do_autocmds(
             return Some(false);
         }
         if did_cmd {
-            let Some(b) = (unsafe { buf.as_mut() }) else {
+            let Some(b) = buf.opt_mut() else {
                 return Some(true);
             };
             if overwriting {
@@ -525,7 +525,7 @@ fn buf_write_do_autocmds(
         return Some(false);
     }
 
-    let b = unsafe { &mut *buf };
+    let b = buf.borrow_mut();
     if b.b_ml.ml_line_count != old_line_count {
         if whole {
             *endp = b.b_ml.ml_line_count;

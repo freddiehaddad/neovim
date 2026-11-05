@@ -1564,48 +1564,46 @@ pub fn tv_list_assign_range(
     let mut src_li: crate::globals::GraphPtr<Listitem>;
 
     let mut idx = idx1;
-    let mut dest_li = first_li.as_ptr();
+    let mut dest_li = first_li;
     src_li = crate::globals::GraphPtr::from(tv_list_first_inline(src));
     while !src_li.is_null() && !dest_li.is_null() {
-        if value_check_lock(
-            unsafe { (*dest_li).li_tv.v_lock },
-            Some(varname),
-            TV_CSTRING,
-        ) {
+        if value_check_lock(dest_li.li_tv.v_lock, Some(varname), TV_CSTRING) {
             return false;
         }
         src_li = crate::globals::GraphPtr::<Listitem>::of(src_li.li_next);
         if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
             break;
         }
-        dest_li = unsafe { (*dest_li).li_next.as_ptr() };
+        dest_li = dest_li.li_next;
         idx += 1;
     }
 
     idx = idx1;
-    dest_li = first_li.as_ptr();
+    dest_li = crate::globals::GraphPtr::of(first_li);
     src_li = crate::globals::GraphPtr::from(tv_list_first_inline(src));
     while !src_li.is_null() {
         debug_assert!(!dest_li.is_null());
         if !op.is_null() && op.first_byte() != b'=' {
             eexe_mod_op(
-                unsafe { &mut (*dest_li).li_tv },
+                &mut (dest_li.borrow_mut().li_tv),
                 &(src_li.borrow().li_tv),
                 op.as_cstr(),
             );
         } else {
-            tv_clear(unsafe { &mut (*dest_li).li_tv });
-            tv_copy(&(src_li.borrow().li_tv), unsafe { &mut (*dest_li).li_tv });
+            tv_clear(&mut (dest_li.borrow_mut().li_tv));
+            tv_copy(&(src_li.borrow().li_tv), &mut (dest_li.borrow_mut().li_tv));
         }
         src_li = crate::globals::GraphPtr::<Listitem>::of(src_li.li_next);
         if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
             break;
         }
-        if unsafe { (*dest_li).li_next }.is_null() {
+        if dest_li.li_next.is_null() {
             tv_list_append_number(dest, 0);
-            dest_li = tv_list_last_inline(Some(dest)).map_or(ptr::null_mut(), ptr::from_mut);
+            dest_li = crate::globals::GraphPtr::of(
+                tv_list_last_inline(Some(dest)).map_or(ptr::null_mut(), ptr::from_mut),
+            );
         } else {
-            dest_li = unsafe { (*dest_li).li_next.as_ptr() };
+            dest_li = dest_li.li_next;
         }
         idx += 1;
     }
@@ -1614,7 +1612,7 @@ pub fn tv_list_assign_range(
         return false;
     }
     if if empty_idx2 {
-        !dest_li.is_null() && !unsafe { (*dest_li).li_next }.is_null()
+        !dest_li.is_null() && !dest_li.li_next.is_null()
     } else {
         idx != idx2
     } {
@@ -2185,13 +2183,13 @@ fn item_compare2(
         return 0;
     }
 
-    let partial = info.item_compare_partial.as_ptr();
+    let partial = info.item_compare_partial;
     let func_name = if partial.is_null() {
         info.item_compare_func
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr())
     } else {
-        partial_name(unsafe { partial.as_ref() }).as_ptr()
+        partial_name(partial.opt()).as_ptr()
     };
 
     let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
@@ -2201,7 +2199,7 @@ fn item_compare2(
     let mut rettv = tv_initial_value();
     let mut funcexe: Funcexe = Funcexe::new();
     funcexe.fe_evaluate = true;
-    funcexe.fe_partial = crate::globals::GraphPtr::new(partial);
+    funcexe.fe_partial = partial;
     funcexe.fe_selfdict = info.item_compare_selfdict;
     let ok = call_func(
         crate::memory::cstr_from_ptr(func_name),

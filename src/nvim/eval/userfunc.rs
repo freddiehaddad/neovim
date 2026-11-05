@@ -1816,11 +1816,11 @@ pub fn call_func(
     let mut name_owned: Option<std::ffi::CString> = None;
     let mut argcount = argcount_in;
     let mut argvars_ptr: *mut TypVal = argvars_in.as_mut_ptr();
-    let mut selfdict = funcexe.fe_selfdict.as_ptr();
+    let mut selfdict = funcexe.fe_selfdict;
     let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
     let mut argv_clear = 0;
     let mut argv_base = 0;
-    let partial = funcexe.fe_partial.as_ptr();
+    let partial = funcexe.fe_partial;
 
     rettv.v_type = VarType::VarUnknown;
 
@@ -1846,7 +1846,7 @@ pub fn call_func(
     let mut skip_eval = false;
     if let Some(partial) = funcexe.partial_opt() {
         if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
-            selfdict = partial.pt_dict.as_ptr();
+            selfdict = crate::globals::GraphPtr::of(partial.pt_dict);
         }
         let pt_argc = partial.pt_argv.len() as i32;
         if error == FCERR_NONE && pt_argc > 0 {
@@ -1884,7 +1884,7 @@ pub fn call_func(
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         error = FCERR_UNKNOWN;
 
-        if is_luafunc(unsafe { partial.as_ref() }) {
+        if is_luafunc(partial.opt()) {
             if len > 0 {
                 error = FCERR_NONE;
                 if let Some(basetv) = funcexe.fe_basetv.opt() {
@@ -1971,7 +1971,7 @@ pub fn call_func(
                         argvars_slice,
                         rettv,
                         &mut *funcexe,
-                        unsafe { selfdict.as_mut() },
+                        selfdict.opt_mut(),
                     );
                 }
             }

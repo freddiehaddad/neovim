@@ -2790,23 +2790,18 @@ fn rescore_suggestions(su: &mut Suginfo) {
     }
 }
 fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
-    let slang = stp.st_slang.as_ptr();
+    let slang = stp.st_slang;
     let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
-    if !slang.is_null() && unsafe { (*slang).has_sal() } && !stp.st_had_bonus {
+    if !slang.is_null() && slang.has_sal() && !stp.st_had_bonus {
         let p_slice: &[u8] = if su.su_sallang == slang {
             &su.su_sal_badword
         } else {
-            spell_soundfold(
-                unsafe { &mut *slang },
-                &su.su_fbadword,
-                true,
-                &mut sal_badword,
-            );
+            spell_soundfold(slang.borrow_mut(), &su.su_fbadword, true, &mut sal_badword);
 
             &sal_badword
         };
 
-        stp.st_altscore = stp_sal_score(stp, su, unsafe { &mut *slang }, p_slice);
+        stp.st_altscore = stp_sal_score(stp, su, slang.borrow_mut(), p_slice);
 
         if stp.st_altscore == SCORE_MAXMAX {
             stp.st_altscore = SCORE_BIG;

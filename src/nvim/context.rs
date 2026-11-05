@@ -952,14 +952,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             curwin_mut().w_topfill = 0;
         }
     } else if cs.cs_mode == K_CTX_SWITCH_BUF {
-        let saved_buf = cs.cs_new_curbuf.br_buf.as_ptr();
+        let saved_buf = cs.cs_new_curbuf.br_buf;
         if curwin_mut().handle == cs.cs_new_curwin
             && g_st().curbuf != saved_buf
             && bufref_valid(Some(&cs.cs_new_curbuf))
-            && unsafe { (*saved_buf).b_ml.ml_mfp.is_some() }
+            && saved_buf.b_ml.ml_mfp.is_some()
         {
             curbuf_mut().b_nwindows -= 1;
-            g_st().curbuf = (saved_buf).into();
+            g_st().curbuf = saved_buf;
             curwin_mut().w_buffer = g_st().curbuf;
             curbuf_mut().b_nwindows += 1;
         }

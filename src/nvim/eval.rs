@@ -1609,8 +1609,8 @@ pub fn set_var_lval(
         );
     } else {
         let mut oldtv = tv_initial_value();
-        let dict = lp.ll_dict.as_ptr();
-        let watched = tv_dict_is_watched(unsafe { dict.as_ref() });
+        let dict = lp.ll_dict;
+        let watched = tv_dict_is_watched(dict.opt());
 
         if is_const {
             emsg(gettext(c"E996: Cannot lock a list or dict"));
@@ -1662,12 +1662,12 @@ pub fn set_var_lval(
         if watched {
             if oldtv.v_type == VarType::VarUnknown {
                 let newkey_cstr = lp.ll_newkey.as_ref().unwrap().as_c_str();
-                tv_dict_watcher_notify(unsafe { &mut *dict }, newkey_cstr, lp.ll_tv.opt(), None);
+                tv_dict_watcher_notify(dict.borrow_mut(), newkey_cstr, lp.ll_tv.opt(), None);
             } else {
-                let di_ = lp.ll_di.as_ptr();
-                let di_key_cstr = unsafe { (*di_).key_cstr() };
+                let di_ = lp.ll_di;
+                let di_key_cstr = di_.key_cstr();
                 tv_dict_watcher_notify(
-                    unsafe { &mut *dict },
+                    dict.borrow_mut(),
                     di_key_cstr,
                     lp.ll_tv.opt(),
                     Some(&oldtv),

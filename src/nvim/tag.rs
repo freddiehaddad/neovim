@@ -2538,8 +2538,8 @@ fn matching_line_len(lbuf_slice: &[u8]) -> usize {
     let lbuf = crate::strings::CStrCursor::<std::ffi::c_char>::of(lbuf_slice.as_ptr().cast());
     {
         let mut p = lbuf.wrapping_add(1);
-        p = p.wrapping_add(crate::memory::cstr_len(p) + 1);
-        crate::memory::ptr_offset_from(p, lbuf) as usize + crate::memory::cstr_len(p)
+        p = p.wrapping_add(p.len() + 1);
+        crate::memory::ptr_offset_from(p, lbuf) as usize + p.len()
     }
 }
 
