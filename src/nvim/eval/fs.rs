@@ -222,13 +222,13 @@ pub fn modify_fname(
                     if c == b'.' as i32 {
                         os_dirname(&mut dirname);
                         if has_homerelative {
-                            let s_cstr = cstr_to_cstring(dirname.as_ptr());
+                            let s_cstr = crate::memory::cstring_until_nul(&dirname);
                             dirnamelen =
                                 home_replace(None, Some(s_cstr.as_c_str()), &mut dirname, true);
                         }
 
                         if dirnamelen == 0 {
-                            dirnamelen = crate::memory::cstr_len(dirname.as_ptr());
+                            dirnamelen = crate::memory::bytes_until_nul(&dirname).len();
                         }
 
                         // Do not call shorten_fname() here since it removes the prefix
@@ -1806,7 +1806,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     let head_bytes = &buf_vec[q_off - 1..buf_len];
                     let rem_old_len = remain_vec
                         .as_ref()
-                        .map_or(0, |r| crate::memory::cstr_len(r.as_ptr()));
+                        .map_or(0, |r| crate::memory::bytes_until_nul(&r).len());
                     let mut new_rem = Vec::with_capacity(head_bytes.len() + rem_old_len + 1);
                     new_rem.extend_from_slice(head_bytes);
                     if let Some(ref rem) = remain_vec {

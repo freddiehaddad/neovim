@@ -636,7 +636,7 @@ pub fn init_locale() {
     crate::memory::copy_bytes_to_c_buf(&mut localepath[offset..], b"share/locale");
 
     if HAVE_LIBINTL {
-        let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr());
+        let bytes = crate::memory::bytes_until_nul(&localepath);
         let len = bytes.len().min(MAXPATHL);
         lang_st().locale_dir[..len].copy_from_slice(&bytes[..len]);
         lang_st().locale_dir_len = len;

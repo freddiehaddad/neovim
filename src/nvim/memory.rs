@@ -751,7 +751,7 @@ pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
 }
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
-pub fn alloc_block() -> RawCCharPtrMut {
+fn alloc_block() -> RawCCharPtrMut {
     if mem_st().arena_reuse_count > 0 {
         let retval: RawCCharPtrMut = mem_st().arena_reuse_head.as_ptr().cast();
         mem_st().arena_reuse_head = mem_st().arena_reuse_head.prev;
@@ -837,7 +837,7 @@ pub fn arena_alloc_opt(arena: Option<&mut Arena>, size: usize, align: bool) -> *
 }
 
 /// Release a `ARENA_BLOCK_SIZE` block back to the reuse pool or free it (`free_block`).
-pub fn free_block(block: RawCCharPtrMut) {
+fn free_block(block: RawCCharPtrMut) {
     if block.is_null() {
         return;
     }

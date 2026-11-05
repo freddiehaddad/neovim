@@ -1537,7 +1537,7 @@ pub fn get_foldtext(
             ngettext(c"+--%3d line folded", c"+--%3d lines folded ", count as u64,),
             count,
         );
-        crate::memory::cstr_to_cstring(buf.as_ptr())
+        crate::memory::cstring_until_nul(&buf)
     })
 }
 

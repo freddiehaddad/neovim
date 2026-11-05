@@ -2367,7 +2367,7 @@ pub fn utf16_to_utf8(utf16: &[u16], utf16len: i32, utf8: &mut Option<std::ffi::C
     }
 
     vec[bufsize as usize] = 0;
-    *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr()));
+    *utf8 = Some(crate::memory::cstring_until_nul(&vec));
     0
 }
 

@@ -3991,7 +3991,7 @@ mod tests {
     fn truncate_spaces_and_can_cindent_work() {
         let mut line = *b"hello   \0";
         truncate_spaces(&mut line, 8);
-        assert_eq!(crate::memory::cstr_as_bytes(line.as_ptr()), b"hello");
+        assert_eq!(crate::memory::bytes_until_nul(&line), b"hello");
 
         set_can_cindent(true);
         assert!(get_can_cindent());

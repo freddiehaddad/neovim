@@ -1705,7 +1705,7 @@ pub fn search_for_exact_line(
                 debug_assert!(compl_len >= 0);
                 let eq = if opt_vars().p_ic {
                     mb_strnicmp(
-                        crate::memory::cstr_as_bytes(p_slice.as_ptr()),
+                        crate::memory::bytes_until_nul(p_slice),
                         crate::memory::cstr_as_bytes(pat),
                         compl_len as usize,
                     ) == 0
@@ -3236,7 +3236,7 @@ pub fn find_pattern_in_path(
                 .map(|cstr| {
                     let mut v: Vec<u8> = cstr.into_bytes_with_nul();
                     to_slash(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
-                    crate::memory::cstr_to_cstring(v.as_ptr())
+                    crate::memory::cstring_until_nul(&v)
                 });
                 let mut already_searched = false;
                 if let Some(ref nf) = new_fname_cstr {

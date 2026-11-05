@@ -921,7 +921,7 @@ fn fname_trans_sid<'a>(
         let mut fname_vec = Vec::with_capacity(fnamelen + 1);
         fname_vec.extend_from_slice(&fname_buf[..fname_buflen]);
         fname_vec.extend_from_slice(script_bytes);
-        let cstr = cstr_to_cstring(fname_vec.as_ptr());
+        let cstr = crate::memory::cstring_until_nul(&fname_vec);
         *tofree = Some(cstr);
         tofree.as_deref().unwrap()
     }

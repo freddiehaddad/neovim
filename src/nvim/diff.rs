@@ -1555,7 +1555,7 @@ fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> b
             if !ascii_isdigit(i32::from(line[0])) {
                 continue;
             }
-            if !parse_diff_ed(crate::memory::cstr_as_bytes(line.as_ptr()), hunk) {
+            if !parse_diff_ed(crate::memory::bytes_until_nul(&line), hunk) {
                 continue;
             }
         } else {
@@ -1563,7 +1563,7 @@ fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> b
             if !line.starts_with(b"@@ ") {
                 continue;
             }
-            if !parse_diff_unified(crate::memory::cstr_as_bytes(line.as_ptr()), hunk) {
+            if !parse_diff_unified(crate::memory::bytes_until_nul(&line), hunk) {
                 continue;
             }
         }

@@ -2155,7 +2155,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
     let mut exe_name = [0u8; MAXPATHL];
     vim_get_prefix_from_exepath(&mut exe_name);
     if append_path(&mut exe_name, c"lib/nvim") {
-        return Some(crate::memory::cstr_to_cstring(exe_name.as_ptr()));
+        return Some(crate::memory::cstring_until_nul(&exe_name));
     }
     None
 }
@@ -2858,7 +2858,7 @@ fn do_source_ext(
                     string_convert(&cookie.conv, crate::memory::cstr_as_bytes(after_bom), None)
                         .map_or_else(
                             || cstr_to_cstring(after_bom),
-                            |v| cstr_to_cstring(v.as_ptr()),
+                            |v| crate::memory::cstring_until_nul(&v),
                         ),
                 );
             }
@@ -3250,7 +3250,7 @@ pub fn getsourceline(
                 None,
             )
         {
-            cstr_to_cstring(s.as_ptr())
+            crate::memory::cstring_until_nul(&s)
         } else {
             cstr_from_bytes(&b[..len])
         }

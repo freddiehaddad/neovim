@@ -5875,7 +5875,7 @@ pub fn update_cwd(cause: CdCause) {
     if let Some(ref new_dir_cstr) = new_dir {
         let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
         if g_st().globaldir.is_none() && cwd[0] != 0 {
-            g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
+            g_st().globaldir = Some(crate::memory::cstring_until_nul(&cwd));
         }
         let dir_differs = !path_equal(
             crate::memory::cstr_from_ptr(new_dir_ptr),

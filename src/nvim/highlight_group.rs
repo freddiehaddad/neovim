@@ -1381,8 +1381,8 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                             let hname = HL_NAME_TABLE[i as usize];
                             let len = hname.to_bytes().len();
                             if mb_strnicmp(
-                                crate::memory::cstr_as_bytes(arg[off..].as_ptr()),
-                                crate::memory::cstr_as_bytes(hname.as_ptr()),
+                                crate::memory::bytes_until_nul(&arg[off..]),
+                                hname.to_bytes(),
                                 len,
                             ) == 0
                             {
@@ -1432,7 +1432,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     hl_table_at(idx as usize).sg_font = None;
                     if &arg[..arg_len] != b"NONE" {
                         hl_table_at(idx as usize).sg_font =
-                            Some(crate::memory::cstr_to_cstring(arg.as_ptr()));
+                            Some(crate::memory::cstring_until_nul(&arg));
                     }
                 } else if key_bytes == b"CTERMFG" || key_bytes == b"CTERMBG" {
                     if !init || (hl_table_at(idx as usize).sg_set & SG_CTERM) == 0 {

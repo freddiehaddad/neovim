@@ -427,7 +427,7 @@ fn showmap(mp: &Mapblock, local: bool) {
     let mut mapchars = [0u8; 7];
     map_mode_to_chars(mp.m_mode, &mut mapchars);
     msg_puts(crate::memory::cstr_until_nul(&mapchars));
-    let mut len = crate::memory::cstr_len(mapchars.as_ptr());
+    let mut len = crate::memory::bytes_until_nul(&mapchars).len();
 
     loop {
         len += 1;
@@ -559,7 +559,7 @@ fn set_maparg_rhs(
             KE_LUA as i32,
             map_st().map_luaid,
         ) as usize;
-        mapargs.rhs = Some(crate::memory::cstr_to_cstring(tmp_buf.as_ptr()));
+        mapargs.rhs = Some(crate::memory::cstring_until_nul(&tmp_buf));
     }
 }
 
@@ -2987,7 +2987,7 @@ mod tests {
         {
             let mut buf = [0u8; 16];
             map_mode_to_chars(MODE_NORMAL | MODE_VISUAL, &mut buf);
-            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"nx");
+            assert_eq!(crate::memory::bytes_until_nul(&buf), b"nx");
 
             langmap_init();
             assert_eq!(langmap_adjust_mb(b'a' as i32), b'a' as i32);

@@ -1459,7 +1459,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
     loop {
         let mut t: Vec<u8> = Vec::new();
         if !newcmd.is_empty() {
-            t.extend_from_slice(crate::memory::cstr_as_bytes(newcmd.as_ptr()));
+            t.extend_from_slice(crate::memory::bytes_until_nul(&newcmd));
         }
         if ins_prevcmd {
             if !prevcmd_is_set() {
@@ -1497,8 +1497,8 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
         trailarg = newcmd.as_mut_ptr().wrapping_add(start).cast();
     }
 
-    if !crate::memory::cstr_as_bytes(newcmd.as_ptr()).is_empty() {
-        excmds_st().prevcmd = Some(crate::memory::cstr_to_cstring(newcmd.as_ptr()));
+    if !crate::memory::bytes_until_nul(&newcmd).is_empty() {
+        excmds_st().prevcmd = Some(crate::memory::cstring_until_nul(&newcmd));
     }
 
     'theend: {
@@ -1953,7 +1953,7 @@ pub fn make_filter_cmd(
     if let Some(otmp_s) = otmp {
         append_redir(&mut buf_vec, opt_vars().p_srr.as_cstr(), otmp_s);
     }
-    cstr_to_cstring(buf_vec.as_ptr())
+    crate::memory::cstring_until_nul(&buf_vec)
 }
 
 /// Append output redirection for the given file to the end of the buffer.
@@ -3367,12 +3367,7 @@ pub fn ex_append(eap: &mut Exarg) {
         }
 
         did_undo = true;
-        ml_append(
-            lnum,
-            crate::memory::cstr_as_bytes(theline_v.as_ptr()),
-            0,
-            false,
-        );
+        ml_append(lnum, crate::memory::bytes_until_nul(theline_v), 0, false);
         if empty {
             appended_lines(lnum, 1);
         } else {
@@ -4204,7 +4199,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 let lnum_slice = crate::memline::ml_get_slice(lnum);
                                 orig_line = SubBuf::from_cbuf(lnum_slice);
                                 let new_line = concat_str(
-                                    crate::memory::cstr_as_bytes(new_start.as_slice().as_ptr()),
+                                    crate::memory::bytes_until_nul(new_start.as_slice()),
                                     crate::memory::cstr_as_bytes(
                                         sub_firstline
                                             .as_slice()

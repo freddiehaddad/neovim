@@ -1186,7 +1186,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 flags,
                             );
                             stack[udepth].ts_prewordlen =
-                                crate::memory::cstr_len(preword.as_ptr()) as u8;
+                                crate::memory::bytes_until_nul(&preword).len() as u8;
                             stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                         }
                         continue;

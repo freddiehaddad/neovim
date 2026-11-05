@@ -568,7 +568,7 @@ pub fn spell_load_file(
                     fail = true;
                     break;
                 };
-                lp.sl_info = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
+                lp.sl_info = Some(crate::memory::cstring_until_nul(&raw));
             }
             SN_REGION => {
                 res = read_region_section(&fd, &mut *lp, len);
@@ -582,7 +582,7 @@ pub fn spell_load_file(
                     fail = true;
                     break;
                 };
-                lp.sl_midword = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
+                lp.sl_midword = Some(crate::memory::cstring_until_nul(&raw));
             }
             SN_PREFCOND => {
                 res = read_prefcond_section(&fd, &mut *lp);
@@ -630,7 +630,7 @@ pub fn spell_load_file(
                     fail = true;
                     break;
                 };
-                lp.sl_syllable = Some(crate::memory::cstr_to_cstring(raw.as_ptr()));
+                lp.sl_syllable = Some(crate::memory::cstring_until_nul(&raw));
                 if !init_syl_tab(&mut *lp) {
                     fail = true;
                     break;
@@ -1005,7 +1005,7 @@ fn read_rep_section(fd: &CFile, gap: &mut Vec<Fromto>, first: &mut [i16; 256]) -
         let Some(raw_from) = raw_from else {
             return SP_FORMERROR;
         };
-        let ft_from = crate::memory::cstr_to_cstring(raw_from.as_ptr());
+        let ft_from = crate::memory::cstring_until_nul(&raw_from);
         let raw_to = read_cnt_string(fd, 1, &mut c);
         if c <= 0 {
             if c < 0 {
@@ -1014,7 +1014,7 @@ fn read_rep_section(fd: &CFile, gap: &mut Vec<Fromto>, first: &mut [i16; 256]) -
             return SP_FORMERROR;
         }
         let ft_to = raw_to.map_or_else(std::ffi::CString::default, |v| {
-            crate::memory::cstr_to_cstring(v.as_ptr())
+            crate::memory::cstring_until_nul(&v)
         });
         gap.push(Fromto { ft_from, ft_to });
     }
@@ -1255,7 +1255,7 @@ fn read_compound(fd: &CFile, slang: &mut Slang, len: i32) -> i32 {
                 return cnt;
             }
             gap.push(raw.map_or_else(std::ffi::CString::default, |v| {
-                crate::memory::cstr_to_cstring(v.as_ptr())
+                crate::memory::cstring_until_nul(&v)
             }));
             todo -= cnt + 1;
         }
@@ -2241,8 +2241,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                                     if aff_entry.ae_cond.is_some() {
                                         let mut buf = [0u8; MAXLINELEN];
                                         onecap_copy(items[4].to_bytes(), &mut buf, true);
-                                        let cond_cstr =
-                                            crate::memory::cstr_to_cstring(buf.as_ptr());
+                                        let cond_cstr = crate::memory::cstring_until_nul(&buf);
                                         vim_snprintf!(
                                             buf.as_mut_ptr().cast(),
                                             MAXLINELEN,
@@ -2819,7 +2818,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         if line[0] == b'#' || line[0] == b'/' {
             continue;
         }
-        let mut l = crate::memory::cstr_len(line.as_ptr());
+        let mut l = crate::memory::bytes_until_nul(&line).len();
         while l > 0 && line[l - 1] <= b' ' {
             l -= 1;
         }
@@ -3411,7 +3410,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                 continue;
             }
 
-            let mut l = crate::memory::cstr_len(rline.as_ptr());
+            let mut l = crate::memory::bytes_until_nul(&rline).len();
             while l > 0 && rline[l - 1] <= b' ' {
                 l -= 1;
             }
@@ -4499,7 +4498,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
 
         let mut fname_buf = [0u8; MAXPATHL];
         crate::memory::copy_bytes_to_c_buf(&mut fname_buf, wfname_cstr.to_bytes());
-        let len = crate::memory::cstr_len(fname_buf.as_ptr());
+        let len = crate::memory::bytes_until_nul(&fname_buf).len();
         fname_buf[len - 2] = b'u';
         fname_buf[len - 1] = b'g';
         sug_write(spin, crate::memory::cstr_until_nul(&fname_buf));

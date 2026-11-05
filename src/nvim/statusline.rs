@@ -689,7 +689,7 @@ fn win_redr_stl_expr(
         drop(stl_cstr);
         ewp.w_onebuf_opt.wo_crb = p_crb_save;
 
-        let len = crate::memory::cstr_len(buf.as_ptr());
+        let len = crate::memory::bytes_until_nul(&buf).len();
         let start_col = col;
 
         if !ui_event {

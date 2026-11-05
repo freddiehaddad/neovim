@@ -136,7 +136,7 @@ fn save_patterns(pat: &[&CStr], file: &mut Vec<std::ffi::CString>) {
     for &p in pat {
         let mut v: Vec<u8> = p.to_bytes_with_nul().to_vec();
         backslash_halve(&mut v);
-        file.push(crate::memory::cstr_to_cstring(v.as_ptr()));
+        file.push(crate::memory::cstring_until_nul(&v));
     }
 }
 
@@ -520,7 +520,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                     2,
                 ));
             }
-            file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr()));
+            file.push(crate::memory::cstring_until_nul(&new_vec));
         }
         drop(buffer_vec);
 

@@ -3256,7 +3256,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     }
     qfga_concat(gap, qf_types(i32::from(qfp.qf_type), qfp.qf_nr).as_bytes());
     gap.push(0);
-    if !crate::memory::cstr_is_empty(gap.as_ptr()) {
+    if !crate::memory::bytes_until_nul(gap).is_empty() {
         msg_puts_hl(
             crate::memory::cstr_until_nul(gap),
             qf_st().qf_line_hl_id,
@@ -3428,7 +3428,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: &CStr) {
     );
 
     if let Some(title) = title {
-        let len = crate::memory::cstr_len(buf.as_ptr());
+        let len = crate::memory::bytes_until_nul(&buf).len();
         if len < 34 {
             buf[len..34].fill(b' ');
             buf[34] = 0;

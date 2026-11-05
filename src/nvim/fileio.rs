@@ -4401,7 +4401,7 @@ fn vim_mktempdir() {
                     tmp.as_ptr(),
                 );
             }
-            tmplen -= crate::memory::cstr_len(user.as_ptr());
+            tmplen -= crate::memory::bytes_until_nul(&user).len();
             tmp[tmplen] = 0;
         }
 
@@ -4627,7 +4627,7 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
         tempdir.as_ptr(),
         count,
     );
-    Some(crate::memory::cstr_to_cstring(templ.as_ptr()))
+    Some(crate::memory::cstring_until_nul(&templ))
 }
 
 /// Tries matching a filename with a "pattern" ("prog" is None), or use the

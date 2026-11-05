@@ -1712,7 +1712,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
             alist_add(
                 &mut g_st().global_alist,
-                crate::memory::cstr_to_cstring(p_vec.as_ptr()),
+                crate::memory::cstring_until_nul(&p_vec),
                 alist_fnum_flag,
             );
         }

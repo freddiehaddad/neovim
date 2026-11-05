@@ -851,7 +851,7 @@ pub fn msg_strtrunc(s: &std::ffi::CStr, force: i32) -> Option<std::ffi::CString>
                 let buflen = (room + 2) * 18;
                 let mut buf: Vec<u8> = vec![0; buflen as usize];
                 trunc_string(Some(s.to_bytes()), &mut buf, room);
-                return Some(crate::memory::cstr_to_cstring(buf.as_ptr()));
+                return Some(crate::memory::cstring_until_nul(&buf));
             }
         }
         None
@@ -1017,7 +1017,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         let buf_len = sname.to_bytes().len() + p.to_bytes().len() + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, sname);
-        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
+        return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
 }
@@ -1034,7 +1034,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         let buf_len = 20 + p.to_bytes().len();
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, slnum);
-        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
+        return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
 }

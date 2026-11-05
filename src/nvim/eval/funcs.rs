@@ -137,8 +137,8 @@ use crate::memline::{
     recover_names, swapfile_dict,
 };
 use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, cstr_from_bytes,
-    cstr_to_cstring, free_block,
+    ARENA_BLOCK_SIZE, Arena, ArenaMem, arena_finish, arena_mem_free, cstr_from_bytes,
+    cstr_to_cstring,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -5776,7 +5776,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
         return;
     }
     let mut lrstate: ListReaderState = encode_init_lrstate(list);
-    let buf = alloc_block();
+    let mut buf = [0u8; ARENA_BLOCK_SIZE];
     let mut buf_size: usize = 0;
 
     let mut cur_item = tv_initial_value();
@@ -5788,12 +5788,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
     'end: {
         loop {
             let mut read_bytes: usize = 0;
-            let dest_slice = unsafe {
-                std::slice::from_raw_parts_mut(
-                    buf.wrapping_add(buf_size).cast::<u8>(),
-                    ARENA_BLOCK_SIZE - buf_size,
-                )
-            };
+            let dest_slice = &mut buf[buf_size..];
             let rlret = encode_read_from_list(&mut lrstate, dest_slice, &mut read_bytes);
             if rlret == Some(false) {
                 semsg!(gettext(E_INVARG2), c"List item is not a string",);
@@ -5801,8 +5796,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             }
             buf_size += read_bytes;
 
-            let mut parse_slice =
-                unsafe { std::slice::from_raw_parts(buf.cast::<u8>().cast_const(), buf_size) };
+            let mut parse_slice: &[u8] = &buf[..buf_size];
             while !parse_slice.is_empty() {
                 status = mpack_parse_typval(&mut parser, &mut parse_slice);
                 if status == MPACK_OK {
@@ -5812,7 +5806,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
                     break;
                 }
             }
-            let ptr_ = parse_slice.as_ptr();
+            let consumed = buf_size - parse_slice.len();
             buf_size = parse_slice.len();
 
             if rlret == Some(true) {
@@ -5820,8 +5814,8 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             }
 
             if status == MPACK_EOF {
-                if buf_size != 0 && ptr_ > buf.cast::<u8>().cast_const() {
-                    unsafe { ptr::copy(ptr_.cast(), buf, buf_size) };
+                if buf_size != 0 && consumed > 0 {
+                    buf.copy_within(consumed..consumed + buf_size, 0);
                 }
             } else if status != MPACK_OK {
                 break;
@@ -5833,8 +5827,6 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             emsg_mpack_error(status);
         }
     }
-
-    free_block(buf);
 }
 
 fn msgpackparse_unpack_blob(blob: Option<&TvBlob>, ret_list: &mut TvList) {

@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::mbyte::utf_isalnum;
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring};
+use crate::memory::cstr_from_bytes;
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -497,7 +497,7 @@ pub fn expand_env_save(src: &CStr) -> std::ffi::CString {
 pub fn expand_env_save_opt(src: &CStr, one: bool, esc_chars: Option<&CStr>) -> std::ffi::CString {
     let mut p = [0u8; MAXPATHL];
     let _ = expand_env_esc(src, &mut p, esc_chars, one, None);
-    cstr_to_cstring(p.as_ptr())
+    crate::memory::cstring_until_nul(&p)
 }
 
 /// Expand environment variable with path name.
@@ -1029,7 +1029,7 @@ pub fn home_replace(
             if fname_off > 0 {
                 fbuf.drain(..fname_off);
             }
-            flen = crate::memory::cstr_len(fbuf.as_ptr());
+            flen = crate::memory::bytes_until_nul(&fbuf).len();
             if flen > 0 && vim_ispathsep(i32::from(fbuf[flen - 1])) {
                 fbuf[flen - 1] = 0;
             }
@@ -1129,7 +1129,7 @@ pub fn home_replace_save(buf: Option<&FileBuf>, src: Option<&CStr>) -> std::ffi:
     }
     let mut dst = vec![0u8; len];
     let _ = home_replace(buf, src, &mut dst, true);
-    cstr_to_cstring(dst.as_ptr())
+    crate::memory::cstring_until_nul(&dst)
 }
 
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
@@ -1310,7 +1310,7 @@ mod tests {
 
             assert!(os_get_pid() > 0);
             os_get_hostname(&mut buf);
-            assert!(!crate::memory::cstr_as_bytes(buf.as_ptr()).is_empty());
+            assert!(!crate::memory::bytes_until_nul(&buf).is_empty());
             assert!(os_getenvname_at_index(usize::MAX).is_none());
 
             assert!(os_shell_is_cmdexe(c"cmd.exe"));

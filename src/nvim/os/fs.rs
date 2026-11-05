@@ -527,7 +527,7 @@ pub fn os_dirname(buf: &mut [u8]) -> bool {
 /// Get the current working directory as an owned `CString` (`os_dirname_cstr`).
 pub fn os_dirname_cstr() -> Option<std::ffi::CString> {
     let mut cwd = [0u8; MAXPATHL];
-    os_dirname(&mut cwd).then(|| crate::memory::cstr_to_cstring(cwd.as_ptr()))
+    os_dirname(&mut cwd).then(|| crate::memory::cstring_until_nul(&cwd))
 }
 
 /// Check if the given path is a directory and not a symlink to a directory.
@@ -2191,7 +2191,7 @@ mod tests {
         {
             let mut cwd = [0u8; MAXPATHL];
             assert!(os_dirname(&mut cwd));
-            let cwd_len = crate::memory::cstr_len(cwd.as_ptr());
+            let cwd_len = crate::memory::bytes_until_nul(&cwd).len();
             assert!(cwd_len > 0);
             let mut tiny = [0u8; 4];
             assert!(!os_dirname(&mut tiny[..cwd_len.min(3)]));

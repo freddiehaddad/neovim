@@ -2554,7 +2554,7 @@ fn check_keyword_id(
     if kp.is_none() && !syn_block_mut().b_keywtab_ic.is_empty() {
         let mut keyword = [0u8; MAXKEYWLEN + 1];
         str_foldcase(&kwp[..kwlen], Some(&mut keyword));
-        let folded_len = crate::memory::cstr_len(keyword.as_ptr());
+        let folded_len = crate::memory::bytes_until_nul(&keyword).len();
         kp = match_keyword(
             &keyword[..folded_len],
             &syn_block_mut().b_keywtab_ic,
@@ -3428,7 +3428,7 @@ fn add_keyword(
     let mut name_folded = [0u8; MAXKEYWLEN + 1];
     let kw_vec: &[u8] = if win_s(curwin_mut()).b_syn_ic {
         str_foldcase(name, Some(&mut name_folded));
-        &name_folded[..crate::memory::cstr_len(name_folded.as_ptr())]
+        &name_folded[..crate::memory::bytes_until_nul(&name_folded).len()]
     } else {
         name
     };

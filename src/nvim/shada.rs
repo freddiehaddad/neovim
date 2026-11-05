@@ -1447,7 +1447,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     .unwrap_or_default()
                     .into_bytes_with_nul();
                 let final_sub = regtilde(&mut sub_bytes, i32::from(opt_vars().p_magic), false)
-                    .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr())));
+                    .or_else(|| Some(crate::memory::cstring_until_nul(&sub_bytes)));
                 sub_set_replacement(SubReplacementString {
                     sub: final_sub,
                     timestamp: cur_entry.timestamp,
@@ -4078,7 +4078,7 @@ fn shada_removable(name: &CStr) -> bool {
             );
             if mb_strnicmp(
                 crate::memory::cstr_as_bytes(name_buff_ptr),
-                crate::memory::cstr_as_bytes(new_name.as_ptr()),
+                new_name.as_bytes(),
                 n,
             ) == 0
             {

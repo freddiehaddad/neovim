@@ -418,11 +418,7 @@ mod win_impl {
         }
         utf8_cmd_line.push(0);
 
-        utf8_to_utf16(
-            crate::memory::cstr_as_bytes(utf8_cmd_line.as_ptr()),
-            -1,
-            cmd_line,
-        )
+        utf8_to_utf16(crate::memory::bytes_until_nul(&utf8_cmd_line), -1, cmd_line)
     }
 
     fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> i32 {

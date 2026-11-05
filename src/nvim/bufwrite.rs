@@ -215,7 +215,7 @@ fn buf_write_convert(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: &mut i32) -
         while wlen < *lenp {
             let w_usize = wlen as usize;
             let n = utf_ptr2len_len(
-                crate::memory::cstr_as_bytes(ip.bw_buf[w_usize..].as_ptr()),
+                crate::memory::bytes_until_nul(&ip.bw_buf[w_usize..]),
                 *lenp - wlen,
             );
             if n > *lenp - wlen {
@@ -1850,7 +1850,7 @@ pub fn buf_write(
                                     );
                                 err = BwError {
                                     num: None,
-                                    msg: Some(crate::memory::cstr_to_cstring(alloc_msg.as_ptr())),
+                                    msg: Some(crate::memory::cstring_until_nul(&alloc_msg)),
                                     arg: 0,
                                 };
                             }

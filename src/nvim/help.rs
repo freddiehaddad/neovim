@@ -351,7 +351,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         raw_matches.truncate(TAG_MANY as usize);
         matches.reserve_exact(raw_matches.len());
         for m in raw_matches {
-            matches.push(crate::memory::cstr_to_cstring(m.as_ptr()));
+            matches.push(crate::memory::cstring_until_nul(&m));
         }
     }
     true

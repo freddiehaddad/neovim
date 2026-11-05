@@ -2880,8 +2880,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         let cand = &line_slice[s_off..s_off + word_len];
                         let eq = if icase {
                             mb_strnicmp(
-                                crate::memory::cstr_as_bytes(cand.as_ptr()),
-                                crate::memory::cstr_as_bytes(word.as_ptr()),
+                                crate::memory::bytes_until_nul(cand),
+                                crate::memory::bytes_until_nul(word),
                                 word_len,
                             ) == 0
                         } else {
@@ -2907,8 +2907,8 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                             let cand = &line_slice[col_usize - word_len..col_usize];
                             let eq = if icase {
                                 mb_strnicmp(
-                                    crate::memory::cstr_as_bytes(cand.as_ptr()),
-                                    crate::memory::cstr_as_bytes(word.as_ptr()),
+                                    crate::memory::bytes_until_nul(cand),
+                                    crate::memory::bytes_until_nul(word),
                                     word_len,
                                 ) == 0
                             } else {
