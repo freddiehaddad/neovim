@@ -1469,7 +1469,7 @@ fn qf_store_title(qfl: &mut QfList, title: Option<&CStr>) {
 
 fn qf_cmdtitle(cmd: &CStr) -> std::ffi::CString {
     let mut buf = [0u8; IOSIZE];
-    let len = vim_snprintf_safelen!(buf.as_mut_ptr().cast(), IOSIZE, c":%s", cmd.as_ptr());
+    let len = vim_snprintf_safelen!(&mut buf, c":%s", cmd.as_ptr());
     crate::memory::cstr_from_bytes(&buf[..len])
 }
 
@@ -2939,15 +2939,13 @@ fn qf_jump_print_msg(
             update_screen();
         }
     }
-    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     let deleted_str = if qf_ptr.qf_cleared {
         gettext(c" (line deleted)")
     } else {
         c""
     };
     let iobufflen = vim_snprintf_safelen!(
-        iobuff_ptr,
-        IOSIZE,
+        &mut g_st().iobuff,
         gettext(c"(%d of %d)%s%s: "),
         qf_index,
         qf_get_curlist(qi).count(),
@@ -3172,11 +3170,10 @@ fn qf_jump_newwin(
 
 fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     let mut fname = ptr::null_mut();
-    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     if let Some(ref module) = qfp.qf_module
         && !module.as_bytes().is_empty()
     {
-        vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d %s", qf_idx, module.as_ptr(),);
+        vim_snprintf!(&mut g_st().iobuff, c"%2d %s", qf_idx, module.as_ptr());
     } else {
         if qfp.qf_fnum != 0
             && let Some(buf) = buflist_findnr_opt(qfp.qf_fnum)
@@ -3195,9 +3192,9 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
             }
         }
         if fname.is_null() {
-            vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d", qf_idx);
+            vim_snprintf!(&mut g_st().iobuff, c"%2d", qf_idx);
         } else {
-            vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d %s", qf_idx, fname);
+            vim_snprintf!(&mut g_st().iobuff, c"%2d %s", qf_idx, fname);
         }
     }
 
@@ -3366,34 +3363,18 @@ fn qf_fmt_text(gap: &mut Vec<u8>, text: &[u8]) {
 }
 
 fn qf_range_text(gap: &mut Vec<u8>, qfp: &Qfline) {
-    let buf_data = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
-    let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d", qfp.qf_lnum);
+    let mut buf_size = vim_snprintf_safelen!(&mut g_st().iobuff, c"%d", qfp.qf_lnum);
 
     if qfp.qf_end_lnum > 0 && qfp.qf_lnum != qfp.qf_end_lnum {
-        buf_size += vim_snprintf_safelen!(
-            buf_data.wrapping_add(buf_size),
-            IOSIZE - buf_size,
-            c"-%d",
-            qfp.qf_end_lnum,
-        );
+        buf_size += vim_snprintf_safelen!(&mut g_st().iobuff[buf_size..], c"-%d", qfp.qf_end_lnum);
     }
     if qfp.qf_col > 0 {
-        buf_size += vim_snprintf_safelen!(
-            buf_data.wrapping_add(buf_size),
-            IOSIZE - buf_size,
-            c" col %d",
-            qfp.qf_col,
-        );
+        buf_size += vim_snprintf_safelen!(&mut g_st().iobuff[buf_size..], c" col %d", qfp.qf_col);
         if qfp.qf_end_col > 0 && qfp.qf_col != qfp.qf_end_col {
-            buf_size += vim_snprintf_safelen!(
-                buf_data.wrapping_add(buf_size),
-                IOSIZE - buf_size,
-                c"-%d",
-                qfp.qf_end_col,
-            );
+            buf_size +=
+                vim_snprintf_safelen!(&mut g_st().iobuff[buf_size..], c"-%d", qfp.qf_end_col);
         }
     }
-
     qfga_concat(gap, &g_st().iobuff_bytes()[..buf_size]);
 }
 
@@ -3404,8 +3385,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: &CStr) {
     let mut buf = [0u8; IOSIZE];
 
     vim_snprintf!(
-        buf.as_mut_ptr().cast(),
-        IOSIZE,
+        &mut buf,
         gettext(c"%serror list %d of %d; %d errors "),
         lead.as_ptr(),
         which + 1,
@@ -3581,7 +3561,7 @@ fn qf_types(c: i32, nr: i32) -> std::ffi::CString {
     }
 
     let mut buf = [0u8; 20];
-    let len = vim_snprintf_safelen!(buf.as_mut_ptr().cast(), 20, c"%s %3d", p.as_ptr(), nr);
+    let len = vim_snprintf_safelen!(&mut buf, c"%s %3d", p.as_ptr(), nr);
     crate::memory::cstr_from_bytes(&buf[..len])
 }
 
@@ -4326,10 +4306,8 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
         len += opt_vars().p_sp.as_bytes().len() + fname.to_bytes().len() + 3;
     }
     let mut cmd_vec: Vec<u8> = vec![0; len];
-    let cmd: *mut _ = cmd_vec.as_mut_ptr().cast();
     vim_snprintf!(
-        cmd,
-        len,
+        &mut cmd_vec,
         c"%s%s%s",
         &opt_vars().p_shq,
         makecmd.as_ptr(),
@@ -4345,9 +4323,9 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
     }
     msg_start();
     msg_puts(c":!");
-    msg_outtrans(crate::memory::cstr_from_ptr(cmd), 0, false);
+    msg_outtrans(crate::memory::cstr_until_nul(&cmd_vec), 0, false);
 
-    crate::memory::cstr_to_cstring(cmd)
+    crate::memory::cstring_until_nul(&cmd_vec)
 }
 
 pub fn ex_make(eap: &mut Exarg) {
@@ -6788,7 +6766,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     let mut qf_title = crate::strings::CStrCursor::from_ptr(qf_title_cstr.as_ptr().cast_mut());
     if let Some(buf_sfname) = buf.sfname_opt() {
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        vim_snprintf!(iobuff_ptr, IOSIZE, c"%s (%s)", qf_title, buf_sfname,);
+        vim_snprintf!(&mut g_st().iobuff, c"%s (%s)", qf_title, buf_sfname);
         qf_title = crate::strings::CStrCursor::of(iobuff_ptr.cast());
     }
 

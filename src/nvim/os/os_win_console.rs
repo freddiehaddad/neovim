@@ -192,8 +192,6 @@ unsafe extern "system" {
 use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 #[cfg(windows)]
 use crate::fileio::{_get_osfhandle, _open_osfhandle, O_RDONLY, close};
-#[cfg(windows)]
-use crate::os::fs::MAXPATHL;
 
 #[cfg(windows)]
 use crate::event::r#loop::uv_tty_set_vterm_state;
@@ -340,8 +338,8 @@ pub fn os_icon_init() {
     }
 
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
-        let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast();
-        vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
+        let namebuff = g_st().name_buff.as_ptr();
+        vim_snprintf!(&mut g_st().name_buff, c"%s/neovim.ico", vimruntime.as_ptr());
         if !os_path_exists(crate::memory::cstr_from_ptr(namebuff)) {
             logmsg!(
                 LOGLVL_WRN,

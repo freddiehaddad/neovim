@@ -632,12 +632,7 @@ fn do_path_expand(
         && e_pos - s_idx == 2
         && path_bytes.get(path_idx) == Some(&b'/')
     {
-        vim_snprintf!(
-            buf_vec[s_idx..].as_mut_ptr().cast(),
-            buflen - len,
-            c"%s",
-            path_end_cstr[1..].as_ptr()
-        );
+        vim_snprintf!(&mut buf_vec[s_idx..], c"%s", path_end_cstr[1..].as_ptr());
         path_st().stardepth += 1;
         let sub_path = crate::memory::cstring_until_nul(&buf_vec);
         do_path_expand(gap, &sub_path, len, flags, true);
@@ -672,35 +667,20 @@ fn do_path_expand(
                         e_pos - s_idx,
                     ) == 0);
             if dot_ok && reg_ok {
-                len += vim_snprintf!(
-                    buf_vec[s_idx..].as_mut_ptr().cast(),
-                    buflen - len,
-                    c"%s",
-                    name
-                ) as usize;
+                len += vim_snprintf!(&mut buf_vec[s_idx..], c"%s", name) as usize;
                 if len + 1 >= buflen {
                     continue;
                 }
 
                 if starstar && path_st().stardepth < 100 {
-                    vim_snprintf!(
-                        buf_vec[len..].as_mut_ptr().cast(),
-                        buflen - len,
-                        c"/**%s",
-                        path_end_cstr.as_ptr()
-                    );
+                    vim_snprintf!(&mut buf_vec[len..], c"/**%s", path_end_cstr.as_ptr());
                     path_st().stardepth += 1;
                     let sub_path = crate::memory::cstring_until_nul(&buf_vec);
                     do_path_expand(gap, &sub_path, len + 1, flags, true);
                     path_st().stardepth -= 1;
                 }
 
-                vim_snprintf!(
-                    buf_vec[len..].as_mut_ptr().cast(),
-                    buflen - len,
-                    c"%s",
-                    path_end_cstr.as_ptr()
-                );
+                vim_snprintf!(&mut buf_vec[len..], c"%s", path_end_cstr.as_ptr());
                 if path_has_wildcard(path_end_cstr.to_bytes(), false) {
                     if path_st().stardepth < 100 {
                         path_st().stardepth += 1;

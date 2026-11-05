@@ -2048,9 +2048,11 @@ fn ins_compl_dictionaries(
         let pat_esc = vim_strsave_escaped(crate::memory::cstr_as_bytes(pat), b"\\");
         let len = pat_esc.as_bytes().len() + 10;
         let mut ptr_vec = vec![0u8; len];
-        let ptr = ptr_vec.as_mut_ptr();
-        vim_snprintf!(ptr.cast(), len, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
-        regmatch.set_prog(vim_regcomp(crate::memory::cstr_from_ptr(ptr), RE_MAGIC));
+        vim_snprintf!(&mut ptr_vec, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
+        regmatch.set_prog(vim_regcomp(
+            crate::memory::cstr_until_nul(&ptr_vec),
+            RE_MAGIC,
+        ));
     } else {
         regmatch.set_prog(vim_regcomp(
             crate::memory::cstr_from_ptr(pat),
@@ -2197,12 +2199,10 @@ fn ins_compl_files(
         }
         let fp = CFile::open(file.as_cstr(), c"r");
         if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(
-                iobuff_ptr,
-                IOSIZE,
+                &mut g_st().iobuff,
                 gettext(c"Scanning dictionary: %s"),
-                file,
+                file
             );
             msg_progress(
                 Some(g_st().iobuff_bytes_mut()),
@@ -3883,7 +3883,6 @@ fn process_next_cpt_value(
             st.dict_f = DICT_EXACT;
         }
         if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             let name = if ins_buf.fname_opt().is_none() {
                 buf_spname(ins_buf)
             } else if ins_buf.b_sfname.is_none() {
@@ -3892,8 +3891,7 @@ fn process_next_cpt_value(
                 ins_buf.sfname_opt()
             };
             vim_snprintf!(
-                iobuff_ptr,
-                IOSIZE,
+                &mut g_st().iobuff,
                 gettext(c"Scanning: %s"),
                 name.unwrap_or(c"")
             );
@@ -3940,8 +3938,7 @@ fn process_next_cpt_value(
             } else if st.e_cpt_char() == b']' || st.e_cpt_char() == b't' {
                 compl_type = CTRL_X_TAGS;
                 if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
-                    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-                    vim_snprintf!(iobuff_ptr, IOSIZE, c"%s", gettext(c"Scanning tags."),);
+                    vim_snprintf!(&mut g_st().iobuff, c"%s", gettext(c"Scanning tags."));
                     msg_progress(
                         Some(g_st().iobuff_bytes_mut()),
                         c"nvim.completion",
@@ -5414,10 +5411,8 @@ fn ins_compl_show_filename() {
     }
     if !insexp().compl_autocomplete {
         g_st().msg_hist_off = true;
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(
-            iobuff_ptr,
-            IOSIZE,
+            &mut g_st().iobuff,
             c"%s %s%s",
             lead,
             if s > fname_ptr {
@@ -6369,14 +6364,17 @@ fn ins_compl_show_statusmsg() {
                 );
                 if insexp().compl_matches > 0 {
                     vim_snprintf!(
-                        match_ref_ptr,
-                        81,
+                        &mut insexp().match_ref,
                         gettext(c"match %d of %d"),
                         curr.cp_number,
                         insexp().compl_matches,
                     );
                 } else {
-                    vim_snprintf!(match_ref_ptr, 81, gettext(c"match %d"), curr.cp_number,);
+                    vim_snprintf!(
+                        &mut insexp().match_ref,
+                        gettext(c"match %d"),
+                        curr.cp_number,
+                    );
                 }
                 g_st().edit_submode_extra = Some(match_ref_ptr.as_cstr());
                 g_st().edit_submode_highl = HLF_R;

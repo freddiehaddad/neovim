@@ -551,8 +551,7 @@ fn set_maparg_rhs(
         mapargs.orig_rhs_len = 0;
         map_st().map_luaid += 1;
         mapargs.rhs_len = vim_snprintf!(
-            tmp_buf.as_mut_ptr().cast(),
-            tmp_buf.len(),
+            &mut tmp_buf,
             c"%c%c%c%d\r",
             K_SPECIAL as i32,
             KS_EXTRA as i32,

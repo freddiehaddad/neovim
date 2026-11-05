@@ -1360,14 +1360,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
             drop(msg_vec);
             let mut buff = [0u8; IOSIZE];
             let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
-            let len = vim_snprintf!(
-                buff.as_mut_ptr().cast(),
-                IOSIZE,
-                fmt,
-                curargidx,
-                errmsg_len as i32,
-                errmsg,
-            ) as usize;
+            let len = vim_snprintf!(&mut buff, fmt, curargidx, errmsg_len as i32, errmsg) as usize;
             unsafe { lua_pushlstring(lstate, buff.as_ptr().cast(), len) };
             return unsafe { lua_error(lstate) };
         }
@@ -1441,7 +1434,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     time_push(&mut rel_time, &mut start_time);
     let status = unsafe { lua_pcall(lstate, 1, 1, 0) };
     if status == 0 {
-        vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"require('%s')", name,);
+        vim_snprintf!(&mut g_st().iobuff, c"require('%s')", name);
         time_msg(g_st().iobuff_cstr(), Some(&start_time));
     }
     time_pop(rel_time);
@@ -1473,12 +1466,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
             get_user_input(&input_args, &mut input, false, false);
 
             if ui_has(K_UICMDLINE) {
-                vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
-                    c"lua_debug> %s",
-                    input.vval.v_string(),
-                );
+                vim_snprintf!(&mut g_st().iobuff, c"lua_debug> %s", input.vval.v_string());
                 ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
             } else {
                 msg_putchar(b'\n' as i32);
@@ -1526,8 +1514,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     if !nlua_is_deferred_safe() && !viml_func_is_fast(name_cstr) {
         let length = name_len.min(100) + 22;
         vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            length,
+            &mut g_st().iobuff[..length],
             c"Vimscript function \"%s\"",
             name,
         );

@@ -924,7 +924,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     tv_list_append_number(&mut *l, llpos.len as Varnumber);
                 }
                 let mut buf = [0u8; 30];
-                let len = vim_snprintf!(buf.as_mut_ptr().cast(), 30, c"pos%d", (i + 1) as i32);
+                let len = vim_snprintf!(&mut buf, c"pos%d", (i + 1) as i32);
                 let _ = len;
                 tv_dict_add_list(
                     &mut *dict,
@@ -1008,7 +1008,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             i = 1;
             while i < 9 {
                 let mut buf = [0u8; 30];
-                vim_snprintf!(buf.as_mut_ptr().cast(), 30, c"pos%d", i);
+                vim_snprintf!(&mut buf, c"pos%d", i);
                 if let Some(pos_di) = tv_dict_find_opt(
                     Some(d),
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),

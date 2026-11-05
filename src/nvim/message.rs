@@ -380,7 +380,6 @@ use crate::charset::NUL;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_0, HLF_AT};
 use crate::eval::typval::{K_CALLBACK_NONE_CONST, VAR_UNLOCKED};
-use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::ex_cmds::{CTRL_C_CONST, HLF_R};
 use crate::ex_getln::{CTRL_B_CONST, CTRL_F_CONST, K_EVENT};
 pub use swmsg;
@@ -612,12 +611,7 @@ fn format_progress_message(
     }
     if msg_data.as_deref_mut().unwrap().percent >= 0 {
         let mut percent_buf = [0u8; 10];
-        vim_snprintf!(
-            percent_buf.as_mut_ptr().cast(),
-            percent_buf.len(),
-            c"%3ld%% ",
-            msg_data.unwrap().percent,
-        );
+        vim_snprintf!(&mut percent_buf, c"%3ld%% ", msg_data.unwrap().percent);
         let percent = cstr_to_string(Some(crate::memory::cstr_until_nul(&percent_buf)));
         let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
@@ -1011,7 +1005,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         let p = gettext(c"Error in %s:");
         let buf_len = sname.to_bytes().len() + p.to_bytes().len() + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
-        vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, sname);
+        vim_snprintf!(&mut buf_vec[..], p, sname);
         return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
@@ -1028,7 +1022,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         let p = gettext(c"line %4d:");
         let buf_len = 20 + p.to_bytes().len();
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
-        vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, slnum);
+        vim_snprintf!(&mut buf_vec, p, slnum);
         return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
@@ -1992,19 +1986,16 @@ pub fn msgmore(n: i32) {
     let pn = n.abs();
 
     if i64::from(pn) > opt_vars().p_report {
-        let msg_ptr: *mut _ = (&raw mut g_st().msg_buf).cast();
         if n > 0 {
             vim_snprintf!(
-                msg_ptr,
-                MSG_BUF_LEN,
-                ngettext(c"%d more line", c"%d more lines", pn as u64,),
+                &mut g_st().msg_buf,
+                ngettext(c"%d more line", c"%d more lines", pn as u64),
                 pn,
             );
         } else {
             vim_snprintf!(
-                msg_ptr,
-                MSG_BUF_LEN,
-                ngettext(c"%d line less", c"%d fewer lines", pn as u64,),
+                &mut g_st().msg_buf,
+                ngettext(c"%d line less", c"%d fewer lines", pn as u64),
                 pn,
             );
         }
@@ -2138,7 +2129,7 @@ pub fn msg_putchar_hl(c: i32, hl_id: i32) {
 
 pub fn msg_outnum(n: i32) {
     let mut buf = [0u8; 20];
-    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%d", n);
+    vim_snprintf!(&mut buf, c"%d", n);
     msg_puts(crate::memory::cstr_until_nul(&buf));
 }
 
@@ -3158,8 +3149,7 @@ fn inc_msg_scrolled() {
             tofree_vec = vec![0; tofreesize];
             let tofree = tofree_vec.as_mut_ptr();
             let size = vim_snprintf_safelen!(
-                tofree,
-                tofreesize,
+                &mut tofree_vec,
                 gettext(c"%s line %lld"),
                 sname,
                 i64::from(sourcing_lnum()),

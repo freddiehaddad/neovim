@@ -1980,7 +1980,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
 fn redo_literal(c: i32) {
     if ascii_isdigit(c) {
         let mut buf = [0u8; 10];
-        let n = vim_snprintf!(buf.as_mut_ptr().cast(), size_of_val(&buf), c"%03d", c);
+        let n = vim_snprintf!(&mut buf, c"%03d", c);
         redo_append_str(&buf[..n.max(0) as usize]);
     } else {
         redo_append_char(c);

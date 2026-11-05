@@ -556,7 +556,7 @@ fn atom_from_cmdline(
     let mut sb: Vec<u8> = Vec::new();
     if ca.cmdchar != b':' as i32 && ca.count0 != 0 {
         let mut num_buf = [0u8; 32];
-        let n = vim_snprintf!(num_buf.as_mut_ptr().cast(), num_buf.len(), c"%d", ca.count0);
+        let n = vim_snprintf!(&mut num_buf, c"%d", ca.count0);
         if n > 0 {
             sb.extend_from_slice(&num_buf[..n as usize]);
         }
@@ -594,12 +594,7 @@ fn atom_from_frame(ca: &mut Cmdarg, frame: &mut CmdFrame) -> CmdAtom {
         atom = atom_from_cmdline(K_AEXCMD, ca, Some(cmdline), frame.visual.active);
     } else if ca.cmdchar == K_LUA {
         let mut lua_id = [0u8; NUMBUFLEN];
-        vim_snprintf!(
-            lua_id.as_mut_ptr().cast(),
-            lua_id.len(),
-            c"%d",
-            g_st().repeat_luamap,
-        );
+        vim_snprintf!(&mut lua_id, c"%d", g_st().repeat_luamap);
         atom = atom_from_cmdline(
             K_ANORMAL,
             ca,
@@ -1501,12 +1496,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
             }
         } else if cap.cmdchar == K_LUA {
             let mut lua_id = [0u8; NUMBUFLEN];
-            let n = vim_snprintf!(
-                lua_id.as_mut_ptr().cast(),
-                lua_id.len(),
-                c"%d",
-                g_st().repeat_luamap,
-            );
+            let n = vim_snprintf!(&mut lua_id, c"%d", g_st().repeat_luamap);
             redo_append_str(&lua_id[..n.max(0) as usize]);
             redo_append_str(b"\n");
         }

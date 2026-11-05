@@ -1166,12 +1166,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
             if oap.regname == 0 {
                 namebuf[0] = 0;
             } else {
-                vim_snprintf!(
-                    namebuf.as_mut_ptr().cast(),
-                    namebuf.len(),
-                    gettext(c" into \"%c"),
-                    oap.regname,
-                );
+                vim_snprintf!(&mut namebuf, gettext(c" into \"%c"), oap.regname);
             }
 
             update_topline(curwin_mut());
@@ -1241,9 +1236,7 @@ pub fn format_reg_type(reg_type: MotionType, reg_width: Colnr, buf: &mut [u8]) -
             buf[1] = 0;
             1
         }
-        MotionType::MtBlockWise => {
-            vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"\x16%d", reg_width + 1)
-        }
+        MotionType::MtBlockWise => vim_snprintf_safelen!(buf, c"\x16%d", reg_width + 1),
         MotionType::MtUnknown => {
             buf[0] = 0;
             0

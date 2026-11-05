@@ -4,7 +4,6 @@ use crate::api::private::validate::NvimString;
 use crate::buffer::FileBuf;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
-pub(crate) use crate::cmdexpand::EXPAND_BUF_LEN;
 pub use crate::cmdexpand::ExpandCtx;
 use crate::eval::fs::modify_fname;
 use crate::eval::skip_expr;

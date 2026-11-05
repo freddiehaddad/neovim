@@ -461,12 +461,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
             }
             if lnum != 0 {
                 let mut lnum_buf = [0u8; 32];
-                let n = vim_snprintf_safelen!(
-                    lnum_buf.as_mut_ptr().cast(),
-                    lnum_buf.len(),
-                    c"[%d]",
-                    lnum,
-                );
+                let n = vim_snprintf_safelen!(&mut lnum_buf, c"[%d]", lnum);
                 buf.extend_from_slice(&lnum_buf[..n]);
             }
             if idx != es_len - 1 {
@@ -938,8 +933,7 @@ fn runtime_get_named_common(
     for item in path.iter_mut() {
         if lua {
             if item.has_lua == K_NONE {
-                let size =
-                    vim_snprintf!(buf.cast(), buf_len, c"%s/lua/", item.path.as_ptr()) as usize;
+                let size = vim_snprintf!(&mut *buf_slice, c"%s/lua/", item.path.as_ptr()) as usize;
                 item.has_lua = TriState::from(size < buf_len && os_isdir(buf.as_cstr()));
             }
             if item.has_lua == K_FALSE {
@@ -951,8 +945,7 @@ fn runtime_get_named_common(
             let pat_item = pat[j];
             if pat_item.obj_type == ObjectType::ObjectTypeString {
                 let size = vim_snprintf!(
-                    buf.cast(),
-                    buf_len,
+                    &mut *buf_slice,
                     c"%s/%s",
                     item.path.as_ptr(),
                     pat_item.data.string().data,
@@ -1522,9 +1515,8 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
     let ffname = ffname_cstr.as_ptr();
     let len = ffname_cstr.as_bytes().len() + 14;
     let mut pat_vec = vec![0u8; len + 1];
-    let pat = pat_vec.as_mut_ptr();
 
-    vim_snprintf!(pat.cast(), len, c"%s/plugin/**/*", ffname);
+    vim_snprintf!(&mut pat_vec[..len], c"%s/plugin/**/*", ffname);
     gen_expand_wildcards_and_cb(
         crate::memory::cstr_until_nul(&pat_vec),
         EW_FILE,
@@ -1534,7 +1526,7 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
 
     if opt && eval_to_number(c"g:did_load_filetypes", false) > 0 {
         do_cmdline_cmd(c"augroup filetypedetect");
-        vim_snprintf!(pat.cast(), len, c"%s/ftdetect/*", ffname);
+        vim_snprintf!(&mut pat_vec[..len], c"%s/ftdetect/*", ffname);
         gen_expand_wildcards_and_cb(
             crate::memory::cstr_until_nul(&pat_vec),
             EW_FILE,
@@ -1707,7 +1699,6 @@ pub fn ex_packadd(eap: &mut Exarg) {
     let mut res = true;
     let len = 11 + eap.arg.len() + 5;
     let mut pat_vec = vec![0u8; len];
-    let pat = pat_vec.as_mut_ptr();
     let action = if eap.forceit {
         PackAddAction::AddDir
     } else {
@@ -1715,7 +1706,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
     };
 
     if !g_st().did_source_packages {
-        vim_snprintf!(pat.cast(), len, c"pack/*/%s/%s", c"start", eap.arg,);
+        vim_snprintf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"start", eap.arg);
         res = do_in_path(
             opt_vars().p_pp.as_cstr(),
             c"",
@@ -1725,7 +1716,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
         );
     }
 
-    vim_snprintf!(pat.cast(), len, c"pack/*/%s/%s", c"opt", eap.arg,);
+    vim_snprintf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"opt", eap.arg);
     do_in_path(
         opt_vars().p_pp.as_cstr(),
         c"",
@@ -1763,8 +1754,7 @@ fn expand_rtdir_int(
             c"".as_ptr()
         };
         vim_snprintf!(
-            buf.cast(),
-            buf_len,
+            &mut buf_vec,
             c"%s%s%s%s",
             dir_str,
             slash_str,
@@ -1791,8 +1781,7 @@ fn expand_rtdir_int(
 
             if (flags & DIP_START) != 0 {
                 vim_snprintf!(
-                    buf.cast(),
-                    buf_len,
+                    &mut buf_vec,
                     c"pack/*/start/*/%s%s%s%s",
                     dir_str,
                     slash_str,
@@ -1808,8 +1797,7 @@ fn expand_rtdir_int(
                 );
 
                 vim_snprintf!(
-                    buf.cast(),
-                    buf_len,
+                    &mut buf_vec,
                     c"start/*/%s%s%s%s",
                     dir_str,
                     slash_str,
@@ -1827,8 +1815,7 @@ fn expand_rtdir_int(
 
             if (flags & DIP_OPT) != 0 {
                 vim_snprintf!(
-                    buf.cast(),
-                    buf_len,
+                    &mut buf_vec,
                     c"pack/*/opt/*/%s%s%s%s",
                     dir_str,
                     slash_str,
@@ -1844,8 +1831,7 @@ fn expand_rtdir_int(
                 );
 
                 vim_snprintf!(
-                    buf.cast(),
-                    buf_len,
+                    &mut buf_vec,
                     c"opt/*/%s%s%s%s",
                     dir_str,
                     slash_str,
@@ -1862,7 +1848,7 @@ fn expand_rtdir_int(
             }
 
             if dir.is_empty() && !expand_dirs {
-                vim_snprintf!(buf.cast(), buf_len, c"%s*", pat);
+                vim_snprintf!(&mut buf_vec, c"%s*", pat);
                 glob_flags = WILD_ADD_SLASH;
                 expand_dirs = true;
                 continue;
@@ -1977,9 +1963,9 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     let buflen = pat_len + 26;
     let mut s_vec = vec![0u8; buflen];
     let s = crate::strings::CStrCursor::from_ptr(s_vec.as_mut_ptr());
-    vim_snprintf!(s.cast(), buflen, c"pack/*/opt/%s*", pat);
+    vim_snprintf!(&mut s_vec, c"pack/*/opt/%s*", pat);
     globpath(opt_vars().p_pp.as_cstr(), s.as_cstr(), file, 0, true);
-    vim_snprintf!(s.cast(), buflen, c"opt/%s*", pat);
+    vim_snprintf!(&mut s_vec, c"opt/%s*", pat);
     globpath(opt_vars().p_pp.as_cstr(), s.as_cstr(), file, 0, true);
     drop(s_vec);
 
@@ -2462,13 +2448,16 @@ fn do_source_buffer_init(
     } else {
         if ex_lua {
             vim_snprintf!(
-                iobuff,
-                IOSIZE,
+                &mut g_st().iobuff,
                 c":{range}lua buffer=%d",
                 curbuf_mut().b_fnum,
             );
         } else {
-            vim_snprintf!(iobuff, IOSIZE, c":source buffer=%d", curbuf_mut().b_fnum,);
+            vim_snprintf!(
+                &mut g_st().iobuff,
+                c":source buffer=%d",
+                curbuf_mut().b_fnum,
+            );
         }
         cstr_to_cstring(iobuff)
     };
@@ -2510,8 +2499,7 @@ pub fn do_source_str(str_ptr: &std::ffi::CStr, traceback_name_in: &std::ffi::CSt
     let mut sname_buf = [0u8; 256];
     if let Some(sname) = sourcing_name() {
         vim_snprintf!(
-            sname_buf.as_mut_ptr().cast(),
-            sname_buf.len(),
+            &mut sname_buf,
             c"%s called at %s:%d",
             traceback_name.as_ptr(),
             sname,
@@ -2866,7 +2854,7 @@ fn do_source_ext(
 
         if l_has_time_fd {
             let iobuff = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
-            vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
+            vim_snprintf!(&mut g_st().iobuff, c"sourcing %s", fname);
             time_msg(iobuff.as_cstr(), Some(&start_time));
             time_pop(rel_time);
         }
@@ -2951,7 +2939,6 @@ pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
 /// ":scriptnames"
 pub fn ex_scriptnames(eap: &mut Exarg) {
     let namebuff = g_st().name_buff.as_mut_ptr();
-    let iobuff = g_st().iobuff.as_mut_ptr();
     if eap.addr_count > 0 || !eap.arg.is_empty() {
         if eap.addr_count > 0 && !script_id_valid(eap.line2) {
             emsg(gettext(E_INVARG));
@@ -2980,7 +2967,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 g_st().name_buff_bytes_mut(),
                 true,
             );
-            vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
+            vim_snprintf!(&mut g_st().iobuff, c"%3d: %s", i, namebuff);
             if !message_filtered(crate::memory::cstr_until_nul(g_st().iobuff_bytes())) {
                 if g_st().msg_col > 0 {
                     msg_putchar(b'\n' as i32);
@@ -3012,8 +2999,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
             SID_LUA => gettext(c"Lua"),
             SID_API_CLIENT => {
                 vim_snprintf!(
-                    iobuff,
-                    IOSIZE,
+                    &mut g_st().iobuff,
                     gettext(c"API client (channel id %llu)"),
                     script_ctx.sc_chan,
                 );
@@ -3029,8 +3015,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                     }
                 } else {
                     vim_snprintf!(
-                        iobuff,
-                        IOSIZE,
+                        &mut g_st().iobuff,
                         gettext(c"anonymous :source (script id %d)"),
                         script_ctx.sc_sid,
                     );

@@ -364,12 +364,7 @@ fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<u8>, replay: bool) {
     }
     if spec.count != 0 {
         let mut numbuf = [0u8; 32];
-        let n = vim_snprintf!(
-            numbuf.as_mut_ptr().cast(),
-            numbuf.len(),
-            c"%d",
-            spec.count as i32,
-        );
+        let n = vim_snprintf!(&mut numbuf, c"%d", spec.count as i32);
         if n > 0 {
             buf.extend_from_slice(&numbuf[..n as usize]);
         }
@@ -434,7 +429,7 @@ fn add_buff(buf: &mut StuffBuf, slice: &[u8]) {
 
 fn add_num_buff(buf: &mut StuffBuf, n: i32) {
     let mut number = [0u8; 32];
-    let numberlen = vim_snprintf!(number.as_mut_ptr().cast(), number.len(), c"%d", n) as usize;
+    let numberlen = vim_snprintf!(&mut number, c"%d", n) as usize;
     add_buff(&mut *buf, &number[..numberlen]);
 }
 
@@ -1381,8 +1376,7 @@ pub fn open_scriptin(scriptin_name: &CStr) -> bool {
     if error != 0 {
         let mut errbuf = [0u8; 1024];
         let n = vim_snprintf!(
-            errbuf.as_mut_ptr().cast(),
-            errbuf.len(),
+            &mut errbuf,
             gettext(c"Cannot open for reading: \"%s\": %s\n"),
             scriptin_name.as_ptr(),
             unsafe { uv_strerror(error) },

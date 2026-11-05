@@ -213,7 +213,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
         }
     }
 
-    vim_snprintf!(s.as_mut_ptr().cast(), s.len(), c"%d", uid as i32);
+    vim_snprintf!(&mut *s, c"%d", uid as i32);
     false
 }
 

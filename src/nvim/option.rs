@@ -639,12 +639,7 @@ pub fn opt_error<'a>(
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(
-        errbuf.as_mut_ptr().cast(),
-        errbuf.len(),
-        gettext(fmt),
-        arg.as_ptr()
-    );
+    vim_snprintf!(errbuf.as_mut_slice(), gettext(fmt), arg.as_ptr());
     Some(errbuf.as_cstr())
 }
 
@@ -656,7 +651,7 @@ pub fn opt_error_int<'a>(
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(errbuf.as_mut_ptr().cast(), errbuf.len(), gettext(fmt), arg);
+    vim_snprintf!(errbuf.as_mut_slice(), gettext(fmt), arg);
     Some(errbuf.as_cstr())
 }
 
@@ -721,7 +716,7 @@ fn set_init_default_shell() {
         if crate::strings::vim_haschr(shell_ptr.as_cstr(), b' ' as i32) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
-            vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
+            vim_snprintf!(&mut cmd, c"\"%s\"", shell_ptr);
             set_string_default(K_OPT_SHELL, crate::memory::cstr_until_nul(&cmd));
         } else {
             set_string_default(K_OPT_SHELL, shell.as_c_str());
@@ -778,8 +773,7 @@ fn set_init_default_backupskip() {
             let mut item = vec![0u8; itemsize];
 
             let itemlen = vim_snprintf!(
-                item.as_mut_ptr().cast(),
-                itemsize,
+                &mut item,
                 c"%s%s*",
                 p,
                 if has_trailing_path_sep {
@@ -2457,8 +2451,7 @@ pub fn apply_optionset_autocmd_now(
     set_vim_var_tv(VV_OPTION_OLD, &mut oldval_tv);
     set_vim_var_tv(VV_OPTION_NEW, &mut newval_tv);
     let typelen = vim_snprintf_safelen!(
-        buf_type.as_mut_ptr().cast(),
-        buf_type.len(),
+        &mut buf_type,
         c"%s",
         if (opt_flags & OPT_LOCAL) != 0 {
             c"local".as_ptr()
@@ -3259,13 +3252,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
         .take_while(|&&b| ascii_isalnum(i32::from(b)) || b == b'-')
         .count();
     if len > 0 {
-        vim_snprintf!(
-            fname.as_mut_ptr().cast(),
-            fname.len(),
-            c"spell/%.*s.*",
-            len as i32,
-            q,
-        );
+        vim_snprintf!(&mut fname, c"spell/%.*s.*", len as i32, q);
         source_runtime_vim_lua(crate::memory::cstr_until_nul(&fname), DIP_ALL);
     }
 }
@@ -3521,7 +3508,7 @@ pub fn get_tty_option(name: &[u8]) -> Object {
             cstr_to_obj(Some(c""))
         } else {
             let mut value = [0u8; NUMBUFLEN];
-            vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
+            vim_snprintf!(&mut value, c"%d", g_st().t_colors);
             cstr_to_obj(crate::memory::cstr_as_opt_cstr(
                 (crate::memory::cstr_until_nul(&value)).as_ptr(),
             ))
@@ -5411,8 +5398,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         let type_str = optval_type_name(opt.opt_type);
         errmsg = if let Some(errbuf) = errbuf {
             vim_snprintf!(
-                errbuf.as_mut_ptr().cast(),
-                errbuf.len(),
+                errbuf.as_mut_slice(),
                 gettext(c"Invalid value for option '%s': expected %s, got %s %s"),
                 opt.fullname.as_ptr(),
                 type_str,

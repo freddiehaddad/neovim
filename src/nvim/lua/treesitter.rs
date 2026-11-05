@@ -769,12 +769,7 @@ fn load_language_from_object(
     }
 
     let mut symbol_buf = [0u8; 128];
-    vim_snprintf!(
-        symbol_buf.as_mut_ptr().cast(),
-        symbol_buf.len(),
-        c"tree_sitter_%s",
-        symbol.as_ptr(),
-    );
+    vim_snprintf!(&mut symbol_buf, c"tree_sitter_%s", symbol.as_ptr());
 
     let mut fn_ptr: *mut c_void = ptr::null_mut();
     if unsafe { uv_dlsym(&mut lib, symbol_buf.as_ptr().cast(), &mut fn_ptr) } != 0 {
@@ -905,7 +900,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 lua_pushboolean(lstate, i32::from(named));
                 if !named {
                     let mut buf = [0u8; 256];
-                    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"\"%s\"", name);
+                    vim_snprintf!(&mut buf, c"\"%s\"", name);
                     lua_setfield(
                         lstate,
                         -2,

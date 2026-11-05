@@ -7,7 +7,7 @@ use crate::event::signal::{
     signal_watcher_stop,
 };
 use crate::ex_cmds2::autowrite_all;
-use crate::globals::{IOSIZE, g_st};
+use crate::globals::g_st;
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
 #[cfg(target_os = "linux")]
@@ -231,8 +231,7 @@ fn deadly_signal(signum: i32) -> ! {
 
     let io_buf = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     vim_snprintf!(
-        io_buf,
-        IOSIZE,
+        &mut g_st().iobuff,
         c"Nvim: Caught deadly signal '%s'\n",
         signal_name(signum).as_ptr(),
     );

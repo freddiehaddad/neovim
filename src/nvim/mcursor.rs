@@ -280,13 +280,7 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
     } else {
         c"".as_ptr()
     };
-    vim_snprintf!(
-        buf.as_mut_ptr().cast(),
-        buf.len(),
-        c"%s%zu\xc3\x97 ",
-        prefix,
-        count
-    ) as usize
+    vim_snprintf!(&mut *buf, c"%s%zu\xc3\x97 ", prefix, count) as usize
 }
 
 pub fn mc_replaying() -> bool {

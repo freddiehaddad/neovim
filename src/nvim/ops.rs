@@ -91,7 +91,6 @@ use crate::drawline::{VALID_WCOL, VALID_WROW};
 use crate::eval::funcs::{MT_BLOCK_WISE, MT_CHAR_WISE, MT_LINE_WISE};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::fileio::EOL_DOS;
-use crate::globals::IOSIZE;
 use crate::regexp::{CTRL_V_CONST, MAXCOL, NUMBUFLEN};
 
 pub const OP_NOP: i32 = 0;
@@ -327,11 +326,9 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             c"%lld lines %sed %d times",
             amount as u64,
         );
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(
-            iobuff_ptr,
-            IOSIZE,
-            ngettext(msg_line_single, msg_line_plural, oap.line_count as u64,),
+            &mut g_st().iobuff,
+            ngettext(msg_line_single, msg_line_plural, oap.line_count as u64),
             i64::from(oap.line_count),
             op,
             amount,
@@ -2951,13 +2948,13 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
             buf2[buf2len as usize] = 0;
         } else if pre == 0 {
-            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llu", n as u64,);
+            buf2len = vim_snprintf!(&mut buf2, c"%llu", n as u64);
         } else if pre == b'0' as i32 {
-            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llo", n as u64,);
+            buf2len = vim_snprintf!(&mut buf2, c"%llo", n as u64);
         } else if ops_st().addsub_hexupper {
-            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llX", n as u64,);
+            buf2len = vim_snprintf!(&mut buf2, c"%llX", n as u64);
         } else {
-            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llx", n as u64,);
+            buf2len = vim_snprintf!(&mut buf2, c"%llx", n as u64);
         }
         length -= buf2len;
 
@@ -3041,7 +3038,6 @@ fn line_count_info(
 
 pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
     let mut buf1 = [0u8; 50];
-    let buf1_ptr = buf1.as_mut_ptr();
     let mut buf2 = [0u8; 40];
     let mut byte_count: Varnumber = 0;
     let mut bom_count: Varnumber = 0;
@@ -3214,7 +3210,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     let cols = i64::from(oparg.end_vcol + 1)
                         .checked_sub(i64::from(oparg.start_vcol))
                         .unwrap_or_else(|| std::process::abort());
-                    vim_snprintf!(buf1_ptr.cast(), buf1.len(), tr(c"%lld Cols; "), cols,);
+                    vim_snprintf!(&mut buf1, tr(c"%lld Cols; "), cols);
                 } else {
                     buf1[0] = 0;
                 }
@@ -3222,36 +3218,34 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 if char_count_cursor == byte_count_cursor && char_count == byte_count {
                     vim_snprintf!(
-                            iobuff_ptr,
-                            IOSIZE,
-                            tr(
-                                c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes",
-                            ),
-                            buf1_cstr.as_ptr(),
-                            i64::from(line_count_selected),
-                            i64::from(curbuf_mut().b_ml.ml_line_count),
-                            word_count_cursor as i64,
-                            word_count as i64,
-                            byte_count_cursor as i64,
-                            byte_count as i64,
-                        );
+                        &mut g_st().iobuff,
+                        tr(
+                            c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Bytes",
+                        ),
+                        buf1_cstr.as_ptr(),
+                        i64::from(line_count_selected),
+                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        word_count_cursor as i64,
+                        word_count as i64,
+                        byte_count_cursor as i64,
+                        byte_count as i64,
+                    );
                 } else {
                     vim_snprintf!(
-                            iobuff_ptr,
-                            IOSIZE,
-                            tr(
-                                c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes",
-                            ),
-                            buf1_cstr.as_ptr(),
-                            i64::from(line_count_selected),
-                            i64::from(curbuf_mut().b_ml.ml_line_count),
-                            word_count_cursor as i64,
-                            word_count as i64,
-                            char_count_cursor as i64,
-                            char_count as i64,
-                            byte_count_cursor as i64,
-                            byte_count as i64,
-                        );
+                        &mut g_st().iobuff,
+                        tr(
+                            c"Selected %s%lld of %lld Lines; %lld of %lld Words; %lld of %lld Chars; %lld of %lld Bytes",
+                        ),
+                        buf1_cstr.as_ptr(),
+                        i64::from(line_count_selected),
+                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        word_count_cursor as i64,
+                        word_count as i64,
+                        char_count_cursor as i64,
+                        char_count as i64,
+                        byte_count_cursor as i64,
+                        byte_count as i64,
+                    );
                 }
             } else {
                 let p = get_cursor_line_ptr().as_ptr().cast_mut();
@@ -3271,38 +3265,36 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
 
                 if char_count_cursor == byte_count_cursor && char_count == byte_count {
                     vim_snprintf!(
-                            iobuff_ptr,
-                            IOSIZE,
-                            tr(
-                                c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Byte %lld of %lld",
-                            ),
-                            buf1_cstr.as_ptr(),
-                            buf2_cstr.as_ptr(),
-                            i64::from(curwin_mut().w_cursor.lnum),
-                            i64::from(curbuf_mut().b_ml.ml_line_count),
-                            word_count_cursor as i64,
-                            word_count as i64,
-                            byte_count_cursor as i64,
-                            byte_count as i64,
-                        );
+                        &mut g_st().iobuff,
+                        tr(
+                            c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Byte %lld of %lld",
+                        ),
+                        buf1_cstr.as_ptr(),
+                        buf2_cstr.as_ptr(),
+                        i64::from(curwin_mut().w_cursor.lnum),
+                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        word_count_cursor as i64,
+                        word_count as i64,
+                        byte_count_cursor as i64,
+                        byte_count as i64,
+                    );
                 } else {
                     vim_snprintf!(
-                            iobuff_ptr,
-                            IOSIZE,
-                            tr(
-                                c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Char %lld of %lld; Byte %lld of %lld",
-                            ),
-                            buf1_cstr.as_ptr(),
-                            buf2_cstr.as_ptr(),
-                            i64::from(curwin_mut().w_cursor.lnum),
-                            i64::from(curbuf_mut().b_ml.ml_line_count),
-                            word_count_cursor as i64,
-                            word_count as i64,
-                            char_count_cursor as i64,
-                            char_count as i64,
-                            byte_count_cursor as i64,
-                            byte_count as i64,
-                        );
+                        &mut g_st().iobuff,
+                        tr(
+                            c"Col %s of %s; Line %lld of %lld; Word %lld of %lld; Char %lld of %lld; Byte %lld of %lld",
+                        ),
+                        buf1_cstr.as_ptr(),
+                        buf2_cstr.as_ptr(),
+                        i64::from(curwin_mut().w_cursor.lnum),
+                        i64::from(curbuf_mut().b_ml.ml_line_count),
+                        word_count_cursor as i64,
+                        word_count as i64,
+                        char_count_cursor as i64,
+                        char_count as i64,
+                        byte_count_cursor as i64,
+                        byte_count as i64,
+                    );
                 }
             }
         }
@@ -3311,8 +3303,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
         if dict.is_none() && bom_count > 0 {
             let len = crate::memory::cstr_len(iobuff_ptr);
             vim_snprintf!(
-                iobuff_ptr.wrapping_add(len),
-                IOSIZE - len,
+                &mut g_st().iobuff[len..],
                 tr(c"(+%lld for BOM)"),
                 bom_count as i64,
             );

@@ -2745,8 +2745,6 @@ pub fn clear_showcmd() {
         return;
     }
 
-    let sc_buf = g_st().showcmd_buf.as_mut_ptr().cast();
-
     if g_st().visual_global.active && !char_avail() {
         let cursor_bot = lt(g_st().visual_global.start, curwin_mut().w_cursor);
         let mut leftcol: Colnr = 0;
@@ -2780,8 +2778,7 @@ pub fn clear_showcmd() {
             opt_vars().p_sbr = saved_sbr;
             curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
             vim_snprintf!(
-                sc_buf,
-                SHOWCMD_BUFLEN,
+                &mut g_st().showcmd_buf,
                 c"%lldx%lld",
                 lines as i64,
                 (i64::from(rightcol) - i64::from(leftcol) + 1) as i64,
@@ -2789,7 +2786,7 @@ pub fn clear_showcmd() {
         } else if g_st().visual_global.mode == b'V' as i32
             || g_st().visual_global.start.lnum != curwin_mut().w_cursor.lnum
         {
-            vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%lld", lines as i64,);
+            vim_snprintf!(&mut g_st().showcmd_buf, c"%lld", lines as i64);
         } else {
             let (mut s, e) = if cursor_bot {
                 (
@@ -2821,9 +2818,9 @@ pub fn clear_showcmd() {
                 s = s.wrapping_add(l as usize);
             }
             if bytes == chars {
-                vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d", chars);
+                vim_snprintf!(&mut g_st().showcmd_buf, c"%d", chars);
             } else {
-                vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d-%d", chars, bytes);
+                vim_snprintf!(&mut g_st().showcmd_buf, c"%d-%d", chars, bytes);
             }
         }
         let limit = if ui_has(K_UIMESSAGES) {
@@ -3283,8 +3280,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
 
         assert!(patsize <= i32::MAX as usize);
         let patlen = vim_snprintf!(
-            pat,
-            patsize,
+            &mut pat_vec,
             if vim_iswordp(ptr_bytes) {
                 c"\\V\\<%.*s\\>".as_ptr()
             } else {
@@ -4182,23 +4178,17 @@ fn nv_k_getcmd(
 ) -> bool {
     let kp_ptr = kp.as_ptr();
     let kp_bytes = kp.to_bytes();
-    let bufsize = buf_slice.len();
     if kp_help {
         buf_slice[..7].copy_from_slice(b"help! \0");
         *buflen = 6;
         return true;
     }
 
-    let buf = crate::strings::CStrCursor::from_ptr(buf_slice.as_mut_ptr());
     if kp_ex {
-        *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp_ptr) as usize;
+        *buflen = vim_snprintf!(&mut *buf_slice, c"%s ", kp_ptr) as usize;
         if cap.count0 != 0 {
-            *buflen += vim_snprintf!(
-                buf.wrapping_add(*buflen),
-                bufsize - *buflen,
-                c"%lld ",
-                cap.count0 as i64,
-            ) as usize;
+            *buflen +=
+                vim_snprintf!(&mut buf_slice[*buflen..], c"%lld ", cap.count0 as i64) as usize;
         }
         return true;
     }
@@ -4214,24 +4204,18 @@ fn nv_k_getcmd(
     let isman = kp_bytes == b"man";
     let isman_s = kp_bytes == b"man -s";
     if cap.count0 != 0 && !(isman || isman_s) {
-        *buflen = vim_snprintf!(buf, bufsize, c".,.+%lld", (cap.count0 - 1) as i64,) as usize;
+        *buflen = vim_snprintf!(&mut *buf_slice, c".,.+%lld", (cap.count0 - 1) as i64) as usize;
     }
 
     do_cmdline_cmd(c"tabnew");
-    *buflen += vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"terminal ") as usize;
+    *buflen += vim_snprintf!(&mut buf_slice[*buflen..], c"terminal ") as usize;
     if cap.count0 == 0 && isman_s {
-        *buflen += vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"man ") as usize;
+        *buflen += vim_snprintf!(&mut buf_slice[*buflen..], c"man ") as usize;
     } else {
-        *buflen +=
-            vim_snprintf!(buf.wrapping_add(*buflen), bufsize - *buflen, c"%s ", kp_ptr) as usize;
+        *buflen += vim_snprintf!(&mut buf_slice[*buflen..], c"%s ", kp_ptr) as usize;
     }
     if cap.count0 != 0 && (isman || isman_s) {
-        *buflen += vim_snprintf!(
-            buf.wrapping_add(*buflen),
-            bufsize - *buflen,
-            c"%lld ",
-            cap.count0 as i64,
-        ) as usize;
+        *buflen += vim_snprintf!(&mut buf_slice[*buflen..], c"%lld ", cap.count0 as i64) as usize;
     }
 
     true
@@ -4349,12 +4333,7 @@ fn nv_ident(cap: &mut Cmdarg) {
                 buf_vec[..5].copy_from_slice(b"tag \0");
                 buflen = 4;
             } else {
-                buflen = vim_snprintf!(
-                    buf_vec.as_mut_ptr().cast(),
-                    bufsize,
-                    c":%lldtag ",
-                    cap.count0 as i64,
-                ) as usize;
+                buflen = vim_snprintf!(&mut buf_vec, c":%lldtag ", cap.count0 as i64) as usize;
             }
         }
     }

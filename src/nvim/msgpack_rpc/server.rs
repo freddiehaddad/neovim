@@ -26,7 +26,6 @@ const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
 use crate::event::stream::UV_TCP;
-use crate::globals::IOSIZE;
 
 struct RpcServerState {
     watchers: Vec<crate::globals::GraphPtr<SocketWatcher>>,
@@ -97,8 +96,7 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
             c"?".as_ptr()
         };
         vim_snprintf!(
-            ptr::addr_of_mut!(g_st().iobuff).cast(),
-            IOSIZE,
+            &mut g_st().iobuff,
             fmt,
             reason,
             listen_addr.map_or(ptr::null(), CStr::as_ptr),
@@ -138,8 +136,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
         get_appname(true);
         let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
         vim_snprintf!(
-            fmt.as_mut_ptr().cast(),
-            fmt.len(),
+            &mut fmt,
             c"//./pipe/%s.%llu.%u",
             app,
             os_get_pid() as u64,
@@ -153,8 +150,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
         get_appname(true);
         let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
         vim_snprintf!(
-            fmt.as_mut_ptr().cast(),
-            fmt.len(),
+            &mut fmt,
             c"%s/%s.%llu.%u",
             dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
             app,

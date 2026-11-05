@@ -267,7 +267,6 @@ use crate::fileio::setbuf;
 use crate::fileio::tcdrain;
 #[cfg(windows)]
 use crate::fileio::{close, dup2};
-use crate::globals::IOSIZE;
 use crate::os::fs::MAXPATHL;
 #[cfg(windows)]
 use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
@@ -1611,9 +1610,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     b's' => {
                         if parmp.scriptin.is_some() {
                             vim_snprintf!(
-                                g_st().iobuff.as_mut_ptr(),
-                                IOSIZE,
-                                gettext(c"Attempt to open script file again: \"%s %s\"\n",),
+                                &mut g_st().iobuff,
+                                gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                 prev_arg,
                                 cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
@@ -1645,9 +1643,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                         } else {
                             if parmp.scriptout.is_some() {
                                 vim_snprintf!(
-                                    g_st().iobuff.as_mut_ptr(),
-                                    IOSIZE,
-                                    gettext(c"Attempt to open script file again: \"%s %s\"\n",),
+                                    &mut g_st().iobuff,
+                                    gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                     prev_arg,
                                     cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                                 );
@@ -1846,12 +1843,7 @@ fn handle_quickfix(paramp: &mut Mparm) {
         if let Some(ref use_ef) = paramp.use_ef {
             set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(Some(use_ef)), 0, SID_CARG);
         }
-        vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
-            c"cfile %s",
-            &opt_vars().p_ef
-        );
+        vim_snprintf!(&mut g_st().iobuff, c"cfile %s", &opt_vars().p_ef);
         if qf_init(
             None,
             Some(opt_vars().p_ef.as_cstr()),
@@ -1871,12 +1863,7 @@ fn handle_quickfix(paramp: &mut Mparm) {
 fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
         g_st().swap_exists_did_quit = false;
-        vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
-            c"ta %s",
-            tagname.as_ptr(),
-        );
+        vim_snprintf!(&mut g_st().iobuff, c"ta %s", tagname.as_ptr());
         do_cmdline_cmd(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
         time_msg_if_enabled(c"jumping to tag");
 
@@ -1907,21 +1894,11 @@ fn read_stdin() {
         let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
         let mut buf = [0u8; 100];
-        vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
-            c"silent! buffer %d",
-            initial_buf_handle,
-        );
+        vim_snprintf!(&mut buf, c"silent! buffer %d", initial_buf_handle);
         do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
 
         if stdin_buf_empty {
-            vim_snprintf!(
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-                c"silent! bwipeout! %d",
-                stdin_buf_handle,
-            );
+            vim_snprintf!(&mut buf, c"silent! bwipeout! %d", stdin_buf_handle);
             do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
         }
     } else {
@@ -2069,12 +2046,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 if i == 1 {
                     let mut buf = [0u8; 100];
                     p_shm_save = Some(opt_vars().p_shm.to_owned());
-                    vim_snprintf!(
-                        buf.as_mut_ptr().cast(),
-                        buf.len(),
-                        c"F%s",
-                        &opt_vars().p_shm
-                    );
+                    vim_snprintf!(&mut buf, c"F%s", &opt_vars().p_shm);
                     set_option_value_give_err(
                         K_OPT_SHORTMESS,
                         cstr_as_obj(Some(crate::memory::cstr_until_nul(&buf))),

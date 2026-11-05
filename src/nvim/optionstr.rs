@@ -117,6 +117,11 @@ impl CharBuf {
     }
 
     #[inline]
+    pub fn as_mut_slice(&self) -> &'static mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(self.addr as *mut u8, self.size) }
+    }
+
+    #[inline]
     pub fn len(&self) -> usize {
         self.size
     }
@@ -503,7 +508,6 @@ use crate::decoration::SCL_NUM;
 use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{K_OPT_SSOP_FLAG_CURDIR, K_OPT_SSOP_FLAG_SESDIR};
 use crate::fileio::K_OPT_FILEENCODING;
-use crate::globals::IOSIZE;
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 use crate::runtime::SID_NONE;
 
@@ -2336,8 +2340,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let io_buff = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     vim_snprintf!(
-        io_buff,
-        IOSIZE,
+        &mut g_st().iobuff,
         c"%s%s",
         if subtract {
             c"-".as_ptr()
@@ -3268,19 +3271,13 @@ fn opt_values_err<'a>(
     let mut itembuf = [0u8; 64];
     let copy_len = item.len().min(itembuf.len() - 1);
     itembuf[..copy_len].copy_from_slice(&item[..copy_len]);
-    let mut n = vim_snprintf!(
-        errbuf.as_mut_ptr().cast(),
-        errbuf.len(),
-        gettext(fmt),
-        itembuf.as_ptr(),
-    );
+    let mut n = vim_snprintf!(errbuf.as_mut_slice(), gettext(fmt), itembuf.as_ptr());
     for (j, &v) in values.iter().enumerate() {
         if n <= 0 || (n as usize) >= errbuf.len() {
             break;
         }
         n += vim_snprintf!(
-            errbuf.as_mut_ptr().wrapping_add(n as usize).cast(),
-            errbuf.len() - (n as usize),
+            &mut errbuf.as_mut_slice()[n as usize..],
             c"%s%s",
             if j == 0 {
                 c" ".as_ptr()
