@@ -717,7 +717,7 @@ fn map_add(
         } else {
             let n = map_hash(
                 mp.m_mode,
-                crate::memory::cstr_first_byte(mp.m_keys.as_ptr()),
+                mp.m_keys.to_bytes().first().copied().unwrap_or(0),
             );
             if local {
                 (&mut buf.b_maphash)[n].insert(0, mp);
@@ -1001,7 +1001,7 @@ fn buf_do_map(
 
                                 let new_hash = map_hash(
                                     mp.m_mode,
-                                    crate::memory::cstr_first_byte(mp.m_keys.as_ptr()),
+                                    mp.m_keys.to_bytes().first().copied().unwrap_or(0),
                                 );
                                 if !is_abbrev && new_hash != hash {
                                     let moved =
@@ -1162,7 +1162,7 @@ pub fn map_clear_mode(buf: &mut FileBuf, mode: i32, local: bool, abbr: bool) {
                 }
                 let new_hash = map_hash(
                     mp.m_mode,
-                    crate::memory::cstr_first_byte(mp.m_keys.as_ptr()),
+                    mp.m_keys.to_bytes().first().copied().unwrap_or(0),
                 );
                 if !abbr && new_hash != hash {
                     let moved = mpp.remove(idx);
@@ -2087,22 +2087,10 @@ fn mapblock_fill_dict(
         put_c(&mut dict, c"rhs", string_obj(rhs));
     }
     if let Some(ref desc) = mp.m_desc {
-        put_c(
-            &mut dict,
-            c"desc",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(desc.as_ptr())),
-        );
+        put_c(&mut dict, c"desc", cstr_as_obj(Some(desc)));
     }
-    put_c(
-        &mut dict,
-        c"lhs",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr((lhs).as_ptr())),
-    );
-    put_c(
-        &mut dict,
-        c"lhsraw",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(mp.m_keys.as_ptr())),
-    );
+    put_c(&mut dict, c"lhs", cstr_as_obj(Some(lhs)));
+    put_c(&mut dict, c"lhsraw", cstr_as_obj(Some(&*mp.m_keys)));
     if let Some(lhsrawalt) = lhsrawalt {
         let alt_bytes = lhsrawalt.to_bytes_with_nul();
         let alt_arena = arena_alloc(arena, alt_bytes.len(), false);
@@ -2168,7 +2156,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
     let keys = tv_get_string(&argvars[0]);
-    if crate::memory::cstr_is_empty((keys).as_ptr()) {
+    if keys.to_bytes().is_empty() {
         return;
     }
 
@@ -2198,7 +2186,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mut which_bytes = crate::memory::cstr_as_bytes(which);
     let mode = get_map_mode(&mut which_bytes, false);
 
-    let keys_bytes = crate::memory::cstr_as_bytes((keys).as_ptr());
+    let keys_bytes = keys.to_bytes();
     let cpo_bytes = opt_vars().p_cpo.as_bytes();
     let keys_simplified = replace_termcodes(
         keys_bytes,
@@ -2495,7 +2483,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 };
                 let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
                 let keys_buf = replace_termcodes(
-                    crate::memory::cstr_as_bytes((lhs).as_ptr()),
+                    lhs.to_bytes(),
                     false,
                     0,
                     flags,

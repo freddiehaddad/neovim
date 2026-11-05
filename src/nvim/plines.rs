@@ -534,7 +534,7 @@ pub fn charsize_regular(
         let mut head = mb_added;
         if size > 0
             && wp.w_onebuf_opt.wo_wrap
-            && (!crate::memory::cstr_is_empty((sbr).as_ptr()) || wp.w_onebuf_opt.wo_bri)
+            && (!sbr.to_bytes().is_empty() || wp.w_onebuf_opt.wo_bri)
         {
             let mut col_off_prev = win_col_off(wp);
             let width2 = wp.w_view_width - col_off_prev + win_col_off2(&mut *wp);
@@ -552,7 +552,7 @@ pub fn charsize_regular(
                 head_prev = csarg.indent_width;
                 if head_prev == i32::MIN {
                     head_prev = 0;
-                    if !crate::memory::cstr_is_empty((sbr).as_ptr()) {
+                    if !sbr.to_bytes().is_empty() {
                         head_prev += vim_strsize(sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
@@ -578,7 +578,7 @@ pub fn charsize_regular(
                 let mut head_mid = csarg.indent_width;
                 if head_mid == i32::MIN {
                     head_mid = 0;
-                    if !crate::memory::cstr_is_empty((sbr).as_ptr()) {
+                    if !sbr.to_bytes().is_empty() {
                         head_mid += vim_strsize(sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {

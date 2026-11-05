@@ -579,10 +579,7 @@ pub fn nvim_parse_expression(
 
     if let Some(err_msg) = east.err.msg {
         let mut err_dict = arena_dict(arena, 2);
-        let msg_str = arena_string(
-            arena,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(err_msg.as_ptr())),
-        );
+        let msg_str = arena_string(arena, cstr_as_string(Some(err_msg)));
         put_c(&mut err_dict, c"message", string_obj(msg_str));
         put_c(
             &mut err_dict,
@@ -601,9 +598,7 @@ pub fn nvim_parse_expression(
             add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
             add_c(
                 &mut chunk_arr,
-                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    chunk.group.as_ptr(),
-                ))),
+                string_obj(cstr_as_string(Some(chunk.group))),
             );
             add_c(&mut hl_arr, array_obj(chunk_arr));
         }

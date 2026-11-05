@@ -2319,9 +2319,7 @@ pub fn validate_helplang(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'highlight' option.
 pub fn validate_highlight(args: &mut Optset) -> Option<&CStr> {
-    if args.os_newval.data.string().cstr_bytes()
-        != crate::memory::cstr_as_bytes(HIGHLIGHT_INIT.as_ptr())
-    {
+    if args.os_newval.data.string().cstr_bytes() != HIGHLIGHT_INIT.to_bytes() {
         return Some(E_UNSUPPORTEDOPTION);
     }
     None

@@ -1875,7 +1875,7 @@ fn sort_func_compare(p1: &CString, p2: &CString) -> i32 {
     if b1 == b'<' && b2 != b'<' {
         return 1;
     }
-    crate::memory::cstr_as_bytes(p1.as_ptr()).cmp(crate::memory::cstr_as_bytes(p2.as_ptr())) as i32
+    p1.to_bytes().cmp(p2.to_bytes()) as i32
 }
 
 /// Escape special characters in the cmdline completion matches.
@@ -4635,7 +4635,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         };
         let mut err = Error::new();
         let res = nlua_exec(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(lua.as_ptr())),
+            cstr_as_string(Some(lua)),
             None,
             args,
             K_RET_OBJECT,
@@ -5896,7 +5896,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         xpc.xp_pattern_len = crate::memory::cstr_len(xpc.xp_pattern.cast());
         xpc.xp_line = crate::strings::CStrCursor::from_ptr(pattern);
 
-        xpc.xp_context = cmdcomplete_str_to_type(crate::memory::cstr_as_bytes((type_str).as_ptr()));
+        xpc.xp_context = cmdcomplete_str_to_type(type_str.to_bytes());
         match xpc.xp_context {
             EXPAND_NOTHING => {
                 semsg!(gettext(E_INVARG2), type_str);

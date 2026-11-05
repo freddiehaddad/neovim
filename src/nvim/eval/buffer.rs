@@ -506,14 +506,14 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             if !l.is_null() && tv_list_len(unsafe { l.as_ref() }) > 0 {
                 let li = tv_list_last(unsafe { l.as_ref() }).unwrap();
                 let str_ = tv_get_string(&li.li_tv);
-                let bytes = crate::memory::cstr_as_bytes((str_).as_ptr());
+                let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {
                     unsafe { (*buf).b_prompt_append_new_line = true };
                 }
             }
         } else if lines.v_type == VarType::VarString {
             let str_ = tv_get_string(&*lines);
-            let bytes = crate::memory::cstr_as_bytes((str_).as_ptr());
+            let bytes = str_.to_bytes();
             if bytes.last() == Some(&b'\n') {
                 unsafe { (*buf).b_prompt_append_new_line = true };
             }
@@ -1095,6 +1095,6 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
         u_clearallandblockfree(&mut *buf);
     }
 
-    buf.b_prompt_text = Some(crate::memory::cstr_to_cstring((new_prompt).as_ptr()));
+    buf.b_prompt_text = Some((*new_prompt).to_owned());
     buf.b_prompt_start.mark.col = new_prompt_len as Colnr;
 }

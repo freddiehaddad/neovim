@@ -289,7 +289,7 @@ pub fn prompt_for_input(
 
     if let Some(ref resp_cstr) = resp {
         if one_key {
-            ret = i32::from(crate::memory::cstr_first_byte(resp_cstr.as_ptr()));
+            ret = i32::from(resp_cstr.to_bytes().first().copied().unwrap_or(0));
         } else {
             let s = resp_cstr.to_string_lossy();
             let trimmed = s.trim_start();

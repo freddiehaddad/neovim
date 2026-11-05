@@ -1915,7 +1915,7 @@ fn highlight_list_arg(
     );
     didh = true;
     if !g_st().got_int {
-        if !crate::memory::cstr_is_empty(name.as_ptr()) {
+        if !name.to_bytes().is_empty() {
             msg_puts_hl(name, HLF_D, false);
             msg_puts_hl(c"=", HLF_D, false);
         }
@@ -2368,7 +2368,7 @@ pub fn highlight_changed() {
                 g_st().msg_grid.blending = attrs.hl_blend > -1;
             }
             ui_call_hl_group_set(
-                cstr_as_string(crate::memory::cstr_as_opt_cstr(name_cstr.as_ptr())),
+                cstr_as_string(Some(name_cstr)),
                 Integer::from(g_st().highlight_attr[hlf]),
             );
             g_st().highlight_attr_last[hlf] = g_st().highlight_attr[hlf];

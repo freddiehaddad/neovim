@@ -3112,12 +3112,7 @@ pub fn set_forced_fenc(eap: &Exarg) {
     }
 
     let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr());
-    set_option_direct(
-        K_OPT_FILEENCODING,
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(fenc.as_ptr())),
-        OPT_LOCAL,
-        0,
-    );
+    set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(Some(&*fenc)), OPT_LOCAL, 0);
 }
 
 /// Find next fileencoding to use from 'fileencodings'.
@@ -3998,7 +3993,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     emsg(tr(c"E246: FileChangedShell autocommand deleted buffer"));
                 }
                 let s = get_vim_var_str(VV_FCS_CHOICE);
-                if s == c"reload" && crate::memory::cstr_first_byte((reason).as_ptr()) != b'd' {
+                if s == c"reload" && reason.to_bytes().first().copied().unwrap_or(0) != b'd' {
                     reload = RELOAD_NORMAL;
                 } else if s == c"edit" {
                     reload = RELOAD_DETECT;
@@ -4009,7 +4004,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                 }
             }
             if !n {
-                if crate::memory::cstr_first_byte((reason).as_ptr()) == b'd' {
+                if reason.to_bytes().first().copied().unwrap_or(0) == b'd' {
                     if prev_b_mtime != -1 {
                         mesg = Some(tr(c"E211: File \"%s\" no longer available"));
                     }
@@ -4017,7 +4012,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     helpmesg = true;
                     can_reload = true;
 
-                    let reason_bytes = crate::memory::cstr_as_bytes((reason).as_ptr());
+                    let reason_bytes = reason.to_bytes();
                     if reason_bytes.get(2) == Some(&b'n') {
                         mesg = Some(tr(
                             c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
@@ -4028,7 +4023,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                             c"W11: Warning: File \"%s\" has changed since editing started",
                         ));
                         mesg2 = tr(c"See \":help W11\" for more info.");
-                    } else if crate::memory::cstr_first_byte((reason).as_ptr()) == b'm' {
+                    } else if reason.to_bytes().first().copied().unwrap_or(0) == b'm' {
                         mesg = Some(tr(
                             c"W16: Warning: Mode of file \"%s\" has changed since editing started",
                         ));

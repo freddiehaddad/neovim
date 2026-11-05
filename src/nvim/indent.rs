@@ -1523,7 +1523,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         if tabstop_count(&curbuf_mut().b_p_vts_array) > 0 || tabstop_count(&new_vts_array) > 1 {
             set_option_value(
                 K_OPT_VARTABSTOP,
-                cstr_as_obj(crate::memory::cstr_as_opt_cstr(ts_cstr.as_ptr())),
+                cstr_as_obj(Some(ts_cstr)),
                 OPT_LOCAL,
                 true,
                 None,

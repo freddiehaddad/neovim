@@ -1227,9 +1227,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
         c"stream",
         Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                stream_desc.as_ptr(),
-            ))),
+            data: ObjectData::String(cstr_as_string(Some(stream_desc))),
         },
     );
 
@@ -1300,9 +1298,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
         c"mode",
         Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                mode_desc.as_ptr(),
-            ))),
+            data: ObjectData::String(cstr_as_string(Some(mode_desc))),
         },
     );
 

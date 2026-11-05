@@ -1164,9 +1164,7 @@ pub fn ml_recover(checkext: bool) {
     if let Some(ref fenc) = b0_fenc {
         let fenc_obj = Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                fenc.as_ptr(),
-            ))),
+            data: ObjectData::String(cstr_as_string(Some(fenc))),
         };
         set_option_value_give_err(K_OPT_FILEENCODING, fenc_obj, OPT_LOCAL);
     }

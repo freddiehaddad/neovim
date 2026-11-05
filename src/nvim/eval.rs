@@ -1298,7 +1298,7 @@ fn get_lval_subscript<'a>(
             p_cstr = unsafe {
                 CStr::from_ptr(crate::charset::skipwhite_ptr(p.wrapping_add(1).cast_mut()))
             };
-            if crate::memory::cstr_first_byte(p_cstr.as_ptr()) == b':' {
+            if p_cstr.to_bytes().first().copied().unwrap_or(0) == b':' {
                 empty1 = true;
             } else {
                 empty1 = false;
@@ -1315,7 +1315,7 @@ fn get_lval_subscript<'a>(
                 p_cstr = crate::charset::skipwhite(p_cstr);
             }
 
-            if crate::memory::cstr_first_byte(p_cstr.as_ptr()) == b':' {
+            if p_cstr.to_bytes().first().copied().unwrap_or(0) == b':' {
                 if lp.tv_mut().v_type == VarType::VarDict {
                     if !quiet {
                         emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
@@ -1338,7 +1338,7 @@ fn get_lval_subscript<'a>(
                     return None;
                 }
                 p_cstr = crate::charset::skipwhite_at(p_cstr, 1);
-                if crate::memory::cstr_first_byte(p_cstr.as_ptr()) == b']' {
+                if p_cstr.to_bytes().first().copied().unwrap_or(0) == b']' {
                     lp.ll_empty2 = true;
                 } else {
                     lp.ll_empty2 = false;
@@ -1355,7 +1355,7 @@ fn get_lval_subscript<'a>(
                 lp.ll_range = false;
             }
 
-            if crate::memory::cstr_first_byte(p_cstr.as_ptr()) != b']' {
+            if p_cstr.to_bytes().first().copied().unwrap_or(0) != b']' {
                 if !quiet {
                     emsg(gettext(E_MISSBRAC));
                 }
@@ -2088,7 +2088,7 @@ pub fn eval0(
     let ret = eval1(&mut p, rettv, Some(evalarg));
 
     if ret {
-        end_error = ends_excmd(i32::from(crate::memory::cstr_first_byte(p.as_ptr()))) == 0;
+        end_error = ends_excmd(i32::from(p.to_bytes().first().copied().unwrap_or(0))) == 0;
     }
     if !ret || end_error {
         if ret {
@@ -2226,7 +2226,7 @@ pub fn eval1(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
 
         if !op_falsy {
             p = *arg;
-            if crate::memory::cstr_first_byte(p.as_ptr()) != b':' {
+            if p.to_bytes().first().copied().unwrap_or(0) != b':' {
                 emsg(gettext(c"E109: Missing ':' after '?'"));
                 if evaluate && result {
                     tv_clear(rettv);
@@ -4710,7 +4710,7 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
         let mut string = vim_getenv(env_name).filter(|s| !s.as_bytes().is_empty());
         if string.is_none() {
             let exp = expand_env_save(&env_with_dollar);
-            if crate::memory::cstr_first_byte(exp.as_ptr()) != b'$' {
+            if exp.to_bytes().first().copied().unwrap_or(0) != b'$' {
                 string = Some(exp);
             }
         }
@@ -4735,7 +4735,7 @@ pub fn tv_to_argv(
     if cmd_tv.v_type == VarType::VarString {
         let cmd_str = tv_get_string(&*cmd_tv);
         if let Some(cmd_out) = cmd {
-            *cmd_out = crate::memory::cstr_to_cstring((cmd_str).as_ptr());
+            *cmd_out = (*cmd_str).to_owned();
         }
         return shell_build_argv(Some(cmd_str), None);
     }
@@ -6306,7 +6306,7 @@ pub fn ex_echo(eap: &mut Exarg) {
             }
             let tofree = encode_tv2echo(&mut rettv, None);
             msg_multiline(
-                cstr_as_string(crate::memory::cstr_as_opt_cstr(tofree.as_ptr())),
+                cstr_as_string(Some(&*tofree)),
                 eval_st().echo_hl_id,
                 true,
                 false,

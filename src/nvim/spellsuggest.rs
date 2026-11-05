@@ -753,8 +753,7 @@ pub fn spell_suggest(count: i32) {
                 spell_priv_st().repl_from = Some(crate::memory::cstr_from_bytes(
                     crate::memory::cstr_slice(sug.su_badptr.as_ptr(), stp.st_orglen as usize),
                 ));
-                spell_priv_st().repl_to =
-                    Some(crate::memory::cstr_to_cstring(stp.st_word.as_ptr()));
+                spell_priv_st().repl_to = Some((*stp.st_word).to_owned());
             }
             let c = crate::memory::ptr_offset_from(sug.su_badptr.as_ptr().cast(), line) as i32;
             let mut p_vec: Vec<u8> = Vec::with_capacity(

@@ -1026,10 +1026,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 if !crate::memory::cstr_is_empty(dirnow)
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
                 {
-                    if vim_chdirfile(
-                        crate::memory::cstr_from_ptr((fname).as_ptr()),
-                        K_CD_CAUSE_OTHER,
-                    ) {
+                    if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
                         shorten_fnames(true);
                     }
                 } else if !crate::memory::cstr_is_empty(dirnow)

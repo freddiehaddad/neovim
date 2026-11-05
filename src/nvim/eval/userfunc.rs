@@ -2663,8 +2663,7 @@ fn get_function_body(
                 } else {
                     theline.wrapping_add(heredoc_trimmedlen)
                 };
-                if crate::memory::cstr_as_bytes(p) == crate::memory::cstr_as_bytes(marker.as_ptr())
-                {
+                if crate::memory::cstr_as_bytes(p) == marker.to_bytes() {
                     skip_until = None;
                     heredoc_trimmed = None;
                     heredoc_trimmedlen = 0;
@@ -3904,7 +3903,7 @@ pub fn ex_call(eap: &mut Exarg) {
 
     let startarg = crate::charset::skipwhite(arg);
 
-    if crate::memory::cstr_first_byte(startarg.as_ptr()) != b'(' {
+    if startarg.to_bytes().first().copied().unwrap_or(0) != b'(' {
         semsg!(gettext(E_MISSINGPAREN), eap.arg);
         tv_dict_unref(unsafe { fudi.fd_dict.as_mut() });
         return;
@@ -3925,7 +3924,7 @@ pub fn ex_call(eap: &mut Exarg) {
     };
 
     if (!aborting() || g_st().did_throw) && (!failed || eap.cstack_mut().cs_trylevel > 0) {
-        if ends_excmd(crate::memory::cstr_first_byte(arg.as_ptr())) == 0 {
+        if ends_excmd(arg.to_bytes().first().copied().unwrap_or(0)) == 0 {
             if !failed && !aborting() {
                 g_st().emsg_severe = true;
                 semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());

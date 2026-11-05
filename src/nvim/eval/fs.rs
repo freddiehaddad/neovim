@@ -533,7 +533,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut scope: i32 = K_CD_SCOPE_GLOBAL;
     if argvars[1].v_type != VarType::VarUnknown {
         let s = tv_get_string(&argvars[1]);
-        let s_bytes = crate::memory::cstr_as_bytes((s).as_ptr());
+        let s_bytes = s.to_bytes();
         if s_bytes == b"global" {
             scope = K_CD_SCOPE_GLOBAL;
         } else if s_bytes == b"tabpage" {
@@ -573,7 +573,7 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 
     let name = tv_get_string(&argvars[0]);
-    if crate::memory::cstr_is_empty((name).as_ptr()) {
+    if name.to_bytes().is_empty() {
         emsg(gettext(E_INVARG));
         return;
     }
@@ -596,9 +596,8 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             crate::eval::typval::TypvalVval::Number(if os_rmdir(name) == 0 { 0 } else { -1 });
     } else if flags_bytes == b"rf" {
         // delete a directory recursively
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(
-            crate::memory::cstr_from_ptr((name).as_ptr()),
-        )));
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(name)));
     } else {
         semsg!(gettext(E_INVEXPR2), flags);
     }
@@ -676,7 +675,7 @@ pub fn f_filecopy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_filereadable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let p = tv_get_string(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        !crate::memory::cstr_is_empty((p).as_ptr()) && !os_isdir(p) && os_file_is_readable(p),
+        !p.to_bytes().is_empty() && !os_isdir(p) && os_file_is_readable(p),
     ));
 }
 
@@ -1217,8 +1216,8 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "glob2regpat()" function
 pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let regpat = tv_get_string_chk(&argvars[0])
-        .and_then(|pat| file_pat_to_reg_pat(crate::memory::cstr_as_bytes((pat).as_ptr()), None, 0));
+    let regpat =
+        tv_get_string_chk(&argvars[0]).and_then(|pat| file_pat_to_reg_pat(pat.to_bytes(), None, 0));
     crate::eval::typval::tv_set_string(rettv, regpat.as_deref());
 }
 
@@ -1540,7 +1539,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         semsg!(gettext(E_ISADIR2), fname);
         return;
     }
-    if crate::memory::cstr_is_empty((fname).as_ptr()) {
+    if fname.to_bytes().is_empty() {
         semsg!(gettext(E_NOTOPEN), gettext(c"<empty>"));
         return;
     }
@@ -1952,7 +1951,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "simplify()" function
 pub fn f_simplify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let p = tv_get_string(&argvars[0]);
-    let mut v = cstr_to_cstring((p).as_ptr()).into_bytes_with_nul();
+    let mut v = (*p).to_owned().into_bytes_with_nul();
     simplify_filename(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast())); // Simplify in place.
     crate::eval::typval::tv_set_string(
         rettv,

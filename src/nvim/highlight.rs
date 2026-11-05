@@ -1296,13 +1296,7 @@ pub fn hlattrs2dict(
             put_c(&mut *hl, c"bg_indexed", boolean_obj(true));
         }
         if let Some(font) = hl_get_font(ae.font) {
-            put_c(
-                &mut *hl,
-                c"font",
-                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    (font).as_ptr(),
-                ))),
-            );
+            put_c(&mut *hl, c"font", string_obj(cstr_as_string(Some(font))));
         }
     } else {
         if ae.cterm_fg_color != 0 {

@@ -3665,21 +3665,21 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         what_flag = 0;
         for item in crate::eval::typval::list_iter_mut(what_list.first_opt()) {
             let what = tv_get_string(&item.li_tv);
-            if crate::memory::cstr_as_bytes((what).as_ptr()) == b"mode" {
+            if what.to_bytes() == b"mode" {
                 what_flag |= CI_WHAT_MODE;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"pum_visible" {
+            } else if what.to_bytes() == b"pum_visible" {
                 what_flag |= CI_WHAT_PUM_VISIBLE;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"items" {
+            } else if what.to_bytes() == b"items" {
                 what_flag |= CI_WHAT_ITEMS;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"selected" {
+            } else if what.to_bytes() == b"selected" {
                 what_flag |= CI_WHAT_SELECTED;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"completed" {
+            } else if what.to_bytes() == b"completed" {
                 what_flag |= CI_WHAT_COMPLETED;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"preinserted_text" {
+            } else if what.to_bytes() == b"preinserted_text" {
                 what_flag |= CI_WHAT_PREINSERTED_TEXT;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"matches" {
+            } else if what.to_bytes() == b"matches" {
                 what_flag |= CI_WHAT_MATCHES;
-            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"auto" {
+            } else if what.to_bytes() == b"auto" {
                 what_flag |= CI_WHAT_AUTO;
             }
         }
@@ -4795,7 +4795,7 @@ fn get_next_bufname_token() {
         if b.b_p_bl && b.b_sfname.is_some() {
             let tail = path_tail(b.sfname_cstr());
             let orig_bytes = insexp().compl_orig_text.as_bytes();
-            let tail_b = crate::memory::cstr_as_bytes((tail).as_ptr());
+            let tail_b = tail.to_bytes();
             if &tail_b[..orig_bytes.len().min(tail_b.len())] == orig_bytes {
                 ins_compl_add(
                     tail_b,

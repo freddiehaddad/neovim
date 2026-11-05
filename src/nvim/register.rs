@@ -2805,11 +2805,7 @@ fn str_to_reg(
     if let Some(list) = str_list {
         for item in list {
             let s = item.as_ref();
-            y_ptr
-                .y_array
-                .push(cstr_to_string(crate::memory::cstr_as_opt_cstr(
-                    (s).as_ptr(),
-                )));
+            y_ptr.y_array.push(cstr_to_string(Some(s)));
             if yank_type == MotionType::MtBlockWise {
                 let charlen = vim_strsize(s) as usize;
                 maxlen = maxlen.max(charlen);

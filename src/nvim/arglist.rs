@@ -811,15 +811,13 @@ pub fn get_arglist_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 }
 
 /// Get the file name for an argument list entry (`alist_name`).
-pub fn alist_name(aep: &Aentry) -> Option<&'static CStr> {
+pub fn alist_name(aep: &Aentry) -> Option<&CStr> {
     if let Some(bp) = buflist_findnr_opt(aep.ae_fnum)
         && bp.fname_opt().is_some()
     {
         Some(bp.fname_cstr())
     } else {
-        aep.ae_fname
-            .as_ref()
-            .map(|s| crate::memory::cstr_from_ptr(s.as_ptr()))
+        aep.ae_fname.as_deref()
     }
 }
 

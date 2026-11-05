@@ -395,12 +395,12 @@ fn do_log_to_file_str(
         let parent = path_tail(os_getenv_buf(c"NVIM", &mut parent_buf).unwrap_or(c""));
         let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
         let mut formatted = Vec::with_capacity(32);
-        if !crate::memory::cstr_is_empty((parent).as_ptr()) {
-            let p = crate::memory::cstr_as_bytes((parent).as_ptr());
+        if !parent.to_bytes().is_empty() {
+            let p = parent.to_bytes();
             formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
             formatted.extend_from_slice(p);
-        } else if !crate::memory::cstr_is_empty((serv).as_ptr()) {
-            let s = crate::memory::cstr_as_bytes((serv).as_ptr());
+        } else if !serv.to_bytes().is_empty() {
+            let s = serv.to_bytes();
             if ui {
                 formatted.extend_from_slice(b"ui/");
             }

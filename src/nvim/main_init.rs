@@ -1698,7 +1698,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                 let tail = path_tail(alist_name(&garglist_slice()[0]).unwrap_or(c""));
                 let joined = concat_fnames(
                     cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr().cast())),
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr((tail).as_ptr())),
+                    cstr_as_string(Some(tail)),
                     true,
                 );
                 p_vec = joined.as_bytes_with_nul().to_vec();
@@ -1857,12 +1857,7 @@ fn set_window_layout(paramp: &mut Mparm) {
 fn handle_quickfix(paramp: &mut Mparm) {
     if paramp.edit_type == EDIT_QF {
         if let Some(ref use_ef) = paramp.use_ef {
-            set_option_direct(
-                K_OPT_ERRORFILE,
-                cstr_as_obj(crate::memory::cstr_as_opt_cstr(use_ef.as_ptr())),
-                0,
-                SID_CARG,
-            );
+            set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(Some(use_ef)), 0, SID_CARG);
         }
         vim_snprintf!(
             g_st().iobuff.as_mut_ptr(),
@@ -2147,11 +2142,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     }
 
     if let Some(ref p_shm_save) = p_shm_save {
-        set_option_value_give_err(
-            K_OPT_SHORTMESS,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(p_shm_save.as_ptr())),
-            0,
-        );
+        set_option_value_give_err(K_OPT_SHORTMESS, cstr_as_obj(Some(p_shm_save)), 0);
     }
 
     if parmp.window_layout == WIN_TABS {
@@ -2227,7 +2218,7 @@ fn do_system_initialization() {
         let config_bytes = config_dirs.as_bytes();
         let mut iter = None;
         let appname = get_appname(false);
-        let appname_bytes = crate::memory::cstr_as_bytes((appname).as_ptr());
+        let appname_bytes = appname.to_bytes();
         let sysinit_suffix: [u8; 13] = [
             PATHSEP, b's', b'y', b's', b'i', b'n', b'i', b't', b'.', b'v', b'i', b'm', 0,
         ];
@@ -2300,7 +2291,7 @@ fn do_user_initialization() -> bool {
 
     if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs) {
         let appname = get_appname(false);
-        let appname_bytes = crate::memory::cstr_as_bytes((appname).as_ptr());
+        let appname_bytes = appname.to_bytes();
         let init_lua_suffix: [u8; 10] =
             [PATHSEP, b'i', b'n', b'i', b't', b'.', b'l', b'u', b'a', 0];
         let init_vim_suffix: [u8; 10] =

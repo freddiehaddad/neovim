@@ -2707,10 +2707,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
         let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes_with_nul();
         let s_len = s_bytes.len() - 1;
-        let len = crate::memory::cstr_len((txt).as_ptr())
-            + crate::memory::cstr_len((dashes).as_ptr())
-            + 20
-            + s_len;
+        let len = txt.to_bytes().len() + dashes.to_bytes().len() + 20 + s_len;
         let mut r_vec = vec![0u8; len];
         vim_snprintf!(r_vec.as_mut_ptr().cast(), len, txt, dashes, count);
         let r_len = crate::memory::bytes_until_nul(&r_vec).len();

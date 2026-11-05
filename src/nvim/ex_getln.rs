@@ -3269,8 +3269,7 @@ fn command_line_changed(s: &mut CommandLineState) -> i32 {
     if !getln_st().ccline.cmdbuff_replaced
         && (getln_st().ccline.cmdpos != s.prev_cmdpos
             || s.prev_cmdbuff.as_ref().is_some_and(|prev| {
-                crate::memory::cstr_as_bytes(prev.as_ptr())
-                    != crate::memory::cstr_as_bytes(getln_st().ccline.cmdbuff().cast())
+                prev.to_bytes() != crate::memory::cstr_as_bytes(getln_st().ccline.cmdbuff().cast())
             }))
     {
         do_autocmd_cmdlinechanged(if s.firstc > 0 { s.firstc } else { b'-' as i32 });
@@ -3618,7 +3617,7 @@ fn color_expr_cmdline(colored_ccline: &CmdlineInfo, ret_ccline_colors: &mut Colo
         ret_ccline_colors.colors.push(CmdlineColorChunk {
             start: chunk.start.col as i32,
             end: chunk.end_col as i32,
-            hl_id: syn_name2id(crate::memory::cstr_from_ptr(chunk.group.as_ptr())),
+            hl_id: syn_name2id(chunk.group),
         });
         prev_end = chunk.end_col;
     }
@@ -3641,8 +3640,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
 
     if ccline_colors.prompt_id == colored_ccline.prompt_id
         && ccline_colors.cmdbuff.as_ref().is_some_and(|cb| {
-            crate::memory::cstr_as_bytes(cb.as_ptr())
-                == crate::memory::cstr_as_bytes(colored_ccline.cmdbuff().cast())
+            cb.to_bytes() == crate::memory::cstr_as_bytes(colored_ccline.cmdbuff().cast())
         })
     {
         return ret;

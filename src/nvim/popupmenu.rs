@@ -1244,9 +1244,7 @@ fn pum_preview_set_text(
             let line_width = win_linetabsize(win, 0, &curr_cstr, MAXCOL);
             win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
-            replacement.push(string_obj(cstr_to_string(crate::memory::cstr_as_opt_cstr(
-                curr_cstr.as_ptr(),
-            ))));
+            replacement.push(string_obj(cstr_to_string(Some(&*curr_cstr))));
             *lnum += 1;
             rem_opt = next_opt;
         }

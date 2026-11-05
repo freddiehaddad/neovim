@@ -7215,12 +7215,7 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
     }
 
     if let Some(save_ei) = cmod.cmod_save_ei.take() {
-        set_option_direct(
-            K_OPT_EVENTIGNORE,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(save_ei.as_ptr())),
-            0,
-            SID_NONE,
-        );
+        set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(Some(&*save_ei)), 0, SID_NONE);
     }
 
     cmod.cmod_filter_pat = None;
@@ -8379,10 +8374,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
                     esc_chars,
                     i32::from(crate::memory::cstr_first_byte(l)),
                 ) {
-                    repl_cstr = vim_strsave_escaped(
-                        repl_cstr.as_bytes(),
-                        crate::memory::cstr_as_bytes((esc_chars).as_ptr()),
-                    );
+                    repl_cstr = vim_strsave_escaped(repl_cstr.as_bytes(), esc_chars.to_bytes());
                     break;
                 }
                 l = l.wrapping_add(1);
@@ -9336,7 +9328,7 @@ fn ex_restart(eap: &mut Exarg) {
             let next_li = unsafe { (*li).li_next };
             if !next_li.is_null() {
                 let next_arg = tv_get_string(unsafe { &(*next_li).li_tv });
-                if crate::memory::cstr_first_byte((next_arg).as_ptr()) != b'-' {
+                if next_arg.to_bytes().first().copied().unwrap_or(0) != b'-' {
                     li = next_li;
                 }
             }
@@ -9357,7 +9349,8 @@ fn ex_restart(eap: &mut Exarg) {
             let next_li = unsafe { (*li).li_next };
             if let Some(next_li) = unsafe { next_li.as_mut() } {
                 let addr = tv_get_string(&next_li.li_tv);
-                if crate::memory::cstr_as_bytes((addr).as_ptr())
+                if addr
+                    .to_bytes()
                     .iter()
                     .any(|b| matches!(b, b':' | b'/' | b'\\'))
                 {
@@ -9375,7 +9368,7 @@ fn ex_restart(eap: &mut Exarg) {
                 && !(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--headless"))
                 && !(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-")))
         {
-            argv_vec.push(crate::memory::cstr_to_cstring((arg).as_ptr()));
+            argv_vec.push((*arg).to_owned());
             if argv_vec.len() == 1 {
                 argv_vec.push(c"--embed".to_owned());
                 if no_ui {
@@ -9446,7 +9439,7 @@ fn ex_restart(eap: &mut Exarg) {
     let globaldir_opt = g_st().globaldir.as_deref();
     let channel = channel_job_start(
         argv_vec,
-        crate::memory::cstr_as_opt_cstr((exepath).as_ptr()),
+        Some(exepath),
         on_stdout,
         on_err,
         on_exit,
@@ -9580,10 +9573,7 @@ fn ex_restart(eap: &mut Exarg) {
 
         #[cfg(windows)]
         if let Some(ref la) = listen_arg {
-            let mut handoff_items = [
-                cstr_as_obj(crate::memory::cstr_as_opt_cstr(la.as_ptr())),
-                integer_obj(ui_active() as Integer),
-            ];
+            let mut handoff_items = [cstr_as_obj(Some(la)), integer_obj(ui_active() as Integer)];
             let handoff_params = Array {
                 items: handoff_items.as_mut_ptr(),
                 size: 2,
@@ -9617,9 +9607,7 @@ fn ex_restart(eap: &mut Exarg) {
             result_mem = ptr::null_mut();
         }
 
-        remote_ui_restart(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-            listen_addr.as_ptr(),
-        )));
+        remote_ui_restart(cstr_as_string(Some(&*listen_addr)));
         ui_flush();
         drop(listen_addr);
 

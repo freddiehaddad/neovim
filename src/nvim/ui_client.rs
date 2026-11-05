@@ -157,10 +157,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     put_opt(c"ext_linegrid", boolean_obj(true));
     put_opt(c"ext_termcolors", boolean_obj(true));
     if let Some(term) = term {
-        put_opt(
-            c"term_name",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(term.as_ptr())),
-        );
+        put_opt(c"term_name", cstr_as_obj(Some(term)));
     }
     put_opt(c"term_colors", integer_obj(Integer::from(g_st().t_colors)));
     put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));

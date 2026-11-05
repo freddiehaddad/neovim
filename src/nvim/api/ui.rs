@@ -1059,9 +1059,7 @@ pub fn remote_ui_hl_attr_define(
         let url = hl_get_url(rgb_attrs.url as u32);
         *rgb.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(c"url")),
-            value: string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                (url).as_ptr(),
-            ))),
+            value: string_obj(cstr_as_string(Some(url))),
         };
         rgb.size += 1;
     }

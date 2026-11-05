@@ -415,12 +415,7 @@ pub fn prepare_help_buffer() {
 
     let p = c"!-~,^*,^|,^\",192-255";
     if curbuf_mut().b_p_isk.as_bytes() != p.to_bytes() {
-        set_option_direct(
-            K_OPT_ISKEYWORD,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr((p).as_ptr())),
-            OPT_LOCAL,
-            0,
-        );
+        set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(Some(p)), OPT_LOCAL, 0);
         check_buf_options(curbuf_mut());
         buf_init_isk_chartab(curbuf_mut());
     }

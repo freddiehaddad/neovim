@@ -229,7 +229,7 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
     let mut retval = arena_dict(arena, g_st().namespace_ids.len());
     for (name, id) in &g_st().namespace_ids {
         *retval.next_slot_mut() = KeyValuePair {
-            key: cstr_as_string(crate::memory::cstr_as_opt_cstr(name.as_ptr())),
+            key: cstr_as_string(Some(name)),
             value: integer_obj(i64::from(*id)),
         };
         retval.size += 1;

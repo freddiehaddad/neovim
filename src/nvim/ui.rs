@@ -248,10 +248,7 @@ pub fn ui_refresh() {
         let val = widget | ui_state().ui_cb_ext[i];
         ui_state().ui_ext[i] = val;
         if i < K_UIGLOBAL_COUNT {
-            ui_call_option_set(
-                cstr_as_string(crate::memory::cstr_as_opt_cstr(UI_EXT_NAMES[i].as_ptr())),
-                boolean_obj(val),
-            );
+            ui_call_option_set(cstr_as_string(Some(UI_EXT_NAMES[i])), boolean_obj(val));
         }
     }
 
@@ -621,10 +618,7 @@ pub fn ui_flush() {
             ui_state().ui_mode_idx
         };
         let full_name = (*shape_table_mut())[idx as usize].full_name;
-        ui_call_mode_change(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(full_name.as_ptr())),
-            Integer::from(idx),
-        );
+        ui_call_mode_change(cstr_as_string(Some(full_name)), Integer::from(idx));
         ui_state().pending_mode_update = false;
         ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
     }

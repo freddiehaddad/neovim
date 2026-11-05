@@ -1770,9 +1770,7 @@ fn ex_let_option<'a>(
                     crate::memory::cstr_as_bytes(curval_data),
                     crate::memory::cstr_as_bytes(newval_data),
                 );
-                newval = crate::api::private::helpers::cstr_to_obj(
-                    crate::memory::cstr_as_opt_cstr(joined.as_ptr()),
-                );
+                newval = crate::api::private::helpers::cstr_to_obj(Some(&*joined));
                 optval_free(newval_old);
             }
         }
@@ -2643,7 +2641,7 @@ pub fn find_var(
         name_len - (crate::memory::ptr_offset_from(varname.as_ptr(), name.as_ptr()) as usize);
     let ret = find_var_in_ht(
         ht,
-        crate::memory::cstr_first_byte(name.as_ptr()) as i32,
+        name.to_bytes().first().copied().unwrap_or(0) as i32,
         varname,
         varname_len,
         i32::from(no_autoload != 0 || has_htp),
@@ -3345,9 +3343,7 @@ fn opt_from_tv(tv: &mut TypVal, opt_idx: OptIndex, option: &CStr, error: &mut bo
 
     if !is_tty_opt && (get_option(opt_idx).flags & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
         let strval = encode_tv2string(tv, None);
-        value = crate::api::private::helpers::cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-            strval.as_ptr(),
-        ));
+        value = crate::api::private::helpers::cstr_to_obj(Some(&*strval));
     } else if option_has_bool || option_has_num {
         let n = if option_has_num {
             tv_get_number_chk(&*tv, Some(&mut err))

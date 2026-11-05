@@ -3757,7 +3757,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
             let mut cnt: i32 = 0;
             let mut p = keyword_copy;
             while rest_opt
-                .is_some_and(|r| ends_excmd(crate::memory::cstr_first_byte(r.as_ptr())) == 0)
+                .is_some_and(|r| ends_excmd(r.to_bytes().first().copied().unwrap_or(0)) == 0)
             {
                 rest_opt = get_syn_options(rest_opt, &mut syn_opt_arg, &mut conceal_char, eap.skip);
                 let Some(rest_cstr) = rest_opt else {
@@ -3888,7 +3888,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
 
     if let Some(rest_cstr) = rest {
         eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(rest_cstr));
-        if ends_excmd(crate::memory::cstr_first_byte(rest_cstr.as_ptr())) == 0 || eap.skip {
+        if ends_excmd(rest_cstr.to_bytes().first().copied().unwrap_or(0)) == 0 || eap.skip {
             rest = None;
         } else {
             let syn_id = syn_check_group(crate::memory::cstr_slice(arg, group_name_len));
@@ -3953,7 +3953,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         next_list: None,
     };
 
-    while rest_opt.is_some_and(|r| ends_excmd(crate::memory::cstr_first_byte(r.as_ptr())) == 0) {
+    while rest_opt.is_some_and(|r| ends_excmd(r.to_bytes().first().copied().unwrap_or(0)) == 0) {
         rest_opt = get_syn_options(rest_opt, &mut syn_opt_arg, &mut conceal_char, eap.skip);
         let Some(rest_cstr) = rest_opt else {
             break;
@@ -3978,13 +3978,13 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
             .to_ascii_uppercase(),
         ));
         let key_ptr = key.as_deref().unwrap_or(c"");
-        let item = if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"MATCHGROUP" {
+        let item = if key_ptr.to_bytes() == b"MATCHGROUP" {
             ITEM_MATCHGROUP
-        } else if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"START" {
+        } else if key_ptr.to_bytes() == b"START" {
             ITEM_START
-        } else if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"END" {
+        } else if key_ptr.to_bytes() == b"END" {
             ITEM_END
-        } else if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"SKIP" {
+        } else if key_ptr.to_bytes() == b"SKIP" {
             if !pat_ptrs[ITEM_SKIP].is_empty() {
                 illegal = true;
                 break;
@@ -4301,7 +4301,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
     if !got_clstr {
         emsg(gettext(c"E400: No cluster specified"));
     }
-    if rest_opt.is_none_or(|r| ends_excmd(crate::memory::cstr_first_byte(r.as_ptr())) == 0) {
+    if rest_opt.is_none_or(|r| ends_excmd(r.to_bytes().first().copied().unwrap_or(0)) == 0) {
         semsg!(gettext(E_INVARG2), arg);
     }
 }
@@ -4441,7 +4441,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             .to_ascii_uppercase(),
         ));
         let key = key_owned.as_deref().unwrap_or(c"");
-        if crate::memory::cstr_as_bytes((key).as_ptr()) == b"CCOMMENT" {
+        if key.to_bytes() == b"CCOMMENT" {
             if !eap.skip {
                 win_s(curwin_mut()).b_syn_sync_flags |= SF_CCOMMENT;
             }
@@ -4489,12 +4489,12 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                     win_s(curwin_mut()).b_syn_sync_minlines = n;
                 }
             }
-        } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"FROMSTART" {
+        } else if key.to_bytes() == b"FROMSTART" {
             if !eap.skip {
                 win_s(curwin_mut()).b_syn_sync_minlines = MAXLNUM;
                 win_s(curwin_mut()).b_syn_sync_maxlines = 0;
             }
-        } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"LINECONT" {
+        } else if key.to_bytes() == b"LINECONT" {
             if crate::memory::cstr_is_empty(next_arg) {
                 illegal = true;
                 break;
@@ -4543,11 +4543,11 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             next_arg = crate::charset::skipwhite_ptr(arg_end.wrapping_add(1));
         } else {
             eap.arg = next_arg;
-            if crate::memory::cstr_as_bytes((key).as_ptr()) == b"MATCH" {
+            if key.to_bytes() == b"MATCH" {
                 syn_cmd_match(eap, 1);
-            } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"REGION" {
+            } else if key.to_bytes() == b"REGION" {
                 syn_cmd_region(eap, 1);
-            } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"CLEAR" {
+            } else if key.to_bytes() == b"CLEAR" {
                 syn_cmd_clear(eap, 1);
             } else {
                 illegal = true;

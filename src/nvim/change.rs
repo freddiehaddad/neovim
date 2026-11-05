@@ -1654,11 +1654,9 @@ pub fn open_line(
         {
             let prompt_line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
             let prompt = prompt_text();
-            let prompt_len = crate::memory::cstr_len((prompt).as_ptr());
+            let prompt_len = prompt.to_bytes().len();
 
-            if crate::memory::cstr_as_bytes(prompt_line)
-                .starts_with(crate::memory::cstr_as_bytes((prompt).as_ptr()))
-            {
+            if crate::memory::cstr_as_bytes(prompt_line).starts_with(prompt.to_bytes()) {
                 let rem_len = crate::memory::cstr_len(prompt_line.wrapping_add(prompt_len)) + 1;
 
                 unsafe { ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len) };
@@ -1670,7 +1668,7 @@ pub fn open_line(
                     true,
                 );
                 prompt_moved = Some(concat_str(
-                    crate::memory::cstr_as_bytes((prompt).as_ptr()),
+                    prompt.to_bytes(),
                     crate::memory::cstr_as_bytes(p_extra.cast()),
                 ));
                 p_extra = prompt_moved

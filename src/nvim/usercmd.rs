@@ -1764,16 +1764,8 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
         let mut arg_ch: u8 = 0;
         let mut d = arena_dict(arena, 16);
 
-        put_c(
-            &mut d,
-            c"name",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(cmd.uc_name.as_ptr())),
-        );
-        put_c(
-            &mut d,
-            c"definition",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(cmd.uc_rep.as_ptr())),
-        );
+        put_c(&mut d, c"name", cstr_as_obj(Some(&*cmd.uc_name)));
+        put_c(&mut d, c"definition", cstr_as_obj(Some(&*cmd.uc_rep)));
         put_c(&mut d, c"desc", cstr_as_obj(cmd.uc_desc.as_deref()));
         put_c(
             &mut d,
@@ -1836,9 +1828,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
                 &mut d,
                 c"complete",
                 match get_command_complete(cmd.uc_compl) {
-                    Some(cmd_compl) => {
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr((cmd_compl).as_ptr()))
-                    }
+                    Some(cmd_compl) => cstr_as_obj(Some(cmd_compl)),
                     None => nil_obj(),
                 },
             );
@@ -1883,7 +1873,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             }
             if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
                 if let Some(name) = entry.name {
-                    obj = cstr_as_obj(crate::memory::cstr_as_opt_cstr(name.as_ptr()));
+                    obj = cstr_as_obj(Some(name));
                 }
                 break;
             }

@@ -1601,7 +1601,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
         let mut res = None;
         if eval_expr_option_tv(&mut curbuf_mut().b_p_inex, use_sandbox, &mut tv) {
             let s = tv_get_string(&tv);
-            res = Some(crate::memory::cstr_to_cstring((s).as_ptr()));
+            res = Some((*s).to_owned());
             tv_clear(&mut tv);
         }
 

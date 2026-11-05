@@ -1226,12 +1226,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                 if !hi_name.to_bytes().is_empty() {
                     let mut tuple = arena_array(arena, 2);
                     add_c(&mut tuple, string_obj(s));
-                    add_c(
-                        &mut tuple,
-                        string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                            (hi_name).as_ptr(),
-                        ))),
-                    );
+                    add_c(&mut tuple, string_obj(cstr_as_string(Some(hi_name))));
                     add_c(&mut border, array_obj(tuple));
                 } else {
                     add_c(&mut border, string_obj(s));

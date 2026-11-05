@@ -454,10 +454,12 @@ pub fn do_tag(
                         || type_ == DT_LTAG)
                 {
                     if g_st().g_do_tagpreview != 0 {
-                        if tag_st().ptag_entry.tagname.as_ref().is_some_and(|t| {
-                            crate::memory::cstr_as_bytes(t.as_ptr())
-                                == crate::memory::cstr_as_bytes(tag)
-                        }) {
+                        if tag_st()
+                            .ptag_entry
+                            .tagname
+                            .as_ref()
+                            .is_some_and(|t| t.to_bytes() == crate::memory::cstr_as_bytes(tag))
+                        {
                             cur_match = tag_st().ptag_entry.cur_match;
                             cur_fnum = tag_st().ptag_entry.cur_fnum;
                         } else {
@@ -645,10 +647,10 @@ pub fn do_tag(
                     tag.cast()
                 };
 
-                let other_name = tag_st().tagmatchname.as_ref().is_none_or(|m| {
-                    crate::memory::cstr_as_bytes(m.as_ptr())
-                        != crate::memory::cstr_as_bytes(name.cast())
-                });
+                let other_name = tag_st()
+                    .tagmatchname
+                    .as_ref()
+                    .is_none_or(|m| m.to_bytes() != crate::memory::cstr_as_bytes(name.cast()));
                 if new_tag
                     || (cur_match >= tag_st().do_tag_matches.len() as i32
                         && tag_st().do_tag_max_num_matches != MAXCOL)

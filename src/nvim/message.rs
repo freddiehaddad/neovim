@@ -1022,7 +1022,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         }
 
         let p = gettext(c"Error in %s:");
-        let buf_len = sname.to_bytes().len() + crate::memory::cstr_len((p).as_ptr()) + 1;
+        let buf_len = sname.to_bytes().len() + p.to_bytes().len() + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, sname);
         return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr().cast()));
@@ -1039,7 +1039,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         && slnum != 0
     {
         let p = gettext(c"line %4d:");
-        let buf_len = 20 + crate::memory::cstr_len((p).as_ptr());
+        let buf_len = 20 + p.to_bytes().len();
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, slnum);
         return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr().cast()));

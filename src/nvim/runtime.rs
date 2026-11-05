@@ -434,7 +434,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
     for (idx, entry) in rt_st().exestack.iter().enumerate() {
         if let Some(ref entry_name) = entry.es_name {
             let mut type_name = static_cstr_as_string(c"");
-            let es_name = cstr_as_string(crate::memory::cstr_as_opt_cstr(entry_name.as_ptr()));
+            let es_name = cstr_as_string(Some(entry_name));
             if entry.es_type != last_type {
                 match entry.es_type {
                     ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
@@ -689,7 +689,7 @@ pub fn do_in_path(
     {
         if opt_vars().p_verbose > 10 && !name.is_null() {
             verbose_enter();
-            if !crate::memory::cstr_is_empty(prefix.as_ptr()) {
+            if !prefix.to_bytes().is_empty() {
                 smsg!(
                     0,
                     gettext(c"Searching for \"%s\" under \"%s\" in \"%s\""),
@@ -896,11 +896,7 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
 
     for item in rsp {
         let mut entry = arena_dict(arena, 5);
-        put_c(
-            &mut entry,
-            c"path",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(item.path.as_ptr())),
-        );
+        put_c(&mut entry, c"path", cstr_as_obj(Some(&*item.path)));
         if item.after {
             put_c(&mut entry, c"after", boolean_obj(true));
         }
@@ -2016,7 +2012,7 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
 
     for slot in file.iter_mut() {
         let tail = path_tail(slot);
-        *slot = crate::memory::cstr_to_cstring((tail).as_ptr());
+        *slot = (*tail).to_owned();
     }
 
     if file.is_empty() {
@@ -2136,7 +2132,7 @@ fn add_dir(
             dest.push(PATHSEP);
         }
         let appname = get_appname(false);
-        let appname_bytes = crate::memory::cstr_as_bytes((appname).as_ptr());
+        let appname_bytes = appname.to_bytes();
         debug_assert!(appname_bytes.len() < IOSIZE - 6);
         dest.extend_from_slice(appname_bytes);
         #[cfg(windows)]

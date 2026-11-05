@@ -292,9 +292,7 @@ fn get_patterns_from_pattern_or_buf(
         };
         patterns.push(string_obj(format_buflocal_arena(arena, b.b_fnum)));
     } else {
-        patterns.push(string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-            fallback.as_ptr(),
-        ))));
+        patterns.push(string_obj(cstr_as_string(Some(fallback))));
     }
 
     arena_take_arraybuilder(arena, &mut patterns)
@@ -634,9 +632,7 @@ pub fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"desc",
-                        string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                            desc.as_ptr(),
-                        ))),
+                        string_obj(cstr_as_string(Some(desc))),
                     );
                 }
 
@@ -676,9 +672,7 @@ pub fn nvim_get_autocmds(
                                     c"callback",
                                     string_obj(crate::api::private::helpers::arena_string(
                                         arena,
-                                        cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                                            cb_str.as_ptr(),
-                                        )),
+                                        cstr_as_string(Some(&*cb_str)),
                                     )),
                                 );
                             }
@@ -695,9 +689,7 @@ pub fn nvim_get_autocmds(
                 put_c(
                     &mut autocmd_info,
                     c"pattern",
-                    string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                        ap.pat.as_ptr(),
-                    ))),
+                    string_obj(cstr_as_string(Some(&*ap.pat))),
                 );
                 put_c(
                     &mut autocmd_info,

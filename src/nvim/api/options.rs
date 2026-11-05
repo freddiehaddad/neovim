@@ -298,9 +298,7 @@ fn do_ft_buf(
     unsafe {
         (*ftbuf).b_p_swf = false;
         (*ftbuf).b_p_ml = false;
-        (*ftbuf).b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(
-            crate::memory::cstr_from_ptr(filetype.as_ptr()),
-        );
+        (*ftbuf).b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(filetype);
     }
 
     if !has_event(EVENT_FILETYPE) {

@@ -2307,9 +2307,10 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
     #[cfg(windows)]
     path_to_slash(crate::memory::cstr_as_mut_bytes(bufname_ptr.cast()));
 
-    let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
-        crate::memory::cstr_as_bytes(bufname_ptr) == crate::memory::cstr_as_bytes(last.as_ptr())
-    });
+    let same_as_last = qf_st()
+        .qf_last_bufname
+        .as_ref()
+        .is_some_and(|last| crate::memory::cstr_as_bytes(bufname_ptr) == last.to_bytes());
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
         drop(ptr_cstr);
         qf_st().qf_last_bufref.br_buf

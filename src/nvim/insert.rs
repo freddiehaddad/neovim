@@ -3959,8 +3959,8 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
     let mut res: Option<std::ffi::CString> = None;
     if ins_apply_autocmds(EVENT_INSERTCHARPRE) != 0 {
         let vchar = get_vim_var_str(VV_CHAR);
-        if &buf[..buflen] != crate::memory::cstr_as_bytes((vchar).as_ptr()) {
-            res = Some(crate::memory::cstr_to_cstring((vchar).as_ptr()));
+        if &buf[..buflen] != vchar.to_bytes() {
+            res = Some((*vchar).to_owned());
         }
     }
 
