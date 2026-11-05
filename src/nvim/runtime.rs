@@ -725,7 +725,7 @@ pub fn do_in_path(
                 let prefix_len = prefix.to_bytes().len();
                 let name_len = crate::memory::cstr_len(name);
                 if buflen + 2 + prefix_len + name_len < MAXPATHL {
-                    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.cast(), 2));
+                    add_pathsep(&mut buf_vec);
                     let cur_len = crate::memory::bytes_until_nul(&buf_vec).len();
                     buf_vec[cur_len..(cur_len + prefix_len + 1)]
                         .copy_from_slice(prefix.to_bytes_with_nul());
@@ -964,11 +964,11 @@ fn runtime_get_named_common(
                     item.path.as_ptr(),
                     pat_item.data.string().data,
                 ) as usize;
-                if size < buf_len && os_file_is_readable(crate::memory::cstr_from_ptr(buf)) {
-                    to_slash(crate::memory::cstr_as_mut_bytes(buf.cast()));
+                if size < buf_len && os_file_is_readable(crate::memory::cstr_until_nul(buf_slice)) {
+                    to_slash(buf_slice);
                     let astr = arena_string_opt(
                         arena.as_deref_mut(),
-                        cstr_as_string(crate::memory::cstr_as_opt_cstr(buf)),
+                        cstr_as_string(Some(crate::memory::cstr_until_nul(buf_slice))),
                     );
                     add_c(&mut rv, string_obj(astr));
                     if !all {

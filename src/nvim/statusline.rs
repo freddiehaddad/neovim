@@ -1092,7 +1092,7 @@ pub fn draw_tabline() {
             if room > 0 {
                 get_trans_bufname(unsafe { (*cwp).buf_mut() });
 
-                shorten_dir(crate::memory::cstr_as_mut_bytes((name_buff).cast()));
+                shorten_dir(g_st().name_buff_bytes_mut());
                 let mut len = vim_strsize(crate::memory::cstr_from_ptr(name_buff));
                 let mut p = name_buff;
                 while len > room {

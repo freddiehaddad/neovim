@@ -2436,9 +2436,9 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 buf_ptr.cast(),
             ) as usize;
             buf[tail_off..tail_off + 5].copy_from_slice(b"tags\0");
-            simplify_filename(crate::memory::cstr_as_mut_bytes(buf_ptr.cast()));
+            simplify_filename(buf);
 
-            let buf_bytes = crate::memory::cstr_as_bytes(buf_ptr);
+            let buf_bytes = crate::memory::bytes_until_nul(buf);
             if tag_st()
                 .tag_fnames
                 .iter()

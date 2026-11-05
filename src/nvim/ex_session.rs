@@ -1121,9 +1121,8 @@ fn get_view_file(c: u8) -> Option<CString> {
     let vdir_len = vdir_bytes.len() - 1;
     let mut retval_vec: Vec<u8> = vec![0; sname_len + len + vdir_len + 9];
     retval_vec[..vdir_len + 1].copy_from_slice(vdir_bytes);
-    let retval = retval_vec.as_mut_ptr();
-    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(retval.cast(), 2));
-    let mut s_idx = crate::memory::cstr_len(retval);
+    add_pathsep(&mut retval_vec);
+    let mut s_idx = crate::memory::bytes_until_nul(&retval_vec).len();
     for &b in sname_bytes {
         if b == b'=' {
             retval_vec[s_idx] = b'=';
@@ -1150,7 +1149,7 @@ fn get_view_file(c: u8) -> Option<CString> {
     s_idx += 2;
     retval_vec[s_idx..s_idx + 5].copy_from_slice(b".vim\0");
 
-    Some(crate::memory::cstr_to_cstring(retval))
+    Some(crate::memory::cstring_until_nul(&retval_vec))
 }
 
 pub fn put_eol(fd: &CFile) -> bool {

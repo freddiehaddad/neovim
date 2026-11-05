@@ -2120,13 +2120,12 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
             if ml_st().ml_get_recursive == 0 {
                 ml_st().ml_get_recursive += 1;
                 get_trans_bufname(buf);
-                let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-                shorten_dir(crate::memory::cstr_as_mut_bytes(namebuff_ptr.cast()));
+                shorten_dir(g_st().name_buff_bytes_mut());
                 siemsg!(
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
                     buf.b_fnum,
-                    namebuff_ptr,
+                    g_st().name_buff.as_ptr(),
                 );
                 ml_st().ml_get_recursive -= 1;
             }

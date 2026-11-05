@@ -752,9 +752,8 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 ff_push(search_ctx, stack_elem);
 
                                 if !path_with_url(file_path.cstr_bytes()) {
-                                    file_path.size = simplify_filename(
-                                        crate::memory::cstr_as_mut_bytes(file_path.data.cast()),
-                                    );
+                                    file_path.size =
+                                        simplify_filename(file_path.as_bytes_with_nul_mut());
                                 }
 
                                 let mut expand_buf: [u8; MAXPATHL] = [0; MAXPATHL];
@@ -1273,9 +1272,7 @@ pub fn find_file_in_path_option(
                                 || ((find_what == FindFileWhat::Dir)
                                     == os_isdir(crate::memory::cstr_from_ptr(name_buff))))
                         {
-                            let slen = simplify_filename(crate::memory::cstr_as_mut_bytes(
-                                name_buff.cast(),
-                            ));
+                            let slen = simplify_filename(g_st().name_buff_bytes_mut());
                             return Some(
                                 std::ffi::CString::new(crate::memory::cstr_slice(name_buff, slen))
                                     .unwrap_or_default(),
