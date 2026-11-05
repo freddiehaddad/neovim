@@ -266,8 +266,8 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub fn from_raw_str(p: *const std::ffi::c_char) -> Self {
-        Self::String(crate::strings::CStrCursor::from_ptr(p))
+    pub fn from_raw_str(p: impl crate::memory::AsCStrPtr) -> Self {
+        Self::String(crate::strings::CStrCursor::from_ptr(p.into_cstr_ptr()))
     }
 
     #[inline]
@@ -328,11 +328,11 @@ impl TypvalVval {
         }
     }
 
-    #[inline]
-    pub fn v_string(self) -> RawCCharPtrMut {
+    #[inline(always)]
+    pub const fn v_string(self) -> crate::strings::CStrCursor<std::ffi::c_char> {
         match self {
-            Self::String(p) => p.as_ptr(),
-            _ => ptr::null_mut(),
+            Self::String(p) => p,
+            _ => crate::strings::CStrCursor::NULL,
         }
     }
 
@@ -868,7 +868,7 @@ pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
     if p.is_null() {
         None
     } else {
-        Some(unsafe { std::ffi::CString::from_raw(p) })
+        Some(unsafe { std::ffi::CString::from_raw(p.as_ptr()) })
     }
 }
 
@@ -1716,7 +1716,7 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
-    let mut p: RawCCharPtr = argvars[0].vval.v_string();
+    let mut p: RawCCharPtr = argvars[0].vval.v_string().as_ptr();
 
     tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
     if p.is_null() {
@@ -2118,7 +2118,7 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
         if tv2.v_type != VarType::VarString || info.item_compare_numeric {
             p1 = c"'".as_ptr().cast_mut();
         } else {
-            p1 = tv1.vval.v_string();
+            p1 = tv1.vval.v_string().as_ptr();
         }
     } else {
         let s1 = encode_tv2string(tv1, None);
@@ -2129,7 +2129,7 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
         if tv1.v_type != VarType::VarString || info.item_compare_numeric {
             p2 = c"'".as_ptr().cast_mut();
         } else {
-            p2 = tv2.vval.v_string();
+            p2 = tv2.vval.v_string().as_ptr();
         }
     } else {
         let s2 = encode_tv2string(tv2, None);
@@ -3852,7 +3852,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
         let fun = tv.vval.v_string();
         func_unref(crate::memory::cstr_as_opt_cstr(fun));
         if !fun.is_null() && !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
-            drop(unsafe { std::ffi::CString::from_raw(fun) });
+            drop(unsafe { std::ffi::CString::from_raw(fun.as_ptr()) });
         }
         tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }

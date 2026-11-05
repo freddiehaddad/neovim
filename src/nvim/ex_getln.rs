@@ -3634,7 +3634,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     let mut arg = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
-        vval: TypvalVval::from_raw_str(colored_ccline.cmdbuff().cast()),
+        vval: TypvalVval::from_raw_str(colored_ccline.cmdbuff()),
     };
     let mut tv = TypVal {
         v_type: VarType::VarUnknown,
@@ -4904,7 +4904,7 @@ fn cmdwin_invoke(action: &CStr, firstc: i32, content: Option<&CStr>, pos: i32) {
         TypVal {
             v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::from_raw_str(fc.as_mut_ptr().cast()),
+            vval: TypvalVval::from_raw_str(fc.as_mut_ptr()),
         },
         TypVal {
             v_type: VarType::VarString,

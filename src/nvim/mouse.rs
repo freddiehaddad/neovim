@@ -358,7 +358,7 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::from_raw_str(mod_str.as_mut_ptr().cast()),
+            vval: TypvalVval::from_raw_str(mod_str.as_mut_ptr()),
         },
     ];
 

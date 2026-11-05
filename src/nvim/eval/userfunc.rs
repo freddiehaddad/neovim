@@ -4068,7 +4068,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     } else {
         let fname_ptr: *const std::ffi::c_char =
             if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
-                rettv.vval.v_string()
+                rettv.vval.v_string().as_ptr()
             } else if let Some(pt_ref) = rettv.vval.v_partial().opt() {
                 pt_ref.pt_name.as_ref().map_or(ptr::null(), |n| n.as_ptr())
             } else {

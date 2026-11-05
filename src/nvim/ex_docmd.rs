@@ -10447,7 +10447,7 @@ fn ex_connect(eap: &mut Exarg) {
             return;
         }
 
-        addr = ssh_rettv.vval.v_string();
+        addr = ssh_rettv.vval.v_string().as_ptr();
     } else if (is_tcp || crate::path::path_is_absolute(addr_bytes))
         && !crate::event::socket::socket_alive(
             &mut g_st().main_loop,

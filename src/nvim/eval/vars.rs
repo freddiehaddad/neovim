@@ -3364,11 +3364,7 @@ fn opt_from_tv(tv: &mut TypVal, opt_idx: OptIndex, option: &CStr, error: &mut bo
                 semsg!(
                     gettext(c"E521: Number required: &%s = '%s'"),
                     option.as_ptr(),
-                    if tv.vval.v_string().is_null() {
-                        c"".as_ptr()
-                    } else {
-                        tv.vval.v_string()
-                    },
+                    tv.vval.v_string_cstr_or_empty().as_ptr(),
                 );
             }
         }
@@ -3671,7 +3667,7 @@ pub fn var_redir_stop() {
             let mut tv = TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_raw_str(vars_st().redir_buf.as_mut_ptr().cast()),
+                vval: TypvalVval::from_raw_str(vars_st().redir_buf.as_mut_ptr()),
             };
             let vn_cstr = vars_st()
                 .borrow_mut()

@@ -284,8 +284,8 @@ pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> RawCCharPtrMut {
 
 /// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
 #[inline(always)]
-pub fn free_cstring(p: RawCCharPtrMut) {
-    raw_dealloc(p.cast::<c_void>());
+pub fn free_cstring(p: impl IntoConstPtr<Target = std::ffi::c_char>) {
+    raw_dealloc(p.into_const_ptr().cast_mut().cast::<c_void>());
 }
 
 /// Portable `strnlen` (`xstrnlen`).
@@ -344,6 +344,20 @@ impl AsCStrPtr for *mut c_void {
     #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
+    }
+}
+
+impl<T> AsCStrPtr for crate::strings::CStrCursor<T> {
+    #[inline(always)]
+    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
+        self.as_ptr().cast()
+    }
+}
+
+impl AsCStrPtr for crate::regexp::RegLinePtr {
+    #[inline(always)]
+    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
+        self.as_ptr().cast()
     }
 }
 

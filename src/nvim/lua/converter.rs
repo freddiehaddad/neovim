@@ -1071,7 +1071,7 @@ fn lua_convert_one_value(
                 } else {
                     crate::memory::cstr_len(s)
                 };
-                lua_pushlstring(lstate, s, len);
+                lua_pushlstring(lstate, s.as_ptr(), len);
             }
             VarType::VarNumber => {
                 lua_pushnumber(lstate, tv_ref.vval.v_number() as lua_Number);

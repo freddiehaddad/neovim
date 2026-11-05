@@ -1517,7 +1517,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut owned = false;
     let mut partial = crate::globals::GraphPtr::<TvPartial>::NULL;
     let mut func = if argvars[0].v_type == VarType::VarFunc {
-        argvars[0].vval.v_string()
+        argvars[0].vval.v_string().as_ptr()
     } else if argvars[0].v_type == VarType::VarPartial {
         partial = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
         partial_name(partial.opt()).as_ptr().cast_mut()
@@ -2533,7 +2533,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
     let mut trans_name_owned: Option<std::ffi::CString> = None;
 
     let mut s = if argvars[0].v_type == VarType::VarFunc {
-        argvars[0].vval.v_string()
+        argvars[0].vval.v_string().as_ptr()
     } else if argvars[0].v_type == VarType::VarPartial && !argvars[0].vval.v_partial().is_null() {
         arg_pt = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
         partial_name(arg_pt.opt()).as_ptr().cast_mut()
@@ -4989,7 +4989,7 @@ fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType)
     let str_in = if in_type == VarType::VarString {
         argvars[2].vval.v_string()
     } else {
-        ptr::null()
+        crate::strings::CStrCursor::NULL
     };
     let int_in = argvars[2].vval.v_number() as i32;
 

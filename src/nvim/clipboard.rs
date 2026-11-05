@@ -204,7 +204,11 @@ pub fn get_clipboard(
         let s = li.li_tv.vval.v_string();
         reg.y_array
             .push(cstr_to_string(crate::memory::cstr_as_opt_cstr(
-                if s.is_null() { c"".as_ptr() } else { s },
+                if s.is_null() {
+                    c"".as_ptr()
+                } else {
+                    s.as_ptr()
+                },
             )));
     }
 
