@@ -415,23 +415,23 @@ impl Default for TypVal {
 
 #[repr(C)]
 pub struct Listitem {
-    pub li_next: *mut Listitem,
-    pub li_prev: *mut Listitem,
+    pub li_next: crate::globals::ListitemPtr,
+    pub li_prev: crate::globals::ListitemPtr,
     pub li_tv: TypVal,
 }
 
 impl Listitem {
     pub const fn new() -> Self {
         Self {
-            li_next: ptr::null_mut(),
-            li_prev: ptr::null_mut(),
+            li_next: crate::globals::ListitemPtr::NULL,
+            li_prev: crate::globals::ListitemPtr::NULL,
             li_tv: tv_initial_value(),
         }
     }
 
     #[inline]
     pub fn next_opt(&self) -> Option<&'static mut Listitem> {
-        unsafe { self.li_next.as_mut() }
+        self.li_next.opt_mut()
     }
 }
 
@@ -449,11 +449,11 @@ impl Drop for Listitem {
 
 #[repr(C)]
 pub struct TvList {
-    pub lv_first: *mut Listitem,
-    pub lv_last: *mut Listitem,
+    pub lv_first: crate::globals::ListitemPtr,
+    pub lv_last: crate::globals::ListitemPtr,
     pub lv_watch: Vec<std::rc::Rc<Listwatch>>,
-    pub lv_idx_item: *mut Listitem,
-    pub lv_copylist: *mut TvList,
+    pub lv_idx_item: crate::globals::ListitemPtr,
+    pub lv_copylist: crate::globals::TvListPtr,
     pub lv_gc_idx: Option<usize>,
     pub lv_refcount: i32,
     pub lv_len: i32,
@@ -466,11 +466,11 @@ pub struct TvList {
 impl TvList {
     pub const fn new() -> Self {
         Self {
-            lv_first: ptr::null_mut(),
-            lv_last: ptr::null_mut(),
+            lv_first: crate::globals::ListitemPtr::NULL,
+            lv_last: crate::globals::ListitemPtr::NULL,
             lv_watch: Vec::new(),
-            lv_idx_item: ptr::null_mut(),
-            lv_copylist: ptr::null_mut(),
+            lv_idx_item: crate::globals::ListitemPtr::NULL,
+            lv_copylist: crate::globals::TvListPtr::NULL,
             lv_gc_idx: None,
             lv_refcount: 0,
             lv_len: 0,
@@ -483,12 +483,12 @@ impl TvList {
 
     #[inline]
     pub fn first_opt(&self) -> Option<&'static mut Listitem> {
-        unsafe { self.lv_first.as_mut() }
+        self.lv_first.opt_mut()
     }
 
     #[inline]
     pub fn last_opt(&self) -> Option<&'static mut Listitem> {
-        unsafe { self.lv_last.as_mut() }
+        self.lv_last.opt_mut()
     }
 }
 
@@ -545,7 +545,7 @@ pub struct TvDict {
     pub dv_refcount: i32,
     pub dv_copy_id: i32,
     pub dv_hashtab: crate::hashtab::Hashtab,
-    pub dv_copydict: *mut TvDict,
+    pub dv_copydict: crate::globals::GraphPtr<TvDict>,
     pub dv_gc_idx: Option<usize>,
     pub watchers: Vec<DictWatcher>,
     pub lua_table_ref: i32,
@@ -559,7 +559,7 @@ impl TvDict {
             dv_refcount: 0,
             dv_copy_id: 0,
             dv_hashtab: crate::hashtab::Hashtab::new(),
-            dv_copydict: ptr::null_mut(),
+            dv_copydict: crate::globals::GraphPtr::NULL,
             dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
@@ -772,7 +772,7 @@ pub fn nlua_clear_ref(r: &mut LuaRef) {
 
 #[inline]
 pub fn tv_dict_hi2di(hi: &Hashitem) -> &'static mut Dictitem {
-    unsafe { &mut *hi.hi_di }
+    hi.hi_di.borrow_mut()
 }
 
 #[inline]
@@ -864,7 +864,7 @@ impl Iterator for ListMutIter {
         if cur.is_null() {
             None
         } else {
-            self.0 = unsafe { (*cur).li_next };
+            self.0 = unsafe { (*cur).li_next.as_ptr() };
             Some(unsafe { &mut *cur })
         }
     }
@@ -881,7 +881,7 @@ impl Iterator for ListPtrIter {
         if cur.is_null() {
             None
         } else {
-            self.0 = unsafe { (*cur).li_next };
+            self.0 = unsafe { (*cur).li_next.as_ptr() };
             Some(unsafe { &mut *cur })
         }
     }
@@ -951,7 +951,7 @@ impl<'a> Iterator for TvListIter<'a> {
         if self.cur == self.last {
             self.cur = crate::globals::ListitemPtr::NULL;
         } else {
-            self.cur = crate::globals::ListitemPtr::new(item.li_next);
+            self.cur = item.li_next;
         }
         Some(item)
     }
@@ -959,12 +959,8 @@ impl<'a> Iterator for TvListIter<'a> {
 
 #[inline]
 pub fn tv_list_iter(l: Option<&TvList>) -> TvListIter<'_> {
-    let cur = l.map_or(crate::globals::ListitemPtr::NULL, |l| {
-        crate::globals::ListitemPtr::new(l.lv_first)
-    });
-    let last = l.map_or(crate::globals::ListitemPtr::NULL, |l| {
-        crate::globals::ListitemPtr::new(l.lv_last)
-    });
+    let cur = l.map_or(crate::globals::ListitemPtr::NULL, |l| l.lv_first);
+    let last = l.map_or(crate::globals::ListitemPtr::NULL, |l| l.lv_last);
     TvListIter {
         cur,
         last,
@@ -988,12 +984,12 @@ fn tv_list_uidx_inline(l: Option<&TvList>, mut n: i32) -> i32 {
 
 #[inline]
 fn tv_list_first_inline(l: Option<&TvList>) -> Option<&'static mut Listitem> {
-    l.and_then(|l| unsafe { l.lv_first.as_mut() })
+    l.and_then(|l| l.lv_first.opt_mut())
 }
 
 #[inline]
 fn tv_list_last_inline(l: Option<&TvList>) -> Option<&'static mut Listitem> {
-    l.and_then(|l| unsafe { l.lv_last.as_mut() })
+    l.and_then(|l| l.lv_last.opt_mut())
 }
 
 #[inline]
@@ -1052,8 +1048,8 @@ pub const fn tv_initial_value() -> TypVal {
 /// Allocate a list item.
 fn tv_list_item_alloc() -> &'static mut Listitem {
     Box::leak(Box::new(Listitem {
-        li_next: ptr::null_mut(),
-        li_prev: ptr::null_mut(),
+        li_next: crate::globals::ListitemPtr::NULL,
+        li_prev: crate::globals::ListitemPtr::NULL,
         li_tv: TypVal {
             v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
@@ -1068,7 +1064,7 @@ pub fn tv_list_item_remove(
     item_in: &mut Listitem,
 ) -> Option<&'static mut Listitem> {
     let item = std::hint::black_box(ptr::from_mut(item_in));
-    let next_item = unsafe { (*item).li_next };
+    let next_item = unsafe { (*item).li_next.as_ptr() };
 
     tv_list_drop_items(l, unsafe { &mut *item }, unsafe { &mut *item });
 
@@ -1097,7 +1093,7 @@ pub fn tv_list_watch_remove(l: &mut TvList, lwrem: &std::rc::Rc<Listwatch>) {
 fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
     for lw in &l.lv_watch {
         if ptr::eq(lw.lw_item.get(), item) {
-            lw.lw_item.set(item.li_next);
+            lw.lw_item.set(item.li_next.as_ptr());
         }
     }
 }
@@ -1106,11 +1102,11 @@ fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
 #[unsafe(no_mangle)]
 pub extern "C" fn tv_list_alloc(_len: isize) -> &'static mut TvList {
     let list = Box::leak(Box::new(TvList {
-        lv_first: ptr::null_mut(),
-        lv_last: ptr::null_mut(),
+        lv_first: crate::globals::ListitemPtr::NULL,
+        lv_last: crate::globals::ListitemPtr::NULL,
         lv_watch: Vec::new(),
-        lv_idx_item: ptr::null_mut(),
-        lv_copylist: ptr::null_mut(),
+        lv_idx_item: crate::globals::ListitemPtr::NULL,
+        lv_copylist: crate::globals::TvListPtr::NULL,
         lv_gc_idx: None,
         lv_refcount: 0,
         lv_len: 0,
@@ -1131,22 +1127,23 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
     let l = &mut sl.sl_list;
     let items = (&raw mut sl.sl_items).cast::<Listitem>();
 
-    l.lv_first = items;
-    l.lv_last = items.wrapping_add(SL_SIZE - 1);
+    l.lv_first = crate::globals::ListitemPtr::new(items);
+    l.lv_last = crate::globals::ListitemPtr::new(items.wrapping_add(SL_SIZE - 1));
     l.lv_refcount = DO_NOT_FREE_CNT;
     tv_list_set_lock_inline(Some(&mut *l), VAR_FIXED);
     l.lv_len = 10;
 
     unsafe {
-        (*items).li_prev = ptr::null_mut();
-        (*items).li_next = items.wrapping_add(1);
-        (*items.wrapping_add(SL_SIZE - 1)).li_prev = items.wrapping_add(SL_SIZE - 2);
-        (*items.wrapping_add(SL_SIZE - 1)).li_next = ptr::null_mut();
+        (*items).li_prev = crate::globals::ListitemPtr::NULL;
+        (*items).li_next = crate::globals::ListitemPtr::new(items.wrapping_add(1));
+        (*items.wrapping_add(SL_SIZE - 1)).li_prev =
+            crate::globals::ListitemPtr::new(items.wrapping_add(SL_SIZE - 2));
+        (*items.wrapping_add(SL_SIZE - 1)).li_next = crate::globals::ListitemPtr::NULL;
 
         for i in 1..(SL_SIZE - 1) {
             let li = items.wrapping_add(i);
-            (*li).li_prev = li.wrapping_sub(1);
-            (*li).li_next = li.wrapping_add(1);
+            (*li).li_prev = crate::globals::ListitemPtr::new(li.wrapping_sub(1));
+            (*li).li_next = crate::globals::ListitemPtr::new(li.wrapping_add(1));
         }
     }
 }
@@ -1161,13 +1158,13 @@ pub fn tv_list_init_static(l: &mut TvList) {
 pub fn tv_list_free_contents(l: &mut TvList) {
     let mut item = l.lv_first;
     while !item.is_null() {
-        l.lv_first = unsafe { (*item).li_next };
-        drop(unsafe { Box::from_raw(item) });
+        l.lv_first = item.li_next;
+        drop(unsafe { Box::from_raw(item.as_ptr()) });
         item = l.lv_first;
     }
     l.lv_len = 0;
-    l.lv_idx_item = ptr::null_mut();
-    l.lv_last = ptr::null_mut();
+    l.lv_idx_item = crate::globals::ListitemPtr::NULL;
+    l.lv_last = crate::globals::ListitemPtr::NULL;
     debug_assert!(l.lv_watch.is_empty());
 }
 
@@ -1201,32 +1198,28 @@ pub fn tv_list_unref(l: Option<&mut TvList>) {
 pub fn tv_list_drop_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
     let item: *mut Listitem = item_in;
     let item2: *mut Listitem = item2_in;
-    let end_next = unsafe { (*item2).li_next };
+    let mut end_next = unsafe { (*item2).li_next };
     let mut ip = item;
-    while ip != end_next {
+    while ip != end_next.as_ptr() {
         l.lv_len -= 1;
 
         tv_list_watch_fix(l, unsafe { &*ip });
 
-        ip = unsafe { (*ip).li_next };
+        ip = unsafe { (*ip).li_next.as_ptr() };
     }
 
-    let item_prev = unsafe { (*item).li_prev };
+    let mut item_prev = unsafe { (*item).li_prev };
     if end_next.is_null() {
         l.lv_last = item_prev;
     } else {
-        unsafe {
-            (*end_next).li_prev = item_prev;
-        }
+        end_next.li_prev = item_prev;
     }
     if item_prev.is_null() {
         l.lv_first = end_next;
     } else {
-        unsafe {
-            (*item_prev).li_next = end_next;
-        }
+        item_prev.li_next = end_next;
     }
-    l.lv_idx_item = ptr::null_mut();
+    l.lv_idx_item = crate::globals::ListitemPtr::NULL;
 }
 
 /// Like tv_list_drop_items, but also frees all removed items.
@@ -1236,7 +1229,7 @@ pub fn tv_list_remove_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &m
     tv_list_drop_items(l, unsafe { &mut *item }, unsafe { &mut *item2 });
     let mut li = item;
     loop {
-        let nli = unsafe { (*li).li_next };
+        let nli = unsafe { (*li).li_next.as_ptr() };
         drop(unsafe { Box::from_raw(li) });
         if li == item2 {
             break;
@@ -1258,16 +1251,14 @@ pub fn tv_list_move_items(
     tv_list_drop_items(&mut *l, unsafe { &mut *item }, unsafe { &mut *item2 });
     unsafe {
         (*item).li_prev = tgt_l.lv_last;
-        (*item2).li_next = ptr::null_mut();
+        (*item2).li_next = crate::globals::ListitemPtr::NULL;
     }
-    if tgt_l.lv_last.is_null() {
-        tgt_l.lv_first = item;
+    if let Some(last_ref) = tgt_l.lv_last.opt_mut() {
+        last_ref.li_next = crate::globals::ListitemPtr::new(item);
     } else {
-        unsafe {
-            (*tgt_l.lv_last).li_next = item;
-        }
+        tgt_l.lv_first = crate::globals::ListitemPtr::new(item);
     }
-    tgt_l.lv_last = item2;
+    tgt_l.lv_last = crate::globals::ListitemPtr::new(item2);
     tgt_l.lv_len += cnt;
 }
 
@@ -1278,20 +1269,19 @@ pub fn tv_list_insert(l: &mut TvList, ni: &mut Listitem, item_opt: Option<&mut L
         return;
     };
     let item: *mut Listitem = item_ref;
+    let ni_ptr = crate::globals::ListitemPtr::from(&mut *ni);
     ni.li_prev = unsafe { (*item).li_prev };
-    ni.li_next = item;
-    if unsafe { (*item).li_prev }.is_null() {
-        l.lv_first = (&raw mut *ni);
-        l.lv_idx += 1;
+    ni.li_next = crate::globals::ListitemPtr::new(item);
+    if let Some(prev_ref) = unsafe { (*item).li_prev.opt_mut() } {
+        prev_ref.li_next = ni_ptr;
+        l.lv_idx_item = crate::globals::ListitemPtr::NULL;
     } else {
-        unsafe {
-            (*(*item).li_prev).li_next = (&raw mut *ni);
-        }
-        l.lv_idx_item = ptr::null_mut();
+        l.lv_first = ni_ptr;
+        l.lv_idx += 1;
     }
 
     unsafe {
-        (*item).li_prev = (&raw mut *ni);
+        (*item).li_prev = ni_ptr;
     }
     l.lv_len += 1;
 }
@@ -1305,19 +1295,18 @@ pub fn tv_list_insert_tv(l: &mut TvList, tv: &mut TypVal, item: Option<&mut List
 
 /// Append item to the end of list.
 pub fn tv_list_append(l: &mut TvList, item: &mut Listitem) {
-    if l.lv_last.is_null() {
-        l.lv_first = (&raw mut *item);
-        l.lv_last = (&raw mut *item);
-        item.li_prev = ptr::null_mut();
-    } else {
-        unsafe {
-            (*l.lv_last).li_next = (&raw mut *item);
-        }
+    let item_ptr = crate::globals::ListitemPtr::from(&mut *item);
+    if let Some(last_ref) = l.lv_last.opt_mut() {
+        last_ref.li_next = item_ptr;
         item.li_prev = l.lv_last;
-        l.lv_last = (&raw mut *item);
+        l.lv_last = item_ptr;
+    } else {
+        l.lv_first = item_ptr;
+        l.lv_last = item_ptr;
+        item.li_prev = crate::globals::ListitemPtr::NULL;
     }
     l.lv_len += 1;
-    item.li_next = ptr::null_mut();
+    item.li_next = crate::globals::ListitemPtr::NULL;
 }
 
 /// Append Vimscript value to the end of list.
@@ -1424,7 +1413,7 @@ pub fn tv_list_copy(
     tv_list_ref_inline(Some(&mut *copy));
     if copy_id != 0 {
         orig.as_deref_mut().unwrap().lv_copy_id = copy_id;
-        orig.as_deref_mut().unwrap().lv_copylist = copy;
+        orig.as_deref_mut().unwrap().lv_copylist = crate::globals::TvListPtr::from(&mut *copy);
     }
     for item in crate::eval::typval::list_iter_mut(orig.unwrap().first_opt()) {
         if g_st().got_int {
@@ -1520,11 +1509,11 @@ pub fn tv_list_assign_range(
         ) {
             return false;
         }
-        src_li = unsafe { (*src_li).li_next };
+        src_li = unsafe { (*src_li).li_next.as_ptr() };
         if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
             break;
         }
-        dest_li = unsafe { (*dest_li).li_next };
+        dest_li = unsafe { (*dest_li).li_next.as_ptr() };
         idx += 1;
     }
 
@@ -1545,7 +1534,7 @@ pub fn tv_list_assign_range(
                 &mut (*dest_li).li_tv
             });
         }
-        src_li = unsafe { (*src_li).li_next };
+        src_li = unsafe { (*src_li).li_next.as_ptr() };
         if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
             break;
         }
@@ -1553,7 +1542,7 @@ pub fn tv_list_assign_range(
             tv_list_append_number(dest, 0);
             dest_li = tv_list_last_inline(Some(dest)).map_or(ptr::null_mut(), ptr::from_mut);
         } else {
-            dest_li = unsafe { (*dest_li).li_next };
+            dest_li = unsafe { (*dest_li).li_next.as_ptr() };
         }
         idx += 1;
     }
@@ -1584,15 +1573,15 @@ pub fn tv_list_flatten(
     }
 
     let first = first_opt.map_or(ptr::null_mut(), ptr::from_mut);
-    let mut item = crate::globals::ListitemPtr::new(if first.is_null() {
+    let mut item = if first.is_null() {
         list.lv_first
     } else {
-        first
-    });
+        crate::globals::ListitemPtr::new(first)
+    };
     let mut done: i64 = 0;
 
     while !item.is_null() && done < maxitems {
-        let next = crate::globals::ListitemPtr::new(item.borrow().li_next);
+        let next = item.borrow().li_next;
 
         fast_breakcheck();
         if g_st().got_int {
@@ -1606,11 +1595,13 @@ pub fn tv_list_flatten(
             tv_list_extend(list, itemlist.opt(), next.opt_mut());
 
             if maxdepth > 0 {
-                let sub_first = crate::globals::ListitemPtr::new(item.borrow().li_prev)
+                let sub_first = item
+                    .borrow()
+                    .li_prev
                     .opt()
                     .map_or_else(|| list.lv_first, |prev| prev.li_next);
                 let sub_len = itemlist.opt().map_or(0, |l| i64::from(l.lv_len));
-                tv_list_flatten(list, unsafe { sub_first.as_mut() }, sub_len, maxdepth - 1);
+                tv_list_flatten(list, sub_first.opt_mut(), sub_len, maxdepth - 1);
             }
 
             drop(unsafe { Box::from_raw(item_ptr) });
@@ -1695,12 +1686,12 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef_opt: Option<&mut
     let befbef = if bef.is_null() {
         ptr::null_mut()
     } else {
-        unsafe { (*bef).li_prev }
+        unsafe { (*bef).li_prev.as_ptr() }
     };
     let saved_next = if befbef.is_null() {
         ptr::null_mut()
     } else {
-        unsafe { (*befbef).li_next }
+        unsafe { (*befbef).li_next.as_ptr() }
     };
     let mut item = tv_list_first_inline(l2).map_or(ptr::null_mut(), ptr::from_mut);
     while let Some(item_ref) = unsafe { item.as_mut() }
@@ -1711,7 +1702,7 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef_opt: Option<&mut
         item = if item == befbef {
             saved_next
         } else {
-            item_ref.li_next
+            item_ref.li_next.as_ptr()
         };
     }
 }
@@ -2236,9 +2227,9 @@ fn do_sort(l: &mut TvList, info: &mut Sortinfo) {
         ptrs.sort_by(|a, b| item_compare2(a, b, false, info).cmp(&0));
     }
     if !info.item_compare_func_err {
-        l.lv_first = ptr::null_mut();
-        l.lv_last = ptr::null_mut();
-        l.lv_idx_item = ptr::null_mut();
+        l.lv_first = crate::globals::ListitemPtr::NULL;
+        l.lv_last = crate::globals::ListitemPtr::NULL;
+        l.lv_idx_item = crate::globals::ListitemPtr::NULL;
         l.lv_len = 0;
         for si in &ptrs {
             tv_list_append(l, si.item_mut());
@@ -2257,9 +2248,9 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
     let mut li = l
         .as_deref()
         .and_then(|l| l.first_opt())
-        .map_or(ptr::null_mut(), |first| first.li_next);
+        .map_or(ptr::null_mut(), |first| first.li_next.as_ptr());
     while let Some(cur_li) = unsafe { li.as_mut() } {
-        let prev_li = cur_li.li_prev;
+        let prev_li = cur_li.li_prev.as_ptr();
         let prev_si = ListSortItem {
             item: crate::globals::GraphPtr::new(prev_li),
             idx: 0,
@@ -2279,7 +2270,7 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
             li = tv_list_item_remove(l.as_deref_mut().unwrap(), unsafe { &mut *li })
                 .map_or(ptr::null_mut(), ptr::from_mut);
         } else {
-            li = cur_li.li_next;
+            li = cur_li.li_next.as_ptr();
         }
         if info.item_compare_func_err {
             emsg(tr(c"E882: Uniq compare function failed"));
@@ -2464,7 +2455,7 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> Option<&'static m
     }
 
     let mut idx: i32;
-    let mut item: *mut Listitem;
+    let mut item: crate::globals::ListitemPtr;
 
     if !l.as_deref_mut().unwrap().lv_idx_item.is_null() {
         if n < l.as_deref_mut().unwrap().lv_idx / 2 {
@@ -2486,11 +2477,11 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> Option<&'static m
     }
 
     while n > idx {
-        item = unsafe { (*item).li_next };
+        item = item.li_next;
         idx += 1;
     }
     while n < idx {
-        item = unsafe { (*item).li_prev };
+        item = item.li_prev;
         idx -= 1;
     }
 
@@ -2498,7 +2489,7 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> Option<&'static m
     l.as_deref_mut().unwrap().lv_idx = idx;
     l.unwrap().lv_idx_item = item;
 
-    unsafe { item.as_mut() }
+    item.opt_mut()
 }
 
 /// Locate item with a given index in a list and return a mutable reference if present.
@@ -2881,7 +2872,7 @@ pub fn tv_dict_alloc() -> &'static mut TvDict {
         dv_refcount: 0,
         dv_copy_id: 0,
         dv_hashtab: crate::hashtab::Hashtab::new(),
-        dv_copydict: ptr::null_mut(),
+        dv_copydict: crate::globals::GraphPtr::NULL,
         dv_gc_idx: None,
         watchers: Vec::new(),
         lua_table_ref: LUA_NOREF,
@@ -2947,7 +2938,7 @@ pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'stat
         d.dv_hashtab
             .find_hi_len_mut(crate::memory::cstr_slice(key.as_ptr(), len as usize))
     };
-    hi.and_then(|hi| unsafe { hi.hi_di.as_mut() })
+    hi.and_then(|hi| hi.hi_di.opt_mut())
 }
 
 /// Find item in dictionary and return a mutable reference if present.
@@ -3345,7 +3336,7 @@ pub fn tv_dict_copy(
     let copy = tv_dict_alloc();
     if copy_id != 0 {
         orig.as_deref_mut().unwrap().dv_copy_id = copy_id;
-        orig.as_deref_mut().unwrap().dv_copydict = copy;
+        orig.as_deref_mut().unwrap().dv_copydict = crate::globals::GraphPtr::from(&mut *copy);
     }
     for (_, di) in orig.unwrap().dv_hashtab.iter_items_mut() {
         if g_st().got_int {
@@ -3914,7 +3905,7 @@ fn nothing_convert_one_value(
                 saved_copy_id,
                 data: MPConvStackData::List {
                     list,
-                    li: unsafe { (*list).lv_first },
+                    li: unsafe { (*list).lv_first.as_ptr() },
                 },
             };
             nothing_conv_real_list_after_start(tv, &mut mpsv);
@@ -4026,7 +4017,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     continue;
                 }
                 let cur_li = unsafe { &mut *cur_li };
-                *li = cur_li.li_next;
+                *li = cur_li.li_next.as_ptr();
                 &raw mut cur_li.li_tv
             }
             MPConvStackData::Partial { stage, pt } => {
@@ -4955,17 +4946,17 @@ mod tests {
 
             // Watchers + item_remove + drop_items + remove_items
             let lw1 = std::rc::Rc::new(Listwatch {
-                lw_item: std::cell::Cell::new(l.lv_first),
+                lw_item: std::cell::Cell::new(l.lv_first.as_ptr()),
             });
             let lw2 = std::rc::Rc::new(Listwatch {
-                lw_item: std::cell::Cell::new(l.lv_last),
+                lw_item: std::cell::Cell::new(l.lv_last.as_ptr()),
             });
             tv_list_watch_add(&mut *l, lw1.clone());
             tv_list_watch_add(&mut *l, lw2.clone());
 
             let first = l.lv_first;
-            let second = unsafe { (*first).li_next };
-            let next_after_first = tv_list_item_remove(l, unsafe { &mut *first });
+            let second = first.li_next.as_ptr();
+            let next_after_first = tv_list_item_remove(l, first.borrow_mut());
             assert_eq!(
                 next_after_first.map_or(ptr::null_mut(), ptr::from_mut),
                 second
@@ -5018,8 +5009,8 @@ mod tests {
             assert_eq!(tv_list_len_inline(Some(&*l2)), 6);
 
             // remove_items range
-            let first_item = l2.lv_first;
-            let second_item = unsafe { (*first_item).li_next };
+            let first_item = l2.lv_first.as_ptr();
+            let second_item = unsafe { (*first_item).li_next.as_ptr() };
             tv_list_remove_items(&mut *l2, unsafe { &mut *first_item }, unsafe {
                 &mut *second_item
             });

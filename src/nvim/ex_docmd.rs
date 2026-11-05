@@ -9314,7 +9314,7 @@ fn ex_restart(eap: &mut Exarg) {
     let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
     let mut listen_arg: Option<std::ffi::CString> = None;
 
-    let mut li = l.map_or(ptr::null_mut(), |l| l.lv_first);
+    let mut li = l.map_or(ptr::null_mut(), |l| l.lv_first.as_ptr());
     while !li.is_null() {
         let arg = tv_get_string(unsafe { &(*li).li_tv });
         let i = argv_vec.len();
@@ -9322,7 +9322,7 @@ fn ex_restart(eap: &mut Exarg) {
             break;
         }
         if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-S")) {
-            let next_li = unsafe { (*li).li_next };
+            let next_li = unsafe { (*li).li_next.as_ptr() };
             if !next_li.is_null() {
                 let next_arg = tv_get_string(unsafe { &(*next_li).li_tv });
                 if next_arg.to_bytes().first().copied().unwrap_or(0) != b'-' {
@@ -9330,20 +9330,20 @@ fn ex_restart(eap: &mut Exarg) {
                 }
             }
 
-            li = unsafe { (*li).li_next };
+            li = unsafe { (*li).li_next.as_ptr() };
 
             continue;
         }
         if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-s")) {
-            li = unsafe { (*li).li_next };
+            li = unsafe { (*li).li_next.as_ptr() };
 
             if !li.is_null() {
-                li = unsafe { (*li).li_next };
+                li = unsafe { (*li).li_next.as_ptr() };
             }
             continue;
         }
         if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--listen")) {
-            let next_li = unsafe { (*li).li_next };
+            let next_li = unsafe { (*li).li_next.as_ptr() };
             if let Some(next_li) = unsafe { next_li.as_mut() } {
                 let addr = tv_get_string(&next_li.li_tv);
                 if addr
@@ -9354,7 +9354,7 @@ fn ex_restart(eap: &mut Exarg) {
                     listen_arg = to_slash_save(Some(addr));
                     #[cfg(windows)]
                     {
-                        li = next_li.li_next;
+                        li = next_li.li_next.as_ptr();
                         continue;
                     }
                 }
@@ -9374,7 +9374,7 @@ fn ex_restart(eap: &mut Exarg) {
             }
         }
 
-        li = unsafe { (*li).li_next };
+        li = unsafe { (*li).li_next.as_ptr() };
     }
 
     #[cfg(windows)]

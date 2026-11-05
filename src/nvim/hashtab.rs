@@ -13,7 +13,7 @@ const PERTURB_SHIFT: usize = 5;
 pub struct Hashitem {
     pub hi_hash: HashVal,
     pub hi_removed: bool,
-    pub hi_di: *mut crate::eval::typval::Dictitem,
+    pub hi_di: crate::globals::GraphPtr<crate::eval::typval::Dictitem>,
 }
 
 impl Hashitem {
@@ -24,16 +24,14 @@ impl Hashitem {
 
     #[inline]
     pub fn key_cstr(&self) -> Option<&CStr> {
-        if self.hi_di.is_null() {
-            None
-        } else {
-            CStr::from_bytes_until_nul(unsafe { &(*self.hi_di).di_key }).ok()
-        }
+        self.hi_di
+            .opt()
+            .and_then(|di| CStr::from_bytes_until_nul(&di.di_key).ok())
     }
 
     #[inline]
     pub fn di_opt(&self) -> Option<&'static mut crate::eval::typval::Dictitem> {
-        unsafe { self.hi_di.as_mut() }
+        self.hi_di.opt_mut()
     }
 }
 
@@ -74,13 +72,7 @@ impl Hashtab {
     pub fn iter_items(&self) -> impl Iterator<Item = (&Hashitem, &crate::eval::typval::Dictitem)> {
         self.ht_array
             .iter()
-            .filter_map(|hi| {
-                if hi.hi_di.is_null() {
-                    None
-                } else {
-                    Some((hi, unsafe { &*hi.hi_di }))
-                }
-            })
+            .filter_map(|hi| hi.hi_di.opt().map(|di| (hi, di)))
             .take(self.ht_used)
     }
 
@@ -112,7 +104,7 @@ impl Hashtab {
         self.ht_used -= 1;
         self.ht_changed += 1;
         hi.hi_removed = true;
-        hi.hi_di = std::ptr::null_mut();
+        hi.hi_di = crate::globals::GraphPtr::NULL;
         hash_may_resize(self, 0);
     }
 }
@@ -128,7 +120,7 @@ static EMPTY_HASHARRAY: crate::globals::GlobalState<[Hashitem; HT_INIT_SIZE]> =
         [Hashitem {
             hi_hash: 0,
             hi_removed: false,
-            hi_di: std::ptr::null_mut(),
+            hi_di: crate::globals::GraphPtr::NULL,
         }; HT_INIT_SIZE],
     );
 
@@ -246,7 +238,7 @@ pub fn hash_add_item(
         ht.ht_filled += 1;
     }
     hi_ref.hi_removed = false;
-    hi_ref.hi_di = di;
+    hi_ref.hi_di = crate::globals::GraphPtr::from(&mut *di);
     hi_ref.hi_hash = hash;
 
     hash_may_resize(ht, 0);
@@ -261,7 +253,7 @@ pub fn hash_remove(ht: &mut Hashtab, hi: &mut Hashitem) {
     ht.ht_used -= 1;
     ht.ht_changed += 1;
     hi_ref.hi_removed = true;
-    hi_ref.hi_di = std::ptr::null_mut();
+    hi_ref.hi_di = crate::globals::GraphPtr::NULL;
     hash_may_resize(ht, 0);
 }
 
@@ -412,7 +404,7 @@ mod tests {
                 let hi = hash_find(ht, k.as_c_str());
                 assert!(!hashitem_empty(hi));
                 assert_eq!(hi.key_cstr(), Some(k.as_c_str()));
-                assert_eq!(hi.hi_di, di);
+                assert_eq!(hi.hi_di.as_ptr(), di);
             }
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE

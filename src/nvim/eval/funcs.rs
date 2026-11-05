@@ -2125,7 +2125,7 @@ pub fn get_list_line(
     let item = p.li.opt()?;
     let mut buf = [0u8; NUMBUFLEN];
     let s = tv_get_string_buf_chk(&item.li_tv, &mut buf);
-    p.li = crate::globals::ListitemPtr::new(item.li_next);
+    p.li = item.li_next;
     s.map(std::ffi::CStr::to_owned)
 }
 
@@ -2173,7 +2173,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         do_cmdline_cmd(tv_get_string(&argvars[off]));
     } else if let Some(list) = argvars[off].vval.v_list_opt() {
         let list_ptr: *mut TvList = list;
-        let first_li = list.lv_first;
+        let first_li = list.lv_first.as_ptr();
         tv_list_ref(Some(list));
         let mut cookie = GetListLineCookie {
             li: crate::globals::ListitemPtr::new(first_li),
@@ -3949,7 +3949,7 @@ pub fn f_index(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         return;
     };
 
-    let mut item = l.lv_first;
+    let mut item = l.lv_first.as_ptr();
     if argvars[2].v_type != VarType::VarUnknown {
         let mut error = false;
         idx = tv_list_uidx(
@@ -5235,7 +5235,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 }
 
                 if !l.is_null() {
-                    li = unsafe { (*li).li_next };
+                    li = unsafe { (*li).li_next.as_ptr() };
 
                     idx += 1;
                 } else {
@@ -5258,9 +5258,9 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     SomeMatchType::SomeMatchStrPos => {
                         let ret_l = rettv.vval.v_list();
                         let li1 = tv_list_first(unsafe { ret_l.as_ref() }).unwrap();
-                        let li2 = li1.li_next;
-                        let li3 = unsafe { (*li2).li_next };
-                        let li4 = unsafe { (*li3).li_next };
+                        let mut li2 = li1.li_next;
+                        let mut li3 = li2.li_next;
+                        let mut li4 = li3.li_next;
                         tv_clear(&mut li1.li_tv);
 
                         let rd =
@@ -5271,25 +5271,19 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             Some(regmatch.startp[0].slice(rd)),
                         );
 
-                        unsafe {
-                            (*li3).li_tv.vval = crate::eval::typval::TypvalVval::Number(
-                                crate::memory::ptr_offset_from(regmatch.startp[0], expr.cast())
-                                    as Varnumber,
-                            );
-                        }
+                        li3.li_tv.vval = crate::eval::typval::TypvalVval::Number(
+                            crate::memory::ptr_offset_from(regmatch.startp[0], expr.cast())
+                                as Varnumber,
+                        );
 
-                        unsafe {
-                            (*li4).li_tv.vval = crate::eval::typval::TypvalVval::Number(
-                                crate::memory::ptr_offset_from(regmatch.endp[0], expr.cast())
-                                    as Varnumber,
-                            );
-                        }
+                        li4.li_tv.vval = crate::eval::typval::TypvalVval::Number(
+                            crate::memory::ptr_offset_from(regmatch.endp[0], expr.cast())
+                                as Varnumber,
+                        );
 
                         if !l.is_null() {
-                            unsafe {
-                                (*li2).li_tv.vval =
-                                    crate::eval::typval::TypvalVval::Number(Varnumber::from(idx));
-                            }
+                            li2.li_tv.vval =
+                                crate::eval::typval::TypvalVval::Number(Varnumber::from(idx));
                         }
                     }
                     SomeMatchType::SomeMatchList => {
@@ -5352,7 +5346,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         let ret_l = rettv.vval.v_list();
         let first = tv_list_first(unsafe { ret_l.as_ref() }).unwrap();
 
-        tv_list_item_remove(unsafe { &mut *ret_l }, unsafe { &mut *first.li_next });
+        tv_list_item_remove(unsafe { &mut *ret_l }, first.li_next.borrow_mut());
     }
 
     drop(tofree_owned);

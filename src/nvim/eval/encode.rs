@@ -216,7 +216,7 @@ pub fn encode_read_from_list(
                 *read_bytes = p;
                 return Some(true);
             };
-            state.li = crate::globals::ListitemPtr::new(cur_li.li_next);
+            state.li = cur_li.li_next;
             let Some(next_li) = state.li_opt() else {
                 *read_bytes = p;
                 return Some(true);
@@ -349,12 +349,12 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 } else if li.is_null() {
                     tv_list_len(unsafe { list.as_ref() }) - 1
                 } else {
-                    tv_list_idx_of_item(unsafe { list.as_ref() }, unsafe { (*li).li_prev.as_ref() })
+                    tv_list_idx_of_item(unsafe { list.as_ref() }, unsafe { (*li).li_prev.opt() })
                 };
                 let prev_li: *const Listitem = if li.is_null() {
                     tv_list_last(unsafe { list.as_ref() }).map_or(std::ptr::null(), |p| p)
                 } else {
-                    unsafe { (*li).li_prev }
+                    unsafe { (*li).li_prev.as_ptr() }
                 };
                 if is_list
                     || prev_li.is_null()
@@ -1175,10 +1175,8 @@ fn convert_one_value(
                                 if tv_list_len(unsafe { val_list.as_ref() }) == 4 {
                                     let sign_li =
                                         tv_list_first(unsafe { val_list.as_ref() }).unwrap();
-                                    let highest_li = sign_li.li_next;
-                                    let highest_li = unsafe { &mut *highest_li };
-                                    let high_li = highest_li.li_next;
-                                    let high_li = unsafe { &mut *high_li };
+                                    let highest_li = sign_li.li_next.borrow_mut();
+                                    let high_li = highest_li.li_next.borrow_mut();
                                     let low_li =
                                         tv_list_last(unsafe { val_list.as_ref() }).unwrap();
                                     if sign_li.li_tv.v_type == VarType::VarNumber
@@ -1276,7 +1274,7 @@ fn convert_one_value(
                                             break;
                                         }
 
-                                        li = unsafe { (*li).li_next };
+                                        li = unsafe { (*li).li_next.as_ptr() };
                                     }
                                     if all_pairs {
                                         let saved_copy_id = unsafe { (*val_list).lv_copy_id };
@@ -1437,7 +1435,7 @@ fn encode_vim_with_backend(
                     backend.conv_list_between_items();
                 }
 
-                *li = unsafe { (*cur_li).li_next };
+                *li = unsafe { (*cur_li).li_next.as_ptr() };
 
                 unsafe { &raw mut (*cur_li).li_tv }
             }
@@ -1471,7 +1469,7 @@ fn encode_vim_with_backend(
                 }
                 backend.conv_dict_after_key();
                 let last_item = tv_list_last(unsafe { kv_pair.as_ref() }).unwrap();
-                let next_li = unsafe { (*li).li_next };
+                let next_li = unsafe { (*li).li_next.as_ptr() };
                 if let MPConvStackData::Pairs {
                     li: ref mut li_ref, ..
                 } = mpstack[cur_idx].data
@@ -1671,8 +1669,8 @@ mod tests {
     #[test]
     fn read_from_list_substitutes_nl_with_nul_and_joins_with_nl() {
         let mut li2 = Listitem {
-            li_next: std::ptr::null_mut(),
-            li_prev: std::ptr::null_mut(),
+            li_next: crate::globals::ListitemPtr::NULL,
+            li_prev: crate::globals::ListitemPtr::NULL,
             li_tv: TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
@@ -1680,21 +1678,21 @@ mod tests {
             },
         };
         let mut li1 = Listitem {
-            li_next: &mut li2,
-            li_prev: std::ptr::null_mut(),
+            li_next: crate::globals::ListitemPtr::from(&mut li2),
+            li_prev: crate::globals::ListitemPtr::NULL,
             li_tv: TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::String(c"a\nb".as_ptr().cast_mut()),
             },
         };
-        li2.li_prev = &mut li1;
+        li2.li_prev = crate::globals::ListitemPtr::from(&mut li1);
         let list = TvList {
-            lv_first: &mut li1,
-            lv_last: &mut li2,
+            lv_first: crate::globals::ListitemPtr::from(&mut li1),
+            lv_last: crate::globals::ListitemPtr::from(&mut li2),
             lv_watch: Vec::new(),
-            lv_idx_item: std::ptr::null_mut(),
-            lv_copylist: std::ptr::null_mut(),
+            lv_idx_item: crate::globals::ListitemPtr::NULL,
+            lv_copylist: crate::globals::TvListPtr::NULL,
             lv_gc_idx: None,
             lv_refcount: 1,
             lv_len: 2,
@@ -1729,7 +1727,7 @@ mod tests {
                 let mut li = l.lv_first;
                 for &exp in expected {
                     assert!(!li.is_null());
-                    let li_ref = unsafe { &*li };
+                    let li_ref = li.borrow();
                     assert_eq!(li_ref.li_tv.v_type, VarType::VarString);
                     let ptr = li_ref.li_tv.vval.v_string();
                     match exp {

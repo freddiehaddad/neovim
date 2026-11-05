@@ -1038,6 +1038,12 @@ impl<T> PartialEq<&mut T> for GraphPtr<T> {
 
 impl<T> Eq for GraphPtr<T> {}
 
+impl<T> std::fmt::Debug for GraphPtr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Pointer::fmt(&self.as_ptr(), f)
+    }
+}
+
 impl<T> From<*mut T> for GraphPtr<T> {
     #[inline]
     fn from(ptr: *mut T) -> Self {

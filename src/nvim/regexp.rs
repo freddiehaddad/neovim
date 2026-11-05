@@ -2771,7 +2771,7 @@ pub(crate) fn fill_submatch_list(
             tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
         }
 
-        li = li_mut.li_next;
+        li = li_mut.li_next.as_ptr();
     }
     argskip + 1
 }

@@ -159,7 +159,7 @@ fn convert_one_value(
             });
             mpstack.push(ConvStackEntry::List {
                 list: list_ptr,
-                li: list.lv_first,
+                li: list.lv_first.as_ptr(),
                 saved_copy_id,
                 first: true,
             });
@@ -292,7 +292,7 @@ pub fn vim_to_object(
                 }
                 *first = false;
                 let cur_li = unsafe { &mut **li };
-                *li = cur_li.li_next;
+                *li = cur_li.li_next.as_ptr();
                 &mut cur_li.li_tv
             }
             ConvStackEntry::Dict {
@@ -500,7 +500,7 @@ mod tests {
             assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);
             crate::api::private::helpers::api_free_object(cyc_obj);
 
-            unsafe { (*list.lv_first).li_tv.v_type = VarType::VarUnknown };
+            list.lv_first.li_tv.v_type = VarType::VarUnknown;
 
             crate::eval::typval::tv_list_free(Some(list));
         }

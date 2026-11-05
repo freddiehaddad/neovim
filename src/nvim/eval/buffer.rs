@@ -188,7 +188,7 @@ fn set_buffer_lines(
 
             line = Some(typval_tostring(Some(unsafe { &mut (*li).li_tv }), false));
 
-            li = unsafe { (*li).li_next };
+            li = unsafe { (*li).li_next.as_ptr() };
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL

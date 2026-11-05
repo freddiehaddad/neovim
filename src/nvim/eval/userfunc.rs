@@ -1061,7 +1061,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
         for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.first_opt()) {
             li.li_tv.v_type = VarType::VarUnknown;
         }
-        fc.fc_l_varlist.lv_first = ptr::null_mut();
+        fc.fc_l_varlist.lv_first = crate::globals::ListitemPtr::NULL;
     } else {
         free_fc = false;
 

@@ -362,7 +362,7 @@ fn tv_list_copyid(l: &TvList) -> i32 {
 
 #[inline]
 fn tv_list_latest_copy(l: &TvList) -> Option<&'static mut TvList> {
-    unsafe { l.lv_copylist.as_mut() }
+    l.lv_copylist.opt_mut()
 }
 
 #[inline]
@@ -377,7 +377,7 @@ fn tv_list_item_tv(li: &mut Listitem) -> &mut TypVal {
 
 #[inline]
 fn tv_list_item_next(li: &Listitem) -> Option<&'static mut Listitem> {
-    unsafe { li.li_next.as_mut() }
+    li.li_next.opt_mut()
 }
 
 pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
@@ -6235,7 +6235,7 @@ pub fn var_item_copy(
                 return ret;
             };
             if copy_id != 0 && from_dict.dv_copy_id == copy_id {
-                to.vval = crate::eval::typval::TypvalVval::Dict(from_dict.dv_copydict);
+                to.vval = crate::eval::typval::TypvalVval::Dict(from_dict.dv_copydict.as_ptr());
                 to.vval.v_dict_ref().dv_refcount += 1;
             } else {
                 to.vval = crate::eval::typval::TypvalVval::Dict(

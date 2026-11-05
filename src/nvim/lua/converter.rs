@@ -1189,10 +1189,8 @@ fn lua_convert_one_value(
                                     let val_list = val_di.di_tv.vval.v_list();
                                     if tv_list_len(val_list.as_ref()) == 4 {
                                         let sign_li = tv_list_first(val_list.as_ref()).unwrap();
-                                        let highest_li = sign_li.li_next;
-                                        let highest_li = &mut *highest_li;
-                                        let high_li = highest_li.li_next;
-                                        let high_li = &mut *high_li;
+                                        let highest_li = sign_li.li_next.borrow_mut();
+                                        let high_li = highest_li.li_next.borrow_mut();
                                         let low_li = tv_list_last(val_list.as_ref()).unwrap();
                                         if sign_li.li_tv.v_type == VarType::VarNumber
                                             && sign_li.li_tv.vval.v_number() != 0
@@ -1285,7 +1283,7 @@ fn lua_convert_one_value(
                                                 all_pairs = false;
                                                 break;
                                             }
-                                            li = (*li).li_next;
+                                            li = (*li).li_next.as_ptr();
                                         }
                                         if all_pairs {
                                             let saved_copy_id = (*val_list).lv_copy_id;
@@ -1426,7 +1424,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                         lua_rawset(lstate, -3);
                         lua_pushnumber(lstate, idx + 1.0);
                     }
-                    *li = (*cur_li).li_next;
+                    *li = (*cur_li).li_next.as_ptr();
                     &mut (*cur_li).li_tv
                 }
                 MPConvStackData::Pairs { list, li } => {
@@ -1448,7 +1446,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                         return false;
                     }
                     let last_item = tv_list_last(kv_pair.as_ref()).unwrap();
-                    let next_li = (*li).li_next;
+                    let next_li = (*li).li_next.as_ptr();
                     if let MPConvStackData::Pairs {
                         li: ref mut li_ref, ..
                     } = mpstack[cur_idx].data

@@ -986,7 +986,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
         if li.li_tv.v_type == VarType::VarString && !li.li_tv.vval.v_string().is_null() {
             break;
         }
-        p_li = unsafe { li.li_next.as_ref() };
+        p_li = li.li_next.opt();
     }
 
     let Some(li) = p_li else {
@@ -1005,7 +1005,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
 
     crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), crate::memory::cstr_as_bytes(s));
 
-    state.source = QfInputSource::List(li.li_next);
+    state.source = QfInputSource::List(li.li_next.as_ptr());
 
     QfStatus::Ok
 }

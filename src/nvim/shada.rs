@@ -1613,9 +1613,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     let ol = oldfiles_list.as_deref_mut().unwrap();
                     crate::eval::typval::tv_list_append_string(ol, Some(fname_cstr), -1);
 
-                    oldfiles_set.insert(PathKey(
-                        unsafe { (*ol.lv_last).li_tv.vval.v_string() }.cast(),
-                    ));
+                    oldfiles_set.insert(PathKey(ol.lv_last.li_tv.vval.v_string().cast()));
                 }
                 if !want_marks {
                     shada_free_shada_entry(&mut cur_entry);

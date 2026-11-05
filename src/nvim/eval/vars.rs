@@ -322,7 +322,7 @@ const fn empty_dict() -> TvDict {
         dv_refcount: 0,
         dv_copy_id: 0,
         dv_hashtab: Hashtab::new(),
-        dv_copydict: ptr::null_mut(),
+        dv_copydict: crate::globals::GraphPtr::NULL,
         dv_gc_idx: None,
         watchers: Vec::new(),
         lua_table_ref: 0,
@@ -2059,7 +2059,7 @@ fn tv_list_unlet_range(
     let mut li_last: *mut Listitem = li_first;
     let mut n1 = n1_arg;
     loop {
-        let li = unsafe { (*li_last).li_next };
+        let li = unsafe { (*li_last).li_next.as_ptr() };
         n1 += 1;
         if li.is_null() || (has_n2 && n2 < n1) {
             break;
