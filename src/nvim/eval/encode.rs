@@ -64,7 +64,7 @@ fn encode_st() -> &'static mut EvalEncodeState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ListReaderState {
-    pub li: *const Listitem,
+    pub li: crate::globals::ListitemPtr,
     pub offset: usize,
     pub li_length: usize,
 }
@@ -72,7 +72,7 @@ pub struct ListReaderState {
 impl ListReaderState {
     #[inline]
     pub fn li_opt(&self) -> Option<&'static Listitem> {
-        unsafe { self.li.as_ref() }
+        self.li.opt()
     }
 }
 
@@ -173,7 +173,10 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
 
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
 pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
-    let first = tv_list_first(list).map_or(std::ptr::null(), |li| li);
+    let first = tv_list_first(list).map_or(
+        crate::globals::ListitemPtr::NULL,
+        crate::globals::ListitemPtr::from,
+    );
     let mut state = ListReaderState {
         li: first,
         offset: 0,
@@ -213,7 +216,7 @@ pub fn encode_read_from_list(
                 *read_bytes = p;
                 return Some(true);
             };
-            state.li = cur_li.li_next;
+            state.li = crate::globals::ListitemPtr::new(cur_li.li_next);
             let Some(next_li) = state.li_opt() else {
                 *read_bytes = p;
                 return Some(true);

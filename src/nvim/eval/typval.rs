@@ -937,8 +937,8 @@ pub fn tv_list_last(l: Option<&TvList>) -> Option<&'static mut Listitem> {
 }
 
 pub struct TvListIter<'a> {
-    cur: *const Listitem,
-    last: *const Listitem,
+    cur: crate::globals::ListitemPtr,
+    last: crate::globals::ListitemPtr,
     _marker: std::marker::PhantomData<&'a Listitem>,
 }
 
@@ -947,14 +947,11 @@ impl<'a> Iterator for TvListIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur.is_null() {
-            return None;
-        }
-        let item = unsafe { &*self.cur };
-        if ptr::eq(self.cur, self.last) {
-            self.cur = ptr::null();
+        let item = self.cur.opt()?;
+        if self.cur == self.last {
+            self.cur = crate::globals::ListitemPtr::NULL;
         } else {
-            self.cur = item.li_next;
+            self.cur = crate::globals::ListitemPtr::new(item.li_next);
         }
         Some(item)
     }
@@ -962,8 +959,12 @@ impl<'a> Iterator for TvListIter<'a> {
 
 #[inline]
 pub fn tv_list_iter(l: Option<&TvList>) -> TvListIter<'_> {
-    let cur = l.map_or(ptr::null(), |l| l.lv_first);
-    let last = l.map_or(ptr::null(), |l| l.lv_last);
+    let cur = l.map_or(crate::globals::ListitemPtr::NULL, |l| {
+        crate::globals::ListitemPtr::new(l.lv_first)
+    });
+    let last = l.map_or(crate::globals::ListitemPtr::NULL, |l| {
+        crate::globals::ListitemPtr::new(l.lv_last)
+    });
     TvListIter {
         cur,
         last,

@@ -95,13 +95,13 @@ pub const DECOR_HIGHLIGHT_INLINE_INIT: DecorHighlightInline = DecorHighlightInli
 #[derive(Clone, Copy)]
 pub struct DecorExt {
     pub sh_idx: u32,
-    pub vt: *mut crate::decoration::DecorVirtText,
+    pub vt: crate::globals::GraphPtr<crate::decoration::DecorVirtText>,
 }
 
 impl DecorExt {
     #[inline]
     pub fn vt_opt(self) -> Option<&'static mut crate::decoration::DecorVirtText> {
-        unsafe { self.vt.as_mut() }
+        self.vt.opt_mut()
     }
 }
 
@@ -134,7 +134,7 @@ impl DecorInlineData {
             Self::Ext(ext) => ext,
             Self::Hl(_) => DecorExt {
                 sh_idx: u32::MAX,
-                vt: std::ptr::null_mut(),
+                vt: crate::globals::GraphPtr::NULL,
             },
         }
     }

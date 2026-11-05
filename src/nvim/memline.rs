@@ -77,7 +77,7 @@ pub struct Memline {
     pub ml_line_buf: Vec<u8>,
     pub ml_line_offset: usize,
     pub ml_line_offset_ff: i32,
-    pub ml_locked: *mut crate::memfile::Bhdr,
+    pub ml_locked: crate::globals::GraphPtr<crate::memfile::Bhdr>,
     pub ml_locked_low: i32,
     pub ml_locked_high: i32,
     pub ml_locked_lineadd: i32,
@@ -99,7 +99,7 @@ impl Memline {
             ml_line_buf: Vec::new(),
             ml_line_offset: 0,
             ml_line_offset_ff: 0,
-            ml_locked: ptr::null_mut(),
+            ml_locked: crate::globals::GraphPtr::NULL,
             ml_locked_low: 0,
             ml_locked_high: 0,
             ml_locked_lineadd: 0,
@@ -447,7 +447,7 @@ fn sb_push_cstr(sb: &mut Vec<u8>, s: &CStr) {
 pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_ml.ml_stack.clear();
     buf.b_ml.ml_stack_top = 0;
-    buf.b_ml.ml_locked = ptr::null_mut();
+    buf.b_ml.ml_locked = crate::globals::GraphPtr::NULL;
     buf.b_ml.ml_line_lnum = 0;
     buf.b_ml.ml_line_offset = 0;
     buf.b_ml.ml_chunksize.clear();
@@ -2763,7 +2763,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
 
     if count == 1 {
         mf_free(mfp, hp);
-        buf.b_ml.ml_locked = ptr::null_mut();
+        buf.b_ml.ml_locked = crate::globals::GraphPtr::NULL;
 
         let mut stack_idx = buf.b_ml.ml_stack_top - 1;
         while stack_idx >= 0 {
@@ -3045,16 +3045,16 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
                 buf.b_ml.ml_locked_lineadd -= 1;
                 buf.b_ml.ml_locked_high -= 1;
             }
-            return Some(unsafe { &mut *buf.b_ml.ml_locked.cast::<Bhdr>() });
+            return buf.b_ml.ml_locked.opt_mut();
         }
 
         mf_put(
             mfp,
-            unsafe { &mut *buf.b_ml.ml_locked.cast::<Bhdr>() },
+            buf.b_ml.ml_locked.borrow_mut(),
             (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0,
             (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0,
         );
-        buf.b_ml.ml_locked = ptr::null_mut();
+        buf.b_ml.ml_locked = crate::globals::GraphPtr::NULL;
 
         if buf.b_ml.ml_locked_lineadd != 0 {
             ml_lineadd(buf, buf.b_ml.ml_locked_lineadd);
@@ -3104,7 +3104,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
 
         let dp = hp_data_block(unsafe { &mut *hp });
         if dp.db_id == DATA_ID {
-            buf.b_ml.ml_locked = hp.cast();
+            buf.b_ml.ml_locked = crate::globals::GraphPtr::new(hp.cast());
             buf.b_ml.ml_locked_low = low;
             buf.b_ml.ml_locked_high = high;
             buf.b_ml.ml_locked_lineadd = 0;

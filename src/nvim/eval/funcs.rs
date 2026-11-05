@@ -309,7 +309,7 @@ enum SomeMatchType {
 
 #[repr(C)]
 pub struct GetListLineCookie {
-    li: *const Listitem,
+    li: crate::globals::ListitemPtr,
 }
 
 struct EvalFuncsState {
@@ -2122,10 +2122,10 @@ pub fn get_list_line(
     _indent: i32,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    let item = unsafe { p.li.as_ref() }?;
+    let item = p.li.opt()?;
     let mut buf = [0u8; NUMBUFLEN];
     let s = tv_get_string_buf_chk(&item.li_tv, &mut buf);
-    p.li = item.li_next;
+    p.li = crate::globals::ListitemPtr::new(item.li_next);
     s.map(std::ffi::CStr::to_owned)
 }
 
@@ -2175,7 +2175,9 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         let list_ptr: *mut TvList = list;
         let first_li = list.lv_first;
         tv_list_ref(Some(list));
-        let mut cookie = GetListLineCookie { li: first_li };
+        let mut cookie = GetListLineCookie {
+            li: crate::globals::ListitemPtr::new(first_li),
+        };
         do_cmdline(
             None,
             crate::cmdexpand::LineGetter::List(&raw mut cookie),
@@ -6870,7 +6872,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         g_st().autocmd_match = g_st().provider_caller_scope.autocmd_match.clone();
         g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
         g_st().autocmd_bufnr = g_st().provider_caller_scope.autocmd_bufnr;
-        set_current_funccal(unsafe { g_st().provider_caller_scope.funccalp.as_mut() });
+        set_current_funccal(g_st().provider_caller_scope.funccalp.opt_mut());
     }
 
     let mut err = Error::new();
@@ -7884,7 +7886,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             }
             on_data.buffered = tv_dict_get_number(opts_opt.as_deref(), c"data_buffered") != 0;
             if on_data.buffered && on_data.cb.cb_type() == K_CALLBACK_NONE_CONST {
-                on_data.self_dict = opts;
+                on_data.self_dict = crate::globals::GraphPtr::new(opts);
             }
         }
 
@@ -7927,7 +7929,7 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     on_stdin.buffered = tv_dict_get_number(opts_opt.as_deref(), c"stdin_buffered") != 0;
     if on_stdin.buffered && on_stdin.cb.cb_type() == K_CALLBACK_NONE_CONST {
-        on_stdin.self_dict = opts;
+        on_stdin.self_dict = crate::globals::GraphPtr::new(opts);
     }
 
     let mut error = None;

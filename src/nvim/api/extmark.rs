@@ -1270,7 +1270,7 @@ pub fn nvim_buf_set_extmark(
                 }
                 decor.data = DecorInlineData::Ext(DecorExt {
                     sh_idx: decor_indexed,
-                    vt: decor_alloc.cast(),
+                    vt: crate::globals::GraphPtr::new(decor_alloc.cast()),
                 });
             } else {
                 decor.data = DecorInlineData::Hl(hl);

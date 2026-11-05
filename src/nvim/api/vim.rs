@@ -1582,7 +1582,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     chan.internal.cb = cb;
     chan.internal.closed = false;
     let topts = TerminalOptions {
-        data: chan_ptr,
+        data: crate::globals::GraphPtr::new(chan_ptr),
         width: (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16,
         height: curwin_mut().w_view_height as u16,
         force_crlf,

@@ -518,7 +518,7 @@ impl EditorState {
                 autocmd_match: None,
                 autocmd_fname_full: false,
                 autocmd_bufnr: 0,
-                funccalp: ptr::null_mut(),
+                funccalp: GraphPtr::NULL,
             },
             provider_call_nesting: 0,
             t_colors: 256,

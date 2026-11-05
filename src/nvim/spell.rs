@@ -1755,9 +1755,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     }
                     if region_mask != 0 {
                         ga.push(Langp {
-                            lp_slang: &raw mut *slang,
-                            lp_sallang: ptr::null_mut(),
-                            lp_replang: ptr::null_mut(),
+                            lp_slang: crate::globals::GraphPtr::from(&mut *slang),
+                            lp_sallang: crate::globals::GraphPtr::NULL,
+                            lp_replang: crate::globals::GraphPtr::NULL,
                             lp_region: region_mask,
                         });
                         use_midword(slang, wp);
@@ -1785,17 +1785,13 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 spf_name[len..len + 5].copy_from_slice(b".spl\0");
                 let mut c = 0;
                 while c < ga.len() {
-                    if unsafe { &*ga[c].lp_slang }
-                        .sl_fname
-                        .as_ref()
-                        .is_some_and(|p| {
-                            path_equal(
-                                crate::memory::cstr_from_ptr(spf_ptr),
-                                p,
-                                K_PATH_CMP_EXPAND as PathCmpFlags,
-                            )
-                        })
-                    {
+                    if ga[c].lp_slang.borrow().sl_fname.as_ref().is_some_and(|p| {
+                        path_equal(
+                            crate::memory::cstr_from_ptr(spf_ptr),
+                            p,
+                            K_PATH_CMP_EXPAND as PathCmpFlags,
+                        )
+                    }) {
                         break;
                     }
                     c += 1;
@@ -1851,9 +1847,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
                 if region_mask != 0 {
                     ga.push(Langp {
-                        lp_slang: &raw mut *slang,
-                        lp_sallang: ptr::null_mut(),
-                        lp_replang: ptr::null_mut(),
+                        lp_slang: crate::globals::GraphPtr::from(&mut *slang),
+                        lp_sallang: crate::globals::GraphPtr::NULL,
+                        lp_replang: crate::globals::GraphPtr::NULL,
                         lp_region: region_mask,
                     });
                     use_midword(slang, wp);
@@ -1862,20 +1858,23 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
         }
         for i in 0..ga.len() {
             let lp_slang = ga[i].lp_slang;
-            let lp_name = unsafe { &*lp_slang }
+            let lp_name = lp_slang
+                .borrow()
                 .sl_name
                 .as_ref()
                 .map_or(c"".as_ptr(), |s| s.as_ptr());
-            if unsafe { (*lp_slang).has_sal() } {
+            if lp_slang.has_sal() {
                 ga[i].lp_sallang = lp_slang;
             } else {
                 for lp2 in &ga {
-                    let lp2_b = unsafe { &*lp2.lp_slang }
+                    let lp2_b = lp2
+                        .lp_slang
+                        .borrow()
                         .sl_name
                         .as_ref()
                         .map_or(&b""[..], |s| s.as_bytes());
                     let lp_b = crate::memory::cstr_as_bytes(lp_name);
-                    if unsafe { (*lp2.lp_slang).has_sal() }
+                    if lp2.lp_slang.has_sal()
                         && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
                     {
                         ga[i].lp_sallang = lp2.lp_slang;
@@ -1883,16 +1882,18 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     }
                 }
             }
-            if !unsafe { (*lp_slang).sl_rep.is_empty() } {
+            if !lp_slang.sl_rep.is_empty() {
                 ga[i].lp_replang = lp_slang;
             } else {
                 for lp2 in &ga {
-                    let lp2_b = unsafe { &*lp2.lp_slang }
+                    let lp2_b = lp2
+                        .lp_slang
+                        .borrow()
                         .sl_name
                         .as_ref()
                         .map_or(&b""[..], |s| s.as_bytes());
                     let lp_b = crate::memory::cstr_as_bytes(lp_name);
-                    if !unsafe { (*lp2.lp_slang).sl_rep.is_empty() }
+                    if !lp2.lp_slang.sl_rep.is_empty()
                         && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
                     {
                         ga[i].lp_replang = lp2.lp_slang;

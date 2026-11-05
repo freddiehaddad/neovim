@@ -64,7 +64,7 @@ pub type ChannelStdinMode = i32;
 #[repr(C)]
 pub struct CallbackReader {
     pub cb: Callback,
-    pub self_dict: *mut TvDict,
+    pub self_dict: crate::globals::GraphPtr<TvDict>,
     pub buffer: Vec<u8>,
     pub eof: bool,
     pub buffered: bool,
@@ -77,7 +77,7 @@ impl CallbackReader {
     pub const fn none() -> Self {
         Self {
             cb: Callback::NONE,
-            self_dict: ptr::null_mut(),
+            self_dict: crate::globals::GraphPtr::NULL,
             buffer: Vec::new(),
             eof: false,
             buffered: false,
@@ -160,7 +160,7 @@ pub struct InternalState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TerminalOptions {
-    pub data: *mut Channel,
+    pub data: crate::globals::GraphPtr<Channel>,
     pub width: u16,
     pub height: u16,
     pub force_crlf: bool,
@@ -857,14 +857,11 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
         if reader.eof {
             if !reader.self_dict.is_null() {
                 let reader_type = reader.reader_type.unwrap();
-                if tv_dict_find(unsafe { reader.self_dict.as_ref() }, reader_type, -1).is_none() {
+                if tv_dict_find(reader.self_dict.opt(), reader_type, -1).is_none() {
                     let data = buffer_to_tv_list(&reader.buffer);
                     let _type_len = reader_type.to_bytes().len();
-                    let _ = tv_dict_add_list(
-                        unsafe { &mut *reader.self_dict },
-                        reader_type,
-                        Some(data),
-                    );
+                    let _ =
+                        tv_dict_add_list(reader.self_dict.borrow_mut(), reader_type, Some(data));
                 } else {
                     semsg!(gettext(E_STREAMKEY), reader_type.as_ptr(), chan.id,);
                 }
@@ -973,7 +970,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 /// Allocate terminal for channel.
 pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
     let topts = TerminalOptions {
-        data: chan,
+        data: crate::globals::GraphPtr::from(&mut *chan),
         width: chan.uv.proc_.width,
         height: chan.uv.proc_.height,
         force_crlf: false,

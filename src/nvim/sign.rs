@@ -205,7 +205,7 @@ fn buf_set_sign(
     let decor = DecorInline {
         data: DecorInlineData::Ext(DecorExt {
             sh_idx: decor_put_sh(sign),
-            vt: ptr::null_mut(),
+            vt: crate::globals::GraphPtr::NULL,
         }),
     };
     extmark_set(

@@ -177,18 +177,18 @@ impl Slang {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Langp {
-    pub lp_slang: *mut Slang,
-    pub lp_sallang: *mut Slang,
-    pub lp_replang: *mut Slang,
+    pub lp_slang: crate::globals::GraphPtr<Slang>,
+    pub lp_sallang: crate::globals::GraphPtr<Slang>,
+    pub lp_replang: crate::globals::GraphPtr<Slang>,
     pub lp_region: i32,
 }
 
 impl Langp {
     pub const fn new() -> Self {
         Self {
-            lp_slang: ptr::null_mut(),
-            lp_sallang: ptr::null_mut(),
-            lp_replang: ptr::null_mut(),
+            lp_slang: crate::globals::GraphPtr::NULL,
+            lp_sallang: crate::globals::GraphPtr::NULL,
+            lp_replang: crate::globals::GraphPtr::NULL,
             lp_region: 0,
         }
     }
@@ -196,7 +196,7 @@ impl Langp {
     #[inline]
     pub fn slang_mut(&self) -> &'static mut Slang {
         assert!(!self.lp_slang.is_null());
-        unsafe { &mut *self.lp_slang }
+        self.lp_slang.borrow_mut()
     }
 }
 
@@ -244,7 +244,7 @@ struct Suginfo {
     su_fbadword: [u8; MAXWLEN],
     su_sal_badword: [u8; MAXWLEN],
     su_banned: std::collections::HashSet<Vec<u8>>,
-    su_sallang: *mut Slang,
+    su_sallang: crate::globals::GraphPtr<Slang>,
 }
 
 impl Default for Suginfo {
@@ -262,7 +262,7 @@ impl Default for Suginfo {
             su_fbadword: [0; MAXWLEN],
             su_sal_badword: [0; MAXWLEN],
             su_banned: std::collections::HashSet::new(),
-            su_sallang: ptr::null_mut(),
+            su_sallang: crate::globals::GraphPtr::NULL,
         }
     }
 }
@@ -861,7 +861,7 @@ fn spell_find_suggest(
     }
     if !su.su_sallang.is_null() {
         spell_soundfold(
-            unsafe { &mut *su.su_sallang },
+            su.su_sallang.borrow_mut(),
             &su.su_fbadword,
             true,
             &mut su.su_sal_badword,
@@ -878,7 +878,7 @@ fn spell_find_suggest(
             SCORE_ICASE,
             0,
             true,
-            unsafe { su.su_sallang.as_mut() },
+            su.su_sallang.opt_mut(),
             false,
         );
     }
@@ -933,7 +933,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                         score,
                         0,
                         true,
-                        unsafe { su.su_sallang.as_mut() },
+                        su.su_sallang.opt_mut(),
                         false,
                     );
                 }
@@ -987,7 +987,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
                 SCORE_FILE,
                 0,
                 true,
-                unsafe { su.su_sallang.as_mut() },
+                su.su_sallang.opt_mut(),
                 false,
             );
         }
@@ -1051,7 +1051,7 @@ fn suggest_try_special(su: &mut Suginfo) {
             rescore(SCORE_REP, 0),
             0,
             true,
-            unsafe { su.su_sallang.as_mut() },
+            su.su_sallang.opt_mut(),
             false,
         );
     }
@@ -1102,7 +1102,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
         let mut fl: i32;
         let mut tl: i32;
         let mut repextra: i32 = 0;
-        let slang = unsafe { &mut *lp.lp_slang };
+        let slang = lp.lp_slang.borrow_mut();
         let mut goodword_ends: bool;
         let mut breakcheckcount: i32 = 1000;
         let mut depth: isize = 0;
@@ -1277,7 +1277,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                         newscore,
                                         0,
                                         false,
-                                        unsafe { lp.lp_sallang.as_mut() },
+                                        lp.lp_sallang.opt_mut(),
                                         false,
                                     );
                                 }
@@ -1438,7 +1438,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                     score,
                                     0,
                                     false,
-                                    unsafe { lp.lp_sallang.as_mut() },
+                                    lp.lp_sallang.opt_mut(),
                                     false,
                                 );
                                 if (su.su_badflags & WF_MIXCAP) != 0 {
@@ -1457,7 +1457,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                             score + SCORE_ICASE,
                                             0,
                                             false,
-                                            unsafe { lp.lp_sallang.as_mut() },
+                                            lp.lp_sallang.opt_mut(),
                                             false,
                                         );
                                     }
@@ -2051,7 +2051,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             stack[udepth].ts_curi = if soundfold {
                                 slang.sl_repsal_first[first_byte]
                             } else {
-                                unsafe { (*lp.lp_replang).sl_rep_first[first_byte] }
+                                lp.lp_replang.sl_rep_first[first_byte]
                             };
                             if stack[udepth].ts_curi < 0 {
                                 stack[udepth].ts_state = SugState::StateFinal;
@@ -2066,7 +2066,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         let gap = if soundfold {
                             &slang.sl_repsal
                         } else {
-                            unsafe { &(*lp.lp_replang).sl_rep }
+                            &lp.lp_replang.sl_rep
                         };
                         while (stack[udepth].ts_curi as usize) < gap.len() {
                             let curi = stack[udepth].ts_curi;
@@ -2118,7 +2118,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     let gap = if soundfold {
                         &slang.sl_repsal
                     } else {
-                        unsafe { &(*lp.lp_replang).sl_rep }
+                        &lp.lp_replang.sl_rep
                     };
                     let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
                     fl = ftp.ft_from.as_bytes().len() as i32;
@@ -2800,7 +2800,7 @@ fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
     let slang = stp.st_slang;
     let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
     if !slang.is_null() && unsafe { (*slang).has_sal() } && !stp.st_had_bonus {
-        let p_slice: &[u8] = if slang == su.su_sallang {
+        let p_slice: &[u8] = if su.su_sallang == slang {
             &su.su_sal_badword
         } else {
             spell_soundfold(

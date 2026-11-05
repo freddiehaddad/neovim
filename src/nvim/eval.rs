@@ -324,7 +324,7 @@ pub struct CallerScope {
     pub autocmd_match: Option<std::ffi::CString>,
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: i32,
-    pub funccalp: *mut crate::profile::Funccall,
+    pub funccalp: crate::globals::GraphPtr<crate::profile::Funccall>,
 }
 
 #[inline]
@@ -5113,7 +5113,7 @@ fn set_ref_in_callback_reader(
         let mut tv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(reader.self_dict),
+            vval: TypvalVval::Dict(reader.self_dict.as_ptr()),
         };
         return set_ref_in_item(&mut tv, copy_id, ht_stack, list_stack);
     }
@@ -6601,10 +6601,10 @@ pub fn common_job_callbacks(
         on_stdout.buffered = tv_dict_get_number(Some(vopts), c"stdout_buffered") != 0;
         on_stderr.buffered = tv_dict_get_number(Some(vopts), c"stderr_buffered") != 0;
         if on_stdout.buffered && on_stdout.cb.cb_type() == K_CALLBACK_NONE_CONST {
-            on_stdout.self_dict = (&raw mut *vopts);
+            on_stdout.self_dict = crate::globals::GraphPtr::from(&mut *vopts);
         }
         if on_stderr.buffered && on_stderr.cb.cb_type() == K_CALLBACK_NONE_CONST {
-            on_stderr.self_dict = (&raw mut *vopts);
+            on_stderr.self_dict = crate::globals::GraphPtr::from(&mut *vopts);
         }
         vopts.dv_refcount += 1;
         return true;
@@ -6698,7 +6698,10 @@ pub fn eval_call_provider(
         autocmd_match: g_st().autocmd_match.clone(),
         autocmd_fname_full: g_st().autocmd_fname_full,
         autocmd_bufnr: g_st().autocmd_bufnr,
-        funccalp: get_current_funccal().map_or(ptr::null_mut(), ptr::from_mut),
+        funccalp: get_current_funccal().map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        ),
     };
     let saved_provider_caller_scope =
         std::mem::replace(&mut g_st().provider_caller_scope, new_scope);

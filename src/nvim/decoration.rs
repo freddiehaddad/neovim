@@ -712,7 +712,7 @@ pub fn decor_free(decor: DecorInline) {
         return;
     }
     let ext = decor.data.ext();
-    let vt = ext.vt;
+    let vt = ext.vt.as_ptr();
     let mut idx = ext.sh_idx;
 
     if g_st().decor_state.running_decor_provider {
