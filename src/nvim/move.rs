@@ -1,6 +1,6 @@
 //! Functions for moving the cursor and scrolling text (`src/nvim/move.c`).
 
-use crate::buffer::{FileBuf, VALID_TOPLINE, buf_get_changedtick, buf_is_empty};
+use crate::buffer::{VALID_TOPLINE, buf_get_changedtick, buf_is_empty};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, VALID_VIRTCOL, check_cursor, check_cursor_lnum, coladvance, equalpos,
 };
@@ -42,7 +42,6 @@ use crate::strings::tr;
 use crate::textformat::Oparg;
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo, win_fdccol_count};
 use crate::winfloat::win_check_anchored_floats;
-use std::ptr;
 
 use crate::drawline::{
     K_CPO_NUMCOL, K_OPT_CULOPT_FLAG_SCREENLINE, VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW,
@@ -2512,8 +2511,8 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
 
 pub fn do_check_cursorbind() {
     struct MoveCursorbindState {
-        prev_curwin: *mut WinInfoInfo,
-        prev_curbuf: *mut FileBuf,
+        prev_curwin: crate::globals::WinPtr,
+        prev_curbuf: crate::globals::BufPtr,
         prev_changedtick: Varnumber,
         prev_cursor: CursorPos,
     }
@@ -2521,8 +2520,8 @@ pub fn do_check_cursorbind() {
     impl MoveCursorbindState {
         const fn new() -> Self {
             Self {
-                prev_curwin: ptr::null_mut(),
-                prev_curbuf: ptr::null_mut(),
+                prev_curwin: crate::globals::WinPtr::NULL,
+                prev_curbuf: crate::globals::BufPtr::NULL,
                 prev_changedtick: 0,
                 prev_cursor: CursorPos {
                     lnum: 0,
@@ -2542,15 +2541,15 @@ pub fn do_check_cursorbind() {
     }
 
     debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());
-    if curwin_ptr() == move_cb_st().prev_curwin
-        && g_st().curbuf == move_cb_st().prev_curbuf
+    if move_cb_st().prev_curwin == curwin_ptr()
+        && move_cb_st().prev_curbuf == g_st().curbuf
         && buf_get_changedtick(curbuf_mut()) == move_cb_st().prev_changedtick
         && equalpos(curwin_mut().w_cursor, move_cb_st().prev_cursor)
     {
         return;
     }
-    move_cb_st().prev_curwin = curwin_ptr();
-    move_cb_st().prev_curbuf = g_st().curbuf;
+    move_cb_st().prev_curwin = crate::globals::WinPtr::new(curwin_ptr());
+    move_cb_st().prev_curbuf = crate::globals::BufPtr::new(g_st().curbuf);
     move_cb_st().prev_changedtick = buf_get_changedtick(curbuf_mut());
     move_cb_st().prev_cursor = curwin_mut().w_cursor;
 

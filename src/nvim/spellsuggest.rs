@@ -275,7 +275,7 @@ struct Suggest {
     st_altscore: i32,
     st_salscore: bool,
     st_had_bonus: bool,
-    st_slang: *mut Slang,
+    st_slang: crate::globals::GraphPtr<Slang>,
 }
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2272,7 +2272,7 @@ fn score_comp_sal(su: &mut Suginfo) {
                         st_altscore: 0,
                         st_salscore: false,
                         st_had_bonus: false,
-                        st_slang: ptr::null_mut(),
+                        st_slang: crate::globals::GraphPtr::NULL,
                     });
                 }
             }
@@ -2689,7 +2689,7 @@ fn add_suggestion(
             && &st_b[..(goodlen as usize).min(st_b.len())] == gw_slice
         {
             if stp.st_slang.is_null() {
-                stp.st_slang = slang_ptr;
+                stp.st_slang = crate::globals::GraphPtr::new(slang_ptr);
             }
             let mut new_sug = Suggest {
                 st_word: std::ffi::CString::default(),
@@ -2699,7 +2699,7 @@ fn add_suggestion(
                 st_altscore: altscore,
                 st_salscore: false,
                 st_had_bonus: had_bonus,
-                st_slang: ptr::null_mut(),
+                st_slang: crate::globals::GraphPtr::NULL,
             };
             if stp.st_had_bonus != had_bonus {
                 if had_bonus {
@@ -2730,7 +2730,7 @@ fn add_suggestion(
             st_salscore: false,
             st_had_bonus: had_bonus,
             st_orglen: badlen,
-            st_slang: slang_ptr,
+            st_slang: crate::globals::GraphPtr::new(slang_ptr),
         });
         if (gap.len() as i32) > sug_max_count(su) {
             if maxsf {
@@ -2797,7 +2797,7 @@ fn rescore_suggestions(su: &mut Suginfo) {
     }
 }
 fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
-    let slang = stp.st_slang;
+    let slang = stp.st_slang.as_ptr();
     let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
     if !slang.is_null() && unsafe { (*slang).has_sal() } && !stp.st_had_bonus {
         let p_slice: &[u8] = if su.su_sallang == slang {

@@ -520,7 +520,7 @@ struct QuickfixState {
     qf_last_bufref: Bufref,
     qfga: Vec<u8>,
     quickfix_busy: i32,
-    qf_delq: Vec<*mut QfInfo>,
+    qf_delq: Vec<crate::globals::GraphPtr<QfInfo>>,
     fmt_start_idx: Option<usize>,
     fmt_cache: Vec<Efm>,
     last_efm_cache: Option<std::ffi::CString>,
@@ -1903,7 +1903,9 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
 }
 
 fn locstack_queue_delreq(qi: &mut QfInfo) {
-    qf_st().qf_delq.push(qi);
+    qf_st()
+        .qf_delq
+        .push(crate::globals::GraphPtr::from(&mut *qi));
 }
 
 pub fn qf_stack_get_bufnr() -> i32 {
@@ -1976,7 +1978,7 @@ fn decr_quickfix_busy() {
     qf_st().quickfix_busy -= 1;
     if qf_st().quickfix_busy == 0 {
         while let Some(qi) = qf_st().qf_delq.pop() {
-            ll_free_all(unsafe { qi.as_mut() });
+            ll_free_all(qi.opt_mut());
         }
     }
 }

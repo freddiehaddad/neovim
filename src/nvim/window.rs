@@ -651,7 +651,7 @@ impl WinInfoInfo {
             w_tagstackidx: 0,
             w_tagstacklen: 0,
             w_grid: GridView {
-                target: ptr::null_mut(),
+                target: crate::globals::GraphPtr::NULL,
                 row_offset: 0,
                 col_offset: 0,
             },

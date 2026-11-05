@@ -119,7 +119,7 @@ struct Matchinf {
     mi_compextra: i32,
     mi_result: SpellResult,
     mi_capflags: i32,
-    mi_win: *mut WinInfoInfo,
+    mi_win: crate::globals::WinPtr,
     mi_result2: SpellResult,
     mi_end2: usize,
 }
@@ -144,7 +144,7 @@ impl Matchinf {
             mi_compextra: 0,
             mi_result: SpellResult::Rare,
             mi_capflags: 0,
-            mi_win: ptr::null_mut(),
+            mi_win: crate::globals::WinPtr::NULL,
             mi_result2: SpellResult::Rare,
             mi_end2: 0,
         }
@@ -153,7 +153,7 @@ impl Matchinf {
     #[inline]
     fn win_mut(&self) -> &'static mut WinInfoInfo {
         assert!(!self.mi_win.is_null());
-        unsafe { &mut *self.mi_win }
+        self.mi_win.borrow_mut()
     }
 }
 
@@ -319,7 +319,7 @@ pub fn spell_check(
     mi.mi_end = mi.mi_fend;
     mi.mi_capflags = 0;
     mi.mi_cend = None;
-    mi.mi_win = (&raw mut *wp);
+    mi.mi_win = crate::globals::WinPtr::from(&mut *wp);
     if mi.mi_fend < ptr_bytes.len() {
         mi.mi_fend += crate::mbyte::utfc_ptr2len(&ptr_bytes[mi.mi_fend..]) as usize;
     }

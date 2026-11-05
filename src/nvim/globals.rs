@@ -812,7 +812,7 @@ impl EditorState {
             disable_fold_update: 0,
             default_grid: SCREEN_GRID_INIT,
             default_gridview: GridView {
-                target: unsafe { &raw mut (*EDITOR_STATE.as_ptr()).default_grid },
+                target: GraphPtr::new(unsafe { &raw mut (*EDITOR_STATE.as_ptr()).default_grid }),
                 row_offset: 0,
                 col_offset: 0,
             },
@@ -847,7 +847,7 @@ impl EditorState {
             msg_grid: SCREEN_GRID_INIT,
             msg_grid_pos: 0,
             msg_grid_adj: GridView {
-                target: ptr::null_mut(),
+                target: GraphPtr::NULL,
                 row_offset: 0,
                 col_offset: 0,
             },

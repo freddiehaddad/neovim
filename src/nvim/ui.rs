@@ -100,7 +100,7 @@ impl Drop for UIEventCallback {
 }
 
 struct UiState {
-    uis: Vec<*mut RemoteUI>,
+    uis: Vec<crate::globals::GraphPtr<RemoteUI>>,
     ui_ext: [bool; K_UIEXT_COUNT],
     ui_mode_idx: i32,
     cursor_row: i32,
@@ -164,12 +164,12 @@ fn ui_state() -> &'static mut UiState {
 
 #[inline]
 fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
-    ui_state().uis.iter().map(|&p| unsafe { &mut *p })
+    ui_state().uis.iter().map(|&p| p.borrow_mut())
 }
 
 pub fn ui_init() {
     g_st().default_grid.handle = 1;
-    g_st().msg_grid_adj.target = &raw mut g_st().default_grid;
+    g_st().msg_grid_adj.target = crate::globals::GraphPtr::from(&mut g_st().default_grid);
     ui_comp_init();
 }
 
@@ -415,7 +415,7 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
         ui_comp_attach(ui);
     }
 
-    uis_ptr.push(&raw mut *ui);
+    uis_ptr.push(crate::globals::GraphPtr::from(&mut *ui));
     ui_refresh_options();
     resettitle();
 

@@ -230,7 +230,7 @@ impl Default for UndoCheckpoint {
 }
 
 struct Bufinfo {
-    bi_buf: *mut FileBuf,
+    bi_buf: crate::globals::BufPtr,
     bi_fp: crate::os::fs::CFile,
     bi_fsize: Off,
 }
@@ -677,7 +677,7 @@ fn corruption_error(mesg: &std::ffi::CStr, file_name: &CStr) {
 }
 
 fn serialize_header(bi: &mut Bufinfo, hash: &[u8; UNDO_HASH_SIZE]) -> bool {
-    let buf = unsafe { &mut *bi.bi_buf };
+    let buf = bi.bi_buf.borrow_mut();
 
     if !bi.bi_fp.write_all(&UF_START_MAGIC[..UF_START_MAGIC_LEN]) {
         return false;
@@ -722,7 +722,7 @@ fn serialize_uhp(bi: &mut Bufinfo, uhp: usize) -> bool {
         return false;
     }
 
-    let buf = unsafe { &mut *bi.bi_buf };
+    let buf = bi.bi_buf.borrow_mut();
     put_header_ptr(bi, uhp_ref(buf, uhp).uh_next);
     put_header_ptr(bi, uhp_ref(buf, uhp).uh_prev);
     put_header_ptr(bi, uhp_ref(buf, uhp).uh_alt_next);
@@ -1124,7 +1124,7 @@ pub fn u_write_undo(
 
         let mut write_ok = false;
         let mut bi = Bufinfo {
-            bi_buf: (&raw mut *buf),
+            bi_buf: crate::globals::BufPtr::from(&mut *buf),
             bi_fp,
             bi_fsize: 0,
         };
@@ -1278,7 +1278,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 0
             };
             let mut bi = Bufinfo {
-                bi_buf: g_st().curbuf,
+                bi_buf: crate::globals::BufPtr::new(g_st().curbuf),
                 bi_fp,
                 bi_fsize: fsize,
             };
@@ -1493,7 +1493,7 @@ fn undo_write_bytes(bi: &mut Bufinfo, nr: u64, len: usize) -> bool {
 
 fn put_header_ptr(bi: &mut Bufinfo, uhp: Option<usize>) {
     let seq = if let Some(uh) = uhp {
-        let s = uhp_ref(unsafe { &*bi.bi_buf }, uh).uh_seq;
+        let s = uhp_ref(bi.bi_buf.borrow(), uh).uh_seq;
         assert!(s >= 0);
         s as u64
     } else {

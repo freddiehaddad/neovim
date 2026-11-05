@@ -884,7 +884,7 @@ use crate::search::FORWARD;
 
 #[repr(C)]
 struct Bufmatch {
-    buf: *mut FileBuf,
+    buf: crate::globals::BufPtr,
     match_: std::ffi::CString,
 }
 
@@ -3396,7 +3396,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
             if !fuzzy {
                 if use_matches {
                     matches.push(Bufmatch {
-                        buf,
+                        buf: crate::globals::BufPtr::new(buf),
                         match_: p_cstr,
                     });
                 } else {
@@ -3420,9 +3420,8 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
         if !fuzzy {
             if use_matches && !matches.is_empty() {
                 if matches.len() > 1 {
-                    matches.sort_unstable_by(|a, b| {
-                        buf_time_compare(unsafe { &*a.buf }, unsafe { &*b.buf })
-                    });
+                    matches
+                        .sort_unstable_by(|a, b| buf_time_compare(a.buf.borrow(), b.buf.borrow()));
                 }
 
                 file.reserve_exact(matches.len());

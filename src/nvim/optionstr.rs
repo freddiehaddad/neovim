@@ -285,7 +285,7 @@ pub struct Vimoption {
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
     pub var: *mut c_void,
-    pub flags_var: *mut u32,
+    pub flags_var: crate::globals::GraphPtr<u32>,
     pub scope_idx: [isize; 4],
     pub immutable: bool,
     pub values: &'static [&'static std::ffi::CStr],
@@ -1296,13 +1296,7 @@ fn check_str_opt<'a>(
     });
     let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
-    opt_strings_flags(
-        val_cstr,
-        values,
-        unsafe { opt.flags_var.as_mut() },
-        list,
-        errbuf,
-    )
+    opt_strings_flags(val_cstr, values, opt.flags_var.opt_mut(), list, errbuf)
 }
 
 pub fn expand_set_str_generic(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {

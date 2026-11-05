@@ -177,7 +177,7 @@ struct RegexpNfaState {
     temp_subs: Regsubs,
     nfa_match: i32,
     nfa_time_limit: Option<Proftime>,
-    nfa_timed_out: *mut i32,
+    nfa_timed_out: crate::globals::GraphPtr<i32>,
     nfa_time_count: i32,
     rec_listbuf: Vec<[Vec<NfaThread>; 2]>,
 }
@@ -188,7 +188,7 @@ impl RegexpNfaState {
             temp_subs: Regsubs::new(),
             nfa_match: 0,
             nfa_time_limit: None,
-            nfa_timed_out: ptr::null_mut(),
+            nfa_timed_out: crate::globals::GraphPtr::NULL,
             nfa_time_count: 0,
             rec_listbuf: Vec::new(),
         }
@@ -3543,8 +3543,8 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
 
 fn nfa_did_time_out() -> bool {
     if nfa_st().nfa_time_limit.is_some_and(profile_passed_limit) {
-        if !nfa_st().nfa_timed_out.is_null() {
-            unsafe { *nfa_st().nfa_timed_out = 1 };
+        if let Some(timed_out) = nfa_st().nfa_timed_out.opt_mut() {
+            *timed_out = 1;
         }
         return true;
     }
@@ -4689,7 +4689,7 @@ fn nfa_regtry(
 
     re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
     nfa_st().nfa_time_limit = tm;
-    nfa_st().nfa_timed_out = timed_out.map_or(ptr::null_mut(), |p| &raw mut *p);
+    nfa_st().nfa_timed_out = crate::globals::GraphPtr::from(timed_out);
     nfa_st().nfa_time_count = 0;
 
     clear_sub(&mut subs.norm);

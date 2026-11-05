@@ -25,7 +25,7 @@ const REUSE_MAX: usize = 4;
 
 #[repr(C)]
 pub struct ConsumedBlk {
-    pub prev: *mut ConsumedBlk,
+    pub prev: crate::globals::GraphPtr<ConsumedBlk>,
 }
 
 pub type ArenaMem = *mut ConsumedBlk;
@@ -62,7 +62,7 @@ const HEADER_SIZE: usize = 16;
 pub(crate) struct MemoryModuleState {
     pub(crate) entered_free_all_mem: bool,
     trying_to_free: bool,
-    arena_reuse_head: *mut ConsumedBlk,
+    arena_reuse_head: crate::globals::GraphPtr<ConsumedBlk>,
     arena_reuse_count: usize,
 }
 
@@ -71,7 +71,7 @@ impl MemoryModuleState {
         Self {
             entered_free_all_mem: false,
             trying_to_free: false,
-            arena_reuse_head: std::ptr::null_mut(),
+            arena_reuse_head: crate::globals::GraphPtr::NULL,
             arena_reuse_count: 0,
         }
     }
@@ -179,8 +179,8 @@ fn out_of_memory_exit() -> ! {
 pub fn arena_free_reuse_blks() {
     while mem_st().arena_reuse_count > 0 {
         let blk = mem_st().arena_reuse_head;
-        mem_st().arena_reuse_head = unsafe { (*blk).prev };
-        raw_dealloc(blk.cast::<c_void>());
+        mem_st().arena_reuse_head = blk.prev;
+        raw_dealloc(blk.as_ptr().cast::<c_void>());
         mem_st().arena_reuse_count -= 1;
     }
 }
@@ -739,8 +739,8 @@ pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
 pub fn alloc_block() -> RawCCharPtrMut {
     if mem_st().arena_reuse_count > 0 {
-        let retval: RawCCharPtrMut = mem_st().arena_reuse_head.cast();
-        mem_st().arena_reuse_head = unsafe { (*mem_st().arena_reuse_head).prev };
+        let retval: RawCCharPtrMut = mem_st().arena_reuse_head.as_ptr().cast();
+        mem_st().arena_reuse_head = mem_st().arena_reuse_head.prev;
         mem_st().arena_reuse_count -= 1;
         retval
     } else {
@@ -757,7 +757,7 @@ pub fn arena_alloc_block(arena: &mut Arena) {
     arena.size = ARENA_BLOCK_SIZE;
     let blk = arena_alloc(arena, std::mem::size_of::<ConsumedBlk>(), true).cast::<ConsumedBlk>();
     unsafe {
-        (*blk).prev = prev_blk;
+        (*blk).prev = crate::globals::GraphPtr::new(prev_blk);
     }
 }
 
@@ -795,7 +795,7 @@ pub fn arena_alloc(arena: &mut Arena, size: usize, align: bool) -> *mut c_void {
                 let cur_blk = arena.cur_blk.cast::<ConsumedBlk>();
                 let fix_blk = alloc.cast::<ConsumedBlk>();
                 (*fix_blk).prev = (*cur_blk).prev;
-                (*cur_blk).prev = fix_blk;
+                (*cur_blk).prev = crate::globals::GraphPtr::new(fix_blk);
                 return alloc.add(aligned_hdr_size).cast::<c_void>();
             }
         } else {
@@ -833,7 +833,7 @@ pub fn free_block(block: RawCCharPtrMut) {
             unsafe {
                 (*reuse_blk).prev = mem_st().arena_reuse_head;
             }
-            mem_st().arena_reuse_head = reuse_blk;
+            mem_st().arena_reuse_head = crate::globals::GraphPtr::new(reuse_blk);
             mem_st().arena_reuse_count += 1;
         } else {
             raw_dealloc(block.cast::<c_void>());
@@ -846,11 +846,11 @@ pub fn arena_mem_free(mem: ArenaMem) {
     let mut b = mem;
     if !b.is_null() {
         let reuse_blk = b;
-        b = unsafe { (*b).prev };
+        b = unsafe { (*b).prev.as_ptr() };
         free_block(reuse_blk.cast());
     }
     while !b.is_null() {
-        let prev = unsafe { (*b).prev };
+        let prev = unsafe { (*b).prev.as_ptr() };
         raw_dealloc(b.cast::<c_void>());
         b = prev;
     }

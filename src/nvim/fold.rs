@@ -81,7 +81,7 @@ pub struct FoldEntry {
 }
 
 struct Fline {
-    wp: *mut WinInfoInfo,
+    wp: crate::globals::WinPtr,
     lnum: Linenr,
     off: Linenr,
     lnum_save: Linenr,
@@ -95,7 +95,7 @@ struct Fline {
 impl Fline {
     #[inline]
     fn wp_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.wp }
+        self.wp.borrow_mut()
     }
 }
 
@@ -109,7 +109,7 @@ struct FoldModuleState {
     foldendmarker: Vec<u8>,
     foldendmarkerlen: usize,
     got_fdt_error: bool,
-    last_wp: *mut WinInfoInfo,
+    last_wp: crate::globals::WinPtr,
     fdt_last_lnum: Linenr,
     fdt_result_entered: bool,
 }
@@ -126,7 +126,7 @@ impl FoldModuleState {
             foldendmarker: Vec::new(),
             foldendmarkerlen: 0,
             got_fdt_error: false,
-            last_wp: ptr::null_mut(),
+            last_wp: crate::globals::WinPtr::NULL,
             fdt_last_lnum: 0,
             fdt_result_entered: false,
         }
@@ -1435,11 +1435,7 @@ pub fn get_foldtext(
     let mut text: Option<std::ffi::CString> = None;
     let save_did_emsg = g_st().did_emsg;
 
-    if fold_st().last_wp.is_null()
-        || !ptr::eq(fold_st().last_wp, (&raw mut *wp))
-        || fold_st().fdt_last_lnum > lnum
-        || fold_st().fdt_last_lnum == 0
-    {
+    if fold_st().last_wp != wp || fold_st().fdt_last_lnum > lnum || fold_st().fdt_last_lnum == 0 {
         fold_st().got_fdt_error = false;
     }
 
@@ -1497,7 +1493,7 @@ pub fn get_foldtext(
             g_st().current_sctx = saved_sctx;
         }
         fold_st().fdt_last_lnum = lnum;
-        fold_st().last_wp = (&raw mut *wp);
+        fold_st().last_wp = crate::globals::WinPtr::from(&mut *wp);
         set_vim_var_string(VV_FOLDDASHES, None, -1);
 
         if g_st().did_emsg == 0 && save_did_emsg != 0 {
@@ -1660,7 +1656,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
 
     fold_st().fold_changed = false;
     let mut fline = Fline {
-        wp: &raw mut *wp,
+        wp: crate::globals::WinPtr::from(&mut *wp),
         lnum: 0,
         off: 0,
         lnum_save: 0,
@@ -2399,7 +2395,7 @@ fn foldlevel_expr(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
 
     let win = curwin_ptr();
-    set_curwin(flp.wp);
+    set_curwin(flp.wp.as_ptr());
     g_st().curbuf = flp.wp_mut().w_buffer;
     set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
 

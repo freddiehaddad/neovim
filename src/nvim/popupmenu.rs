@@ -154,7 +154,7 @@ const K_ZINDEX_CMDLINE_POPUP_MENU: i32 = 250;
 const K_OPT_COT_FLAG_PREVIEW: u32 = 0x1000;
 
 struct PopupmenuState {
-    array: *mut Pumitem,
+    array: crate::globals::GraphPtr<Pumitem>,
     size: i32,
     selected: i32,
     first: i32,
@@ -182,7 +182,7 @@ struct PopupmenuState {
 impl PopupmenuState {
     const fn new() -> Self {
         Self {
-            array: ptr::null_mut(),
+            array: crate::globals::GraphPtr::NULL,
             size: 0,
             selected: 0,
             first: 0,
@@ -213,7 +213,7 @@ impl PopupmenuState {
         if self.array.is_null() || self.size <= 0 {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.array, self.size as usize) }
+            unsafe { std::slice::from_raw_parts(self.array.as_ptr(), self.size as usize) }
         }
     }
 
@@ -498,13 +498,13 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
         }
 
         if let Some(target_win) = unsafe { target_win.as_ref() } {
-            pum().anchor_grid = unsafe { (*target_win.w_grid.target).handle };
+            pum().anchor_grid = target_win.w_grid.target.handle;
 
             pum_win_row += target_win.w_grid.row_offset;
 
             cursor_col += target_win.w_grid.col_offset;
 
-            if !ptr::eq(target_win.w_grid.target, &raw const g_st().default_grid) {
+            if target_win.w_grid.target != &raw const g_st().default_grid {
                 pum_win_row += target_win.w_winrow;
 
                 cursor_col += target_win.w_wincol;
@@ -598,7 +598,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
             return;
         }
 
-        pum().array = array;
+        pum().array = crate::globals::GraphPtr::new(array);
         pum().size = size;
 
         if pum().external {
@@ -1549,7 +1549,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 /// Undisplay the popup menu (`pum_undisplay`).
 pub fn pum_undisplay(immediate: bool) {
     pum().is_visible = false;
-    pum().array = ptr::null_mut();
+    pum().array = crate::globals::GraphPtr::NULL;
     g_st().must_redraw_pum = false;
 
     if immediate {
@@ -1815,7 +1815,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
         }
     }
 
-    pum().array = array;
+    pum().array = crate::globals::GraphPtr::new(array);
     pum_compute_size();
     pum().scrollbar = 0;
     pum().height = pum().size;
@@ -1911,8 +1911,8 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
                     curwin_mut().w_wcol
                 };
             if ui_has(K_UIMULTIGRID) {
-                g_st().mouse_grid = unsafe { (*curwin_mut().w_grid.target).handle };
-            } else if !ptr::eq(curwin_mut().w_grid.target, &raw const g_st().default_grid) {
+                g_st().mouse_grid = curwin_mut().w_grid.target.handle;
+            } else if curwin_mut().w_grid.target != &raw const g_st().default_grid {
                 g_st().mouse_grid = 0;
                 g_st().mouse_row += curwin_mut().w_winrow;
                 g_st().mouse_col += curwin_mut().w_wincol;

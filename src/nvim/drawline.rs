@@ -185,13 +185,13 @@ struct Winlinevars<'a> {
 struct DrawlineState {
     extra_buf: Vec<u8>,
     saved_w_virtcol: i32,
-    margin_prev_wp: *mut WinInfoInfo,
+    margin_prev_wp: crate::globals::WinPtr,
     prev_width1: i32,
     prev_width2: i32,
     prev_left_col: i32,
     prev_right_col: i32,
     stc_prev_virtnum: i32,
-    stc_prev_wp: *mut WinInfoInfo,
+    stc_prev_wp: crate::globals::WinPtr,
     stc_prev_lnum: Linenr,
     stc_prev_tick: Disptick,
 }
@@ -201,13 +201,13 @@ impl DrawlineState {
         Self {
             extra_buf: Vec::new(),
             saved_w_virtcol: 0,
-            margin_prev_wp: ptr::null_mut(),
+            margin_prev_wp: crate::globals::WinPtr::NULL,
             prev_width1: 0,
             prev_width2: 0,
             prev_left_col: 0,
             prev_right_col: 0,
             stc_prev_virtnum: 0,
-            stc_prev_wp: ptr::null_mut(),
+            stc_prev_wp: crate::globals::WinPtr::NULL,
             stc_prev_lnum: 0,
             stc_prev_tick: 0,
         }
@@ -310,7 +310,7 @@ fn margin_columns_win(wp: &mut WinInfoInfo, vcol: Colnr, left_col: &mut i32, rig
 
     dl_st().prev_left_col = *left_col;
     dl_st().prev_right_col = *right_col;
-    dl_st().margin_prev_wp = wp;
+    dl_st().margin_prev_wp = crate::globals::WinPtr::from(&mut *wp);
     dl_st().prev_width1 = width1;
     dl_st().prev_width2 = width2;
     dl_st().saved_w_virtcol = vcol;
@@ -910,7 +910,7 @@ fn draw_statuscol(
 
     dl_st().stc_prev_tick = display_tick_val();
     dl_st().stc_prev_lnum = lnum;
-    dl_st().stc_prev_wp = wp;
+    dl_st().stc_prev_wp = crate::globals::WinPtr::from(&mut *wp);
 
     let mut buf = [0u8; MAXPATHL];
     if wp.w_statuscol_line_count != wp.w_nrwidth_line_count {
@@ -3709,7 +3709,7 @@ pub fn win_line(
                 || (may_have_inline_virt
                     && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
         {
-            let grid_width = unsafe { (*wp.w_grid.target).cols };
+            let grid_width = wp.w_grid.target.cols;
             let wrap = is_wrapped
                 && wlv.filler_todo <= 0
                 && lcs_eol_todo

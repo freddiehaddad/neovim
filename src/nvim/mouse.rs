@@ -150,7 +150,7 @@ struct MouseModuleState {
     orig_topline: Linenr,
     orig_topfill: i32,
     got_click: bool,
-    dragwin: *mut WinInfoInfo,
+    dragwin: crate::globals::WinPtr,
     in_tab_line: bool,
     orig_cursor: CursorPos,
     status_line_offset: i32,
@@ -170,7 +170,7 @@ impl MouseModuleState {
             orig_topline: 0,
             orig_topfill: 0,
             got_click: false,
-            dragwin: ptr::null_mut(),
+            dragwin: crate::globals::WinPtr::NULL,
             in_tab_line: false,
             orig_cursor: CursorPos {
                 lnum: 0,
@@ -1363,7 +1363,7 @@ fn mouse_model_popup() -> bool {
 
 /// Reset the window being dragged. To be called when switching tab page.
 pub fn reset_dragwin() {
-    mouse_st().dragwin = ptr::null_mut();
+    mouse_st().dragwin = crate::globals::WinPtr::NULL;
 }
 
 #[inline]
@@ -1409,7 +1409,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         if !mouse_st().dragwin.is_null() && mouse_st().did_drag == 0 {
             flags &= !(MOUSE_FOCUS | MOUSE_DID_MOVE);
         }
-        mouse_st().dragwin = ptr::null_mut();
+        mouse_st().dragwin = crate::globals::WinPtr::NULL;
         mouse_st().did_drag = 0;
     }
 
@@ -1490,18 +1490,18 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
         if !mouse_st().on_statuscol {
             let fdc = win_fdccol_count(&mut *wp);
-            mouse_st().dragwin = ptr::null_mut();
+            mouse_st().dragwin = crate::globals::WinPtr::NULL;
 
             if below_window {
                 mouse_st().status_line_offset = row + wp.w_winbar_height - wp.w_height + 1;
-                mouse_st().dragwin = wp;
+                mouse_st().dragwin = crate::globals::WinPtr::new(wp);
             } else {
                 mouse_st().status_line_offset = 0;
             }
 
             if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width {
                 mouse_st().sep_line_offset = col - wp.w_width + 1;
-                mouse_st().dragwin = wp;
+                mouse_st().dragwin = crate::globals::WinPtr::new(wp);
             } else {
                 mouse_st().sep_line_offset = 0;
             }
@@ -1561,7 +1561,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         }
     } else if mouse_st().status_line_offset != 0 {
         if which_button == MOUSE_LEFT
-            && let Some(dragwin) = unsafe { mouse_st().dragwin.as_mut() }
+            && let Some(dragwin) = mouse_st().dragwin.opt_mut()
         {
             let count =
                 row - dragwin.w_winrow - dragwin.w_height + 1 - mouse_st().status_line_offset;
@@ -1570,7 +1570,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         }
         return IN_STATUS_LINE;
     } else if mouse_st().sep_line_offset != 0 && which_button == MOUSE_LEFT {
-        if let Some(dragwin) = unsafe { mouse_st().dragwin.as_mut() } {
+        if let Some(dragwin) = mouse_st().dragwin.opt_mut() {
             let count = col - dragwin.w_wincol - dragwin.w_width + 1 - mouse_st().sep_line_offset;
             win_drag_vsep_line(dragwin, count);
             mouse_st().did_drag |= count;

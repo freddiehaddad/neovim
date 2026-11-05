@@ -193,7 +193,7 @@ struct DiffState {
     diff_a_works: TriState,
     next_diff_id: u64,
     diff_finger_dp_idx: Option<usize>,
-    diff_finger_tp: *mut TabPageInfo,
+    diff_finger_tp: crate::globals::TabpagePtr,
     diff_finger_idx: i32,
     diff_finger_lnum: Linenr,
     f_diff_hlid_prev_lnum: Linenr,
@@ -220,7 +220,7 @@ impl DiffState {
             diff_a_works: K_NONE,
             next_diff_id: 1,
             diff_finger_dp_idx: None,
-            diff_finger_tp: ptr::null_mut(),
+            diff_finger_tp: crate::globals::TabpagePtr::NULL,
             diff_finger_idx: -1,
             diff_finger_lnum: 0,
             f_diff_hlid_prev_lnum: 0,
@@ -256,7 +256,7 @@ fn diff_scan_start(tp: &mut TabPageInfo, idx: i32, lnum: Linenr) -> usize {
     0
 }
 fn diff_scan_remember(tp: &mut TabPageInfo, idx: i32, lnum: Linenr, dp_idx: Option<usize>) {
-    diff_st().diff_finger_tp = tp;
+    diff_st().diff_finger_tp = crate::globals::TabpagePtr::from(&mut *tp);
     diff_st().diff_finger_idx = idx;
     diff_st().diff_finger_lnum = lnum;
     diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));

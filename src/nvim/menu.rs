@@ -160,7 +160,7 @@ impl SaveState {
 
 struct MenuModuleState {
     menus_locked: i32,
-    expand_menu: *const Vec<Vimmenu>,
+    expand_menu: crate::globals::GraphPtr<Vec<Vimmenu>>,
     expand_modes: i32,
     expand_emenu: bool,
     get_menu_name_idx: usize,
@@ -175,7 +175,7 @@ impl MenuModuleState {
     const fn new() -> Self {
         Self {
             menus_locked: 0,
-            expand_menu: ptr::null(),
+            expand_menu: crate::globals::GraphPtr::NULL,
             expand_modes: 0,
             expand_emenu: false,
             get_menu_name_idx: 0,
@@ -1085,7 +1085,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
         };
         xp.xp_pattern =
             crate::strings::CStrCursor::from_ptr(arg_ptr.wrapping_add(after_dot_idx).cast());
-        menu_st().expand_menu = menu_list;
+        menu_st().expand_menu = crate::globals::GraphPtr::new(menu_list.cast_mut());
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }
@@ -1101,7 +1101,7 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if menu_st().expand_menu.is_null() {
         return None;
     }
-    let menus = unsafe { (&*menu_st().expand_menu).as_slice() };
+    let menus = menu_st().expand_menu.as_slice();
 
     while menu_st().get_menu_name_idx < menus.len() {
         let menu = &menus[menu_st().get_menu_name_idx];
@@ -1151,7 +1151,7 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if menu_st().expand_menu.is_null() {
         return None;
     }
-    let menus = unsafe { (&*menu_st().expand_menu).as_slice() };
+    let menus = menu_st().expand_menu.as_slice();
 
     while menu_st().get_menu_names_idx < menus.len() && {
         let dname_bytes = menus[menu_st().get_menu_names_idx].dname.as_bytes();

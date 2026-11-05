@@ -451,7 +451,7 @@ pub struct SignItem<'a> {
 
 struct DecorationModuleState {
     decor_freelist: u32,
-    to_free_virt: Vec<*mut DecorVirtText>,
+    to_free_virt: Vec<crate::globals::GraphPtr<DecorVirtText>>,
     to_free_sh: u32,
     sign_add_id: i32,
 }
@@ -717,7 +717,9 @@ pub fn decor_free(decor: DecorInline) {
 
     if g_st().decor_state.running_decor_provider {
         if !vt.is_null() {
-            decor_st().to_free_virt.push(vt);
+            decor_st()
+                .to_free_virt
+                .push(crate::globals::GraphPtr::new(vt));
         }
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut g_st().decor_items)[idx as usize];
@@ -807,7 +809,7 @@ pub fn decor_extconceal_char(
 pub fn decor_check_to_be_deleted() {
     assert!(!g_st().decor_state.running_decor_provider);
     for vt in decor_st().to_free_virt.drain(..) {
-        drop(unsafe { Box::from_raw(vt) });
+        drop(unsafe { Box::from_raw(vt.as_ptr()) });
     }
     decor_free_sh(decor_st().to_free_sh);
     decor_st().to_free_sh = DECOR_ID_INVALID;

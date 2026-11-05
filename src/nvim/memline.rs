@@ -309,7 +309,7 @@ struct MemlineModuleState {
     ml_get_recursive: i32,
     ml_get_questions: [u8; 4],
     ml_flush_entered: bool,
-    ml_upd_lastbuf: *mut FileBuf,
+    ml_upd_lastbuf: crate::globals::BufPtr,
     ml_upd_lastcurline: Linenr,
     ml_upd_lastcurix: i32,
 }
@@ -322,7 +322,7 @@ impl MemlineModuleState {
             ml_get_recursive: 0,
             ml_get_questions: [0; 4],
             ml_flush_entered: false,
-            ml_upd_lastbuf: ptr::null_mut(),
+            ml_upd_lastbuf: crate::globals::BufPtr::NULL,
             ml_upd_lastcurline: 0,
             ml_upd_lastcurix: 0,
         }
@@ -3741,18 +3741,18 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
         buf.b_ml.ml_usedchunks = 1;
         buf.b_ml.ml_chunksize[0].mlcs_numlines = 1;
         buf.b_ml.ml_chunksize[0].mlcs_totalsize = 1;
-        ml_st().ml_upd_lastbuf = ptr::null_mut();
+        ml_st().ml_upd_lastbuf = crate::globals::BufPtr::NULL;
     }
 
     if updtype == ML_CHNK_UPDLINE && buf.b_ml.ml_line_count == 1 {
         buf.b_ml.ml_usedchunks = 1;
         buf.b_ml.ml_chunksize[0].mlcs_numlines = 1;
         buf.b_ml.ml_chunksize[0].mlcs_totalsize = buf.b_ml.ml_line_textlen;
-        ml_st().ml_upd_lastbuf = ptr::null_mut();
+        ml_st().ml_upd_lastbuf = crate::globals::BufPtr::NULL;
         return;
     }
 
-    if (&raw mut *buf) != ml_st().ml_upd_lastbuf || line < curline {
+    if ml_st().ml_upd_lastbuf != buf || line < curline {
         curline = 1;
         curix = 0;
     }
@@ -3811,7 +3811,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
             buf.b_ml.ml_chunksize[cix].mlcs_totalsize = size;
             buf.b_ml.ml_chunksize[cix + 1].mlcs_totalsize -= size;
             buf.b_ml.ml_usedchunks += 1;
-            ml_st().ml_upd_lastbuf = ptr::null_mut();
+            ml_st().ml_upd_lastbuf = crate::globals::BufPtr::NULL;
             return;
         } else if buf.b_ml.ml_chunksize[curix as usize].mlcs_numlines >= MLCS_MINL
             && curix == buf.b_ml.ml_usedchunks - 1
@@ -3849,7 +3849,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
         {
             curix += 1;
         } else if curix == 0 && buf.b_ml.ml_chunksize[0].mlcs_numlines <= 0 {
-            ml_st().ml_upd_lastbuf = ptr::null_mut();
+            ml_st().ml_upd_lastbuf = crate::globals::BufPtr::NULL;
             buf.b_ml.ml_usedchunks -= 1;
             let used = buf.b_ml.ml_usedchunks as usize;
             buf.b_ml.ml_chunksize.copy_within(1..(1 + used), 0);
@@ -3860,14 +3860,14 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
                     + buf.b_ml.ml_chunksize[(curix - 1) as usize].mlcs_numlines)
                     > MLCS_MINL)
         {
-            ml_st().ml_upd_lastbuf = &raw mut *buf;
+            ml_st().ml_upd_lastbuf = crate::globals::BufPtr::from(&mut *buf);
             ml_st().ml_upd_lastcurline = curline;
             ml_st().ml_upd_lastcurix = curix;
             return;
         }
 
         let cix = curix as usize;
-        ml_st().ml_upd_lastbuf = ptr::null_mut();
+        ml_st().ml_upd_lastbuf = crate::globals::BufPtr::NULL;
         buf.b_ml.ml_chunksize[cix - 1].mlcs_numlines += buf.b_ml.ml_chunksize[cix].mlcs_numlines;
         buf.b_ml.ml_chunksize[cix - 1].mlcs_totalsize += buf.b_ml.ml_chunksize[cix].mlcs_totalsize;
         buf.b_ml.ml_usedchunks -= 1;
@@ -3877,7 +3877,7 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
         }
         return;
     }
-    ml_st().ml_upd_lastbuf = &raw mut *buf;
+    ml_st().ml_upd_lastbuf = crate::globals::BufPtr::from(&mut *buf);
     ml_st().ml_upd_lastcurline = curline;
     ml_st().ml_upd_lastcurix = curix;
 }

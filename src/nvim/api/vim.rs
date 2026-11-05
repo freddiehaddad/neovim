@@ -3209,7 +3209,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     let cwin = if !win.is_null() { win } else { curwin_ptr() };
-    if opts.cursor && unsafe { (*cwin).w_grid.target.as_ref() }.is_none_or(|g| !g.valid) {
+    if opts.cursor && unsafe { (*cwin).w_grid.target.opt() }.is_none_or(|g| !g.valid) {
         opts.flush = true;
     }
 

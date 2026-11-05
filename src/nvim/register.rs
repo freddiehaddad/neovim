@@ -200,7 +200,7 @@ struct RegisterModuleState {
     get_expr_line_nested: i32,
     execreg_lastc: i32,
     y_regs: [Yankreg; NUM_REGISTERS],
-    y_previous: *mut Yankreg,
+    y_previous: crate::globals::GraphPtr<Yankreg>,
     empty_reg: Yankreg,
     do_record_regname: i32,
     textyankpost_recursive: bool,
@@ -214,7 +214,7 @@ impl RegisterModuleState {
             get_expr_line_nested: 0,
             execreg_lastc: 0,
             y_regs: [const { EMPTY_YANKREG }; NUM_REGISTERS],
-            y_previous: ptr::null_mut(),
+            y_previous: crate::globals::GraphPtr::NULL,
             empty_reg: EMPTY_YANKREG,
             do_record_regname: 0,
             textyankpost_recursive: false,
@@ -306,7 +306,7 @@ pub fn get_unname_register() -> i32 {
         -1
     } else {
         crate::memory::ptr_offset_from(
-            reg_st().y_previous,
+            reg_st().y_previous.as_ptr(),
             (&raw const reg_st().y_regs).cast::<Yankreg>(),
         ) as i32
     }
@@ -317,7 +317,7 @@ pub fn get_y_register(reg: i32) -> &'static mut Yankreg {
 }
 
 pub fn get_y_previous() -> &'static mut Yankreg {
-    unsafe { &mut *reg_st().y_previous }
+    reg_st().y_previous.borrow_mut()
 }
 
 pub fn get_expr_register() -> i32 {
@@ -384,7 +384,7 @@ pub fn op_reg_iter<'a>(
     *name = get_register_name(idx as i32) as u8;
     let iter_reg = &regs[idx];
     *reg = Some(iter_reg);
-    *is_unnamed = ptr::eq(iter_reg, reg_st().y_previous);
+    *is_unnamed = reg_st().y_previous == iter_reg;
     idx += 1;
     while idx < NUM_SAVED_REGISTERS {
         if !reg_empty(&regs[idx]) {
@@ -438,7 +438,7 @@ pub fn op_reg_set(name: u8, reg: Yankreg, is_unnamed: bool) -> bool {
     reg_st().y_regs[idx] = reg;
 
     if is_unnamed {
-        reg_st().y_previous = &raw mut reg_st().y_regs[idx];
+        reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[idx]);
     }
     true
 }
@@ -456,7 +456,7 @@ pub fn op_reg_set_previous(name: u8) -> bool {
     if i == -1 {
         return false;
     }
-    reg_st().y_previous = &raw mut reg_st().y_regs[i as usize];
+    reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[i as usize]);
     true
 }
 
@@ -489,7 +489,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
             || regname == i32::from(b'+'))
         && !reg_st().y_previous.is_null()
     {
-        return unsafe { &mut *reg_st().y_previous };
+        return reg_st().y_previous.borrow_mut();
     }
 
     let mut i = op_reg_index(regname);
@@ -498,7 +498,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
     }
     let idx = i as usize;
     if mode == YankRegMode::Yank {
-        reg_st().y_previous = &raw mut reg_st().y_regs[idx];
+        reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[idx]);
     }
     &mut reg_st().y_regs[idx]
 }
@@ -982,7 +982,7 @@ pub fn shift_delete_registers(y_append: bool) {
         n -= 1;
     }
     if !y_append {
-        reg_st().y_previous = &raw mut regs[1];
+        reg_st().y_previous = crate::globals::GraphPtr::from(&mut regs[1]);
     }
 }
 
@@ -2450,7 +2450,7 @@ pub fn ex_display(eap: &mut Exarg) {
 
         let mut yb = if i == -1 {
             if !reg_st().y_previous.is_null() {
-                reg_st().y_previous
+                reg_st().y_previous.as_ptr()
             } else {
                 regs
             }
@@ -2465,7 +2465,7 @@ pub fn ex_display(eap: &mut Exarg) {
         }
 
         if name == mb_tolower(g_st().redir_reg)
-            || (g_st().redir_reg == i32::from(b'"') && ptr::eq(yb, reg_st().y_previous))
+            || (g_st().redir_reg == i32::from(b'"') && reg_st().y_previous == yb)
         {
             i += 1;
             continue;

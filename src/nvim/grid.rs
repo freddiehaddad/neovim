@@ -66,7 +66,7 @@ pub struct ScreenGrid {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct GridView {
-    pub target: *mut ScreenGrid,
+    pub target: crate::globals::GraphPtr<ScreenGrid>,
     pub row_offset: i32,
     pub col_offset: i32,
 }
@@ -93,7 +93,7 @@ struct GridModuleState {
     linebuf_scratch: Vec<Sscratch>,
     glyph_cache_keys: Vec<u8>,
     glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32>,
-    grid_line_grid: *mut ScreenGrid,
+    grid_line_grid: crate::globals::GraphPtr<ScreenGrid>,
     grid_line_row: i32,
     grid_line_coloff: i32,
     grid_line_maxcol: i32,
@@ -112,7 +112,7 @@ impl GridModuleState {
             linebuf_scratch: Vec::new(),
             glyph_cache_keys: Vec::new(),
             glyph_cache_offsets: std::collections::BTreeMap::new(),
-            grid_line_grid: ptr::null_mut(),
+            grid_line_grid: crate::globals::GraphPtr::NULL,
             grid_line_row: -1,
             grid_line_coloff: 0,
             grid_line_maxcol: 0,
@@ -176,7 +176,7 @@ pub fn grid_adjust_opt(
 ) -> Option<&'static mut ScreenGrid> {
     *row_off += grid.row_offset;
     *col_off += grid.col_offset;
-    unsafe { grid.target.as_mut() }
+    grid.target.opt_mut()
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
@@ -464,7 +464,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
     grid_st().grid_line_maxcol = grid.cols;
     assert!(grid_st().grid_line_grid.is_null());
     grid_st().grid_line_row = row;
-    grid_st().grid_line_grid = (&raw mut *grid);
+    grid_st().grid_line_grid = crate::globals::GraphPtr::from(&mut *grid);
     grid_st().grid_line_coloff = col;
     grid_st().grid_line_first = linebuf_size as i32;
     grid_st().grid_line_maxcol = grid_st()
@@ -488,7 +488,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
 pub fn grid_line_getchar(mut col: i32, mut attr: Option<&mut i32>) -> Schar {
     if col < grid_st().grid_line_maxcol {
         col += grid_st().grid_line_coloff;
-        let grid = unsafe { &*grid_st().grid_line_grid };
+        let grid = grid_st().grid_line_grid.borrow();
         let off = grid.line_offset[grid_st().grid_line_row as usize] + col as usize;
         if let Some(ref mut p) = attr {
             **p = grid.attrs[off];
@@ -595,7 +595,7 @@ pub fn grid_line_clear_end(start_col: i32, end_col: i32, bg_attr: i32, clear_att
 
 pub fn grid_line_cursor_goto(col: i32) {
     ui_grid_cursor_goto(
-        unsafe { (*grid_st().grid_line_grid).handle },
+        grid_st().grid_line_grid.handle,
         grid_st().grid_line_row,
         col,
     );
@@ -679,8 +679,8 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
 }
 
 pub fn grid_line_flush() {
-    let grid = grid_st().grid_line_grid;
-    grid_st().grid_line_grid = ptr::null_mut();
+    let grid = grid_st().grid_line_grid.as_ptr();
+    grid_st().grid_line_grid = crate::globals::GraphPtr::NULL;
     grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
     assert!(grid_st().grid_line_clear_to <= grid_st().grid_line_maxcol);
     if grid_st().grid_line_first >= grid_st().grid_line_clear_to {
@@ -702,13 +702,11 @@ pub fn grid_line_flush() {
 }
 
 pub fn grid_line_flush_if_valid_row() {
-    if grid_st().grid_line_row < 0
-        || grid_st().grid_line_row >= unsafe { (*grid_st().grid_line_grid).rows }
-    {
+    if grid_st().grid_line_row < 0 || grid_st().grid_line_row >= grid_st().grid_line_grid.rows {
         if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
             std::process::abort();
         } else {
-            grid_st().grid_line_grid = ptr::null_mut();
+            grid_st().grid_line_grid = crate::globals::GraphPtr::NULL;
             return;
         }
     }
@@ -726,10 +724,8 @@ pub fn grid_clear(
     for row in start_row..end_row {
         grid_line_start(grid, row);
         end_col = end_col.min(grid_st().grid_line_maxcol);
-        if grid_st().grid_line_row >= unsafe { (*grid_st().grid_line_grid).rows }
-            || start_col >= end_col
-        {
-            grid_st().grid_line_grid = ptr::null_mut();
+        if grid_st().grid_line_row >= grid_st().grid_line_grid.rows || start_col >= end_col {
+            grid_st().grid_line_grid = crate::globals::GraphPtr::NULL;
             return;
         }
         grid_line_clear_end(start_col, end_col, attr, 0);
@@ -1063,11 +1059,11 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     }
 
     if want_allocation {
-        grid.target = grid_allocated;
+        grid.target = crate::globals::GraphPtr::new(grid_allocated);
         grid.row_offset = wp.w_winrow_off;
         grid.col_offset = wp.w_wincol_off;
     } else {
-        grid.target = &raw mut g_st().default_grid;
+        grid.target = crate::globals::GraphPtr::from(&mut g_st().default_grid);
         grid.row_offset = wp.w_winrow + wp.w_winrow_off;
         grid.col_offset = wp.w_wincol + wp.w_wincol_off;
     }
