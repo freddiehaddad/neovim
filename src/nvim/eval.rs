@@ -308,7 +308,7 @@ pub struct VimTimer {
 
 impl Drop for VimTimer {
     fn drop(&mut self) {
-        if let Some(events) = unsafe { self.watcher.events.as_mut() } {
+        if let Some(events) = self.watcher.events.opt_mut() {
             multiqueue_free(events);
         }
         callback_free(&mut self.callback);
@@ -5246,8 +5246,9 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
             &mut timer.watcher,
             TimeWatcherData::EvalTimer(timer_ptr),
         );
-        timer.watcher.events =
-            multiqueue_new_child(unsafe { &mut *loop_queues(&mut g_st().main_loop).events });
+        timer.watcher.events = crate::globals::GraphPtr::from(multiqueue_new_child(
+            loop_queues(&mut g_st().main_loop).events.borrow_mut(),
+        ));
         timer.watcher.blockable = true;
         time_watcher_start(&mut timer.watcher, timeout as u64, timeout as u64);
     }

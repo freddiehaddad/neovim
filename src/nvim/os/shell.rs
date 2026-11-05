@@ -799,14 +799,14 @@ fn do_os_system(
     let mut uvproc = LibuvProc::new();
     let proc_ = &mut uvproc.proc_;
     proc_.r#type = K_PROC_TYPE_UV;
-    proc_.loop_ = mloop;
+    proc_.loop_ = crate::globals::GraphPtr::from(&mut *mloop);
     proc_.status = -1;
     proc_.out.s.fd = STDOUT_FILENO;
     proc_.err.s.fd = STDERR_FILENO;
 
     let qc = loop_queues(&mut *mloop);
-    let events = multiqueue_new_child(unsafe { &mut *qc.events });
-    proc_.events = events;
+    let events = multiqueue_new_child(qc.events.borrow_mut());
+    proc_.events = crate::globals::GraphPtr::from(&mut *events);
     proc_.argv = argv;
 
     'end: {
@@ -1014,7 +1014,7 @@ fn out_data_append_to_screen(output: &[u8], count: &mut usize, fd: i32, eof: boo
     if ui_has(K_UIMESSAGES) {
         let qc = loop_queues(&mut *main_loop_ptr());
         multiqueue_put_event(
-            unsafe { &mut *qc.fast_events },
+            qc.fast_events.borrow_mut(),
             Event::ShellOutData { str_copy, fd },
         );
     } else {

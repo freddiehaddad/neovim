@@ -310,7 +310,7 @@ pub fn channel_close(
                 api_free_luaref(internal.cb);
                 internal.cb = LUA_NOREF;
                 internal.closed = true;
-                terminal_close(unsafe { &mut *chan.term }, 0);
+                terminal_close(chan.term.borrow_mut(), 0);
                 chan.exit_status = 0;
             } else {
                 channel_decref(&mut *chan);
@@ -345,7 +345,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
     let chan = Box::into_raw(Box::new(Channel {
         id,
         refcount: 1,
-        events: multiqueue_new_child(unsafe { &mut *qc.events }),
+        events: crate::globals::GraphPtr::from(multiqueue_new_child(qc.events.borrow_mut())),
         streamtype: r#type,
         uv: crate::event::proc::LibuvProc::new(),
         socket: RStream::new(),
@@ -359,7 +359,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
         is_rpc: false,
         detach: r#type != K_CHANNEL_STREAM_STDIO,
         rpc: RpcState::new(),
-        term: ptr::null_mut(),
+        term: crate::globals::GraphPtr::NULL,
         on_data: CallbackReader::none(),
         on_stderr: CallbackReader::none(),
         on_exit: Callback::NONE,
@@ -391,10 +391,7 @@ pub fn channel_decref(chan: &mut Channel) {
     chan.refcount -= 1;
     if chan.refcount == 0 {
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event(
-            unsafe { &mut *qc.events },
-            Event::ChannelFree(&raw mut *chan),
-        );
+        multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(&raw mut *chan));
     }
 }
 
@@ -423,10 +420,7 @@ fn channel_destroy_early(chan: &mut Channel) {
     }
 
     let qc = loop_queues(&mut g_st().main_loop);
-    multiqueue_put_event(
-        unsafe { &mut *qc.events },
-        Event::ChannelFree(&raw mut *chan),
-    );
+    multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(&raw mut *chan));
 }
 
 /// Starts a job and returns the associated channel.
@@ -469,8 +463,8 @@ pub fn channel_job_start(
             return None;
         }
         chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
-        chan.uv.proc_.data = chan_ptr;
-        chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
+        chan.uv.proc_.data = crate::globals::GraphPtr::new(chan_ptr);
+        chan.uv.proc_.loop_ = crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast());
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
@@ -482,8 +476,8 @@ pub fn channel_job_start(
         }
     } else {
         chan.uv.proc_.r#type = K_PROC_TYPE_UV;
-        chan.uv.proc_.data = chan_ptr;
-        chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
+        chan.uv.proc_.data = crate::globals::GraphPtr::new(chan_ptr);
+        chan.uv.proc_.loop_ = crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast());
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
@@ -496,7 +490,7 @@ pub fn channel_job_start(
     ph.events = chan.events;
     ph.detach = detach;
     ph.cwd = cwd.map(CStr::to_owned);
-    ph.env = env_ptr;
+    ph.env = crate::globals::GraphPtr::new(env_ptr);
     ph.overlapped = overlapped;
 
     #[cfg(windows)]
@@ -539,7 +533,7 @@ pub fn channel_job_start(
         );
 
         let ph = unsafe { &mut *proc_ptr };
-        if let Some(env_ref) = unsafe { ph.env.as_mut() } {
+        if let Some(env_ref) = ph.env.opt_mut() {
             tv_dict_free(env_ref);
         }
         let proc_status = ph.status;
@@ -552,7 +546,7 @@ pub fn channel_job_start(
 
     drop(cmd);
     let ph = unsafe { &mut *proc_ptr };
-    if let Some(env_ref) = unsafe { ph.env.as_mut() } {
+    if let Some(env_ref) = ph.env.opt_mut() {
         tv_dict_free(env_ref);
     }
 
@@ -838,7 +832,7 @@ pub fn on_channel_event(chan: &mut Channel) {
     chan.callback_busy = false;
     if chan.callback_scheduled {
         multiqueue_put_event(
-            unsafe { &mut *chan.events },
+            chan.events.borrow_mut(),
             Event::ChannelCallback(&raw mut *chan),
         );
         channel_incref(chan);
@@ -891,7 +885,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
 
 pub(crate) fn channel_proc_exit_cb(status: i32, chan: &mut Channel) {
     if !chan.term.is_null() {
-        terminal_close(unsafe { &mut *chan.term }, status);
+        terminal_close(chan.term.borrow_mut(), status);
     }
 
     if !g_st().exiting && g_st().ui_client_channel_id == chan.id {
@@ -918,7 +912,7 @@ pub(crate) fn channel_proc_state_cb(
     suspended: bool,
     chan: &mut Channel,
 ) {
-    if let Some(term) = unsafe { chan.term.as_mut() } {
+    if let Some(term) = chan.term.opt_mut() {
         terminal_set_state(term, suspended);
     }
 }
@@ -978,7 +972,7 @@ pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
     buf.b_p_channel = chan.id as OptInt;
     channel_incref(&mut *chan);
     {
-        chan.term = terminal_alloc(buf, topts);
+        chan.term = crate::globals::GraphPtr::from(terminal_alloc(buf, topts));
     }
 }
 
@@ -1006,9 +1000,9 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
         }
         let mut args_items = [
             crate::api::private::helpers::integer_obj(chan.id as Integer),
-            crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(unsafe {
-                &*chan.term
-            })),
+            crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(
+                chan.term.borrow(),
+            )),
             crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
         ];
         let args = Array {
@@ -1054,7 +1048,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
     let proc_ptr = &mut chan.uv.proc_;
     if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
         multiqueue_put_event(
-            unsafe { &mut *chan.events },
+            chan.events.borrow_mut(),
             Event::ChannelTermDelayedFree(&raw mut *chan),
         );
         return;
@@ -1077,7 +1071,7 @@ pub fn channel_term_close(chan: &mut Channel) {
     }
     proc_stop(&mut chan.uv.proc_);
     multiqueue_put_event(
-        unsafe { &mut *chan.events },
+        chan.events.borrow_mut(),
         Event::ChannelTermDelayedFree(&raw mut *chan),
     );
 }
@@ -1087,7 +1081,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         channel_incref(chan);
         let qc = loop_queues(&mut g_st().main_loop);
         multiqueue_put_event(
-            unsafe { &mut *qc.events },
+            qc.events.borrow_mut(),
             Event::ChannelSetInfo {
                 chan: &raw mut *chan,
                 event,
@@ -1258,7 +1252,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
 
         c"rpc"
     } else if !chan.term.is_null() {
-        let tbuf = terminal_buf(unsafe { &*chan.term });
+        let tbuf = terminal_buf(chan.term.borrow());
         put_c(
             &mut info,
             c"buf",

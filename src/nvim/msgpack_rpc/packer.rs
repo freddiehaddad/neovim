@@ -84,7 +84,7 @@ impl Default for PackerBuffer {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct ContainerStackItem {
-    container: *mut Object,
+    container: crate::globals::GraphPtr<Object>,
     idx: usize,
 }
 
@@ -415,7 +415,7 @@ pub fn mpack_object_inner(
                     }
                     if !container.is_null() {
                         stack.push(ContainerStackItem {
-                            container,
+                            container: crate::globals::GraphPtr::new(container),
                             idx: container_idx,
                         });
                     }
@@ -427,7 +427,7 @@ pub fn mpack_object_inner(
 
         if container.is_null() {
             if let Some(it) = stack.pop() {
-                container = it.container;
+                container = it.container.as_ptr();
                 container_idx = it.idx;
             } else {
                 break;

@@ -116,10 +116,10 @@ pub struct UvTimespec64 {
 #[repr(C)]
 pub struct Loop {
     pub uv: [u64; 192],
-    pub events: *mut MultiQueue,
-    pub thread_events: *mut MultiQueue,
-    pub fast_events: *mut MultiQueue,
-    pub children: Vec<*mut crate::event::proc::Proc>,
+    pub events: crate::globals::GraphPtr<MultiQueue>,
+    pub thread_events: crate::globals::GraphPtr<MultiQueue>,
+    pub fast_events: crate::globals::GraphPtr<MultiQueue>,
+    pub children: Vec<crate::globals::GraphPtr<crate::event::proc::Proc>>,
     pub children_watcher: [u64; 40],
     pub children_kill_timer: [u64; 32],
     pub poll_timer: [u64; 32],
@@ -135,9 +135,9 @@ impl Loop {
     pub const fn new() -> Self {
         Self {
             uv: [0; 192],
-            events: ptr::null_mut(),
-            thread_events: ptr::null_mut(),
-            fast_events: ptr::null_mut(),
+            events: crate::globals::GraphPtr::NULL,
+            thread_events: crate::globals::GraphPtr::NULL,
+            fast_events: crate::globals::GraphPtr::NULL,
             children: Vec::new(),
             children_watcher: [0; 40],
             children_kill_timer: [0; 32],
@@ -522,7 +522,7 @@ pub fn main_loop_ptr() -> &'static mut Loop {
 
 #[inline]
 pub fn main_loop_events() -> &'static mut MultiQueue {
-    unsafe { &mut *crate::globals::g_st().main_loop.events }
+    crate::globals::g_st().main_loop.events.borrow_mut()
 }
 
 #[inline]
@@ -565,9 +565,10 @@ pub fn loop_init(loop_: &mut Loop) {
         *uv_ptr.cast::<*mut Loop>() = &raw mut *loop_;
 
         loop_.children.clear();
-        loop_.events = multiqueue_new(Some(&mut *loop_));
-        loop_.fast_events = multiqueue_new_child(&mut *loop_.events);
-        loop_.thread_events = multiqueue_new(None);
+        loop_.events = crate::globals::GraphPtr::from(multiqueue_new(Some(&mut *loop_)));
+        loop_.fast_events =
+            crate::globals::GraphPtr::from(multiqueue_new_child(loop_.events.borrow_mut()));
+        loop_.thread_events = crate::globals::GraphPtr::from(multiqueue_new(None));
 
         uv_mutex_init(loop_mutex(loop_));
         uv_async_init(uv_ptr, loop_async(loop_), Some(async_cb));
@@ -620,7 +621,7 @@ pub fn loop_poll_events(loop_in: &mut Loop, ms: i64) -> bool {
     let loop_: *mut Loop = loop_in;
     unsafe {
         let timeout_expired = loop_uv_run(&mut *loop_, ms);
-        multiqueue_process_events(&mut *(*loop_).fast_events);
+        multiqueue_process_events((*loop_).fast_events.borrow_mut());
         timeout_expired
     }
 }
@@ -630,7 +631,7 @@ pub fn loop_schedule_fast(loop_: &mut Loop, event: Event) {
     unsafe {
         let mutex = ptr::from_mut(loop_mutex(loop_));
         uv_mutex_lock(mutex);
-        multiqueue_put_event(&mut *loop_.thread_events, event);
+        multiqueue_put_event(loop_.thread_events.borrow_mut(), event);
         uv_async_send(loop_async(loop_));
         uv_mutex_unlock(mutex);
     }
@@ -650,7 +651,7 @@ pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
 }
 
 pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
-    multiqueue_put_event(unsafe { &mut *loop_.events }, event);
+    multiqueue_put_event(loop_.events.borrow_mut(), event);
 }
 
 pub fn loop_on_put(loop_: &mut Loop) {
@@ -720,11 +721,9 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
         }
     }
     let qc = loop_queues(loop_);
-    unsafe {
-        multiqueue_free(&mut *qc.fast_events);
-        multiqueue_free(&mut *qc.thread_events);
-        multiqueue_free(&mut *qc.events);
-    }
+    multiqueue_free(qc.fast_events.borrow_mut());
+    multiqueue_free(qc.thread_events.borrow_mut());
+    multiqueue_free(qc.events.borrow_mut());
     qc.children = Vec::new();
     rv
 }
@@ -734,8 +733,8 @@ pub fn loop_purge(loop_: &mut Loop) {
         let mutex = ptr::from_mut(loop_mutex(loop_));
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        multiqueue_purge_events(&mut *qc.thread_events);
-        multiqueue_purge_events(&mut *qc.fast_events);
+        multiqueue_purge_events(qc.thread_events.borrow_mut());
+        multiqueue_purge_events(qc.fast_events.borrow_mut());
         uv_mutex_unlock(mutex);
     }
 }
@@ -745,7 +744,7 @@ pub fn loop_size(loop_: &mut Loop) -> usize {
         let mutex = ptr::from_mut(loop_mutex(loop_));
         let qc = loop_queues(loop_);
         uv_mutex_lock(mutex);
-        let rv = multiqueue_size(&*qc.thread_events);
+        let rv = multiqueue_size(qc.thread_events.borrow());
         uv_mutex_unlock(mutex);
         rv
     }
@@ -758,7 +757,7 @@ unsafe extern "C" fn async_cb(handle: *mut uv_async_t) {
         let mutex = ptr::from_mut(loop_mutex(&mut *l));
         let qc = loop_queues(&mut *l);
         uv_mutex_lock(mutex);
-        multiqueue_move_events(&mut *qc.fast_events, &mut *qc.thread_events);
+        multiqueue_move_events(qc.fast_events.borrow_mut(), qc.thread_events.borrow_mut());
         uv_mutex_unlock(mutex);
     }
 }

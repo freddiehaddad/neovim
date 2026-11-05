@@ -177,9 +177,9 @@ enum QueueEntry {
 
 #[repr(C)]
 pub struct MultiQueue {
-    parent: *mut MultiQueue,
+    parent: crate::globals::GraphPtr<MultiQueue>,
     items: VecDeque<QueueEntry>,
-    notify_loop: *mut crate::event::r#loop::Loop,
+    notify_loop: crate::globals::GraphPtr<crate::event::r#loop::Loop>,
     size: usize,
 }
 
@@ -188,9 +188,9 @@ fn multiqueue_new_inner(
     notify_loop: Option<&mut crate::event::r#loop::Loop>,
 ) -> &'static mut MultiQueue {
     Box::leak(Box::new(MultiQueue {
-        parent: parent.map_or(std::ptr::null_mut(), std::ptr::from_mut),
+        parent: crate::globals::GraphPtr::from(parent),
         items: VecDeque::new(),
-        notify_loop: notify_loop.map_or(std::ptr::null_mut(), std::ptr::from_mut),
+        notify_loop: crate::globals::GraphPtr::from(notify_loop),
         size: 0,
     }))
 }
@@ -211,12 +211,11 @@ pub fn multiqueue_new_child(parent: &mut MultiQueue) -> &'static mut MultiQueue 
 
 impl Drop for MultiQueue {
     fn drop(&mut self) {
-        unsafe {
-            if !self.parent.is_null() && !self.items.is_empty() {
-                (*self.parent).items.retain(
-                    |entry| !matches!(entry, &QueueEntry::Child(child) if std::ptr::eq(child, self)),
-                );
-            }
+        let self_ptr: *const MultiQueue = self;
+        if !self.parent.is_null() && !self.items.is_empty() {
+            self.parent.items.retain(
+                |entry| !matches!(entry, &QueueEntry::Child(child) if std::ptr::eq(child, self_ptr)),
+            );
         }
     }
 }
@@ -246,15 +245,13 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
             }
             QueueEntry::Event(ev) => {
                 let q_ptr: *mut MultiQueue = &raw mut *q;
-                if !q.parent.is_null() {
-                    let parent = unsafe { &mut *q.parent };
-                    if let Some(pos) = parent
+                if let Some(parent) = q.parent.opt_mut()
+                    && let Some(pos) = parent
                         .items
                         .iter()
                         .position(|e| matches!(e, &QueueEntry::Child(child) if child == q_ptr))
-                    {
-                        parent.items.remove(pos);
-                    }
+                {
+                    parent.items.remove(pos);
                 }
                 ev
             }
@@ -263,15 +260,13 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
 }
 
 fn multiqueue_push(this: &mut MultiQueue, event: Event) {
-    unsafe {
-        let q = this;
-        let q_ptr: *mut MultiQueue = &raw mut *q;
-        q.items.push_back(QueueEntry::Event(event));
-        if !q.parent.is_null() {
-            (*q.parent).items.push_back(QueueEntry::Child(q_ptr));
-        }
-        q.size = q.size.wrapping_add(1);
+    let q = this;
+    let q_ptr: *mut MultiQueue = &raw mut *q;
+    q.items.push_back(QueueEntry::Event(event));
+    if let Some(parent) = q.parent.opt_mut() {
+        parent.items.push_back(QueueEntry::Child(q_ptr));
     }
+    q.size = q.size.wrapping_add(1);
 }
 
 /// Remove the next item and return its `Event` (`multiqueue_get`).
@@ -288,12 +283,10 @@ pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
 
 /// Enqueue `event` into `this` (`multiqueue_put_event`).
 pub fn multiqueue_put_event(this: &mut MultiQueue, event: Event) {
-    unsafe {
-        multiqueue_push(this, event);
-        let parent = this.parent;
-        if !parent.is_null() && !(*parent).notify_loop.is_null() {
-            crate::event::r#loop::loop_on_put(&mut *(*parent).notify_loop);
-        }
+    multiqueue_push(this, event);
+    let parent = this.parent;
+    if let Some(notify_loop) = parent.opt_mut().and_then(|p| p.notify_loop.opt_mut()) {
+        crate::event::r#loop::loop_on_put(notify_loop);
     }
 }
 
@@ -329,7 +322,7 @@ pub fn multiqueue_empty(this: &MultiQueue) -> bool {
 /// Replace the parent of an empty queue `this` (`multiqueue_replace_parent`).
 pub fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
     assert!(multiqueue_empty(this));
-    this.parent = new_parent;
+    this.parent = crate::globals::GraphPtr::from(new_parent);
 }
 
 /// Return the size counter of `this` (`multiqueue_size`).

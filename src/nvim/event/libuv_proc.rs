@@ -251,7 +251,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
     }
 
     if !proc_.env.is_null() {
-        uvproc.env_vec = tv_dict_to_env(unsafe { (proc_.env).as_ref() });
+        uvproc.env_vec = tv_dict_to_env(proc_.env.opt());
         uvproc.env_ptrs = uvproc
             .env_vec
             .iter()
@@ -301,7 +301,13 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         uvproc.uvstdio[2].data.fd = STDERR_FILENO;
     }
 
-    let status = unsafe { uv_spawn(proc_.loop_.cast(), uv.cast(), &raw const uvproc.uvopts) };
+    let status = unsafe {
+        uv_spawn(
+            proc_.loop_.as_ptr().cast(),
+            uv.cast(),
+            &raw const uvproc.uvopts,
+        )
+    };
     if status != 0 {
         uvproc.env_ptrs.clear();
         uvproc.env_vec.clear();

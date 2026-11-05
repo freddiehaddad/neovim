@@ -144,7 +144,7 @@ enum FlushBufFinish {
 
 #[repr(C)]
 pub struct TUIData {
-    pub loop_: *mut Loop,
+    pub loop_: crate::globals::GraphPtr<Loop>,
     pub buf: [u8; OUTBUF_SIZE],
     pub bufpos: usize,
     pub input: TermInput,
@@ -211,7 +211,7 @@ pub struct TUIData {
 impl TUIData {
     pub fn new() -> Self {
         Self {
-            loop_: (&raw mut g_st().main_loop).cast::<Loop>(),
+            loop_: crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast::<Loop>()),
             buf: [0; OUTBUF_SIZE],
             bufpos: 0,
             input: TermInput::new(),
@@ -339,7 +339,7 @@ fn tui_input(tui: &mut TUIData) -> &'static mut TermInput {
 
 #[inline]
 fn tui_loop(tui: &mut TUIData) -> &'static mut Loop {
-    unsafe { &mut *tui.loop_ }
+    tui.loop_.borrow_mut()
 }
 
 #[inline]
@@ -376,15 +376,15 @@ pub fn tui_start(
     rgb: &mut bool,
 ) {
     unsafe {
-        signal_watcher_init(&mut *tui.loop_, tui_winch_handle(tui));
-        tui.winch_handle.data = &raw mut *tui;
+        signal_watcher_init(tui.loop_.borrow_mut(), tui_winch_handle(tui));
+        tui.winch_handle.data = crate::globals::GraphPtr::from(&mut *tui);
         signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
 
         tui.grid.cells.clear();
         tui_terminal_start(tui);
 
         let tui_ptr: *mut TUIData = &raw mut *tui;
-        let loop_ptr = tui.loop_.cast();
+        let loop_ptr = tui.loop_.as_ptr().cast();
         let timer: *mut uv_timer_t = tui_startup_delay_timer(tui);
         uv_timer_init(loop_ptr, timer);
         *timer.cast::<*mut TUIData>() = tui_ptr;
@@ -825,7 +825,7 @@ fn terminfo_start(tui: &mut TUIData) {
 
     tui.out_fd = STDOUT_FILENO;
     tui.out_isatty = os_isatty(tui.out_fd);
-    tui.input.tui_data = &raw mut *tui;
+    tui.input.tui_data = crate::globals::GraphPtr::from(&mut *tui);
 
     assert!(tui.term.is_none());
 
@@ -1120,8 +1120,8 @@ pub fn tui_stop(tui: &mut TUIData) {
         || unsafe { ptr::read_volatile(&raw const rs.did_eof) })
         && !expired
     {
-        if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        if !events.is_null() && !multiqueue_empty(events.borrow()) {
+            multiqueue_process_events(events.borrow_mut());
         } else {
             loop_poll_events(tui_loop(tui), remaining);
         }

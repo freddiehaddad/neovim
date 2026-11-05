@@ -29,7 +29,7 @@ use crate::event::stream::UV_TCP;
 use crate::globals::IOSIZE;
 
 struct RpcServerState {
-    watchers: Vec<*mut SocketWatcher>,
+    watchers: Vec<crate::globals::GraphPtr<SocketWatcher>>,
     server_addr_count: u32,
 }
 
@@ -117,13 +117,13 @@ fn set_vservername() {
     let default_server = srv_st()
         .watchers
         .first()
-        .map(|&first| unsafe { (*first).addr_cstr() });
+        .map(|&first| first.borrow().addr_cstr());
     set_vim_var_string(VV_SEND_SERVER, default_server, -1);
 }
 
 pub fn server_teardown() {
     for &watcher in &srv_st().watchers {
-        socket_watcher_close(unsafe { &mut *watcher });
+        socket_watcher_close(watcher.borrow_mut());
     }
     srv_st().watchers = Vec::new();
 }
@@ -181,7 +181,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
 pub fn server_owns_pipe_address(address: &CStr) -> bool {
     let path = fix_fname(Some(address));
     for &watcher in &srv_st().watchers {
-        let addr = fix_fname(unsafe { Some((*watcher).addr_cstr()) });
+        let addr = fix_fname(Some(watcher.addr_cstr()));
         if path == addr {
             return true;
         }
@@ -264,7 +264,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
         return result;
     }
 
-    w.push(watcher);
+    w.push(crate::globals::GraphPtr::new(watcher));
 
     if get_vim_var_str(VV_SEND_SERVER).to_bytes().is_empty() {
         set_vservername();
@@ -284,7 +284,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     let w = &mut srv_st().watchers;
     let Some(idx) = w
         .iter()
-        .position(|&watcher| addr_bytes == unsafe { (*watcher).addr_bytes() })
+        .position(|&watcher| addr_bytes == watcher.addr_bytes())
     else {
         logmsg!(
             LOGLVL_WRN,
@@ -300,7 +300,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
 
     let watcher = w.swap_remove(idx);
 
-    socket_watcher_close(unsafe { &mut *watcher });
+    socket_watcher_close(watcher.borrow_mut());
 
     if !keep_vservername
         && Some(addr_bytes)
@@ -316,7 +316,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
     srv_st()
         .watchers
         .iter()
-        .map(|&watcher| unsafe { (*watcher).addr_cstr().to_owned() })
+        .map(|&watcher| watcher.addr_cstr().to_owned())
         .collect()
 }
 

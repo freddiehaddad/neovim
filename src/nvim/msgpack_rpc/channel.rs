@@ -98,7 +98,7 @@ pub struct ChannelCallFrame {
 #[repr(C)]
 pub struct RequestEvent {
     pub r#type: MessageType,
-    pub channel: *mut Channel,
+    pub channel: crate::globals::GraphPtr<Channel>,
     pub handler: MsgpackRpcRequestHandler,
     pub args: Array,
     pub request_id: u32,
@@ -108,7 +108,7 @@ pub struct RequestEvent {
 impl Drop for RequestEvent {
     fn drop(&mut self) {
         arena_mem_free(arena_finish(&mut self.used_mem));
-        channel_decref(unsafe { &mut *self.channel });
+        channel_decref(self.channel.borrow_mut());
     }
 }
 
@@ -153,7 +153,7 @@ impl Drop for RpcState {
 pub struct Channel {
     pub id: u64,
     pub refcount: usize,
-    pub events: *mut MultiQueue,
+    pub events: crate::globals::GraphPtr<MultiQueue>,
     pub streamtype: ChannelStreamType,
     pub uv: LibuvProc,
     pub socket: RStream,
@@ -164,7 +164,7 @@ pub struct Channel {
     pub is_rpc: bool,
     pub detach: bool,
     pub rpc: RpcState,
-    pub term: *mut crate::terminal::Terminal,
+    pub term: crate::globals::GraphPtr<crate::terminal::Terminal>,
     pub on_data: CallbackReader,
     pub on_stderr: CallbackReader,
     pub on_exit: Callback,
@@ -177,12 +177,12 @@ pub struct Channel {
 impl Channel {
     #[inline]
     pub fn events_mut(&self) -> &'static mut MultiQueue {
-        unsafe { &mut *self.events }
+        self.events.borrow_mut()
     }
 
     #[inline]
     pub fn term_mut(&self) -> &'static mut crate::terminal::Terminal {
-        unsafe { &mut *self.term }
+        self.term.borrow_mut()
     }
 
     #[inline]
@@ -195,7 +195,7 @@ impl Channel {
 impl Drop for Channel {
     fn drop(&mut self) {
         crate::eval::typval::callback_free(&mut self.on_exit);
-        if let Some(events) = unsafe { self.events.as_mut() } {
+        if let Some(events) = self.events.opt_mut() {
             multiqueue_free(events);
         }
     }
@@ -252,7 +252,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 
 pub fn rpc_init() {
     let qc = loop_queues(&mut g_st().main_loop);
-    g_st().ch_before_blocking_events = multiqueue_new_child(unsafe { &mut *qc.events });
+    g_st().ch_before_blocking_events = multiqueue_new_child(qc.events.borrow_mut());
 }
 
 pub fn rpc_start(channel: &mut Channel) {
@@ -339,8 +339,8 @@ pub fn rpc_send_call(
 
     while !frame.returned.get() && !unsafe { ptr::read_volatile(&raw const rpc.closed) } {
         let ev_ptr = unsafe { (*channel).events };
-        if !ev_ptr.is_null() && !multiqueue_empty(unsafe { &*ev_ptr }) {
-            multiqueue_process_events(unsafe { &mut *ev_ptr });
+        if !ev_ptr.is_null() && !multiqueue_empty(ev_ptr.borrow()) {
+            multiqueue_process_events(ev_ptr.borrow_mut());
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
         }
@@ -554,7 +554,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
     }
     let evdata = RequestEvent {
         r#type: p.msg_type,
-        channel,
+        channel: crate::globals::GraphPtr::from(&mut *channel),
         handler: p.handler,
         args,
         used_mem: p.arena,
@@ -593,7 +593,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
             let oneshot = event_create_oneshot(Event::RpcRequest(Box::new(evdata)));
 
             multiqueue_put_event(
-                unsafe { &mut *channel.events },
+                channel.events.borrow_mut(),
                 Event::Oneshot(std::rc::Rc::clone(&oneshot)),
             );
 
@@ -603,7 +603,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
             );
         } else {
             multiqueue_put_event(
-                unsafe { &mut *channel.events },
+                channel.events.borrow_mut(),
                 Event::RpcRequest(Box::new(evdata)),
             );
         }
@@ -611,7 +611,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
 }
 
 pub fn request_event(mut e: RequestEvent) {
-    let channel = unsafe { &mut *e.channel };
+    let channel = e.channel.borrow_mut();
     let handler = e.handler;
     let mut error = Error::new();
 
@@ -748,7 +748,7 @@ pub fn rpc_close(channel: &mut Channel) {
     {
         let qc = loop_queues(&mut g_st().main_loop);
         multiqueue_put_event(
-            unsafe { &mut *qc.fast_events },
+            qc.fast_events.borrow_mut(),
             Event::RpcClose(&raw mut *channel),
         );
     }

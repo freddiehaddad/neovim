@@ -1596,12 +1596,12 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     channel_incref(chan);
 
-    chan.term = terminal_alloc(b, topts);
+    chan.term = crate::globals::GraphPtr::from(terminal_alloc(b, topts));
 
-    terminal_open(unsafe { &mut *chan.term.cast() }, b);
+    terminal_open(chan.term.borrow_mut(), b);
 
     if !chan.term.is_null() {
-        terminal_check_size(unsafe { &mut *chan.term.cast() });
+        terminal_check_size(chan.term.borrow_mut());
     }
 
     let chan_id = chan.id;

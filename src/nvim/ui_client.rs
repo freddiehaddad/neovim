@@ -437,7 +437,7 @@ pub fn ui_client_event_connect(args: Array) {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
     multiqueue_put_event(
-        unsafe { &mut *loop_queues(&mut g_st().main_loop).fast_events },
+        loop_queues(&mut g_st().main_loop).fast_events.borrow_mut(),
         Event::UiClientConnect(server_addr),
     );
     g_st().ui_client_channel_id = u64::MAX;

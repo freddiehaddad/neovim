@@ -291,7 +291,7 @@ mod unix_impl {
             let r_err = &mut (*proc_).err;
             debug_assert!(r_err.s.closed);
             uv_signal_start(
-                loop_children_watcher(&mut *(*hdr).loop_),
+                loop_children_watcher((*hdr).loop_.borrow_mut()),
                 Some(chld_handler),
                 SIGCHLD,
             );
@@ -304,7 +304,7 @@ mod unix_impl {
             uv_disable_stdio_inheritance();
             let prog = proc_get_exepath(&*proc_);
             debug_assert!(!(*hdr).env.is_null());
-            let new_env = tv_dict_to_env(((*hdr).env).as_ref());
+            let new_env = tv_dict_to_env((*hdr).env.opt());
             let mut new_env_ptrs: Vec<*mut u8> = new_env
                 .iter()
                 .map(|s| s.as_ptr().cast_mut().cast())
@@ -608,6 +608,7 @@ mod unix_impl {
             let qc = loop_queues(&mut *loop_);
 
             for &proc_ in &qc.children {
+                let proc_ = proc_.as_ptr();
                 let hdr = proc_;
                 let proc_t = proc_;
 
@@ -624,18 +625,14 @@ mod unix_impl {
                 }
 
                 if wifstopped(stat) {
-                    if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, true, &mut *(*hdr).data);
+                    if let Some(data) = (*hdr).data.opt_mut() {
+                        crate::channel::channel_proc_state_cb(&mut *proc_, true, data);
                     }
                     continue;
                 }
                 if wifcontinued(stat) {
-                    if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(
-                            &mut *proc_,
-                            false,
-                            &mut *(*hdr).data,
-                        );
+                    if let Some(data) = (*hdr).data.opt_mut() {
+                        crate::channel::channel_proc_state_cb(&mut *proc_, false, data);
                     }
                     continue;
                 }

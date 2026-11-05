@@ -38,7 +38,6 @@ use crate::tui::tui::{
     TUIData, tui_enable_extended_underline, tui_handle_primary_device_attr, tui_handle_term_mode,
     tui_query_bg_color, tui_set_size,
 };
-use std::ptr;
 
 use crate::channel::STDIN_FILENO;
 use crate::option::OptInt;
@@ -79,9 +78,9 @@ pub struct TermInput {
     pub tk: Option<TermKey>,
     pub timer_handle: [u64; 32],
     pub bg_query_timer: [u64; 32],
-    pub loop_: *mut Loop,
+    pub loop_: crate::globals::GraphPtr<Loop>,
     pub read_stream: RStream,
-    pub tui_data: *mut TUIData,
+    pub tui_data: crate::globals::GraphPtr<TUIData>,
     pub key_buffer: [u8; KEY_BUFFER_SIZE],
     pub key_buffer_len: usize,
 }
@@ -98,9 +97,9 @@ impl TermInput {
             tk: None,
             timer_handle: [0; 32],
             bg_query_timer: [0; 32],
-            loop_: ptr::null_mut(),
+            loop_: crate::globals::GraphPtr::NULL,
             read_stream: RStream::new(),
-            tui_data: ptr::null_mut(),
+            tui_data: crate::globals::GraphPtr::NULL,
             key_buffer: [0; KEY_BUFFER_SIZE],
             key_buffer_len: 0,
         }
@@ -118,7 +117,7 @@ impl TermInput {
 
     #[inline]
     fn tui_mut(&self) -> &'static mut TUIData {
-        unsafe { &mut *self.tui_data }
+        self.tui_data.borrow_mut()
     }
 }
 
@@ -230,7 +229,7 @@ const fn kitty_key_name(key: i32) -> Option<&'static str> {
 
 pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) {
     assert!(input.loop_.is_null());
-    input.loop_ = &raw mut *loop_;
+    input.loop_ = crate::globals::GraphPtr::from(&mut *loop_);
 
     input.paste = 0;
     input.in_fd = STDIN_FILENO;
@@ -274,7 +273,7 @@ pub fn tinput_destroy(input: &mut TermInput) {
     }
     rstream_may_close(&mut input.read_stream);
     input.tk = None;
-    input.loop_ = ptr::null_mut();
+    input.loop_ = crate::globals::GraphPtr::NULL;
 }
 
 pub fn tinput_start(input: &mut TermInput) {
@@ -574,7 +573,7 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
 unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = &mut **handle.cast::<*mut TermInput>();
-        tui_query_bg_color(&mut *input.tui_data);
+        tui_query_bg_color(input.tui_data.borrow_mut());
     }
 }
 

@@ -3575,7 +3575,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     );
 
     unsafe {
-        (*tw).events = ptr::null_mut();
+        (*tw).events = crate::globals::GraphPtr::NULL;
     }
 
     time_watcher_start(unsafe { &mut *tw }, interval as u64, interval as u64);
@@ -3607,8 +3607,8 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         && !expired
     {
         let events = loop_queues(unsafe { &mut *main_loop_ptr }).events;
-        if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        if !events.is_null() && !multiqueue_empty(events.borrow()) {
+            multiqueue_process_events(events.borrow_mut());
         } else {
             loop_poll_events(unsafe { &mut *main_loop_ptr }, remaining);
         }
@@ -4659,7 +4659,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         'term_done: {
             apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(&mut *buf));
 
-            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { &*(*ct).term }) == 0 {
+            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { (*ct).term.borrow() }) == 0
+            {
                 break 'term_done;
             }
 
@@ -4701,7 +4702,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             );
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
 
-            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { &*(*ct).term }) == 0 {
+            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { (*ct).term.borrow() }) == 0
+            {
                 break 'term_done;
             }
 
@@ -4738,11 +4740,12 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             api_clear_error(&mut err);
             buf.b_locked -= 1;
 
-            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { &*(*ct).term }) == 0 {
+            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { (*ct).term.borrow() }) == 0
+            {
                 break 'term_done;
             }
 
-            terminal_open(unsafe { &mut *(*ct).term }, &mut *buf);
+            terminal_open(unsafe { (*ct).term.borrow_mut() }, &mut *buf);
         }
 
         channel_create_event(unsafe { &mut *chan });
@@ -4824,9 +4827,9 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 if unsafe { (*proc_ptr).status } < 0 {
                     let events = unsafe { (*chan).events };
 
-                    multiqueue_process_events(unsafe { &mut *events });
+                    multiqueue_process_events(events.borrow_mut());
 
-                    multiqueue_replace_parent(unsafe { &mut *events }, &mut *waiting_jobs);
+                    multiqueue_replace_parent(events.borrow_mut(), &mut *waiting_jobs);
                 }
             }
         }
@@ -4874,10 +4877,10 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
         let events = unsafe { (*job).events };
 
-        multiqueue_process_events(unsafe { &mut *events });
+        multiqueue_process_events(events.borrow_mut());
 
-        multiqueue_replace_parent(unsafe { &mut *events }, unsafe {
-            &mut *loop_queues(&mut *main_loop_ptr).events
+        multiqueue_replace_parent(events.borrow_mut(), unsafe {
+            loop_queues(&mut *main_loop_ptr).events.borrow_mut()
         });
 
         let status = unsafe { (*job).uv.proc_.status };

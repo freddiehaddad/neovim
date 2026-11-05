@@ -310,7 +310,7 @@ pub fn event_init() {
     loop_init(&mut g_st().main_loop);
     env_init();
     let queues = loop_queues(&mut g_st().main_loop);
-    g_st().resize_events = multiqueue_new_child(unsafe { &mut *queues.events });
+    g_st().resize_events = multiqueue_new_child(queues.events.borrow_mut());
 
     autocmd_init();
     signal_init();
@@ -326,7 +326,7 @@ fn event_teardown() -> bool {
         return true;
     }
 
-    multiqueue_process_events(unsafe { &mut *queues.events });
+    multiqueue_process_events(queues.events.borrow_mut());
     loop_poll_events(&mut g_st().main_loop, 0);
     server_teardown();
     channel_teardown();

@@ -132,7 +132,7 @@ mod win_impl {
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
         unsafe {
             let proc_: *mut Proc = context.cast();
-            loop_schedule_fast(&mut *(*proc_).loop_, Event::PtyProcFinish(proc_));
+            loop_schedule_fast((*proc_).loop_.borrow_mut(), Event::PtyProcFinish(proc_));
         }
     }
 
@@ -159,7 +159,7 @@ mod win_impl {
             while !ptr::read_volatile(&raw const (*r_fields).did_eof)
                 && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT
             {
-                uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
+                uv_run((*hdr).loop_.as_ptr().cast(), UV_RUN_ONCE);
             }
             uv_thread_detach(&raw mut tid);
         }
@@ -257,7 +257,7 @@ mod win_impl {
                 }
 
                 if !hdr.env.is_null() {
-                    status = build_env_block((hdr.env).as_ref(), &mut env);
+                    status = build_env_block(hdr.env.opt(), &mut env);
                 }
 
                 if status != 0 {
@@ -294,7 +294,7 @@ mod win_impl {
                 while in_req_buf.as_deref().is_some_and(connect_req_has_handle)
                     || out_req_buf.as_deref().is_some_and(connect_req_has_handle)
                 {
-                    uv_run(hdr.loop_.cast(), UV_RUN_ONCE);
+                    uv_run(hdr.loop_.as_ptr().cast(), UV_RUN_ONCE);
                 }
 
                 r_out.s.close_console = true;

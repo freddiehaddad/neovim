@@ -196,7 +196,7 @@ const TERM_ATTRS_MAX: i32 = 1024;
 
 #[repr(C)]
 struct TerminalState {
-    term: *mut Terminal,
+    term: crate::globals::GraphPtr<Terminal>,
     save_rd: i32,
     close: bool,
     got_bsl: bool,
@@ -214,14 +214,14 @@ struct TerminalState {
 impl TerminalState {
     #[inline]
     fn term_mut(&self) -> &'static mut Terminal {
-        unsafe { &mut *self.term }
+        self.term.borrow_mut()
     }
 }
 
 impl TerminalState {
     const fn new() -> Self {
         Self {
-            term: ptr::null_mut(),
+            term: crate::globals::GraphPtr::NULL,
             save_rd: 0,
             close: false,
             got_bsl: false,
@@ -281,7 +281,7 @@ struct TermPending {
     resize: bool,
     cursor: bool,
     send: Option<std::rc::Rc<std::cell::RefCell<Vec<u8>>>>,
-    events: *mut MultiQueue,
+    events: crate::globals::GraphPtr<MultiQueue>,
 }
 
 impl TermPending {
@@ -290,7 +290,7 @@ impl TermPending {
             resize: false,
             cursor: false,
             send: None,
-            events: ptr::null_mut(),
+            events: crate::globals::GraphPtr::NULL,
         }
     }
 }
@@ -343,23 +343,23 @@ impl Terminal {
 
     #[inline]
     fn pending_events_mut(&self) -> &'static mut MultiQueue {
-        unsafe { &mut *self.pending.events }
+        self.pending.events.borrow_mut()
     }
 }
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        if let Some(events) = unsafe { self.pending.events.as_mut() } {
+        if let Some(events) = self.pending.events.opt_mut() {
             multiqueue_free(events);
         }
-        self.pending.events = ptr::null_mut();
+        self.pending.events = crate::globals::GraphPtr::NULL;
     }
 }
 
 struct TerminalModuleState {
     refresh_timer: TimeWatcher,
     refresh_pending: bool,
-    invalidated_terminals: Vec<*mut Terminal>,
+    invalidated_terminals: Vec<crate::globals::GraphPtr<Terminal>>,
 }
 
 impl TerminalModuleState {
@@ -411,8 +411,9 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
 #[inline]
 fn invalidate_terminal_add(term: &mut Terminal) {
     let term_ptr = &raw mut *term;
-    if !term_st().invalidated_terminals.contains(&term_ptr) {
-        term_st().invalidated_terminals.push(term_ptr);
+    let term_gp = crate::globals::GraphPtr::new(term_ptr);
+    if !term_st().invalidated_terminals.contains(&term_gp) {
+        term_st().invalidated_terminals.push(term_gp);
     }
 }
 
@@ -428,12 +429,12 @@ fn refresh_timer_ptr() -> &'static mut TimeWatcher {
 
 #[inline]
 fn refresh_timer_events_mut() -> &'static mut MultiQueue {
-    unsafe { &mut *refresh_timer_ptr().events }
+    refresh_timer_ptr().events.borrow_mut()
 }
 
 #[inline]
 fn main_loop_events_mut() -> &'static mut MultiQueue {
-    unsafe { &mut *loop_queues(&mut g_st().main_loop).events }
+    loop_queues(&mut g_st().main_loop).events.borrow_mut()
 }
 
 #[inline]
@@ -690,13 +691,15 @@ pub fn terminal_init() {
         &mut *timer,
         TimeWatcherData::TerminalRefresh,
     );
-    timer.events = multiqueue_new_child(unsafe { &mut *loop_queues(&mut g_st().main_loop).events });
+    timer.events = crate::globals::GraphPtr::from(multiqueue_new_child(
+        loop_queues(&mut g_st().main_loop).events.borrow_mut(),
+    ));
 }
 
 pub fn terminal_teardown() {
     let timer = refresh_timer_ptr();
     time_watcher_stop(&mut *timer);
-    if let Some(events) = unsafe { timer.events.as_mut() } {
+    if let Some(events) = timer.events.opt_mut() {
         multiqueue_free(events);
     }
     time_watcher_close(&mut *timer);
@@ -804,7 +807,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
     term_ref.invalid_start = 0;
     term_ref.invalid_end = i32::from(opts.height);
 
-    term_ref.pending.events = multiqueue_new(None);
+    term_ref.pending.events = crate::globals::GraphPtr::from(multiqueue_new(None));
 
     if (buf.b_ml.ml_flags & ML_EMPTY) == 0 {
         let line_count = buf.b_ml.ml_line_count;
@@ -1141,7 +1144,7 @@ pub fn terminal_enter() -> bool {
 
     let mut s = TerminalState::new();
 
-    s.term = unsafe { (*buf).terminal };
+    s.term = crate::globals::GraphPtr::new(unsafe { (*buf).terminal });
 
     s.cursor_visible = true;
     g_st().ins_global.stop_insert_mode = false;
@@ -1193,7 +1196,7 @@ pub fn terminal_enter() -> bool {
     terminal_focus(s.term_mut(), false);
     curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
 
-    if curbuf_mut().terminal == s.term && !s.close {
+    if s.term == curbuf_mut().terminal && !s.close {
         terminal_check_cursor();
     }
     if g_st().restart_edit != 0 {
@@ -1260,7 +1263,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
         set_terminal_winopts(s);
     }
     let cur_term = curbuf_mut().terminal_mut();
-    if !std::ptr::eq(s.term, cur_term) {
+    if s.term != cur_term {
         terminal_focus(s.term_mut(), false);
         if s.close {
             s.term_mut().destroy = true;
@@ -1268,7 +1271,7 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
             s.close = false;
         }
 
-        s.term = &raw mut *cur_term;
+        s.term = crate::globals::GraphPtr::from(&mut *cur_term);
         s.term_mut().pending.cursor = true;
         invalidate_terminal(s.term_mut(), -1, -1);
         terminal_focus(s.term_mut(), true);
@@ -1393,7 +1396,7 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
     if term.is_null() {
         return;
     }
-    let term_ref = unsafe { &mut *term };
+    let term_ref = term.borrow_mut();
     if let Some(buf) = handle_get_buffer_opt(term_ref.buf_handle) {
         term_ref.buf_handle = 0;
         buf.terminal = ptr::null_mut();
@@ -1411,9 +1414,9 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
             term_st().invalidated_terminals.swap_remove(pos);
         }
 
-        chan.term = ptr::null_mut();
+        chan.term = crate::globals::GraphPtr::NULL;
 
-        drop(unsafe { Box::from_raw(term) });
+        drop(unsafe { Box::from_raw(term.as_ptr()) });
     }
 }
 
@@ -2329,7 +2332,7 @@ pub(crate) fn refresh_timer_cb() {
     let to_refresh = std::mem::take(&mut term_st().invalidated_terminals);
 
     for term_ptr in to_refresh {
-        let term = unsafe { &mut *term_ptr };
+        let term = term_ptr.borrow_mut();
         if !term.synchronized_output {
             refresh_terminal(term);
         }

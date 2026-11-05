@@ -77,7 +77,7 @@ pub struct SocketWatcher {
     pub addr: [u8; ADDRESS_MAX_SIZE],
     pub uv: UvSocketHandle,
     pub tcp_addrinfo: *mut addrinfo,
-    pub events: *mut MultiQueue,
+    pub events: crate::globals::GraphPtr<MultiQueue>,
 }
 
 impl SocketWatcher {
@@ -86,7 +86,7 @@ impl SocketWatcher {
             addr: [0; ADDRESS_MAX_SIZE],
             uv: UvSocketHandle([0; 640]),
             tcp_addrinfo: ptr::null_mut(),
-            events: ptr::null_mut(),
+            events: crate::globals::GraphPtr::NULL,
         }
     }
 
@@ -247,7 +247,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
     unsafe {
         *(&raw mut watcher.uv).cast::<*mut SocketWatcher>() = (&raw mut *watcher);
     }
-    watcher.events = ptr::null_mut();
+    watcher.events = crate::globals::GraphPtr::NULL;
 
     0
 }
@@ -428,11 +428,8 @@ pub fn connection_event(watcher: &mut SocketWatcher, status: i32) {
 unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
-        if !(*watcher).events.is_null() {
-            multiqueue_put_event(
-                &mut *(*watcher).events,
-                Event::SocketConnection { watcher, status },
-            );
+        if let Some(events) = (*watcher).events.opt_mut() {
+            multiqueue_put_event(events, Event::SocketConnection { watcher, status });
         } else {
             connection_event(&mut *watcher, status);
         }

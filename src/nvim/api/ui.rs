@@ -225,12 +225,12 @@ pub fn remote_ui_free_all_mem() {
 pub fn remote_ui_wait_for_attach() {
     while ui_active() == 0 {
         let events = loop_queues(&mut g_st().main_loop).events;
-        if !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        if !multiqueue_empty(events.borrow()) {
+            multiqueue_process_events(events.borrow_mut());
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
 
-            multiqueue_process_events(unsafe { &mut *events });
+            multiqueue_process_events(events.borrow_mut());
         }
     }
 }

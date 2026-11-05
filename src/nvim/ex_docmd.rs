@@ -11090,8 +11090,8 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     let mut remaining = timeout_ms;
     let mut expired = false;
     while !g_st().got_int && !expired {
-        if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        if !events.is_null() && !multiqueue_empty(events.borrow()) {
+            multiqueue_process_events(events.borrow_mut());
         } else {
             loop_poll_events(unsafe { &mut *main_loop_ptr }, remaining);
         }

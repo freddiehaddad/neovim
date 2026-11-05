@@ -5,13 +5,12 @@ use crate::event::r#loop::{
 };
 use crate::event::multiqueue::{Event, MultiQueue, multiqueue_put_event};
 use crate::event::time::loop_fast_events;
-use std::ptr;
 
 #[repr(C)]
 pub struct SignalWatcher {
     pub uv: [u64; 40],
-    pub data: *mut crate::tui::tui::TUIData,
-    pub events: *mut MultiQueue,
+    pub data: crate::globals::GraphPtr<crate::tui::tui::TUIData>,
+    pub events: crate::globals::GraphPtr<MultiQueue>,
     pub signum: i32,
 }
 
@@ -19,8 +18,8 @@ impl SignalWatcher {
     pub const fn new() -> Self {
         Self {
             uv: [0; 40],
-            data: ptr::null_mut(),
-            events: ptr::null_mut(),
+            data: crate::globals::GraphPtr::NULL,
+            events: crate::globals::GraphPtr::NULL,
             signum: 0,
         }
     }
@@ -36,8 +35,8 @@ pub fn signal_watcher_init(loop_: &mut Loop, watcher: &mut SignalWatcher) {
     unsafe {
         uv_signal_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
         *(&raw mut watcher.uv).cast::<*mut SignalWatcher>() = watcher;
-        watcher.data = ptr::null_mut();
-        watcher.events = loop_fast_events(loop_).map_or(ptr::null_mut(), ptr::from_mut);
+        watcher.data = crate::globals::GraphPtr::NULL;
+        watcher.events = crate::globals::GraphPtr::from(loop_fast_events(loop_));
         watcher.signum = 0;
     }
 }
@@ -69,7 +68,7 @@ pub fn signal_event(watcher: &mut SignalWatcher) {
     if watcher.data.is_null() {
         crate::os::signal::on_signal(watcher.signum);
     } else {
-        crate::tui::tui::sigwinch_cb(unsafe { &mut *watcher.data });
+        crate::tui::tui::sigwinch_cb(watcher.data.borrow_mut());
     }
 }
 
@@ -78,8 +77,8 @@ unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: i32) {
         let watcher = *handle.cast::<*mut SignalWatcher>();
         (*watcher).signum = signum;
         let events = (*watcher).events;
-        if !events.is_null() {
-            multiqueue_put_event(&mut *events, Event::Signal(watcher));
+        if let Some(events) = events.opt_mut() {
+            multiqueue_put_event(events, Event::Signal(watcher));
         } else {
             signal_event(&mut *watcher);
         }
