@@ -301,20 +301,20 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
     let mut items: [KeyValuePair; 3] = [
         KeyValuePair {
             key: NvimString {
-                data: c"name".as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(c"name".as_ptr()),
                 size: 4,
             },
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(NvimString {
-                    data: mark_str.as_mut_ptr().cast(),
+                    data: crate::strings::CStrCursor::from_ptr(mark_str.as_mut_ptr().cast()),
                     size: 1,
                 }),
             },
         },
         KeyValuePair {
             key: NvimString {
-                data: c"line".as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(c"line".as_ptr()),
                 size: 4,
             },
             value: Object {
@@ -324,7 +324,7 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
         },
         KeyValuePair {
             key: NvimString {
-                data: c"col".as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(c"col".as_ptr()),
                 size: 3,
             },
             value: Object {

@@ -1,12 +1,11 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
 use crate::memory::realloc_items;
-use crate::strings::RawCCharPtrMut;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct NvimString {
-    pub data: RawCCharPtrMut,
+    pub data: crate::strings::CStrCursor<std::ffi::c_char>,
     pub size: usize,
 }
 
@@ -14,7 +13,7 @@ impl NvimString {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            data: std::ptr::null_mut(),
+            data: crate::strings::CStrCursor::NULL,
             size: 0,
         }
     }
@@ -22,11 +21,11 @@ impl NvimString {
     #[inline]
     pub const fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            data: if bytes.is_empty() {
+            data: crate::strings::CStrCursor::new(if bytes.is_empty() {
                 c"".as_ptr().cast_mut()
             } else {
                 bytes.as_ptr().cast_mut().cast()
-            },
+            }),
             size: bytes.len(),
         }
     }

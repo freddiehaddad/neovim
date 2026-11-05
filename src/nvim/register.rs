@@ -292,10 +292,7 @@ use crate::api::private::helpers::cstr_to_string;
 #[inline]
 fn copy_string_global(s: NvimString) -> NvimString {
     if s.data.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
+        NvimString::new()
     } else {
         cbuf_to_string(s.as_bytes())
     }
@@ -775,7 +772,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                     cont_vec = execreg_line_continuation(&reg.y_array, &mut i);
-                    str_ = cont_vec.as_ptr().cast_mut().cast();
+                    str_ = crate::strings::CStrCursor::from_ptr(cont_vec.as_ptr().cast());
                 }
             }
             let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(str_));
@@ -1064,13 +1061,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
     let reg_mut = unsafe { &mut *reg };
     reg_mut.y_type = yank_type;
     reg_mut.y_width = 0;
-    reg_mut.y_array = vec![
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-        yanklines
-    ];
+    reg_mut.y_array = vec![NvimString::new(); yanklines];
     reg_mut.y_allocated = true;
     reg_mut.additional_data = None;
     reg_mut.timestamp = os_realtime() as u64;
@@ -1550,10 +1541,7 @@ pub fn do_put(
         return;
     }
 
-    let mut insert_string = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let mut insert_string = NvimString::new();
     let mut insert_string_owned: Option<Vec<u8>> = None;
     if reg.is_null()
         && let Some(spec) = get_spec_reg(regname, true)
@@ -1561,7 +1549,7 @@ pub fn do_put(
         let Some(mut spec_vec) = spec else {
             return;
         };
-        insert_string.data = spec_vec.as_mut_ptr().cast();
+        insert_string.data = crate::strings::CStrCursor::from_ptr(spec_vec.as_mut_ptr().cast());
         insert_string_owned = Some(spec_vec);
     }
 
@@ -1575,14 +1563,14 @@ pub fn do_put(
         insert_string.size = insert_string.cstr_bytes().len();
         y_type = MotionType::MtCharWise;
         if regname == i32::from(b'=') {
-            let mut ptr_ = insert_string.data;
+            let mut ptr_ = insert_string.data.as_ptr();
             let mut ptrlen = insert_string.size;
             while !ptr_.is_null() {
                 let mut tmp = vim_strchr(crate::memory::cstr_from_ptr(ptr_), i32::from(b'\n'))
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if tmp.is_null() {
                     expr_y_array.push(NvimString {
-                        data: ptr_,
+                        data: crate::strings::CStrCursor::from_ptr(ptr_),
                         size: ptrlen,
                     });
                 } else {
@@ -1590,7 +1578,7 @@ pub fn do_put(
 
                     let item_size = (tmp as usize) - (ptr_ as usize);
                     expr_y_array.push(NvimString {
-                        data: ptr_,
+                        data: crate::strings::CStrCursor::from_ptr(ptr_),
                         size: item_size,
                     });
                     ptrlen -= item_size + 1;
@@ -1941,7 +1929,7 @@ pub fn do_put(
 
                 for j in 0..count {
                     unsafe {
-                        ptr::copy((*y_array.add(i)).data, ptr_, yanklen as usize);
+                        ptr::copy((*y_array.add(i)).data.as_ptr(), ptr_, yanklen as usize);
                     }
 
                     ptr_ = ptr_.wrapping_add(yanklen as usize);

@@ -141,7 +141,7 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 #[inline]
 pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
-        data: s.as_ptr().cast_mut(),
+        data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
         size: s.to_bytes().len(),
     }
 }
@@ -292,7 +292,7 @@ pub const fn error_init() -> Error {
 #[inline]
 pub fn api_clear_string(s: &mut NvimString) {
     api_free_string(*s);
-    s.data = ptr::null_mut();
+    s.data = crate::strings::CStrCursor::NULL;
     s.size = 0;
 }
 
@@ -313,6 +313,13 @@ impl IntoDictKey for RawCCharPtr {
 }
 
 impl IntoDictKey for RawCCharPtrMut {
+    #[inline]
+    fn into_dict_key(self) -> NvimString {
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
+    }
+}
+
+impl<T> IntoDictKey for crate::strings::CStrCursor<T> {
     #[inline]
     fn into_dict_key(self) -> NvimString {
         cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
@@ -691,10 +698,7 @@ pub fn find_tab_by_handle_mut(
 
 pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
     let Some(str_) = str_ else {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     };
     let len = str_.to_bytes().len();
     NvimString {
@@ -724,26 +728,23 @@ pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
 pub fn cstrn_as_string(str_: &[u8]) -> NvimString {
     if str_.is_empty() {
         return NvimString {
-            data: c"".as_ptr().cast_mut(),
+            data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
             size: 0,
         };
     }
     let size = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
     NvimString {
-        data: str_.as_ptr().cast_mut().cast(),
+        data: crate::strings::CStrCursor::from_ptr(str_.as_ptr().cast()),
         size,
     }
 }
 
 pub fn cstr_as_string(str_: Option<&CStr>) -> NvimString {
     let Some(str_) = str_ else {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     };
     NvimString {
-        data: str_.as_ptr().cast_mut(),
+        data: crate::strings::CStrCursor::from_ptr(str_.as_ptr()),
         size: str_.to_bytes().len(),
     }
 }
@@ -824,10 +825,7 @@ pub fn buf_get_text(
     mut end_col: i64,
     err: &mut Error,
 ) -> NvimString {
-    let rv = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let rv = NvimString::new();
     if lnum >= MAXLNUM {
         api_set_error!(
             err,
@@ -860,7 +858,7 @@ pub fn buf_get_text(
     }
 
     NvimString {
-        data: bufstr.wrapping_add(start_col as usize),
+        data: crate::strings::CStrCursor::from_ptr(bufstr.wrapping_add(start_col as usize)),
         size: (end_col - start_col) as usize,
     }
 }
@@ -919,7 +917,7 @@ pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
         }
     } else {
         NvimString {
-            data: c"".as_ptr().cast_mut(),
+            data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
             size: 0,
         }
     }
@@ -1012,10 +1010,7 @@ pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
             size: str_.size,
         }
     } else {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
+        NvimString::new()
     }
 }
 
@@ -4334,7 +4329,7 @@ pub fn api_metadata() -> Object {
 pub fn api_metadata_raw() -> NvimString {
     let packed = api_get_packed_metadata();
     NvimString {
-        data: packed.as_ptr().cast_mut().cast(),
+        data: crate::strings::CStrCursor::from_ptr(packed.as_ptr().cast()),
         size: packed.len(),
     }
 }

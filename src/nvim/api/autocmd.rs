@@ -645,14 +645,7 @@ pub fn nvim_get_autocmds(
                         );
                     }
                     crate::autocmd::AutoCmdHandler::Fn(cb) => {
-                        put_c(
-                            &mut autocmd_info,
-                            c"command",
-                            string_obj(NvimString {
-                                data: std::ptr::null_mut(),
-                                size: 0,
-                            }),
-                        );
+                        put_c(&mut autocmd_info, c"command", string_obj(NvimString::new()));
 
                         match cb.cb_type() {
                             K_CALLBACK_LUA => {

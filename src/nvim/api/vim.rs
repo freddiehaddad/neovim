@@ -774,10 +774,7 @@ pub fn nvim_replace_termcodes(
     special: Boolean,
 ) -> NvimString {
     if str_.size == 0 {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     }
 
     let mut flags: i32 = 0;
@@ -885,15 +882,7 @@ pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
 /// @return List of paths
 // DLLEXPORT ArrayOf(String) nvim_list_runtime_paths(Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_list_runtime_paths(arena: &mut Arena, err: &mut Error) -> Array {
-    nvim_get_runtime_file(
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        },
-        true,
-        arena,
-        err,
-    )
+    nvim_get_runtime_file(NvimString::new(), true, arena, err)
 }
 
 /// @nodoc
@@ -944,13 +933,9 @@ pub fn nvim_get_runtime_file(
 /// @nodoc
 // DLLEXPORT String nvim__get_lib_dir(void) FUNC_API_RET_ALLOC;
 pub fn nvim_get_lib_dir() -> NvimString {
-    get_lib_dir().map_or(
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        },
-        |s| crate::api::private::helpers::cstr_to_string(Some(s.as_c_str())),
-    )
+    get_lib_dir().map_or(NvimString::new(), |s| {
+        crate::api::private::helpers::cstr_to_string(Some(s.as_c_str()))
+    })
 }
 
 /// Find files in runtime directories
@@ -1769,10 +1754,7 @@ pub fn nvim_paste(
     {
         terminal_set_streamed_paste(curbuf_mut().terminal_mut(), false);
     }
-    let null_str = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let null_str = NvimString::new();
     if !api_vim_st().paste_cancelled && (phase == -1 || phase == 1) {
         paste_store(channel_id, K_FALSE, null_str, crlf);
     }

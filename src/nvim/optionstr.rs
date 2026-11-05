@@ -1621,7 +1621,7 @@ pub fn did_set_buftype(args: &mut Optset) -> Option<&CStr> {
             Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(NvimString {
-                    data: c"".as_ptr().cast_mut(),
+                    data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
                     size: 0,
                 }),
             },
@@ -2227,7 +2227,7 @@ pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     if p.is_null() {
         return Some(E_COMMA_REQUIRED);
     }
-    if p == value || crate::memory::cstr_len(p) <= 1 {
+    if value == p || crate::memory::cstr_len(p) <= 1 {
         Some(E_INVARG)
     } else {
         None
@@ -2928,7 +2928,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
             continue;
         }
         if crate::memory::cstr_first_byte(cp) == b','
-            && (cp as usize) > (value as usize)
+            && (cp.as_ptr() as usize) > (value.as_ptr() as usize)
             && crate::memory::cstr_first_byte(cp.wrapping_sub(1)) != b','
         {
             cp = cp.wrapping_add(1);

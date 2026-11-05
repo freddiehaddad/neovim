@@ -426,7 +426,7 @@ pub fn nvim_call_dict_function(
             }
             let s = di.di_tv.vval.v_string();
             fn_name = NvimString {
-                data: s.as_ptr(),
+                data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
                 size: crate::memory::cstr_len(s),
             };
         }
@@ -751,10 +751,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
         K_EXPR_NODE_ASSIGNMENT => {
             let asgn_type = node.data.ass().r#type;
             let str_val = if asgn_type == K_EXPR_ASGN_PLAIN {
-                NvimString {
-                    data: std::ptr::null_mut(),
-                    size: 0,
-                }
+                NvimString::new()
             } else {
                 cstr_as_string(crate::memory::cstr_as_opt_cstr(
                     EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr(),

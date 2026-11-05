@@ -86,10 +86,49 @@ impl<T> PartialEq for CStrCursor<T> {
     }
 }
 
+impl<T> PartialEq<*mut T> for CStrCursor<T> {
+    #[inline(always)]
+    fn eq(&self, other: &*mut T) -> bool {
+        self.0 == *other
+    }
+}
+
+impl<T> PartialEq<*const T> for CStrCursor<T> {
+    #[inline(always)]
+    fn eq(&self, other: &*const T) -> bool {
+        self.0.cast_const() == *other
+    }
+}
+
 impl<T> Eq for CStrCursor<T> {}
+
+impl<T> std::fmt::Debug for CStrCursor<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Pointer::fmt(&self.0, f)
+    }
+}
+
+impl<T> From<*mut T> for CStrCursor<T> {
+    #[inline(always)]
+    fn from(p: *mut T) -> Self {
+        Self(p)
+    }
+}
+
+impl<T> From<*const T> for CStrCursor<T> {
+    #[inline(always)]
+    fn from(p: *const T) -> Self {
+        Self(p.cast_mut())
+    }
+}
 
 impl<T> CStrCursor<T> {
     pub const NULL: Self = Self(ptr::null_mut());
+
+    #[inline(always)]
+    pub const fn new(p: *mut T) -> Self {
+        Self(p)
+    }
 
     #[inline(always)]
     pub const fn from_ptr(p: *const T) -> Self {
@@ -117,6 +156,18 @@ impl<T> CStrCursor<T> {
     #[inline(always)]
     pub const fn cast<U>(self) -> *mut U {
         self.0.cast()
+    }
+
+    #[inline(always)]
+    pub const fn cast_cursor<U>(self) -> CStrCursor<U> {
+        CStrCursor(self.0.cast())
+    }
+
+    #[inline(always)]
+    pub fn set_byte(self, idx: usize, val: u8) {
+        if !self.0.is_null() {
+            unsafe { *self.0.cast::<u8>().add(idx) = val };
+        }
     }
 
     #[inline(always)]

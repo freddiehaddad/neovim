@@ -993,10 +993,7 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
     ) {
         retval = Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }),
+            data: ObjectData::String(NvimString::new()),
         };
     } else {
         if tv.v_type == VarType::VarList {

@@ -531,7 +531,7 @@ fn get_lambda_name() -> NvimString {
         (n as usize).min(buf_size - 1)
     };
     NvimString {
-        data: buf_ptr.cast(),
+        data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
         size,
     }
 }

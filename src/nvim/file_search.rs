@@ -67,10 +67,7 @@ const K_CPO_DOTTAG: i32 = b'd' as i32;
 pub(crate) const K_OPT_INCLUDEEXPR: OptIndex = 147;
 pub(crate) const K_BUF_OPT_INCLUDEEXPR: usize = 47;
 
-pub(crate) const NULL_STRING: NvimString = NvimString {
-    data: ptr::null_mut(),
-    size: 0,
-};
+pub(crate) const NULL_STRING: NvimString = NvimString::new();
 
 const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completion";
 
@@ -257,7 +254,7 @@ pub fn vim_findfile_init(
 
             search_ctx.ffsc_start_dir = copy_string(
                 NvimString {
-                    data: expand_buf.as_mut_ptr().cast(),
+                    data: crate::strings::CStrCursor::from_ptr(expand_buf.as_mut_ptr().cast()),
                     size: expand_len,
                 },
                 None,
@@ -350,7 +347,7 @@ pub fn vim_findfile_init(
             expand_buf[expand_size] = NUL as u8;
             search_ctx.ffsc_wc_path = copy_string(
                 NvimString {
-                    data: expand_buf.as_mut_ptr().cast(),
+                    data: crate::strings::CStrCursor::from_ptr(expand_buf.as_mut_ptr().cast()),
                     size: expand_size,
                 },
                 None,
@@ -417,7 +414,7 @@ pub fn vim_findfile_init(
                 let p = path_tail(search_ctx.ffsc_fix_path.as_cstr()).as_ptr();
                 let mut len = search_ctx.ffsc_fix_path.size as i32;
 
-                if (p as usize) > (search_ctx.ffsc_fix_path.data as usize) {
+                if (p as usize) > (search_ctx.ffsc_fix_path.data.as_ptr() as usize) {
                     len =
                         crate::memory::ptr_offset_from(p, search_ctx.ffsc_fix_path.data) as i32 - 1;
                     let fix_bytes = search_ctx.ffsc_fix_path.as_bytes();
@@ -523,13 +520,14 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
     let mut file_path_vec: Vec<u8> = vec![0; MAXPATHL];
     let mut file_path = NvimString {
-        data: file_path_vec.as_mut_ptr().cast(),
+        data: crate::strings::CStrCursor::from_ptr(file_path_vec.as_mut_ptr().cast()),
         size: 0,
     };
     let mut path_end = if !search_ctx.ffsc_start_dir.data.is_null() {
         search_ctx
             .ffsc_start_dir
             .data
+            .as_ptr()
             .wrapping_add(search_ctx.ffsc_start_dir.size)
     } else {
         ptr::null_mut()
@@ -568,7 +566,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
             let mut rest_of_wildcards: NvimString;
             if stackp.ffs_filearray.is_empty() {
-                let mut dirptrs = [file_path.data, ptr::null_mut()];
+                let mut dirptrs = [file_path.data.as_ptr(), ptr::null_mut()];
 
                 if !vim_isAbsName(stackp.ffs_fix_path.cstr_bytes())
                     && !search_ctx.ffsc_start_dir.data.is_null()
@@ -638,7 +636,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
                         if !stackp.ffs_star_star_empty {
                             stackp.ffs_star_star_empty = true;
-                            dirptrs[1] = stackp.ffs_fix_path.data;
+                            dirptrs[1] = stackp.ffs_fix_path.data.as_ptr();
                         }
                     }
 
@@ -849,12 +847,12 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 break;
             }
 
-            while path_end > search_ctx.ffsc_start_dir.data
+            while path_end > search_ctx.ffsc_start_dir.data.as_ptr()
                 && vim_ispathsep(i32::from(crate::memory::cstr_first_byte(path_end)))
             {
                 path_end = path_end.wrapping_sub(1);
             }
-            while path_end > search_ctx.ffsc_start_dir.data
+            while path_end > search_ctx.ffsc_start_dir.data.as_ptr()
                 && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(
                     path_end.wrapping_sub(1),
                 )))

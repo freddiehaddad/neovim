@@ -2093,7 +2093,7 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
     };
     let mut str_bytes = terminfo_info_msg(&tui.ti, tui.term.as_deref(), tui.terminfo_found_in_db);
     let str_val = NvimString {
-        data: str_bytes.as_mut_ptr().cast(),
+        data: crate::strings::CStrCursor::from_ptr(str_bytes.as_mut_ptr().cast()),
         size: str_bytes.len(),
     };
     let mut info_items = [string_obj(str_val)];
@@ -2270,7 +2270,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
 }
 
 pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
-    let err = unsafe { uv_chdir(path.data) };
+    let err = unsafe { uv_chdir(path.data.as_ptr()) };
     if err != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,

@@ -752,7 +752,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(NvimString {
-                    data: c"".as_ptr().cast_mut(),
+                    data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
                     size: 0,
                 }),
             },

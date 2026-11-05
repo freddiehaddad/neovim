@@ -410,7 +410,7 @@ fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
         row as Integer,
         scrolled,
         NvimString {
-            data: buf.as_mut_ptr().cast(),
+            data: crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr().cast()),
             size,
         },
         g_st().msg_grid.zindex as Integer,
@@ -1354,10 +1354,7 @@ pub fn msg_progress<'a>(
     let mut data = MessageData {
         source: cstr_as_string(Some(c"nvim")),
         percent: Integer::from(percent),
-        title: NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        },
+        title: NvimString::new(),
         status: cstr_as_string(Some(status)),
         data: Dict::new(),
     };
@@ -1454,10 +1451,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     };
 
     let empty_pair = KeyValuePair {
-        key: NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        },
+        key: NvimString::new(),
         value: NIL_OBJ,
     };
     let mut data_items = [empty_pair; 7];
@@ -1465,7 +1459,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     let mut put_c = |key: &'static CStr, value: Object| {
         data_items[data_size] = KeyValuePair {
             key: NvimString {
-                data: key.as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(key.as_ptr()),
                 size: key.to_bytes().len(),
             },
             value,
@@ -2387,13 +2381,10 @@ pub fn str2special(
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
             data.key = NvimString {
-                data: p.as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(p.as_ptr()),
                 size: p.to_bytes().len(),
             };
-            data.key_alt = NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
+            data.key_alt = NvimString::new();
         }
         return p;
     }
@@ -2448,23 +2439,22 @@ pub fn str2special(
         if (b'A' as i32..=b'Z' as i32).contains(&c) {
             data.as_deref_mut().unwrap().key_mem = (c + 32) as u8;
             data.as_deref_mut().unwrap().key = NvimString {
-                data: (&raw mut data.as_deref_mut().unwrap().key_mem).cast(),
+                data: crate::strings::CStrCursor::from_ptr(
+                    (&raw mut data.as_deref_mut().unwrap().key_mem).cast(),
+                ),
                 size: 1,
             };
             data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
             data.as_deref_mut().unwrap().key_alt = NvimString {
-                data: buf_ptr.cast(),
+                data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
                 size: 1,
             };
         } else {
             data.as_deref_mut().unwrap().key = NvimString {
-                data: buf_ptr.cast(),
+                data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
                 size: 1,
             };
-            data.unwrap().key_alt = NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
+            data.unwrap().key_alt = NvimString::new();
         }
     }
 
@@ -2735,10 +2725,7 @@ pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
                     obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(-1),
                 },
-                NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                },
+                NvimString::new(),
             );
             g_st().cmdline_was_last_drawn = false;
         }
@@ -3181,7 +3168,10 @@ fn inc_msg_scrolled() {
                 sname,
                 i64::from(sourcing_lnum()),
             );
-            NvimString { data: tofree, size }
+            NvimString {
+                data: crate::strings::CStrCursor::from_ptr(tofree),
+                size,
+            }
         } else {
             cstr_as_string(Some(gettext(c"Unknown")))
         };

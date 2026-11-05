@@ -2647,7 +2647,7 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
     let mut args_items: [Object; 1] = [Object {
         obj_type: ObjectType::ObjectTypeString,
         data: ObjectData::String(NvimString {
-            data: str_cstr.as_ptr().cast_mut(),
+            data: crate::strings::CStrCursor::from_ptr(str_cstr.as_ptr()),
             size: str_cstr.as_bytes().len(),
         }),
     }];
@@ -2658,9 +2658,9 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
     };
     let mut err = Error::new();
     let code = NvimString {
-        data: c"return type(loadstring(...)()) == 'function'"
-            .as_ptr()
-            .cast_mut(),
+        data: crate::strings::CStrCursor::from_ptr(
+            c"return type(loadstring(...)()) == 'function'".as_ptr(),
+        ),
         size: 44,
     };
     let result = nlua_exec(code, None, args, K_RET_NIL_BOOL, None, &mut err);

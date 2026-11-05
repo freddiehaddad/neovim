@@ -128,10 +128,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 let obj = parent.data[0].object();
                 let kv = &mut obj.data.dict()[parent.pos];
                 if parent.key_visited == 0 {
-                    kv.key = NvimString {
-                        data: std::ptr::null_mut(),
-                        size: 0,
-                    };
+                    kv.key = NvimString::new();
                     key_location = &mut kv.key;
                 }
                 result = &mut kv.value;

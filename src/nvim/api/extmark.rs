@@ -52,7 +52,6 @@ use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::WinInfoInfo;
-use std::ptr;
 
 use crate::cursor::{Colnr, Linenr};
 
@@ -1674,10 +1673,7 @@ pub fn nvim_buf_debug_extmarks(
     err: &mut Error,
 ) -> NvimString {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     };
     mt_inspect(&b.b_marktree, keys, dot)
 }

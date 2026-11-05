@@ -590,10 +590,7 @@ const DEFAULT_SEARCH_PAT: KeyDict__shada_search_pat = KeyDict__shada_search_pat 
     highlighted: false,
     search_backward: false,
     offset: 0,
-    pat: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
+    pat: NvimString::new(),
 };
 
 fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
@@ -3621,10 +3618,7 @@ fn shada_read_next_item(
                                 initial_fpos,
                                 error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
-                        it.pat = NvimString {
-                            data: ptr::null_mut(),
-                            size: 0,
-                        };
+                        it.pat = NvimString::new();
                         break 'parse_item false;
                     }
                     if (it.is_set_shada_search_pat & (1u64 << KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP))

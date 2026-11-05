@@ -290,7 +290,7 @@ pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
                 let idx = dict.size;
                 dict[idx] = KeyValuePair {
                     key: NvimString {
-                        data: key.as_ptr().cast_mut(),
+                        data: crate::strings::CStrCursor::from_ptr(key.as_ptr()),
                         size: key.to_bytes().len(),
                     },
                     value,

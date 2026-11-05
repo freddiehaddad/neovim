@@ -38,7 +38,6 @@ use crate::option::{
     set_option_value_for,
 };
 use crate::window::{win_setheight_win, win_setwidth_win};
-use std::ptr;
 
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
 
@@ -124,10 +123,7 @@ pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
 
 fn src2ns(src_id: &mut Integer) -> u32 {
     if *src_id == 0 {
-        *src_id = nvim_create_namespace(NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        });
+        *src_id = nvim_create_namespace(NvimString::new());
     }
     if *src_id < 0 {
         return (1u32 << 31) - 1;
@@ -423,10 +419,7 @@ pub fn buffer_get_line(
     arena: &mut Arena,
     err: &mut Error,
 ) -> NvimString {
-    let mut rv = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let mut rv = NvimString::new();
     index = convert_index(index);
     let slice = nvim_buf_get_lines(0, buffer, index, index + 1, true, arena, None, err);
     if !error_set(err) && slice.size > 0 {

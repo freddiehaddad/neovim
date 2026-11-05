@@ -56,14 +56,8 @@ impl KeyDict_xdl_diff {
         Self {
             is_set_xdl_diff: 0,
             on_hunk: LUA_NOREF,
-            result_type: NvimString {
-                data: std::ptr::null_mut(),
-                size: 0,
-            },
-            algorithm: NvimString {
-                data: std::ptr::null_mut(),
-                size: 0,
-            },
+            result_type: NvimString::new(),
+            algorithm: NvimString::new(),
             ctxlen: 0,
             interhunkctxlen: 0,
             linematch: Object {

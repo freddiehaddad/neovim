@@ -456,7 +456,7 @@ pub fn nvim_option_to_object(
     let schema = option.schema;
 
     let str_ptr = if !value.data.string().data.is_null() {
-        value.data.string().data
+        value.data.string().data.as_ptr()
     } else {
         c"".as_ptr().cast_mut()
     };

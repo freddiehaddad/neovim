@@ -3137,10 +3137,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         }
     }
     if getln_st().cmdpreview_ns == 0 {
-        getln_st().cmdpreview_ns = nvim_create_namespace(NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }) as i32;
+        getln_st().cmdpreview_ns = nvim_create_namespace(NvimString::new()) as i32;
     }
 
     g_st().cmdpreview = true;

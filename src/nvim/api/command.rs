@@ -174,10 +174,7 @@ pub struct KeyDict_get_commands {
 #[inline]
 fn cstr_to_arena_str(arena: &mut Arena, str_ptr: Option<&CStr>) -> NvimString {
     match str_ptr {
-        None => NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        },
+        None => NvimString::new(),
         Some(s) => cbuf_to_arena_str(arena, s.to_bytes()),
     }
 }
@@ -634,10 +631,7 @@ pub fn nvim_cmd(
     let mut cmdline_buf: Vec<u8> = Vec::new();
     let mut errormsg = None;
     let mut args = Array::new();
-    let mut retv = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let mut retv = NvimString::new();
 
     let mask = cmd.is_set_cmd;
 
@@ -656,7 +650,7 @@ pub fn nvim_cmd(
         }
 
         let cmdname = arena_string(arena, cmd.cmd).data;
-        ea.cmd = crate::strings::CStrCursor::from_ptr(cmdname);
+        ea.cmd = cmdname.cast_cursor();
 
         let mut p_opt = find_ex_command(&mut ea, None);
 

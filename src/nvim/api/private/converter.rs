@@ -25,7 +25,7 @@ fn cbuf_to_string_obj(arena: Option<&mut Arena>, reuse_strdata: bool, bytes: &[u
     let s = if reuse_strdata {
         if bytes.is_empty() {
             NvimString {
-                data: c"".as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
                 size: 0,
             }
         } else {

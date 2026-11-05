@@ -3869,7 +3869,7 @@ fn has_wsl() -> bool {
         let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
         let o = nlua_exec(
             NvimString {
-                data: cmd.as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(cmd.as_ptr()),
                 size: cmd.to_bytes().len(),
             },
             None,

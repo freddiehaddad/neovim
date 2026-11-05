@@ -4561,7 +4561,7 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
         let code = c"return vim.health._complete()";
         let res = nlua_exec(
             NvimString {
-                data: code.as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(code.as_ptr()),
                 size: code.to_bytes().len(),
             },
             None,

@@ -1116,7 +1116,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         let buflen = copy_option_part(&mut entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
 
         let the_entry = NvimString {
-            data: cur_entry,
+            data: crate::strings::CStrCursor::from_ptr(cur_entry),
             size: buflen,
         };
 
@@ -1330,7 +1330,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut fname_len = ffname_owned.as_bytes().len();
         let mut buf_data = [0u8; MAXPATHL];
         let mut buf = NvimString {
-            data: buf_data.as_mut_ptr().cast(),
+            data: crate::strings::CStrCursor::from_ptr(buf_data.as_mut_ptr().cast()),
             size: 0,
         };
 
@@ -1400,7 +1400,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let ad =
             crate::path::concat_fnames_cstr(crate::memory::cstr_from_ptr(fname), c"after", true);
         let mut afterdir = NvimString {
-            data: ad.as_ptr().cast_mut(),
+            data: crate::strings::CStrCursor::from_ptr(ad.as_ptr()),
             size: ad.as_bytes().len(),
         };
         let afterdir_has_entries = if is_pack {
@@ -1453,7 +1453,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let new_rtp_size = new_rtp_vec.len();
         new_rtp_vec.push(0);
         let new_rtp = NvimString {
-            data: new_rtp_vec.as_mut_ptr().cast(),
+            data: crate::strings::CStrCursor::from_ptr(new_rtp_vec.as_mut_ptr().cast()),
             size: new_rtp_size,
         };
 

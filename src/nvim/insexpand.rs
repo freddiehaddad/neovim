@@ -270,10 +270,7 @@ fn ctrl_x_msg(i: i32) -> Option<&'static CStr> {
 
 #[inline]
 const fn empty_nvim_string() -> NvimString {
-    NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    }
+    NvimString::new()
 }
 
 use crate::mbyte::utf_byte2len;
@@ -1468,9 +1465,7 @@ fn ins_compl_longest_match(match_: &mut Compl) {
     }
 
     if !crate::memory::cstr_is_empty(p) {
-        unsafe {
-            *p = NUL;
-        }
+        p.set_byte(0, 0);
 
         insexp().compl_leader.size =
             crate::memory::ptr_offset_from(p, insexp().compl_leader.data) as usize;
@@ -1771,16 +1766,16 @@ fn sort_compl_match_list(compare: fn(&Compl, &Compl) -> i32) {
     });
 
     if let Some(p) = saved_ptrs[0] {
-        insexp().compl_curr_idx = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+        insexp().compl_curr_idx = list.iter().position(|m| m.cp_str.data == p);
     }
     if let Some(p) = saved_ptrs[1] {
-        insexp().compl_shown_idx = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+        insexp().compl_shown_idx = list.iter().position(|m| m.cp_str.data == p);
     }
     if let Some(p) = saved_ptrs[2] {
-        insexp().compl_old_idx = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+        insexp().compl_old_idx = list.iter().position(|m| m.cp_str.data == p);
     }
     if let Some(p) = saved_ptrs[3] {
-        insexp().compl_preselect_idx = list.iter().position(|m| ptr::eq(m.cp_str.data, p));
+        insexp().compl_preselect_idx = list.iter().position(|m| m.cp_str.data == p);
     }
     insexp().compl_is_cyclic = true;
 }
@@ -2661,7 +2656,7 @@ pub fn ins_compl_addfrommatch() {
             return;
         }
 
-        p = ptr::null_mut();
+        p = crate::strings::CStrCursor::NULL;
         let mut plen: usize = 0;
         let mut cp_idx = compl_next_idx(shown_idx);
         while let Some(ci) = cp_idx
@@ -2892,7 +2887,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
     }
     let word = match word_owned {
         Some(ref w) => NvimString {
-            data: w.as_ptr().cast_mut(),
+            data: crate::strings::CStrCursor::from_ptr(w.as_ptr()),
             size: w.as_bytes().len(),
         },
         None => empty_nvim_string(),
@@ -5339,7 +5334,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         if let Some(pref) = find_common_prefix(&mut cp_str_len, false)
             .or_else(|| find_common_prefix(&mut cp_str_len, true))
         {
-            cp_str = pref.as_ptr().cast_mut().cast();
+            cp_str = crate::strings::CStrCursor::from_ptr(pref.as_ptr().cast());
         } else {
             let shown = compl_opt(insexp().compl_shown_idx).unwrap();
             cp_str = shown.cp_str.data;
@@ -6697,12 +6692,11 @@ fn remove_old_matches() {
     }
 
     insexp().compl_preselect_idx =
-        preselect_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
-    insexp().compl_old_idx =
-        old_ptr.and_then(|p| list.iter().position(|m| ptr::eq(m.cp_str.data, p)));
+        preselect_ptr.and_then(|p| list.iter().position(|m| m.cp_str.data == p));
+    insexp().compl_old_idx = old_ptr.and_then(|p| list.iter().position(|m| m.cp_str.data == p));
 
     if let Some(sp) = shown_ptr
-        && let Some(new_shown) = list.iter().position(|m| ptr::eq(m.cp_str.data, sp))
+        && let Some(new_shown) = list.iter().position(|m| m.cp_str.data == sp)
     {
         insexp().compl_shown_idx = Some(new_shown);
     } else if !list.is_empty() {

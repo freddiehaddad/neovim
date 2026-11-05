@@ -2429,10 +2429,7 @@ pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -
     let mut ns_hl: i32 = 0;
     if let Some(ref mut w) = wp {
         if w.w_ns_hl_winhl == 0 {
-            w.w_ns_hl_winhl = nvim_create_namespace(NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }) as i32;
+            w.w_ns_hl_winhl = nvim_create_namespace(NvimString::new()) as i32;
         } else {
             let dp = get_decor_provider(w.w_ns_hl_winhl, true).unwrap();
             dp.hl_valid += 1;
@@ -2648,7 +2645,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
         errmsg = set_option_value(
             K_OPT_KEYMAP,
             string_obj(NvimString {
-                data: c"arabic".as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(c"arabic".as_ptr()),
                 size: "arabic".len(),
             }),
             OPT_LOCAL,
@@ -3674,7 +3671,7 @@ macro_rules! cstr_def_val {
         Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(NvimString {
-                data: S.as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(S.as_ptr()),
                 size: S.to_bytes().len(),
             }),
         }
@@ -4892,7 +4889,7 @@ pub fn optval_free_read(opt_idx: OptIndex, value: Object) {
 pub fn optval_free(o: Object) {
     match o.obj_type {
         ObjectType::ObjectTypeString => {
-            if o.data.string().data != EMPTY_STRING_OPTION.as_ptr().cast() {
+            if o.data.string().data != EMPTY_STRING_OPTION.as_ptr().cast::<std::ffi::c_char>() {
                 api_free_string(o.data.string());
             }
         }

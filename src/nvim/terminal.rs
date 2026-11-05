@@ -439,7 +439,7 @@ fn main_loop_events_mut() -> &'static mut MultiQueue {
 #[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     NvimString {
-        data: bytes.as_ptr().cast_mut().cast(),
+        data: crate::strings::CStrCursor::from_ptr(bytes.as_ptr().cast()),
         size: bytes.len() - 1,
     }
 }

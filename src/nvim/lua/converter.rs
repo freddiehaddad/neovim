@@ -1485,7 +1485,11 @@ pub fn nlua_push_typval(lstate: *mut lua_State, tv: &mut TypVal, flags: i32) -> 
 /// Convert given `String` to Lua string (`nlua_push_String`).
 pub fn nlua_push_string(lstate: *mut lua_State, s: NvimString, _flags: i32) {
     unsafe {
-        let data = if s.size != 0 { s.data } else { c"".as_ptr() };
+        let data = if s.size != 0 {
+            s.data.as_ptr().cast_const()
+        } else {
+            c"".as_ptr()
+        };
         lua_pushlstring(lstate, data, s.size);
     }
 }
@@ -1597,10 +1601,7 @@ pub fn nlua_pop_string_opt(
     if unsafe { lua_type(lstate, -1) } != LUA_TSTRING {
         lua_pop(lstate, 1);
         api_set_error!(err, ErrorType::ErrorTypeValidation, c"Expected Lua string",);
-        return NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     }
     let mut size = 0usize;
     let data = unsafe { lua_tolstring(lstate, -1, &mut size) };

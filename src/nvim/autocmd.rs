@@ -3185,10 +3185,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
 fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> bool {
     if callback.cb_type() == K_CALLBACK_LUA {
         let mut data_items = [KeyValuePair {
-            key: NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            },
+            key: NvimString::new(),
             value: boolean_obj(false),
         }; 8];
         let mut size = 0usize;

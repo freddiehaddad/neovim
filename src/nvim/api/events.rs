@@ -14,7 +14,7 @@ use crate::log::{LOGLVL_ERR, logmsg};
 // DLLEXPORT void nvim_error_event(uint64_t channel_id, Integer type, String msg) FUNC_API_REMOTE_ONLY;
 pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
     let msg_ptr = if msg.size != 0 {
-        msg.data
+        msg.data.as_ptr().cast_const()
     } else {
         c"".as_ptr()
     };
@@ -68,10 +68,7 @@ mod tests {
 
     #[test]
     fn error_event_noop_in_unit_test() {
-        let msg = NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        };
+        let msg = NvimString::new();
         nvim_error_event(1, 0, msg);
     }
 }

@@ -152,7 +152,6 @@ use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
 use crate::window::{WinInfoInfo, goto_tabpage, may_trigger_win_scrolled_resized};
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::change::COM_MIDDLE;
 const INPUT_BUFLEN: usize = 100;
@@ -2461,14 +2460,11 @@ pub fn get_last_insert() -> NvimString {
         let skip = ins_st().last_insert_skip as usize;
         let bytes = li.as_bytes();
         NvimString {
-            data: li.as_ptr().wrapping_add(skip).cast_mut(),
+            data: crate::strings::CStrCursor::from_ptr(li.as_ptr().wrapping_add(skip)),
             size: bytes.len().saturating_sub(skip),
         }
     } else {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
+        NvimString::new()
     }
 }
 

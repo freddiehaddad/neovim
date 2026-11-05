@@ -3692,7 +3692,9 @@ impl SubBuf {
             data: self
                 .vec
                 .as_ref()
-                .map_or(ptr::null_mut(), |v| v.as_ptr().cast_mut().cast()),
+                .map_or(crate::strings::CStrCursor::NULL, |v| {
+                    crate::strings::CStrCursor::from_ptr(v.as_ptr().cast())
+                }),
             size: self.size,
         }
     }
@@ -3819,10 +3821,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let mut regmatch: Regmmatch = Regmmatch::new();
     let mut sub = ptr::null_mut();
     let mut sub_owned: Option<std::ffi::CString> = None;
-    let mut pat = NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    };
+    let mut pat = NvimString::new();
     let delimiter: i32;
     let mut has_second_delim = false;
     let mut got_quit = false;
@@ -3877,7 +3876,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 which_pat = RE_SEARCH;
             }
             pat = NvimString {
-                data: c"".as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
                 size: 0,
             };
             delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
@@ -3887,7 +3886,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             which_pat = RE_LAST;
             delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
             cmd = cmd.wrapping_add(1);
-            pat.data = cmd;
+            pat.data = crate::strings::CStrCursor::from_ptr(cmd);
             let cmd_len = crate::memory::cstr_len(cmd);
             let cmd_slice =
                 unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), cmd_len + 1) };
@@ -3932,10 +3931,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             emsg(gettext(E_NOPRESUB));
             return 0;
         };
-        pat = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        pat = NvimString::new();
         let sub_cstr = old_sub_cstr.clone();
         sub = sub_cstr.as_ptr().cast_mut();
         sub_owned = Some(sub_cstr);

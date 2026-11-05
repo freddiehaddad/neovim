@@ -373,7 +373,7 @@ pub fn mpack_object_inner(
                 api_free_luaref(cur.data.luaref());
                 cur.data = ObjectData::LuaRef(LUA_NOREF);
                 let s = NvimString {
-                    data: cs.as_ptr().cast_mut(),
+                    data: crate::strings::CStrCursor::from_ptr(cs.as_ptr()),
                     size: cs.to_bytes().len(),
                 };
                 mpack_str(s, packer);
@@ -498,7 +498,7 @@ mod tests {
         let s = c"hello";
         mpack_str(
             NvimString {
-                data: s.as_ptr().cast_mut(),
+                data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
                 size: 5,
             },
             &mut pb,

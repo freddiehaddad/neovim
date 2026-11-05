@@ -1299,16 +1299,10 @@ pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     };
     if b.b_ffname.is_none() {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+        return NvimString::new();
     }
     cstr_as_string(b.ffname_opt())
 }
