@@ -233,11 +233,7 @@ pub fn channel_outstream_mut(chan: &mut Channel) -> &'static mut RStream {
 
 #[inline]
 pub fn find_channel(id: u64) -> Option<&'static mut Channel> {
-    g_st()
-        .channels
-        .get(&id)
-        .copied()
-        .and_then(|p| unsafe { p.as_mut() })
+    g_st().channels.get(&id).copied().and_then(|p| p.opt_mut())
 }
 
 #[inline]
@@ -276,7 +272,7 @@ pub fn rpc_start(channel: &mut Channel) {
         let ch_ptr: *mut Channel = channel;
         rstream_start(
             channel_outstream_mut(channel),
-            StreamCbData::ChannelRpc(ch_ptr),
+            StreamCbData::ChannelRpc(ch_ptr.into()),
         );
     }
 }
@@ -657,7 +653,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
             multiqueue_put_event(
                 channel.events_mut(),
                 Event::RpcInternalRead {
-                    channel: &raw mut *channel,
+                    channel: channel.into(),
                     buffer,
                 },
             );
@@ -721,14 +717,14 @@ fn send_error(
 }
 
 fn broadcast_event(name: &CStr, args: Array) {
-    if g_st().channels.values().any(|&ch| unsafe { (*ch).is_rpc }) {
+    if g_st().channels.values().any(|&ch| ch.is_rpc) {
         serialize_request(0, 0, name, args);
     }
 }
 
 fn has_undetached_rpc_chan() -> bool {
     for &chan in g_st().channels.values() {
-        let ct = unsafe { &*chan };
+        let ct = chan.borrow();
         if ct.is_rpc && !ct.rpc.closed && !ct.detach {
             return true;
         }
@@ -745,10 +741,7 @@ pub fn rpc_close(channel: &mut Channel) {
 
     {
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event(
-            qc.fast_events.borrow_mut(),
-            Event::RpcClose(&raw mut *channel),
-        );
+        multiqueue_put_event(qc.fast_events.borrow_mut(), Event::RpcClose(channel.into()));
     }
 }
 
@@ -903,7 +896,7 @@ fn packer_buffer_init_channels(chan_id: u64, packer: &mut PackerBuffer) {
         let rpc_ids: Vec<u64> = g_st()
             .channels
             .values()
-            .filter_map(|&ch| unsafe { (*ch).is_rpc.then_some((*ch).id) })
+            .filter_map(|&ch| ch.is_rpc.then_some(ch.id))
             .collect();
         for id in rpc_ids {
             if let Some(ct) = find_channel_opt(id)
@@ -932,14 +925,14 @@ fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
                 let _ = channel_write(chan, buf);
             }
         } else {
-            let rpc_chans: Vec<*mut Channel> = g_st()
+            let rpc_chans: Vec<crate::globals::GraphPtr<Channel>> = g_st()
                 .channels
                 .values()
                 .copied()
-                .filter(|&ch| unsafe { (*ch).is_rpc })
+                .filter(|&ch| ch.is_rpc)
                 .collect();
             for chan in rpc_chans {
-                let _ = channel_write(unsafe { &mut *chan }, std::rc::Rc::clone(&buf));
+                let _ = channel_write(chan.borrow_mut(), std::rc::Rc::clone(&buf));
             }
         }
     }

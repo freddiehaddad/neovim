@@ -132,11 +132,11 @@ use crate::terminal::on_scrollback_option_changed;
 use crate::ui::ui_call_option_set;
 use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn, u_compute_hash, u_read_undo, u_sync};
 use crate::window::{
-    MIN_COLUMNS, STATUS_HEIGHT, TabPageInfo, WinInfoInfo, Winopt, check_colorcolumn,
-    command_height, frame_new_height, global_stl_height, last_status, min_rows,
-    min_rows_for_all_tabpages, set_winbar, set_winbar_all, set_winbar_win, tabline_height,
-    unuse_tabpage, use_tabpage, win_comp_pos, win_comp_scroll, win_default_scroll, win_equal,
-    win_find_tabpage, win_new_screen_rows, win_setheight, win_setwidth,
+    MIN_COLUMNS, STATUS_HEIGHT, WinInfoInfo, Winopt, check_colorcolumn, command_height,
+    frame_new_height, global_stl_height, last_status, min_rows, min_rows_for_all_tabpages,
+    set_winbar, set_winbar_all, set_winbar_win, tabline_height, unuse_tabpage, use_tabpage,
+    win_comp_pos, win_comp_scroll, win_default_scroll, win_equal, win_find_tabpage,
+    win_new_screen_rows, win_setheight, win_setwidth,
 };
 use crate::winfloat::win_float_update_statusline;
 use std::ffi::{CStr, c_void};
@@ -5776,11 +5776,11 @@ pub fn set_option_direct_for(
     match target {
         OptTarget::Global => {}
         OptTarget::Win(win) => {
-            set_curwin(win);
+            set_curwin(win.as_ptr());
             g_st().curbuf = curwin_mut().w_buffer;
         }
         OptTarget::Buf(buf) => {
-            g_st().curbuf = (buf).into();
+            g_st().curbuf = buf;
         }
         OptTarget::Tab(_) => std::process::abort(),
     }
@@ -5837,15 +5837,15 @@ pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: i3
 #[derive(Clone, Copy)]
 pub enum OptTarget {
     Global,
-    Win(*mut WinInfoInfo),
-    Buf(*mut FileBuf),
-    Tab(*mut TabPageInfo),
+    Win(WinPtr),
+    Buf(BufPtr),
+    Tab(TabpagePtr),
 }
 
 enum OptSavedCtx {
     None,
     Switch(CtxSwitch),
-    Tab(*mut TabPageInfo),
+    Tab(TabpagePtr),
 }
 
 /// Switch current context to get/set option value for the target window/buffer/tabpage.
@@ -5865,14 +5865,8 @@ fn switch_option_context(
                 return false;
             }
             let mut cs = CtxSwitch::new();
-            let tab = unsafe { win.as_ref() }.and_then(win_find_tabpage);
-            if !ctx_switch(
-                &mut cs,
-                unsafe { win.as_mut() },
-                tab,
-                None,
-                K_CTX_NO_DISPLAY,
-            ) {
+            let tab = win.opt().and_then(win_find_tabpage);
+            if !ctx_switch(&mut cs, win.opt_mut(), tab, None, K_CTX_NO_DISPLAY) {
                 ctx_restore(&mut cs);
                 if !error_set(err) {
                     api_set_error!(
@@ -5894,7 +5888,7 @@ fn switch_option_context(
                 return false;
             }
             let mut cs = CtxSwitch::new();
-            ctx_switch(&mut cs, None, None, unsafe { buf.as_mut() }, 0);
+            ctx_switch(&mut cs, None, None, buf.opt_mut(), 0);
             *ctx = OptSavedCtx::Switch(cs);
             true
         }
@@ -5905,9 +5899,9 @@ fn switch_option_context(
             if tab == g_st().curtab.as_ptr() {
                 return false;
             }
-            *ctx = OptSavedCtx::Tab(g_st().curtab.as_ptr());
+            *ctx = OptSavedCtx::Tab(g_st().curtab);
             unuse_tabpage(curtab_mut());
-            use_tabpage(unsafe { &mut *tab });
+            use_tabpage(tab.borrow_mut());
             true
         }
         _ => unreachable!(),
@@ -5922,7 +5916,7 @@ fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
         }
         (K_OPT_SCOPE_TAB, OptSavedCtx::Tab(saved_curtab)) => {
             unuse_tabpage(curtab_mut());
-            use_tabpage(unsafe { &mut **saved_curtab });
+            use_tabpage(saved_curtab.borrow_mut());
         }
         _ => {}
     }
@@ -5975,7 +5969,8 @@ pub fn set_option_value_for(
             return;
         }
 
-        unsafe { (*tab).tp_ch_used = value.data.integer() };
+        let mut tab = tab;
+        tab.tp_ch_used = value.data.integer();
 
         return;
     }

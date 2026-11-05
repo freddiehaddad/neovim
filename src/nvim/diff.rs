@@ -1426,7 +1426,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         static_cstr_as_obj(c"diff"),
         OPT_LOCAL,
         0,
-        OptTarget::Win(&raw mut *wp),
+        OptTarget::Win(wp.into()),
     );
     if !wp.w_onebuf_opt.wo_diff {
         wp.w_onebuf_opt.wo_fen_save = wp.w_onebuf_opt.wo_fen;

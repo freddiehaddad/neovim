@@ -8,7 +8,7 @@ use crate::event::multiqueue::{Event, MultiQueue, multiqueue_empty, multiqueue_p
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TimeWatcherData {
     None,
-    EvalTimer(*mut crate::eval::VimTimer),
+    EvalTimer(crate::globals::GraphPtr<crate::eval::VimTimer>),
     WaitDummy,
     TerminalRefresh,
 }
@@ -85,7 +85,7 @@ pub fn time_event(watcher_in: &mut TimeWatcher) {
         match (*watcher).data {
             TimeWatcherData::None => {}
             TimeWatcherData::EvalTimer(timer) => {
-                crate::eval::timer_due_cb(&mut *watcher, &mut *timer);
+                crate::eval::timer_due_cb(&mut *watcher, timer.borrow_mut());
             }
             TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(&mut *watcher),
             TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
@@ -100,7 +100,7 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
             return;
         }
         if let Some(events) = (*watcher).events.opt_mut() {
-            multiqueue_put_event(events, Event::TimeWatcher(watcher));
+            multiqueue_put_event(events, Event::TimeWatcher(watcher.into()));
         } else {
             time_event(&mut *watcher);
         }
@@ -113,7 +113,7 @@ pub fn close_event(watcher_in: &mut TimeWatcher) {
         match (*watcher).data {
             TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}
             TimeWatcherData::EvalTimer(timer) => {
-                crate::eval::timer_close_cb(&mut *watcher, &mut *timer);
+                crate::eval::timer_close_cb(&mut *watcher, timer.borrow_mut());
             }
             TimeWatcherData::WaitDummy => drop(Box::from_raw(watcher)),
         }
@@ -128,7 +128,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
         ) {
             if let Some(events) = (*watcher).events.opt_mut() {
-                multiqueue_put_event(events, Event::TimeWatcherClose(watcher));
+                multiqueue_put_event(events, Event::TimeWatcherClose(watcher.into()));
             } else {
                 close_event(&mut *watcher);
             }

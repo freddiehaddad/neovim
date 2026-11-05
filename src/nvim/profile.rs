@@ -117,7 +117,7 @@ use crate::keycodes::K_SPECIAL;
 #[derive(Clone)]
 pub enum EStackInfo {
     None,
-    Ufunc(*mut UserFunc),
+    Ufunc(crate::globals::GraphPtr<UserFunc>),
     AuCmd(std::rc::Rc<std::cell::Cell<crate::runtime::Sctx>>),
 }
 
@@ -125,7 +125,7 @@ impl EStackInfo {
     #[inline]
     pub fn ufunc(&self) -> Option<&'static mut UserFunc> {
         match *self {
-            Self::Ufunc(p) => unsafe { p.as_mut() },
+            Self::Ufunc(p) => p.opt_mut(),
             _ => None,
         }
     }

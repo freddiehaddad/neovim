@@ -921,7 +921,7 @@ unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
         g_st().no_wait_return += 1;
         do_cmdline(
             None,
-            crate::cmdexpand::LineGetter::LuaEx(&raw mut cookie),
+            crate::cmdexpand::LineGetter::LuaEx((&mut cookie).into()),
             0,
         );
         g_st().no_wait_return -= 1;

@@ -88,7 +88,7 @@ use crate::mpack::lmpack::luaopen_mpack;
 
 #[repr(C)]
 struct LuaRegex {
-    prog: *mut Regprog,
+    prog: crate::globals::GraphPtr<Regprog>,
 }
 
 fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
@@ -98,10 +98,10 @@ fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
 fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32 {
     let str_ptr = str_.as_ptr();
     let mut rm: Regmatch = Regmatch::new();
-    rm.regprog = crate::globals::GraphPtr::new(regex.prog);
+    rm.regprog = regex.prog;
     rm.rm_ic = false;
     let matched = vim_regexec(&mut rm, str_, 0);
-    regex.prog = rm.regprog.as_ptr();
+    regex.prog = rm.regprog;
 
     if matched {
         unsafe {
@@ -208,8 +208,8 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
     let regex = regex_check(lstate);
     if !regex.prog.is_null() {
-        drop(unsafe { Box::from_raw(regex.prog) });
-        regex.prog = ptr::null_mut();
+        drop(unsafe { Box::from_raw(regex.prog.as_ptr()) });
+        regex.prog = crate::globals::GraphPtr::NULL;
     }
     0
 }
@@ -364,7 +364,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
         }
 
         let p = lua_newuserdata(lstate, size_of::<LuaRegex>()).cast::<LuaRegex>();
-        (*p).prog = prog.map_or(ptr::null_mut(), Box::into_raw);
+        (*p).prog = prog.map_or(ptr::null_mut(), Box::into_raw).into();
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim_regex");
         let _ = lua_setmetatable(lstate, -2);

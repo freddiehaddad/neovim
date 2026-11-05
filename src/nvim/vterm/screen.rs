@@ -371,7 +371,7 @@ pub struct VTermScreenCallbacks {
 
 #[repr(C)]
 pub struct VTermScreen {
-    pub vt: *mut VTerm,
+    pub vt: crate::globals::GraphPtr<VTerm>,
     pub callbacks: Option<&'static VTermScreenCallbacks>,
     pub damage_merge: VTermDamageSize,
     pub damaged: VTermRect,
@@ -390,7 +390,7 @@ pub struct VTermScreen {
 impl VTermScreen {
     #[inline]
     pub fn vt_mut(&self) -> &'static mut VTerm {
-        unsafe { &mut *self.vt }
+        self.vt.borrow_mut()
     }
 
     #[inline]
@@ -1313,7 +1313,7 @@ fn screen_new(vt: &mut VTerm) -> Option<Box<VTermScreen>> {
     vterm_get_size(vt, &mut rows, &mut cols);
 
     let mut screen = Box::new(VTermScreen {
-        vt,
+        vt: vt.into(),
         callbacks: None,
         damage_merge: VTERM_DAMAGE_CELL,
         damaged: VTermRect {
@@ -1435,7 +1435,7 @@ pub fn vterm_screen_set_callbacks(
 ) {
     screen.callbacks = callbacks;
     if let Some(user) = user {
-        screen.vt_mut().outdata = &raw mut *user;
+        screen.vt_mut().outdata = user.into();
     }
 }
 

@@ -644,7 +644,7 @@ pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
     loop_schedule_fast(
         loop_,
         Event::LoopDeferred {
-            loop_: loop_ptr,
+            loop_: loop_ptr.into(),
             event: Box::new(event),
         },
     );

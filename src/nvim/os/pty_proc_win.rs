@@ -132,7 +132,10 @@ mod win_impl {
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
         unsafe {
             let proc_: *mut Proc = context.cast();
-            loop_schedule_fast((*proc_).loop_.borrow_mut(), Event::PtyProcFinish(proc_));
+            loop_schedule_fast(
+                (*proc_).loop_.borrow_mut(),
+                Event::PtyProcFinish(proc_.into()),
+            );
         }
     }
 

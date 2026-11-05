@@ -278,7 +278,10 @@ pub fn tinput_destroy(input: &mut TermInput) {
 
 pub fn tinput_start(input: &mut TermInput) {
     let input_ptr = &raw mut *input;
-    rstream_start(&mut input.read_stream, StreamCbData::Input(input_ptr));
+    rstream_start(
+        &mut input.read_stream,
+        StreamCbData::Input(input_ptr.into()),
+    );
 }
 
 pub fn tinput_stop(input: &mut TermInput) {

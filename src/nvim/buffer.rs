@@ -2919,7 +2919,7 @@ pub fn buflist_new(
 
         buf_ref.b_fnum = buf_st().top_file_num;
         buf_st().top_file_num += 1;
-        g_st().buffer_handles.insert(buf_ref.b_fnum, buf);
+        g_st().buffer_handles.insert(buf_ref.b_fnum, buf.into());
         if buf_st().top_file_num < 0 {
             emsg(gettext(c"W14: Warning: List of file names overflow"));
             if g_st().emsg_silent == 0 && !g_st().in_assert_fails {
@@ -3478,12 +3478,11 @@ pub fn buflist_findnr(mut nr: i32) -> Option<&'static mut FileBuf> {
     if nr == 0 {
         nr = curwin_mut().w_alt_fnum;
     }
-    let ptr = g_st()
+    g_st()
         .buffer_handles
         .get(&nr)
         .copied()
-        .unwrap_or(ptr::null_mut());
-    unsafe { ptr.as_mut() }
+        .and_then(|p| p.opt_mut())
 }
 
 #[inline]

@@ -5188,7 +5188,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 cmd_loop_cookie.lc_getline = fgetline;
                 cmd_loop_cookie.repeating =
                     i32::from((current_line as usize) < cmd_loop_cookie.lines.len());
-                cmd_getline = LineGetter::Loop(&raw mut cmd_loop_cookie);
+                cmd_getline = LineGetter::Loop((&mut cmd_loop_cookie).into());
 
                 if (current_line as usize) == cmd_loop_cookie.lines.len() {
                     store_loop_line(

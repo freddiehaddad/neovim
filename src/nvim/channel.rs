@@ -196,15 +196,16 @@ use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
 pub fn channel_teardown() {
-    let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
+    let all_chans: Vec<crate::globals::GraphPtr<Channel>> =
+        g_st().channels.values().copied().collect();
     for chan in all_chans {
-        channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, None);
+        channel_close(chan.id, K_CHANNEL_PART_ALL, None);
     }
 }
 
 pub fn channel_free_all_mem() {
     for (_, chan) in std::mem::take(&mut g_st().channels) {
-        drop(unsafe { Box::from_raw(chan) });
+        drop(unsafe { Box::from_raw(chan.as_ptr()) });
     }
 
     callback_free(&mut g_st().on_print);
@@ -369,7 +370,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
         did_close_event: false,
     }));
 
-    g_st().channels.insert(id, chan);
+    g_st().channels.insert(id, chan.into());
 
     unsafe { &mut *chan }
 }
@@ -391,7 +392,7 @@ pub fn channel_decref(chan: &mut Channel) {
     chan.refcount -= 1;
     if chan.refcount == 0 {
         let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(&raw mut *chan));
+        multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.into()));
     }
 }
 
@@ -420,7 +421,7 @@ fn channel_destroy_early(chan: &mut Channel) {
     }
 
     let qc = loop_queues(&mut g_st().main_loop);
-    multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(&raw mut *chan));
+    multiqueue_put_event(qc.events.borrow_mut(), Event::ChannelFree(chan.into()));
 }
 
 /// Starts a job and returns the associated channel.
@@ -564,7 +565,7 @@ pub fn channel_job_start(
 
         rstream_start(
             unsafe { &mut (*proc_ptr).out },
-            StreamCbData::ChannelData(chan_ptr),
+            StreamCbData::ChannelData(chan_ptr.into()),
         );
     }
 
@@ -574,7 +575,7 @@ pub fn channel_job_start(
 
         rstream_start(
             unsafe { &mut (*proc_ptr).err },
-            StreamCbData::ChannelStderr(chan_ptr),
+            StreamCbData::ChannelStderr(chan_ptr.into()),
         );
     }
 
@@ -617,7 +618,7 @@ pub fn channel_connect(
         return 0;
     }
 
-    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
+    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr.into());
     wstream_init(&mut channel.socket.s, 0);
     rstream_init(&mut channel.socket);
 
@@ -626,7 +627,10 @@ pub fn channel_connect(
     } else {
         channel.on_data = on_output;
         callback_reader_start(&mut channel.on_data, c"data");
-        rstream_start(&mut channel.socket, StreamCbData::ChannelData(channel_ptr));
+        rstream_start(
+            &mut channel.socket,
+            StreamCbData::ChannelData(channel_ptr.into()),
+        );
     }
 
     channel.rpc.trust = trust;
@@ -643,7 +647,7 @@ pub fn channel_from_connection(watcher: &mut SocketWatcher) {
         channel_destroy_early(&mut *channel);
         return;
     }
-    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
+    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr.into());
     wstream_init(&mut channel.socket.s, 0);
     rstream_init(&mut channel.socket);
     rpc_start(&mut *channel);
@@ -702,7 +706,7 @@ pub fn channel_from_stdio(
         callback_reader_start(&mut channel.on_data, c"stdin");
         rstream_start(
             &mut channel.stdio_in,
-            StreamCbData::ChannelData(channel_ptr),
+            StreamCbData::ChannelData(channel_ptr.into()),
         );
     }
 
@@ -810,7 +814,7 @@ fn on_channel_output(chan: &mut Channel, buf: &[u8], eof: bool, is_stderr: bool)
 fn schedule_channel_event(chan: &mut Channel) {
     if !chan.callback_scheduled {
         if !chan.callback_busy {
-            multiqueue_put_event(chan.events_mut(), Event::ChannelCallback(&raw mut *chan));
+            multiqueue_put_event(chan.events_mut(), Event::ChannelCallback(chan.into()));
             channel_incref(chan);
         }
         chan.callback_scheduled = true;
@@ -833,7 +837,7 @@ pub fn on_channel_event(chan: &mut Channel) {
     if chan.callback_scheduled {
         multiqueue_put_event(
             chan.events.borrow_mut(),
-            Event::ChannelCallback(&raw mut *chan),
+            Event::ChannelCallback(chan.into()),
         );
         channel_incref(chan);
     }
@@ -1045,7 +1049,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
     if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
         multiqueue_put_event(
             chan.events.borrow_mut(),
-            Event::ChannelTermDelayedFree(&raw mut *chan),
+            Event::ChannelTermDelayedFree(chan.into()),
         );
         return;
     }
@@ -1068,7 +1072,7 @@ pub fn channel_term_close(chan: &mut Channel) {
     proc_stop(&mut chan.uv.proc_);
     multiqueue_put_event(
         chan.events.borrow_mut(),
-        Event::ChannelTermDelayedFree(&raw mut *chan),
+        Event::ChannelTermDelayedFree(chan.into()),
     );
 }
 
@@ -1079,7 +1083,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         multiqueue_put_event(
             qc.events.borrow_mut(),
             Event::ChannelSetInfo {
-                chan: &raw mut *chan,
+                chan: chan.into(),
                 event,
             },
         );

@@ -2994,7 +2994,7 @@ pub fn apply_autocmds_group(
 
                 do_cmdline(
                     None,
-                    crate::cmdexpand::LineGetter::AutoCmd(&raw mut patcmd),
+                    crate::cmdexpand::LineGetter::AutoCmd((&mut patcmd).into()),
                     DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
                 );
 

@@ -4936,7 +4936,7 @@ fn alloc_tabpage() -> &'static mut TabPageInfo {
     let tp = Box::leak(Box::new(TabPageInfo::new()));
     win_st().last_tp_handle += 1;
     tp.handle = win_st().last_tp_handle;
-    g_st().tabpage_handles.insert(tp.handle, tp);
+    g_st().tabpage_handles.insert(tp.handle, tp.into());
 
     init_var_dict(tv_dict_alloc(), &mut tp.tp_winvar, VAR_SCOPE);
     tp.tp_ch_used = opt_vars().p_ch;
@@ -5929,7 +5929,7 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
 
     win_st().last_win_id += 1;
     new_wp.handle = win_st().last_win_id;
-    g_st().window_handles.insert(new_wp.handle, new_wp);
+    g_st().window_handles.insert(new_wp.handle, new_wp.into());
 
     grid_assign_handle(&mut new_wp.w_grid_alloc);
 

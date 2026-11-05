@@ -38,12 +38,12 @@ pub type uv_tty_t = c_void;
 #[derive(Clone, Copy)]
 pub enum StreamCbData {
     None,
-    ChannelData(*mut crate::channel::Channel),
-    ChannelStderr(*mut crate::channel::Channel),
-    ChannelRpc(*mut crate::channel::Channel),
-    ShellBuf(*mut Vec<u8>),
+    ChannelData(crate::globals::GraphPtr<crate::channel::Channel>),
+    ChannelStderr(crate::globals::GraphPtr<crate::channel::Channel>),
+    ChannelRpc(crate::globals::GraphPtr<crate::channel::Channel>),
+    ShellBuf(crate::globals::GraphPtr<Vec<u8>>),
     ShellOut,
-    Input(*mut crate::tui::input::TermInput),
+    Input(crate::globals::GraphPtr<crate::tui::input::TermInput>),
 }
 
 impl StreamCbData {
@@ -55,26 +55,30 @@ impl StreamCbData {
     }
 
     pub fn call_read_cb(self, stream_fd: i32, buf: &[u8], eof: bool) -> Option<usize> {
-        unsafe {
-            match self {
-                Self::None => None,
-                Self::ChannelData(chan) => {
-                    Some(crate::channel::on_channel_data(buf, &mut *chan, eof))
-                }
-                Self::ChannelStderr(chan) => {
-                    Some(crate::channel::on_job_stderr(buf, &mut *chan, eof))
-                }
-                Self::ChannelRpc(chan) => Some(crate::msgpack_rpc::channel::receive_msgpack(
-                    buf, &mut *chan, eof,
-                )),
-                Self::ShellBuf(dbuf) => {
-                    Some(crate::os::shell::system_data_cb(buf, &mut *dbuf, eof))
-                }
-                Self::ShellOut => Some(crate::os::shell::out_data_cb(stream_fd, buf, eof)),
-                Self::Input(input) => {
-                    Some(crate::tui::input::tinput_read_cb(buf, &mut *input, eof))
-                }
+        match self {
+            Self::None => None,
+            Self::ChannelData(chan) => {
+                Some(crate::channel::on_channel_data(buf, chan.borrow_mut(), eof))
             }
+            Self::ChannelStderr(chan) => {
+                Some(crate::channel::on_job_stderr(buf, chan.borrow_mut(), eof))
+            }
+            Self::ChannelRpc(chan) => Some(crate::msgpack_rpc::channel::receive_msgpack(
+                buf,
+                chan.borrow_mut(),
+                eof,
+            )),
+            Self::ShellBuf(dbuf) => Some(crate::os::shell::system_data_cb(
+                buf,
+                dbuf.borrow_mut(),
+                eof,
+            )),
+            Self::ShellOut => Some(crate::os::shell::out_data_cb(stream_fd, buf, eof)),
+            Self::Input(input) => Some(crate::tui::input::tinput_read_cb(
+                buf,
+                input.borrow_mut(),
+                eof,
+            )),
         }
     }
 }
@@ -82,9 +86,9 @@ impl StreamCbData {
 #[derive(Clone, Copy)]
 pub enum StreamInternalData {
     None,
-    Channel(*mut crate::channel::Channel),
-    Proc(*mut crate::event::proc::Proc),
-    Closed(*mut bool),
+    Channel(crate::globals::GraphPtr<crate::channel::Channel>),
+    Proc(crate::globals::GraphPtr<crate::event::proc::Proc>),
+    Closed(crate::globals::GraphPtr<bool>),
 }
 
 impl StreamInternalData {
@@ -94,7 +98,7 @@ impl StreamInternalData {
     #[inline]
     pub fn as_proc(self) -> &'static mut crate::event::proc::Proc {
         match self {
-            Self::Proc(p) => unsafe { &mut *p },
+            Self::Proc(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -318,9 +322,13 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             let internal_data = (*stream).internal_data;
             match internal_data {
                 StreamInternalData::None => {}
-                StreamInternalData::Channel(chan) => crate::channel::channel_decref(&mut *chan),
-                StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(&mut *proc_),
-                StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
+                StreamInternalData::Channel(chan) => {
+                    crate::channel::channel_decref(chan.borrow_mut())
+                }
+                StreamInternalData::Proc(proc_) => {
+                    crate::event::proc::proc_decref(proc_.borrow_mut())
+                }
+                StreamInternalData::Closed(mut closed_ptr) => *closed_ptr = true,
             }
         }
     }

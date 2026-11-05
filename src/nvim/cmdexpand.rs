@@ -205,12 +205,12 @@ pub enum LineGetter {
     None,
     ExLine,
     CmdKeyCmd,
-    AutoCmd(*mut crate::autocmd::AutoPatCmd),
-    Func(*mut crate::profile::Funccall),
-    Source(*mut crate::runtime::SourceCookie),
-    Loop(*mut crate::ex_docmd::LoopCookie),
-    List(*mut crate::eval::funcs::GetListLineCookie),
-    LuaEx(*mut crate::lua::executor::ExDocmdCookie),
+    AutoCmd(crate::globals::GraphPtr<crate::autocmd::AutoPatCmd>),
+    Func(crate::globals::GraphPtr<crate::profile::Funccall>),
+    Source(crate::globals::GraphPtr<crate::runtime::SourceCookie>),
+    Loop(crate::globals::GraphPtr<crate::ex_docmd::LoopCookie>),
+    List(crate::globals::GraphPtr<crate::eval::funcs::GetListLineCookie>),
+    LuaEx(crate::globals::GraphPtr<crate::lua::executor::ExDocmdCookie>),
 }
 
 impl LineGetter {
@@ -223,7 +223,7 @@ impl LineGetter {
     pub fn inner(self) -> Self {
         let mut gp = self;
         while let Self::Loop(cp) = gp {
-            gp = unsafe { (*cp).lc_getline };
+            gp = cp.lc_getline;
         }
         gp
     }
@@ -251,7 +251,7 @@ impl LineGetter {
     #[inline]
     pub fn as_func(self) -> Option<&'static mut crate::profile::Funccall> {
         match self.inner() {
-            Self::Func(p) => unsafe { p.as_mut() },
+            Self::Func(p) => p.opt_mut(),
             _ => None,
         }
     }
@@ -259,7 +259,7 @@ impl LineGetter {
     #[inline]
     pub fn as_source(self) -> Option<&'static mut crate::runtime::SourceCookie> {
         match self.inner() {
-            Self::Source(p) => unsafe { p.as_mut() },
+            Self::Source(p) => p.opt_mut(),
             _ => None,
         }
     }
@@ -275,22 +275,22 @@ impl LineGetter {
             Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
             Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
             Self::AutoCmd(cookie) => {
-                crate::autocmd::getnextac(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::autocmd::getnextac(c, cookie.borrow_mut(), indent, do_concat)
             }
             Self::Func(cookie) => {
-                crate::eval::userfunc::get_func_line(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::eval::userfunc::get_func_line(c, cookie.borrow_mut(), indent, do_concat)
             }
             Self::Source(cookie) => {
-                crate::runtime::getsourceline(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::runtime::getsourceline(c, cookie.borrow_mut(), indent, do_concat)
             }
             Self::Loop(cookie) => {
-                crate::ex_docmd::get_loop_line(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::ex_docmd::get_loop_line(c, cookie.borrow_mut(), indent, do_concat)
             }
             Self::List(cookie) => {
-                crate::eval::funcs::get_list_line(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::eval::funcs::get_list_line(c, cookie.borrow_mut(), indent, do_concat)
             }
             Self::LuaEx(cookie) => {
-                crate::lua::executor::nlua_ex_getline(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::lua::executor::nlua_ex_getline(c, cookie.borrow_mut(), indent, do_concat)
             }
         }
     }

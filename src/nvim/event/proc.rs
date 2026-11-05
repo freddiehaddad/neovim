@@ -244,19 +244,19 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
 
         if in_ {
             stream_init(None, &mut *s_in, -1, true);
-            (*s_in).internal_data = StreamInternalData::Proc(proc_);
+            (*s_in).internal_data = StreamInternalData::Proc(proc_.into());
             proc_.refcount += 1;
         }
 
         if out {
             stream_init(None, &mut *s_out, -1, true);
-            (*s_out).internal_data = StreamInternalData::Proc(proc_);
+            (*s_out).internal_data = StreamInternalData::Proc(proc_.into());
             proc_.refcount += 1;
         }
 
         if err {
             stream_init(None, &mut *s_err, -1, true);
-            (*s_err).internal_data = StreamInternalData::Proc(proc_);
+            (*s_err).internal_data = StreamInternalData::Proc(proc_.into());
             proc_.refcount += 1;
         }
 
@@ -279,10 +279,7 @@ pub fn proc_teardown(loop_in: &mut Loop) {
         for mut proc_ in children {
             if proc_.detach || proc_.r#type == K_PROC_TYPE_PTY {
                 if !(*qc).events.is_null() {
-                    multiqueue_put_event(
-                        (*qc).events.borrow_mut(),
-                        Event::ProcCloseHandles(proc_.as_ptr()),
-                    );
+                    multiqueue_put_event((*qc).events.borrow_mut(), Event::ProcCloseHandles(proc_));
                 } else {
                     proc_close_handles(&mut proc_);
                 }
@@ -444,7 +441,7 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
     let idx = qc.children.iter().position(|&p| p == proc_).unwrap();
     qc.children.remove(idx);
     if !proc_.events.is_null() {
-        multiqueue_put_event(proc_.events.borrow_mut(), Event::ProcClose(&raw mut *proc_));
+        multiqueue_put_event(proc_.events.borrow_mut(), Event::ProcClose(proc_.into()));
     } else {
         proc_close_event(proc_);
     }
@@ -581,7 +578,7 @@ pub(crate) fn on_proc_exit(proc_: &mut Proc) {
     if !queue.is_null() {
         multiqueue_put_event(
             unsafe { &mut *queue },
-            Event::ProcCloseHandles(&raw mut *proc_),
+            Event::ProcCloseHandles(proc_.into()),
         );
     } else {
         proc_close_handles(proc_);

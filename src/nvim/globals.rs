@@ -330,9 +330,9 @@ pub struct EditorState {
     pub namespace_ids: Vec<(std::ffi::CString, i32)>,
     pub namespace_localscope: std::collections::BTreeSet<u32>,
     pub next_namespace_id: ObjHandle,
-    pub buffer_handles: std::collections::BTreeMap<i32, *mut FileBuf>,
-    pub window_handles: std::collections::BTreeMap<i32, *mut WinInfoInfo>,
-    pub tabpage_handles: std::collections::BTreeMap<i32, *mut TabPageInfo>,
+    pub buffer_handles: std::collections::BTreeMap<i32, BufPtr>,
+    pub window_handles: std::collections::BTreeMap<i32, WinPtr>,
+    pub tabpage_handles: std::collections::BTreeMap<i32, TabpagePtr>,
     pub last_cursormoved_win: WinPtr,
     pub last_cursormoved: CursorPos,
     pub autocmd_busy: bool,
@@ -347,7 +347,7 @@ pub struct EditorState {
     pub autocmd_match: Option<std::ffi::CString>,
     pub did_cursorhold: bool,
     pub deferred_events: GraphPtr<MultiQueue>,
-    pub channels: std::collections::BTreeMap<u64, *mut Channel>,
+    pub channels: std::collections::BTreeMap<u64, GraphPtr<Channel>>,
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,
@@ -1154,6 +1154,16 @@ impl<T> GraphPtr<T> {
     pub fn borrow_mut<'a>(self) -> &'a mut T {
         unsafe { self.0.unwrap().as_mut() }
     }
+
+    #[inline]
+    pub const fn wrapping_add(self, count: usize) -> Self {
+        Self::new(self.as_ptr().wrapping_add(count))
+    }
+
+    #[inline]
+    pub const fn wrapping_sub(self, count: usize) -> Self {
+        Self::new(self.as_ptr().wrapping_sub(count))
+    }
 }
 
 pub type WinPtr = GraphPtr<WinInfoInfo>;
@@ -1173,229 +1183,181 @@ pub fn curtab_handle() -> TabpagePtr {
     g_st().curtab
 }
 
-pub struct BufMutIter(*mut FileBuf);
+pub struct BufMutIter(BufPtr);
 
 impl Iterator for BufMutIter {
     type Item = &'static mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).b_next.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.b_next;
+        Some(cur)
     }
 }
 
-pub struct BufPtrIter(*mut FileBuf);
+pub struct BufPtrIter(BufPtr);
 
 impl Iterator for BufPtrIter {
     type Item = &'static mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).b_next.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.b_next;
+        Some(cur)
     }
 }
 
 #[inline]
 pub fn for_all_buffers_mut() -> BufMutIter {
-    BufMutIter(g_st().firstbuf.as_ptr())
+    BufMutIter(g_st().firstbuf)
 }
 
 #[inline]
-pub fn buf_iter_mut(start: *mut FileBuf) -> BufMutIter {
-    BufMutIter(start)
+pub fn buf_iter_mut(start: impl Into<BufPtr>) -> BufMutIter {
+    BufMutIter(start.into())
 }
 
 #[inline]
 pub fn for_all_buffers_ptr() -> BufPtrIter {
-    BufPtrIter(g_st().firstbuf.as_ptr())
+    BufPtrIter(g_st().firstbuf)
 }
 
-pub struct BufRevPtrIter(*mut FileBuf);
+pub struct BufRevPtrIter(BufPtr);
 
 impl Iterator for BufRevPtrIter {
     type Item = &'static mut FileBuf;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).b_prev.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.b_prev;
+        Some(cur)
     }
 }
 
 #[inline]
 pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
-    BufRevPtrIter(g_st().lastbuf.as_ptr())
+    BufRevPtrIter(g_st().lastbuf)
 }
 
-pub struct WinMutIter(*mut WinInfoInfo);
+pub struct WinMutIter(WinPtr);
 
 impl Iterator for WinMutIter {
     type Item = &'static mut WinInfoInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).w_next.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.w_next;
+        Some(cur)
     }
 }
 
-pub struct WinPtrIter(*mut WinInfoInfo);
+pub struct WinPtrIter(WinPtr);
 
 impl Iterator for WinPtrIter {
     type Item = &'static mut WinInfoInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).w_next.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.w_next;
+        Some(cur)
     }
 }
 
 #[inline]
 pub fn for_all_windows_mut() -> WinMutIter {
-    WinMutIter(g_st().firstwin.as_ptr())
+    WinMutIter(g_st().firstwin)
 }
 
 #[inline]
-pub fn win_iter_mut(start: *mut WinInfoInfo) -> WinMutIter {
-    WinMutIter(start)
+pub fn win_iter_mut(start: impl Into<WinPtr>) -> WinMutIter {
+    WinMutIter(start.into())
 }
 
 #[inline]
 pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     WinMutIter(if g_st().curtab == tp {
-        g_st().firstwin.as_ptr()
+        g_st().firstwin
     } else {
-        tp.tp_firstwin.as_ptr()
+        tp.tp_firstwin
     })
 }
 
 #[inline]
 pub fn for_all_windows_ptr() -> WinPtrIter {
-    WinPtrIter(g_st().firstwin.as_ptr())
+    WinPtrIter(g_st().firstwin)
 }
 
 #[inline]
-pub fn win_iter_ptr(start: *mut WinInfoInfo) -> WinPtrIter {
-    WinPtrIter(start)
+pub fn win_iter_ptr(start: impl Into<WinPtr>) -> WinPtrIter {
+    WinPtrIter(start.into())
 }
 
 #[inline]
 pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     WinPtrIter(if g_st().curtab == tp {
-        g_st().firstwin.as_ptr()
+        g_st().firstwin
     } else {
-        tp.tp_firstwin.as_ptr()
+        tp.tp_firstwin
     })
 }
 
-pub struct WinRevPtrIter(*mut WinInfoInfo);
+pub struct WinRevPtrIter(WinPtr);
 
 impl Iterator for WinRevPtrIter {
     type Item = &'static mut WinInfoInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).w_prev.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.w_prev;
+        Some(cur)
     }
 }
 
 #[inline]
 pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
-    WinRevPtrIter(g_st().lastwin.as_ptr())
+    WinRevPtrIter(g_st().lastwin)
 }
 
-pub struct TabMutIter(*mut TabPageInfo);
+pub struct TabMutIter(TabpagePtr);
 
 impl Iterator for TabMutIter {
     type Item = &'static mut TabPageInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).tp_next.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.tp_next;
+        Some(cur)
     }
 }
 
-pub struct TabPtrIter(*mut TabPageInfo);
+pub struct TabPtrIter(TabpagePtr);
 
 impl Iterator for TabPtrIter {
     type Item = &'static mut TabPageInfo;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).tp_next.as_ptr();
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.tp_next;
+        Some(cur)
     }
 }
 
 #[inline]
 pub fn for_all_tabpages_mut() -> TabMutIter {
-    TabMutIter(g_st().first_tabpage.as_ptr())
+    TabMutIter(g_st().first_tabpage)
 }
 
 #[inline]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
-    TabPtrIter(g_st().first_tabpage.as_ptr())
+    TabPtrIter(g_st().first_tabpage)
 }
 
 pub struct FrameMutIter(FramePtr);

@@ -786,7 +786,7 @@ fn do_os_system(
     } else if output.is_none() {
         StreamCbData::None
     } else {
-        StreamCbData::ShellBuf(&raw mut buf)
+        StreamCbData::ShellBuf((&mut buf).into())
     };
 
     let mut prog = [0u8; MAXPATHL];

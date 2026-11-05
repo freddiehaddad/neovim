@@ -9,19 +9,19 @@ pub enum Event {
     None,
     Oneshot(Rc<Cell<Option<Box<Event>>>>),
     LoopDeferred {
-        loop_: *mut crate::event::r#loop::Loop,
+        loop_: crate::globals::GraphPtr<crate::event::r#loop::Loop>,
         event: Box<Event>,
     },
-    TimeWatcher(*mut crate::event::time::TimeWatcher),
-    TimeWatcherClose(*mut crate::event::time::TimeWatcher),
-    Signal(*mut crate::event::signal::SignalWatcher),
-    RStreamRead(*mut crate::event::rstream::RStream),
+    TimeWatcher(crate::globals::GraphPtr<crate::event::time::TimeWatcher>),
+    TimeWatcherClose(crate::globals::GraphPtr<crate::event::time::TimeWatcher>),
+    Signal(crate::globals::GraphPtr<crate::event::signal::SignalWatcher>),
+    RStreamRead(crate::globals::GraphPtr<crate::event::rstream::RStream>),
     SocketConnection {
-        watcher: *mut crate::event::socket::SocketWatcher,
+        watcher: crate::globals::GraphPtr<crate::event::socket::SocketWatcher>,
         status: i32,
     },
-    ProcCloseHandles(*mut crate::event::proc::Proc),
-    ProcClose(*mut crate::event::proc::Proc),
+    ProcCloseHandles(crate::globals::GraphPtr<crate::event::proc::Proc>),
+    ProcClose(crate::globals::GraphPtr<crate::event::proc::Proc>),
     ProcExit(i32),
     AutoCmdDeferred(Box<crate::autocmd::AutoCmdEvent>),
     AutoCmdOptionSetModified {
@@ -29,19 +29,19 @@ pub enum Event {
         new_val: bool,
     },
     AutoCmdVimResume,
-    ChannelFree(*mut crate::channel::Channel),
-    ChannelCallback(*mut crate::channel::Channel),
-    ChannelTermDelayedFree(*mut crate::channel::Channel),
+    ChannelFree(crate::globals::GraphPtr<crate::channel::Channel>),
+    ChannelCallback(crate::globals::GraphPtr<crate::channel::Channel>),
+    ChannelTermDelayedFree(crate::globals::GraphPtr<crate::channel::Channel>),
     ChannelSetInfo {
-        chan: *mut crate::channel::Channel,
+        chan: crate::globals::GraphPtr<crate::channel::Channel>,
         event: crate::autocmd::AuEvent,
     },
     RpcRequest(Box<crate::msgpack_rpc::channel::RequestEvent>),
     RpcInternalRead {
-        channel: *mut crate::channel::Channel,
+        channel: crate::globals::GraphPtr<crate::channel::Channel>,
         buffer: Rc<crate::event::wstream::WBuffer>,
     },
-    RpcClose(*mut crate::channel::Channel),
+    RpcClose(crate::globals::GraphPtr<crate::channel::Channel>),
     NluaLuvError {
         msg: Option<CString>,
         kind: isize,
@@ -55,7 +55,7 @@ pub enum Event {
     MsgSemsgMultiline(CString),
     CursorHold,
     #[cfg(windows)]
-    PtyProcFinish(*mut crate::event::proc::Proc),
+    PtyProcFinish(crate::globals::GraphPtr<crate::event::proc::Proc>),
     ShellOutData {
         str_copy: Vec<u8>,
         fd: i32,
@@ -93,42 +93,40 @@ impl Event {
                 }
             }
             Self::LoopDeferred { loop_, event } => {
-                crate::event::r#loop::loop_deferred_event(unsafe { &mut *loop_ }, *event);
+                crate::event::r#loop::loop_deferred_event(loop_.borrow_mut(), *event);
             }
-            Self::TimeWatcher(watcher) => crate::event::time::time_event(unsafe { &mut *watcher }),
+            Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher.borrow_mut()),
             Self::TimeWatcherClose(watcher) => {
-                crate::event::time::close_event(unsafe { &mut *watcher })
+                crate::event::time::close_event(watcher.borrow_mut())
             }
-            Self::Signal(watcher) => crate::event::signal::signal_event(unsafe { &mut *watcher }),
-            Self::RStreamRead(stream) => crate::event::rstream::read_event(unsafe { &mut *stream }),
+            Self::Signal(watcher) => crate::event::signal::signal_event(watcher.borrow_mut()),
+            Self::RStreamRead(stream) => crate::event::rstream::read_event(stream.borrow_mut()),
             Self::SocketConnection { watcher, status } => {
-                crate::event::socket::connection_event(unsafe { &mut *watcher }, status);
+                crate::event::socket::connection_event(watcher.borrow_mut(), status);
             }
             Self::ProcCloseHandles(proc_) => {
-                crate::event::proc::proc_close_handles(unsafe { &mut *proc_ })
+                crate::event::proc::proc_close_handles(proc_.borrow_mut())
             }
-            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(unsafe { &mut *proc_ }),
+            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(proc_.borrow_mut()),
             Self::ProcExit(status) => crate::event::proc::exit_event(status),
             Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
             Self::AutoCmdOptionSetModified { bufnr, new_val } => {
                 crate::autocmd::deferred_optionset_modified(bufnr, new_val);
             }
             Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
-            Self::ChannelFree(chan) => crate::channel::free_channel_event(unsafe { chan.as_mut() }),
-            Self::ChannelCallback(chan) => crate::channel::on_channel_event(unsafe { &mut *chan }),
+            Self::ChannelFree(chan) => crate::channel::free_channel_event(chan.opt_mut()),
+            Self::ChannelCallback(chan) => crate::channel::on_channel_event(chan.borrow_mut()),
             Self::ChannelTermDelayedFree(chan) => {
-                crate::channel::term_delayed_free(unsafe { &mut *chan })
+                crate::channel::term_delayed_free(chan.borrow_mut())
             }
             Self::ChannelSetInfo { chan, event } => {
-                crate::channel::set_info_event(unsafe { &mut *chan }, event);
+                crate::channel::set_info_event(chan.borrow_mut(), event);
             }
             Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(*ev),
             Self::RpcInternalRead { channel, buffer } => {
-                crate::msgpack_rpc::channel::internal_read_event(unsafe { &mut *channel }, buffer);
+                crate::msgpack_rpc::channel::internal_read_event(channel.borrow_mut(), buffer);
             }
-            Self::RpcClose(chan) => {
-                crate::msgpack_rpc::channel::rpc_close_event(unsafe { chan.as_mut() })
-            }
+            Self::RpcClose(chan) => crate::msgpack_rpc::channel::rpc_close_event(chan.opt_mut()),
             Self::NluaLuvError { msg, kind } => {
                 crate::lua::executor::nlua_luv_error_event(msg, kind);
             }
@@ -143,7 +141,7 @@ impl Event {
             Self::CursorHold => crate::os::input::cursorhold_event(),
             #[cfg(windows)]
             Self::PtyProcFinish(proc_) => {
-                crate::os::pty_proc_win::pty_proc_finish(unsafe { &mut *proc_ })
+                crate::os::pty_proc_win::pty_proc_finish(proc_.borrow_mut())
             }
             Self::ShellOutData { str_copy, fd } => {
                 crate::os::shell::out_data_event(str_copy, fd);
@@ -172,7 +170,7 @@ impl Event {
 
 enum QueueEntry {
     Event(Event),
-    Child(*mut MultiQueue),
+    Child(crate::globals::GraphPtr<MultiQueue>),
 }
 
 #[repr(C)]
@@ -213,9 +211,9 @@ impl Drop for MultiQueue {
     fn drop(&mut self) {
         let self_ptr: *const MultiQueue = self;
         if !self.parent.is_null() && !self.items.is_empty() {
-            self.parent.items.retain(
-                |entry| !matches!(entry, &QueueEntry::Child(child) if std::ptr::eq(child, self_ptr)),
-            );
+            self.parent
+                .items
+                .retain(|entry| !matches!(entry, &QueueEntry::Child(child) if child == self_ptr));
         }
     }
 }
@@ -236,7 +234,7 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
         match entry {
             QueueEntry::Child(linked) => {
                 assert!(q.parent.is_null());
-                let linked_ref = unsafe { &mut *linked };
+                let linked_ref = linked.borrow_mut();
                 assert!(!multiqueue_empty(linked_ref));
                 match linked_ref.items.pop_front().unwrap() {
                     QueueEntry::Event(ev) => ev,
@@ -264,7 +262,7 @@ fn multiqueue_push(this: &mut MultiQueue, event: Event) {
     let q_ptr: *mut MultiQueue = &raw mut *q;
     q.items.push_back(QueueEntry::Event(event));
     if let Some(parent) = q.parent.opt_mut() {
-        parent.items.push_back(QueueEntry::Child(q_ptr));
+        parent.items.push_back(QueueEntry::Child(q_ptr.into()));
     }
     q.size = q.size.wrapping_add(1);
 }

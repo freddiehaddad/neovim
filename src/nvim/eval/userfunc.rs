@@ -1457,7 +1457,7 @@ pub fn call_user_func(
     } else {
         do_cmdline(
             None,
-            crate::cmdexpand::LineGetter::Func(fc),
+            crate::cmdexpand::LineGetter::Func(fc.into()),
             DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
         );
     }

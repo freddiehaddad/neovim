@@ -1,7 +1,5 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
 
-use std::ptr;
-
 use crate::terminal::Terminal;
 use crate::vterm::mouse::VTerm;
 use crate::vterm::parser::NORMAL;
@@ -26,7 +24,7 @@ pub fn vterm_new(rows: i32, cols: i32) -> VTerm {
     vt.parser.callbacks = None;
     vt.parser.emit_nul = false;
     vt.outfunc = None;
-    vt.outdata = ptr::null_mut();
+    vt.outdata = crate::globals::GraphPtr::NULL;
     vt
 }
 
@@ -64,7 +62,7 @@ pub fn vterm_output_set_callback(
     user: Option<&mut Terminal>,
 ) {
     vt.outfunc = func;
-    vt.outdata = user.map_or(ptr::null_mut(), ptr::from_mut);
+    vt.outdata = user.into();
 }
 
 pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {

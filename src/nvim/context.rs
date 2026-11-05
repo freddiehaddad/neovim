@@ -247,7 +247,7 @@ pub fn handle_get_buffer(h: ObjHandle) -> Option<&'static mut FileBuf> {
         .buffer_handles
         .get(&h)
         .copied()
-        .and_then(|p| unsafe { p.as_mut() })
+        .and_then(|p| p.opt_mut())
 }
 
 #[inline]
@@ -261,7 +261,7 @@ pub fn handle_get_window(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
         .window_handles
         .get(&h)
         .copied()
-        .and_then(|p| unsafe { p.as_mut() })
+        .and_then(|p| p.opt_mut())
 }
 
 #[inline]
@@ -731,7 +731,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
 
     if need_append {
         win_append(g_st().lastwin.opt_mut(), &mut *cw_win, None);
-        g_st().window_handles.insert(cw_win.handle, cw_win);
+        g_st().window_handles.insert(cw_win.handle, cw_win.into());
         let cfg = cw_win.w_config.clone();
         win_config_float(cw_win, cfg);
     }

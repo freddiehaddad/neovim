@@ -121,8 +121,8 @@ pub struct DecorRangeUI {
 #[derive(Clone)]
 pub enum DecorRangeData {
     Sh(DecorSignHighlight),
-    Vt(*mut DecorVirtText),
-    VirtLines(*mut DecorVirtText),
+    Vt(crate::globals::GraphPtr<DecorVirtText>),
+    VirtLines(crate::globals::GraphPtr<DecorVirtText>),
     Ui(DecorRangeUI),
 }
 
@@ -153,7 +153,7 @@ impl DecorRangeData {
     #[inline]
     pub fn vt_opt(&self) -> Option<&'static mut DecorVirtText> {
         match self {
-            Self::Vt(vt) | Self::VirtLines(vt) => unsafe { vt.as_mut() },
+            Self::Vt(vt) | Self::VirtLines(vt) => vt.opt_mut(),
             _ => None,
         }
     }
@@ -186,7 +186,7 @@ impl Drop for DecorRange {
             && let DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) = self.data
             && !vt.is_null()
         {
-            drop(unsafe { Box::from_raw(vt) });
+            drop(unsafe { Box::from_raw(vt.as_ptr()) });
         }
     }
 }
@@ -386,40 +386,40 @@ impl DecorVirtText {
     }
 }
 
-pub struct VirtTextMutIter(*mut DecorVirtText);
+pub struct VirtTextMutIter(crate::globals::GraphPtr<DecorVirtText>);
 
 impl Iterator for VirtTextMutIter {
     type Item = &'static mut DecorVirtText;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = unsafe { self.0.as_mut() }?;
-        self.0 = cur.next_opt().map_or(ptr::null_mut(), ptr::from_mut);
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.next_opt().into();
         Some(cur)
     }
 }
 
-pub struct VirtTextPtrIter(*mut DecorVirtText);
+pub struct VirtTextPtrIter(crate::globals::GraphPtr<DecorVirtText>);
 
 impl Iterator for VirtTextPtrIter {
     type Item = &'static mut DecorVirtText;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = unsafe { self.0.as_mut() }?;
-        self.0 = cur.next_opt().map_or(ptr::null_mut(), ptr::from_mut);
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.next_opt().into();
         Some(cur)
     }
 }
 
 #[inline]
 pub fn virt_text_iter_mut(start: Option<&'static mut DecorVirtText>) -> VirtTextMutIter {
-    VirtTextMutIter(start.map_or(ptr::null_mut(), ptr::from_mut))
+    VirtTextMutIter(start.into())
 }
 
 #[inline]
 pub fn virt_text_iter_ptr(start: Option<&'static mut DecorVirtText>) -> VirtTextPtrIter {
-    VirtTextPtrIter(start.map_or(ptr::null_mut(), ptr::from_mut))
+    VirtTextPtrIter(start.into())
 }
 
 use crate::extmark::{
@@ -712,14 +712,12 @@ pub fn decor_free(decor: DecorInline) {
         return;
     }
     let ext = decor.data.ext();
-    let vt = ext.vt.as_ptr();
+    let vt = ext.vt;
     let mut idx = ext.sh_idx;
 
     if g_st().decor_state.running_decor_provider {
         if !vt.is_null() {
-            decor_st()
-                .to_free_virt
-                .push(crate::globals::GraphPtr::new(vt));
+            decor_st().to_free_virt.push(vt);
         }
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut g_st().decor_items)[idx as usize];
@@ -732,7 +730,7 @@ pub fn decor_free(decor: DecorInline) {
         }
     } else {
         if !vt.is_null() {
-            drop(unsafe { Box::from_raw(vt) });
+            drop(unsafe { Box::from_raw(vt.as_ptr()) });
         }
         decor_free_sh(idx);
     }
@@ -905,7 +903,7 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
 
 pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     match decor.data {
-        DecorRangeData::Vt(vt) => unsafe { (*vt).pos },
+        DecorRangeData::Vt(vt) => vt.pos,
         DecorRangeData::Ui(ui) => ui.pos,
         _ => K_VPOS_END_OF_LINE,
     }
@@ -1089,9 +1087,9 @@ pub fn decor_range_add_virt(
         priority_internal: DecorPriorityInternal::from(priority) << 16,
         owned,
         data: if is_lines {
-            DecorRangeData::VirtLines(vt_ptr)
+            DecorRangeData::VirtLines(vt_ptr.into())
         } else {
-            DecorRangeData::Vt(vt_ptr)
+            DecorRangeData::Vt(vt_ptr.into())
         },
         attr_id: 0,
         draw_col: -10,

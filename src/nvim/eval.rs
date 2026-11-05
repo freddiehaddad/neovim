@@ -22,10 +22,10 @@ use crate::eval::typval::{
     tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
     tv_list_append_owned_tv, tv_list_append_string, tv_list_assign_range,
     tv_list_check_range_index_one, tv_list_check_range_index_two, tv_list_concat, tv_list_copy,
-    tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first, tv_list_free,
-    tv_list_free_contents, tv_list_join, tv_list_last, tv_list_len, tv_list_ref, tv_list_set_lock,
-    tv_list_set_ret, tv_list_slice_or_index, tv_list_unref, tv_list_watch_add,
-    tv_list_watch_remove, tv_st, tv2bool, value_check_lock,
+    tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_free, tv_list_free_contents,
+    tv_list_join, tv_list_last, tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret,
+    tv_list_slice_or_index, tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv_st, tv2bool,
+    value_check_lock,
 };
 use crate::eval::vars::{
     Evalarg, Lval, VV_ARGV, VV_EVENT, VV_LUA, VV_SHELL_ERROR, check_vars, eval_one_expr_in_str,
@@ -237,7 +237,7 @@ pub(crate) struct EvalModuleState {
     eval7_recurse: i32,
     var_item_copy_recurse: i32,
     var2_fpos_pos: CursorPos,
-    timers: std::collections::BTreeMap<u64, *mut VimTimer>,
+    timers: std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>,
 }
 
 impl EvalModuleState {
@@ -270,7 +270,7 @@ pub(crate) fn eval_st() -> crate::globals::GraphPtr<EvalModuleState> {
 enum ForSource {
     None,
     List {
-        list: *mut TvList,
+        list: crate::globals::GraphPtr<TvList>,
         lw: std::rc::Rc<Listwatch>,
     },
     Blob {
@@ -290,8 +290,8 @@ pub struct Forinfo {
     fi_source: ForSource,
 }
 
-pub type HtStack = Vec<*mut Hashtab>;
-pub type ListStack = Vec<*mut TvList>;
+pub type HtStack = Vec<crate::globals::GraphPtr<Hashtab>>;
+pub type ListStack = Vec<crate::globals::GraphPtr<TvList>>;
 
 #[repr(C)]
 pub struct VimTimer {
@@ -1757,25 +1757,23 @@ pub fn eval_for_line(
         *errp = false;
         if !skip {
             if tv.v_type == VarType::VarList {
-                let l = tv.vval.v_list();
-                if l.is_null() {
+                let Some(l) = tv.vval.v_list_opt() else {
                     tv_clear(&mut tv);
-                } else {
-                    let lw = std::rc::Rc::new(Listwatch {
-                        lw_item: std::cell::Cell::new(
-                            tv_list_first(unsafe { l.as_ref() })
-                                .map_or(ptr::null_mut(), ptr::from_mut),
-                        ),
-                    });
-                    tv_list_watch_add(unsafe { &mut *l }, lw.clone());
-                    fi.fi_source = ForSource::List { list: l, lw };
-                }
-            } else if tv.v_type == VarType::VarBlob {
-                let bytes = if tv.vval.v_blob().is_null() {
-                    Vec::new()
-                } else {
-                    unsafe { (*tv.vval.v_blob()).bv_ga.clone() }
+                    if skip {
+                        g_st().emsg_skip -= 1;
+                    }
+                    return fi;
                 };
+                let lw = std::rc::Rc::new(Listwatch {
+                    lw_item: std::cell::Cell::new(l.lv_first),
+                });
+                tv_list_watch_add(l, lw.clone());
+                fi.fi_source = ForSource::List { list: l.into(), lw };
+            } else if tv.v_type == VarType::VarBlob {
+                let bytes = tv
+                    .vval
+                    .v_blob_opt()
+                    .map_or_else(Vec::new, |b| b.bv_ga.clone());
                 fi.fi_source = ForSource::Blob { bytes, idx: 0 };
                 tv_clear(&mut tv);
             } else if tv.v_type == VarType::VarString {
@@ -1833,11 +1831,10 @@ pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
             result
         }
         ForSource::List { list: _, lw } => {
-            let Some(item) = (unsafe { lw.lw_item.get().as_mut() }) else {
+            let Some(item) = lw.lw_item.get().opt_mut() else {
                 return false;
             };
-            lw.lw_item
-                .set(tv_list_item_next(item).map_or(ptr::null_mut(), ptr::from_mut));
+            lw.lw_item.set(item.li_next);
             ex_let_vars(
                 arg,
                 &mut *tv_list_item_tv(item),
@@ -1854,7 +1851,7 @@ pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
 impl Drop for Forinfo {
     fn drop(&mut self) {
         if let ForSource::List { list, ref lw } = self.fi_source
-            && let Some(list_ref) = unsafe { list.as_mut() }
+            && let Some(list_ref) = list.opt_mut()
         {
             tv_list_watch_remove(list_ref, lw);
             tv_list_unref(Some(list_ref));
@@ -4221,7 +4218,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for &data in g_st().channels.values() {
-            let ct = unsafe { &mut *data };
+            let ct = data.borrow_mut();
             set_ref_in_callback_reader(&mut ct.on_data, copy_id, None, None);
             set_ref_in_callback_reader(&mut ct.on_stderr, copy_id, None, None);
             set_ref_in_callback(&mut ct.on_exit, copy_id, None, None);
@@ -4229,7 +4226,7 @@ pub fn garbage_collect(testing: bool) -> bool {
     }
 
     for &timer in eval_st().timers.values() {
-        set_ref_in_callback(unsafe { &mut (*timer).callback }, copy_id, None, None);
+        set_ref_in_callback(&mut timer.borrow_mut().callback, copy_id, None, None);
     }
 
     abort = abort || set_ref_in_func_args(copy_id);
@@ -4311,10 +4308,10 @@ pub fn set_ref_in_ht(
     let mut abort = false;
     let mut ht_stack: HtStack = Vec::new();
 
-    let mut cur_ht: *mut Hashtab = ht_ref;
+    let mut cur_ht = crate::globals::GraphPtr::from(ht_ref);
     loop {
         if !abort {
-            for (_, di) in unsafe { &*cur_ht }.iter_items_mut() {
+            for (_, di) in cur_ht.borrow_mut().iter_items_mut() {
                 abort = abort
                     || set_ref_in_item(
                         &mut di.di_tv,
@@ -4343,9 +4340,9 @@ pub fn set_ref_in_list_items(
     let mut abort = false;
     let mut list_stack: ListStack = Vec::new();
 
-    let mut cur_l = l.map_or(ptr::null_mut(), ptr::from_mut);
+    let mut cur_l = crate::globals::GraphPtr::from(l);
     loop {
-        if let Some(cur_l_ref) = unsafe { cur_l.as_ref() } {
+        if let Some(cur_l_ref) = cur_l.opt() {
             for li in crate::eval::typval::list_iter_mut(cur_l_ref.first_opt()) {
                 if abort {
                     break;
@@ -4383,7 +4380,7 @@ fn set_ref_in_item_dict(
         return set_ref_in_ht(Some(&mut dd.unwrap().dv_hashtab), copy_id, list_stack);
     };
 
-    ht_stack_ref.push(&raw mut dd.as_deref_mut().unwrap().dv_hashtab);
+    ht_stack_ref.push((&mut dd.as_deref_mut().unwrap().dv_hashtab).into());
 
     for watcher in &mut dd.unwrap().watchers {
         set_ref_in_callback(
@@ -4412,7 +4409,7 @@ fn set_ref_in_item_list(
 
     ll_ref.lv_copy_id = copy_id;
     if let Some(list_stack) = list_stack {
-        list_stack.push(ll_ref);
+        list_stack.push(ll_ref.into());
         false
     } else {
         set_ref_in_list_items(Some(ll_ref), copy_id, ht_stack)
@@ -5125,7 +5122,7 @@ pub fn find_timer_by_nr(xx: Varnumber) -> Option<&'static mut VimTimer> {
         .timers
         .get(&(xx as u64))
         .copied()
-        .and_then(|p| unsafe { p.as_mut() })
+        .and_then(|p| p.opt_mut())
 }
 
 pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
@@ -5157,7 +5154,7 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
 pub fn add_timer_info_all(rettv: &mut TypVal) {
     tv_list_alloc_ret(rettv, eval_st().timers.len() as isize);
     for &timer in eval_st().timers.values() {
-        let timer = unsafe { &mut *timer };
+        let timer = timer.borrow_mut();
         if !timer.stopped || timer.refcount > 1 {
             add_timer_info(rettv, timer);
         }
@@ -5233,7 +5230,7 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
         time_watcher_init(
             &mut g_st().main_loop,
             &mut timer.watcher,
-            TimeWatcherData::EvalTimer(timer_ptr),
+            TimeWatcherData::EvalTimer(timer_ptr.into()),
         );
         timer.watcher.events = crate::globals::GraphPtr::from(multiqueue_new_child(
             loop_queues(&mut g_st().main_loop).events.borrow_mut(),
@@ -5242,7 +5239,7 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
         time_watcher_start(&mut timer.watcher, timeout as u64, timeout as u64);
     }
 
-    eval_st().timers.insert(timer.timer_id as u64, timer);
+    eval_st().timers.insert(timer.timer_id as u64, timer.into());
     timer.timer_id as u64
 }
 
@@ -5274,9 +5271,10 @@ fn timer_decref(timer_in: &mut VimTimer) {
 }
 
 pub fn timer_stop_all() {
-    let all_timers: Vec<*mut VimTimer> = eval_st().timers.values().copied().collect();
+    let all_timers: Vec<crate::globals::GraphPtr<VimTimer>> =
+        eval_st().timers.values().copied().collect();
     for timer in all_timers {
-        timer_stop(unsafe { &mut *timer });
+        timer_stop(timer.borrow_mut());
     }
 }
 

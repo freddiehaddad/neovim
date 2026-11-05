@@ -826,7 +826,7 @@ pub fn nvim_buf_get_option(buffer: Buffer, name: NvimString, err: &mut Error) ->
     let Some(buf) = find_buffer_by_handle(buffer, err) else {
         return OBJECT_NIL;
     };
-    get_option_from(OptTarget::Buf(buf), K_OPT_SCOPE_BUF, name, err)
+    get_option_from(OptTarget::Buf(buf.into()), K_OPT_SCOPE_BUF, name, err)
 }
 
 /// Sets a buffer option value. Passing `nil` as value deletes the option (only
@@ -854,7 +854,7 @@ pub fn nvim_buf_set_option(
     };
     set_option_to(
         channel_id,
-        OptTarget::Buf(buf),
+        OptTarget::Buf(buf.into()),
         K_OPT_SCOPE_BUF,
         name,
         value,
@@ -878,7 +878,7 @@ pub fn nvim_win_get_option(window: Window, name: NvimString, err: &mut Error) ->
     if win.is_null() {
         return OBJECT_NIL;
     }
-    get_option_from(OptTarget::Win(win), K_OPT_SCOPE_WIN, name, err)
+    get_option_from(OptTarget::Win(win.into()), K_OPT_SCOPE_WIN, name, err)
 }
 
 /// Sets a window option value. Passing `nil` as value deletes the option (only
@@ -907,7 +907,7 @@ pub fn nvim_win_set_option(
     }
     set_option_to(
         channel_id,
-        OptTarget::Win(win),
+        OptTarget::Win(win.into()),
         K_OPT_SCOPE_WIN,
         name,
         value,

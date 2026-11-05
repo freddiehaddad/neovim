@@ -323,10 +323,10 @@ struct Efm {
 enum QfInputSource {
     None,
     File(crate::os::fs::CFile),
-    Str(*mut u8),
-    List(*mut Listitem),
+    Str(crate::strings::CStrCursor<u8>),
+    List(crate::globals::GraphPtr<Listitem>),
     Buf {
-        buf: *mut FileBuf,
+        buf: crate::globals::GraphPtr<FileBuf>,
         buflnum: Linenr,
         lnumlast: Linenr,
     },
@@ -976,7 +976,9 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
     dst[..copy_len].copy_from_slice(&p_bytes[..copy_len]);
     dst[copy_len] = 0;
 
-    state.source = QfInputSource::Str(p_str.wrapping_add(len).cast_mut().cast());
+    state.source = QfInputSource::Str(crate::strings::CStrCursor::from_ptr(
+        p_str.wrapping_add(len).cast(),
+    ));
 
     QfStatus::Ok
 }
@@ -990,7 +992,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
     }
 
     let Some(li) = p_li else {
-        state.source = QfInputSource::List(ptr::null_mut());
+        state.source = QfInputSource::List(crate::globals::GraphPtr::NULL);
         return QfStatus::EndOfInput;
     };
 
@@ -1005,7 +1007,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
 
     crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), crate::memory::cstr_as_bytes(s));
 
-    state.source = QfInputSource::List(li.li_next.as_ptr());
+    state.source = QfInputSource::List(li.li_next);
 
     QfStatus::Ok
 }
@@ -1019,8 +1021,8 @@ fn qf_get_next_buf_line(
     if buflnum > lnumlast {
         return QfStatus::EndOfInput;
     }
-    let buf_ptr = ptr::from_mut(buf);
-    let p_buf = ml_get_buf(buf, buflnum).as_ptr().cast_mut();
+    let buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
+    let p_buf = ml_get_buf(buf, buflnum).to_bytes();
     let len = ml_get_buf_len(buf, buflnum) as usize;
     state.source = QfInputSource::Buf {
         buf: buf_ptr,
@@ -1034,10 +1036,7 @@ fn qf_get_next_buf_line(
         state.use_growbuf = false;
         state.linelen = len;
     }
-    crate::memory::copy_bytes_to_c_buf(
-        state.linebuf_slice_mut(),
-        crate::memory::cstr_as_bytes(p_buf),
-    );
+    crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), p_buf);
     QfStatus::Ok
 }
 
@@ -1147,15 +1146,13 @@ fn qf_get_nextline(state: &mut Qfstate) -> QfStatus {
     let status = match state.source {
         QfInputSource::None => QfStatus::Fail,
         QfInputSource::File(_) => qf_get_next_file_line(state),
-        QfInputSource::Str(p_str) => {
-            qf_get_next_str_line(state, crate::memory::cstr_from_ptr(p_str))
-        }
-        QfInputSource::List(p_li) => qf_get_next_list_line(state, unsafe { p_li.as_ref() }),
+        QfInputSource::Str(p_str) => qf_get_next_str_line(state, p_str.as_cstr()),
+        QfInputSource::List(p_li) => qf_get_next_list_line(state, p_li.opt()),
         QfInputSource::Buf {
             buf,
             buflnum,
             lnumlast,
-        } => qf_get_next_buf_line(state, unsafe { &mut *buf }, buflnum, lnumlast),
+        } => qf_get_next_buf_line(state, buf.borrow_mut(), buflnum, lnumlast),
     };
 
     if status != QfStatus::Ok {
@@ -1322,16 +1319,16 @@ fn qf_setup_state(
         pstate.source = QfInputSource::File(fd);
     } else if let Some(tv) = tv {
         if tv.v_type == VarType::VarString {
-            pstate.source = QfInputSource::Str(tv.vval.v_string().cast());
+            pstate.source = QfInputSource::Str(crate::strings::CStrCursor::from_opt_cstr(
+                tv.vval.v_string_cstr(),
+            ));
         } else if tv.v_type == VarType::VarList {
-            pstate.source = QfInputSource::List(
-                tv_list_first(tv.vval.v_list_opt().as_deref())
-                    .map_or(ptr::null_mut(), ptr::from_mut),
-            );
+            pstate.source =
+                QfInputSource::List(tv_list_first(tv.vval.v_list_opt().as_deref()).into());
         }
     } else {
         pstate.source = QfInputSource::Buf {
-            buf: buf.map_or(ptr::null_mut(), ptr::from_mut),
+            buf: buf.into(),
             buflnum: lnumfirst,
             lnumlast,
         };

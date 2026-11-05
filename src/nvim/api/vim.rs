@@ -1459,14 +1459,14 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 string_obj(static_cstr_as_string(c"hide")),
                 OPT_LOCAL,
                 0,
-                OptTarget::Buf(buf),
+                OptTarget::Buf(buf.into()),
             );
             set_option_direct_for(
                 K_OPT_BUFTYPE,
                 string_obj(static_cstr_as_string(c"nofile")),
                 OPT_LOCAL,
                 0,
-                OptTarget::Buf(buf),
+                OptTarget::Buf(buf.into()),
             );
             assert!(buf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
             buf.b_p_swf = false;

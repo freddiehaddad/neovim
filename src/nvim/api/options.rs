@@ -126,7 +126,7 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
             *scope = K_OPT_SCOPE_WIN;
-            *from = OptTarget::Win(find_window_by_handle(opts.win, err));
+            *from = OptTarget::Win(find_window_by_handle(opts.win, err).into());
             if error_set(err) {
                 return false;
             }
@@ -139,9 +139,7 @@ fn validate_option_value_args(
             }
             *opt_flags = OPT_LOCAL;
             *scope = K_OPT_SCOPE_BUF;
-            *from = OptTarget::Buf(
-                find_buffer_by_handle(opts.buf, err).map_or(ptr::null_mut(), ptr::from_mut),
-            );
+            *from = OptTarget::Buf(find_buffer_by_handle(opts.buf, err).into());
             if error_set(err) {
                 return false;
             }
@@ -149,9 +147,7 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) {
             *scope = K_OPT_SCOPE_TAB;
-            *from = OptTarget::Tab(
-                find_tab_by_handle(opts.tab, err).map_or(ptr::null_mut(), ptr::from_mut),
-            );
+            *from = OptTarget::Tab(find_tab_by_handle(opts.tab, err).into());
             if error_set(err) {
                 return false;
             }
@@ -415,7 +411,7 @@ pub fn nvim_get_option_value(
 
     if !ftbuf.is_null() {
         assert!(matches!(from, OptTarget::Global));
-        from = OptTarget::Buf(ftbuf);
+        from = OptTarget::Buf(ftbuf.into());
     }
 
     let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
@@ -604,14 +600,14 @@ pub fn nvim_set_option_value(
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, to) {
         b
     } else {
-        g_st().curbuf.as_ptr()
+        g_st().curbuf
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, to) {
         w
     } else {
-        curwin_ptr()
+        crate::globals::curwin_handle()
     };
-    let mut varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { win.as_mut() });
+    let mut varp = get_varp_from(&mut *option, buf.borrow_mut(), win.opt_mut());
 
     let nitems = if is_array {
         value.data.array().size
@@ -730,8 +726,8 @@ pub fn nvim_set_option_value(
             os_value_changed: false,
             os_restore_chartab: false,
             os_errbuf: Some(errbuf),
-            os_win: crate::globals::WinPtr::new(win),
-            os_buf: crate::globals::BufPtr::new(buf),
+            os_win: win,
+            os_buf: buf,
         };
         let errmsg = validate_and_prepare_option_value(&mut args);
         merged_val = args.os_newval;
@@ -839,19 +835,19 @@ pub fn nvim_get_option_info2(
     let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, from) {
         b
     } else {
-        g_st().curbuf.as_ptr()
+        g_st().curbuf
     };
     let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, from) {
         w
     } else {
-        curwin_ptr()
+        crate::globals::curwin_handle()
     };
 
     get_option_info(
         name,
         opt_flags,
-        unsafe { &mut *buf },
-        unsafe { &mut *win },
+        buf.borrow_mut(),
+        win.borrow_mut(),
         arena,
         err,
     )

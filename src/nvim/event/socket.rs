@@ -269,7 +269,7 @@ pub fn socket_alive(
 
     let mut closed = false;
     let closed_ptr: *mut bool = &raw mut closed;
-    stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
+    stream.s.internal_data = StreamInternalData::Closed(closed_ptr.into());
     stream_may_close(&mut stream.s);
     poll_main_loop_until(-1, || unsafe { ptr::read_volatile(closed_ptr) });
 
@@ -429,7 +429,13 @@ unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
         if let Some(events) = (*watcher).events.opt_mut() {
-            multiqueue_put_event(events, Event::SocketConnection { watcher, status });
+            multiqueue_put_event(
+                events,
+                Event::SocketConnection {
+                    watcher: watcher.into(),
+                    status,
+                },
+            );
         } else {
             connection_event(&mut *watcher, status);
         }
@@ -535,7 +541,7 @@ pub fn socket_connect(
                     uv_pipe_connect(req_ptr, pipe, address.as_ptr(), Some(connect_cb));
                 }
                 stream_init(None, &mut *s_ptr, -1, true);
-                (*fields).internal_data = StreamInternalData::Closed(closed_ptr);
+                (*fields).internal_data = StreamInternalData::Closed(closed_ptr.into());
                 ptr::write_volatile(closed_ptr, false);
                 ptr::write_volatile(status_ptr, 1);
                 poll_main_loop_until(i64::from(timeout), || ptr::read_volatile(status_ptr) != 1);

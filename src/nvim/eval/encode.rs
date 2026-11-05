@@ -78,9 +78,9 @@ impl ListReaderState {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MPContainerRef {
-    Dict(*mut TvDict),
-    List(*mut TvList),
-    Pairs(*mut TvList),
+    Dict(crate::globals::GraphPtr<TvDict>),
+    List(crate::globals::GraphPtr<TvList>),
+    Pairs(crate::globals::GraphPtr<TvList>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -93,25 +93,25 @@ pub(crate) enum MPConvPartialStage {
 #[derive(Clone, Copy)]
 pub(crate) enum MPConvStackData {
     Dict {
-        dict: *mut TvDict,
-        hi: *mut Hashitem,
+        dict: crate::globals::GraphPtr<TvDict>,
+        hi: crate::globals::GraphPtr<Hashitem>,
         todo: usize,
     },
     List {
-        list: *mut TvList,
-        li: *mut Listitem,
+        list: crate::globals::GraphPtr<TvList>,
+        li: crate::globals::GraphPtr<Listitem>,
     },
     Pairs {
-        list: *mut TvList,
-        li: *mut Listitem,
+        list: crate::globals::GraphPtr<TvList>,
+        li: crate::globals::GraphPtr<Listitem>,
     },
     Partial {
         stage: MPConvPartialStage,
-        pt: *mut TvPartial,
+        pt: crate::globals::GraphPtr<TvPartial>,
     },
     PartialList {
-        arg: *mut TypVal,
-        argv: *mut TypVal,
+        arg: crate::globals::GraphPtr<TypVal>,
+        argv: crate::globals::GraphPtr<TypVal>,
         todo: usize,
     },
 }
@@ -322,14 +322,14 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
         match v.data {
             MPConvStackData::Dict { dict, hi, .. } => {
                 let hi_ptr = if hi.is_null() {
-                    unsafe { (*dict).dv_hashtab.array_ptr() }
+                    dict.dv_hashtab.array_ptr().into()
                 } else {
                     hi.wrapping_sub(1)
                 };
                 let mut key_tv = TypVal {
                     v_type: VarType::VarString,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::from_opt_cstr(unsafe { &*hi_ptr }.key_cstr()),
+                    vval: TypvalVval::from_opt_cstr(hi_ptr.key_cstr()),
                 };
                 let key = encode_tv2string(&mut key_tv, None);
                 ga_concat_literal(&mut msg_ga, b"key ");
@@ -338,19 +338,18 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
             }
             MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
                 let is_list = matches!(v.data, MPConvStackData::List { .. });
-                let first = tv_list_first(unsafe { list.as_ref() })
-                    .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+                let first = crate::globals::GraphPtr::from(tv_list_first(list.opt()));
                 let idx = if li == first {
                     0
                 } else if li.is_null() {
-                    tv_list_len(unsafe { list.as_ref() }) - 1
+                    tv_list_len(list.opt()) - 1
                 } else {
-                    tv_list_idx_of_item(unsafe { list.as_ref() }, unsafe { (*li).li_prev.opt() })
+                    tv_list_idx_of_item(list.opt(), li.li_prev.opt())
                 };
                 let prev_li: *const Listitem = if li.is_null() {
-                    tv_list_last(unsafe { list.as_ref() }).map_or(std::ptr::null(), |p| p)
+                    tv_list_last(list.opt()).map_or(std::ptr::null(), |p| p)
                 } else {
-                    unsafe { (*li).li_prev.as_ptr() }
+                    li.li_prev.as_ptr()
                 };
                 if is_list
                     || prev_li.is_null()
@@ -380,7 +379,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 }
             },
             MPConvStackData::PartialList { arg, argv, .. } => {
-                let idx = (crate::memory::ptr_offset_from(arg, argv) as i32) - 1;
+                let idx = (crate::memory::ptr_offset_from(arg.as_ptr(), argv.as_ptr()) as i32) - 1;
                 let _ = write!(&mut msg_ga, "argument {idx}");
             }
         }
@@ -1089,7 +1088,7 @@ fn convert_one_value(
                 saved_copy_id: copy_id - 1,
                 data: MPConvStackData::Partial {
                     stage: MPConvPartialStage::Args,
-                    pt,
+                    pt: pt.into(),
                 },
             });
         }
@@ -1100,7 +1099,7 @@ fn convert_one_value(
             } else {
                 let saved_copy_id = unsafe { (*list).lv_copy_id };
                 if let Some(done_ok) = backend.check_self_reference(
-                    MPContainerRef::List(list),
+                    MPContainerRef::List(list.into()),
                     unsafe { &mut (*list).lv_copy_id },
                     mpstack,
                     copy_id,
@@ -1115,9 +1114,8 @@ fn convert_one_value(
                     tv: crate::globals::GraphPtr::new(tv),
                     saved_copy_id,
                     data: MPConvStackData::List {
-                        list,
-                        li: tv_list_first(unsafe { list.as_ref() })
-                            .map_or(std::ptr::null_mut(), std::ptr::from_mut),
+                        list: list.into(),
+                        li: tv_list_first(unsafe { list.as_ref() }).into(),
                     },
                 });
             }
@@ -1224,7 +1222,7 @@ fn convert_one_value(
                                 let val_list = val_di.di_tv.vval.v_list();
                                 let saved_copy_id = unsafe { (*val_list).lv_copy_id };
                                 if let Some(done_ok) = backend.check_self_reference(
-                                    MPContainerRef::List(val_list),
+                                    MPContainerRef::List(val_list.into()),
                                     unsafe { &mut (*val_list).lv_copy_id },
                                     mpstack,
                                     copy_id,
@@ -1239,9 +1237,8 @@ fn convert_one_value(
                                     tv: crate::globals::GraphPtr::new(tv),
                                     saved_copy_id,
                                     data: MPConvStackData::List {
-                                        list: val_list,
-                                        li: tv_list_first(unsafe { val_list.as_ref() })
-                                            .map_or(std::ptr::null_mut(), std::ptr::from_mut),
+                                        list: val_list.into(),
+                                        li: tv_list_first(unsafe { val_list.as_ref() }).into(),
                                     },
                                 });
 
@@ -1275,7 +1272,7 @@ fn convert_one_value(
                                     if all_pairs {
                                         let saved_copy_id = unsafe { (*val_list).lv_copy_id };
                                         if let Some(done_ok) = backend.check_self_reference(
-                                            MPContainerRef::Pairs(val_list),
+                                            MPContainerRef::Pairs(val_list.into()),
                                             unsafe { &mut (*val_list).lv_copy_id },
                                             mpstack,
                                             copy_id,
@@ -1293,12 +1290,9 @@ fn convert_one_value(
                                             tv: crate::globals::GraphPtr::new(tv),
                                             saved_copy_id,
                                             data: MPConvStackData::Pairs {
-                                                list: val_list,
+                                                list: val_list.into(),
                                                 li: tv_list_first(unsafe { val_list.as_ref() })
-                                                    .map_or(
-                                                        std::ptr::null_mut(),
-                                                        std::ptr::from_mut,
-                                                    ),
+                                                    .into(),
                                             },
                                         });
 
@@ -1335,7 +1329,7 @@ fn convert_one_value(
             if !handled_special {
                 let saved_copy_id = unsafe { (*dict).dv_copy_id };
                 if let Some(done_ok) = backend.check_self_reference(
-                    MPContainerRef::Dict(dict),
+                    MPContainerRef::Dict(dict.into()),
                     unsafe { &mut (*dict).dv_copy_id },
                     mpstack,
                     copy_id,
@@ -1350,8 +1344,8 @@ fn convert_one_value(
                     tv: crate::globals::GraphPtr::new(tv),
                     saved_copy_id,
                     data: MPConvStackData::Dict {
-                        dict,
-                        hi: unsafe { (*dict).dv_hashtab.array_ptr() },
+                        dict: dict.into(),
+                        hi: unsafe { (*dict).dv_hashtab.array_ptr() }.into(),
                         todo: unsafe { (*dict).dv_hashtab.ht_used },
                     },
                 });
@@ -1382,7 +1376,7 @@ fn encode_vim_with_backend(
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
         let next_tv: *mut TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
-                dict,
+                mut dict,
                 mut hi,
                 ref mut todo,
                 ..
@@ -1390,17 +1384,17 @@ fn encode_vim_with_backend(
                 if *todo == 0 {
                     mpstack.pop();
 
-                    unsafe { (*dict).dv_copy_id = saved_copy_id };
+                    dict.dv_copy_id = saved_copy_id;
 
                     backend.conv_dict_end();
                     continue;
-                } else if *todo != unsafe { (*dict).dv_hashtab.ht_used } {
+                } else if *todo != dict.dv_hashtab.ht_used {
                     backend.conv_dict_between_items();
                 }
-                while hashitem_empty(unsafe { &*hi }) {
+                while hashitem_empty(hi.borrow()) {
                     hi = hi.wrapping_add(1);
                 }
-                let di = crate::eval::typval::tv_dict_hi2di(unsafe { &*hi });
+                let di = crate::eval::typval::tv_dict_hi2di(hi.borrow());
                 *todo -= 1;
                 if let MPConvStackData::Dict {
                     hi: ref mut hi_ref, ..
@@ -1415,41 +1409,38 @@ fn encode_vim_with_backend(
                 backend.conv_dict_after_key();
                 &mut di.di_tv
             }
-            MPConvStackData::List { list, ref mut li } => {
-                let cur_li = *li;
+            MPConvStackData::List {
+                mut list,
+                ref mut li,
+            } => {
+                let mut cur_li = *li;
                 if cur_li.is_null() {
                     mpstack.pop();
 
-                    unsafe { (*list).lv_copy_id = saved_copy_id };
+                    list.lv_copy_id = saved_copy_id;
 
                     backend.conv_list_end();
                     continue;
-                } else if cur_li
-                    != tv_list_first(unsafe { list.as_ref() })
-                        .map_or(std::ptr::null_mut(), std::ptr::from_mut)
-                {
+                } else if cur_li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
                     backend.conv_list_between_items();
                 }
 
-                *li = unsafe { (*cur_li).li_next.as_ptr() };
+                *li = cur_li.li_next;
 
-                unsafe { &raw mut (*cur_li).li_tv }
+                &raw mut cur_li.li_tv
             }
-            MPConvStackData::Pairs { list, li } => {
+            MPConvStackData::Pairs { mut list, li } => {
                 if li.is_null() {
                     mpstack.pop();
 
-                    unsafe { (*list).lv_copy_id = saved_copy_id };
+                    list.lv_copy_id = saved_copy_id;
 
                     backend.conv_dict_end();
                     continue;
-                } else if li
-                    != tv_list_first(unsafe { list.as_ref() })
-                        .map_or(std::ptr::null_mut(), std::ptr::from_mut)
-                {
+                } else if li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
                     backend.conv_dict_between_items();
                 }
-                let kv_pair = unsafe { (*li).li_tv.vval.v_list() };
+                let kv_pair = li.li_tv.vval.v_list();
                 let first_item = tv_list_first(unsafe { kv_pair.as_ref() }).unwrap();
                 if !backend.special_dict_key_check(&first_item.li_tv) {
                     return false;
@@ -1465,7 +1456,7 @@ fn encode_vim_with_backend(
                 }
                 backend.conv_dict_after_key();
                 let last_item = tv_list_last(unsafe { kv_pair.as_ref() }).unwrap();
-                let next_li = unsafe { (*li).li_next.as_ptr() };
+                let next_li = li.li_next;
                 if let MPConvStackData::Pairs {
                     li: ref mut li_ref, ..
                 } = mpstack[cur_idx].data
@@ -1474,13 +1465,13 @@ fn encode_vim_with_backend(
                 }
                 &raw mut last_item.li_tv
             }
-            MPConvStackData::Partial { stage, pt } => {
+            MPConvStackData::Partial { stage, mut pt } => {
                 match stage {
                     MPConvPartialStage::Args => {
                         let argc = if pt.is_null() {
                             0
                         } else {
-                            unsafe { (*pt).pt_argv.len() as i32 }
+                            pt.pt_argv.len() as i32
                         };
                         backend.conv_func_before_args(argc);
                         if let MPConvStackData::Partial {
@@ -1497,8 +1488,8 @@ fn encode_vim_with_backend(
                                 tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id: copy_id - 1,
                                 data: MPConvStackData::PartialList {
-                                    arg: unsafe { (*pt).pt_argv.as_mut_ptr() },
-                                    argv: unsafe { (*pt).pt_argv.as_mut_ptr() },
+                                    arg: pt.pt_argv.as_mut_ptr().into(),
+                                    argv: pt.pt_argv.as_mut_ptr().into(),
                                     todo: argc as usize,
                                 },
                             });
@@ -1513,12 +1504,11 @@ fn encode_vim_with_backend(
                             *stage_ref = MPConvPartialStage::End;
                         }
                         let dict = if pt.is_null() {
-                            std::ptr::null_mut()
+                            crate::globals::GraphPtr::NULL
                         } else {
-                            unsafe { (*pt).pt_dict.as_ptr() }
+                            pt.pt_dict
                         };
-                        if !dict.is_null() {
-                            let dict = unsafe { &mut *dict };
+                        if let Some(dict) = dict.opt_mut() {
                             backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
                             if dict.dv_hashtab.ht_used == 0 {
                                 backend.conv_empty_dict();
@@ -1526,7 +1516,7 @@ fn encode_vim_with_backend(
                             }
                             let saved_copy_id = dict.dv_copy_id;
                             if let Some(done_ok) = backend.check_self_reference(
-                                MPContainerRef::Dict(dict),
+                                MPContainerRef::Dict(dict.into()),
                                 &mut dict.dv_copy_id,
                                 &mpstack,
                                 copy_id,
@@ -1543,8 +1533,8 @@ fn encode_vim_with_backend(
                                 tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id,
                                 data: MPConvStackData::Dict {
-                                    dict,
-                                    hi: dict.dv_hashtab.array_ptr(),
+                                    dict: dict.into(),
+                                    hi: dict.dv_hashtab.array_ptr().into(),
                                     todo: dict.dv_hashtab.ht_used,
                                 },
                             });
@@ -1574,7 +1564,7 @@ fn encode_vim_with_backend(
                 }
                 *arg = cur_arg.wrapping_add(1);
                 *todo -= 1;
-                cur_arg
+                cur_arg.as_ptr()
             }
         };
 

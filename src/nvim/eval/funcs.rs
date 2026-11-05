@@ -2179,7 +2179,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         };
         do_cmdline(
             None,
-            crate::cmdexpand::LineGetter::List(&raw mut cookie),
+            crate::cmdexpand::LineGetter::List((&mut cookie).into()),
             DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT | DOCMD_KEYTYPED,
         );
         tv_list_unref(unsafe { list_ptr.as_mut() });

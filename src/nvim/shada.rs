@@ -2551,7 +2551,7 @@ fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     PackerBuffer {
         pos,
         owned_buf,
-        anydata: crate::msgpack_rpc::packer::PackerData::File(file),
+        anydata: crate::msgpack_rpc::packer::PackerData::File(file.into()),
         ..PackerBuffer::new()
     }
 }

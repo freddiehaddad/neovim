@@ -130,7 +130,7 @@ pub struct VTerm {
     pub mode: u32,
     pub parser: VTermParser,
     pub outfunc: VTermOutputCallback,
-    pub outdata: *mut Terminal,
+    pub outdata: crate::globals::GraphPtr<Terminal>,
     pub screen: Option<Box<crate::vterm::screen::VTermScreen>>,
     pub state: Option<Box<VTermStateFull>>,
 }
@@ -143,7 +143,7 @@ impl VTerm {
             mode: 0,
             parser: VTermParser::new(),
             outfunc: None,
-            outdata: std::ptr::null_mut(),
+            outdata: crate::globals::GraphPtr::NULL,
             screen: None,
             state: None,
         }
@@ -170,7 +170,7 @@ impl VTerm {
 
     #[inline]
     pub fn term_opt(&self) -> Option<&'static mut Terminal> {
-        unsafe { self.outdata.as_mut() }
+        self.outdata.opt_mut()
     }
 
     #[inline]

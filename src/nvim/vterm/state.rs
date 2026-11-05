@@ -309,7 +309,7 @@ fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
     let rows = vt.rows;
     let cols = vt.cols;
     let mut state = Box::new(VTermStateFull {
-        vt,
+        vt: vt.into(),
         callbacks: None,
         fallbacks: None,
         rows,
@@ -2484,7 +2484,7 @@ pub fn vterm_state_set_unrecognised_fallbacks(
     if let Some(fbs) = fallbacks {
         state.fallbacks = Some(fbs);
         if let Some(user) = user {
-            (state.vt_mut()).outdata = &raw mut *user;
+            state.vt_mut().outdata = user.into();
         }
     } else {
         state.fallbacks = None;
@@ -2591,9 +2591,7 @@ pub fn vterm_state_set_selection_callbacks(
 ) {
     state.selection.callbacks = callbacks;
     if let Some(user) = user {
-        unsafe {
-            (*state.vt).outdata = &raw mut *user;
-        }
+        state.vt.outdata = user.into();
     }
     state.selection.buffer = vec![0u8; buflen];
 }

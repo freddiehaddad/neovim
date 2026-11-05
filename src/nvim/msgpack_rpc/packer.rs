@@ -15,7 +15,7 @@ pub enum PackerData {
     None,
     StringBuffer,
     Ui(u64),
-    File(*mut crate::os::fileio::FileDescriptor),
+    File(crate::globals::GraphPtr<crate::os::fileio::FileDescriptor>),
     Chans,
 }
 
@@ -23,7 +23,7 @@ impl PackerData {
     #[inline]
     pub fn as_file(self) -> &'static mut crate::os::fileio::FileDescriptor {
         match self {
-            Self::File(p) => unsafe { &mut *p },
+            Self::File(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }

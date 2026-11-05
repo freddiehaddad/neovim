@@ -1123,7 +1123,7 @@ fn lua_convert_one_value(
                     let saved_copy_id = (*list).lv_copy_id;
                     if lua_check_self_reference(
                         lstate,
-                        MPContainerRef::List(list),
+                        MPContainerRef::List(list.into()),
                         &mut (*list).lv_copy_id,
                         mpstack,
                         copy_id,
@@ -1135,9 +1135,8 @@ fn lua_convert_one_value(
                         tv: crate::globals::GraphPtr::new(tv_ptr),
                         saved_copy_id,
                         data: MPConvStackData::List {
-                            list,
-                            li: tv_list_first(list.as_ref())
-                                .map_or(std::ptr::null_mut(), std::ptr::from_mut),
+                            list: list.into(),
+                            li: tv_list_first(list.as_ref()).into(),
                         },
                     });
                 }
@@ -1250,7 +1249,7 @@ fn lua_convert_one_value(
                                     let saved_copy_id = (*val_list).lv_copy_id;
                                     if lua_check_self_reference(
                                         lstate,
-                                        MPContainerRef::List(val_list),
+                                        MPContainerRef::List(val_list.into()),
                                         &mut (*val_list).lv_copy_id,
                                         mpstack,
                                         copy_id,
@@ -1262,9 +1261,8 @@ fn lua_convert_one_value(
                                         tv: crate::globals::GraphPtr::new(tv_ptr),
                                         saved_copy_id,
                                         data: MPConvStackData::List {
-                                            list: val_list,
-                                            li: tv_list_first(val_list.as_ref())
-                                                .map_or(std::ptr::null_mut(), std::ptr::from_mut),
+                                            list: val_list.into(),
+                                            li: tv_list_first(val_list.as_ref()).into(),
                                         },
                                     });
                                     handled_special = true;
@@ -1294,7 +1292,7 @@ fn lua_convert_one_value(
                                             let saved_copy_id = (*val_list).lv_copy_id;
                                             if lua_check_self_reference(
                                                 lstate,
-                                                MPContainerRef::Pairs(val_list),
+                                                MPContainerRef::Pairs(val_list.into()),
                                                 &mut (*val_list).lv_copy_id,
                                                 mpstack,
                                                 copy_id,
@@ -1309,11 +1307,8 @@ fn lua_convert_one_value(
                                                 tv: crate::globals::GraphPtr::new(tv_ptr),
                                                 saved_copy_id,
                                                 data: MPConvStackData::Pairs {
-                                                    list: val_list,
-                                                    li: tv_list_first(val_list.as_ref()).map_or(
-                                                        std::ptr::null_mut(),
-                                                        std::ptr::from_mut,
-                                                    ),
+                                                    list: val_list.into(),
+                                                    li: tv_list_first(val_list.as_ref()).into(),
                                                 },
                                             });
                                             handled_special = true;
@@ -1348,7 +1343,7 @@ fn lua_convert_one_value(
                     let saved_copy_id = (*dict).dv_copy_id;
                     if lua_check_self_reference(
                         lstate,
-                        MPContainerRef::Dict(dict),
+                        MPContainerRef::Dict(dict.into()),
                         &mut (*dict).dv_copy_id,
                         mpstack,
                         copy_id,
@@ -1360,8 +1355,8 @@ fn lua_convert_one_value(
                         tv: crate::globals::GraphPtr::new(tv_ptr),
                         saved_copy_id,
                         data: MPConvStackData::Dict {
-                            dict,
-                            hi: (*dict).dv_hashtab.array_ptr(),
+                            dict: dict.into(),
+                            hi: (*dict).dv_hashtab.array_ptr().into(),
                             todo: (*dict).dv_hashtab.ht_used,
                         },
                     });
@@ -1390,68 +1385,65 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
             let saved_copy_id = mpstack[cur_idx].saved_copy_id;
             let next_tv: *mut TypVal = match mpstack[cur_idx].data {
                 MPConvStackData::Dict {
-                    dict,
+                    mut dict,
                     ref mut hi,
                     ref mut todo,
                     ..
                 } => {
                     if *todo == 0 {
                         mpstack.pop();
-                        (*dict).dv_copy_id = saved_copy_id;
+                        dict.dv_copy_id = saved_copy_id;
                         lua_rawset(lstate, -3);
                         continue;
-                    } else if *todo != (*dict).dv_hashtab.ht_used {
+                    } else if *todo != dict.dv_hashtab.ht_used {
                         lua_rawset(lstate, -3);
                     }
-                    while hashitem_empty(&**hi) {
+                    while hashitem_empty(hi.borrow()) {
                         *hi = (*hi).wrapping_add(1);
                     }
-                    let di = crate::eval::typval::tv_dict_hi2di(&**hi);
+                    let di = crate::eval::typval::tv_dict_hi2di(hi.borrow());
                     *todo -= 1;
                     *hi = (*hi).wrapping_add(1);
-                    let key_ptr = di.di_key.as_ptr().cast();
-                    let key_len = crate::memory::cstr_len(key_ptr);
-                    lua_pushlstring(lstate, key_ptr, key_len);
+                    let key_bytes = di.key_bytes();
+                    lua_pushlstring(lstate, key_bytes.as_ptr().cast(), key_bytes.len());
                     &mut di.di_tv
                 }
-                MPConvStackData::List { list, ref mut li } => {
+                MPConvStackData::List {
+                    mut list,
+                    ref mut li,
+                } => {
                     let cur_li = *li;
                     if cur_li.is_null() {
                         mpstack.pop();
-                        (*list).lv_copy_id = saved_copy_id;
+                        list.lv_copy_id = saved_copy_id;
                         lua_rawset(lstate, -3);
                         continue;
-                    } else if cur_li
-                        != tv_list_first(list.as_ref())
-                            .map_or(std::ptr::null_mut(), std::ptr::from_mut)
-                    {
+                    } else if cur_li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
                         let idx = lua_tonumber(lstate, -2);
                         lua_rawset(lstate, -3);
                         lua_pushnumber(lstate, idx + 1.0);
                     }
-                    *li = (*cur_li).li_next.as_ptr();
-                    &mut (*cur_li).li_tv
+                    let cur_li = cur_li.borrow_mut();
+                    *li = cur_li.li_next;
+                    &mut cur_li.li_tv
                 }
-                MPConvStackData::Pairs { list, li } => {
+                MPConvStackData::Pairs { mut list, li } => {
                     if li.is_null() {
                         mpstack.pop();
-                        (*list).lv_copy_id = saved_copy_id;
+                        list.lv_copy_id = saved_copy_id;
                         lua_rawset(lstate, -3);
                         continue;
-                    } else if li
-                        != tv_list_first(list.as_ref())
-                            .map_or(std::ptr::null_mut(), std::ptr::from_mut)
-                    {
+                    } else if li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
                         lua_rawset(lstate, -3);
                     }
-                    let kv_pair = (*li).li_tv.vval.v_list();
+                    let kv_pair = li.li_tv.vval.v_list();
                     let first_item = tv_list_first(kv_pair.as_ref()).unwrap();
                     if !lua_convert_one_value(lstate, &mut mpstack, &mut first_item.li_tv, copy_id)
                     {
                         return false;
                     }
                     let last_item = tv_list_last(kv_pair.as_ref()).unwrap();
-                    let next_li = (*li).li_next.as_ptr();
+                    let next_li = li.li_next;
                     if let MPConvStackData::Pairs {
                         li: ref mut li_ref, ..
                     } = mpstack[cur_idx].data

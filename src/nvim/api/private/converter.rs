@@ -42,14 +42,14 @@ fn cbuf_to_string_obj(arena: Option<&mut Arena>, reuse_strdata: bool, bytes: &[u
 
 enum ConvStackEntry {
     List {
-        list: *mut TvList,
-        li: *mut Listitem,
+        list: crate::globals::GraphPtr<TvList>,
+        li: crate::globals::GraphPtr<Listitem>,
         saved_copy_id: i32,
         first: bool,
     },
     Dict {
-        dict: *mut TvDict,
-        hi: *mut Hashitem,
+        dict: crate::globals::GraphPtr<TvDict>,
+        hi: crate::globals::GraphPtr<Hashitem>,
         todo: usize,
         saved_copy_id: i32,
         first: bool,
@@ -158,8 +158,8 @@ fn convert_one_value(
                 data: ObjectData::Array(arr),
             });
             mpstack.push(ConvStackEntry::List {
-                list: list_ptr,
-                li: list.lv_first.as_ptr(),
+                list: list_ptr.into(),
+                li: list.lv_first,
                 saved_copy_id,
                 first: true,
             });
@@ -211,8 +211,8 @@ fn convert_one_value(
                 data: ObjectData::Dict(d_obj),
             });
             mpstack.push(ConvStackEntry::Dict {
-                dict: dict_ptr,
-                hi: dict.dv_hashtab.array_ptr(),
+                dict: dict_ptr.into(),
+                hi: dict.dv_hashtab.array_ptr().into(),
                 todo: used,
                 saved_copy_id,
                 first: true,
@@ -278,11 +278,11 @@ pub fn vim_to_object(
                 first,
             } => {
                 if li.is_null() {
-                    let list_ptr = *list;
+                    let mut list_ptr = *list;
                     let saved = *saved_copy_id;
                     mpstack.pop();
 
-                    unsafe { (*list_ptr).lv_copy_id = saved };
+                    list_ptr.lv_copy_id = saved;
 
                     pop_into_parent_list(&mut stack);
                     continue;
@@ -291,8 +291,8 @@ pub fn vim_to_object(
                     pop_into_parent_list(&mut stack);
                 }
                 *first = false;
-                let cur_li = unsafe { &mut **li };
-                *li = cur_li.li_next.as_ptr();
+                let cur_li = li.borrow_mut();
+                *li = cur_li.li_next;
                 &mut cur_li.li_tv
             }
             ConvStackEntry::Dict {
@@ -303,11 +303,11 @@ pub fn vim_to_object(
                 first,
             } => {
                 if *todo == 0 {
-                    let dict_ptr = *dict;
+                    let mut dict_ptr = *dict;
                     let saved = *saved_copy_id;
                     mpstack.pop();
 
-                    unsafe { (*dict_ptr).dv_copy_id = saved };
+                    dict_ptr.dv_copy_id = saved;
 
                     pop_into_parent_dict(&mut stack);
                     continue;
@@ -316,14 +316,14 @@ pub fn vim_to_object(
                     pop_into_parent_dict(&mut stack);
                 }
                 *first = false;
-                while hashitem_empty(unsafe { &**hi }) {
+                while hashitem_empty(hi.borrow()) {
                     *hi = (*hi).wrapping_add(1);
                 }
                 let cur_hi = *hi;
                 *hi = (*hi).wrapping_add(1);
                 *todo -= 1;
 
-                let di = crate::eval::typval::tv_dict_hi2di(unsafe { &*cur_hi });
+                let di = crate::eval::typval::tv_dict_hi2di(cur_hi.borrow());
                 let key_bytes = di.key_bytes();
                 let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 

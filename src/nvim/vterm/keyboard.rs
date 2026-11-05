@@ -79,7 +79,7 @@ pub struct VTermKeyEncodingStack {
 
 #[repr(C)]
 pub struct VTermStateFull {
-    pub vt: *mut VTerm,
+    pub vt: crate::globals::GraphPtr<VTerm>,
     pub callbacks: Option<&'static crate::vterm::pen::VTermStateCallbacks>,
     pub fallbacks: Option<&'static crate::vterm::state::VTermStateFallbacks>,
     pub rows: i32,
@@ -124,7 +124,7 @@ pub struct VTermStateFull {
 impl VTermStateFull {
     #[inline]
     pub fn vt_mut(&self) -> &'static mut VTerm {
-        unsafe { &mut *self.vt }
+        self.vt.borrow_mut()
     }
 
     #[inline]

@@ -490,7 +490,7 @@ pub fn win_float_special(
             cstr_as_obj(Some(c"wipe")),
             OPT_LOCAL,
             0,
-            OptTarget::Buf(&raw mut *buf),
+            OptTarget::Buf(buf.into()),
         );
         win_set_buf(&mut *wp, buf, &mut err);
         if error_set(&err) {

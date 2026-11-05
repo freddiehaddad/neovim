@@ -611,7 +611,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static
         .buffer_handles
         .get(&buffer)
         .copied()
-        .unwrap_or(ptr::null_mut());
+        .unwrap_or_default();
     if rv.is_null() {
         api_set_error!(
             err,
@@ -621,7 +621,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static
         );
         return None;
     }
-    unsafe { rv.as_mut() }
+    rv.opt_mut()
 }
 
 #[unsafe(no_mangle)]
@@ -633,7 +633,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
         .window_handles
         .get(&window)
         .copied()
-        .unwrap_or(ptr::null_mut());
+        .unwrap_or_default();
     if rv.is_null() {
         api_set_error!(
             err,
@@ -643,7 +643,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
         );
         return ptr::null_mut();
     }
-    rv
+    rv.as_ptr()
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static mut TabPageInfo> {
@@ -654,7 +654,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static 
         .tabpage_handles
         .get(&tabpage)
         .copied()
-        .unwrap_or(ptr::null_mut());
+        .unwrap_or_default();
     if rv.is_null() {
         api_set_error!(
             err,
@@ -664,7 +664,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static 
         );
         return None;
     }
-    unsafe { rv.as_mut() }
+    rv.opt_mut()
 }
 
 #[inline]

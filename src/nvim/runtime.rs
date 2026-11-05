@@ -391,7 +391,7 @@ pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
         &ufunc.uf_name
     };
     let entry = estack_push(ETYPE_UFUNC, Some(name), lnum);
-    entry.es_info = crate::profile::EStackInfo::Ufunc(ufunc);
+    entry.es_info = crate::profile::EStackInfo::Ufunc(ufunc.into());
 }
 
 /// Take an item off of the execution stack.
@@ -2850,7 +2850,7 @@ fn do_source_ext(
             }
             do_cmdline(
                 firstline.as_deref(),
-                LineGetter::Source(&raw mut cookie),
+                LineGetter::Source((&mut cookie).into()),
                 DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
             );
         }
