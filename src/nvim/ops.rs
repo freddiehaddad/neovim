@@ -4078,8 +4078,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 op_fold_range(
                     oap.start,
                     oap.end,
-                    i32::from(oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC),
-                    i32::from(oap.op_type == OP_FOLDOPENREC || oap.op_type == OP_FOLDCLOSEREC),
+                    oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC,
+                    oap.op_type == OP_FOLDOPENREC || oap.op_type == OP_FOLDCLOSEREC,
                     oap.is_visual,
                 );
             }

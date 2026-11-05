@@ -1904,10 +1904,10 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     }
 }
 
-pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: i32) {
+pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
     let path_name = path_name.as_ptr();
     {
-        if use_mouse_pos == 0 {
+        if !use_mouse_pos {
             g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
             g_st().mouse_col = curwin_mut().w_grid.col_offset
                 + if curwin_mut().w_onebuf_opt.wo_rl {

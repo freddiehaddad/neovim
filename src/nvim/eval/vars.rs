@@ -1158,7 +1158,7 @@ pub fn heredoc_get(
         }
 
         let str_line = theline.as_ptr().wrapping_add(ti as usize);
-        if evalstr && eap.skip == 0 {
+        if evalstr && !eap.skip {
             let Some(evaluated) = eval_all_expr_in_str(unsafe { CStr::from_ptr(str_line) }) else {
                 eval_failed = true;
                 continue;
@@ -1219,7 +1219,7 @@ pub fn ex_let(eap: &mut Exarg) {
             arg = list_arg_vars(eap, crate::memory::cstr_from_ptr(arg), &mut first)
                 .as_ptr()
                 .cast_mut();
-        } else if eap.skip == 0 {
+        } else if !eap.skip {
             list_glob_vars(&mut first);
             list_buf_vars(&mut first);
             list_win_vars(&mut first);
@@ -1237,7 +1237,7 @@ pub fn ex_let(eap: &mut Exarg) {
     if expr_bytes.starts_with(b"=<<") {
         if let Some(l) = heredoc_get(eap, unsafe { CStr::from_ptr(expr.wrapping_add(3)) }, false) {
             tv_list_set_ret(&mut rettv, Some(l));
-            if eap.skip == 0 {
+            if !eap.skip {
                 op[0] = b'=';
                 op[1] = 0;
                 ex_let_vars(
@@ -1277,22 +1277,22 @@ pub fn ex_let(eap: &mut Exarg) {
         expr.cast(),
     )));
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip += 1;
     }
     let mut evalarg = Evalarg::new();
-    fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
+    fill_evalarg_from_eap(&mut evalarg, eap.skip);
     let eval_res = eval0(
         unsafe { CStr::from_ptr(expr) },
         &mut rettv,
         Some(&mut *eap),
         &mut evalarg,
     );
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip -= 1;
     }
 
-    if eap.skip == 0 && eval_res {
+    if !eap.skip && eval_res {
         ex_let_vars(
             crate::memory::cstr_from_ptr(eap.arg),
             &mut rettv,
@@ -1550,7 +1550,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
     let mut tv: TypVal = TypVal::new();
 
     while ends_excmd(crate::memory::cstr_first_byte(arg.cast())) == 0 && !g_st().got_int {
-        if error || eap.skip != 0 {
+        if error || eap.skip {
             arg = find_name_end(
                 unsafe { CStr::from_ptr(arg.cast()) },
                 None,
@@ -1916,7 +1916,7 @@ fn ex_let_register<'a>(
                 crate::memory::cstr_first_byte(arg.cast()) as i32
             };
             let p_bytes = crate::memory::cstr_as_bytes(p);
-            write_reg_contents(reg_c, p_bytes, p_bytes.len() as isize, false as i32);
+            write_reg_contents(reg_c, p_bytes, p_bytes.len() as isize, false);
             arg_end = arg.wrapping_add(1);
         }
         drop(ptofree);
@@ -1981,7 +1981,7 @@ pub fn ex_unlet(eap: &mut Exarg) {
         eap,
         arg,
         0,
-        if forceit != 0 { GLV_QUIET } else { 0 },
+        if forceit { GLV_QUIET } else { 0 },
         do_unlet_var,
     );
 }
@@ -1991,7 +1991,7 @@ pub fn ex_lockvar(eap: &mut Exarg) {
     let mut arg = eap.arg;
     let mut deep: i32 = 2;
 
-    if eap.forceit != 0 {
+    if eap.forceit {
         deep = -1;
     } else if ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
@@ -2030,7 +2030,7 @@ fn ex_unletlock(
             }
             arg = arg_cstr.as_ptr().cast_mut().cast();
             lv.ll_name_len = (arg as usize).wrapping_sub(name_start as usize);
-            if !error && eap.skip == 0 && !callback(&mut lv, eap, deep) {
+            if !error && !eap.skip && !callback(&mut lv, eap, deep) {
                 error = true;
             }
             name_end = arg;
@@ -2040,7 +2040,7 @@ fn ex_unletlock(
                 None,
                 &mut lv,
                 true,
-                eap.skip != 0 || error,
+                eap.skip || error,
                 glv_flags,
                 FNE_CHECK_START,
             )
@@ -2059,7 +2059,7 @@ fn ex_unletlock(
                 break;
             }
 
-            if !error && eap.skip == 0 && !callback(&mut lv, eap, deep) {
+            if !error && !eap.skip && !callback(&mut lv, eap, deep) {
                 error = true;
             }
         }
@@ -2082,7 +2082,7 @@ fn ex_unletlock(
 
 /// Unlet a variable indicated by `lp`.
 fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
-    let forceit = eap.forceit != 0;
+    let forceit = eap.forceit;
     let mut ret = true;
     let ll_name = lp.ll_name.unwrap_or(c"");
 
@@ -2586,7 +2586,7 @@ pub fn set_cmdarg(
         newval.extend_from_slice(b" ++nobin");
     }
 
-    if eap.unwrap().read_edit != 0 {
+    if eap.unwrap().read_edit {
         newval.extend_from_slice(b" ++edit");
     }
 
@@ -2618,7 +2618,7 @@ pub fn set_cmdarg(
         newval.push(eap.unwrap().bad_char as u8);
     }
 
-    if eap.unwrap().mkdir_p != 0 {
+    if eap.unwrap().mkdir_p {
         newval.extend_from_slice(b" ++p");
     }
 

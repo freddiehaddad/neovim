@@ -605,11 +605,10 @@ pub fn do_record(c: i32) -> bool {
     retval
 }
 
-fn put_in_typebuf(s: &CStr, esc: bool, colon: bool, silent: i32) -> bool {
+fn put_in_typebuf(s: &CStr, esc: bool, colon: bool, is_silent: bool) -> bool {
     let mut retval = true;
-    let is_silent = silent != 0;
 
-    put_reedit_in_typebuf(silent);
+    put_reedit_in_typebuf(is_silent);
     if colon {
         retval = ins_typebuf(c"\n", REMAP_NONE, 0, true, is_silent);
     }
@@ -634,7 +633,7 @@ fn put_in_typebuf(s: &CStr, esc: bool, colon: bool, silent: i32) -> bool {
     retval
 }
 
-fn put_reedit_in_typebuf(silent: i32) {
+fn put_reedit_in_typebuf(silent: bool) {
     if g_st().restart_edit == 0 {
         return;
     }
@@ -654,7 +653,7 @@ fn put_reedit_in_typebuf(silent: i32) {
         REMAP_NONE,
         0,
         true,
-        silent != 0,
+        silent,
     ) {
         g_st().restart_edit = 0;
     }
@@ -691,7 +690,7 @@ fn execreg_line_continuation(lines: &[NvimString], idx: &mut usize) -> Vec<u8> {
     buf
 }
 
-pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool {
+pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> bool {
     let mut retval = true;
 
     if regname == i32::from(b'@') {
@@ -737,27 +736,27 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
         let Some(p) = get_expr_line() else {
             return false;
         };
-        retval = put_in_typebuf(&p, true, colon != 0, silent);
+        retval = put_in_typebuf(&p, true, colon, silent);
     } else if regname == i32::from(b'.') {
         let Some(p) = get_last_insert_save() else {
             emsg(gettext(E_NOINSTEXT));
             return false;
         };
-        retval = put_in_typebuf(&p, false, colon != 0, silent);
+        retval = put_in_typebuf(&p, false, colon, silent);
     } else {
         let reg = &*get_yank_register(regname, YREG_PASTE);
         if !reg.y_allocated {
             return false;
         }
 
-        let remap = if colon != 0 { REMAP_NONE } else { REMAP_YES };
-        let is_silent = silent != 0;
+        let remap = if colon { REMAP_NONE } else { REMAP_YES };
+        let is_silent = silent;
 
         put_reedit_in_typebuf(silent);
         let mut i = reg.y_array.len();
         while i > 0 {
             i -= 1;
-            if (reg.y_type == MotionType::MtLineWise || i < reg.y_array.len() - 1 || addcr != 0)
+            if (reg.y_type == MotionType::MtLineWise || i < reg.y_array.len() - 1 || addcr)
                 && !ins_typebuf(c"\n", remap, 0, true, is_silent)
             {
                 return false;
@@ -765,7 +764,7 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
 
             let mut str_ = reg.y_array[i].data;
             let cont_vec: Vec<u8>;
-            if colon != 0 && i > 0 {
+            if colon && i > 0 {
                 let p = str_.wrapping_add(crate::charset::skipwhite_len(
                     crate::memory::cstr_as_bytes(str_.cast()),
                 ));
@@ -781,7 +780,7 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
             if !retval {
                 return false;
             }
-            if colon != 0 && !ins_typebuf(c":", remap, 0, true, is_silent) {
+            if colon && !ins_typebuf(c":", remap, 0, true, is_silent) {
                 return false;
             }
         }
@@ -2891,8 +2890,8 @@ fn str_to_reg(
     }
 }
 
-pub fn write_reg_contents(name: i32, str_: &[u8], len: isize, must_append: i32) {
-    write_reg_contents_ex(name, str_, len, must_append != 0, MotionType::MtUnknown, 0);
+pub fn write_reg_contents(name: i32, str_: &[u8], len: isize, must_append: bool) {
+    write_reg_contents_ex(name, str_, len, must_append, MotionType::MtUnknown, 0);
 }
 
 pub fn write_reg_contents_lst(

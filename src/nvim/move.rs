@@ -677,7 +677,7 @@ pub fn validate_cursor(wp: &mut WinInfoInfo) {
     check_cursor_lnum(wp);
     check_cursor_moved(wp);
     if (wp.w_valid & (VALID_WCOL | VALID_WROW)) != (VALID_WCOL | VALID_WROW) {
-        curs_columns(wp, i32::from(true));
+        curs_columns(wp, true);
     }
 }
 
@@ -860,7 +860,7 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> i32 {
 
 /// Compute `wp->w_wcol` and `wp->w_virtcol`, and update `wp->w_wrow`,
 /// `wp->w_cline_row`, and `wp->w_leftcol`.
-pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
+pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: bool) {
     let mut startcol: Colnr = 0;
     let mut endcol: Colnr = 0;
 
@@ -930,7 +930,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
             wp.w_wcol -= n * width2;
             wp.w_wrow += n;
         }
-    } else if may_scroll != 0 && !wp.w_cline_folded {
+    } else if may_scroll && !wp.w_cline_folded {
         let siso = get_sidescrolloff_value(wp);
         let off_left = i64::from(startcol) - i64::from(wp.w_leftcol) - siso;
         let off_right =
@@ -1354,7 +1354,7 @@ pub fn scroll_redraw(up: i32, count: Linenr) {
     let moved = if up != 0 {
         scrollup(curwin_mut(), count, true)
     } else {
-        scrolldown(curwin_mut(), count, i32::from(true))
+        scrolldown(curwin_mut(), count, true)
     };
 
     if get_scrolloff_value(curwin_mut()) > 0 {
@@ -1393,7 +1393,7 @@ pub fn scroll_redraw(up: i32, count: Linenr) {
 }
 
 /// Scroll a window down by `line_count` logical lines (`CTRL-Y`).
-pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool {
+pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool {
     let mut done: i32 = 0;
     let mut width1: i32 = 0;
     let mut width2: i32 = 0;
@@ -1434,7 +1434,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
             let topline = wp.w_topline;
             if has_folding(&mut *wp, topline, Some(&mut first), None) {
                 done += i32::from(!decor_conceal_line(wp, first - 1, false));
-                if byfold == 0 {
+                if !byfold {
                     todo -= wp.w_topline - first - 1;
                 }
                 wp.w_botline -= wp.w_topline - first;

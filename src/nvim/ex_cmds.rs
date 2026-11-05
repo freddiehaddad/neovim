@@ -902,7 +902,7 @@ pub fn ex_sort(eap: &mut Exarg) {
 
         let mut lnum = eap.line2;
         while i < count {
-            let get_lnum = nrs_vec[if eap.forceit != 0 { count - i - 1 } else { i }].lnum;
+            let get_lnum = nrs_vec[if eap.forceit { count - i - 1 } else { i }].lnum;
 
             if get_lnum + (count as Linenr - 1) != lnum {
                 change_occurred = true;
@@ -991,7 +991,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
     let mut maxlen: i32 = 0;
     let mut count = eap.line2 - eap.line1 + 1;
     let mut keep_only_unique = false;
-    let keep_only_not_unique = eap.forceit != 0;
+    let keep_only_not_unique = eap.forceit;
     let mut deleted: Linenr = 0;
 
     if count <= 1 {
@@ -2104,7 +2104,7 @@ pub fn ex_file(eap: &mut Exarg) {
     }
 
     if crate::memory::cstr_is_empty(eap.arg) || !shortmess(K_SHM_FILEINFO) {
-        fileinfo(0, 0, eap.forceit != 0);
+        fileinfo(0, 0, eap.forceit);
     }
 }
 
@@ -2127,7 +2127,7 @@ pub fn ex_write(eap: &mut Exarg) {
         eap.line2 = curbuf_mut().b_ml.ml_line_count;
     }
 
-    if eap.usefilter != 0 {
+    if eap.usefilter {
         do_bang(1, eap, false, true, false);
     } else {
         do_write(eap);
@@ -2148,9 +2148,7 @@ fn check_writable(fname: &CStr) -> bool {
 
 fn handle_mkdir_p_arg(eap: &mut Exarg, fname: Option<&CStr>) -> bool {
     let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if eap.mkdir_p != 0
-        && os_file_mkdir(crate::memory::cstr_from_ptr((fname_ptr).cast()), 0o755) < 0
-    {
+    if eap.mkdir_p && os_file_mkdir(crate::memory::cstr_from_ptr((fname_ptr).cast()), 0o755) < 0 {
         return false;
     }
     true
@@ -2229,8 +2227,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 .fname_opt()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
-                && eap.forceit == 0
-                && eap.append == 0
+                && !eap.forceit
+                && !eap.append
                 && !opt_vars().p_wa
             {
                 if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -2239,7 +2237,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     {
                         break 'theend;
                     }
-                    eap.forceit = 1;
+                    eap.forceit = true;
                 } else {
                     emsg(gettext(c"E140: Use ! to write partial buffer"));
                     break 'theend;
@@ -2310,8 +2308,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 eap.line1,
                 eap.line2,
                 Some(&*eap),
-                eap.append != 0,
-                eap.forceit != 0,
+                eap.append,
+                eap.forceit,
                 true,
                 false,
             );
@@ -2350,7 +2348,7 @@ pub fn check_overwrite(
         && !opt_vars().p_wa
         && os_path_exists(crate::memory::cstr_from_ptr((ffname).cast()))
     {
-        if eap.forceit == 0 && eap.append == 0 {
+        if !eap.forceit && !eap.append {
             if os_isdir(crate::memory::cstr_from_ptr((ffname).cast())) {
                 semsg!(gettext(E_ISADIR2), ffname);
                 return false;
@@ -2368,7 +2366,7 @@ pub fn check_overwrite(
                 {
                     return false;
                 }
-                eap.forceit = 1;
+                eap.forceit = true;
             } else {
                 emsg(gettext(E_EXISTS));
                 return false;
@@ -2402,7 +2400,7 @@ pub fn check_overwrite(
                     {
                         return false;
                     }
-                    eap.forceit = 1;
+                    eap.forceit = true;
                 } else {
                     semsg!(
                         gettext(c"E768: Swap file exists: %s (:silent! overrides)"),
@@ -2447,7 +2445,7 @@ pub fn do_wqall(eap: &mut Exarg) {
     while !buf.is_null() {
         let b = unsafe { &mut *buf };
         if g_st().exiting
-            && eap.forceit == 0
+            && !eap.forceit
             && !b.terminal.is_null()
             && channel_job_running(b.b_p_channel as u64)
         {
@@ -2477,7 +2475,7 @@ pub fn do_wqall(eap: &mut Exarg) {
         } else {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
-            if !handle_mkdir_p_arg(eap, b.fname_opt()) || !buf_write_all(b, eap.forceit != 0) {
+            if !handle_mkdir_p_arg(eap, b.fname_opt()) || !buf_write_all(b, eap.forceit) {
                 error += 1;
             }
             if !bufref_valid(Some(&bufref)) {
@@ -2512,8 +2510,8 @@ fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
-    if *forceit == 0
+fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
+    if !*forceit
         && (buf.b_p_ro
             || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
     {
@@ -2543,7 +2541,7 @@ fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
             if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 2)
                 == VIM_YES
             {
-                *forceit = 1;
+                *forceit = true;
                 return false;
             }
             return true;
@@ -2570,7 +2568,7 @@ pub fn getfile(
     lnum: Linenr,
     forceit: bool,
 ) -> i32 {
-    if !check_can_set_curbuf_forceit(i32::from(forceit)) {
+    if !check_can_set_curbuf_forceit(forceit) {
         return GETFILE_ERROR;
     }
 
@@ -3312,7 +3310,7 @@ pub fn ex_append(eap: &mut Exarg) {
     let mut indent: i32 = 0;
     let mut empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
 
-    if eap.skip != 0 {
+    if eap.skip {
         while let Some(theline) = get_append_line(eap, 0) {
             if theline[0] == b'.' && theline[1] == 0 {
                 break;
@@ -3321,7 +3319,7 @@ pub fn ex_append(eap: &mut Exarg) {
         return;
     }
 
-    if eap.forceit != 0 {
+    if eap.forceit {
         curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
     }
 
@@ -3406,7 +3404,7 @@ pub fn ex_append(eap: &mut Exarg) {
     g_st().state_global = save_state;
     ui_cursor_shape();
 
-    if eap.forceit != 0 {
+    if eap.forceit {
         curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
     }
 
@@ -3437,7 +3435,7 @@ pub fn ex_append(eap: &mut Exarg) {
 
 /// `":change"`.
 pub fn ex_change(eap: &mut Exarg) {
-    if eap.skip != 0 {
+    if eap.skip {
         ex_append(eap);
         return;
     }
@@ -3445,7 +3443,7 @@ pub fn ex_change(eap: &mut Exarg) {
         return;
     }
 
-    if if eap.forceit != 0 {
+    if if eap.forceit {
         !curbuf_mut().b_p_ai
     } else {
         curbuf_mut().b_p_ai
@@ -3477,7 +3475,7 @@ pub fn ex_z(eap: &mut Exarg) {
     let mut curs: Linenr;
     let lnum = eap.line2;
 
-    if eap.forceit != 0 {
+    if eap.forceit {
         bigness = (g_st().rows_global - 1) as i64;
     } else if g_st().firstwin == g_st().lastwin {
         bigness = curwin_mut().w_onebuf_opt.wo_scr * 2;
@@ -3632,7 +3630,7 @@ fn sub_joining_lines(
         && (cmd_bytes.is_empty()
             || (cmd_bytes.len() == 1 && matches!(cmd_bytes[0], b'g' | b'l' | b'p' | b'#')))
     {
-        if eap.skip != 0 {
+        if eap.skip {
             return true;
         }
         curwin_mut().w_cursor.lnum = eap.line1;
@@ -3953,14 +3951,14 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         sub = sub_cstr.as_ptr().cast_mut();
         sub_owned = Some(sub_cstr);
 
-        if eap.skip == 0 && !keeppatterns && cmdpreview_ns <= 0 {
+        if !eap.skip && !keeppatterns && cmdpreview_ns <= 0 {
             sub_set_replacement(SubReplacementString {
                 sub: sub_owned.clone(),
                 timestamp: os_time(),
                 additional_data: None,
             });
         }
-    } else if eap.skip == 0 {
+    } else if !eap.skip {
         let Some(ref old_sub_cstr) = excmds_st().old_sub.sub else {
             emsg(gettext(E_NOPRESUB));
             return 0;
@@ -4008,7 +4006,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         let mut rem = cmd_bytes;
         i = getdigits_int(&mut rem, false, i32::MAX);
         cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
-        if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
+        if i <= 0 && !eap.skip && excmds_st().subflags.do_error {
             emsg(gettext(E_ZEROCOUNT));
             return 0;
         } else if i == i32::MAX {
@@ -4037,7 +4035,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
     }
 
-    if eap.skip != 0 {
+    if eap.skip {
         return 0;
     }
 
@@ -4951,7 +4949,7 @@ pub fn ex_global(eap: &mut Exarg) {
         return;
     }
 
-    let type_char: i32 = if eap.forceit != 0 {
+    let type_char: i32 = if eap.forceit {
         b'v' as i32
     } else {
         (crate::memory::cstr_first_byte(eap.cmd)) as i32

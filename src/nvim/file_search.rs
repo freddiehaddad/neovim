@@ -162,7 +162,7 @@ pub fn vim_findfile_init(
     fn_slice: &[u8],
     stopdirs: Option<&std::ffi::CStr>,
     level: i32,
-    free_visited: i32,
+    free_visited: bool,
     find_what: i32,
     search_ctx_arg: Option<FfSearchCtx>,
     tagfile: i32,
@@ -179,7 +179,7 @@ pub fn vim_findfile_init(
 
         ff_clear(&mut search_ctx);
 
-        if free_visited == i32::from(true) {
+        if free_visited {
             vim_findfile_free_visited(Some(&mut search_ctx));
         } else {
             search_ctx.ffsc_visited_list = Some(ff_get_visited_list(
@@ -1158,7 +1158,7 @@ fn ff_path_in_stoplist(path: &[u8], stopdirs_v: &[std::ffi::CString]) -> bool {
 pub fn find_file_in_path(
     ptr: &[u8],
     options: i32,
-    first: i32,
+    first: bool,
     rel_fname: Option<&std::ffi::CStr>,
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<FfSearchCtx>,
@@ -1193,7 +1193,7 @@ pub fn find_directory_in_path(
     find_file_in_path_option(
         ptr,
         options,
-        i32::from(true),
+        true,
         opt_vars().p_cdpath.as_cstr(),
         FINDFILE_DIR,
         rel_fname,
@@ -1206,7 +1206,7 @@ pub fn find_directory_in_path(
 pub fn find_file_in_path_option(
     ptr_slice: &[u8],
     options: i32,
-    first: i32,
+    first: bool,
     path_option_cstr: &std::ffi::CStr,
     find_what: i32,
     mut rel_fname_opt: Option<&std::ffi::CStr>,
@@ -1240,7 +1240,7 @@ pub fn find_file_in_path_option(
         }
         let rel_fname = rel_fname_opt.map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
-        if first == i32::from(true) {
+        if first {
             if len == 0 {
                 return None;
             }
@@ -1288,7 +1288,7 @@ pub fn find_file_in_path_option(
             || rel_to_curdir
             || is_mswin_abs
         {
-            if first == i32::from(true) {
+            if first {
                 if path_with_url(crate::memory::cstr_as_bytes((ftf).cast())) {
                     return Some(
                         std::ffi::CString::new(crate::memory::cstr_slice(
@@ -1367,7 +1367,7 @@ pub fn find_file_in_path_option(
                 }
             }
         } else {
-            if first == i32::from(true) {
+            if first {
                 vim_findfile_free_visited(search_ctx.as_mut());
                 ff_opt.dir = path_option_cstr.to_bytes().to_vec();
                 ff_opt.dir_off = 0;
@@ -1400,7 +1400,7 @@ pub fn find_file_in_path_option(
                         crate::memory::cstr_slice(ftf, ff_opt.file_to_findlen),
                         stopdirs,
                         100,
-                        i32::from(false),
+                        false,
                         find_what,
                         search_ctx.take(),
                         i32::from(false),
@@ -1414,7 +1414,7 @@ pub fn find_file_in_path_option(
         }
 
         if file_name.is_none() && (options & FNAME_MESS) != 0 {
-            if first == i32::from(true) {
+            if first {
                 if find_what == FINDFILE_DIR {
                     semsg!(tr(E_CANT_FIND_DIRECTORY_STR_IN_CDPATH), ftf);
                 } else {
@@ -1651,7 +1651,7 @@ pub fn find_file_name_in_path(
             file_name = find_file_in_path(
                 ptr_slice,
                 options & !FNAME_MESS,
-                i32::from(true),
+                true,
                 rel_fname,
                 &mut file_to_find,
                 &mut search_ctx,
@@ -1667,7 +1667,7 @@ pub fn find_file_name_in_path(
                 file_name = find_file_in_path(
                     ptr_slice,
                     options & !FNAME_MESS,
-                    i32::from(true),
+                    true,
                     rel_fname,
                     &mut file_to_find,
                     &mut search_ctx,
@@ -1688,7 +1688,7 @@ pub fn find_file_name_in_path(
                 file_name = find_file_in_path(
                     ptr_slice,
                     options,
-                    i32::from(false),
+                    false,
                     rel_fname,
                     &mut file_to_find,
                     &mut search_ctx,

@@ -1671,7 +1671,7 @@ pub fn ex_messages(eap: &mut Exarg) {
     }
 
     let mut entries = Array::new();
-    let mut idx = if eap.skip != 0 {
+    let mut idx = if eap.skip {
         msg_st()
             .msg_hist_temp_idx
             .unwrap_or(msg_st().msg_hist.len())
@@ -1689,7 +1689,7 @@ pub fn ex_messages(eap: &mut Exarg) {
         // Skip over count or temporary "g<" messages.
         let prev_skip = skip;
         skip -= 1;
-        if (p.temp && eap.skip == 0) || prev_skip > 0 {
+        if (p.temp && !eap.skip) || prev_skip > 0 {
             continue;
         }
         if ui_has(K_UIMESSAGES) && g_st().msg_silent == 0 {
@@ -1752,7 +1752,7 @@ pub fn ex_messages(eap: &mut Exarg) {
         }
     }
     if entries.size > 0 {
-        ui_call_msg_history_show(entries, eap.skip != 0);
+        ui_call_msg_history_show(entries, eap.skip);
         api_free_array(entries);
     }
 }
@@ -3306,7 +3306,7 @@ pub fn show_sb_text() {
     if ui_has(K_UIMESSAGES) {
         let mut ea: Exarg = Exarg::new();
         ea.arg = crate::strings::CStrCursor::from_ptr(c"".as_ptr());
-        ea.skip = 1;
+        ea.skip = true;
         ex_messages(&mut ea);
         return;
     }
@@ -3930,7 +3930,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
                         unsafe { &mut *g_st().capture_ga }.push(b' ');
                     }
                     if g_st().redir_reg != 0 {
-                        write_reg_contents(g_st().redir_reg, b" ", 1, 1);
+                        write_reg_contents(g_st().redir_reg, b" ", 1, true);
                     } else if g_st().redir_vname {
                         var_redir_str(b" ");
                     } else if let Some(ref rf) = g_st().redir_fd {
@@ -3948,7 +3948,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
                 unsafe { &mut *g_st().capture_ga }.extend_from_slice(slice);
             }
             if g_st().redir_reg != 0 {
-                write_reg_contents(g_st().redir_reg, slice, len as isize, 1);
+                write_reg_contents(g_st().redir_reg, slice, len as isize, true);
             }
             if g_st().redir_vname {
                 var_redir_str(slice);

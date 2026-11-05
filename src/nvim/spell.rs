@@ -2739,12 +2739,7 @@ pub fn ex_spelldump(eap: &mut Exarg) {
     if !buf_is_empty(curbuf_mut()) {
         return;
     }
-    spell_dump_compl(
-        None,
-        0,
-        None,
-        if eap.forceit != 0 { DUMPFLAG_COUNT } else { 0 },
-    );
+    spell_dump_compl(None, 0, None, if eap.forceit { DUMPFLAG_COUNT } else { 0 });
     if curbuf_mut().b_ml.ml_line_count > 1 {
         let _ = ml_delete(curbuf_mut().b_ml.ml_line_count);
     }

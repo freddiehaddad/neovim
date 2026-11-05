@@ -361,7 +361,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
     let tabpage = win_find_tabpage(&*w).map_or(std::ptr::null_mut(), std::ptr::from_mut);
     try_wrap(err, || {
         ex_win_close(
-            i32::from(force),
+            force,
             w,
             if tabpage == g_st().curtab {
                 None

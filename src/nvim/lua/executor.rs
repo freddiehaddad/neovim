@@ -498,7 +498,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     crate::lua::converter::lua_pushstring_opt(lstate, crate::memory::cstr_as_opt_cstr(eap.arg));
     lua_setfield(lstate, -2, c"args");
 
-    unsafe { lua_pushboolean(lstate, eap.forceit) };
+    unsafe { lua_pushboolean(lstate, i32::from(eap.forceit)) };
     lua_setfield(lstate, -2, c"bang");
 
     unsafe { lua_pushinteger(lstate, eap.line1 as lua_Integer) };
@@ -2149,7 +2149,7 @@ pub fn ex_lua(eap: &mut Exarg) {
     let Some(raw_cstr) = raw_code else {
         return;
     };
-    if eap.skip != 0 {
+    if eap.skip {
         return;
     }
 

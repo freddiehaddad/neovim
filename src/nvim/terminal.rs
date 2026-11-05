@@ -2266,7 +2266,7 @@ fn refresh_terminal(term: &mut Terminal) {
             for wp in for_all_windows_in_tab_ptr(&*tp) {
                 if wp.w_buffer == buf_ptr && wp.w_leftcol != 0 {
                     wp.w_leftcol = 0;
-                    curs_columns(&mut *wp, 1);
+                    curs_columns(&mut *wp, true);
                 }
             }
         }

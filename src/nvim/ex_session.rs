@@ -955,7 +955,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
         arg_bytes.is_empty() || (arg_bytes.len() == 1 && arg_bytes[0].is_ascii_digit())
     } {
-        eap.forceit = 1;
+        eap.forceit = true;
         let Some(vf) = get_view_file(crate::memory::cstr_first_byte(eap.arg)) else {
             return;
         };
@@ -1030,14 +1030,14 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                         crate::memory::cstr_from_ptr((fname).as_ptr()),
                         K_CD_CAUSE_OTHER,
                     ) {
-                        shorten_fnames(1);
+                        shorten_fnames(true);
                     }
                 } else if !crate::memory::cstr_is_empty(dirnow)
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                     && let Some(ref gdir) = g_st().globaldir
                     && os_chdir(gdir) == 0
                 {
-                    shorten_fnames(1);
+                    shorten_fnames(true);
                 }
 
                 failed |= !makeopens(&fd, crate::memory::cstr_until_nul(&dirnow_vec));
@@ -1050,7 +1050,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     if os_chdir(crate::memory::cstr_from_ptr((dirnow).cast())) != 0 {
                         emsg(gettext(E_PREV_DIR));
                     }
-                    shorten_fnames(1);
+                    shorten_fnames(true);
                 }
             } else {
                 failed |= !put_view(

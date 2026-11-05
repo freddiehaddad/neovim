@@ -487,7 +487,7 @@ fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> b
     let called_emsg_before = g_st().called_emsg;
     let mut evalarg = Evalarg::new();
 
-    fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip != 0);
+    fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip);
 
     let ret = eval1(arg, &mut *rettv, Some(&mut evalarg));
     if !ret
@@ -723,7 +723,7 @@ pub fn eval_to_string_eap(
     let retval: Option<std::ffi::CString>;
     let mut evalarg = Evalarg::new();
 
-    fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip != 0);
+    fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip);
     let r = if use_simple_function {
         eval0_simple_funccal(arg, &mut tv, None, &mut evalarg)
     } else {
@@ -821,7 +821,7 @@ pub fn eval_expr_ext(
 
     fill_evalarg_from_eap(
         &mut evalarg,
-        eap.is_some() && eap.as_deref_mut().unwrap().skip != 0,
+        eap.is_some() && eap.as_deref_mut().unwrap().skip,
     );
 
     let ok = if use_simple_function {
@@ -6567,9 +6567,9 @@ pub fn ex_echo(eap: &mut Exarg) {
     let called_emsg_before = g_st().called_emsg;
     let mut evalarg = Evalarg::new();
 
-    fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
+    fill_evalarg_from_eap(&mut evalarg, eap.skip);
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip += 1;
     }
     while !arg.to_bytes().is_empty()
@@ -6594,7 +6594,7 @@ pub fn ex_echo(eap: &mut Exarg) {
             g_st().need_clr_eos = false;
         }
 
-        if eap.skip == 0 {
+        if !eap.skip {
             if atstart {
                 atstart = false;
                 msg_ext_set_append(eap.cmdidx == Cmdidx::CmdEchon as i32);
@@ -6631,7 +6631,7 @@ pub fn ex_echo(eap: &mut Exarg) {
     eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
     msg_ext_set_append(false);
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip -= 1;
     } else {
         if ui_has(K_UIMESSAGES)
@@ -6667,7 +6667,7 @@ pub fn ex_execute(eap: &mut Exarg) {
     let mut buf: Vec<u8> = Vec::with_capacity(80);
     let mut has_arg = false;
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip += 1;
     }
     while !arg.to_bytes().is_empty()
@@ -6679,7 +6679,7 @@ pub fn ex_execute(eap: &mut Exarg) {
             break;
         }
 
-        if eap.skip == 0 {
+        if !eap.skip {
             let mut argstr_owned: Option<std::ffi::CString> = None;
             let argstr = if eap.cmdidx == Cmdidx::CmdExecute as i32 {
                 tv_get_string(&rettv)
@@ -6735,7 +6735,7 @@ pub fn ex_execute(eap: &mut Exarg) {
         }
     }
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip -= 1;
     }
 

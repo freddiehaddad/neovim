@@ -1421,7 +1421,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                     got_tab = true;
                 }
             } else {
-                if got_tab || (eap.forceit != 0 && num_spaces > 1) {
+                if got_tab || (eap.forceit && num_spaces > 1) {
                     num_spaces = (vcol - start_vcol) as i32;
                     let mut len = num_spaces;
                     let mut num_tabs: i32 = 0;

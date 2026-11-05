@@ -1218,7 +1218,7 @@ pub fn ex_match(eap: &mut Exarg) {
         return;
     };
 
-    if eap.skip == 0 {
+    if !eap.skip {
         match_delete(curwin_mut(), id, false);
     }
 
@@ -1236,7 +1236,7 @@ pub fn ex_match(eap: &mut Exarg) {
             let mut p = arg.wrapping_add(crate::charset::skiptowhite_len(
                 crate::memory::cstr_as_bytes(arg.cast()),
             ));
-            if eap.skip == 0 {
+            if !eap.skip {
                 g = Some(
                     std::ffi::CString::new(crate::memory::cstr_slice(
                         arg,
@@ -1259,7 +1259,7 @@ pub fn ex_match(eap: &mut Exarg) {
             )
             .as_ptr()
             .cast_mut();
-            if eap.skip == 0 {
+            if !eap.skip {
                 if !crate::memory::cstr_is_empty(end)
                     && ends_excmd(crate::memory::cstr_first_byte({
                         let _sw_p = end.wrapping_add(1);

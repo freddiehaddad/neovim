@@ -232,7 +232,7 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 pub fn find_ucmd(
     eap: &mut Exarg,
     len: usize,
-    mut full: Option<&mut i32>,
+    mut full: Option<&mut bool>,
     mut xp: Option<&mut ExpandCtx>,
     mut complp: Option<&mut i32>,
 ) -> Option<usize> {
@@ -296,7 +296,7 @@ pub fn find_ucmd(
                     matchlen = k;
                     if k == len && np_empty {
                         if let Some(ref mut p) = full {
-                            **p = 1;
+                            **p = true;
                         }
                         amb_local = false;
                         break;
@@ -1192,7 +1192,7 @@ pub fn ex_command(eap: &mut Exarg) {
             addr_type_arg,
             LUA_NOREF,
             None,
-            eap.forceit != 0,
+            eap.forceit,
         );
     }
 }
@@ -1593,12 +1593,12 @@ fn uc_check_code(
             }
         }
         CodeType::Bang => {
-            result = if eap.forceit != 0 { 1 } else { 0 };
+            result = if eap.forceit { 1 } else { 0 };
             if quote != 0 {
                 result += 2;
                 out.push(b'"');
             }
-            if eap.forceit != 0 {
+            if eap.forceit {
                 out.push(b'!');
             }
             if quote != 0 {

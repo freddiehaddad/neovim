@@ -5111,7 +5111,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
 
     if !crate::memory::cstr_as_bytes(cmd).starts_with(b"<<") || eap.ea_getline.is_none() {
         *lenp = crate::memory::cstr_len(eap.arg);
-        return if eap.skip != 0 {
+        return if eap.skip {
             None
         } else {
             Some(crate::memory::cstr_to_cstring(eap.arg))
@@ -5121,14 +5121,14 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
 
     let l = heredoc_get(eap, crate::memory::cstr_from_ptr(cmd), true)?;
 
-    let mut buf: Vec<u8> = if eap.skip == 0 {
+    let mut buf: Vec<u8> = if !eap.skip {
         Vec::with_capacity(0x400)
     } else {
         Vec::new()
     };
 
     for li in crate::eval::typval::tv_list_iter(Some(&*l)) {
-        if eap.skip == 0 {
+        if !eap.skip {
             let s = tv_get_string(&li.li_tv);
             buf.extend_from_slice(s.to_bytes());
             buf.push(b'\n');
@@ -5136,7 +5136,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
     }
     *lenp = buf.len();
     tv_list_free(Some(l));
-    if eap.skip == 0 {
+    if !eap.skip {
         Some(std::ffi::CString::new(buf).unwrap_or_default())
     } else {
         None

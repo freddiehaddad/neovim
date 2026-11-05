@@ -6435,7 +6435,7 @@ fn ins_compl_show_statusmsg() {
                 g_st().edit_submode_extra = Some(crate::memory::cstr_from_ptr(match_ref_ptr));
                 g_st().edit_submode_highl = HLF_R;
                 if g_st().dollar_vcol >= 0 {
-                    curs_columns(curwin_mut(), 0);
+                    curs_columns(curwin_mut(), false);
                 }
             }
         }

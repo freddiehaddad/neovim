@@ -2390,7 +2390,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     eap.cmd = cmdstr;
     eap.arg = cmdstr;
     eap.cmdline_buf = &raw mut cmdline_buf;
-    eap.usefilter = 0;
+    eap.usefilter = false;
     eap.nextcmd = crate::strings::CStrCursor::NULL;
     eap.cmdidx = Cmdidx::CmdUser as i32;
     eap.argt |= EX_NOSPC;

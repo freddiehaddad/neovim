@@ -2538,7 +2538,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
     let mut p = skip_regexp(unsafe { CStr::from_ptr(pat_start) }, b'/' as i32, 1)
         .as_ptr()
         .cast_mut();
-    if eap.skip == 0 {
+    if !eap.skip {
         let mut regmatch: Regmatch = Regmatch::new();
         let pat_len = crate::memory::ptr_offset_from(p, pat_start) as usize;
         let pat_cstr = cstr_from_bytes(crate::memory::cstr_slice(pat_start, pat_len));
@@ -2584,7 +2584,7 @@ fn list_one_function(
         }
     }
 
-    if eap.skip != 0 || g_st().got_int {
+    if eap.skip || g_st().got_int {
         return None;
     }
 
@@ -2596,7 +2596,7 @@ fn list_one_function(
     let prev_ht_changed = uf_st().func_hashtab_changed;
 
     msg_ext_set_kind(c"list_cmd");
-    if !list_func_head(&mut *fp, eap.forceit == 0, eap.forceit != 0) {
+    if !list_func_head(&mut *fp, !eap.forceit, eap.forceit) {
         return Some(fp);
     }
 
@@ -2607,7 +2607,7 @@ fn list_one_function(
             continue;
         };
         msg_putchar(b'\n' as i32);
-        if eap.forceit == 0 {
+        if !eap.forceit {
             msg_outnum(j + 1);
             if j < 9 {
                 msg_putchar(b' ' as i32);
@@ -2627,7 +2627,7 @@ fn list_one_function(
     if !g_st().got_int {
         msg_putchar(b'\n' as i32);
         if !function_list_modified(prev_ht_changed) {
-            msg_puts(if eap.forceit != 0 {
+            msg_puts(if eap.forceit {
                 c"endfunction"
             } else {
                 c"   endfunction"
@@ -3063,7 +3063,7 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut show_block = false;
 
     if ends_excmd(crate::memory::cstr_first_byte(eap.arg)) != 0 {
-        if eap.skip == 0 {
+        if !eap.skip {
             list_functions(None);
         }
         eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
@@ -3080,20 +3080,20 @@ pub fn ex_function(eap: &mut Exarg) {
 
     let mut p_cstr = crate::memory::cstr_from_ptr(eap.arg);
     let mut name_owned =
-        save_function_name(&mut p_cstr, eap.skip != 0, TFN_NO_AUTOLOAD, Some(&mut fudi));
+        save_function_name(&mut p_cstr, eap.skip, TFN_NO_AUTOLOAD, Some(&mut fudi));
     let mut p = p_cstr.as_ptr().cast_mut();
     let mut name = name_owned
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let paren = vim_strchr(crate::memory::cstr_from_ptr(p), b'(' as i32).is_some();
-    if name.is_null() && (fudi.fd_dict.is_null() || !paren) && eap.skip == 0 {
+    if name.is_null() && (fudi.fd_dict.is_null() || !paren) && !eap.skip {
         if !aborting() {
             if let Some(ref newkey) = fudi.fd_newkey {
                 semsg!(gettext(E_DICTKEY), newkey.as_ptr());
             }
             return;
         }
-        eap.skip = 1;
+        eap.skip = true;
     }
 
     let saved_did_emsg = g_st().did_emsg;
@@ -3144,7 +3144,7 @@ pub fn ex_function(eap: &mut Exarg) {
         p.cast(),
     )));
     if crate::memory::cstr_first_byte(p) != b'(' {
-        if eap.skip == 0 {
+        if !eap.skip {
             semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
             ret_free!();
         }
@@ -3159,7 +3159,7 @@ pub fn ex_function(eap: &mut Exarg) {
         )))
     };
 
-    if eap.skip == 0 {
+    if !eap.skip {
         let fudi_newkey_ptr = fudi
             .fd_newkey
             .as_ref()
@@ -3209,7 +3209,7 @@ pub fn ex_function(eap: &mut Exarg) {
         Some(&mut newargs),
         Some(&mut varargs),
         Some(&mut default_args),
-        eap.skip != 0,
+        eap.skip,
     ) {
         errret_2!();
     }
@@ -3257,14 +3257,14 @@ pub fn ex_function(eap: &mut Exarg) {
         line_arg = Some(unsafe { CStr::from_ptr(p.wrapping_add(1)) });
     } else if !crate::memory::cstr_is_empty(p)
         && crate::memory::cstr_first_byte(p) != b'"'
-        && eap.skip == 0
+        && !eap.skip
         && g_st().did_emsg == 0
     {
         semsg!(gettext(E_TRAILING_ARG), p);
     }
 
     if g_st().key_typed {
-        if eap.skip == 0 && eap.forceit == 0 {
+        if !eap.skip && !eap.forceit {
             if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                 emsg(gettext(E_FUNCDICT));
             } else if !name.is_null() && find_func(Some(unsafe { CStr::from_ptr(name) })).is_some()
@@ -3273,7 +3273,7 @@ pub fn ex_function(eap: &mut Exarg) {
             }
         }
 
-        if eap.skip == 0 && g_st().did_emsg != 0 {
+        if !eap.skip && g_st().did_emsg != 0 {
             erret!();
         }
 
@@ -3285,7 +3285,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
     let sourcing_lnum_top = sourcing_lnum();
 
-    if !get_function_body(eap, &mut newlines, line_arg, show_block) || eap.skip != 0 {
+    if !get_function_body(eap, &mut newlines, line_arg, show_block) || eap.skip {
         erret!();
     }
 
@@ -3309,7 +3309,7 @@ pub fn ex_function(eap: &mut Exarg) {
             find_func(Some(unsafe { CStr::from_ptr(name) })).map_or(ptr::null_mut(), ptr::from_mut);
         if !fp.is_null() {
             let fp_ref = unsafe { &mut *fp };
-            if eap.forceit == 0
+            if !eap.forceit
                 && (fp_ref.uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
                     || fp_ref.uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
             {
@@ -3347,7 +3347,7 @@ pub fn ex_function(eap: &mut Exarg) {
         let mut numbuf = [0u8; NUMBUFLEN];
 
         fp = ptr::null_mut();
-        if fudi.fd_newkey.is_none() && eap.forceit == 0 {
+        if fudi.fd_newkey.is_none() && !eap.forceit {
             emsg(gettext(E_FUNCDICT));
             erret!();
         }
@@ -3571,13 +3571,13 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     let mut fudi = Funcdict::new();
 
     let mut p_cstr = crate::memory::cstr_from_ptr(eap.arg);
-    let name_owned = trans_function_name(&mut p_cstr, eap.skip != 0, 0, Some(&mut fudi), None);
+    let name_owned = trans_function_name(&mut p_cstr, eap.skip, 0, Some(&mut fudi), None);
     let p = eap
         .arg
         .as_ptr()
         .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
     let Some(ref name_cstr) = name_owned else {
-        if !fudi.fd_dict.is_null() && eap.skip == 0 {
+        if !fudi.fd_dict.is_null() && !eap.skip {
             emsg(gettext(E_FUNCREF));
         }
         return;
@@ -3601,19 +3601,19 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     }
 
     if (crate::memory::cstr_first_byte(name)).is_ascii_digit() && fudi.fd_dict.is_null() {
-        if eap.skip == 0 {
+        if !eap.skip {
             semsg!(gettext(E_INVARG2), eap.arg);
         }
         return;
     }
-    if eap.skip == 0 {
+    if !eap.skip {
         fp = find_func(Some(name_cstr));
     }
     drop(name_owned);
 
-    if eap.skip == 0 {
+    if !eap.skip {
         let Some(fp_ref) = fp else {
-            if eap.forceit == 0 {
+            if !eap.forceit {
                 semsg!(gettext(E_NOFUNC), eap.arg);
             }
             return;
@@ -3730,10 +3730,10 @@ pub fn ex_return(eap: &mut Exarg) {
     }
 
     let mut evalarg = Evalarg {
-        eval_flags: if eap.skip != 0 { 0 } else { EVAL_EVALUATE },
+        eval_flags: if eap.skip { 0 } else { EVAL_EVALUATE },
     };
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip += 1;
     }
 
@@ -3748,12 +3748,12 @@ pub fn ex_return(eap: &mut Exarg) {
             &mut evalarg,
         )
     {
-        if eap.skip == 0 {
+        if !eap.skip {
             returning = do_return(eap, false, true, Some(rettv));
         } else {
             tv_clear(&mut rettv);
         }
-    } else if eap.skip == 0 {
+    } else if !eap.skip {
         update_force_abort();
 
         if !aborting() {
@@ -3769,7 +3769,7 @@ pub fn ex_return(eap: &mut Exarg) {
         ));
     }
 
-    if eap.skip != 0 {
+    if eap.skip {
         g_st().emsg_skip -= 1;
     }
 }
@@ -4008,8 +4008,8 @@ pub fn ex_call(eap: &mut Exarg) {
     let mut partial_opt: Option<&'static mut TvPartial> = None;
     let mut evalarg = Evalarg::new();
 
-    fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
-    if eap.skip != 0 {
+    fill_evalarg_from_eap(&mut evalarg, eap.skip);
+    if eap.skip {
         let mut rettv: TypVal = TypVal::new();
         g_st().emsg_skip += 1;
         if eval0(arg, &mut rettv, Some(&mut *eap), &mut evalarg) {
@@ -4111,7 +4111,7 @@ pub fn do_return(
         cur_funccal_mut().fc_returned = 0;
     }
 
-    let idx = cleanup_conditionals(&mut *cstack, 0, 1);
+    let idx = cleanup_conditionals(&mut *cstack, 0, true);
     if idx >= 0 {
         cstack.cs_pending[idx as usize] = CSTP_RETURN as u8;
 

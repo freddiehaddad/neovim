@@ -94,7 +94,7 @@ pub struct Debuggy {
     pub dbg_name: std::ffi::CString,
     pub dbg_prog: Option<Box<crate::regexp::Regprog>>,
     pub dbg_lnum: i32,
-    pub dbg_forceit: i32,
+    pub dbg_forceit: bool,
     pub dbg_val: Option<TypVal>,
     pub dbg_level: i32,
 }
@@ -425,7 +425,7 @@ pub fn ex_debug(eap: &mut Exarg) {
 pub fn dbg_check_breakpoint(eap: &mut Exarg) {
     dbg_st().debug_skipped = false;
     if let Some(bp_name_cstr) = dbg_st().debug_breakpoint_name.take() {
-        if eap.skip == 0 {
+        if !eap.skip {
             let bp_bytes = bp_name_cstr.to_bytes();
             let is_snr = bp_bytes.starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
             let (prefix, rest) = if is_snr {
@@ -447,7 +447,7 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
             dbg_st().debug_skipped_name = Some(bp_name_cstr);
         }
     } else if g_st().ex_nesting_level <= g_st().debug_break_level {
-        if eap.skip == 0 {
+        if !eap.skip {
             do_debug(crate::memory::cstr_from_ptr(eap.cmd));
         } else {
             dbg_st().debug_skipped = true;
@@ -464,9 +464,9 @@ pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
     let prev_got_int = g_st().got_int;
     g_st().got_int = false;
     dbg_st().debug_breakpoint_name = dbg_st().debug_skipped_name.take();
-    eap.skip = 0;
+    eap.skip = false;
     dbg_check_breakpoint(eap);
-    eap.skip = 1;
+    eap.skip = true;
     g_st().got_int |= prev_got_int;
     true
 }
@@ -488,7 +488,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             dbg_name: std::ffi::CString::default(),
             dbg_prog: None,
             dbg_lnum: 0,
-            dbg_forceit: 0,
+            dbg_forceit: false,
             dbg_val: None,
             dbg_level: 0,
         };
@@ -744,7 +744,7 @@ fn debuggy_find(
             if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
                 lnum = bp.dbg_lnum;
                 if let Some(ref mut p) = fp {
-                    **p = bp.dbg_forceit != 0;
+                    **p = bp.dbg_forceit;
                 }
             }
             g_st().got_int |= prev_got_int;

@@ -2101,7 +2101,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
         return;
     }
 
-    if eap.skip != 0 {
+    if eap.skip {
         while fgetline.call(0, 0, true).is_some() {}
         return;
     }

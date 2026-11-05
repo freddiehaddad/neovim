@@ -377,7 +377,7 @@ pub fn do_tag(
     tag: &std::ffi::CStr,
     mut type_: i32,
     count: i32,
-    forceit: i32,
+    forceit: bool,
     verbose: bool,
 ) {
     let tag = tag.as_ptr().cast_mut();
@@ -521,7 +521,7 @@ pub fn do_tag(
                                 saved_fmark.fnum,
                                 saved_fmark.mark.lnum,
                                 GETF_SETMARK,
-                                forceit,
+                                i32::from(forceit),
                             ) {
                                 tagstackidx = oldtagstackidx;
                                 break 'end_do_tag;
@@ -2398,7 +2398,7 @@ pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
 pub fn free_tag_stuff() {
     tag_st().tag_fnames = Vec::new();
     if !(curwin_ptr()).is_null() {
-        do_tag(None, c"", DT_FREE, 0, 0, false);
+        do_tag(None, c"", DT_FREE, 0, false, false);
     }
     tag_freematch();
     tagstack_clear_entry(&mut tag_st().ptag_entry);
@@ -2503,7 +2503,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 filename_cstr.as_bytes(),
                 stopdirs_cstr.as_deref(),
                 100,
-                0,
+                false,
                 FINDFILE_FILE,
                 tnp.tn_search_ctx.take(),
                 1,
@@ -2649,7 +2649,7 @@ fn tag_full_fname(tagp: &mut Tagptrs) -> std::ffi::CString {
     expand_tag_fname(&fname_cstr, tagp.tag_fname.unwrap_or(c""), false)
 }
 
-fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> Option<bool> {
+fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
     if g_st().postponed_split == 0 && !check_can_set_curbuf_forceit(forceit) {
         return Some(false);
     }
@@ -2779,7 +2779,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> Option<bool> {
                 None,
                 true,
                 0,
-                forceit != 0,
+                forceit,
             );
         }
         g_st().keep_help_flag = false;

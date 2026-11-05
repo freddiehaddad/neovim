@@ -1055,7 +1055,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
         coladd: 0,
     };
 
-    if crate::memory::cstr_is_empty(eap.arg) && eap.forceit != 0 {
+    if crate::memory::cstr_is_empty(eap.arg) && eap.forceit {
         for i in 0..NMARKS {
             if curbuf_mut().b_namedm[i].mark.lnum != 0 {
                 do_markset_autocmd(i as u8 + b'a', &pos, curbuf_mut());
@@ -1077,7 +1077,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
             do_markset_autocmd(b']', &pos, curbuf_mut());
         }
         clrallmarks(curbuf_mut(), os_time());
-    } else if eap.forceit != 0 {
+    } else if eap.forceit {
         emsg(gettext(E_INVARG));
     } else if crate::memory::cstr_is_empty(eap.arg) {
         emsg(gettext(E_ARGREQ));

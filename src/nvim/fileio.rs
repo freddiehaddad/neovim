@@ -1009,7 +1009,7 @@ pub fn readfile(
         let read_stdin = (flags & READ_STDIN) != 0;
         let read_buffer = (flags & READ_BUFFER) != 0;
         let read_fifo = (flags & READ_FIFO) != 0;
-        let set_options = newfile || read_buffer || (eap.is_some() && eap.unwrap().read_edit != 0);
+        let set_options = newfile || read_buffer || (eap.is_some() && eap.unwrap().read_edit);
         let mut read_buf_lnum: Linenr = 1;
         let mut read_buf_col: Colnr = 0;
         let mut lnum = from;
@@ -3081,8 +3081,8 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
     eap.bad_char = buf.b_bad_char;
     eap.force_ff = (buf.b_p_ff.first_byte()) as i32;
     eap.force_bin = if buf.b_p_bin { FORCE_BIN } else { FORCE_NOBIN };
-    eap.read_edit = 0;
-    eap.forceit = 0;
+    eap.read_edit = false;
+    eap.forceit = false;
     cmd_cstr
 }
 
@@ -3467,14 +3467,14 @@ pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: &CStr, force: i32) -> bool 
 }
 
 /// Shortens filenames for all buffers.
-pub fn shorten_fnames(force: i32) {
+pub fn shorten_fnames(force: bool) {
     let mut dirname: [u8; MAXPATHL] = [0; MAXPATHL];
     let mut changed = false;
 
     os_dirname(&mut dirname);
     let dirname_cstr = crate::memory::cstr_until_nul(&dirname);
     for buf in for_all_buffers_mut() {
-        changed |= shorten_buf_fname(buf, dirname_cstr, force);
+        changed |= shorten_buf_fname(buf, dirname_cstr, i32::from(force));
         mf_fullname(buf.b_ml.mfp_opt());
     }
     if changed {

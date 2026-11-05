@@ -1284,7 +1284,7 @@ pub fn ex_set(eap: &mut Exarg) {
     } else if eap.cmdidx == Cmdidx::CmdSetglobal as i32 {
         flags = OPT_GLOBAL;
     }
-    if eap.forceit != 0 {
+    if eap.forceit {
         flags |= OPT_ONECOLUMN;
     }
     do_set(crate::memory::cstr_from_ptr(eap.arg), flags);

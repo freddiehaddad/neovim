@@ -817,7 +817,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                 break 'theend;
             }
         }
-        if eap.forceit != 0 {
+        if eap.forceit {
             for idx_new in idx_orig..DB_COUNT {
                 if let Some(buf) = curtab_mut().diffbuf_opt(idx_new)
                     && buf_valid(Some(&*buf))
@@ -1256,7 +1256,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             } else {
                 let tempdir = vim_gettempdir().unwrap_or(c"/tmp");
                 let _ = crate::os::fs::os_chdir(tempdir);
-                shorten_fnames(1);
+                shorten_fnames(true);
             }
         }
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
@@ -1296,7 +1296,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             if crate::os::fs::os_chdir(crate::memory::cstr_until_nul(&dirbuf)) != 0 {
                 emsg(gettext(E_PREV_DIR));
             }
-            shorten_fnames(1);
+            shorten_fnames(true);
         }
         let tmp_new_bytes = crate::memory::cstr_as_bytes(tmp_new);
         buf_vec[..tmp_new_bytes.len()].copy_from_slice(tmp_new_bytes);
@@ -1467,7 +1467,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
 pub fn ex_diffoff(eap: &mut Exarg) {
     let mut diffwin = false;
     for wp in for_all_windows_ptr() {
-        let cond = if eap.forceit != 0 {
+        let cond = if eap.forceit {
             wp.w_onebuf_opt.wo_diff
         } else {
             std::ptr::eq(wp, curwin_ptr())
@@ -1520,7 +1520,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         }
         diffwin |= wp.w_onebuf_opt.wo_diff;
     }
-    if eap.forceit != 0 {
+    if eap.forceit {
         diff_buf_clear();
     }
     if !diffwin {

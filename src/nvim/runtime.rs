@@ -597,7 +597,7 @@ fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
 /// ":runtime [where] {name}"
 pub fn ex_runtime(eap: &mut Exarg) {
     let mut arg = crate::memory::cstr_from_ptr(eap.arg);
-    let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
+    let mut flags = if eap.forceit { DIP_ALL } else { 0 };
     let p = {
         let _sw_p = arg.as_ptr();
         _sw_p.wrapping_add(crate::charset::skiptowhite_len(
@@ -1707,7 +1707,7 @@ pub fn load_start_packages() {
 
 /// ":packloadall"
 pub fn ex_packloadall(eap: &mut Exarg) {
-    if !g_st().did_source_packages || eap.forceit != 0 {
+    if !g_st().did_source_packages || eap.forceit {
         add_pack_start_dirs();
         load_start_packages();
     }
@@ -1754,7 +1754,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
     let len = 11 + crate::memory::cstr_len(eap.arg) + 5;
     let mut pat_vec = vec![0u8; len];
     let pat = pat_vec.as_mut_ptr();
-    let action = if eap.forceit != 0 {
+    let action = if eap.forceit {
         PackAddAction::AddDir
     } else {
         PackAddAction::Both
@@ -2401,13 +2401,13 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
     }
 
     if eap.is_some() && fname.to_bytes().is_empty() {
-        if eap.as_deref_mut().unwrap().forceit != 0 {
+        if eap.as_deref_mut().unwrap().forceit {
             emsg(gettext(E_ARGREQ));
         } else {
             cmd_source_buffer(eap.as_deref(), false);
         }
     } else if let Some(eap) = eap
-        && eap.forceit != 0
+        && eap.forceit
     {
         openscript(
             fname,
@@ -3475,7 +3475,7 @@ pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
     }
 
     let cstack = eap.cstack_mut();
-    let idx = cleanup_conditionals(&mut *cstack, 0, 1);
+    let idx = cleanup_conditionals(&mut *cstack, 0, true);
     if idx >= 0 {
         cstack.cs_pending[idx as usize] = CSTP_FINISH as u8;
         report_make_pending(CSTP_FINISH, PendingVal::None);

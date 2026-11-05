@@ -973,8 +973,8 @@ pub fn check_can_set_curbuf_disabled() -> bool {
 }
 
 /// Check if the current window is allowed to move to a different buffer.
-pub fn check_can_set_curbuf_forceit(forceit: i32) -> bool {
-    if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb {
+pub fn check_can_set_curbuf_forceit(forceit: bool) -> bool {
+    if !forceit && curwin_mut().w_onebuf_opt.wo_wfb {
         emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
         return false;
     }
@@ -4057,7 +4057,7 @@ pub fn win_free_all() {
     g_st().cmdwin_buf = ptr::null_mut();
 
     while !crate::globals::first_tabpage_mut().tp_next.is_null() {
-        tabpage_close(1);
+        tabpage_close(true);
     }
 
     while !g_st().lastwin.is_null() && lastwin_mut().w_floating {
@@ -4797,7 +4797,7 @@ fn frame_minwidth(topfrp: &mut Frame, next_curwin: crate::globals::WinPtr) -> i3
     m
 }
 
-pub fn close_others(message: i32, forceit: i32, ignore_pinned: bool) {
+pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
     let old_curwin = curwin_ptr();
 
     if curwin_mut().w_floating {
@@ -4836,7 +4836,7 @@ pub fn close_others(message: i32, forceit: i32, ignore_pinned: bool) {
             continue;
         }
 
-        let r = can_abandon(wp.borrow().buf_mut(), forceit != 0);
+        let r = can_abandon(wp.borrow().buf_mut(), forceit);
         if !win_valid(wp.opt()) {
             wp = crate::globals::WinPtr::new(g_st().firstwin);
             continue;
@@ -5906,7 +5906,7 @@ pub fn update_cwd(cause: CdCause) {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, false);
         }
         g_st().last_chdir_reason = None;
-        shorten_fnames(1);
+        shorten_fnames(true);
     } else if let Some(gdir) = g_st().globaldir.take() {
         let gdir_ptr = gdir.as_ptr().cast_mut();
         let dir_differs = !path_equal(
@@ -5924,7 +5924,7 @@ pub fn update_cwd(cause: CdCause) {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, false);
         }
         g_st().last_chdir_reason = None;
-        shorten_fnames(1);
+        shorten_fnames(true);
     }
 }
 
@@ -7418,7 +7418,7 @@ pub fn scroll_to_fraction(wp: &mut WinInfoInfo, prev_height: i32) {
     }
 
     if ptr::eq(wp, curwin_ptr()) {
-        curs_columns(&mut *wp, 0);
+        curs_columns(&mut *wp, false);
     }
     if prev_height > 0 {
         wp.w_prev_fraction_row = wp.w_wrow;
@@ -7476,7 +7476,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
             invalidate_botline_win(wp);
             if ptr::eq(wp, curwin_ptr()) && (opt_vars().p_spk.first_byte() == b'c' || wp.w_floating)
             {
-                curs_columns(&mut *wp, 1);
+                curs_columns(&mut *wp, true);
             }
         }
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);

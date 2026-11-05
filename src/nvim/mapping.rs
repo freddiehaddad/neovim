@@ -1176,7 +1176,7 @@ fn get_map_mode(cmdp: &mut &[u8], forceit: bool) -> i32 {
     mode
 }
 
-fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: i32, abbr: i32) {
+fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: bool, abbr: bool) {
     let mut cmd_bytes = cmdp.to_bytes();
     let arg_bytes = arg.to_bytes();
     let local = arg_bytes == b"<buffer>";
@@ -1185,8 +1185,8 @@ fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: i32, abbr: i32) {
         return;
     }
 
-    let mode = get_map_mode(&mut cmd_bytes, forceit != 0);
-    map_clear_mode(curbuf_mut(), mode, local, abbr != 0);
+    let mode = get_map_mode(&mut cmd_bytes, forceit);
+    map_clear_mode(curbuf_mut(), mode, local, abbr);
 }
 
 /// Clear all mappings in "mode".
@@ -2768,7 +2768,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
 
 fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
     let mut cmd_bytes = crate::memory::cstr_as_bytes(eap.cmd);
-    let mode = get_map_mode(&mut cmd_bytes, eap.forceit != 0 || isabbrev);
+    let mode = get_map_mode(&mut cmd_bytes, eap.forceit || isabbrev);
 
     let maptype = if cmd_bytes.first() == Some(&b'n') {
         MAPTYPE_NOREMAP
@@ -2852,7 +2852,7 @@ pub fn ex_mapclear(eap: &mut Exarg) {
         crate::memory::cstr_from_ptr(eap.cmd),
         crate::memory::cstr_from_ptr(eap.arg),
         eap.forceit,
-        0,
+        false,
     );
 }
 
@@ -2861,8 +2861,8 @@ pub fn ex_abclear(eap: &mut Exarg) {
     do_mapclear(
         crate::memory::cstr_from_ptr(eap.cmd),
         crate::memory::cstr_from_ptr(eap.arg),
-        1,
-        1,
+        true,
+        true,
     );
 }
 

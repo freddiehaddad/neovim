@@ -4475,7 +4475,7 @@ pub fn ex_mkspell(eap: &mut Exarg) {
         return;
     }
 
-    mkspell(&fnames, ascii, eap.forceit != 0, false);
+    mkspell(&fnames, ascii, eap.forceit, false);
 }
 
 fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
@@ -5045,7 +5045,7 @@ pub fn ex_spell(eap: &mut Exarg) {
     spell_add_word(
         crate::memory::cstr_as_bytes(eap.arg),
         what,
-        if eap.forceit != 0 { 0 } else { eap.line2 },
+        if eap.forceit { 0 } else { eap.line2 },
         eap.cmdidx == CMD_SPELLUNDO,
     );
 }

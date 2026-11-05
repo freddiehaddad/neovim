@@ -779,7 +779,7 @@ pub fn ex_eval(eap: &mut Exarg) {
     let mut tv: TypVal = TypVal::new();
     let mut evalarg = Evalarg::new();
 
-    fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
+    fill_evalarg_from_eap(&mut evalarg, eap.skip);
 
     if eval0(
         crate::memory::cstr_from_ptr(eap.arg),
@@ -982,7 +982,7 @@ pub fn ex_continue(eap: &mut Exarg) {
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
         eap.errmsg = Some(gettext(c"E586: :continue without :while or :for"));
     } else {
-        let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 0);
+        let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, false);
         assert!(idx >= 0);
         if (cstack.cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) != 0 {
             let mut trylevel = cstack.cs_trylevel;
@@ -1002,7 +1002,7 @@ pub fn ex_break(eap: &mut Exarg) {
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
         eap.errmsg = Some(gettext(c"E587: :break without :while or :for"));
     } else {
-        let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 1);
+        let idx = cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, true);
         if idx >= 0 && (cstack.cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
             cstack.cs_pending[idx as usize] = CSTP_BREAK as u8;
             report_make_pending(CSTP_BREAK, PendingVal::None);
@@ -1047,7 +1047,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
                 }
                 idx -= 1;
             }
-            cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, 0);
+            cleanup_conditionals(&mut *cstack, CSF_WHILE | CSF_FOR, false);
             let mut trylevel = cstack.cs_trylevel;
             rewind_conditionals(cstack, idx, CSF_TRY, &mut trylevel);
             cstack.cs_trylevel = trylevel;
@@ -1068,14 +1068,14 @@ pub fn ex_throw(eap: &mut Exarg) {
         && crate::memory::cstr_first_byte(arg) != b'|'
         && crate::memory::cstr_first_byte(arg) != b'\n'
     {
-        eval_to_string_skip(crate::memory::cstr_from_ptr(arg), eap, eap.skip != 0)
+        eval_to_string_skip(crate::memory::cstr_from_ptr(arg), eap, eap.skip)
     } else {
         emsg(gettext(E_ARGREQ));
         None
     };
 
     if let Some(val_cstr) = value
-        && eap.skip == 0
+        && !eap.skip
         && throw_exception(ExceptionValue::User(val_cstr), None)
     {
         do_throw(eap.cstack_mut());
@@ -1083,7 +1083,7 @@ pub fn ex_throw(eap: &mut Exarg) {
 }
 
 pub fn do_throw(cstack: &mut Cstack) {
-    let idx = cleanup_conditionals(&mut *cstack, 0, 0);
+    let idx = cleanup_conditionals(&mut *cstack, 0, false);
     if idx >= 0 {
         let u_idx = idx as usize;
         if (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0 {
@@ -1253,7 +1253,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 internal_error(c"ex_catch()");
             }
         } else {
-            cleanup_conditionals(&mut *cstack, CSF_TRY, 1);
+            cleanup_conditionals(&mut *cstack, CSF_TRY, true);
         }
     }
 
@@ -1301,7 +1301,7 @@ pub fn ex_finally(eap: &mut Exarg) {
             do_intthrow(cstack);
         }
 
-        cleanup_conditionals(&mut *cstack, CSF_TRY, 0);
+        cleanup_conditionals(&mut *cstack, CSF_TRY, false);
 
         let cur_idx = cstack.cs_idx as usize;
         if pending == CSTP_ERROR || g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw {
@@ -1404,7 +1404,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
         }
     }
 
-    cleanup_conditionals(&mut *cstack, CSF_TRY | CSF_SILENT, 1);
+    cleanup_conditionals(&mut *cstack, CSF_TRY | CSF_SILENT, true);
 
     if cstack.cs_idx >= 0 && (cstack.cs_flags[cstack.cs_idx as usize] & CSF_TRY) != 0 {
         cstack.cs_idx -= 1;
@@ -1525,7 +1525,7 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
     }
 }
 
-pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: i32) -> i32 {
+pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: bool) -> i32 {
     let mut idx = cstack.cs_idx;
     let mut stop = false;
 
@@ -1571,7 +1571,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
                     cstack.cs_flags[u_idx] |= CSF_FINISHED;
                 }
                 if (cstack.cs_flags[u_idx] & CSF_TRUE) != 0 {
-                    if searched_cond == 0 && inclusive == 0 {
+                    if searched_cond == 0 && !inclusive {
                         break;
                     }
                     stop = true;
@@ -1580,7 +1580,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
         }
 
         if (cstack.cs_flags[u_idx] & searched_cond) != 0 {
-            if inclusive == 0 {
+            if !inclusive {
                 break;
             }
             stop = true;

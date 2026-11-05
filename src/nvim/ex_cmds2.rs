@@ -457,7 +457,7 @@ pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
 pub fn ex_listdo(eap: &mut Exarg) {
     if curwin_mut().w_onebuf_opt.wo_wfb && eap.cmdidx != CMD_WINDO && eap.cmdidx != CMD_TABDO {
-        if (eap.cmdidx == CMD_LDO || eap.cmdidx == CMD_LFDO) && eap.forceit == 0 {
+        if (eap.cmdidx == CMD_LDO || eap.cmdidx == CMD_LFDO) && !eap.forceit {
             emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
             return;
         }
@@ -493,7 +493,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
         || buf_hide(curbuf_mut())
         || !check_changed(
             curbuf_mut(),
-            CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
+            CCGD_AW | (if eap.forceit { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
         )
     {
         let mut next_fnum: i32 = 0;
@@ -729,7 +729,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
     let bufsize = arg_len + 14;
     let mut buf = vec![0u8; bufsize];
 
-    if eap.forceit != 0 {
+    if eap.forceit {
         do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
     } else {
         if let Some(p) = get_var_value(c"g:current_compiler") {
@@ -752,7 +752,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
         set_internal_string_var(c"b:current_compiler", p);
     }
 
-    if eap.forceit == 0 {
+    if !eap.forceit {
         if let Some(ref old_comp) = old_cur_comp {
             set_internal_string_var(c"g:current_compiler", old_comp);
         } else {
@@ -787,7 +787,7 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
 }
 
 fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
-    if eap.skip == 0 {
+    if !eap.skip {
         let mut buffer = [0u8; MAXPATHL];
         vim_full_name(
             crate::memory::cstr_as_opt_cstr((eap.arg).cast()),
@@ -808,7 +808,7 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
 }
 
 fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
-    if eap.skip == 0 {
+    if !eap.skip {
         let args = tv_list_alloc(3);
         tv_list_append_number(&mut *args, eap.line1 as Varnumber);
         tv_list_append_number(&mut *args, eap.line2 as Varnumber);

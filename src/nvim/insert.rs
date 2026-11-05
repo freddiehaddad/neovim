@@ -1652,7 +1652,7 @@ pub fn display_dollar(col_arg: Colnr) {
             crate::memory::cstr_span_to_char((p).cast(), (p.wrapping_offset(col as isize)).cast());
         crate::mbyte::utf_head_off(_b, _i)
     };
-    curs_columns(curwin_mut(), 0);
+    curs_columns(curwin_mut(), false);
     if curwin_mut().w_wcol < curwin_mut().w_view_width {
         edit_putchar(b'$' as i32, false);
         g_st().dollar_vcol = curwin_mut().w_virtcol;

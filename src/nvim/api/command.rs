@@ -432,7 +432,7 @@ pub fn nvim_parse_cmd(
     }
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
-    result.bang = ea.forceit != 0;
+    result.bang = ea.forceit;
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ARGS;
     result.args = args;
 
@@ -977,8 +977,8 @@ pub fn nvim_cmd(
             ea.regname = i32::from(regname);
         }
 
-        ea.forceit = i32::from(cmd.bang);
-        if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
+        ea.forceit = cmd.bang;
+        if ea.forceit && (ea.argt & EX_BANG) == 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -1167,7 +1167,7 @@ pub fn nvim_cmd(
             }
         }
 
-        if (ea.argt & EX_CMDARG) != 0 && ea.usefilter == 0 {
+        if (ea.argt & EX_CMDARG) != 0 && !ea.usefilter {
             ea.do_ecmd_cmd = getargcmd(&mut ea).map(CStr::to_owned);
         }
 

@@ -353,8 +353,8 @@ pub fn close_fold_recurse(pos: CursorPos) {
 pub fn op_fold_range(
     firstpos: CursorPos,
     lastpos: CursorPos,
-    opening: i32,
-    recurse: i32,
+    opening: bool,
+    recurse: bool,
     had_visual: bool,
 ) {
     let mut done = DONE_NOTHING;
@@ -369,11 +369,11 @@ pub fn op_fold_range(
             coladd: 0,
         };
         let mut lnum_next = lnum;
-        if opening != 0 && recurse == 0 {
+        if opening && !recurse {
             has_folding(curwin_mut(), lnum, None, Some(&mut lnum_next));
         }
-        set_manual_fold(temp, opening != 0, recurse != 0, Some(&mut done));
-        if opening == 0 && recurse == 0 {
+        set_manual_fold(temp, opening, recurse, Some(&mut done));
+        if !opening && !recurse {
             has_folding(curwin_mut(), lnum, None, Some(&mut lnum_next));
         }
         lnum = lnum_next + 1;

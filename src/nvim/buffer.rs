@@ -1934,7 +1934,7 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
         start,
         dir,
         count,
-        (if eap.forceit != 0 { DOBUF_FORCEIT } else { 0 })
+        (if eap.forceit { DOBUF_FORCEIT } else { 0 })
             | (if skip_help_buf { DOBUF_SKIPHELP } else { 0 }),
     );
 
@@ -2008,7 +2008,7 @@ pub fn do_bufdel(
     addr_count: i32,
     start_bnr: i32,
     end_bnr: i32,
-    forceit: i32,
+    forceit: bool,
 ) -> Option<&'static std::ffi::CStr> {
     let arg_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(arg_in));
     let mut arg = arg_cstr.as_ptr().cast_mut();
@@ -2018,7 +2018,7 @@ pub fn do_bufdel(
     let mut bnr: i32;
 
     if addr_count == 0 {
-        do_buffer(command, DOBUF_CURRENT, FORWARD, 0, forceit);
+        do_buffer(command, DOBUF_CURRENT, FORWARD, 0, i32::from(forceit));
     } else {
         if addr_count == 2 {
             if !crate::memory::cstr_is_empty(arg) {
@@ -2032,7 +2032,7 @@ pub fn do_bufdel(
         while !g_st().got_int {
             if bnr == curbuf_mut().b_fnum {
                 do_current = bnr;
-            } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, forceit) {
+            } else if do_buffer(command, DOBUF_FIRST, FORWARD, bnr, i32::from(forceit)) {
                 deleted += 1;
             }
 
@@ -2075,7 +2075,13 @@ pub fn do_bufdel(
         }
         if !g_st().got_int
             && do_current != 0
-            && do_buffer(command, DOBUF_FIRST, FORWARD, do_current, forceit)
+            && do_buffer(
+                command,
+                DOBUF_FIRST,
+                FORWARD,
+                do_current,
+                i32::from(forceit),
+            )
         {
             deleted += 1;
         }
@@ -2276,7 +2282,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
     if action == DOBUF_GOTO
         && buf != g_st().curbuf
-        && !check_can_set_curbuf_forceit(flags & DOBUF_FORCEIT)
+        && !check_can_set_curbuf_forceit((flags & DOBUF_FORCEIT) != 0)
     {
         return false;
     }
@@ -2760,7 +2766,7 @@ pub fn do_autochdir() {
         && vim_chdirfile(curbuf_mut().ffname_cstr(), K_CD_CAUSE_AUTO)
     {
         g_st().last_chdir_reason = Some(c"autochdir");
-        shorten_fnames(1);
+        shorten_fnames(true);
     }
 }
 
@@ -3675,7 +3681,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         let job_running = buf.terminal_opt().is_some_and(|t| terminal_running(t));
 
         if (!buf.b_p_bl
-            && eap.forceit == 0
+            && !eap.forceit
             && !crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
                 b'u' as i32,

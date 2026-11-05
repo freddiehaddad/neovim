@@ -242,7 +242,7 @@ pub fn conceal_check_cursor_line() {
     }
 
     conceal_redraw_cursor_line(crate::globals::curwin_mut());
-    curs_columns(curwin_mut(), 1);
+    curs_columns(curwin_mut(), true);
 }
 
 /// Redraws the lines that entered or left the Visual area since the last check: 'concealcursor'
@@ -2401,7 +2401,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 if g_st().must_redraw != 0 {
                     let mod_set = curbuf_mut().b_mod_set;
                     curbuf_mut().b_mod_set = false;
-                    curs_columns(curwin_mut(), 1);
+                    curs_columns(curwin_mut(), true);
                     win_update(curwin_mut());
                     g_st().must_redraw = 0;
                     curbuf_mut().b_mod_set = mod_set;

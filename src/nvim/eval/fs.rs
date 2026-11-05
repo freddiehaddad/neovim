@@ -745,7 +745,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
             fresult = find_file_in_path_option(
                 if first { fname.to_bytes() } else { &[] },
                 0,
-                i32::from(first),
+                first,
                 path,
                 find_what,
                 curbuf_mut().ffname_opt(),

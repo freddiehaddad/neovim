@@ -703,7 +703,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     setpcmark();
 
     if params.edit_type == EDIT_QF {
-        qf_jump(None, 0, 0, 0);
+        qf_jump(None, 0, 0, false);
         time_msg_if_enabled(c"jump to first error");
     }
 
@@ -717,7 +717,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         }
     }
 
-    shorten_fnames(0);
+    shorten_fnames(false);
 
     handle_tag(params.tagname.as_deref());
 
@@ -2226,7 +2226,7 @@ fn exe_commands(parmp: &mut Mparm) {
     g_st().msg_scroll = 0;
 
     if parmp.edit_type == EDIT_QF {
-        qf_jump(None, 0, 0, 0);
+        qf_jump(None, 0, 0, false);
     }
     time_msg_if_enabled(c"executing command arguments");
 }

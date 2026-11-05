@@ -60,7 +60,7 @@ pub fn ex_help(eap: &mut Exarg) {
             }
         }
 
-        if eap.skip != 0 {
+        if eap.skip {
             return;
         }
 
@@ -77,7 +77,7 @@ pub fn ex_help(eap: &mut Exarg) {
     }
 
     // ":help!" (bang, no args).
-    let helpbang = eap.forceit != 0 && arg_cstr.to_bytes().is_empty();
+    let helpbang = eap.forceit && arg_cstr.to_bytes().is_empty();
 
     // When no argument given go to the index.
     if arg_cstr.to_bytes().is_empty() && !helpbang {
@@ -118,7 +118,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Check if there is a match for the argument.
     let mut matches: Vec<std::ffi::CString> = Vec::new();
-    let found_tags = find_help_tags(arg_cstr, &mut matches, eap.forceit != 0);
+    let found_tags = find_help_tags(arg_cstr, &mut matches, eap.forceit);
 
     let mut i: usize = 0;
     if found_tags && let Some(ref lang_cstr) = lang {
@@ -211,7 +211,7 @@ pub fn ex_help(eap: &mut Exarg) {
         g_st().restart_edit = 0;
         g_st().key_typed = old_key_typed;
 
-        do_tag(None, &tag, DT_HELP, 1, 0, true);
+        do_tag(None, &tag, DT_HELP, 1, false, true);
 
         if empty_fnum != 0
             && curbuf_mut().b_fnum != empty_fnum
@@ -235,7 +235,7 @@ pub fn ex_help(eap: &mut Exarg) {
 pub fn ex_helpclose(eap: &mut Exarg) {
     for win in for_all_windows_ptr() {
         if bt_help(win.buf_opt()) {
-            win_close(win, false, eap.forceit != 0);
+            win_close(win, false, eap.forceit);
             return;
         }
     }

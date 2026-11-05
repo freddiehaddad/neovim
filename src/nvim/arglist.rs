@@ -625,7 +625,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
                 curbuf_mut(),
                 CCGD_AW
                     | if other { 0 } else { CCGD_MULTWIN }
-                    | if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }
+                    | if eap.forceit { CCGD_FORCEIT } else { 0 }
                     | CCGD_EXCMD,
             )
         {
@@ -648,7 +648,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
             ECMD_HIDE
         } else {
             0
-        }) + (if eap.forceit != 0 { ECMD_FORCEIT } else { 0 }),
+        }) + (if eap.forceit { ECMD_FORCEIT } else { 0 }),
         Some(curwin_mut()),
     ) {
         curwin_mut().w_arg_idx = old_arg_idx;
@@ -663,7 +663,7 @@ pub fn ex_next(eap: &mut Exarg) {
         || eap.cmdidx == CMD_SNEXT_VARIANT
         || !check_changed(
             curbuf_mut(),
-            CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
+            CCGD_AW | (if eap.forceit { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
         )
     {
         let i = if !crate::memory::cstr_is_empty(eap.arg) {
@@ -1060,7 +1060,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 }
 
 /// Open up to `count` windows, one for each argument (`do_arg_all`).
-fn do_arg_all(mut count: i32, forceit: i32, keep_tabs: bool) {
+fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     let prev_arglist_locked = arglist_st().arglist_locked;
     debug_assert!(!g_st().firstwin.is_null());
 
@@ -1075,7 +1075,7 @@ fn do_arg_all(mut count: i32, forceit: i32, keep_tabs: bool) {
         local_alist: curwin_mut().w_alist.clone(),
         had_tab: g_st().cmdmod.cmod_tab,
         keep_tabs,
-        forceit: forceit != 0,
+        forceit,
         use_firstwin: false,
         opened: vec![0u8; acount as usize],
         new_curwin: ptr::null_mut(),

@@ -3149,7 +3149,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
                     if y > 0 {
                         scrollup(curwin_mut(), y, false);
                     } else {
-                        scrolldown(curwin_mut(), -y, 0);
+                        scrolldown(curwin_mut(), -y, false);
                     }
                 }
 
@@ -4524,7 +4524,7 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize
 
 fn nv_tagpop(cap: &mut Cmdarg) {
     if !checkclearopq(cap.oap_mut()) {
-        do_tag(None, c"", DT_POP, cap.count1, 0, true);
+        do_tag(None, c"", DT_POP, cap.count1, false, true);
     }
 }
 
@@ -7236,7 +7236,7 @@ fn nv_at(cap: &mut Cmdarg) {
         cap.count1 -= 1;
         prev != 0 && !g_st().got_int
     } {
-        if !do_execreg(cap.nchar, 0, 0, 0) {
+        if !do_execreg(cap.nchar, false, false, false) {
             clearopbeep(cap.oap_mut());
             break;
         }

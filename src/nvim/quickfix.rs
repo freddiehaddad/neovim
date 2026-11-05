@@ -3174,11 +3174,17 @@ fn qf_jump_to_buffer(
     retval
 }
 
-pub fn qf_jump(qi: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: i32) {
+pub fn qf_jump(qi: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: bool) {
     qf_jump_newwin(qi, dir, errornr, forceit, false);
 }
 
-fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: i32, newwin: bool) {
+fn qf_jump_newwin(
+    qi_opt: Option<&mut QfInfo>,
+    dir: i32,
+    errornr: i32,
+    forceit: bool,
+    newwin: bool,
+) {
     let old_swb = opt_vars().p_swb.clone();
     let old_swb_flags = opt_vars().swb_flags;
     let old_key_typed = g_st().key_typed;
@@ -3218,7 +3224,7 @@ fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: 
             let retval = qf_jump_to_buffer(
                 unsafe { &mut *qi },
                 qf_index,
-                forceit,
+                i32::from(forceit),
                 prev_winid,
                 &mut opened_window,
                 i32::from(old_key_typed),
@@ -3354,7 +3360,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
 
 pub fn qf_list(eap: &mut Exarg) {
     let arg = eap.arg;
-    let mut all = eap.forceit != 0;
+    let mut all = eap.forceit;
     let Some(qi) = qf_cmd_get_stack_opt(eap, true) else {
         return;
     };
@@ -3396,7 +3402,7 @@ pub fn qf_list(eap: &mut Exarg) {
         }
     }
 
-    shorten_fnames(0);
+    shorten_fnames(false);
 
     qf_st().qf_file_hl_id = syn_name2id(c"qfFileName");
     if qf_st().qf_file_hl_id == 0 {
@@ -3684,7 +3690,7 @@ pub fn qf_view_result(split: bool) {
     }
 
     if split {
-        qf_jump_newwin(Some(qi), 0, curwin_mut().w_cursor.lnum, 0, true);
+        qf_jump_newwin(Some(qi), 0, curwin_mut().w_cursor.lnum, false, true);
         do_cmdline_cmd(c"clearjumps");
         return;
     }
@@ -4364,7 +4370,7 @@ fn qf_restore_list(qi: &mut QfInfo, save_qfid: u32) -> bool {
     true
 }
 
-fn qf_jump_first(qi: &mut QfInfo, save_qfid: u32, forceit: i32) {
+fn qf_jump_first(qi: &mut QfInfo, save_qfid: u32, forceit: bool) {
     if !qf_restore_list(qi, save_qfid) {
         return;
     }
@@ -4520,8 +4526,8 @@ pub fn ex_make(eap: &mut Exarg) {
                 curbuf_opt_mut(),
             );
         }
-        if res > 0 && eap.forceit == 0 && qflist_valid(unsafe { wp.as_ref() }, save_qfid) {
-            qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, 0);
+        if res > 0 && !eap.forceit && qflist_valid(unsafe { wp.as_ref() }, save_qfid) {
+            qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, false);
         }
     }
 
@@ -4993,7 +4999,7 @@ pub fn ex_cbelow(eap: &mut Exarg) {
     );
 
     if errornr > 0 {
-        qf_jump(Some(qi), 0, errornr, 0);
+        qf_jump(Some(qi), 0, errornr, false);
     } else {
         emsg(gettext(E_NO_MORE_ITEMS));
     }
@@ -5299,7 +5305,7 @@ fn vgr_match_buflines(
 
 fn vgr_jump_to_match(
     qi: &mut QfInfo,
-    forceit: i32,
+    forceit: bool,
     redraw_for_dummy: &mut bool,
     first_match_buf: Option<&FileBuf>,
     target_dir: Option<&CStr>,
@@ -7234,7 +7240,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     }
 
     if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi_ptr })))) {
-        qf_jump(unsafe { qi_ptr.as_mut() }, 0, 0, 0);
+        qf_jump(unsafe { qi_ptr.as_mut() }, 0, 0, false);
     } else {
         semsg!(gettext(E_NOMATCH2), eap.arg);
     }

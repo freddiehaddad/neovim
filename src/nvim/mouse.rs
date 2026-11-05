@@ -280,10 +280,10 @@ fn mouse_tab_close(c1: i32) {
     };
     if tp == g_st().curtab {
         if !crate::globals::first_tabpage_mut().tp_next.is_null() {
-            tabpage_close(0);
+            tabpage_close(false);
         }
     } else if !tp.is_null() {
-        tabpage_close_other(unsafe { &mut *tp }, 0);
+        tabpage_close_other(unsafe { &mut *tp }, false);
     }
 }
 

@@ -2002,7 +2002,7 @@ pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
     }
 }
 
-pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
+pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
     let mut arg = arg_in;
     let mut envpat: Option<CString> = None;
     let mut pat_owned: Option<CString> = None;
@@ -2093,7 +2093,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
             }
         }
 
-        let is_showing = forceit == 0 && cmd.to_bytes().is_empty();
+        let is_showing = !forceit && cmd.to_bytes().is_empty();
 
         let mut arg_rem = arg.to_bytes();
         if is_showing {
@@ -2111,22 +2111,14 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
             if !cmd.to_bytes().is_empty() {
                 emsg(tr(E_CANNOT_DEFINE_AUTOCOMMANDS_FOR_ALL_EVENTS));
             } else {
-                do_all_autocmd_events(pat, once, i32::from(nested), cmd, forceit != 0, group);
+                do_all_autocmd_events(pat, once, i32::from(nested), cmd, forceit, group);
             }
         } else {
             while !arg_rem.is_empty() && arg_rem[0] != b'|' && !ascii_iswhite(i32::from(arg_rem[0]))
             {
                 let event = event_name2nr(&mut arg_rem);
                 assert!((event as usize) < NUM_EVENTS);
-                if !do_autocmd_event(
-                    event,
-                    pat,
-                    once,
-                    i32::from(nested),
-                    cmd,
-                    forceit != 0,
-                    group,
-                ) {
+                if !do_autocmd_event(event, pat, once, i32::from(nested), cmd, forceit, group) {
                     break;
                 }
             }
