@@ -118,7 +118,7 @@ pub(crate) enum MPConvStackData {
 
 #[derive(Clone, Copy)]
 pub(crate) struct MPConvStackVal {
-    pub(crate) tv: *mut TypVal,
+    pub(crate) tv: crate::globals::GraphPtr<TypVal>,
     pub(crate) saved_copy_id: i32,
     pub(crate) data: MPConvStackData,
 }
@@ -1089,7 +1089,7 @@ fn convert_one_value(
                 return false;
             }
             mpstack.push(MPConvStackVal {
-                tv,
+                tv: crate::globals::GraphPtr::new(tv),
                 saved_copy_id: copy_id - 1,
                 data: MPConvStackData::Partial {
                     stage: MPConvPartialStage::Args,
@@ -1116,7 +1116,7 @@ fn convert_one_value(
                 backend.conv_list_start(tv_list_len(unsafe { list.as_ref() }));
 
                 mpstack.push(MPConvStackVal {
-                    tv,
+                    tv: crate::globals::GraphPtr::new(tv),
                     saved_copy_id,
                     data: MPConvStackData::List {
                         list,
@@ -1242,7 +1242,7 @@ fn convert_one_value(
                                 backend.conv_list_start(tv_list_len(unsafe { val_list.as_ref() }));
 
                                 mpstack.push(MPConvStackVal {
-                                    tv,
+                                    tv: crate::globals::GraphPtr::new(tv),
                                     saved_copy_id,
                                     data: MPConvStackData::List {
                                         list: val_list,
@@ -1296,7 +1296,7 @@ fn convert_one_value(
                                             as usize);
 
                                         mpstack.push(MPConvStackVal {
-                                            tv,
+                                            tv: crate::globals::GraphPtr::new(tv),
                                             saved_copy_id,
                                             data: MPConvStackData::Pairs {
                                                 list: val_list,
@@ -1353,7 +1353,7 @@ fn convert_one_value(
                 backend.conv_dict_start(unsafe { (*dict).dv_hashtab.ht_used });
 
                 mpstack.push(MPConvStackVal {
-                    tv,
+                    tv: crate::globals::GraphPtr::new(tv),
                     saved_copy_id,
                     data: MPConvStackData::Dict {
                         dict,
@@ -1500,7 +1500,7 @@ fn encode_vim_with_backend(
                             backend.conv_list_start(argc);
 
                             mpstack.push(MPConvStackVal {
-                                tv: std::ptr::null_mut(),
+                                tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id: copy_id - 1,
                                 data: MPConvStackData::PartialList {
                                     arg: unsafe { (*pt).pt_argv.as_mut_ptr() },
@@ -1546,7 +1546,7 @@ fn encode_vim_with_backend(
                             backend.conv_dict_start(dict.dv_hashtab.ht_used);
 
                             mpstack.push(MPConvStackVal {
-                                tv: std::ptr::null_mut(),
+                                tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id,
                                 data: MPConvStackData::Dict {
                                     dict,

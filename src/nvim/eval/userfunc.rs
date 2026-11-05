@@ -139,28 +139,28 @@ const MSG_BUF_CLEN: i32 = (MSG_BUF_LEN / 6) as i32;
 #[repr(C)]
 #[derive(Clone)]
 pub struct Funcdict {
-    pub fd_dict: *mut TvDict,
+    pub fd_dict: crate::globals::GraphPtr<TvDict>,
     pub fd_newkey: Option<std::ffi::CString>,
-    pub fd_di: *mut Dictitem,
+    pub fd_di: crate::globals::GraphPtr<Dictitem>,
 }
 
 impl Funcdict {
     pub const fn new() -> Self {
         Self {
-            fd_dict: ptr::null_mut(),
+            fd_dict: crate::globals::GraphPtr::NULL,
             fd_newkey: None,
-            fd_di: ptr::null_mut(),
+            fd_di: crate::globals::GraphPtr::NULL,
         }
     }
 
     #[inline]
     pub fn dict_opt(&self) -> Option<&'static mut TvDict> {
-        unsafe { self.fd_dict.as_mut() }
+        self.fd_dict.opt_mut()
     }
 
     #[inline]
     pub fn di_mut(&self) -> &'static mut Dictitem {
-        unsafe { &mut *self.fd_di }
+        self.fd_di.borrow_mut()
     }
 }
 
@@ -178,9 +178,9 @@ pub struct Funcexe {
     pub fe_lastline: Linenr,
     pub fe_doesrange: bool,
     pub fe_evaluate: bool,
-    pub fe_partial: *mut TvPartial,
-    pub fe_selfdict: *mut TvDict,
-    pub fe_basetv: *mut TypVal,
+    pub fe_partial: crate::globals::GraphPtr<TvPartial>,
+    pub fe_selfdict: crate::globals::GraphPtr<TvDict>,
+    pub fe_basetv: crate::globals::GraphPtr<TypVal>,
     pub fe_found_var: bool,
 }
 
@@ -192,16 +192,16 @@ impl Funcexe {
             fe_lastline: 0,
             fe_doesrange: false,
             fe_evaluate: false,
-            fe_partial: ptr::null_mut(),
-            fe_selfdict: ptr::null_mut(),
-            fe_basetv: ptr::null_mut(),
+            fe_partial: crate::globals::GraphPtr::NULL,
+            fe_selfdict: crate::globals::GraphPtr::NULL,
+            fe_basetv: crate::globals::GraphPtr::NULL,
             fe_found_var: false,
         }
     }
 
     #[inline]
     pub fn partial_opt(&self) -> Option<&'static mut TvPartial> {
-        unsafe { self.fe_partial.as_mut() }
+        self.fe_partial.opt_mut()
     }
 }
 
@@ -828,7 +828,7 @@ pub fn get_func_tv(
     let partial_argc = if funcexe.fe_partial.is_null() {
         0
     } else {
-        unsafe { (*funcexe.fe_partial).pt_argv.len() as i32 }
+        funcexe.fe_partial.pt_argv.len() as i32
     };
     let mut ret = get_func_arguments(
         &mut argp,
@@ -1725,8 +1725,14 @@ pub fn func_call(
         funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
         funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
         funcexe.fe_evaluate = true;
-        funcexe.fe_partial = partial.map_or(ptr::null_mut(), ptr::from_mut);
-        funcexe.fe_selfdict = selfdict.map_or(ptr::null_mut(), ptr::from_mut);
+        funcexe.fe_partial = partial.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        );
+        funcexe.fe_selfdict = selfdict.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        );
         r = call_func(name, -1, rettv, argc, &mut argv, &mut funcexe);
     }
 
@@ -1802,11 +1808,11 @@ pub fn call_func(
     let mut name_owned: Option<std::ffi::CString> = None;
     let mut argcount = argcount_in;
     let mut argvars_ptr: *mut TypVal = argvars_in.as_mut_ptr();
-    let mut selfdict = funcexe.fe_selfdict;
+    let mut selfdict = funcexe.fe_selfdict.as_ptr();
     let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
     let mut argv_clear = 0;
     let mut argv_base = 0;
-    let partial = funcexe.fe_partial;
+    let partial = funcexe.fe_partial.as_ptr();
 
     rettv.v_type = VarType::VarUnknown;
 
@@ -1873,7 +1879,7 @@ pub fn call_func(
         if is_luafunc(unsafe { partial.as_ref() }) {
             if len > 0 {
                 error = FCERR_NONE;
-                if let Some(basetv) = unsafe { funcexe.fe_basetv.as_ref() } {
+                if let Some(basetv) = funcexe.fe_basetv.opt() {
                     unsafe {
                         ptr::copy(
                             argvars_ptr,
@@ -1932,7 +1938,7 @@ pub fn call_func(
                         );
                     }
 
-                    if let Some(basetv) = unsafe { funcexe.fe_basetv.as_ref() } {
+                    if let Some(basetv) = funcexe.fe_basetv.opt() {
                         unsafe {
                             ptr::copy(
                                 argvars_ptr,
@@ -1961,7 +1967,7 @@ pub fn call_func(
                     );
                 }
             }
-        } else if let Some(basetv) = unsafe { funcexe.fe_basetv.as_ref() } {
+        } else if let Some(basetv) = funcexe.fe_basetv.opt() {
             let argvars_slice = if argvars_ptr.is_null() || argcount <= 0 {
                 &[]
             } else {
@@ -2189,7 +2195,7 @@ pub fn trans_function_name(
         return None;
     }
 
-    if let Some(ll_tv) = unsafe { lv.ll_tv.as_ref() } {
+    if let Some(ll_tv) = lv.ll_tv.opt() {
         if fdp.is_some() {
             fdp.as_deref_mut().unwrap().fd_dict = lv.ll_dict;
             fdp.as_deref_mut().unwrap().fd_newkey = lv.ll_newkey.take();
@@ -3021,8 +3027,7 @@ pub fn ex_function(eap: &mut Exarg) {
         } else {
             fudi_newkey_ptr
         };
-        if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func(unsafe { &(*fudi.fd_di).di_tv }))
-        {
+        if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func(&fudi.fd_di.di_tv)) {
             let mut name_base = arg;
             if arg != fudi_newkey_ptr {
                 if crate::memory::cstr_first_byte(arg) == K_SPECIAL {
@@ -3048,7 +3053,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 }
             }
         }
-        if !fudi.fd_dict.is_null() && unsafe { (*fudi.fd_dict).dv_scope } == VAR_DEF_SCOPE {
+        if !fudi.fd_dict.is_null() && fudi.fd_dict.dv_scope == VAR_DEF_SCOPE {
             emsg(gettext(c"E862: Cannot use g: here"));
             ret_free!();
         }
@@ -3202,18 +3207,10 @@ pub fn ex_function(eap: &mut Exarg) {
             erret!();
         }
         if fudi.fd_di.is_null() {
-            if value_check_lock(
-                unsafe { (*fudi.fd_dict).dv_lock },
-                Some(eap.arg.as_cstr()),
-                TV_CSTRING,
-            ) {
+            if value_check_lock(fudi.fd_dict.dv_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
                 erret!();
             }
-        } else if value_check_lock(
-            unsafe { (*fudi.fd_di).di_tv.v_lock },
-            Some(eap.arg.as_cstr()),
-            TV_CSTRING,
-        ) {
+        } else if value_check_lock(fudi.fd_di.di_tv.v_lock, Some(eap.arg.as_cstr()), TV_CSTRING) {
             erret!();
         }
 
@@ -3271,23 +3268,21 @@ pub fn ex_function(eap: &mut Exarg) {
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
                 let di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_c_str());
-                fudi.fd_di = di;
-                if !tv_dict_add(unsafe { &mut *fudi.fd_dict }, unsafe { &mut *fudi.fd_di }) {
-                    crate::eval::typval::tv_dict_item_free(unsafe { &mut *fudi.fd_di });
+                fudi.fd_di = crate::globals::GraphPtr::from(di);
+                if !tv_dict_add(&mut fudi.fd_dict, &mut fudi.fd_di) {
+                    crate::eval::typval::tv_dict_item_free(&mut fudi.fd_di);
                     erret!();
                 }
             } else {
-                tv_clear(unsafe { &mut (*fudi.fd_di).di_tv });
+                tv_clear(&mut fudi.fd_di.borrow_mut().di_tv);
             }
 
             crate::eval::typval::tv_set_string_len(
-                unsafe { &mut (*fudi.fd_di).di_tv },
+                &mut fudi.fd_di.borrow_mut().di_tv,
                 Some(crate::memory::cstr_slice(name, namelen)),
             );
 
-            unsafe {
-                (*fudi.fd_di).di_tv.v_type = VarType::VarFunc;
-            }
+            fudi.fd_di.borrow_mut().di_tv.v_type = VarType::VarFunc;
 
             flags |= FC_DICT;
         }
@@ -3876,9 +3871,7 @@ pub fn ex_call(eap: &mut Exarg) {
     };
 
     if !fudi.fd_dict.is_null() {
-        unsafe {
-            (*fudi.fd_dict).dv_refcount += 1;
-        }
+        fudi.fd_dict.borrow_mut().dv_refcount += 1;
     }
 
     let mut len = tofree_cstr.as_bytes().len() as i32;
@@ -3900,7 +3893,7 @@ pub fn ex_call(eap: &mut Exarg) {
 
     if startarg.to_bytes().first().copied().unwrap_or(0) != b'(' {
         semsg!(gettext(E_MISSINGPAREN), eap.arg);
-        tv_dict_unref(unsafe { fudi.fd_dict.as_mut() });
+        tv_dict_unref(fudi.fd_dict.opt_mut());
         return;
     }
 
@@ -3909,7 +3902,10 @@ pub fn ex_call(eap: &mut Exarg) {
         !ex_defer_inner(name, &mut arg, partial_opt.as_deref(), &mut evalarg)
     } else {
         let mut funcexe = Funcexe::new();
-        funcexe.fe_partial = partial_opt.map_or(ptr::null_mut(), ptr::from_mut);
+        funcexe.fe_partial = partial_opt.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        );
         funcexe.fe_selfdict = fudi.fd_dict;
         funcexe.fe_firstline = eap.line1;
         funcexe.fe_lastline = eap.line2;
@@ -3929,7 +3925,7 @@ pub fn ex_call(eap: &mut Exarg) {
         }
     }
 
-    tv_dict_unref(unsafe { fudi.fd_dict.as_mut() });
+    tv_dict_unref(fudi.fd_dict.opt_mut());
     drop(tofree_owned);
 }
 

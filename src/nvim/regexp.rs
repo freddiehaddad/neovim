@@ -2904,9 +2904,9 @@ fn vim_regsub_both(
                     fe_lastline: 0,
                     fe_doesrange: false,
                     fe_evaluate: true,
-                    fe_partial: ptr::null_mut(),
-                    fe_selfdict: ptr::null_mut(),
-                    fe_basetv: ptr::null_mut(),
+                    fe_partial: crate::globals::GraphPtr::NULL,
+                    fe_selfdict: crate::globals::GraphPtr::NULL,
+                    fe_basetv: crate::globals::GraphPtr::NULL,
                     fe_found_var: false,
                 };
                 if expr.v_type == VarType::VarFunc {
@@ -2920,7 +2920,7 @@ fn vim_regsub_both(
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();
                     let s = partial_name(unsafe { partial.as_ref() });
-                    funcexe.fe_partial = partial;
+                    funcexe.fe_partial = crate::globals::GraphPtr::new(partial);
                     call_func(s, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
                 if rettv.v_type == VarType::VarUnknown {

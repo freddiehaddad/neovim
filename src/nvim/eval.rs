@@ -526,9 +526,9 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
         fe_lastline: 0,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: partial_ptr,
-        fe_selfdict: ptr::null_mut(),
-        fe_basetv: ptr::null_mut(),
+        fe_partial: crate::globals::GraphPtr::new(partial_ptr),
+        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
     if !call_func(s, -1, rettv, argc, argv, &mut funcexe) {
@@ -556,9 +556,9 @@ fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut Typ
         fe_lastline: 0,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: ptr::null_mut(),
-        fe_selfdict: ptr::null_mut(),
-        fe_basetv: ptr::null_mut(),
+        fe_partial: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
     if !call_func(
@@ -834,9 +834,9 @@ pub fn call_vim_function(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: pt.cast(),
-        fe_selfdict: ptr::null_mut(),
-        fe_basetv: ptr::null_mut(),
+        fe_partial: crate::globals::GraphPtr::new(pt.cast()),
+        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
     let ret = call_func(func, len, &mut *rettv, argc, argv, &mut funcexe);
@@ -1058,7 +1058,7 @@ fn get_lval_dict_item<'a>(
     if len == -1 {
         key = tv_get_string(&*var1).as_ptr();
     }
-    lp.ll_list = ptr::null_mut();
+    lp.ll_list = crate::globals::TvListPtr::NULL;
 
     if lp.tv_mut().vval.v_dict().is_null() {
         lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
@@ -1066,24 +1066,27 @@ fn get_lval_dict_item<'a>(
             (*lp.tv_mut().vval.v_dict()).dv_refcount += 1;
         }
     }
-    lp.ll_dict = lp.tv_mut().vval.v_dict();
+    lp.ll_dict = crate::globals::GraphPtr::new(lp.tv_mut().vval.v_dict());
 
     lp.ll_di = tv_dict_find(
-        unsafe { lp.ll_dict.as_ref() },
+        lp.ll_dict.opt(),
         unsafe { CStr::from_ptr(key) },
         len as isize,
     )
-    .map_or(ptr::null_mut(), ptr::from_mut);
+    .map_or(
+        crate::globals::GraphPtr::NULL,
+        crate::globals::GraphPtr::from,
+    );
 
     if let Some(rettv) = rettv.as_deref()
-        && unsafe { (*lp.ll_dict).dv_scope } != 0
+        && lp.ll_dict.dv_scope != 0
     {
         let key_cstr =
             (len != -1).then(|| cstr_from_bytes(crate::memory::cstr_slice(key, len as usize)));
         let key_ref = key_cstr
             .as_deref()
             .unwrap_or_else(|| crate::memory::cstr_from_ptr(key));
-        let wrong = (unsafe { (*lp.ll_dict).dv_scope } == VAR_DEF_SCOPE
+        let wrong = (lp.ll_dict.dv_scope == VAR_DEF_SCOPE
             && tv_is_func(rettv)
             && var_wrong_func_name(key_ref, lp.ll_di.is_null()))
             || !valid_varname(key_ref);
@@ -1093,7 +1096,7 @@ fn get_lval_dict_item<'a>(
     }
 
     if !lp.ll_di.is_null()
-        && tv_is_luafunc(unsafe { &mut (*lp.ll_di).di_tv })
+        && tv_is_luafunc(&mut lp.ll_di.borrow_mut().di_tv)
         && len == -1
         && rettv.is_none()
     {
@@ -1104,7 +1107,7 @@ fn get_lval_dict_item<'a>(
     if lp.ll_di.is_null() {
         if lp.ll_dict == get_vimvar_dict()
             || get_funccal_args_ht()
-                .is_some_and(|aht| ptr::eq(unsafe { &raw mut (*lp.ll_dict).dv_hashtab }, aht))
+                .is_some_and(|aht| ptr::eq(&raw mut lp.ll_dict.borrow_mut().dv_hashtab, aht))
         {
             semsg!(gettext(E_ILLVAR), name.as_ptr());
             return GLV_FAIL;
@@ -1129,11 +1132,11 @@ fn get_lval_dict_item<'a>(
         return GLV_STOP;
     } else if (flags & GLV_READ_ONLY) == 0
         && (var_check_ro(
-            i32::from(unsafe { (*lp.ll_di).di_flags }),
+            i32::from(lp.ll_di.di_flags),
             name,
             (p as usize).wrapping_sub(name.as_ptr() as usize),
         ) || var_check_lock(
-            i32::from(unsafe { (*lp.ll_di).di_flags }),
+            i32::from(lp.ll_di.di_flags),
             name,
             (p as usize).wrapping_sub(name.as_ptr() as usize),
         ))
@@ -1141,7 +1144,7 @@ fn get_lval_dict_item<'a>(
         return GLV_FAIL;
     }
 
-    lp.ll_tv = unsafe { &raw mut (*lp.ll_di).di_tv };
+    lp.ll_tv = crate::globals::GraphPtr::from(&mut lp.ll_di.borrow_mut().di_tv);
 
     GLV_OK
 }
@@ -1176,8 +1179,8 @@ fn get_lval_blob(
         }
     }
 
-    lp.ll_blob = lp.tv_mut().vval.v_blob();
-    lp.ll_tv = ptr::null_mut();
+    lp.ll_blob = crate::globals::GraphPtr::new(lp.tv_mut().vval.v_blob());
+    lp.ll_tv = crate::globals::GraphPtr::NULL;
 
     true
 }
@@ -1196,10 +1199,12 @@ fn get_lval_list(
         lp.ll_n1 = tv_get_number(&*var1) as i32;
     }
 
-    lp.ll_dict = ptr::null_mut();
-    lp.ll_list = lp.tv_mut().vval.v_list();
-    lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet)
-        .map_or(ptr::null_mut(), ptr::from_mut);
+    lp.ll_dict = crate::globals::GraphPtr::NULL;
+    lp.ll_list = crate::globals::TvListPtr::new(lp.tv_mut().vval.v_list());
+    lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet).map_or(
+        crate::globals::ListitemPtr::NULL,
+        crate::globals::ListitemPtr::from,
+    );
     if lp.ll_li.is_null() {
         return false;
     }
@@ -1209,7 +1214,7 @@ fn get_lval_list(
         if !tv_list_check_range_index_two(
             lp.list_opt(),
             &mut lp.ll_n1,
-            unsafe { lp.ll_li.as_ref() },
+            lp.ll_li.opt(),
             &mut lp.ll_n2,
             quiet,
         ) {
@@ -1217,7 +1222,7 @@ fn get_lval_list(
         }
     }
 
-    lp.ll_tv = tv_list_item_tv(lp.li_mut());
+    lp.ll_tv = crate::globals::GraphPtr::from(tv_list_item_tv(lp.li_mut()));
 
     true
 }
@@ -1500,9 +1505,9 @@ pub fn get_lval<'a>(
     }
     let v = v?;
 
-    lp.ll_tv = &raw mut v.di_tv;
+    lp.ll_tv = crate::globals::GraphPtr::from(&mut v.di_tv);
 
-    if tv_is_luafunc(unsafe { &mut *lp.ll_tv }) {
+    if tv_is_luafunc(lp.ll_tv.borrow_mut()) {
         return Some(p_cstr);
     }
 
@@ -1542,7 +1547,7 @@ pub fn set_var_lval(
                 crate::memory::ptr_offset_from(endp, ll_name.as_ptr().cast::<u8>()) as usize;
             cstr_from_bytes(crate::memory::cstr_slice(ll_name.as_ptr(), full_len))
         };
-        if let Some(blob) = unsafe { lp.ll_blob.as_mut() } {
+        if let Some(blob) = lp.ll_blob.opt_mut() {
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                 semsg!(gettext(E_LETWRONG), op);
                 return;
@@ -1619,7 +1624,7 @@ pub fn set_var_lval(
         }
 
         tv_list_assign_range(
-            unsafe { &mut *lp.ll_list },
+            lp.ll_list.borrow_mut(),
             unsafe { rettv.vval.v_list().as_ref() },
             lp.ll_n1,
             lp.ll_n2,
@@ -1629,7 +1634,7 @@ pub fn set_var_lval(
         );
     } else {
         let mut oldtv = tv_initial_value();
-        let dict = lp.ll_dict;
+        let dict = lp.ll_dict.as_ptr();
         let watched = tv_dict_is_watched(unsafe { dict.as_ref() });
 
         if is_const {
@@ -1658,31 +1663,29 @@ pub fn set_var_lval(
                 tv_dict_item_free(di);
                 return;
             }
-            lp.ll_tv = &raw mut di.di_tv;
+            lp.ll_tv = crate::globals::GraphPtr::from(&mut di.di_tv);
         } else {
             if watched {
-                tv_copy(unsafe { &*lp.ll_tv }, &mut oldtv);
+                tv_copy(lp.ll_tv.borrow(), &mut oldtv);
             }
 
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                 eexe_mod_op(
-                    unsafe { &mut *lp.ll_tv },
+                    lp.ll_tv.borrow_mut(),
                     &*rettv,
                     crate::memory::cstr_from_ptr(op),
                 );
                 skip_assign = true;
             } else {
-                tv_clear(unsafe { &mut *lp.ll_tv });
+                tv_clear(lp.ll_tv.borrow_mut());
             }
         }
 
         if !skip_assign {
             if copy {
-                tv_copy(&*rettv, unsafe { &mut *lp.ll_tv });
+                tv_copy(&*rettv, lp.ll_tv.borrow_mut());
             } else {
-                unsafe {
-                    *lp.ll_tv = *rettv;
-                }
+                *lp.ll_tv = *rettv;
                 lp.tv_mut().v_lock = VAR_UNLOCKED;
                 tv_init(Some(rettv));
             }
@@ -1691,19 +1694,14 @@ pub fn set_var_lval(
         if watched {
             if oldtv.v_type == VarType::VarUnknown {
                 let newkey_cstr = lp.ll_newkey.as_ref().unwrap().as_c_str();
-                tv_dict_watcher_notify(
-                    unsafe { &mut *dict },
-                    newkey_cstr,
-                    unsafe { lp.ll_tv.as_ref() },
-                    None,
-                );
+                tv_dict_watcher_notify(unsafe { &mut *dict }, newkey_cstr, lp.ll_tv.opt(), None);
             } else {
-                let di_ = lp.ll_di;
+                let di_ = lp.ll_di.as_ptr();
                 let di_key_cstr = unsafe { CStr::from_ptr((*di_).di_key.as_ptr().cast()) };
                 tv_dict_watcher_notify(
                     unsafe { &mut *dict },
                     di_key_cstr,
-                    unsafe { lp.ll_tv.as_ref() },
+                    lp.ll_tv.opt(),
                     Some(&oldtv),
                 );
                 tv_clear(&mut oldtv);
@@ -2051,9 +2049,12 @@ fn eval_func(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: evaluate,
-        fe_partial: partial.cast(),
-        fe_selfdict: ptr::null_mut(),
-        fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
+        fe_partial: crate::globals::GraphPtr::new(partial.cast()),
+        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_basetv: basetv.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        ),
         fe_found_var: found_var,
     };
     let mut ret = get_func_tv(&s_cstr, len, &mut *rettv, arg, evalarg, &mut funcexe);
@@ -3027,9 +3028,15 @@ fn call_func_rettv(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: evaluate,
-        fe_partial: pt.cast(),
-        fe_selfdict: selfdict.map_or(ptr::null_mut(), ptr::from_mut),
-        fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
+        fe_partial: crate::globals::GraphPtr::new(pt.cast()),
+        fe_selfdict: selfdict.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        ),
+        fe_basetv: basetv.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        ),
         fe_found_var: false,
     };
     let ret = get_func_tv(
@@ -5058,9 +5065,9 @@ pub fn callback_call(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: partial.cast(),
-        fe_selfdict: ptr::null_mut(),
-        fe_basetv: ptr::null_mut(),
+        fe_partial: crate::globals::GraphPtr::new(partial.cast()),
+        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
 
@@ -6733,9 +6740,9 @@ pub fn eval_call_provider(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: ptr::null_mut(),
-        fe_selfdict: ptr::null_mut(),
-        fe_basetv: ptr::null_mut(),
+        fe_partial: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
     call_func(
@@ -7089,27 +7096,27 @@ pub fn typval_tostring(arg: Option<&mut TypVal>, quotes: bool) -> std::ffi::CStr
 impl Lval {
     #[inline]
     pub fn tv_mut(&self) -> &'static mut TypVal {
-        unsafe { &mut *self.ll_tv }
+        self.ll_tv.borrow_mut()
     }
 
     #[inline]
     pub fn list_opt(&self) -> Option<&'static mut TvList> {
-        unsafe { self.ll_list.as_mut() }
+        self.ll_list.opt_mut()
     }
 
     #[inline]
     pub fn dict_opt(&self) -> Option<&'static mut TvDict> {
-        unsafe { self.ll_dict.as_mut() }
+        self.ll_dict.opt_mut()
     }
 
     #[inline]
     pub fn li_mut(&self) -> &'static mut Listitem {
-        unsafe { &mut *self.ll_li }
+        self.ll_li.borrow_mut()
     }
 
     #[inline]
     pub fn di_mut(&self) -> &'static mut Dictitem {
-        unsafe { &mut *self.ll_di }
+        self.ll_di.borrow_mut()
     }
 }
 #[cfg(test)]

@@ -266,9 +266,12 @@ fn call_function_impl(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: std::ptr::null_mut(),
-        fe_selfdict: self_dict.map_or(std::ptr::null_mut(), std::ptr::from_mut),
-        fe_basetv: std::ptr::null_mut(),
+        fe_partial: crate::globals::GraphPtr::NULL,
+        fe_selfdict: self_dict.map_or(
+            crate::globals::GraphPtr::NULL,
+            crate::globals::GraphPtr::from,
+        ),
+        fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
 

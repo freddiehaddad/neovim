@@ -110,17 +110,17 @@ pub struct Lval {
     pub ll_name: Option<&'static std::ffi::CStr>,
     pub ll_name_len: usize,
     pub ll_exp_name: Option<std::ffi::CString>,
-    pub ll_tv: *mut TypVal,
-    pub ll_li: *mut Listitem,
-    pub ll_list: *mut TvList,
+    pub ll_tv: crate::globals::GraphPtr<TypVal>,
+    pub ll_li: crate::globals::ListitemPtr,
+    pub ll_list: crate::globals::TvListPtr,
     pub ll_range: bool,
     pub ll_empty2: bool,
     pub ll_n1: i32,
     pub ll_n2: i32,
-    pub ll_dict: *mut TvDict,
-    pub ll_di: *mut Dictitem,
+    pub ll_dict: crate::globals::GraphPtr<TvDict>,
+    pub ll_di: crate::globals::GraphPtr<Dictitem>,
     pub ll_newkey: Option<std::ffi::CString>,
-    pub ll_blob: *mut TvBlob,
+    pub ll_blob: crate::globals::GraphPtr<TvBlob>,
 }
 
 impl Lval {
@@ -129,17 +129,17 @@ impl Lval {
             ll_name: None,
             ll_name_len: 0,
             ll_exp_name: None,
-            ll_tv: ptr::null_mut(),
-            ll_li: ptr::null_mut(),
-            ll_list: ptr::null_mut(),
+            ll_tv: crate::globals::GraphPtr::NULL,
+            ll_li: crate::globals::ListitemPtr::NULL,
+            ll_list: crate::globals::TvListPtr::NULL,
             ll_range: false,
             ll_empty2: false,
             ll_n1: 0,
             ll_n2: 0,
-            ll_dict: ptr::null_mut(),
-            ll_di: ptr::null_mut(),
+            ll_dict: crate::globals::GraphPtr::NULL,
+            ll_di: crate::globals::GraphPtr::NULL,
             ll_newkey: None,
-            ll_blob: ptr::null_mut(),
+            ll_blob: crate::globals::GraphPtr::NULL,
         }
     }
 }
@@ -1939,7 +1939,7 @@ fn ex_unletlock(
         if crate::memory::cstr_first_byte(arg) == b'$' {
             let name_start = arg;
             lv.ll_name = Some(crate::memory::cstr_from_ptr(arg));
-            lv.ll_tv = ptr::null_mut();
+            lv.ll_tv = crate::globals::GraphPtr::NULL;
             arg = arg.wrapping_add(1);
             let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
             if get_env_len(&mut arg_cstr) == 0 {
@@ -2017,13 +2017,13 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     {
         return false;
     } else if lp.ll_range {
-        let li_first = unsafe { &mut *lp.ll_li };
+        let li_first = lp.ll_li.borrow_mut();
         let n1 = lp.ll_n1;
         let has_n2 = !lp.ll_empty2;
         let n2 = lp.ll_n2;
         tv_list_unlet_range(lp.list_opt(), li_first, n1, has_n2, n2);
     } else if let Some(l) = lp.list_opt() {
-        tv_list_item_remove(l, unsafe { &mut *lp.ll_li });
+        tv_list_item_remove(l, lp.ll_li.borrow_mut());
     } else {
         let d = lp.dict_opt().unwrap();
         let di = lp.di_mut();
@@ -2186,7 +2186,7 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
     } else if deep == 0 {
         // nothing to do
     } else if lp.ll_range {
-        for li in crate::eval::typval::list_iter_ptr(unsafe { lp.ll_li.as_mut() }) {
+        for li in crate::eval::typval::list_iter_ptr(lp.ll_li.opt_mut()) {
             if !lp.ll_empty2 && lp.ll_n2 < lp.ll_n1 {
                 break;
             }

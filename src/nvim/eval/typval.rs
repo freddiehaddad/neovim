@@ -2146,8 +2146,8 @@ fn item_compare2(
     let mut rettv = tv_initial_value();
     let mut funcexe: Funcexe = Funcexe::new();
     funcexe.fe_evaluate = true;
-    funcexe.fe_partial = partial;
-    funcexe.fe_selfdict = info.item_compare_selfdict;
+    funcexe.fe_partial = crate::globals::GraphPtr::new(partial);
+    funcexe.fe_selfdict = crate::globals::GraphPtr::new(info.item_compare_selfdict);
     let ok = call_func(
         unsafe { std::ffi::CStr::from_ptr(func_name) },
         -1,
@@ -3884,7 +3884,7 @@ fn nothing_convert_one_value(
                 return true;
             }
             mpstack.push(MPConvStackVal {
-                tv: &raw mut *tv,
+                tv: crate::globals::GraphPtr::from(&mut *tv),
                 saved_copy_id: copy_id - 1,
                 data: MPConvStackData::Partial {
                     stage: MPConvPartialStage::Args,
@@ -3910,7 +3910,7 @@ fn nothing_convert_one_value(
             }
 
             let mut mpsv = MPConvStackVal {
-                tv: &raw mut *tv,
+                tv: crate::globals::GraphPtr::from(&mut *tv),
                 saved_copy_id,
                 data: MPConvStackData::List {
                     list,
@@ -3956,7 +3956,7 @@ fn nothing_convert_one_value(
             }
 
             let mpsv = MPConvStackVal {
-                tv: tv_ptr,
+                tv: crate::globals::GraphPtr::new(tv_ptr),
                 saved_copy_id,
                 data: MPConvStackData::Dict {
                     dict,
@@ -3998,7 +3998,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     unsafe {
                         (*dict).dv_copy_id = saved_copy_id;
                     }
-                    if let Some(tv_ref) = unsafe { cur_tv.as_mut() } {
+                    if let Some(tv_ref) = cur_tv.opt_mut() {
                         tv_ref.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
                     }
                     tv_dict_unref(unsafe { dict.as_mut() });
@@ -4021,7 +4021,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         (*list).lv_copy_id = saved_copy_id;
                     }
 
-                    nothing_conv_list_end(unsafe { cur_tv.as_mut() });
+                    nothing_conv_list_end(cur_tv.opt_mut());
 
                     continue;
                 }
@@ -4041,7 +4041,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         }
                         if !pt.is_null() && unsafe { !(*pt).pt_argv.is_empty() } {
                             mpstack.push(MPConvStackVal {
-                                tv: ptr::null_mut(),
+                                tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id: copy_id - 1,
                                 data: MPConvStackData::PartialList {
                                     arg: unsafe { (*pt).pt_argv.as_mut_ptr() },
@@ -4091,7 +4091,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                             }
 
                             let mpsv = MPConvStackVal {
-                                tv: ptr::null_mut(),
+                                tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id,
                                 data: MPConvStackData::Dict {
                                     dict,
@@ -4103,7 +4103,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         }
                     }
                     MPConvPartialStage::End => {
-                        nothing_conv_func_end(unsafe { &mut *cur_tv }, copy_id);
+                        nothing_conv_func_end(cur_tv.borrow_mut(), copy_id);
 
                         mpstack.pop();
                     }
@@ -4119,7 +4119,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 if *todo == 0 {
                     mpstack.pop();
 
-                    nothing_conv_list_end(unsafe { cur_tv.as_mut() });
+                    nothing_conv_list_end(cur_tv.opt_mut());
 
                     continue;
                 }
