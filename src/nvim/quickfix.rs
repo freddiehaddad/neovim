@@ -2678,7 +2678,7 @@ fn qf_goto_win_with_ll_file(
                 if unsafe { (*win).w_prev.is_null() } {
                     win = g_st().lastwin;
                 } else {
-                    win = unsafe { (*win).w_prev };
+                    win = unsafe { (*win).w_prev.as_ptr() };
                 }
                 if win == curwin_ptr() {
                     break;
@@ -2705,7 +2705,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         if unsafe { (*win).w_prev.is_null() } {
             win = g_st().lastwin;
         } else {
-            win = unsafe { (*win).w_prev };
+            win = unsafe { (*win).w_prev.as_ptr() };
         }
 
         if is_qf_window(unsafe { &*win }) {
@@ -2717,9 +2717,9 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
             } else if !altwin.is_null() {
                 win = altwin;
             } else if !curwin_mut().w_prev.is_null() {
-                win = curwin_mut().w_prev;
+                win = curwin_mut().w_prev.as_ptr();
             } else {
-                win = curwin_mut().w_next;
+                win = curwin_mut().w_next.as_ptr();
             }
             break;
         }

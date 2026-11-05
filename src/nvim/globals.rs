@@ -1232,7 +1232,7 @@ impl Iterator for WinMutIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).w_next;
+                self.0 = (*cur).w_next.as_ptr();
                 Some(&mut *cur)
             }
         }
@@ -1251,7 +1251,7 @@ impl Iterator for WinPtrIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).w_next;
+                self.0 = (*cur).w_next.as_ptr();
                 Some(&mut *cur)
             }
         }
@@ -1308,7 +1308,7 @@ impl Iterator for WinRevPtrIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).w_prev;
+                self.0 = (*cur).w_prev.as_ptr();
                 Some(&mut *cur)
             }
         }

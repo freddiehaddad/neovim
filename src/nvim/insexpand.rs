@@ -3035,7 +3035,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
         loop {
             let wp = insexp().next_buf_wp;
             let next_wp = if !wp.w_next.is_null() {
-                wp.w_next
+                wp.w_next.as_ptr()
             } else {
                 g_st().firstwin
             };

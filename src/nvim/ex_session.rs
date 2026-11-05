@@ -771,7 +771,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     }
                     break;
                 }
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.as_ptr();
             }
 
             if need_tabnext && !put_line(fd, c"tabnext") {
@@ -801,7 +801,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if ptr::eq(curwin_ptr(), wp) {
                     cnr = nr;
                 }
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.as_ptr();
             }
 
             if let Some(tfw) = unsafe { tab_firstwin.as_ref() }
@@ -831,7 +831,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             wp = tab_firstwin;
             while let Some(wp_ref) = unsafe { wp.as_mut() } {
                 if ses_do_win(wp_ref) == 0 {
-                    wp = wp_ref.w_next;
+                    wp = wp_ref.w_next.as_ptr();
                     continue;
                 }
                 if !put_view(
@@ -848,7 +848,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     return false;
                 }
                 next_arg_idx = wp_ref.w_arg_idx;
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.as_ptr();
             }
 
             cur_arg_idx = next_arg_idx;

@@ -4500,14 +4500,14 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         while !wp.is_null() {
             wpnext = crate::globals::WinPtr::new(if wp.borrow().w_floating {
                 if wp.borrow().prev_mut().w_floating {
-                    wp.borrow().w_prev
+                    wp.borrow().w_prev.as_ptr()
                 } else {
                     g_st().firstwin
                 }
             } else if wp.borrow().next_opt().is_none_or(|next| next.w_floating) {
                 ptr::null_mut()
             } else {
-                wp.borrow().w_next
+                wp.borrow().w_next.as_ptr()
             });
             let size_mismatch = if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
                 i64::from(
@@ -4572,7 +4572,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 if !wp.borrow().w_floating && wp.borrow().w_buffer == buf.as_ptr() {
                     break;
                 }
-                wp = crate::globals::WinPtr::new(wp.borrow().w_next);
+                wp = wp.borrow().w_next;
             }
             if !wp.is_null() {
                 win_move_after(wp.borrow_mut(), curwin_mut());
@@ -4647,7 +4647,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             open_wins -= 1;
             wp = crate::globals::WinPtr::new(g_st().lastwin);
         } else {
-            wp = crate::globals::WinPtr::new(wp.borrow().w_prev);
+            wp = wp.borrow().w_prev;
             if wp.is_null() {
                 break;
             }

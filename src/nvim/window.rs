@@ -291,8 +291,8 @@ pub struct WinInfoInfo {
     pub w_hl_attr_normal: i32,
     pub w_hl_attr_normalnc: i32,
     pub w_hl_needs_update: i32,
-    pub w_prev: *mut WinInfoInfo,
-    pub w_next: *mut WinInfoInfo,
+    pub w_prev: crate::globals::WinPtr,
+    pub w_next: crate::globals::WinPtr,
     pub w_locked: i32,
     pub w_frame: crate::globals::FramePtr,
     pub w_cursor: CursorPos,
@@ -447,17 +447,17 @@ impl WinInfoInfo {
 
     #[inline]
     pub fn next_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        unsafe { (self.w_next).as_mut() }
+        self.w_next.opt_mut()
     }
 
     #[inline]
     pub fn prev_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *(self.w_prev) }
+        self.w_prev.borrow_mut()
     }
 
     #[inline]
     pub fn prev_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        unsafe { (self.w_prev).as_mut() }
+        self.w_prev.opt_mut()
     }
 
     #[inline]
@@ -489,8 +489,8 @@ impl WinInfoInfo {
             w_hl_attr_normal: 0,
             w_hl_attr_normalnc: 0,
             w_hl_needs_update: 0,
-            w_prev: ptr::null_mut(),
-            w_next: ptr::null_mut(),
+            w_prev: crate::globals::WinPtr::NULL,
+            w_next: crate::globals::WinPtr::NULL,
             w_locked: 0,
             w_frame: crate::globals::FramePtr::NULL,
             w_cursor: CursorPos {
@@ -2086,9 +2086,9 @@ pub fn win_split_ins(
             win_append(Some(&mut *oldwin), unsafe { &mut *wp }, None);
         }
     } else if new_wp.is_null() {
-        wp = win_alloc(unsafe { oldwin.w_prev.as_mut() }, false);
+        wp = win_alloc(oldwin.w_prev.opt_mut(), false);
     } else {
-        win_append(unsafe { oldwin.w_prev.as_mut() }, unsafe { &mut *wp }, None);
+        win_append(oldwin.w_prev.opt_mut(), unsafe { &mut *wp }, None);
     }
 
     if new_wp.is_null() && wp.is_null() {
@@ -2608,21 +2608,21 @@ fn win_exchange(mut prenum: i32) {
 
     let wp2 = curwin_mut().w_prev;
     let frp2 = curwin_mut().frame_mut().fr_prev;
-    if !ptr::eq(wp.w_prev, curwin_ptr()) {
+    if wp.w_prev != curwin_ptr() {
         win_remove(curwin_mut(), None);
 
         frame_remove(curwin_mut().w_frame.borrow_mut());
 
-        win_append(unsafe { wp.w_prev.as_mut() }, curwin_mut(), None);
+        win_append(wp.w_prev.opt_mut(), curwin_mut(), None);
 
         frame_insert(unsafe { &mut *(frp) }, curwin_mut().w_frame.borrow_mut());
     }
-    if !ptr::eq(wp, wp2) {
+    if wp2 != wp {
         win_remove(&mut *wp, None);
 
         frame_remove(wp.w_frame.borrow_mut());
 
-        win_append(unsafe { wp2.as_mut() }, &mut *wp, None);
+        win_append(wp2.opt_mut(), &mut *wp, None);
         if frp2.is_null() {
             frame_insert(
                 wp.frame_mut().fr_parent.fr_child.borrow_mut(),
@@ -2715,7 +2715,7 @@ fn win_rotate(upwards: bool, mut count: i32) {
 
             wp1 = (unsafe { &mut *(frp) }).fr_win.as_ptr();
 
-            wp2 = (unsafe { &mut *(wp1) }).w_prev;
+            wp2 = (unsafe { &mut *(wp1) }).w_prev.as_ptr();
 
             win_remove(unsafe { &mut *(wp1) }, None);
 
@@ -2731,7 +2731,7 @@ fn win_rotate(upwards: bool, mut count: i32) {
                         .fr_child
                         .fr_win
                         .opt()
-                        .and_then(|w| w.w_prev.as_mut())
+                        .and_then(|w| w.w_prev.opt_mut())
                 },
                 unsafe { &mut *wp1 },
                 None,
@@ -2819,7 +2819,7 @@ pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
             winframe_restore(unsafe { &mut *(wp) }, dir, unsafe { &mut *(unflat_ptr) });
         }
 
-        win_append(unsafe { (*wp).w_prev.as_mut() }, unsafe { &mut *wp }, None);
+        win_append(unsafe { (*wp).w_prev.opt_mut() }, unsafe { &mut *wp }, None);
 
         return false;
     }
@@ -2848,7 +2848,7 @@ pub fn win_move_after(win1: &mut WinInfoInfo, win2: &mut WinInfoInfo) {
         return;
     }
 
-    if !ptr::eq(win2.w_next, win1) {
+    if win2.w_next != win1 {
         if win1.frame_mut().fr_parent != win2.frame_mut().fr_parent {
             iemsg(c"INTERNAL: trying to move a window into another frame");
             return;
@@ -3289,7 +3289,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
             }
             wp = crate::globals::WinPtr::new(g_st().lastwin);
         } else {
-            wp = crate::globals::WinPtr::new(wp.borrow().w_prev);
+            wp = wp.borrow().w_prev;
         }
     }
 
@@ -3313,7 +3313,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
                     nexttp = crate::globals::TabpagePtr::new(g_st().first_tabpage);
                     break;
                 }
-                wp2 = crate::globals::WinPtr::new(wp2.borrow().w_prev);
+                wp2 = wp2.borrow().w_prev;
             }
         }
         tp = nexttp;
@@ -3349,7 +3349,7 @@ fn can_close_floating_windows(tp: Option<&TabPageInfo>) -> bool {
             return false;
         }
 
-        wp = (unsafe { &mut *(wp) }).w_prev;
+        wp = (unsafe { &mut *(wp) }).w_prev.as_ptr();
     }
     true
 }
@@ -3692,7 +3692,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
                 if (unsafe { &mut *(wp) }).w_next.is_null() {
                     wp = g_st().firstwin;
                 } else {
-                    wp = (unsafe { &mut *(wp) }).w_next;
+                    wp = (unsafe { &mut *(wp) }).w_next.as_ptr();
                 }
                 if ptr::eq(wp, curwin_ptr()) {
                     break;
@@ -4805,7 +4805,7 @@ pub fn close_others(message: i32, forceit: bool, ignore_pinned: bool) {
     let mut nextwp: crate::globals::WinPtr;
     let mut wp = crate::globals::WinPtr::new(g_st().firstwin);
     while win_valid(wp.opt()) {
-        nextwp = crate::globals::WinPtr::new(wp.borrow().w_next);
+        nextwp = wp.borrow().w_next;
 
         if !ptr::eq(old_curwin, curwin_ptr()) && win_valid(unsafe { old_curwin.as_ref() }) {
             set_curwin(old_curwin);
@@ -6153,22 +6153,22 @@ pub fn win_append(
     let before = if after.is_null() {
         *unsafe { &mut *(first) }
     } else {
-        (unsafe { &mut *(after) }).w_next
+        (unsafe { &mut *(after) }).w_next.as_ptr()
     };
 
-    (unsafe { &mut *(wp) }).w_next = before;
+    (unsafe { &mut *(wp) }).w_next = crate::globals::WinPtr::new(before);
 
-    (unsafe { &mut *(wp) }).w_prev = after;
+    (unsafe { &mut *(wp) }).w_prev = crate::globals::WinPtr::new(after);
 
     if after.is_null() {
         *unsafe { &mut *(first) } = wp;
     } else {
-        (unsafe { &mut *(after) }).w_next = wp;
+        (unsafe { &mut *(after) }).w_next = crate::globals::WinPtr::new(wp);
     }
     if before.is_null() {
         *unsafe { &mut *(last) } = wp;
     } else {
-        (unsafe { &mut *(before) }).w_prev = wp;
+        (unsafe { &mut *(before) }).w_prev = crate::globals::WinPtr::new(wp);
     }
 }
 
@@ -6178,18 +6178,18 @@ pub fn win_remove(wp: &mut WinInfoInfo, mut tp_opt: Option<&mut TabPageInfo>) {
     if let Some(prev) = wp.prev_opt() {
         prev.w_next = wp.w_next;
     } else if let Some(ref mut tp_ref) = tp_opt {
-        tp_ref.tp_firstwin = crate::globals::WinPtr::new(wp.w_next);
+        tp_ref.tp_firstwin = wp.w_next;
     } else {
-        g_st().firstwin = wp.w_next;
-        curtab_mut().tp_firstwin = crate::globals::WinPtr::new(wp.w_next);
+        g_st().firstwin = wp.w_next.as_ptr();
+        curtab_mut().tp_firstwin = wp.w_next;
     }
     if let Some(next) = wp.next_opt() {
         next.w_prev = wp.w_prev;
     } else if let Some(tp_ref) = tp_opt {
-        tp_ref.tp_lastwin = crate::globals::WinPtr::new(wp.w_prev);
+        tp_ref.tp_lastwin = wp.w_prev;
     } else {
-        g_st().lastwin = wp.w_prev;
-        curtab_mut().tp_lastwin = crate::globals::WinPtr::new(wp.w_prev);
+        g_st().lastwin = wp.w_prev.as_ptr();
+        curtab_mut().tp_lastwin = wp.w_prev;
     }
 }
 

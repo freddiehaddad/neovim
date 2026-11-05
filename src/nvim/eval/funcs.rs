@@ -8656,7 +8656,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                 Varnumber::from(wp_ref.buf_mut().b_fnum),
             );
 
-            wp = wp_ref.w_next;
+            wp = wp_ref.w_next.as_ptr();
         }
     }
 }

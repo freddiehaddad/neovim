@@ -1060,7 +1060,7 @@ pub fn draw_tabline() {
                     modified = true;
                 }
 
-                wp = wp_ref.w_next;
+                wp = wp_ref.w_next.as_ptr();
                 wincount += 1;
             }
 

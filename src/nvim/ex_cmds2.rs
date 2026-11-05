@@ -499,7 +499,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 while !wp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    wp = unsafe { (*wp).w_next };
+                    wp = unsafe { (*wp).w_next.as_ptr() };
                 }
             }
             Cmdidx::CmdTabdo => {
@@ -586,7 +586,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     }
                 }
 
-                wp = unsafe { (*wp).w_next };
+                wp = unsafe { (*wp).w_next.as_ptr() };
             } else if eap.cmdidx == Cmdidx::CmdTabdo {
                 if !valid_tabpage(unsafe { tp.as_ref() }) {
                     break;

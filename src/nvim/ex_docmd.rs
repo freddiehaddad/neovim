@@ -9167,7 +9167,7 @@ fn ex_quit(eap: &mut Exarg) {
             if wnr <= 0 {
                 break;
             }
-            wp = crate::globals::WinPtr::new(wp.borrow().w_next);
+            wp = wp.borrow().w_next;
         }
     } else {
         wp = crate::globals::curwin_handle();

@@ -840,15 +840,19 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
         };
         while !wp.is_null() {
             let mut wpnext = if unsafe { (*wp).w_floating } {
-                if !unsafe { (*wp).w_prev }.is_null() && unsafe { (*(*wp).w_prev).w_floating } {
-                    unsafe { (*wp).w_prev }
+                if !unsafe { (*wp).w_prev.as_ptr() }.is_null()
+                    && unsafe { (*wp).w_prev.borrow().w_floating }
+                {
+                    unsafe { (*wp).w_prev.as_ptr() }
                 } else {
                     g_st().firstwin
                 }
-            } else if unsafe { (*wp).w_next }.is_null() || unsafe { (*(*wp).w_next).w_floating } {
+            } else if unsafe { (*wp).w_next.as_ptr() }.is_null()
+                || unsafe { (*wp).w_next.borrow().w_floating }
+            {
                 ptr::null_mut()
             } else {
-                unsafe { (*wp).w_next }
+                unsafe { (*wp).w_next.as_ptr() }
             };
             let buf = unsafe { &mut *(*wp).w_buffer };
             let aall_ref = &mut *aall;

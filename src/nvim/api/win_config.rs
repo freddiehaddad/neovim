@@ -765,9 +765,9 @@ fn win_config_split(
                             neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                 || fconfig.split == K_WIN_SPLIT_LEFT
                             {
-                                win.w_next
+                                win.w_next.as_ptr()
                             } else {
-                                win.w_prev
+                                win.w_prev.as_ptr()
                             };
                         }
                         altwin = winframe_remove(
@@ -864,7 +864,7 @@ fn win_config_split(
                 .is_some();
                 if !to_split_ok {
                     win_append(
-                        unsafe { (*win_ptr).w_prev.as_mut() },
+                        unsafe { (*win_ptr).w_prev.opt_mut() },
                         unsafe { &mut *win_ptr },
                         if win_tp == g_st().curtab {
                             None

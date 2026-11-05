@@ -2007,7 +2007,7 @@ fn create_windows(parmp: &mut Mparm) {
                 if curwin_mut().w_next.is_null() {
                     break;
                 }
-                set_curwin(curwin_mut().w_next);
+                set_curwin(curwin_mut().w_next.as_ptr());
             }
             dorewind = false;
             g_st().curbuf = curwin_mut().w_buffer;
@@ -2099,7 +2099,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 if curwin_mut().w_next.is_null() {
                     break;
                 }
-                win_enter(unsafe { &mut *curwin_mut().w_next }, false);
+                win_enter(curwin_mut().w_next.borrow_mut(), false);
             }
         }
         advance = true;
@@ -2157,7 +2157,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         curwin_ptr()
     };
     while unsafe { (*win).w_onebuf_opt.wo_pvw } {
-        win = unsafe { (*win).w_next };
+        win = unsafe { (*win).w_next.as_ptr() };
         if win.is_null() {
             win = g_st().firstwin;
             break;
