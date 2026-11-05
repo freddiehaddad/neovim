@@ -127,22 +127,14 @@ fn convert_one_value(
             let Some(list) = tv.vval.v_list_opt() else {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(Array {
-                        size: 0,
-                        capacity: 0,
-                        items: std::ptr::null_mut(),
-                    }),
+                    data: ObjectData::Array(Array::new()),
                 });
                 return;
             };
             if list.lv_len == 0 {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(Array {
-                        size: 0,
-                        capacity: 0,
-                        items: std::ptr::null_mut(),
-                    }),
+                    data: ObjectData::Array(Array::new()),
                 });
                 return;
             }
@@ -179,22 +171,14 @@ fn convert_one_value(
             let Some(dict) = tv.vval.v_dict_opt() else {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(Dict {
-                        size: 0,
-                        capacity: 0,
-                        items: std::ptr::null_mut(),
-                    }),
+                    data: ObjectData::Dict(Dict::new()),
                 });
                 return;
             };
             if dict.dv_hashtab.ht_used == 0 {
                 stack.push(Object {
                     obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(Dict {
-                        size: 0,
-                        capacity: 0,
-                        items: std::ptr::null_mut(),
-                    }),
+                    data: ObjectData::Dict(Dict::new()),
                 });
                 return;
             }

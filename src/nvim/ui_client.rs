@@ -42,7 +42,6 @@ use crate::tui::tui::{
     tui_visual_bell,
 };
 use std::ffi::{CStr, CString};
-use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: i32 = 3;
 use crate::highlight::KEYSET_OPTIDX_HIGHLIGHT_URL;
@@ -142,7 +141,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
 pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
     let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
     let mut opts = Dict {
-        items: opts_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(opts_items.as_mut_ptr()),
         size: 0,
         capacity: 9,
     };
@@ -176,7 +175,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
         },
     ];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 3,
         capacity: 3,
     };
@@ -190,7 +189,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
 
     let m = api_metadata();
     let mut version = Dict {
-        items: ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };
@@ -220,7 +219,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
         },
     ];
     let info = Dict {
-        items: info_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(info_items.as_mut_ptr()),
         size: 3,
         capacity: 3,
     };
@@ -242,7 +241,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
         },
     ];
     let args2 = Array {
-        items: args2_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args2_items.as_mut_ptr()),
         size: 5,
         capacity: 5,
     };
@@ -322,7 +321,7 @@ pub fn ui_client_set_size(width: i32, height: i32) {
             integer_obj(Integer::from(height)),
         ];
         let args = Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 2,
             capacity: 2,
         };
@@ -586,7 +585,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         if args.size > 1 && args[1].obj_type == ObjectType::ObjectTypeDict {
             let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
             let chan_args = Array {
-                items: chan_args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(chan_args_items.as_mut_ptr()),
                 size: 2,
                 capacity: 2,
             };

@@ -3017,7 +3017,7 @@ pub fn display_showcmd() {
             chunk_items[1] = cstr_as_obj(Some(crate::memory::cstr_until_nul(&ext_buf)));
             chunk_items[2] = integer_obj(0);
             let chunk = Array {
-                items: chunk_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(chunk_items.as_mut_ptr()),
                 size: 3,
                 capacity: 3,
             };
@@ -3025,7 +3025,7 @@ pub fn display_showcmd() {
             size = 1;
         }
         let content = Array {
-            items: content_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(content_items.as_mut_ptr()),
             size,
             capacity: 1,
         };

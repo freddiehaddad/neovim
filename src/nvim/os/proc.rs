@@ -262,11 +262,7 @@ pub fn os_proc_children(ppid: i32) -> Result<Vec<i32>, i32> {
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
 pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
-    let mut pinfo = Dict {
-        size: 0,
-        capacity: 0,
-        items: std::ptr::null_mut(),
-    };
+    let mut pinfo = Dict::new();
 
     {
         let h = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };

@@ -484,7 +484,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         integer_obj(i64::from(col)),
     ];
     let cursor = Array {
-        items: cursor_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(cursor_items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -515,7 +515,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
     let data_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
         data: ObjectData::Dict(Dict {
-            items: data_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
             size: 3,
             capacity: 3,
         }),
@@ -981,7 +981,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
         let data_obj = Object {
             obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(Dict {
-                items: data_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
                 size: 1,
                 capacity: 1,
             }),

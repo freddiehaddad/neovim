@@ -4613,7 +4613,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         let args = Array {
             size: 2,
             capacity: 2,
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         };
         let mut err = Error::new();
         let res = nlua_exec(

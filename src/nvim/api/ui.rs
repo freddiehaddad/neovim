@@ -61,13 +61,13 @@ pub(crate) const K_UIEXT_COUNT: usize = 10;
 pub(crate) const K_LINE_FLAG_WRAP: i32 = 1;
 
 pub(crate) const ARRAY_INIT: Array = Array {
-    items: ptr::null_mut(),
+    items: crate::globals::GraphPtr::NULL,
     size: 0,
     capacity: 0,
 };
 
 const DICT_INIT: Dict = Dict {
-    items: ptr::null_mut(),
+    items: crate::globals::GraphPtr::NULL,
     size: 0,
     capacity: 0,
 };
@@ -143,7 +143,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
     if send_error_exit {
         let mut args_items: [Object; 1] = [integer_obj(0)];
         let args = Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };
@@ -369,7 +369,7 @@ pub fn ui_attach(
         value: boolean_obj(enable_rgb),
     }];
     let opts = Dict {
-        items: opts_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(opts_items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -414,7 +414,7 @@ pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8], err: &mut Error) {
     };
     let mut args_items: [Object; 1] = [string_obj(NvimString::from_bytes(server_addr))];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -431,13 +431,13 @@ pub fn remote_ui_restart(listen_addr: NvimString) {
             value: boolean_obj(detach_val),
         }];
         let chan_config = Dict {
-            items: cfg_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(cfg_items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };
         let mut args_items: [Object; 2] = [string_obj(listen_addr), dict_obj(chan_config)];
         let args = Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 2,
             capacity: 2,
         };
@@ -846,7 +846,7 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
 pub fn remote_ui_grid_clear(ui: &mut RemoteUI, grid: Integer) {
     let mut args_items: [Object; 1] = [integer_obj(grid)];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: usize::from(ui.ui_ext[K_UILINEGRID]),
         capacity: 1,
     };
@@ -873,7 +873,7 @@ pub fn remote_ui_grid_resize(ui: &mut RemoteUI, grid: Integer, width: Integer, h
     args_items[size] = integer_obj(height);
     size += 1;
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size,
         capacity: 3,
     };
@@ -908,7 +908,7 @@ pub fn remote_ui_grid_scroll(
             integer_obj(cols),
         ];
         let args = Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 7,
             capacity: 7,
         };
@@ -924,7 +924,7 @@ pub fn remote_ui_grid_scroll(
             ui,
             c"set_scroll_region",
             Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 4,
                 capacity: 4,
             },
@@ -935,7 +935,7 @@ pub fn remote_ui_grid_scroll(
             ui,
             c"scroll",
             Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 1,
                 capacity: 4,
             },
@@ -949,7 +949,7 @@ pub fn remote_ui_grid_scroll(
             ui,
             c"set_scroll_region",
             Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 4,
                 capacity: 4,
             },
@@ -990,7 +990,7 @@ pub fn remote_ui_default_colors_set(
         ui,
         c"default_colors_set",
         Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 5,
             capacity: 5,
         },
@@ -1002,7 +1002,7 @@ pub fn remote_ui_default_colors_set(
             ui,
             c"update_fg",
             Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 1,
                 capacity: 5,
             },
@@ -1013,7 +1013,7 @@ pub fn remote_ui_default_colors_set(
             ui,
             c"update_bg",
             Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 1,
                 capacity: 5,
             },
@@ -1024,7 +1024,7 @@ pub fn remote_ui_default_colors_set(
             ui,
             c"update_sp",
             Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 1,
                 capacity: 5,
             },
@@ -1047,13 +1047,13 @@ pub fn remote_ui_hl_attr_define(
 
     let mut rgb_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
     let mut rgb = Dict {
-        items: rgb_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(rgb_items.as_mut_ptr()),
         size: 0,
         capacity: HLATTRS_DICT_SIZE,
     };
     let mut cterm_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
     let mut cterm = Dict {
-        items: cterm_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(cterm_items.as_mut_ptr()),
         size: 0,
         capacity: HLATTRS_DICT_SIZE,
     };
@@ -1080,7 +1080,7 @@ pub fn remote_ui_hl_attr_define(
         }),
     ];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 4,
         capacity: 4,
     };
@@ -1095,14 +1095,14 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
     ui.hl_id = id;
     let mut dict_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
     let mut dict = Dict {
-        items: dict_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(dict_items.as_mut_ptr()),
         size: 0,
         capacity: HLATTRS_DICT_SIZE,
     };
     hlattrs2dict(&mut dict, None, syn_attr2entry(id), ui.rgb, false);
     let mut args_items: [Object; 1] = [dict_obj(dict)];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1115,7 +1115,7 @@ pub fn remote_ui_grid_cursor_goto(ui: &mut RemoteUI, grid: Integer, row: Integer
     if ui.ui_ext[K_UILINEGRID] {
         let mut args_items: [Object; 3] = [integer_obj(grid), integer_obj(row), integer_obj(col)];
         let args = Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 3,
             capacity: 3,
         };
@@ -1137,7 +1137,7 @@ pub fn remote_ui_cursor_goto(ui: &mut RemoteUI, row: Integer, col: Integer) {
     ui.client_col = col;
     let mut args_items: [Object; 2] = [integer_obj(row), integer_obj(col)];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -1149,7 +1149,7 @@ pub fn remote_ui_put(ui: &mut RemoteUI, cell: &[u8]) {
     ui.client_col += 1;
     let mut args_items: [Object; 1] = [string_obj(NvimString::from_bytes(cell))];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1346,7 +1346,7 @@ pub fn remote_ui_ui_send(ui: &mut RemoteUI, content: NvimString) {
     }
     let mut args_items: [Object; 1] = [string_obj(content)];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1412,7 +1412,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
             new_block.size = block.size;
             let mut new_args_items: [Object; 1] = [array_obj(new_block)];
             let new_args = Array {
-                items: new_args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(new_args_items.as_mut_ptr()),
                 size: 1,
                 capacity: 1,
             };
@@ -1442,7 +1442,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                     ui,
                     c"wildmenu_show",
                     Array {
-                        items: new_args_items.as_mut_ptr(),
+                        items: crate::globals::GraphPtr::new(new_args_items.as_mut_ptr()),
                         size: 1,
                         capacity: 1,
                     },
@@ -1453,7 +1453,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                         ui,
                         c"wildmenu_select",
                         Array {
-                            items: new_args_items.as_mut_ptr(),
+                            items: crate::globals::GraphPtr::new(new_args_items.as_mut_ptr()),
                             size: 1,
                             capacity: 1,
                         },
@@ -1491,7 +1491,7 @@ pub fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: &mut Error) {
 pub fn remote_ui_mode_info_set(ui: &mut RemoteUI, enabled: Boolean, cursor_styles: Array) {
     let mut items = [boolean_obj(enabled), array_obj(cursor_styles)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -1521,7 +1521,7 @@ pub fn remote_ui_mouse_off(ui: &mut RemoteUI) {
 pub fn remote_ui_mode_change(ui: &mut RemoteUI, mode: NvimString, mode_idx: Integer) {
     let mut items = [string_obj(mode), integer_obj(mode_idx)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -1543,7 +1543,7 @@ pub fn remote_ui_suspend(ui: &mut RemoteUI) {
 pub fn remote_ui_set_title(ui: &mut RemoteUI, title: NvimString) {
     let mut items = [string_obj(title)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1553,7 +1553,7 @@ pub fn remote_ui_set_title(ui: &mut RemoteUI, title: NvimString) {
 pub fn remote_ui_set_icon(ui: &mut RemoteUI, icon: NvimString) {
     let mut items = [string_obj(icon)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1563,7 +1563,7 @@ pub fn remote_ui_set_icon(ui: &mut RemoteUI, icon: NvimString) {
 pub fn remote_ui_screenshot(ui: &mut RemoteUI, path: NvimString) {
     let mut items = [string_obj(path)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1573,7 +1573,7 @@ pub fn remote_ui_screenshot(ui: &mut RemoteUI, path: NvimString) {
 pub fn remote_ui_option_set(ui: &mut RemoteUI, name: NvimString, value: Object) {
     let mut items = [string_obj(name), value];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -1583,7 +1583,7 @@ pub fn remote_ui_option_set(ui: &mut RemoteUI, name: NvimString, value: Object) 
 pub fn remote_ui_chdir(ui: &mut RemoteUI, path: NvimString) {
     let mut items = [string_obj(path)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1593,7 +1593,7 @@ pub fn remote_ui_chdir(ui: &mut RemoteUI, path: NvimString) {
 pub fn remote_ui_hl_group_set(ui: &mut RemoteUI, name: NvimString, id: Integer) {
     let mut items = [string_obj(name), integer_obj(id)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -1618,7 +1618,7 @@ pub fn remote_ui_msg_set_pos(
         integer_obj(compindex),
     ];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 6,
         capacity: 6,
     };
@@ -1647,7 +1647,7 @@ pub fn remote_ui_win_viewport(
         integer_obj(scroll_delta),
     ];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 8,
         capacity: 8,
     };
@@ -1672,7 +1672,7 @@ pub fn remote_ui_win_viewport_margins(
         integer_obj(right),
     ];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 6,
         capacity: 6,
     };
@@ -1682,7 +1682,7 @@ pub fn remote_ui_win_viewport_margins(
 pub fn remote_ui_error_exit(ui: &mut RemoteUI, status: Integer) {
     let mut items = [integer_obj(status)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };
@@ -1692,7 +1692,7 @@ pub fn remote_ui_error_exit(ui: &mut RemoteUI, status: Integer) {
 pub fn remote_ui_set_restart_on_crash_exit(ui: &mut RemoteUI, progpath: NvimString, argv: Array) {
     let mut items = [string_obj(progpath), array_obj(argv)];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };

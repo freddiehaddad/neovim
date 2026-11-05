@@ -489,7 +489,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         let mut args = Array {
             size: 0,
             capacity: 3,
-            items: args_storage.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
         };
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
         add_c(&mut args, cstr_as_obj(Some(syn_id2name(hl_id))));
@@ -1173,11 +1173,7 @@ pub fn hl_get_attr_by_id(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    let dic = Dict {
-        size: 0,
-        capacity: 0,
-        items: ptr::null_mut(),
-    };
+    let dic = Dict::new();
 
     if attr_id == 0 {
         return dic;
@@ -1722,11 +1718,7 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
 
 pub fn hl_inspect(attr: i32, arena: &mut Arena) -> Array {
     if !hl_st().hlstate_active {
-        return Array {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+        return Array::new();
     }
     let mut ret = arena_array(arena, hl_inspect_size(attr));
     hl_inspect_impl(&mut ret, attr, arena);

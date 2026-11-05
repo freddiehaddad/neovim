@@ -1664,7 +1664,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
     if luaref != LUA_NOREF {
         let mut err = Error::new();
         let args = Array {
-            items: ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
             size: 0,
             capacity: 0,
         };

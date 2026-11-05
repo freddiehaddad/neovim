@@ -976,7 +976,7 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
 }
 
 const NOARGS_ARRAY: Array = Array {
-    items: ptr::null_mut(),
+    items: crate::globals::GraphPtr::NULL,
     size: 0,
     capacity: 0,
 };
@@ -1026,7 +1026,7 @@ macro_rules! ui_call_event_guarded {
             let mut items = [$($item),+];
             let len = items.len();
             let args = Array {
-                items: items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
                 size: len,
                 capacity: len,
             };

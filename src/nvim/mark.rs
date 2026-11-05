@@ -334,7 +334,7 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
         },
     ];
     let data = Dict {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 3,
         capacity: 3,
     };

@@ -2796,7 +2796,7 @@ fn do_source_ext(
                 integer_obj(Integer::from(eap.line2)),
             ];
             let args = Array {
-                items: args_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
                 size: 3,
                 capacity: 3,
             };

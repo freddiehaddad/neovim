@@ -45,7 +45,6 @@ use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
 use crate::window::win_valid;
 use std::ffi::CStr;
-use std::ptr;
 
 pub type CmdAtomVec = Vec<CmdAtom>;
 use crate::os::time::Timestamp;
@@ -661,7 +660,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     let cmd = cstr_from_bytes(&cmd_bytes);
 
     let mut d = Dict {
-        items: ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };
@@ -679,7 +678,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     if atom.origin.pos.lnum > 0 {
         dict_put(&mut d, c"moved", boolean_obj(atom.moved));
         let mut pos = Array {
-            items: ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
             size: 0,
             capacity: 0,
         };
@@ -732,7 +731,7 @@ fn atom_emit(atom: &CmdAtom) {
     let mut data = atom_dict(atom);
     if !atom.atoms.is_empty() {
         let mut atoms = Array {
-            items: ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
             size: 0,
             capacity: 0,
         };

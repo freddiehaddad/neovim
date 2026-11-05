@@ -1153,9 +1153,9 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         .collect();
     let args = Array {
         items: if count > 0 {
-            args_vec.as_mut_ptr()
+            crate::globals::GraphPtr::new(args_vec.as_mut_ptr())
         } else {
-            ptr::null_mut()
+            crate::globals::GraphPtr::NULL
         },
         size: count,
         capacity: count,
@@ -1172,7 +1172,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         },
     ];
     let a = Array {
-        items: a_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(a_items.as_mut_ptr()),
         size: 4,
         capacity: 4,
     };

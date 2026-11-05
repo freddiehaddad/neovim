@@ -873,7 +873,9 @@ pub fn arena_array(arena: &mut Arena, max_size: usize) -> Array {
     Array {
         size: 0,
         capacity: max_size,
-        items: arena_alloc(arena, size_of::<Object>() * max_size, true).cast(),
+        items: crate::globals::GraphPtr::new(
+            arena_alloc(arena, size_of::<Object>() * max_size, true).cast(),
+        ),
     }
 }
 
@@ -882,7 +884,9 @@ pub fn arena_array_opt(arena: Option<&mut Arena>, max_size: usize) -> Array {
     Array {
         size: 0,
         capacity: max_size,
-        items: arena_alloc_opt(arena, size_of::<Object>() * max_size, true).cast(),
+        items: crate::globals::GraphPtr::new(
+            arena_alloc_opt(arena, size_of::<Object>() * max_size, true).cast(),
+        ),
     }
 }
 
@@ -890,7 +894,9 @@ pub fn arena_dict(arena: &mut Arena, max_size: usize) -> Dict {
     Dict {
         size: 0,
         capacity: max_size,
-        items: arena_alloc(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
+        items: crate::globals::GraphPtr::new(
+            arena_alloc(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
+        ),
     }
 }
 
@@ -899,7 +905,9 @@ pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
     Dict {
         size: 0,
         capacity: max_size,
-        items: arena_alloc_opt(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
+        items: crate::globals::GraphPtr::new(
+            arena_alloc_opt(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
+        ),
     }
 }
 
@@ -951,7 +959,7 @@ pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Arr
     let mut ret = arena_array(arena, len);
     ret.size = len;
     if len > 0 {
-        unsafe { ptr::copy_nonoverlapping(arr.as_ptr(), ret.items, len) };
+        ret.as_mut_slice().copy_from_slice(arr);
     }
     *arr = Vec::new();
     ret
@@ -1276,7 +1284,7 @@ pub fn api_dict_to_keydict<T>(
                 if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
                     unsafe {
                         *val = Dict {
-                            items: ptr::null_mut(),
+                            items: crate::globals::GraphPtr::NULL,
                             size: 0,
                             capacity: 0,
                         }

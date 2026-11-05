@@ -614,7 +614,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             can_free_entry: false,
             timestamp: 0,
             data: ShadaEntryData::Header(Dict {
-                items: ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             }),
@@ -2684,7 +2684,7 @@ fn shada_write(
                 can_free_entry: false,
                 timestamp: os_time(),
                 data: ShadaEntryData::Header(Dict {
-                    items: header_items.as_mut_ptr(),
+                    items: crate::globals::GraphPtr::new(header_items.as_mut_ptr()),
                     size: 5,
                     capacity: 5,
                 }),

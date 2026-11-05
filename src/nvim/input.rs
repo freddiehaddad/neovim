@@ -3044,7 +3044,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
 
     let mut err = Error::new();
     let args = Array {
-        items: ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };

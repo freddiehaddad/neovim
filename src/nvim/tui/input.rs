@@ -308,7 +308,7 @@ fn tinput_flush(input: &mut TermInput) {
             integer_obj(i64::from(input.paste)),
         ];
         let args = Array {
-            items: items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             size: 3,
             capacity: 3,
         };
@@ -319,7 +319,7 @@ fn tinput_flush(input: &mut TermInput) {
     } else if input.key_buffer_len > 0 {
         let mut items = [string_obj(keys)];
         let args = Array {
-            items: items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };
@@ -586,7 +586,7 @@ fn handle_focus_event(input: &mut TermInput, bytes: &[u8]) -> usize {
         let focus_gained = bytes[2] == b'I';
         let mut items = [boolean_obj(focus_gained)];
         let args = Array {
-            items: items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };
@@ -630,7 +630,7 @@ fn send_termresponse(response: &[u8]) {
         string_obj(NvimString::from_bytes(response)),
     ];
     let args = Array {
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };

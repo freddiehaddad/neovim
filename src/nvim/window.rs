@@ -5504,7 +5504,7 @@ pub fn tabpage_move(nr: i32) {
             },
         ];
         let data = Dict {
-            items: data_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
             size: 2,
             capacity: 2,
         };

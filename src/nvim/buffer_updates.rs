@@ -85,7 +85,7 @@ pub fn buf_updates_register(
         let args = Array {
             size: 6,
             capacity: 6,
-            items: items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         };
 
         rpc_send_event(channel_id, c"nvim_buf_lines_event", args);
@@ -106,7 +106,7 @@ pub fn buf_updates_send_end(buf: &mut FileBuf, channelid: u64) {
     let args = Array {
         size: 1,
         capacity: 1,
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
     };
     rpc_send_event(channelid, c"nvim_buf_detach_event", args);
 }
@@ -155,7 +155,7 @@ pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
             let args = Array {
                 size: 1,
                 capacity: 1,
-                items: items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             };
 
             textlock_wrap(|| {
@@ -231,7 +231,7 @@ pub fn buf_updates_send_changes(
         let args = Array {
             size: 6,
             capacity: 6,
-            items: items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
         };
         if !rpc_send_event(channelid, c"nvim_buf_lines_event", args) {
             badchannelid = channelid;
@@ -277,7 +277,7 @@ pub fn buf_updates_send_changes(
             let args = Array {
                 size: if utf_sizes { 8 } else { 6 },
                 capacity: 8,
-                items: items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             };
 
             let mut res = OBJECT_NIL;
@@ -335,7 +335,7 @@ pub fn buf_updates_send_splice(
             let args = Array {
                 size: 11,
                 capacity: 11,
-                items: items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             };
 
             let mut res = OBJECT_NIL;
@@ -373,7 +373,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
             let args = Array {
                 size: 2,
                 capacity: 2,
-                items: items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
             };
 
             let mut res = OBJECT_NIL;
@@ -408,7 +408,7 @@ pub fn buf_updates_changedtick_single(buf: &mut FileBuf, channel_id: u64) {
     let args = Array {
         size: 2,
         capacity: 2,
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
     };
     rpc_send_event(channel_id, c"nvim_buf_changedtick_event", args);
 }

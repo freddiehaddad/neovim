@@ -645,7 +645,7 @@ pub fn nvim_buf_set_text(
         replacement = Array {
             size: 1,
             capacity: 1,
-            items: scratch_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(scratch_items.as_mut_ptr()),
         };
     }
 

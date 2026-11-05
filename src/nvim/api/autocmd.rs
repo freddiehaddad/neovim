@@ -179,7 +179,7 @@ fn unpack_string_or_array(
     } else if v.obj_type == ObjectType::ObjectTypeArray {
         if !check_string_array(v.data.array(), k, true, err) {
             return Array {
-                items: std::ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             };
@@ -190,7 +190,7 @@ fn unpack_string_or_array(
             api_err_exp(err, k, c"Array or String", Some(api_typename(v.obj_type)));
         }
         Array {
-            items: std::ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
             size: 0,
             capacity: 0,
         }
@@ -255,7 +255,7 @@ fn get_patterns_from_pattern_or_buf(
         } else if pattern.obj_type == ObjectType::ObjectTypeArray {
             if !check_string_array(pattern.data.array(), c"pattern", true, err) {
                 return Array {
-                    items: std::ptr::null_mut(),
+                    items: crate::globals::GraphPtr::NULL,
                     size: 0,
                     capacity: 0,
                 };
@@ -277,7 +277,7 @@ fn get_patterns_from_pattern_or_buf(
                 Some(api_typename(pattern.obj_type)),
             );
             return Array {
-                items: std::ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             };
@@ -285,7 +285,7 @@ fn get_patterns_from_pattern_or_buf(
     } else if has_buf {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return Array {
-                items: std::ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             };
@@ -361,7 +361,7 @@ pub fn nvim_get_autocmds(
     let mut autocmd_list = ArrayBuilder::new();
     let mut pattern_filters: [Option<&CStr>; AUCMD_MAX_PATTERNS] = [None; AUCMD_MAX_PATTERNS];
     let mut buffers = Array {
-        items: std::ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };

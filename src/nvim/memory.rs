@@ -238,13 +238,22 @@ pub fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
 }
 
 #[inline(always)]
-pub fn realloc_items<T>(items: *mut T, new_cap: usize) -> *mut T {
-    raw_realloc(items.cast::<c_void>(), std::mem::size_of::<T>() * new_cap).cast::<T>()
+pub fn realloc_items<T>(
+    items: crate::globals::GraphPtr<T>,
+    new_cap: usize,
+) -> crate::globals::GraphPtr<T> {
+    crate::globals::GraphPtr::new(
+        raw_realloc(
+            items.as_ptr().cast::<c_void>(),
+            std::mem::size_of::<T>() * new_cap,
+        )
+        .cast::<T>(),
+    )
 }
 
 #[inline(always)]
-pub fn free_items<T>(items: *mut T) {
-    raw_dealloc(items.cast::<c_void>());
+pub fn free_items<T>(items: crate::globals::GraphPtr<T>) {
+    raw_dealloc(items.as_ptr().cast::<c_void>());
 }
 
 /// Allocate `data.len() + 1` bytes, copy `data`, and NUL-terminate.

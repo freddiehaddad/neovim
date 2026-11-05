@@ -1448,7 +1448,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
         })
         .collect();
     let messages = Array {
-        items: messages_vec.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(messages_vec.as_mut_ptr()),
         size: messages_vec.len(),
         capacity: messages_vec.len(),
     };
@@ -1524,7 +1524,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     let dict_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
         data: ObjectData::Dict(Dict {
-            items: data_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(data_items.as_mut_ptr()),
             size: data_size,
             capacity: 7,
         }),
@@ -3825,19 +3825,13 @@ pub fn msg_ext_ui_flush() {
             // Add to history as temporary message for "g<".
             let mut msg = HlMessage::new();
             for i in 0..tofree.size {
-                let chunk = tofree[i].data.array().items;
-                let text = unsafe { (*chunk.wrapping_add(1)).data.string() };
-
-                unsafe {
-                    (*chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
-                        data: ptr::null_mut(),
-                        size: 0,
-                    });
-                }
+                let mut chunk = tofree[i].data.array();
+                let text = chunk[1].data.string();
+                chunk[1].data = ObjectData::String(NvimString::new());
 
                 msg.push(HlMessageChunk {
                     text,
-                    hl_id: unsafe { (*chunk.wrapping_add(2)).data.integer() as i32 },
+                    hl_id: chunk[2].data.integer() as i32,
                 });
             }
             api_free_array(tofree);

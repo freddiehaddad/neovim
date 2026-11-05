@@ -1877,7 +1877,7 @@ pub fn nlua_exec_typval_callable(
 pub fn nlua_exec(
     str_: NvimString,
     chunkname: Option<&CStr>,
-    args: Array,
+    mut args: Array,
     mode: LuaRetMode,
     arena: Option<&mut Arena>,
     err: &mut Error,
@@ -1903,7 +1903,7 @@ pub fn nlua_exec(
     }
 
     for i in 0..args.size {
-        nlua_push_object(lstate, unsafe { &mut *args.items.wrapping_add(i) }, 0);
+        nlua_push_object(lstate, &mut args[i], 0);
     }
 
     if nlua_pcall(lstate, args.size as i32, 1) != 0 {
@@ -2011,7 +2011,7 @@ pub fn nlua_call_ref_ctx(
     fast: bool,
     ref_: LuaRef,
     name: Option<&CStr>,
-    args: Array,
+    mut args: Array,
     mode: LuaRetMode,
     arena: Option<&mut Arena>,
     err: Option<&mut Error>,
@@ -2025,7 +2025,7 @@ pub fn nlua_call_ref_ctx(
         nargs += 1;
     }
     for i in 0..args.size {
-        nlua_push_object(lstate, unsafe { &mut *args.items.wrapping_add(i) }, 0);
+        nlua_push_object(lstate, &mut args[i], 0);
     }
 
     if fast {
@@ -2651,7 +2651,7 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
         }),
     }];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 1,
         capacity: 1,
     };

@@ -430,11 +430,7 @@ impl ExGetlnState {
             cmdline_level: 0,
             ccline: CmdlineInfo::new(),
             new_cmdpos: 0,
-            cmdline_block: Array {
-                size: 0,
-                capacity: 0,
-                items: ptr::null_mut(),
-            },
+            cmdline_block: Array::new(),
             getln_interrupted_highlight: false,
             cedit_key: -1,
             cmdpreview_bufnr: 0,
@@ -4015,22 +4011,14 @@ pub fn ui_ext_cmdline_block_append(indent: usize, line: &[u8]) {
     buf.resize(indent, b' ');
     buf.extend_from_slice(line_bytes);
 
-    let mut item = Array {
-        size: 0,
-        capacity: 0,
-        items: ptr::null_mut(),
-    };
+    let mut item = Array::new();
     array_add(&mut item, integer_obj(0));
     array_add(
         &mut item,
         string_obj(crate::api::private::helpers::cbuf_to_string(&buf)),
     );
     array_add(&mut item, integer_obj(0));
-    let mut content = Array {
-        size: 0,
-        capacity: 0,
-        items: ptr::null_mut(),
-    };
+    let mut content = Array::new();
     array_add(&mut content, array_obj(item));
     array_add(&mut getln_st().cmdline_block, array_obj(content));
     if getln_st().cmdline_block.size > 1 {
@@ -4042,11 +4030,7 @@ pub fn ui_ext_cmdline_block_append(indent: usize, line: &[u8]) {
 
 pub fn ui_ext_cmdline_block_leave() {
     api_free_array(getln_st().cmdline_block);
-    getln_st().cmdline_block = Array {
-        size: 0,
-        capacity: 0,
-        items: ptr::null_mut(),
-    };
+    getln_st().cmdline_block = Array::new();
     ui_call_cmdline_block_hide();
 }
 

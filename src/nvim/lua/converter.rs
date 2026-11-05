@@ -1539,7 +1539,7 @@ pub fn nlua_push_array(lstate: *mut lua_State, array: Array, flags: i32) {
     unsafe {
         lua_createtable(lstate, array.size as i32, 0);
         for i in 0..array.size {
-            nlua_push_object(lstate, &mut *array.items.wrapping_add(i), flags);
+            nlua_push_object(lstate, array.items.wrapping_add(i).borrow_mut(), flags);
             lua_rawseti(lstate, -2, (i as i32) + 1);
         }
     }
@@ -1743,11 +1743,7 @@ fn nlua_pop_array_unchecked(
             if arena.is_none() {
                 api_free_array(ret);
             }
-            return Array {
-                size: 0,
-                capacity: 0,
-                items: std::ptr::null_mut(),
-            };
+            return Array::new();
         }
         assert!(ret.size < ret.capacity);
         *ret.next_slot_mut() = val;
@@ -1769,11 +1765,7 @@ pub fn nlua_pop_array_opt(
 ) -> Array {
     let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeArray);
     if table_props.table_type != ObjectType::ObjectTypeArray {
-        return Array {
-            size: 0,
-            capacity: 0,
-            items: std::ptr::null_mut(),
-        };
+        return Array::new();
     }
     nlua_pop_array_unchecked(lstate, table_props, arena, err)
 }
@@ -1811,11 +1803,7 @@ fn nlua_pop_dict_unchecked(
                     api_free_dict(ret);
                 }
                 lua_pop(lstate, 2);
-                return Dict {
-                    size: 0,
-                    capacity: 0,
-                    items: std::ptr::null_mut(),
-                };
+                return Dict::new();
             }
             i += 1;
         } else {
@@ -1845,11 +1833,7 @@ pub fn nlua_pop_dict_opt(
     let table_props = nlua_check_type(lstate, err, ObjectType::ObjectTypeDict);
     if table_props.table_type != ObjectType::ObjectTypeDict {
         lua_pop(lstate, 1);
-        return Dict {
-            size: 0,
-            capacity: 0,
-            items: std::ptr::null_mut(),
-        };
+        return Dict::new();
     }
     nlua_pop_dict_unchecked(lstate, table_props, ref_, arena, err)
 }
@@ -1983,11 +1967,7 @@ pub fn nlua_pop_object_opt(
                         ObjectType::ObjectTypeArray => {
                             *cur.obj = Object {
                                 obj_type: ObjectType::ObjectTypeArray,
-                                data: ObjectData::Array(Array {
-                                    size: 0,
-                                    capacity: 0,
-                                    items: std::ptr::null_mut(),
-                                }),
+                                data: ObjectData::Array(Array::new()),
                             };
                             if table_props.maxidx != 0 {
                                 cur.obj.data = ObjectData::Array(arena_array_opt(
@@ -2001,11 +1981,7 @@ pub fn nlua_pop_object_opt(
                         ObjectType::ObjectTypeDict => {
                             *cur.obj = Object {
                                 obj_type: ObjectType::ObjectTypeDict,
-                                data: ObjectData::Dict(Dict {
-                                    size: 0,
-                                    capacity: 0,
-                                    items: std::ptr::null_mut(),
-                                }),
+                                data: ObjectData::Dict(Dict::new()),
                             };
                             if table_props.string_keys_num != 0 {
                                 cur.obj.data = ObjectData::Dict(arena_dict_opt(

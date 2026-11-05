@@ -122,7 +122,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
                 let obj = parent.data[0].object();
-                result = obj.data.array().items.wrapping_add(parent.pos);
+                result = obj.data.array().items.wrapping_add(parent.pos).as_ptr();
             }
             MpackTokenType::MpackTokenMap => {
                 let obj = parent.data[0].object();
@@ -262,7 +262,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     data: ObjectData::Array(Array {
                         size: len,
                         capacity: len,
-                        items,
+                        items: items.into(),
                     }),
                 }
             };
@@ -284,7 +284,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     data: ObjectData::Dict(Dict {
                         size: len,
                         capacity: len,
-                        items,
+                        items: items.into(),
                     }),
                 }
             };

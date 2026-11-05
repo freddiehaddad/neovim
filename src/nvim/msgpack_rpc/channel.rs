@@ -134,7 +134,7 @@ impl RpcState {
             next_request_id: 0,
             call_stack: Vec::new(),
             info: Dict {
-                items: ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             },
@@ -262,7 +262,7 @@ pub fn rpc_start(channel: &mut Channel) {
     rpc.unpacker = Some(unpacker);
     rpc.next_request_id = 1;
     rpc.info = Dict {
-        items: ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };
@@ -856,7 +856,7 @@ pub fn serialize_response(
                 },
             ];
             let args = Array {
-                items: items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
                 size: 2,
                 capacity: 2,
             };
@@ -1009,7 +1009,7 @@ mod tests {
             next_request_id: 1,
             call_stack: Vec::new(),
             info: Dict {
-                items: ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             },

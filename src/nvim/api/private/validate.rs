@@ -196,32 +196,41 @@ impl ObjectType {
 pub struct Array {
     pub size: usize,
     pub capacity: usize,
-    pub items: *mut Object,
+    pub items: crate::globals::GraphPtr<Object>,
 }
 
 impl Array {
-    #[inline]
+    #[inline(always)]
     pub const fn new() -> Self {
         Self {
             size: 0,
             capacity: 0,
-            items: std::ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_slice(&self) -> &[Object] {
         if self.size == 0 || self.items.is_null() {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.items, self.size) }
+            unsafe { std::slice::from_raw_parts(self.items.as_ptr(), self.size) }
         }
     }
 
-    #[inline]
+    #[inline(always)]
+    pub fn as_mut_slice(&mut self) -> &mut [Object] {
+        if self.size == 0 || self.items.is_null() {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(self.items.as_ptr(), self.size) }
+        }
+    }
+
+    #[inline(always)]
     pub fn next_slot_mut(&mut self) -> &'static mut Object {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(self.size) }
+        self.items.wrapping_add(self.size).borrow_mut()
     }
 
     #[inline]
@@ -235,7 +244,7 @@ impl Array {
             self.items = realloc_items(self.items, self.capacity);
         }
 
-        unsafe { std::ptr::write(self.items.wrapping_add(self.size), value) };
+        unsafe { std::ptr::write(self.items.as_ptr().wrapping_add(self.size), value) };
 
         self.size += 1;
     }
@@ -244,18 +253,18 @@ impl Array {
 impl std::ops::Index<usize> for Array {
     type Output = Object;
 
-    #[inline]
+    #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &*self.items.wrapping_add(index) }
+        self.items.wrapping_add(index).borrow()
     }
 }
 
 impl std::ops::IndexMut<usize> for Array {
-    #[inline]
+    #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(index) }
+        self.items.wrapping_add(index).borrow_mut()
     }
 }
 
@@ -271,41 +280,41 @@ impl Default for Array {
 pub struct Dict {
     pub size: usize,
     pub capacity: usize,
-    pub items: *mut KeyValuePair,
+    pub items: crate::globals::GraphPtr<KeyValuePair>,
 }
 
 impl Dict {
-    #[inline]
+    #[inline(always)]
     pub const fn new() -> Self {
         Self {
             size: 0,
             capacity: 0,
-            items: std::ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_slice(&self) -> &[KeyValuePair] {
         if self.size == 0 || self.items.is_null() {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.items, self.size) }
+            unsafe { std::slice::from_raw_parts(self.items.as_ptr(), self.size) }
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_mut_slice(&mut self) -> &mut [KeyValuePair] {
         if self.size == 0 || self.items.is_null() {
             &mut []
         } else {
-            unsafe { std::slice::from_raw_parts_mut(self.items, self.size) }
+            unsafe { std::slice::from_raw_parts_mut(self.items.as_ptr(), self.size) }
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn next_slot_mut(&mut self) -> &'static mut KeyValuePair {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(self.size) }
+        self.items.wrapping_add(self.size).borrow_mut()
     }
 
     #[inline]
@@ -319,7 +328,7 @@ impl Dict {
             self.items = realloc_items(self.items, self.capacity);
         }
 
-        unsafe { std::ptr::write(self.items.wrapping_add(self.size), value) };
+        unsafe { std::ptr::write(self.items.as_ptr().wrapping_add(self.size), value) };
 
         self.size += 1;
     }
@@ -328,18 +337,18 @@ impl Dict {
 impl std::ops::Index<usize> for Dict {
     type Output = KeyValuePair;
 
-    #[inline]
+    #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &*self.items.wrapping_add(index) }
+        self.items.wrapping_add(index).borrow()
     }
 }
 
 impl std::ops::IndexMut<usize> for Dict {
-    #[inline]
+    #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(index) }
+        self.items.wrapping_add(index).borrow_mut()
     }
 }
 
@@ -624,7 +633,7 @@ pub fn check_string_array(
 ) -> bool {
     let name_str = name.to_string_lossy();
     for i in 0..arr.size {
-        let item = unsafe { &*arr.items.wrapping_add(i) };
+        let item = &arr[i];
         if item.obj_type != ObjectType::ObjectTypeString {
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",

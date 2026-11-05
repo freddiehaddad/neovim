@@ -1749,7 +1749,7 @@ pub fn nvim_paste(
     let lines = string_to_array(data, crlf, arena);
     let mut args_items = [array_obj(lines), integer_obj(phase)];
     let args = Array {
-        items: args_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
         size: 2,
         capacity: 2,
     };
@@ -2159,7 +2159,7 @@ pub fn nvim_set_client_info(
 ) {
     let mut info_items = [KeyValuePair::default(); 5];
     let mut info = Dict {
-        items: info_items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(info_items.as_mut_ptr()),
         size: 0,
         capacity: 5,
     };
@@ -2175,7 +2175,7 @@ pub fn nvim_set_client_info(
     if !has_major {
         let mut v = arena_dict(arena, version.size + 1);
         if version.size != 0 {
-            unsafe { ptr::copy_nonoverlapping(version.items, v.items, version.size) };
+            v.as_mut_slice().copy_from_slice(version.as_slice());
             v.size = version.size;
         }
         put_c(&mut v, c"major", integer_obj(0));
@@ -2422,7 +2422,7 @@ pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) 
         Err(rv) => {
             let mut a_items = [integer_obj(pid)];
             let a = Array {
-                items: a_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(a_items.as_mut_ptr()),
                 size: 1,
                 capacity: 1,
             };
@@ -2480,7 +2480,7 @@ pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object
         let mut rvobj = nil_obj();
         let mut a_items = [integer_obj(pid)];
         let a = Array {
-            items: a_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(a_items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };

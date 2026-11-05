@@ -454,7 +454,7 @@ pub fn buffer_set_line(
 ) {
     let mut l = string_obj(line);
     let array = Array {
-        items: &mut l,
+        items: crate::globals::GraphPtr::from(&mut l),
         size: 1,
         capacity: 0,
     };
@@ -1220,7 +1220,7 @@ pub fn nvim_notify(
     let args = Array {
         size: 3,
         capacity: 3,
-        items: items.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(items.as_mut_ptr()),
     };
     nlua_exec(
         static_cstr_as_string(c"return vim.notify(...)"),

@@ -1288,7 +1288,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
     let mut args = Array {
-        items: args_storage.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
@@ -1330,7 +1330,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
     let mut args = Array {
-        items: args_storage.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
@@ -3874,7 +3874,7 @@ fn has_wsl() -> bool {
             },
             None,
             Array {
-                items: ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             },
@@ -6758,7 +6758,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
     let mut args = Array {
-        items: args_storage.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
@@ -6814,7 +6814,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         data: ObjectData::Boolean(false),
     }; MAX_FUNC_ARGS];
     let mut args = Array {
-        items: args_storage.as_mut_ptr(),
+        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };

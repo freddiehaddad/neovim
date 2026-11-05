@@ -119,7 +119,6 @@ use crate::shada::{
 };
 use crate::ui_client::handle_ui_client_redraw;
 use std::mem::offset_of;
-use std::ptr;
 
 const K_UNPACK_TYPE_STRING_ARRAY_CONST: i32 = -1;
 
@@ -237,7 +236,7 @@ fn extract_dict(
         true
     } else if item.obj_type == ObjectType::ObjectTypeArray && item.data.array().size == 0 {
         *out = Dict {
-            items: ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
             size: 0,
             capacity: 0,
         };

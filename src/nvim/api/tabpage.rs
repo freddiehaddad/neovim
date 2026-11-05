@@ -38,7 +38,7 @@ pub struct KeyDict_tabpage_config {
 //                                                  Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Error) -> Array {
     let mut rv = Array {
-        items: std::ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };

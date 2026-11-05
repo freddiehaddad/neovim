@@ -9380,7 +9380,7 @@ fn ex_restart(eap: &mut Exarg) {
                 )),
                 None,
                 Array {
-                    items: ptr::null_mut(),
+                    items: crate::globals::GraphPtr::NULL,
                     size: 0,
                     capacity: 0,
                 },
@@ -9462,7 +9462,7 @@ fn ex_restart(eap: &mut Exarg) {
             value: boolean_obj(true),
         }];
         let detach_opts = Dict {
-            items: detach_kv.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(detach_kv.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };
@@ -9474,7 +9474,7 @@ fn ex_restart(eap: &mut Exarg) {
             },
         ];
         let detach_args = Array {
-            items: detach_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(detach_items.as_mut_ptr()),
             size: 2,
             capacity: 2,
         };
@@ -9507,7 +9507,7 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let autocmd_opts = Dict {
-                items: autocmd_kv.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(autocmd_kv.as_mut_ptr()),
                 size: 3,
                 capacity: 3,
             };
@@ -9519,7 +9519,7 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let autocmd_args = Array {
-                items: autocmd_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(autocmd_items.as_mut_ptr()),
                 size: 2,
                 capacity: 2,
             };
@@ -9539,7 +9539,7 @@ fn ex_restart(eap: &mut Exarg) {
 
         let mut servername_items = [cstr_as_obj(Some(c"servername"))];
         let servername_args = Array {
-            items: servername_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(servername_items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };
@@ -9565,7 +9565,7 @@ fn ex_restart(eap: &mut Exarg) {
         if let Some(ref la) = listen_arg {
             let mut handoff_items = [cstr_as_obj(Some(la)), integer_obj(ui_active() as Integer)];
             let handoff_params = Array {
-                items: handoff_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(handoff_items.as_mut_ptr()),
                 size: 2,
                 capacity: 3,
             };
@@ -9579,7 +9579,7 @@ fn ex_restart(eap: &mut Exarg) {
                 },
             ];
             let lua_args = Array {
-                items: lua_items.as_mut_ptr(),
+                items: crate::globals::GraphPtr::new(lua_items.as_mut_ptr()),
                 size: 2,
                 capacity: 2,
             };
@@ -9641,7 +9641,7 @@ fn ex_restart(eap: &mut Exarg) {
         result_mem = ptr::null_mut();
         let mut chanclose_items = [cstr_as_obj(Some(c"chanclose(v:stderr)"))];
         let chanclose_args = Array {
-            items: chanclose_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(chanclose_items.as_mut_ptr()),
             size: 1,
             capacity: 1,
         };

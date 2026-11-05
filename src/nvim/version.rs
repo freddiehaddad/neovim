@@ -20,7 +20,6 @@ use crate::strings::gettext;
 use crate::ui::ui_has;
 use crate::window::{LOWEST_WIN_ID, one_window};
 use std::ffi::{CStr, CString};
-use std::ptr;
 
 const K_SHM_INTRO: i32 = b'I' as i32;
 
@@ -4093,7 +4092,7 @@ pub fn list_lua_version() {
     const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
     let mut err = Error::new();
     let args = Array {
-        items: ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };

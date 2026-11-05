@@ -345,7 +345,7 @@ pub fn mpack_object_array(arr: Array, packer: &mut PackerBuffer) {
             data: ObjectData::Array(arr),
         };
         mpack_object_inner(
-            unsafe { &mut *arr.items },
+            arr.items.borrow_mut(),
             (arr.size > 1).then_some(&mut container),
             1,
             packer,
@@ -360,13 +360,13 @@ pub fn mpack_object_inner(
     mut container_idx: usize,
     packer: &mut PackerBuffer,
 ) {
-    let mut current: *mut Object = current_in;
-    let mut container: *mut Object = container_in.map_or(std::ptr::null_mut(), |c| c);
+    let mut current = crate::globals::GraphPtr::from(current_in);
+    let mut container = crate::globals::GraphPtr::from(container_in);
     let mut stack: Vec<ContainerStackItem> = Vec::with_capacity(2);
 
     loop {
         mpack_check_buffer(packer);
-        let cur = unsafe { &mut *current };
+        let cur = current.borrow_mut();
         match cur.obj_type {
             ObjectType::ObjectTypeLuaRef => {
                 let cs = nlua_funcref_str(cur.data.luaref(), true);
@@ -415,7 +415,7 @@ pub fn mpack_object_inner(
                     }
                     if !container.is_null() {
                         stack.push(ContainerStackItem {
-                            container: crate::globals::GraphPtr::new(container),
+                            container,
                             idx: container_idx,
                         });
                     }
@@ -427,20 +427,20 @@ pub fn mpack_object_inner(
 
         if container.is_null() {
             if let Some(it) = stack.pop() {
-                container = it.container.as_ptr();
+                container = it.container;
                 container_idx = it.idx;
             } else {
                 break;
             }
         }
 
-        let cont = unsafe { &mut *container };
+        let cont = container.borrow_mut();
         if cont.obj_type == ObjectType::ObjectTypeArray {
             let arr = cont.data.array();
             current = arr.items.wrapping_add(container_idx);
             container_idx += 1;
             if container_idx >= arr.size {
-                container = std::ptr::null_mut();
+                container = crate::globals::GraphPtr::NULL;
             }
         } else {
             let mut dict = cont.data.dict();
@@ -448,9 +448,9 @@ pub fn mpack_object_inner(
             container_idx += 1;
             mpack_check_buffer(packer);
             mpack_str(it.key, packer);
-            current = &mut it.value;
+            current = (&mut it.value).into();
             if container_idx >= dict.size {
-                container = std::ptr::null_mut();
+                container = crate::globals::GraphPtr::NULL;
             }
         }
     }

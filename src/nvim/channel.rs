@@ -1006,7 +1006,7 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
             crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
         ];
         let args = Array {
-            items: args_items.as_mut_ptr(),
+            items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
             size: 3,
             capacity: 3,
         };
@@ -1133,7 +1133,7 @@ pub fn channel_job_running(id: u64) -> bool {
 pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
     let Some(chan) = find_channel(id) else {
         return Dict {
-            items: ptr::null_mut(),
+            items: crate::globals::GraphPtr::NULL,
             size: 0,
             capacity: 0,
         };
@@ -1170,7 +1170,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
 
             let args = ph.argv.as_slice();
             let mut argv = Array {
-                items: ptr::null_mut(),
+                items: crate::globals::GraphPtr::NULL,
                 size: 0,
                 capacity: 0,
             };

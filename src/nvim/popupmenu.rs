@@ -1214,7 +1214,7 @@ fn pum_preview_set_text(
         size: 0,
     };
     let mut replacement = Array {
-        items: ptr::null_mut(),
+        items: crate::globals::GraphPtr::NULL,
         size: 0,
         capacity: 0,
     };
