@@ -10422,7 +10422,7 @@ fn ex_connect(eap: &mut Exarg) {
 
         nlua_call_typval(
             c"vim.net._ssh",
-            c"start",
+            c"connect",
             &mut argvars,
             Some(&mut ssh_rettv),
         );
