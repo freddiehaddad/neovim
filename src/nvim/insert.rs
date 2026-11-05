@@ -1022,7 +1022,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
         }
         K_PASTE_START | K_EVENT | K_COMMAND | K_LUA => {
             let mut save_curbuf = Bufref {
-                br_buf: ptr::null_mut(),
+                br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };
@@ -1054,7 +1054,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
 
             let changed = bufref_valid(Some(&save_curbuf))
-                && g_st().curbuf == save_curbuf.br_buf
+                && save_curbuf.br_buf == g_st().curbuf
                 && tick != buf_get_changedtick(curbuf_mut());
             if curbuf_mut().b_u_synced || changed {
                 g_st().ins_global.need_undo = true;

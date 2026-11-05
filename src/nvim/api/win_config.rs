@@ -470,7 +470,7 @@ pub fn nvim_open_win(
         }
 
         let mut bufref = Bufref {
-            br_buf: ptr::null_mut(),
+            br_buf: crate::globals::BufPtr::NULL,
             br_fnum: 0,
             br_buf_free_count: 0,
         };

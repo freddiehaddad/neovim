@@ -62,7 +62,7 @@ use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, NUMBUFLEN};
 
 #[derive(Clone)]
 pub struct Cmdarg {
-    pub oap: *mut Oparg,
+    pub oap: crate::globals::GraphPtr<Oparg>,
     pub cmdchar: i32,
     pub nchar: i32,
     pub nchar_composing: [u8; MAX_SCHAR_SIZE],
@@ -79,7 +79,7 @@ pub struct Cmdarg {
 impl Cmdarg {
     pub const fn new() -> Self {
         Self {
-            oap: ptr::null_mut(),
+            oap: crate::globals::GraphPtr::NULL,
             cmdchar: 0,
             nchar: 0,
             nchar_composing: [0; MAX_SCHAR_SIZE],
@@ -101,7 +101,7 @@ impl Cmdarg {
 
     #[inline]
     pub fn oap_mut(&self) -> &'static mut Oparg {
-        unsafe { &mut *self.oap }
+        self.oap.borrow_mut()
     }
 }
 
@@ -228,7 +228,7 @@ impl CmdOrigin {
     pub const fn new() -> Self {
         Self {
             buf: Bufref {
-                br_buf: ptr::null_mut(),
+                br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             },
@@ -500,7 +500,7 @@ fn atom_origin_moved(origin: CmdOrigin) -> bool {
         && origin
             .win
             .opt()
-            .is_some_and(|w| w.w_buffer == origin.buf.br_buf && !equalpos(origin.pos, w.w_cursor))
+            .is_some_and(|w| origin.buf.br_buf == w.w_buffer && !equalpos(origin.pos, w.w_cursor))
 }
 
 #[inline]
@@ -1702,7 +1702,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
     let keycls = atom_key_class(ca.cmdchar, ca.nchar, ca.extra_char);
     let opaque = (keycls & K_KEY_OPAQUE) != 0;
     let synthetic = (keycls & K_KEY_SYNTHETIC) != 0;
-    let unchanged = g_st().curbuf == old.origin.buf.br_buf
+    let unchanged = old.origin.buf.br_buf == g_st().curbuf
         && old.origin.win == curwin_ptr()
         && !atom_origin_moved(old.origin)
         && !atom_origin_changed(old.origin)
@@ -1721,7 +1721,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
     let mapped = user && !old.keytyped && !synthetic;
     if mapped
         && atom_st().global_ops == old.global_ops
-        && ((g_st().curbuf == old.origin.buf.br_buf && atom_origin_changed(old.origin))
+        && ((old.origin.buf.br_buf == g_st().curbuf && atom_origin_changed(old.origin))
             || ins_cascaded)
     {
         atom_st().map_edit = true;
@@ -1857,7 +1857,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
     }
 
     if vis
-        && (g_st().curbuf != old.origin.buf.br_buf
+        && (old.origin.buf.br_buf != g_st().curbuf
             || (atom_origin_changed(old.origin) && atom_st().vatom.frame != old.id))
     {
         atom_st().vatom.state |= K_VATOM_VOID;

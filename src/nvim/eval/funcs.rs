@@ -2384,7 +2384,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut eap: Exarg = Exarg::new();
     eap.cmd = cmdstr;
     eap.arg = cmdstr;
-    eap.cmdline_buf = &raw mut cmdline_buf;
+    eap.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_buf);
     eap.usefilter = false;
     eap.nextcmd = crate::strings::CStrCursor::NULL;
     eap.cmdidx = Cmdidx::CmdUser;

@@ -310,7 +310,7 @@ pub fn nvim_parse_cmd(
         .chain(std::iter::once(0))
         .collect();
     let mut errormsg = None;
-    ea.cmdline_buf = &raw mut cmdline_buf;
+    ea.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_buf);
 
     if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false) {
         if let Some(msg) = errormsg {
@@ -855,7 +855,7 @@ pub fn nvim_cmd(
         }
 
         build_cmdline_str(&mut cmdline_buf, &mut ea, args);
-        ea.cmdline_buf = &raw mut cmdline_buf;
+        ea.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_buf);
         if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, true) {
             api_set_error!(
                 err,

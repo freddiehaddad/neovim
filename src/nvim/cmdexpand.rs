@@ -1522,7 +1522,7 @@ pub struct CmdlineInfo {
     pub cmdprompt: Option<CString>,
     pub hl_id: i32,
     pub overstrike: i32,
-    pub xpc: *mut ExpandCtx,
+    pub xpc: crate::globals::GraphPtr<ExpandCtx>,
     pub xp_context: i32,
     pub xp_arg: Option<CString>,
     pub input_fn: i32,
@@ -1552,7 +1552,7 @@ impl CmdlineInfo {
             cmdprompt: None,
             hl_id: 0,
             overstrike: 0,
-            xpc: ptr::null_mut(),
+            xpc: crate::globals::GraphPtr::NULL,
             xp_context: 0,
             xp_arg: None,
             input_fn: 0,
@@ -2197,13 +2197,13 @@ pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
 /// Returns the current cmdline completion pattern.
 pub fn cmdline_compl_pattern() -> Option<&'static CStr> {
     let xp = get_cmdline_info().xpc;
-    unsafe { xp.as_ref()?.xp_orig.as_deref() }
+    xp.opt()?.xp_orig.as_deref()
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
 pub fn cmdline_compl_is_fuzzy() -> bool {
     let xp = get_cmdline_info().xpc;
-    unsafe { xp.as_ref().is_some_and(cmdline_fuzzy_completion_supported) }
+    xp.opt().is_some_and(cmdline_fuzzy_completion_supported)
 }
 
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
@@ -6005,7 +6005,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let ccline = get_cmdline_info();
 
     tv_dict_alloc_ret(rettv);
-    let Some(xpc) = (unsafe { ccline.xpc.as_ref() }) else {
+    let Some(xpc) = ccline.xpc.opt() else {
         return;
     };
     if xpc.xp_files.capacity() == 0 {

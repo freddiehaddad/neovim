@@ -1237,7 +1237,7 @@ pub fn do_mousescroll(cap: &mut Cmdarg) {
 pub fn ins_mousescroll(dir: i32) {
     let mut cap = Cmdarg::new();
     let mut oa = Oparg::new();
-    cap.oap = &raw mut oa;
+    cap.oap = crate::globals::GraphPtr::from(&mut oa);
     cap.arg = dir;
 
     match dir {
@@ -1289,7 +1289,7 @@ pub fn ins_mousescroll(dir: i32) {
 pub fn cmdline_mousescroll(dir: i32) -> bool {
     let mut cap = Cmdarg::new();
     let mut oa = Oparg::new();
-    cap.oap = &raw mut oa;
+    cap.oap = crate::globals::GraphPtr::from(&mut oa);
     cap.arg = dir;
 
     match dir {

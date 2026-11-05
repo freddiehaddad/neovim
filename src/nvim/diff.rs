@@ -1345,7 +1345,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
 pub fn ex_diffsplit(eap: &mut Exarg) {
     let old_curwin = curwin_ptr();
     let mut old_curbuf = Bufref {
-        br_buf: ptr::null_mut(),
+        br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
         br_buf_free_count: 0,
     };

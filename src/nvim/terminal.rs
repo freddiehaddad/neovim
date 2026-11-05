@@ -2157,7 +2157,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
 
             let mut cap = Cmdarg::new();
             let mut oa = Oparg::new();
-            cap.oap = &mut oa;
+            cap.oap = crate::globals::GraphPtr::from(&mut oa);
             cap.cmdchar = c;
             cap.arg = match c {
                 K_MOUSEUP => MSCR_UP,

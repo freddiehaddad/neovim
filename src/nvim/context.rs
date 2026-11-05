@@ -951,7 +951,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             curwin_mut().w_topfill = 0;
         }
     } else if cs.cs_mode == K_CTX_SWITCH_BUF {
-        let saved_buf = cs.cs_new_curbuf.br_buf.cast::<FileBuf>();
+        let saved_buf = cs.cs_new_curbuf.br_buf.as_ptr();
         if curwin_mut().handle == cs.cs_new_curwin
             && g_st().curbuf != saved_buf
             && bufref_valid(Some(&cs.cs_new_curbuf))

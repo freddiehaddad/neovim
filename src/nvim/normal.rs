@@ -1699,7 +1699,7 @@ pub fn normal_enter() {
 
 fn normal_prepare(s: &mut NormalState) {
     s.ca = Cmdarg::new();
-    s.ca.oap = &mut s.oa;
+    s.ca.oap = crate::globals::GraphPtr::from(&mut s.oa);
 
     s.ca.opcount = g_st().opcount;
 
@@ -4164,7 +4164,7 @@ pub fn do_nv_ident(c1: i32, c2: i32) {
     let mut oa = Oparg::new();
     let mut ca = Cmdarg::new();
 
-    ca.oap = &raw mut oa;
+    ca.oap = crate::globals::GraphPtr::from(&mut oa);
     ca.cmdchar = c1;
     ca.nchar = c2;
     nv_ident(&mut ca);

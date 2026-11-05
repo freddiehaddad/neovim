@@ -2843,7 +2843,7 @@ pub fn do_ecmd(
                 oldbuf = true;
                 set_bufref(&mut bufref, unsafe { buf.as_mut() });
                 buf_check_timestamp(unsafe { &mut *buf });
-                if !bufref_valid(Some(&bufref)) || g_st().curbuf != old_curbuf.br_buf {
+                if !bufref_valid(Some(&bufref)) || old_curbuf.br_buf != g_st().curbuf {
                     break 'theend;
                 }
                 if aborting() {
@@ -2884,7 +2884,7 @@ pub fn do_ecmd(
                         (*buf).b_locked += 1;
                     }
 
-                    if g_st().curbuf == old_curbuf.br_buf {
+                    if old_curbuf.br_buf == g_st().curbuf {
                         buf_copy_options(unsafe { &mut *buf }, BCO_ENTER);
                     }
 
@@ -3210,10 +3210,10 @@ pub fn do_ecmd(
     }
 
     // theend:
-    if bufref_valid(Some(&old_curbuf)) && unsafe { !(*old_curbuf.br_buf).terminal.is_null() } {
-        terminal_check_size(unsafe { &mut *(*old_curbuf.br_buf).terminal });
+    if bufref_valid(Some(&old_curbuf)) && !old_curbuf.br_buf.terminal.is_null() {
+        terminal_check_size(unsafe { &mut *old_curbuf.br_buf.terminal });
     }
-    if (!bufref_valid(Some(&old_curbuf)) || g_st().curbuf != old_curbuf.br_buf)
+    if (!bufref_valid(Some(&old_curbuf)) || old_curbuf.br_buf != g_st().curbuf)
         && !curbuf_mut().terminal.is_null()
     {
         terminal_check_size(curbuf_mut().terminal_mut());
@@ -3235,7 +3235,7 @@ fn delbuf_msg(name: Option<std::ffi::CString>) {
         gettext(c"E143: Autocommands unexpectedly deleted new buffer %s"),
         name.as_deref().unwrap_or(c""),
     );
-    g_st().au_new_curbuf.br_buf = ptr::null_mut();
+    g_st().au_new_curbuf.br_buf = crate::globals::BufPtr::NULL;
     g_st().au_new_curbuf.br_buf_free_count = 0;
 }
 

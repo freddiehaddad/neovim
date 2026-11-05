@@ -272,7 +272,7 @@ fn do_ft_buf(
 
     let ftbuf: *mut FileBuf = ftbuf_ref;
     let mut bufref = Bufref {
-        br_buf: ptr::null_mut(),
+        br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
         br_buf_free_count: 0,
     };
@@ -336,7 +336,7 @@ fn wipe_ft_buf(buf: &mut FileBuf) {
     block_autocmds();
 
     let mut bufref = Bufref {
-        br_buf: ptr::null_mut(),
+        br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
         br_buf_free_count: 0,
     };

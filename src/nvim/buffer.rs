@@ -133,7 +133,7 @@ pub(crate) const BF_DUMMY: i32 = 0x80;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Bufref {
-    pub br_buf: *mut FileBuf,
+    pub br_buf: crate::globals::BufPtr,
     pub br_fnum: i32,
     pub br_buf_free_count: i32,
 }
@@ -142,7 +142,7 @@ impl Bufref {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            br_buf: ptr::null_mut(),
+            br_buf: crate::globals::BufPtr::NULL,
             br_fnum: 0,
             br_buf_free_count: 0,
         }
@@ -150,7 +150,7 @@ impl Bufref {
 
     #[inline]
     pub fn buf_opt(&self) -> Option<&'static mut FileBuf> {
-        unsafe { self.br_buf.as_mut() }
+        self.br_buf.opt_mut()
     }
 }
 
@@ -1242,7 +1242,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, unsafe { g_st().curbuf.as_mut() });
         do_doautocmd(c"filetypedetect BufRead", false, None);
-        if !bufref_valid(Some(&bufref)) || g_st().curbuf != old_curbuf.br_buf || aborting() {
+        if !bufref_valid(Some(&bufref)) || old_curbuf.br_buf != g_st().curbuf || aborting() {
             return false;
         }
     }
@@ -1297,7 +1297,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
 /// Store `buf` in `bufref` and set the free count.
 pub fn set_bufref(bufref: &mut Bufref, buf: Option<&mut FileBuf>) {
-    bufref.br_buf = buf.map_or(ptr::null_mut(), ptr::from_mut);
+    bufref.br_buf = buf.map_or(crate::globals::BufPtr::NULL, crate::globals::BufPtr::from);
     bufref.br_fnum = bufref.buf_opt().map_or(0, |b| b.b_fnum);
     bufref.br_buf_free_count = buf_st().buf_free_count;
 }
@@ -1309,7 +1309,7 @@ pub fn bufref_valid(bufref: Option<&Bufref>) -> bool {
     if bufref.br_buf_free_count == buf_st().buf_free_count {
         true
     } else {
-        buf_valid_handle(crate::globals::BufPtr::new(bufref.br_buf))
+        buf_valid_handle(bufref.br_buf)
             && bufref.buf_opt().is_some_and(|b| bufref.br_fnum == b.b_fnum)
     }
 }
@@ -1986,7 +1986,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
             unblock_autocmds();
             b
         } else {
-            unsafe { old_curbuf.unwrap().br_buf.as_mut() }
+            old_curbuf.unwrap().br_buf.opt_mut()
         };
         if let Some(buf_ref) = buf {
             enter_buffer(buf_ref);
@@ -2418,9 +2418,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         bp = ptr::null_mut();
         if !g_st().au_new_curbuf.br_buf.is_null()
             && bufref_valid(Some(&g_st().au_new_curbuf))
-            && unsafe { (*g_st().au_new_curbuf.br_buf).b_locked_split } == 0
+            && g_st().au_new_curbuf.br_buf.b_locked_split == 0
         {
-            buf = g_st().au_new_curbuf.br_buf;
+            buf = g_st().au_new_curbuf.br_buf.as_ptr();
         } else if curwin_mut().w_jumplistlen > 0 {
             if (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) != 0 {
                 mark_jumplist_forget_file(curwin_mut(), buf_fnum);

@@ -1596,7 +1596,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
     let mut nobreak = false;
     let mut ret_msg: Option<&'static std::ffi::CStr> = None;
     let mut bufref = Bufref {
-        br_buf: ptr::null_mut(),
+        br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
         br_buf_free_count: 0,
     };

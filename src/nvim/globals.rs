@@ -762,7 +762,7 @@ impl EditorState {
             autocmd_no_enter: 0,
             autocmd_no_leave: 0,
             au_new_curbuf: Bufref {
-                br_buf: ptr::null_mut(),
+                br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             },

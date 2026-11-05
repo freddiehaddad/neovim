@@ -1057,7 +1057,7 @@ fn command_line_enter(
 
     if getln_st().cmdline_level != 50 {
         expand_init(&mut s.xpc);
-        getln_st().ccline.xpc = &mut s.xpc;
+        getln_st().ccline.xpc = crate::globals::GraphPtr::from(&mut s.xpc);
         clear_cmdline_orig();
 
         g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl
@@ -1247,7 +1247,7 @@ fn command_line_enter(
         s.wim_index = 0;
 
         expand_cleanup(&mut s.xpc);
-        getln_st().ccline.xpc = ptr::null_mut();
+        getln_st().ccline.xpc = crate::globals::GraphPtr::NULL;
         clear_cmdline_orig();
 
         finish_incsearch_highlighting(s.gotesc, &mut s.is_state, false);
@@ -3103,7 +3103,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         .to_bytes_with_nul()
         .to_vec();
     let mut errormsg = None;
-    ea.cmdline_buf = &raw mut cmdline_vec;
+    ea.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_vec);
     g_st().emsg_off += 1;
     let parsed = parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false);
     g_st().emsg_off -= 1;
@@ -3553,7 +3553,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
     let cmdlen = getln_st().ccline.cmdlen as usize;
     getln_st().ccline.cmdbuff_vec[cmdlen] = NUL;
 
-    if let Some(xpc) = unsafe { getln_st().ccline.xpc.as_mut() }
+    if let Some(xpc) = getln_st().ccline.xpc.opt_mut()
         && !xpc.xp_pattern.is_null()
         && xpc.xp_context != EXPAND_NOTHING
         && xpc.xp_context != EXPAND_UNSUCCESSFUL
@@ -4665,7 +4665,7 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
     }
 
     let p = get_ccline_opt()?;
-    let xpc = unsafe { p.xpc.as_mut() }?;
+    let xpc = p.xpc.opt_mut()?;
 
     let mut xp_context = xpc.xp_context;
     if xp_context == EXPAND_NOTHING {
@@ -4692,7 +4692,7 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
     }
 
     let p = get_ccline_opt()?;
-    let xpc = unsafe { p.xpc.as_mut() }?;
+    let xpc = p.xpc.opt_mut()?;
 
     let mut xp_context = xpc.xp_context;
     if xp_context == EXPAND_NOTHING {

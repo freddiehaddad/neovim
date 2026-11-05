@@ -2423,7 +2423,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
     let prev_lnum = curwin_mut().w_cursor.lnum;
     let mut oa = Oparg::new();
     let mut ca = Cmdarg::new();
-    ca.oap = &raw mut oa;
+    ca.oap = crate::globals::GraphPtr::from(&mut oa);
 
     if half {
         if count != 0 {

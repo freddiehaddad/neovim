@@ -549,7 +549,7 @@ impl QuickfixState {
             last_qf_id: 0,
             qf_last_bufname: None,
             qf_last_bufref: Bufref {
-                br_buf: ptr::null_mut(),
+                br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             },
@@ -2313,7 +2313,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         .is_some_and(|last| crate::memory::cstr_as_bytes(bufname_ptr) == last.to_bytes());
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
         drop(ptr_cstr);
-        qf_st().qf_last_bufref.br_buf
+        qf_st().qf_last_bufref.br_buf.as_ptr()
     } else {
         let b = buflist_new(
             crate::memory::cstr_as_opt_cstr(bufname_ptr),
@@ -5608,7 +5608,7 @@ fn load_dummy_buffer(
 
         if !newbuf_to_wipe.br_buf.is_null() && bufref_valid(Some(&newbuf_to_wipe)) {
             block_autocmds();
-            wipe_dummy_buffer(unsafe { &mut *newbuf_to_wipe.br_buf }, None);
+            wipe_dummy_buffer(newbuf_to_wipe.br_buf.borrow_mut(), None);
             unblock_autocmds();
         }
 

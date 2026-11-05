@@ -163,7 +163,7 @@ impl McursorState {
             mc_ins_span: McInsSpan {
                 origin: CmdOrigin {
                     buf: crate::buffer::Bufref {
-                        br_buf: ptr::null_mut(),
+                        br_buf: crate::globals::BufPtr::NULL,
                         br_fnum: 0,
                         br_buf_free_count: 0,
                     },

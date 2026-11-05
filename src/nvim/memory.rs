@@ -1014,7 +1014,7 @@ pub fn free_all_mem() {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             let mut bufref = Bufref {
-                br_buf: std::ptr::null_mut(),
+                br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };

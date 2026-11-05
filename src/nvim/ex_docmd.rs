@@ -323,7 +323,7 @@ pub struct Exarg {
     pub arglens: Vec<usize>,
     pub nextcmd: crate::strings::CStrCursor<std::ffi::c_char>,
     pub cmd: crate::strings::CStrCursor<std::ffi::c_char>,
-    pub cmdline_buf: *mut Vec<u8>,
+    pub cmdline_buf: crate::globals::GraphPtr<Vec<u8>>,
     pub cmdidx: Cmdidx,
     pub argt: u32,
     pub skip: bool,
@@ -348,7 +348,7 @@ pub struct Exarg {
     pub useridx: i32,
     pub errmsg: Option<&'static std::ffi::CStr>,
     pub ea_getline: LineGetter,
-    pub cstack: *mut crate::ex_eval::Cstack,
+    pub cstack: crate::globals::GraphPtr<crate::ex_eval::Cstack>,
     pub magic: ExMagic,
 }
 
@@ -360,7 +360,7 @@ impl Exarg {
             arglens: Vec::new(),
             nextcmd: crate::strings::CStrCursor::NULL,
             cmd: crate::strings::CStrCursor::NULL,
-            cmdline_buf: ptr::null_mut(),
+            cmdline_buf: crate::globals::GraphPtr::NULL,
             cmdidx: Cmdidx::CmdAppend,
             argt: 0,
             skip: false,
@@ -385,7 +385,7 @@ impl Exarg {
             useridx: 0,
             errmsg: None,
             ea_getline: LineGetter::None,
-            cstack: ptr::null_mut(),
+            cstack: crate::globals::GraphPtr::NULL,
             magic: ExMagic {
                 file: false,
                 bar: false,
@@ -394,26 +394,23 @@ impl Exarg {
     }
 
     pub fn set_cmdline_vec(&mut self, new_buf: Vec<u8>) {
-        debug_assert!(!self.cmdline_buf.is_null());
-
-        unsafe {
-            *self.cmdline_buf = new_buf;
-        }
+        *self.cmdline_buf.borrow_mut() = new_buf;
     }
 }
 
 impl Exarg {
     #[inline]
     pub fn cstack_mut(&self) -> &'static mut crate::ex_eval::Cstack {
-        unsafe { &mut *self.cstack.cast::<crate::ex_eval::Cstack>() }
+        self.cstack.borrow_mut()
     }
 
     #[inline]
     pub fn cmdline_ptr(&self) -> crate::strings::CStrCursor<std::ffi::c_char> {
-        if self.cmdline_buf.is_null() || unsafe { (*self.cmdline_buf).is_empty() } {
-            crate::strings::CStrCursor::NULL
-        } else {
-            crate::strings::CStrCursor::from_ptr(unsafe { (*self.cmdline_buf).as_mut_ptr().cast() })
+        match self.cmdline_buf.opt_mut() {
+            Some(buf) if !buf.is_empty() => {
+                crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr().cast())
+            }
+            _ => crate::strings::CStrCursor::NULL,
         }
     }
 
@@ -6228,7 +6225,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
         }
 
         let mut cstack = Cstack::default();
-        eap.cstack = (&raw mut cstack).cast();
+        eap.cstack = crate::globals::GraphPtr::from(&mut cstack);
 
         let _ = execute_cmd0(&mut retv, eap, &mut errormsg, preview);
     }
@@ -6408,9 +6405,9 @@ fn do_one_cmd(
         }
 
         ea.cmd = crate::strings::CStrCursor::from_ptr(init_cmd);
-        ea.cmdline_buf = &raw mut *cmdline_buf;
+        ea.cmdline_buf = crate::globals::GraphPtr::from(&mut *cmdline_buf);
         ea.ea_getline = fgetline;
-        ea.cstack = &raw mut *cstack;
+        ea.cstack = crate::globals::GraphPtr::from(&mut *cstack);
 
         if !parse_command_modifiers(&mut ea, &mut errormsg, &mut g_st().cmdmod, false) {
             break 'doend;

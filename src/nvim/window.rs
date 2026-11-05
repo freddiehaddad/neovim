@@ -3730,11 +3730,9 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     } else if had_cmdline_ruler && (unsafe { &mut *(wp) }).w_status_height > 0 {
         g_st().redraw_cmdline = true;
     }
-    if !bufref.br_buf.is_null()
-        && bufref_valid(Some(&bufref))
-        && !(unsafe { &mut *(bufref.br_buf) }).terminal.is_null()
+    if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) && !bufref.br_buf.terminal.is_null()
     {
-        terminal_check_size(unsafe { &mut *((*(bufref.br_buf)).terminal) });
+        terminal_check_size(unsafe { &mut *bufref.br_buf.terminal });
     }
 
     if close_curwin {
@@ -3982,11 +3980,9 @@ pub fn win_close_othertab(
 
     win_free_mem(unsafe { &mut *(win) }, &mut dir, unsafe { tp.as_mut() });
 
-    if !bufref.br_buf.is_null()
-        && bufref_valid(Some(&bufref))
-        && !(unsafe { &mut *(bufref.br_buf) }).terminal.is_null()
+    if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) && !bufref.br_buf.terminal.is_null()
     {
-        terminal_check_size(unsafe { &mut *((*(bufref.br_buf)).terminal) });
+        terminal_check_size(unsafe { &mut *bufref.br_buf.terminal });
     }
     if free_tp_idx > 0 {
         free_tabpage(unsafe { tp.as_mut() });
@@ -3996,7 +3992,7 @@ pub fn win_close_othertab(
             vim_snprintf!(prev_idx.as_mut_ptr().cast(), NUMBUFLEN, c"%i", free_tp_idx,);
             let prev_idx_cstr = crate::memory::cstr_until_nul(&prev_idx);
             let buf_opt = if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
-                unsafe { bufref.br_buf.as_mut() }
+                bufref.br_buf.opt_mut()
             } else {
                 curbuf_opt_mut()
             };
@@ -6554,7 +6550,7 @@ pub fn may_trigger_win_scrolled_resized() {
         if tv_dict_add_list(&mut *v_event, c"windows", Some(windows_list)) {
             tv_dict_set_keys_readonly(&mut *v_event);
             let buf = if bufref_valid(Some(&resize_bufref)) {
-                resize_bufref.br_buf
+                resize_bufref.br_buf.as_ptr()
             } else {
                 g_st().curbuf
             };
@@ -6585,7 +6581,7 @@ pub fn may_trigger_win_scrolled_resized() {
         tv_dict_unref(Some(scroll_dict));
 
         let buf = if bufref_valid(Some(&scroll_bufref)) {
-            scroll_bufref.br_buf
+            scroll_bufref.br_buf.as_ptr()
         } else {
             g_st().curbuf
         };

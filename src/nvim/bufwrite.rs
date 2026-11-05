@@ -367,7 +367,7 @@ fn buf_write_do_autocmds(
     orig_start: CursorPos,
     orig_end: CursorPos,
 ) -> Option<bool> {
-    let mut buf = bufref.br_buf;
+    let mut buf = bufref.br_buf.as_ptr();
     let old_line_count = unsafe { (*buf).b_ml.ml_line_count };
     let msg_save = g_st().msg_scroll;
 
@@ -468,7 +468,7 @@ fn buf_write_do_autocmds(
 
     if !bufref_valid(Some(bufref)) {
         buf = ptr::null_mut();
-        bufref.br_buf = ptr::null_mut();
+        bufref.br_buf = crate::globals::BufPtr::NULL;
     }
     if buf.is_null()
         || (unsafe { (*buf).b_ml.ml_mfp.is_none() } && !empty_memline)
@@ -1213,7 +1213,7 @@ pub fn buf_write(
     }
 
     let mut bufref = Bufref {
-        br_buf: buf,
+        br_buf: crate::globals::BufPtr::new(buf),
         br_fnum: 0,
         br_buf_free_count: 0,
     };
@@ -1253,7 +1253,7 @@ pub fn buf_write(
     if let Some(ok) = res {
         return ok;
     }
-    let buf = unsafe { &mut *bufref.br_buf };
+    let buf = bufref.br_buf.borrow_mut();
 
     let fname_copy = names.fname;
     let sfname_copy = names.sfname;
