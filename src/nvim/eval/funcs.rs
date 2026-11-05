@@ -2660,18 +2660,13 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
 
                 if dict_idx > 0 {
-                    pt.pt_dict = argvars[dict_idx].vval.v_dict();
-
-                    unsafe {
-                        (*pt.pt_dict).dv_refcount += 1;
-                    }
+                    pt.pt_dict = crate::globals::GraphPtr::new(argvars[dict_idx].vval.v_dict());
+                    pt.pt_dict.dv_refcount += 1;
                 } else if let Some(arg_pt_ref) = unsafe { arg_pt.as_mut() } {
                     pt.pt_dict = arg_pt_ref.pt_dict;
                     pt.pt_auto = arg_pt_ref.pt_auto;
                     if !pt.pt_dict.is_null() {
-                        unsafe {
-                            (*pt.pt_dict).dv_refcount += 1;
-                        }
+                        pt.pt_dict.dv_refcount += 1;
                     }
                 }
 
@@ -2679,14 +2674,13 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 if !arg_pt.is_null() && !unsafe { (*arg_pt).pt_func }.is_null() {
                     pt.pt_func = unsafe { (*arg_pt).pt_func };
 
-                    func_ptr_ref(unsafe { pt.pt_func.as_mut() });
+                    func_ptr_ref(pt.pt_func.opt_mut());
                 } else if is_funcref {
-                    pt.pt_func = find_func(
+                    pt.pt_func = crate::globals::GraphPtr::from(find_func(
                         (!trans_name.is_null()).then(|| unsafe { CStr::from_ptr(trans_name) }),
-                    )
-                    .map_or(ptr::null_mut(), ptr::from_mut);
+                    ));
 
-                    func_ptr_ref(unsafe { pt.pt_func.as_mut() });
+                    func_ptr_ref(pt.pt_func.opt_mut());
                 } else {
                     func_ref(Some(name_cstr.as_c_str()));
                     pt.pt_name = Some(name_cstr);
@@ -2785,7 +2779,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     && pt.pt_name.is_none()
                     && !pt.pt_func.is_null()
                 {
-                    name = printable_func_name(unsafe { &mut *pt.pt_func });
+                    name = printable_func_name(pt.pt_func.borrow_mut());
                 }
                 crate::eval::typval::tv_set_string(rettv, Some(name));
                 rettv.v_type = if what.to_bytes().first().copied().unwrap_or(0) == b'f' {
@@ -2796,7 +2790,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             } else if what.to_bytes() == b"dict" {
                 what_is_dict = true;
                 if !pt.pt_dict.is_null() {
-                    tv_dict_set_ret(rettv, unsafe { pt.pt_dict.as_mut() });
+                    tv_dict_set_ret(rettv, pt.pt_dict.opt_mut());
                 }
             } else if what.to_bytes() == b"args" {
                 rettv.v_type = VarType::VarList;

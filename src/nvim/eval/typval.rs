@@ -76,10 +76,10 @@ pub struct TvPartial {
     pub pt_refcount: i32,
     pub pt_copy_id: i32,
     pub pt_name: Option<std::ffi::CString>,
-    pub pt_func: *mut UserFunc,
+    pub pt_func: crate::globals::GraphPtr<UserFunc>,
     pub pt_auto: bool,
     pub pt_argv: Vec<TypVal>,
-    pub pt_dict: *mut TvDict,
+    pub pt_dict: crate::globals::GraphPtr<TvDict>,
 }
 
 impl Default for TvPartial {
@@ -88,10 +88,10 @@ impl Default for TvPartial {
             pt_refcount: 0,
             pt_copy_id: 0,
             pt_name: None,
-            pt_func: ptr::null_mut(),
+            pt_func: crate::globals::GraphPtr::NULL,
             pt_auto: false,
             pt_argv: Vec::new(),
-            pt_dict: ptr::null_mut(),
+            pt_dict: crate::globals::GraphPtr::NULL,
         }
     }
 }
@@ -101,11 +101,11 @@ impl Drop for TvPartial {
         for tv in &mut self.pt_argv {
             tv_clear(tv);
         }
-        tv_dict_unref(unsafe { self.pt_dict.as_mut() });
+        tv_dict_unref(self.pt_dict.opt_mut());
         if let Some(ref name) = self.pt_name {
             func_unref(Some(name.as_c_str()));
         } else {
-            crate::eval::userfunc::func_ptr_unref(unsafe { self.pt_func.as_mut() });
+            crate::eval::userfunc::func_ptr_unref(self.pt_func.opt_mut());
         }
     }
 }
@@ -3818,8 +3818,8 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
             return;
         };
         let dict = pt.pt_dict;
-        debug_assert!(dict.is_null() || unsafe { (*dict).dv_copy_id } == copy_id);
-        pt.pt_dict = ptr::null_mut();
+        debug_assert!(dict.is_null() || dict.dv_copy_id == copy_id);
+        pt.pt_dict = crate::globals::GraphPtr::NULL;
         pt.pt_argv.clear();
         debug_assert!(pt.pt_refcount <= 1);
         partial_unref(Some(pt));
@@ -4062,12 +4062,12 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         let dict = if pt.is_null() {
                             ptr::null_mut()
                         } else {
-                            unsafe { (*pt).pt_dict }
+                            unsafe { (*pt).pt_dict.as_ptr() }
                         };
                         if !dict.is_null() {
                             if unsafe { (*dict).dv_hashtab.ht_used } == 0 {
                                 unsafe {
-                                    (*pt).pt_dict = ptr::null_mut();
+                                    (*pt).pt_dict = crate::globals::GraphPtr::NULL;
                                 }
                                 tv_dict_unref(unsafe { dict.as_mut() });
                                 continue;
@@ -4077,7 +4077,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                                 continue;
                             }
                             unsafe {
-                                (*pt).pt_dict = ptr::null_mut();
+                                (*pt).pt_dict = crate::globals::GraphPtr::NULL;
                             }
                             if unsafe { (*dict).dv_refcount } > 1 {
                                 unsafe {

@@ -156,7 +156,7 @@ impl Estack {
 
 #[repr(C)]
 pub struct Funccall {
-    pub fc_func: *mut UserFunc,
+    pub fc_func: crate::globals::GraphPtr<UserFunc>,
     pub fc_linenr: i32,
     pub fc_returned: i32,
     pub fc_l_vars: TvDict,
@@ -165,22 +165,22 @@ pub struct Funccall {
     pub fc_l_avars_var: Dictitem,
     pub fc_l_varlist: TvList,
     pub fc_l_listitems: [Listitem; MAX_FUNC_ARGS],
-    pub fc_rettv: *mut TypVal,
+    pub fc_rettv: crate::globals::GraphPtr<TypVal>,
     pub fc_breakpoint: i32,
     pub fc_dbg_tick: i32,
     pub fc_level: i32,
     pub fc_defer: Vec<DeferCall>,
     pub fc_prof_child: Proftime,
-    pub fc_caller: *mut Funccall,
+    pub fc_caller: crate::globals::GraphPtr<Funccall>,
     pub fc_refcount: i32,
     pub fc_copy_id: i32,
-    pub fc_ufuncs: Vec<*mut UserFunc>,
+    pub fc_ufuncs: Vec<crate::globals::GraphPtr<UserFunc>>,
 }
 
 impl Funccall {
     pub const fn new() -> Self {
         Self {
-            fc_func: std::ptr::null_mut(),
+            fc_func: crate::globals::GraphPtr::NULL,
             fc_linenr: 0,
             fc_returned: 0,
             fc_l_vars: TvDict::new(),
@@ -189,13 +189,13 @@ impl Funccall {
             fc_l_avars_var: Dictitem::new(),
             fc_l_varlist: TvList::new(),
             fc_l_listitems: [const { Listitem::new() }; MAX_FUNC_ARGS],
-            fc_rettv: std::ptr::null_mut(),
+            fc_rettv: crate::globals::GraphPtr::NULL,
             fc_breakpoint: 0,
             fc_dbg_tick: 0,
             fc_level: 0,
             fc_defer: Vec::new(),
             fc_prof_child: 0,
-            fc_caller: std::ptr::null_mut(),
+            fc_caller: crate::globals::GraphPtr::NULL,
             fc_refcount: 0,
             fc_copy_id: 0,
             fc_ufuncs: Vec::new(),
@@ -204,17 +204,17 @@ impl Funccall {
 
     #[inline]
     pub fn func_mut(&self) -> &'static mut UserFunc {
-        unsafe { &mut *self.fc_func }
+        self.fc_func.borrow_mut()
     }
 
     #[inline]
     pub fn rettv_mut(&self) -> &'static mut TypVal {
-        unsafe { &mut *self.fc_rettv }
+        self.fc_rettv.borrow_mut()
     }
 
     #[inline]
     pub fn caller_opt(&self) -> Option<&'static mut Funccall> {
-        unsafe { self.fc_caller.as_mut() }
+        self.fc_caller.opt_mut()
     }
 }
 

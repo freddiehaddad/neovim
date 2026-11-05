@@ -58,11 +58,11 @@ use crate::channel::{CallbackReader, Channel, K_CHANNEL_STREAM_PROC};
 use crate::errors::*;
 use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, K_OPT_CPOPTIONS};
 use crate::eval::userfunc::{
-    Funcexe, UserFunc, call_func, call_simple_func, call_simple_luafunc, deref_func_name,
-    eval_fname_script, find_func, free_all_functions, free_unref_funccal, func_ref,
-    get_current_funccal, get_func_tv, get_funccal_args_ht, get_lambda_tv, get_scriptlocal_funcname,
-    make_partial, restore_funccal, save_funccal, set_ref_in_call_stack, set_ref_in_func,
-    set_ref_in_func_args, set_ref_in_functions, set_ref_in_previous_funccal,
+    Funcexe, call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
+    find_func, free_all_functions, free_unref_funccal, func_ref, get_current_funccal, get_func_tv,
+    get_funccal_args_ht, get_lambda_tv, get_scriptlocal_funcname, make_partial, restore_funccal,
+    save_funccal, set_ref_in_call_stack, set_ref_in_func, set_ref_in_func_args,
+    set_ref_in_functions, set_ref_in_previous_funccal,
 };
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
@@ -3997,7 +3997,7 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
             return name.as_c_str();
         }
         if !pt.pt_func.is_null() {
-            let uf = pt.pt_func.cast::<UserFunc>();
+            let uf = pt.pt_func.as_ptr();
             return unsafe { &*uf }.uf_name.as_c_str();
         }
     }
@@ -4107,12 +4107,12 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let d1 = if tv1.v_type == VarType::VarFunc {
         ptr::null_mut()
     } else {
-        tv_partial(tv1).map_or(ptr::null_mut(), |pt| pt.pt_dict)
+        tv_partial(tv1).map_or(ptr::null_mut(), |pt| pt.pt_dict.as_ptr())
     };
     let d2 = if tv2.v_type == VarType::VarFunc {
         ptr::null_mut()
     } else {
-        tv_partial(tv2).map_or(ptr::null_mut(), |pt| pt.pt_dict)
+        tv_partial(tv2).map_or(ptr::null_mut(), |pt| pt.pt_dict.as_ptr())
     };
     if d1.is_null() || d2.is_null() {
         if d1 != d2 {
@@ -4435,17 +4435,13 @@ fn set_ref_in_item_partial(
 
     pt.pt_copy_id = copy_id;
 
-    let mut abort = set_ref_in_func(
-        pt.pt_name.as_deref(),
-        unsafe { pt.pt_func.as_mut() },
-        copy_id,
-    );
+    let mut abort = set_ref_in_func(pt.pt_name.as_deref(), pt.pt_func.opt_mut(), copy_id);
 
     if !pt.pt_dict.is_null() {
         let mut dtv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(pt.pt_dict),
+            vval: TypvalVval::Dict(pt.pt_dict.as_ptr()),
         };
         abort = abort
             || set_ref_in_item(

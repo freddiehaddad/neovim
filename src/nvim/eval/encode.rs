@@ -1521,7 +1521,7 @@ fn encode_vim_with_backend(
                         let dict = if pt.is_null() {
                             std::ptr::null_mut()
                         } else {
-                            unsafe { (*pt).pt_dict }
+                            unsafe { (*pt).pt_dict.as_ptr() }
                         };
                         if !dict.is_null() {
                             let dict = unsafe { &mut *dict };

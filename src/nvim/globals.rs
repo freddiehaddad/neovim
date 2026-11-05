@@ -1038,10 +1038,27 @@ impl<T> PartialEq<&mut T> for GraphPtr<T> {
 
 impl<T> Eq for GraphPtr<T> {}
 
+impl<T> From<*mut T> for GraphPtr<T> {
+    #[inline]
+    fn from(ptr: *mut T) -> Self {
+        Self::new(ptr)
+    }
+}
+
 impl<T> From<&mut T> for GraphPtr<T> {
     #[inline]
     fn from(r: &mut T) -> Self {
         Self::new(&raw mut *r)
+    }
+}
+
+impl<T> From<Option<&mut T>> for GraphPtr<T> {
+    #[inline]
+    fn from(opt: Option<&mut T>) -> Self {
+        match opt {
+            Some(r) => Self::new(&raw mut *r),
+            None => Self::NULL,
+        }
     }
 }
 

@@ -101,7 +101,7 @@ pub struct UserFunc {
     pub uf_tml_execed: i32,
     pub uf_script_ctx: crate::runtime::Sctx,
     pub uf_refcount: i32,
-    pub uf_scoped: *mut crate::profile::Funccall,
+    pub uf_scoped: crate::globals::GraphPtr<crate::profile::Funccall>,
     pub uf_name_exp: Option<std::ffi::CString>,
     pub uf_namelen: usize,
     pub uf_name: std::ffi::CString,
@@ -511,10 +511,12 @@ fn register_closure(fp: &mut UserFunc) {
     if fp.uf_scoped == uf_st().current_funccal {
         return;
     }
-    funccal_unref(unsafe { fp.uf_scoped.as_mut() }, fp, false);
-    fp.uf_scoped = uf_st().current_funccal;
+    funccal_unref(fp.uf_scoped.opt_mut(), fp, false);
+    fp.uf_scoped = crate::globals::GraphPtr::new(uf_st().current_funccal);
     cur_funccal_mut().fc_refcount += 1;
-    cur_funccal_mut().fc_ufuncs.push(fp);
+    cur_funccal_mut()
+        .fc_ufuncs
+        .push(crate::globals::GraphPtr::from(&mut *fp));
 }
 
 /// Return a name for a lambda in static memory.
@@ -563,7 +565,7 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
         uf_tml_execed: 0,
         uf_script_ctx: crate::runtime::Sctx::new(),
         uf_refcount: 0,
-        uf_scoped: ptr::null_mut(),
+        uf_scoped: crate::globals::GraphPtr::NULL,
         uf_name_exp: None,
         uf_namelen: namelen,
         uf_name: name_cstr,
@@ -668,7 +670,7 @@ pub fn get_lambda_tv(
             flags |= FC_CLOSURE;
             register_closure(&mut *fp);
         } else {
-            fp.uf_scoped = ptr::null_mut();
+            fp.uf_scoped = crate::globals::GraphPtr::NULL;
         }
 
         if prof_def_func() {
@@ -683,7 +685,7 @@ pub fn get_lambda_tv(
         fp.uf_script_ctx = g_st().current_sctx;
         fp.uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
-        pt.pt_func = fp;
+        pt.pt_func = crate::globals::GraphPtr::from(&mut *fp);
         pt.pt_refcount = 1;
         rettv.vval = crate::eval::typval::TypvalVval::Partial(pt);
         rettv.v_type = VarType::VarPartial;
@@ -1016,15 +1018,13 @@ impl Drop for Funccall {
     fn drop(&mut self) {
         vars_clear(&mut self.fc_l_vars.dv_hashtab);
         vars_clear(&mut self.fc_l_avars.dv_hashtab);
-        let self_ptr = std::ptr::from_mut(self).cast();
-        for &fp in &self.fc_ufuncs {
-            if !fp.is_null() && unsafe { (*fp).uf_scoped } == self_ptr {
-                unsafe {
-                    (*fp).uf_scoped = ptr::null_mut();
-                }
+        let self_ptr = std::ptr::from_mut(self);
+        for fp in &mut self.fc_ufuncs {
+            if !fp.is_null() && fp.uf_scoped == self_ptr {
+                fp.uf_scoped = crate::globals::GraphPtr::NULL;
             }
         }
-        func_ptr_unref(unsafe { self.fc_func.as_mut() });
+        func_ptr_unref(self.fc_func.opt_mut());
     }
 }
 
@@ -1036,7 +1036,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     let may_free_fc = fc.fc_refcount <= 0;
     let mut free_fc = true;
 
-    uf_st().current_funccal = fc.fc_caller;
+    uf_st().current_funccal = fc.fc_caller.as_ptr();
 
     if may_free_fc && fc.fc_l_vars.dv_refcount == DO_NOT_FREE_CNT {
         vars_clear(&mut fc.fc_l_vars.dv_hashtab);
@@ -1074,7 +1074,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     if free_fc {
         drop(unsafe { Box::from_raw(fc_ptr) });
     } else {
-        fc.fc_caller = ptr::null_mut();
+        fc.fc_caller = crate::globals::GraphPtr::NULL;
         uf_st()
             .previous_funccal
             .push(RetainedFunccall(unsafe { Box::from_raw(fc_ptr) }));
@@ -1116,8 +1116,8 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
         return;
     }
     for slot in unsafe { &mut (*fc).fc_ufuncs } {
-        if std::ptr::eq(*slot, fp) {
-            *slot = ptr::null_mut();
+        if *slot == fp {
+            *slot = crate::globals::GraphPtr::NULL;
         }
     }
 }
@@ -1155,7 +1155,7 @@ fn func_clear(fp: &mut UserFunc, force: bool) {
     fp.uf_cleared = true;
 
     func_clear_items(fp);
-    funccal_unref(unsafe { fp.uf_scoped.as_mut() }, fp, force);
+    funccal_unref(fp.uf_scoped.opt_mut(), fp, force);
 }
 
 impl Drop for UserFunc {
@@ -1181,11 +1181,11 @@ fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
 pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static mut Funccall {
     let fp_ptr = fp.map_or(ptr::null_mut(), ptr::from_mut);
     let fc = Box::leak(Box::new(Funccall::new()));
-    fc.fc_caller = uf_st().current_funccal;
+    fc.fc_caller = crate::globals::GraphPtr::from(uf_st().current_funccal);
     uf_st().current_funccal = fc;
-    fc.fc_func = fp_ptr;
+    fc.fc_func = crate::globals::GraphPtr::from(fp_ptr);
     func_ptr_ref(unsafe { fp_ptr.as_mut() });
-    fc.fc_rettv = rettv;
+    fc.fc_rettv = crate::globals::GraphPtr::from(rettv);
     &mut *fc
 }
 
@@ -1423,8 +1423,7 @@ pub fn call_user_func(
 
     let func_or_func_caller_profiling = do_profiling_yes
         && (fp.uf_profiling != 0
-            || (!fc.fc_caller.is_null()
-                && unsafe { (*(*fc.fc_caller).fc_func).uf_profiling } != 0));
+            || (!fc.fc_caller.is_null() && fc.fc_caller.fc_func.uf_profiling != 0));
 
     if func_or_func_caller_profiling {
         fp.uf_tm_count += 1;
@@ -1474,8 +1473,8 @@ pub fn call_user_func(
         call_start = profile_sub_wait(wait_start, call_start);
         fp.uf_tm_total = profile_add(fp.uf_tm_total, call_start);
         fp.uf_tm_self = profile_self(fp.uf_tm_self, call_start, fp.uf_tm_children);
-        if !fc.fc_caller.is_null() && unsafe { (*(*fc.fc_caller).fc_func).uf_profiling } != 0 {
-            let caller_fp = unsafe { &mut *(*fc.fc_caller).fc_func };
+        if !fc.fc_caller.is_null() && fc.fc_caller.fc_func.uf_profiling != 0 {
+            let caller_fp = fc.fc_caller.fc_func.borrow_mut();
             caller_fp.uf_tm_children = profile_add(caller_fp.uf_tm_children, call_start);
             caller_fp.uf_tml_children = profile_add(caller_fp.uf_tml_children, call_start);
         }
@@ -1490,14 +1489,17 @@ pub fn call_user_func(
 
         if aborting() {
             smsg!(0, gettext(c"%s aborted"), sourcing_name());
-        } else if unsafe { (*fc.fc_rettv).v_type } == VarType::VarNumber {
-            smsg!(0, gettext(c"%s returning #%lld"), sourcing_name(), unsafe {
-                (*fc.fc_rettv).vval.v_number()
-            },);
+        } else if fc.fc_rettv.v_type == VarType::VarNumber {
+            smsg!(
+                0,
+                gettext(c"%s returning #%lld"),
+                sourcing_name(),
+                fc.fc_rettv.vval.v_number(),
+            );
         } else {
             let mut buf = [0u8; MSG_BUF_LEN];
             g_st().emsg_off += 1;
-            let tf = encode_tv2string(unsafe { &mut *fc.fc_rettv }, None);
+            let tf = encode_tv2string(fc.fc_rettv.borrow_mut(), None);
             g_st().emsg_off -= 1;
             let mut s = tf.as_ptr().cast_mut();
             if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
@@ -1820,7 +1822,7 @@ pub fn call_func(
         len = funcname.to_bytes().len() as i32;
     }
     if let Some(partial_ref) = funcexe.partial_opt() {
-        fp = unsafe { partial_ref.pt_func.as_mut() };
+        fp = partial_ref.pt_func.opt_mut();
     }
     if fp.is_none() {
         let nm = cstr_from_bytes(crate::memory::cstr_slice(funcname.as_ptr(), len as usize));
@@ -1838,7 +1840,7 @@ pub fn call_func(
     let mut skip_eval = false;
     if let Some(partial) = funcexe.partial_opt() {
         if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
-            selfdict = partial.pt_dict;
+            selfdict = partial.pt_dict.as_ptr();
         }
         let pt_argc = partial.pt_argv.len() as i32;
         if error == FCERR_NONE && pt_argc > 0 {
@@ -3307,7 +3309,7 @@ pub fn ex_function(eap: &mut Exarg) {
     if (flags & FC_CLOSURE) != 0 {
         register_closure(&mut *fp);
     } else {
-        fp.uf_scoped = ptr::null_mut();
+        fp.uf_scoped = crate::globals::GraphPtr::NULL;
     }
     if prof_def_func() {
         func_do_profile(fp);
@@ -3803,7 +3805,7 @@ impl Iterator for FunccalCallerMutIter {
         if cur.is_null() {
             None
         } else {
-            self.0 = unsafe { (*cur).fc_caller };
+            self.0 = unsafe { (*cur).fc_caller.as_ptr() };
             Some(unsafe { &mut *cur })
         }
     }
@@ -3816,13 +3818,9 @@ impl Iterator for FunccalScopedMutIter {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            self.0 = unsafe { (*(*cur).fc_func).uf_scoped };
-            Some(unsafe { &mut *cur })
-        }
+        let cur = unsafe { self.0.as_mut()? };
+        self.0 = cur.fc_func.uf_scoped.as_ptr();
+        Some(cur)
     }
 }
 
@@ -4070,7 +4068,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
         && let Some(pt_ref) = unsafe { rettv.vval.v_partial().as_ref() }
         && !pt_ref.pt_func.is_null()
     {
-        fp = unsafe { pt_ref.pt_func.as_mut() };
+        fp = pt_ref.pt_func.opt_mut();
     } else {
         let fname_ptr: *const std::ffi::c_char =
             if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
@@ -4100,7 +4098,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     {
         let pt = Box::leak(Box::new(TvPartial::default()));
         pt.pt_refcount = 1;
-        pt.pt_dict = (&raw mut *selfdict);
+        pt.pt_dict = crate::globals::GraphPtr::from(&mut *selfdict);
         selfdict.dv_refcount += 1;
         pt.pt_auto = true;
         if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
@@ -4113,7 +4111,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
             } else {
                 pt.pt_func = ret_pt.pt_func;
 
-                func_ptr_ref(unsafe { pt.pt_func.as_mut() });
+                func_ptr_ref(pt.pt_func.opt_mut());
             }
             if !ret_pt.pt_argv.is_empty() {
                 let pt_argc = ret_pt.pt_argv.len();
@@ -4242,9 +4240,7 @@ pub fn find_hi_in_scoped_ht(
     name: &CStr,
     pht: &mut Option<&'static mut Hashtab>,
 ) -> Option<&'static mut Hashitem> {
-    if uf_st().current_funccal.is_null()
-        || unsafe { (*cur_funccal_mut().fc_func).uf_scoped.is_null() }
-    {
+    if uf_st().current_funccal.is_null() || cur_funccal_mut().fc_func.uf_scoped.is_null() {
         return None;
     }
 
@@ -4253,7 +4249,7 @@ pub fn find_hi_in_scoped_ht(
     let namelen = name.to_bytes().len();
     let mut varname_opt: Option<&CStr> = None;
 
-    uf_st().current_funccal = unsafe { (*cur_funccal_mut().fc_func).uf_scoped };
+    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
     while !uf_st().current_funccal.is_null() {
         let ht = find_var_ht(name, namelen, &mut varname_opt);
         if let Some(ht_ref) = ht
@@ -4271,7 +4267,7 @@ pub fn find_hi_in_scoped_ht(
                 break;
             }
         }
-        let next_scoped = unsafe { (*cur_funccal_mut().fc_func).uf_scoped };
+        let next_scoped = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
         if uf_st().current_funccal == next_scoped {
             break;
         }
@@ -4285,9 +4281,7 @@ pub fn find_hi_in_scoped_ht(
 pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'static mut Dictitem> {
     let name_cstr = crate::memory::cstr_from_bytes(name_slice);
     let namelen = name_slice.len();
-    if uf_st().current_funccal.is_null()
-        || unsafe { (*cur_funccal_mut().fc_func).uf_scoped.is_null() }
-    {
+    if uf_st().current_funccal.is_null() || cur_funccal_mut().fc_func.uf_scoped.is_null() {
         return None;
     }
 
@@ -4295,7 +4289,7 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
     let old_current_funccal = uf_st().current_funccal;
     let mut varname_opt: Option<&CStr> = None;
 
-    uf_st().current_funccal = unsafe { (*cur_funccal_mut().fc_func).uf_scoped };
+    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
     while !uf_st().current_funccal.is_null() {
         let ht = find_var_ht(&name_cstr, namelen, &mut varname_opt);
         if let Some(ht_ref) = ht
@@ -4313,7 +4307,7 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
                 break;
             }
         }
-        let next_scoped = unsafe { (*cur_funccal_mut().fc_func).uf_scoped };
+        let next_scoped = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
         if uf_st().current_funccal == next_scoped {
             break;
         }
@@ -4359,7 +4353,7 @@ fn set_ref_in_funccal(fc: &mut Funccall, copy_id: i32) -> bool {
             || set_ref_in_ht(Some(&mut fc.fc_l_avars.dv_hashtab), copy_id, None)
             || set_ref_in_list_items(Some(&mut fc.fc_l_varlist), copy_id, None)
             || set_ref_in_defer(fc, copy_id)
-            || set_ref_in_func(None, unsafe { fc.fc_func.as_mut() }, copy_id)
+            || set_ref_in_func(None, fc.fc_func.opt_mut(), copy_id)
         {
             return true;
         }
@@ -4425,7 +4419,7 @@ pub fn set_ref_in_func(name: Option<&CStr>, fp_in: Option<&mut UserFunc>, copy_i
         fp = find_func(Some(fname));
     }
     if let Some(fp_ref) = fp {
-        for fc in FunccalScopedMutIter(fp_ref.uf_scoped) {
+        for fc in FunccalScopedMutIter(fp_ref.uf_scoped.as_ptr()) {
             abort = abort || set_ref_in_funccal(fc, copy_id);
         }
     }
