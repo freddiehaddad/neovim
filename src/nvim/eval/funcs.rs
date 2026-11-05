@@ -9754,7 +9754,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         min_argc: 1,
         max_argc: 1,
         base_arg: 1,
-        fast: false,
+        fast: true,
         func: viml_fn!(f_getenv),
         data: EvalFuncData::None,
     },
