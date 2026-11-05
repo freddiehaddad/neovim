@@ -2808,7 +2808,11 @@ fn eval7(
             if arg.to_bytes_with_nul()[0] == b')' {
                 *arg = crate::memory::CStrSubslice::advance(*arg, 1);
             } else if ok {
-                emsg(gettext(c"E110: Missing ')'"));
+                if arg.to_bytes().is_empty() {
+                    emsg(gettext(E_MISSING_CLOSING_PAREN));
+                } else {
+                    semsg!(gettext(E_MISSING_CLOSING_PAREN_STR), arg.as_ptr());
+                }
                 tv_clear(rettv);
                 ok = false;
             }

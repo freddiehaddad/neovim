@@ -805,7 +805,7 @@ fn extract_errcodes(line: &str) -> Vec<String> {
 fn run_linterrcodes(root: &Path) {
     let dup_allowed: HashMap<&str, usize> = HashMap::from([
         ("E109", 2),
-        ("E110", 2),
+        ("E110", 3),
         ("E112", 3),
         ("E114", 2),
         ("E115", 2),

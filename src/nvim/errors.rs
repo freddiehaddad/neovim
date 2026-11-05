@@ -215,6 +215,8 @@ def_err!(E_WRITE, b"E80: Error while writing\0");
 def_err!(E_ZEROCOUNT, b"E939: Positive count required\0");
 def_err!(E_USINGSID, b"E81: Using <SID> not in a script context\0");
 def_err!(E_MISSINGPAREN, b"E107: Missing parentheses: %s\0");
+def_err!(E_MISSING_CLOSING_PAREN, b"E110: Missing ')'\0");
+def_err!(E_MISSING_CLOSING_PAREN_STR, b"E110: Missing ')': %s\0");
 def_err!(E_EMPTY_BUFFER, b"E749: Empty buffer\0");
 #[cfg(all(
     target_pointer_width = "64",
