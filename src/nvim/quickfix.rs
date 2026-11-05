@@ -1,6 +1,6 @@
 //! Quickfix and location list commands and functions (`src/nvim/quickfix.c`).
 
-use crate::api::private::helpers::{boolean_obj, cbuf_as_string, cstr_as_obj, cstr_as_string};
+use crate::api::private::helpers::{boolean_obj, cstr_as_obj, cstr_as_string, cstrn_as_string};
 use crate::arglist::{ML_EMPTY, get_arglist_exp};
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_FILETYPE, EVENT_QUICKFIXCMDPOST,
@@ -2368,13 +2368,12 @@ fn qf_push_dir(dirbuf: &CStr, stack: &mut Vec<std::ffi::CString>, is_file_stack:
         return;
     }
 
-    let dirbuf_len = dirbuf.to_bytes().len();
     let mut found_idx: Option<usize> = None;
     let mut new_dirname: Option<std::ffi::CString> = None;
     for i in (0..stack.len()).rev() {
         let dirname_cstr = concat_fnames(
             cstr_as_string(Some(stack[i].as_c_str())),
-            cbuf_as_string(dirbuf.as_ptr().cast_mut(), dirbuf_len),
+            cstrn_as_string(dirbuf.to_bytes()),
             true,
         );
         if os_isdir(&dirname_cstr) {

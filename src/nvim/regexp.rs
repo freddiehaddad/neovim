@@ -386,6 +386,14 @@ impl crate::memory::IntoConstPtr for RegLinePtr {
     }
 }
 
+impl crate::memory::IntoMutPtr for RegLinePtr {
+    type Target = u8;
+    #[inline]
+    fn into_mut_ptr(self) -> *mut u8 {
+        self.as_ptr()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Regmatch {

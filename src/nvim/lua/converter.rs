@@ -1609,7 +1609,7 @@ pub fn nlua_pop_string_opt(
     let mut size = 0usize;
     let data = unsafe { lua_tolstring(lstate, -1, &mut size) };
     assert!(!data.is_null());
-    let dup = arena_memdupz_opt(arena, data, size);
+    let dup = arena_memdupz_opt(arena, crate::memory::cstr_slice(data, size));
     lua_pop(lstate, 1);
     NvimString { data: dup, size }
 }

@@ -484,14 +484,10 @@ pub fn nvim_option_to_object(
             cstr_as_string(crate::memory::cstr_as_opt_cstr(str_ptr)),
         ))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
-        let n = crate::memory::cstr_len(str_ptr);
-        let mut d = arena_dict(arena, n);
-        for i in 0..n {
-            put_c(
-                &mut d,
-                arena_memdupz(arena, str_ptr.wrapping_add(i), 1),
-                boolean_obj(true),
-            );
+        let bytes = crate::memory::cstr_as_bytes(str_ptr);
+        let mut d = arena_dict(arena, bytes.len());
+        for &b in bytes {
+            put_c(&mut d, arena_memdupz(arena, &[b]), boolean_obj(true));
         }
         dict_obj(d)
     } else {

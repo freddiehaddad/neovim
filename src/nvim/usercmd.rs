@@ -1757,7 +1757,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
 
 #[inline]
 fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
-    let data = arena_memdupz(arena, bytes.as_ptr().cast(), bytes.len());
+    let data = arena_memdupz(arena, bytes);
     string_obj(NvimString {
         data,
         size: bytes.len(),

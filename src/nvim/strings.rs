@@ -171,6 +171,14 @@ impl<T> crate::memory::IntoConstPtr for CStrCursor<T> {
     }
 }
 
+impl<T> crate::memory::IntoMutPtr for CStrCursor<T> {
+    type Target = T;
+    #[inline]
+    fn into_mut_ptr(self) -> *mut T {
+        self.as_ptr()
+    }
+}
+
 #[inline]
 pub fn tr(s: &CStr) -> &'static CStr {
     gettext(s)
@@ -686,7 +694,7 @@ pub fn tv_ptr(tvs: &[TypVal], idxp: &mut i32) -> usize {
         return 0;
     }
     *idxp += 1;
-    tv.vval.v_any_ptr() as usize
+    tv.vval.v_any_addr()
 }
 
 pub fn tv_float(tvs: &[TypVal], idxp: &mut i32) -> TvFloat {

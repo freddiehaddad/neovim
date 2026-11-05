@@ -2907,7 +2907,7 @@ pub fn nvim_eval_statusline(
 
     result = arena_dict(arena, 3);
     let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
-    let buf = CharBuf::from_raw_parts(buf_data, MAXPATHL);
+    let buf = CharBuf::from_slice(unsafe { std::slice::from_raw_parts_mut(buf_data, MAXPATHL) });
     let mut hltab: *mut StlHlrec = ptr::null_mut();
     let mut hltab_len: usize = 0;
 

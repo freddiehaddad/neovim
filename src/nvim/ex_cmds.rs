@@ -1,6 +1,6 @@
 //! Functions for command-line Ex commands (`src/nvim/ex_cmds.c`).
 
-use crate::api::private::helpers::{cbuf_as_string, cstr_as_obj, cstr_as_string};
+use crate::api::private::helpers::{cstr_as_obj, cstr_as_string, cstrn_as_string};
 use crate::api::private::validate::NvimString;
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, check_arg_idx, do_argfile,
@@ -4419,10 +4419,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         } else {
                             let lastlnum = sub_firstlnum + nmatch - 1;
                             let last_slice = crate::memline::ml_get_slice(lastlnum);
-                            tmp = cbuf_as_string(
-                                last_slice.as_ptr().cast_mut().cast(),
-                                last_slice.len(),
-                            );
+                            tmp = cstrn_as_string(last_slice);
                             nmatch_tl += nmatch - 1;
                         }
                         let copy_len = (regmatch.startpos[0].col - copycol) as usize;

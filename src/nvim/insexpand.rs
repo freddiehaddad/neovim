@@ -1,7 +1,7 @@
 //! Functions for Insert mode completion (`src/nvim/insexpand.c`).
 
 use crate::api::private::helpers::{
-    HLF_E, api_clear_string, cbuf_as_string, cbuf_to_string, copy_string,
+    HLF_E, api_clear_string, cbuf_to_string, copy_string, static_cstr_as_string,
 };
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{
@@ -3562,10 +3562,10 @@ fn ins_compl_mode() -> NvimString {
     if ctrl_x_mode_not_defined_yet() || ctrl_x_mode_scroll() || insexp().compl_started {
         let idx = (insexp().ctrl_x_mode & !CTRL_X_WANT_IDENT) as usize;
         if let Some(mode_cstr) = CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
-            return cbuf_as_string(mode_cstr.as_ptr().cast_mut(), mode_cstr.to_bytes().len());
+            return static_cstr_as_string(mode_cstr);
         }
     }
-    cbuf_as_string(c"".as_ptr().cast_mut(), 0)
+    static_cstr_as_string(c"")
 }
 
 fn ins_compl_update_sequence_numbers() {

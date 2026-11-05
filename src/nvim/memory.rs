@@ -15,7 +15,7 @@ use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, set_kee
 use crate::option::free_all_options;
 use crate::option_vars::*;
 use crate::register::set_expr_line;
-use crate::strings::{RawCCharPtr, RawCCharPtrMut};
+use crate::strings::RawCCharPtrMut;
 use crate::ui::ui_free_all_mem;
 use crate::ui_client::ui_client_free_all_mem;
 use std::ffi::{CStr, CString, c_void};
@@ -247,8 +247,9 @@ pub fn free_items<T>(items: *mut T) {
     raw_dealloc(items.cast::<c_void>());
 }
 
-/// Allocate `len + 1` bytes, copy `data[..len]`, and NUL-terminate.
-pub fn alloc_cstring_len(data: *const std::ffi::c_char, len: usize) -> RawCCharPtrMut {
+/// Allocate `data.len() + 1` bytes, copy `data`, and NUL-terminate.
+pub fn alloc_cstring_len(data: &[u8]) -> RawCCharPtrMut {
+    let len = data.len();
     let Some(total_size) = len.checked_add(1) else {
         preserve_exit(Some(
             c"Nvim: Data too large to fit into virtual memory space\n",
@@ -257,7 +258,7 @@ pub fn alloc_cstring_len(data: *const std::ffi::c_char, len: usize) -> RawCCharP
     let ret = raw_alloc(total_size).cast::<u8>();
     if len > 0 {
         unsafe {
-            std::ptr::copy_nonoverlapping(data.cast::<u8>(), ret, len);
+            std::ptr::copy_nonoverlapping(data.as_ptr(), ret, len);
         }
     }
     unsafe {
@@ -269,8 +270,7 @@ pub fn alloc_cstring_len(data: *const std::ffi::c_char, len: usize) -> RawCCharP
 /// Duplicate a NUL-terminated C string.
 #[inline]
 pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> RawCCharPtrMut {
-    let len = str_ptr.to_bytes().len();
-    alloc_cstring_len(str_ptr.as_ptr(), len)
+    alloc_cstring_len(str_ptr.to_bytes())
 }
 
 /// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
@@ -280,7 +280,11 @@ pub fn free_cstring(p: RawCCharPtrMut) {
 }
 
 /// Portable `strnlen` (`xstrnlen`).
-pub fn xstrnlen(s: RawCCharPtr, n: usize) -> usize {
+pub fn xstrnlen(s: impl IntoConstPtr<Target = std::ffi::c_char>, n: usize) -> usize {
+    let s = s.into_const_ptr();
+    if s.is_null() {
+        return 0;
+    }
     let mut len = 0;
     while len < n && unsafe { *s.add(len) } != 0 {
         len += 1;
@@ -326,11 +330,36 @@ pub fn cstr_slice<'a>(s: impl IntoConstPtr<Target = std::ffi::c_char>, len: usiz
 
 /// View `len` bytes starting at `s` as a mutable byte slice (`&mut [u8]`).
 #[inline]
-pub fn cstr_mut_slice<'a>(s: *mut std::ffi::c_char, len: usize) -> &'a mut [u8] {
+pub fn cstr_mut_slice<'a>(
+    s: impl IntoMutPtr<Target = std::ffi::c_char>,
+    len: usize,
+) -> &'a mut [u8] {
+    let s = s.into_mut_ptr();
     if s.is_null() || len == 0 {
         &mut []
     } else {
         unsafe { std::slice::from_raw_parts_mut(s.cast::<u8>(), len) }
+    }
+}
+
+pub trait IntoMutPtr {
+    type Target;
+    fn into_mut_ptr(self) -> *mut Self::Target;
+}
+
+impl<T> IntoMutPtr for *mut T {
+    type Target = T;
+    #[inline]
+    fn into_mut_ptr(self) -> *mut T {
+        self
+    }
+}
+
+impl<T> IntoMutPtr for &mut T {
+    type Target = T;
+    #[inline]
+    fn into_mut_ptr(self) -> *mut T {
+        std::ptr::from_mut(self)
     }
 }
 
@@ -499,9 +528,11 @@ pub fn cstr_cluster_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -
 /// View the span `[base .. p + 6]` (stopping at NUL after `p`) and return `(slice, p - base)`.
 #[inline]
 pub fn cstr_span_to_char<'a>(
-    base: *const std::ffi::c_char,
-    p: *const std::ffi::c_char,
+    base: impl IntoConstPtr<Target = std::ffi::c_char>,
+    p: impl IntoConstPtr<Target = std::ffi::c_char>,
 ) -> (&'a [u8], usize) {
+    let base = base.into_const_ptr();
+    let p = p.into_const_ptr();
     if base.is_null() || p.is_null() || (p as usize) < (base as usize) {
         return (&[], 0);
     }
@@ -523,7 +554,12 @@ pub fn cstr_span_to_char<'a>(
 
 /// View the byte span `[b .. p)` between two pointers into the same buffer.
 #[inline]
-pub fn ptr_span_bytes<'a>(b: *const std::ffi::c_char, p: *const std::ffi::c_char) -> &'a [u8] {
+pub fn ptr_span_bytes<'a>(
+    b: impl IntoConstPtr<Target = std::ffi::c_char>,
+    p: impl IntoConstPtr<Target = std::ffi::c_char>,
+) -> &'a [u8] {
+    let b = b.into_const_ptr();
+    let p = p.into_const_ptr();
     if b.is_null() || p.is_null() || (p as usize) <= (b as usize) {
         return &[];
     }
@@ -532,13 +568,17 @@ pub fn ptr_span_bytes<'a>(b: *const std::ffi::c_char, p: *const std::ffi::c_char
 
 /// View a NUL-terminated C string buffer (including the trailing NUL byte) as a mutable byte slice.
 #[inline]
-pub fn cstr_as_mut_bytes<'a>(s: *mut std::ffi::c_char) -> &'a mut [u8] {
+pub fn cstr_as_mut_bytes<'a>(s: impl IntoMutPtr<Target = std::ffi::c_char>) -> &'a mut [u8] {
     cstr_buf_as_mut_bytes(s, 0)
 }
 
 /// View a NUL-terminated C string buffer (plus `extra` trailing capacity bytes) as a mutable byte slice.
 #[inline]
-pub fn cstr_buf_as_mut_bytes<'a>(s: *mut std::ffi::c_char, extra: usize) -> &'a mut [u8] {
+pub fn cstr_buf_as_mut_bytes<'a>(
+    s: impl IntoMutPtr<Target = std::ffi::c_char>,
+    extra: usize,
+) -> &'a mut [u8] {
+    let s = s.into_mut_ptr();
     if s.is_null() {
         return &mut [];
     }
@@ -747,32 +787,26 @@ pub fn arena_allocz_opt(arena: Option<&mut Arena>, size: usize) -> RawCCharPtrMu
     mem.cast()
 }
 
-/// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
-pub fn arena_memdupz(
-    arena: &mut Arena,
-    buf: *const std::ffi::c_char,
-    size: usize,
-) -> RawCCharPtrMut {
+/// Copy `buf` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
+pub fn arena_memdupz(arena: &mut Arena, buf: &[u8]) -> RawCCharPtrMut {
+    let size = buf.len();
     let mem = arena_allocz(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {
-            std::ptr::copy_nonoverlapping(buf.cast::<u8>(), mem, size);
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), mem, size);
         }
     }
     mem.cast()
 }
 
-/// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (or heap if `None`).
+/// Copy `buf` into a NUL-terminated buffer on `arena` (or heap if `None`).
 #[inline]
-pub fn arena_memdupz_opt(
-    arena: Option<&mut Arena>,
-    buf: *const std::ffi::c_char,
-    size: usize,
-) -> RawCCharPtrMut {
+pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: &[u8]) -> RawCCharPtrMut {
+    let size = buf.len();
     let mem = arena_allocz_opt(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {
-            std::ptr::copy_nonoverlapping(buf.cast::<u8>(), mem, size);
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), mem, size);
         }
     }
     mem.cast()
@@ -975,7 +1009,7 @@ mod tests {
             pos: 0,
             size: 0,
         };
-        let s1 = arena_memdupz(&mut arena, c"hello arena".as_ptr(), 11);
+        let s1 = arena_memdupz(&mut arena, b"hello arena");
         let big = arena_alloc(&mut arena, 8192, true);
         assert!(!big.is_null());
         assert_eq!(

@@ -2,9 +2,9 @@
 
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
-    HLF_E, TryState, add_c, api_clear_error, api_free_array, arena_array, array_obj,
-    cbuf_as_string, cstr_as_obj, cstr_as_string, error_init, error_set, integer_obj, string_obj,
-    try_enter, try_leave,
+    HLF_E, TryState, add_c, api_clear_error, api_free_array, arena_array, array_obj, cstr_as_obj,
+    cstr_as_string, cstrn_as_string, error_init, error_set, integer_obj, string_obj, try_enter,
+    try_leave,
 };
 use crate::api::private::validate::{Array, NvimString};
 use crate::api::vim::nvim_create_buf;
@@ -4020,7 +4020,10 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
         unsafe { ptr::write_bytes(buf, b'*', len) };
         let mut item = arena_array(&mut arena, 3);
         add_c(&mut item, integer_obj(0));
-        add_c(&mut item, string_obj(cbuf_as_string(buf.cast(), len)));
+        add_c(
+            &mut item,
+            string_obj(cstrn_as_string(crate::memory::cstr_slice(buf.cast(), len))),
+        );
         add_c(&mut item, integer_obj(0));
         add_c(&mut content, array_obj(item));
     } else if !line.last_colors.colors.is_empty() {
@@ -4039,10 +4042,10 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             debug_assert!(chunk.end >= chunk.start);
             add_c(
                 &mut item,
-                string_obj(cbuf_as_string(
+                string_obj(cstrn_as_string(crate::memory::cstr_slice(
                     line.cmdbuff().wrapping_add(chunk.start as usize).cast(),
                     (chunk.end - chunk.start) as usize,
-                )),
+                ))),
             );
             add_c(&mut item, integer_obj(chunk.hl_id as Integer));
             add_c(&mut content, array_obj(item));

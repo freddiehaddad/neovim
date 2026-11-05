@@ -112,14 +112,6 @@ impl CharBuf {
     }
 
     #[inline]
-    pub fn from_raw_parts(ptr: *mut u8, len: usize) -> Self {
-        Self {
-            addr: ptr as usize,
-            size: len,
-        }
-    }
-
-    #[inline]
     pub fn as_mut_ptr(&self) -> *mut u8 {
         self.addr as *mut u8
     }

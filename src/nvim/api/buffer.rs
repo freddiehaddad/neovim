@@ -35,8 +35,8 @@ use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array
 use crate::mark::{K_MARK_ADJUST_API, K_MARK_ALL_NO_RESOLVE, mark_adjust_buf, mark_get};
 use crate::marktree::K_MTMETA_LINES;
 use crate::memline::{
-    ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf,
-    ml_get_buf_len, ml_replace_buf,
+    ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf_len,
+    ml_replace_buf,
 };
 use crate::memory::{Arena, arena_allocz, arena_memdupz};
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
@@ -448,7 +448,7 @@ pub fn nvim_buf_set_lines(
 
     for i in 0..new_len {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.data, l.size).cast::<u8>();
+        let p = arena_memdupz(arena, l.as_bytes()).cast::<u8>();
         if l.size > 0 {
             for b in unsafe { std::slice::from_raw_parts_mut(p, l.size) } {
                 if *b == 0 {
@@ -670,9 +670,9 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_start_raw = ml_get_buf(b, start_row as Linenr).as_ptr().cast_mut();
-    let len_at_start = ml_get_buf_len(b, start_row as Linenr);
-    let str_at_start = arena_memdupz(arena, str_at_start_raw, len_at_start as usize);
+    let str_at_start_slice = crate::memline::ml_get_buf_slice(b, start_row as Linenr);
+    let len_at_start = str_at_start_slice.len() as Colnr;
+    let str_at_start = arena_memdupz(arena, str_at_start_slice);
     if start_col < 0 {
         start_col = i64::from(len_at_start) + start_col + 1;
     }
@@ -681,9 +681,9 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_end_raw = ml_get_buf(b, end_row as Linenr).as_ptr().cast_mut();
-    let len_at_end = ml_get_buf_len(b, end_row as Linenr);
-    let str_at_end = arena_memdupz(arena, str_at_end_raw, len_at_end as usize);
+    let str_at_end_slice = crate::memline::ml_get_buf_slice(b, end_row as Linenr);
+    let len_at_end = str_at_end_slice.len() as Colnr;
+    let str_at_end = arena_memdupz(arena, str_at_end_slice);
     if end_col < 0 {
         end_col = i64::from(len_at_end) + end_col + 1;
     }
@@ -787,7 +787,7 @@ pub fn nvim_buf_set_text(
     new_byte += first_item.size as Bcount;
     for i in 1..new_len.saturating_sub(1) {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.data, l.size).cast::<u8>();
+        let p = arena_memdupz(arena, l.as_bytes()).cast::<u8>();
         if l.size > 0 {
             for b in unsafe { std::slice::from_raw_parts_mut(p, l.size) } {
                 if *b == 0 {

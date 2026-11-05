@@ -379,14 +379,14 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub const fn v_any_ptr(self) -> *const std::ffi::c_void {
+    pub fn v_any_addr(self) -> usize {
         match self {
-            Self::String(p) => p.cast(),
-            Self::List(p) => p.cast(),
-            Self::Dict(p) => p.cast(),
-            Self::Blob(p) => p.cast(),
-            Self::Partial(p) => p.cast(),
-            _ => ptr::null(),
+            Self::String(p) => p as usize,
+            Self::List(p) => p as usize,
+            Self::Dict(p) => p as usize,
+            Self::Blob(p) => p as usize,
+            Self::Partial(p) => p as usize,
+            _ => 0,
         }
     }
 }

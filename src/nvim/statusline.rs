@@ -224,7 +224,11 @@ impl StlItem {
     }
 
     #[inline]
-    pub fn set_start(&mut self, base: *const u8, p: *const u8) {
+    pub fn set_start(
+        &mut self,
+        base: impl crate::memory::IntoConstPtr<Target = u8>,
+        p: impl crate::memory::IntoConstPtr<Target = u8>,
+    ) {
         self.start_off = crate::memory::ptr_offset_from(p, base) as usize;
     }
 }

@@ -158,7 +158,7 @@ fn api_err_req(err: &mut Error, name: &std::ffi::CStr) {
 #[inline]
 fn format_buflocal_arena(arena: &mut Arena, handle: i32) -> NvimString {
     let s = format!("<buffer={handle}>");
-    let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
+    let data = arena_memdupz(arena, s.as_bytes());
     NvimString {
         data,
         size: s.len(),

@@ -139,11 +139,6 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 }
 
 #[inline]
-pub const fn cbuf_as_string(data: RawCCharPtrMut, size: usize) -> NvimString {
-    NvimString { data, size }
-}
-
-#[inline]
 pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut(),
@@ -345,29 +340,17 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 
 #[inline]
 pub fn cbuf_to_arena_str(arena: &mut Arena, buf: &[u8]) -> NvimString {
-    let len = buf.len();
-    let ptr = if buf.is_empty() {
-        c"".as_ptr()
-    } else {
-        buf.as_ptr().cast()
-    };
     NvimString {
-        data: arena_memdupz(arena, ptr, len),
-        size: len,
+        data: arena_memdupz(arena, buf),
+        size: buf.len(),
     }
 }
 
 #[inline]
 pub fn cbuf_to_arena_str_opt(arena: Option<&mut Arena>, buf: &[u8]) -> NvimString {
-    let len = buf.len();
-    let ptr = if buf.is_empty() {
-        c"".as_ptr()
-    } else {
-        buf.as_ptr().cast()
-    };
     NvimString {
-        data: arena_memdupz_opt(arena, ptr, len),
-        size: len,
+        data: arena_memdupz_opt(arena, buf),
+        size: buf.len(),
     }
 }
 
@@ -722,7 +705,7 @@ pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
     };
     let len = str_.to_bytes().len();
     NvimString {
-        data: alloc_cstring_len(str_.as_ptr(), len),
+        data: alloc_cstring_len(str_.to_bytes()),
         size: len,
     }
 }
@@ -733,14 +716,14 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 
 pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(bytes.as_ptr().cast(), bytes.len()),
+        data: alloc_cstring_len(bytes),
         size: bytes.len(),
     }
 }
 
 pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(buf.as_ptr().cast(), buf.len()),
+        data: alloc_cstring_len(buf),
         size: buf.len(),
     }
 }
@@ -930,7 +913,7 @@ pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
 pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
     if !bytes.is_empty() {
         NvimString {
-            data: arena_memdupz(arena, bytes.as_ptr().cast(), bytes.len()),
+            data: arena_memdupz(arena, bytes),
             size: bytes.len(),
         }
     } else {
@@ -952,7 +935,7 @@ pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
         None => {
             if !bytes.is_empty() {
                 NvimString {
-                    data: arena_memdupz_opt(None, bytes.as_ptr().cast(), bytes.len()),
+                    data: arena_memdupz_opt(None, bytes),
                     size: bytes.len(),
                 }
             } else {
@@ -1024,7 +1007,7 @@ pub fn api_clear_error(value: &mut Error) {
 pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
     if !str_.data.is_null() {
         NvimString {
-            data: arena_memdupz_opt(arena, str_.data, str_.size),
+            data: arena_memdupz_opt(arena, str_.as_bytes()),
             size: str_.size,
         }
     } else {
