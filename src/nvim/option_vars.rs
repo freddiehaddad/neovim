@@ -18,18 +18,18 @@ impl OptString {
         Self(None)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn from_cstr(s: &std::ffi::CStr) -> Self {
         Self(Some(s.to_owned()))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn from_bytes(bytes: &[u8]) -> Self {
         let bytes = crate::memory::bytes_until_nul(bytes);
         Self(Some(crate::memory::cstr_from_bytes(bytes)))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_cstr(&self) -> &'static std::ffi::CStr {
         match self.0 {
             Some(ref s) => unsafe { &*(s.as_c_str() as *const std::ffi::CStr) },
@@ -37,32 +37,32 @@ impl OptString {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_bytes(&self) -> &'static [u8] {
         self.as_cstr().to_bytes()
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.as_bytes().is_empty()
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn is_null(&self) -> bool {
         self.0.is_none()
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn first_byte(&self) -> u8 {
         self.as_bytes().first().copied().unwrap_or(0)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_ptr(&self) -> *const std::ffi::c_char {
         self.as_cstr().as_ptr()
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn to_owned(&self) -> std::ffi::CString {
         self.0.clone().unwrap_or_default()
     }
@@ -71,7 +71,7 @@ impl OptString {
 impl std::ops::Deref for OptString {
     type Target = std::ffi::CStr;
 
-    #[inline]
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         self.as_cstr()
     }
@@ -1027,7 +1027,7 @@ impl OptionVars {
 
 pub static OPT_VARS: GlobalState<OptionVars> = GlobalState::new(OptionVars::new());
 
-#[inline]
+#[inline(always)]
 pub fn opt_vars() -> crate::globals::GraphPtr<OptionVars> {
     OPT_VARS.handle()
 }

@@ -224,14 +224,16 @@ pub fn hash_add_item(
     di: &mut crate::eval::typval::Dictitem,
     hash: HashVal,
 ) {
-    let mut hi: *mut Hashitem = std::hint::black_box(std::ptr::from_mut(hi_in));
+    let mut hi = crate::globals::GraphPtr::from(hi_in);
     if ht.ht_array.is_empty() {
-        let offset = crate::memory::ptr_offset_from(hi, EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>())
-            as usize;
+        let offset = crate::memory::ptr_offset_from(
+            hi.as_ptr(),
+            EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>(),
+        ) as usize;
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
-        hi = ht.ht_array.as_mut_ptr().wrapping_add(offset);
+        hi = crate::globals::GraphPtr::new(ht.ht_array.as_mut_ptr().wrapping_add(offset));
     }
-    let hi_ref = unsafe { &mut *hi };
+    let hi_ref = hi.borrow_mut();
     ht.ht_used += 1;
     ht.ht_changed += 1;
     if hi_ref.is_null_slot() {

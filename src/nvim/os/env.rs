@@ -844,7 +844,10 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             return env_st().homedir.clone();
         }
 
+        #[cfg(windows)]
         let mut kos_env_path = os_getenv_cstr(name);
+        #[cfg(not(windows))]
+        let kos_env_path = os_getenv_cstr(name);
         #[cfg(windows)]
         if let Some(ref mut c) = kos_env_path
             && (name_bytes.eq_ignore_ascii_case(b"VIMRUNTIME")
@@ -981,10 +984,7 @@ pub fn home_replace(
         crate::memory::cstr_len(homedir_ptr)
     };
 
-    #[cfg(windows)]
     let mut homedir_env_cstr = os_getenv_cstr(c"HOME");
-    #[cfg(not(windows))]
-    let homedir_env_cstr = os_getenv_cstr(c"HOME");
     #[cfg(windows)]
     if homedir_env_cstr.is_none() {
         homedir_env_cstr = os_getenv_cstr(c"USERPROFILE");
@@ -1046,7 +1046,10 @@ pub fn home_replace(
             let cmp_ok = len != 0
                 && path_cmp(
                     opt_vars().p_fic,
-                    crate::memory::cstr_until_nul(&src_bytes[src_idx..]),
+                    crate::memory::CStrSubslice::advance(
+                        crate::memory::cstr_from_ptr(src),
+                        src_idx,
+                    ),
                     crate::memory::cstr_from_ptr(p),
                     len,
                 ) == 0;

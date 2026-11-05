@@ -68,10 +68,10 @@ pub type RawCCharPtr = *const c_char;
 pub type RawCCharPtrMut = *mut c_char;
 
 #[repr(transparent)]
-pub struct CStrCursor<T = u8>(Option<std::ptr::NonNull<T>>);
+pub struct CStrCursor<T = u8>(*mut T);
 
 impl<T> Clone for CStrCursor<T> {
-    #[inline]
+    #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
@@ -80,7 +80,7 @@ impl<T> Clone for CStrCursor<T> {
 impl<T> Copy for CStrCursor<T> {}
 
 impl<T> PartialEq for CStrCursor<T> {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -89,125 +89,132 @@ impl<T> PartialEq for CStrCursor<T> {
 impl<T> Eq for CStrCursor<T> {}
 
 impl<T> CStrCursor<T> {
-    pub const NULL: Self = Self(None);
+    pub const NULL: Self = Self(ptr::null_mut());
 
-    #[inline]
-    pub fn from_ptr(p: *const T) -> Self {
-        Self(std::ptr::NonNull::new(p.cast_mut()))
+    #[inline(always)]
+    pub const fn from_ptr(p: *const T) -> Self {
+        Self(p.cast_mut())
     }
 
-    #[inline]
-    pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
-        s.map_or(Self::NULL, |c| Self::from_ptr(c.as_ptr().cast()))
+    #[inline(always)]
+    pub const fn from_opt_cstr(s: Option<&CStr>) -> Self {
+        match s {
+            Some(c) => Self(c.as_ptr().cast_mut().cast()),
+            None => Self::NULL,
+        }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn is_null(self) -> bool {
-        self.0.is_none()
+        self.0.is_null()
     }
 
-    #[inline]
-    pub fn as_ptr(self) -> *mut T {
-        self.0.map_or(ptr::null_mut(), std::ptr::NonNull::as_ptr)
+    #[inline(always)]
+    pub const fn as_ptr(self) -> *mut T {
+        self.0
     }
 
-    #[inline]
-    pub fn cast<U>(self) -> *mut U {
-        self.as_ptr().cast()
+    #[inline(always)]
+    pub const fn cast<U>(self) -> *mut U {
+        self.0.cast()
     }
 
-    #[inline]
-    pub fn cast_const(self) -> *const T {
-        self.as_ptr().cast_const()
+    #[inline(always)]
+    pub const fn cast_const(self) -> *const T {
+        self.0.cast_const()
     }
 
-    #[inline]
-    pub fn wrapping_add(self, n: usize) -> Self {
-        Self::from_ptr(self.as_ptr().wrapping_add(n))
+    #[inline(always)]
+    pub const fn wrapping_add(self, n: usize) -> Self {
+        Self(self.0.wrapping_add(n))
     }
 
-    #[inline]
-    pub fn wrapping_sub(self, n: usize) -> Self {
-        Self::from_ptr(self.as_ptr().wrapping_sub(n))
+    #[inline(always)]
+    pub const fn wrapping_sub(self, n: usize) -> Self {
+        Self(self.0.wrapping_sub(n))
     }
 
-    #[inline]
-    pub fn wrapping_offset(self, d: isize) -> Self {
-        Self::from_ptr(self.as_ptr().wrapping_offset(d))
+    #[inline(always)]
+    pub const fn wrapping_offset(self, d: isize) -> Self {
+        Self(self.0.wrapping_offset(d))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn skipwhite(self) -> Self {
         self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn skiptowhite(self) -> Self {
         self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
     }
 
-    #[inline]
-    pub fn first_byte(self) -> u8 {
-        crate::memory::cstr_first_byte(self.as_ptr().cast::<u8>())
+    #[inline(always)]
+    pub const fn first_byte(self) -> u8 {
+        if self.0.is_null() {
+            0
+        } else {
+            unsafe { *self.0.cast::<u8>() }
+        }
     }
 
-    #[inline]
-    pub fn is_empty(self) -> bool {
-        crate::memory::cstr_is_empty(self.as_ptr().cast::<u8>())
+    #[inline(always)]
+    pub const fn is_empty(self) -> bool {
+        self.first_byte() == 0
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn len(self) -> usize {
         crate::memory::cstr_len(self.as_ptr().cast::<u8>())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_bytes(self) -> &'static [u8] {
         crate::memory::cstr_as_bytes(self.as_ptr().cast::<u8>())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_mut_bytes(self) -> &'static mut [u8] {
         crate::memory::cstr_as_mut_bytes(self.as_ptr().cast::<std::ffi::c_char>())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_cstr(self) -> &'static CStr {
         crate::memory::cstr_from_ptr(self.as_ptr().cast::<u8>())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_opt_cstr(self) -> Option<&'static CStr> {
         crate::memory::cstr_as_opt_cstr(self.as_ptr().cast::<u8>())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn to_cstring(self) -> std::ffi::CString {
         crate::memory::cstr_to_cstring(self.as_ptr().cast::<u8>())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn slice(self, len: usize) -> &'static [u8] {
         crate::memory::cstr_slice(self.as_ptr().cast::<u8>(), len)
     }
 }
 
 impl<T> Default for CStrCursor<T> {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::NULL
     }
 }
 
 impl<T> PartialOrd for CStrCursor<T> {
-    #[inline]
+    #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<T> Ord for CStrCursor<T> {
-    #[inline]
+    #[inline(always)]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         (self.as_ptr() as usize).cmp(&(other.as_ptr() as usize))
     }
@@ -215,7 +222,7 @@ impl<T> Ord for CStrCursor<T> {
 
 impl<T> crate::memory::IntoConstPtr for CStrCursor<T> {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_const_ptr(self) -> *const T {
         self.as_ptr().cast_const()
     }
@@ -223,18 +230,18 @@ impl<T> crate::memory::IntoConstPtr for CStrCursor<T> {
 
 impl<T> crate::memory::IntoMutPtr for CStrCursor<T> {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_mut_ptr(self) -> *mut T {
         self.as_ptr()
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn tr(s: &CStr) -> &'static CStr {
     gettext(s)
 }
 
-#[inline]
+#[inline(always)]
 pub fn gettext(msgid: &CStr) -> &'static CStr {
     if crate::os::lang::HAVE_LIBINTL
         && let Some(tr) = crate::os::lang::c_gettext(Some(msgid))
@@ -249,48 +256,48 @@ pub trait IntoNgettextCount {
 }
 
 impl IntoNgettextCount for u32 {
-    #[inline]
+    #[inline(always)]
     fn into_ngettext_count(self) -> u64 {
         u64::from(self)
     }
 }
 
 impl IntoNgettextCount for u64 {
-    #[inline]
+    #[inline(always)]
     fn into_ngettext_count(self) -> u64 {
         self
     }
 }
 
 impl IntoNgettextCount for usize {
-    #[inline]
+    #[inline(always)]
     fn into_ngettext_count(self) -> u64 {
         self as u64
     }
 }
 
 impl IntoNgettextCount for i32 {
-    #[inline]
+    #[inline(always)]
     fn into_ngettext_count(self) -> u64 {
         self as u64
     }
 }
 
 impl IntoNgettextCount for i64 {
-    #[inline]
+    #[inline(always)]
     fn into_ngettext_count(self) -> u64 {
         self as u64
     }
 }
 
 impl IntoNgettextCount for isize {
-    #[inline]
+    #[inline(always)]
     fn into_ngettext_count(self) -> u64 {
         self as u64
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn ngettext<N: IntoNgettextCount>(msgid1: &CStr, msgid2: &CStr, n: N) -> &'static CStr {
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL
@@ -463,7 +470,7 @@ pub fn strtod(nptr: &CStr) -> (f64, &CStr) {
     (val, &nptr[consumed..])
 }
 
-#[inline]
+#[inline(always)]
 fn write_fmt_to_c_buf(dst: &mut [u8], args: std::fmt::Arguments<'_>) -> usize {
     use std::io::Write;
     if dst.is_empty() {
@@ -648,7 +655,7 @@ pub fn del_trailing_spaces(slice: &mut [u8]) {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn vim_haschr<C: crate::charset::AsciiInt>(string: &CStr, c: C) -> bool {
     vim_strchr(string, c.into_ascii_int()).is_some()
 }
@@ -1168,7 +1175,7 @@ pub enum FmtVal<'a> {
 }
 
 impl<'a> FmtVal<'a> {
-    #[inline]
+    #[inline(always)]
     fn as_i64(self) -> i64 {
         match self {
             Self::Signed(v) => v,
@@ -1179,7 +1186,7 @@ impl<'a> FmtVal<'a> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_u64(self) -> u64 {
         match self {
             Self::Signed(v) => v as u64,
@@ -1190,7 +1197,7 @@ impl<'a> FmtVal<'a> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_f64(self) -> f64 {
         match self {
             Self::Float(v) => v,
@@ -1200,7 +1207,7 @@ impl<'a> FmtVal<'a> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_addr(self) -> usize {
         match self {
             Self::Addr(p) => p,
@@ -1211,7 +1218,7 @@ impl<'a> FmtVal<'a> {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_cstr(self) -> Option<&'a CStr> {
         match self {
             Self::CStr(s) => s,
@@ -1228,174 +1235,174 @@ pub trait IntoFmtVal<'a> {
 }
 
 impl<'a, T> IntoFmtVal<'a> for CStrCursor<T> {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::Addr(self.as_ptr() as usize)
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self.as_cstr()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a mut crate::option_vars::OptString {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self.as_cstr()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for FmtVal<'a> {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         self
     }
 }
 
 impl IntoFmtVal<'_> for i8 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(i64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for i16 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(i64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for i32 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(i64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for i64 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(self)
     }
 }
 
 impl IntoFmtVal<'_> for isize {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(self as i64)
     }
 }
 
 impl IntoFmtVal<'_> for u8 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for u16 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for u32 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for u64 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(self)
     }
 }
 
 impl IntoFmtVal<'_> for usize {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(self as u64)
     }
 }
 
 impl IntoFmtVal<'_> for bool {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for f32 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Float(f64::from(self))
     }
 }
 
 impl IntoFmtVal<'_> for f64 {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Float(self)
     }
 }
 
 impl<T> IntoFmtVal<'_> for *const T {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Addr(self as usize)
     }
 }
 
 impl<T> IntoFmtVal<'_> for *mut T {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Addr(self as usize)
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a CStr {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &&'a CStr {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(*self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for Option<&'a CStr> {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self)
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a std::ffi::CString {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self.as_c_str()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for Option<&'a std::ffi::CString> {
-    #[inline]
+    #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self.map(std::ffi::CString::as_c_str))
     }
 }
 
-#[inline]
+#[inline(always)]
 fn fmt_arg_val<'a>(args: &[FmtVal<'a>], arg_idx: &mut i32) -> FmtVal<'a> {
     let idx = (*arg_idx - 1) as usize;
     *arg_idx += 1;

@@ -31,7 +31,9 @@ use crate::fileio::{
 };
 use crate::globals::*;
 use crate::mbyte::utfc_slice2len;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring};
+use crate::memory::cstr_from_bytes;
+#[cfg(windows)]
+use crate::memory::cstr_to_cstring;
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::os::env::{ExpandCtx, expand_env_save, home_replace};
@@ -1804,7 +1806,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     let head_bytes = &buf_vec[q_off - 1..buf_len];
                     let rem_old_len = remain_vec
                         .as_ref()
-                        .map_or(0, |r| crate::memory::bytes_until_nul(&r).len());
+                        .map_or(0, |r| crate::memory::bytes_until_nul(r).len());
                     let mut new_rem = Vec::with_capacity(head_bytes.len() + rem_old_len + 1);
                     new_rem.extend_from_slice(head_bytes);
                     if let Some(ref rem) = remain_vec {
@@ -1917,16 +1919,13 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         // Ensure that the result will have no trailing path separator
         // if the argument had none.  But keep "/" or "//".
-        if !has_trailing_pathsep {
-            q = unsafe { p.add(p_len) };
-            if after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
-                unsafe {
-                    *path_tail_with_sep(crate::memory::cstr_from_ptr(p))
-                        .as_ptr()
-                        .cast_mut()
-                        .cast::<u8>() = 0
-                };
-            }
+        if !has_trailing_pathsep && after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
+            unsafe {
+                *path_tail_with_sep(crate::memory::cstr_from_ptr(p))
+                    .as_ptr()
+                    .cast_mut()
+                    .cast::<u8>() = 0
+            };
         }
 
         crate::eval::typval::tv_set_string(

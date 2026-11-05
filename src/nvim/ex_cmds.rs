@@ -2673,8 +2673,7 @@ pub fn do_ecmd(
     flags: i32,
     oldwin_arg: Option<&mut WinInfoInfo>,
 ) -> bool {
-    let mut oldwin: *mut WinInfoInfo =
-        oldwin_arg.map_or(ptr::null_mut(), |w| std::hint::black_box(ptr::from_mut(w)));
+    let mut oldwin = crate::globals::GraphPtr::from(oldwin_arg);
     let mut ffname = ffname_arg.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut sfname = sfname_arg.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let other_file: bool;
@@ -2776,8 +2775,8 @@ pub fn do_ecmd(
 
         reset_visual();
 
-        if !oldwin.is_null() && !win_valid(unsafe { oldwin.as_ref() }) {
-            oldwin = ptr::null_mut();
+        if !oldwin.is_null() && !win_valid(oldwin.opt()) {
+            oldwin = crate::globals::GraphPtr::NULL;
         }
 
         did_set_swapcommand = set_swapcommand(command.as_deref(), newlnum);
@@ -2789,7 +2788,7 @@ pub fn do_ecmd(
                 if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
                     curwin_mut().w_alt_fnum = curbuf_mut().b_fnum;
                 }
-                if let Some(ow) = unsafe { oldwin.as_mut() } {
+                if let Some(ow) = oldwin.opt_mut() {
                     buflist_altfpos(ow);
                 }
             }
@@ -2832,7 +2831,7 @@ pub fn do_ecmd(
                 )
                 .map_or(ptr::null_mut(), ptr::from_mut);
                 if !oldwin.is_null() {
-                    oldwin = curwin_ptr();
+                    oldwin = crate::globals::curwin_handle();
                 }
                 set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
             }

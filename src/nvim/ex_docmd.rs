@@ -10604,8 +10604,7 @@ fn ex_edit(eap: &mut Exarg) {
 }
 
 pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
-    let old_curwin =
-        old_curwin_in.map_or(ptr::null_mut(), |w| std::hint::black_box(ptr::from_mut(w)));
+    let mut old_curwin = crate::globals::GraphPtr::from(old_curwin_in);
     if (eap.cmdidx == Cmdidx::CmdNew
         || eap.cmdidx == Cmdidx::CmdTabnew
         || eap.cmdidx == Cmdidx::CmdTabedit
@@ -10694,13 +10693,13 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
 
     if !old_curwin.is_null()
         && !eap.arg.is_empty()
-        && curwin_ptr() != old_curwin
-        && win_valid(unsafe { old_curwin.as_ref() })
-        && unsafe { (*old_curwin).w_buffer } != g_st().curbuf
+        && old_curwin != curwin_ptr()
+        && win_valid(old_curwin.opt())
+        && old_curwin.w_buffer != g_st().curbuf
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
-        unsafe {
-            (*old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
+        {
+            old_curwin.w_alt_fnum = curbuf_mut().b_fnum;
         }
     }
 }

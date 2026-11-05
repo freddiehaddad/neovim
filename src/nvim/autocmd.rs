@@ -2581,15 +2581,13 @@ pub fn apply_autocmds(
     force: bool,
     buf: Option<&mut FileBuf>,
 ) -> bool {
-    let buf_ptr: *mut FileBuf =
-        buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
     apply_autocmds_group(
         event,
         fname,
         fname_io,
         force,
         AUGROUP_ALL,
-        unsafe { buf_ptr.as_mut() },
+        buf,
         Some(crate::globals::curwin_mut()),
         None,
         None,
@@ -2604,15 +2602,13 @@ pub fn apply_autocmds_win(
     buf: Option<&mut FileBuf>,
     win: Option<&WinInfoInfo>,
 ) -> bool {
-    let buf_ptr: *mut FileBuf =
-        buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
     apply_autocmds_group(
         event,
         fname,
         fname_io,
         force,
         AUGROUP_ALL,
-        unsafe { buf_ptr.as_mut() },
+        buf,
         win,
         None,
         None,
@@ -2628,15 +2624,13 @@ pub fn apply_autocmds_exarg(
     buf: Option<&mut FileBuf>,
     eap: Option<&Exarg>,
 ) -> bool {
-    let buf_ptr: *mut FileBuf =
-        buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
     apply_autocmds_group(
         event,
         fname,
         fname_io,
         force,
         AUGROUP_ALL,
-        unsafe { buf_ptr.as_mut() },
+        buf,
         Some(crate::globals::curwin_mut()),
         eap,
         None,
@@ -2652,8 +2646,6 @@ pub fn apply_autocmds_retval(
     buf: Option<&mut FileBuf>,
     retval: &mut bool,
 ) -> bool {
-    let buf_ptr: *mut FileBuf =
-        buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
     if should_abort(*retval) {
         return false;
     }
@@ -2664,7 +2656,7 @@ pub fn apply_autocmds_retval(
         fname_io,
         force,
         AUGROUP_ALL,
-        unsafe { buf_ptr.as_mut() },
+        buf,
         Some(crate::globals::curwin_mut()),
         None,
         None,
@@ -2716,7 +2708,7 @@ pub fn apply_autocmds_group(
     data: Option<&Object>,
     with_buf: bool,
 ) -> bool {
-    let buf: *mut FileBuf = buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
+    let buf = crate::globals::GraphPtr::from(buf);
     let mut fname = fname.map_or(ptr::null(), CStr::as_ptr);
     let fname_io = fname_io.map_or(ptr::null(), CStr::as_ptr);
     {
@@ -2753,9 +2745,7 @@ pub fn apply_autocmds_group(
             let mut win_ignore = false;
             if buf == g_st().curbuf.as_ptr() && EVENT_NAMES[event as usize].event <= 0 {
                 win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw.as_cstr());
-            } else if !buf.is_null()
-                && EVENT_NAMES[event as usize].event <= 0
-                && unsafe { (*buf).b_nwindows > 0 }
+            } else if !buf.is_null() && EVENT_NAMES[event as usize].event <= 0 && buf.b_nwindows > 0
             {
                 win_ignore = true;
                 for tp in for_all_tabpages_ptr() {
@@ -2806,11 +2796,8 @@ pub fn apply_autocmds_group(
                 {
                     fname
                 } else if !buf.is_null() {
-                    unsafe {
-                        (*buf)
-                            .ffname_opt()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                    }
+                    buf.ffname_opt()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
                 } else {
                     ptr::null_mut()
                 }
@@ -2827,27 +2814,21 @@ pub fn apply_autocmds_group(
             };
             g_st().autocmd_fname_full = false;
 
-            g_st().autocmd_bufnr = if buf.is_null() {
-                0
-            } else {
-                unsafe { (*buf).b_fnum }
-            };
+            g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum };
 
             let mut sfname_owned: Option<CString> = None;
             let fname_owned: Option<CString> = if crate::memory::cstr_is_empty(fname) {
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {
-                    fname = unsafe { (*buf).b_p_syn.as_ptr().cast_mut() };
+                    fname = buf.b_p_syn.as_ptr().cast_mut();
                 } else if event == EVENT_FILETYPE {
-                    fname = unsafe { (*buf).b_p_ft.as_ptr().cast_mut() };
+                    fname = buf.b_p_ft.as_ptr().cast_mut();
                 } else {
-                    sfname_owned = unsafe { (*buf).b_sfname.clone() };
-                    fname = unsafe {
-                        (*buf)
-                            .ffname_opt()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                    };
+                    sfname_owned = buf.b_sfname.clone();
+                    fname = buf
+                        .ffname_opt()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 }
                 if fname.is_null() {
                     fname = c"".as_ptr().cast_mut();
@@ -2911,7 +2892,7 @@ pub fn apply_autocmds_group(
             };
 
             if with_buf && !buf.is_null() && buf != g_st().curbuf.as_ptr() {
-                ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
+                ctx_switch(&mut aco, None, None, buf.opt_mut(), 0);
             }
 
             let save_changed = curbuf_mut().b_changed;
@@ -3063,7 +3044,7 @@ pub fn apply_autocmds_group(
         }
 
         if event == EVENT_BUFWIPEOUT && !buf.is_null() {
-            aubuflocal_remove(unsafe { &mut *buf });
+            aubuflocal_remove(buf.borrow_mut());
         }
 
         if retval && event == EVENT_FILETYPE {

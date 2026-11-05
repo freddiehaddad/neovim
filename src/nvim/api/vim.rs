@@ -1475,22 +1475,22 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 
         unblock_autocmds();
 
-        let buf_ptr = std::hint::black_box(std::ptr::from_mut(buf));
+        let buf_ptr = crate::globals::BufPtr::from(buf);
         let mut bufref = Bufref::new();
-        set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
-        if apply_autocmds(EVENT_BUFNEW, None, None, false, unsafe { buf_ptr.as_mut() })
+        set_bufref(&mut bufref, buf_ptr.opt_mut());
+        if apply_autocmds(EVENT_BUFNEW, None, None, false, buf_ptr.opt_mut())
             && !bufref_valid(Some(&bufref))
         {
             break 'create;
         }
         if listed
-            && apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { buf_ptr.as_mut() })
+            && apply_autocmds(EVENT_BUFADD, None, None, false, buf_ptr.opt_mut())
             && !bufref_valid(Some(&bufref))
         {
             break 'create;
         }
 
-        ret = unsafe { (*buf_ptr).b_fnum };
+        ret = buf_ptr.b_fnum;
     }
     try_leave(&tstate, err);
 

@@ -217,7 +217,7 @@ pub struct Regprog {
 }
 
 impl Regprog {
-    #[inline]
+    #[inline(always)]
     pub(super) fn bt_mut(&mut self) -> &mut BtRegprog {
         match &mut self.engine {
             RegProgEngine::Bt(bt) => bt,
@@ -225,7 +225,7 @@ impl Regprog {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn nfa_mut(&mut self) -> &mut NfaRegprog {
         match &mut self.engine {
             RegProgEngine::Nfa(nfa) => nfa,
@@ -257,21 +257,21 @@ impl Regmmatch {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
         self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |b| {
             crate::globals::GraphPtr::new(Box::into_raw(b))
         });
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
         self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |p| {
             crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
         });
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn free_prog(&mut self) {
         if !self.regprog.is_null() {
             drop(unsafe { Box::from_raw(self.regprog.as_ptr()) });
@@ -281,117 +281,129 @@ impl Regmmatch {
 }
 
 impl Default for Regmmatch {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct RegLinePtr {
-    base: Option<&'static std::ffi::CStr>,
-    off: usize,
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+pub struct RegLinePtr(*mut u8);
+
+impl Default for RegLinePtr {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::NULL
+    }
 }
 
 impl RegLinePtr {
-    pub const NULL: Self = Self { base: None, off: 0 };
+    pub const NULL: Self = Self(ptr::null_mut());
 
-    #[inline]
-    pub fn from_opt_cstr(s: Option<&std::ffi::CStr>) -> Self {
-        Self {
-            base: s.map(|c| unsafe { &*(c as *const std::ffi::CStr) }),
-            off: 0,
+    #[inline(always)]
+    pub const fn from_ptr(p: *const u8) -> Self {
+        Self(p.cast_mut())
+    }
+
+    #[inline(always)]
+    pub const fn from_opt_cstr(s: Option<&std::ffi::CStr>) -> Self {
+        match s {
+            Some(c) => Self(c.as_ptr().cast_mut().cast()),
+            None => Self::NULL,
         }
     }
 
-    #[inline]
-    pub fn from_cstr(s: &std::ffi::CStr) -> Self {
-        Self {
-            base: Some(unsafe { &*(s as *const std::ffi::CStr) }),
-            off: 0,
-        }
+    #[inline(always)]
+    pub const fn from_cstr(s: &std::ffi::CStr) -> Self {
+        Self(s.as_ptr().cast_mut().cast())
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn is_null(self) -> bool {
-        self.base.is_none()
+        self.0.is_null()
     }
 
-    #[inline]
-    pub fn as_ptr(self) -> *mut u8 {
-        self.base.map_or(ptr::null_mut(), |b| {
-            b.as_ptr().wrapping_add(self.off).cast_mut().cast()
-        })
+    #[inline(always)]
+    pub const fn as_ptr(self) -> *mut u8 {
+        self.0
     }
 
-    #[inline]
-    pub fn cast<T>(self) -> *mut T {
+    #[inline(always)]
+    pub const fn cast<T>(self) -> *mut T {
         self.as_ptr().cast()
     }
 
-    #[inline]
-    pub fn cast_const(self) -> *const u8 {
+    #[inline(always)]
+    pub const fn cast_const(self) -> *const u8 {
         self.as_ptr().cast_const()
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn wrapping_add(self, n: usize) -> Self {
-        Self {
-            base: self.base,
-            off: self.off.wrapping_add(n),
+        let p = self.as_ptr();
+        if p.is_null() {
+            Self::NULL
+        } else {
+            Self::from_ptr(p.wrapping_add(n))
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn wrapping_sub(self, n: usize) -> Self {
-        Self {
-            base: self.base,
-            off: self.off.wrapping_sub(n),
+        let p = self.as_ptr();
+        if p.is_null() {
+            Self::NULL
+        } else {
+            Self::from_ptr(p.wrapping_sub(n))
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn wrapping_offset(self, d: isize) -> Self {
-        Self {
-            base: self.base,
-            off: self.off.wrapping_add_signed(d),
+        let p = self.as_ptr();
+        if p.is_null() {
+            Self::NULL
+        } else {
+            Self::from_ptr(p.wrapping_offset(d))
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn head_off_to(self, p: Self) -> i32 {
         let len = (p.as_ptr() as usize).saturating_sub(self.as_ptr() as usize);
-        crate::mbyte::utf_head_off(self.slice(len), len)
+        crate::mbyte::utf_head_off_slice(self.as_bytes(), len)
     }
 
-    #[inline]
-    pub fn first_byte(self) -> u8 {
-        crate::memory::cstr_first_byte(self.as_ptr())
+    #[inline(always)]
+    pub const fn first_byte(self) -> u8 {
+        let p = self.as_ptr();
+        if p.is_null() { 0 } else { unsafe { *p } }
     }
 
-    #[inline]
-    pub fn is_empty(self) -> bool {
-        crate::memory::cstr_is_empty(self.as_ptr())
+    #[inline(always)]
+    pub const fn is_empty(self) -> bool {
+        self.first_byte() == 0
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_bytes(self) -> &'static [u8] {
         crate::memory::cstr_as_bytes(self.as_ptr())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn as_cstr(self) -> &'static std::ffi::CStr {
         crate::memory::cstr_from_ptr(self.as_ptr())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn slice(self, len: usize) -> &'static [u8] {
         crate::memory::cstr_slice(self.as_ptr(), len)
     }
 }
 
 impl PartialEq for RegLinePtr {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.as_ptr() == other.as_ptr()
     }
@@ -400,14 +412,14 @@ impl PartialEq for RegLinePtr {
 impl Eq for RegLinePtr {}
 
 impl PartialOrd for RegLinePtr {
-    #[inline]
+    #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for RegLinePtr {
-    #[inline]
+    #[inline(always)]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         (self.as_ptr() as usize).cmp(&(other.as_ptr() as usize))
     }
@@ -415,7 +427,7 @@ impl Ord for RegLinePtr {
 
 impl crate::memory::IntoConstPtr for RegLinePtr {
     type Target = u8;
-    #[inline]
+    #[inline(always)]
     fn into_const_ptr(self) -> *const u8 {
         self.as_ptr().cast_const()
     }
@@ -423,7 +435,7 @@ impl crate::memory::IntoConstPtr for RegLinePtr {
 
 impl crate::memory::IntoMutPtr for RegLinePtr {
     type Target = u8;
-    #[inline]
+    #[inline(always)]
     fn into_mut_ptr(self) -> *mut u8 {
         self.as_ptr()
     }
@@ -450,21 +462,21 @@ impl Regmatch {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
         self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |b| {
             crate::globals::GraphPtr::new(Box::into_raw(b))
         });
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
         self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |p| {
             crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
         });
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn free_prog(&mut self) {
         if !self.regprog.is_null() {
             drop(unsafe { Box::from_raw(self.regprog.as_ptr()) });
@@ -474,7 +486,7 @@ impl Regmatch {
 }
 
 impl Default for Regmatch {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
@@ -486,7 +498,7 @@ pub struct RegExtmatch {
     pub matches: [Option<std::ffi::CString>; NSUBEXP],
 }
 
-#[inline]
+#[inline(always)]
 pub(super) fn cstring_from_bytes(bytes: &[u8]) -> Option<std::ffi::CString> {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     std::ffi::CString::new(&bytes[..end]).ok()
@@ -509,7 +521,7 @@ pub(super) enum NfaOutSlot {
 }
 
 impl NfaOutSlot {
-    #[inline]
+    #[inline(always)]
     pub(super) fn set(self, states: &mut [NfaState], target: Option<usize>) {
         match self {
             Self::Out(idx) => states[idx].out = target,
@@ -576,7 +588,7 @@ impl RegPos {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) const fn from_pos(pos: Lpos) -> Self {
         Self {
             ptr: RegLinePtr::NULL,
@@ -584,12 +596,12 @@ impl RegPos {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) const fn pos(self) -> Lpos {
         self.pos
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) const fn pos_mut(&mut self) -> &mut Lpos {
         &mut self.pos
     }
@@ -658,7 +670,7 @@ impl RegItemSave {
         Self::Se(SaveSe::new())
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn sesave(&self) -> &SaveSe {
         match self {
             Self::Se(s) => s,
@@ -666,7 +678,7 @@ impl RegItemSave {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn sesave_mut(&mut self) -> &mut SaveSe {
         if !matches!(*self, Self::Se(_)) {
             *self = Self::Se(SaveSe::new());
@@ -677,7 +689,7 @@ impl RegItemSave {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn regsave(&self) -> &Regsave {
         match self {
             Self::Reg(r) => r,
@@ -685,7 +697,7 @@ impl RegItemSave {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn regsave_mut(&mut self) -> &mut Regsave {
         if !matches!(*self, Self::Reg(_)) {
             *self = Self::Reg(Regsave::new());
@@ -815,40 +827,40 @@ impl RegSubList {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn multi(&self) -> &[MultiPos; NSUBEXP] {
         &self.multi_arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn multi_mut(&mut self) -> &mut [MultiPos; NSUBEXP] {
         &mut self.multi_arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn line(&self) -> &[LinePos; NSUBEXP] {
         &self.line_arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn line_mut(&mut self) -> &mut [LinePos; NSUBEXP] {
         &mut self.line_arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn copy_first(&mut self, other: &Self) {
         self.multi_arr[0] = other.multi_arr[0];
         self.line_arr[0] = other.line_arr[0];
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn copy_n(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
         self.multi_arr[..n].copy_from_slice(&other.multi_arr[..n]);
         self.line_arr[..n].copy_from_slice(&other.line_arr[..n]);
     }
 
-    #[inline]
+    #[inline(always)]
     pub(super) fn copy_range_from_1(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
         self.multi_arr[1..n].copy_from_slice(&other.multi_arr[1..n]);
@@ -961,7 +973,7 @@ enum CaseConv {
 }
 
 impl CaseConv {
-    #[inline]
+    #[inline(always)]
     fn apply(self, c: i32) -> i32 {
         match self {
             Self::Upper => mb_toupper(c),
@@ -1502,12 +1514,12 @@ impl RegexpState {
 
 pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpState::new());
 
-#[inline]
+#[inline(always)]
 pub(super) fn re_st() -> crate::globals::GraphPtr<RegexpState> {
     RE_STATE.handle()
 }
 
-#[inline]
+#[inline(always)]
 pub(super) fn reg_prev_sub_ref() -> Option<&'static CStr> {
     re_st().borrow_mut().reg_prev_sub.as_deref()
 }
@@ -1517,34 +1529,34 @@ use crate::eval::typval::tv_get_string_buf_chk;
 use crate::eval::userfunc::call_func;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
 
-#[inline]
+#[inline(always)]
 pub(super) fn tv_list_ref(l: Option<&mut TvList>) {
     if let Some(l) = l {
         l.lv_refcount += 1;
     }
 }
 
-#[inline]
+#[inline(always)]
 pub(super) const fn magic_fn(x: i32) -> i32 {
     x - 256
 }
 
-#[inline]
+#[inline(always)]
 pub(super) const fn un_magic(x: i32) -> i32 {
     x + 256
 }
 
-#[inline]
+#[inline(always)]
 pub(super) const fn is_magic_fn(x: i32) -> bool {
     x < 0
 }
 
-#[inline]
+#[inline(always)]
 pub(super) const fn no_magic(x: i32) -> i32 {
     if is_magic_fn(x) { un_magic(x) } else { x }
 }
 
-#[inline]
+#[inline(always)]
 pub(super) const fn toggle_magic(x: i32) -> i32 {
     if is_magic_fn(x) {
         un_magic(x)
@@ -1553,7 +1565,7 @@ pub(super) const fn toggle_magic(x: i32) -> i32 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub(super) fn reg_multi() -> bool {
     re_st().rex.reg_match.is_null()
 }
@@ -1561,7 +1573,7 @@ pub(super) fn reg_multi() -> bool {
 /// Return NOT_MULTI if c is not a "multi" operator.
 /// Return MULTI_ONE if c is a single "multi" operator.
 /// Return MULTI_MULT if c is a multi "multi" operator.
-#[inline]
+#[inline(always)]
 pub(super) fn re_multi_type(c: i32) -> i32 {
     if c == magic_fn(b'@' as i32) || c == magic_fn(b'=' as i32) || c == magic_fn(b'?' as i32) {
         return MULTI_ONE;
@@ -1573,7 +1585,7 @@ pub(super) fn re_multi_type(c: i32) -> i32 {
 }
 
 /// Translate `\x` to its control character, except `\n`, which is Magic.
-#[inline]
+#[inline(always)]
 pub(super) fn backslash_trans(c: i32) -> i32 {
     match c as u8 {
         b'r' => CAR,
@@ -1654,35 +1666,35 @@ pub(super) fn init_class_tab() {
     re_st().init_class_tab_done = true;
 }
 
-#[inline]
+#[inline(always)]
 pub(super) fn ri_digit(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_hex(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEX) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_octal(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_word(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_WORD) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_head(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEAD) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_alpha(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_lower(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_LOWER) != 0
 }
-#[inline]
+#[inline(always)]
 pub(super) fn ri_upper(c: i32) -> bool {
     (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_UPPER) != 0
 }
@@ -2249,7 +2261,7 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     true
 }
 
-#[inline]
+#[inline(always)]
 pub(super) fn reg_breakcheck() {
     if !re_st().rex.reg_nobreak {
         fast_breakcheck();
@@ -2624,7 +2636,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
     result
 }
 
-#[inline]
+#[inline(always)]
 pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_ptr = s.as_ptr();
     if !re_st().rex.reg_ic {
@@ -3576,7 +3588,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     prog_opt.map(Box::new)
 }
 
-#[inline]
+#[inline(always)]
 pub fn vim_regcomp_box(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     vim_regcomp(expr_arg, re_flags)
 }
@@ -3764,72 +3776,72 @@ pub fn vim_regexec_multi(
 }
 
 impl Regexec {
-    #[inline]
+    #[inline(always)]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
         self.reg_mmatch.borrow_mut()
     }
-    #[inline]
+    #[inline(always)]
     pub fn match_mut(&self) -> &'static mut Regmatch {
         self.reg_match.borrow_mut()
     }
-    #[inline]
+    #[inline(always)]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
         self.reg_buf.borrow_mut()
     }
-    #[inline]
+    #[inline(always)]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
         self.reg_win.borrow_mut()
     }
-    #[inline]
+    #[inline(always)]
     pub fn load_line(&mut self, lnum: Linenr) {
         self.line = RegLinePtr::from_opt_cstr(reg_getline(lnum));
     }
-    #[inline]
+    #[inline(always)]
     pub fn input_col(&self) -> Colnr {
         crate::memory::ptr_offset_from(self.input, self.line) as Colnr
     }
-    #[inline]
+    #[inline(always)]
     pub fn input_off(&self) -> usize {
         crate::memory::ptr_offset_from(self.input, self.line) as usize
     }
-    #[inline]
+    #[inline(always)]
     pub fn startpos_slice_mut(&self) -> &'static mut [Lpos] {
         self.reg_startpos.borrow_mut()
     }
-    #[inline]
+    #[inline(always)]
     pub fn endpos_slice_mut(&self) -> &'static mut [Lpos] {
         self.reg_endpos.borrow_mut()
     }
 }
 
 impl RegexpState {
-    #[inline]
+    #[inline(always)]
     pub fn regparse_bytes(&self) -> &'static [u8] {
         self.regparse_base
             .to_bytes()
             .get(self.regparse_off..)
             .unwrap_or(&[])
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_byte(&self) -> u8 {
         self.regparse_bytes().first().copied().unwrap_or(0)
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_byte_at(&self, idx: usize) -> u8 {
         self.regparse_bytes().get(idx).copied().unwrap_or(0)
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_mb_adv(&mut self) {
         let step = utfc_ptr2len(self.regparse_bytes()) as usize;
         self.regparse_off += step;
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_prev_char(&mut self) {
         let base = self.regparse_base.to_bytes();
         self.regparse_off -=
             1 + crate::mbyte::utf_head_off_slice(base, self.regparse_off - 1) as usize;
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_get_char_class(&mut self) -> i32 {
         let bytes = self.regparse_bytes();
         let mut rem = bytes;
@@ -3837,7 +3849,7 @@ impl RegexpState {
         self.regparse_off += bytes.len() - rem.len();
         res
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_get_equi_class(&mut self) -> i32 {
         let bytes = self.regparse_bytes();
         let mut rem = bytes;
@@ -3845,7 +3857,7 @@ impl RegexpState {
         self.regparse_off += bytes.len() - rem.len();
         res
     }
-    #[inline]
+    #[inline(always)]
     pub fn regparse_get_coll_element(&mut self) -> i32 {
         let bytes = self.regparse_bytes();
         let mut rem = bytes;
@@ -3856,25 +3868,25 @@ impl RegexpState {
 }
 
 impl Regsubmatch {
-    #[inline]
+    #[inline(always)]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
         self.sm_mmatch.borrow_mut()
     }
-    #[inline]
+    #[inline(always)]
     pub fn match_mut(&self) -> &'static mut Regmatch {
         self.sm_match.borrow_mut()
     }
 }
 
 impl Regmmatch {
-    #[inline]
+    #[inline(always)]
     pub fn prog_mut(&self) -> &'static mut Regprog {
         self.regprog.borrow_mut()
     }
 }
 
 impl Regmatch {
-    #[inline]
+    #[inline(always)]
     pub fn prog_mut(&self) -> &'static mut Regprog {
         self.regprog.borrow_mut()
     }

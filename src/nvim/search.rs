@@ -146,12 +146,12 @@ impl SearchPattern {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn pat_ptr(&self) -> Option<&CStr> {
         self.pat.as_deref()
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn patlen(&self) -> usize {
         self.pat.as_ref().map_or(0, |s| s.as_bytes().len())
     }
@@ -305,17 +305,17 @@ impl SearchModuleState {
 
 static SEARCH_STATE: GlobalState<SearchModuleState> = GlobalState::new(SearchModuleState::new());
 
-#[inline]
+#[inline(always)]
 fn srch() -> crate::globals::GraphPtr<SearchModuleState> {
     SEARCH_STATE.handle()
 }
 
-#[inline]
+#[inline(always)]
 const fn empty_pos(a: CursorPos) -> bool {
     a.lnum == 0 && a.col == 0 && a.coladd == 0
 }
 
-#[inline]
+#[inline(always)]
 const fn getfile_success(x: crate::buffer::GetFileResult) -> bool {
     x.is_success()
 }
@@ -465,7 +465,7 @@ pub fn restore_search_patterns() {
     set_no_hlsearch(srch().saved_spats_no_hlsearch);
 }
 
-#[inline]
+#[inline(always)]
 fn free_spat(spat: &mut SearchPattern) {
     spat.pat = None;
     spat.additional_data = None;
@@ -1688,14 +1688,16 @@ pub fn search_for_exact_line(
             if start == 0 {
                 start = pos.lnum;
             }
-            let line_slice = crate::memline::ml_get_buf_slice(buf, pos.lnum);
+            let line_cstr = crate::memline::ml_get_buf(buf, pos.lnum);
+            let line_slice = line_cstr.to_bytes();
             let p_slice = crate::charset::skipwhite_slice(line_slice);
-            pos.col = (line_slice.len() - p_slice.len()) as Colnr;
+            let skip_len = line_slice.len() - p_slice.len();
+            pos.col = skip_len as Colnr;
 
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(
                     opt_vars().p_ic,
-                    crate::memory::cstr_until_nul(p_slice),
+                    crate::memory::CStrSubslice::advance(line_cstr, skip_len),
                     crate::memory::cstr_from_ptr(pat),
                 ) == 0
                 {

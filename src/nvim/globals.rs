@@ -52,35 +52,35 @@ pub struct GlobalState<T>(std::cell::UnsafeCell<T>);
 unsafe impl<T> Sync for GlobalState<T> {}
 
 impl<T> GlobalState<T> {
-    #[inline]
+    #[inline(always)]
     pub const fn new(val: T) -> Self {
         Self(std::cell::UnsafeCell::new(val))
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn as_ptr(&self) -> *mut T {
-        self.0.get()
+        (&raw const self.0).cast::<T>().cast_mut()
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn handle(&'static self) -> GraphPtr<T> {
-        unsafe { GraphPtr(Some(std::ptr::NonNull::new_unchecked(self.0.get()))) }
+        GraphPtr((&raw const self.0).cast::<T>().cast_mut())
     }
 
-    #[inline]
-    pub fn get(&self) -> T
+    #[inline(always)]
+    pub const fn get(&self) -> T
     where
         T: Copy,
     {
-        unsafe { *self.0.get() }
+        unsafe { *(&raw const self.0).cast::<T>() }
     }
 
-    #[inline]
-    pub fn set(&self, val: T)
+    #[inline(always)]
+    pub const fn set(&self, val: T)
     where
         T: Copy,
     {
-        unsafe { *self.0.get() = val }
+        unsafe { *(&raw const self.0).cast::<T>().cast_mut() = val }
     }
 }
 
@@ -896,38 +896,38 @@ impl EditorState {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn iobuff_bytes(&self) -> &[u8; IOSIZE] {
         unsafe { &*(&raw const self.iobuff).cast::<[u8; IOSIZE]>() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn iobuff_bytes_mut(&mut self) -> &mut [u8; IOSIZE] {
         unsafe { &mut *(&raw mut self.iobuff).cast::<[u8; IOSIZE]>() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn iobuff_cstr(&self) -> &'static std::ffi::CStr {
         crate::memory::cstr_from_ptr(self.iobuff.as_ptr())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
         unsafe { &mut *(&raw mut self.name_buff).cast::<[u8; MAXPATHL]>() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn name_buff_cstr(&self) -> &'static std::ffi::CStr {
         crate::memory::cstr_from_ptr(self.name_buff.as_ptr())
     }
 
     #[cfg(windows)]
-    #[inline]
+    #[inline(always)]
     pub fn os_buf_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
         unsafe { &mut *(&raw mut self.os_buf).cast::<[u8; MAXPATHL]>() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn msg_buf_bytes_mut(&mut self) -> &mut [u8; MSG_BUF_LEN] {
         unsafe { &mut *(&raw mut self.msg_buf).cast::<[u8; MSG_BUF_LEN]>() }
     }
@@ -935,7 +935,7 @@ impl EditorState {
 
 pub static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());
 
-#[inline]
+#[inline(always)]
 pub fn g_st() -> GraphPtr<EditorState> {
     EDITOR_STATE.handle()
 }
@@ -944,47 +944,47 @@ pub fn g_st() -> GraphPtr<EditorState> {
 #[unsafe(no_mangle)]
 pub static curwin: GlobalState<WinPtr> = GlobalState::new(WinPtr::NULL);
 
-#[inline]
+#[inline(always)]
 pub fn curwin_mut() -> &'static mut WinInfoInfo {
     curwin.get().borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn curwin_ptr() -> *mut WinInfoInfo {
     curwin.get().as_ptr()
 }
 
-#[inline]
+#[inline(always)]
 pub fn set_curwin(wp: *mut WinInfoInfo) {
     curwin.set(WinPtr::new(wp));
 }
 
-#[inline]
+#[inline(always)]
 pub fn curbuf_mut() -> &'static mut FileBuf {
     g_st().curbuf.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn curbuf_opt_mut() -> Option<&'static mut FileBuf> {
     g_st().curbuf.opt_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn curtab_mut() -> &'static mut TabPageInfo {
     g_st().curtab.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn firstwin_mut() -> &'static mut WinInfoInfo {
     g_st().firstwin.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn lastwin_mut() -> &'static mut WinInfoInfo {
     g_st().lastwin.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
     g_st().prevwin.opt_mut()
 }
@@ -996,54 +996,54 @@ pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
 /// assert LLVM `noalias` uniqueness (unlike `&mut T`), while providing checked `.opt()`,
 /// `.opt_mut()`, `.borrow()`, and `.borrow_mut()` accessors for synchronous local borrows.
 #[repr(transparent)]
-pub struct GraphPtr<T>(Option<std::ptr::NonNull<T>>);
+pub struct GraphPtr<T>(*mut T);
 
 impl<T> Copy for GraphPtr<T> {}
 
 impl<T> Clone for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
 
 impl<T> Default for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::NULL
     }
 }
 
 impl<T> PartialEq for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
 impl<T> PartialEq<*mut T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &*mut T) -> bool {
         self.as_ptr() == *other
     }
 }
 
 impl<T> PartialEq<*const T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &*const T) -> bool {
         self.as_ptr().cast_const() == *other
     }
 }
 
 impl<T> PartialEq<&T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &&T) -> bool {
         ptr::eq(self.as_ptr(), *other)
     }
 }
 
 impl<T> PartialEq<&mut T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &&mut T) -> bool {
         ptr::eq(self.as_ptr(), *other)
     }
@@ -1058,41 +1058,41 @@ impl<T> std::fmt::Debug for GraphPtr<T> {
 }
 
 impl<T> From<*mut T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn from(ptr: *mut T) -> Self {
         Self::new(ptr)
     }
 }
 
 impl<T> From<&T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn from(r: &T) -> Self {
-        Self::new((&raw const *r).cast_mut())
+        Self::new(std::hint::black_box(&raw const *r).cast_mut())
     }
 }
 
 impl<T> From<&mut T> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn from(r: &mut T) -> Self {
-        Self::new(&raw mut *r)
+        Self::new(std::hint::black_box(&raw mut *r))
     }
 }
 
 impl<T> From<Option<&T>> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn from(opt: Option<&T>) -> Self {
         match opt {
-            Some(r) => Self::new((&raw const *r).cast_mut()),
+            Some(r) => Self::new(std::hint::black_box(&raw const *r).cast_mut()),
             None => Self::NULL,
         }
     }
 }
 
 impl<T> From<Option<&mut T>> for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn from(opt: Option<&mut T>) -> Self {
         match opt {
-            Some(r) => Self::new(&raw mut *r),
+            Some(r) => Self::new(std::hint::black_box(&raw mut *r)),
             None => Self::NULL,
         }
     }
@@ -1101,66 +1101,71 @@ impl<T> From<Option<&mut T>> for GraphPtr<T> {
 impl<T> std::ops::Deref for GraphPtr<T> {
     type Target = T;
 
-    #[inline]
+    #[inline(always)]
     fn deref(&self) -> &T {
-        unsafe { self.0.unwrap().as_ref() }
+        unsafe { &*self.0 }
     }
 }
 
 impl<T> std::ops::DerefMut for GraphPtr<T> {
-    #[inline]
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { self.0.unwrap().as_mut() }
+        unsafe { &mut *self.0 }
     }
 }
 
 impl<T> GraphPtr<T> {
-    pub const NULL: Self = Self(None);
+    pub const NULL: Self = Self(ptr::null_mut());
 
-    #[inline]
+    #[inline(always)]
     pub const fn new(ptr: *mut T) -> Self {
-        Self(std::ptr::NonNull::new(ptr))
+        Self(ptr)
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn as_ptr(self) -> *mut T {
-        match self.0 {
-            Some(p) => p.as_ptr(),
-            None => ptr::null_mut(),
+        self.0
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_null()
+    }
+
+    #[inline(always)]
+    pub fn opt<'a>(self) -> Option<&'a T> {
+        if (self.0 as usize) == 0 {
+            None
+        } else {
+            Some(unsafe { &*self.0 })
         }
     }
 
-    #[inline]
-    pub const fn is_null(self) -> bool {
-        self.0.is_none()
-    }
-
-    #[inline]
-    pub fn opt<'a>(self) -> Option<&'a T> {
-        self.0.map(|p| unsafe { p.as_ref() })
-    }
-
-    #[inline]
+    #[inline(always)]
     pub fn opt_mut<'a>(self) -> Option<&'a mut T> {
-        self.0.map(|mut p| unsafe { p.as_mut() })
+        if (self.0 as usize) == 0 {
+            None
+        } else {
+            Some(unsafe { &mut *self.0 })
+        }
     }
 
-    #[inline]
-    pub fn borrow<'a>(self) -> &'a T {
-        unsafe { self.0.unwrap().as_ref() }
+    #[inline(always)]
+    pub const fn borrow<'a>(self) -> &'a T {
+        unsafe { &*self.0 }
     }
 
-    #[inline]
-    pub fn borrow_mut<'a>(self) -> &'a mut T {
-        unsafe { self.0.unwrap().as_mut() }
+    #[inline(always)]
+    pub const fn borrow_mut<'a>(self) -> &'a mut T {
+        unsafe { &mut *self.0 }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn wrapping_add(self, count: usize) -> Self {
         Self::new(self.as_ptr().wrapping_add(count))
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn wrapping_sub(self, count: usize) -> Self {
         Self::new(self.as_ptr().wrapping_sub(count))
     }
@@ -1173,12 +1178,12 @@ pub type FramePtr = GraphPtr<Frame>;
 pub type TvListPtr = GraphPtr<crate::eval::typval::TvList>;
 pub type ListitemPtr = GraphPtr<crate::eval::typval::Listitem>;
 
-#[inline]
+#[inline(always)]
 pub fn curwin_handle() -> WinPtr {
     WinPtr::new(curwin_ptr())
 }
 
-#[inline]
+#[inline(always)]
 pub fn curtab_handle() -> TabpagePtr {
     g_st().curtab
 }
@@ -1188,7 +1193,7 @@ pub struct BufMutIter(BufPtr);
 impl Iterator for BufMutIter {
     type Item = &'static mut FileBuf;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.b_next;
@@ -1201,7 +1206,7 @@ pub struct BufPtrIter(BufPtr);
 impl Iterator for BufPtrIter {
     type Item = &'static mut FileBuf;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.b_next;
@@ -1209,17 +1214,17 @@ impl Iterator for BufPtrIter {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_buffers_mut() -> BufMutIter {
     BufMutIter(g_st().firstbuf)
 }
 
-#[inline]
+#[inline(always)]
 pub fn buf_iter_mut(start: impl Into<BufPtr>) -> BufMutIter {
     BufMutIter(start.into())
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_buffers_ptr() -> BufPtrIter {
     BufPtrIter(g_st().firstbuf)
 }
@@ -1229,7 +1234,7 @@ pub struct BufRevPtrIter(BufPtr);
 impl Iterator for BufRevPtrIter {
     type Item = &'static mut FileBuf;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.b_prev;
@@ -1237,7 +1242,7 @@ impl Iterator for BufRevPtrIter {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
     BufRevPtrIter(g_st().lastbuf)
 }
@@ -1247,7 +1252,7 @@ pub struct WinMutIter(WinPtr);
 impl Iterator for WinMutIter {
     type Item = &'static mut WinInfoInfo;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.w_next;
@@ -1260,7 +1265,7 @@ pub struct WinPtrIter(WinPtr);
 impl Iterator for WinPtrIter {
     type Item = &'static mut WinInfoInfo;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.w_next;
@@ -1268,17 +1273,17 @@ impl Iterator for WinPtrIter {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_windows_mut() -> WinMutIter {
     WinMutIter(g_st().firstwin)
 }
 
-#[inline]
+#[inline(always)]
 pub fn win_iter_mut(start: impl Into<WinPtr>) -> WinMutIter {
     WinMutIter(start.into())
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     WinMutIter(if g_st().curtab == tp {
         g_st().firstwin
@@ -1287,17 +1292,17 @@ pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     })
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_windows_ptr() -> WinPtrIter {
     WinPtrIter(g_st().firstwin)
 }
 
-#[inline]
+#[inline(always)]
 pub fn win_iter_ptr(start: impl Into<WinPtr>) -> WinPtrIter {
     WinPtrIter(start.into())
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     WinPtrIter(if g_st().curtab == tp {
         g_st().firstwin
@@ -1311,7 +1316,7 @@ pub struct WinRevPtrIter(WinPtr);
 impl Iterator for WinRevPtrIter {
     type Item = &'static mut WinInfoInfo;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.w_prev;
@@ -1319,7 +1324,7 @@ impl Iterator for WinRevPtrIter {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
     WinRevPtrIter(g_st().lastwin)
 }
@@ -1329,7 +1334,7 @@ pub struct TabMutIter(TabpagePtr);
 impl Iterator for TabMutIter {
     type Item = &'static mut TabPageInfo;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.tp_next;
@@ -1342,7 +1347,7 @@ pub struct TabPtrIter(TabpagePtr);
 impl Iterator for TabPtrIter {
     type Item = &'static mut TabPageInfo;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.tp_next;
@@ -1350,12 +1355,12 @@ impl Iterator for TabPtrIter {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_tabpages_mut() -> TabMutIter {
     TabMutIter(g_st().first_tabpage)
 }
 
-#[inline]
+#[inline(always)]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
     TabPtrIter(g_st().first_tabpage)
 }
@@ -1365,7 +1370,7 @@ pub struct FrameMutIter(FramePtr);
 impl Iterator for FrameMutIter {
     type Item = &'static mut Frame;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.fr_next;
@@ -1378,7 +1383,7 @@ pub struct FramePtrIter(FramePtr);
 impl Iterator for FramePtrIter {
     type Item = &'static mut Frame;
 
-    #[inline]
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
         self.0 = cur.fr_next;
@@ -1386,12 +1391,12 @@ impl Iterator for FramePtrIter {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn frame_iter_mut(start: FramePtr) -> FrameMutIter {
     FrameMutIter(start)
 }
 
-#[inline]
+#[inline(always)]
 pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
     FramePtrIter(start)
 }
@@ -1400,12 +1405,12 @@ pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
 #[unsafe(no_mangle)]
 pub static starting: GlobalState<i32> = GlobalState::new(NO_SCREEN);
 
-#[inline]
+#[inline(always)]
 pub fn starting_val() -> i32 {
     starting.get()
 }
 
-#[inline]
+#[inline(always)]
 pub fn set_starting(v: i32) {
     starting.set(v);
 }
@@ -1416,24 +1421,24 @@ pub const NO_LINES_MSG: &std::ffi::CStr = c"--No lines in buffer--";
 #[unsafe(no_mangle)]
 pub static display_tick: GlobalState<Disptick> = GlobalState::new(0);
 
-#[inline]
+#[inline(always)]
 pub fn display_tick_val() -> Disptick {
     display_tick.get()
 }
 
-#[inline]
+#[inline(always)]
 pub fn inc_display_tick() {
     display_tick.set(display_tick.get() + 1);
 }
-#[inline]
+#[inline(always)]
 pub fn has_time_fd() -> bool {
     g_st().time_fd.is_some()
 }
-#[inline]
+#[inline(always)]
 pub fn has_redir_fd() -> bool {
     g_st().redir_fd.is_some()
 }
-#[inline]
+#[inline(always)]
 pub fn has_scriptout() -> bool {
     g_st().scriptout.is_some()
 }
@@ -1560,7 +1565,7 @@ pub const HLF_NAMES: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     Some(c"OkMsg"),
     Some(c"PreInsert"),
 ];
-#[inline]
+#[inline(always)]
 pub const fn hlf_name_ptr(idx: usize) -> Option<&'static std::ffi::CStr> {
     HLF_NAMES[idx]
 }
@@ -1572,22 +1577,22 @@ pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [c"NW", c"NE", c"SW", c"SE"];
 #[cfg(test)]
 pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-#[inline]
+#[inline(always)]
 pub fn topframe_mut() -> &'static mut Frame {
     g_st().topframe.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn first_tabpage_mut() -> &'static mut TabPageInfo {
     g_st().first_tabpage.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn prevwin_mut() -> &'static mut WinInfoInfo {
     g_st().prevwin.borrow_mut()
 }
 
-#[inline]
+#[inline(always)]
 pub fn nlua_global_refs_mut() -> &'static mut NluaRefState {
     g_st().nlua_global_refs.borrow_mut()
 }

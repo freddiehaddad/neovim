@@ -148,32 +148,32 @@ impl RegexpBtState {
 
 static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::new());
 
-#[inline]
+#[inline(always)]
 fn bt_st() -> crate::globals::GraphPtr<RegexpBtState> {
     BT_STATE.handle()
 }
 
-#[inline]
+#[inline(always)]
 fn with_nl(op: i32) -> bool {
     (FIRST_NL..=LAST_NL).contains(&op)
 }
 
-#[inline]
+#[inline(always)]
 fn op_fn(prog: &[u8], p: Option<usize>) -> i32 {
     p.and_then(|idx| prog.get(idx)).map_or(0, |&b| i32::from(b))
 }
 
-#[inline]
+#[inline(always)]
 fn next_fn(prog: &[u8], idx: usize) -> i32 {
     ((i32::from(prog[idx + 1]) & 0o377) << 8) + (i32::from(prog[idx + 2]) & 0o377)
 }
 
-#[inline]
+#[inline(always)]
 fn operand_idx(idx: usize) -> usize {
     idx + 3
 }
 
-#[inline]
+#[inline(always)]
 fn operand_min(prog: &[u8], idx: usize) -> i64 {
     i64::from(i32::from_be_bytes([
         prog[idx + 3],
@@ -183,23 +183,23 @@ fn operand_min(prog: &[u8], idx: usize) -> i64 {
     ]))
 }
 
-#[inline]
+#[inline(always)]
 fn operand_max(prog: &[u8], idx: usize) -> i64 {
     operand_min(prog, idx + 4)
 }
 
-#[inline]
+#[inline(always)]
 fn operand_cmp(prog: &[u8], idx: usize) -> u8 {
     prog[idx + 7]
 }
 
-#[inline]
+#[inline(always)]
 fn advance_reginput() {
     let step = utfc_ptr2len(re_st().rex.input) as usize;
     re_st().rex.input = re_st().rex.input.wrapping_add(step);
 }
 
-#[inline]
+#[inline(always)]
 fn input_byte() -> u8 {
     re_st().rex.input.first_byte()
 }
@@ -2191,7 +2191,7 @@ fn save_se_multi(savep: &mut SaveSe, posp: &mut Lpos) {
     posp.col = re_st().rex.input_col();
 }
 
-#[inline]
+#[inline(always)]
 fn save_se_z(savep: &mut SaveSe, no: usize, is_end: bool) {
     if reg_multi() {
         let posp = if is_end {
@@ -2211,7 +2211,7 @@ fn save_se_z(savep: &mut SaveSe, no: usize, is_end: bool) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn restore_se_z(savep: &SaveSe, no: usize, is_end: bool) {
     if reg_multi() {
         if is_end {
@@ -2226,7 +2226,7 @@ fn restore_se_z(savep: &SaveSe, no: usize, is_end: bool) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn save_se_m(savep: &mut SaveSe, no: usize, is_end: bool) {
     if reg_multi() {
         let slice = if is_end {
@@ -2246,7 +2246,7 @@ fn save_se_m(savep: &mut SaveSe, no: usize, is_end: bool) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn restore_se_m(savep: &SaveSe, no: usize, is_end: bool) {
     if reg_multi() {
         let slice = if is_end {

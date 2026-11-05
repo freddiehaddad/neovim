@@ -486,8 +486,7 @@ fn win_redr_stl_expr(
     draw_ruler: bool,
     ui_event: bool,
 ) {
-    let wp: *mut WinInfoInfo =
-        wp_arg.map_or(ptr::null_mut(), |w| std::hint::black_box(ptr::from_mut(w)));
+    let mut wp = crate::globals::GraphPtr::from(wp_arg);
     let mut col: i32 = 0;
     let attr: i32;
     let mut row: i32 = 0;
@@ -503,14 +502,13 @@ fn win_redr_stl_expr(
     let click_defs: *mut StlClickDefinition;
     let is_stl_global = global_stl_height() > 0;
 
-    let mut grid: *mut ScreenGrid =
-        if !wp.is_null() && unsafe { (*wp).w_floating } && !is_stl_global {
-            unsafe { &raw mut (*wp).w_grid_alloc }
-        } else {
-            &raw mut g_st().default_grid
-        };
+    let mut grid: *mut ScreenGrid = if !wp.is_null() && wp.w_floating && !is_stl_global {
+        &raw mut wp.w_grid_alloc
+    } else {
+        &raw mut g_st().default_grid
+    };
 
-    if !is_stl_global && !wp.is_null() && unsafe { (*wp).w_config.hide } {
+    if !is_stl_global && !wp.is_null() && wp.w_config.hide {
         return;
     }
 
@@ -540,7 +538,7 @@ fn win_redr_stl_expr(
         opt_idx = K_OPT_TABLINE;
         click_defs = g_st().tab_page_click_defs.as_mut_ptr();
     } else if draw_winbar {
-        let wp = unsafe { &mut *wp };
+        let wp = wp.borrow_mut();
         opt_idx = K_OPT_WINBAR;
         stl = if !wp.w_onebuf_opt.wo_wbr.is_empty() {
             wp.w_onebuf_opt.wo_wbr.as_ptr().cast_mut().cast()
@@ -612,7 +610,7 @@ fn win_redr_stl_expr(
         attr = hl_attr(group);
         click_defs = ptr::null_mut();
     } else {
-        let wp_ref = unsafe { &mut *wp };
+        let wp_ref = wp.borrow_mut();
         stl = if !wp_ref.w_onebuf_opt.wo_stl.is_empty() {
             wp_ref.w_onebuf_opt.wo_stl.as_ptr().cast_mut().cast()
         } else {
@@ -652,7 +650,11 @@ fn win_redr_stl_expr(
     }
 
     if maxwidth > 0 {
-        let ewp = if wp.is_null() { curwin_ptr() } else { wp };
+        let ewp = if wp.is_null() {
+            curwin_ptr()
+        } else {
+            wp.as_ptr()
+        };
         let ewp = unsafe { &mut *ewp };
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
         ewp.w_onebuf_opt.wo_crb = false;
@@ -761,13 +763,11 @@ fn win_redr_stl_expr(
 
                 curgroup = -sp_ref.userhl;
             } else {
-                let userhl =
-                    if !wp.is_null() && wp != curwin_ptr() && unsafe { (*wp).w_status_height != 0 }
-                    {
-                        &g_st().highlight_stlnc
-                    } else {
-                        &g_st().highlight_user
-                    };
+                let userhl = if !wp.is_null() && wp != curwin_ptr() && wp.w_status_height != 0 {
+                    &g_st().highlight_stlnc
+                } else {
+                    &g_st().highlight_user
+                };
                 let userbuf: [u8; 5] = [b'U', b's', b'e', b'r', sp_ref.userhl as u8 + b'0'];
 
                 curattr = userhl[(sp_ref.userhl - 1) as usize];

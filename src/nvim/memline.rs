@@ -108,14 +108,14 @@ impl Memline {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn mfp_opt(&mut self) -> Option<&'static mut crate::memfile::Memfile> {
         self.ml_mfp
             .as_deref_mut()
             .map(|m| unsafe { &mut *(m as *mut crate::memfile::Memfile) })
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn mfp_mut(&mut self) -> &'static mut crate::memfile::Memfile {
         self.mfp_opt().expect("ml_mfp is None")
     }
@@ -266,22 +266,22 @@ impl ZeroBlock {
             b0_magic_char: 0,
         }
     }
-    #[inline]
+    #[inline(always)]
     fn dirty(&self) -> u8 {
         self.b0_fname[B0_FNAME_SIZE_ORG - 1]
     }
 
-    #[inline]
+    #[inline(always)]
     fn set_dirty(&mut self, val: u8) {
         self.b0_fname[B0_FNAME_SIZE_ORG - 1] = val;
     }
 
-    #[inline]
+    #[inline(always)]
     fn flags(&self) -> u8 {
         self.b0_fname[B0_FNAME_SIZE_ORG - 2]
     }
 
-    #[inline]
+    #[inline(always)]
     fn set_flags(&mut self, val: u8) {
         self.b0_fname[B0_FNAME_SIZE_ORG - 2] = val;
     }
@@ -331,7 +331,7 @@ impl MemlineModuleState {
 
 static ML_STATE: GlobalState<MemlineModuleState> = GlobalState::new(MemlineModuleState::new());
 
-#[inline]
+#[inline(always)]
 fn ml_st() -> crate::globals::GraphPtr<MemlineModuleState> {
     ML_STATE.handle()
 }
@@ -368,25 +368,25 @@ use crate::version::VERSIONS;
 
 use crate::event::r#loop::uv_uptime;
 
-#[inline]
+#[inline(always)]
 const fn ml_simple(x: i32) -> bool {
     (x & 0x10) != 0
 }
 
-#[inline]
+#[inline(always)]
 fn pb_count_max(mfp: &Memfile) -> u16 {
     ((mfp.mf_page_size as usize - std::mem::offset_of!(PointerBlock, pb_pointer))
         / size_of::<PointerEntry>()) as u16
 }
 
 impl DataBlock {
-    #[inline]
+    #[inline(always)]
     fn copy_within(&mut self, src_off: usize, dst_off: usize, len: usize) {
         let base = (&raw mut *self).cast::<u8>();
         unsafe { ptr::copy(base.wrapping_add(src_off), base.wrapping_add(dst_off), len) };
     }
 
-    #[inline]
+    #[inline(always)]
     fn write_bytes(&mut self, dst_off: usize, src: &[u8], total_len: usize) {
         if total_len == 0 {
             return;
@@ -403,28 +403,28 @@ impl DataBlock {
 }
 
 impl PointerBlock {
-    #[inline]
+    #[inline(always)]
     fn copy_entries(&mut self, src_idx: usize, dst_idx: usize, count: usize) {
         unsafe { ptr::copy(pb_ptr(self, src_idx), pb_ptr(self, dst_idx), count) };
     }
 }
 
-#[inline]
+#[inline(always)]
 fn hp_zero_block(hp: &mut Bhdr) -> &'static mut ZeroBlock {
     unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<ZeroBlock>() }
 }
 
-#[inline]
+#[inline(always)]
 fn hp_data_block(hp: &mut Bhdr) -> &'static mut DataBlock {
     unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<DataBlock>() }
 }
 
-#[inline]
+#[inline(always)]
 fn hp_ptr_block(hp: &mut Bhdr) -> &'static mut PointerBlock {
     unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<PointerBlock>() }
 }
 
-#[inline]
+#[inline(always)]
 fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
     unsafe {
         &mut *(&raw mut pp.pb_pointer)
@@ -433,12 +433,12 @@ fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> &'static mut u32 {
     unsafe { &mut *(&raw mut dp.db_index).cast::<u32>().wrapping_add(idx) }
 }
 
-#[inline]
+#[inline(always)]
 fn sb_push_cstr(sb: &mut Vec<u8>, s: &CStr) {
     sb.extend_from_slice(s.to_bytes());
 }
@@ -717,12 +717,12 @@ pub fn ml_timestamp(buf: &mut FileBuf) {
     ml_upd_block0(buf, UpdBlock0::UbFname);
 }
 
-#[inline]
+#[inline(always)]
 fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
     b0p.b0_id[0] == BLOCK0_ID0 && b0p.b0_id[1] == BLOCK0_ID1
 }
 
-#[inline]
+#[inline(always)]
 fn ml_check_b0_strings(b0p: &ZeroBlock) -> bool {
     let b0 = b0p;
     b0.b0_version.contains(&0)
@@ -2005,13 +2005,13 @@ pub fn ml_get_buf(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
 }
 
 /// Return the bytes (excluding NUL) of a line in `curbuf`.
-#[inline]
+#[inline(always)]
 pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
     ml_get_buf_slice(curbuf_mut(), lnum)
 }
 
 /// Return the bytes (excluding NUL) of a line in `buf`.
-#[inline]
+#[inline(always)]
 pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
     let cstr = ml_get_buf(buf, lnum);
     if cstr.to_bytes().is_empty() {
@@ -2022,7 +2022,7 @@ pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
 }
 
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
-#[inline]
+#[inline(always)]
 pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
     let line = ml_get_buf_slice(curbuf_mut(), pos.lnum);
     let col = (pos.col.max(0) as usize).min(line.len());
@@ -2030,7 +2030,7 @@ pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
 }
 
 /// Return a mutable byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.
-#[inline]
+#[inline(always)]
 pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8] {
     let ptr = ml_get_buf_impl(buf, lnum, true).as_ptr().cast_mut();
     if crate::memory::cstr_is_empty(ptr) {
@@ -2149,14 +2149,17 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
     }
     if will_change {
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
-        ml_add_deleted_len_buf(buf, crate::memory::bytes_until_nul(buf.b_ml.ml_line_slice));
+        ml_add_deleted_len_buf(
+            buf,
+            crate::memory::cstr_as_bytes(buf.b_ml.ml_line_slice.as_ptr()),
+        );
     } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
         && buf.b_ml.ml_line_slice.last() == Some(&0)
     {
         return unsafe { CStr::from_bytes_with_nul_unchecked(buf.b_ml.ml_line_slice) };
     }
 
-    crate::memory::cstr_until_nul(buf.b_ml.ml_line_slice)
+    crate::memory::cstr_from_ptr(buf.b_ml.ml_line_slice.as_ptr())
 }
 
 fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
@@ -3658,7 +3661,7 @@ fn findswapname(
     fname_vec.map(|v| crate::memory::cstring_until_nul(&v))
 }
 
-#[inline]
+#[inline(always)]
 fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
     b0p.b0_magic_long != B0_MAGIC_LONG
         || b0p.b0_magic_int != B0_MAGIC_INT
@@ -3702,12 +3705,12 @@ fn fnamecmp_ino(fname_c: Option<&CStr>, fname_s: Option<&CStr>, ino_block0: i64)
     true
 }
 
-#[inline]
+#[inline(always)]
 fn long_to_char(n: i64, s: &mut [u8; 4]) {
     *s = (n as u32).to_le_bytes();
 }
 
-#[inline]
+#[inline(always)]
 fn char_to_long(s: &[u8; 4]) -> i64 {
     i64::from(u32::from_le_bytes(*s))
 }

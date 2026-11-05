@@ -23872,6 +23872,7 @@ pub extern "C-unwind" fn nlua_add_api_functions(lstate: *mut lua_State) {
             lua_pushcclosure(lstate, Some(func), 0);
             lua_setfield(lstate, -2, name);
         }
+        lua_setfield(lstate, -2, c"api");
     }
 }
 

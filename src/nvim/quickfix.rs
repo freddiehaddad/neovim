@@ -3111,21 +3111,19 @@ fn qf_jump_newwin(
     let old_swb_flags = opt_vars().swb_flags;
     let old_key_typed = g_st().key_typed;
 
-    let mut qi: *mut QfInfo = qi_opt.map_or_else(
-        || ptr::from_mut(ql_info_mut()),
-        |q| std::hint::black_box(ptr::from_mut(q)),
+    let mut qi = qi_opt.map_or_else(
+        || crate::globals::GraphPtr::from(ql_info_mut()),
+        crate::globals::GraphPtr::from,
     );
 
-    if qf_stack_empty(unsafe { qi.as_ref() })
-        || qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi }))))
-    {
+    if qf_stack_empty(qi.opt()) || qf_list_empty(Some(&*(qf_get_curlist(qi.borrow_mut())))) {
         emsg(gettext(E_NO_ERRORS));
         return;
     }
 
     incr_quickfix_busy();
 
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
+    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
 
     let mut qf_index = unsafe { (*qfl).qf_index };
     let old_qf_index = qf_index;
@@ -3134,17 +3132,17 @@ fn qf_jump_newwin(
     if qf_ptr.is_some() {
         unsafe { (*qfl).qf_index = qf_index };
 
-        let print_message = !qf_win_pos_update(unsafe { &mut *qi }, old_qf_index);
+        let print_message = !qf_win_pos_update(qi.borrow_mut(), old_qf_index);
         let prev_winid = curwin_mut().handle;
         let mut opened_window = false;
-        let retval = qf_jump_open_window(unsafe { &mut *qi }, qf_index, newwin, &mut opened_window);
+        let retval = qf_jump_open_window(qi.borrow_mut(), qf_index, newwin, &mut opened_window);
         if retval == Some(QfStatus::Fail) {
             qf_index = old_qf_index;
         } else if retval == Some(QfStatus::Abort) {
-            qi = ptr::null_mut();
+            qi = crate::globals::GraphPtr::NULL;
         } else if retval.is_some() {
             let retval = qf_jump_to_buffer(
-                unsafe { &mut *qi },
+                qi.borrow_mut(),
                 qf_index,
                 i32::from(forceit),
                 prev_winid,
@@ -3153,7 +3151,7 @@ fn qf_jump_newwin(
                 print_message,
             );
             if retval == QfStatus::Abort {
-                qi = ptr::null_mut();
+                qi = crate::globals::GraphPtr::NULL;
             }
             if retval != QfStatus::Ok {
                 if opened_window {

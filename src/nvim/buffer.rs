@@ -1315,25 +1315,22 @@ pub fn bufref_valid(bufref: Option<&Bufref>) -> bool {
 }
 
 fn buf_valid_handle(buf: crate::globals::BufPtr) -> bool {
-    let ptr = buf.as_ptr();
-    if ptr.is_null() {
+    if buf.is_null() {
         return false;
     }
-    for bp in for_all_buffers_rev_ptr() {
-        if ptr::eq(bp, ptr) {
+    let mut bp = g_st().lastbuf;
+    while let Some(b) = bp.opt() {
+        if bp == buf {
             return true;
         }
+        bp = b.b_prev;
     }
     false
 }
 
 /// Check that `buf` points to a valid buffer in the buffer list.
 pub fn buf_valid(buf: Option<&FileBuf>) -> bool {
-    let Some(buf_ref) = buf else {
-        return false;
-    };
-    let ptr = std::hint::black_box(ptr::from_ref(buf_ref)).cast_mut();
-    buf_valid_handle(crate::globals::BufPtr::new(ptr))
+    buf_valid_handle(crate::globals::BufPtr::from(buf))
 }
 
 fn can_unload_buffer(buf: &mut FileBuf) -> bool {
@@ -1377,12 +1374,8 @@ pub fn close_buffer(
     ignore_abort: bool,
     set_context: bool,
 ) -> bool {
-    let win = crate::globals::WinPtr::new(
-        win.map_or(ptr::null_mut(), |w| std::hint::black_box(ptr::from_mut(w))),
-    );
-    let buf = crate::globals::BufPtr::new(
-        buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b))),
-    );
+    let win = crate::globals::WinPtr::from(win);
+    let buf = crate::globals::BufPtr::from(buf);
     let mut unload_buf = action != 0;
     let mut del_buf = action == DOBUF_DEL || action == DOBUF_WIPE;
     let mut wipe_buf = action == DOBUF_WIPE;
@@ -1836,8 +1829,8 @@ impl Drop for FileBuf {
     }
 }
 fn free_buffer(buf: &mut FileBuf) {
-    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
-    let buf_ref = unsafe { &mut *buf_ptr };
+    let buf_ptr = crate::globals::BufPtr::from(buf);
+    let buf_ref = buf_ptr.borrow_mut();
     g_st().buffer_handles.remove(&buf_ref.b_fnum);
 
     buf_st().buf_free_count += 1;
@@ -1868,9 +1861,9 @@ fn free_buffer(buf: &mut FileBuf) {
 
         g_st()
             .au_pending_free_buf
-            .push(unsafe { Box::from_raw(buf_ptr) });
+            .push(unsafe { Box::from_raw(buf_ptr.as_ptr()) });
     } else {
-        drop(unsafe { Box::from_raw(buf_ptr) });
+        drop(unsafe { Box::from_raw(buf_ptr.as_ptr()) });
 
         if g_st().curbuf == buf_ptr {
             g_st().curbuf = crate::globals::BufPtr::NULL;

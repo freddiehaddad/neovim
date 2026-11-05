@@ -197,17 +197,17 @@ impl RegexpNfaState {
 
 static NFA_STATE: GlobalState<RegexpNfaState> = GlobalState::new(RegexpNfaState::new());
 
-#[inline]
+#[inline(always)]
 fn nfa_st() -> crate::globals::GraphPtr<RegexpNfaState> {
     NFA_STATE.handle()
 }
 
-#[inline]
+#[inline(always)]
 fn emit_fn(c: i32) {
     re_st().post_vec.push(c);
 }
 
-#[inline]
+#[inline(always)]
 fn emit2(c: i32) {
     emit_fn(c);
     emit_fn(NFA_CONCAT);
@@ -1869,12 +1869,12 @@ fn alloc_state(
     Some(idx)
 }
 
-#[inline]
+#[inline(always)]
 fn frag(start: Option<usize>, out: Vec<NfaOutSlot>) -> Frag {
     Frag { start, out }
 }
 
-#[inline]
+#[inline(always)]
 fn list1(slot: NfaOutSlot) -> Vec<NfaOutSlot> {
     vec![slot]
 }
@@ -2317,7 +2317,7 @@ fn nfa_postprocess(prog: &mut NfaRegprog) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn copy_pim(to: &mut NfaPim, from: &mut NfaPim) {
     to.result = from.result;
     to.state = from.state;
@@ -2343,7 +2343,7 @@ fn clear_sub(sub: &mut Regsub) {
     sub.in_use = 0;
 }
 
-#[inline]
+#[inline(always)]
 fn copy_sub(to: &mut Regsub, from: &mut Regsub) {
     let in_use = from.in_use;
     to.in_use = in_use;
@@ -2360,7 +2360,7 @@ fn copy_sub(to: &mut Regsub, from: &mut Regsub) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn copy_sub_off(to: &mut Regsub, from: &mut Regsub) {
     if to.in_use < from.in_use {
         to.in_use = from.in_use;
@@ -2389,7 +2389,7 @@ fn copy_ze_off(to: &mut Regsub, from: &mut Regsub) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
     let todo = sub1.in_use.max(sub2.in_use) as usize;
     if todo == 1 && sub1.in_use == 1 && sub2.in_use == 1 && !re_st().rex.nfa_has_backref {
@@ -2478,7 +2478,7 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
     true
 }
 
-#[inline]
+#[inline(always)]
 fn has_state_with_pos(
     l: &mut NfaList,
     state: usize,
@@ -2497,7 +2497,7 @@ fn has_state_with_pos(
     false
 }
 
-#[inline]
+#[inline(always)]
 fn pim_equal(one: Option<&NfaPim>, two: Option<&NfaPim>) -> bool {
     let one_unused = one.is_none() || one.unwrap().result == NFA_PIM_UNUSED;
     let two_unused = two.is_none() || two.unwrap().result == NFA_PIM_UNUSED;
@@ -3245,7 +3245,7 @@ fn nfa_restore_listids(prog: &mut NfaRegprog, list: &[i32]) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn nfa_re_num_cmp(val: u64, op: i32, pos: u64) -> bool {
     if op == 1 {
         pos > val

@@ -39,7 +39,7 @@ pub struct Arena {
 }
 
 impl Arena {
-    #[inline]
+    #[inline(always)]
     pub const fn new() -> Self {
         Self {
             cur_blk: std::ptr::null_mut(),
@@ -50,7 +50,7 @@ impl Arena {
 }
 
 impl Default for Arena {
-    #[inline]
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
@@ -80,18 +80,18 @@ impl MemoryModuleState {
 static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> =
     crate::globals::GlobalState::new(MemoryModuleState::new());
 
-#[inline]
+#[inline(always)]
 pub(crate) fn mem_st() -> crate::globals::GraphPtr<MemoryModuleState> {
     MEM_STATE.handle()
 }
 
-#[inline]
+#[inline(always)]
 fn layout_with_header(size: usize) -> Option<std::alloc::Layout> {
     let total = HEADER_SIZE.checked_add(size.max(1))?;
     std::alloc::Layout::from_size_align(total, ALLOC_ALIGN).ok()
 }
 
-#[inline]
+#[inline(always)]
 fn sys_malloc(size: usize) -> *mut u8 {
     let Some(layout) = layout_with_header(size) else {
         return std::ptr::null_mut();
@@ -106,7 +106,7 @@ fn sys_malloc(size: usize) -> *mut u8 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn raw_dealloc(ptr: *mut c_void) {
     if ptr.is_null() {
         return;
@@ -119,7 +119,7 @@ pub fn raw_dealloc(ptr: *mut c_void) {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn sys_calloc(count: usize, size: usize) -> *mut u8 {
     let Some(byte_size) = count.checked_mul(size) else {
         return std::ptr::null_mut();
@@ -137,7 +137,7 @@ fn sys_calloc(count: usize, size: usize) -> *mut u8 {
     }
 }
 
-#[inline]
+#[inline(always)]
 fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
     if ptr.is_null() {
         return sys_malloc(size);
@@ -237,12 +237,12 @@ pub fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
     ret.cast::<c_void>()
 }
 
-#[inline]
+#[inline(always)]
 pub fn realloc_items<T>(items: *mut T, new_cap: usize) -> *mut T {
     raw_realloc(items.cast::<c_void>(), std::mem::size_of::<T>() * new_cap).cast::<T>()
 }
 
-#[inline]
+#[inline(always)]
 pub fn free_items<T>(items: *mut T) {
     raw_dealloc(items.cast::<c_void>());
 }
@@ -268,13 +268,13 @@ pub fn alloc_cstring_len(data: &[u8]) -> RawCCharPtrMut {
 }
 
 /// Duplicate a NUL-terminated C string.
-#[inline]
+#[inline(always)]
 pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> RawCCharPtrMut {
     alloc_cstring_len(str_ptr.to_bytes())
 }
 
 /// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
-#[inline]
+#[inline(always)]
 pub fn free_cstring(p: RawCCharPtrMut) {
     raw_dealloc(p.cast::<c_void>());
 }
@@ -297,49 +297,49 @@ pub trait AsCStrPtr {
 }
 
 impl AsCStrPtr for *const i8 {
-    #[inline]
+    #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
     }
 }
 
 impl AsCStrPtr for *mut i8 {
-    #[inline]
+    #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
     }
 }
 
 impl AsCStrPtr for *const u8 {
-    #[inline]
+    #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
     }
 }
 
 impl AsCStrPtr for *mut u8 {
-    #[inline]
+    #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
     }
 }
 
 impl AsCStrPtr for *const c_void {
-    #[inline]
+    #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
     }
 }
 
 impl AsCStrPtr for *mut c_void {
-    #[inline]
+    #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
         self.cast()
     }
 }
 
 /// Length in bytes of a NUL-terminated C string (0 if null).
-#[inline]
+#[inline(always)]
 pub fn cstr_len(s: impl AsCStrPtr) -> usize {
     let s = s.into_cstr_ptr();
     if s.is_null() {
@@ -350,21 +350,21 @@ pub fn cstr_len(s: impl AsCStrPtr) -> usize {
 }
 
 /// Return true if `s` is null or starts with a NUL byte (`*s == NUL`).
-#[inline]
+#[inline(always)]
 pub fn cstr_is_empty(s: impl AsCStrPtr) -> bool {
     let s = s.into_cstr_ptr();
     s.is_null() || unsafe { *s == 0 }
 }
 
 /// Return the first byte of `s` (or `0` if `s` is null).
-#[inline]
+#[inline(always)]
 pub fn cstr_first_byte(s: impl AsCStrPtr) -> u8 {
     let s = s.into_cstr_ptr();
     if s.is_null() { 0 } else { unsafe { *s as u8 } }
 }
 
 /// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
-#[inline]
+#[inline(always)]
 pub fn cstr_slice<'a>(s: impl AsCStrPtr, len: usize) -> &'a [u8] {
     let s = s.into_cstr_ptr();
     if s.is_null() {
@@ -375,7 +375,7 @@ pub fn cstr_slice<'a>(s: impl AsCStrPtr, len: usize) -> &'a [u8] {
 }
 
 /// View `len` bytes starting at `s` as a mutable byte slice (`&mut [u8]`).
-#[inline]
+#[inline(always)]
 pub fn cstr_mut_slice<'a>(
     s: impl IntoMutPtr<Target = std::ffi::c_char>,
     len: usize,
@@ -395,7 +395,7 @@ pub trait IntoMutPtr {
 
 impl<T> IntoMutPtr for *mut T {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_mut_ptr(self) -> *mut T {
         self
     }
@@ -403,7 +403,7 @@ impl<T> IntoMutPtr for *mut T {
 
 impl<T> IntoMutPtr for &mut T {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_mut_ptr(self) -> *mut T {
         std::ptr::from_mut(self)
     }
@@ -417,7 +417,7 @@ pub trait IntoConstPtr {
 
 impl<T> IntoConstPtr for *const T {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_const_ptr(self) -> *const T {
         self
     }
@@ -425,7 +425,7 @@ impl<T> IntoConstPtr for *const T {
 
 impl<T> IntoConstPtr for *mut T {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_const_ptr(self) -> *const T {
         self
     }
@@ -433,7 +433,7 @@ impl<T> IntoConstPtr for *mut T {
 
 impl<T> IntoConstPtr for &T {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_const_ptr(self) -> *const T {
         std::ptr::from_ref(self)
     }
@@ -441,13 +441,13 @@ impl<T> IntoConstPtr for &T {
 
 impl<T> IntoConstPtr for &mut T {
     type Target = T;
-    #[inline]
+    #[inline(always)]
     fn into_const_ptr(self) -> *const T {
         std::ptr::from_ref(self)
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn ptr_offset_from<P: IntoConstPtr>(
     p: P,
     origin: impl IntoConstPtr<Target = P::Target>,
@@ -461,7 +461,7 @@ pub trait CStrSubslice<'a> {
 }
 
 impl<'a> CStrSubslice<'a> for &'a CStr {
-    #[inline]
+    #[inline(always)]
     fn advance(self, n: usize) -> &'a CStr {
         let bytes = self.to_bytes_with_nul();
         let off = n.min(bytes.len() - 1);
@@ -470,21 +470,21 @@ impl<'a> CStrSubslice<'a> for &'a CStr {
 }
 
 impl<'a> CStrSubslice<'a> for &&'a CStr {
-    #[inline]
+    #[inline(always)]
     fn advance(self, n: usize) -> &'a CStr {
         (*self).advance(n)
     }
 }
 
 impl<'a> CStrSubslice<'a> for &mut &'a CStr {
-    #[inline]
+    #[inline(always)]
     fn advance(self, n: usize) -> &'a CStr {
         (*self).advance(n)
     }
 }
 
 /// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
-#[inline]
+#[inline(always)]
 pub fn cstr_from_ptr<'a>(s: impl AsCStrPtr) -> &'a CStr {
     let s = s.into_cstr_ptr();
     if s.is_null() {
@@ -495,7 +495,7 @@ pub fn cstr_from_ptr<'a>(s: impl AsCStrPtr) -> &'a CStr {
 }
 
 /// View a byte slice up to the first NUL byte (or the whole slice if no NUL is present).
-#[inline]
+#[inline(always)]
 pub fn bytes_until_nul(bytes: &[u8]) -> &[u8] {
     match bytes.iter().position(|&b| b == 0) {
         Some(pos) => &bytes[..pos],
@@ -504,19 +504,19 @@ pub fn bytes_until_nul(bytes: &[u8]) -> &[u8] {
 }
 
 /// View a byte slice up to the first NUL byte as a `&CStr` (or `c""` if no NUL is present).
-#[inline]
+#[inline(always)]
 pub fn cstr_until_nul(bytes: &[u8]) -> &CStr {
     CStr::from_bytes_until_nul(bytes).unwrap_or(c"")
 }
 
 /// Clone a byte slice up to the first NUL byte into an owned `CString`.
-#[inline]
+#[inline(always)]
 pub fn cstring_until_nul(bytes: &[u8]) -> CString {
     cstr_until_nul(bytes).to_owned()
 }
 
 /// Safely mutate the bytes of a `CString` in place via its owned `Vec<u8>`.
-#[inline]
+#[inline(always)]
 pub fn cstring_modify<R>(s: &mut CString, f: impl FnOnce(&mut [u8]) -> R) -> R {
     let mut v = std::mem::take(s).into_bytes_with_nul();
     let r = f(&mut v);
@@ -525,7 +525,7 @@ pub fn cstring_modify<R>(s: &mut CString, f: impl FnOnce(&mut [u8]) -> R) -> R {
 }
 
 /// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
-#[inline]
+#[inline(always)]
 pub fn cstr_as_opt_cstr<'a>(s: impl AsCStrPtr) -> Option<&'a CStr> {
     let s = s.into_cstr_ptr();
     if s.is_null() {
@@ -536,7 +536,7 @@ pub fn cstr_as_opt_cstr<'a>(s: impl AsCStrPtr) -> Option<&'a CStr> {
 }
 
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
-#[inline]
+#[inline(always)]
 pub fn cstr_as_bytes<'a>(s: impl AsCStrPtr) -> &'a [u8] {
     let s = s.into_cstr_ptr();
     if s.is_null() {
@@ -547,7 +547,7 @@ pub fn cstr_as_bytes<'a>(s: impl AsCStrPtr) -> &'a [u8] {
 }
 
 /// View up to `max_size` bytes of a NUL-terminated C string as a byte slice (without full `strlen`).
-#[inline]
+#[inline(always)]
 pub fn cstr_prefix_bytes<'a>(
     p: impl IntoConstPtr<Target = std::ffi::c_char>,
     max_size: usize,
@@ -565,7 +565,7 @@ pub fn cstr_prefix_bytes<'a>(
 }
 
 /// View up to 1 UTF-8 codepoint (at most 6 bytes before NUL) starting at `p`.
-#[inline]
+#[inline(always)]
 pub fn cstr_char_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
     let p = p.into_const_ptr();
     if p.is_null() {
@@ -587,7 +587,7 @@ pub fn cstr_char_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &
 }
 
 /// View up to 1 UTF-8 grapheme cluster (at most 64 bytes before NUL) starting at `p`.
-#[inline]
+#[inline(always)]
 pub fn cstr_cluster_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
     let p = p.into_const_ptr();
     if p.is_null() {
@@ -609,7 +609,7 @@ pub fn cstr_cluster_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -
 }
 
 /// View the span `[base .. p + 6]` (stopping at NUL after `p`) and return `(slice, p - base)`.
-#[inline]
+#[inline(always)]
 pub fn cstr_span_to_char<'a>(
     base: impl IntoConstPtr<Target = std::ffi::c_char>,
     p: impl IntoConstPtr<Target = std::ffi::c_char>,
@@ -636,13 +636,13 @@ pub fn cstr_span_to_char<'a>(
 }
 
 /// View a NUL-terminated C string buffer (including the trailing NUL byte) as a mutable byte slice.
-#[inline]
+#[inline(always)]
 pub fn cstr_as_mut_bytes<'a>(s: impl IntoMutPtr<Target = std::ffi::c_char>) -> &'a mut [u8] {
     cstr_buf_as_mut_bytes(s, 0)
 }
 
 /// View a NUL-terminated C string buffer (plus `extra` trailing capacity bytes) as a mutable byte slice.
-#[inline]
+#[inline(always)]
 pub fn cstr_buf_as_mut_bytes<'a>(
     s: impl IntoMutPtr<Target = std::ffi::c_char>,
     extra: usize,
@@ -656,7 +656,7 @@ pub fn cstr_buf_as_mut_bytes<'a>(
 }
 
 /// View a nullable NUL-terminated C string as `Option<&[u8]>`.
-#[inline]
+#[inline(always)]
 pub fn cstr_as_opt_bytes<'a>(s: impl AsCStrPtr) -> Option<&'a [u8]> {
     let s = s.into_cstr_ptr();
     (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
@@ -664,7 +664,7 @@ pub fn cstr_as_opt_bytes<'a>(s: impl AsCStrPtr) -> Option<&'a [u8]> {
 
 /// Copy `src` (up to any embedded NUL) into sized C buffer `dst`, NUL-terminating `dst`.
 /// Returns the byte length of `src` (up to any embedded NUL), matching `strlcpy` semantics.
-#[inline]
+#[inline(always)]
 pub fn copy_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
     let src = bytes_until_nul(src);
     let slen = src.len();
@@ -678,7 +678,7 @@ pub fn copy_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
 
 /// Append `src` (up to any embedded NUL) onto NUL-terminated C buffer `dst`, NUL-terminating `dst`.
 /// Returns the byte length of `src` (up to any embedded NUL).
-#[inline]
+#[inline(always)]
 pub fn append_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
     let dlen = bytes_until_nul(dst).len();
     if dlen < dst.len() {
@@ -742,7 +742,7 @@ pub fn arena_alloc_block(arena: &mut Arena) {
     }
 }
 
-#[inline]
+#[inline(always)]
 const fn arena_align_offset(off: usize) -> usize {
     let align = if std::mem::size_of::<*mut c_void>() > std::mem::size_of::<f64>() {
         std::mem::size_of::<*mut c_void>()
@@ -795,7 +795,7 @@ pub fn arena_alloc(arena: &mut Arena, size: usize, align: bool) -> *mut c_void {
 }
 
 /// Allocate `size` bytes from `arena` (or via `raw_alloc` if `arena` is `None`).
-#[inline]
+#[inline(always)]
 pub fn arena_alloc_opt(arena: Option<&mut Arena>, size: usize, align: bool) -> *mut c_void {
     match arena {
         Some(a) => arena_alloc(a, size, align),
@@ -847,7 +847,7 @@ pub fn arena_allocz(arena: &mut Arena, size: usize) -> RawCCharPtrMut {
 }
 
 /// Allocate `size + 1` bytes on `arena` (or heap if `None`) and NUL-terminate.
-#[inline]
+#[inline(always)]
 pub fn arena_allocz_opt(arena: Option<&mut Arena>, size: usize) -> RawCCharPtrMut {
     let mem = arena_alloc_opt(arena, size + 1, false).cast::<u8>();
     unsafe {
@@ -869,7 +869,7 @@ pub fn arena_memdupz(arena: &mut Arena, buf: &[u8]) -> RawCCharPtrMut {
 }
 
 /// Copy `buf` into a NUL-terminated buffer on `arena` (or heap if `None`).
-#[inline]
+#[inline(always)]
 pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: &[u8]) -> RawCCharPtrMut {
     let size = buf.len();
     let mem = arena_allocz_opt(arena, size).cast::<u8>();

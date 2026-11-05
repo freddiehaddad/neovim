@@ -2971,7 +2971,7 @@ fn tui_init_stty_erase(input: &mut TermInput) {
             tui_st().stty_erase_buf[1] = 0;
             if log_st().g_min_log_level <= LOGLVL_DBG {
                 let erase_cstr =
-                    CStr::from_bytes_until_nul(&tui_st().stty_erase_buf).unwrap_or(c"");
+                    CStr::from_bytes_until_nul(&tui_st().borrow().stty_erase_buf).unwrap_or(c"");
                 logmsg!(
                     LOGLVL_DBG,
                     None,
