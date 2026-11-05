@@ -977,12 +977,11 @@ fn nfa_regatom() -> bool {
             let start_ptr = prev_sub.as_ptr().cast::<u8>();
             let mut lp = start_ptr;
             while crate::memory::cstr_first_byte(lp.cast()) != NUL {
-                emit_fn(utf_ptr2char(crate::memory::cstr_char_bytes(lp.cast())));
+                emit_fn(utf_ptr2char(lp));
                 if lp != start_ptr {
                     emit_fn(NFA_CONCAT);
                 }
-                lp = lp
-                    .wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes(lp.cast())) as usize);
+                lp = lp.wrapping_add(utf_ptr2len(lp) as usize);
             }
             emit_fn(NFA_NOPEN);
             return true;
@@ -3450,7 +3449,7 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
     loop {
         let mut matched = true;
         let mut s1 = match_text;
-        let regstart_len2 = utf_ptr2len(re_st().rex.line.wrapping_add(col as usize).char_bytes());
+        let regstart_len2 = utf_ptr2len(re_st().rex.line.wrapping_add(col as usize));
         let mut s2 = re_st()
             .rex
             .line
@@ -3458,8 +3457,8 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
         while !s1.is_empty() {
             let c1_len = crate::mbyte::utf_slice2len(s1);
             let c1 = crate::mbyte::utf_slice2char(s1);
-            let c2_len = utf_ptr2len(crate::memory::cstr_char_bytes(s2.cast())) as usize;
-            let c2 = utf_ptr2char(crate::memory::cstr_char_bytes(s2.cast()));
+            let c2_len = utf_ptr2len(s2) as usize;
+            let c2 = utf_ptr2char(s2);
             if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
                 matched = false;
                 break;
@@ -3467,9 +3466,7 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
             s1 = &s1[c1_len..];
             s2 = s2.wrapping_add(c2_len);
         }
-        if matched
-            && !utf_iscomposing_legacy(utf_ptr2char(crate::memory::cstr_char_bytes(s2.cast())))
-        {
+        if matched && !utf_iscomposing_legacy(utf_ptr2char(s2)) {
             cleanup_subexpr();
             if reg_multi() {
                 let startpos = re_st().rex.startpos_slice_mut();
@@ -3520,7 +3517,7 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
     }
 
     while len < clen {
-        mc = utf_ptr2char(re_st().rex.input.wrapping_add(len as usize).char_bytes());
+        mc = utf_ptr2char(re_st().rex.input.wrapping_add(len as usize));
         cchars[ccount] = mc;
         ccount += 1;
         len += utf_char2len(mc);
@@ -3652,8 +3649,8 @@ fn nfa_regmatch(
 
             clen = 1;
         } else {
-            curc = utf_ptr2char(crate::memory::cstr_char_bytes(input_ptr.cast()));
-            clen = utfc_ptr2len(crate::memory::cstr_cluster_bytes(input_ptr.cast()));
+            curc = utf_ptr2char(input_ptr);
+            clen = utfc_ptr2len(input_ptr);
         }
         if curc == NUL as i32 {
             clen = 0;
@@ -4416,7 +4413,7 @@ fn nfa_regmatch(
                         matched = utf_fold(c) == utf_fold(curc);
                     }
                     if matched && !re_st().rex.reg_icombine {
-                        clen = utf_ptr2len(re_st().rex.input.char_bytes());
+                        clen = utf_ptr2len(re_st().rex.input);
                     }
                     if matched {
                         add_state = t_st.out;
@@ -4561,9 +4558,7 @@ fn nfa_regmatch(
                         }
                         re_st().rex.input = re_st().rex.line.wrapping_add((col - clen) as usize);
                     } else {
-                        let c = utf_ptr2char(
-                            re_st().rex.input.wrapping_add(clen as usize).char_bytes(),
-                        );
+                        let c = utf_ptr2char(re_st().rex.input.wrapping_add(clen as usize));
                         if c != prog.regstart
                             && (!re_st().rex.reg_ic || utf_fold(c) != utf_fold(prog.regstart))
                         {

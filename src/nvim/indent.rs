@@ -854,9 +854,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                                 crate::memory::cstr_as_bytes(ptr_cur.cast()),
                                 indent,
                             );
-                            ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(
-                                crate::memory::cstr_cluster_bytes(ptr_cur.cast()),
-                            ) as usize);
+                            ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur) as usize);
                         }
                         ind_st().prev_indent = indent;
                     }
@@ -1499,9 +1497,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                 emsg_text_too_long();
                 break;
             }
-            col += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                (ptr.wrapping_add(col as usize)).cast(),
-            ));
+            col += utfc_ptr2len(ptr.wrapping_add(col as usize));
         }
         if new_line.is_null() {
             break;
@@ -1738,8 +1734,7 @@ pub fn get_lisp_indent() -> i32 {
 
                     parencount = 0;
 
-                    let mut ci: CharInfo =
-                        utf_ptr2_char_info(crate::memory::cstr_char_bytes((that).cast()));
+                    let mut ci: CharInfo = utf_ptr2_char_info(that);
                     if ci.value != b'"' as i32
                         && ci.value != b'\'' as i32
                         && ci.value != b'#' as i32

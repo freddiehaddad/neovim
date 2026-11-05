@@ -1337,8 +1337,8 @@ pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
         }
         let mut n = 0usize;
         while size >= room {
-            size -= utf_ptr2cells(crate::memory::cstr_cluster_bytes(s[n..].as_ptr().cast()));
-            n += utfc_ptr2len(crate::memory::cstr_cluster_bytes(s[n..].as_ptr().cast())) as usize;
+            size -= utf_ptr2cells(s[n..].as_ptr());
+            n += utfc_ptr2len(s[n..].as_ptr()) as usize;
         }
         n -= 1;
         s[n] = b'<';
@@ -2325,7 +2325,7 @@ pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
         // Highlight special keys
         msg_puts_hl(
             crate::memory::cstr_from_ptr(text),
-            if len > 1 && utfc_ptr2len(crate::memory::cstr_cluster_bytes((text).cast())) <= 1 {
+            if len > 1 && utfc_ptr2len(text) <= 1 {
                 hl_id
             } else {
                 0
@@ -3387,9 +3387,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
         let mut rem = slice;
         while !rem.is_empty() {
             let s_ptr: crate::strings::RawCCharPtr = rem.as_ptr().cast();
-            let len = (utf_ptr2len(crate::memory::cstr_char_bytes((s_ptr).cast())) as usize)
-                .max(1)
-                .min(rem.len());
+            let len = (utf_ptr2len(s_ptr) as usize).max(1).min(rem.len());
             let first = rem[0];
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut pos = 0usize;
@@ -3410,7 +3408,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
                 }
             }
 
-            let cw = utf_char2cells(utf_ptr2char(crate::memory::cstr_char_bytes((s_ptr).cast())));
+            let cw = utf_char2cells(utf_ptr2char(s_ptr));
             if matches!(first, b'\r' | b'\n') {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;

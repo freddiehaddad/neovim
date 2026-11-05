@@ -199,9 +199,7 @@ fn match_add(
         mit_botlnum: 0,
         mit_hl: SynMatch::new(),
         mit_hlg_id: hlg_id,
-        mit_conceal_char: conceal_char.map_or(0, |c| {
-            utf_ptr2char(crate::memory::cstr_char_bytes((c.as_ptr()).cast()))
-        }),
+        mit_conceal_char: conceal_char.map_or(0, |c| utf_ptr2char(c.as_ptr())),
     };
 
     if pos_list.is_some() {
@@ -655,7 +653,7 @@ pub fn prepare_search_hl_line(
             if shl.startcol == shl.endcol {
                 let p = line.wrapping_add(shl.endcol as usize);
                 if !crate::memory::cstr_is_empty(p) {
-                    shl.endcol += utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+                    shl.endcol += utfc_ptr2len(p);
                 } else {
                     shl.endcol += 1;
                 }
@@ -712,10 +710,7 @@ pub fn update_search_hl(
         let mut pos_inprogress = true;
         while !shl.rm.regprog.is_null() || (!cur.is_null() && pos_inprogress) {
             if shl.startcol != MAXCOL && col >= shl.startcol && col < shl.endcol {
-                let next_col = col
-                    + utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                        (line.wrapping_add(col as usize)).cast(),
-                    ));
+                let next_col = col + utfc_ptr2len(line.wrapping_add(col as usize));
                 if shl.endcol < next_col {
                     shl.endcol = next_col;
                 }
@@ -765,8 +760,7 @@ pub fn update_search_hl(
                         if crate::memory::cstr_is_empty(p) {
                             shl.endcol += 1;
                         } else {
-                            shl.endcol +=
-                                utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+                            shl.endcol += utfc_ptr2len(p);
                         }
                     }
                     continue;

@@ -195,7 +195,7 @@ fn operand_cmp(prog: &[u8], idx: usize) -> u8 {
 
 #[inline]
 fn advance_reginput() {
-    let step = utfc_ptr2len(re_st().rex.input.cluster_bytes()) as usize;
+    let step = utfc_ptr2len(re_st().rex.input) as usize;
     re_st().rex.input = re_st().rex.input.wrapping_add(step);
 }
 
@@ -2291,7 +2291,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                         break;
                     }
                 } else {
-                    let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((*scan).cast()));
+                    let l = utfc_ptr2len(*scan);
                     if l > 1 {
                         if testval != 0 {
                             break;
@@ -2313,7 +2313,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         while count < maxcount {
             while crate::memory::cstr_first_byte(scan.cast()) != NUL && count < maxcount {
                 count += 1;
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast())) as usize;
+                let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
             }
             if !reg_multi()
@@ -2337,10 +2337,8 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         }
         while count < maxcount {
             let b0 = crate::memory::cstr_first_byte(scan.cast());
-            if vim_is_idc(utf_ptr2char(crate::memory::cstr_char_bytes(scan.cast())))
-                && (testval != 0 || !ascii_isdigit(b0 as i32))
-            {
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast())) as usize;
+            if vim_is_idc(utf_ptr2char(scan)) && (testval != 0 || !ascii_isdigit(b0 as i32)) {
+                let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
             } else if b0 == NUL {
                 if !reg_multi()
@@ -2373,7 +2371,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 re_st().rex.buf_mut(),
             ) && (testval != 0 || !ascii_isdigit(b0 as i32))
             {
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast())) as usize;
+                let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
             } else if b0 == NUL {
                 if !reg_multi()
@@ -2401,10 +2399,8 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         }
         while count < maxcount {
             let b0 = crate::memory::cstr_first_byte(scan.cast());
-            if vim_isfilec(utf_ptr2char(crate::memory::cstr_char_bytes(scan.cast())))
-                && (testval != 0 || !ascii_isdigit(b0 as i32))
-            {
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast())) as usize;
+            if vim_isfilec(utf_ptr2char(scan)) && (testval != 0 || !ascii_isdigit(b0 as i32)) {
+                let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
             } else if b0 == NUL {
                 if !reg_multi()
@@ -2445,10 +2441,10 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 if g_st().got_int {
                     break;
                 }
-            } else if vim_isprintc(utf_ptr2char(crate::memory::cstr_char_bytes(scan.cast())))
+            } else if vim_isprintc(utf_ptr2char(scan))
                 && (testval != 0 || !ascii_isdigit(b0 as i32))
             {
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast())) as usize;
+                let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
             } else if re_st().rex.reg_line_lbr && b0 == b'\n' && with_nl(op) {
                 scan = scan.wrapping_add(1);
@@ -2520,14 +2516,10 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             } else {
                 0
             };
-            while count < maxcount
-                && (utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast())) as usize) >= len
-            {
+            while count < maxcount && (utfc_ptr2len(scan) as usize) >= len {
                 let scan_slice = crate::memory::cstr_slice(scan.cast(), len);
                 if scan_slice != &opnd[..len]
-                    && (!re_st().rex.reg_ic
-                        || utf_fold(utf_ptr2char(crate::memory::cstr_char_bytes(scan.cast())))
-                            != cf)
+                    && (!re_st().rex.reg_ic || utf_fold(utf_ptr2char(scan)) != cf)
                 {
                     break;
                 }
@@ -2556,15 +2548,9 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             } else if re_st().rex.reg_line_lbr && b0 == b'\n' && with_nl(op) {
                 scan = scan.wrapping_add(1);
             } else {
-                let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes(scan.cast()));
+                let len = utfc_ptr2len(scan);
                 if len > 1 {
-                    if cstrchr(
-                        opnd_cstr,
-                        utf_ptr2char(crate::memory::cstr_char_bytes(scan.cast())),
-                    )
-                    .is_none()
-                        == is_anyof
-                    {
+                    if cstrchr(opnd_cstr, utf_ptr2char(scan)).is_none() == is_anyof {
                         break;
                     }
                     scan = scan.wrapping_add(len as usize);
@@ -2746,7 +2732,7 @@ fn regmatch(
                 if with_nl(op) {
                     op -= ADD_NL;
                 }
-                let c = utf_ptr2char(re_st().rex.input.char_bytes());
+                let c = utf_ptr2char(re_st().rex.input);
                 match op {
                     BOL => {
                         if re_st().rex.input != re_st().rex.line {
@@ -2968,7 +2954,7 @@ fn regmatch(
                         }
                     }
                     PRINT => {
-                        if !vim_isprintc(utf_ptr2char(re_st().rex.input.char_bytes())) {
+                        if !vim_isprintc(utf_ptr2char(re_st().rex.input)) {
                             status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
@@ -2976,7 +2962,7 @@ fn regmatch(
                     }
                     SPRINT => {
                         if ascii_isdigit(input_byte() as i32)
-                            || !vim_isprintc(utf_ptr2char(re_st().rex.input.char_bytes()))
+                            || !vim_isprintc(utf_ptr2char(re_st().rex.input))
                         {
                             status = RegAction::NoMatch;
                         } else {
@@ -3153,7 +3139,7 @@ fn regmatch(
                             re_st().rex.input = re_st()
                                 .rex
                                 .input
-                                .wrapping_add(utf_ptr2len(re_st().rex.input.char_bytes()) as usize);
+                                .wrapping_add(utf_ptr2len(re_st().rex.input) as usize);
                             if len != 0 {
                                 let q_comp = &q_slice[q_utf..q_utf + len];
                                 let inp_comp = re_st().rex.input.slice(len);
@@ -3176,20 +3162,15 @@ fn regmatch(
                                 let mut i: usize = 0;
                                 while re_st().rex.input.wrapping_add(i).first_byte() != NUL {
                                     let step =
-                                        utf_ptr2len(re_st().rex.input.wrapping_add(i).char_bytes())
-                                            as usize;
-                                    let inpc = utf_ptr2char(
-                                        re_st().rex.input.wrapping_add(i).char_bytes(),
-                                    );
+                                        utf_ptr2len(re_st().rex.input.wrapping_add(i)) as usize;
+                                    let inpc = utf_ptr2char(re_st().rex.input.wrapping_add(i));
                                     if !utf_iscomposing_legacy(inpc) {
                                         if i > 0 {
                                             break;
                                         }
                                     } else if opndc == inpc {
                                         len = (i as i32)
-                                            + utfc_ptr2len(
-                                                re_st().rex.input.wrapping_add(i).cluster_bytes(),
-                                            );
+                                            + utfc_ptr2len(re_st().rex.input.wrapping_add(i));
                                         status = RegAction::Match;
                                         break;
                                     }
@@ -3207,11 +3188,11 @@ fn regmatch(
                         }
                     }
                     RE_COMPOSING => {
-                        while utf_iscomposing_legacy(utf_ptr2char(re_st().rex.input.char_bytes())) {
+                        while utf_iscomposing_legacy(utf_ptr2char(re_st().rex.input)) {
                             re_st().rex.input = re_st()
                                 .rex
                                 .input
-                                .wrapping_add(utf_ptr2len(re_st().rex.input.char_bytes()) as usize);
+                                .wrapping_add(utf_ptr2len(re_st().rex.input) as usize);
                         }
                     }
                     NOTHING => {}
@@ -4022,7 +4003,7 @@ fn bt_regexec_both(
                 {
                     break;
                 }
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(s.cast())) as usize;
+                let step = utfc_ptr2len(s) as usize;
                 s = s.wrapping_add(step);
             }
         } else {
@@ -4042,7 +4023,7 @@ fn bt_regexec_both(
                 {
                     break;
                 }
-                let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(s.cast())) as usize;
+                let step = utfc_ptr2len(s) as usize;
                 s = s.wrapping_add(step);
             }
         }
@@ -4056,7 +4037,7 @@ fn bt_regexec_both(
     re_st().reg_toolong = 0;
 
     if prog.reganch != 0 {
-        let c = utf_ptr2char(re_st().rex.line.wrapping_add(col as usize).char_bytes());
+        let c = utf_ptr2char(re_st().rex.line.wrapping_add(col as usize));
         if prog.regstart == NUL as i32
             || prog.regstart == c
             || (re_st().rex.reg_ic
@@ -4108,7 +4089,7 @@ fn bt_regexec_both(
             if re_st().rex.line.wrapping_add(col as usize).is_empty() {
                 break;
             }
-            col += utfc_ptr2len(re_st().rex.line.wrapping_add(col as usize).cluster_bytes());
+            col += utfc_ptr2len(re_st().rex.line.wrapping_add(col as usize));
             if let Some(tm_val) = tm {
                 tm_count += 1;
                 if tm_count == 20 {

@@ -1670,7 +1670,7 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
     let mut idx: Varnumber = 0;
     while !crate::memory::cstr_is_empty(p) {
-        let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+        let len = utfc_ptr2len(p);
         if len == 0 {
             break;
         }

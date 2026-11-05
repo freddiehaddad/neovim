@@ -2879,12 +2879,12 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
         if crate::memory::cstr_first_byte(p) == TAB {
             col += 8 - (col % 8);
         } else {
-            col += ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
+            col += ptr2cells(p);
         }
         if col > vcol {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
     crate::memory::ptr_offset_from(p, line) as i32
 }

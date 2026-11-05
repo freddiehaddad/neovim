@@ -1292,10 +1292,7 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
     {
         let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
         schar_get(&mut sc_buf, mb_schar);
-        debug_assert_eq!(
-            crate::mbyte::ptr2cells(crate::memory::cstr_cluster_bytes(sc_buf.as_ptr().cast())),
-            1
-        );
+        debug_assert_eq!(crate::mbyte::ptr2cells(sc_buf.as_ptr()), 1);
     }
     let _ = mb_schar;
     1
@@ -2237,9 +2234,7 @@ pub fn win_line(
                 if has_decor && wlv.n_extra == 0 {
                     if wlv.vcol == wlv.fromcol
                         || (wlv.vcol + 1 == wlv.fromcol
-                            && (wlv.n_extra == 0
-                                && utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast()))
-                                    > 1))
+                            && (wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1))
                     {
                         area_active = true;
                     } else if area_active && wlv.vcol == wlv.tocol {
@@ -2289,8 +2284,7 @@ pub fn win_line(
 
                 if wlv.vcol == wlv.fromcol
                     || (wlv.vcol + 1 == wlv.fromcol
-                        && ((wlv.n_extra == 0
-                            && utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast())) > 1)
+                        && ((wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1)
                             || (wlv.n_extra > 0
                                 && wlv.p_extra.is_some_and(|s| utf_ptr2cells(s.to_bytes()) > 1))))
                 {

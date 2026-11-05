@@ -1519,7 +1519,7 @@ pub fn get_foldtext(
                 } else if bytes[idx] == TAB {
                     bytes[idx] = b' ';
                     idx += 1;
-                } else if ptr2cells(crate::memory::cstr_cluster_bytes((p_at).cast())) > 1 {
+                } else if ptr2cells(p_at) > 1 {
                     break;
                 } else {
                     idx += 1;

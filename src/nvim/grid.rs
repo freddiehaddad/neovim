@@ -291,7 +291,7 @@ pub fn schar_get_adv(buf_out: &mut [u8], sc: Schar) -> usize {
 pub fn schar_cells(sc: Schar) -> i32 {
     let mut buf = [0u8; MAX_SCHAR_SIZE];
     schar_get(&mut buf, sc);
-    crate::mbyte::utf_ptr2cells(crate::memory::cstr_cluster_bytes(buf.as_ptr().cast()))
+    crate::mbyte::utf_ptr2cells(buf.as_ptr())
 }
 
 pub fn schar_len(sc: Schar) -> usize {
@@ -1236,10 +1236,8 @@ fn grid_draw_bordertext(
             }
             let mut p = text;
             while !crate::memory::cstr_is_empty(p) && overflow > 0 {
-                overflow -= utf_ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
-                p = p.wrapping_add(
-                    utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize
-                );
+                overflow -= utf_ptr2cells(p);
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
             text = p;
         }

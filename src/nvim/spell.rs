@@ -746,15 +746,11 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                         let s_end = ptr.wrapping_add(wlen as usize);
                         while s < s_end {
                             {
-                                let _adv = crate::mbyte::utfc_ptr2len(
-                                    crate::memory::cstr_cluster_bytes((p).cast()),
-                                ) as usize;
+                                let _adv = crate::mbyte::utfc_ptr2len(p) as usize;
                                 p = (p).wrapping_add(_adv);
                             };
                             {
-                                let _adv = crate::mbyte::utfc_ptr2len(
-                                    crate::memory::cstr_cluster_bytes((s).cast()),
-                                ) as usize;
+                                let _adv = crate::mbyte::utfc_ptr2len(s) as usize;
                                 s = (s).wrapping_add(_adv);
                             };
                         }
@@ -1928,8 +1924,8 @@ fn use_midword(lp: &mut Slang, wp: &mut WinInfoInfo) {
     let w_s = wp.w_s_ptr();
     let mut p = sl_midword.as_ptr();
     while !crate::memory::cstr_is_empty(p) {
-        let c = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
-        let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+        let c = utf_ptr2char(p);
+        let l = utfc_ptr2len(p);
         if (0..256).contains(&c) && l <= 2 {
             w_s.b_spell_ismw[c as usize] = true;
         } else {
@@ -3032,7 +3028,7 @@ fn dump_prefixes(
     let mut word_up: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut has_word_up = false;
     let mut lnum = startlnum;
-    let mut c = utf_ptr2char(crate::memory::cstr_char_bytes((word.as_ptr()).cast()));
+    let mut c = utf_ptr2char(word.as_ptr());
     if spell_toupper(c) != c {
         onecap_copy(word.to_bytes(), &mut word_up, true);
         has_word_up = true;

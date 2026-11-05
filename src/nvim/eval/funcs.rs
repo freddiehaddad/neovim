@@ -1726,7 +1726,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                     )
                     && !crate::memory::cstr_is_empty(p)
                 {
-                    let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+                    let l = utfc_ptr2len(p);
                     if crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
                         col += l;
                     }
@@ -5252,13 +5252,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                     idx += 1;
                 } else {
-                    startcol =
-                        (crate::memory::ptr_offset_from(
-                            regmatch.startp[0].wrapping_add(utfc_ptr2len(
-                                regmatch.startp[0].cluster_bytes(),
-                            ) as usize),
-                            str_.cast(),
-                        )) as Colnr;
+                    startcol = (crate::memory::ptr_offset_from(
+                        regmatch.startp[0].wrapping_add(utfc_ptr2len(regmatch.startp[0]) as usize),
+                        str_.cast(),
+                    )) as Colnr;
                     if i64::from(startcol) > len
                         || str_.wrapping_add(startcol as usize).cast::<u8>()
                             <= regmatch.startp[0].as_ptr()
@@ -6463,7 +6460,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
                 );
                 return;
             }
-            len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+            len = utfc_ptr2len(p);
             *rettv = TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
@@ -6484,7 +6481,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
             rettv.v_type = VarType::VarUnknown;
-            len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+            len = utfc_ptr2len(p);
             crate::eval::typval::tv_set_string_len(
                 &mut argv[1],
                 Some(crate::memory::cstr_slice(p, len as usize)),
@@ -6997,13 +6994,9 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     let mut i: usize = 0;
     loop {
-        let c = utf_ptr2char(crate::memory::cstr_char_bytes(
-            buf.as_ptr().wrapping_add(i).cast(),
-        ));
+        let c = utf_ptr2char(buf.as_ptr().wrapping_add(i));
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(c));
-        i += utf_ptr2len(crate::memory::cstr_char_bytes(
-            buf.as_ptr().wrapping_add(i).cast(),
-        )) as usize;
+        i += utf_ptr2len(buf.as_ptr().wrapping_add(i)) as usize;
         if buf[i] == 0 {
             break;
         }
@@ -8158,7 +8151,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 if regmatch.endp[0].cast_const().cast() > str_ {
                     col = 0;
                 } else {
-                    col = utfc_ptr2len(regmatch.endp[0].cluster_bytes());
+                    col = utfc_ptr2len(regmatch.endp[0]);
                 }
                 str_ = regmatch.endp[0].cast();
             }

@@ -2613,17 +2613,11 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
     let first_bytes = files[0].as_bytes();
 
     while len < first_bytes.len() {
-        let mb_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-            (first_file.wrapping_add(len)).cast(),
-        )) as usize;
-        let c0 = utf_ptr2char(crate::memory::cstr_char_bytes(
-            (first_file.wrapping_add(len)).cast(),
-        ));
+        let mb_len = utfc_ptr2len(first_file.wrapping_add(len)) as usize;
+        let c0 = utf_ptr2char(first_file.wrapping_add(len));
         let mut i: usize = 1;
         while (i as i32) < xp.xp_numfiles {
-            let ci = utf_ptr2char(crate::memory::cstr_char_bytes(
-                (files[i].as_ptr().wrapping_add(len)).cast(),
-            ));
+            let ci = utf_ptr2char(files[i].as_ptr().wrapping_add(len));
 
             if opt_vars().p_fic
                 && (xp.xp_context == EXPAND_DIRECTORIES
@@ -3343,7 +3337,7 @@ fn set_context_for_wildcard_arg(
     xp.xp_pattern = crate::strings::CStrCursor::from_ptr(crate::charset::skipwhite_ptr(arg));
     let mut p: *const u8 = xp.xp_pattern.as_ptr();
     while !crate::memory::cstr_is_empty(p.cast()) {
-        let mut c = utf_ptr2char(crate::memory::cstr_char_bytes(p.cast()));
+        let mut c = utf_ptr2char(p);
         if c == b'\\' as i32 && crate::memory::cstr_len(p.cast()) > 1 {
             p = p.wrapping_add(1);
         } else if c == b'`' as i32 {
@@ -3360,14 +3354,12 @@ fn set_context_for_wildcard_arg(
         {
             len = 0;
             while !crate::memory::cstr_is_empty(p.cast()) {
-                c = utf_ptr2char(crate::memory::cstr_char_bytes(p.cast()));
+                c = utf_ptr2char(p);
                 if c == b'`' as i32 || vim_isfilec_or_wc(c) {
                     break;
                 }
-                len = utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize;
-                p = p.wrapping_add(
-                    utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize
-                );
+                len = utfc_ptr2len(p) as usize;
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
             if in_quote {
                 bow = p;
@@ -3376,7 +3368,7 @@ fn set_context_for_wildcard_arg(
             }
             p = p.wrapping_sub(len);
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
 
     if !bow.is_null() && in_quote {
@@ -4215,9 +4207,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
             while !crate::memory::cstr_is_empty(p.cast())
                 && !ascii_isspace(crate::memory::cstr_first_byte(p.cast()))
             {
-                p = p.wrapping_add(
-                    utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize
-                );
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
 
             if crate::memory::cstr_is_empty(p.cast()) && (ea.argt & EX_ARGOPT) != 0 {

@@ -842,9 +842,7 @@ pub fn searchit(
                                         )
                                     {
                                         matchcol +=
-                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
-                                            ));
+                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
@@ -852,9 +850,7 @@ pub fn searchit(
                                         ptr_line.wrapping_add(matchcol as usize),
                                     ) {
                                         matchcol +=
-                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
-                                            ));
+                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
                                 }
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
@@ -930,9 +926,7 @@ pub fn searchit(
                                         )
                                     {
                                         matchcol +=
-                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
-                                            ));
+                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
                                 } else {
                                     if matchpos.lnum > 0 {
@@ -943,9 +937,7 @@ pub fn searchit(
                                         ptr_line.wrapping_add(matchcol as usize),
                                     ) {
                                         matchcol +=
-                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
-                                            ));
+                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
                                     }
                                 }
                                 if crate::memory::cstr_is_empty(
@@ -1444,7 +1436,7 @@ pub fn do_search(
                 ui_busy_start();
                 msgbuf_vec[0] = dirc as u8;
                 let p_bytes = crate::memory::cstr_slice(p, plen).to_vec();
-                if utf_iscomposing_first(utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()))) {
+                if utf_iscomposing_first(utf_ptr2char(p)) {
                     msgbuf_vec[1] = b' ';
                     msgbuf_vec[2..2 + plen].copy_from_slice(&p_bytes);
                 } else {
@@ -1782,9 +1774,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         count -= 1;
         loop {
             if dir > 0 {
-                col += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (p.wrapping_add(col as usize)).cast(),
-                ));
+                col += utfc_ptr2len(p.wrapping_add(col as usize));
                 if col >= len {
                     return false;
                 }
@@ -3796,14 +3786,10 @@ pub fn find_pattern_in_path(
                         && !compl_status_sol()
                         && !crate::memory::cstr_is_empty(startp)
                         && !crate::memory::cstr_is_empty(
-                            startp.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                (startp).cast(),
-                            )) as usize),
+                            startp.wrapping_add(utfc_ptr2len(startp) as usize),
                         )
                     {
-                        p = startp.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                            (startp).cast(),
-                        )) as usize);
+                        p = startp.wrapping_add(utfc_ptr2len(startp) as usize);
                         continue;
                     }
                     break;

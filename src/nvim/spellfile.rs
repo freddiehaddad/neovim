@@ -2221,21 +2221,14 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                         let mut upper = false;
                         if let (Some(chop), Some(add)) =
                             (aff_entry.chop_cstr(), aff_entry.add_cstr())
-                            && chop.to_bytes().len()
-                                == utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                    (chop.as_ptr()).cast(),
-                                )) as usize
+                            && chop.to_bytes().len() == utfc_ptr2len(chop.as_ptr()) as usize
                         {
-                            let c = utf_ptr2char(crate::memory::cstr_char_bytes(
-                                (chop.as_ptr()).cast(),
-                            ));
+                            let c = utf_ptr2char(chop.as_ptr());
                             let c_up = spell_toupper(c);
                             if c_up != c
-                                && aff_entry.cond_cstr().is_none_or(|cond| {
-                                    utf_ptr2char(crate::memory::cstr_char_bytes(
-                                        (cond.as_ptr()).cast(),
-                                    )) == c
-                                })
+                                && aff_entry
+                                    .cond_cstr()
+                                    .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
                             {
                                 let add_bytes = add.to_bytes();
                                 let mut end_idx = add_bytes.len();
@@ -3164,9 +3157,7 @@ fn store_aff_word(
                             let mut i = mb_charlen(ae_chop.to_bytes());
                             while i > 0 {
                                 {
-                                    let _adv = crate::mbyte::utfc_ptr2len(
-                                        crate::memory::cstr_cluster_bytes((p).cast()),
-                                    ) as usize;
+                                    let _adv = crate::mbyte::utfc_ptr2len(p) as usize;
                                     p = (p).wrapping_add(_adv);
                                 };
                                 i -= 1;

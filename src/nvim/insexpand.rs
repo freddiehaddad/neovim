@@ -1064,8 +1064,7 @@ pub fn ins_compl_add_infercase(
         {
             let mut rem = str_slice;
             while !rem.is_empty() {
-                let step =
-                    utf_ptr2len(crate::memory::cstr_char_bytes(rem.as_ptr().cast())) as usize;
+                let step = utf_ptr2len(rem.as_ptr()) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
                 char_len += 1;
             }
@@ -1075,8 +1074,7 @@ pub fn ins_compl_add_infercase(
         {
             let mut rem = insexp().compl_orig_text.as_bytes();
             while !rem.is_empty() {
-                let step =
-                    utf_ptr2len(crate::memory::cstr_char_bytes(rem.as_ptr().cast())) as usize;
+                let step = utf_ptr2len(rem.as_ptr()) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
                 compl_char_len += 1;
             }
@@ -1448,8 +1446,8 @@ fn ins_compl_longest_match(match_: &mut Compl) {
     let mut p = insexp().compl_leader.data;
     let mut s = match_.cp_str.data;
     while !crate::memory::cstr_is_empty(p) {
-        let c1 = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
-        let c2 = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));
+        let c1 = utf_ptr2char(p);
+        let c2 = utf_ptr2char(s);
 
         let diff = if (match_.cp_flags & CP_ICASE) != 0 {
             mb_tolower(c1) != mb_tolower(c2)
@@ -1460,13 +1458,11 @@ fn ins_compl_longest_match(match_: &mut Compl) {
             break;
         }
         {
-            let _adv =
-                crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize;
+            let _adv = crate::mbyte::utfc_ptr2len(p) as usize;
             p = (p).wrapping_add(_adv);
         };
         {
-            let _adv =
-                crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize;
+            let _adv = crate::mbyte::utfc_ptr2len(s) as usize;
             s = (s).wrapping_add(_adv);
         };
     }
@@ -2158,7 +2154,7 @@ fn thesaurus_add_words_in_line(
         let wstart = rem;
 
         while !rem.is_empty() {
-            let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(rem.as_ptr().cast())) as usize;
+            let l = utfc_ptr2len(rem.as_ptr()) as usize;
             if l < 2 && !vim_iswordc(i32::from(rem[0])) {
                 break;
             }
@@ -2690,7 +2686,7 @@ pub fn ins_compl_addfrommatch() {
         }
     }
     p = p.wrapping_add(len as usize);
-    let c = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
+    let c = utf_ptr2char(p);
     ins_compl_addleader(c);
 }
 
@@ -3024,7 +3020,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
         let mut rem = &orig_bytes[len..];
         while !rem.is_empty() {
             redo_append_char(K_BS);
-            let step = utf_ptr2len(crate::memory::cstr_char_bytes(rem.as_ptr().cast())) as usize;
+            let step = utf_ptr2len(rem.as_ptr()) as usize;
             rem = &rem[step.max(1).min(rem.len())..];
         }
     }
@@ -4142,23 +4138,18 @@ fn fuzzy_longest_match() {
             && !crate::memory::cstr_is_empty(match_ptr)
             && !crate::memory::cstr_is_empty(prefix_ptr)
         {
-            let clen =
-                utfc_ptr2len(crate::memory::cstr_cluster_bytes((prefix_ptr).cast())) as usize;
+            let clen = utfc_ptr2len(prefix_ptr) as usize;
             let m_b = crate::memory::cstr_as_bytes(match_ptr);
             if crate::memory::cstr_slice(prefix_ptr, clen) != &m_b[..clen.min(m_b.len())] {
                 break;
             }
 
             {
-                let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (prefix_ptr).cast(),
-                )) as usize;
+                let _adv = crate::mbyte::utfc_ptr2len(prefix_ptr) as usize;
                 prefix_ptr = (prefix_ptr).wrapping_add(_adv);
             };
             {
-                let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (match_ptr).cast(),
-                )) as usize;
+                let _adv = crate::mbyte::utfc_ptr2len(match_ptr) as usize;
                 match_ptr = (match_ptr).wrapping_add(_adv);
             };
             j += 1;
@@ -5150,13 +5141,11 @@ pub fn ins_compl_delete(new_leader: bool) {
         let mut leader = ins_compl_leader_slice();
         while !crate::memory::cstr_is_empty(orig)
             && !leader.is_empty()
-            && utf_ptr2char(crate::memory::cstr_char_bytes((orig).cast()))
-                == utf_ptr2char(crate::memory::cstr_char_bytes(leader.as_ptr().cast()))
+            && utf_ptr2char(orig) == utf_ptr2char(leader.as_ptr())
         {
-            let step = utf_ptr2len(crate::memory::cstr_char_bytes(leader.as_ptr().cast())) as usize;
+            let step = utf_ptr2len(leader.as_ptr()) as usize;
             leader = &leader[step.max(1).min(leader.len())..];
-            orig = orig
-                .wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes((orig).cast())) as usize);
+            orig = orig.wrapping_add(utf_ptr2len(orig) as usize);
         }
         orig_col = crate::memory::ptr_offset_from(orig, insexp().compl_orig_text.data) as i32;
     }
@@ -5425,18 +5414,16 @@ fn ins_compl_show_filename() {
     let mut s = fname_ptr;
     let mut e = s;
     while !crate::memory::cstr_is_empty(e) {
-        space -= ptr2cells(crate::memory::cstr_cluster_bytes((e).cast()));
+        space -= ptr2cells(e);
         while space < 0 {
-            space += ptr2cells(crate::memory::cstr_cluster_bytes((s).cast()));
+            space += ptr2cells(s);
             {
-                let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast()))
-                    as usize;
+                let _adv = crate::mbyte::utfc_ptr2len(s) as usize;
                 s = (s).wrapping_add(_adv);
             };
         }
         {
-            let _adv =
-                crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((e).cast())) as usize;
+            let _adv = crate::mbyte::utfc_ptr2len(e) as usize;
             e = (e).wrapping_add(_adv);
         };
     }

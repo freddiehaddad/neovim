@@ -707,16 +707,13 @@ fn pum_compute_text_attrs(
                 new_attr = hl_combine_attr(new_attr, user_hlattr);
             }
 
-            let char_cells =
-                utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast())) as usize;
+            let char_cells = utf_ptr2cells(ptr) as usize;
             for i in 0..char_cells {
                 attrs[cell_idx + i] = new_attr;
             }
             cell_idx += char_cells;
 
-            ptr = ptr.wrapping_add(
-                utfc_ptr2len(crate::memory::cstr_cluster_bytes((ptr).cast())) as usize,
-            );
+            ptr = ptr.wrapping_add(utfc_ptr2len(ptr) as usize);
             char_pos += 1;
         }
 
@@ -740,7 +737,7 @@ fn pum_grid_puts_with_attrs(
         while !crate::memory::cstr_is_empty(ptr)
             && (textlen < 0 || ptr < text.wrapping_add(textlen as usize))
         {
-            let char_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((ptr).cast()));
+            let char_len = utfc_ptr2len(ptr);
             let attr_idx = if pum().rl {
                 col_start + cells - col - 1
             } else {
@@ -748,7 +745,7 @@ fn pum_grid_puts_with_attrs(
             };
             let attr = attrs[attr_idx as usize];
             grid_line_puts(col, crate::memory::cstr_from_ptr(ptr), char_len, attr);
-            col += utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast()));
+            col += utf_ptr2cells(ptr);
             ptr = ptr.wrapping_add(char_len as usize);
         }
     }

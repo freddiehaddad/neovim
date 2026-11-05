@@ -722,18 +722,14 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     {
                         break;
                     }
-                    oldlen += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                        (oldp.wrapping_add(col + oldlen)).cast(),
-                    )) as usize;
+                    oldlen += utfc_ptr2len(oldp.wrapping_add(col + oldlen)) as usize;
                     if vcol > new_vcol {
                         newlen += (vcol - new_vcol) as usize;
                     }
                 }
                 curwin_mut().w_onebuf_opt.wo_list = old_list;
             } else if !crate::memory::cstr_is_empty(oldp.wrapping_add(col)) {
-                oldlen = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (oldp.wrapping_add(col)).cast(),
-                )) as usize;
+                oldlen = utfc_ptr2len(oldp.wrapping_add(col)) as usize;
             }
 
             replace_push_nul();
@@ -845,23 +841,19 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         return false;
     }
 
-    if opt_vars().p_deco
-        && use_delcombine
-        && utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-            (oldp.wrapping_add(col as usize)).cast(),
-        )) >= count
+    if opt_vars().p_deco && use_delcombine && utfc_ptr2len(oldp.wrapping_add(col as usize)) >= count
     {
         let p0 = oldp.wrapping_add(col as usize);
         let mut state = GRAPHEME_STATE_INIT;
         if utf_composinglike(
             crate::memory::cstr_as_bytes((p0).cast()),
-            crate::memory::cstr_as_bytes((p0.wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes((p0).cast())) as usize)).cast()),
+            crate::memory::cstr_as_bytes((p0.wrapping_add(utf_ptr2len(p0) as usize)).cast()),
             Some(&mut state),
         ) {
             let mut n = col;
             loop {
                 col = n;
-                count = utf_ptr2len(crate::memory::cstr_char_bytes((oldp.wrapping_add(n as usize)).cast()));
+                count = utf_ptr2len(oldp.wrapping_add(n as usize));
                 n += count;
                 if !utf_composinglike(
                     crate::memory::cstr_as_bytes((oldp.wrapping_add(col as usize)).cast()),
@@ -1380,7 +1372,7 @@ pub fn open_line(
                                 crate::mbyte::utf_head_off_ptr(leader, p.wrapping_sub(1)) as usize
                                     + 1,
                             );
-                            old_size += ptr2cells(crate::memory::cstr_cluster_bytes(p.cast()));
+                            old_size += ptr2cells(p);
                         }
                         let l = lead_repl_len - crate::memory::ptr_offset_from(endp, p) as i32;
                         if l != 0 {
@@ -1413,7 +1405,7 @@ pub fn open_line(
                         let mut l = crate::mbyte::utf_head_off_ptr(leader, p);
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
-                            if ptr2cells(crate::memory::cstr_cluster_bytes(p.cast())) > 1 {
+                            if ptr2cells(p) > 1 {
                                 unsafe { *p.wrapping_add(1) = b' ' };
 
                                 l -= 1;
@@ -1452,9 +1444,7 @@ pub fn open_line(
                         while i < lead_len
                             && !crate::memory::cstr_is_empty(p.wrapping_add(i as usize).cast())
                         {
-                            let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                p.wrapping_add(i as usize).cast(),
-                            ));
+                            let l = utfc_ptr2len(p.wrapping_add(i as usize));
                             if vim_strnsize(
                                 crate::memory::cstr_slice(p.cast(), (i + l).max(0) as usize),
                                 i + l,
@@ -1501,10 +1491,9 @@ pub fn open_line(
                                     )
                                 };
                             } else {
-                                let mut l =
-                                    utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast()));
+                                let mut l = utfc_ptr2len(p);
                                 if l > 1 {
-                                    if ptr2cells(crate::memory::cstr_cluster_bytes(p.cast())) > 1 {
+                                    if ptr2cells(p) > 1 {
                                         l -= 1;
 
                                         unsafe { *p = b' ' };
@@ -1613,9 +1602,7 @@ pub fn open_line(
         if curbuf_mut().b_p_ai || (flags & OPENLINE_DELSPACES) != 0 {
             while (crate::memory::cstr_first_byte(p_extra.cast()) == b' '
                 || crate::memory::cstr_first_byte(p_extra.cast()) == b'\t')
-                && !utf_iscomposing_first(utf_ptr2char(crate::memory::cstr_char_bytes(
-                    p_extra.wrapping_add(1).cast(),
-                )))
+                && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1)))
             {
                 if replace_normal(g_st().state_global) {
                     replace_push(crate::memory::cstr_slice(p_extra.cast(), 1));

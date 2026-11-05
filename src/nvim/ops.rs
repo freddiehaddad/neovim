@@ -575,9 +575,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         let mut non_white: *mut u8 = bd.textstart.as_ptr().cast_mut().cast();
 
         if bd.startspaces != 0 {
-            non_white = non_white.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                non_white.cast(),
-            )) as usize);
+            non_white = non_white.wrapping_add(utfc_ptr2len(non_white) as usize);
         }
 
         let mut non_white_col = bd.start_vcol;
@@ -1139,9 +1137,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
     let mut ptr_line = line.wrapping_add(oap.end.col as usize);
     if !crate::memory::cstr_is_empty(ptr_line) {
         ptr_line = ptr_line.wrapping_sub(crate::mbyte::utf_head_off_ptr(line, ptr_line) as usize);
-        ptr_line = ptr_line.wrapping_add(
-            (utfc_ptr2len(crate::memory::cstr_cluster_bytes((ptr_line).cast())) - 1) as usize,
-        );
+        ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
         oap.end.col = crate::memory::ptr_offset_from(ptr_line, line) as Colnr;
     }
 }
@@ -2746,9 +2742,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             && !ascii_isdigit(i32::from(line_bytes[col as usize]))
             && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
         {
-            let mb_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                (ptr_line.wrapping_add(col as usize)).cast(),
-            ));
+            let mb_len = utfc_ptr2len(ptr_line.wrapping_add(col as usize));
             col += mb_len;
             length -= mb_len;
         }

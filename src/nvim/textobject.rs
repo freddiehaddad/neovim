@@ -1094,9 +1094,7 @@ fn in_html_tag(end_tag: bool) -> bool {
         coladd: 0,
     };
 
-    idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-        (line.wrapping_add(idx)).cast(),
-    )) as usize;
+    idx += utfc_ptr2len(line.wrapping_add(idx)) as usize;
     let next_b = line_bytes.get(idx).copied().unwrap_or(0);
     if end_tag {
         return next_b == b'/';

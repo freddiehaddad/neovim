@@ -2646,10 +2646,10 @@ pub fn validate_shortmess(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_showbreak(args: &mut Optset) -> Option<&CStr> {
     let mut s = args.os_newval.data.string().data;
     while !crate::memory::cstr_is_empty(s) {
-        if ptr2cells(crate::memory::cstr_cluster_bytes((s).cast())) != 1 {
+        if ptr2cells(s) != 1 {
             return Some(E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER);
         }
-        s = s.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize);
+        s = s.wrapping_add(utfc_ptr2len(s) as usize);
     }
     None
 }
@@ -3662,13 +3662,7 @@ pub fn set_chars_option<'a>(
             for entry in tab {
                 if let Some(slot) = entry.target.slot_mut(&mut fcs_chars, &mut lcs_chars) {
                     let s_cstr = match entry.def {
-                        Some(d)
-                            if ptr2cells(crate::memory::cstr_cluster_bytes(
-                                (d.as_ptr()).cast(),
-                            )) == 1 =>
-                        {
-                            Some(d)
-                        }
+                        Some(d) if ptr2cells(d.as_ptr()) == 1 => Some(d),
                         _ => entry.fallback,
                     };
                     *slot = schar_from_str(s_cstr);

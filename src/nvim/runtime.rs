@@ -1319,9 +1319,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             p2 = p1;
             p1 = past_head.wrapping_add(idx);
         }
-        idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-            (past_head.wrapping_add(idx)).cast(),
-        )) as usize;
+        idx += utfc_ptr2len(past_head.wrapping_add(idx)) as usize;
     }
 
     p4 = p4.wrapping_add(1);

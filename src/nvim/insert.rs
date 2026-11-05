@@ -761,12 +761,8 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
                 if let Some(str_) = do_insert_char_pre(s.c) {
                     let mut p = str_.as_ptr().cast_mut();
                     while !crate::memory::cstr_is_empty(p) {
-                        ins_compl_addleader(utf_ptr2char(crate::memory::cstr_char_bytes(
-                            (p).cast(),
-                        )));
-                        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                            (p).cast(),
-                        )) as usize);
+                        ins_compl_addleader(utf_ptr2char(p));
+                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
                 } else {
                     ins_compl_addleader(s.c);
@@ -1256,15 +1252,13 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 if !crate::memory::cstr_is_empty(str_ptr) && stop_arrow() {
                     let mut p = str_ptr;
                     while !crate::memory::cstr_is_empty(p) {
-                        s.c = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
+                        s.c = utf_ptr2char(p);
                         if s.c == CAR || s.c == K_KENTER || s.c == NL {
                             ins_eol(s.c);
                         } else {
                             ins_char(s.c);
                         }
-                        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                            (p).cast(),
-                        )) as usize);
+                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
                     redo_append_lit(str_.as_bytes());
                 }
@@ -2244,9 +2238,9 @@ pub fn oneright() -> bool {
         let prevpos = curwin_mut().w_cursor;
         let ptr = get_cursor_pos_ptr().as_ptr().cast_mut();
         let step = if crate::memory::cstr_first_byte(ptr) != TAB as u8
-            && vim_isprintc(utf_ptr2char(crate::memory::cstr_char_bytes((ptr).cast())))
+            && vim_isprintc(utf_ptr2char(ptr))
         {
-            ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast()))
+            ptr2cells(ptr)
         } else {
             1
         };
@@ -2261,7 +2255,7 @@ pub fn oneright() -> bool {
         return false;
     }
 
-    let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((ptr).cast()));
+    let l = utfc_ptr2len(ptr);
     if crate::memory::cstr_is_empty(ptr.wrapping_add(l as usize))
         && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
     {
@@ -2291,8 +2285,8 @@ pub fn oneleft() -> bool {
         if curwin_mut().w_cursor.coladd == 1 {
             let ptr = get_cursor_pos_ptr().as_ptr().cast_mut();
             if crate::memory::cstr_first_byte(ptr) != TAB as u8
-                && vim_isprintc(utf_ptr2char(crate::memory::cstr_char_bytes((ptr).cast())))
-                && ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast())) > 1
+                && vim_isprintc(utf_ptr2char(ptr))
+                && ptr2cells(ptr) > 1
             {
                 curwin_mut().w_cursor.coladd = 0;
             }
@@ -2607,9 +2601,7 @@ fn replace_do_bs(limit_col: i32) {
                     crate::memory::cstr_as_bytes(p.wrapping_offset(i as isize)),
                     vcol,
                 );
-                i += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (p.wrapping_offset(i as isize)).cast(),
-                ));
+                i += utfc_ptr2len(p.wrapping_offset(i as isize));
             }
             vcol -= start_vcol;
 
@@ -3254,10 +3246,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                         has_composing = utf_composinglike(
                             crate::memory::cstr_as_bytes((p0).cast()),
                             crate::memory::cstr_as_bytes(
-                                (p0.wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes(
-                                    (p0).cast(),
-                                )) as usize))
-                                .cast(),
+                                (p0.wrapping_add(utf_ptr2len(p0) as usize)).cast(),
                             ),
                             None,
                         );

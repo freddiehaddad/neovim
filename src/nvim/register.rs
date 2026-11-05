@@ -1660,9 +1660,7 @@ pub fn do_put(
                 let p_orig = p;
                 let plen = get_cursor_pos_len() as usize;
                 if dir == FORWARD && !crate::memory::cstr_is_empty(p) {
-                    p = p.wrapping_add(
-                        utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize
-                    );
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
                 split_pos = ((p as usize) - (curline as usize)) as Colnr;
 
@@ -2416,11 +2414,11 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
             && skip_esc
             && crate::memory::cstr_len(p) == 1)
     {
-        n -= ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
+        n -= ptr2cells(p);
         if n < 0 {
             break;
         }
-        let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+        let l = utfc_ptr2len(p);
         if l > 1 {
             msg_outtrans_len(crate::memory::cstr_slice(p, l as usize), l, 0, false);
             p = p.wrapping_add(l as usize);
@@ -2511,11 +2509,11 @@ pub fn ex_display(eap: &mut Exarg) {
                     }
                     let mut p = yb_ref.y_array[j].data.cast_const();
                     while !crate::memory::cstr_is_empty(p) {
-                        n -= ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
+                        n -= ptr2cells(p);
                         if n < 0 {
                             break;
                         }
-                        let clen = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
+                        let clen = utfc_ptr2len(p);
                         msg_outtrans_len(
                             crate::memory::cstr_slice(p, clen.max(0) as usize),
                             clen,

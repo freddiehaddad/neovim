@@ -1034,7 +1034,7 @@ fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
         {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
     unsafe { CStr::from_ptr(p.cast()) }
 }
@@ -1818,9 +1818,7 @@ pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
         }
         ForSource::Str { text, byte_idx } => {
             let str_ptr = text.as_ptr();
-            let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                (str_ptr.wrapping_add(*byte_idx)).cast(),
-            ));
+            let len = utfc_ptr2len(str_ptr.wrapping_add(*byte_idx));
             if len == 0 {
                 return false;
             }
@@ -3735,7 +3733,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
             }
             extra -= 1;
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
 
     if unsafe { *p } != b'"' && !(interpolate && unsafe { *p } == b'{') {
@@ -3891,7 +3889,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
                 reduce += 1;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
 
     if unsafe { *p } != b'\'' && !(interpolate && unsafe { *p } == b'{') {
@@ -6520,7 +6518,7 @@ pub fn do_string_sub(
         ) {
             if regmatch.startp[0] == regmatch.endp[0] {
                 if zero_width == regmatch.startp[0] {
-                    let i = utfc_ptr2len(crate::memory::cstr_cluster_bytes((tail).cast())) as usize;
+                    let i = utfc_ptr2len(tail) as usize;
                     if let Some(buf) = &mut out {
                         buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
                     }

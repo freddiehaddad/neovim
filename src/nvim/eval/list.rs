@@ -522,8 +522,7 @@ fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64
                 n += 1;
                 p = p.wrapping_add(needlelen);
             } else {
-                p = p
-                    .wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes((p).cast())) as usize);
+                p = p.wrapping_add(utf_ptr2len(p) as usize);
             }
         }
     } else {

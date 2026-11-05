@@ -807,9 +807,7 @@ fn buf_do_map(
 
                     let first = vim_iswordp(crate::memory::cstr_as_bytes(p.cast()));
                     let mut last = first;
-                    p = p.wrapping_add(
-                        utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize
-                    );
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     let mut n: i32 = 1;
                     while (p as usize) < (end_p as usize) {
                         n += 1;
@@ -817,9 +815,7 @@ fn buf_do_map(
                         if same == -1 && last != first {
                             same = n - 1;
                         }
-                        p = p.wrapping_add(
-                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize,
-                        );
+                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
                     if last && n > 2 && same >= 0 && same < n - 1 {
                         retval = 1;
@@ -1549,9 +1545,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             if ascii_isspace(crate::memory::cstr_first_byte(p.cast()) as i32)
                 || (!vim_abbr && is_id != vim_iswordp(crate::memory::cstr_as_bytes(p.cast())))
             {
-                p = p.wrapping_add(
-                    utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize
-                );
+                p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 break;
             }
             clen += 1;

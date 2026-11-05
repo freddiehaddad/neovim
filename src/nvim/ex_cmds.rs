@@ -338,7 +338,7 @@ use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
     let data = get_cursor_pos_ptr().as_ptr().cast_mut();
-    let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((data).cast())) as usize;
+    let len = utfc_ptr2len(data) as usize;
 
     if len == 0 {
         msg(c"NUL", 0);
@@ -349,7 +349,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
     msg_sb_eol();
     msg_start();
 
-    let mut c = utf_ptr2char(crate::memory::cstr_char_bytes((data).cast()));
+    let mut c = utf_ptr2char(data);
     let mut off: usize = 0;
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
 
@@ -407,13 +407,11 @@ pub fn do_ascii(_eap: &mut Exarg) {
             &mut need_clear,
         );
 
-        off += utf_ptr2len(crate::memory::cstr_char_bytes((data).cast())) as usize;
+        off += utf_ptr2len(data) as usize;
     }
 
     while off < len {
-        c = utf_ptr2char(crate::memory::cstr_char_bytes(
-            (data.wrapping_add(off)).cast(),
-        ));
+        c = utf_ptr2char(data.wrapping_add(off));
 
         let mut iobuff_len: usize = 0;
         if off > 0 {
@@ -469,9 +467,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
             &mut need_clear,
         );
 
-        off += utf_ptr2len(crate::memory::cstr_char_bytes(
-            (data.wrapping_add(off)).cast(),
-        )) as usize;
+        off += utf_ptr2len(data.wrapping_add(off)) as usize;
     }
 
     if need_clear {
@@ -4150,13 +4146,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         ) {
                             skip_match = true;
                         } else {
-                            matchcol += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            matchcol += utfc_ptr2len(
                                 sub_firstline
                                     .as_slice()
                                     .as_ptr()
-                                    .wrapping_add(matchcol as usize)
-                                    .cast(),
-                            ));
+                                    .wrapping_add(matchcol as usize),
+                            );
                         }
                         current_match.start.col = matchcol;
                         current_match.end.lnum = sub_firstlnum;
@@ -4549,9 +4544,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     p1 = p1.wrapping_add(1);
                                 }
                             } else {
-                                p1 = p1.wrapping_add(utfc_ptr2len(
-                                    crate::memory::cstr_cluster_bytes(p1.cast()),
-                                ) as usize);
+                                p1 = p1.wrapping_add(utfc_ptr2len(p1) as usize);
                             }
                         }
                         let new_endcol = new_start.size as Colnr;

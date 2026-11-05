@@ -2222,8 +2222,7 @@ pub fn readfile(
                                     } else {
                                         let len = crate::mbyte::utf_head_off_ptr(ptr, p);
                                         p = p.wrapping_offset(-(len as isize));
-                                        u8c = utf_ptr2char(crate::memory::cstr_char_bytes(p.cast()))
-                                            as u32;
+                                        u8c = utf_ptr2char(p) as u32;
                                         if len == 0 {
                                             if can_retry {
                                                 if crate::eval::typval::Callback::raw_cb_type(

@@ -378,16 +378,6 @@ impl RegLinePtr {
     pub fn slice(self, len: usize) -> &'static [u8] {
         crate::memory::cstr_slice(self.as_ptr().cast(), len)
     }
-
-    #[inline]
-    pub fn char_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_char_bytes(self.as_ptr().cast())
-    }
-
-    #[inline]
-    pub fn cluster_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_cluster_bytes(self.as_ptr().cast())
-    }
 }
 
 impl PartialEq for RegLinePtr {
@@ -2655,7 +2645,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     while idx < s_bytes.len() {
         let p = s_ptr.wrapping_add(idx);
         let b0 = s_bytes[idx] as i32;
-        let uc = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
+        let uc = utf_ptr2char(p);
         if c > 0x80 || uc > 0x80 {
             if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
                 return Some(idx);
@@ -2663,7 +2653,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         } else if b0 == c || b0 == cc {
             return Some(idx);
         }
-        idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize;
+        idx += utfc_ptr2len(p) as usize;
     }
     None
 }
@@ -3199,7 +3189,7 @@ fn vim_regsub_both(
                                 }
                                 dst_off += 2;
                             } else {
-                                c = utf_ptr2char(crate::memory::cstr_char_bytes(s.cast()));
+                                c = utf_ptr2char(s);
                                 let cc = if let Some(f) = func_one.take() {
                                     f.apply(c)
                                 } else if let Some(f) = func_all {
@@ -3208,7 +3198,7 @@ fn vim_regsub_both(
                                     c
                                 };
 
-                                let l = utf_ptr2len(crate::memory::cstr_char_bytes(s.cast())) - 1;
+                                let l = utf_ptr2len(s) - 1;
                                 s = s.wrapping_add(l as usize);
                                 len -= l;
                                 let charlen = utf_char2len(cc) as usize;

@@ -938,8 +938,124 @@ pub fn mb_idx_back(bytes: &[u8], idx: &mut usize) {
     }
 }
 
+pub trait AsMbyteSlice {
+    fn as_char_bytes(&self) -> &[u8];
+    fn as_cluster_bytes(&self) -> &[u8];
+}
+
+impl AsMbyteSlice for &[u8] {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        self
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+impl AsMbyteSlice for &mut [u8] {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        self
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        self
+    }
+}
+
+impl<const N: usize> AsMbyteSlice for &[u8; N] {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        *self
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        *self
+    }
+}
+
+impl<const N: usize> AsMbyteSlice for &mut [u8; N] {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        *self
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        *self
+    }
+}
+
+impl AsMbyteSlice for *const i8 {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        crate::memory::cstr_char_bytes(self.cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        crate::memory::cstr_cluster_bytes(self.cast())
+    }
+}
+
+impl AsMbyteSlice for *mut i8 {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        crate::memory::cstr_char_bytes(self.cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        crate::memory::cstr_cluster_bytes(self.cast())
+    }
+}
+
+impl AsMbyteSlice for *const u8 {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        crate::memory::cstr_char_bytes(self.cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        crate::memory::cstr_cluster_bytes(self.cast())
+    }
+}
+
+impl AsMbyteSlice for *mut u8 {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        crate::memory::cstr_char_bytes(self.cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        crate::memory::cstr_cluster_bytes(self.cast())
+    }
+}
+
+impl<T> AsMbyteSlice for crate::strings::CStrCursor<T> {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        crate::memory::cstr_char_bytes(self.as_ptr().cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        crate::memory::cstr_cluster_bytes(self.as_ptr().cast())
+    }
+}
+
+impl AsMbyteSlice for crate::regexp::RegLinePtr {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        crate::memory::cstr_char_bytes(self.as_ptr().cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        crate::memory::cstr_cluster_bytes(self.as_ptr().cast())
+    }
+}
+
 #[inline]
-pub fn utf_ptr2_char_info(bytes: &[u8]) -> CharInfo {
+pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
+    let bytes = bytes.as_char_bytes();
     let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
     if slice.is_empty() {
         return CharInfo { value: 0, len: 1 };
@@ -952,7 +1068,7 @@ pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo {
     let ptr = s.as_ptr();
     StrCharInfo {
         ptr,
-        chr: utf_ptr2_char_info(crate::memory::cstr_char_bytes(ptr)),
+        chr: utf_ptr2_char_info(ptr),
     }
 }
 
@@ -1283,11 +1399,13 @@ pub fn mb_cslice2char_adv(s: &mut &[u8]) -> i32 {
     c
 }
 
-pub fn ptr2cells(bytes: &[u8]) -> i32 {
+pub fn ptr2cells(bytes: impl AsMbyteSlice) -> i32 {
+    let bytes = bytes.as_cluster_bytes();
     slice2cells(crate::memory::bytes_until_nul(bytes))
 }
 
-pub fn utf_ptr2cells(bytes: &[u8]) -> i32 {
+pub fn utf_ptr2cells(bytes: impl AsMbyteSlice) -> i32 {
+    let bytes = bytes.as_cluster_bytes();
     utf_slice2cells(crate::memory::bytes_until_nul(bytes))
 }
 
@@ -1364,7 +1482,8 @@ pub fn mb_string2cells_len(bytes: &[u8]) -> usize {
     clen
 }
 
-pub fn utf_ptr2char(bytes: &[u8]) -> i32 {
+pub fn utf_ptr2char(bytes: impl AsMbyteSlice) -> i32 {
+    let bytes = bytes.as_char_bytes();
     let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
     utf_slice2char(slice)
 }
@@ -1429,7 +1548,8 @@ pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
     !utf8proc_grapheme_break_stateful(c1, c2, Some(state)) || arabic_combine(c1, c2)
 }
 
-pub fn utf_ptr2len(bytes: &[u8]) -> i32 {
+pub fn utf_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
+    let bytes = bytes.as_char_bytes();
     let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
     utf_slice2len(slice) as i32
 }
@@ -1467,7 +1587,8 @@ pub fn utf_ptr2len_len(bytes: &[u8], size: i32) -> i32 {
     utf_slice2len_incomplete(&bytes[..m]) as i32
 }
 
-pub fn utfc_ptr2len(bytes: &[u8]) -> i32 {
+pub fn utfc_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
+    let bytes = bytes.as_cluster_bytes();
     utfc_slice2len(crate::memory::bytes_until_nul(bytes)) as i32
 }
 
@@ -2246,7 +2367,7 @@ pub fn utf16_to_utf8(utf16: &[u16], utf16len: i32, utf8: &mut Option<std::ffi::C
     }
 
     vec[bufsize as usize] = 0;
-    *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr().cast()));
+    *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr()));
     0
 }
 
@@ -2960,7 +3081,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
 
     let mut buf = [0u8; 50];
-    let p = vim_strchr(crate::memory::cstr_from_ptr((s).cast()), b'.' as i32)
+    let p = vim_strchr(crate::memory::cstr_from_ptr(s), b'.' as i32)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if !p.is_null() {
         let p_bytes = crate::memory::cstr_as_bytes(p);

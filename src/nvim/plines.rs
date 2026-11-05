@@ -416,7 +416,7 @@ fn conceal_next_byte(csarg: &CharsizeArg, col: i32) -> i32 {
         if c != i32::from(NUL) {
             return c;
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
     i32::from(NUL)
 }
@@ -628,8 +628,7 @@ pub fn charsize_regular(
             && lbr_char < 256
             && vim_isbreak(lbr_char)
         {
-            let next_col = crate::memory::ptr_offset_from(cur, line) as i32
-                + utfc_ptr2len(crate::memory::cstr_cluster_bytes((cur).cast()));
+            let next_col = crate::memory::ptr_offset_from(cur, line) as i32 + utfc_ptr2len(cur);
             let next_c = conceal_next_byte(csarg, next_col);
             if !vim_isbreak(i32::from(next_c as u8)) {
                 let mut t = csarg.line.as_ptr();
@@ -660,9 +659,7 @@ pub fn charsize_regular(
             let mut vcol2 = disp_vcol;
             let mut prev_break = true;
             loop {
-                s = s.wrapping_add(
-                    utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize
-                );
+                s = s.wrapping_add(utfc_ptr2len(s) as usize);
                 let mut c = i32::from(crate::memory::cstr_first_byte(s));
                 if c == 0 {
                     break;

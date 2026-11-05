@@ -726,11 +726,11 @@ fn diff_write_buffer(
                 if crate::memory::cstr_first_byte(s) == NL as u8 {
                     c = NUL as i32;
                 } else {
-                    let ch = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));
+                    let ch = utf_ptr2char(s);
                     c_len = utf_char2len(ch);
                     c = utf_fold(ch);
                 }
-                let orig_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize;
+                let orig_len = utfc_ptr2len(s) as usize;
                 let s_bytes = crate::memory::cstr_slice(s, orig_len);
                 if crate::mbyte::utf_char2slice(c, &mut cbuf) != c_len as usize {
                     backing[len..len + orig_len].copy_from_slice(s_bytes);
@@ -2810,7 +2810,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if crate::memory::cstr_first_byte(s) == NL as u8 {
                         curstr.push(NUL as u8);
                     } else {
-                        char_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast()));
+                        char_len = utfc_ptr2len(s);
                         if ascii_iswhite(crate::memory::cstr_first_byte(s))
                             && (diff_st().diff_flags & DIFF_IWHITE) != 0
                         {
@@ -2819,7 +2819,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                                     as i32;
                         }
                         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
-                            let mut c = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));
+                            let mut c = utf_ptr2char(s);
                             let c_len = utf_char2len(c);
                             c = utf_fold(c);
                             let mut cbuf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];

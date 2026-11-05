@@ -1022,11 +1022,11 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
     let mut p = line;
     let end = line.wrapping_add(max_bytes);
     while p < end && !crate::memory::cstr_is_empty(p) {
-        len += ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
+        len += ptr2cells(p);
         if len >= g_st().columns_global - lead_len {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
     let keep = (crate::memory::ptr_offset_from(p, line) as usize).min(max_bytes);
     std::ffi::CString::new(crate::memory::cstr_slice(line, keep)).unwrap_or_default()

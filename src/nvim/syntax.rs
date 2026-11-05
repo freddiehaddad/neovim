@@ -3586,13 +3586,8 @@ fn get_syn_options<'a>(
             } else if argtype == 11
                 && crate::memory::cstr_as_bytes(arg.cast()).get(5) == Some(&b'=')
             {
-                *conceal_char =
-                    utf_ptr2char(crate::memory::cstr_char_bytes(arg.wrapping_add(6).cast()));
-                arg = arg.wrapping_offset(
-                    (utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                        arg.wrapping_add(6).cast(),
-                    )) - 1) as isize,
-                );
+                *conceal_char = utf_ptr2char(arg.wrapping_add(6));
+                arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6)) - 1) as isize);
                 if !vim_isprintc(*conceal_char) {
                     emsg(gettext(E_INVALID_CCHAR_VALUE));
                     return None;
@@ -3845,9 +3840,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             kwlen = 1;
                             break;
                         }
-                        let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                            p.wrapping_add(1).cast(),
-                        )) as usize;
+                        let l = utfc_ptr2len(p.wrapping_add(1)) as usize;
                         unsafe { ptr::copy(p.wrapping_add(1), p, l) };
                         p = p.wrapping_add(l);
                     }

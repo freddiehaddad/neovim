@@ -8587,7 +8587,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 break;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
 
     if (eap.argt & EX_NOTRLCOM) == 0 {
@@ -11741,7 +11741,7 @@ fn ex_normal(eap: &mut Exarg) {
     let mut len: usize = 0;
     let mut p = eap.arg;
     while !crate::memory::cstr_is_empty(p) {
-        let mut l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) - 1;
+        let mut l = utfc_ptr2len(p) - 1;
         while l > 0 {
             p = p.wrapping_add(1);
             if (crate::memory::cstr_first_byte(p)) == K_SPECIAL {
@@ -11757,7 +11757,7 @@ fn ex_normal(eap: &mut Exarg) {
         p = eap.arg;
         while !crate::memory::cstr_is_empty(p) {
             v.push(crate::memory::cstr_first_byte(p));
-            let mut l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) - 1;
+            let mut l = utfc_ptr2len(p) - 1;
             while l > 0 {
                 p = p.wrapping_add(1);
                 let b = crate::memory::cstr_first_byte(p);

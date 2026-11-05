@@ -2605,9 +2605,7 @@ pub fn find_ident_at_pos(
             if this_class != 0 && (i == 1 || this_class != 1) {
                 break;
             }
-            col += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                (ptr.wrapping_add(col as usize)).cast(),
-            ));
+            col += utfc_ptr2len(ptr.wrapping_add(col as usize));
         }
 
         let at_rbracket = line_bytes.get(col as usize) == Some(&b']');
@@ -2673,9 +2671,7 @@ pub fn find_ident_at_pos(
             && col <= startcol
             && find_is_eval_item(ptr_bytes, col as usize, &mut col, &mut bn, FORWARD)))
     {
-        col += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-            (ptr.wrapping_add(col as usize)).cast(),
-        ));
+        col += utfc_ptr2len(ptr.wrapping_add(col as usize));
     }
 
     assert!(col >= 0);
@@ -2814,7 +2810,7 @@ pub fn clear_showcmd() {
             } else {
                 s < e
             } {
-                let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast()));
+                let l = utfc_ptr2len(s);
                 if l == 0 {
                     bytes += 1;
                     chars += 1;
@@ -4413,7 +4409,7 @@ fn nv_ident(cap: &mut Cmdarg) {
                 buf_vec[p_idx] = b'\\';
                 p_idx += 1;
             }
-            let len = (utfc_ptr2len(crate::memory::cstr_cluster_bytes(ptr.cast())) - 1) as usize;
+            let len = (utfc_ptr2len(ptr) - 1) as usize;
             let mut i = 0;
             while i < len && n > 0 {
                 buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr.cast());
@@ -4505,11 +4501,7 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize
             len = 0;
         }
         if len > 0 {
-            len = len.wrapping_add_signed(
-                (utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (p.wrapping_add(len - 1)).cast(),
-                )) - 1) as isize,
-            );
+            len = len.wrapping_add_signed((utfc_ptr2len(p.wrapping_add(len - 1)) - 1) as isize);
         }
         (p, len)
     };
@@ -6331,9 +6323,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
         coladvance(curwin_mut(), i);
 
         if curwin_mut().w_cursor.col > 0
-            && utf_ptr2cells(crate::memory::cstr_cluster_bytes(
-                (get_cursor_pos_ptr().as_ptr().cast_mut()).cast(),
-            )) > 1
+            && utf_ptr2cells(get_cursor_pos_ptr().as_ptr().cast_mut()) > 1
         {
             let mut vcol: Colnr = 0;
             getvvcol(
