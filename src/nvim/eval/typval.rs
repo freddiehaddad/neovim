@@ -1561,11 +1561,11 @@ pub fn tv_list_assign_range(
     let op = op_opt.map_or(ptr::null(), CStr::as_ptr);
     let mut idx1 = idx1_arg;
     let first_li = crate::globals::GraphPtr::from(tv_list_find_index(Some(&mut *dest), &mut idx1));
-    let mut src_li: *mut Listitem;
+    let mut src_li: crate::globals::GraphPtr<Listitem>;
 
     let mut idx = idx1;
     let mut dest_li = first_li.as_ptr();
-    src_li = tv_list_first_inline(src).map_or(ptr::null_mut(), ptr::from_mut);
+    src_li = crate::globals::GraphPtr::from(tv_list_first_inline(src));
     while !src_li.is_null() && !dest_li.is_null() {
         if value_check_lock(
             unsafe { (*dest_li).li_tv.v_lock },
@@ -1574,7 +1574,7 @@ pub fn tv_list_assign_range(
         ) {
             return false;
         }
-        src_li = unsafe { (*src_li).li_next.as_ptr() };
+        src_li = crate::globals::GraphPtr::<Listitem>::of(src_li.li_next);
         if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
             break;
         }
@@ -1584,22 +1584,20 @@ pub fn tv_list_assign_range(
 
     idx = idx1;
     dest_li = first_li.as_ptr();
-    src_li = tv_list_first_inline(src).map_or(ptr::null_mut(), ptr::from_mut);
+    src_li = crate::globals::GraphPtr::from(tv_list_first_inline(src));
     while !src_li.is_null() {
         debug_assert!(!dest_li.is_null());
         if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
             eexe_mod_op(
                 unsafe { &mut (*dest_li).li_tv },
-                unsafe { &(*src_li).li_tv },
+                &(src_li.borrow().li_tv),
                 crate::memory::cstr_from_ptr(op),
             );
         } else {
             tv_clear(unsafe { &mut (*dest_li).li_tv });
-            tv_copy(unsafe { &(*src_li).li_tv }, unsafe {
-                &mut (*dest_li).li_tv
-            });
+            tv_copy(&(src_li.borrow().li_tv), unsafe { &mut (*dest_li).li_tv });
         }
-        src_li = unsafe { (*src_li).li_next.as_ptr() };
+        src_li = crate::globals::GraphPtr::<Listitem>::of(src_li.li_next);
         if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
             break;
         }

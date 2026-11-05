@@ -735,7 +735,7 @@ fn win_config_split(
 
             let mut dir: i32 = 0;
             let mut unflat_altfr_opt: Option<&'static mut Frame> = None;
-            let altwin: *mut WinInfoInfo;
+            let altwin: crate::globals::GraphPtr<WinInfoInfo>;
 
             if was_split {
                 if win.frame_mut().fr_parent.is_null() {
@@ -766,7 +766,7 @@ fn win_config_split(
                                 },
                             );
                         }
-                        altwin = winframe_remove(
+                        altwin = crate::globals::GraphPtr::from(winframe_remove(
                             win,
                             &mut dir,
                             if win_tp == g_st().curtab.as_ptr() {
@@ -775,10 +775,9 @@ fn win_config_split(
                                 win_tp.opt_mut()
                             },
                             Some(&mut unflat_altfr_opt),
-                        )
-                        .map_or(ptr::null_mut(), ptr::from_mut);
+                        ));
                     } else if n_frames == 2 {
-                        altwin = winframe_remove(
+                        altwin = crate::globals::GraphPtr::from(winframe_remove(
                             win,
                             &mut dir,
                             if win_tp == g_st().curtab.as_ptr() {
@@ -787,8 +786,7 @@ fn win_config_split(
                                 win_tp.opt_mut()
                             },
                             Some(&mut unflat_altfr_opt),
-                        )
-                        .map_or(ptr::null_mut(), ptr::from_mut);
+                        ));
                         neighbor = crate::globals::GraphPtr::<WinInfoInfo>::of(altwin);
                     } else {
                         api_set_error!(
@@ -800,7 +798,7 @@ fn win_config_split(
                     }
                     parent = crate::globals::GraphPtr::<WinInfoInfo>::of(neighbor);
                 } else {
-                    altwin = winframe_remove(
+                    altwin = crate::globals::GraphPtr::from(winframe_remove(
                         win,
                         &mut dir,
                         if win_tp == g_st().curtab.as_ptr() {
@@ -809,14 +807,13 @@ fn win_config_split(
                             win_tp.opt_mut()
                         },
                         Some(&mut unflat_altfr_opt),
-                    )
-                    .map_or(ptr::null_mut(), ptr::from_mut);
+                    ));
                 }
             } else {
-                altwin = win_float_find_altwin(
+                altwin = crate::globals::GraphPtr::<WinInfoInfo>::of(win_float_find_altwin(
                     win,
                     (win_tp != g_st().curtab.as_ptr()).then(|| win_tp.borrow()),
-                );
+                ));
             }
             let unflat_altfr = crate::globals::GraphPtr::from(unflat_altfr_opt);
 
@@ -887,7 +884,7 @@ fn win_config_split(
             }
 
             if win_tp != parent_tp && win_tp.tp_curwin == win {
-                win_tp.tp_curwin = altwin.into();
+                win_tp.tp_curwin = altwin;
             }
             break 'resize;
         }

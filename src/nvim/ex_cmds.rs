@@ -2675,7 +2675,7 @@ pub fn do_ecmd(
     let mut auto_buf = false;
     let mut new_name: Option<std::ffi::CString> = None;
     let mut did_set_swapcommand = false;
-    let mut buf: *mut FileBuf;
+    let mut buf: crate::globals::GraphPtr<FileBuf>;
     let mut bufref: Bufref = Bufref::new();
     let mut old_curbuf: Bufref = Bufref::new();
     let mut free_fname: Option<std::ffi::CString> = None;
@@ -2788,7 +2788,7 @@ pub fn do_ecmd(
             }
 
             if fnum != 0 {
-                buf = buflist_findnr(fnum).map_or(ptr::null_mut(), ptr::from_mut);
+                buf = crate::globals::GraphPtr::from(buflist_findnr(fnum));
             } else {
                 if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 {
                     let mut tlnum: Linenr = 0;
@@ -2812,7 +2812,7 @@ pub fn do_ecmd(
                     }
                     break 'theend;
                 }
-                buf = buflist_new(
+                buf = crate::globals::GraphPtr::from(buflist_new(
                     crate::memory::cstr_as_opt_cstr(ffname),
                     crate::memory::cstr_as_opt_cstr(sfname),
                     0,
@@ -2822,8 +2822,7 @@ pub fn do_ecmd(
                         } else {
                             BLN_LISTED
                         },
-                )
-                .map_or(ptr::null_mut(), ptr::from_mut);
+                ));
                 if !oldwin.is_null() {
                     oldwin = crate::globals::curwin_handle();
                 }
@@ -2832,19 +2831,19 @@ pub fn do_ecmd(
             if buf.is_null() {
                 break 'theend;
             }
-            if unsafe { (*buf).b_locked_split > 0 } {
+            if buf.b_locked_split > 0 {
                 emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
                 break 'theend;
             }
-            if curwin_mut().w_alt_fnum == unsafe { (*buf).b_fnum } && prev_alt_fnum != 0 {
+            if curwin_mut().w_alt_fnum == buf.b_fnum && prev_alt_fnum != 0 {
                 curwin_mut().w_alt_fnum = prev_alt_fnum;
             }
-            if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+            if buf.b_ml.ml_mfp.is_none() {
                 oldbuf = false;
             } else {
                 oldbuf = true;
-                set_bufref(&mut bufref, unsafe { buf.as_mut() });
-                buf_check_timestamp(unsafe { &mut *buf });
+                set_bufref(&mut bufref, buf.opt_mut());
+                buf_check_timestamp(buf.borrow_mut());
                 if !bufref_valid(Some(&bufref)) || old_curbuf.br_buf != g_st().curbuf {
                     break 'theend;
                 }
@@ -2854,17 +2853,17 @@ pub fn do_ecmd(
             }
 
             if (oldbuf && newlnum == ECMD_LASTL) || newlnum == ECMD_LAST {
-                let pos = &mut buflist_findfmark(unsafe { &mut *buf }).mark;
+                let pos = &mut buflist_findfmark(buf.borrow_mut()).mark;
                 newlnum = pos.lnum;
                 solcol = pos.col;
             }
 
             if buf != g_st().curbuf.as_ptr() {
-                if let Some(f) = unsafe { (*buf).fname_opt() } {
+                if let Some(f) = buf.fname_opt() {
                     new_name = Some(f.to_owned());
                 }
                 let save_au_new_curbuf = g_st().au_new_curbuf;
-                set_bufref(&mut g_st().au_new_curbuf, unsafe { buf.as_mut() });
+                set_bufref(&mut g_st().au_new_curbuf, buf.opt_mut());
                 apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
 
                 if !bufref_valid(Some(&g_st().au_new_curbuf)) {
@@ -2881,13 +2880,11 @@ pub fn do_ecmd(
                 } else {
                     let mut the_curwin = curwin_ptr();
 
-                    unsafe {
-                        the_curwin.w_locked += 1;
-                        (*buf).b_locked += 1;
-                    }
+                    the_curwin.w_locked += 1;
+                    buf.b_locked += 1;
 
                     if old_curbuf.br_buf == g_st().curbuf {
-                        buf_copy_options(unsafe { &mut *buf }, BCO_ENTER);
+                        buf_copy_options(buf.borrow_mut(), BCO_ENTER);
                     }
 
                     u_sync(false);
@@ -2912,9 +2909,7 @@ pub fn do_ecmd(
                             the_curwin.w_locked -= 1;
                         }
                     }
-                    unsafe {
-                        (*buf).b_locked -= 1;
-                    }
+                    buf.b_locked -= 1;
 
                     if aborting() && !curwin_mut().w_buffer.is_null() {
                         g_st().au_new_curbuf = save_au_new_curbuf;
@@ -2922,7 +2917,7 @@ pub fn do_ecmd(
                     }
                     if !bufref_valid(Some(&g_st().au_new_curbuf)) {
                         if curwin_mut().w_buffer.is_null() {
-                            buf = g_st().lastbuf.as_ptr();
+                            buf = crate::globals::GraphPtr::<FileBuf>::of(g_st().lastbuf);
                         } else {
                             delbuf_msg(new_name.take());
                             g_st().au_new_curbuf = save_au_new_curbuf;
@@ -2936,8 +2931,8 @@ pub fn do_ecmd(
                             curwin_mut().buf_mut().b_nwindows -= 1;
                         }
 
-                        curwin_mut().w_buffer = (buf).into();
-                        g_st().curbuf = (buf).into();
+                        curwin_mut().w_buffer = buf;
+                        g_st().curbuf = buf;
                         curbuf_mut().b_nwindows += 1;
 
                         if !oldbuf && let Some(eap) = eap {
@@ -2965,7 +2960,7 @@ pub fn do_ecmd(
         g_st().redrawing_disabled += 1;
         did_inc_redrawing_disabled = true;
 
-        buf = g_st().curbuf.as_ptr();
+        buf = crate::globals::GraphPtr::<FileBuf>::of(g_st().curbuf);
         if (flags & ECMD_SET_HELP) != 0 || g_st().keep_help_flag {
             prepare_help_buffer();
         } else if !curbuf_mut().b_help {
@@ -2987,9 +2982,9 @@ pub fn do_ecmd(
                 newlnum = curwin_mut().w_cursor.lnum;
                 solcol = curwin_mut().w_cursor.col;
             }
-            buf = g_st().curbuf.as_ptr();
-            new_name = unsafe { (*buf).fname_opt().map(CStr::to_owned) };
-            set_bufref(&mut bufref, unsafe { buf.as_mut() });
+            buf = crate::globals::GraphPtr::<FileBuf>::of(g_st().curbuf);
+            new_name = buf.fname_opt().map(CStr::to_owned);
+            set_bufref(&mut bufref, buf.opt_mut());
 
             if (curbuf_mut().b_flags & BF_NEVERLOADED) == 0
                 && (opt_vars().p_ur < 0

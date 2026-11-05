@@ -209,24 +209,23 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
 }
 
 pub fn read_event(stream_in: &mut RStream) {
-    let stream: *mut RStream = stream_in;
+    let mut stream = crate::globals::GraphPtr::<RStream>::from_ref(stream_in);
     unsafe {
-        (*stream).pending_read = false;
-        let available = rstream_available(&mut *stream);
-        let read_ptr = (*stream).buffer.as_ptr().wrapping_add((*stream).read_pos);
+        stream.pending_read = false;
+        let available = rstream_available(stream.borrow_mut());
+        let read_ptr = stream.buffer.as_ptr().wrapping_add(stream.read_pos);
         let bytes = std::slice::from_raw_parts(read_ptr, available);
-        if let Some(consumed) =
-            (*stream)
-                .s
-                .cb_data
-                .call_read_cb((*stream).s.fd, bytes, (*stream).did_eof)
+        if let Some(consumed) = stream
+            .s
+            .cb_data
+            .call_read_cb(stream.s.fd, bytes, stream.did_eof)
         {
             assert!(consumed <= available);
-            rstream_consume(&mut *stream, consumed);
+            rstream_consume(stream.borrow_mut(), consumed);
         }
-        (*stream).s.pending_reqs -= 1;
-        if (*stream).s.closed && (*stream).s.pending_reqs == 0 {
-            stream_close_handle(&mut (*stream).s);
+        stream.s.pending_reqs -= 1;
+        if stream.s.closed && stream.s.pending_reqs == 0 {
+            stream_close_handle(&mut stream.s);
         }
     }
 }

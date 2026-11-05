@@ -283,26 +283,26 @@ mod unix_impl {
                 init_termios(&mut *termios_default_ptr);
             }
 
-            let proc_: *mut Proc = ptyproc;
+            let mut proc_ = crate::globals::GraphPtr::<Proc>::from_ref(ptyproc);
             let hdr = proc_;
-            let ptail: *mut PtyProc = ptyproc;
-            let s_in = &mut (*proc_).r#in;
-            let r_out = &mut (*proc_).out;
-            let r_err = &mut (*proc_).err;
+            let mut ptail = crate::globals::GraphPtr::<PtyProc>::from_ref(ptyproc);
+            let s_in = &mut proc_.r#in;
+            let r_out = &mut proc_.out;
+            let r_err = &mut proc_.err;
             debug_assert!(r_err.s.closed);
             uv_signal_start(
                 loop_children_watcher((*hdr).loop_.borrow_mut()),
                 Some(chld_handler),
                 SIGCHLD,
             );
-            (*ptail).winsize = winsize {
-                ws_row: (*ptail).height,
-                ws_col: (*ptail).width,
+            ptail.winsize = winsize {
+                ws_row: ptail.height,
+                ws_col: ptail.width,
                 ws_xpixel: 0,
                 ws_ypixel: 0,
             };
             uv_disable_stdio_inheritance();
-            let prog = proc_get_exepath(&*proc_);
+            let prog = proc_get_exepath(proc_.borrow());
             debug_assert!(!(*hdr).env.is_null());
             let new_env = tv_dict_to_env((*hdr).env.opt());
             let mut new_env_ptrs: Vec<*mut u8> = new_env
@@ -321,7 +321,7 @@ mod unix_impl {
                 &raw mut master,
                 ptr::null_mut(),
                 termios_default_ptr.cast_const(),
-                &raw const (*ptail).winsize,
+                &raw const ptail.winsize,
             );
 
             if pid < 0 {
@@ -441,7 +441,7 @@ mod unix_impl {
                     }
                 }
 
-                (*ptail).tty_fd = master;
+                ptail.tty_fd = master;
                 (*hdr).pid = pid;
                 return 0;
             }
@@ -497,8 +497,8 @@ mod unix_impl {
     pub fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
-            let proc_: *mut Proc = ptyproc;
-            crate::event::proc::proc_decref(&mut *proc_);
+            let mut proc_ = crate::globals::GraphPtr::<Proc>::from_ref(ptyproc);
+            crate::event::proc::proc_decref(proc_.borrow_mut());
         }
     }
 

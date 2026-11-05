@@ -242,7 +242,7 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
                 }
             }
             QueueEntry::Event(ev) => {
-                let q_ptr: *mut MultiQueue = &raw mut *q;
+                let q_ptr = crate::globals::GraphPtr::<MultiQueue>::from_ref(&*q);
                 if let Some(parent) = q.parent.opt_mut()
                     && let Some(pos) = parent
                         .items
@@ -259,10 +259,10 @@ fn multiqueue_remove(this: &mut MultiQueue) -> Event {
 
 fn multiqueue_push(this: &mut MultiQueue, event: Event) {
     let q = this;
-    let q_ptr: *mut MultiQueue = &raw mut *q;
+    let q_ptr = crate::globals::GraphPtr::<MultiQueue>::from_ref(&*q);
     q.items.push_back(QueueEntry::Event(event));
     if let Some(parent) = q.parent.opt_mut() {
-        parent.items.push_back(QueueEntry::Child(q_ptr.into()));
+        parent.items.push_back(QueueEntry::Child(q_ptr));
     }
     q.size = q.size.wrapping_add(1);
 }

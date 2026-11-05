@@ -4128,7 +4128,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let mut ea: Exarg = Exarg::new();
     let old_ro = buf.b_p_ro;
-    let savebuf: *mut FileBuf;
+    let savebuf: crate::globals::GraphPtr<FileBuf>;
     let mut bufref: Bufref = Bufref::new();
     let mut saved = true;
     let mut aco: CtxSwitch = CtxSwitch::new();
@@ -4160,13 +4160,13 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     }
 
     if buf_is_empty(curbuf_mut()) || !saved {
-        savebuf = ptr::null_mut();
+        savebuf = crate::globals::GraphPtr::NULL;
     } else {
-        savebuf = buflist_new(None, None, 1, BLN_DUMMY).map_or(ptr::null_mut(), ptr::from_mut);
-        set_bufref(&mut bufref, unsafe { savebuf.as_mut() });
+        savebuf = crate::globals::GraphPtr::from(buflist_new(None, None, 1, BLN_DUMMY));
+        set_bufref(&mut bufref, savebuf.opt_mut());
         if !savebuf.is_null() && g_st().curbuf == buf {
-            g_st().curbuf = (savebuf).into();
-            curwin_mut().w_buffer = (savebuf).into();
+            g_st().curbuf = savebuf;
+            curwin_mut().w_buffer = savebuf;
             saved = ml_open(curbuf_mut());
             g_st().curbuf = (buf).into();
             curwin_mut().w_buffer = (buf).into();
@@ -4174,7 +4174,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         if savebuf.is_null()
             || !saved
             || g_st().curbuf != buf
-            || !move_lines(&mut *buf, unsafe { &mut *savebuf })
+            || !move_lines(&mut *buf, savebuf.borrow_mut())
         {
             semsg!(
                 tr(c"E462: Could not prepare for reloading \"%s\""),
@@ -4226,7 +4226,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     drop(_ea_cmd);
 
     if !savebuf.is_null() && bufref_valid(Some(&bufref)) {
-        wipe_buffer(unsafe { &mut *savebuf }, false);
+        wipe_buffer(savebuf.borrow_mut(), false);
     }
 
     diff_invalidate(curbuf_mut());

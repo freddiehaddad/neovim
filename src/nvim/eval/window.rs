@@ -105,10 +105,10 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
     }
 
     let mut tp = crate::globals::GraphPtr::<TabPageInfo>::NULL;
-    let wp: *mut WinInfoInfo;
+    let wp: crate::globals::GraphPtr<WinInfoInfo>;
     if argvars[1].v_type == VarType::VarUnknown {
         tp = crate::globals::GraphPtr::<TabPageInfo>::of(g_st().curtab);
-        wp = g_st().firstwin.as_ptr();
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(g_st().firstwin);
     } else {
         let mut tabnr = tv_get_number(&argvars[1]) as i32;
         for tp2 in for_all_tabpages_ptr() {
@@ -121,7 +121,7 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         if tp.is_null() {
             return -1;
         }
-        wp = first_win_in_tab(tp.borrow_mut());
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(first_win_in_tab(tp.borrow_mut()));
     }
     let tp_ref = tp.borrow_mut();
     for wp_ref in win_iter_mut(wp) {

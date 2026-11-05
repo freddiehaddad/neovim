@@ -511,8 +511,8 @@ unsafe extern "C" {
 
 #[inline]
 pub fn loop_queues(loop_: &mut Loop) -> &'static mut Loop {
-    let p: *mut Loop = loop_;
-    unsafe { &mut *p }
+    let p = crate::globals::GraphPtr::<Loop>::from_ref(loop_);
+    p.borrow_mut()
 }
 
 #[inline]
@@ -584,16 +584,16 @@ pub fn loop_init(loop_: &mut Loop) {
 
 /// Process `Loop.uv` events with a timeout.
 fn loop_uv_run(loop_in: &mut Loop, ms: i64) -> bool {
-    let loop_: *mut Loop = loop_in;
+    let mut loop_ = crate::globals::GraphPtr::<Loop>::from_ref(loop_in);
     unsafe {
-        let old_rec = (*loop_).recursive;
-        (*loop_).recursive = old_rec + 1;
+        let old_rec = loop_.recursive;
+        loop_.recursive = old_rec + 1;
         if old_rec != 0 {
             std::process::abort(); // Should not re-enter uv_run
         }
 
         let mut mode: i32 = UV_RUN_ONCE;
-        let poll_timer = ptr::from_mut(loop_poll_timer(&mut *loop_));
+        let poll_timer = ptr::from_mut(loop_poll_timer(loop_.borrow_mut()));
         let timeout_expired = *poll_timer.cast::<*mut bool>();
         *timeout_expired = false;
 
@@ -603,13 +603,13 @@ fn loop_uv_run(loop_in: &mut Loop, ms: i64) -> bool {
             mode = UV_RUN_NOWAIT;
         }
 
-        uv_run((&raw mut (*loop_).uv).cast(), mode);
+        uv_run((&raw mut loop_.uv).cast(), mode);
 
         if ms > 0 {
             uv_timer_stop(poll_timer);
         }
 
-        (*loop_).recursive -= 1; // Can re-enter uv_run now
+        loop_.recursive -= 1; // Can re-enter uv_run now
         ptr::read_volatile(timeout_expired)
     }
 }
@@ -618,12 +618,10 @@ fn loop_uv_run(loop_in: &mut Loop, ms: i64) -> bool {
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
 pub fn loop_poll_events(loop_in: &mut Loop, ms: i64) -> bool {
-    let loop_: *mut Loop = loop_in;
-    unsafe {
-        let timeout_expired = loop_uv_run(&mut *loop_, ms);
-        multiqueue_process_events((*loop_).fast_events.borrow_mut());
-        timeout_expired
-    }
+    let loop_ = crate::globals::GraphPtr::<Loop>::from_ref(loop_in);
+    let timeout_expired = loop_uv_run(loop_.borrow_mut(), ms);
+    multiqueue_process_events(loop_.fast_events.borrow_mut());
+    timeout_expired
 }
 
 /// Schedules a fast event from another thread.

@@ -4963,7 +4963,7 @@ pub fn callback_call(
         return false;
     }
 
-    let partial: *mut TvPartial;
+    let partial: crate::globals::GraphPtr<TvPartial>;
     let mut name;
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
@@ -4974,16 +4974,14 @@ pub fn callback_call(
                 if check_luafunc_name(crate::memory::cstr_from_ptr(name), false) == 0 {
                     return false;
                 }
-                partial = get_vim_var_partial(VV_LUA).map_or(ptr::null_mut(), ptr::from_mut);
+                partial = crate::globals::GraphPtr::from(get_vim_var_partial(VV_LUA));
             } else {
-                partial = ptr::null_mut();
+                partial = crate::globals::GraphPtr::NULL;
             }
         }
         K_CALLBACK_PARTIAL => {
-            partial = callback.data.as_partial().as_ptr();
-            name = partial_name(unsafe { partial.as_ref() })
-                .as_ptr()
-                .cast_mut();
+            partial = crate::globals::GraphPtr::<TvPartial>::of(callback.data.as_partial());
+            name = partial_name(partial.opt()).as_ptr().cast_mut();
         }
         K_CALLBACK_LUA => {
             let mut arena = Arena {

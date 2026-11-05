@@ -1453,7 +1453,7 @@ fn syn_current_attr(
     let mut eos_pos = Lpos { lnum: 0, col: 0 };
     let mut eoe_pos = Lpos { lnum: 0, col: 0 };
     let mut end_idx: i32;
-    let mut cur_si: *mut Stateitem;
+    let mut cur_si: crate::globals::GraphPtr<Stateitem>;
     let mut sip = crate::globals::GraphPtr::<Stateitem>::NULL;
     let mut startcol: i32;
     let mut endcol: i32 = 0;
@@ -1509,14 +1509,14 @@ fn syn_current_attr(
         let mut syn_id: i32 = 0;
 
         if !cur_state_empty() {
-            cur_si = cur_state_at(cur_state_len() - 1);
+            cur_si = crate::globals::GraphPtr::<Stateitem>::of(cur_state_at(cur_state_len() - 1));
         } else {
-            cur_si = ptr::null_mut();
+            cur_si = crate::globals::GraphPtr::NULL;
         }
 
         if syn_block_mut().b_syn_containedin != 0
             || cur_si.is_null()
-            || unsafe { (*cur_si).si_cont_list.is_some() }
+            || cur_si.si_cont_list.is_some()
         {
             if do_keywords {
                 line = syn_getcurline!();
@@ -1538,14 +1538,14 @@ fn syn_current_attr(
                         &mut endcol,
                         &mut flags,
                         &mut next_list,
-                        unsafe { cur_si.as_ref() },
+                        cur_si.opt(),
                         &mut cchar,
                     );
                     if syn_id != 0 {
                         push_current_state(KEYWORD_IDX);
                         let len = cur_state_len();
-                        cur_si = cur_state_at(len - 1);
-                        let cur_si = unsafe { &mut *cur_si };
+                        cur_si = crate::globals::GraphPtr::<Stateitem>::of(cur_state_at(len - 1));
+                        let cur_si = cur_si.borrow_mut();
                         cur_si.si_m_startcol = syn_st().current_col;
                         cur_si.si_h_startpos.lnum = syn_st().current_lnum;
                         cur_si.si_h_startpos.col = 0;
@@ -1599,8 +1599,8 @@ fn syn_current_attr(
                                 (spp.sp_flags & HL_CONTAINED) == 0
                             } else {
                                 in_id_list(
-                                    unsafe { cur_si.as_ref() },
-                                    unsafe { &(*cur_si).si_cont_list },
+                                    cur_si.opt(),
+                                    &(cur_si.borrow().si_cont_list),
                                     &mut spp.sp_syn,
                                     spp.sp_flags,
                                 ) != 0
@@ -1752,7 +1752,7 @@ fn syn_current_attr(
                         zero_width_next_ga.push(syn_st().next_match_idx);
                         syn_st().next_match_idx = -1;
                     } else {
-                        cur_si = push_next_match();
+                        cur_si = crate::globals::GraphPtr::<Stateitem>::of(push_next_match());
                     }
                     found_match = true;
                 }
