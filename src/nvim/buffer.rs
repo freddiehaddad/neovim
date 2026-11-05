@@ -2942,7 +2942,7 @@ pub fn buflist_new(
     let curwin_info = &mut buf_ref.b_wininfo[0];
     curwin_info.wi_mark = INIT_FMARK;
     curwin_info.wi_mark.mark.lnum = lnum;
-    curwin_info.wi_win = curwin_ptr();
+    curwin_info.wi_win = crate::globals::WinPtr::new(curwin_ptr());
 
     buf_ref.b_fname = BufFname::Short;
     if !file_id_valid {
@@ -3535,7 +3535,7 @@ pub fn buflist_setfpos(
         wip
     } else {
         let mut wip = WinInfo::new();
-        wip.wi_win = win;
+        wip.wi_win = crate::globals::WinPtr::new(win);
         if lnum == 0 {
             lnum = 1;
         }

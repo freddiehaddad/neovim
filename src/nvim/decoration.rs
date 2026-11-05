@@ -230,7 +230,7 @@ pub struct DecorState {
     pub future_begin: i32,
     pub free_slot_i: i32,
     pub new_range_ordering: i32,
-    pub win: *mut WinInfoInfo,
+    pub win: crate::globals::WinPtr,
     pub top_row: i32,
     pub row: i32,
     pub col_last: i32,
@@ -257,7 +257,7 @@ impl DecorState {
             future_begin: 0,
             free_slot_i: 0,
             new_range_ordering: 0,
-            win: ptr::null_mut(),
+            win: crate::globals::WinPtr::NULL,
             top_row: 0,
             row: 0,
             col_last: 0,
@@ -753,7 +753,7 @@ fn decor_free_sh(first_idx: u32) {
 }
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
-    if let Some(win) = unsafe { g_st().decor_state.win.as_ref() }
+    if let Some(win) = g_st().decor_state.win.opt()
         && std::ptr::eq(win.w_buffer, buf)
     {
         g_st().decor_state.itr_valid = false;
@@ -811,7 +811,7 @@ pub fn decor_check_to_be_deleted() {
     }
     decor_free_sh(decor_st().to_free_sh);
     decor_st().to_free_sh = DECOR_ID_INVALID;
-    g_st().decor_state.win = ptr::null_mut();
+    g_st().decor_state.win = crate::globals::WinPtr::NULL;
 }
 
 pub fn decor_check_invalid_glyphs() {
@@ -885,7 +885,7 @@ pub fn decor_find_virttext(
 
 pub fn decor_redraw_reset(wp: &mut WinInfoInfo, state: &mut DecorState) -> bool {
     state.row = -1;
-    state.win = wp;
+    state.win = crate::globals::WinPtr::new(wp);
 
     state.slots.clear();
     state.ranges_i.clear();
@@ -984,7 +984,7 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
         return true;
     }
 
-    let k = marktree_itr_current(unsafe { &(*(*state.win).w_buffer).b_marktree }, &state.itr);
+    let k = marktree_itr_current(unsafe { &(*state.win.w_buffer).b_marktree }, &state.itr);
     k.pos.row >= 0 && k.pos.row <= row
 }
 

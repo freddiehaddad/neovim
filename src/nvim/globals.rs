@@ -795,7 +795,7 @@ impl EditorState {
                     rmm_ic: false,
                     rmm_maxcol: 0,
                 },
-                buf: ptr::null_mut(),
+                buf: BufPtr::NULL,
                 lnum: 0,
                 attr: 0,
                 attr_cur: 0,
@@ -983,7 +983,7 @@ pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
 /// assert LLVM `noalias` uniqueness (unlike `&mut T`), while providing checked `.opt()`,
 /// `.opt_mut()`, `.borrow()`, and `.borrow_mut()` accessors for synchronous local borrows.
 #[repr(transparent)]
-pub struct GraphPtr<T>(pub *mut T);
+pub struct GraphPtr<T>(Option<std::ptr::NonNull<T>>);
 
 impl<T> Copy for GraphPtr<T> {}
 
@@ -1004,7 +1004,35 @@ impl<T> Default for GraphPtr<T> {
 impl<T> PartialEq for GraphPtr<T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        ptr::eq(self.0, other.0)
+        self.0 == other.0
+    }
+}
+
+impl<T> PartialEq<*mut T> for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &*mut T) -> bool {
+        self.as_ptr() == *other
+    }
+}
+
+impl<T> PartialEq<*const T> for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &*const T) -> bool {
+        self.as_ptr().cast_const() == *other
+    }
+}
+
+impl<T> PartialEq<&T> for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &&T) -> bool {
+        ptr::eq(self.as_ptr(), *other)
+    }
+}
+
+impl<T> PartialEq<&mut T> for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &&mut T) -> bool {
+        ptr::eq(self.as_ptr(), *other)
     }
 }
 
@@ -1013,7 +1041,7 @@ impl<T> Eq for GraphPtr<T> {}
 impl<T> From<&mut T> for GraphPtr<T> {
     #[inline]
     fn from(r: &mut T) -> Self {
-        Self(&raw mut *r)
+        Self::new(&raw mut *r)
     }
 }
 
@@ -1022,57 +1050,56 @@ impl<T> std::ops::Deref for GraphPtr<T> {
 
     #[inline]
     fn deref(&self) -> &T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &*self.0 }
+        unsafe { self.0.unwrap().as_ref() }
     }
 }
 
 impl<T> std::ops::DerefMut for GraphPtr<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &mut *self.0 }
+        unsafe { self.0.unwrap().as_mut() }
     }
 }
 
 impl<T> GraphPtr<T> {
-    pub const NULL: Self = Self(ptr::null_mut());
+    pub const NULL: Self = Self(None);
 
     #[inline]
     pub const fn new(ptr: *mut T) -> Self {
-        Self(ptr)
+        Self(std::ptr::NonNull::new(ptr))
     }
 
     #[inline]
     pub const fn as_ptr(self) -> *mut T {
-        self.0
+        match self.0 {
+            Some(p) => p.as_ptr(),
+            None => ptr::null_mut(),
+        }
     }
 
     #[inline]
-    pub fn is_null(self) -> bool {
-        self.0.is_null()
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
     }
 
     #[inline]
     pub fn opt<'a>(self) -> Option<&'a T> {
-        unsafe { self.0.as_ref() }
+        self.0.map(|p| unsafe { p.as_ref() })
     }
 
     #[inline]
     pub fn opt_mut<'a>(self) -> Option<&'a mut T> {
-        unsafe { self.0.as_mut() }
+        self.0.map(|mut p| unsafe { p.as_mut() })
     }
 
     #[inline]
     pub fn borrow<'a>(self) -> &'a T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &*self.0 }
+        unsafe { self.0.unwrap().as_ref() }
     }
 
     #[inline]
     pub fn borrow_mut<'a>(self) -> &'a mut T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &mut *self.0 }
+        unsafe { self.0.unwrap().as_mut() }
     }
 }
 

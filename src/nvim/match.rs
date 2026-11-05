@@ -1,6 +1,5 @@
 //! Functions for highlighting matches (`src/nvim/match.c`).
 
-use crate::buffer::FileBuf;
 use crate::charset::ascii_iswhite;
 use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_range_later};
 use crate::errors::*;
@@ -45,7 +44,7 @@ pub(crate) const K_CPO_SEARCH: i32 = b'c' as i32;
 #[derive(Clone, Copy)]
 pub struct SynMatch {
     pub rm: Regmmatch,
-    pub buf: *mut FileBuf,
+    pub buf: crate::globals::BufPtr,
     pub lnum: Linenr,
     pub attr: i32,
     pub attr_cur: i32,
@@ -61,7 +60,7 @@ impl SynMatch {
     pub const fn new() -> Self {
         Self {
             rm: Regmmatch::new(),
-            buf: ptr::null_mut(),
+            buf: crate::globals::BufPtr::NULL,
             lnum: 0,
             attr: 0,
             attr_cur: 0,
@@ -352,12 +351,12 @@ pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
         } else {
             syn_id2attr(cur.mit_hlg_id)
         };
-        cur.mit_hl.buf = buf;
+        cur.mit_hl.buf = crate::globals::BufPtr::new(buf);
         cur.mit_hl.lnum = 0;
         cur.mit_hl.first_lnum = 0;
         cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
     }
-    search_hl.buf = wp.w_buffer;
+    search_hl.buf = crate::globals::BufPtr::new(wp.w_buffer);
     search_hl.lnum = 0;
     search_hl.first_lnum = 0;
     search_hl.attr = win_hl_attr(&mut *wp, HLF_L as i32);
@@ -458,7 +457,7 @@ fn next_search_hl(
             || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
         {
             matchcol = shl.rm.startpos[0].col;
-            let line_slice = crate::memline::ml_get_buf_slice(unsafe { &mut *shl.buf }, lnum);
+            let line_slice = crate::memline::ml_get_buf_slice(shl.buf.borrow_mut(), lnum);
             if (matchcol as usize) >= line_slice.len() {
                 shl.lnum = 0;
                 break;
@@ -476,7 +475,7 @@ fn next_search_hl(
                     == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
             let mut timed_out: i32 = 0;
 
-            let shl_buf = unsafe { &mut *shl.buf };
+            let shl_buf = shl.buf.borrow_mut();
             nmatched = vim_regexec_multi(
                 &mut shl.rm,
                 Some(win),

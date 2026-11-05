@@ -4136,8 +4136,8 @@ pub(super) fn bt_regexec_nl(
     re_st().rex.reg_mmatch = ptr::null_mut();
     re_st().rex.reg_maxline = 0;
     re_st().rex.reg_line_lbr = line_lbr;
-    re_st().rex.reg_buf = g_st().curbuf;
-    re_st().rex.reg_win = ptr::null_mut();
+    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    re_st().rex.reg_win = crate::globals::WinPtr::NULL;
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;
     re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;

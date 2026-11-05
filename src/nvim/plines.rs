@@ -31,7 +31,6 @@ use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::state::{MODE_NORMAL, virtual_active};
 use crate::window::WinInfoInfo;
-use std::ptr;
 
 use crate::insert::K_CHARSIZE_FAST;
 use crate::regexp::MAXCOL;
@@ -57,7 +56,7 @@ pub type ConcealSpans = Vec<ConcealSpan>;
 
 #[repr(C)]
 pub struct CharsizeArg {
-    pub win: *mut WinInfoInfo,
+    pub win: crate::globals::WinPtr,
     pub line: &'static std::ffi::CStr,
     pub use_tabstop: bool,
     pub indent_width: i32,
@@ -74,7 +73,7 @@ pub struct CharsizeArg {
 impl CharsizeArg {
     pub const fn new() -> Self {
         Self {
-            win: ptr::null_mut(),
+            win: crate::globals::WinPtr::NULL,
             line: c"",
             use_tabstop: false,
             indent_width: 0,
@@ -91,7 +90,7 @@ impl CharsizeArg {
 
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.win }
+        self.win.borrow_mut()
     }
 
     #[inline]
@@ -213,7 +212,7 @@ pub fn init_charsize_arg(
     lnum: Linenr,
     line: &std::ffi::CStr,
 ) -> CSType {
-    csarg.win = (&raw mut *wp);
+    csarg.win = crate::globals::WinPtr::from(&mut *wp);
     csarg.line = unsafe { &*(line as *const std::ffi::CStr) };
     csarg.max_head_vcol = 0;
     csarg.extconceal_off = 0;

@@ -4197,7 +4197,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         }
 
         for cw in &g_st().ctx_win_vec {
-            if let Some(cw_win) = unsafe { cw.cw_win.as_mut() } {
+            if let Some(cw_win) = cw.cw_win.opt_mut() {
                 abort = abort || set_ref_in_item(&mut cw_win.w_winvar.di_tv, copy_id, None, None);
             }
         }

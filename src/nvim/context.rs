@@ -61,7 +61,7 @@ pub struct CtxSwitch {
     pub cs_curwin: ObjHandle,
     pub cs_curwin_xtab: bool,
     pub cs_prevwin: ObjHandle,
-    pub cs_curtab: *mut TabPageInfo,
+    pub cs_curtab: crate::globals::TabpagePtr,
     pub cs_same_win: bool,
     pub cs_visual_active: bool,
     pub cs_prompt_insert: i32,
@@ -88,7 +88,7 @@ impl CtxSwitch {
             cs_curwin: 0,
             cs_curwin_xtab: false,
             cs_prevwin: 0,
-            cs_curtab: ptr::null_mut(),
+            cs_curtab: crate::globals::TabpagePtr::NULL,
             cs_same_win: false,
             cs_visual_active: false,
             cs_prompt_insert: 0,
@@ -166,7 +166,7 @@ pub struct Context {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CtxWin {
-    pub cw_win: *mut WinInfoInfo,
+    pub cw_win: crate::globals::WinPtr,
     pub cw_used: bool,
 }
 
@@ -698,7 +698,7 @@ pub fn is_ctx_win(win: &WinInfoInfo) -> bool {
     g_st()
         .ctx_win_vec
         .iter()
-        .any(|item| item.cw_used && ptr::eq(item.cw_win, win))
+        .any(|item| item.cw_used && item.cw_win == ptr::from_ref(win))
 }
 
 fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoInfo {
@@ -710,7 +710,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
         .unwrap_or_else(|| {
             let idx = g_st().ctx_win_vec.len();
             g_st().ctx_win_vec.push(CtxWin {
-                cw_win: ptr::null_mut(),
+                cw_win: crate::globals::WinPtr::NULL,
                 cw_used: false,
             });
             idx
@@ -719,7 +719,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
         win_alloc_ctx_win(idx as i32);
         need_append = false;
     }
-    let cw_win = unsafe { &mut *g_st().ctx_win_vec.as_slice()[idx].cw_win };
+    let cw_win = g_st().ctx_win_vec.as_slice()[idx].cw_win.borrow_mut();
     g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
     cs.cs_ctxwin_idx = idx as i32;
 
@@ -740,7 +740,9 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
 }
 
 fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
-    let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize].cw_win;
+    let cwp = g_st().ctx_win_vec.as_slice()[cs.cs_ctxwin_idx as usize]
+        .cw_win
+        .as_ptr();
 
     block_autocmds();
     if curwin_ptr() != cwp {
@@ -855,7 +857,7 @@ pub fn ctx_switch(
         block_autocmds();
     }
     if !tp.is_null() {
-        cs.cs_curtab = g_st().curtab;
+        cs.cs_curtab = crate::globals::TabpagePtr::new(g_st().curtab);
         if (flags & K_CTX_NO_DISPLAY) != 0 {
             unuse_tabpage(curtab_mut());
             use_tabpage(unsafe { &mut *tp });
@@ -914,14 +916,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     }
 
     if cs.cs_mode == K_CTX_SWITCH_WIN {
-        if !cs.cs_curtab.is_null() && valid_tabpage(unsafe { cs.cs_curtab.as_ref() }) {
+        if !cs.cs_curtab.is_null() && valid_tabpage(cs.cs_curtab.opt()) {
             if (cs.cs_flags & K_CTX_NO_DISPLAY) != 0 {
                 let old_tp_curwin = curtab_mut().tp_curwin;
                 unuse_tabpage(curtab_mut());
                 curtab_mut().tp_curwin = old_tp_curwin;
-                use_tabpage(unsafe { &mut *cs.cs_curtab });
+                use_tabpage(cs.cs_curtab.borrow_mut());
             } else {
-                goto_tabpage_tp(unsafe { cs.cs_curtab.as_mut() }, false, false);
+                goto_tabpage_tp(cs.cs_curtab.opt_mut(), false, false);
             }
         }
         ctx_restore_curwin(cs, None);

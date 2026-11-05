@@ -43,7 +43,7 @@ use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
 use crate::strings::vim_snprintf;
 use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
-use crate::window::{WinInfoInfo, win_valid};
+use crate::window::win_valid;
 use std::ffi::CStr;
 use std::ptr;
 
@@ -217,7 +217,7 @@ impl Default for CmdSpec {
 #[derive(Clone, Copy)]
 pub struct CmdOrigin {
     pub buf: Bufref,
-    pub win: *const WinInfoInfo,
+    pub win: crate::globals::WinPtr,
     pub pos: CursorPos,
     pub mcursor: u32,
     pub tick: Varnumber,
@@ -232,7 +232,7 @@ impl CmdOrigin {
                 br_fnum: 0,
                 br_buf_free_count: 0,
             },
-            win: ptr::null(),
+            win: crate::globals::WinPtr::NULL,
             pos: CursorPos {
                 lnum: 0,
                 col: 0,
@@ -473,7 +473,7 @@ pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
 
 fn atom_origin() -> CmdOrigin {
     let mut origin = CmdOrigin {
-        win: curwin_ptr(),
+        win: crate::globals::WinPtr::new(curwin_ptr()),
         pos: curwin_mut().w_cursor,
         tick: buf_get_changedtick(curbuf_mut()),
         maptick: g_st().maptick,
@@ -496,8 +496,10 @@ fn atom_origin_changed(origin: CmdOrigin) -> bool {
 #[inline]
 fn atom_origin_moved(origin: CmdOrigin) -> bool {
     bufref_valid(Some(&origin.buf))
-        && win_valid(unsafe { origin.win.as_ref() })
-        && unsafe { origin.win.as_ref() }
+        && win_valid(origin.win.opt())
+        && origin
+            .win
+            .opt()
             .is_some_and(|w| w.w_buffer == origin.buf.br_buf && !equalpos(origin.pos, w.w_cursor))
 }
 
@@ -1701,7 +1703,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
     let opaque = (keycls & K_KEY_OPAQUE) != 0;
     let synthetic = (keycls & K_KEY_SYNTHETIC) != 0;
     let unchanged = g_st().curbuf == old.origin.buf.br_buf
-        && ptr::eq((curwin_ptr()).cast_const(), old.origin.win)
+        && old.origin.win == curwin_ptr()
         && !atom_origin_moved(old.origin)
         && !atom_origin_changed(old.origin)
         && g_st().visual_global.active == old.visual.active

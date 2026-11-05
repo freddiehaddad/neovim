@@ -697,7 +697,7 @@ pub struct SnapshotFrame {
     pub fr_height: i32,
     pub fr_next: Option<Box<SnapshotFrame>>,
     pub fr_child: Option<Box<SnapshotFrame>>,
-    pub fr_win: *mut WinInfoInfo,
+    pub fr_win: crate::globals::WinPtr,
 }
 
 #[repr(C)]
@@ -4066,18 +4066,18 @@ pub fn win_free_all() {
         let mut dummy: i32 = 0;
         win_free_mem(unsafe { &mut *wp }, &mut dummy, None);
         for item in g_st().ctx_win_vec.iter_mut() {
-            if ptr::eq(item.cw_win, wp) {
-                item.cw_win = ptr::null_mut();
+            if item.cw_win == wp {
+                item.cw_win = crate::globals::WinPtr::NULL;
             }
         }
     }
 
     for i in 0..g_st().ctx_win_vec.len() {
         let cw = g_st().ctx_win_vec.as_slice()[i].cw_win;
-        if !cw.is_null() {
+        if let Some(cw_mut) = cw.opt_mut() {
             let mut dummy: i32 = 0;
-            win_free_mem(unsafe { &mut *cw }, &mut dummy, None);
-            g_st().ctx_win_vec.as_mut_slice()[i].cw_win = ptr::null_mut();
+            win_free_mem(cw_mut, &mut dummy, None);
+            g_st().ctx_win_vec.as_mut_slice()[i].cw_win = crate::globals::WinPtr::NULL;
         }
     }
 
@@ -4913,7 +4913,8 @@ pub fn win_alloc_ctx_win(idx: i32) {
     fconfig.mouse = false;
     fconfig.hide = true;
     let cw_ref = win_new_float(None, true, fconfig, &mut err).unwrap();
-    g_st().ctx_win_vec.as_mut_slice()[idx as usize].cw_win = cw_ref;
+    g_st().ctx_win_vec.as_mut_slice()[idx as usize].cw_win =
+        crate::globals::WinPtr::from(&mut *cw_ref);
     cw_ref.buf_mut().b_nwindows -= 1;
     reset_binding(cw_ref);
 }
@@ -6069,7 +6070,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) {
             let mut pos_wip = None;
             let mut pos_null = None;
             for (i, wip) in buf.b_wininfo.iter().enumerate() {
-                if ptr::eq(wip.wi_win, wp) {
+                if wip.wi_win == ptr::from_mut(wp) {
                     pos_wip = Some(i);
                 } else if wip.wi_win.is_null() {
                     pos_null = Some(i);
@@ -6078,7 +6079,7 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) {
 
             if let Some(pw) = pos_wip {
                 let wip_wp = &mut (&mut buf.b_wininfo)[pw];
-                wip_wp.wi_win = ptr::null_mut();
+                wip_wp.wi_win = crate::globals::WinPtr::NULL;
                 if wp.w_config.style == K_WIN_STYLE_MINIMAL && wip_wp.wi_optset {
                     clear_winopt(&mut wip_wp.wi_opt);
                     wip_wp.wi_folds.clear();
@@ -7952,9 +7953,9 @@ fn make_snapshot_rec(fr: &mut Frame) -> Box<SnapshotFrame> {
         fr_next: fr.next_opt().map(make_snapshot_rec),
         fr_child: fr.child_opt().map(make_snapshot_rec),
         fr_win: if fr.fr_layout == FR_LEAF && ptr::eq(fr.fr_win, curwin_ptr()) {
-            curwin_ptr()
+            crate::globals::WinPtr::new(curwin_ptr())
         } else {
-            ptr::null_mut()
+            crate::globals::WinPtr::NULL
         },
     })
 }
@@ -7974,7 +7975,7 @@ fn get_snapshot_curwin_rec(ft: &SnapshotFrame) -> Option<&'static mut WinInfoInf
     {
         return Some(wp);
     }
-    unsafe { ft.fr_win.as_mut() }
+    ft.fr_win.opt_mut()
 }
 
 fn get_snapshot_curwin(idx: i32) -> Option<&'static mut WinInfoInfo> {
@@ -8011,7 +8012,7 @@ fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> bool {
             .fr_child
             .as_deref()
             .is_some_and(|child| !check_snapshot_rec(child, fr.child_mut())))
-        || (!sn.fr_win.is_null() && !win_valid(unsafe { sn.fr_win.as_ref() })))
+        || (!sn.fr_win.is_null() && !win_valid(sn.fr_win.opt())))
 }
 
 fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> Option<&'static mut WinInfoInfo> {
@@ -8023,7 +8024,7 @@ fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> Option<&'static m
         let fr_h = fr.fr_height;
         frame_new_height(&mut *fr, fr_h, false, false, false);
         frame_new_width(fr, fr.fr_width, false, false);
-        wp = sn.fr_win;
+        wp = sn.fr_win.as_ptr();
     }
     if let Some(ref next) = sn.fr_next
         && let Some(wp2) = restore_snapshot_rec(next, fr.next_mut())

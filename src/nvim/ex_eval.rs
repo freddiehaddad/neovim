@@ -4,7 +4,7 @@ use crate::cmdexpand::Cmdidx;
 use crate::cursor::Linenr;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
-use crate::eval::typval::{TvList, TypVal, tv_clear, tv_list_ref, tv_list_unref};
+use crate::eval::typval::{TypVal, tv_clear, tv_list_ref, tv_list_unref};
 use crate::eval::userfunc::{do_return, get_return_cmd};
 use crate::eval::vars::{
     Evalarg, VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, set_vim_var_list, set_vim_var_string,
@@ -119,12 +119,12 @@ pub struct Except {
     pub messages: Vec<Msglist>,
     pub throw_name: CString,
     pub throw_lnum: Linenr,
-    pub stacktrace: *mut TvList,
+    pub stacktrace: crate::globals::TvListPtr,
 }
 
 impl Drop for Except {
     fn drop(&mut self) {
-        tv_list_unref(unsafe { self.stacktrace.as_mut() });
+        tv_list_unref(self.stacktrace.opt_mut());
     }
 }
 
@@ -455,7 +455,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         messages,
         throw_name,
         throw_lnum,
-        stacktrace,
+        stacktrace: crate::globals::TvListPtr::new(stacktrace),
     });
 
     if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
@@ -545,7 +545,7 @@ pub fn discard_current_exception() {
 fn catch_exception(excp: &std::rc::Rc<Except>) {
     g_st().caught_stack.push(excp.clone());
     set_vim_var_string(VV_EXCEPTION, Some(&excp.value), -1);
-    set_vim_var_list(VV_STACKTRACE, unsafe { excp.stacktrace.as_mut() });
+    set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt_mut());
     if !excp.throw_name.as_bytes().is_empty() {
         let iobufflen = if excp.throw_lnum != 0 {
             vim_snprintf_safelen!(
@@ -609,7 +609,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
     g_st().caught_stack.pop();
     if let Some(top) = g_st().caught_stack.last() {
         set_vim_var_string(VV_EXCEPTION, Some(&top.value), -1);
-        set_vim_var_list(VV_STACKTRACE, unsafe { top.stacktrace.as_mut() });
+        set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt_mut());
         if !top.throw_name.as_bytes().is_empty() {
             let iobufflen = if top.throw_lnum != 0 {
                 vim_snprintf_safelen!(

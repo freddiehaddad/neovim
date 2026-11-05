@@ -199,8 +199,8 @@ pub struct Optset {
     pub os_value_changed: bool,
     pub os_restore_chartab: bool,
     pub os_errbuf: Option<CharBuf>,
-    pub os_win: *mut WinInfoInfo,
-    pub os_buf: *mut FileBuf,
+    pub os_win: crate::globals::WinPtr,
+    pub os_buf: crate::globals::BufPtr,
 }
 
 impl Optset {
@@ -222,24 +222,24 @@ impl Optset {
             os_value_changed: false,
             os_restore_chartab: false,
             os_errbuf: None,
-            os_win: ptr::null_mut(),
-            os_buf: ptr::null_mut(),
+            os_win: crate::globals::WinPtr::NULL,
+            os_buf: crate::globals::BufPtr::NULL,
         }
     }
 
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
-        unsafe { &mut *self.os_buf }
+        self.os_buf.borrow_mut()
     }
 
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.os_win }
+        self.os_win.borrow_mut()
     }
 
     #[inline]
     pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        unsafe { self.os_win.as_mut() }
+        self.os_win.opt_mut()
     }
 
     #[inline]
@@ -2179,7 +2179,7 @@ pub fn did_set_fileformat(args: &mut Optset) -> Option<&CStr> {
     redraw_titles();
     ml_setflags(buf);
     if get_fileformat(buf) == EOL_MAC || crate::memory::cstr_first_byte(oldval) == b'm' {
-        redraw_buf_later(unsafe { &*args.os_buf }, UPD_NOT_VALID);
+        redraw_buf_later(args.os_buf.borrow(), UPD_NOT_VALID);
     }
     None
 }

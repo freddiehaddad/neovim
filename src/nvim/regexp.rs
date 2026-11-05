@@ -999,8 +999,8 @@ pub(super) struct Regexec {
     pub reg_mmatch: *mut Regmmatch,
     pub reg_startpos: *mut Lpos,
     pub reg_endpos: *mut Lpos,
-    pub reg_win: *mut WinInfoInfo,
-    pub reg_buf: *mut FileBuf,
+    pub reg_win: crate::globals::WinPtr,
+    pub reg_buf: crate::globals::BufPtr,
     pub reg_firstlnum: Linenr,
     pub reg_maxline: Linenr,
     pub reg_line_lbr: bool,
@@ -1028,8 +1028,8 @@ impl Regexec {
             reg_mmatch: ptr::null_mut(),
             reg_startpos: ptr::null_mut(),
             reg_endpos: ptr::null_mut(),
-            reg_win: ptr::null_mut(),
-            reg_buf: ptr::null_mut(),
+            reg_win: crate::globals::WinPtr::NULL,
+            reg_buf: crate::globals::BufPtr::NULL,
             reg_firstlnum: 0,
             reg_maxline: 0,
             reg_line_lbr: false,
@@ -1426,8 +1426,8 @@ impl RegexpState {
                 reg_mmatch: ptr::null_mut(),
                 reg_startpos: ptr::null_mut(),
                 reg_endpos: ptr::null_mut(),
-                reg_win: ptr::null_mut(),
-                reg_buf: ptr::null_mut(),
+                reg_win: crate::globals::WinPtr::NULL,
+                reg_buf: crate::globals::BufPtr::NULL,
                 reg_firstlnum: 0,
                 reg_maxline: 0,
                 reg_line_lbr: false,
@@ -2292,7 +2292,7 @@ pub(super) fn reg_match_visual() -> bool {
     let wp = if re_st().rex.reg_win.is_null() {
         curwin_ptr()
     } else {
-        re_st().rex.reg_win
+        re_st().rex.reg_win.as_ptr()
     };
     let wp = unsafe { &mut *wp };
     if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
@@ -2786,7 +2786,7 @@ pub fn vim_regsub(
     re_st().rex.reg_match = rmp;
     re_st().rex.reg_mmatch = ptr::null_mut();
     re_st().rex.reg_maxline = 0;
-    re_st().rex.reg_buf = g_st().curbuf;
+    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
     re_st().rex.reg_line_lbr = true;
     let result = vim_regsub_both(Some(source), expr, dest, flags);
 
@@ -2815,7 +2815,7 @@ pub fn vim_regsub_multi(
 
     re_st().rex.reg_match = ptr::null_mut();
     re_st().rex.reg_mmatch = rmp;
-    re_st().rex.reg_buf = g_st().curbuf;
+    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
     re_st().rex.reg_line_lbr = false;
@@ -3349,8 +3349,8 @@ pub(super) fn init_regexec_multi(
 ) {
     re_st().rex.reg_match = ptr::null_mut();
     re_st().rex.reg_mmatch = rmp;
-    re_st().rex.reg_buf = ptr::from_mut(buf);
-    re_st().rex.reg_win = win.map_or(ptr::null_mut(), ptr::from_mut);
+    re_st().rex.reg_buf = crate::globals::BufPtr::from(buf);
+    re_st().rex.reg_win = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
     re_st().rex.reg_line_lbr = false;
@@ -3516,7 +3516,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         }
     }
 
-    re_st().rex.reg_buf = g_st().curbuf;
+    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
 
     let called_emsg_before = g_st().called_emsg;
     let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
@@ -3763,11 +3763,11 @@ impl Regexec {
     }
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
-        unsafe { &mut *self.reg_buf }
+        self.reg_buf.borrow_mut()
     }
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.reg_win }
+        self.reg_win.borrow_mut()
     }
     #[inline]
     pub fn load_line(&mut self, lnum: Linenr) {

@@ -1138,7 +1138,7 @@ pub fn nvim_buf_set_extmark(
 
         if opts.ephemeral
             && !g_st().decor_state.win.is_null()
-            && unsafe { (*g_st().decor_state.win).w_buffer } == (&raw mut *b)
+            && g_st().decor_state.win.w_buffer == (&raw mut *b)
         {
             let r = line as i32;
             let c = col as i32;

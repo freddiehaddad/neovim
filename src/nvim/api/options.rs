@@ -735,8 +735,8 @@ pub fn nvim_set_option_value(
             os_value_changed: false,
             os_restore_chartab: false,
             os_errbuf: Some(errbuf),
-            os_win: win,
-            os_buf: buf,
+            os_win: crate::globals::WinPtr::new(win),
+            os_buf: crate::globals::BufPtr::new(buf),
         };
         let errmsg = validate_and_prepare_option_value(&mut args);
         merged_val = args.os_newval;

@@ -2703,7 +2703,7 @@ pub fn did_set_buflisted(args: &mut Optset) -> Option<&CStr> {
             None,
             None,
             true,
-            unsafe { args.os_buf.as_mut() },
+            args.os_buf.opt_mut(),
         );
     }
     None
@@ -2748,7 +2748,7 @@ pub fn did_set_eof_eol_fixeol_bomb(_args: &mut Optset) -> Option<&CStr> {
 /// Process the updated 'equalalways' option value.
 pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
     if opt_vars().p_ea && !args.os_oldval.data.boolean() {
-        win_equal(unsafe { args.os_win.as_ref() }, false, 0);
+        win_equal(args.os_win.opt(), false, 0);
     }
     None
 }
@@ -3040,7 +3040,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
         return None;
     }
-    let win = args.os_win;
+    let win = args.os_win.as_ptr();
     let tab = if win == curwin_ptr() {
         g_st().curtab
     } else {
@@ -3182,7 +3182,7 @@ pub fn did_set_titlelen(args: &mut Optset) -> Option<&CStr> {
 
 /// Process the updated 'undofile' option value.
 pub fn did_set_undofile(args: &mut Optset) -> Option<&CStr> {
-    let buf = args.os_buf;
+    let buf = args.os_buf.as_ptr();
 
     if !args.buf_mut().b_p_udf && !opt_vars().p_udf {
         return None;
@@ -5588,8 +5588,8 @@ fn set_option<'a>(
         os_value_changed: false,
         os_restore_chartab: false,
         os_errbuf: errbuf,
-        os_win: curwin_ptr(),
-        os_buf: g_st().curbuf,
+        os_win: crate::globals::WinPtr::new(curwin_ptr()),
+        os_buf: crate::globals::BufPtr::new(g_st().curbuf),
     };
 
     let opt = get_option(opt_idx);
@@ -5715,8 +5715,8 @@ fn set_option<'a>(
     args.os_varp = varp.map_or(ptr::null_mut(), |vp| ptr::from_mut(vp).cast());
     args.os_oldval = old_value;
     args.os_newval = value;
-    args.os_buf = g_st().curbuf;
-    args.os_win = curwin_ptr();
+    args.os_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    args.os_win = crate::globals::WinPtr::new(curwin_ptr());
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted)
         .map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
     args.os_prep = crate::optionstr::OptSetPrep::None;

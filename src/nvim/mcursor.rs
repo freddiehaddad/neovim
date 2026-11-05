@@ -167,7 +167,7 @@ impl McursorState {
                         br_fnum: 0,
                         br_buf_free_count: 0,
                     },
-                    win: ptr::null(),
+                    win: crate::globals::WinPtr::NULL,
                     pos: INIT_POS,
                     mcursor: 0,
                     tick: 0,

@@ -97,7 +97,7 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
 fn find_win_for_curbuf() {
     for wip in &curbuf_mut().b_wininfo {
         if wip.win_opt().is_some_and(|w| w.w_buffer == g_st().curbuf) {
-            set_curwin(wip.wi_win);
+            set_curwin(wip.wi_win.as_ptr());
             break;
         }
     }

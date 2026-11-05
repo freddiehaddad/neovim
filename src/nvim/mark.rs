@@ -134,7 +134,7 @@ use crate::search::{BACKWARD, FORWARD};
 
 #[repr(C)]
 pub struct WinInfo {
-    pub wi_win: *mut WinInfoInfo,
+    pub wi_win: crate::globals::WinPtr,
     pub wi_mark: Fmark,
     pub wi_optset: bool,
     pub wi_opt: Winopt,
@@ -146,7 +146,7 @@ pub struct WinInfo {
 impl WinInfo {
     pub const fn new() -> Self {
         Self {
-            wi_win: ptr::null_mut(),
+            wi_win: crate::globals::WinPtr::NULL,
             wi_mark: Fmark::ZERO,
             wi_optset: false,
             wi_opt: Winopt::ZERO,
@@ -158,7 +158,7 @@ impl WinInfo {
 
     #[inline]
     pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        unsafe { self.wi_win.as_mut() }
+        self.wi_win.opt_mut()
     }
 }
 

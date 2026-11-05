@@ -4057,14 +4057,14 @@ fn nfa_regmatch(
                     }
                 }
                 NFA_KWORD => {
-                    if vim_iswordc_buf(curc, unsafe { &mut *re_st().rex.reg_buf }) {
+                    if vim_iswordc_buf(curc, re_st().rex.reg_buf.borrow_mut()) {
                         add_state = t_st.out;
                         add_off = clen;
                     }
                 }
                 NFA_SKWORD => {
                     if !ascii_isdigit(curc)
-                        && vim_iswordc_buf(curc, unsafe { &mut *re_st().rex.reg_buf })
+                        && vim_iswordc_buf(curc, re_st().rex.reg_buf.borrow_mut())
                     {
                         add_state = t_st.out;
                         add_off = clen;
@@ -4297,7 +4297,7 @@ fn nfa_regmatch(
                         let wp = if re_st().rex.reg_win.is_null() {
                             crate::globals::curwin_ptr()
                         } else {
-                            re_st().rex.reg_win
+                            re_st().rex.reg_win.as_ptr()
                         };
                         let wp_mut = unsafe { &mut *wp };
                         if op == 1 && col - 1 > t_st.val && col > 100 {
@@ -4336,7 +4336,7 @@ fn nfa_regmatch(
                         0
                     };
                     let fm = mark_get(
-                        unsafe { &mut *re_st().rex.reg_buf },
+                        re_st().rex.reg_buf.borrow_mut(),
                         crate::globals::curwin_mut(),
                         None,
                         K_MARK_BUF_LOCAL,
@@ -4959,8 +4959,8 @@ pub(super) fn nfa_regexec_nl(
     re_st().rex.reg_mmatch = ptr::null_mut();
     re_st().rex.reg_maxline = 0;
     re_st().rex.reg_line_lbr = line_lbr;
-    re_st().rex.reg_buf = g_st().curbuf;
-    re_st().rex.reg_win = ptr::null_mut();
+    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    re_st().rex.reg_win = crate::globals::WinPtr::NULL;
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;
     re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
