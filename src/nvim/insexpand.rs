@@ -2284,7 +2284,7 @@ fn ins_compl_files(
                 let buf_base = buf_cstr.as_ptr() as usize;
                 let mut col_off: usize = 0;
                 while vim_regexec(&mut *regmatch, buf_cstr, col_off as Colnr) {
-                    let start_off = (regmatch.startp[0] as usize) - buf_base;
+                    let start_off = (regmatch.startp[0].as_ptr() as usize) - buf_base;
                     let from_start = &line_bytes[start_off.min(line_bytes.len())..];
                     let end_tail = if ctrl_x_mode_line_or_eval() {
                         find_line_end(from_start)
@@ -2308,7 +2308,7 @@ fn ins_compl_files(
                             Some(file_cstr.as_c_str()),
                             &mut rem_line,
                             *dir,
-                            regmatch.startp[0] as usize,
+                            regmatch.startp[0].as_ptr() as usize,
                         ));
                         col_off = line_bytes.len() - rem_line.len();
                     }

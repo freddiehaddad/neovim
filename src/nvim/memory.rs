@@ -331,9 +331,49 @@ pub fn cstr_mut_slice<'a>(s: *mut std::ffi::c_char, len: usize) -> &'a mut [u8] 
 }
 
 /// Compute the signed element offset `(p - origin)` between two pointers of the same type.
+pub trait IntoConstPtr {
+    type Target;
+    fn into_const_ptr(self) -> *const Self::Target;
+}
+
+impl<T> IntoConstPtr for *const T {
+    type Target = T;
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        self
+    }
+}
+
+impl<T> IntoConstPtr for *mut T {
+    type Target = T;
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        self
+    }
+}
+
+impl<T> IntoConstPtr for &T {
+    type Target = T;
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        std::ptr::from_ref(self)
+    }
+}
+
+impl<T> IntoConstPtr for &mut T {
+    type Target = T;
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        std::ptr::from_ref(self)
+    }
+}
+
 #[inline]
-pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {
-    unsafe { p.offset_from(origin) }
+pub fn ptr_offset_from<P: IntoConstPtr>(
+    p: P,
+    origin: impl IntoConstPtr<Target = P::Target>,
+) -> isize {
+    unsafe { p.into_const_ptr().offset_from(origin.into_const_ptr()) }
 }
 
 /// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.

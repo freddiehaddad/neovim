@@ -280,12 +280,115 @@ impl Default for Regmmatch {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub struct RegLinePtr {
+    base: Option<&'static std::ffi::CStr>,
+    off: usize,
+}
+
+impl RegLinePtr {
+    pub const NULL: Self = Self { base: None, off: 0 };
+
+    #[inline]
+    pub fn from_opt_cstr(s: Option<&std::ffi::CStr>) -> Self {
+        Self {
+            base: s.map(|c| unsafe { &*(c as *const std::ffi::CStr) }),
+            off: 0,
+        }
+    }
+
+    #[inline]
+    pub fn from_cstr(s: &std::ffi::CStr) -> Self {
+        Self {
+            base: Some(unsafe { &*(s as *const std::ffi::CStr) }),
+            off: 0,
+        }
+    }
+
+    #[inline]
+    pub const fn is_null(self) -> bool {
+        self.base.is_none()
+    }
+
+    #[inline]
+    pub fn as_ptr(self) -> *mut u8 {
+        self.base.map_or(ptr::null_mut(), |b| {
+            b.as_ptr().wrapping_add(self.off).cast_mut().cast()
+        })
+    }
+
+    #[inline]
+    pub fn cast<T>(self) -> *mut T {
+        self.as_ptr().cast()
+    }
+
+    #[inline]
+    pub fn cast_const(self) -> *const u8 {
+        self.as_ptr().cast_const()
+    }
+
+    #[inline]
+    pub const fn wrapping_add(self, n: usize) -> Self {
+        Self {
+            base: self.base,
+            off: self.off.wrapping_add(n),
+        }
+    }
+
+    #[inline]
+    pub const fn wrapping_sub(self, n: usize) -> Self {
+        Self {
+            base: self.base,
+            off: self.off.wrapping_sub(n),
+        }
+    }
+
+    #[inline]
+    pub const fn wrapping_offset(self, d: isize) -> Self {
+        Self {
+            base: self.base,
+            off: self.off.wrapping_add_signed(d),
+        }
+    }
+}
+
+impl PartialEq for RegLinePtr {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ptr() == other.as_ptr()
+    }
+}
+
+impl Eq for RegLinePtr {}
+
+impl PartialOrd for RegLinePtr {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RegLinePtr {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.as_ptr() as usize).cmp(&(other.as_ptr() as usize))
+    }
+}
+
+impl crate::memory::IntoConstPtr for RegLinePtr {
+    type Target = u8;
+    #[inline]
+    fn into_const_ptr(self) -> *const u8 {
+        self.as_ptr().cast_const()
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Regmatch {
     pub regprog: *mut Regprog,
-    pub startp: [*mut u8; NSUBEXP],
-    pub endp: [*mut u8; NSUBEXP],
+    pub startp: [RegLinePtr; NSUBEXP],
+    pub endp: [RegLinePtr; NSUBEXP],
     pub rm_matchcol: Colnr,
     pub rm_ic: bool,
 }
@@ -294,8 +397,8 @@ impl Regmatch {
     pub const fn new() -> Self {
         Self {
             regprog: ptr::null_mut(),
-            startp: [ptr::null_mut(); NSUBEXP],
-            endp: [ptr::null_mut(); NSUBEXP],
+            startp: [RegLinePtr::NULL; NSUBEXP],
+            endp: [RegLinePtr::NULL; NSUBEXP],
             rm_matchcol: 0,
             rm_ic: false,
         }
@@ -411,14 +514,14 @@ pub(super) struct NfaRegprog {
 
 #[derive(Clone, Copy)]
 pub(super) struct RegPos {
-    pub ptr: *mut u8,
+    pub ptr: RegLinePtr,
     pub pos: Lpos,
 }
 
 impl RegPos {
     pub(super) const fn new() -> Self {
         Self {
-            ptr: ptr::null_mut(),
+            ptr: RegLinePtr::NULL,
             pos: Lpos::new(),
         }
     }
@@ -426,7 +529,7 @@ impl RegPos {
     #[inline]
     pub(super) const fn from_pos(pos: Lpos) -> Self {
         Self {
-            ptr: ptr::null_mut(),
+            ptr: RegLinePtr::NULL,
             pos,
         }
     }
@@ -629,15 +732,15 @@ impl MultiPos {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct LinePos {
-    pub start: *mut u8,
-    pub end: *mut u8,
+    pub start: RegLinePtr,
+    pub end: RegLinePtr,
 }
 
 impl LinePos {
     pub(super) const fn new() -> Self {
         Self {
-            start: ptr::null_mut(),
-            end: ptr::null_mut(),
+            start: RegLinePtr::NULL,
+            end: RegLinePtr::NULL,
         }
     }
 }
@@ -648,54 +751,58 @@ impl Default for LinePos {
     }
 }
 
-#[repr(C, align(8))]
 #[derive(Clone, Copy)]
 pub(super) struct RegSubList {
-    raw: [[u64; 2]; NSUBEXP],
+    multi_arr: [MultiPos; NSUBEXP],
+    line_arr: [LinePos; NSUBEXP],
 }
 
 impl RegSubList {
     pub(super) const fn new() -> Self {
         Self {
-            raw: [[0; 2]; NSUBEXP],
+            multi_arr: [MultiPos::new(); NSUBEXP],
+            line_arr: [LinePos::new(); NSUBEXP],
         }
     }
 
     #[inline]
     pub(super) fn multi(&self) -> &[MultiPos; NSUBEXP] {
-        unsafe { &*(&raw const self.raw).cast::<[MultiPos; NSUBEXP]>() }
+        &self.multi_arr
     }
 
     #[inline]
     pub(super) fn multi_mut(&mut self) -> &mut [MultiPos; NSUBEXP] {
-        unsafe { &mut *(&raw mut self.raw).cast::<[MultiPos; NSUBEXP]>() }
+        &mut self.multi_arr
     }
 
     #[inline]
     pub(super) fn line(&self) -> &[LinePos; NSUBEXP] {
-        unsafe { &*(&raw const self.raw).cast::<[LinePos; NSUBEXP]>() }
+        &self.line_arr
     }
 
     #[inline]
     pub(super) fn line_mut(&mut self) -> &mut [LinePos; NSUBEXP] {
-        unsafe { &mut *(&raw mut self.raw).cast::<[LinePos; NSUBEXP]>() }
+        &mut self.line_arr
     }
 
     #[inline]
     pub(super) fn copy_first(&mut self, other: &Self) {
-        self.raw[0] = other.raw[0];
+        self.multi_arr[0] = other.multi_arr[0];
+        self.line_arr[0] = other.line_arr[0];
     }
 
     #[inline]
     pub(super) fn copy_n(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
-        self.raw[..n].copy_from_slice(&other.raw[..n]);
+        self.multi_arr[..n].copy_from_slice(&other.multi_arr[..n]);
+        self.line_arr[..n].copy_from_slice(&other.line_arr[..n]);
     }
 
     #[inline]
     pub(super) fn copy_range_from_1(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
-        self.raw[1..n].copy_from_slice(&other.raw[1..n]);
+        self.multi_arr[1..n].copy_from_slice(&other.multi_arr[1..n]);
+        self.line_arr[1..n].copy_from_slice(&other.line_arr[1..n]);
     }
 }
 
@@ -854,8 +961,6 @@ impl Default for ParseState {
 pub(super) struct Regexec {
     pub reg_match: *mut Regmatch,
     pub reg_mmatch: *mut Regmmatch,
-    pub reg_startp: *mut *mut u8,
-    pub reg_endp: *mut *mut u8,
     pub reg_startpos: *mut Lpos,
     pub reg_endpos: *mut Lpos,
     pub reg_win: *mut WinInfoInfo,
@@ -864,8 +969,8 @@ pub(super) struct Regexec {
     pub reg_maxline: Linenr,
     pub reg_line_lbr: bool,
     pub lnum: Linenr,
-    pub line: *mut u8,
-    pub input: *mut u8,
+    pub line: RegLinePtr,
+    pub input: RegLinePtr,
     pub need_clear_subexpr: i32,
     pub need_clear_zsubexpr: i32,
     pub reg_ic: bool,
@@ -885,8 +990,6 @@ impl Regexec {
         Self {
             reg_match: ptr::null_mut(),
             reg_mmatch: ptr::null_mut(),
-            reg_startp: ptr::null_mut(),
-            reg_endp: ptr::null_mut(),
             reg_startpos: ptr::null_mut(),
             reg_endpos: ptr::null_mut(),
             reg_win: ptr::null_mut(),
@@ -895,8 +998,8 @@ impl Regexec {
             reg_maxline: 0,
             reg_line_lbr: false,
             lnum: 0,
-            line: ptr::null_mut(),
-            input: ptr::null_mut(),
+            line: RegLinePtr::NULL,
+            input: RegLinePtr::NULL,
             need_clear_subexpr: 0,
             need_clear_zsubexpr: 0,
             reg_ic: false,
@@ -1227,8 +1330,8 @@ pub(super) struct RegexpState {
     pub(super) rex_in_use: bool,
     pub(super) can_f_submatch: bool,
     pub(super) rsm: Regsubmatch,
-    pub(super) reg_startzp: [*mut u8; NSUBEXP],
-    pub(super) reg_endzp: [*mut u8; NSUBEXP],
+    pub(super) reg_startzp: [RegLinePtr; NSUBEXP],
+    pub(super) reg_endzp: [RegLinePtr; NSUBEXP],
     pub(super) reg_startzpos: [Lpos; NSUBEXP],
     pub(super) reg_endzpos: [Lpos; NSUBEXP],
     pub(super) eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING],
@@ -1285,8 +1388,6 @@ impl RegexpState {
             rex: Regexec {
                 reg_match: ptr::null_mut(),
                 reg_mmatch: ptr::null_mut(),
-                reg_startp: ptr::null_mut(),
-                reg_endp: ptr::null_mut(),
                 reg_startpos: ptr::null_mut(),
                 reg_endpos: ptr::null_mut(),
                 reg_win: ptr::null_mut(),
@@ -1295,8 +1396,8 @@ impl RegexpState {
                 reg_maxline: 0,
                 reg_line_lbr: false,
                 lnum: 0,
-                line: ptr::null_mut(),
-                input: ptr::null_mut(),
+                line: RegLinePtr::NULL,
+                input: RegLinePtr::NULL,
                 need_clear_subexpr: 0,
                 need_clear_zsubexpr: 0,
                 reg_ic: false,
@@ -1319,8 +1420,8 @@ impl RegexpState {
                 sm_maxline: 0,
                 sm_line_lbr: 0,
             },
-            reg_startzp: [ptr::null_mut(); NSUBEXP],
-            reg_endzp: [ptr::null_mut(); NSUBEXP],
+            reg_startzp: [RegLinePtr::NULL; NSUBEXP],
+            reg_endzp: [RegLinePtr::NULL; NSUBEXP],
             reg_startzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
             reg_endzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
             eval_result: [const { None }; MAX_REGSUB_NESTING],
@@ -2278,8 +2379,8 @@ pub(super) fn cleanup_subexpr() {
         re_st().rex.endpos_slice_mut().fill(uninit_pos);
     } else {
         let m = re_st().rex.match_mut();
-        m.startp.fill(ptr::null_mut());
-        m.endp.fill(ptr::null_mut());
+        m.startp.fill(RegLinePtr::NULL);
+        m.endp.fill(RegLinePtr::NULL);
     }
     re_st().rex.need_clear_subexpr = 0;
 }
@@ -2293,8 +2394,8 @@ pub(super) fn cleanup_zsubexpr() {
         re_st().reg_startzpos = [uninit_pos; NSUBEXP];
         re_st().reg_endzpos = [uninit_pos; NSUBEXP];
     } else {
-        re_st().reg_startzp = [ptr::null_mut(); NSUBEXP];
-        re_st().reg_endzp = [ptr::null_mut(); NSUBEXP];
+        re_st().reg_startzp = [RegLinePtr::NULL; NSUBEXP];
+        re_st().reg_endzp = [RegLinePtr::NULL; NSUBEXP];
     }
     re_st().rex.need_clear_zsubexpr = 0;
 }
@@ -2319,7 +2420,9 @@ pub(super) fn match_with_backref(
 
     *bytelen = 0;
     loop {
-        if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr() {
+        if re_st().reg_tofree.is_empty()
+            || re_st().rex.line.as_ptr() != re_st().reg_tofree.as_mut_ptr()
+        {
             let line_bytes =
                 crate::memory::cstr_from_ptr(re_st().rex.line.cast()).to_bytes_with_nul();
             let len = line_bytes.len() - 1 + 51;
@@ -2328,7 +2431,8 @@ pub(super) fn match_with_backref(
                 re_st().reg_tofree.resize(len, 0);
             }
             re_st().reg_tofree[..line_bytes.len()].copy_from_slice(line_bytes);
-            re_st().rex.line = re_st().reg_tofree.as_mut_ptr();
+            re_st().rex.line =
+                RegLinePtr::from_cstr(crate::memory::cstr_until_nul(&re_st().reg_tofree));
             re_st().rex.input = re_st().rex.line.wrapping_add(off);
         }
 
@@ -2996,7 +3100,7 @@ fn vim_regsub_both(
                         }
                     }
                 } else {
-                    s = re_st().rex.match_mut().startp[no as usize];
+                    s = re_st().rex.match_mut().startp[no as usize].as_ptr();
                     if re_st().rex.match_mut().endp[no as usize].is_null() {
                         s = ptr::null_mut();
                     } else {
@@ -3469,8 +3573,6 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     }
     re_st().rex_in_use = true;
 
-    re_st().rex.reg_startp = ptr::null_mut();
-    re_st().rex.reg_endp = ptr::null_mut();
     re_st().rex.reg_startpos = ptr::null_mut();
     re_st().rex.reg_endpos = ptr::null_mut();
 
@@ -3517,10 +3619,8 @@ pub fn vim_regexec_prog(
 ) -> bool {
     let mut regmatch = Regmatch {
         regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
-        startp: [ptr::null_mut(); NSUBEXP],
-        endp: [ptr::null_mut(); NSUBEXP],
-        rm_matchcol: 0,
         rm_ic: ignore_case,
+        ..Regmatch::new()
     };
     vim_regexec_string(&mut regmatch, Some(line), col, false)
 }
@@ -3640,7 +3740,7 @@ impl Regexec {
     }
     #[inline]
     pub fn load_line(&mut self, lnum: Linenr) {
-        self.line = reg_getline(lnum).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+        self.line = RegLinePtr::from_opt_cstr(reg_getline(lnum));
     }
     #[inline]
     pub fn input_col(&self) -> Colnr {

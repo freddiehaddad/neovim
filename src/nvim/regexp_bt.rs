@@ -2273,40 +2273,41 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
     let opnd = &prog[operand_idx(p)..];
     let op = op_fn(prog, Some(p));
 
-    let do_class = |mask: i16, testval: i16, scan: &mut *mut u8, count: &mut i64| {
-        while *count < maxcount {
-            let b0 = crate::memory::cstr_first_byte((*scan).cast());
-            if b0 == NUL {
-                if !reg_multi()
-                    || !with_nl(op)
-                    || re_st().rex.lnum > re_st().rex.reg_maxline
-                    || re_st().rex.reg_line_lbr
-                {
-                    break;
-                }
-                reg_nextline();
-                *scan = re_st().rex.input;
-                if g_st().got_int {
-                    break;
-                }
-            } else {
-                let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((*scan).cast()));
-                if l > 1 {
-                    if testval != 0 {
+    let do_class =
+        |mask: i16, testval: i16, scan: &mut crate::regexp::RegLinePtr, count: &mut i64| {
+            while *count < maxcount {
+                let b0 = crate::memory::cstr_first_byte((*scan).cast());
+                if b0 == NUL {
+                    if !reg_multi()
+                        || !with_nl(op)
+                        || re_st().rex.lnum > re_st().rex.reg_maxline
+                        || re_st().rex.reg_line_lbr
+                    {
                         break;
                     }
-                    *scan = (*scan).wrapping_add(l as usize);
-                } else if ((re_st().class_tab[b0 as usize] & mask) == testval)
-                    || (re_st().rex.reg_line_lbr && b0 == b'\n' && with_nl(op))
-                {
-                    *scan = (*scan).wrapping_add(1);
+                    reg_nextline();
+                    *scan = re_st().rex.input;
+                    if g_st().got_int {
+                        break;
+                    }
                 } else {
-                    break;
+                    let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((*scan).cast()));
+                    if l > 1 {
+                        if testval != 0 {
+                            break;
+                        }
+                        *scan = (*scan).wrapping_add(l as usize);
+                    } else if ((re_st().class_tab[b0 as usize] & mask) == testval)
+                        || (re_st().rex.reg_line_lbr && b0 == b'\n' && with_nl(op))
+                    {
+                        *scan = (*scan).wrapping_add(1);
+                    } else {
+                        break;
+                    }
                 }
+                *count += 1;
             }
-            *count += 1;
-        }
-    };
+        };
 
     if op == ANY || op == ANY + ADD_NL {
         while count < maxcount {
@@ -4000,7 +4001,7 @@ fn bt_regexec_both(
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
-    let mut line = line_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
+    let mut line = RegLinePtr::from_opt_cstr(line_opt);
     let mut col = startcol;
     let mut retval: i32 = 0;
 
@@ -4014,15 +4015,12 @@ fn bt_regexec_both(
 
     let prog: *mut BtRegprog = if reg_multi() {
         let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
-        line = reg_getline(0).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+        line = RegLinePtr::from_opt_cstr(reg_getline(0));
         re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
         re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
         p
     } else {
-        let p = re_st().rex.match_mut().prog_mut().bt_mut();
-        re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
-        re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
-        p
+        re_st().rex.match_mut().prog_mut().bt_mut()
     };
     if prog.is_null() || line.is_null() {
         iemsg(tr(E_NULL));
@@ -4051,7 +4049,7 @@ fn bt_regexec_both(
     if let Some(off) = prog.regmust_off {
         let regmust_slice = crate::memory::bytes_until_nul(&prog.program[off..]);
         let c = crate::mbyte::utf_slice2char(regmust_slice);
-        let mut s = line.wrapping_add(col as usize);
+        let mut s = line.as_ptr().wrapping_add(col as usize);
         if !re_st().rex.reg_ic {
             loop {
                 s = vim_strchr(crate::memory::cstr_from_ptr(s.cast()), c)

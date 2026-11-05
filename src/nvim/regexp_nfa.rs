@@ -2453,12 +2453,12 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
             let sp1 = if (i as i32) < sub1.in_use {
                 l1[i].start
             } else {
-                ptr::null_mut()
+                crate::regexp::RegLinePtr::NULL
             };
             let sp2 = if (i as i32) < sub2.in_use {
                 l2[i].start
             } else {
-                ptr::null_mut()
+                crate::regexp::RegLinePtr::NULL
             };
             if sp1 != sp2 {
                 return false;
@@ -2467,12 +2467,12 @@ fn sub_equal(sub1: &mut Regsub, sub2: &mut Regsub) -> bool {
                 let ep1 = if (i as i32) < sub1.in_use {
                     l1[i].end
                 } else {
-                    ptr::null_mut()
+                    crate::regexp::RegLinePtr::NULL
                 };
                 let ep2 = if (i as i32) < sub2.in_use {
                     l2[i].end
                 } else {
-                    ptr::null_mut()
+                    crate::regexp::RegLinePtr::NULL
                 };
                 if ep1 != ep2 {
                     return false;
@@ -2663,7 +2663,7 @@ fn addstate_idx(
         c => {
             if (c == NFA_BOL || c == NFA_BOF)
                 && re_st().rex.input > re_st().rex.line
-                && unsafe { *re_st().rex.input } != NUL
+                && unsafe { *re_st().rex.input.as_ptr() } != NUL
                 && (re_st().nfa_endp.is_null()
                     || !reg_multi()
                     || re_st().rex.lnum == unsafe { (*re_st().nfa_endp).se_u.pos().lnum })
@@ -2838,7 +2838,7 @@ fn addstate_eps(
                 ((c - NFA_MOPEN) as usize, unsafe { &mut (*subs).norm })
             };
 
-            let mut save_ptr: *mut u8 = ptr::null_mut();
+            let mut save_ptr = crate::regexp::RegLinePtr::NULL;
             let mut save_multipos = MultiPos::new();
             let save_in_use: i32;
 
@@ -2875,8 +2875,8 @@ fn addstate_eps(
                 } else {
                     save_in_use = sub.in_use;
                     for item in &mut line[sub.in_use as usize..subidx] {
-                        item.start = ptr::null_mut();
-                        item.end = ptr::null_mut();
+                        item.start = crate::regexp::RegLinePtr::NULL;
+                        item.end = crate::regexp::RegLinePtr::NULL;
                     }
                     sub.in_use = subidx as i32 + 1;
                 }
@@ -2951,7 +2951,7 @@ fn addstate_eps(
                 if sub.in_use <= subidx as i32 {
                     sub.in_use = subidx as i32 + 1;
                 }
-                let mut save_ptr: *mut u8 = ptr::null_mut();
+                let mut save_ptr = crate::regexp::RegLinePtr::NULL;
                 let mut save_multipos = MultiPos::new();
                 if reg_multi() {
                     let multi = sub.list.multi_mut();
@@ -3656,7 +3656,7 @@ fn nfa_regmatch(
     loop {
         let curc: i32;
         let mut clen: i32;
-        let input_ptr = re_st().rex.input;
+        let input_ptr = re_st().rex.input.as_ptr();
         if unsafe { *input_ptr } != NUL
             && unsafe { *input_ptr } < 0x80
             && unsafe { *input_ptr.add(1) } < 0x80
@@ -4628,7 +4628,7 @@ fn nfa_regmatch(
                     && re_st().rex.lnum < unsafe { (*re_st().nfa_endp).se_u.pos().lnum }
                     && let Some(next_line) = reg_getline(re_st().rex.lnum + 1)
                 {
-                    re_st().rex.line = next_line.as_ptr().cast_mut().cast();
+                    re_st().rex.line = crate::regexp::RegLinePtr::from_cstr(next_line);
                     re_st().rex.input = re_st().rex.line;
                     re_st().rex.lnum += 1;
                 }
@@ -4807,21 +4807,18 @@ fn nfa_regexec_both(
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
-    let mut line: *mut u8 = line_in.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+    let mut line = crate::regexp::RegLinePtr::from_opt_cstr(line_in);
     let mut retval: i32 = 0;
     let mut col = startcol;
 
     let prog: *mut NfaRegprog = if reg_multi() {
         let p = re_st().rex.mmatch_mut().prog_mut().nfa_mut();
-        line = reg_getline(0).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+        line = crate::regexp::RegLinePtr::from_opt_cstr(reg_getline(0));
         re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
         re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
         p
     } else {
-        let p = re_st().rex.match_mut().prog_mut().nfa_mut();
-        re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
-        re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
-        p
+        re_st().rex.match_mut().prog_mut().nfa_mut()
     };
     if prog.is_null() || line.is_null() {
         iemsg(tr(E_NULL));

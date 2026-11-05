@@ -5259,7 +5259,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         str_.cast(),
                     )) as Colnr;
                     if i64::from(startcol) > len
-                        || str_.wrapping_add(startcol as usize).cast::<u8>() <= regmatch.startp[0]
+                        || str_.wrapping_add(startcol as usize).cast::<u8>()
+                            <= regmatch.startp[0].as_ptr()
                     {
                         match_found = false;
                         break;
@@ -5430,7 +5431,7 @@ fn get_matches_in_str(
         }
         startidx = crate::memory::ptr_offset_from(rmp.endp[0], str_.cast()) as Colnr;
         if (startidx as usize) >= len
-            || str_.wrapping_add(startidx as usize).cast::<u8>() <= rmp.startp[0]
+            || str_.wrapping_add(startidx as usize).cast::<u8>() <= rmp.startp[0].as_ptr()
         {
             break;
         }
@@ -8124,13 +8125,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
     if !typeerr {
-        let mut regmatch = Regmatch {
-            regprog: ptr::null_mut(),
-            startp: [ptr::null_mut(); NSUBEXP],
-            endp: [ptr::null_mut(); NSUBEXP],
-            rm_matchcol: 0,
-            rm_ic: false,
-        };
+        let mut regmatch = Regmatch::new();
         regmatch.set_prog(vim_regcomp(
             crate::memory::cstr_from_ptr(pat),
             RE_MAGIC + RE_STRING,

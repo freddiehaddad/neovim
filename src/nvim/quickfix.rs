@@ -1705,7 +1705,7 @@ fn qf_parse_fmt_r(
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    *tail_off = Some((rmp.startp[midx] as usize).saturating_sub(line_base));
+    *tail_off = Some((rmp.startp[midx].as_ptr() as usize).saturating_sub(line_base));
     QF_OK
 }
 

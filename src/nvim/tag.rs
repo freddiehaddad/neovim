@@ -54,7 +54,7 @@ use crate::path::{
     path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
 use crate::quickfix::{CMDBUFFSIZE, K_OPT_SWB_FLAG_USETAB, set_errorlist};
-use crate::regexp::{MAXCOL, NSUBEXP, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec};
+use crate::regexp::{MAXCOL, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec};
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
@@ -281,13 +281,7 @@ impl FindtagsState {
                 len: 0,
                 head: c"",
                 headlen: 0,
-                regmatch: Regmatch {
-                    regprog: ptr::null_mut(),
-                    startp: [ptr::null_mut(); NSUBEXP],
-                    endp: [ptr::null_mut(); NSUBEXP],
-                    rm_matchcol: 0,
-                    rm_ic: false,
-                },
+                regmatch: Regmatch::new(),
             },
             lbuf: Vec::new(),
             tag_fname: Vec::new(),
@@ -1491,13 +1485,7 @@ fn findtags_state_init(st: &mut FindtagsState, pat: &std::ffi::CStr, flags: i32,
             len: pat.to_bytes().len() as i32,
             head: c"",
             headlen: 0,
-            regmatch: Regmatch {
-                regprog: ptr::null_mut(),
-                startp: [ptr::null_mut(); NSUBEXP],
-                endp: [ptr::null_mut(); NSUBEXP],
-                rm_matchcol: 0,
-                rm_ic: false,
-            },
+            regmatch: Regmatch::new(),
         };
         st.flags = flags;
         st.tag_file_sorted = 0;

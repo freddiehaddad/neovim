@@ -2244,7 +2244,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
                 &mut regmatch,
                 unsafe { std::ffi::CStr::from_ptr(p.cast()) },
                 0,
-            ) && regmatch.endp[0] == line.wrapping_add(endcol as usize).cast()
+            ) && regmatch.endp[0].as_ptr() == line.wrapping_add(endcol as usize).cast()
             {
                 need_cap = true;
                 break;

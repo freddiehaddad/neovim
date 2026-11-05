@@ -6826,7 +6826,7 @@ pub fn do_string_sub(
         let mut tail = str_;
         let end = str_.wrapping_add(len);
         let do_all = flags.to_bytes().first() == Some(&b'g');
-        let mut zero_width = ptr::null_mut();
+        let mut zero_width = crate::regexp::RegLinePtr::NULL;
         let str_opt = Some(str_cstr);
 
         while vim_regexec_nl(
@@ -6853,7 +6853,7 @@ pub fn do_string_sub(
             }
             let buf = out.get_or_insert_with(|| Vec::with_capacity(200));
 
-            let i = (regmatch.startp[0] as usize).wrapping_sub(tail as usize);
+            let i = (regmatch.startp[0].as_ptr() as usize).wrapping_sub(tail as usize);
             if i > 0 {
                 buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
             }

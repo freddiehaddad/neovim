@@ -28,7 +28,6 @@ use crate::regexp::{RE_MAGIC, RE_NOBREAK, RE_STRING, Regmatch, vim_regcomp, vim_
 use crate::strings::{sort_strings, vim_snprintf};
 use std::cmp::Ordering;
 use std::ffi::CStr;
-use std::ptr;
 
 pub fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
     if fnames.is_empty() {
@@ -601,14 +600,11 @@ fn do_path_expand(
     };
 
     let mut regmatch = Regmatch {
-        regprog: ptr::null_mut(),
-        startp: [ptr::null_mut(); 10],
-        endp: [ptr::null_mut(); 10],
-        rm_matchcol: 0,
         #[cfg(unix)]
         rm_ic: (flags & EW_ICASE) != 0 || opt_vars().p_fic,
         #[cfg(not(unix))]
         rm_ic: true,
+        ..Regmatch::new()
     };
 
     if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
@@ -902,11 +898,8 @@ fn uniquefy_paths(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, path_option:
     drop(file_pattern);
 
     let mut regmatch = Regmatch {
-        regprog: ptr::null_mut(),
-        startp: [ptr::null_mut(); 10],
-        endp: [ptr::null_mut(); 10],
-        rm_matchcol: 0,
         rm_ic: true,
+        ..Regmatch::new()
     };
     regmatch.set_prog(vim_regcomp(&pat, RE_MAGIC + RE_STRING));
     drop(pat);

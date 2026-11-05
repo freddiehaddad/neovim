@@ -107,13 +107,13 @@ fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32
         unsafe {
             lua_pushinteger(
                 lstate,
-                ((rm.startp[0] as isize) - (str_ptr as isize)) as lua_Integer,
+                ((rm.startp[0].as_ptr() as isize) - (str_ptr as isize)) as lua_Integer,
             )
         };
         unsafe {
             lua_pushinteger(
                 lstate,
-                ((rm.endp[0] as isize) - (str_ptr as isize)) as lua_Integer,
+                ((rm.endp[0].as_ptr() as isize) - (str_ptr as isize)) as lua_Integer,
             )
         };
         return 2;

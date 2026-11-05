@@ -17,7 +17,7 @@ use crate::message::{
 use crate::option_vars::*;
 use crate::os::env::ExpandCtx;
 use crate::os::time::os_time;
-use crate::regexp::{NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
+use crate::regexp::{NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -409,13 +409,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
 
     let htype = histype as usize;
     let idx = hist_st().hisidx[htype];
-    let mut regmatch = Regmatch {
-        regprog: std::ptr::null_mut(),
-        startp: [std::ptr::null_mut(); NSUBEXP],
-        endp: [std::ptr::null_mut(); NSUBEXP],
-        rm_matchcol: 0,
-        rm_ic: false,
-    };
+    let mut regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(str_ptr, RE_MAGIC + RE_STRING));
     if regmatch.regprog.is_null() {
         return 0;
