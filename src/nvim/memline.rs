@@ -58,7 +58,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::{RawCCharPtrMut, gettext, tr};
+use crate::strings::{gettext, tr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::buf_is_changed_fn;
 use std::ffi::CStr;
@@ -73,7 +73,7 @@ pub struct Memline {
     pub ml_flags: i32,
     pub ml_line_textlen: i32,
     pub ml_line_lnum: i32,
-    pub ml_line_ptr: RawCCharPtrMut,
+    pub ml_line_slice: &'static [u8],
     pub ml_line_buf: Vec<u8>,
     pub ml_line_offset: usize,
     pub ml_line_offset_ff: i32,
@@ -95,7 +95,7 @@ impl Memline {
             ml_flags: 0,
             ml_line_textlen: 0,
             ml_line_lnum: 0,
-            ml_line_ptr: ptr::null_mut(),
+            ml_line_slice: &[],
             ml_line_buf: Vec::new(),
             ml_line_offset: 0,
             ml_line_offset_ff: 0,
@@ -2143,32 +2143,23 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
             *db_idx_ptr(dp, idx - 1) & DB_INDEX_MASK
         };
 
-        buf.b_ml.ml_line_ptr = (&raw mut *dp)
-            .cast::<std::ffi::c_char>()
-            .wrapping_add(start as usize);
-        buf.b_ml.ml_line_textlen = (end - start) as Colnr;
+        let len = (end - start) as usize;
+        let line_ptr = (&raw mut *dp).cast::<u8>().wrapping_add(start as usize);
+        buf.b_ml.ml_line_slice = unsafe { std::slice::from_raw_parts(line_ptr, len) };
+        buf.b_ml.ml_line_textlen = len as Colnr;
         buf.b_ml.ml_line_lnum = lnum;
         buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
     }
     if will_change {
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
-        ml_add_deleted_len_buf(buf, crate::memory::cstr_as_bytes(buf.b_ml.ml_line_ptr));
+        ml_add_deleted_len_buf(buf, crate::memory::bytes_until_nul(buf.b_ml.ml_line_slice));
     } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
-        && !buf.b_ml.ml_line_ptr.is_null()
-        && buf.b_ml.ml_line_textlen > 0
+        && buf.b_ml.ml_line_slice.last() == Some(&0)
     {
-        let len = buf.b_ml.ml_line_textlen as usize;
-        if unsafe { *buf.b_ml.ml_line_ptr.wrapping_add(len - 1) } == 0 {
-            return unsafe {
-                CStr::from_bytes_with_nul_unchecked(std::slice::from_raw_parts(
-                    buf.b_ml.ml_line_ptr.cast::<u8>(),
-                    len,
-                ))
-            };
-        }
+        return unsafe { CStr::from_bytes_with_nul_unchecked(buf.b_ml.ml_line_slice) };
     }
 
-    crate::memory::cstr_from_ptr(buf.b_ml.ml_line_ptr)
+    crate::memory::cstr_until_nul(buf.b_ml.ml_line_slice)
 }
 
 fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
@@ -2683,16 +2674,16 @@ pub fn ml_replace_buf_len(
         ml_add_deleted_len_buf(buf, old_line.to_bytes());
     }
 
-    let line: RawCCharPtrMut = if let Some(mut v) = new_buf {
-        let p = v.as_mut_ptr().cast();
+    let line_slice: &'static [u8] = if let Some(v) = new_buf {
+        let s = unsafe { std::slice::from_raw_parts(v.as_ptr(), v.len()) };
         buf.b_ml.ml_line_buf = v;
-        p
+        s
     } else {
         buf.b_ml.ml_line_buf.clear();
-        line_arg.as_ptr().cast_mut().cast()
+        unsafe { std::slice::from_raw_parts(line_arg.as_ptr(), len_arg) }
     };
 
-    buf.b_ml.ml_line_ptr = line;
+    buf.b_ml.ml_line_slice = line_slice;
     buf.b_ml.ml_line_textlen = (len_arg as Colnr) + 1;
     buf.b_ml.ml_line_lnum = lnum;
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
@@ -2708,7 +2699,7 @@ pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[u8], clear_empty: bool)
     let mut new_buf = Vec::with_capacity(bytes.len() + 1);
     new_buf.extend_from_slice(bytes);
     new_buf.push(0);
-    buf.b_ml.ml_line_ptr = new_buf.as_mut_ptr().cast();
+    buf.b_ml.ml_line_slice = unsafe { std::slice::from_raw_parts(new_buf.as_ptr(), new_buf.len()) };
     buf.b_ml.ml_line_buf = new_buf;
     buf.b_ml.ml_line_textlen = (bytes.len() as Colnr) + 1;
     buf.b_ml.ml_flags |= ML_LINE_DIRTY;
@@ -2955,7 +2946,7 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
             std::mem::take(&mut buf.b_ml.ml_line_buf)
         };
         let new_line_slice: &[u8] = if noalloc {
-            crate::memory::cstr_slice(buf.b_ml.ml_line_ptr, (new_len - 1).max(0) as usize)
+            buf.b_ml.ml_line_slice
         } else {
             &owned_line
         };

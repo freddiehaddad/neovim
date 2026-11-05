@@ -733,10 +733,7 @@ pub fn nvim_set_option_value(
 
     if dry_run {
         let mut raw_buf = [0u8; IOSIZE];
-        let errbuf = CharBuf {
-            data: raw_buf.as_mut_ptr(),
-            size: IOSIZE,
-        };
+        let errbuf = CharBuf::from_slice(&mut raw_buf);
         let mut args = Optset {
             os_varp: ptr::null_mut(),
             os_idx: opt_idx,

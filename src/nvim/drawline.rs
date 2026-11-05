@@ -967,7 +967,10 @@ fn draw_statuscol(
     let mut cur_attr = num_attr;
 
     for sp in &stcp.hlrec {
-        let textlen = crate::memory::ptr_offset_from(sp.start, p).max(0) as usize;
+        let sp_ptr = sp
+            .start
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+        let textlen = crate::memory::ptr_offset_from(sp_ptr, p).max(0) as usize;
         let translen = transstr_buf(
             crate::memory::cstr_slice(p.cast(), textlen),
             &mut transbuf,
@@ -990,7 +993,7 @@ fn draw_statuscol(
             },
         );
         fold_vcol = (sp.item == i32::from(STL_FOLDCOL)).then_some(&stcp.fold_vcol);
-        p = sp.start;
+        p = sp_ptr;
     }
     let rem_len = crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p).max(0) as usize;
     let translen = transstr_buf(

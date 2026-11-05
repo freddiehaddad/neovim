@@ -32,9 +32,7 @@ impl PackerData {
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct PackerBuffer {
-    pub startptr: *mut u8,
-    pub ptr: *mut u8,
-    pub endptr: *mut u8,
+    pub pos: usize,
     pub anydata: PackerData,
     pub anyint: i64,
     pub owned_buf: Vec<u8>,
@@ -51,9 +49,7 @@ pub struct PackerBuffer {
 impl PackerBuffer {
     pub const fn new() -> Self {
         Self {
-            startptr: std::ptr::null_mut(),
-            ptr: std::ptr::null_mut(),
-            endptr: std::ptr::null_mut(),
+            pos: 0,
             anydata: PackerData::None,
             anyint: 0,
             owned_buf: Vec::new(),
@@ -94,37 +90,35 @@ struct ContainerStackItem {
 
 #[inline]
 pub(crate) fn mpack_w(packer: &mut PackerBuffer, byte: u8) {
-    unsafe { *packer.ptr = byte };
-    packer.ptr = packer.ptr.wrapping_add(1);
+    packer.owned_buf[packer.pos] = byte;
+    packer.pos += 1;
 }
 
 #[inline]
 pub fn mpack_w2(packer: &mut PackerBuffer, v: u32) {
     let bytes = (v as u16).to_be_bytes();
-    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), packer.ptr, 2) };
-    packer.ptr = packer.ptr.wrapping_add(2);
+    packer.owned_buf[packer.pos..packer.pos + 2].copy_from_slice(&bytes);
+    packer.pos += 2;
 }
 
 #[inline]
 pub fn mpack_w2_at(packer: &mut PackerBuffer, offset: usize, v: u32) {
     let bytes = (v as u16).to_be_bytes();
-    unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), packer.startptr.wrapping_add(offset), 2)
-    };
+    packer.owned_buf[offset..offset + 2].copy_from_slice(&bytes);
 }
 
 #[inline]
 fn mpack_w4(packer: &mut PackerBuffer, v: u32) {
     let bytes = v.to_be_bytes();
-    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), packer.ptr, 4) };
-    packer.ptr = packer.ptr.wrapping_add(4);
+    packer.owned_buf[packer.pos..packer.pos + 4].copy_from_slice(&bytes);
+    packer.pos += 4;
 }
 
 #[inline]
 fn mpack_w8(packer: &mut PackerBuffer, v: u64) {
     let bytes = v.to_be_bytes();
-    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), packer.ptr, 8) };
-    packer.ptr = packer.ptr.wrapping_add(8);
+    packer.owned_buf[packer.pos..packer.pos + 8].copy_from_slice(&bytes);
+    packer.pos += 8;
 }
 
 #[inline]
@@ -181,7 +175,7 @@ pub(crate) fn mpack_map(buf: &mut PackerBuffer, len: u32) {
 
 #[inline]
 fn mpack_remaining(packer: &PackerBuffer) -> usize {
-    (packer.endptr as usize).saturating_sub(packer.ptr as usize)
+    packer.owned_buf.len().saturating_sub(packer.pos)
 }
 
 /// Ensure at least `2 * MPACK_ITEM_SIZE` bytes remain in `packer` (`mpack_check_buffer`).
@@ -276,9 +270,10 @@ pub fn mpack_raw(bytes: &[u8], packer: &mut PackerBuffer) {
         let remaining = mpack_remaining(packer);
         let to_copy = (len - pos).min(remaining);
         if to_copy > 0 {
-            unsafe { std::ptr::copy_nonoverlapping(bytes[pos..].as_ptr(), packer.ptr, to_copy) };
+            packer.owned_buf[packer.pos..packer.pos + to_copy]
+                .copy_from_slice(&bytes[pos..pos + to_copy]);
 
-            packer.ptr = packer.ptr.wrapping_add(to_copy);
+            packer.pos += to_copy;
             pos += to_copy;
         }
         if pos < len {
@@ -319,22 +314,20 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
         mpack_w(packer, handle as u8);
     } else {
         assert!(handle >= 0);
-        let mut buf = [0u8; MPACK_ITEM_SIZE];
         let mut tmp = PackerBuffer {
-            startptr: buf.as_mut_ptr(),
-            ptr: buf.as_mut_ptr(),
-            endptr: buf.as_mut_ptr().wrapping_add(MPACK_ITEM_SIZE),
+            owned_buf: vec![0u8; MPACK_ITEM_SIZE],
             ..PackerBuffer::new()
         };
         mpack_uint(&mut tmp, handle as u32);
-        let packsize = (tmp.ptr as usize) - (buf.as_ptr() as usize);
+        let packsize = tmp.pos;
         mpack_w(packer, 0xc7);
         mpack_w(packer, packsize as u8);
         mpack_w(packer, exttype);
 
-        unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), packer.ptr, packsize) };
+        packer.owned_buf[packer.pos..packer.pos + packsize]
+            .copy_from_slice(&tmp.owned_buf[..packsize]);
 
-        packer.ptr = packer.ptr.wrapping_add(packsize);
+        packer.pos += packsize;
     }
 }
 
@@ -464,25 +457,16 @@ pub fn mpack_object_inner(
 }
 
 fn flush_string_buffer(buffer: &mut PackerBuffer) {
-    let current_capacity = (buffer.endptr as usize) - (buffer.startptr as usize);
+    let current_capacity = buffer.owned_buf.len();
     let new_capacity = 2 * current_capacity;
-    let len = (buffer.ptr as usize) - (buffer.startptr as usize);
-
     buffer.owned_buf.resize(new_capacity, 0);
-    buffer.startptr = buffer.owned_buf.as_mut_ptr();
-    buffer.ptr = buffer.startptr.wrapping_add(len);
-    buffer.endptr = buffer.startptr.wrapping_add(new_capacity);
 }
 
 /// Create a growable `PackerBuffer` backed by `Vec<u8>` (`packer_string_buffer`).
 pub fn packer_string_buffer() -> PackerBuffer {
     const INITIAL_SIZE: usize = 64;
-    let mut owned_buf = vec![0u8; INITIAL_SIZE];
-    let alloc = owned_buf.as_mut_ptr();
+    let owned_buf = vec![0u8; INITIAL_SIZE];
     PackerBuffer {
-        startptr: alloc,
-        ptr: alloc,
-        endptr: alloc.wrapping_add(INITIAL_SIZE),
         anydata: PackerData::StringBuffer,
         owned_buf,
         ..PackerBuffer::new()
@@ -494,11 +478,9 @@ pub fn packer_string_buffer() -> PackerBuffer {
 /// # Safety
 /// `buffer` must be a valid pointer to a `PackerBuffer` created by `packer_string_buffer`.
 pub fn packer_take_string(buffer: &mut PackerBuffer) -> Vec<u8> {
-    let len = (buffer.ptr as usize) - (buffer.startptr as usize);
+    let len = buffer.pos;
     let mut bytes = std::mem::take(&mut buffer.owned_buf);
-    buffer.startptr = std::ptr::null_mut();
-    buffer.ptr = std::ptr::null_mut();
-    buffer.endptr = std::ptr::null_mut();
+    buffer.pos = 0;
     bytes.truncate(len);
     bytes
 }

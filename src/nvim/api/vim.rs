@@ -2783,10 +2783,7 @@ pub fn nvim_eval_statusline(
     let str_bytes = str_.as_bytes();
     if !str_bytes.starts_with(b"%!") {
         let mut raw_errbuf = [0u8; ERR_BUFLEN];
-        let errbuf = CharBuf {
-            data: raw_errbuf.as_mut_ptr(),
-            size: ERR_BUFLEN,
-        };
+        let errbuf = CharBuf::from_slice(&mut raw_errbuf);
         if let Some(errmsg) = check_stl_option(str_bytes, Some(errbuf)) {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
             return result;
@@ -2910,10 +2907,7 @@ pub fn nvim_eval_statusline(
 
     result = arena_dict(arena, 3);
     let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
-    let buf = CharBuf {
-        data: buf_data,
-        size: MAXPATHL,
-    };
+    let buf = CharBuf::from_raw_parts(buf_data, MAXPATHL);
     let mut hltab: *mut StlHlrec = ptr::null_mut();
     let mut hltab_len: usize = 0;
 
@@ -2953,8 +2947,8 @@ pub fn nvim_eval_statusline(
             opts.use_winbar,
             stc_hl_id,
         );
-        if unsafe { (*hltab).start }.is_null()
-            || crate::memory::ptr_offset_from(unsafe { (*hltab).start }, buf_data.cast()) != 0
+        if unsafe { (*hltab).start }
+            .is_none_or(|s| crate::memory::ptr_offset_from(s.as_ptr(), buf_data.cast()) != 0)
         {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
@@ -2966,7 +2960,7 @@ pub fn nvim_eval_statusline(
         }
 
         let mut sp = hltab;
-        while !unsafe { (*sp).start }.is_null() {
+        while let Some(sp_start) = unsafe { (*sp).start } {
             const USER_HLS: [&CStr; 9] = [
                 c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
                 c"User9",
@@ -2997,7 +2991,7 @@ pub fn nvim_eval_statusline(
                 &mut hl_info,
                 c"start",
                 integer_obj(
-                    crate::memory::ptr_offset_from(sp_ref.start, buf_data.cast()) as Integer,
+                    crate::memory::ptr_offset_from(sp_start.as_ptr(), buf_data.cast()) as Integer,
                 ),
             );
 

@@ -3728,13 +3728,9 @@ fn ins_tab() -> bool {
             if i > 0 {
                 if (g_st().state_global & VREPLACE_FLAG) == 0 {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
-                    let col =
-                        crate::memory::ptr_offset_from(ptr.cast(), curbuf_mut().b_ml.ml_line_ptr)
-                            as usize;
-                    let line_slice = crate::memory::cstr_slice(
-                        curbuf_mut().b_ml.ml_line_ptr,
-                        curbuf_mut().b_ml.ml_line_textlen as usize,
-                    );
+                    let line_slice = curbuf_mut().b_ml.ml_line_slice;
+                    let col = crate::memory::ptr_offset_from(ptr.cast::<u8>(), line_slice.as_ptr())
+                        as usize;
                     let tail_len = newp_len.saturating_sub(col + 1);
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));
                     new_line.extend_from_slice(&line_slice[..col]);

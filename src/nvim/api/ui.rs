@@ -96,7 +96,7 @@ use crate::msgpack_rpc::packer::{mpack_w2, mpack_w2_at};
 
 #[inline]
 fn buf_pos(ui: &RemoteUI) -> usize {
-    crate::memory::ptr_offset_from(ui.packer.ptr, ui.packer.startptr) as usize
+    ui.packer.pos
 }
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
@@ -117,7 +117,7 @@ fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI>
 
 fn mpack_array_dyn16(buf: &mut PackerBuffer) -> usize {
     mpack_w(buf, 0xdc);
-    let off = (buf.ptr as usize) - (buf.startptr as usize);
+    let off = buf.pos;
     mpack_w2(buf, 0xFFEF);
     off
 }
@@ -126,10 +126,8 @@ fn mpack_str_small(buf: &mut PackerBuffer, str_: &[u8]) {
     let len = str_.len();
     debug_assert!(len < 0x20);
     mpack_w(buf, (0xa0 | len) as u8);
-
-    unsafe { ptr::copy_nonoverlapping(str_.as_ptr(), buf.ptr, len) };
-
-    buf.ptr = buf.ptr.wrapping_add(len);
+    buf.owned_buf[buf.pos..buf.pos + len].copy_from_slice(str_);
+    buf.pos += len;
 }
 
 /// Removes the client on the given channel from the list of UIs.
@@ -766,19 +764,17 @@ fn flush_event(ui: &mut RemoteUI) {
 
 fn ui_alloc_buf(ui: &mut RemoteUI) {
     ui.packer.owned_buf = vec![0; UI_BUF_SIZE];
-    ui.packer.startptr = ui.packer.owned_buf.as_mut_ptr();
-    ui.packer.ptr = ui.packer.startptr;
-    ui.packer.endptr = ui.packer.startptr.wrapping_add(UI_BUF_SIZE);
+    ui.packer.pos = 0;
 }
 
 fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
-    if !ui.packer.startptr.is_null()
+    if !ui.packer.owned_buf.is_empty()
         && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.packer.ncells_pending >= 500)
     {
         ui_flush_buf(ui, false);
     }
 
-    if ui.packer.startptr.is_null() {
+    if ui.packer.owned_buf.is_empty() {
         ui_alloc_buf(ui);
     }
 
@@ -812,7 +808,7 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
     let crate::msgpack_rpc::packer::PackerData::Ui(channel_id) = packer.anydata else {
         unreachable!()
     };
-    if !packer.startptr.is_null() && packer.ptr != packer.startptr {
+    if !packer.owned_buf.is_empty() && packer.pos != 0 {
         packer.incomplete_event = true;
         if packer.cur_event.is_some() {
             if let Some(off) = packer.ncalls_pos {
@@ -829,7 +825,7 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
             packer.nevents = 0;
             packer.nevents_pos = None;
         }
-        let len = crate::memory::ptr_offset_from(packer.ptr, packer.startptr) as usize;
+        let len = packer.pos;
         let mut vec = std::mem::take(&mut packer.owned_buf);
         vec.truncate(len);
         let buf = wstream_new_vec_buffer(vec);
@@ -838,9 +834,7 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
         packer.ncells_pending = 0;
     }
     packer.owned_buf = vec![0; UI_BUF_SIZE];
-    packer.startptr = packer.owned_buf.as_mut_ptr();
-    packer.ptr = packer.startptr;
-    packer.endptr = packer.startptr.wrapping_add(UI_BUF_SIZE);
+    packer.pos = 0;
 }
 
 // DLLEXPORT void remote_ui_grid_clear(RemoteUI *ui, Integer grid);
@@ -1225,17 +1219,15 @@ pub fn remote_ui_raw_line(
                 };
                 nelem += 1;
                 mpack_array(&mut ui.packer, csize);
-                let size_byte = ui.packer.ptr;
-                ui.packer.ptr = ui.packer.ptr.wrapping_add(1);
+                let size_pos = ui.packer.pos;
+                ui.packer.pos += 1;
                 let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
                 let len = schar_get_bytes(&mut cell_buf, chunk[i]);
 
-                unsafe {
-                    ptr::copy_nonoverlapping(cell_buf.as_ptr(), ui.packer.ptr, len);
-                    *size_byte = (0xa0 | len) as u8;
-                }
-
-                ui.packer.ptr = ui.packer.ptr.wrapping_add(len);
+                ui.packer.owned_buf[ui.packer.pos..ui.packer.pos + len]
+                    .copy_from_slice(&cell_buf[..len]);
+                ui.packer.owned_buf[size_pos] = (0xa0 | len) as u8;
+                ui.packer.pos += len;
 
                 if csize >= 2 {
                     mpack_uint(&mut ui.packer, attrs[i] as u32);
@@ -1295,7 +1287,7 @@ pub fn remote_ui_raw_line(
 }
 
 fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
-    if ui.packer.startptr.is_null() || buf_pos(ui) == 0 {
+    if ui.packer.owned_buf.is_empty() || buf_pos(ui) == 0 {
         return;
     }
     ui.packer.incomplete_event = incomplete_event;
@@ -1314,9 +1306,7 @@ fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
     let buf = wstream_new_vec_buffer(vec);
     rpc_write_raw(ui.channel_id, buf);
 
-    ui.packer.startptr = ptr::null_mut();
-    ui.packer.ptr = ptr::null_mut();
-    ui.packer.endptr = ptr::null_mut();
+    ui.packer.pos = 0;
 
     ui.packer.flushed_events = true;
     ui.packer.ncells_pending = 0;

@@ -1382,10 +1382,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let ts_start = ptr;
     let mut errbuf_storage = [0u8; IOSIZE];
-    let errbuf = CharBuf {
-        data: errbuf_storage.as_mut_ptr(),
-        size: IOSIZE,
-    };
+    let errbuf = CharBuf::from_slice(&mut errbuf_storage);
     if let Some(errmsg) = tabstop_set(
         crate::memory::cstr_as_bytes(ptr),
         &mut new_vts_array,
@@ -1484,7 +1481,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         new_line = new_line_vec.as_mut_ptr().cast();
 
                         if ml_replace(lnum, crate::memory::cstr_as_bytes((new_line).cast()), true) {
-                            new_line = curbuf_mut().b_ml.ml_line_ptr;
+                            new_line = curbuf_mut().b_ml.ml_line_slice.as_ptr().cast_mut().cast();
                             extmark_splice_cols(
                                 curbuf_mut(),
                                 lnum - 1,

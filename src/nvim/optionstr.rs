@@ -98,14 +98,40 @@ pub enum OptSchemaKind {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct CharBuf {
-    pub data: *mut u8,
+    pub addr: usize,
     pub size: usize,
 }
 
 impl CharBuf {
     #[inline]
+    pub fn from_slice(slice: &mut [u8]) -> Self {
+        Self {
+            addr: slice.as_mut_ptr() as usize,
+            size: slice.len(),
+        }
+    }
+
+    #[inline]
+    pub fn from_raw_parts(ptr: *mut u8, len: usize) -> Self {
+        Self {
+            addr: ptr as usize,
+            size: len,
+        }
+    }
+
+    #[inline]
+    pub fn as_mut_ptr(&self) -> *mut u8 {
+        self.addr as *mut u8
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.size
+    }
+
+    #[inline]
     pub fn as_cstr(&self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.data.cast())
+        crate::memory::cstr_from_ptr(self.as_mut_ptr().cast())
     }
 }
 
@@ -3107,18 +3133,18 @@ fn opt_values_err<'a>(
     let copy_len = item.len().min(itembuf.len() - 1);
     itembuf[..copy_len].copy_from_slice(&item[..copy_len]);
     let mut n = vim_snprintf!(
-        errbuf.data.cast(),
-        errbuf.size,
+        errbuf.as_mut_ptr().cast(),
+        errbuf.len(),
         gettext(fmt),
         itembuf.as_ptr(),
     );
     for (j, &v) in values.iter().enumerate() {
-        if n <= 0 || (n as usize) >= errbuf.size {
+        if n <= 0 || (n as usize) >= errbuf.len() {
             break;
         }
         n += vim_snprintf!(
-            errbuf.data.wrapping_add(n as usize).cast(),
-            errbuf.size - (n as usize),
+            errbuf.as_mut_ptr().wrapping_add(n as usize).cast(),
+            errbuf.len() - (n as usize),
             c"%s%s",
             if j == 0 {
                 c" ".as_ptr()

@@ -639,7 +639,12 @@ pub fn opt_error<'a>(
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt), arg.as_ptr());
+    vim_snprintf!(
+        errbuf.as_mut_ptr().cast(),
+        errbuf.len(),
+        gettext(fmt),
+        arg.as_ptr()
+    );
     Some(errbuf.as_cstr())
 }
 
@@ -651,7 +656,7 @@ pub fn opt_error_int<'a>(
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt), arg);
+    vim_snprintf!(errbuf.as_mut_ptr().cast(), errbuf.len(), gettext(fmt), arg);
     Some(errbuf.as_cstr())
 }
 
@@ -2080,10 +2085,7 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
             } else {
                 let startarg = arg;
                 let mut errbuf_storage = [0u8; ERR_BUFLEN];
-                let errbuf = CharBuf {
-                    data: errbuf_storage.as_mut_ptr(),
-                    size: ERR_BUFLEN,
-                };
+                let errbuf = CharBuf::from_slice(&mut errbuf_storage);
                 let errmsg = do_one_set_option(opt_flags, &mut arg, &mut did_show, Some(errbuf));
 
                 for _ in 0..2 {
@@ -5518,8 +5520,8 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         let type_str = optval_type_name(opt.opt_type);
         errmsg = if let Some(errbuf) = errbuf {
             vim_snprintf!(
-                errbuf.data.cast(),
-                errbuf.size,
+                errbuf.as_mut_ptr().cast(),
+                errbuf.len(),
                 gettext(c"Invalid value for option '%s': expected %s, got %s %s"),
                 opt.fullname.as_ptr(),
                 type_str,
@@ -5844,10 +5846,7 @@ fn unset_option_local_value(opt_idx: OptIndex) -> Option<&'static CStr> {
 /// Call set_option_value() and when an error is returned, report it.
 pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: i32) {
     let mut errbuf_storage = [0u8; IOSIZE];
-    let errbuf = CharBuf {
-        data: errbuf_storage.as_mut_ptr(),
-        size: IOSIZE,
-    };
+    let errbuf = CharBuf::from_slice(&mut errbuf_storage);
     let errmsg = set_option_value(opt_idx, value, opt_flags, true, Some(errbuf));
 
     if let Some(errmsg) = errmsg {
@@ -6009,10 +6008,7 @@ pub fn set_option_value_for(
     }
 
     let mut errbuf_storage = [0u8; IOSIZE];
-    let errbuf = CharBuf {
-        data: errbuf_storage.as_mut_ptr(),
-        size: IOSIZE,
-    };
+    let errbuf = CharBuf::from_slice(&mut errbuf_storage);
     let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, Some(errbuf));
     if let Some(errmsg) = errmsg {
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg.as_ptr());

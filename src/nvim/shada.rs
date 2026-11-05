@@ -43,7 +43,6 @@ use crate::mark::{
     set_last_cursor, setpcmark,
 };
 use crate::mbyte::mb_strnicmp;
-use crate::memory::ARENA_BLOCK_SIZE;
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
@@ -1725,7 +1724,7 @@ fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {
 
 #[inline]
 fn shada_check_buffer(packer: &mut PackerBuffer) {
-    let remaining = (packer.endptr as usize).saturating_sub(packer.ptr as usize);
+    let remaining = packer.owned_buf.len().saturating_sub(packer.pos);
     if remaining < SHADA_MPACK_FREE_SPACE {
         crate::msgpack_rpc::packer::packer_flush_buffer(packer);
     }
@@ -2535,25 +2534,22 @@ const fn hist_type2char(hist_type: i32) -> i32 {
 
 pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
     let fd = buffer.anydata.as_file();
-    let base = fd.buffer.as_ptr().cast::<u8>();
-    fd.write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
+    std::mem::swap(&mut fd.buffer, &mut buffer.owned_buf);
+    fd.write_pos = buffer.pos;
     buffer.anyint = i64::from(file_flush(fd));
-    buffer.ptr = fd
-        .buffer
-        .as_mut_ptr()
-        .cast::<u8>()
-        .wrapping_add(fd.write_pos);
+    buffer.pos = fd.write_pos;
+    std::mem::swap(&mut fd.buffer, &mut buffer.owned_buf);
 }
 
 fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
         file_flush(file);
     }
-    let base = file.buffer.as_mut_ptr().cast::<u8>();
+    let pos = file.write_pos;
+    let owned_buf = std::mem::take(&mut file.buffer);
     PackerBuffer {
-        startptr: base,
-        ptr: base.wrapping_add(file.write_pos),
-        endptr: base.wrapping_add(ARENA_BLOCK_SIZE),
+        pos,
+        owned_buf,
         anydata: crate::msgpack_rpc::packer::PackerData::File(file),
         ..PackerBuffer::new()
     }
@@ -3092,6 +3088,7 @@ fn shada_write(
     }
     wms.file_marks.clear();
     crate::msgpack_rpc::packer::packer_flush_buffer(&mut packer);
+    std::mem::swap(&mut sd_writer.buffer, &mut packer.owned_buf);
     if packer.anyint != 0 {
         ret = ShaDaWriteResult::SDWriteFailed;
     }

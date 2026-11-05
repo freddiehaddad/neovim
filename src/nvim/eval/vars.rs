@@ -3545,10 +3545,7 @@ fn set_option_from_tv(varname: &CStr, varp: &mut TypVal) {
 
     if !error {
         let mut errbuf_storage = [0u8; IOSIZE];
-        let errbuf = CharBuf {
-            data: errbuf_storage.as_mut_ptr(),
-            size: IOSIZE,
-        };
+        let errbuf = CharBuf::from_slice(&mut errbuf_storage);
         let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(errbuf));
         if let Some(errmsg) = errmsg {
             emsg(errmsg);

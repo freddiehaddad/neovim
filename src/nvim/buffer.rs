@@ -4211,10 +4211,7 @@ pub fn maketitle() {
     let mut title_str: RawCCharPtrMut = ptr::null_mut();
     let mut icon_str: RawCCharPtrMut = ptr::null_mut();
     let mut buf = [0u8; IOSIZE];
-    let outbuf = CharBuf {
-        data: buf.as_mut_ptr(),
-        size: IOSIZE,
-    };
+    let outbuf = CharBuf::from_slice(&mut buf);
 
     if !redrawing() {
         g_st().need_maketitle = true;

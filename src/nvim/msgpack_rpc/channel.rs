@@ -916,19 +916,15 @@ fn packer_buffer_init_channels(chan_id: u64, packer: &mut PackerBuffer) {
         }
     }
     packer.owned_buf = vec![0; ARENA_BLOCK_SIZE];
-    packer.startptr = packer.owned_buf.as_mut_ptr();
-    packer.ptr = packer.startptr;
-    packer.endptr = packer.startptr.wrapping_add(ARENA_BLOCK_SIZE);
+    packer.pos = 0;
     packer.anydata = crate::msgpack_rpc::packer::PackerData::Chans;
     packer.anyint = chan_id as i64;
 }
 
 fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
-    let len = (packer.ptr as usize) - (packer.startptr as usize);
+    let len = packer.pos;
     let mut vec = std::mem::take(&mut packer.owned_buf);
-    packer.startptr = ptr::null_mut();
-    packer.ptr = ptr::null_mut();
-    packer.endptr = ptr::null_mut();
+    packer.pos = 0;
     if len > 0 {
         vec.truncate(len);
         let buf = wstream_new_vec_buffer(vec);
