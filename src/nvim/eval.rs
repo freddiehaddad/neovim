@@ -229,7 +229,7 @@ const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
 pub(crate) struct EvalModuleState {
-    pub(crate) eval_lavars_used: *mut bool,
+    pub(crate) eval_lavars_used: Option<bool>,
     echo_hl_id: i32,
     last_timer_id: u64,
     callback_depth: i32,
@@ -243,7 +243,7 @@ pub(crate) struct EvalModuleState {
 impl EvalModuleState {
     const fn new() -> Self {
         Self {
-            eval_lavars_used: ptr::null_mut(),
+            eval_lavars_used: None,
             echo_hl_id: 0,
             last_timer_id: 1,
             callback_depth: 0,

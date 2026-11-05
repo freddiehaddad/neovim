@@ -256,25 +256,20 @@ impl Optset {
 }
 
 #[repr(C)]
-pub struct Optexpand {
+pub struct Optexpand<'a> {
     pub oe_idx: OptIndex,
-    pub oe_opt_value: &'static std::ffi::CStr,
+    pub oe_opt_value: &'a std::ffi::CStr,
     pub oe_append: bool,
     pub oe_include_orig_val: bool,
-    pub oe_regmatch: *mut Regmatch,
-    pub oe_xp: *mut ExpandCtx,
-    pub oe_set_arg: &'static std::ffi::CStr,
+    pub oe_regmatch: &'a mut Regmatch,
+    pub oe_xp: &'a mut ExpandCtx,
+    pub oe_set_arg: &'a std::ffi::CStr,
 }
 
-impl Optexpand {
+impl Optexpand<'_> {
     #[inline]
-    pub fn regmatch_mut(&self) -> &'static mut Regmatch {
-        unsafe { &mut *self.oe_regmatch }
-    }
-
-    #[inline]
-    pub fn xp_mut(&self) -> &'static mut ExpandCtx {
-        unsafe { &mut *self.oe_xp }
+    pub fn xp_mut(&mut self) -> &mut ExpandCtx {
+        self.oe_xp
     }
 }
 
@@ -1353,7 +1348,7 @@ fn expand_set_opt_string(
     values: &[&CStr],
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    let regmatch = args.regmatch_mut();
+    let regmatch = &mut *args.oe_regmatch;
     let include_orig_val = args.oe_include_orig_val;
     let option_val = args.oe_opt_value;
 
@@ -1395,14 +1390,15 @@ fn expand_set_opt_generic(
     func: CompleteListItemGetter,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    optstr_st().set_opt_callback_orig_option =
-        args.oe_include_orig_val.then_some(args.oe_opt_value);
+    optstr_st().set_opt_callback_orig_option = args
+        .oe_include_orig_val
+        .then(|| crate::memory::cstr_from_ptr(args.oe_opt_value.as_ptr()));
     optstr_st().set_opt_callback_func = func;
 
     expand_generic(
         c"",
-        args.xp_mut(),
-        args.regmatch_mut(),
+        args.oe_xp,
+        args.oe_regmatch,
         matches,
         Some(expand_set_opt_callback),
         false,

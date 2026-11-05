@@ -1389,7 +1389,7 @@ pub(super) struct RegexpState {
     pub(super) nfa_reg_parse_depth: i32,
     pub(super) nstate: i32,
     pub(super) istate: i32,
-    pub(super) nfa_endp: *mut SaveSe,
+    pub(super) nfa_endp: Option<SaveSe>,
     pub(super) nfa_ll_index: usize,
     pub(super) regexp_engine: i32,
 }
@@ -1479,7 +1479,7 @@ impl RegexpState {
             nfa_reg_parse_depth: 0,
             nstate: 0,
             istate: 0,
-            nfa_endp: ptr::null_mut(),
+            nfa_endp: None,
             nfa_ll_index: 0,
             regexp_engine: 0,
         }

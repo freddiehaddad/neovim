@@ -2780,7 +2780,7 @@ pub fn win_line(
                                 crate::memory::cstr_from_ptr(line),
                             );
                             if has_conceal {
-                                csarg.extconceal = &raw const conceal_spans;
+                                csarg.extconceal = Some(unsafe { &*ptr::from_ref(&conceal_spans) });
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }

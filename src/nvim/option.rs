@@ -7792,7 +7792,7 @@ pub fn expand_string_setting(
     let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
     let mut args = Optexpand {
         oe_idx: opt_st().expand_option_idx,
-        oe_opt_value: unsafe { &*(buf.as_c_str() as *const std::ffi::CStr) },
+        oe_opt_value: buf.as_c_str(),
         oe_append: opt_st().expand_option_append,
         oe_include_orig_val: !opt_st().expand_option_append && set_arg.to_bytes().is_empty(),
         oe_regmatch: regmatch,

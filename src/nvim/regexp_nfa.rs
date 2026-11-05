@@ -2662,9 +2662,9 @@ fn addstate_idx(
             if (c == NFA_BOL || c == NFA_BOF)
                 && re_st().rex.input > re_st().rex.line
                 && unsafe { *re_st().rex.input.as_ptr() } != NUL
-                && (re_st().nfa_endp.is_null()
+                && (re_st().nfa_endp.is_none()
                     || !reg_multi()
-                    || re_st().rex.lnum == unsafe { (*re_st().nfa_endp).se_u.pos().lnum })
+                    || re_st().rex.lnum == re_st().nfa_endp.unwrap().se_u.pos().lnum)
             {
                 return unsafe { subs_arg.as_mut() };
             }
@@ -3272,7 +3272,7 @@ fn recursive_regmatch(
     let save_nfa_listid = re_st().rex.nfa_listid;
     let save_nfa_endp = re_st().nfa_endp;
     let mut endpos = SaveSe::new();
-    let mut endposp: *mut SaveSe = ptr::null_mut();
+    let mut endposp: Option<SaveSe> = None;
     let mut need_restore = false;
 
     if let Some(pim) = pim {
@@ -3299,7 +3299,7 @@ fn recursive_regmatch(
         } else {
             endpos.se_u.ptr = re_st().rex.input;
         }
-        endposp = &raw mut endpos;
+        endposp = Some(endpos);
 
         if st.val <= 0 {
             if reg_multi() {
@@ -3720,9 +3720,9 @@ fn nfa_regmatch(
                     break;
                 }
                 NFA_END_INVISIBLE | NFA_END_INVISIBLE_NEG | NFA_END_PATTERN => {
-                    if !re_st().nfa_endp.is_null()
+                    if let Some(endp) = re_st().nfa_endp
                         && if reg_multi() {
-                            let end_pos = unsafe { (*re_st().nfa_endp).se_u.pos() };
+                            let end_pos = endp.se_u.pos();
 
                             re_st().rex.lnum != end_pos.lnum
                                 || (crate::memory::ptr_offset_from(
@@ -3731,7 +3731,7 @@ fn nfa_regmatch(
                                 ) as Colnr)
                                     != end_pos.col
                         } else {
-                            re_st().rex.input != unsafe { (*re_st().nfa_endp).se_u.ptr }
+                            re_st().rex.input != endp.se_u.ptr
                         }
                     {
                         listidx += 1;
@@ -4527,9 +4527,9 @@ fn nfa_regmatch(
                     || (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
                         as Colnr)
                         < re_st().rex.reg_maxcol))
-                || (!re_st().nfa_endp.is_null()
-                    && if reg_multi() {
-                        let end_pos = unsafe { (*re_st().nfa_endp).se_u.pos() };
+                || re_st().nfa_endp.is_some_and(|endp| {
+                    if reg_multi() {
+                        let end_pos = endp.se_u.pos();
                         re_st().rex.lnum < end_pos.lnum
                             || (re_st().rex.lnum == end_pos.lnum
                                 && (crate::memory::ptr_offset_from(
@@ -4538,8 +4538,9 @@ fn nfa_regmatch(
                                 ) as Colnr)
                                     < end_pos.col)
                     } else {
-                        re_st().rex.input < unsafe { (*re_st().nfa_endp).se_u.ptr }
-                    }))
+                        re_st().rex.input < endp.se_u.ptr
+                    }
+                }))
         {
             if toplevel {
                 let mut add = true;
@@ -4597,8 +4598,9 @@ fn nfa_regmatch(
 
                 if reg_multi()
                     && clen == 0
-                    && !re_st().nfa_endp.is_null()
-                    && re_st().rex.lnum < unsafe { (*re_st().nfa_endp).se_u.pos().lnum }
+                    && re_st()
+                        .nfa_endp
+                        .is_some_and(|endp| re_st().rex.lnum < endp.se_u.pos().lnum)
                     && let Some(next_line) = reg_getline(re_st().rex.lnum + 1)
                 {
                     re_st().rex.line = crate::regexp::RegLinePtr::from_cstr(next_line);
@@ -4630,9 +4632,10 @@ fn nfa_regmatch(
         if clen != 0 {
             re_st().rex.input = re_st().rex.input.wrapping_add(clen as usize);
         } else if go_to_nextline
-            || (!re_st().nfa_endp.is_null()
-                && reg_multi()
-                && re_st().rex.lnum < unsafe { (*re_st().nfa_endp).se_u.pos().lnum })
+            || (reg_multi()
+                && re_st()
+                    .nfa_endp
+                    .is_some_and(|endp| re_st().rex.lnum < endp.se_u.pos().lnum))
         {
             reg_nextline();
         } else {

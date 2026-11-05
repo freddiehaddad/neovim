@@ -2601,7 +2601,7 @@ pub fn eval_variable(
 
 /// Check if variable `name_slice` is a local variable or an argument.
 pub fn check_vars(name_slice: &[u8]) {
-    if eval_st().eval_lavars_used.is_null() {
+    if eval_st().eval_lavars_used.is_none() {
         return;
     }
 
@@ -2614,9 +2614,7 @@ pub fn check_vars(name_slice: &[u8]) {
     let args_ht = get_funccal_args_ht().map_or(ptr::null_mut(), ptr::from_mut);
 
     if (ht == local_ht || ht == args_ht) && find_var(&name_cstr, len, None, 1).is_some() {
-        unsafe {
-            *eval_st().eval_lavars_used = true;
-        }
+        eval_st().eval_lavars_used = Some(true);
     }
 }
 

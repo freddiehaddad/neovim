@@ -68,7 +68,7 @@ pub struct CharsizeArg {
     pub max_head_vcol: i32,
     pub extconceal_off: i32,
     pub iter: MarkTreeIter,
-    pub extconceal: *const ConcealSpans,
+    pub extconceal: Option<&'static ConcealSpans>,
 }
 
 impl CharsizeArg {
@@ -85,7 +85,7 @@ impl CharsizeArg {
             max_head_vcol: 0,
             extconceal_off: 0,
             iter: MarkTreeIter::new(),
-            extconceal: ptr::null(),
+            extconceal: None,
         }
     }
 
@@ -96,7 +96,7 @@ impl CharsizeArg {
 
     #[inline]
     pub fn extconceal_opt(&self) -> Option<&'static ConcealSpans> {
-        unsafe { self.extconceal.as_ref() }
+        self.extconceal
     }
 }
 
@@ -223,7 +223,7 @@ pub fn init_charsize_arg(
     csarg.skip_cur_text = false;
     csarg.indent_width = i32::MIN;
     csarg.use_tabstop = !wp.w_onebuf_opt.wo_list || wp.w_p_lcs_chars.tab1 != 0;
-    csarg.extconceal = ptr::null();
+    csarg.extconceal = None;
 
     if lnum > 0
         && marktree_itr_get_filter(
@@ -271,7 +271,7 @@ pub fn init_charsize_arg_extconceal(
     if spans.is_empty() {
         return cstype;
     }
-    csarg.extconceal = spans;
+    csarg.extconceal = Some(unsafe { &*(spans as *const ConcealSpans) });
     K_CHARSIZE_REGULAR
 }
 

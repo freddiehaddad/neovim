@@ -591,7 +591,6 @@ pub fn get_lambda_tv(
     let mut newargs: Vec<std::ffi::CString> = Vec::new();
     let mut varargs: i32 = 0;
     let old_eval_lavars = eval_st().eval_lavars_used;
-    let mut eval_lavars = false;
 
     let mut s = crate::charset::skipwhite_at(arg, 1);
     let mut ret = get_function_args(&mut s, b'-', None, None, None, true);
@@ -610,12 +609,11 @@ pub fn get_lambda_tv(
         false,
     );
     if !ret || arg.to_bytes().first() != Some(&b'>') {
-        eval_st().eval_lavars_used = old_eval_lavars;
         return Some(false);
     }
 
     if evaluate {
-        eval_st().eval_lavars_used = &raw mut eval_lavars;
+        eval_st().eval_lavars_used = Some(false);
     }
 
     let mut arg_cstr = crate::charset::skipwhite_at(arg, 1);
@@ -624,7 +622,9 @@ pub fn get_lambda_tv(
     let end: *const u8 = arg_cstr.as_ptr().cast();
     *arg = arg_cstr;
     if !ret {
-        eval_st().eval_lavars_used = old_eval_lavars;
+        if evaluate {
+            eval_st().eval_lavars_used = old_eval_lavars;
+        }
         return Some(false);
     }
 
@@ -633,7 +633,9 @@ pub fn get_lambda_tv(
 
     if unsafe { *arg_ptr } != b'}' {
         semsg!(gettext(c"E451: Expected }: %s"), arg_ptr);
-        eval_st().eval_lavars_used = old_eval_lavars;
+        if evaluate {
+            eval_st().eval_lavars_used = old_eval_lavars;
+        }
         return Some(false);
     }
 
@@ -662,7 +664,7 @@ pub fn get_lambda_tv(
         fp.uf_args = newargs;
         fp.uf_def_args = Vec::new();
         fp.uf_lines = newlines;
-        if !uf_st().current_funccal.is_null() && eval_lavars {
+        if !uf_st().current_funccal.is_null() && eval_st().eval_lavars_used == Some(true) {
             flags |= FC_CLOSURE;
             register_closure(&mut *fp);
         } else {
@@ -685,9 +687,9 @@ pub fn get_lambda_tv(
         pt.pt_refcount = 1;
         rettv.vval = crate::eval::typval::TypvalVval::Partial(pt);
         rettv.v_type = VarType::VarPartial;
+        eval_st().eval_lavars_used = old_eval_lavars;
     }
 
-    eval_st().eval_lavars_used = old_eval_lavars;
     Some(true)
 }
 
