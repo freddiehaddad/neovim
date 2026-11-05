@@ -1077,7 +1077,7 @@ fn command_line_enter(
 
         if getln_st().ccline.input_fn != 0 {
             s.xpc.xp_context = getln_st().ccline.xp_context;
-            s.xpc.xp_pattern = crate::strings::CStrCursor::from_ptr(getln_st().ccline.cmdbuff());
+            s.xpc.xp_pattern = getln_st().ccline.cmdbuff();
             s.xpc.xp_arg = getln_st()
                 .ccline
                 .xp_arg
@@ -1337,7 +1337,7 @@ fn command_line_enter(
     getln_st().ccline.last_colors.colors = Vec::new();
 
     let ret = if !getln_st().ccline.cmdbuff().is_null() {
-        Some(crate::memory::cstr_to_cstring(getln_st().ccline.cmdbuff()))
+        Some(getln_st().ccline.cmdbuff().to_cstring())
     } else {
         None
     };
@@ -1377,7 +1377,7 @@ fn command_line_check(s: &mut CommandLineState) -> i32 {
     may_trigger_safestate(s.xpc.xp_numfiles <= 0);
 
     if !getln_st().ccline.cmdbuff().is_null() {
-        s.prev_cmdbuff = Some(crate::memory::cstr_to_cstring(getln_st().ccline.cmdbuff()));
+        s.prev_cmdbuff = Some(getln_st().ccline.cmdbuff().to_cstring());
     }
 
     if s.c == K_WILD && s.firstc != b'@' as i32 {
@@ -2067,10 +2067,10 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
 
     if getln_st().ccline.cmdpos > 0 {
         let j = getln_st().ccline.cmdpos;
-        let mut p: *mut u8 = {
+        let mut p = {
             let _l = getln_st().ccline.cmdbuff();
             let _p = getln_st().ccline.cmdbuff().wrapping_add(j as usize);
-            if (_p as usize) > (_l as usize) {
+            if _p > _l {
                 _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
             } else {
                 _p
@@ -2078,13 +2078,11 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
         };
 
         if s.c == CTRL_W_CONST {
-            while p > getln_st().ccline.cmdbuff()
-                && ascii_isspace(crate::memory::cstr_first_byte(p))
-            {
+            while p > getln_st().ccline.cmdbuff() && ascii_isspace(p.first_byte()) {
                 p = {
                     let _l = getln_st().ccline.cmdbuff();
                     let _p = p;
-                    if (_p as usize) > (_l as usize) {
+                    if _p > _l {
                         _p.wrapping_sub(
                             1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
                         )
@@ -2094,14 +2092,12 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                 };
             }
 
-            let cls = mb_get_class(crate::memory::cstr_as_bytes(p));
-            while p > getln_st().ccline.cmdbuff()
-                && mb_get_class(crate::memory::cstr_as_bytes(p)) == cls
-            {
+            let cls = mb_get_class(p.as_bytes());
+            while p > getln_st().ccline.cmdbuff() && mb_get_class(p.as_bytes()) == cls {
                 p = {
                     let _l = getln_st().ccline.cmdbuff();
                     let _p = p;
-                    if (_p as usize) > (_l as usize) {
+                    if _p > _l {
                         _p.wrapping_sub(
                             1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
                         )
@@ -2111,7 +2107,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                 };
             }
 
-            if mb_get_class(crate::memory::cstr_as_bytes(p)) != cls {
+            if mb_get_class(p.as_bytes()) != cls {
                 p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
         }
@@ -2340,7 +2336,7 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
 
     if s.lookfor.is_none() {
         let prefix_len = getln_st().ccline.cmdpos as usize;
-        let bytes = crate::memory::cstr_slice(getln_st().ccline.cmdbuff(), prefix_len);
+        let bytes = getln_st().ccline.cmdbuff().slice(prefix_len);
         s.lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
         s.lookforlen = getln_st().ccline.cmdpos;
     }
@@ -3095,7 +3091,10 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut cmdpreview_type: i32;
-    let mut cmdline_vec: Vec<u8> = crate::memory::cstr_from_ptr(getln_st().ccline.cmdbuff())
+    let mut cmdline_vec: Vec<u8> = getln_st()
+        .ccline
+        .cmdbuff()
+        .as_cstr()
         .to_bytes_with_nul()
         .to_vec();
     let mut errormsg = None;
@@ -3244,9 +3243,9 @@ fn command_line_changed(s: &mut CommandLineState) -> i32 {
 
     if !getln_st().ccline.cmdbuff_replaced
         && (getln_st().ccline.cmdpos != s.prev_cmdpos
-            || s.prev_cmdbuff.as_ref().is_some_and(|prev| {
-                prev.to_bytes() != crate::memory::cstr_as_bytes(getln_st().ccline.cmdbuff())
-            }))
+            || s.prev_cmdbuff
+                .as_ref()
+                .is_some_and(|prev| prev.to_bytes() != getln_st().ccline.cmdbuff().as_bytes()))
     {
         do_autocmd_cmdlinechanged(if s.firstc > 0 { s.firstc } else { b'-' as i32 });
     }
@@ -3554,9 +3553,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
         let i = crate::memory::ptr_offset_from(xpc.xp_pattern, p) as i32;
 
         if i >= 0 && i <= getln_st().ccline.cmdlen {
-            xpc.xp_pattern = crate::strings::CStrCursor::from_ptr(
-                getln_st().ccline.cmdbuff().wrapping_add(i as usize),
-            );
+            xpc.xp_pattern = getln_st().ccline.cmdbuff().wrapping_add(i as usize);
         }
     }
 }
@@ -3564,7 +3561,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
 /// Color expression cmdline using built-in expressions parser.
 fn color_expr_cmdline(colored_ccline: &CmdlineInfo, ret_ccline_colors: &mut ColoredCmdline) {
     let parser_lines = [
-        ParserLine::from_slice(crate::memory::cstr_as_bytes(colored_ccline.cmdbuff())),
+        ParserLine::from_slice(colored_ccline.cmdbuff().as_bytes()),
         ParserLine::NONE,
     ];
     let mut pstate = ParserState {
@@ -3613,16 +3610,17 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     let ccline_colors = unsafe { &mut *ccline_colors };
 
     if ccline_colors.prompt_id == colored_ccline.prompt_id
-        && ccline_colors.cmdbuff.as_ref().is_some_and(|cb| {
-            cb.to_bytes() == crate::memory::cstr_as_bytes(colored_ccline.cmdbuff())
-        })
+        && ccline_colors
+            .cmdbuff
+            .as_ref()
+            .is_some_and(|cb| cb.to_bytes() == colored_ccline.cmdbuff().as_bytes())
     {
         return ret;
     }
 
     ccline_colors.colors.clear();
 
-    if crate::memory::cstr_is_empty(colored_ccline.cmdbuff()) {
+    if colored_ccline.cmdbuff().is_empty() {
         ccline_colors.cmdbuff = None;
         return ret;
     }
@@ -3965,10 +3963,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     } else {
         let mut item = arena_array(&mut arena, 3);
         add_c(&mut item, integer_obj(0));
-        add_c(
-            &mut item,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(line.cmdbuff())),
-        );
+        add_c(&mut item, cstr_as_obj(line.cmdbuff().as_opt_cstr()));
         add_c(&mut item, integer_obj(0));
         content = arena_array(&mut arena, 1);
         add_c(&mut content, array_obj(item));
@@ -4499,7 +4494,7 @@ fn ccheck_abbr(c: i32) -> i32 {
 
     i32::from(check_abbr(
         c,
-        crate::memory::cstr_from_ptr(getln_st().ccline.cmdbuff()),
+        getln_st().ccline.cmdbuff().as_cstr(),
         getln_st().ccline.cmdpos,
         spos,
     ))
@@ -4620,7 +4615,7 @@ fn get_cmdline_str() -> Option<std::ffi::CString> {
         return None;
     }
     let p = get_ccline_opt()?;
-    let slice = crate::memory::cstr_slice(p.cmdbuff(), p.cmdlen as usize);
+    let slice = p.cmdbuff().slice(p.cmdlen as usize);
     let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
     Some(crate::memory::cstr_from_bytes(&slice[..len]))
 }

@@ -1571,11 +1571,11 @@ impl CmdlineInfo {
     }
 
     #[inline]
-    pub fn cmdbuff(&self) -> *mut u8 {
+    pub fn cmdbuff(&self) -> crate::strings::CStrCursor<u8> {
         if self.cmdbuff_vec.is_empty() {
-            ptr::null_mut()
+            crate::strings::CStrCursor::NULL
         } else {
-            self.cmdbuff_vec.as_ptr().cast_mut()
+            crate::strings::CStrCursor::from_ptr(self.cmdbuff_vec.as_ptr())
         }
     }
 }
@@ -2049,7 +2049,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     }
 
     if !wild_navigate && !ccline.cmdbuff().is_null() {
-        let slice = crate::memory::cstr_slice(ccline.cmdbuff(), ccline.cmdlen as usize);
+        let slice = ccline.cmdbuff().slice(ccline.cmdlen as usize);
         let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
         cmdexp().cmdline_orig = Some(slice[..len].to_vec());
     }
@@ -2062,28 +2062,16 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         let difflen = (plen as i32) - (xp.xp_pattern_len as i32);
         if ccline.cmdlen + difflen + 4 > ccline.cmdbufflen {
             realloc_cmdbuff(ccline.cmdlen + difflen + 4);
-            xp.xp_pattern =
-                crate::strings::CStrCursor::from_ptr(ccline.cmdbuff().wrapping_add(i as usize));
+            xp.xp_pattern = ccline.cmdbuff().wrapping_add(i as usize);
         }
         debug_assert!(ccline.cmdpos <= ccline.cmdlen);
 
-        unsafe {
-            ptr::copy(
-                ccline.cmdbuff().wrapping_add(ccline.cmdpos as usize),
-                ccline
-                    .cmdbuff()
-                    .wrapping_add((ccline.cmdpos + difflen) as usize),
-                (ccline.cmdlen as usize) - (ccline.cmdpos as usize) + 1,
-            )
-        };
-
-        unsafe {
-            ptr::copy(
-                p_str.as_ptr().cast(),
-                ccline.cmdbuff().wrapping_add(i as usize),
-                plen,
-            )
-        };
+        ccline.cmdbuff_vec.copy_within(
+            ccline.cmdpos as usize..=ccline.cmdlen as usize,
+            (ccline.cmdpos + difflen) as usize,
+        );
+        ccline.cmdbuff_vec[i as usize..i as usize + plen]
+            .copy_from_slice(&p_str.to_bytes_with_nul()[..plen]);
         ccline.cmdlen += difflen;
         ccline.cmdpos += difflen;
     }
@@ -2887,7 +2875,7 @@ pub fn showmatches(
         }
         let retval = expand_cmdline(
             xp,
-            crate::memory::cstr_from_ptr(ccline.cmdbuff()),
+            ccline.cmdbuff().as_cstr(),
             ccline.cmdpos,
             &mut temp_matches,
         );
@@ -3206,7 +3194,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
         } else {
             BACKWARD
         };
-        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(ccline.cmdbuff());
+        xp.xp_pattern = ccline.cmdbuff();
         xp.xp_pattern_len = ccline.cmdpos as usize;
         g_st().search_global.first_line = 0;
         return;
@@ -3724,8 +3712,7 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
         return;
     }
 
-    xp.xp_pattern =
-        crate::strings::CStrCursor::from_ptr(ccline.cmdbuff().wrapping_add(skiplen as usize));
+    xp.xp_pattern = ccline.cmdbuff().wrapping_add(skiplen as usize);
     xp.xp_pattern_len = (ccline.cmdpos - skiplen) as usize;
     xp.xp_context = EXPAND_PATTERN_IN_BUF;
     xp.xp_search_dir = FORWARD;
@@ -4329,7 +4316,7 @@ pub fn set_cmd_context(
         set_context_for_expression(xp, crate::memory::cstr_until_nul(str_buf), Cmdidx::CmdSize);
     } else if use_ccline && ccline.input_fn != 0 {
         xp.xp_context = ccline.xp_context;
-        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(ccline.cmdbuff());
+        xp.xp_pattern = ccline.cmdbuff();
         xp.xp_arg = ccline
             .xp_arg
             .as_deref()
@@ -5351,10 +5338,8 @@ where
     }
 
     if !ccline.cmdbuff().is_null() {
-        unsafe {
-            keep = *ccline.cmdbuff().wrapping_add(ccline.cmdlen as usize);
-            *ccline.cmdbuff().wrapping_add(ccline.cmdlen as usize) = 0;
-        }
+        keep = ccline.cmdbuff().byte_at(ccline.cmdlen as usize);
+        ccline.cmdbuff().set_byte(ccline.cmdlen as usize, 0);
     }
 
     let pat = cstr_from_bytes(xp.xp_pattern.slice(xp.xp_pattern_len));
@@ -5372,9 +5357,7 @@ where
 
     g_st().current_sctx = save_current_sctx;
     if !ccline.cmdbuff().is_null() {
-        unsafe {
-            *ccline.cmdbuff().wrapping_add(ccline.cmdlen as usize) = keep;
-        }
+        ccline.cmdbuff().set_byte(ccline.cmdlen as usize, keep);
     }
 
     ret
@@ -5623,13 +5606,8 @@ pub fn wildmenu_translate_key(
 fn cmdline_del(cclp: &mut CmdlineInfo, from: i32) {
     debug_assert!(cclp.cmdpos <= cclp.cmdlen);
 
-    unsafe {
-        ptr::copy(
-            cclp.cmdbuff().wrapping_add(cclp.cmdpos as usize),
-            cclp.cmdbuff().wrapping_add(from as usize),
-            (cclp.cmdlen as usize) - (cclp.cmdpos as usize) + 1,
-        )
-    };
+    cclp.cmdbuff_vec
+        .copy_within(cclp.cmdpos as usize..=cclp.cmdlen as usize, from as usize);
     cclp.cmdlen -= cclp.cmdpos - from;
     cclp.cmdpos = from;
 }
