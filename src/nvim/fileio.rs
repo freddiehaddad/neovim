@@ -837,11 +837,11 @@ pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]
     }
     #[cfg(not(windows))]
     unsafe {
-        let mut out_ptr = crate::strings::CStrCursor::<u8>::from_ptr(outbuf.as_mut_ptr());
+        let mut out_ptr: *mut u8 = outbuf.as_mut_ptr();
         let mut out_left: usize = outbuf.len();
         let orig_out_len = out_left;
         let ret = if let Some(inbuf) = inbuf {
-            let mut in_ptr = crate::strings::CStrCursor::<u8>::from_ptr(inbuf.as_ptr());
+            let mut in_ptr: *const u8 = inbuf.as_ptr();
             let mut in_left: usize = inbuf.len();
             let orig_in_len = in_left;
             let r = iconv(
@@ -2730,7 +2730,7 @@ pub fn readfile(
                     {
                         if s_isfifo(perm as u64) {
                             buflen += vim_snprintf!(
-                                unsafe { iobuf_ptr.offset(buflen as isize) },
+                                iobuf_ptr.wrapping_offset(buflen as isize).as_ptr(),
                                 (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[fifo]"),
@@ -2739,7 +2739,7 @@ pub fn readfile(
                         }
                         if s_issock(perm as u64) {
                             buflen += vim_snprintf!(
-                                unsafe { iobuf_ptr.offset(buflen as isize) },
+                                iobuf_ptr.wrapping_offset(buflen as isize).as_ptr(),
                                 (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[socket]"),
@@ -3410,10 +3410,7 @@ pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: &CStr, force: i32) -> bool 
         return false;
     }
 
-    let p = path_shorten_fname(
-        buf.ffname_opt(),
-        crate::memory::cstr_from_ptr(dirname.as_ptr().cast_mut()),
-    );
+    let p = path_shorten_fname(buf.ffname_opt(), dirname);
     let shorten = p.is_some_and(|s| !s.to_bytes().is_empty());
     if shorten && buf.b_sfname.is_some() && p == Some(buf.sfname_cstr()) {
         return false;
@@ -3846,12 +3843,7 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
     g_st().curbuf = (ptr::from_mut(tobuf)).into();
     for lnum in 1..=frombuf.b_ml.ml_line_count {
         let p = ml_get_buf(frombuf, lnum).to_owned();
-        if !ml_append(
-            lnum - 1,
-            crate::memory::cstr_as_bytes(p.as_ptr().cast_mut()),
-            0,
-            false,
-        ) {
+        if !ml_append(lnum - 1, p.to_bytes(), 0, false) {
             retval = false;
             break;
         }
@@ -4634,7 +4626,7 @@ pub fn match_file_pat(
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: &CStr, sfname: Option<&CStr>, ffname: &CStr) -> bool {
     let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
-    let tail = crate::memory::cstr_from_ptr((path_tail(sfname_ptr.as_cstr())).as_ptr());
+    let tail = path_tail(sfname_ptr.as_cstr());
 
     let mut p = list.to_bytes();
     while !p.is_empty() {

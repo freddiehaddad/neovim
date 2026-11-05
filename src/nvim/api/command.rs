@@ -363,16 +363,15 @@ pub fn nvim_parse_cmd(
     };
 
     let name = if ea.cmdidx == Cmdidx::CmdSize {
-        c"".as_ptr()
+        Some(c"")
     } else if let Some(cmd) = cmd {
-        cmd.uc_name.as_ptr()
+        Some(cmd.uc_name.as_c_str())
     } else {
         get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
-            .map_or(ptr::null(), |s| s.as_ptr())
     };
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
-    result.cmd = cstr_as_string(crate::memory::cstr_as_opt_cstr(name));
+    result.cmd = cstr_as_string(name);
 
     if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
         let mut range = arena_array(arena, 2);
@@ -434,18 +433,18 @@ pub fn nvim_parse_cmd(
     result.nargs = string_obj(arena_bytes(arena, &[nargs_ch]));
 
     let addr = match ea.addr_type {
-        ADDR_LINES => c"line".as_ptr(),
-        ADDR_ARGUMENTS => c"arg".as_ptr(),
-        ADDR_BUFFERS => c"buf".as_ptr(),
-        ADDR_LOADED_BUFFERS => c"load".as_ptr(),
-        ADDR_WINDOWS => c"win".as_ptr(),
-        ADDR_TABS => c"tab".as_ptr(),
-        ADDR_QUICKFIX => c"qf".as_ptr(),
-        ADDR_NONE => c"none".as_ptr(),
-        _ => c"?".as_ptr(),
+        ADDR_LINES => c"line",
+        ADDR_ARGUMENTS => c"arg",
+        ADDR_BUFFERS => c"buf",
+        ADDR_LOADED_BUFFERS => c"load",
+        ADDR_WINDOWS => c"win",
+        ADDR_TABS => c"tab",
+        ADDR_QUICKFIX => c"qf",
+        ADDR_NONE => c"none",
+        _ => c"?",
     };
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
-    result.addr = cstr_as_string(crate::memory::cstr_as_opt_cstr(addr));
+    result.addr = cstr_as_string(Some(addr));
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
     result.nextcmd = if ea.nextcmd.is_null() {
         cstr_as_string(None)

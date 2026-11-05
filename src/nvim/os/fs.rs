@@ -1438,7 +1438,7 @@ pub fn os_copy_xattr(from_file_opt: Option<&CStr>, to_file_opt: Option<&CStr>) {
                     max_vallen = vallen;
                 }
 
-                let keylen = (key.len() + 1) as isize;
+                let keylen = (crate::memory::cstr_len(key) + 1) as isize;
                 size -= keylen;
                 key = key.add(keylen as usize);
             }

@@ -45,7 +45,6 @@ use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_save_buf, uhp_ref};
 use crate::window::{VALID_BOTLINE_AP, WinInfoInfo};
-use std::ptr;
 
 use crate::search::FORWARD;
 
@@ -444,16 +443,14 @@ pub fn nvim_buf_set_lines(
     let new_len = replacement.size;
     let old_len = (end - start) as usize;
     let mut extra: isize = 0;
-    let mut lines: Vec<*mut u8> = Vec::with_capacity(new_len);
+    let mut lines: Vec<crate::strings::CStrCursor<std::ffi::c_char>> = Vec::with_capacity(new_len);
 
     for i in 0..new_len {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.as_bytes()).cast::<u8>();
-        if l.size > 0 {
-            for b in unsafe { std::slice::from_raw_parts_mut(p, l.size) } {
-                if *b == 0 {
-                    *b = b'\n';
-                }
+        let p = arena_memdupz(arena, l.as_bytes());
+        for b in p.slice_mut(l.size) {
+            if *b == 0 {
+                *b = b'\n';
             }
         }
         lines.push(p);
@@ -506,8 +503,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(line.cast());
-            if !ml_replace_buf(b, lnum as Linenr, line_ptr.as_bytes(), false, true) {
+            if !ml_replace_buf(b, lnum as Linenr, line.as_bytes(), false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -516,7 +512,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            inserted_bytes += line_ptr.len() as Bcount + 1;
+            inserted_bytes += line.len() as Bcount + 1;
         }
 
         for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
@@ -531,13 +527,12 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(line.cast());
-            if !ml_append_buf(b, lnum as Linenr, line_ptr.as_bytes(), 0, false) {
+            if !ml_append_buf(b, lnum as Linenr, line.as_bytes(), 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
 
-            inserted_bytes += line_ptr.len() as Bcount + 1;
+            inserted_bytes += line.len() as Bcount + 1;
             extra += 1;
         }
 
@@ -719,68 +714,63 @@ pub fn nvim_buf_set_text(
     if replacement.size == 1 {
         firstlen += last_part_len;
     }
-    let first = arena_allocz(arena, firstlen).cast::<u8>();
-    let mut last: *mut u8 = ptr::null_mut();
+    let first = arena_allocz(arena, firstlen);
+    let mut last = crate::strings::CStrCursor::NULL;
 
-    unsafe { ptr::copy_nonoverlapping(str_at_start.cast::<u8>(), first, start_col as usize) };
+    first
+        .slice_mut(start_col as usize)
+        .copy_from_slice(str_at_start.slice(start_col as usize));
 
     if first_item.size > 0 {
-        unsafe {
-            ptr::copy_nonoverlapping(
-                first_item.data.cast::<u8>(),
-                first.wrapping_add(start_col as usize),
-                first_item.size,
-            )
-        };
-
-        for b in unsafe {
-            std::slice::from_raw_parts_mut(first.wrapping_add(start_col as usize), first_item.size)
-        } {
+        let first_dst = first
+            .wrapping_add(start_col as usize)
+            .slice_mut(first_item.size);
+        first_dst.copy_from_slice(first_item.as_bytes());
+        for b in first_dst {
             if *b == 0 {
                 *b = b'\n';
             }
         }
     }
     if replacement.size == 1 {
-        unsafe {
-            ptr::copy_nonoverlapping(
-                str_at_end.wrapping_add(end_col as usize).cast::<u8>(),
-                first.wrapping_add((start_col as usize) + first_item.size),
-                last_part_len,
-            )
-        };
+        first
+            .wrapping_add((start_col as usize) + first_item.size)
+            .slice_mut(last_part_len)
+            .copy_from_slice(
+                str_at_end
+                    .wrapping_add(end_col as usize)
+                    .slice(last_part_len),
+            );
     } else {
-        last = arena_allocz(arena, last_item.size + last_part_len).cast::<u8>();
+        last = arena_allocz(arena, last_item.size + last_part_len);
         if last_item.size > 0 {
-            unsafe { ptr::copy_nonoverlapping(last_item.data.cast::<u8>(), last, last_item.size) };
-
-            for b in unsafe { std::slice::from_raw_parts_mut(last, last_item.size) } {
+            let last_dst = last.slice_mut(last_item.size);
+            last_dst.copy_from_slice(last_item.as_bytes());
+            for b in last_dst {
                 if *b == 0 {
                     *b = b'\n';
                 }
             }
         }
 
-        unsafe {
-            ptr::copy_nonoverlapping(
-                str_at_end.wrapping_add(end_col as usize).cast::<u8>(),
-                last.wrapping_add(last_item.size),
-                last_part_len,
-            )
-        };
+        last.wrapping_add(last_item.size)
+            .slice_mut(last_part_len)
+            .copy_from_slice(
+                str_at_end
+                    .wrapping_add(end_col as usize)
+                    .slice(last_part_len),
+            );
     }
 
-    let mut lines: Vec<*mut u8> = Vec::with_capacity(new_len);
+    let mut lines: Vec<crate::strings::CStrCursor<std::ffi::c_char>> = Vec::with_capacity(new_len);
     lines.push(first);
     new_byte += first_item.size as Bcount;
     for i in 1..new_len.saturating_sub(1) {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.as_bytes()).cast::<u8>();
-        if l.size > 0 {
-            for b in unsafe { std::slice::from_raw_parts_mut(p, l.size) } {
-                if *b == 0 {
-                    *b = b'\n';
-                }
+        let p = arena_memdupz(arena, l.as_bytes());
+        for b in p.slice_mut(l.size) {
+            if *b == 0 {
+                *b = b'\n';
             }
         }
         lines.push(p);
@@ -838,13 +828,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_replace_buf(
-                b,
-                lnum as Linenr,
-                crate::memory::cstr_as_bytes(line),
-                false,
-                true,
-            ) {
+            if !ml_replace_buf(b, lnum as Linenr, line.as_bytes(), false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -866,13 +850,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_append_buf(
-                b,
-                lnum as Linenr,
-                crate::memory::cstr_as_bytes(line),
-                0,
-                false,
-            ) {
+            if !ml_append_buf(b, lnum as Linenr, line.as_bytes(), 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }

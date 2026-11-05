@@ -2575,11 +2575,7 @@ fn replace_do_bs(limit_col: i32) {
                 None,
                 0,
             );
-            orig_vcols = win_chartabsize(
-                curwin_mut(),
-                crate::memory::cstr_as_bytes(get_cursor_pos_ptr().as_ptr().cast_mut()),
-                start_vcol,
-            );
+            orig_vcols = win_chartabsize(curwin_mut(), get_cursor_pos_ptr().to_bytes(), start_vcol);
         }
         del_char_after_col(limit_col);
         if (l_state & VREPLACE_FLAG) != 0 {
@@ -3242,7 +3238,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                         );
                         has_composing = utf_composinglike(
                             p0.as_bytes(),
-                            crate::memory::cstr_as_bytes(p0.wrapping_add(utf_ptr2len(p0) as usize)),
+                            (p0.wrapping_add(utf_ptr2len(p0) as usize)).as_bytes(),
                             None,
                         );
                     }

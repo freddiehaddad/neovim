@@ -5998,31 +5998,25 @@ pub fn parse_cmdline(
         if !skipmods && (eap.argt & EX_TRLBAR) != 0 {
             separate_nextcmd(&mut *eap);
         } else if !skipmods && !eap.cmdidx.is_user() && cmd_has_expr_args(eap.cmdidx) {
-            let mut arg = eap.arg.as_ptr();
-            while !crate::memory::cstr_is_empty(arg)
-                && crate::memory::cstr_first_byte(arg) != b'|'
-                && crate::memory::cstr_first_byte(arg) != b'\n'
-            {
-                let start = arg;
+            let mut arg = crate::strings::CStrCursor::from_ptr(eap.arg.as_ptr());
+            while !arg.is_empty() && arg.first_byte() != b'|' && arg.first_byte() != b'\n' {
+                let start = crate::strings::CStrCursor::of(arg);
                 g_st().emsg_skip += 1;
-                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
+                let mut arg_cstr = arg.as_cstr();
                 skip_expr(&mut arg_cstr, None);
-                arg = arg.wrapping_add((arg_cstr.as_ptr() as usize) - (start as usize));
+                arg = crate::strings::CStrCursor::of(
+                    arg.wrapping_add((arg_cstr.as_ptr() as usize) - (start.as_ptr() as usize)),
+                );
                 g_st().emsg_skip -= 1;
                 if arg == start {
-                    arg = arg.wrapping_add(1);
+                    arg = crate::strings::CStrCursor::of(arg.wrapping_add(1));
                 }
             }
-            if crate::memory::cstr_first_byte(arg) == b'|'
-                || crate::memory::cstr_first_byte(arg) == b'\n'
-            {
-                eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
-                    crate::memory::cstr_from_ptr(arg),
-                ));
+            if arg.first_byte() == b'|' || arg.first_byte() == b'\n' {
+                eap.nextcmd =
+                    crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg.as_cstr()));
 
-                unsafe {
-                    *arg = NUL;
-                }
+                arg.set_byte(0, (NUL) as u8);
             }
         }
 

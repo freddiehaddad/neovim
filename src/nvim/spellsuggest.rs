@@ -702,7 +702,7 @@ pub fn spell_suggest(count: i32) {
         let mut sug = Suginfo::default();
         let limit = sps_st().sps_limit.min(g_st().rows_global - 2);
         spell_find_suggest(
-            crate::memory::cstr_from_ptr(line.wrapping_add(curwin_mut().w_cursor.col as usize)),
+            (line.wrapping_add(curwin_mut().w_cursor.col as usize)).as_cstr(),
             badlen,
             &mut sug,
             limit,

@@ -6641,7 +6641,7 @@ fn setup_cpt_sources() {
             buf.fill(0);
             let slen = copy_option_part(&mut p, &mut buf, c",");
             if slen > 0 {
-                let caret = vim_strchr(crate::memory::cstr_from_ptr(buf.as_mut_ptr()), b'^' as i32)
+                let caret = vim_strchr(crate::memory::cstr_until_nul(&buf), b'^' as i32)
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if !caret.is_null() {
                     sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(

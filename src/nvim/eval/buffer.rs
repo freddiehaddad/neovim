@@ -205,13 +205,7 @@ fn set_buffer_lines(
 
         if !append && lnum <= curbuf_mut().b_ml.ml_line_count {
             let old_len = crate::memline::ml_get_len(lnum);
-            if u_savesub(lnum)
-                && ml_replace(
-                    lnum,
-                    crate::memory::cstr_as_bytes(line_cstr.as_ptr().cast_mut()),
-                    true,
-                )
-            {
+            if u_savesub(lnum) && ml_replace(lnum, line_cstr.to_bytes(), true) {
                 let new_len = line_cstr.to_bytes().len() as i32;
                 inserted_bytes(lnum, 0, old_len, new_len);
                 if is_curbuf && lnum == curwin_mut().w_cursor.lnum {
@@ -221,12 +215,7 @@ fn set_buffer_lines(
             }
         } else if added > 0 || u_save(lnum - 1, lnum) {
             added += 1;
-            if ml_append(
-                lnum - 1,
-                crate::memory::cstr_as_bytes(line_cstr.as_ptr().cast_mut()),
-                0,
-                false,
-            ) {
+            if ml_append(lnum - 1, line_cstr.to_bytes(), 0, false) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
             }
         }
@@ -1021,13 +1010,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 .is_some_and(|s| s == old_prompt_bytes);
 
         if !prefix_matches {
-            ml_replace_buf(
-                &mut *buf,
-                prompt_lno,
-                crate::memory::cstr_as_bytes(new_prompt.as_ptr().cast_mut()),
-                true,
-                false,
-            );
+            ml_replace_buf(&mut *buf, prompt_lno, new_prompt.to_bytes(), true, false);
             extmark_splice_cols(
                 &mut *buf,
                 prompt_lno - 1,
@@ -1043,13 +1026,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
                 new_vec.extend_from_slice(tail);
             }
             let new_line = crate::memory::cstr_from_bytes(&new_vec);
-            let _ = ml_replace_buf(
-                &mut *buf,
-                prompt_lno,
-                crate::memory::cstr_as_bytes(new_line.as_ptr().cast_mut()),
-                true,
-                false,
-            );
+            let _ = ml_replace_buf(&mut *buf, prompt_lno, new_line.to_bytes(), true, false);
             extmark_splice_cols(
                 &mut *buf,
                 prompt_lno - 1,

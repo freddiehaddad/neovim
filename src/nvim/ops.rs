@@ -662,7 +662,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     }
     ml_replace(
         curwin_mut().w_cursor.lnum,
-        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
+        crate::memory::bytes_until_nul(&newp_vec),
         true,
     );
     drop(newp_vec);
@@ -777,11 +777,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             let tail = oldp.as_bytes();
             newp_vec[offset as usize..offset as usize + tail.len()].copy_from_slice(tail);
 
-            ml_replace(
-                lnum,
-                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-                true,
-            );
+            ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
             drop(newp_vec);
             extmark_splice_cols(
                 curbuf_mut(),
@@ -939,11 +935,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 newp_vec[..textcol].copy_from_slice(&old_slice[..textcol]);
                 newp_vec[textcol..textcol + pad_len].fill(b' ');
                 newp_vec[textcol + pad_len..textcol + pad_len + tail.len()].copy_from_slice(tail);
-                ml_replace(
-                    lnum,
-                    crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-                    true,
-                );
+                ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
                 drop(newp_vec);
 
                 extmark_splice_cols(
@@ -1288,7 +1280,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             }
             ml_replace(
                 curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
+                crate::memory::bytes_until_nul(&newp_vec),
                 true,
             );
             drop(newp_vec);
@@ -1828,11 +1820,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     newp_vec[newlen..newlen + ins_usize].copy_from_slice(&ins_text[..ins_usize]);
                     newlen += ins_usize;
                     newp_vec[newlen..newlen + tail.len()].copy_from_slice(tail);
-                    ml_replace(
-                        linenr,
-                        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-                        true,
-                    );
+                    ml_replace(linenr, crate::memory::bytes_until_nul(&newp_vec), true);
                     drop(newp_vec);
                     extmark_splice_cols(
                         curbuf_mut(),
@@ -2528,11 +2516,12 @@ pub fn charwise_block_prep(
         bdp.textlen = endcol - startcol + i32::from(inclusive);
     }
     bdp.textcol = startcol;
-    bdp.textstart = crate::memory::cstr_from_ptr(if startcol <= plen {
+    bdp.textstart = (if startcol <= plen {
         p.wrapping_add(startcol as usize)
     } else {
         p
-    });
+    })
+    .as_cstr();
 }
 
 pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {

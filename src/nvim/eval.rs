@@ -3632,7 +3632,7 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
             blob.bv_ga = bytes;
             tv_blob_set_ret(rettv, Some(blob));
         }
-        *arg = crate::memory::cstr_from_ptr(arg_ptr.wrapping_add(arg_bytes.len() - rem.len()));
+        *arg = (arg_ptr.wrapping_add(arg_bytes.len() - rem.len())).as_cstr();
     } else {
         let mut len: i32 = 0;
         let mut n: Varnumber = 0;
@@ -4457,19 +4457,16 @@ fn get_literal_key(arg: &mut &CStr, tv: &mut TypVal) -> bool {
     if !ascii_isalnum(i32::from(b0)) && b0 != b'_' && b0 != b'-' {
         return false;
     }
-    let start = arg.as_ptr();
-    let mut p = start;
-    while ascii_isalnum(crate::memory::cstr_first_byte(p))
-        || crate::memory::cstr_first_byte(p) == b'_'
-        || crate::memory::cstr_first_byte(p) == b'-'
-    {
-        p = p.wrapping_add(1);
+    let start = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
+    let mut p = crate::strings::CStrCursor::of(start);
+    while ascii_isalnum(p.first_byte()) || p.first_byte() == b'_' || p.first_byte() == b'-' {
+        p = crate::strings::CStrCursor::of(p.wrapping_add(1));
     }
     crate::eval::typval::tv_set_string_len(
         &mut *tv,
         Some(crate::memory::cstr_slice(
             start,
-            (p as usize).wrapping_sub(start as usize),
+            (p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize),
         )),
     );
 
@@ -5608,30 +5605,27 @@ pub fn get_env_len(arg: &mut &CStr) -> i32 {
 
 /// Get the length of the name of a function or internal variable.
 pub fn get_id_len(arg: &mut &CStr) -> i32 {
-    let start = arg.as_ptr();
-    let mut p = start;
-    while eval_isnamec(i32::from(crate::memory::cstr_first_byte(p))) {
-        if crate::memory::cstr_first_byte(p) == b':' {
-            let len = ((p as usize).wrapping_sub(start as usize)) as i32;
+    let start = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
+    let mut p = crate::strings::CStrCursor::of(start);
+    while eval_isnamec(i32::from(p.first_byte())) {
+        if p.first_byte() == b':' {
+            let len = ((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize)) as i32;
             if len > 1
                 || (len == 1
-                    && vim_strchr(
-                        NAMESPACE_CHAR,
-                        i32::from(crate::memory::cstr_first_byte(start)),
-                    )
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                    .is_null())
+                    && vim_strchr(NAMESPACE_CHAR, i32::from(start.first_byte()))
+                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                        .is_null())
             {
                 break;
             }
         }
-        p = p.wrapping_add(1);
+        p = crate::strings::CStrCursor::of(p.wrapping_add(1));
     }
     if p == start {
         return 0;
     }
 
-    let len = ((p as usize).wrapping_sub(start as usize)) as i32;
+    let len = ((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize)) as i32;
     *arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p.cast_mut()));
 
     len
@@ -6426,7 +6420,7 @@ pub fn do_string_sub(
     expr: Option<&TypVal>,
     flags: &CStr,
 ) -> std::ffi::CString {
-    let str_ = str_cstr.as_ptr().cast_mut();
+    let str_ = crate::strings::CStrCursor::from_ptr(str_cstr.as_ptr().cast_mut());
     let mut regmatch: Regmatch = Regmatch::new();
     let mut out: Option<Vec<u8>> = None;
 
@@ -6435,8 +6429,8 @@ pub fn do_string_sub(
     regmatch.rm_ic = opt_vars().p_ic;
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
-        let mut tail = str_;
-        let end = str_.wrapping_add(len);
+        let mut tail = crate::strings::CStrCursor::of(str_);
+        let end = crate::strings::CStrCursor::of(str_.wrapping_add(len));
         let do_all = flags.to_bytes().first() == Some(&b'g');
         let mut zero_width = crate::regexp::RegLinePtr::NULL;
         let str_opt = Some(str_cstr);
@@ -6444,15 +6438,15 @@ pub fn do_string_sub(
         while vim_regexec_nl(
             &mut regmatch,
             str_opt,
-            ((tail as usize).wrapping_sub(str_ as usize)) as Colnr,
+            ((tail.as_ptr() as usize).wrapping_sub(str_.as_ptr() as usize)) as Colnr,
         ) {
             if regmatch.startp[0] == regmatch.endp[0] {
                 if zero_width == regmatch.startp[0] {
                     let i = utfc_ptr2len(tail) as usize;
                     if let Some(buf) = &mut out {
-                        buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
+                        buf.extend_from_slice(tail.slice(i));
                     }
-                    tail = tail.wrapping_add(i);
+                    tail = crate::strings::CStrCursor::of(tail.wrapping_add(i));
                     continue;
                 }
                 zero_width = regmatch.startp[0];
@@ -6465,9 +6459,9 @@ pub fn do_string_sub(
             }
             let buf = out.get_or_insert_with(|| Vec::with_capacity(200));
 
-            let i = (regmatch.startp[0].as_ptr() as usize).wrapping_sub(tail as usize);
+            let i = (regmatch.startp[0].as_ptr() as usize).wrapping_sub(tail.as_ptr() as usize);
             if i > 0 {
-                buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
+                buf.extend_from_slice(tail.slice(i));
             }
             let cur_len = buf.len();
             buf.resize(cur_len + (sublen as usize), 0);
@@ -6479,8 +6473,8 @@ pub fn do_string_sub(
                 REGSUB_COPY | REGSUB_MAGIC,
             );
             buf.truncate(cur_len + (sublen as usize) - 1);
-            tail = regmatch.endp[0].cast();
-            if crate::memory::cstr_is_empty(tail) {
+            tail = crate::strings::CStrCursor::of(regmatch.endp[0].cast());
+            if tail.is_empty() {
                 break;
             }
             if !do_all {
@@ -6489,9 +6483,9 @@ pub fn do_string_sub(
         }
 
         if let Some(buf) = &mut out {
-            let rem = (end as usize).wrapping_sub(tail as usize);
+            let rem = (end.as_ptr() as usize).wrapping_sub(tail.as_ptr() as usize);
             if rem > 0 {
-                buf.extend_from_slice(crate::memory::cstr_slice(tail, rem));
+                buf.extend_from_slice(tail.slice(rem));
             }
         }
 
@@ -6501,7 +6495,7 @@ pub fn do_string_sub(
     let ret = if let Some(buf) = &out {
         cstr_from_bytes(buf)
     } else {
-        cstr_from_bytes(crate::memory::cstr_slice(str_, len))
+        cstr_from_bytes(str_.slice(len))
     };
     drop(out);
     if opt_vars().p_cpo.is_null() {

@@ -953,8 +953,8 @@ fn draw_statuscol(
         return;
     }
 
-    let buf_ptr = buf.as_mut_ptr();
-    let mut p = buf_ptr;
+    let buf_ptr = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr());
+    let mut p = crate::strings::CStrCursor::of(buf_ptr);
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: Option<&[Colnr]> = None;
     let len = crate::memory::bytes_until_nul(&buf).len();
@@ -972,7 +972,7 @@ fn draw_statuscol(
             .start
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         let textlen = crate::memory::ptr_offset_from(sp_ptr, p).max(0) as usize;
-        let translen = transstr_buf(crate::memory::cstr_slice(p, textlen), &mut transbuf, true);
+        let translen = transstr_buf(p.slice(textlen), &mut transbuf, true);
         draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
         let attr = if sp.item == i32::from(STL_SIGNCOL) {
             scl_attr
@@ -990,10 +990,10 @@ fn draw_statuscol(
             },
         );
         fold_vcol = (sp.item == i32::from(STL_FOLDCOL)).then_some(&stcp.fold_vcol);
-        p = sp_ptr;
+        p = crate::strings::CStrCursor::of(sp_ptr);
     }
     let rem_len = crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p).max(0) as usize;
-    let translen = transstr_buf(crate::memory::cstr_slice(p, rem_len), &mut transbuf, true);
+    let translen = transstr_buf(p.slice(rem_len), &mut transbuf, true);
     draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
     draw_col_fill(wlv, schar_from_ascii(b' '), stcp.width - width, cur_attr);
 }
@@ -1746,7 +1746,7 @@ pub fn win_line(
     if wp.w_onebuf_opt.wo_cul
         && wp.w_p_culopt_flags != K_OPT_CULOPT_FLAG_NUMBER
         && lnum == wp.w_cursorline
-        && (wp != curwin_ptr() && g_st().visual_global.active)
+        && !(wp == curwin_ptr() && g_st().visual_global.active)
     {
         cul_screenline = is_wrapped && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0;
         if !cul_screenline {

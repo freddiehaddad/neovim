@@ -873,7 +873,7 @@ pub fn ctx_switch(
             buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
             g_st().prevwin = curwin_ptr();
         }
-        assert!(wp != curwin_ptr() || win_valid(wp.opt()));
+        assert!(wp == curwin_ptr() || win_valid(wp.opt()));
     } else if !win_valid(wp.opt()) {
         return false;
     }

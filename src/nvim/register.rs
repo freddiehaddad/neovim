@@ -1663,7 +1663,7 @@ pub fn do_put(
                 tail_vec.push(0);
                 ml_append(
                     curwin_mut().w_cursor.lnum,
-                    crate::memory::cstr_as_bytes(tail_vec.as_mut_ptr()),
+                    crate::memory::bytes_until_nul(&tail_vec),
                     0,
                     false,
                 );
@@ -1888,7 +1888,7 @@ pub fn do_put(
                 if (flags & PUT_BLOCK_INNER) == 0 {
                     spaces = y_width + 1;
 
-                    let y_data = crate::memory::cstr_from_ptr(unsafe { (*y_array.add(i)).data });
+                    let y_data = (unsafe { (*y_array.add(i)).data }).as_cstr();
                     cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, y_data);
 
                     ci = utf_ptr2_str_char_info(y_data);
@@ -2151,12 +2151,7 @@ pub fn do_put(
                             append_vec.extend_from_slice(last_y);
                             append_vec.extend_from_slice(&line_slice[col as usize..]);
                             append_vec.push(0);
-                            ml_append(
-                                lnum,
-                                crate::memory::cstr_as_bytes(append_vec.as_mut_ptr()),
-                                0,
-                                false,
-                            );
+                            ml_append(lnum, crate::memory::bytes_until_nul(&append_vec), 0, false);
                             new_lnum += 1;
                             drop(append_vec);
 
@@ -2167,11 +2162,7 @@ pub fn do_put(
                             newp_vec.extend_from_slice(&old_slice[..col as usize]);
                             newp_vec.extend_from_slice(&first_y[..yanklen as usize]);
                             newp_vec.push(0);
-                            ml_replace(
-                                lnum,
-                                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-                                true,
-                            );
+                            ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
                             drop(newp_vec);
 
                             curwin_mut().w_cursor.lnum = lnum;

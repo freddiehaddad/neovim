@@ -556,27 +556,19 @@ fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
     }
     let slice = arg.slice(where_len);
     if b"START".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
-            arg.wrapping_add(where_len),
-        ));
+        *argp = (crate::charset::skipwhite_ptr(arg.wrapping_add(where_len))).as_cstr();
         return DIP_START + DIP_NORTP;
     }
     if b"OPT".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
-            arg.wrapping_add(where_len),
-        ));
+        *argp = (crate::charset::skipwhite_ptr(arg.wrapping_add(where_len))).as_cstr();
         return DIP_OPT + DIP_NORTP;
     }
     if b"PACK".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
-            arg.wrapping_add(where_len),
-        ));
+        *argp = (crate::charset::skipwhite_ptr(arg.wrapping_add(where_len))).as_cstr();
         return DIP_START + DIP_OPT + DIP_NORTP;
     }
     if b"ALL".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
-            arg.wrapping_add(where_len),
-        ));
+        *argp = (crate::charset::skipwhite_ptr(arg.wrapping_add(where_len))).as_cstr();
         return DIP_START + DIP_OPT;
     }
     0
@@ -2947,11 +2939,7 @@ pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
     while sid > 0 {
         let si = script_item(sid);
         if let Some(ref sn) = si.sn_name
-            && path_equal(
-                crate::memory::cstr_from_ptr(sn.as_ptr().cast_mut()),
-                name,
-                K_PATH_CMP_LITERAL,
-            )
+            && path_equal(sn, name, K_PATH_CMP_LITERAL)
         {
             return sid;
         }
@@ -3222,11 +3210,7 @@ pub fn getsourceline(
     let line = line_vec.map(|b| {
         let len = b.len().saturating_sub(usize::from(b.last() == Some(&0)));
         if sp.conv.vc_type != CONV_NONE
-            && let Some(s) = string_convert(
-                &sp.conv,
-                crate::memory::cstr_as_bytes(b.as_ptr().cast_mut()),
-                None,
-            )
+            && let Some(s) = string_convert(&sp.conv, crate::memory::bytes_until_nul(&b), None)
         {
             crate::memory::cstring_until_nul(&s)
         } else {

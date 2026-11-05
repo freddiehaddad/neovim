@@ -1442,7 +1442,7 @@ fn stl_expand(
 /// Build a string from the status line items in `fmt`.
 #[unsafe(no_mangle)]
 pub extern "C" fn build_stl_str_hl(
-    wp_ptr: crate::globals::WinPtr,
+    mut wp: crate::globals::WinPtr,
     out: CharBuf,
     fmt: *mut u8,
     opt_idx: OptIndex,
@@ -1454,7 +1454,6 @@ pub extern "C" fn build_stl_str_hl(
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
 ) -> i32 {
-    let wp = wp_ptr.borrow_mut();
     let mut buf_tmp: [u8; TMPLEN] = [0; TMPLEN];
     let mut owned_usefmt: Option<std::ffi::CString> = None;
     let mut usefmt = fmt;
@@ -2149,7 +2148,7 @@ pub extern "C" fn build_stl_str_hl(
                 );
             }
             STL_ALTPERCENT => {
-                get_rel_pos(&mut *wp, &mut buf_tmp);
+                get_rel_pos(wp.borrow_mut(), &mut buf_tmp);
                 str = buf_tmp.as_mut_ptr();
             }
             STL_SHOWCMD => {
@@ -2163,13 +2162,13 @@ pub extern "C" fn build_stl_str_hl(
             STL_ARGLISTSTAT => {
                 fillable = false;
                 buf_tmp[0] = 0;
-                if append_arg_number(&mut *wp, &mut buf_tmp) > 0 {
+                if append_arg_number(wp.borrow_mut(), &mut buf_tmp) > 0 {
                     str = buf_tmp.as_mut_ptr();
                 }
             }
             STL_KEYMAP => {
                 fillable = false;
-                if get_keymap_str(&mut *wp, c"<%s>", &mut buf_tmp) > 0 {
+                if get_keymap_str(wp.borrow_mut(), c"<%s>", &mut buf_tmp) > 0 {
                     str = buf_tmp.as_mut_ptr();
                 }
             }
@@ -2314,7 +2313,7 @@ pub extern "C" fn build_stl_str_hl(
         if handle_stcsign && !stcp.is_null() {
             let stcp_ref = unsafe { &mut *stcp };
             let fdc = if opt == STL_FOLDCOL {
-                compute_foldcolumn(&mut *wp, 0)
+                compute_foldcolumn(wp.borrow_mut(), 0)
             } else {
                 0
             };
@@ -2334,7 +2333,7 @@ pub extern "C" fn build_stl_str_hl(
                     let mut fold_buf: [Schar; 9] = [0; 9];
 
                     fill_foldcolumn(
-                        &mut *wp,
+                        wp.borrow_mut(),
                         stcp_ref.foldinfo,
                         stcp_ref.lnum,
                         0,
@@ -2345,7 +2344,7 @@ pub extern "C" fn build_stl_str_hl(
                     );
 
                     stl_items!()[stl_st().curitem as usize].minwid =
-                        -if use_cursor_line_highlight(&mut *wp, lnum) {
+                        -if use_cursor_line_highlight(wp.borrow_mut(), lnum) {
                             HLF_CLF
                         } else {
                             HLF_FC

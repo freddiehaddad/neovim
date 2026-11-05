@@ -1722,11 +1722,9 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         }
 
         let line = if spin.si_conv.vc_type != CONV_NONE {
-            let Some(pc_bytes) = string_convert(
-                &spin.si_conv,
-                crate::memory::cstr_as_bytes(rline.as_mut_ptr()),
-                None,
-            ) else {
+            let Some(pc_bytes) =
+                string_convert(&spin.si_conv, crate::memory::bytes_until_nul(&rline), None)
+            else {
                 smsg!(
                     0,
                     gettext(c"Conversion failure for word in %s line %d: %s"),
@@ -2836,11 +2834,9 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
 
         let mut pc_vec: Vec<u8>;
         let w_slice: &mut [u8] = if spin.si_conv.vc_type != CONV_NONE {
-            let Some(pc_bytes) = string_convert(
-                &spin.si_conv,
-                crate::memory::cstr_as_bytes(line.as_mut_ptr()),
-                None,
-            ) else {
+            let Some(pc_bytes) =
+                string_convert(&spin.si_conv, crate::memory::bytes_until_nul(&line), None)
+            else {
                 smsg!(
                     0,
                     gettext(c"Conversion failure for word in %s line %d: %s"),
@@ -3427,11 +3423,9 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             rline[l] = 0;
 
             let mut line: *mut u8 = if spin.si_conv.vc_type != CONV_NONE {
-                let Some(pc_bytes) = string_convert(
-                    &spin.si_conv,
-                    crate::memory::cstr_as_bytes(rline.as_mut_ptr()),
-                    None,
-                ) else {
+                let Some(pc_bytes) =
+                    string_convert(&spin.si_conv, crate::memory::bytes_until_nul(&rline), None)
+                else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s"),

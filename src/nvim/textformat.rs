@@ -576,9 +576,8 @@ fn fmt_check_par(
         is_com_end = flags_bytes.get(idx) == Some(&COM_END);
     }
 
-    crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
-        ptr.wrapping_add(*leader_len as usize),
-    )) || (*leader_len > 0 && is_com_end)
+    (crate::charset::skipwhite_ptr(ptr.wrapping_add(*leader_len as usize))).is_empty()
+        || (*leader_len > 0 && is_com_end)
         || start_ps(lnum, 0, false)
 }
 
@@ -776,7 +775,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             pline.push(0);
             ml_replace(
                 curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(pline.as_mut_ptr()),
+                crate::memory::bytes_until_nul(&pline),
                 true,
             );
             tf_st().did_add_space = true;

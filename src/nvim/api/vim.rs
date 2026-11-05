@@ -2767,7 +2767,7 @@ pub fn nvim_eval_statusline(
 
     let mut use_bools = i32::from(opts.use_winbar) + i32::from(opts.use_tabline);
 
-    let wp = if opts.use_tabline {
+    let mut wp = if opts.use_tabline {
         curwin_ptr()
     } else {
         find_window_by_handle(window, err)
@@ -2775,14 +2775,13 @@ pub fn nvim_eval_statusline(
     if wp.is_null() {
         return result;
     }
-    let wp = wp.borrow_mut();
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
         != 0
     {
         statuscol_lnum = opts.use_statuscol_lnum as i32;
         if !validate_range(
-            statuscol_lnum > 0 && statuscol_lnum <= (*wp).buf_mut().b_ml.ml_line_count,
+            statuscol_lnum > 0 && statuscol_lnum <= wp.buf_mut().b_ml.ml_line_count,
             c"use_statuscol_lnum",
             err,
         ) {
@@ -2812,7 +2811,7 @@ pub fn nvim_eval_statusline(
         let mut cursorline_fi = Foldinfo::new();
         let wp_buf = wp.w_buffer.borrow_mut();
         decor_redraw_signs(
-            wp,
+            wp.borrow_mut(),
             wp_buf,
             lnum - 1,
             Some(&mut statuscol.sattrs),
@@ -2821,9 +2820,9 @@ pub fn nvim_eval_statusline(
             Some(&mut num_id),
         );
 
-        statuscol.foldinfo = fold_info(&mut *wp, lnum);
-        win_update_cursorline(&mut *wp, &mut cursorline_fi);
-        let use_cul = use_cursor_line_highlight(&mut *wp, lnum);
+        statuscol.foldinfo = fold_info(wp.borrow_mut(), lnum);
+        win_update_cursorline(wp.borrow_mut(), &mut cursorline_fi);
+        let use_cul = use_cursor_line_highlight(wp.borrow_mut(), lnum);
         statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };
         scl_hl_id = if use_cul { HLF_CLS } else { HLF_SC };
 
@@ -2842,7 +2841,7 @@ pub fn nvim_eval_statusline(
         }
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
-        let rel = get_cursor_rel_lnum(&mut *wp, lnum);
+        let rel = get_cursor_rel_lnum(wp.borrow_mut(), lnum);
         set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
         set_vim_var_nr(VV_VIRTNUM, 0);
     } else if fillchar == 0 && !opts.use_tabline {
@@ -2850,7 +2849,7 @@ pub fn nvim_eval_statusline(
             fillchar = wp.w_p_fcs_chars.wbr;
         } else {
             let mut group: Hlf = 0;
-            fillchar = fillchar_status(&mut group, &mut *wp);
+            fillchar = fillchar_status(&mut group, wp.borrow_mut());
         }
     }
 
@@ -2858,7 +2857,7 @@ pub fn nvim_eval_statusline(
         if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH)) != 0 {
             opts.maxwidth as i32
         } else if statuscol_lnum != 0 {
-            win_col_off(wp)
+            win_col_off(wp.borrow_mut())
         } else if opts.use_tabline || (!opts.use_winbar && global_stl_height() > 0) {
             g_st().columns_global
         } else {
@@ -2875,7 +2874,7 @@ pub fn nvim_eval_statusline(
     wp.w_onebuf_opt.wo_crb = false;
 
     let width = build_stl_str_hl(
-        wp.into(),
+        wp,
         buf,
         str_.data.cast(),
         -1,

@@ -624,7 +624,7 @@ pub fn init_locale() {
 
     let mut localepath = [0u8; MAXPATHL];
     crate::memory::copy_bytes_to_c_buf(&mut localepath, get_vim_var_str(VV_PROGPATH).to_bytes());
-    let mut tail = path_tail_with_sep(crate::memory::cstr_from_ptr(localepath.as_mut_ptr()))
+    let mut tail = path_tail_with_sep(crate::memory::cstr_until_nul(&localepath))
         .as_ptr()
         .cast_mut()
         .cast::<u8>();

@@ -730,11 +730,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         newp_vec[col..col + charlen].copy_from_slice(buf_slice);
         newp_vec[col + charlen..col + newlen].fill(b' ');
 
-        ml_replace(
-            lnum,
-            crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-            true,
-        );
+        ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
         drop(newp_vec);
         inserted_bytes(lnum, col as Colnr, oldlen as i32, newlen as i32);
 
@@ -771,11 +767,7 @@ pub fn ins_str(s: &[u8], slen: usize) {
     newp_vec.extend_from_slice(&old_slice[col_usize..]);
     newp_vec.push(0);
 
-    ml_replace(
-        lnum,
-        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-        true,
-    );
+    ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
     drop(newp_vec);
     inserted_bytes(lnum, col, 0, slen as i32);
     curwin_mut().w_cursor.col += slen as Colnr;
@@ -832,7 +824,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         let mut state = GRAPHEME_STATE_INIT;
         if utf_composinglike(
             p0.as_bytes(),
-            crate::memory::cstr_as_bytes(p0.wrapping_add(utf_ptr2len(p0) as usize)),
+            (p0.wrapping_add(utf_ptr2len(p0) as usize)).as_bytes(),
             Some(&mut state),
         ) {
             let mut n = col;
@@ -877,11 +869,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         newp_vec[..col as usize].copy_from_slice(&old_slice[..col as usize]);
         newp_vec[col as usize..col as usize + movelen as usize]
             .copy_from_slice(&old_slice[(col + count) as usize..]);
-        ml_replace(
-            lnum,
-            crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-            true,
-        );
+        ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
         drop(newp_vec);
     } else {
         ml_add_deleted_len(&curbuf_mut().b_ml.ml_line_slice[..oldlen as usize]);
@@ -1862,7 +1850,7 @@ pub fn open_line(
             let extra_vec = crate::cursor::get_cursor_line_slice().to_vec();
             ml_replace(
                 curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(next_line_vec.as_mut_ptr()),
+                crate::memory::bytes_until_nul(&next_line_vec),
                 true,
             );
             curwin_mut().w_cursor.col = 0;
@@ -1887,7 +1875,7 @@ pub fn truncate_line(fixpos: i32) {
     let lnum = curwin_mut().w_cursor.lnum;
     let col = curwin_mut().w_cursor.col;
     let old_line = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
-    let mut newp_vec: Vec<u8> = if col == 0 {
+    let newp_vec: Vec<u8> = if col == 0 {
         vec![0]
     } else {
         let mut v = Vec::with_capacity(col as usize + 1);
@@ -1897,11 +1885,7 @@ pub fn truncate_line(fixpos: i32) {
     };
     let deleted = ml_get_len(lnum) - col;
 
-    ml_replace(
-        lnum,
-        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
-        true,
-    );
+    ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
     drop(newp_vec);
     inserted_bytes(lnum, curwin_mut().w_cursor.col, deleted, 0);
 

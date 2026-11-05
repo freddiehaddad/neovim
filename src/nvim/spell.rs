@@ -2276,7 +2276,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
             p_vec.push(0);
             let _ = ml_replace(
                 curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(p_vec.as_mut_ptr()),
+                crate::memory::bytes_until_nul(&p_vec),
                 true,
             );
             inserted_bytes(
@@ -2758,12 +2758,7 @@ pub fn spell_dump_compl(
             c"/regions=%s",
             region_names.cast::<std::ffi::c_void>(),
         );
-        let _ = ml_append(
-            lnum,
-            crate::memory::cstr_as_bytes(g_st().iobuff.as_mut_ptr()),
-            0,
-            false,
-        );
+        let _ = ml_append(lnum, g_st().iobuff_bytes(), 0, false);
         lnum += 1;
     } else {
         do_region = false;
@@ -2780,12 +2775,7 @@ pub fn spell_dump_compl(
                 c"# file: %s",
                 slang.sl_fname.as_deref().unwrap_or(c""),
             );
-            let _ = ml_append(
-                lnum,
-                crate::memory::cstr_as_bytes(g_st().iobuff.as_mut_ptr()),
-                0,
-                false,
-            );
+            let _ = ml_append(lnum, g_st().iobuff_bytes(), 0, false);
             lnum += 1;
         }
         let patlen: isize = if let Some(pat_cstr) = pat

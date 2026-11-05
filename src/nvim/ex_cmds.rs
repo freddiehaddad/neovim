@@ -913,7 +913,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 if !ml_append(
                     lnum,
-                    crate::memory::cstr_as_bytes(sortbuf1_vec.as_mut_ptr()),
+                    crate::memory::bytes_until_nul(&sortbuf1_vec),
                     0,
                     false,
                 ) {
@@ -1247,12 +1247,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
     let mut extra: Linenr = 0;
     for l in line1..=line2 {
         let str_cstr = cstr_from_bytes(crate::memline::ml_get_slice(l + extra));
-        ml_append(
-            dest + l - line1,
-            crate::memory::cstr_as_bytes(str_cstr.as_ptr().cast_mut()),
-            0,
-            false,
-        );
+        ml_append(dest + l - line1, str_cstr.to_bytes(), 0, false);
         if dest < line1 {
             extra += 1;
         }
@@ -1394,12 +1389,7 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
     curwin_mut().w_cursor.lnum = n;
     while line1 <= line2 {
         let p = cstr_from_bytes(crate::memline::ml_get_slice(line1));
-        ml_append(
-            curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_as_bytes(p.as_ptr().cast_mut()),
-            0,
-            false,
-        );
+        ml_append(curwin_mut().w_cursor.lnum, p.to_bytes(), 0, false);
 
         if line1 == n {
             line1 = curwin_mut().w_cursor.lnum;

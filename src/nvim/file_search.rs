@@ -760,7 +760,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 if os_dirname(&mut expand_buf)
                                     && let Some(p) = path_shorten_fname(
                                         file_path.as_opt_cstr(),
-                                        crate::memory::cstr_from_ptr(expand_buf.as_mut_ptr()),
+                                        crate::memory::cstr_until_nul(&expand_buf),
                                     )
                                 {
                                     let p_off =
@@ -1708,7 +1708,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
 
         crate::memory::copy_bytes_to_c_buf(&mut dir, fname.to_bytes());
         let tail_off = crate::memory::ptr_offset_from(
-            path_tail_with_sep(crate::memory::cstr_from_ptr(dir.as_mut_ptr())).as_ptr(),
+            path_tail_with_sep(crate::memory::cstr_until_nul(&dir)).as_ptr(),
             dir.as_ptr().cast(),
         ) as usize;
         dir[tail_off] = NUL as u8;

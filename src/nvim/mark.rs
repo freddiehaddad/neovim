@@ -913,10 +913,7 @@ fn fname2fnum(fm: &Xfmark) {
     }
 
     os_dirname(g_st().iobuff_bytes_mut());
-    let p = path_shorten_fname(
-        crate::memory::cstr_as_opt_cstr(g_st().name_buff.as_mut_ptr()),
-        crate::memory::cstr_from_ptr(g_st().iobuff.as_mut_ptr()),
-    );
+    let p = path_shorten_fname(Some(g_st().name_buff_cstr()), g_st().iobuff_cstr());
 
     let _ = buflist_new(Some(g_st().name_buff_cstr()), p, 1, 0);
 }

@@ -317,7 +317,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         }
         let str_ptr = *env_arr.add(index);
         assert!(!str_ptr.is_null());
-        let bytes = str_ptr.as_bytes();
+        let bytes = crate::memory::cstr_as_bytes(str_ptr);
         let pos = bytes.iter().position(|&b| b == b'=')?;
         assert!(pos > 0);
         std::ffi::CString::new(&bytes[..pos]).ok()
@@ -465,14 +465,16 @@ pub fn init_homedir() {
             var = os_uv_homedir().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         }
 
-        if !var.is_null() && os_realpath(var.as_cstr(), g_st().iobuff_bytes_mut()).is_some() {
+        if !var.is_null()
+            && os_realpath(crate::memory::cstr_from_ptr(var), g_st().iobuff_bytes_mut()).is_some()
+        {
             var = g_st().iobuff.as_mut_ptr().cast();
         }
 
         let os_buf_slice = unsafe {
             std::slice::from_raw_parts_mut(g_st().os_buf.as_mut_ptr().cast::<u8>(), MAXPATHL)
         };
-        if var.is_empty() && os_dirname(os_buf_slice) {
+        if crate::memory::cstr_is_empty(var) && os_dirname(os_buf_slice) {
             var = (&raw mut g_st().os_buf).cast();
         }
     }
@@ -589,7 +591,7 @@ pub fn expand_env_esc(
                 }
 
                 #[cfg(not(windows))]
-                if src_bytes.get(1) == Some(&b'{') && tail.first_byte() != b'}' {
+                if src_bytes.get(1) == Some(&b'{') && crate::memory::cstr_first_byte(tail) != b'}' {
                     var = ptr::null_mut();
                 } else {
                     if src_bytes.get(1) == Some(&b'{') {

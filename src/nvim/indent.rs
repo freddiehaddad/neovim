@@ -672,7 +672,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr()),
+            crate::memory::bytes_until_nul(&newline_vec),
             true,
         );
         if (flags & SIN_NOMARK) == 0 {
@@ -1221,7 +1221,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_as_bytes(orig_line.as_mut_ptr()),
+            crate::memory::bytes_until_nul(&orig_line),
             true,
         );
         curwin_mut().w_cursor.col = orig_col;
@@ -1302,7 +1302,7 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
 
     ml_replace(
         curwin_mut().w_cursor.lnum,
-        crate::memory::cstr_as_bytes(line_vec.as_mut_ptr()),
+        crate::memory::bytes_until_nul(&line_vec),
         true,
     );
     drop(line_vec);
@@ -1323,7 +1323,7 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut num_spaces: i32 = 0;
     let mut start_col: i32 = 0;
     let mut start_vcol: i64 = 0;
-    let mut new_line: *mut std::ffi::c_char = ptr::dangling_mut();
+    let mut new_line = crate::strings::CStrCursor::<std::ffi::c_char>::of(ptr::dangling_mut());
     let mut new_vts_array: Vec<Colnr> = Vec::new();
 
     let mut first_line: Linenr = 0;
@@ -1408,7 +1408,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         if !did_undo {
                             did_undo = true;
                             if !u_save(lnum - 1, lnum + 1) {
-                                new_line = ptr::null_mut();
+                                new_line = crate::strings::CStrCursor::NULL;
                                 break;
                             }
                         }
@@ -1431,10 +1431,12 @@ pub fn ex_retab(eap: &mut Exarg) {
                             .copy_from_slice(&old_slice[col_usize..]);
                         new_line_vec[start_usize..start_usize + tabs_usize].fill(b'\t');
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
-                        new_line = new_line_vec.as_mut_ptr().cast();
+                        new_line = crate::strings::CStrCursor::of(new_line_vec.as_mut_ptr().cast());
 
-                        if ml_replace(lnum, crate::memory::cstr_as_bytes(new_line), true) {
-                            new_line = curbuf_mut().b_ml.ml_line_slice.as_ptr().cast_mut().cast();
+                        if ml_replace(lnum, new_line.as_bytes(), true) {
+                            new_line = crate::strings::CStrCursor::of(
+                                curbuf_mut().b_ml.ml_line_slice.as_ptr().cast_mut().cast(),
+                            );
                             extmark_splice_cols(
                                 curbuf_mut(),
                                 lnum - 1,

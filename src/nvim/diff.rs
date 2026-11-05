@@ -3334,12 +3334,7 @@ fn diffgetput(
                 }
                 let p =
                     crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(from_buf, nr));
-                let _ = ml_append(
-                    lnum + i - 1,
-                    crate::memory::cstr_as_bytes(p.as_ptr().cast_mut()),
-                    0,
-                    false,
-                );
+                let _ = ml_append(lnum + i - 1, p.to_bytes(), 0, false);
                 added += 1;
                 if buf_empty && curbuf_mut().b_ml.ml_line_count == 2 {
                     buf_empty = false;

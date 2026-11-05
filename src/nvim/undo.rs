@@ -580,7 +580,7 @@ pub fn u_compute_hash(buf: &mut FileBuf, hash: &mut [u8; UNDO_HASH_SIZE]) {
 pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<std::ffi::CString> {
     let ffname_cstr = buf_ffname?;
     #[cfg(unix)]
-    let mut ffname = ffname_cstr.as_ptr();
+    let mut ffname = crate::strings::CStrCursor::from_ptr(ffname_cstr.as_ptr());
     #[cfg(not(unix))]
     let ffname = crate::strings::CStrCursor::from_ptr(ffname_cstr.as_ptr());
 
@@ -2781,11 +2781,7 @@ pub fn u_undoline() {
     let oldp = u_save_line(curbuf_mut().b_u_line_lnum);
     let new_line = curbuf_mut().b_u_line_ptr.as_ref().unwrap();
     let new_line_len = new_line.as_bytes().len() as Colnr;
-    ml_replace(
-        curbuf_mut().b_u_line_lnum,
-        crate::memory::cstr_as_bytes(new_line.as_ptr().cast_mut()),
-        true,
-    );
+    ml_replace(curbuf_mut().b_u_line_lnum, new_line.to_bytes(), true);
     extmark_splice_cols(
         curbuf_mut(),
         curbuf_mut().b_u_line_lnum - 1,

@@ -3432,7 +3432,7 @@ pub fn aucmd_set_expand_context<'a>(
     }
 
     let p_ptr = ev_base.wrapping_add(p_idx);
-    arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p_ptr));
+    arg = (crate::charset::skipwhite_ptr(p_ptr)).as_cstr();
     let pat_bytes = arg.to_bytes();
     let mut pat_idx = 0usize;
     while pat_idx < pat_bytes.len()

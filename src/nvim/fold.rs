@@ -1333,7 +1333,7 @@ fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
     ml_replace_buf(
         buf,
         lnum,
-        crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr()),
+        crate::memory::bytes_until_nul(&newline_vec),
         true,
         false,
     );
@@ -1412,7 +1412,7 @@ fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
             ml_replace_buf(
                 buf,
                 lnum,
-                crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr()),
+                crate::memory::bytes_until_nul(&newline_vec),
                 true,
                 false,
             );
@@ -2692,8 +2692,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let s_bytes = s.as_bytes();
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
             s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(s.wrapping_add(2)));
-            if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(s)) && lnum + 1 < foldend
-            {
+            if (crate::charset::skipwhite_ptr(s)).is_empty() && lnum + 1 < foldend {
                 s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(
                     ml_get(lnum + 1).as_ptr().cast_mut(),
                 ));

@@ -1797,7 +1797,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 } else {
                     buf
                 };
-                q = path_next_component(start_comp.as_cstr())
+                q = path_next_component(crate::memory::cstr_from_ptr(start_comp))
                     .as_ptr()
                     .cast_mut()
                     .cast::<u8>();
@@ -1824,12 +1824,14 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     unsafe { *q.wrapping_sub(1) = 0 };
                     q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 }
-                if (q as usize) > (p.as_ptr() as usize) && !path_is_absolute(buf.as_bytes()) {
+                if (q as usize) > (p.as_ptr() as usize)
+                    && !path_is_absolute(crate::memory::cstr_as_bytes(buf))
+                {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p.as_ptr() as usize);
                     let mut new_p = vec![0u8; prefix_len + buf_len + 1];
-                    unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len) };
+                    unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr(), prefix_len) };
                     unsafe {
                         ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len)
                     };
@@ -1852,15 +1854,17 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let remain = crate::strings::CStrCursor::from_ptr(rem_v.as_mut_ptr());
 
             // Append the first path component of "remain" to "p".
-            q = path_next_component(crate::memory::cstr_from_ptr(unsafe { remain.add(1) }))
+            q = path_next_component(remain.wrapping_add(1).as_cstr())
                 .as_ptr()
                 .cast_mut()
                 .cast::<u8>();
             let comp_len = (q as usize).wrapping_sub(remain.as_ptr() as usize)
                 - usize::from(unsafe { *q } != 0);
             let mut new_p = vec![0u8; p_len + comp_len + 1];
-            unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len) };
-            unsafe { ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), comp_len) };
+            unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr(), p_len) };
+            unsafe {
+                ptr::copy_nonoverlapping(remain.as_ptr(), new_p.as_mut_ptr().add(p_len), comp_len)
+            };
             p_len += comp_len;
             p_vec = new_p;
             p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
@@ -1868,8 +1872,8 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             // Shorten "remain".
             if unsafe { *q } != 0 {
                 let rem_tail = unsafe { q.sub(1) };
-                let rem_len = rem_tail.len() + 1;
-                unsafe { ptr::copy(rem_tail, remain, rem_len) };
+                let rem_len = crate::memory::cstr_len(rem_tail) + 1;
+                unsafe { ptr::copy(rem_tail, remain.as_ptr(), rem_len) };
             } else {
                 remain_vec = None;
             }
@@ -1889,7 +1893,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 let mut new_p = vec![0u8; p_len + 3];
                 new_p[0] = b'.';
                 new_p[1] = b'/';
-                unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr().add(2), p_len) };
+                unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr().add(2), p_len) };
                 p_len += 2;
                 p_vec = new_p;
                 p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());

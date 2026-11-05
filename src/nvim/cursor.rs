@@ -152,7 +152,7 @@ fn coladvance2(
     finetune: bool,
     wcol_arg: Colnr,
 ) -> bool {
-    debug_assert!(wp != curwin_ptr() || !addspaces);
+    debug_assert!(wp == curwin_ptr() || !addspaces);
     let mut wcol = wcol_arg;
     let mut idx: i32;
     let mut col: Colnr;
@@ -239,11 +239,7 @@ fn coladvance2(
                 newline[..idx_usize].copy_from_slice(crate::memory::cstr_slice(line, idx_usize));
                 newline[idx_usize..idx_usize + correct_usize].fill(b' ');
 
-                ml_replace(
-                    pos.lnum,
-                    crate::memory::cstr_as_bytes(newline.as_mut_ptr()),
-                    true,
-                );
+                ml_replace(pos.lnum, crate::memory::bytes_until_nul(&newline), true);
                 inserted_bytes(pos.lnum, idx, 0, correct);
                 idx += correct;
                 col = wcol;
@@ -269,11 +265,7 @@ fn coladvance2(
                 newline[idx_usize + csize_usize..idx_usize + csize_usize + rest_n]
                     .copy_from_slice(&line_slice[idx_usize + 1..idx_usize + 1 + rest_n]);
 
-                ml_replace(
-                    pos.lnum,
-                    crate::memory::cstr_as_bytes(newline.as_mut_ptr()),
-                    true,
-                );
+                ml_replace(pos.lnum, crate::memory::bytes_until_nul(&newline), true);
                 inserted_bytes(pos.lnum, idx, 1, csize);
                 idx += csize - 1 + correct;
                 col += correct;

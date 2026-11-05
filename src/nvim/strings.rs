@@ -311,6 +311,15 @@ impl<T> CStrCursor<T> {
     pub fn slice(self, len: usize) -> &'static [u8] {
         crate::memory::cstr_slice(self.as_ptr().cast::<u8>(), len)
     }
+
+    #[inline(always)]
+    pub fn slice_mut(self, len: usize) -> &'static mut [u8] {
+        if self.0.is_null() || len == 0 {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(self.0.cast::<u8>(), len) }
+        }
+    }
 }
 
 impl<T> Default for CStrCursor<T> {

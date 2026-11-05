@@ -876,7 +876,7 @@ fn buf_write_make_backup(
         *backup_copyp = true;
     } else if (bkc & K_OPT_BKC_FLAG_AUTO) != 0 {
         if os_fileinfo_hardlinks(file_info_old) > 1
-            || !os_fileinfo_link(fname.as_cstr(), &mut file_info)
+            || !os_fileinfo_link(crate::memory::cstr_from_ptr(fname), &mut file_info)
             || !os_fileinfo_id_equal(&file_info, file_info_old)
         {
             *backup_copyp = true;
@@ -926,7 +926,8 @@ fn buf_write_make_backup(
 
     #[cfg(not(windows))]
     if (bkc & (K_OPT_BKC_FLAG_BREAKSYMLINK | K_OPT_BKC_FLAG_BREAKHARDLINK)) != 0 {
-        let file_info_link_ok = os_fileinfo_link(fname.as_cstr(), &mut file_info);
+        let file_info_link_ok =
+            os_fileinfo_link(crate::memory::cstr_from_ptr(fname), &mut file_info);
         if (bkc & K_OPT_BKC_FLAG_BREAKSYMLINK) != 0
             && file_info_link_ok
             && !os_fileinfo_id_equal(&file_info, file_info_old)
@@ -1350,7 +1351,7 @@ pub fn buf_write(
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE)
             {
                 perm |= 0o200;
-                let _ = os_setperm(fname.as_cstr(), perm);
+                let _ = os_setperm(crate::memory::cstr_from_ptr(fname), perm);
                 made_writable = true;
             }
 
@@ -1481,8 +1482,10 @@ pub fn buf_write(
                                 {
                                     let mut file_info = FileInfo::new();
                                     if (!newfile && os_fileinfo_hardlinks(&file_info_old) > 1)
-                                        || (os_fileinfo_link(fname.as_cstr(), &mut file_info)
-                                            && !os_fileinfo_id_equal(&file_info, &file_info_old))
+                                        || (os_fileinfo_link(
+                                            crate::memory::cstr_from_ptr(fname),
+                                            &mut file_info,
+                                        ) && !os_fileinfo_id_equal(&file_info, &file_info_old))
                                     {
                                         err = set_err(Some(gettext(
                                             c"E166: Can't open linked file for writing",
@@ -1511,7 +1514,8 @@ pub fn buf_write(
                                                 perm &= 0o777;
                                             }
                                             if !append {
-                                                let _ = os_remove(wfname.as_cstr());
+                                                let _ =
+                                                    os_remove(crate::memory::cstr_from_ptr(wfname));
                                             }
                                             continue;
                                         }
@@ -1741,7 +1745,7 @@ pub fn buf_write(
                     #[cfg(not(windows))]
                     if backup.is_some() && !backup_copy {
                         let mut file_info = FileInfo::new();
-                        if !os_fileinfo(wfname.as_cstr(), &mut file_info)
+                        if !os_fileinfo(crate::memory::cstr_from_ptr(wfname), &mut file_info)
                             || file_info.stat.st_uid != file_info_old.stat.st_uid
                             || file_info.stat.st_gid != file_info_old.stat.st_gid
                         {
@@ -1751,7 +1755,7 @@ pub fn buf_write(
                                 file_info_old.stat.st_gid as uv_gid_t,
                             );
                             if perm >= 0 {
-                                let _ = os_setperm(wfname.as_cstr(), perm);
+                                let _ = os_setperm(crate::memory::cstr_from_ptr(wfname), perm);
                             }
                         }
                         buf_set_file_id(&mut *buf);

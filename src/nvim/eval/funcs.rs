@@ -8249,11 +8249,9 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         Some(opt_vars().p_enc.as_cstr()),
     );
     if conv.vc_type != CONV_NONE {
-        if let Some(conv_bytes) = string_convert(
-            &conv,
-            crate::memory::cstr_as_bytes(result_buf.as_mut_ptr()),
-            None,
-        ) {
+        if let Some(conv_bytes) =
+            string_convert(&conv, crate::memory::bytes_until_nul(&result_buf), None)
+        {
             crate::eval::typval::tv_set_string(
                 rettv,
                 Some(crate::memory::cstr_until_nul(&conv_bytes)),

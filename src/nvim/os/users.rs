@@ -130,7 +130,7 @@ fn collect_usernames() -> Vec<CString> {
                 break;
             }
             let pw = &mut *pw;
-            add_user(&mut users, pw.pw_name.as_opt_cstr());
+            add_user(&mut users, crate::memory::cstr_as_opt_cstr(pw.pw_name));
         }
         endpwent();
 

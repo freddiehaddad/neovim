@@ -168,7 +168,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        if env_val.is_none() && os_env_exists(env.as_cstr(), false) {
+        if env_val.is_none() && os_env_exists(crate::memory::cstr_from_ptr(env), false) {
             env_val = Some(CString::default());
         }
     }

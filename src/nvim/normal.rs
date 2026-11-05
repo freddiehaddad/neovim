@@ -4426,19 +4426,23 @@ fn nv_ident(cap: &mut Cmdarg) {
 
     if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
         if !g_cmd
-            && vim_iswordp(crate::memory::cstr_as_bytes({
-                let _l =
-                    crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
-                let mut _p =
-                    crate::strings::CStrCursor::<std::ffi::c_char>::of(ptr.cast_mut().cast());
-                if (_p.as_ptr() as usize) > (_l.as_ptr() as usize) {
-                    _p.wrapping_sub(
-                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                    )
-                } else {
-                    _p
-                }
-            }))
+            && vim_iswordp(
+                ({
+                    let _l = crate::strings::CStrCursor::from_ptr(
+                        get_cursor_line_ptr().as_ptr().cast_mut(),
+                    );
+                    let mut _p =
+                        crate::strings::CStrCursor::<std::ffi::c_char>::of(ptr.cast_mut().cast());
+                    if (_p.as_ptr() as usize) > (_l.as_ptr() as usize) {
+                        _p.wrapping_sub(
+                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                        )
+                    } else {
+                        _p
+                    }
+                })
+                .as_bytes(),
+            )
         {
             buf_vec[buflen..buflen + 3].copy_from_slice(b"\\>\0");
             buflen += 2;
