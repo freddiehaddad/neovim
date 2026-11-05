@@ -89,7 +89,7 @@ impl Ucmd {
             uc_rep: CString::default(),
             uc_def: 0,
             uc_compl: 0,
-            uc_addr_type: 0,
+            uc_addr_type: CmdAddr::Lines,
             uc_script_ctx: crate::runtime::Sctx::new(),
             uc_compl_arg: None,
             uc_compl_luaref: 0,

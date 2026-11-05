@@ -173,8 +173,6 @@ pub(crate) const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
 
 pub(crate) const SID_STR: Scid = -10;
 
-pub(crate) const FORCE_BIN: i32 = 1;
-pub(crate) const FORCE_NOBIN: i32 = 2;
 pub(crate) const BAD_KEEP: i32 = -1;
 pub(crate) const BAD_DROP: i32 = -2;
 
@@ -2580,10 +2578,10 @@ pub fn set_cmdarg(
     }
 
     let mut newval: Vec<u8> = Vec::new();
-    if eap.unwrap().force_bin == FORCE_BIN {
-        newval.extend_from_slice(b" ++bin");
-    } else if eap.unwrap().force_bin == FORCE_NOBIN {
-        newval.extend_from_slice(b" ++nobin");
+    match eap.unwrap().force_bin {
+        Some(true) => newval.extend_from_slice(b" ++bin"),
+        Some(false) => newval.extend_from_slice(b" ++nobin"),
+        None => {}
     }
 
     if eap.unwrap().read_edit {

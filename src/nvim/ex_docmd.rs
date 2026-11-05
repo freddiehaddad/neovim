@@ -79,10 +79,9 @@ use crate::eval::userfunc::{
     func_breakpoint, func_dbg_tick, func_has_abort, func_has_ended, func_level, func_name,
 };
 use crate::eval::vars::{
-    BAD_DROP, BAD_KEEP, ENV_STARTREASON, FORCE_BIN, FORCE_NOBIN, VV_ARGV, VV_EXITREASON,
-    VV_HLSEARCH, VV_OLDFILES, VV_PROGPATH, ex_let, ex_lockvar, ex_unlet, get_vim_var_list,
-    get_vim_var_str, set_vim_var_nr, set_vim_var_string, v_exception, v_throwpoint,
-    var_redir_start, var_redir_stop,
+    BAD_DROP, BAD_KEEP, ENV_STARTREASON, VV_ARGV, VV_EXITREASON, VV_HLSEARCH, VV_OLDFILES,
+    VV_PROGPATH, ex_let, ex_lockvar, ex_unlet, get_vim_var_list, get_vim_var_str, set_vim_var_nr,
+    set_vim_var_string, v_exception, v_throwpoint, var_redir_start, var_redir_stop,
 };
 use crate::eval::window::{win_find_nr, win_has_winnr};
 use crate::eval::{
@@ -284,15 +283,15 @@ pub(crate) const EX_KEEPSCRIPT: u32 = 0x4000000;
 pub(crate) const EX_PREVIEW: u32 = 0x8000000;
 pub(crate) const EX_ARGSPACE: u32 = 0x40000000;
 
-pub(crate) const ADDR_LINES: CmdAddr = 0;
-pub(crate) const ADDR_WINDOWS: CmdAddr = 1;
-pub(crate) const ADDR_ARGUMENTS: CmdAddr = 2;
-pub(crate) const ADDR_LOADED_BUFFERS: CmdAddr = 3;
-pub(crate) const ADDR_BUFFERS: CmdAddr = 4;
-pub(crate) const ADDR_TABS: CmdAddr = 5;
-pub(crate) const ADDR_QUICKFIX: CmdAddr = 8;
-pub(crate) const ADDR_OTHER: CmdAddr = 10;
-pub(crate) const ADDR_NONE: CmdAddr = 11;
+pub(crate) const ADDR_LINES: CmdAddr = CmdAddr::Lines;
+pub(crate) const ADDR_WINDOWS: CmdAddr = CmdAddr::Windows;
+pub(crate) const ADDR_ARGUMENTS: CmdAddr = CmdAddr::Arguments;
+pub(crate) const ADDR_LOADED_BUFFERS: CmdAddr = CmdAddr::LoadedBuffers;
+pub(crate) const ADDR_BUFFERS: CmdAddr = CmdAddr::Buffers;
+pub(crate) const ADDR_TABS: CmdAddr = CmdAddr::Tabs;
+pub(crate) const ADDR_QUICKFIX: CmdAddr = CmdAddr::Quickfix;
+pub(crate) const ADDR_OTHER: CmdAddr = CmdAddr::Other;
+pub(crate) const ADDR_NONE: CmdAddr = CmdAddr::None;
 
 pub(crate) const CMOD_SANDBOX: i32 = 0x0001;
 pub(crate) const CMOD_SILENT: i32 = 0x0002;
@@ -340,7 +339,7 @@ pub struct Exarg {
     pub usefilter: bool,
     pub amount: i32,
     pub regname: i32,
-    pub force_bin: i32,
+    pub force_bin: Option<bool>,
     pub read_edit: bool,
     pub mkdir_p: bool,
     pub force_ff: i32,
@@ -369,7 +368,7 @@ impl Exarg {
             addr_count: 0,
             line1: 0,
             line2: 0,
-            addr_type: 0,
+            addr_type: CmdAddr::Lines,
             flags: 0,
             do_ecmd_cmd: None,
             do_ecmd_lnum: 0,
@@ -377,7 +376,7 @@ impl Exarg {
             usefilter: false,
             amount: 0,
             regname: 0,
-            force_bin: 0,
+            force_bin: None,
             read_edit: false,
             mkdir_p: false,
             force_ff: 0,
@@ -513,9 +512,9 @@ const EX_MODIFY: u32 = 0x100000;
 const EX_FLAGS: u32 = 0x200000;
 const EX_LOCK_OK: u32 = 0x1000000;
 
-const ADDR_TABS_RELATIVE: CmdAddr = 6;
-const ADDR_QUICKFIX_VALID: CmdAddr = 7;
-const ADDR_UNSIGNED: CmdAddr = 9;
+const ADDR_TABS_RELATIVE: CmdAddr = CmdAddr::TabsRelative;
+const ADDR_QUICKFIX_VALID: CmdAddr = CmdAddr::QuickfixValid;
+const ADDR_UNSIGNED: CmdAddr = CmdAddr::Unsigned;
 
 const CTRL_B: u8 = 2;
 pub(crate) const CTRL_C_CONST: u8 = 3;
@@ -7898,7 +7897,6 @@ pub fn get_address(
                         ADDR_QUICKFIX_VALID => {
                             lnum = qf_get_cur_valid_idx(eap.as_deref_mut().unwrap())
                         }
-                        _ => {}
                     }
                 }
                 b'$' => {
@@ -7940,7 +7938,6 @@ pub fn get_address(
                                 lnum = 1;
                             }
                         }
-                        _ => {}
                     }
                 }
                 b'\'' => {
@@ -8788,9 +8785,9 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
     if arg_bytes.starts_with(b"bin") || arg_bytes.starts_with(b"nobin") {
         if arg_bytes[0] == b'n' {
             arg = arg.wrapping_add(2);
-            eap.force_bin = FORCE_NOBIN;
+            eap.force_bin = Some(false);
         } else {
-            eap.force_bin = FORCE_BIN;
+            eap.force_bin = Some(true);
         }
         if !checkforcmd(crate::memory::cstr_as_bytes(arg), b"binary", 3)
             .inspect(|&n| arg = arg.wrapping_add(n))

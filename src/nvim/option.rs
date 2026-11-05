@@ -47,9 +47,9 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
 use crate::eval::vars::{
-    FORCE_BIN, K_OPT_FLAG_FUNC, Scid, VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD,
-    VV_OPTION_OLDGLOBAL, VV_OPTION_OLDLOCAL, VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str,
-    opt_to_tv, reset_v_option_vars, set_vim_var_string, set_vim_var_tv, tristate_from_int,
+    K_OPT_FLAG_FUNC, Scid, VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD, VV_OPTION_OLDGLOBAL,
+    VV_OPTION_OLDLOCAL, VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str, opt_to_tv,
+    reset_v_option_vars, set_vim_var_string, set_vim_var_tv, tristate_from_int,
 };
 use crate::eval::{STR2NR_ALL, callback_from_typval, eval_expr, last_set_msg};
 use crate::ex_docmd::{
@@ -8149,9 +8149,9 @@ pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> i32 {
         eap.force_ff as u8
     } else {
         let is_bin = if let Some(eap) = eap
-            && eap.force_bin != 0
+            && let Some(bin) = eap.force_bin
         {
-            eap.force_bin == FORCE_BIN
+            bin
         } else {
             buf.b_p_bin
         };

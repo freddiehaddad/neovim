@@ -295,7 +295,23 @@ impl LineGetter {
         }
     }
 }
-pub type CmdAddr = i32;
+#[repr(i32)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum CmdAddr {
+    #[default]
+    Lines = 0,
+    Windows = 1,
+    Arguments = 2,
+    LoadedBuffers = 3,
+    Buffers = 4,
+    Tabs = 5,
+    TabsRelative = 6,
+    QuickfixValid = 7,
+    Quickfix = 8,
+    Unsigned = 9,
+    Other = 10,
+    None = 11,
+}
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]

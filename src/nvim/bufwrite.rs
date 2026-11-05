@@ -17,7 +17,7 @@ use crate::cursor::{CursorPos, Linenr};
 use crate::dialog::ask_yesno;
 use crate::drawscreen::status_redraw_all;
 use crate::errors::*;
-use crate::eval::vars::{FORCE_BIN, eval_charconvert};
+use crate::eval::vars::eval_charconvert;
 use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
@@ -1603,9 +1603,9 @@ pub fn buf_write(
                     nchars = 0;
 
                     let write_bin = if let Some(eap) = eap
-                        && eap.force_bin != 0
+                        && let Some(bin) = eap.force_bin
                     {
-                        eap.force_bin == FORCE_BIN
+                        bin
                     } else {
                         buf.b_p_bin
                     };

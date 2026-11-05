@@ -36,8 +36,8 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
 use crate::errors::*;
 
 use crate::eval::vars::{
-    BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_FCS_CHOICE, VV_FCS_REASON, VV_TESTING,
-    VV_WARNINGMSG, eval_charconvert, get_vim_var_nr, get_vim_var_str, set_vim_var_string,
+    BAD_DROP, BAD_KEEP, VV_FCS_CHOICE, VV_FCS_REASON, VV_TESTING, VV_WARNINGMSG, eval_charconvert,
+    get_vim_var_nr, get_vim_var_str, set_vim_var_string,
 };
 use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
@@ -3080,7 +3080,7 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
     eap.force_enc = 8;
     eap.bad_char = buf.b_bad_char;
     eap.force_ff = (buf.b_p_ff.first_byte()) as i32;
-    eap.force_bin = if buf.b_p_bin { FORCE_BIN } else { FORCE_NOBIN };
+    eap.force_bin = Some(buf.b_p_bin);
     eap.read_edit = false;
     eap.forceit = false;
     cmd_cstr
@@ -3100,10 +3100,10 @@ pub fn set_file_options(set_options: bool, eap: Option<&Exarg>) {
     }
 
     if let Some(eap) = eap
-        && eap.force_bin != 0
+        && eap.force_bin.is_some()
     {
         let oldval = curbuf_mut().b_p_bin;
-        curbuf_mut().b_p_bin = eap.force_bin == FORCE_BIN;
+        curbuf_mut().b_p_bin = eap.force_bin == Some(true);
         set_options_bin(
             i32::from(oldval),
             i32::from(curbuf_mut().b_p_bin),
