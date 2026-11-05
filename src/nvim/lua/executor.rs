@@ -958,7 +958,7 @@ fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> &'static mut N
             ref_count: 0,
         };
         if !is_thread {
-            g_st().nlua_global_refs = ref_state;
+            g_st().nlua_global_refs = crate::globals::GraphPtr::new(ref_state);
         }
         &mut *ref_state
     }
@@ -1725,7 +1725,7 @@ pub fn nlua_ref(lstate: *mut lua_State, ref_state: &mut NluaRefState, index: i32
 }
 
 pub fn nlua_ref_global(lstate: *mut lua_State, index: i32) -> LuaRef {
-    unsafe { nlua_ref(lstate, &mut *g_st().nlua_global_refs, index) }
+    nlua_ref(lstate, g_st().nlua_global_refs.borrow_mut(), index)
 }
 
 pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut NluaRefState, ref_: LuaRef) {
@@ -1736,9 +1736,7 @@ pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut NluaRefState, ref_: Lu
 }
 
 pub fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
-    unsafe {
-        nlua_unref(lstate, &mut *g_st().nlua_global_refs, ref_);
-    }
+    nlua_unref(lstate, g_st().nlua_global_refs.borrow_mut(), ref_);
 }
 
 pub fn api_free_luaref(ref_: LuaRef) {

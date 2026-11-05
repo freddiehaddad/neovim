@@ -3459,7 +3459,7 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
     let mut col = cmd_startcol();
     if g_st().key_typed {
         m = if !g_st().cmdline_win.is_null() {
-            let cw = unsafe { &*g_st().cmdline_win };
+            let cw = g_st().cmdline_win.borrow();
             cw.w_view_width * cw.w_view_height
         } else {
             g_st().columns_global * g_st().rows_global

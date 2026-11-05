@@ -1478,11 +1478,11 @@ fn event_name2nr_hash(s: &[u8]) -> isize {
 
 pub fn autocmd_init() {
     let events = loop_queues(&mut g_st().main_loop).events.borrow_mut();
-    g_st().deferred_events = multiqueue_new_child(events);
+    g_st().deferred_events = crate::globals::GraphPtr::from(multiqueue_new_child(events));
 }
 
 pub fn autocmd_free_all_mem() {
-    multiqueue_free(unsafe { &mut *g_st().deferred_events });
+    multiqueue_free(g_st().deferred_events.borrow_mut());
 }
 
 fn augroup_map_del(id: i32, name: Option<&CStr>) {
@@ -2287,7 +2287,7 @@ pub fn autocmd_register(
         if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))
             || (event == EVENT_CURSORMOVEDI && !has_event(EVENT_CURSORMOVEDI))
         {
-            g_st().last_cursormoved_win = curwin_ptr();
+            g_st().last_cursormoved_win = crate::globals::WinPtr::new(curwin_ptr());
             g_st().last_cursormoved = curwin_mut().w_cursor;
         }
 
@@ -2485,7 +2485,7 @@ pub fn aucmd_defer(
     });
 
     multiqueue_put_event(
-        unsafe { &mut *g_st().deferred_events },
+        g_st().deferred_events.borrow_mut(),
         Event::AutoCmdDeferred(evdata),
     );
 }
@@ -2565,7 +2565,7 @@ pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
         return;
     }
     multiqueue_put_event(
-        unsafe { &mut *g_st().deferred_events },
+        g_st().deferred_events.borrow_mut(),
         Event::AutoCmdOptionSetModified {
             bufnr: buf.b_fnum,
             new_val,

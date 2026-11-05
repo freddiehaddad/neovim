@@ -252,7 +252,8 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 
 pub fn rpc_init() {
     let qc = loop_queues(&mut g_st().main_loop);
-    g_st().ch_before_blocking_events = multiqueue_new_child(qc.events.borrow_mut());
+    g_st().ch_before_blocking_events =
+        crate::globals::GraphPtr::from(multiqueue_new_child(qc.events.borrow_mut()));
 }
 
 pub fn rpc_start(channel: &mut Channel) {
@@ -577,7 +578,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
 
         if is_get_mode && !input_blocking() {
             multiqueue_put_event(
-                unsafe { &mut *g_st().ch_before_blocking_events },
+                g_st().ch_before_blocking_events.borrow_mut(),
                 Event::RpcRequest(Box::new(evdata)),
             );
         } else {
@@ -597,10 +598,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
                 Event::Oneshot(std::rc::Rc::clone(&oneshot)),
             );
 
-            multiqueue_put_event(
-                unsafe { &mut *g_st().resize_events },
-                Event::Oneshot(oneshot),
-            );
+            multiqueue_put_event(g_st().resize_events.borrow_mut(), Event::Oneshot(oneshot));
         } else {
             multiqueue_put_event(
                 channel.events.borrow_mut(),
@@ -1001,7 +999,7 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
 }
 
 pub fn rpc_free_all_mem() {
-    multiqueue_free(unsafe { &mut *g_st().ch_before_blocking_events });
+    multiqueue_free(g_st().ch_before_blocking_events.borrow_mut());
 }
 
 #[cfg(test)]

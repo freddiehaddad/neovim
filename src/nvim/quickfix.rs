@@ -615,7 +615,7 @@ fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<&'static mut QfInfo> {
     } else {
         wp.w_llist
     };
-    unsafe { p.as_mut() }
+    p.opt_mut()
 }
 
 #[inline]
@@ -1961,10 +1961,10 @@ fn ll_free_all(qi: Option<&mut QfInfo>) {
 
 pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
     if let Some(wp) = wp {
-        let llist = std::mem::replace(&mut wp.w_llist, ptr::null_mut());
-        ll_free_all(unsafe { llist.as_mut() });
-        let llist_ref = std::mem::replace(&mut wp.w_llist_ref, ptr::null_mut());
-        ll_free_all(unsafe { llist_ref.as_mut() });
+        let llist = std::mem::replace(&mut wp.w_llist, crate::globals::GraphPtr::NULL);
+        ll_free_all(llist.opt_mut());
+        let llist_ref = std::mem::replace(&mut wp.w_llist_ref, crate::globals::GraphPtr::NULL);
+        ll_free_all(llist_ref.opt_mut());
     } else {
         qf_free_list_stack_items(ql_info_mut());
     }
@@ -2113,7 +2113,7 @@ pub fn qf_init_stack() {
 }
 
 fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
-    if let Some(wp) = qf_find_win_with_loclist(unsafe { &*llw.w_llist_ref }) {
+    if let Some(wp) = qf_find_win_with_loclist(llw.w_llist_ref.borrow()) {
         wp.w_onebuf_opt.wo_lhi = llw.w_onebuf_opt.wo_lhi;
     }
 }
@@ -2155,17 +2155,20 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
 
 fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> &'static mut QfInfo {
     if is_ll_window(wp) {
-        return unsafe { &mut *wp.w_llist_ref };
+        return wp.w_llist_ref.borrow_mut();
     }
 
-    let llist_ref = std::mem::replace(&mut wp.w_llist_ref, ptr::null_mut());
-    ll_free_all(unsafe { llist_ref.as_mut() });
+    let llist_ref = std::mem::replace(&mut wp.w_llist_ref, crate::globals::GraphPtr::NULL);
+    ll_free_all(llist_ref.opt_mut());
 
     if wp.w_llist.is_null() {
-        wp.w_llist = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi as i32);
+        wp.w_llist = crate::globals::GraphPtr::from(qf_alloc_stack(
+            QFLT_LOCATION,
+            wp.w_onebuf_opt.wo_lhi as i32,
+        ));
     }
 
-    unsafe { &mut *wp.w_llist }
+    wp.w_llist.borrow_mut()
 }
 
 fn qf_cmd_get_stack_opt(eap: &mut Exarg, print_emsg: bool) -> Option<&'static mut QfInfo> {
@@ -2266,7 +2269,7 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
     };
 
     let to_ll = qf_alloc_stack(QFLT_LOCATION, from.w_onebuf_opt.wo_lhi as i32);
-    to.w_llist = to_ll;
+    to.w_llist = crate::globals::GraphPtr::new(to_ll);
     to.w_onebuf_opt.wo_lhi = i64::from(to_ll.qf_maxcount);
     to_ll.qf_listcount = qi.qf_listcount;
 
@@ -2557,7 +2560,7 @@ fn qf_find_help_win() -> Option<&'static mut WinInfoInfo> {
 }
 
 fn win_set_loclist(wp: &mut WinInfoInfo, qi: &mut QfInfo) {
-    wp.w_llist = &raw mut *qi;
+    wp.w_llist = crate::globals::GraphPtr::from(&mut *qi);
     qi.qf_refcount += 1;
 }
 
@@ -2607,7 +2610,7 @@ fn jump_to_help_window(qi: &mut QfInfo, newwin: bool, opened_window: &mut bool) 
 
 fn qf_find_win_with_loclist(ll: &QfInfo) -> Option<&'static mut WinInfoInfo> {
     for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-        if wp.w_llist.cast_const() == ll && !bt_quickfix(wp.buf_opt()) {
+        if wp.w_llist == ll && !bt_quickfix(wp.buf_opt()) {
             return Some(&mut *wp);
         }
     }
@@ -2740,7 +2743,7 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
     let ll_ref = if newwin {
         ptr::null_mut()
     } else {
-        curwin_mut().w_llist_ref
+        curwin_mut().w_llist_ref.as_ptr()
     };
     if !ll_ref.is_null() {
         usable_wp = qf_find_win_with_loclist(unsafe { &*ll_ref });
@@ -3535,7 +3538,7 @@ pub fn qf_mark_adjust(
         return false;
     }
     let qi = if let Some(wp) = wp {
-        let Some(ll) = (unsafe { wp.w_llist.as_mut() }) else {
+        let Some(ll) = wp.w_llist.opt_mut() else {
             return false;
         };
         ll
@@ -3710,7 +3713,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     reset_binding(curwin_mut());
 
     if is_ll_stack(&*qi) {
-        curwin_mut().w_llist_ref = qi;
+        curwin_mut().w_llist_ref = crate::globals::GraphPtr::from(&mut *qi);
         qi.qf_refcount += 1;
     }
 
@@ -3837,7 +3840,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
 
 pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
     let qi = if is_ll_window(&*wp) {
-        unsafe { &mut *wp.w_llist_ref }
+        wp.w_llist_ref.borrow_mut()
     } else {
         ql_info_mut()
     };
@@ -3865,7 +3868,7 @@ fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
     if buf_valid(win.buf_opt())
         && bt_quickfix(win.buf_opt())
         && ((is_qf_stack(qi) && win.w_llist_ref.is_null())
-            || (is_ll_stack(qi) && ptr::eq(win.w_llist_ref.cast_const(), qi)))
+            || (is_ll_stack(qi) && win.w_llist_ref == qi))
     {
         return true;
     }
@@ -3926,7 +3929,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
     let mut qf_winid: i32 = 0;
 
     if is_ll_stack(&*qi) {
-        let win = if ptr::eq(curwin_mut().w_llist, qi) {
+        let win = if curwin_mut().w_llist == qi {
             Some(curwin_mut())
         } else {
             qf_find_win_with_loclist(qi).or_else(|| qf_find_win(&*qi))
@@ -6589,11 +6592,13 @@ fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi_in: &mut QfInfo) {
 
         new_ll.qf_bufnr = unsafe { (*qfwin).buf_mut().b_fnum };
 
-        let old_llist_ref =
-            std::mem::replace(unsafe { &mut (*qfwin).w_llist_ref }, ptr::null_mut());
-        ll_free_all(unsafe { old_llist_ref.as_mut() });
+        let old_llist_ref = std::mem::replace(
+            unsafe { &mut (*qfwin).w_llist_ref },
+            crate::globals::GraphPtr::NULL,
+        );
+        ll_free_all(old_llist_ref.opt_mut());
 
-        unsafe { (*qfwin).w_llist_ref = new_ll };
+        unsafe { (*qfwin).w_llist_ref = crate::globals::GraphPtr::new(new_ll) };
 
         if wp != qfwin {
             win_set_loclist(unsafe { &mut *wp }, &mut *new_ll);
@@ -6700,14 +6705,14 @@ pub fn set_ref_in_quickfix(copy_id: i32) -> bool {
 
     for tp in for_all_tabpages_mut() {
         for win in win_iter_mut(tab_firstwin(tp)) {
-            if let Some(ll) = unsafe { win.w_llist.as_mut() }
+            if let Some(ll) = win.w_llist.opt_mut()
                 && (mark_quickfix_ctx(ll, copy_id) || mark_quickfix_user_data(ll, copy_id))
             {
                 return true;
             }
 
             if is_ll_window(win)
-                && let Some(ll_ref) = unsafe { win.w_llist_ref.as_mut() }
+                && let Some(ll_ref) = win.w_llist_ref.opt_mut()
                 && ll_ref.qf_refcount == 1
                 && (mark_quickfix_ctx(ll_ref, copy_id) || mark_quickfix_user_data(ll_ref, copy_id))
             {
@@ -6962,7 +6967,7 @@ fn hgr_get_ll(new_ll: &mut bool) -> &'static mut QfInfo {
     };
 
     if let Some(wp_ref) = wp
-        && let Some(ll) = unsafe { wp_ref.w_llist.as_mut() }
+        && let Some(ll) = wp_ref.w_llist.opt_mut()
     {
         return ll;
     }
@@ -7167,7 +7172,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
                 ll_free_all(unsafe { qi_ptr.as_mut() });
             }
         } else if curwin_mut().w_llist.is_null() && new_qi {
-            curwin_mut().w_llist = qi_ptr;
+            curwin_mut().w_llist = crate::globals::GraphPtr::new(qi_ptr);
         }
     }
 }

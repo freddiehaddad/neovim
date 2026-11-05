@@ -3051,7 +3051,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
     } else {
         loop {
             buf = if unsafe { !(*buf).b_next.is_null() } {
-                unsafe { (*buf).b_next }
+                unsafe { (*buf).b_next.as_ptr() }
             } else {
                 g_st().firstbuf
             };

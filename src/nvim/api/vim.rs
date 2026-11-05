@@ -1548,7 +1548,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     let mut may_read_buffer = true;
     if !b.terminal.is_null() {
-        if terminal_running(unsafe { &*b.terminal }) {
+        if terminal_running(b.terminal.borrow()) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -2237,14 +2237,14 @@ pub fn nvim_chan_set(
 pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
     if type_str.size == 0 || buf == 0 {
         g_st().cmdwin_type = 0;
-        g_st().cmdwin_buf = ptr::null_mut();
+        g_st().cmdwin_buf = crate::globals::BufPtr::NULL;
         return;
     }
     let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
     };
     g_st().cmdwin_type = i32::from(type_str.first_byte());
-    g_st().cmdwin_buf = b;
+    g_st().cmdwin_buf = crate::globals::BufPtr::from(&mut *b);
 }
 
 /// Gets information about a channel.

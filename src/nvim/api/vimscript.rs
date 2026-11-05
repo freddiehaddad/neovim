@@ -123,7 +123,7 @@ pub fn exec_impl(
     let save_msg_col = g_st().msg_col;
     let mut capture_local: Vec<u8> = Vec::new();
     if opts.output {
-        g_st().capture_ga = &raw mut capture_local;
+        g_st().capture_ga = crate::globals::GraphPtr::from(&mut capture_local);
     }
 
     let mut tstate = TryState::new();

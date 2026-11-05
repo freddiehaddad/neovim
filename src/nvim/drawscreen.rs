@@ -1443,7 +1443,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
     decor_providers_invoke_win(wp);
 
-    if let Some(term) = unsafe { buf.terminal.as_ref() }
+    if let Some(term) = buf.terminal.opt()
         && terminal_suspended(term)
     {
         if ds_st().suspended_virt_text.data.virt_text().is_empty() {
@@ -2411,7 +2411,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
 
         if nrwidth_before != wp.w_nrwidth
-            && let Some(term) = unsafe { buf.terminal.as_mut() }
+            && let Some(term) = buf.terminal.opt_mut()
         {
             terminal_check_size(term);
         }

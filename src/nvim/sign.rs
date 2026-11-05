@@ -426,7 +426,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         if rbuf.is_some() {
             return;
         }
-        buf = buf_ref.b_next;
+        buf = buf_ref.b_next.as_ptr();
     }
 }
 

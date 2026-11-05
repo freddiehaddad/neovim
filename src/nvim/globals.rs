@@ -286,7 +286,7 @@ pub struct EditorState {
     pub redir_fd: Option<crate::os::fs::CFile>,
     pub redir_reg: i32,
     pub redir_vname: bool,
-    pub capture_ga: *mut Vec<u8>,
+    pub capture_ga: GraphPtr<Vec<u8>>,
     pub langmap_mapchar: [u8; 256],
     pub save_p_ls: i32,
     pub save_p_wmh: i32,
@@ -296,8 +296,8 @@ pub struct EditorState {
     pub km_stopsel: bool,
     pub km_startsel: bool,
     pub cmdwin_type: i32,
-    pub cmdwin_buf: *mut FileBuf,
-    pub cmdline_win: *mut WinInfoInfo,
+    pub cmdwin_buf: BufPtr,
+    pub cmdline_win: WinPtr,
     pub sub_nsubs: i32,
     pub sub_nlines: Linenr,
     pub wim_flags: [u8; 4],
@@ -318,7 +318,7 @@ pub struct EditorState {
     pub buffer_handles: std::collections::BTreeMap<i32, *mut FileBuf>,
     pub window_handles: std::collections::BTreeMap<i32, *mut WinInfoInfo>,
     pub tabpage_handles: std::collections::BTreeMap<i32, *mut TabPageInfo>,
-    pub last_cursormoved_win: *mut WinInfoInfo,
+    pub last_cursormoved_win: WinPtr,
     pub last_cursormoved: CursorPos,
     pub autocmd_busy: bool,
     pub autocmd_no_enter: i32,
@@ -331,7 +331,7 @@ pub struct EditorState {
     pub autocmd_bufnr: i32,
     pub autocmd_match: Option<std::ffi::CString>,
     pub did_cursorhold: bool,
-    pub deferred_events: *mut MultiQueue,
+    pub deferred_events: GraphPtr<MultiQueue>,
     pub channels: std::collections::BTreeMap<u64, *mut Channel>,
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
@@ -369,7 +369,7 @@ pub struct EditorState {
     pub ns_hl_fast: NS,
     pub ns_hl_active: NS,
     pub hl_attr_active: Option<std::rc::Rc<crate::highlight::NSHlAttr>>,
-    pub nlua_global_refs: *mut NluaRefState,
+    pub nlua_global_refs: GraphPtr<NluaRefState>,
     pub nlua_disable_preload: bool,
     pub tslua_query_parse_count: u64,
     pub repeat_luamap: i32,
@@ -385,7 +385,7 @@ pub struct EditorState {
     pub msg_scrolled_at_flush: i32,
     pub msg_grid_scroll_discount: i32,
     pub msg_listdo_overwrite: i32,
-    pub ch_before_blocking_events: *mut MultiQueue,
+    pub ch_before_blocking_events: GraphPtr<MultiQueue>,
     pub showcmd_buf: [u8; crate::normal::SHOWCMD_BUFLEN],
     pub nvim_testing: bool,
     pub pum_grid: ScreenGrid,
@@ -394,7 +394,7 @@ pub struct EditorState {
     pub add_last_insert: i32,
     pub tab_page_click_defs: Vec<StlClickDefinition>,
     pub ui_event_ns_id: u32,
-    pub resize_events: *mut MultiQueue,
+    pub resize_events: GraphPtr<MultiQueue>,
     pub ui_refresh_cmdheight: bool,
     pub grid_line_buf_char: Vec<Schar>,
     pub grid_line_buf_attr: Vec<Sattr>,
@@ -720,7 +720,7 @@ impl EditorState {
             redir_fd: None,
             redir_reg: 0,
             redir_vname: false,
-            capture_ga: ptr::null_mut(),
+            capture_ga: GraphPtr::NULL,
             langmap_mapchar: [0; 256],
             save_p_ls: -1,
             save_p_wmh: -1,
@@ -730,8 +730,8 @@ impl EditorState {
             km_stopsel: false,
             km_startsel: false,
             cmdwin_type: 0,
-            cmdwin_buf: ptr::null_mut(),
-            cmdline_win: ptr::null_mut(),
+            cmdwin_buf: BufPtr::NULL,
+            cmdline_win: WinPtr::NULL,
             sub_nsubs: 0,
             sub_nlines: 0,
             wim_flags: [0; 4],
@@ -752,7 +752,7 @@ impl EditorState {
             buffer_handles: std::collections::BTreeMap::new(),
             window_handles: std::collections::BTreeMap::new(),
             tabpage_handles: std::collections::BTreeMap::new(),
-            last_cursormoved_win: ptr::null_mut(),
+            last_cursormoved_win: WinPtr::NULL,
             last_cursormoved: CursorPos {
                 lnum: 0,
                 col: 0,
@@ -773,7 +773,7 @@ impl EditorState {
             autocmd_bufnr: 0,
             autocmd_match: None,
             did_cursorhold: true,
-            deferred_events: ptr::null_mut(),
+            deferred_events: GraphPtr::NULL,
             channels: std::collections::BTreeMap::new(),
             on_print: Callback::NONE,
             ctx_win_vec: Vec::new(),
@@ -834,7 +834,7 @@ impl EditorState {
             ns_hl_fast: -1,
             ns_hl_active: 0,
             hl_attr_active: None,
-            nlua_global_refs: ptr::null_mut(),
+            nlua_global_refs: GraphPtr::NULL,
             nlua_disable_preload: false,
             tslua_query_parse_count: 0,
             repeat_luamap: 0,
@@ -854,7 +854,7 @@ impl EditorState {
             msg_scrolled_at_flush: 0,
             msg_grid_scroll_discount: 0,
             msg_listdo_overwrite: 0,
-            ch_before_blocking_events: ptr::null_mut(),
+            ch_before_blocking_events: GraphPtr::NULL,
             showcmd_buf: [0; crate::normal::SHOWCMD_BUFLEN],
             nvim_testing: false,
             pum_grid: SCREEN_GRID_INIT,
@@ -868,7 +868,7 @@ impl EditorState {
             add_last_insert: 0,
             tab_page_click_defs: Vec::new(),
             ui_event_ns_id: 0,
-            resize_events: ptr::null_mut(),
+            resize_events: GraphPtr::NULL,
             ui_refresh_cmdheight: true,
             grid_line_buf_char: Vec::new(),
             grid_line_buf_attr: Vec::new(),
@@ -1155,7 +1155,7 @@ impl Iterator for BufMutIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).b_next;
+                self.0 = (*cur).b_next.as_ptr();
                 Some(&mut *cur)
             }
         }
@@ -1174,7 +1174,7 @@ impl Iterator for BufPtrIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).b_next;
+                self.0 = (*cur).b_next.as_ptr();
                 Some(&mut *cur)
             }
         }
@@ -1208,7 +1208,7 @@ impl Iterator for BufRevPtrIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).b_prev;
+                self.0 = (*cur).b_prev.as_ptr();
                 Some(&mut *cur)
             }
         }
@@ -1613,7 +1613,7 @@ pub fn prevwin_mut() -> &'static mut WinInfoInfo {
 
 #[inline]
 pub fn nlua_global_refs_mut() -> &'static mut NluaRefState {
-    unsafe { &mut *g_st().nlua_global_refs }
+    g_st().nlua_global_refs.borrow_mut()
 }
 #[cfg(test)]
 mod tests {

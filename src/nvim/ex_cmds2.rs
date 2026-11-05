@@ -147,7 +147,7 @@ pub fn autowrite_all() {
             }
         }
 
-        buf = unsafe { (*buf).b_next };
+        buf = unsafe { (*buf).b_next.as_ptr() };
     }
 }
 
@@ -248,7 +248,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 }
             }
 
-            buf2 = unsafe { (*buf2).b_next };
+            buf2 = unsafe { (*buf2).b_next.as_ptr() };
         }
     } else if ret == VIM_DISCARDALL {
         for buf2 in for_all_buffers_ptr() {
@@ -528,7 +528,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     break;
                 }
 
-                buf = buf_ref.b_next;
+                buf = buf_ref.b_next.as_ptr();
             }
             if let Some(buf_ref) = unsafe { buf.as_ref() } {
                 goto_buffer(eap, DOBUF_FIRST, FORWARD, buf_ref.b_fnum);
@@ -597,7 +597,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 tp = unsafe { (*tp).tp_next };
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
-                for bp in buf_iter_mut(curbuf_mut().b_next) {
+                for bp in buf_iter_mut(curbuf_mut().b_next.as_ptr()) {
                     if bp.b_p_bl {
                         next_fnum = bp.b_fnum;
                         break;
@@ -680,7 +680,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         let mut buf = g_st().firstbuf;
         while let Some(buf_ref) = unsafe { buf.as_mut() } {
-            let mut bnext = buf_ref.b_next;
+            let mut bnext = buf_ref.b_next.as_ptr();
             if buf_ref.b_nwindows > 0 && (buf_ref.b_flags & BF_SYN_SET) != 0 {
                 buf_ref.b_flags &= !BF_SYN_SET;
 

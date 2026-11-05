@@ -767,7 +767,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
         termrequest_terminator: 0,
         refcount: 0,
     }));
-    buf.terminal = term;
+    buf.terminal = crate::globals::GraphPtr::new(term);
     let term_ref = unsafe { &mut *term };
     vterm_set_utf8(&mut term_ref.vt, 1);
 
@@ -865,7 +865,7 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
     let Some(buf) = handle_get_buffer(buf_handle) else {
         return;
     };
-    let Some(term) = (unsafe { buf.terminal.as_mut() }) else {
+    let Some(term) = buf.terminal.opt_mut() else {
         return;
     };
     if term.buf_handle == 0 {
@@ -943,7 +943,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
     if status == -1 || g_st().exiting {
         term.buf_handle = 0;
         if !buf.is_null() {
-            unsafe { (*buf).terminal = ptr::null_mut() };
+            unsafe { (*buf).terminal = crate::globals::GraphPtr::NULL };
         }
         if term.refcount == 0 {
             term.destroy = true;
@@ -1144,7 +1144,7 @@ pub fn terminal_enter() -> bool {
 
     let mut s = TerminalState::new();
 
-    s.term = crate::globals::GraphPtr::new(unsafe { (*buf).terminal });
+    s.term = unsafe { (*buf).terminal };
 
     s.cursor_visible = true;
     g_st().ins_global.stop_insert_mode = false;
@@ -1399,7 +1399,7 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
     let term_ref = term.borrow_mut();
     if let Some(buf) = handle_get_buffer_opt(term_ref.buf_handle) {
         term_ref.buf_handle = 0;
-        buf.terminal = ptr::null_mut();
+        buf.terminal = crate::globals::GraphPtr::NULL;
     }
 
     if term_ref.refcount == 0 {

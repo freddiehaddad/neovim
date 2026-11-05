@@ -455,7 +455,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
             below_row = g_st().cmdline_row;
         }
         let target_win = if (g_st().state_global & MODE_CMDLINE) != 0 {
-            g_st().cmdline_win
+            g_st().cmdline_win.as_ptr()
         } else {
             curwin_ptr()
         };
@@ -466,7 +466,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
         let mut cursor_col: i32;
 
         if (g_st().state_global & MODE_CMDLINE) != 0 {
-            let cmdline_win_ref = unsafe { g_st().cmdline_win.as_ref() };
+            let cmdline_win_ref = g_st().cmdline_win.opt();
             pum_win_row = if let Some(cw) = cmdline_win_ref {
                 cw.w_wrow
             } else if ui_has(K_UICMDLINE) {

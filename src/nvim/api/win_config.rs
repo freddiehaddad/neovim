@@ -466,7 +466,7 @@ pub fn nvim_open_win(
         }
 
         if fconfig._cmdline_offset < i32::MAX {
-            g_st().cmdline_win = wp;
+            g_st().cmdline_win = crate::globals::WinPtr::new(wp);
         }
 
         let mut bufref = Bufref {
@@ -1098,9 +1098,9 @@ pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &m
         changed_window_setting(w);
     }
     if fconfig._cmdline_offset < i32::MAX {
-        g_st().cmdline_win = (&raw mut *w);
-    } else if (&raw mut *w) == g_st().cmdline_win && fconfig._cmdline_offset == i32::MAX {
-        g_st().cmdline_win = ptr::null_mut();
+        g_st().cmdline_win = crate::globals::WinPtr::from(&mut *w);
+    } else if g_st().cmdline_win == w && fconfig._cmdline_offset == i32::MAX {
+        g_st().cmdline_win = crate::globals::WinPtr::NULL;
     }
 }
 

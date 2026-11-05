@@ -5562,15 +5562,15 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
     let mut count = offset;
     let mut buf = g_st().firstbuf;
     while unsafe { !(*buf).b_next.is_null() && (*buf).b_fnum < lnum } {
-        buf = unsafe { (*buf).b_next };
+        buf = unsafe { (*buf).b_next.as_ptr() };
     }
     while count != 0 {
         count += if count < 0 { 1 } else { -1 };
         let mut nextbuf = unsafe {
             if offset < 0 {
-                (*buf).b_prev
+                (*buf).b_prev.as_ptr()
             } else {
-                (*buf).b_next
+                (*buf).b_next.as_ptr()
             }
         };
         if nextbuf.is_null() {
@@ -5581,9 +5581,9 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
             while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
                 nextbuf = unsafe {
                     if offset < 0 {
-                        (*buf).b_prev
+                        (*buf).b_prev.as_ptr()
                     } else {
-                        (*buf).b_next
+                        (*buf).b_next.as_ptr()
                     }
                 };
                 if nextbuf.is_null() {
@@ -5597,9 +5597,9 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
         while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
             let nextbuf = unsafe {
                 if offset >= 0 {
-                    (*buf).b_prev
+                    (*buf).b_prev.as_ptr()
                 } else {
-                    (*buf).b_next
+                    (*buf).b_next.as_ptr()
                 }
             };
             if nextbuf.is_null() {
@@ -5724,14 +5724,14 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
         ADDR_LOADED_BUFFERS => {
             let mut buf = g_st().firstbuf;
             while unsafe { !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() } {
-                buf = unsafe { (*buf).b_next };
+                buf = unsafe { (*buf).b_next.as_ptr() };
             }
 
             eap.line1 = unsafe { (*buf).b_fnum };
 
             buf = g_st().lastbuf;
             while unsafe { !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() } {
-                buf = unsafe { (*buf).b_prev };
+                buf = unsafe { (*buf).b_prev.as_ptr() };
             }
 
             eap.line2 = unsafe { (*buf).b_fnum };
@@ -7287,7 +7287,7 @@ pub fn parse_cmd_address(
                             while unsafe {
                                 !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none()
                             } {
-                                buf = unsafe { (*buf).b_next };
+                                buf = unsafe { (*buf).b_next.as_ptr() };
                             }
 
                             eap.line1 = unsafe { (*buf).b_fnum };
@@ -7296,7 +7296,7 @@ pub fn parse_cmd_address(
                             while unsafe {
                                 !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none()
                             } {
-                                buf = unsafe { (*buf).b_prev };
+                                buf = unsafe { (*buf).b_prev.as_ptr() };
                             }
 
                             eap.line2 = unsafe { (*buf).b_fnum };
@@ -7834,7 +7834,7 @@ pub fn get_address(
                                     break;
                                 }
 
-                                buf = unsafe { (*buf).b_prev };
+                                buf = unsafe { (*buf).b_prev.as_ptr() };
                             }
 
                             lnum = unsafe { (*buf).b_fnum };

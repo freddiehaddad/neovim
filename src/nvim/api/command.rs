@@ -1162,7 +1162,7 @@ pub fn nvim_cmd(
         let save_msg_col = g_st().msg_col;
 
         if opts.output {
-            g_st().capture_ga = &raw mut capture_local;
+            g_st().capture_ga = crate::globals::GraphPtr::from(&mut capture_local);
         }
 
         try_wrap(err, || {

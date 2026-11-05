@@ -432,8 +432,8 @@ pub struct WinInfoInfo {
     pub w_nrwidth_line_count: i32,
     pub w_statuscol_line_count: i32,
     pub w_nrwidth_width: i32,
-    pub w_llist: *mut crate::quickfix::QfInfo,
-    pub w_llist_ref: *mut crate::quickfix::QfInfo,
+    pub w_llist: crate::globals::GraphPtr<crate::quickfix::QfInfo>,
+    pub w_llist_ref: crate::globals::GraphPtr<crate::quickfix::QfInfo>,
     pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_statuscol_click_defs: std::collections::BTreeMap<i32, StcClicks>,
@@ -665,8 +665,8 @@ impl WinInfoInfo {
             w_nrwidth_line_count: 0,
             w_statuscol_line_count: 0,
             w_nrwidth_width: 0,
-            w_llist: ptr::null_mut(),
-            w_llist_ref: ptr::null_mut(),
+            w_llist: crate::globals::GraphPtr::NULL,
+            w_llist_ref: crate::globals::GraphPtr::NULL,
             w_status_click_defs: Vec::new(),
             w_winbar_click_defs: Vec::new(),
             w_statuscol_click_defs: std::collections::BTreeMap::new(),
@@ -2430,8 +2430,8 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_prev_fraction_row = oldp.w_prev_fraction_row;
     copy_jumplist(oldp, newp);
     if (flags & WSP_NEWLOC) != 0 {
-        newp.w_llist = ptr::null_mut();
-        newp.w_llist_ref = ptr::null_mut();
+        newp.w_llist = crate::globals::GraphPtr::NULL;
+        newp.w_llist_ref = crate::globals::GraphPtr::NULL;
     } else {
         copy_loclist_stack(oldp, newp);
     }
@@ -3365,7 +3365,7 @@ fn close_last_window_tabpage(
     let save_lastused = g_st().lastused_tabpage;
 
     let term = if !(unsafe { &mut *(win) }).w_buffer.is_null() {
-        (unsafe { &mut *(win) }).buf_mut().terminal
+        (unsafe { &mut *(win) }).buf_mut().terminal.as_ptr()
     } else {
         ptr::null_mut()
     };
@@ -3732,7 +3732,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     }
     if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) && !bufref.br_buf.terminal.is_null()
     {
-        terminal_check_size(unsafe { &mut *bufref.br_buf.terminal });
+        terminal_check_size(bufref.br_buf.terminal.borrow_mut());
     }
 
     if close_curwin {
@@ -3982,7 +3982,7 @@ pub fn win_close_othertab(
 
     if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) && !bufref.br_buf.terminal.is_null()
     {
-        terminal_check_size(unsafe { &mut *bufref.br_buf.terminal });
+        terminal_check_size(bufref.br_buf.terminal.borrow_mut());
     }
     if free_tp_idx > 0 {
         free_tabpage(unsafe { tp.as_mut() });
@@ -4041,8 +4041,8 @@ fn win_free_mem(
     if ptr::eq(win, (unsafe { &mut *(win_tp) }).tp_curwin) {
         (unsafe { &mut *(win_tp) }).tp_curwin = wp;
     }
-    if ptr::eq(win, g_st().cmdline_win) {
-        g_st().cmdline_win = ptr::null_mut();
+    if g_st().cmdline_win == win {
+        g_st().cmdline_win = crate::globals::WinPtr::NULL;
     }
 
     unsafe { wp.as_mut() }
@@ -4050,7 +4050,7 @@ fn win_free_mem(
 
 pub fn win_free_all() {
     g_st().cmdwin_type = 0;
-    g_st().cmdwin_buf = ptr::null_mut();
+    g_st().cmdwin_buf = crate::globals::BufPtr::NULL;
 
     while !crate::globals::first_tabpage_mut().tp_next.is_null() {
         tabpage_close(true);

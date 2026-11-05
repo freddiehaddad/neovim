@@ -1019,7 +1019,7 @@ pub fn free_all_mem() {
                 br_buf_free_count: 0,
             };
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
-            let nextbuf = unsafe { (*buf).b_next };
+            let nextbuf = unsafe { (*buf).b_next.as_ptr() };
             unsafe {
                 (*buf).b_nwindows = 0;
             }

@@ -2012,11 +2012,7 @@ pub fn win_line(
 
     let mut term_attrs = [0_i32; TERM_ATTRS_MAX];
     if !wp.buf_mut().terminal.is_null() {
-        terminal_get_line_attributes(
-            unsafe { &mut *wp.buf_mut().terminal },
-            lnum,
-            &mut term_attrs,
-        );
+        terminal_get_line_attributes(wp.buf_mut().terminal.borrow_mut(), lnum, &mut term_attrs);
 
         extra_check = true;
     }

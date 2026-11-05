@@ -2439,10 +2439,10 @@ pub fn do_wqall(eap: &mut Exarg) {
         {
             no_write_message_buf(b);
             error += 1;
-            buf = b.b_next;
+            buf = b.b_next.as_ptr();
             continue;
         } else if !buf_is_changed_fn(b) || bt_dontwrite(Some(&*b)) {
-            buf = b.b_next;
+            buf = b.b_next.as_ptr();
             continue;
         }
 
@@ -2470,13 +2470,13 @@ pub fn do_wqall(eap: &mut Exarg) {
                 buf = g_st().firstbuf;
                 eap.forceit = save_forceit;
                 if !buf.is_null() {
-                    buf = unsafe { (*buf).b_next };
+                    buf = unsafe { (*buf).b_next.as_ptr() };
                 }
                 continue;
             }
         }
         eap.forceit = save_forceit;
-        buf = unsafe { (*buf).b_next };
+        buf = unsafe { (*buf).b_next.as_ptr() };
     }
     if g_st().exiting {
         if error == 0 {
@@ -2894,7 +2894,7 @@ pub fn do_ecmd(
                         unsafe { g_st().curbuf.as_mut() },
                         if (flags & ECMD_HIDE) != 0
                             || (!curbuf_mut().terminal.is_null()
-                                && terminal_running(unsafe { &*curbuf_mut().terminal }))
+                                && terminal_running(curbuf_mut().terminal.borrow()))
                         {
                             0
                         } else {
@@ -3211,7 +3211,7 @@ pub fn do_ecmd(
 
     // theend:
     if bufref_valid(Some(&old_curbuf)) && !old_curbuf.br_buf.terminal.is_null() {
-        terminal_check_size(unsafe { &mut *old_curbuf.br_buf.terminal });
+        terminal_check_size(old_curbuf.br_buf.terminal.borrow_mut());
     }
     if (!bufref_valid(Some(&old_curbuf)) || old_curbuf.br_buf != g_st().curbuf)
         && !curbuf_mut().terminal.is_null()

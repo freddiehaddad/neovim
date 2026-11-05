@@ -3463,7 +3463,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
             used_typed_char = NUL as i32;
             ch
         } else {
-            get_keystroke(unsafe { g_st().resize_events.as_ref() })
+            get_keystroke(g_st().resize_events.opt())
         };
 
         let mut toscroll = 0;
@@ -3518,7 +3518,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left = g_st().rows_global - 1;
                 }
                 K_EVENT => {
-                    multiqueue_process_events(unsafe { &mut *g_st().resize_events });
+                    multiqueue_process_events(g_st().resize_events.borrow_mut());
                     to_redraw = true;
                 }
                 _ => {
@@ -3913,7 +3913,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             if !matches!(slice[0], b'\n' | b'\r') {
                 while msg_st().redir_col < g_st().msg_col {
                     if !g_st().capture_ga.is_null() {
-                        unsafe { &mut *g_st().capture_ga }.push(b' ');
+                        g_st().capture_ga.push(b' ');
                     }
                     if g_st().redir_reg != 0 {
                         write_reg_contents(g_st().redir_reg, b" ", 1, true);
@@ -3931,7 +3931,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
 
             let len = slice.len();
             if !g_st().capture_ga.is_null() && len > 0 {
-                unsafe { &mut *g_st().capture_ga }.extend_from_slice(slice);
+                g_st().capture_ga.extend_from_slice(slice);
             }
             if g_st().redir_reg != 0 {
                 write_reg_contents(g_st().redir_reg, slice, len as isize, true);

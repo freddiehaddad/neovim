@@ -926,7 +926,7 @@ fn ui_ext_tabline_update() {
         if unsafe { (*buf).b_p_bl } {
             n_buffers += 1;
         }
-        buf = unsafe { (*buf).b_next };
+        buf = unsafe { (*buf).b_next.as_ptr() };
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
@@ -968,7 +968,7 @@ fn ui_ext_tabline_update() {
             );
         }
 
-        buf = b.b_next;
+        buf = b.b_next.as_ptr();
     }
 
     ui_call_tabline_update(curtab_mut().handle, tabs, curbuf_mut().b_fnum, buffers);

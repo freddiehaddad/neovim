@@ -2163,7 +2163,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     }
 
     let mut capture_local: Vec<u8> = Vec::new();
-    g_st().capture_ga = &raw mut capture_local;
+    g_st().capture_ga = crate::globals::GraphPtr::from(&mut capture_local);
     g_st().redir_off = false;
     if !echo_output {
         g_st().msg_col = 0;
@@ -4567,7 +4567,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             return;
         }
         if !curbuf_mut().terminal.is_null() {
-            if terminal_running(unsafe { &*curbuf_mut().terminal }) {
+            if terminal_running(curbuf_mut().terminal.borrow()) {
                 semsg!(
                     gettext(c"Terminal already connected to buffer %d"),
                     curbuf_mut().b_fnum,

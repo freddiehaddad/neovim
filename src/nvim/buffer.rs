@@ -205,8 +205,8 @@ pub enum BufFname {
 pub struct FileBuf {
     pub b_fnum: crate::msgpack_rpc::packer::ObjHandle,
     pub b_ml: crate::memline::Memline,
-    pub b_next: *mut FileBuf,
-    pub b_prev: *mut FileBuf,
+    pub b_next: crate::globals::BufPtr,
+    pub b_prev: crate::globals::BufPtr,
     pub b_nwindows: i32,
     pub b_flags: i32,
     pub b_locked: i32,
@@ -445,7 +445,7 @@ pub struct FileBuf {
     pub b_prompt_start: Fmark,
     pub b_s: Synblock,
     pub b_signcols: BufSigncols,
-    pub terminal: *mut Terminal,
+    pub terminal: crate::globals::GraphPtr<Terminal>,
     pub additional_data: Option<crate::search::AdditionalData>,
     pub b_mapped_ctrl_c: i32,
     pub b_marktree: crate::marktree::MarkTree,
@@ -467,12 +467,12 @@ pub struct FileBuf {
 impl FileBuf {
     #[inline]
     pub fn terminal_mut(&self) -> &'static mut Terminal {
-        unsafe { &mut *self.terminal }
+        self.terminal.borrow_mut()
     }
 
     #[inline]
     pub fn terminal_opt(&self) -> Option<&'static mut Terminal> {
-        unsafe { self.terminal.as_mut() }
+        self.terminal.opt_mut()
     }
 
     pub const fn new() -> Self {
@@ -490,8 +490,8 @@ impl FileBuf {
         Self {
             b_fnum: 0,
             b_ml: crate::memline::Memline::new(),
-            b_next: ptr::null_mut(),
-            b_prev: ptr::null_mut(),
+            b_next: crate::globals::BufPtr::NULL,
+            b_prev: crate::globals::BufPtr::NULL,
             b_nwindows: 0,
             b_flags: 0,
             b_locked: 0,
@@ -743,7 +743,7 @@ impl FileBuf {
                 count: [0; 9],
                 autom: false,
             },
-            terminal: ptr::null_mut(),
+            terminal: crate::globals::GraphPtr::NULL,
             additional_data: None,
             b_mapped_ctrl_c: 0,
             b_marktree: crate::marktree::MarkTree::new(),
@@ -1537,15 +1537,15 @@ pub fn close_buffer(
             }
         }
         buf.borrow_mut().clear_fnames();
-        let b_prev = crate::globals::BufPtr::new(buf.borrow().b_prev);
-        let b_next = crate::globals::BufPtr::new(buf.borrow().b_next);
+        let b_prev = buf.borrow().b_prev;
+        let b_next = buf.borrow().b_next;
         if let Some(prev) = b_prev.opt_mut() {
-            prev.b_next = b_next.as_ptr();
+            prev.b_next = b_next;
         } else {
             g_st().firstbuf = b_next.as_ptr();
         }
         if let Some(next) = b_next.opt_mut() {
-            next.b_prev = b_prev.as_ptr();
+            next.b_prev = b_prev;
         } else {
             g_st().lastbuf = b_prev.as_ptr();
         }
@@ -2211,7 +2211,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         while count > 0 {
             count -= 1;
             loop {
-                buf = unsafe { (*buf).b_next };
+                buf = unsafe { (*buf).b_next.as_ptr() };
 
                 if buf.is_null() {
                     buf = g_st().firstbuf;
@@ -2227,7 +2227,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
     } else if start == DOBUF_FIRST && count != 0 {
         while !buf.is_null() && unsafe { (*buf).b_fnum } != count {
-            buf = unsafe { (*buf).b_next };
+            buf = unsafe { (*buf).b_next.as_ptr() };
         }
     } else {
         let help_only = (flags & DOBUF_SKIPHELP) != 0 && unsafe { (*buf).b_help };
@@ -2247,12 +2247,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             }
             buf = if dir == FORWARD {
                 if !unsafe { (*buf).b_next }.is_null() {
-                    unsafe { (*buf).b_next }
+                    unsafe { (*buf).b_next.as_ptr() }
                 } else {
                     g_st().firstbuf
                 }
             } else if !unsafe { (*buf).b_prev }.is_null() {
-                unsafe { (*buf).b_prev }
+                unsafe { (*buf).b_prev.as_ptr() }
             } else {
                 g_st().lastbuf
             };
@@ -2338,7 +2338,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         if (flags & DOBUF_FORCEIT) == 0
             && !unsafe { (*buf).terminal }.is_null()
-            && terminal_running(unsafe { &*(*buf).terminal })
+            && terminal_running(unsafe { (*buf).terminal.borrow() })
         {
             if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 if !dialog_close_terminal(unsafe { &mut *buf }) {
@@ -2485,13 +2485,13 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         if buf.is_null() {
             let mut forward = true;
-            buf = curbuf_mut().b_next;
+            buf = curbuf_mut().b_next.as_ptr();
             loop {
                 if buf.is_null() {
                     if !forward {
                         break;
                     }
-                    buf = curbuf_mut().b_prev;
+                    buf = curbuf_mut().b_prev.as_ptr();
                     forward = false;
                     continue;
                 }
@@ -2508,9 +2508,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     }
                 }
                 buf = if forward {
-                    unsafe { (*buf).b_next }
+                    unsafe { (*buf).b_next.as_ptr() }
                 } else {
-                    unsafe { (*buf).b_prev }
+                    unsafe { (*buf).b_prev.as_ptr() }
                 };
             }
         }
@@ -2531,9 +2531,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
         if buf.is_null() {
             buf = if !curbuf_mut().b_next.is_null() {
-                curbuf_mut().b_next
+                curbuf_mut().b_next.as_ptr()
             } else {
-                curbuf_mut().b_prev
+                curbuf_mut().b_prev.as_ptr()
             };
             if bt_quickfix(unsafe { buf.as_ref() })
                 || !buf.is_null() && buf != g_st().curbuf && unsafe { (*buf).b_locked_split != 0 }
@@ -2913,15 +2913,15 @@ pub fn buflist_new(
         buf_copy_options(buf_ref, BCO_ENTER);
         curbuf_mut().b_kmap_state |= KEYMAP_INIT;
     } else {
-        buf_ref.b_next = ptr::null_mut();
+        buf_ref.b_next = crate::globals::BufPtr::NULL;
         if g_st().firstbuf.is_null() {
-            buf_ref.b_prev = ptr::null_mut();
+            buf_ref.b_prev = crate::globals::BufPtr::NULL;
             g_st().firstbuf = buf;
         } else {
             unsafe {
-                (*g_st().lastbuf).b_next = buf;
+                (*g_st().lastbuf).b_next = crate::globals::BufPtr::new(buf);
             }
-            buf_ref.b_prev = g_st().lastbuf;
+            buf_ref.b_prev = crate::globals::BufPtr::new(g_st().lastbuf);
         }
         g_st().lastbuf = buf;
 
@@ -4470,7 +4470,7 @@ pub fn bt_prompt(buf: Option<&FileBuf>) -> bool {
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
 pub fn bt_cmdwin(buf: Option<&FileBuf>) -> bool {
-    buf.is_some_and(|b| ptr::from_ref(b) == g_st().cmdwin_buf.cast_const())
+    buf.is_some_and(|b| g_st().cmdwin_buf == b)
 }
 
 /// Open a window for a number of buffers.
@@ -4555,7 +4555,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     let mut buf = crate::globals::BufPtr::new(g_st().firstbuf);
     while !buf.is_null() && open_wins < count {
         if (!all && buf.borrow().b_ml.ml_mfp.is_none()) || !buf.borrow().b_p_bl {
-            buf = crate::globals::BufPtr::new(buf.borrow().b_next);
+            buf = buf.borrow().b_next;
             continue;
         }
 
@@ -4589,7 +4589,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             open_wins += 1;
             opt_vars().p_ea = p_ea_save;
             if !ok {
-                buf = crate::globals::BufPtr::new(buf.borrow().b_next);
+                buf = buf.borrow().b_next;
                 continue;
             }
 
@@ -4627,7 +4627,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         if had_tab > 0 && i64::from(tabpage_index(None)) <= opt_vars().p_tpm {
             g_st().cmdmod.cmod_tab = 9999;
         }
-        buf = crate::globals::BufPtr::new(buf.borrow().b_next);
+        buf = buf.borrow().b_next;
     }
     g_st().autocmd_no_enter -= 1;
     win_enter(firstwin_mut(), false);

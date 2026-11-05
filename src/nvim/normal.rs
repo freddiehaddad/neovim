@@ -2343,11 +2343,11 @@ fn normal_check_window_scrolled(_s: &mut NormalState) {
 fn normal_check_cursor_moved(_s: &mut NormalState) {
     if !g_st().finish_op
         && has_event(EVENT_CURSORMOVED)
-        && (!ptr::eq(g_st().last_cursormoved_win, curwin_ptr())
+        && (g_st().last_cursormoved_win != curwin_ptr()
             || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
     {
         apply_autocmds(EVENT_CURSORMOVED, None, None, false, curbuf_opt_mut());
-        g_st().last_cursormoved_win = curwin_ptr();
+        g_st().last_cursormoved_win = crate::globals::WinPtr::new(curwin_ptr());
         g_st().last_cursormoved = curwin_mut().w_cursor;
     }
 }
