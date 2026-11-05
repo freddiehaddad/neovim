@@ -6945,6 +6945,7 @@ pub fn parse_command_modifiers(
                 }
                 if !skip_only {
                     let pat_owned = reg_pat.unwrap_or_default();
+                    cmod.cmod_filter_regmatch.free_prog();
                     cmod.cmod_filter_regmatch
                         .set_prog(vim_regcomp(&pat_owned, RE_MAGIC));
                     cmod.cmod_filter_pat = Some(pat_owned);
