@@ -717,7 +717,7 @@ pub fn ex_sort(eap: &mut Exarg) {
     let mut change_occurred = false;
 
     'sortend: {
-        let mut p = eap.arg;
+        let mut p = eap.arg.as_ptr();
         while !crate::memory::cstr_is_empty(p) {
             if ascii_iswhite(crate::memory::cstr_first_byte(p)) {
                 // Skip
@@ -747,7 +747,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             } else if crate::memory::cstr_first_byte(p) == b'"' {
                 break;
             } else if let Some(nc) = check_nextcmd(crate::memory::cstr_from_ptr(p)) {
-                eap.nextcmd = nc.as_ptr().cast_mut();
+                eap.nextcmd = crate::strings::CStrCursor::from_ptr(nc.as_ptr());
                 break;
             } else if !ascii_isalpha(crate::memory::cstr_first_byte(p))
                 && regmatch.regprog.is_null()
@@ -1012,7 +1012,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
     let mut change_occurred = false;
 
     'uniqend: {
-        let mut p = eap.arg;
+        let mut p = eap.arg.as_ptr();
         while unsafe { *p } != 0 {
             let b0 = (unsafe { *p }) as u8;
             if ascii_iswhite(b0 as i32) {
@@ -1032,7 +1032,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
             } else if eap.nextcmd.is_null()
                 && let Some(nc) = check_nextcmd(crate::memory::cstr_from_ptr(p))
             {
-                eap.nextcmd = nc.as_ptr().cast_mut();
+                eap.nextcmd = crate::strings::CStrCursor::from_ptr(nc.as_ptr());
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
                 let Some(s_cstr) =
@@ -1442,7 +1442,7 @@ fn prevcmd_is_set() -> bool {
 
 /// Handle the `":!cmd"` command.
 pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_out: bool) {
-    let arg = eap.arg;
+    let arg = eap.arg.as_ptr();
     let line1 = eap.line1;
     let line2 = eap.line2;
     let mut newcmd: Vec<u8> = Vec::new();
@@ -2167,7 +2167,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         return false;
     }
 
-    let mut ffname = eap.arg;
+    let mut ffname = eap.arg.as_ptr();
     let other: bool;
 
     'theend: {
@@ -3261,7 +3261,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         let theline = cstr_to_cstring(eap.arg.wrapping_add(1)).into_bytes_with_nul();
 
         unsafe {
-            *eap.arg = NUL;
+            *eap.arg.as_ptr() = NUL;
         }
 
         Some(theline)
@@ -3274,6 +3274,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         if p.is_null() {
             p = eap
                 .nextcmd
+                .as_ptr()
                 .wrapping_add(crate::memory::cstr_len(eap.nextcmd));
         }
         let len = crate::memory::ptr_offset_from(p, eap.nextcmd) as usize;
@@ -3284,7 +3285,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         } else {
             p = ptr::null_mut();
         }
-        eap.nextcmd = p;
+        eap.nextcmd = crate::strings::CStrCursor::from_ptr(p);
         Some(theline)
     } else {
         let getline_state = g_st().state_global;
@@ -3860,7 +3861,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let mut got_quit = false;
     let mut got_match = false;
     let mut which_pat: i32;
-    let mut cmd = eap.arg;
+    let mut cmd = eap.arg.as_ptr();
     let mut first_line: Linenr = 0;
     let mut last_line: Linenr = 0;
     let old_line_count = curbuf_mut().b_ml.ml_line_count;
@@ -4027,8 +4028,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         cmd.cast(),
     )));
     if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
-        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(cmd))
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+            crate::memory::cstr_from_ptr(cmd),
+        ));
         if eap.nextcmd.is_null() {
             semsg!(gettext(E_TRAILING_ARG), cmd);
             return 0;

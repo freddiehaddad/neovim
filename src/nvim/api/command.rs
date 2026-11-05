@@ -34,7 +34,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, cstr_from_bytes};
+use crate::memory::{Arena, arena_alloc, cstr_from_bytes};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -221,9 +221,10 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
 
     add_c(
         &mut args,
-        string_obj(cstrn_as_string(crate::memory::cstr_slice(
-            lhs_start, lhs_len,
-        ))),
+        string_obj(cbuf_to_arena_str(
+            arena,
+            crate::memory::cstr_slice(lhs_start, lhs_len),
+        )),
     );
 
     let rhs_start = lhs_end.wrapping_add(crate::charset::skipwhite_len(
@@ -233,9 +234,10 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
         let rhs_len = crate::memory::cstr_len(rhs_start);
         add_c(
             &mut args,
-            string_obj(cstrn_as_string(crate::memory::cstr_slice(
-                rhs_start, rhs_len,
-            ))),
+            string_obj(cbuf_to_arena_str(
+                arena,
+                crate::memory::cstr_slice(rhs_start, rhs_len),
+            )),
         );
     }
 
@@ -310,10 +312,12 @@ pub fn nvim_parse_cmd(
     let mut result = KeyDict_cmd::default();
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
-    let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
-    let mut cmdline_buf: Vec<u8> = Vec::new();
+    let mut cmdline_buf: Vec<u8> = crate::memory::cstr_slice(str_val.data, str_val.size)
+        .iter()
+        .copied()
+        .chain(std::iter::once(0))
+        .collect();
     let mut errormsg = None;
-    ea.cmdlinep = &raw mut cmdline;
     ea.cmdline_buf = &raw mut cmdline_buf;
 
     if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false) {
@@ -343,7 +347,10 @@ pub fn nvim_parse_cmd(
             args = arena_array(arena, 1);
             add_c(
                 &mut args,
-                string_obj(cstrn_as_string(crate::memory::cstr_slice(ea.arg, length))),
+                string_obj(cbuf_to_arena_str(
+                    arena,
+                    crate::memory::cstr_slice(ea.arg, length),
+                )),
             );
         }
     } else {
@@ -463,7 +470,11 @@ pub fn nvim_parse_cmd(
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
     result.addr = cstr_as_string(crate::memory::cstr_as_opt_cstr(addr));
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
-    result.nextcmd = cstr_as_string(crate::memory::cstr_as_opt_cstr(ea.nextcmd));
+    result.nextcmd = if ea.nextcmd.is_null() {
+        cstr_as_string(None)
+    } else {
+        cstr_to_arena_str(arena, crate::memory::cstr_as_opt_cstr(ea.nextcmd))
+    };
 
     let mut mods = arena_dict(arena, 20);
     let mut filter = arena_dict(arena, 2);
@@ -635,7 +646,6 @@ pub fn nvim_cmd(
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut cmdline_buf: Vec<u8> = Vec::new();
-    let mut cmdline;
     let mut errormsg = None;
     let mut args = Array::new();
     let mut retv = NvimString {
@@ -660,7 +670,7 @@ pub fn nvim_cmd(
         }
 
         let cmdname = arena_string(arena, cmd.cmd).data;
-        ea.cmd = cmdname;
+        ea.cmd = crate::strings::CStrCursor::from_ptr(cmdname);
 
         let mut p_opt = find_ex_command(&mut ea, None);
 
@@ -859,8 +869,6 @@ pub fn nvim_cmd(
         }
 
         build_cmdline_str(&mut cmdline_buf, &mut ea, args);
-        cmdline = cmdline_buf.as_mut_ptr().cast();
-        ea.cmdlinep = &raw mut cmdline;
         ea.cmdline_buf = &raw mut cmdline_buf;
         if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, true) {
             api_set_error!(
@@ -888,9 +896,9 @@ pub fn nvim_cmd(
         if args.size > 0 {
             ea.args.reserve_exact(args.size);
             ea.arglens.reserve_exact(args.size);
-            p = ea.arg;
+            p = ea.arg.as_ptr();
             for i in 0..args.size {
-                ea.args.push(p);
+                ea.args.push(crate::strings::CStrCursor::from_ptr(p));
                 let arglen = args[i].data.string().size;
                 ea.arglens.push(arglen);
                 p = p.wrapping_add(arglen + 1);
@@ -1133,11 +1141,11 @@ pub fn nvim_cmd(
 
         let ea_arg = crate::memory::cstr_from_ptr(ea.arg);
         let p_cstr = replace_makeprg(&mut ea, ea_arg);
-        p = unsafe {
-            (*ea.cmdlinep).wrapping_add((p_cstr.as_ptr() as usize) - ((*ea.cmdlinep) as usize))
-        };
-        if p != ea.arg {
-            ea.arg = p;
+        p = ea
+            .cmdline_ptr()
+            .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr() as usize));
+        if p != ea.arg.as_ptr() {
+            ea.arg = crate::strings::CStrCursor::from_ptr(p);
             ea.args.clear();
             ea.arglens.clear();
         }

@@ -1329,13 +1329,14 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 },
             ) {
                 eap.cmdidx = CMD_SPLIT;
-                eap.arg = tmp_new;
+                eap.arg = crate::strings::CStrCursor::from_ptr(tmp_new);
                 do_exedit(eap, unsafe { old_curwin.as_mut() });
                 if curwin_ptr() != old_curwin && win_valid(unsafe { old_curwin.as_ref() }) {
                     diff_win_options(curwin_mut(), true);
                     diff_win_options(unsafe { &mut *old_curwin }, true);
                     if !newname_vec.is_empty() {
-                        eap.arg = newname_vec.as_mut_ptr().cast();
+                        eap.arg =
+                            crate::strings::CStrCursor::from_ptr(newname_vec.as_mut_ptr().cast());
                         ex_file(eap);
                         if crate::autocmd::augroup_exists(Some(c"filetypedetect")) {
                             do_cmdline_cmd(c":doau filetypedetect BufRead");
@@ -3120,10 +3121,10 @@ pub fn nv_diffgetput(put: bool, count: usize) {
     let mut ea = Exarg::new();
     let mut buf: [u8; 30] = [0; 30];
     if count == 0 {
-        ea.arg = c"".as_ptr().cast_mut();
+        ea.arg = crate::strings::CStrCursor::from_ptr(c"".as_ptr());
     } else {
         vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%zu", count);
-        ea.arg = buf.as_mut_ptr().cast();
+        ea.arg = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr().cast());
     }
     ea.cmdidx = if put { CMD_DIFFPUT } else { CMD_DIFFGET };
     ea.addr_count = 0;

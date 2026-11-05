@@ -3305,7 +3305,7 @@ pub fn clear_sb_text(all: bool) {
 pub fn show_sb_text() {
     if ui_has(K_UIMESSAGES) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = c"".as_ptr().cast_mut();
+        ea.arg = crate::strings::CStrCursor::from_ptr(c"".as_ptr());
         ea.skip = 1;
         ex_messages(&mut ea);
         return;

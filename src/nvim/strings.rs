@@ -97,6 +97,11 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline]
+    pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
+        s.map_or(Self::NULL, |c| Self::from_ptr(c.as_ptr().cast()))
+    }
+
+    #[inline]
     pub const fn is_null(self) -> bool {
         self.0.is_none()
     }

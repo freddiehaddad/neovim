@@ -655,12 +655,15 @@ pub fn init_locale() {
 pub fn ex_language(eap: &mut Exarg) {
     let mut what = LC_ALL;
     let mut whatstr: &CStr = c"";
-    let mut name = eap.arg;
+    let mut name = eap.arg.as_ptr();
 
-    let p = eap.arg.wrapping_add(crate::charset::skiptowhite_len(
-        crate::memory::cstr_as_bytes(eap.arg.cast()),
-    ));
-    let arg_len = (p as usize) - (eap.arg as usize);
+    let p = eap
+        .arg
+        .as_ptr()
+        .wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(eap.arg.cast()),
+        ));
+    let arg_len = (p as usize) - (eap.arg.as_ptr() as usize);
     if (crate::memory::cstr_is_empty(p)
         || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
         && arg_len >= 3

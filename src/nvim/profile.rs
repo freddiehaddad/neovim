@@ -379,7 +379,7 @@ pub fn profile_reset() {
 
 /// `":profile cmd args"` (`ex_profile`).
 pub fn ex_profile(eap: &mut Exarg) {
-    let arg = eap.arg;
+    let arg = eap.arg.as_ptr();
     let mut e = arg.wrapping_add(crate::charset::skiptowhite_len(
         crate::memory::cstr_as_bytes(arg.cast()),
     ));

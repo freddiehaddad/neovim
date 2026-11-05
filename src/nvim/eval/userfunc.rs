@@ -2534,7 +2534,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
 }
 
 fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
-    let pat_start = eap.arg.wrapping_add(1);
+    let pat_start = eap.arg.as_ptr().wrapping_add(1);
     let mut p = skip_regexp(unsafe { CStr::from_ptr(pat_start) }, b'/' as i32, 1)
         .as_ptr()
         .cast_mut();
@@ -2563,7 +2563,8 @@ fn list_one_function(
 ) -> Option<&'static mut UserFunc> {
     let p = eap
         .arg
-        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg as usize));
+        .as_ptr()
+        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
     if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
         crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p.cast())),
     ))) == 0
@@ -2572,9 +2573,9 @@ fn list_one_function(
         return None;
     }
 
-    eap.nextcmd = check_nextcmd(p_cstr).map_or(ptr::null_mut(), |s| {
+    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::CStrCursor::NULL, |s| {
         eap.arg
-            .wrapping_add((s.as_ptr() as usize) - (eap.arg as usize))
+            .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
     });
 
     if !eap.nextcmd.is_null() {
@@ -2796,9 +2797,11 @@ fn get_function_body(
                             let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
                             let new_buf: Vec<u8> = ltf.as_bytes_with_nul().to_vec();
                             eap.set_cmdline_vec(new_buf);
-                            eap.nextcmd = unsafe { (*eap.cmdlinep).wrapping_add(off) };
+                            eap.nextcmd = crate::strings::CStrCursor::from_ptr(
+                                eap.cmdline_ptr().wrapping_add(off),
+                            );
                         } else {
-                            eap.nextcmd = nextcmd;
+                            eap.nextcmd = crate::strings::CStrCursor::from_ptr(nextcmd);
                         }
                     }
                     break;
@@ -3063,18 +3066,19 @@ pub fn ex_function(eap: &mut Exarg) {
         if eap.skip == 0 {
             list_functions(None);
         }
-        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(eap.arg))
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+            crate::memory::cstr_from_ptr(eap.arg),
+        ));
         return;
     }
 
     if crate::memory::cstr_first_byte(eap.arg) == b'/' {
         let p = list_functions_matching_pat(eap);
-        eap.nextcmd = check_nextcmd(p).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(p));
         return;
     }
 
-    let mut p_cstr = unsafe { CStr::from_ptr(eap.arg) };
+    let mut p_cstr = crate::memory::cstr_from_ptr(eap.arg);
     let mut name_owned =
         save_function_name(&mut p_cstr, eap.skip != 0, TFN_NO_AUTOLOAD, Some(&mut fudi));
     let mut p = p_cstr.as_ptr().cast_mut();
@@ -3350,14 +3354,14 @@ pub fn ex_function(eap: &mut Exarg) {
         if fudi.fd_di.is_null() {
             if value_check_lock(
                 unsafe { (*fudi.fd_dict).dv_lock },
-                Some(unsafe { CStr::from_ptr(eap.arg) }),
+                Some(crate::memory::cstr_from_ptr(eap.arg)),
                 TV_CSTRING,
             ) {
                 erret!();
             }
         } else if value_check_lock(
             unsafe { (*fudi.fd_di).di_tv.v_lock },
-            Some(unsafe { CStr::from_ptr(eap.arg) }),
+            Some(crate::memory::cstr_from_ptr(eap.arg)),
             TV_CSTRING,
         ) {
             erret!();
@@ -3566,11 +3570,12 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     let mut fp: Option<&'static mut UserFunc> = None;
     let mut fudi = Funcdict::new();
 
-    let mut p_cstr = unsafe { CStr::from_ptr(eap.arg) };
+    let mut p_cstr = crate::memory::cstr_from_ptr(eap.arg);
     let name_owned = trans_function_name(&mut p_cstr, eap.skip != 0, 0, Some(&mut fudi), None);
     let p = eap
         .arg
-        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg as usize));
+        .as_ptr()
+        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
     let Some(ref name_cstr) = name_owned else {
         if !fudi.fd_dict.is_null() && eap.skip == 0 {
             emsg(gettext(E_FUNCREF));
@@ -3585,9 +3590,9 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         semsg!(gettext(E_TRAILING_ARG), p);
         return;
     }
-    eap.nextcmd = check_nextcmd(p_cstr).map_or(ptr::null_mut(), |s| {
+    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::CStrCursor::NULL, |s| {
         eap.arg
-            .wrapping_add((s.as_ptr() as usize) - (eap.arg as usize))
+            .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
     });
     if !eap.nextcmd.is_null() {
         unsafe {
@@ -3732,12 +3737,12 @@ pub fn ex_return(eap: &mut Exarg) {
         g_st().emsg_skip += 1;
     }
 
-    eap.nextcmd = ptr::null_mut();
+    eap.nextcmd = crate::strings::CStrCursor::NULL;
     if (!crate::memory::cstr_is_empty(arg)
         && crate::memory::cstr_first_byte(arg) != b'|'
         && crate::memory::cstr_first_byte(arg) != b'\n')
         && eval0(
-            unsafe { CStr::from_ptr(arg) },
+            crate::memory::cstr_from_ptr(arg),
             &mut rettv,
             Some(&mut *eap),
             &mut evalarg,
@@ -3757,10 +3762,11 @@ pub fn ex_return(eap: &mut Exarg) {
     }
 
     if returning {
-        eap.nextcmd = ptr::null_mut();
+        eap.nextcmd = crate::strings::CStrCursor::NULL;
     } else if eap.nextcmd.is_null() {
-        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+            crate::memory::cstr_from_ptr(arg),
+        ));
     }
 
     if eap.skip != 0 {
@@ -3997,7 +4003,7 @@ pub fn invoke_all_defer() {
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
 pub fn ex_call(eap: &mut Exarg) {
-    let mut arg = unsafe { CStr::from_ptr(eap.arg) };
+    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let mut fudi = Funcdict::new();
     let mut partial_opt: Option<&'static mut TvPartial> = None;
     let mut evalarg = Evalarg::new();
@@ -4084,7 +4090,7 @@ pub fn ex_call(eap: &mut Exarg) {
                 semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());
             }
         } else {
-            eap.nextcmd = check_nextcmd(arg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
         }
     }
 

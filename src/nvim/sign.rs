@@ -1015,7 +1015,7 @@ fn parse_sign_cmd_args<'a>(
 }
 
 pub fn ex_sign(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.as_ptr();
 
     let mut p = arg.wrapping_add(crate::charset::skiptowhite_len(
         crate::memory::cstr_as_bytes(arg.cast()),

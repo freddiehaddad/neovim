@@ -5314,7 +5314,7 @@ fn vgr_jump_to_match(
         && let Some(target_dir) = target_dir
     {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = target_dir.as_ptr().cast_mut();
+        ea.arg = crate::strings::CStrCursor::from_ptr(target_dir.as_ptr());
         ea.cmdidx = CMD_LCD;
         ex_cd(&mut ea);
     }
@@ -5354,7 +5354,8 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
     };
     let mut p = eap
         .arg
-        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg as usize));
+        .as_ptr()
+        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
 
     vgr_init_regmatch(&mut args.regmatch, args.spat.as_deref());
     if args.regmatch.regprog.is_null() {
@@ -5621,7 +5622,7 @@ fn restore_start_dir(dirname_start: &CStr) {
     os_dirname(&mut dirname_now);
     if dirname_start.to_bytes() != crate::memory::bytes_until_nul(&dirname_now) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = dirname_start.as_ptr().cast_mut();
+        ea.arg = crate::strings::CStrCursor::from_ptr(dirname_start.as_ptr());
         ea.cmdidx = if curwin_mut().w_localdir.is_none() {
             CMD_CD
         } else {
@@ -7022,7 +7023,7 @@ pub fn ex_cexpr(eap: &mut Exarg) {
         return;
     }
 
-    let Some(mut tv) = eval_expr(unsafe { CStr::from_ptr(eap.arg) }, Some(&mut *eap)) else {
+    let Some(mut tv) = eval_expr(crate::memory::cstr_from_ptr(eap.arg), Some(&mut *eap)) else {
         return;
     };
 
@@ -7186,7 +7187,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     };
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(
-        unsafe { CStr::from_ptr(eap.arg) },
+        crate::memory::cstr_from_ptr(eap.arg),
         RE_MAGIC + RE_STRING,
     ));
     regmatch.rm_ic = false;

@@ -2447,7 +2447,7 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
 }
 
 pub fn ex_display(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.as_ptr();
     if !arg.is_null() && crate::memory::cstr_is_empty(arg) {
         arg = ptr::null_mut();
     }

@@ -2011,7 +2011,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
     let mut nested = false;
     let mut once = false;
     let group = if arg.to_bytes().first() == Some(&b'|') {
-        eap.nextcmd = arg.as_ptr().wrapping_add(1).cast_mut();
+        eap.nextcmd = crate::strings::CStrCursor::from_ptr(arg.as_ptr().wrapping_add(1));
         arg = c"";
         AUGROUP_ALL
     } else {
@@ -2032,7 +2032,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
     };
     'run: {
         if pat.to_bytes().first() == Some(&b'|') {
-            eap.nextcmd = pat.as_ptr().wrapping_add(1).cast_mut();
+            eap.nextcmd = crate::strings::CStrCursor::from_ptr(pat.as_ptr().wrapping_add(1));
             pat = c"";
             cmd = c"";
         } else {
@@ -2446,7 +2446,7 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
 pub fn ex_doautoall(eap: &mut Exarg) {
     let mut retval = true;
     let mut aco: CtxSwitch = CtxSwitch::new();
-    let mut arg = unsafe { CStr::from_ptr(eap.arg) };
+    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let call_do_modelines = check_nomodeline(&mut arg);
     let mut bufref: Bufref = Bufref::new();
     let mut did_aucmd = false;

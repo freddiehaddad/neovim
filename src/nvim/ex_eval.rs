@@ -782,7 +782,7 @@ pub fn ex_eval(eap: &mut Exarg) {
     fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
     if eval0(
-        unsafe { CStr::from_ptr(eap.arg) },
+        crate::memory::cstr_from_ptr(eap.arg),
         &mut tv,
         Some(&mut *eap),
         &mut evalarg,
@@ -804,7 +804,7 @@ pub fn ex_if(eap: &mut Exarg) {
         let skip = check_skip(&*cstack);
         let mut error = false;
         let result = eval_to_bool(
-            unsafe { CStr::from_ptr(eap.arg) },
+            crate::memory::cstr_from_ptr(eap.arg),
             &mut error,
             eap,
             skip,
@@ -883,7 +883,7 @@ pub fn ex_else(eap: &mut Exarg) {
             semsg!(gettext(E_INVEXPR2), eap.arg);
         } else {
             result = eval_to_bool(
-                unsafe { CStr::from_ptr(eap.arg) },
+                crate::memory::cstr_from_ptr(eap.arg),
                 &mut error,
                 eap,
                 skip,
@@ -927,7 +927,7 @@ pub fn ex_while(eap: &mut Exarg) {
         let skip = check_skip(&*cstack);
         let result = if eap.cmdidx == CMD_WHILE {
             eval_to_bool(
-                unsafe { CStr::from_ptr(eap.arg) },
+                crate::memory::cstr_from_ptr(eap.arg),
                 &mut error,
                 eap,
                 skip,
@@ -940,7 +940,7 @@ pub fn ex_while(eap: &mut Exarg) {
                 error = false;
             } else {
                 let fi = eval_for_line(
-                    unsafe { CStr::from_ptr(eap.arg) },
+                    crate::memory::cstr_from_ptr(eap.arg),
                     &mut error,
                     eap,
                     &mut evalarg,
@@ -950,7 +950,7 @@ pub fn ex_while(eap: &mut Exarg) {
 
             let res = if !error && !skip {
                 if let Some(fi) = (&mut cstack.cs_forinfo)[idx].as_deref_mut() {
-                    next_for_item(fi, unsafe { CStr::from_ptr(eap.arg) })
+                    next_for_item(fi, crate::memory::cstr_from_ptr(eap.arg))
                 } else {
                     false
                 }
@@ -1068,7 +1068,7 @@ pub fn ex_throw(eap: &mut Exarg) {
         && crate::memory::cstr_first_byte(arg) != b'|'
         && crate::memory::cstr_first_byte(arg) != b'\n'
     {
-        eval_to_string_skip(unsafe { CStr::from_ptr(arg) }, eap, eap.skip != 0)
+        eval_to_string_skip(crate::memory::cstr_from_ptr(arg), eap, eap.skip != 0)
     } else {
         emsg(gettext(E_ARGREQ));
         None
@@ -1157,11 +1157,12 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     let (pat, end) = if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
-        eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(eap.arg))
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(
+            crate::memory::cstr_from_ptr(eap.arg),
+        ));
         (c".*".as_ptr().cast_mut(), ptr::null_mut())
     } else {
-        let pat = eap.arg.wrapping_add(1);
+        let pat = eap.arg.wrapping_add(1).as_ptr();
         let end_opt = skip_regexp_err(
             unsafe { CStr::from_ptr(pat) },
             i32::from(crate::memory::cstr_first_byte(eap.arg)),
@@ -1257,8 +1258,9 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     if !end.is_null() {
-        eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(end))
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(
+            crate::memory::cstr_from_ptr(end),
+        ));
     }
 }
 

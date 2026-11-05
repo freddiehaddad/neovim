@@ -3032,15 +3032,14 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
             emsg(gettext(E_INVARG));
         } else {
             if eap.addr_count > 0 {
-                eap.arg = script_item(eap.line2)
-                    .name_cstr()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                eap.arg =
+                    crate::strings::CStrCursor::from_opt_cstr(script_item(eap.line2).name_cstr());
             } else {
                 expand_env(
                     crate::memory::cstr_from_ptr(eap.arg),
                     g_st().name_buff_bytes_mut(),
                 );
-                eap.arg = namebuff;
+                eap.arg = crate::strings::CStrCursor::from_ptr(namebuff);
                 to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
             }
             do_exedit(eap, None);
@@ -3449,7 +3448,7 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
         name_owned = Some(enc_canonize(crate::memory::cstr_from_ptr((eap.arg).cast())));
         name_owned.as_ref().unwrap().as_ptr().cast_mut()
     } else {
-        eap.arg
+        eap.arg.as_ptr()
     };
 
     convert_setup(

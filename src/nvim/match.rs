@@ -1222,7 +1222,7 @@ pub fn ex_match(eap: &mut Exarg) {
         match_delete(curwin_mut(), id, false);
     }
 
-    let arg = eap.arg;
+    let arg = eap.arg.as_ptr();
     if ends_excmd(crate::memory::cstr_first_byte(arg)) != 0 {
         end = arg;
     } else {
@@ -1293,6 +1293,6 @@ pub fn ex_match(eap: &mut Exarg) {
             }
         }
     }
-    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(end))
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    eap.nextcmd =
+        crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(crate::memory::cstr_from_ptr(end)));
 }

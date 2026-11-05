@@ -1169,7 +1169,7 @@ pub fn heredoc_get(
         }
     }
     if heredoc_in_string {
-        eap.nextcmd = line_arg.cast_mut().cast();
+        eap.nextcmd = crate::strings::CStrCursor::from_ptr(line_arg.cast());
     }
     drop(theline_owned);
     drop(text_indent);
@@ -1184,7 +1184,7 @@ pub fn heredoc_get(
 /// ":let" and ":const" commands.
 pub fn ex_let(eap: &mut Exarg) {
     let is_const = eap.cmdidx == Cmdidx::CmdConst as i32;
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.as_ptr();
     let mut rettv: TypVal = TypVal::new();
     let mut var_count: i32 = 0;
     let mut semicolon: i32 = 0;
@@ -1228,8 +1228,9 @@ pub fn ex_let(eap: &mut Exarg) {
             list_func_vars(&mut first);
             list_vim_vars(&mut first);
         }
-        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+            crate::memory::cstr_from_ptr(arg),
+        ));
         return;
     }
 
@@ -2074,8 +2075,9 @@ fn ex_unletlock(
         }
     }
 
-    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg.cast()))
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+        crate::memory::cstr_from_ptr(arg.cast()),
+    ));
 }
 
 /// Unlet a variable indicated by `lp`.

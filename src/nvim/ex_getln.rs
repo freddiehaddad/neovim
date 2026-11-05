@@ -512,7 +512,7 @@ pub fn parse_pattern_and_range(
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
     ea.line2 = 1;
-    ea.cmd = getln_st().ccline.cmdbuff().cast();
+    ea.cmd = crate::strings::CStrCursor::from_ptr(getln_st().ccline.cmdbuff().cast());
     ea.addr_type = ADDR_LINES;
 
     let mut dummy_cmdmod: Cmdmod = Cmdmod::new();
@@ -3149,9 +3149,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut cmdline_vec: Vec<u8> = crate::memory::cstr_from_ptr(getln_st().ccline.cmdbuff().cast())
         .to_bytes_with_nul()
         .to_vec();
-    let mut cmdline = cmdline_vec.as_mut_ptr().cast();
     let mut errormsg = None;
-    ea.cmdlinep = &raw mut cmdline;
     ea.cmdline_buf = &raw mut cmdline_vec;
     g_st().emsg_off += 1;
     let parsed = parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false);

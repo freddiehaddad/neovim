@@ -2384,15 +2384,14 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut cmdline_buf: Vec<u8> = crate::memory::cstr_from_ptr((arg_str).as_ptr())
         .to_bytes_with_nul()
         .to_vec();
-    let mut cmdstr = cmdline_buf.as_mut_ptr().cast();
+    let cmdstr = crate::strings::CStrCursor::from_ptr(cmdline_buf.as_mut_ptr().cast());
 
     let mut eap: Exarg = Exarg::new();
     eap.cmd = cmdstr;
     eap.arg = cmdstr;
-    eap.cmdlinep = &raw mut cmdstr;
     eap.cmdline_buf = &raw mut cmdline_buf;
     eap.usefilter = 0;
-    eap.nextcmd = ptr::null_mut();
+    eap.nextcmd = crate::strings::CStrCursor::NULL;
     eap.cmdidx = Cmdidx::CmdUser as i32;
     eap.argt |= EX_NOSPC;
 
@@ -2410,7 +2409,10 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         g_st().emsg_off -= 1;
     }
 
-    crate::eval::typval::tv_set_string(rettv, crate::memory::cstr_as_opt_cstr(cmdstr));
+    crate::eval::typval::tv_set_string(
+        rettv,
+        crate::memory::cstr_as_opt_cstr(cmdline_buf.as_ptr().cast()),
+    );
 }
 
 /// "flatten()" and "flattennew()" functions

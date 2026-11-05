@@ -62,7 +62,7 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
 
 /// `:trust` command implementation (`ex_trust`).
 pub fn ex_trust(eap: &mut Exarg) {
-    let arg = eap.arg;
+    let arg = eap.arg.as_ptr();
     let p = arg.wrapping_add(crate::charset::skiptowhite_len(
         crate::memory::cstr_as_bytes(arg.cast()),
     ));

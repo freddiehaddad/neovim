@@ -3291,7 +3291,7 @@ fn set_cmd_index<'a>(
             eap.cmdidx = Cmdidx::CmdSubstitute as i32;
             p_idx = 1;
         } else if cmd_bytes.first().is_some_and(u8::is_ascii_uppercase) {
-            eap.cmd = cmd.as_ptr().cast_mut();
+            eap.cmd = crate::strings::CStrCursor::from_ptr(cmd.as_ptr());
             if let Some(off) = find_ucmd(eap, p_idx, None, Some(&mut *xp), Some(&mut *complp)) {
                 p_idx = off;
             } else {

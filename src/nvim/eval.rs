@@ -2196,13 +2196,14 @@ pub fn eval0(
             && let Some(nextcmd) = check_nextcmd(p)
             && nextcmd.to_bytes().first() != Some(&b'|')
         {
-            eap.as_deref_mut().unwrap().nextcmd = nextcmd.as_ptr().cast_mut();
+            eap.as_deref_mut().unwrap().nextcmd =
+                crate::strings::CStrCursor::from_ptr(nextcmd.as_ptr());
         }
         return false;
     }
 
     if let Some(eap) = eap {
-        eap.nextcmd = check_nextcmd(p).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(p));
     }
 
     ret
@@ -6558,7 +6559,7 @@ pub fn var_item_copy(
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
 pub fn ex_echo(eap: &mut Exarg) {
-    let mut arg = unsafe { CStr::from_ptr(eap.arg) };
+    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let mut rettv = tv_initial_value();
     let mut atstart = true;
     let mut need_clear = true;
@@ -6627,7 +6628,7 @@ pub fn ex_echo(eap: &mut Exarg) {
             })
         };
     }
-    eap.nextcmd = check_nextcmd(arg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
     msg_ext_set_append(false);
 
     if eap.skip != 0 {
@@ -6660,7 +6661,7 @@ pub fn get_echo_hl_id() -> i32 {
 
 /// ":execute", ":echomsg", ":echoerr"
 pub fn ex_execute(eap: &mut Exarg) {
-    let mut arg = unsafe { CStr::from_ptr(eap.arg) };
+    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let mut rettv = tv_initial_value();
     let mut ret = true;
     let mut buf: Vec<u8> = Vec::with_capacity(80);
@@ -6738,7 +6739,7 @@ pub fn ex_execute(eap: &mut Exarg) {
         g_st().emsg_skip -= 1;
     }
 
-    eap.nextcmd = check_nextcmd(arg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".

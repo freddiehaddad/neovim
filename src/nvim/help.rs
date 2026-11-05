@@ -491,7 +491,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::String(eap.arg),
+                vval: TypvalVval::String(eap.arg.as_ptr()),
             }
         },
         TypVal {
