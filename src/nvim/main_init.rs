@@ -1055,16 +1055,6 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
     getout(1);
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn __ubsan_default_options() -> *const u8 {
-    c"print_stacktrace=1".as_ptr().cast()
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn __asan_default_options() -> *const u8 {
-    c"handle_abort=1,handle_sigill=1".as_ptr().cast()
-}
-
 fn get_number_arg(p: &[u8], idx: &mut i32, mut def: i32) -> i32 {
     let mut i = *idx as usize;
     if p.get(i).is_some_and(u8::is_ascii_digit) {
