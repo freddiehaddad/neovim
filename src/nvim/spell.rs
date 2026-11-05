@@ -267,8 +267,8 @@ pub fn spell_check(
     mut capcol: Option<&mut i32>,
     docount: bool,
 ) -> usize {
-    let ptr: *mut u8 = ptr_cstr.as_ptr().cast_mut().cast();
-    if (crate::memory::cstr_first_byte(ptr)) <= b' ' {
+    let ptr = crate::strings::CStrCursor::<u8>::from_ptr(ptr_cstr.as_ptr().cast_mut().cast());
+    if (ptr.first_byte()) <= b' ' {
         return 1;
     }
     let w_s = wp.w_s_ptr();

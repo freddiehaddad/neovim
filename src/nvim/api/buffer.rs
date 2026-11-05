@@ -506,14 +506,8 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr: *const std::ffi::c_char = line.cast();
-            if !ml_replace_buf(
-                b,
-                lnum as Linenr,
-                crate::memory::cstr_as_bytes(line_ptr),
-                false,
-                true,
-            ) {
+            let line_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(line.cast());
+            if !ml_replace_buf(b, lnum as Linenr, line_ptr.as_bytes(), false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -522,7 +516,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            inserted_bytes += crate::memory::cstr_len(line_ptr) as Bcount + 1;
+            inserted_bytes += line_ptr.len() as Bcount + 1;
         }
 
         for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
@@ -537,19 +531,13 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr: *const std::ffi::c_char = line.cast();
-            if !ml_append_buf(
-                b,
-                lnum as Linenr,
-                crate::memory::cstr_as_bytes(line_ptr),
-                0,
-                false,
-            ) {
+            let line_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(line.cast());
+            if !ml_append_buf(b, lnum as Linenr, line_ptr.as_bytes(), 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
 
-            inserted_bytes += crate::memory::cstr_len(line_ptr) as Bcount + 1;
+            inserted_bytes += line_ptr.len() as Bcount + 1;
             extra += 1;
         }
 

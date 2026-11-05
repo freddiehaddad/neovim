@@ -4280,7 +4280,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
 
 fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CStr> {
     let arg_cstr = arg?;
-    let arg: *mut u8 = arg_cstr.as_ptr().cast_mut().cast();
+    let arg = crate::strings::CStrCursor::<u8>::from_ptr(arg_cstr.as_ptr().cast_mut().cast());
     let arg_bytes = arg_cstr.to_bytes();
     {
         if arg_bytes.len() < 3 {
@@ -4288,14 +4288,10 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         }
 
         let delim = arg_bytes[0];
-        let mut end = skip_regexp(
-            crate::memory::cstr_from_ptr(arg.wrapping_add(1)),
-            delim as i32,
-            1,
-        )
-        .as_ptr()
-        .cast_mut()
-        .cast::<u8>();
+        let mut end = skip_regexp(arg.wrapping_add(1).as_cstr(), delim as i32, 1)
+            .as_ptr()
+            .cast_mut()
+            .cast::<u8>();
         if crate::memory::cstr_first_byte(end) != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),

@@ -553,9 +553,9 @@ fn draw_col_buf(
     mut fold_vcol: Option<&[Colnr]>,
     inc_vcol: bool,
 ) {
-    let text: *const std::ffi::c_char = text_buf.as_ptr().cast();
+    let text = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(text_buf.as_ptr().cast());
     {
-        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(text));
+        let mut ci = utf_ptr2_str_char_info(text.as_cstr());
         let end = text.wrapping_add(len);
         while ci.ptr < end && wlv.off < wp.w_view_width {
             let cli = utf_cluster_info(ci);

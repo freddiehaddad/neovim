@@ -1019,14 +1019,14 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 {
                     dirnow_vec[0] = 0;
                 }
-                let dirnow: *mut std::ffi::c_char = dirnow_vec.as_mut_ptr().cast();
-                if !crate::memory::cstr_is_empty(dirnow)
-                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
-                {
+                let dirnow = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(
+                    dirnow_vec.as_mut_ptr().cast(),
+                );
+                if !dirnow.is_empty() && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
                     if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
                         shorten_fnames(true);
                     }
-                } else if !crate::memory::cstr_is_empty(dirnow)
+                } else if !dirnow.is_empty()
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                     && let Some(ref gdir) = g_st().globaldir
                     && os_chdir(gdir) == 0
@@ -1036,12 +1036,12 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
                 failed |= !makeopens(&fd, crate::memory::cstr_until_nul(&dirnow_vec));
 
-                if !crate::memory::cstr_is_empty(dirnow)
+                if !dirnow.is_empty()
                     && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
                         || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                             && g_st().globaldir.is_some()))
                 {
-                    if os_chdir(crate::memory::cstr_from_ptr(dirnow)) != 0 {
+                    if os_chdir(dirnow.as_cstr()) != 0 {
                         emsg(gettext(E_PREV_DIR));
                     }
                     shorten_fnames(true);

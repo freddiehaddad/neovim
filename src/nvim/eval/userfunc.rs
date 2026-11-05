@@ -619,9 +619,9 @@ pub fn get_lambda_tv(
     }
 
     let mut arg_cstr = crate::charset::skipwhite_at(arg, 1);
-    let start: *const u8 = arg_cstr.as_ptr().cast();
+    let start = crate::strings::CStrCursor::<u8>::from_ptr(arg_cstr.as_ptr().cast());
     ret = skip_expr(&mut arg_cstr, evalarg);
-    let end: *const u8 = arg_cstr.as_ptr().cast();
+    let end = crate::strings::CStrCursor::<u8>::from_ptr(arg_cstr.as_ptr().cast());
     *arg = arg_cstr;
     if !ret {
         if evaluate {
@@ -630,10 +630,12 @@ pub fn get_lambda_tv(
         return Some(false);
     }
 
-    let arg_ptr: *mut u8 = crate::charset::skipwhite_ptr(arg_cstr.as_ptr().cast_mut()).cast();
-    *arg = crate::memory::cstr_from_ptr(arg_ptr);
+    let arg_ptr = crate::strings::CStrCursor::<u8>::from_ptr(
+        crate::charset::skipwhite_ptr(arg_cstr.as_ptr().cast_mut()).cast(),
+    );
+    *arg = arg_ptr.as_cstr();
 
-    if unsafe { *arg_ptr } != b'}' {
+    if arg_ptr.first_byte() != b'}' {
         semsg!(gettext(c"E451: Expected }: %s"), arg_ptr);
         if evaluate {
             eval_st().eval_lavars_used = old_eval_lavars;
@@ -641,7 +643,7 @@ pub fn get_lambda_tv(
         return Some(false);
     }
 
-    *arg = crate::memory::cstr_from_ptr(arg_ptr.wrapping_add(1));
+    *arg = arg_ptr.wrapping_add(1).as_cstr();
 
     if evaluate {
         let mut flags = 0;
@@ -653,7 +655,7 @@ pub fn get_lambda_tv(
         let expr_len = crate::memory::ptr_offset_from(end, start) as usize;
         let mut line_bytes = Vec::with_capacity(7 + expr_len);
         line_bytes.extend_from_slice(b"return ");
-        line_bytes.extend_from_slice(crate::memory::cstr_slice(start, expr_len));
+        line_bytes.extend_from_slice(start.slice(expr_len));
         let line_cstr = std::ffi::CString::new(line_bytes).unwrap();
         if !line_cstr.to_bytes()[7..].windows(2).any(|w| w == b"a:") {
             flags |= FC_NOARGS;
@@ -890,7 +892,7 @@ fn fname_trans_sid<'a>(
     tofree: &'a mut Option<std::ffi::CString>,
     error: &mut i32,
 ) -> &'a CStr {
-    let name: *const u8 = name_in.as_ptr().cast();
+    let name = crate::strings::CStrCursor::<u8>::from_ptr(name_in.as_ptr().cast());
     let name_bytes = name_in.to_bytes();
     let script_off = eval_fname_script(name_bytes);
     if script_off == 0 {

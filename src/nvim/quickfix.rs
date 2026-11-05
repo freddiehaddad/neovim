@@ -4472,12 +4472,12 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         name_vec.extend_from_slice(format!("{}{}", qf_st().mef_start, qf_st().mef_off).as_bytes());
         name_vec.extend_from_slice(&mef_bytes[off_idx + 2..]);
         name_vec.push(0);
-        let name: *mut std::ffi::c_char = name_vec.as_mut_ptr().cast();
+        let name =
+            crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(name_vec.as_mut_ptr().cast());
         let mut file_info = FileInfo::new();
-        let file_or_link_found =
-            os_fileinfo_link(crate::memory::cstr_from_ptr(name), &mut file_info);
+        let file_or_link_found = os_fileinfo_link(name.as_cstr(), &mut file_info);
         if !file_or_link_found {
-            return Some(crate::memory::cstr_to_cstring(name));
+            return Some(name.to_cstring());
         }
     }
 }

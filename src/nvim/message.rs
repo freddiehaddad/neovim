@@ -2433,7 +2433,8 @@ pub fn str2special(
         );
     }
 
-    let buf_ptr: *mut u8 = (&raw mut msg_st().str2_special_buf).cast();
+    let buf_ptr =
+        crate::strings::CStrCursor::<u8>::from_ptr((&raw mut msg_st().str2_special_buf).cast());
     if data.is_some() {
         data.as_deref_mut().unwrap().mods = 0;
         if (b'A' as i32..=b'Z' as i32).contains(&c) {

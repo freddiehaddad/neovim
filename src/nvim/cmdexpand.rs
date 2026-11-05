@@ -4348,7 +4348,7 @@ pub fn expand_cmdline(
     col: i32,
     matches: &mut Vec<CString>,
 ) -> i32 {
-    let str_ptr: *const u8 = str_arg.as_ptr().cast();
+    let str_ptr = crate::strings::CStrCursor::<u8>::from_ptr(str_arg.as_ptr().cast());
     let mut options = WILD_ADD_SLASH | WILD_SILENT;
 
     if xp.xp_context == EXPAND_UNSUCCESSFUL {

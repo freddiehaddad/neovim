@@ -837,11 +837,11 @@ pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]
     }
     #[cfg(not(windows))]
     unsafe {
-        let mut out_ptr: *mut u8 = outbuf.as_mut_ptr();
+        let mut out_ptr = crate::strings::CStrCursor::<u8>::from_ptr(outbuf.as_mut_ptr());
         let mut out_left: usize = outbuf.len();
         let orig_out_len = out_left;
         let ret = if let Some(inbuf) = inbuf {
-            let mut in_ptr: *const u8 = inbuf.as_ptr();
+            let mut in_ptr = crate::strings::CStrCursor::<u8>::from_ptr(inbuf.as_ptr());
             let mut in_left: usize = inbuf.len();
             let orig_in_len = in_left;
             let r = iconv(

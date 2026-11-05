@@ -1109,7 +1109,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     let mut search_path = RuntimeSearchPath::new();
     let mut after_path: Vec<std::ffi::CString> = Vec::new();
 
-    let buf: *mut u8 = (&raw mut rt_st().build_rtp_buf).cast();
+    let buf = crate::strings::CStrCursor::<u8>::from_ptr((&raw mut rt_st().build_rtp_buf).cast());
     let mut entry = opt_vars().p_pp.as_bytes();
     while !entry.is_empty() {
         let cur_entry = entry.as_ptr().cast_mut().cast();
@@ -1128,7 +1128,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
         let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
-        let buf_slice = crate::memory::cstr_slice(buf, buflen);
+        let buf_slice = buf.slice(buflen);
 
         if path_is_after(buf_slice) {
             rtp_entry = cur_entry;
@@ -1140,12 +1140,12 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            crate::memory::cstr_from_ptr(buf),
+            buf.as_cstr(),
             false,
             pos_in_rtp,
         );
 
-        let buf_slice = crate::memory::cstr_slice(buf, buflen);
+        let buf_slice = buf.slice(buflen);
         if let Some(h) = pack_used.get_mut(buf_slice) {
             *h += 1;
             expand_pack_entry(
@@ -1192,8 +1192,8 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            crate::memory::cstr_from_ptr(buf),
-            path_is_after(crate::memory::cstr_slice(buf, buflen)),
+            buf.as_cstr(),
+            path_is_after(buf.slice(buflen)),
             pos_in_rtp,
         );
     }

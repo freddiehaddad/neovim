@@ -1801,8 +1801,8 @@ fn ex_let_register<'a>(
         return None;
     }
 
-    let mut arg: *mut u8 = arg_in.as_ptr().cast_mut().cast();
-    let mut arg_end: *mut u8 = ptr::null_mut();
+    let mut arg = crate::strings::CStrCursor::<u8>::from_ptr(arg_in.as_ptr().cast_mut().cast());
+    let mut arg_end = crate::strings::CStrCursor::<u8>::NULL;
     arg = arg.wrapping_add(1);
     let op_b = op.and_then(|s| s.to_bytes().first().copied()).unwrap_or(0);
     if op_b != 0 && crate::strings::vim_haschr(c"+-*/%", i32::from(op_b)) {
@@ -1820,10 +1820,10 @@ fn ex_let_register<'a>(
         let mut ptofree: Option<std::ffi::CString> = None;
         let mut p = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
         if !p.is_null() && op_b == b'.' {
-            let reg_c = if crate::memory::cstr_first_byte(arg) == b'@' {
+            let reg_c = if arg.first_byte() == b'@' {
                 b'"' as i32
             } else {
-                crate::memory::cstr_first_byte(arg) as i32
+                arg.first_byte() as i32
             };
             if let Some(s) = get_reg_contents_str(reg_c, K_GREG_EXPR_SRC) {
                 let mut bytes = Vec::from(s.as_bytes());
@@ -1834,10 +1834,10 @@ fn ex_let_register<'a>(
             }
         }
         if !p.is_null() {
-            let reg_c = if crate::memory::cstr_first_byte(arg) == b'@' {
+            let reg_c = if arg.first_byte() == b'@' {
                 b'"' as i32
             } else {
-                crate::memory::cstr_first_byte(arg) as i32
+                arg.first_byte() as i32
             };
             let p_bytes = crate::memory::cstr_as_bytes(p);
             write_reg_contents(reg_c, p_bytes, p_bytes.len() as isize, false);
@@ -1845,7 +1845,7 @@ fn ex_let_register<'a>(
         }
         drop(ptofree);
     }
-    crate::memory::cstr_as_opt_cstr(arg_end)
+    arg_end.as_opt_cstr()
 }
 
 /// Set one item of `:let var = expr` or `:let [v1, v2] = list` to its value.
@@ -2713,13 +2713,13 @@ fn find_var_ht_dict<'a>(
     varname: &mut Option<&'a CStr>,
     d: &mut Option<&'static mut TvDict>,
 ) -> Option<&'static mut Hashtab> {
-    let name: *const u8 = name_in.as_ptr().cast();
+    let name = crate::strings::CStrCursor::<u8>::from_ptr(name_in.as_ptr().cast());
     *d = None;
 
     if name_len == 0 {
         return None;
     }
-    let name_slice = crate::memory::cstr_slice(name, name_len);
+    let name_slice = name.slice(name_len);
     if name_len == 1 || name_slice.get(1) != Some(&b':') {
         if matches!(name_slice[0], b':' | AUTOLOAD_CHAR) {
             return None;
@@ -2742,7 +2742,7 @@ fn find_var_ht_dict<'a>(
         return Some(&mut (glob_d.borrow_mut().dv_hashtab));
     }
 
-    *varname = Some(crate::memory::cstr_from_ptr(name.wrapping_add(2)));
+    *varname = Some(name.wrapping_add(2).as_cstr());
     let scope_b = name_slice[0];
     let mut dict_ptr = crate::globals::GraphPtr::<TvDict>::NULL;
     if scope_b == b'g' {

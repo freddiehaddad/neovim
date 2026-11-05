@@ -65,7 +65,6 @@ use crate::window::{
 };
 use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_float_special};
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::api::vim::K_OPT_COT_FLAG_POPUP;
 use crate::change::TAB;
@@ -976,7 +975,6 @@ pub fn pum_redraw() {
                 attr = pum_user_attr_combine(idx, item_type, attr);
             }
             let mut width: i32 = 0;
-            let mut s: *const u8 = ptr::null();
             let item_cstr = pum_get_item(idx, item_type);
 
             let next_isempty = j + 1 >= 3 || pum_get_item(idx, order[j + 1]).is_none();
@@ -985,7 +983,6 @@ pub fn pum_redraw() {
                 let item_bytes = item_cstr.to_bytes_with_nul();
                 let mut p_idx = 0usize;
                 let mut s_idx: Option<usize> = None;
-                let _ = &mut s;
                 loop {
                     let seg_start = *s_idx.get_or_insert(p_idx);
                     let w = crate::mbyte::slice2cells(&item_bytes[p_idx..]);

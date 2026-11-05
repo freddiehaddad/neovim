@@ -1007,8 +1007,8 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
 /// Find the end of a variable or function name. Unlike find_name_end() this
 /// does not recognize magic braces.
 fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
-    let arg_ptr: *const u8 = arg.as_ptr().cast();
-    if !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg_ptr))) {
+    let arg_ptr = crate::strings::CStrCursor::<u8>::from_ptr(arg.as_ptr().cast());
+    if !eval_isnamec1(i32::from(arg_ptr.first_byte())) {
         return arg;
     }
 
@@ -1019,10 +1019,7 @@ fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
         if crate::memory::cstr_first_byte(p) == b':'
             && (p != arg_ptr.wrapping_add(1)
                 || !use_namespace
-                || !crate::strings::vim_haschr(
-                    c"bgstvw",
-                    i32::from(crate::memory::cstr_first_byte(arg_ptr)),
-                ))
+                || !crate::strings::vim_haschr(c"bgstvw", i32::from(arg_ptr.first_byte())))
         {
             break;
         }
@@ -1528,7 +1525,7 @@ pub fn set_var_lval(
     is_const: bool,
     op_opt: Option<&CStr>,
 ) {
-    let endp: *const u8 = endp_cstr.as_ptr().cast();
+    let endp = crate::strings::CStrCursor::<u8>::from_ptr(endp_cstr.as_ptr().cast());
     let op = op_opt.map_or(ptr::null(), CStr::as_ptr);
     let ll_name = lp.ll_name.unwrap_or(c"");
 

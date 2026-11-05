@@ -1086,7 +1086,7 @@ pub fn getvcol(
         init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_ptr)
     };
     csarg.max_head_vcol = -1;
-    let line: *const std::ffi::c_char = csarg.line.as_ptr();
+    let line = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(csarg.line.as_ptr());
 
     let mut vcol: Colnr = 0;
     let mut off: i32 = 0;
@@ -1351,7 +1351,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
-    let line: *const std::ffi::c_char = csarg.line.as_ptr();
+    let line = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(csarg.line.as_ptr());
 
     let mut vcol: Colnr = 0;
     let mut raw_vcol: Colnr = 0;

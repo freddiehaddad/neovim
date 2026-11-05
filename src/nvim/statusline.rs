@@ -443,7 +443,7 @@ pub fn stl_fill_click_defs(
     let Some(click_defs) = click_defs else {
         return;
     };
-    let mut buf: *const u8 = buf_cstr.as_ptr().cast();
+    let mut buf = crate::strings::CStrCursor::<u8>::from_ptr(buf_cstr.as_ptr().cast());
     let mut col: i32 = 0;
     let mut len: i32 = 0;
 
@@ -456,9 +456,9 @@ pub fn stl_fill_click_defs(
         let Some(rec_start) = rec.start else {
             break;
         };
-        let rec_ptr: *const u8 = rec_start.as_ptr().cast();
+        let rec_ptr = crate::strings::CStrCursor::<u8>::from_ptr(rec_start.as_ptr().cast());
         let rec_len = crate::memory::ptr_offset_from(rec_ptr, buf).max(0) as usize;
-        len += vim_strnsize(crate::memory::cstr_slice(buf, rec_len), rec_len as i32);
+        len += vim_strnsize(buf.slice(rec_len), rec_len as i32);
         debug_assert!(len <= width);
         while col < len {
             click_defs[col as usize] = cur_click_def.clone();

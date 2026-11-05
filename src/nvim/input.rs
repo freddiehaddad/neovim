@@ -2658,10 +2658,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                         && g_st().cmdline_star == 0
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
-                        let p: *const std::ffi::c_char =
-                            g_st().typebuf.tb_buf[last_idx..].as_ptr().cast();
-                        if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
-                            putcmdline(crate::memory::cstr_first_byte(p), false);
+                        let p = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(
+                            g_st().typebuf.tb_buf[last_idx..].as_ptr().cast(),
+                        );
+                        if utf_ptr2cells(p) == 1 && (p.first_byte()) < 128 {
+                            putcmdline(p.first_byte(), false);
                             showing_partial = true;
                         }
                     }

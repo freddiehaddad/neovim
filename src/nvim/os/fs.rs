@@ -1696,11 +1696,10 @@ pub fn os_mkdir_recurse(
 /// Create the parent directory of a file if it does not exist.
 pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
     let mut fname_vec = fname_in.to_bytes_with_nul().to_vec();
-    let fname: *mut std::ffi::c_char = fname_vec.as_mut_ptr().cast();
-    if !dir_of_file_exists(crate::memory::cstr_from_ptr(fname)) {
-        let tail = path_tail_with_sep(crate::memory::cstr_from_ptr(fname))
-            .as_ptr()
-            .cast_mut();
+    let fname =
+        crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(fname_vec.as_mut_ptr().cast());
+    if !dir_of_file_exists(fname.as_cstr()) {
+        let tail = path_tail_with_sep(fname.as_cstr()).as_ptr().cast_mut();
         let last_char = tail
             .wrapping_add(crate::memory::cstr_len(tail))
             .wrapping_sub(1);
@@ -1713,12 +1712,7 @@ pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
             *tail = NUL;
         }
         let mut failed_dir: Option<std::ffi::CString> = None;
-        let r = os_mkdir_recurse(
-            crate::memory::cstr_from_ptr(fname),
-            mode,
-            &mut failed_dir,
-            None,
-        );
+        let r = os_mkdir_recurse(fname.as_cstr(), mode, &mut failed_dir, None);
         if r < 0 {
             let _ = semsg!(
                 gettext(E_MKDIR),

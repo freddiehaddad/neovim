@@ -1503,7 +1503,9 @@ pub fn get_foldtext(
             let mut idx = 0;
             let slen = bytes.len() - 1;
             while idx < slen && bytes[idx] != 0 {
-                let p_at: *const std::ffi::c_char = bytes[idx..].as_ptr().cast();
+                let p_at = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(
+                    bytes[idx..].as_ptr().cast(),
+                );
                 let len = utfc_ptr2len(&bytes[idx..slen]) as usize;
                 if len > 1 {
                     if !vim_isprintc(utf_ptr2char(&bytes[idx..slen])) {

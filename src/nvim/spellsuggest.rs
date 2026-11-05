@@ -2747,7 +2747,7 @@ fn add_suggestion(
     }
 }
 fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
-    let badptr: *const u8 = su.su_badptr.as_ptr().cast();
+    let badptr = crate::strings::CStrCursor::<u8>::from_ptr(su.su_badptr.as_ptr().cast());
     let gap = if use_sga {
         &mut su.su_sga
     } else {
@@ -2765,7 +2765,7 @@ fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
         let len = st.st_wordlen as usize;
         crate::memory::copy_bytes_to_c_buf(
             &mut longword[len..],
-            crate::memory::cstr_as_bytes(badptr.wrapping_add(st.st_orglen as usize)),
+            badptr.wrapping_add(st.st_orglen as usize).as_bytes(),
         );
         let mut attr: Hlf = HLF_COUNT;
         let _ = spell_check(
