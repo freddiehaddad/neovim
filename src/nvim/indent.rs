@@ -842,8 +842,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                         let end_ptr = regmatch.endp[0];
                         let mut indent: i32 = 0;
                         while ptr_cur < end_ptr {
-                            indent +=
-                                win_chartabsize(wp, crate::memory::cstr_as_bytes(ptr_cur), indent);
+                            indent += win_chartabsize(wp, (ptr_cur).as_bytes(), indent);
                             ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur) as usize);
                         }
                         ind_st().prev_indent = indent;

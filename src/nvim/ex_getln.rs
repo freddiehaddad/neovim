@@ -4682,7 +4682,7 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
         return None;
     }
 
-    Some(crate::memory::cstr_to_cstring(compl_pat))
+    Some((compl_pat).to_cstring())
 }
 
 /// Get the command-line completion type.
@@ -5018,7 +5018,7 @@ pub fn is_in_cmdwin() -> bool {
 pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString> {
     let mut cmd = eap.arg;
 
-    if !crate::memory::cstr_as_bytes(cmd).starts_with(b"<<") || eap.ea_getline.is_none() {
+    if !(cmd).as_bytes().starts_with(b"<<") || eap.ea_getline.is_none() {
         *lenp = eap.arg.len();
         return if eap.skip {
             None
@@ -5028,7 +5028,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
     }
     cmd = cmd.wrapping_add(2);
 
-    let l = heredoc_get(eap, crate::memory::cstr_from_ptr(cmd), true)?;
+    let l = heredoc_get(eap, (cmd).as_cstr(), true)?;
 
     let mut buf: Vec<u8> = if !eap.skip {
         Vec::with_capacity(0x400)

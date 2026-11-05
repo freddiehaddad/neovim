@@ -575,7 +575,7 @@ pub fn ex_history(eap: &mut Exarg) {
         return;
     }
 
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let arg_bytes = (arg).as_bytes();
     let mut rem = arg_bytes;
     if !rem
         .first()

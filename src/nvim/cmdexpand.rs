@@ -5871,11 +5871,11 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             false,
         );
         pattern_start = xpc.xp_pattern.as_ptr();
-        xpc.xp_pattern_len = crate::memory::cstr_len(xpc.xp_pattern);
+        xpc.xp_pattern_len = (xpc.xp_pattern).len();
         xpc.xp_col = cmdline_len;
     } else {
         xpc.xp_pattern = crate::strings::CStrCursor::from_ptr(pattern);
-        xpc.xp_pattern_len = crate::memory::cstr_len(xpc.xp_pattern);
+        xpc.xp_pattern_len = (xpc.xp_pattern).len();
         xpc.xp_line = crate::strings::CStrCursor::from_ptr(pattern);
 
         xpc.xp_context = cmdcomplete_str_to_type(type_str.to_bytes());
@@ -5900,24 +5900,19 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             }
             EXPAND_MENUS => {
                 let pat_p = xpc.xp_pattern;
-                set_context_in_menu_cmd(
-                    &mut xpc,
-                    c"menu",
-                    crate::memory::cstr_from_ptr(pat_p),
-                    false,
-                );
+                set_context_in_menu_cmd(&mut xpc, c"menu", (pat_p).as_cstr(), false);
                 xpc.xp_pattern_len -=
                     crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
             }
             EXPAND_SIGN => {
                 let pat_p = xpc.xp_pattern;
-                set_context_in_sign_cmd(&mut xpc, crate::memory::cstr_from_ptr(pat_p));
+                set_context_in_sign_cmd(&mut xpc, (pat_p).as_cstr());
                 xpc.xp_pattern_len -=
                     crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
             }
             EXPAND_RUNTIME => {
                 let pat_p = xpc.xp_pattern;
-                set_context_in_runtime_cmd(&mut xpc, crate::memory::cstr_from_ptr(pat_p));
+                set_context_in_runtime_cmd(&mut xpc, (pat_p).as_cstr());
                 xpc.xp_pattern_len -=
                     crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
             }
@@ -5926,7 +5921,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 let pat_p = xpc.xp_pattern;
                 set_context_for_wildcard_arg(
                     None,
-                    crate::memory::cstr_from_ptr(pat_p),
+                    (pat_p).as_cstr(),
                     false,
                     &mut xpc,
                     &mut context,
@@ -5945,21 +5940,15 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     if xpc.xp_context == EXPAND_LUA {
-        xpc.xp_col = crate::memory::cstr_len(xpc.xp_line) as i32;
+        xpc.xp_col = (xpc.xp_line).len() as i32;
         nlua_expand_pat(&mut xpc);
         xpc.xp_pattern_len -=
             crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
     }
     let pat = if cmdline_fuzzy_completion_supported(&xpc) {
-        cstr_from_bytes(crate::memory::cstr_slice(
-            xpc.xp_pattern,
-            xpc.xp_pattern_len,
-        ))
+        cstr_from_bytes(xpc.xp_pattern.slice(xpc.xp_pattern_len))
     } else {
-        addstar(
-            crate::memory::cstr_slice(xpc.xp_pattern, xpc.xp_pattern_len),
-            xpc.xp_context,
-        )
+        addstar((xpc.xp_pattern).slice(xpc.xp_pattern_len), xpc.xp_context)
     };
 
     expand_one(&mut xpc, Some(pat.as_c_str()), None, options, WILD_ALL_KEEP);

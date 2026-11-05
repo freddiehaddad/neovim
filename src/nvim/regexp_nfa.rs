@@ -3171,9 +3171,11 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
         if mpos.start_lnum == re_st().rex.lnum && mpos.end_lnum == re_st().rex.lnum {
             let mut len = mpos.end_col - mpos.start_col;
             if cstrncmp(
-                crate::memory::cstr_as_bytes(
-                    re_st().rex.line.wrapping_add(mpos.start_col as usize),
-                ),
+                re_st()
+                    .rex
+                    .line
+                    .wrapping_add(mpos.start_col as usize)
+                    .as_bytes(),
                 re_st().rex.input.as_bytes(),
                 &mut len,
             ) == 0
@@ -3199,7 +3201,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
         }
         let mut len = crate::memory::ptr_offset_from(lpos.end, lpos.start) as i32;
         if cstrncmp(
-            crate::memory::cstr_as_bytes(lpos.start),
+            (lpos.start).as_bytes(),
             re_st().rex.input.as_bytes(),
             &mut len,
         ) == 0
@@ -3427,7 +3429,7 @@ fn failure_chance(states: &[NfaState], state: Option<usize>, depth: i32) -> i32 
 }
 
 fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
-    let s_cstr = crate::memory::cstr_from_ptr(re_st().rex.line.wrapping_add(*colp as usize));
+    let s_cstr = re_st().rex.line.wrapping_add(*colp as usize).as_cstr();
     let Some(off) = cstrchr(s_cstr, c) else {
         return false;
     };
@@ -4759,10 +4761,10 @@ fn nfa_regtry(
             } else {
                 let lpos = subs.synt.list.line()[i];
                 if !lpos.start.is_null() && !lpos.end.is_null() {
-                    extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
-                        lpos.start,
-                        crate::memory::ptr_offset_from(lpos.end, lpos.start) as usize,
-                    ));
+                    extmatch.matches[i] = cstring_from_bytes(
+                        lpos.start
+                            .slice(crate::memory::ptr_offset_from(lpos.end, lpos.start) as usize),
+                    );
                 }
             }
         }

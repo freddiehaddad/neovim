@@ -7787,7 +7787,7 @@ pub fn expand_string_setting(
     let set_arg_ptr = xp
         .xp_line
         .wrapping_add(opt_st().expand_option_start_col as usize);
-    let set_arg = crate::memory::cstr_from_ptr(set_arg_ptr);
+    let set_arg = (set_arg_ptr).as_cstr();
     optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
     let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
     let mut args = Optexpand {

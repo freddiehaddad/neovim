@@ -3215,20 +3215,17 @@ pub fn find_pattern_in_path(
 
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
                     find_file_name_in_path(
-                        crate::memory::cstr_slice(
+                        incl_regmatch.startp[0].slice(crate::memory::ptr_offset_from(
+                            incl_regmatch.endp[0],
                             incl_regmatch.startp[0],
-                            crate::memory::ptr_offset_from(
-                                incl_regmatch.endp[0],
-                                incl_regmatch.startp[0],
-                            ) as usize,
-                        ),
+                        ) as usize),
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
                         p_fname_opt,
                     )
                 } else {
                     file_name_in_line(
-                        crate::memory::cstr_as_bytes(incl_regmatch.endp[0]),
+                        (incl_regmatch.endp[0]).as_bytes(),
                         0,
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,

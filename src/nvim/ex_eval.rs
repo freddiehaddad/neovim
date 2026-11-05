@@ -1030,11 +1030,8 @@ pub fn ex_endwhile(eap: &mut Exarg) {
 
 pub fn ex_throw(eap: &mut Exarg) {
     let arg = eap.arg;
-    let value = if !crate::memory::cstr_is_empty(arg)
-        && crate::memory::cstr_first_byte(arg) != b'|'
-        && crate::memory::cstr_first_byte(arg) != b'\n'
-    {
-        eval_to_string_skip(crate::memory::cstr_from_ptr(arg), eap, eap.skip)
+    let value = if !(arg).is_empty() && (arg).first_byte() != b'|' && (arg).first_byte() != b'\n' {
+        eval_to_string_skip((arg).as_cstr(), eap, eap.skip)
     } else {
         emsg(gettext(E_ARGREQ));
         None

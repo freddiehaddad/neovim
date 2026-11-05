@@ -2288,10 +2288,7 @@ pub(super) fn reg_prev_class() -> i32 {
         let prev = re_st().rex.input.wrapping_sub(1);
         let head =
             prev.wrapping_sub(crate::mbyte::utf_head_off_ptr(re_st().rex.line, prev) as usize);
-        return mb_get_class_tab(
-            crate::memory::cstr_as_bytes(head),
-            &re_st().rex.buf_mut().b_chartab,
-        );
+        return mb_get_class_tab(head.as_bytes(), &re_st().rex.buf_mut().b_chartab);
     }
     -1
 }
@@ -2765,7 +2762,7 @@ pub(crate) fn fill_submatch_list(
             tv_set_string(&mut li_mut.li_tv, None);
         } else {
             let len = crate::memory::ptr_offset_from(re_st().rsm.match_mut().endp[i], s) as usize;
-            let bytes = crate::memory::cstr_slice(s, len);
+            let bytes = s.slice(len);
             let cs = cstring_from_bytes(bytes).unwrap_or_default();
 
             tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
@@ -3284,7 +3281,7 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
             None
         } else {
             let len = crate::memory::ptr_offset_from(e, s) as usize;
-            cstring_from_bytes(crate::memory::cstr_slice(s, len))
+            cstring_from_bytes(s.slice(len))
         }
     }
 }
@@ -3337,7 +3334,7 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
         list = tv_list_alloc(1);
         tv_list_append_string(
             list,
-            Some(crate::memory::cstr_from_ptr(s)),
+            Some(s.as_cstr()),
             crate::memory::ptr_offset_from(e, s),
         );
     }

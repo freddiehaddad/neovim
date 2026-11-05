@@ -1074,14 +1074,14 @@ pub fn ex_delmarks(eap: &mut Exarg) {
     } else {
         let timestamp = os_time();
         let mut p = eap.arg;
-        while !crate::memory::cstr_is_empty(p) {
-            let ch = i32::from(crate::memory::cstr_first_byte(p));
+        while !(p).is_empty() {
+            let ch = i32::from((p).first_byte());
             let lower = ascii_islower(ch);
             let digit = ascii_isdigit(ch);
             if lower || digit || ascii_isupper(ch) {
                 let from: i32;
                 let to: i32;
-                let p_bytes = crate::memory::cstr_as_bytes(p);
+                let p_bytes = (p).as_bytes();
                 if p_bytes.get(1) == Some(&b'-') {
                     from = ch;
                     to = i32::from(p_bytes.get(2).copied().unwrap_or(0));
@@ -1128,7 +1128,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                     }
                 }
             } else {
-                match crate::memory::cstr_first_byte(p) {
+                match (p).first_byte() {
                     b'"' => {
                         if curbuf_mut().b_last_cursor.mark.lnum != 0 {
                             do_markset_autocmd(b'"', &pos, curbuf_mut());

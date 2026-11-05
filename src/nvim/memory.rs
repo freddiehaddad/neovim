@@ -366,20 +366,6 @@ impl<const N: usize> AsCStrPtr for *mut [i8; N] {
     }
 }
 
-impl<T> AsCStrPtr for crate::strings::CStrCursor<T> {
-    #[inline]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-}
-
-impl AsCStrPtr for crate::regexp::RegLinePtr {
-    #[inline]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-}
-
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline]
 pub fn cstr_len(s: impl AsCStrPtr) -> usize {

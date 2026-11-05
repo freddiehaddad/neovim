@@ -1139,13 +1139,7 @@ pub fn nvim_cmd(
                 let orig_arg = ea.arg;
                 let result = getargopt(&mut ea);
                 if !result && !is_cmd_ni(ea.cmdidx) {
-                    api_err_invalid(
-                        err,
-                        c"argument ",
-                        crate::memory::cstr_as_opt_cstr(orig_arg),
-                        0,
-                        true,
-                    );
+                    api_err_invalid(err, c"argument ", (orig_arg).as_opt_cstr(), 0, true);
                     break 'end;
                 }
             }

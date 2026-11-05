@@ -5291,7 +5291,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             } else {
                                 tv_list_append_string(
                                     rettv.vval.v_list_ref(),
-                                    Some(crate::memory::cstr_from_ptr(regmatch.startp[i])),
+                                    Some((regmatch.startp[i]).as_cstr()),
                                     crate::memory::ptr_offset_from(
                                         regmatch.endp[i],
                                         regmatch.startp[i],
@@ -5396,7 +5396,7 @@ fn get_matches_in_str(
                 } else {
                     tv_list_append_string(
                         &mut *sml,
-                        Some(crate::memory::cstr_from_ptr(rmp.startp[i])),
+                        Some((rmp.startp[i]).as_cstr()),
                         crate::memory::ptr_offset_from(rmp.endp[i], rmp.startp[i]),
                     );
                 }

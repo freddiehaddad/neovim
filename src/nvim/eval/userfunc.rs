@@ -3587,15 +3587,8 @@ pub fn ex_return(eap: &mut Exarg) {
     }
 
     eap.nextcmd = crate::strings::CStrCursor::NULL;
-    if (!crate::memory::cstr_is_empty(arg)
-        && crate::memory::cstr_first_byte(arg) != b'|'
-        && crate::memory::cstr_first_byte(arg) != b'\n')
-        && eval0(
-            crate::memory::cstr_from_ptr(arg),
-            &mut rettv,
-            Some(&mut *eap),
-            &mut evalarg,
-        )
+    if (!(arg).is_empty() && (arg).first_byte() != b'|' && (arg).first_byte() != b'\n')
+        && eval0((arg).as_cstr(), &mut rettv, Some(&mut *eap), &mut evalarg)
     {
         if !eap.skip {
             returning = do_return(eap, false, true, Some(rettv));
@@ -3613,9 +3606,7 @@ pub fn ex_return(eap: &mut Exarg) {
     if returning {
         eap.nextcmd = crate::strings::CStrCursor::NULL;
     } else if eap.nextcmd.is_null() {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
-            crate::memory::cstr_from_ptr(arg),
-        ));
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd((arg).as_cstr()));
     }
 
     if eap.skip {

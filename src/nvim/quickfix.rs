@@ -3296,7 +3296,7 @@ pub fn qf_list(eap: &mut Exarg) {
         return;
     }
 
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let arg_bytes = (arg).as_bytes();
     let mut rem = arg_bytes;
     let plus = if let Some(after_plus) = rem.strip_prefix(b"+") {
         rem = after_plus;

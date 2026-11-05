@@ -4438,12 +4438,12 @@ pub fn ex_mkspell(eap: &mut Exarg) {
     let mut arg = eap.arg;
     let mut ascii = false;
 
-    if crate::memory::cstr_as_bytes(arg).starts_with(b"-ascii") {
+    if (arg).as_bytes().starts_with(b"-ascii") {
         ascii = true;
         arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
     }
 
-    if !get_arglist_exp(crate::memory::cstr_as_bytes(arg), &mut fnames, false) {
+    if !get_arglist_exp((arg).as_bytes(), &mut fnames, false) {
         return;
     }
 

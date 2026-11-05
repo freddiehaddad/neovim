@@ -232,7 +232,7 @@ pub fn ex_menu(eap: &mut Exarg) {
     let mut arg = eap.arg;
 
     loop {
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let arg_bytes = (arg).as_bytes();
         if arg_bytes.starts_with(b"<script>") {
             noremap = REMAP_SCRIPT;
             arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8));
@@ -250,9 +250,9 @@ pub fn ex_menu(eap: &mut Exarg) {
         break;
     }
 
-    if crate::memory::cstr_as_bytes(arg).starts_with(b"icon=") {
+    if (arg).as_bytes().starts_with(b"icon=") {
         arg = arg.wrapping_add(5);
-        let mut arg_len = crate::memory::cstr_len(arg);
+        let mut arg_len = (arg).len();
         let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
         let mut idx = 0;
         while idx < arg_len && arg_slice[idx] != b' ' {
@@ -274,17 +274,15 @@ pub fn ex_menu(eap: &mut Exarg) {
     }
 
     let mut p = arg;
-    while !crate::memory::cstr_is_empty(p) {
-        if !ascii_isdigit(crate::memory::cstr_first_byte(p))
-            && crate::memory::cstr_first_byte(p) != b'.'
-        {
+    while !(p).is_empty() {
+        if !ascii_isdigit((p).first_byte()) && (p).first_byte() != b'.' {
             break;
         }
         p = p.wrapping_add(1);
     }
     let mut i: usize;
-    if ascii_iswhite(crate::memory::cstr_first_byte(p)) {
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    if ascii_iswhite((p).first_byte()) {
+        let arg_bytes = (arg).as_bytes();
         let mut rem = arg_bytes;
         i = 0;
         while i < MENUDEPTH && rem.first().is_some_and(|&b| !ascii_iswhite(i32::from(b))) {
@@ -311,7 +309,7 @@ pub fn ex_menu(eap: &mut Exarg) {
     }
     pri_tab[MENUDEPTH] = -1;
 
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let arg_bytes = (arg).as_bytes();
     if arg_bytes.starts_with(b"enable")
         && arg_bytes
             .get(6)
@@ -328,22 +326,22 @@ pub fn ex_menu(eap: &mut Exarg) {
         arg = crate::charset::skipwhite_ptr(arg.wrapping_add(7));
     }
 
-    if crate::memory::cstr_is_empty(arg) {
-        show_menus(crate::memory::cstr_from_ptr(arg), modes);
+    if (arg).is_empty() {
+        show_menus((arg).as_cstr(), modes);
         return;
     }
 
     let menu_path_ptr = arg;
-    if crate::memory::cstr_first_byte(menu_path_ptr) == b'.' {
+    if (menu_path_ptr).first_byte() == b'.' {
         semsg!(gettext(E_INVARG2), menu_path_ptr);
         return;
     }
 
-    let arg_len = crate::memory::cstr_len(arg);
+    let arg_len = (arg).len();
     let arg_buf = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
     let map_to_off = menu_translate_tab_and_shift(arg_buf);
     let mut map_to = arg.cast::<u8>().wrapping_add(map_to_off);
-    let mut menu_path = crate::memory::cstr_from_ptr(menu_path_ptr);
+    let mut menu_path = (menu_path_ptr).as_cstr();
 
     if crate::memory::cstr_is_empty(map_to) && !unmenu && enable == K_NONE {
         show_menus(menu_path, modes);
@@ -1647,7 +1645,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
     let mut arg = eap.arg;
     let mut mode_idx = MENU_INDEX_INVALID;
 
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let arg_bytes = (arg).as_bytes();
     if let Some(&b0) = arg_bytes.first()
         && ascii_iswhite(i32::from(arg_bytes.get(1).copied().unwrap_or(0)))
     {
@@ -1667,7 +1665,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
         arg = crate::charset::skipwhite_ptr(arg.wrapping_add(2));
     }
 
-    let Some(menu) = menu_getbyname(crate::memory::cstr_from_ptr(arg)) else {
+    let Some(menu) = menu_getbyname((arg).as_cstr()) else {
         return;
     };
 

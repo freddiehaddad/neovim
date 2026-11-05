@@ -1140,12 +1140,12 @@ pub fn ex_command(eap: &mut Exarg) {
 
     let mut p = eap.arg;
 
-    while crate::memory::cstr_first_byte(p) == b'-' {
+    while (p).first_byte() == b'-' {
         p = p.wrapping_add(1);
         let end = crate::charset::skiptowhite_ptr(p);
         let attr_len = crate::memory::ptr_offset_from(end, p) as usize;
         if !uc_scan_attr(
-            crate::memory::cstr_slice(p, attr_len),
+            (p).slice(attr_len),
             &mut argt,
             &mut def,
             &mut flags,
@@ -1159,17 +1159,17 @@ pub fn ex_command(eap: &mut Exarg) {
     }
 
     let name = p;
-    let Some(name_len) = uc_validate_name(crate::memory::cstr_as_bytes(name)) else {
+    let Some(name_len) = uc_validate_name((name).as_bytes()) else {
         emsg(gettext(c"E182: Invalid command name"));
         return;
     };
     let end = name.wrapping_add(name_len);
-    let name_slice = crate::memory::cstr_slice(name, name_len);
+    let name_slice = (name).slice(name_len);
 
     p = crate::charset::skipwhite_ptr(end);
-    if !has_attr && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) != 0 {
+    if !has_attr && ends_excmd(i32::from((p).first_byte())) != 0 {
         uc_list(name_slice);
-    } else if !ascii_isupper(crate::memory::cstr_first_byte(name)) {
+    } else if !ascii_isupper((name).first_byte()) {
         emsg(gettext(
             c"E183: User defined commands must start with an uppercase letter",
         ));
@@ -1182,7 +1182,7 @@ pub fn ex_command(eap: &mut Exarg) {
     } else {
         uc_add_command(
             name_slice,
-            crate::memory::cstr_as_bytes(p),
+            (p).as_bytes(),
             argt,
             i64::from(def),
             flags,
@@ -1356,7 +1356,7 @@ fn uc_split_args(eap: &Exarg, lenp: &mut usize) -> CString {
         }
     } else {
         for (i, (&arg_i, &arglen_i)) in eap.args.iter().zip(&eap.arglens).enumerate() {
-            let mut rem = crate::memory::cstr_slice(arg_i, arglen_i);
+            let mut rem = (arg_i).slice(arglen_i);
             while !rem.is_empty() {
                 if matches!(rem[0], b'\\' | b'"') {
                     buf_vec.push(b'\\');

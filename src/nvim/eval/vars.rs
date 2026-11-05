@@ -1916,15 +1916,15 @@ pub fn ex_lockvar(eap: &mut Exarg) {
 
     if eap.forceit {
         deep = -1;
-    } else if ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    } else if ascii_isdigit((arg).first_byte()) {
+        let arg_bytes = (arg).as_bytes();
         let mut rem = arg_bytes;
         deep = getdigits_int(&mut rem, false, -1);
         let rem = crate::charset::skipwhite_slice(rem);
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
     }
 
-    ex_unletlock(eap, crate::memory::cstr_from_ptr(arg), deep, 0, do_lock_var);
+    ex_unletlock(eap, (arg).as_cstr(), deep, 0, do_lock_var);
 }
 
 /// Common parsing logic for :unlet, :lockvar and :unlockvar.
@@ -2526,7 +2526,7 @@ pub fn set_cmdarg(
             .unwrap()
             .cmd
             .wrapping_add(eap.unwrap().force_enc as usize);
-        newval.extend_from_slice(crate::memory::cstr_as_bytes(enc_ptr));
+        newval.extend_from_slice((enc_ptr).as_bytes());
     }
 
     if eap.unwrap().bad_char == BAD_KEEP {
