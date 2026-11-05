@@ -870,10 +870,12 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(0),
                     };
-                    let mut val_list: *mut TvList = std::ptr::null_mut();
+                    let mut val_list = crate::globals::GraphPtr::<TvList>::NULL;
                     if next_map_special {
                         next_map_special = false;
-                        val_list = decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW);
+                        val_list = crate::globals::GraphPtr::<TvList>::of(
+                            decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW),
+                        );
                     } else {
                         let dict = tv_dict_alloc();
                         dict.dv_refcount += 1;
@@ -887,7 +889,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         stack_index: stack.len(),
                         s: p,
                         container: tv,
-                        special_val: crate::globals::TvListPtr::new(val_list),
+                        special_val: val_list,
                     });
                     stack.push(ValuesStackItem {
                         is_special_string: false,

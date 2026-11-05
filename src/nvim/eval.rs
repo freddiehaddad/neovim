@@ -814,7 +814,7 @@ pub fn call_vim_function(
     rettv: &mut TypVal,
 ) -> bool {
     let mut len = func.to_bytes().len() as i32;
-    let mut pt: *mut TvPartial = ptr::null_mut();
+    let mut pt = crate::globals::GraphPtr::<TvPartial>::NULL;
 
     if len >= 6 && func.to_bytes().starts_with(b"v:lua.") {
         func = crate::memory::CStrSubslice::advance(func, 6);
@@ -823,7 +823,7 @@ pub fn call_vim_function(
             tv_clear(&mut *rettv);
             return false;
         }
-        pt = get_vim_var_partial(VV_LUA).map_or(ptr::null_mut(), ptr::from_mut);
+        pt = crate::globals::GraphPtr::from(get_vim_var_partial(VV_LUA));
     }
 
     rettv.v_type = VarType::VarUnknown;
@@ -2987,7 +2987,7 @@ fn call_func_rettv(
     basetv: Option<&mut TypVal>,
     lua_funcname: Option<&CStr>,
 ) -> bool {
-    let mut pt: *mut TvPartial = ptr::null_mut();
+    let mut pt = crate::globals::GraphPtr::<TvPartial>::NULL;
     let mut functv = tv_initial_value();
     let funcname: &CStr;
     let mut is_lua = false;
@@ -2997,12 +2997,12 @@ fn call_func_rettv(
         rettv.v_type = VarType::VarUnknown;
 
         if functv.v_type == VarType::VarPartial {
-            pt = tv_partial(&functv).map_or(ptr::null_mut(), ptr::from_mut);
-            is_lua = is_luafunc(unsafe { pt.as_ref() });
+            pt = crate::globals::GraphPtr::from(tv_partial(&functv));
+            is_lua = is_luafunc(pt.opt());
             funcname = if is_lua {
                 lua_funcname.unwrap_or(c"")
             } else {
-                partial_name(unsafe { pt.as_ref() })
+                partial_name(pt.opt())
             };
         } else {
             let s = functv.vval.v_string();
@@ -4018,10 +4018,10 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
     let evaluate = evalarg
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-    let mut l: *mut TvList = ptr::null_mut();
+    let mut l = crate::globals::GraphPtr::<TvList>::NULL;
 
     if evaluate {
-        l = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
+        l = crate::globals::GraphPtr::<TvList>::of(tv_list_alloc(K_LIST_LEN_SHOULD_KNOW));
     }
 
     *arg = crate::charset::skipwhite_at(arg, 1);
@@ -4029,13 +4029,13 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
         let mut tv = tv_initial_value();
         if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
             if evaluate {
-                tv_list_free(unsafe { l.as_mut() });
+                tv_list_free(l.opt_mut());
             }
             return false;
         }
         if evaluate {
             tv.v_lock = VAR_UNLOCKED;
-            tv_list_append_owned_tv(unsafe { &mut *l }, tv);
+            tv_list_append_owned_tv(l.borrow_mut(), tv);
         }
 
         let had_comma = arg.to_bytes_with_nul()[0] == b',';
@@ -4050,7 +4050,7 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
         if !had_comma {
             semsg!(gettext(c"E696: Missing comma in List: %s"), arg.as_ptr());
             if evaluate {
-                tv_list_free(unsafe { l.as_mut() });
+                tv_list_free(l.opt_mut());
             }
             return false;
         }
@@ -4059,14 +4059,14 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
     if arg.to_bytes_with_nul()[0] != b']' {
         semsg!(gettext(E_LIST_END), arg.as_ptr());
         if evaluate {
-            tv_list_free(unsafe { l.as_mut() });
+            tv_list_free(l.opt_mut());
         }
         return false;
     }
 
     *arg = crate::charset::skipwhite_at(arg, 1);
     if evaluate {
-        tv_list_set_ret(rettv, unsafe { l.as_mut() });
+        tv_list_set_ret(rettv, l.opt_mut());
     }
 
     true
@@ -4540,9 +4540,9 @@ fn eval_dict(
         return None;
     }
 
-    let mut d: *mut TvDict = ptr::null_mut();
+    let mut d = crate::globals::GraphPtr::<TvDict>::NULL;
     if evaluate {
-        d = tv_dict_alloc();
+        d = crate::globals::GraphPtr::<TvDict>::of(tv_dict_alloc());
     }
     let mut tvkey = tv_initial_value();
     tv.v_type = VarType::VarUnknown;
@@ -4555,7 +4555,7 @@ fn eval_dict(
             eval1(arg, &mut tvkey, evalarg.as_deref_mut())
         };
         if !key_res {
-            if let Some(d_ref) = unsafe { d.as_mut() } {
+            if let Some(d_ref) = d.opt_mut() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4566,7 +4566,7 @@ fn eval_dict(
                 arg.as_ptr(),
             );
             tv_clear(&mut tvkey);
-            if let Some(d_ref) = unsafe { d.as_mut() } {
+            if let Some(d_ref) = d.opt_mut() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4574,7 +4574,7 @@ fn eval_dict(
         if evaluate {
             let Some(key_cstr) = tv_get_string_buf_chk(&tvkey, &mut buf) else {
                 tv_clear(&mut tvkey);
-                if let Some(d_ref) = unsafe { d.as_mut() } {
+                if let Some(d_ref) = d.opt_mut() {
                     tv_dict_free(d_ref);
                 }
                 return Some(false);
@@ -4585,18 +4585,18 @@ fn eval_dict(
         *arg = crate::charset::skipwhite_at(arg, 1);
         if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
             tv_clear(&mut tvkey);
-            if let Some(d_ref) = unsafe { d.as_mut() } {
+            if let Some(d_ref) = d.opt_mut() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
         }
         if evaluate {
             let key_cstr = crate::memory::cstr_from_ptr(key);
-            if tv_dict_find(unsafe { d.as_ref() }, key_cstr, -1).is_some() {
+            if tv_dict_find(d.opt(), key_cstr, -1).is_some() {
                 semsg!(gettext(c"E721: Duplicate key in Dictionary: \"%s\""), key,);
                 tv_clear(&mut tvkey);
                 tv_clear(&mut tv);
-                if let Some(d_ref) = unsafe { d.as_mut() } {
+                if let Some(d_ref) = d.opt_mut() {
                     tv_dict_free(d_ref);
                 }
                 return Some(false);
@@ -4604,7 +4604,7 @@ fn eval_dict(
             let item = tv_dict_item_alloc(key_cstr);
             item.di_tv = tv;
             item.di_tv.v_lock = VAR_UNLOCKED;
-            if !tv_dict_add(unsafe { &mut *d }, item) {
+            if !tv_dict_add(d.borrow_mut(), item) {
                 tv_dict_item_free(item);
             }
         }
@@ -4623,7 +4623,7 @@ fn eval_dict(
                 gettext(c"E722: Missing comma in Dictionary: %s"),
                 arg.as_ptr(),
             );
-            if let Some(d_ref) = unsafe { d.as_mut() } {
+            if let Some(d_ref) = d.opt_mut() {
                 tv_dict_free(d_ref);
             }
             return Some(false);
@@ -4632,7 +4632,7 @@ fn eval_dict(
 
     if arg.to_bytes_with_nul()[0] != b'}' {
         semsg!(gettext(E_723_END), arg.as_ptr(),);
-        if let Some(d_ref) = unsafe { d.as_mut() } {
+        if let Some(d_ref) = d.opt_mut() {
             tv_dict_free(d_ref);
         }
         return Some(false);
@@ -4640,7 +4640,7 @@ fn eval_dict(
 
     *arg = crate::charset::skipwhite_at(arg, 1);
     if evaluate {
-        tv_dict_set_ret(rettv, unsafe { d.as_mut() });
+        tv_dict_set_ret(rettv, d.opt_mut());
     }
 
     Some(true)
@@ -6034,7 +6034,7 @@ pub fn handle_subscript<'a>(
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
     let mut ret = true;
-    let mut selfdict: *mut TvDict = ptr::null_mut();
+    let mut selfdict = crate::globals::GraphPtr::<TvDict>::NULL;
     let mut lua_funcname: Option<&'a CStr> = None;
 
     if tv_is_luafunc(rettv) {
@@ -6071,7 +6071,7 @@ pub fn handle_subscript<'a>(
                 evalarg.as_deref_mut(),
                 rettv,
                 evaluate,
-                unsafe { selfdict.as_mut() },
+                selfdict.opt_mut(),
                 None,
                 lua_funcname,
             );
@@ -6082,8 +6082,8 @@ pub fn handle_subscript<'a>(
                 }
                 ret = false;
             }
-            tv_dict_unref(unsafe { selfdict.as_mut() });
-            selfdict = ptr::null_mut();
+            tv_dict_unref(selfdict.opt_mut());
+            selfdict = crate::globals::GraphPtr::NULL;
         } else if arg.to_bytes_with_nul()[0] == b'-' {
             if arg.to_bytes().get(2) == Some(&b'{') {
                 ret = eval_lambda(arg, rettv, evalarg.as_deref_mut(), verbose);
@@ -6091,16 +6091,14 @@ pub fn handle_subscript<'a>(
                 ret = eval_method(arg, rettv, evalarg.as_deref_mut(), verbose);
             }
         } else {
-            tv_dict_unref(unsafe { selfdict.as_mut() });
+            tv_dict_unref(selfdict.opt_mut());
             if rettv.v_type == VarType::VarDict {
-                selfdict = rettv.vval.v_dict().as_ptr();
+                selfdict = crate::globals::GraphPtr::<TvDict>::of(rettv.vval.v_dict());
                 if !selfdict.is_null() {
-                    unsafe {
-                        (*selfdict).dv_refcount += 1;
-                    }
+                    selfdict.dv_refcount += 1;
                 }
             } else {
-                selfdict = ptr::null_mut();
+                selfdict = crate::globals::GraphPtr::NULL;
             }
             if !eval_index(arg, rettv, evalarg.as_deref_mut(), verbose) {
                 tv_clear(rettv);
@@ -6109,13 +6107,13 @@ pub fn handle_subscript<'a>(
         }
     }
 
-    if let Some(selfdict_ref) = unsafe { selfdict.as_mut() }
+    if let Some(selfdict_ref) = selfdict.opt_mut()
         && tv_is_func(rettv)
     {
         set_selfdict(rettv, selfdict_ref);
     }
 
-    tv_dict_unref(unsafe { selfdict.as_mut() });
+    tv_dict_unref(selfdict.opt_mut());
     ret
 }
 

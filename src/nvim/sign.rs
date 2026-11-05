@@ -1448,7 +1448,7 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 }
 
 pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
     let mut lnum: Linenr = 0;
     let mut sign_id: i32 = 0;
     let mut group: Option<&CStr> = None;
@@ -1457,7 +1457,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     tv_list_alloc_ret(rettv, 0);
 
     if argvars[0].v_type != VarType::VarUnknown {
-        buf = get_buf_arg(&mut argvars[0]).map_or(ptr::null_mut(), ptr::from_mut);
+        buf = crate::globals::GraphPtr::from(get_buf_arg(&mut argvars[0]));
         if buf.is_null() {
             return;
         }
@@ -1490,13 +1490,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         }
     }
 
-    sign_get_placed(
-        unsafe { buf.as_mut() },
-        lnum,
-        sign_id,
-        group,
-        rettv.vval.v_list_ref(),
-    );
+    sign_get_placed(buf.opt_mut(), lnum, sign_id, group, rettv.vval.v_list_ref());
 }
 
 pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -1706,7 +1700,7 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i32 {
     let mut id: i32 = 0;
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
     let group_cstr = if let Some(group_tv) = group_tv {
         Some(tv_get_string(group_tv))
     } else {
@@ -1716,7 +1710,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
 
     if dict.is_some() {
         if let Some(di_buf) = tv_dict_find_opt(dict, c"buffer", -1) {
-            buf = get_buf_arg(&mut di_buf.di_tv).map_or(ptr::null_mut(), ptr::from_mut);
+            buf = crate::globals::GraphPtr::from(get_buf_arg(&mut di_buf.di_tv));
             if buf.is_null() {
                 return -1;
             }
@@ -1730,7 +1724,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
         }
     }
 
-    if sign_unplace(unsafe { buf.as_mut() }, id, group, 0) {
+    if sign_unplace(buf.opt_mut(), id, group, 0) {
         0
     } else {
         -1

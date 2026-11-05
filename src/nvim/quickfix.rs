@@ -2691,7 +2691,7 @@ fn qf_goto_win_with_ll_file(
 
 fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
     let mut win = curwin_ptr();
-    let mut altwin: *mut WinInfoInfo = ptr::null_mut();
+    let mut altwin = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     loop {
         if win.buf_mut().b_fnum == qf_fnum {
             break;
@@ -2709,7 +2709,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
             {
                 win = g_st().prevwin;
             } else if !altwin.is_null() {
-                win = altwin.into();
+                win = altwin;
             } else if !curwin_mut().w_prev.is_null() {
                 win = curwin_mut().w_prev;
             } else {
@@ -2723,7 +2723,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
             && !win.w_onebuf_opt.wo_wfb
             && bt_normal(win.w_buffer.opt())
         {
-            altwin = win.as_ptr();
+            altwin = crate::globals::GraphPtr::<WinInfoInfo>::of(win);
         }
     }
 
@@ -4379,9 +4379,9 @@ pub fn ex_make(eap: &mut Exarg) {
         return;
     }
 
-    let mut wp: *mut WinInfoInfo = ptr::null_mut();
+    let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     if is_loclist_cmd(eap.cmdidx) {
-        wp = curwin_ptr().as_ptr();
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
     }
 
     autowrite_all();
@@ -4410,7 +4410,7 @@ pub fn ex_make(eap: &mut Exarg) {
     let newlist = eap.cmdidx != Cmdidx::CmdGrepadd && eap.cmdidx != Cmdidx::CmdLgrepadd;
 
     let res = qf_init(
-        unsafe { wp.as_mut() },
+        wp.opt_mut(),
         Some(&fname),
         errorformat,
         i32::from(newlist),
@@ -4419,7 +4419,7 @@ pub fn ex_make(eap: &mut Exarg) {
     );
 
     let qi = if !wp.is_null() {
-        get_loc_list_opt(unsafe { &*wp })
+        get_loc_list_opt(wp.borrow())
     } else {
         Some(ql_info_mut())
     };
@@ -4438,7 +4438,7 @@ pub fn ex_make(eap: &mut Exarg) {
                 curbuf_opt_mut(),
             );
         }
-        if res > 0 && !eap.forceit && qflist_valid(unsafe { wp.as_ref() }, save_qfid) {
+        if res > 0 && !eap.forceit && qflist_valid(wp.opt(), save_qfid) {
             qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, false);
         }
     }
@@ -4936,7 +4936,7 @@ fn cfile_get_auname(cmdidx: Cmdidx) -> Option<&'static CStr> {
 }
 
 pub fn ex_cfile(eap: &mut Exarg) {
-    let mut wp: *mut WinInfoInfo = ptr::null_mut();
+    let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
 
     let au_name = cfile_get_auname(eap.cmdidx);
     if let Some(au_name) = au_name
@@ -4962,13 +4962,13 @@ pub fn ex_cfile(eap: &mut Exarg) {
     };
 
     if is_loclist_cmd(eap.cmdidx) {
-        wp = curwin_ptr().as_ptr();
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
     }
 
     incr_quickfix_busy();
 
     let res = qf_init(
-        unsafe { wp.as_mut() },
+        wp.opt_mut(),
         Some(opt_vars().p_ef.as_cstr()),
         opt_vars().p_efm.as_cstr(),
         i32::from(eap.cmdidx != Cmdidx::CmdCaddfile && eap.cmdidx != Cmdidx::CmdLaddfile),
@@ -4976,7 +4976,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
         Some(enc),
     );
     let qi = if !wp.is_null() {
-        let Some(ll) = get_loc_list_opt(unsafe { &*wp }) else {
+        let Some(ll) = get_loc_list_opt(wp.borrow()) else {
             decr_quickfix_busy();
             return;
         };
@@ -5000,7 +5000,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
     }
     if res > 0
         && (eap.cmdidx == Cmdidx::CmdCfile || eap.cmdidx == Cmdidx::CmdLfile)
-        && qflist_valid(unsafe { wp.as_ref() }, save_qfid)
+        && qflist_valid(wp.opt(), save_qfid)
     {
         qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, eap.forceit);
     }
@@ -6722,16 +6722,17 @@ fn cbuffer_process_args(
     line1: &mut Linenr,
     line2: &mut Linenr,
 ) -> Option<&'static mut FileBuf> {
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
 
     if eap.arg.is_empty() {
-        buf = g_st().curbuf.as_ptr();
+        buf = crate::globals::GraphPtr::<FileBuf>::of(g_st().curbuf);
     } else if skipwhite_slice(skipdigits_slice(eap.arg.as_bytes())).is_empty() {
-        buf = buflist_findnr(crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32)
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        buf = crate::globals::GraphPtr::from(buflist_findnr(crate::charset::parse_i64_prefix(
+            eap.arg.as_bytes(),
+        ) as i32));
     }
 
-    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+    let Some(buf_ref) = buf.opt_mut() else {
         emsg(gettext(E_INVARG));
         return None;
     };

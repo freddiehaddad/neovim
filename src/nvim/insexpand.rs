@@ -3210,8 +3210,8 @@ fn get_insert_callback(type_: i32) -> &'static mut Callback {
 }
 
 fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callback>) {
-    let mut matchlist: *mut TvList = ptr::null_mut();
-    let mut matchdict: *mut TvDict = ptr::null_mut();
+    let mut matchlist = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut matchdict = crate::globals::GraphPtr::<TvDict>::NULL;
     let mut rettv: TypVal = TypVal::new();
     let save_state = g_st().state_global;
 
@@ -3255,10 +3255,10 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     if called {
         match rettv.v_type {
             VAR_LIST => {
-                matchlist = rettv.vval.v_list().as_ptr();
+                matchlist = crate::globals::GraphPtr::<TvList>::of(rettv.vval.v_list());
             }
             VAR_DICT => {
-                matchdict = rettv.vval.v_dict().as_ptr();
+                matchdict = crate::globals::GraphPtr::<TvDict>::of(rettv.vval.v_dict());
             }
             _ => {
                 tv_clear(&mut rettv);
@@ -3273,18 +3273,18 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     if !equalpos(curwin_mut().w_cursor, pos) {
         emsg(gettext(E_COMPLDEL));
     } else if !matchlist.is_null() {
-        ins_compl_add_list(unsafe { matchlist.as_ref() });
+        ins_compl_add_list(matchlist.opt());
     } else if !matchdict.is_null() {
-        ins_compl_add_dict(unsafe { &mut *matchdict });
+        ins_compl_add_dict(matchdict.borrow_mut());
     }
 
     g_st().state_global = save_state;
 
     if !matchdict.is_null() {
-        tv_dict_unref(unsafe { matchdict.as_mut() });
+        tv_dict_unref(matchdict.opt_mut());
     }
     if !matchlist.is_null() {
-        tv_list_unref(unsafe { matchlist.as_mut() });
+        tv_list_unref(matchlist.opt_mut());
     }
 }
 
@@ -3726,19 +3726,19 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         && (what_flag & (CI_WHAT_ITEMS | CI_WHAT_SELECTED | CI_WHAT_MATCHES | CI_WHAT_COMPLETED))
             != 0
     {
-        let mut li: *mut TvList = ptr::null_mut();
+        let mut li = crate::globals::GraphPtr::<TvList>::NULL;
         let mut selected_idx: i32 = -1;
         let has_items = (what_flag & CI_WHAT_ITEMS) != 0;
         let has_matches = (what_flag & CI_WHAT_MATCHES) != 0;
         let has_completed = (what_flag & CI_WHAT_COMPLETED) != 0;
         if has_items || has_matches {
-            li = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
+            li = crate::globals::GraphPtr::<TvList>::of(tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST));
             let key = if has_matches && !has_items {
                 c"matches"
             } else {
                 c"items"
             };
-            ret = tv_dict_add_list(retdict, key, unsafe { li.as_mut() });
+            ret = tv_dict_add_list(retdict, key, li.opt_mut());
         }
         if ret
             && (what_flag & CI_WHAT_SELECTED) != 0
@@ -3755,7 +3755,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                 if !match_at_original_text(match_) {
                     if has_items || (has_matches && match_.cp_in_match_array) {
                         let di = tv_dict_alloc();
-                        tv_list_append_dict(unsafe { &mut *li }, Some(di));
+                        tv_list_append_dict(li.borrow_mut(), Some(di));
                         fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                     }
                     if curr_num == Some(match_.cp_number) {
@@ -3793,16 +3793,16 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
 pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_dict_alloc_ret(rettv);
 
-    let mut what_list: *mut TvList = ptr::null_mut();
+    let mut what_list = crate::globals::GraphPtr::<TvList>::NULL;
 
     if argvars[0].v_type != VAR_UNKNOWN {
         if argvars[0].v_type != VAR_LIST {
             emsg(gettext(E_LISTREQ));
             return;
         }
-        what_list = argvars[0].vval.v_list().as_ptr();
+        what_list = crate::globals::GraphPtr::<TvList>::of(argvars[0].vval.v_list());
     }
-    get_complete_info(unsafe { what_list.as_ref() }, rettv.vval.v_dict_ref());
+    get_complete_info(what_list.opt(), rettv.vval.v_dict_ref());
 }
 
 #[inline]

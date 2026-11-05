@@ -376,26 +376,26 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<&'static mut TvDict> {
     unsafe {
         let scope = luaL_checkstring(lstate, 1);
         let handle = luaL_checkinteger(lstate, 2) as ObjHandle;
-        let mut dict: *mut TvDict = ptr::null_mut();
+        let mut dict = crate::globals::GraphPtr::<TvDict>::NULL;
         let mut err = Error::new();
 
         match scope.to_bytes() {
-            b"g" => dict = get_globvar_dict(),
-            b"v" => dict = get_vimvar_dict(),
+            b"g" => dict = crate::globals::GraphPtr::<TvDict>::of(get_globvar_dict()),
+            b"v" => dict = crate::globals::GraphPtr::<TvDict>::of(get_vimvar_dict()),
             b"b" => {
                 if let Some(buf) = find_buffer_by_handle(handle, &mut err) {
-                    dict = buf.b_vars();
+                    dict = crate::globals::GraphPtr::<TvDict>::of(buf.b_vars());
                 }
             }
             b"w" => {
                 let win = find_window_by_handle(handle, &mut err);
                 if !win.is_null() {
-                    dict = win.w_vars();
+                    dict = crate::globals::GraphPtr::<TvDict>::of(win.w_vars());
                 }
             }
             b"t" => {
                 if let Some(tabpage) = find_tab_by_handle(handle, &mut err) {
-                    dict = tabpage.tp_vars();
+                    dict = crate::globals::GraphPtr::<TvDict>::of(tabpage.tp_vars());
                 }
             }
             _ => {
@@ -651,8 +651,8 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     unsafe {
         let mut flags: i32 = 0;
-        let mut buf: *mut FileBuf = ptr::null_mut();
-        let mut win: *mut WinInfoInfo = ptr::null_mut();
+        let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+        let mut win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
         let mut keepcwd = false;
         let mut log_level: i32 = -1;
 
@@ -666,12 +666,16 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
                 let v = lua_toboolean(lstate, -1) != 0;
                 match k {
                     b"buf" => {
-                        buf = handle_get_buffer(luaL_checkinteger(lstate, -1) as i32)
-                            .map_or(ptr::null_mut(), ptr::from_mut);
+                        buf = crate::globals::GraphPtr::from(handle_get_buffer(luaL_checkinteger(
+                            lstate, -1,
+                        )
+                            as i32));
                     }
                     b"win" => {
-                        win = handle_get_window(luaL_checkinteger(lstate, -1) as i32)
-                            .map_or(ptr::null_mut(), ptr::from_mut);
+                        win = crate::globals::GraphPtr::from(handle_get_window(luaL_checkinteger(
+                            lstate, -1,
+                        )
+                            as i32));
                     }
                     b"keepcwd" => keepcwd = v,
                     b"log_level" => log_level = luaL_checkinteger(lstate, -1) as i32,
@@ -715,7 +719,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
             let mut switched = true;
 
             if !win.is_null() {
-                buf = ptr::null_mut();
+                buf = crate::globals::GraphPtr::NULL;
             }
 
             if !win.is_null() || !buf.is_null() || keepcwd {

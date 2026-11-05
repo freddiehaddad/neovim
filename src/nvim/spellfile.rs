@@ -5005,7 +5005,7 @@ pub fn ex_spell(eap: &mut Exarg) {
 
 /// Add `word_bytes` to 'spellfile' as a good or bad word.
 pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: bool) {
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
     let mut new_spf = false;
     let mut fnamebuf_arr = [0u8; MAXPATHL];
     let mut line = [0u8; MAXWLEN * 2];
@@ -5056,12 +5056,13 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             i += 1;
         }
 
-        buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fnamebuf))
-            .map_or(ptr::null_mut(), ptr::from_mut);
-        if !buf.is_null() && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-            buf = ptr::null_mut();
+        buf = crate::globals::GraphPtr::from(buflist_findname_exp(
+            crate::memory::cstr_as_opt_cstr(fnamebuf),
+        ));
+        if !buf.is_null() && buf.b_ml.ml_mfp.is_none() {
+            buf = crate::globals::GraphPtr::NULL;
         }
-        if !buf.is_null() && buf_is_changed_fn(unsafe { &mut *buf }) {
+        if !buf.is_null() && buf_is_changed_fn(buf.borrow_mut()) {
             emsg(gettext(E_BUFLOADED));
             return;
         }
@@ -5174,8 +5175,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         mkspell(&[crate::memory::cstr_to_cstring(fname)], false, true, true);
 
         if !buf.is_null() {
-            let orig_mode = unsafe { (*buf).b_orig_mode };
-            buf_reload(unsafe { &mut *buf }, orig_mode, false);
+            let orig_mode = buf.b_orig_mode;
+            buf_reload(buf.borrow_mut(), orig_mode, false);
         }
 
         redraw_all_later(UPD_SOME_VALID);

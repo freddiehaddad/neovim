@@ -1147,12 +1147,112 @@ impl<T> std::ops::DerefMut for GraphPtr<T> {
     }
 }
 
+pub trait AsGraphPtr<T> {
+    fn into_graph_ptr(self) -> GraphPtr<T>;
+}
+
+impl<T> AsGraphPtr<T> for GraphPtr<T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        self
+    }
+}
+
+impl<T> AsGraphPtr<T> for &GraphPtr<T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        *self
+    }
+}
+
+impl<T> AsGraphPtr<T> for &mut GraphPtr<T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        *self
+    }
+}
+
+impl<T> AsGraphPtr<T> for &T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for &&T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(*self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for &mut T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(&*self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for &&mut T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(&**self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for Option<&T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for Option<&mut T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for &Option<&T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(*self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for &Option<&mut T> {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::from(self.as_deref())
+    }
+}
+
+impl<T> AsGraphPtr<T> for *mut T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::new(self)
+    }
+}
+
+impl<T> AsGraphPtr<T> for &*mut T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::new(*self)
+    }
+}
+
 impl<T> GraphPtr<T> {
     pub const NULL: Self = Self(ptr::null_mut());
 
     #[inline(always)]
     pub const fn new(ptr: *mut T) -> Self {
         Self(ptr)
+    }
+
+    #[inline(always)]
+    pub fn of(val: impl AsGraphPtr<T>) -> Self {
+        val.into_graph_ptr()
     }
 
     #[inline(always)]

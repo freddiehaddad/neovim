@@ -1479,7 +1479,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 
     let old_curwin = curwin_ptr();
     let old_cursor = curwin_mut().w_cursor;
-    let mut resolved: *mut WinInfoInfo = ptr::null_mut();
+    let mut resolved = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     let mut lnum: Linenr = 0;
     let mut vcol: Colnr = 0;
     let mut mouse_fold_flags: i32 = 0;
@@ -1525,7 +1525,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                         })
                         && (flags & MOUSE_MAY_STOP_VIS) != 0));
             if mouse_st().status_line_offset == 0 && mouse_st().sep_line_offset == 0 {
-                resolved = wp;
+                resolved = crate::globals::GraphPtr::<WinInfoInfo>::of(&wp);
                 g_st().mouse_past_bottom = mouse_resolve(
                     &mut *wp,
                     row,

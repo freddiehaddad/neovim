@@ -3128,7 +3128,7 @@ pub fn find_pattern_in_path(
         let mut i: i32;
         let mut already = ptr::null_mut();
         let mut startp = ptr::null_mut();
-        let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
+        let mut curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
         let l_g_do_tagpreview = g_st().g_do_tagpreview;
 
         let mut file_line_vec: Vec<u8> = vec![0; LSIZE];
@@ -3704,7 +3704,8 @@ pub fn find_pattern_in_path(
                                 did_show = true;
                             } else {
                                 if l_g_do_tagpreview != 0 {
-                                    curwin_save = curwin_ptr().as_ptr();
+                                    curwin_save =
+                                        crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
                                     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
                                 }
                                 if action == ACTION_SPLIT {
@@ -3717,9 +3718,9 @@ pub fn find_pattern_in_path(
                                 if !stop_fpip_loop {
                                     if depth == -1 {
                                         if l_g_do_tagpreview != 0 {
-                                            if !win_valid(unsafe { curwin_save.as_ref() })
+                                            if !win_valid(curwin_save.opt())
                                                 || !getfile_success(getfile(
-                                                    unsafe { (*curwin_save).buf_mut().b_fnum },
+                                                    curwin_save.buf_mut().b_fnum,
                                                     None,
                                                     None,
                                                     true,
@@ -3762,11 +3763,11 @@ pub fn find_pattern_in_path(
 
                                 if l_g_do_tagpreview != 0
                                     && curwin_ptr() != curwin_save
-                                    && win_valid(unsafe { curwin_save.as_ref() })
+                                    && win_valid(curwin_save.opt())
                                 {
                                     validate_cursor(curwin_mut());
                                     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-                                    win_enter(unsafe { &mut *curwin_save }, true);
+                                    win_enter(curwin_save.borrow_mut(), true);
                                 }
                                 stop_fpip_loop = true;
                             }

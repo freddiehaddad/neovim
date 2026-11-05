@@ -104,26 +104,26 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         return 0;
     }
 
-    let mut tp: *mut TabPageInfo = ptr::null_mut();
+    let mut tp = crate::globals::GraphPtr::<TabPageInfo>::NULL;
     let wp: *mut WinInfoInfo;
     if argvars[1].v_type == VarType::VarUnknown {
-        tp = g_st().curtab.as_ptr();
+        tp = crate::globals::GraphPtr::<TabPageInfo>::of(g_st().curtab);
         wp = g_st().firstwin.as_ptr();
     } else {
         let mut tabnr = tv_get_number(&argvars[1]) as i32;
         for tp2 in for_all_tabpages_ptr() {
             tabnr -= 1;
             if tabnr == 0 {
-                tp = tp2;
+                tp = crate::globals::GraphPtr::<TabPageInfo>::of(tp2);
                 break;
             }
         }
         if tp.is_null() {
             return -1;
         }
-        wp = first_win_in_tab(unsafe { &mut *tp });
+        wp = first_win_in_tab(tp.borrow_mut());
     }
-    let tp_ref = unsafe { &mut *tp };
+    let tp_ref = tp.borrow_mut();
     for wp_ref in win_iter_mut(wp) {
         winnr -= i32::from(win_has_winnr(wp_ref, tp_ref));
         if winnr == 0 {
@@ -445,7 +445,7 @@ fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: i32) -> &'static mut TvDict {
 
 /// `gettabinfo()` function (`f_gettabinfo`).
 pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut tparg: *mut TabPageInfo = ptr::null_mut();
+    let mut tparg = crate::globals::GraphPtr::<TabPageInfo>::NULL;
 
     tv_list_alloc_ret(
         rettv,
@@ -457,8 +457,9 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     );
 
     if argvars[0].v_type != VarType::VarUnknown {
-        tparg = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32)
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        tparg = crate::globals::GraphPtr::from(find_tabpage(
+            tv_get_number_chk(&argvars[0], None) as i32
+        ));
         if tparg.is_null() {
             return;
         }
@@ -467,7 +468,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut tpnr: i32 = 0;
     for tp in for_all_tabpages_ptr() {
         tpnr += 1;
-        if !tparg.is_null() && !std::ptr::eq(tp, tparg) {
+        if !tparg.is_null() && tparg != tp {
             continue;
         }
         let d = get_tabpage_info(&mut *tp, tpnr);
@@ -480,7 +481,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `getwininfo()` function (`f_getwininfo`).
 pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wparg: *mut WinInfoInfo = ptr::null_mut();
+    let mut wparg = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
@@ -488,7 +489,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let Some(wp) = win_id2wp(tv_get_number(&argvars[0]) as i32) else {
             return;
         };
-        wparg = wp;
+        wparg = crate::globals::GraphPtr::<WinInfoInfo>::of(wp);
     }
 
     let mut tabnr: i16 = 0;
@@ -498,7 +499,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         for wp in win_iter_mut(first_win_in_tab(tp)) {
             let has_winnr = win_has_winnr(wp, tp);
             winnr = winnr.wrapping_add(i16::from(has_winnr));
-            if !wparg.is_null() && !std::ptr::eq(wp, wparg) {
+            if !wparg.is_null() && wparg != wp {
                 continue;
             }
             let d = get_win_info(wp, tabnr, if has_winnr { winnr } else { 0 });

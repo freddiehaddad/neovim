@@ -318,11 +318,11 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         add_bufnum(&mut bufnrs, b.b_fnum);
     }
 
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
     let mut i: usize = 0;
     while i < bufnrs.len() {
-        buf = buflist_findnr(bufnrs[i]).map_or(ptr::null_mut(), ptr::from_mut);
-        if let Some(buf_ref) = unsafe { buf.as_mut() }
+        buf = crate::globals::GraphPtr::from(buflist_findnr(bufnrs[i]));
+        if let Some(buf_ref) = buf.opt_mut()
             && (!hidden || buf_ref.b_nwindows == 0)
             && buf_is_changed_fn(buf_ref)
         {
@@ -341,7 +341,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     }
 
     if i < bufnrs.len() {
-        let buf_ref = unsafe { &*buf };
+        let buf_ref = buf.borrow();
         ret = true;
         g_st().exiting = false;
         if !opt_vars().p_confirm && (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
@@ -383,7 +383,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
                     if wp.w_buffer == buf {
                         let mut bufref: Bufref = Bufref::new();
-                        set_bufref(&mut bufref, unsafe { buf.as_mut() });
+                        set_bufref(&mut bufref, buf.opt_mut());
 
                         goto_tabpage_win(unsafe { &mut *tp }, wp);
 
@@ -401,7 +401,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
         if !wiped && buf != g_st().curbuf.as_ptr() {
             set_curbuf(
-                unsafe { &mut *buf },
+                buf.borrow_mut(),
                 if unload { DOBUF_UNLOAD } else { DOBUF_GOTO },
                 true,
             );

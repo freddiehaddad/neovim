@@ -2156,7 +2156,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
     let mut fname = ptr::null_mut();
     let mut retval = false;
     let mut free_fname: Option<std::ffi::CString> = None;
-    let mut alt_buf: *mut FileBuf = ptr::null_mut();
+    let mut alt_buf = crate::globals::GraphPtr::<FileBuf>::NULL;
 
     if not_writing() {
         return false;
@@ -2185,17 +2185,17 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ALTWRITE)
                 || eap.cmdidx == Cmdidx::CmdSaveas
             {
-                alt_buf = setaltfname(
+                alt_buf = crate::globals::GraphPtr::from(setaltfname(
                     crate::memory::cstr_as_opt_cstr(ffname),
                     crate::memory::cstr_as_opt_cstr(fname),
                     1,
-                )
-                .map_or(ptr::null_mut(), ptr::from_mut);
+                ));
             } else {
-                alt_buf = buflist_findname(crate::memory::cstr_as_opt_cstr(ffname))
-                    .map_or(ptr::null_mut(), ptr::from_mut);
+                alt_buf = crate::globals::GraphPtr::from(buflist_findname(
+                    crate::memory::cstr_as_opt_cstr(ffname),
+                ));
             }
-            if let Some(ab) = unsafe { alt_buf.as_ref() }
+            if let Some(ab) = alt_buf.opt()
                 && ab.b_ml.ml_mfp.is_some()
             {
                 emsg(gettext(E_BUFLOADED));
@@ -2253,27 +2253,21 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 let was_curbuf = g_st().curbuf;
 
                 apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
-                apply_autocmds(EVENT_BUFFILEPRE, None, None, false, unsafe {
-                    alt_buf.as_mut()
-                });
+                apply_autocmds(EVENT_BUFFILEPRE, None, None, false, alt_buf.opt_mut());
                 if g_st().curbuf != was_curbuf || aborting() {
                     retval = false;
                     break 'theend;
                 }
 
-                unsafe { (*alt_buf).swap_fnames(curbuf_mut()) };
+                alt_buf.swap_fnames(curbuf_mut());
 
                 buf_name_changed(curbuf_mut());
                 apply_autocmds(EVENT_BUFFILEPOST, None, None, false, curbuf_opt_mut());
-                apply_autocmds(EVENT_BUFFILEPOST, None, None, false, unsafe {
-                    alt_buf.as_mut()
-                });
-                if !unsafe { (*alt_buf).b_p_bl } {
-                    unsafe {
-                        (*alt_buf).b_p_bl = true;
-                    }
+                apply_autocmds(EVENT_BUFFILEPOST, None, None, false, alt_buf.opt_mut());
+                if !alt_buf.b_p_bl {
+                    alt_buf.b_p_bl = true;
 
-                    apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { alt_buf.as_mut() });
+                    apply_autocmds(EVENT_BUFADD, None, None, false, alt_buf.opt_mut());
                 }
                 if g_st().curbuf != was_curbuf || aborting() {
                     retval = false;

@@ -1043,12 +1043,12 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
         let oldwin = curwin_mut();
         setpcmark();
 
-        let mut wp: *mut WinInfoInfo = ptr::null_mut();
+        let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
         if (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && g_st().cmdmod.cmod_tab == 0
         {
             let found = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(ptr));
-            wp = swbuf_goto_win_with_buf(found).map_or(ptr::null_mut(), ptr::from_mut);
+            wp = crate::globals::GraphPtr::from(swbuf_goto_win_with_buf(found));
         }
 
         if wp.is_null() && win_split(0, 0) {
@@ -1070,7 +1070,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
 
                 goto_tabpage_win(unsafe { &mut *(oldtab) }, oldwin);
             } else {
-                wp = curwin_ptr().as_ptr();
+                wp = crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
             }
         }
 
@@ -1155,17 +1155,17 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
             do_cmdline_cmd(c"pclose");
         }
         c if c == b'P' as i32 => {
-            let mut wp: *mut WinInfoInfo = ptr::null_mut();
+            let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
             for wp2 in for_all_windows_ptr() {
                 if wp2.w_onebuf_opt.wo_pvw {
-                    wp = wp2;
+                    wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp2);
                     break;
                 }
             }
             if wp.is_null() {
                 emsg(gettext(c"E441: There is no preview window"));
             } else {
-                win_goto(unsafe { &mut *wp });
+                win_goto(wp.borrow_mut());
             }
         }
         c if c == CTRL_O || c == b'o' as i32 => {
@@ -1239,7 +1239,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                 msg(gettext(M_ONLYONE), 0);
             } else {
                 let oldtab = g_st().curtab.as_ptr();
-                let wp = curwin_ptr().as_ptr();
+                let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
                 if win_new_tabpage(prenum, None, true, None).is_some()
                     && valid_tabpage(unsafe { oldtab.as_ref() })
                 {
@@ -2667,8 +2667,8 @@ fn win_rotate(upwards: bool, mut count: i32) {
         frp = (unsafe { &mut *(frp) }).fr_next.as_ptr();
     }
 
-    let mut wp1: *mut WinInfoInfo = ptr::null_mut();
-    let mut wp2: *mut WinInfoInfo = ptr::null_mut();
+    let mut wp1 = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
+    let mut wp2 = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
 
     while count > 0 {
         count -= 1;
@@ -2677,9 +2677,9 @@ fn win_rotate(upwards: bool, mut count: i32) {
 
             debug_assert!(!frp.is_null());
 
-            wp1 = (unsafe { &mut *(frp) }).fr_win.as_ptr();
+            wp1 = crate::globals::GraphPtr::<WinInfoInfo>::of((unsafe { &mut *(frp) }).fr_win);
 
-            win_remove(unsafe { &mut *(wp1) }, None);
+            win_remove(wp1.borrow_mut(), None);
 
             frame_remove(unsafe { &mut *(frp) });
 
@@ -2689,28 +2689,22 @@ fn win_rotate(upwards: bool, mut count: i32) {
                 frp = (unsafe { &mut *(frp) }).fr_next.as_ptr();
             }
 
-            win_append(
-                unsafe { (*frp).fr_win.opt_mut() },
-                unsafe { &mut *wp1 },
-                None,
-            );
+            win_append(unsafe { (*frp).fr_win.opt_mut() }, wp1.borrow_mut(), None);
 
-            frame_append(unsafe { &mut *(frp) }, unsafe {
-                (*wp1).w_frame.borrow_mut()
-            });
+            frame_append(unsafe { &mut *(frp) }, wp1.w_frame.borrow_mut());
 
-            wp2 = (unsafe { &mut *(frp) }).fr_win.as_ptr();
+            wp2 = crate::globals::GraphPtr::<WinInfoInfo>::of((unsafe { &mut *(frp) }).fr_win);
         } else {
             frp = curwin_mut().w_frame.as_ptr();
             while !(unsafe { &mut *(frp) }).fr_next.is_null() {
                 frp = (unsafe { &mut *(frp) }).fr_next.as_ptr();
             }
 
-            wp1 = (unsafe { &mut *(frp) }).fr_win.as_ptr();
+            wp1 = crate::globals::GraphPtr::<WinInfoInfo>::of((unsafe { &mut *(frp) }).fr_win);
 
-            wp2 = (unsafe { &mut *(wp1) }).w_prev.as_ptr();
+            wp2 = crate::globals::GraphPtr::<WinInfoInfo>::of((wp1.borrow_mut()).w_prev);
 
-            win_remove(unsafe { &mut *(wp1) }, None);
+            win_remove(wp1.borrow_mut(), None);
 
             frame_remove(unsafe { &mut *(frp) });
 
@@ -2726,7 +2720,7 @@ fn win_rotate(upwards: bool, mut count: i32) {
                         .opt()
                         .and_then(|w| w.w_prev.opt_mut())
                 },
-                unsafe { &mut *wp1 },
+                wp1.borrow_mut(),
                 None,
             );
 
@@ -2737,34 +2731,34 @@ fn win_rotate(upwards: bool, mut count: i32) {
         }
 
         std::mem::swap(
-            &mut (unsafe { &mut *(wp2) }).w_status_height,
-            &mut (unsafe { &mut *(wp1) }).w_status_height,
+            &mut (wp2.borrow_mut()).w_status_height,
+            &mut (wp1.borrow_mut()).w_status_height,
         );
 
         std::mem::swap(
-            &mut (unsafe { &mut *(wp2) }).w_hsep_height,
-            &mut (unsafe { &mut *(wp1) }).w_hsep_height,
+            &mut (wp2.borrow_mut()).w_hsep_height,
+            &mut (wp1.borrow_mut()).w_hsep_height,
         );
 
-        frame_fix_height(unsafe { &mut *(wp1) });
+        frame_fix_height(wp1.borrow_mut());
 
-        frame_fix_height(unsafe { &mut *(wp2) });
+        frame_fix_height(wp2.borrow_mut());
 
         std::mem::swap(
-            &mut (unsafe { &mut *(wp2) }).w_vsep_width,
-            &mut (unsafe { &mut *(wp1) }).w_vsep_width,
+            &mut (wp2.borrow_mut()).w_vsep_width,
+            &mut (wp1.borrow_mut()).w_vsep_width,
         );
 
-        frame_fix_width(unsafe { &mut *(wp1) });
+        frame_fix_width(wp1.borrow_mut());
 
-        frame_fix_width(unsafe { &mut *(wp2) });
+        frame_fix_width(wp2.borrow_mut());
 
         win_comp_pos();
     }
 
-    (unsafe { &mut *(wp1) }).w_pos_changed = true;
+    (wp1.borrow_mut()).w_pos_changed = true;
 
-    (unsafe { &mut *(wp2) }).w_pos_changed = true;
+    (wp2.borrow_mut()).w_pos_changed = true;
 
     redraw_all_later(UPD_NOT_VALID);
 }
@@ -5335,16 +5329,16 @@ pub fn goto_tabpage(n: i32) {
         return;
     }
 
-    let mut tp: *mut TabPageInfo = ptr::null_mut();
+    let mut tp = crate::globals::GraphPtr::<TabPageInfo>::NULL;
 
     if n == 0 {
         if curtab_mut().tp_next.is_null() {
-            tp = g_st().first_tabpage.as_ptr();
+            tp = crate::globals::GraphPtr::<TabPageInfo>::of(g_st().first_tabpage);
         } else {
-            tp = curtab_mut().tp_next.as_ptr();
+            tp = crate::globals::GraphPtr::<TabPageInfo>::of(curtab_mut().tp_next);
         }
     } else if n < 0 {
-        let mut ttp = g_st().curtab.as_ptr();
+        let mut ttp = g_st().curtab;
         for _ in n..0 {
             let mut cur = crate::globals::first_tabpage_mut();
             while cur.tp_next != ttp
@@ -5352,22 +5346,22 @@ pub fn goto_tabpage(n: i32) {
             {
                 cur = next;
             }
-            tp = cur;
+            tp = crate::globals::GraphPtr::<TabPageInfo>::of(&cur);
             ttp = tp;
         }
     } else if n == 9999 {
         if let Some(last) = for_all_tabpages_ptr().last() {
-            tp = last;
+            tp = crate::globals::GraphPtr::<TabPageInfo>::of(last);
         }
     } else {
-        tp = find_tabpage(n).map_or(ptr::null_mut(), ptr::from_mut);
+        tp = crate::globals::GraphPtr::from(find_tabpage(n));
         if tp.is_null() {
             beep_flush();
             return;
         }
     }
 
-    goto_tabpage_tp(unsafe { tp.as_mut() }, true, true);
+    goto_tabpage_tp(tp.opt_mut(), true, true);
 }
 
 pub fn goto_tabpage_tp(
@@ -5909,14 +5903,14 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
 
     block_autocmds();
     if !hidden {
-        let mut tp: *mut TabPageInfo = ptr::null_mut();
+        let mut tp = crate::globals::GraphPtr::<TabPageInfo>::NULL;
         if let Some(after_ref) = after.opt() {
-            tp = win_find_tabpage(after_ref).map_or(ptr::null_mut(), ptr::from_mut);
+            tp = crate::globals::GraphPtr::from(win_find_tabpage(after_ref));
             if g_st().curtab == tp {
-                tp = ptr::null_mut();
+                tp = crate::globals::GraphPtr::NULL;
             }
         }
-        win_append(after.opt_mut(), &mut *new_wp, unsafe { tp.as_mut() });
+        win_append(after.opt_mut(), &mut *new_wp, tp.opt_mut());
     }
 
     new_wp.w_width = g_st().columns_global;
@@ -6440,10 +6434,10 @@ pub fn may_trigger_win_scrolled_resized() {
     win_st().win_scrolled_resized_recursive = true;
 
     let mut resize_winid = [0u8; NUMBUFLEN];
-    let mut resize_win: *mut WinInfoInfo = ptr::null_mut();
+    let mut resize_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     let mut resize_bufref: Bufref = Bufref::new();
     if trigger_resize && let Some(rw) = first_size_win {
-        resize_win = rw;
+        resize_win = crate::globals::GraphPtr::<WinInfoInfo>::of(&rw);
         vim_snprintf!(
             resize_winid.as_mut_ptr().cast(),
             resize_winid.len(),
@@ -6454,10 +6448,10 @@ pub fn may_trigger_win_scrolled_resized() {
     }
 
     let mut scroll_winid = [0u8; NUMBUFLEN];
-    let mut scroll_win: *mut WinInfoInfo = ptr::null_mut();
+    let mut scroll_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     let mut scroll_bufref: Bufref = Bufref::new();
     if trigger_scroll && let Some(sw) = first_scroll_win {
-        scroll_win = sw;
+        scroll_win = crate::globals::GraphPtr::<WinInfoInfo>::of(&sw);
         vim_snprintf!(
             scroll_winid.as_mut_ptr().cast(),
             scroll_winid.len(),
@@ -6478,10 +6472,10 @@ pub fn may_trigger_win_scrolled_resized() {
             } else {
                 g_st().curbuf.as_ptr()
             };
-            let win = if win_valid_any_tab(unsafe { resize_win.as_ref() }) {
+            let win = if win_valid_any_tab(resize_win.opt()) {
                 resize_win
             } else {
-                curwin_ptr().as_ptr()
+                curwin_ptr()
             };
             let resize_winid_cstr = crate::memory::cstr_until_nul(&resize_winid);
             apply_autocmds_win(
@@ -6490,7 +6484,7 @@ pub fn may_trigger_win_scrolled_resized() {
                 Some(resize_winid_cstr),
                 false,
                 unsafe { buf.as_mut() },
-                unsafe { (win).as_ref() },
+                win.opt(),
             );
         }
         restore_v_event(&mut *v_event, &mut save_v_event);
@@ -6509,10 +6503,10 @@ pub fn may_trigger_win_scrolled_resized() {
         } else {
             g_st().curbuf.as_ptr()
         };
-        let win = if win_valid_any_tab(unsafe { scroll_win.as_ref() }) {
+        let win = if win_valid_any_tab(scroll_win.opt()) {
             scroll_win
         } else {
-            curwin_ptr().as_ptr()
+            curwin_ptr()
         };
         let scroll_winid_cstr = crate::memory::cstr_until_nul(&scroll_winid);
         apply_autocmds_win(
@@ -6521,7 +6515,7 @@ pub fn may_trigger_win_scrolled_resized() {
             Some(scroll_winid_cstr),
             false,
             unsafe { buf.as_mut() },
-            unsafe { (win).as_ref() },
+            win.opt(),
         );
 
         restore_v_event(&mut *v_event, &mut save_v_event);
@@ -7928,7 +7922,7 @@ fn check_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> bool {
 }
 
 fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> Option<&'static mut WinInfoInfo> {
-    let mut wp: *mut WinInfoInfo = ptr::null_mut();
+    let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
 
     fr.fr_height = sn.fr_height;
     fr.fr_width = sn.fr_width;
@@ -7936,19 +7930,19 @@ fn restore_snapshot_rec(sn: &SnapshotFrame, fr: &mut Frame) -> Option<&'static m
         let fr_h = fr.fr_height;
         frame_new_height(&mut *fr, fr_h, false, false, false);
         frame_new_width(fr, fr.fr_width, false, false);
-        wp = sn.fr_win.as_ptr();
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(sn.fr_win);
     }
     if let Some(ref next) = sn.fr_next
         && let Some(wp2) = restore_snapshot_rec(next, fr.next_mut())
     {
-        wp = wp2;
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp2);
     }
     if let Some(ref child) = sn.fr_child
         && let Some(wp2) = restore_snapshot_rec(child, fr.child_mut())
     {
-        wp = wp2;
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp2);
     }
-    unsafe { wp.as_mut() }
+    wp.opt_mut()
 }
 
 fn frame_check_height(topfrp: &Frame, height: i32) -> bool {

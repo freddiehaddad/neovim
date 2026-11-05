@@ -3087,7 +3087,7 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     let mut win = crate::globals::WinPtr::NULL;
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
 
     if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
         win = find_window_by_handle(opts.win, err);
@@ -3106,7 +3106,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             );
             return;
         }
-        buf = find_buffer_by_handle(opts.buf, err).map_or(ptr::null_mut(), ptr::from_mut);
+        buf = crate::globals::GraphPtr::from(find_buffer_by_handle(opts.buf, err));
         if error_set(err) {
             return;
         }
@@ -3132,7 +3132,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         if !win.is_null() {
             redraw_later(win.opt_mut(), rtype);
         } else if !buf.is_null() {
-            redraw_buf_later(unsafe { &*buf }, rtype);
+            redraw_buf_later(buf.borrow(), rtype);
         } else {
             redraw_all_later(rtype);
         }
@@ -3158,13 +3158,13 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let end_raw = r[1].data.integer();
 
         let rbuf = if !win.is_null() {
-            win.w_buffer.as_ptr()
+            win.w_buffer
         } else if !buf.is_null() {
             buf
         } else {
-            g_st().curbuf.as_ptr()
+            g_st().curbuf
         };
-        let line_count = i64::from(unsafe { (*rbuf).b_ml.ml_line_count });
+        let line_count = i64::from(rbuf.b_ml.ml_line_count);
         let begin = begin_raw.min(line_count) as i32;
         let end = if end_raw == -1 {
             line_count as i32
@@ -3173,7 +3173,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         };
 
         if begin < end {
-            redraw_buf_range_later(unsafe { &*rbuf }, 1 + begin, end);
+            redraw_buf_range_later(&rbuf, 1 + begin, end);
         }
     }
 

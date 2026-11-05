@@ -3120,8 +3120,8 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     }
 
     let mut icm_split = opt_vars().p_icm.first_byte() == b's';
-    let mut cmdpreview_buf: *mut FileBuf = ptr::null_mut();
-    let mut cmdpreview_win: *mut WinInfoInfo = ptr::null_mut();
+    let mut cmdpreview_buf = crate::globals::GraphPtr::<FileBuf>::NULL;
+    let mut cmdpreview_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
 
     g_st().emsg_silent += 1;
     g_st().msg_silent += 1;
@@ -3130,7 +3130,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut cpinfo = cmdpreview_prepare();
 
     if icm_split {
-        cmdpreview_buf = cmdpreview_open_buf().map_or(ptr::null_mut(), |b| &raw mut *b);
+        cmdpreview_buf = crate::globals::GraphPtr::from(cmdpreview_open_buf());
         if cmdpreview_buf.is_null() {
             set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(Some(c"nosplit")), 0, SID_NONE);
             icm_split = false;
@@ -3156,8 +3156,8 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     }
 
     if icm_split && cmdpreview_type == 2 {
-        cmdpreview_win = cmdpreview_open_win(unsafe { &mut *cmdpreview_buf })
-            .map_or(ptr::null_mut(), |w| &raw mut *w);
+        cmdpreview_win =
+            crate::globals::GraphPtr::from(cmdpreview_open_win(cmdpreview_buf.borrow_mut()));
         if cmdpreview_win.is_null() {
             cmdpreview_type = 1;
         }

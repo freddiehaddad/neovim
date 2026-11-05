@@ -635,7 +635,7 @@ fn diff_check_sanity(tp: &TabPageInfo, dp: &DiffBlock) -> bool {
     true
 }
 pub fn diff_redraw(dofold: bool) {
-    let mut wp_other: *mut WinInfoInfo = ptr::null_mut();
+    let mut wp_other = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     let mut used_max_fill_other = false;
     let mut used_max_fill_curwin = false;
     g_st().need_diff_redraw = false;
@@ -645,7 +645,7 @@ pub fn diff_redraw(dofold: bool) {
         }
         redraw_later(Some(&mut *wp), UPD_SOME_VALID);
         if wp != curwin_ptr() {
-            wp_other = wp;
+            wp_other = crate::globals::GraphPtr::<WinInfoInfo>::of(&wp);
         }
         if dofold && foldmethod_is_diff(&mut *wp) {
             fold_update_all(&mut *wp);
@@ -665,7 +665,7 @@ pub fn diff_redraw(dofold: bool) {
             check_topfill(&mut *wp, false);
         }
     }
-    if let Some(wp_other) = unsafe { wp_other.as_mut() }
+    if let Some(wp_other) = wp_other.opt_mut()
         && curwin_mut().w_onebuf_opt.wo_scb
     {
         if used_max_fill_curwin {
@@ -2194,13 +2194,13 @@ fn parse_diffanchors(
     };
     let orig_curbuf = g_st().curbuf;
     let orig_curwin = curwin_ptr();
-    let bufwin: *mut WinInfoInfo = if check_only {
-        curwin_ptr().as_ptr()
+    let bufwin = if check_only {
+        curwin_ptr()
     } else {
-        let mut found_bw: *mut WinInfoInfo = ptr::null_mut();
+        let mut found_bw = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
         for bw in crate::globals::win_iter_ptr(firstwin_mut()) {
             if bw.w_buffer == buf && bw.w_onebuf_opt.wo_diff {
-                found_bw = bw;
+                found_bw = crate::globals::GraphPtr::<WinInfoInfo>::of(&bw);
                 break;
             }
         }

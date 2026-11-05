@@ -704,7 +704,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
         let l1_ref = l1.borrow_mut();
 
         if let Some(l2) = argvars[1].vval.v_list_opt() {
-            let mut item: *mut Listitem = std::ptr::null_mut();
+            let mut item = crate::globals::GraphPtr::<Listitem>::NULL;
             let arg2 = &argvars[2];
             if arg2.v_type != VarType::VarUnknown {
                 let before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
@@ -715,8 +715,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     return;
                 }
                 if before != tv_list_len(Some(l1_ref)) {
-                    item = tv_list_find(Some(l1_ref), before)
-                        .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+                    item = crate::globals::GraphPtr::from(tv_list_find(Some(l1_ref), before));
                     if item.is_null() {
                         semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before as i64);
                         if is_new {
@@ -726,7 +725,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     }
                 }
             }
-            tv_list_extend(l1_ref, Some(l2), unsafe { item.as_mut() });
+            tv_list_extend(l1_ref, Some(l2), item.opt_mut());
         }
 
         if is_new {
@@ -836,17 +835,16 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             return;
         }
 
-        let mut item: *mut Listitem = std::ptr::null_mut();
+        let mut item = crate::globals::GraphPtr::<Listitem>::NULL;
         if before != (tv_list_len(l.as_deref()) as i64) {
-            item = tv_list_find(l.as_deref_mut(), before as i32)
-                .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+            item = crate::globals::GraphPtr::from(tv_list_find(l.as_deref_mut(), before as i32));
             if item.is_null() {
                 semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before);
                 l = None;
             }
         }
         if let Some(l) = l {
-            tv_list_insert_tv(l, arg1, unsafe { item.as_mut() });
+            tv_list_insert_tv(l, arg1, item.opt_mut());
             tv_copy(arg0, rettv);
         }
     }

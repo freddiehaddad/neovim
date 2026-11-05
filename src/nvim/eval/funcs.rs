@@ -1515,14 +1515,12 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
 
     let mut owned = false;
-    let mut partial: *mut TvPartial = ptr::null_mut();
+    let mut partial = crate::globals::GraphPtr::<TvPartial>::NULL;
     let mut func = if argvars[0].v_type == VarType::VarFunc {
         argvars[0].vval.v_string()
     } else if argvars[0].v_type == VarType::VarPartial {
-        partial = argvars[0].vval.v_partial().as_ptr();
-        partial_name(unsafe { partial.as_ref() })
-            .as_ptr()
-            .cast_mut()
+        partial = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
+        partial_name(partial.opt()).as_ptr().cast_mut()
     } else if nlua_is_table_from_lua(&argvars[0]) {
         owned = true;
         nlua_register_table_as_callable(&argvars[0])
@@ -1546,19 +1544,19 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
 
     'done: {
-        let mut selfdict: *mut TvDict = ptr::null_mut();
+        let mut selfdict = crate::globals::GraphPtr::<TvDict>::NULL;
         if argvars[2].v_type != VarType::VarUnknown {
             if !tv_check_for_dict_arg(argvars, 2) {
                 break 'done;
             }
-            selfdict = argvars[2].vval.v_dict().as_ptr();
+            selfdict = crate::globals::GraphPtr::<TvDict>::of(argvars[2].vval.v_dict());
         }
 
         func_call(
             crate::memory::cstr_from_ptr(func),
             &mut argvars[1],
-            unsafe { partial.as_mut() },
-            unsafe { selfdict.as_mut() },
+            partial.opt_mut(),
+            selfdict.opt_mut(),
             &mut *rettv,
         );
     }
@@ -2531,14 +2529,14 @@ pub fn f_foreground(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool) {
     let name;
     let mut use_string = false;
-    let mut arg_pt: *mut TvPartial = ptr::null_mut();
+    let mut arg_pt = crate::globals::GraphPtr::<TvPartial>::NULL;
     let mut trans_name_owned: Option<std::ffi::CString> = None;
 
     let mut s = if argvars[0].v_type == VarType::VarFunc {
         argvars[0].vval.v_string()
     } else if argvars[0].v_type == VarType::VarPartial && !argvars[0].vval.v_partial().is_null() {
-        arg_pt = argvars[0].vval.v_partial().as_ptr();
-        partial_name(unsafe { arg_pt.as_ref() }).as_ptr().cast_mut()
+        arg_pt = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
+        partial_name(arg_pt.opt()).as_ptr().cast_mut()
     } else {
         use_string = true;
         tv_get_string(&argvars[0]).as_ptr().cast_mut()
@@ -2586,7 +2584,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         } else {
             let mut dict_idx: usize = 0;
             let mut arg_idx: usize = 0;
-            let mut list: *mut TvList = ptr::null_mut();
+            let mut list = crate::globals::GraphPtr::<TvList>::NULL;
             let s_bytes = crate::memory::cstr_as_bytes(s);
             let name_cstr = if s_bytes.starts_with(b"s:") || s_bytes.starts_with(b"<SID>") {
                 get_scriptlocal_funcname(Some(crate::memory::cstr_from_ptr(s))).unwrap_or_default()
@@ -2618,10 +2616,10 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                         ));
                         break 'theend;
                     }
-                    list = argvars[arg_idx].vval.v_list().as_ptr();
-                    if tv_list_len(unsafe { list.as_ref() }) == 0 {
+                    list = crate::globals::GraphPtr::<TvList>::of(argvars[arg_idx].vval.v_list());
+                    if tv_list_len(list.opt()) == 0 {
                         arg_idx = 0;
-                    } else if (tv_list_len(unsafe { list.as_ref() }) as usize) > MAX_FUNC_ARGS {
+                    } else if (tv_list_len(list.opt()) as usize) > MAX_FUNC_ARGS {
                         emsg_funcname(E_TOOMANYARG, crate::memory::cstr_from_ptr(s));
                         break 'theend;
                     }
@@ -2629,28 +2627,26 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             }
             if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
                 let pt = Box::leak(Box::new(TvPartial::default()));
-                if arg_idx > 0 || (!arg_pt.is_null() && !unsafe { &(*arg_pt).pt_argv }.is_empty()) {
+                if arg_idx > 0 || (!arg_pt.is_null() && !&(arg_pt.borrow().pt_argv).is_empty()) {
                     let arg_len = if arg_pt.is_null() {
                         0
                     } else {
-                        unsafe { (*arg_pt).pt_argv.len() as i32 }
+                        arg_pt.pt_argv.len() as i32
                     };
-                    let lv_len = tv_list_len(unsafe { list.as_ref() });
+                    let lv_len = tv_list_len(list.opt());
                     let pt_argc = arg_len + lv_len;
                     pt.pt_argv.resize(pt_argc as usize, TypVal::new());
                     let mut i: i32 = 0;
                     while i < arg_len {
                         tv_copy(
-                            &unsafe { &(*arg_pt).pt_argv }[i as usize],
+                            &(arg_pt.borrow().pt_argv)[i as usize],
                             &mut (&mut pt.pt_argv)[i as usize],
                         );
 
                         i += 1;
                     }
                     if lv_len > 0 {
-                        for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe {
-                            list.as_ref()
-                        })) {
+                        for li in crate::eval::typval::list_iter_mut(tv_list_first(list.opt())) {
                             tv_copy(&li.li_tv, &mut (&mut pt.pt_argv)[i as usize]);
                             i += 1;
                         }
@@ -2660,7 +2656,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 if dict_idx > 0 {
                     pt.pt_dict = argvars[dict_idx].vval.v_dict();
                     pt.pt_dict.dv_refcount += 1;
-                } else if let Some(arg_pt_ref) = unsafe { arg_pt.as_mut() } {
+                } else if let Some(arg_pt_ref) = arg_pt.opt_mut() {
                     pt.pt_dict = arg_pt_ref.pt_dict;
                     pt.pt_auto = arg_pt_ref.pt_auto;
                     if !pt.pt_dict.is_null() {
@@ -2669,8 +2665,8 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
 
                 pt.pt_refcount = 1;
-                if !arg_pt.is_null() && !unsafe { (*arg_pt).pt_func }.is_null() {
-                    pt.pt_func = unsafe { (*arg_pt).pt_func };
+                if !arg_pt.is_null() && !arg_pt.pt_func.is_null() {
+                    pt.pt_func = arg_pt.pt_func;
 
                     func_ptr_ref(pt.pt_func.opt_mut());
                 } else if is_funcref {
@@ -4458,7 +4454,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
 
-    let mut job_opts: *mut TvDict = ptr::null_mut();
+    let mut job_opts = crate::globals::GraphPtr::<TvDict>::NULL;
     let mut detach = false;
     let mut rpc = false;
     let mut pty = false;
@@ -4473,8 +4469,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut job_env: *mut Dictitem = ptr::null_mut();
 
     if argvars[1].v_type == VarType::VarDict {
-        job_opts = argvars[1].vval.v_dict().as_ptr();
-        let job_opts_ref = unsafe { job_opts.as_ref() };
+        job_opts = crate::globals::GraphPtr::<TvDict>::of(argvars[1].vval.v_dict());
+        let job_opts_ref = job_opts.opt();
 
         detach = tv_dict_get_number(job_opts_ref, c"detach") != 0;
 
@@ -4540,7 +4536,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         if !common_job_callbacks(
-            unsafe { &mut *job_opts },
+            job_opts.borrow_mut(),
             &mut on_stdout,
             &mut on_stderr,
             &mut on_exit,
@@ -4549,8 +4545,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
     }
 
-    let mut width = tv_dict_get_number(unsafe { job_opts.as_ref() }, c"width") as u16;
-    let mut height = tv_dict_get_number(unsafe { job_opts.as_ref() }, c"height") as u16;
+    let mut width = tv_dict_get_number(job_opts.opt(), c"width") as u16;
+    let mut height = tv_dict_get_number(job_opts.opt(), c"height") as u16;
     let mut term_name = ptr::null();
 
     if term {
@@ -4592,7 +4588,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     if pty {
         if term_name.is_null()
-            && let Some(tn) = tv_dict_get_string(unsafe { job_opts.as_ref() }, c"TERM")
+            && let Some(tn) = tv_dict_get_string(job_opts.opt(), c"TERM")
         {
             term_name = tn.as_ptr();
         }
@@ -5103,7 +5099,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
     let mut nth: i64 = 1;
     let mut startcol: Colnr = 0;
     let mut match_found = false;
-    let mut l: *mut TvList = ptr::null_mut();
+    let mut l = crate::globals::GraphPtr::<TvList>::NULL;
     let mut idx: i32 = 0;
     let mut tofree_owned: Option<std::ffi::CString> = None;
 
@@ -5128,15 +5124,15 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         SomeMatchType::SomeMatch | SomeMatchType::SomeMatchEnd => {}
     }
 
-    let mut li: *mut Listitem = ptr::null_mut();
+    let mut li = crate::globals::GraphPtr::<Listitem>::NULL;
     'theend: {
         if argvars[0].v_type == VarType::VarList {
-            l = argvars[0].vval.v_list().as_ptr();
+            l = crate::globals::GraphPtr::<TvList>::of(argvars[0].vval.v_list());
             if l.is_null() {
                 break 'theend;
             }
 
-            li = tv_list_first(unsafe { l.as_ref() }).map_or(ptr::null_mut(), ptr::from_mut);
+            li = crate::globals::GraphPtr::from(tv_list_first(l.opt()));
         } else {
             let s = tv_get_string(&argvars[0]);
             str_ = s.as_ptr().cast_mut();
@@ -5157,14 +5153,13 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 break 'theend;
             }
             if !l.is_null() {
-                idx = tv_list_uidx(unsafe { l.as_ref() }, start as i32);
+                idx = tv_list_uidx(l.opt(), start as i32);
 
                 if idx == -1 {
                     break 'theend;
                 }
 
-                li =
-                    tv_list_find(unsafe { l.as_mut() }, idx).map_or(ptr::null_mut(), ptr::from_mut);
+                li = crate::globals::GraphPtr::from(tv_list_find(l.opt_mut(), idx));
             } else {
                 if start < 0 {
                     start = 0;
@@ -5202,7 +5197,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         break;
                     }
 
-                    tofree_owned = Some(encode_tv2echo(unsafe { &mut (*li).li_tv }, None));
+                    tofree_owned = Some(encode_tv2echo(&mut (li.borrow_mut().li_tv), None));
 
                     expr = tofree_owned
                         .as_ref()
@@ -5230,7 +5225,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 }
 
                 if !l.is_null() {
-                    li = unsafe { (*li).li_next.as_ptr() };
+                    li = crate::globals::GraphPtr::<Listitem>::of(li.li_next.as_ptr());
 
                     idx += 1;
                 } else {
@@ -5299,7 +5294,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     }
                     SomeMatchType::SomeMatchStr => {
                         if !l.is_null() {
-                            tv_copy(unsafe { &(*li).li_tv }, &mut *rettv);
+                            tv_copy(&(li.borrow().li_tv), &mut *rettv);
                         } else {
                             let rd = crate::memory::ptr_offset_from(
                                 regmatch.endp[0],
@@ -8618,25 +8613,25 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "tabpagebuflist()" function
 pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp: *mut WinInfoInfo = ptr::null_mut();
+    let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     if argvars[0].v_type == VarType::VarUnknown {
-        wp = g_st().firstwin.as_ptr();
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(g_st().firstwin);
     } else if let Some(tp) = find_tabpage(tv_get_number(&argvars[0]) as i32) {
-        wp = if g_st().curtab == tp {
+        wp = crate::globals::GraphPtr::<WinInfoInfo>::of(if g_st().curtab == tp {
             g_st().firstwin.as_ptr()
         } else {
             tp.tp_firstwin.as_ptr()
-        };
+        });
     }
     if !wp.is_null() {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-        while let Some(wp_ref) = unsafe { wp.as_mut() } {
+        while let Some(wp_ref) = wp.opt_mut() {
             tv_list_append_number(
                 rettv.vval.v_list_ref(),
                 Varnumber::from(wp_ref.buf_mut().b_fnum),
             );
 
-            wp = wp_ref.w_next.as_ptr();
+            wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp_ref.w_next);
         }
     }
 }

@@ -69,13 +69,12 @@ impl Default for Cob {
 
 /// Find a buffer by number or exact name (`find_buffer`).
 pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::NULL;
 
     if avar.v_type == VarType::VarNumber {
-        buf = buflist_findnr(avar.vval.v_number() as i32).map_or(ptr::null_mut(), ptr::from_mut);
+        buf = crate::globals::GraphPtr::from(buflist_findnr(avar.vval.v_number() as i32));
     } else if avar.v_type == VarType::VarString && !avar.vval.v_string().is_null() {
-        buf =
-            buflist_findname_exp(avar.vval.v_string_cstr()).map_or(ptr::null_mut(), ptr::from_mut);
+        buf = crate::globals::GraphPtr::from(buflist_findname_exp(avar.vval.v_string_cstr()));
         if buf.is_null() {
             let target = avar.vval.v_string_bytes();
             for bp in for_all_buffers_mut() {
@@ -83,13 +82,13 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
                     && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(&*bp)))
                     && bp.fname_bytes() == target
                 {
-                    buf = bp;
+                    buf = crate::globals::GraphPtr::<FileBuf>::of(&bp);
                     break;
                 }
             }
         }
     }
-    unsafe { buf.as_mut() }
+    buf.opt_mut()
 }
 
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
@@ -163,19 +162,19 @@ fn set_buffer_lines(
         curbuf_mut().b_ml.ml_line_count
     };
 
-    let mut l: *mut TvList = ptr::null_mut();
-    let mut li: *mut Listitem = ptr::null_mut();
+    let mut l = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut li = crate::globals::GraphPtr::<Listitem>::NULL;
     let mut line: Option<std::ffi::CString> = None;
     if lines.v_type == VarType::VarList {
-        l = lines.vval.v_list().as_ptr();
-        if l.is_null() || tv_list_len(unsafe { l.as_ref() }) == 0 {
+        l = crate::globals::GraphPtr::<TvList>::of(lines.vval.v_list());
+        if l.is_null() || tv_list_len(l.opt()) == 0 {
             if !is_curbuf {
                 change_other_buffer_restore(&mut cob);
             }
             return;
         }
 
-        li = tv_list_first(unsafe { l.as_ref() }).map_or(ptr::null_mut(), ptr::from_mut);
+        li = crate::globals::GraphPtr::from(tv_list_first(l.opt()));
     } else {
         line = Some(typval_tostring(Some(lines), false));
     }
@@ -186,9 +185,9 @@ fn set_buffer_lines(
                 break;
             }
 
-            line = Some(typval_tostring(Some(unsafe { &mut (*li).li_tv }), false));
+            line = Some(typval_tostring(Some(&mut (li.borrow_mut().li_tv)), false));
 
-            li = unsafe { (*li).li_next.as_ptr() };
+            li = crate::globals::GraphPtr::<Listitem>::of(li.li_next.as_ptr());
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
@@ -758,7 +757,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
 
 /// `getbufinfo()` function (`f_getbufinfo`).
 pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut argbuf: *mut FileBuf = ptr::null_mut();
+    let mut argbuf = crate::globals::GraphPtr::<FileBuf>::NULL;
     let mut filtered = false;
     let mut sel_buflisted = false;
     let mut sel_bufloaded = false;
@@ -774,14 +773,14 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             sel_bufmodified = tv_dict_get_bool(Some(sel_d), c"bufmodified", 0) != 0;
         }
     } else if argvars[0].v_type != VarType::VarUnknown {
-        argbuf = tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null_mut(), ptr::from_mut);
+        argbuf = crate::globals::GraphPtr::from(tv_get_buf_from_arg(&mut argvars[0]));
         if argbuf.is_null() {
             return;
         }
     }
 
     for buf in for_all_buffers_ptr() {
-        if !argbuf.is_null() && !ptr::eq(argbuf, buf) {
+        if !argbuf.is_null() && argbuf != buf {
             continue;
         }
         if filtered

@@ -3813,7 +3813,7 @@ pub fn setfname(
     sfname_arg: Option<&CStr>,
     message: bool,
 ) -> bool {
-    let mut obuf: *mut FileBuf = ptr::null_mut();
+    let mut obuf = crate::globals::GraphPtr::<FileBuf>::NULL;
     let mut file_id: FileID = FileID::new();
     let mut file_id_valid = false;
 
@@ -3827,8 +3827,11 @@ pub fn setfname(
 
         file_id_valid = os_fileid(&ffname_cstr, &mut file_id);
         if (buf.b_flags & BF_DUMMY) == 0 {
-            obuf = buflist_findname_file_id(Some(&ffname_cstr), &mut file_id, file_id_valid)
-                .map_or(ptr::null_mut(), ptr::from_mut);
+            obuf = crate::globals::GraphPtr::from(buflist_findname_file_id(
+                Some(&ffname_cstr),
+                &mut file_id,
+                file_id_valid,
+            ));
         }
         if !obuf.is_null() && obuf != (&raw mut *buf) {
             let mut in_use = false;
@@ -3841,20 +3844,13 @@ pub fn setfname(
                 }
             }
 
-            if unsafe { (*obuf).b_ml.ml_mfp.is_some() } || in_use {
+            if obuf.b_ml.ml_mfp.is_some() || in_use {
                 if message {
                     emsg(gettext(c"E95: Buffer with this name already exists"));
                 }
                 return false;
             }
-            close_buffer(
-                None,
-                unsafe { obuf.as_mut() },
-                DOBUF_WIPE,
-                false,
-                false,
-                false,
-            );
+            close_buffer(None, obuf.opt_mut(), DOBUF_WIPE, false, false, false);
         }
         let mut sf_vec = sfname_raw.into_bytes_with_nul();
         if CASE_INSENSITIVE_FILENAME {

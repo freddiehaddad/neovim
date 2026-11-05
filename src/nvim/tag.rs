@@ -2658,7 +2658,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
     let mut tagp = Tagptrs::default();
     let mut retval = Some(false);
     let mut getfile_result = GetFileResult::Unused;
-    let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
+    let mut curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
     let mut full_fname: Option<std::ffi::CString> = None;
     let old_key_typed = g_st().key_typed;
     let l_g_do_tagpreview = g_st().g_do_tagpreview;
@@ -2720,7 +2720,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if l_g_do_tagpreview != 0 {
             g_st().postponed_split = 0;
-            curwin_save = curwin_ptr().as_ptr();
+            curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::of(curwin_ptr());
 
             if !curwin_mut().w_onebuf_opt.wo_pvw {
                 full_fname = FullName_save(crate::memory::cstr_as_opt_cstr(fname), false);
@@ -2765,7 +2765,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if keep_help {
             if l_g_do_tagpreview != 0 {
-                g_st().keep_help_flag = bt_help(unsafe { (*curwin_save).buf_opt() });
+                g_st().keep_help_flag = bt_help(curwin_save.buf_opt());
             } else {
                 g_st().keep_help_flag = curbuf_mut().b_help;
             }
@@ -2950,13 +2950,11 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 }
             }
 
-            if l_g_do_tagpreview != 0
-                && curwin_ptr() != curwin_save
-                && win_valid(unsafe { curwin_save.as_ref() })
+            if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save.opt())
             {
                 validate_cursor(curwin_mut());
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-                win_enter(unsafe { &mut *curwin_save }, true);
+                win_enter(curwin_save.borrow_mut(), true);
             }
 
             g_st().redrawing_disabled -= 1;

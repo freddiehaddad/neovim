@@ -552,7 +552,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
     let dirnow = dirnow.as_ptr();
     {
         let mut only_save_windows = true;
-        let mut edited_win: *mut WinInfoInfo = ptr::null_mut();
+        let mut edited_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
         let mut cur_arg_idx: i32 = 0;
         let mut next_arg_idx: i32 = 0;
 
@@ -767,7 +767,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                         return false;
                     }
                     if !wp_ref.w_arg_idx_invalid {
-                        edited_win = wp;
+                        edited_win = crate::globals::GraphPtr::<WinInfoInfo>::of(wp);
                     }
                     break;
                 }
@@ -838,7 +838,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     fd,
                     wp_ref,
                     tp.borrow_mut(),
-                    !ptr::eq(wp, edited_win),
+                    edited_win != wp,
                     &mut opt_vars().ssop_flags,
                     cur_arg_idx,
                 ) {

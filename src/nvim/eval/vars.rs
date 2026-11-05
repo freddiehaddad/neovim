@@ -803,7 +803,7 @@ pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
 pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvList> {
     let mut save_val: TypVal = TypVal::new();
     let mut rettv: TypVal = TypVal::new();
-    let mut list: *mut TvList = ptr::null_mut();
+    let mut list = crate::globals::GraphPtr::<TvList>::NULL;
     let mut p = crate::charset::skipwhite(expr);
     let saved_sctx = g_st().current_sctx;
 
@@ -821,7 +821,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
         if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
         } else {
-            list = rettv.vval.v_list().as_ptr();
+            list = crate::globals::GraphPtr::<TvList>::of(rettv.vval.v_list());
         }
     }
 
@@ -832,7 +832,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
     restore_vimvar(VV_VAL, &mut save_val);
     g_st().current_sctx = saved_sctx;
 
-    unsafe { list.as_mut() }
+    list.opt_mut()
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
@@ -2748,9 +2748,9 @@ fn find_var_ht_dict<'a>(
 
     *varname = Some(crate::memory::cstr_from_ptr(name.wrapping_add(2)));
     let scope_b = name_slice[0];
-    let mut dict_ptr: *mut TvDict = ptr::null_mut();
+    let mut dict_ptr = crate::globals::GraphPtr::<TvDict>::NULL;
     if scope_b == b'g' {
-        dict_ptr = get_globvar_dict();
+        dict_ptr = crate::globals::GraphPtr::<TvDict>::of(get_globvar_dict());
     } else if name_slice[2..]
         .iter()
         .any(|&b| b == b':' || b == AUTOLOAD_CHAR)
@@ -2759,12 +2759,12 @@ fn find_var_ht_dict<'a>(
     }
 
     match scope_b {
-        b'b' => dict_ptr = curbuf_mut().b_vars(),
-        b'w' => dict_ptr = curwin_mut().w_vars(),
-        b't' => dict_ptr = curtab_mut().tp_vars(),
-        b'v' => dict_ptr = get_vimvar_dict(),
-        b'a' => dict_ptr = get_funccal_args_dict().map_or(ptr::null_mut(), ptr::from_mut),
-        b'l' => dict_ptr = get_funccal_local_dict().map_or(ptr::null_mut(), ptr::from_mut),
+        b'b' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(curbuf_mut().b_vars()),
+        b'w' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(curwin_mut().w_vars()),
+        b't' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(curtab_mut().tp_vars()),
+        b'v' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(get_vimvar_dict()),
+        b'a' => dict_ptr = crate::globals::GraphPtr::from(get_funccal_args_dict()),
+        b'l' => dict_ptr = crate::globals::GraphPtr::from(get_funccal_local_dict()),
         b's' if (g_st().current_sctx.sc_sid > 0
             || g_st().current_sctx.sc_sid == SID_STR
             || g_st().current_sctx.sc_sid == SID_LUA)
@@ -2774,14 +2774,16 @@ fn find_var_ht_dict<'a>(
             if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
                 new_script_item(None, &mut g_st().current_sctx.sc_sid);
             }
-            dict_ptr = &raw mut script_sv(g_st().current_sctx.sc_sid).sv_dict;
+            dict_ptr = crate::globals::GraphPtr::<TvDict>::of(
+                &mut script_sv(g_st().current_sctx.sc_sid).sv_dict,
+            );
         }
         _ => {}
     }
 
     if !dict_ptr.is_null() {
-        *d = Some(unsafe { &mut *dict_ptr });
-        Some(unsafe { &mut (*dict_ptr).dv_hashtab })
+        *d = Some(dict_ptr.borrow_mut());
+        Some(&mut (dict_ptr.borrow_mut().dv_hashtab))
     } else {
         None
     }
@@ -3719,14 +3721,16 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     };
     let varname = tv_get_string_chk(arg1);
     let tp = crate::globals::GraphPtr::from(find_tabpage(tv_get_number_chk(arg0, None) as i32));
-    let mut win: *mut WinInfoInfo = ptr::null_mut();
+    let mut win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
 
     if let Some(tp_ref) = tp.opt_mut() {
-        win = if g_st().curtab == tp_ref || tp_ref.tp_firstwin.is_null() {
-            g_st().firstwin.as_ptr()
-        } else {
-            tp_ref.tp_firstwin.as_ptr()
-        };
+        win = crate::globals::GraphPtr::<WinInfoInfo>::of(
+            if g_st().curtab == tp_ref || tp_ref.tp_firstwin.is_null() {
+                g_st().firstwin.as_ptr()
+            } else {
+                tp_ref.tp_firstwin.as_ptr()
+            },
+        );
     }
 
     get_var_from(
@@ -3735,7 +3739,7 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         arg2,
         b't' as i32,
         tp.opt_mut(),
-        unsafe { win.as_mut() },
+        win.opt_mut(),
         None,
     );
 }

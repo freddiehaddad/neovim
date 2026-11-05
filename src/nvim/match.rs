@@ -952,7 +952,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `setmatches()` function (`f_setmatches`).
 pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut s: *mut TvList = ptr::null_mut();
+    let mut s = crate::globals::GraphPtr::<TvList>::NULL;
     let win = get_optional_window(argvars, 1);
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1002,7 +1002,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             if s.is_null() {
                 let list = tv_list_alloc(9);
                 tv_list_ref(Some(&mut *list));
-                s = list;
+                s = crate::globals::GraphPtr::<TvList>::of(&list);
             }
 
             i = 1;
@@ -1015,10 +1015,10 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     -1,
                 ) {
                     if pos_di.di_tv.v_type != VarType::VarList {
-                        tv_list_unref(unsafe { s.as_mut() });
+                        tv_list_unref(s.opt_mut());
                         return;
                     }
-                    tv_list_append_tv(unsafe { &mut *s }, &mut pos_di.di_tv);
+                    tv_list_append_tv(s.borrow_mut(), &mut pos_di.di_tv);
                 } else {
                     break;
                 }
@@ -1043,20 +1043,11 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 match_add_failed = true;
             }
         } else {
-            if match_add(
-                &mut *win,
-                group,
-                None,
-                priority,
-                id,
-                unsafe { s.as_ref() },
-                conceal,
-            ) != id
-            {
+            if match_add(&mut *win, group, None, priority, id, s.opt(), conceal) != id {
                 match_add_failed = true;
             }
-            tv_list_unref(unsafe { s.as_mut() });
-            s = ptr::null_mut();
+            tv_list_unref(s.opt_mut());
+            s = crate::globals::GraphPtr::NULL;
         }
     }
     if !match_add_failed {
