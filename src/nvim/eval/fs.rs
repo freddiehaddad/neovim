@@ -1485,7 +1485,7 @@ fn read_blob(fd: &CFile, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> 
     if fd.read_bytes(bv) < bv.len() {
         // An empty blob is returned on error.
         crate::eval::typval::tv_blob_unref(rettv.vval.v_blob_opt());
-        rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
         return false;
     }
     true

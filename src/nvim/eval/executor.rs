@@ -22,7 +22,7 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     };
 
     let Some(b1_ref) = tv1.vval.v_blob_opt() else {
-        tv1.vval = crate::eval::typval::TypvalVval::Blob(b2);
+        tv1.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::new(b2));
         b2.bv_refcount += 1;
         return true;
     };
@@ -51,7 +51,7 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     if let Some(l1) = tv1.vval.v_list_opt() {
         tv_list_extend(l1, Some(&*l2), None);
     } else {
-        tv1.vval = crate::eval::typval::TypvalVval::List(l2);
+        tv1.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(l2));
         l2.lv_refcount += 1;
     }
 

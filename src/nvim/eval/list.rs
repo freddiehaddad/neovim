@@ -99,7 +99,7 @@ fn filter_map_dict(
     {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarDict;
-            rettv.vval = crate::eval::typval::TypvalVval::Dict(std::ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
         }
         if d.is_none()
             || (filtermap == FilterMap::Filter
@@ -191,7 +191,7 @@ fn filter_map_blob(
 ) {
     if filtermap == FilterMap::MapNew {
         rettv.v_type = VarType::VarBlob;
-        rettv.vval = crate::eval::typval::TypvalVval::Blob(std::ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
     }
     let Some(b) = blob_arg else {
         return;
@@ -318,7 +318,7 @@ fn filter_map_list(
     {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarList;
-            rettv.vval = crate::eval::typval::TypvalVval::List(std::ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
         }
         if l.is_none()
             || (filtermap == FilterMap::Filter
@@ -667,7 +667,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             *rettv = TypVal {
                 v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Dict(d1),
+                vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d1)),
             };
         } else {
             tv_copy(&argvars[0], &mut *rettv);
@@ -730,7 +730,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             *rettv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(l1),
+                vval: TypvalVval::List(crate::globals::GraphPtr::new(l1)),
             };
         } else {
             tv_copy(&argvars[0], &mut *rettv);

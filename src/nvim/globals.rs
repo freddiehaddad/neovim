@@ -1051,10 +1051,27 @@ impl<T> From<*mut T> for GraphPtr<T> {
     }
 }
 
+impl<T> From<&T> for GraphPtr<T> {
+    #[inline]
+    fn from(r: &T) -> Self {
+        Self::new((&raw const *r).cast_mut())
+    }
+}
+
 impl<T> From<&mut T> for GraphPtr<T> {
     #[inline]
     fn from(r: &mut T) -> Self {
         Self::new(&raw mut *r)
+    }
+}
+
+impl<T> From<Option<&T>> for GraphPtr<T> {
+    #[inline]
+    fn from(opt: Option<&T>) -> Self {
+        match opt {
+            Some(r) => Self::new((&raw const *r).cast_mut()),
+            None => Self::NULL,
+        }
     }
 }
 

@@ -687,7 +687,7 @@ pub fn get_lambda_tv(
 
         pt.pt_func = crate::globals::GraphPtr::from(&mut *fp);
         pt.pt_refcount = 1;
-        rettv.vval = crate::eval::typval::TypvalVval::Partial(pt);
+        rettv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::new(pt));
         rettv.v_type = VarType::VarPartial;
         eval_st().eval_lavars_used = old_eval_lavars;
     }
@@ -1253,7 +1253,8 @@ pub fn call_user_func(
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         v.di_tv.v_type = VarType::VarDict;
         v.di_tv.v_lock = VAR_UNLOCKED;
-        v.di_tv.vval = crate::eval::typval::TypvalVval::Dict(selfdict);
+        v.di_tv.vval =
+            crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(selfdict));
 
         unsafe {
             (*selfdict).dv_refcount += 1;
@@ -1287,7 +1288,9 @@ pub fn call_user_func(
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         v.di_tv.v_type = VarType::VarList;
         v.di_tv.v_lock = VAR_FIXED;
-        v.di_tv.vval = crate::eval::typval::TypvalVval::List(&raw mut fc.fc_l_varlist);
+        v.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(
+            &raw mut fc.fc_l_varlist,
+        ));
         hash_add(&mut fc.fc_l_avars.dv_hashtab, &mut *v);
     }
     tv_list_init_static(&mut fc.fc_l_varlist);
@@ -4120,7 +4123,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
             partial_unref(Some(ret_pt));
         }
         rettv.v_type = VarType::VarPartial;
-        rettv.vval = crate::eval::typval::TypvalVval::Partial(pt);
+        rettv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::new(pt));
     }
 }
 

@@ -868,7 +868,9 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                 l.lua_table_ref = table_ref;
                                 tv_list_ref(Some(&mut *l));
                                 cur.tv_mut().v_type = VarType::VarList;
-                                cur.tv_mut().vval = crate::eval::typval::TypvalVval::List(l);
+                                cur.tv_mut().vval = crate::eval::typval::TypvalVval::List(
+                                    crate::globals::GraphPtr::new(l),
+                                );
                                 cur.list_len = table_props.maxidx;
                                 if table_props.maxidx != 0 {
                                     cur.container = true;
@@ -882,7 +884,9 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                     d.dv_refcount += 1;
                                     d.lua_table_ref = table_ref;
                                     cur.tv_mut().v_type = VarType::VarDict;
-                                    cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(d);
+                                    cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(
+                                        crate::globals::GraphPtr::new(d),
+                                    );
                                 } else {
                                     cur.special = table_props.has_string_with_nul;
                                     if table_props.has_string_with_nul {
@@ -904,8 +908,9 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                         d.dv_refcount += 1;
                                         d.lua_table_ref = table_ref;
                                         cur.tv_mut().v_type = VarType::VarDict;
-                                        cur.tv_mut().vval =
-                                            crate::eval::typval::TypvalVval::Dict(d);
+                                        cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(
+                                            crate::globals::GraphPtr::new(d),
+                                        );
                                     }
                                     cur.container = true;
                                     cur.idx = lua_gettop(lstate);

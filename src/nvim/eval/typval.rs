@@ -114,7 +114,7 @@ impl Drop for TvPartial {
 pub enum CallbackData {
     None,
     Funcref(std::ffi::CString),
-    Partial(*mut TvPartial),
+    Partial(crate::globals::GraphPtr<TvPartial>),
     Lua(LuaRef),
     Expr(std::ffi::CString),
 }
@@ -133,8 +133,8 @@ impl CallbackData {
     }
 
     #[inline]
-    pub const fn partial(partial: *mut TvPartial) -> Self {
-        Self::Partial(partial)
+    pub fn partial(partial: impl Into<crate::globals::GraphPtr<TvPartial>>) -> Self {
+        Self::Partial(partial.into())
     }
 
     #[inline]
@@ -151,10 +151,10 @@ impl CallbackData {
     }
 
     #[inline]
-    pub const fn as_partial(&self) -> *mut TvPartial {
+    pub const fn as_partial(&self) -> crate::globals::GraphPtr<TvPartial> {
         match self {
             Self::Partial(p) => *p,
-            _ => ptr::null_mut(),
+            _ => crate::globals::GraphPtr::NULL,
         }
     }
 
@@ -233,10 +233,10 @@ pub enum TypvalVval {
     Special(i32),
     Float(f64),
     String(RawCCharPtrMut),
-    List(*mut TvList),
-    Dict(*mut TvDict),
-    Blob(*mut TvBlob),
-    Partial(*mut TvPartial),
+    List(crate::globals::TvListPtr),
+    Dict(crate::globals::GraphPtr<TvDict>),
+    Blob(crate::globals::GraphPtr<TvBlob>),
+    Partial(crate::globals::GraphPtr<TvPartial>),
 }
 
 impl TypvalVval {
@@ -344,78 +344,99 @@ impl TypvalVval {
     #[inline]
     pub const fn v_list(self) -> *mut TvList {
         match self {
-            Self::List(p) => p,
+            Self::List(p) => p.as_ptr(),
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
     pub fn v_list_ref(self) -> &'static mut TvList {
-        unsafe { &mut *self.v_list() }
+        match self {
+            Self::List(p) => p.borrow_mut(),
+            _ => panic!("null list"),
+        }
     }
 
     #[inline]
     pub fn v_list_opt(self) -> Option<&'static mut TvList> {
-        unsafe { self.v_list().as_mut() }
+        match self {
+            Self::List(p) => p.opt_mut(),
+            _ => None,
+        }
     }
 
     #[inline]
     pub const fn v_dict(self) -> *mut TvDict {
         match self {
-            Self::Dict(p) => p,
+            Self::Dict(p) => p.as_ptr(),
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
     pub fn v_dict_ref(self) -> &'static mut TvDict {
-        unsafe { &mut *self.v_dict() }
+        match self {
+            Self::Dict(p) => p.borrow_mut(),
+            _ => panic!("null dict"),
+        }
     }
 
     #[inline]
     pub fn v_dict_opt(self) -> Option<&'static mut TvDict> {
-        unsafe { self.v_dict().as_mut() }
+        match self {
+            Self::Dict(p) => p.opt_mut(),
+            _ => None,
+        }
     }
 
     #[inline]
     pub const fn v_blob(self) -> *mut TvBlob {
         match self {
-            Self::Blob(p) => p,
+            Self::Blob(p) => p.as_ptr(),
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
     pub fn v_blob_ref(self) -> &'static mut TvBlob {
-        unsafe { &mut *self.v_blob() }
+        match self {
+            Self::Blob(p) => p.borrow_mut(),
+            _ => panic!("null blob"),
+        }
     }
 
     #[inline]
     pub fn v_blob_opt(self) -> Option<&'static mut TvBlob> {
-        unsafe { self.v_blob().as_mut() }
+        match self {
+            Self::Blob(p) => p.opt_mut(),
+            _ => None,
+        }
     }
 
     #[inline]
     pub const fn v_partial(self) -> *mut TvPartial {
         match self {
-            Self::Partial(p) => p,
+            Self::Partial(p) => p.as_ptr(),
             _ => ptr::null_mut(),
         }
     }
 
     #[inline]
     pub fn v_partial_opt(self) -> Option<&'static mut TvPartial> {
-        unsafe { self.v_partial().as_mut() }
+        match self {
+            Self::Partial(p) => p.opt_mut(),
+            _ => None,
+        }
     }
 
     #[inline]
     pub fn v_any_addr(self) -> usize {
         match self {
             Self::String(p) => p as usize,
-            Self::List(p) => p as usize,
-            Self::Dict(p) => p as usize,
-            Self::Blob(p) => p as usize,
-            Self::Partial(p) => p as usize,
+            Self::List(p) => p.as_ptr() as usize,
+            Self::Dict(p) => p.as_ptr() as usize,
+            Self::Blob(p) => p.as_ptr() as usize,
+            Self::Partial(p) => p.as_ptr() as usize,
             _ => 0,
         }
     }
@@ -868,7 +889,7 @@ fn tv_list_set_ret_inline(tv: &mut TypVal, l: Option<&mut TvList>) {
         ptr::from_mut(l_ref)
     });
     tv.v_type = VarType::VarList;
-    tv.vval = crate::eval::typval::TypvalVval::List(l_ptr);
+    tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(l_ptr));
 }
 
 #[inline]
@@ -1026,7 +1047,7 @@ fn tv_list_last_inline(l: Option<&TvList>) -> Option<&'static mut Listitem> {
 fn tv_dict_set_ret_inline(tv: &mut TypVal, d: &mut TvDict) {
     d.dv_refcount += 1;
     tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(d);
+    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(d));
 }
 
 #[inline]
@@ -1043,7 +1064,7 @@ fn tv_dict_is_watched_inline(d: Option<&TvDict>) -> bool {
 fn tv_blob_set_ret_inline(tv: &mut TypVal, b: &mut TvBlob) {
     b.bv_refcount += 1;
     tv.v_type = VarType::VarBlob;
-    tv.vval = crate::eval::typval::TypvalVval::Blob(b);
+    tv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::new(b));
 }
 
 #[inline]
@@ -1365,7 +1386,7 @@ pub fn tv_list_append_list(l: &mut TvList, itemlist: Option<&mut TvList>) {
         TypVal {
             v_type: VarType::VarList,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::List(itemlist_ptr),
+            vval: TypvalVval::List(crate::globals::GraphPtr::new(itemlist_ptr)),
         },
     );
 }
@@ -1381,7 +1402,7 @@ pub fn tv_list_append_dict(l: &mut TvList, dict: Option<&mut TvDict>) {
         TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(dict_ptr),
+            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict_ptr)),
         },
     );
 }
@@ -1766,7 +1787,7 @@ pub fn tv_list_concat(
         return false;
     }
 
-    tv.vval = crate::eval::typval::TypvalVval::List(l.map_or(ptr::null_mut(), ptr::from_mut));
+    tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(l));
     true
 }
 
@@ -2621,7 +2642,7 @@ pub fn callback_free(callback: &mut Callback) {
             func_unref(callback.data.as_funcref());
         }
         K_CALLBACK_PARTIAL => {
-            partial_unref(unsafe { callback.data.as_partial().as_mut() });
+            partial_unref(callback.data.as_partial().opt_mut());
         }
         K_CALLBACK_LUA => {
             let mut luaref = callback.data.as_luaref();
@@ -2640,9 +2661,7 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
             tv.v_type = VarType::VarPartial;
             tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
 
-            unsafe {
-                (*pt).pt_refcount += 1;
-            }
+            pt.borrow_mut().pt_refcount += 1;
         }
         K_CALLBACK_FUNCREF => {
             let funcref = cb.data.as_funcref();
@@ -2665,9 +2684,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
             let pt = src.data.as_partial();
             dest.data = CallbackData::partial(pt);
 
-            unsafe {
-                (*pt).pt_refcount += 1;
-            }
+            pt.borrow_mut().pt_refcount += 1;
         }
         K_CALLBACK_FUNCREF => {
             let funcref = src.data.as_funcref();
@@ -2710,7 +2727,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
         }
         K_CALLBACK_PARTIAL => {
             let pt = cb.data.as_partial();
-            let s = unsafe { (*pt).pt_name.as_ref() }.map_or(&[][..], |n| n.as_bytes());
+            let s = pt.pt_name.as_ref().map_or(&[][..], |n| n.as_bytes());
             let prefix = b"<vim partial: ";
             let suffix = b">";
             let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
@@ -2788,13 +2805,14 @@ pub fn tv_dict_watcher_notify(
 
     argv[0].v_type = VarType::VarDict;
     argv[0].v_lock = VAR_UNLOCKED;
-    argv[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
+    argv[0].vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
     argv[1].v_lock = VAR_UNLOCKED;
     tv_set_string(&mut argv[1], Some(key));
     argv[2].v_type = VarType::VarDict;
     argv[2].v_lock = VAR_UNLOCKED;
     let changes_dict = tv_dict_alloc();
-    argv[2].vval = crate::eval::typval::TypvalVval::Dict(changes_dict);
+    argv[2].vval =
+        crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(changes_dict));
     changes_dict.dv_refcount += 1;
 
     if let Some(newtv) = newtv {
@@ -3125,11 +3143,10 @@ pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
 pub fn tv_dict_add_list(d: &mut TvDict, key: &CStr, mut list: Option<&mut TvList>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarList;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::List(
-        list.as_deref_mut().map_or(ptr::null_mut(), ptr::from_mut),
-    );
+    item.di_tv.vval =
+        crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(list.as_deref_mut()));
     if !tv_dict_add(d, item) {
-        item.di_tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
+        item.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
         tv_dict_item_free(item);
         return false;
     }
@@ -3152,11 +3169,10 @@ pub fn tv_dict_add_tv(d: &mut TvDict, key: &[u8], tv: &mut TypVal) -> bool {
 pub fn tv_dict_add_dict(d: &mut TvDict, key: &CStr, mut dict: Option<&mut TvDict>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarDict;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(
-        dict.as_deref_mut().map_or(ptr::null_mut(), ptr::from_mut),
-    );
+    item.di_tv.vval =
+        crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::from(dict.as_deref_mut()));
     if !tv_dict_add(d, item) {
-        item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
+        item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
         tv_dict_item_free(item);
         return false;
     }
@@ -3480,7 +3496,7 @@ fn tv_blob_slice(
     if n1 >= len64 || n2 < 0 || n1 > n2 {
         tv_clear(&mut *rettv);
         rettv.v_type = VarType::VarBlob;
-        rettv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
     } else {
         let new_blob = tv_blob_alloc();
         let src_blob = rettv.vval.v_blob_ref();
@@ -3721,7 +3737,8 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
             DictListType::Items => {
                 let sub_l = tv_list_alloc(2);
                 tv_item.v_type = VarType::VarList;
-                tv_item.vval = crate::eval::typval::TypvalVval::List(sub_l);
+                tv_item.vval =
+                    crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(sub_l));
                 tv_list_ref_inline(Some(&mut *sub_l));
                 tv_list_append_string(&mut *sub_l, Some(key_cstr), -1);
                 tv_list_append_tv(&mut *sub_l, &mut di.di_tv);
@@ -3810,7 +3827,7 @@ pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
         let dst_blob = &mut *tv_blob_alloc_ret(to);
         dst_blob.bv_ga.extend_from_slice(&from.bv_ga);
     } else {
-        to.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
+        to.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
     }
 }
 
@@ -3822,7 +3839,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
             && pt.pt_refcount > 1
         {
             pt.pt_refcount -= 1;
-            tv.vval = crate::eval::typval::TypvalVval::Partial(ptr::null_mut());
+            tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::NULL);
             return true;
         }
     } else {
@@ -3848,7 +3865,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
         pt.pt_argv.clear();
         debug_assert!(pt.pt_refcount <= 1);
         partial_unref(Some(pt));
-        tv.vval = crate::eval::typval::TypvalVval::Partial(ptr::null_mut());
+        tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::NULL);
         debug_assert_eq!(tv.v_lock, VAR_UNLOCKED);
     }
 }
@@ -3859,7 +3876,7 @@ fn nothing_conv_real_list_after_start(tv: &mut TypVal, mpsv: &mut MPConvStackVal
     let list = tv.vval.v_list_ref();
     if list.lv_refcount > 1 {
         list.lv_refcount -= 1;
-        tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
+        tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
         if let MPConvStackData::List { ref mut li, .. } = mpsv.data {
             *li = ptr::null_mut();
         }
@@ -3874,7 +3891,7 @@ fn nothing_conv_list_end(mut tv: Option<&mut TypVal>) {
     debug_assert_eq!(tv.as_deref_mut().unwrap().v_type, VarType::VarList);
     let list = tv.as_deref_mut().unwrap().vval.v_list_opt();
     tv_list_unref(list);
-    tv.unwrap().vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
+    tv.unwrap().vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
 }
 
 fn nothing_convert_one_value(
@@ -3897,7 +3914,7 @@ fn nothing_convert_one_value(
         }
         VarType::VarBlob => {
             tv_blob_unref(tv.vval.v_blob_opt());
-            tv.vval = crate::eval::typval::TypvalVval::Blob(ptr::null_mut());
+            tv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
             tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarFunc => {
@@ -3921,7 +3938,7 @@ fn nothing_convert_one_value(
             let list = tv.vval.v_list();
             if list.is_null() || tv_list_len_inline(unsafe { list.as_ref() }) == 0 {
                 tv_list_unref(unsafe { list.as_mut() });
-                tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
+                tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
@@ -3958,7 +3975,7 @@ fn nothing_convert_one_value(
             let dict = tv.vval.v_dict();
             if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used } == 0 {
                 tv_dict_unref(unsafe { dict.as_mut() });
-                tv.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
+                tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
@@ -3972,7 +3989,7 @@ fn nothing_convert_one_value(
                 unsafe {
                     (*dict).dv_refcount -= 1;
                 }
-                tv.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
+                tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
                 return true;
             }
 
@@ -4024,7 +4041,8 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         (*dict).dv_copy_id = saved_copy_id;
                     }
                     if let Some(tv_ref) = cur_tv.opt_mut() {
-                        tv_ref.vval = crate::eval::typval::TypvalVval::Dict(ptr::null_mut());
+                        tv_ref.vval =
+                            crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
                     }
                     tv_dict_unref(unsafe { dict.as_mut() });
                     continue;
@@ -5193,7 +5211,7 @@ mod tests {
             let mut tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(outer),
+                vval: TypvalVval::List(crate::globals::GraphPtr::new(outer)),
             };
             tv_clear(&mut tv);
             assert!(tv.vval.v_list().is_null());
@@ -5209,7 +5227,7 @@ mod tests {
             let mut tv2 = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(outer2),
+                vval: TypvalVval::List(crate::globals::GraphPtr::new(outer2)),
             };
             tv_clear(&mut tv2);
             assert!(tv2.vval.v_list().is_null());
@@ -5228,7 +5246,7 @@ mod tests {
                 let mut tv_d = TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(outer_d),
+                    vval: TypvalVval::List(crate::globals::GraphPtr::new(outer_d)),
                 };
                 tv_clear(&mut tv_d);
                 assert!(tv_d.vval.v_list().is_null());

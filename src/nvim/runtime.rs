@@ -493,7 +493,7 @@ fn stacktrace_push_item(
     let mut tv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_LOCKED,
-        vval: TypvalVval::Dict(d),
+        vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d)),
     };
 
     if let Some(fp) = fp {
@@ -545,7 +545,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
 pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let l = stacktrace_create();
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(l);
+    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(l));
     l.lv_refcount += 1;
 }
 

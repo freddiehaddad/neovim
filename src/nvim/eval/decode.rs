@@ -69,9 +69,9 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     let type_di = tv_dict_item_alloc_len(b"_TYPE");
     type_di.di_tv.v_type = VarType::VarList;
     type_di.di_tv.v_lock = VAR_UNLOCKED;
-    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(
-        eval_msgpack_type_list(mp_type).map_or(std::ptr::null_mut(), std::ptr::from_mut),
-    );
+    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(
+        eval_msgpack_type_list(mp_type),
+    ));
     tv_list_ref(type_di.di_tv.vval.v_list_opt());
     tv_dict_add(&mut *dict, type_di);
 
@@ -82,7 +82,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     *rettv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::Dict(dict),
+        vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
     };
 }
 
@@ -96,7 +96,7 @@ pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> &'stat
         TypVal {
             v_type: VarType::VarList,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::List(list),
+            vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
         },
     );
     list
@@ -849,7 +849,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     let tv = TypVal {
                         v_type: VarType::VarList,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::List(list),
+                        vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
                     };
                     container_stack.push(JsonContainerStackItem {
                         stack_index: stack.len(),
@@ -880,7 +880,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         tv = TypVal {
                             v_type: VarType::VarDict,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval::Dict(dict),
+                            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
                         };
                     }
                     container_stack.push(JsonContainerStackItem {
@@ -946,7 +946,7 @@ fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
             TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(list),
+                vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
             },
         );
         tv_list_append_number(&mut *list, 1);
@@ -1055,7 +1055,7 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 *result = TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(list),
+                    vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
                 }
             };
 
@@ -1106,7 +1106,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(list),
+                    vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
                 },
             );
             encode_list_write(Some(&mut *ext_val_list), &bytes[..node.tok.length as usize]);
@@ -1126,7 +1126,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 *result = TypVal {
                     v_type: VarType::VarDict,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Dict(dict),
+                    vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
                 };
                 for pair in &items[..len] {
                     let key = pair[0].vval.v_string();

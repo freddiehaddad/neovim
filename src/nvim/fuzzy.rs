@@ -470,7 +470,7 @@ fn fuzzy_match_in_list(
                     TypVal {
                         v_type: VarType::VarDict,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::Dict(d_ptr),
+                        vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d_ptr)),
                     },
                     TypVal {
                         v_type: VarType::VarUnknown,

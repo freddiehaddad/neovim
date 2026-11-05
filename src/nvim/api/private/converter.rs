@@ -408,7 +408,7 @@ pub fn object_to_vim_take_luaref(
             }
             list.lv_refcount += 1;
             tv_ref.v_type = VarType::VarList;
-            tv_ref.vval = TypvalVval::List(list);
+            tv_ref.vval = TypvalVval::List(crate::globals::GraphPtr::new(list));
         }
         ObjectType::ObjectTypeDict => {
             let mut d = obj.data.dict();
@@ -420,7 +420,7 @@ pub fn object_to_vim_take_luaref(
             }
             dict.dv_refcount += 1;
             tv_ref.v_type = VarType::VarDict;
-            tv_ref.vval = TypvalVval::Dict(dict);
+            tv_ref.vval = TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
         }
         ObjectType::ObjectTypeLuaRef => {
             let mut ref_id = obj.data.luaref();
@@ -470,7 +470,7 @@ mod tests {
             let mut null_list = TypVal {
                 v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(std::ptr::null_mut()),
+                vval: TypvalVval::List(crate::globals::GraphPtr::NULL),
             };
             let arr_obj = vim_to_object(&mut null_list, None, false);
             assert_eq!(arr_obj.obj_type, ObjectType::ObjectTypeArray);
@@ -479,7 +479,7 @@ mod tests {
             let mut null_dict = TypVal {
                 v_type: VarType::VarDict,
                 v_lock: 0,
-                vval: TypvalVval::Dict(std::ptr::null_mut()),
+                vval: TypvalVval::Dict(crate::globals::GraphPtr::NULL),
             };
             let dict_obj = vim_to_object(&mut null_dict, None, false);
             assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
@@ -491,7 +491,7 @@ mod tests {
             let mut list_tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(list),
+                vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
             };
             tv_list_append_owned_tv(&mut *list, list_tv);
             let cyc_obj = vim_to_object(&mut list_tv, None, false);

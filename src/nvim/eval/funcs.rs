@@ -2433,7 +2433,9 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
 
     let mut list_opt = argvars[0].vval.v_list_opt();
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(argvars[0].vval.v_list());
+    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(
+        argvars[0].vval.v_list(),
+    ));
     if list_opt.is_none() {
         return;
     }
@@ -2441,7 +2443,7 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
     if make_copy {
         let copied = tv_list_copy(None, list_opt.take(), false, get_copy_id())
             .map_or(ptr::null_mut(), ptr::from_mut);
-        rettv.vval = crate::eval::typval::TypvalVval::List(copied);
+        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(copied));
         list_opt = rettv.vval.v_list_opt();
         if list_opt.is_none() {
             return;
@@ -2686,7 +2688,8 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
 
                 rettv.v_type = VarType::VarPartial;
-                rettv.vval = crate::eval::typval::TypvalVval::Partial(pt);
+                rettv.vval =
+                    crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::new(pt));
             } else {
                 crate::eval::typval::tv_set_string(&mut *rettv, Some(&name_cstr));
                 rettv.v_type = VarType::VarFunc;
@@ -3496,7 +3499,7 @@ pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         rettv.v_type = VarType::VarList;
         let list_ptr = get_reg_contents_list(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 })
             .map_or_else(|| tv_list_alloc(0), ptr::from_mut);
-        rettv.vval = crate::eval::typval::TypvalVval::List(list_ptr);
+        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(list_ptr));
         tv_list_ref(rettv.vval.v_list_opt());
     } else {
         let reg_str = get_reg_contents_str(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 });
@@ -4893,7 +4896,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
     tv_list_ref(Some(&mut *rv));
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(rv);
+    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(rv));
 }
 
 /// "json_decode()" function
@@ -8141,7 +8144,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
     let list = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(list);
+    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(list));
     tv_list_ref(Some(&mut *list));
     let Some(dirs) = stdpaths_get_xdg_var(xdg) else {
         return;
@@ -8364,9 +8367,9 @@ pub fn f_submatch(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         crate::eval::typval::tv_set_string(rettv, reg_submatch(no).as_deref());
     } else {
         rettv.v_type = VarType::VarList;
-        rettv.vval = crate::eval::typval::TypvalVval::List(
-            reg_submatch_list(no).map_or(ptr::null_mut(), ptr::from_mut),
-        );
+        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(
+            reg_submatch_list(no),
+        ));
     }
 }
 

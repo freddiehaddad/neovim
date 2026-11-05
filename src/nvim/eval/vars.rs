@@ -600,7 +600,7 @@ pub fn evalvars_init() {
         di.di_tv = TypVal {
             v_type: VarType::VarList,
             v_lock: 0,
-            vval: TypvalVval::List(type_list),
+            vval: TypvalVval::List(crate::globals::GraphPtr::new(type_list)),
         };
         EVAL_MSGPACK_TYPE_LISTS.as_mut()[i] = type_list;
         if !tv_dict_add(&mut *msgpack_types_dict, di) {
@@ -1346,7 +1346,8 @@ pub fn ex_let_vars(
 
             ltv.v_type = VarType::VarList;
             ltv.v_lock = VAR_UNLOCKED;
-            ltv.vval = crate::eval::typval::TypvalVval::List(rest_list);
+            ltv.vval =
+                crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(rest_list));
             tv_list_ref(Some(&mut *rest_list));
 
             let semi_arg = crate::charset::skipwhite_at(arg, 1);
@@ -2435,7 +2436,7 @@ pub fn set_vim_var_list(idx: VimVarIndex, val: Option<&mut TvList>) {
     let tv = get_vim_var_tv(idx);
     tv_clear(tv);
     tv.v_type = VarType::VarList;
-    tv.vval = crate::eval::typval::TypvalVval::List(val.map_or(ptr::null_mut(), ptr::from_mut));
+    tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(val));
     tv_list_ref(tv.vval.v_list_opt());
 }
 
@@ -2443,7 +2444,7 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
     let tv = get_vim_var_tv(idx);
     tv_clear(tv);
     tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(val.map_or(ptr::null_mut(), ptr::from_mut));
+    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::from(val));
     let Some(val_ref) = tv.vval.v_dict_opt() else {
         return;
     };
@@ -2454,7 +2455,7 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
 
 pub fn set_vim_var_partial(idx: VimVarIndex, val: Option<&mut TvPartial>) {
     let tv = get_vim_var_tv(idx);
-    tv.vval = crate::eval::typval::TypvalVval::Partial(val.map_or(ptr::null_mut(), ptr::from_mut));
+    tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::from(val));
 }
 
 pub fn set_reg_var(c: i32) {
@@ -2819,7 +2820,8 @@ pub fn init_var_dict(dict: &mut TvDict, dict_var: &mut ScopeDictDictItem, scope:
     dict.dv_scope = scope;
     dict.dv_refcount = DO_NOT_FREE_CNT;
     dict.dv_copy_id = 0;
-    dict_var.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
+    dict_var.di_tv.vval =
+        crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
     dict_var.di_tv.v_type = VarType::VarDict;
     dict_var.di_tv.v_lock = VAR_FIXED;
     dict_var.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;

@@ -2902,7 +2902,9 @@ fn vim_regsub_both(
                 rettv.v_type = VarType::VarString;
                 rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 argv[0].v_type = VarType::VarList;
-                argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut match_list.sl_list);
+                argv[0].vval = crate::eval::typval::TypvalVval::List(
+                    crate::globals::GraphPtr::new(&raw mut match_list.sl_list),
+                );
                 let mut funcexe = Funcexe {
                     fe_fill_submatch: true,
                     fe_firstline: 0,
