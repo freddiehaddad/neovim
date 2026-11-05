@@ -661,8 +661,7 @@ impl EncodeBackend<'_> {
                     ga_concat_literal(gap, b"str2float('inf')");
                 } else {
                     let mut numbuf = [0u8; NUMBUFLEN];
-                    let len =
-                        vim_snprintf_safelen!(numbuf.as_mut_ptr().cast(), numbuf.len(), c"%g", flt);
+                    let len = vim_snprintf_safelen!(&mut numbuf, c"%g", flt);
                     gap.extend_from_slice(&numbuf[..len]);
                 }
                 true
@@ -679,8 +678,7 @@ impl EncodeBackend<'_> {
                     return false;
                 } else {
                     let mut numbuf = [0u8; NUMBUFLEN];
-                    let len =
-                        vim_snprintf_safelen!(numbuf.as_mut_ptr().cast(), numbuf.len(), c"%g", flt);
+                    let len = vim_snprintf_safelen!(&mut numbuf, c"%g", flt);
                     gap.extend_from_slice(&numbuf[..len]);
                 }
                 true

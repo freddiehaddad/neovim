@@ -5480,8 +5480,7 @@ pub fn handle_did_throw() {
     match excp.r#type {
         ET_USER => {
             let _ = vim_snprintf!(
-                g_st().iobuff.as_mut_ptr(),
-                IOSIZE,
+                &mut g_st().iobuff,
                 gettext(c"E605: Exception not caught: %s"),
                 excp.value.as_ptr(),
             );
@@ -9026,8 +9025,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
             {
                 let mut buff = [0u8; DIALOG_MSG_SIZE];
                 let _ = vim_snprintf!(
-                    buff.as_mut_ptr().cast(),
-                    DIALOG_MSG_SIZE,
+                    &mut buff,
                     ngettext(
                         c"%d more file to edit.  Quit anyway?",
                         c"%d more files to edit.  Quit anyway?",
@@ -9832,12 +9830,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
         done += 1;
         done < 1000
     } {
-        let _ = vim_snprintf!(
-            prev_idx.as_mut_ptr().cast(),
-            NUMBUFLEN,
-            c"%i",
-            tabpage_index(tp.opt()),
-        );
+        let _ = vim_snprintf!(&mut prev_idx, c"%i", tabpage_index(tp.opt()));
         let wp = tp.tp_lastwin;
 
         if g_st().curtab == tp {
@@ -10266,12 +10259,7 @@ fn ex_tabs(_eap: &mut Exarg) {
         if g_st().msg_col > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let _ = vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
-            gettext(c"Tab page %d"),
-            tabcount,
-        );
+        let _ = vim_snprintf!(&mut g_st().iobuff, gettext(c"Tab page %d"), tabcount);
         let _ = msg_outtrans(
             crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
             HLF_T,
@@ -12198,7 +12186,7 @@ pub fn eval_vars(
                     ));
                     return None;
                 }
-                let _ = vim_snprintf!(strbuf.as_mut_ptr().cast(), 30, c"%d", g_st().autocmd_bufnr);
+                let _ = vim_snprintf!(&mut strbuf, c"%d", g_st().autocmd_bufnr);
                 result = strbuf.as_mut_ptr().cast();
             }
             SPEC_AMATCH => {
@@ -12248,7 +12236,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM));
                     return None;
                 }
-                let _ = vim_snprintf!(strbuf.as_mut_ptr().cast(), 30, c"%d", *sourcing_lnum_ptr(),);
+                let _ = vim_snprintf!(&mut strbuf, c"%d", *sourcing_lnum_ptr());
                 result = strbuf.as_mut_ptr().cast();
             }
             SPEC_SFLNUM => {
@@ -12257,7 +12245,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM));
                     return None;
                 }
-                let _ = vim_snprintf!(strbuf.as_mut_ptr().cast(), 30, c"%d", sflnum);
+                let _ = vim_snprintf!(&mut strbuf, c"%d", sflnum);
                 result = strbuf.as_mut_ptr().cast();
             }
             SPEC_SID => {
@@ -12265,12 +12253,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_USINGSID));
                     return None;
                 }
-                let _ = vim_snprintf!(
-                    strbuf.as_mut_ptr().cast(),
-                    30,
-                    c"<SNR>%d_",
-                    g_st().current_sctx.sc_sid,
-                );
+                let _ = vim_snprintf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.sc_sid);
                 result = strbuf.as_mut_ptr().cast();
             }
             _ => {
@@ -12480,11 +12463,9 @@ fn ex_filetype(eap: &mut Exarg) {
 }
 
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
-    let buf = crate::strings::CStrCursor::<std::ffi::c_char>::of(
-        (&raw mut docmd_st().ex_error_buf).cast(),
-    );
-    let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg.as_ptr());
-    buf.as_cstr()
+    let mut st = docmd_st();
+    let _ = vim_snprintf!(&mut st.ex_error_buf, gettext(msg), arg.as_ptr());
+    crate::memory::cstr_until_nul(&st.borrow().ex_error_buf)
 }
 
 pub fn filetype_plugin_enable() {

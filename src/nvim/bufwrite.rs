@@ -645,13 +645,11 @@ fn set_err_arg(msg: &CStr, arg: i32) -> BwError {
 
 fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
     let mut errmsg = [0u8; IOSIZE];
-    let errmsg_ptr = errmsg.as_mut_ptr().cast();
     let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
     if let Some(num) = e.num {
         if e.arg != 0 {
             let _ = vim_snprintf!(
-                errmsg_ptr,
-                IOSIZE,
+                &mut errmsg,
                 c"%s: %s%s: %s",
                 num.as_ptr(),
                 g_st().iobuff.as_ptr(),
@@ -660,8 +658,7 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
             );
         } else {
             let _ = vim_snprintf!(
-                errmsg_ptr,
-                IOSIZE,
+                &mut errmsg,
                 c"%s: %s%s",
                 num.as_ptr(),
                 g_st().iobuff.as_ptr(),
@@ -669,7 +666,7 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
             );
         }
     } else if e.arg != 0 {
-        let _ = vim_snprintf!(errmsg_ptr, IOSIZE, msg_ptr, unsafe { uv_strerror(e.arg) });
+        let _ = vim_snprintf!(&mut errmsg, msg_ptr, unsafe { uv_strerror(e.arg) });
     } else {
         crate::memory::copy_bytes_to_c_buf(&mut errmsg, crate::memory::cstr_as_bytes(msg_ptr));
     }
@@ -1807,11 +1804,10 @@ pub fn buf_write(
                             } else {
                                 let mut alloc_msg: Vec<u8> = vec![0; 300];
                                 let _ = vim_snprintf!(
-                                        alloc_msg.as_mut_ptr().cast(),
-                                        300,
-                                        gettext(
-                                            c"E513: Write error, conversion failed in line %d (make 'fenc' empty to override)",
-                                        ),
+                                    &mut alloc_msg,
+                                    gettext(
+                                        c"E513: Write error, conversion failed in line %d (make 'fenc' empty to override)",
+                                    ),
                                         write_info.bw_conv_error_lnum,
                                     );
                                 err = BwError {
@@ -1856,7 +1852,6 @@ pub fn buf_write(
                     fname = sfname;
                 }
                 if !filtering {
-                    let iobuf = g_st().iobuff.as_mut_ptr();
                     let iobuf_append = |src: &std::ffi::CStr| {
                         crate::memory::append_bytes_to_c_buf(
                             g_st().iobuff_bytes_mut(),
@@ -1874,8 +1869,7 @@ pub fn buf_write(
                         insert_space = true;
                         if write_info.bw_conv_error_lnum != 0 {
                             let _ = vim_snprintf_add!(
-                                iobuf,
-                                IOSIZE,
+                                &mut g_st().iobuff,
                                 gettext(c" in line %lld;"),
                                 i64::from(write_info.bw_conv_error_lnum),
                             );

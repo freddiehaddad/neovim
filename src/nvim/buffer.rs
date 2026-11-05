@@ -3727,10 +3727,8 @@ pub fn buflist_list(eap: &mut Exarg) {
         if !ui_has(K_UIMESSAGES) || g_st().msg_col > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
         let mut len = vim_snprintf_safelen!(
-            iobuff_ptr,
-            IOSIZE - 20,
+            &mut g_st().iobuff[..IOSIZE - 20],
             c"%3d%c%c%c%c%c \"%s\"",
             buf.b_fnum,
             if buf.b_p_bl { b' ' as i32 } else { b'u' as i32 },
@@ -3767,8 +3765,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[len..IOSIZE], buf.b_last_used);
         } else {
             vim_snprintf!(
-                iobuff_ptr.wrapping_add(len),
-                IOSIZE - len,
+                &mut g_st().iobuff[len..IOSIZE],
                 gettext(c"line %lld"),
                 if g_st().curbuf == buf {
                     i64::from(curwin_mut().w_cursor.lnum)
@@ -4009,23 +4006,17 @@ fn buf_same_file_id(buf: &FileBuf, file_id: &FileID) -> bool {
 /// Print info about the current buffer.
 pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     let mut buffer_vec = vec![0u8; IOSIZE];
-    let buffer = crate::strings::CStrCursor::<std::ffi::c_char>::of(buffer_vec.as_mut_ptr().cast());
     let mut bufferlen = 0usize;
 
     if fullname > 1 {
-        bufferlen = vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ", curbuf_mut().b_fnum);
+        bufferlen = vim_snprintf_safelen!(&mut buffer_vec, c"buf %d: ", curbuf_mut().b_fnum);
     }
 
     buffer_vec[bufferlen] = b'"';
     bufferlen += 1;
 
     if let Some(name) = buf_spname(curbuf_mut()) {
-        bufferlen += vim_snprintf_safelen!(
-            buffer.wrapping_add(bufferlen),
-            IOSIZE - bufferlen,
-            c"%s",
-            name,
-        );
+        bufferlen += vim_snprintf_safelen!(&mut buffer_vec[bufferlen..], c"%s", name);
     } else {
         let name = if fullname == 0 && curbuf_mut().fname_opt().is_some() {
             curbuf_mut().fname_opt()
@@ -4083,8 +4074,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         };
 
     bufferlen += vim_snprintf_safelen!(
-        buffer.wrapping_add(bufferlen),
-        IOSIZE - bufferlen,
+        &mut buffer_vec[bufferlen..],
         c"\"%s%s%s%s%s%s",
         mod_str,
         notedited_str,
@@ -4097,16 +4087,11 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     let line_count = i64::from(curbuf_mut().b_ml.ml_line_count);
     let cur_lnum = i64::from(curwin_mut().w_cursor.lnum);
     if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-        bufferlen += vim_snprintf_safelen!(
-            buffer.wrapping_add(bufferlen),
-            IOSIZE - bufferlen,
-            c"%s",
-            gettext(NO_LINES_MSG),
-        );
+        bufferlen +=
+            vim_snprintf_safelen!(&mut buffer_vec[bufferlen..], c"%s", gettext(NO_LINES_MSG));
     } else if opt_vars().p_ru {
         bufferlen += vim_snprintf_safelen!(
-            buffer.wrapping_add(bufferlen),
-            IOSIZE - bufferlen,
+            &mut buffer_vec[bufferlen..],
             ngettext(
                 c"%lld line --%d%%--",
                 c"%lld lines --%d%%--",
@@ -4117,8 +4102,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         );
     } else {
         bufferlen += vim_snprintf_safelen!(
-            buffer.wrapping_add(bufferlen),
-            IOSIZE - bufferlen,
+            &mut buffer_vec[bufferlen..],
             gettext(c"line %lld of %lld --%d%%-- col "),
             cur_lnum,
             line_count,
@@ -4150,9 +4134,9 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
 
 pub fn col_print(buf: &mut [u8], col: i32, vcol: i32) -> i32 {
     if col == vcol {
-        vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"%d", col) as i32
+        vim_snprintf_safelen!(buf, c"%d", col) as i32
     } else {
-        vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"%d-%d", col, vcol) as i32
+        vim_snprintf_safelen!(buf, c"%d-%d", col, vcol) as i32
     }
 }
 
@@ -4330,8 +4314,7 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     let below = wp.buf_mut().b_ml.ml_line_count - wp.w_botline + 1;
     if below <= 0 {
         return vim_snprintf_safelen!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
+            buf,
             c"%s",
             if above == 0 {
                 gettext(c"All")
@@ -4342,19 +4325,13 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     }
 
     if above <= 0 {
-        return vim_snprintf_safelen!(buf.as_mut_ptr().cast(), buf.len(), c"%s", gettext(c"Top"),)
-            as i32;
+        return vim_snprintf_safelen!(buf, c"%s", gettext(c"Top")) as i32;
     }
 
     let perc = calc_percentage(i64::from(above), i64::from(above + below));
     let mut tmp = [0u8; 8];
-    vim_snprintf!(tmp.as_mut_ptr().cast(), tmp.len(), gettext(c"%d%%"), perc);
-    vim_snprintf_safelen!(
-        buf.as_mut_ptr().cast(),
-        buf.len(),
-        gettext(c"%3s"),
-        tmp.as_ptr().cast::<()>(),
-    ) as i32
+    vim_snprintf!(&mut tmp, gettext(c"%d%%"), perc);
+    vim_snprintf_safelen!(buf, gettext(c"%3s"), tmp.as_ptr().cast::<()>()) as i32
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
@@ -4370,13 +4347,7 @@ pub fn append_arg_number(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
         gettext(c" (%d of %d)")
     };
 
-    vim_snprintf_safelen!(
-        buf.as_mut_ptr().cast(),
-        buf.len(),
-        msg,
-        wp.w_arg_idx + 1,
-        argcount
-    ) as i32
+    vim_snprintf_safelen!(buf, msg, wp.w_arg_idx + 1, argcount) as i32
 }
 
 /// Make `ffname` a full file name, defaulting `sfname` to `ffname` if `None`.

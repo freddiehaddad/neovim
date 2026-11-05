@@ -307,8 +307,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
                     vim_snprintf!(
-                        watcher.addr.as_mut_ptr().wrapping_add(addr_len).cast(),
-                        ADDRESS_MAX_SIZE - addr_len,
+                        &mut watcher.addr[addr_len..ADDRESS_MAX_SIZE],
                         c":%u",
                         u32::from(port),
                     );

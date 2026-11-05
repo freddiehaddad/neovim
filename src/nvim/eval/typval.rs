@@ -4864,7 +4864,7 @@ pub fn tv_get_string_buf_chk<'a>(
             Some(buf_c.as_cstr())
         }
         VarType::VarFloat => {
-            vim_snprintf!(buf_c, NUMBUFLEN, c"%g", tv.vval.v_float());
+            vim_snprintf!(buf, c"%g", tv.vval.v_float());
             Some(buf_c.as_cstr())
         }
         VarType::VarString => {
@@ -4943,7 +4943,7 @@ pub fn check_repeat_count(slen: Varnumber, n: Varnumber) -> bool {
     }
 
     let mut buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%lld", n);
+    vim_snprintf!(&mut buf, c"%lld", n);
     semsg!(tr(E_VAL_TOO_LARGE), buf.as_ptr().cast::<()>());
     false
 }

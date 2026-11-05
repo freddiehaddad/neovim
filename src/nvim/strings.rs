@@ -2357,12 +2357,104 @@ pub fn vim_snprintf_safelen_fmt(
     }
 }
 
+pub trait SnprintfCall<'a> {
+    fn call_snprintf(self, args: &[FmtVal<'_>]) -> i32;
+    fn call_snprintf_add(self, args: &[FmtVal<'_>]) -> i32;
+    fn call_snprintf_safelen(self, args: &[FmtVal<'_>]) -> usize;
+}
+
+impl<'a, F: IntoFmtVal<'a>> SnprintfCall<'a> for (&mut [u8], F) {
+    #[inline]
+    fn call_snprintf(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_fmt(self.0, self.1.into_fmt_val().as_cstr(), args)
+    }
+    #[inline]
+    fn call_snprintf_add(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_add_fmt(self.0, self.1.into_fmt_val().as_cstr(), args)
+    }
+    #[inline]
+    fn call_snprintf_safelen(self, args: &[FmtVal<'_>]) -> usize {
+        vim_snprintf_safelen_fmt(self.0, self.1.into_fmt_val().as_cstr(), args)
+    }
+}
+
+impl<'a, const N: usize, F: IntoFmtVal<'a>> SnprintfCall<'a> for (&mut [u8; N], F) {
+    #[inline]
+    fn call_snprintf(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_fmt(self.0, self.1.into_fmt_val().as_cstr(), args)
+    }
+    #[inline]
+    fn call_snprintf_add(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_add_fmt(self.0, self.1.into_fmt_val().as_cstr(), args)
+    }
+    #[inline]
+    fn call_snprintf_safelen(self, args: &[FmtVal<'_>]) -> usize {
+        vim_snprintf_safelen_fmt(self.0, self.1.into_fmt_val().as_cstr(), args)
+    }
+}
+
+impl<'a, F: IntoFmtVal<'a>> SnprintfCall<'a> for (&mut Vec<u8>, F) {
+    #[inline]
+    fn call_snprintf(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_fmt(self.0.as_mut_slice(), self.1.into_fmt_val().as_cstr(), args)
+    }
+    #[inline]
+    fn call_snprintf_add(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_add_fmt(self.0.as_mut_slice(), self.1.into_fmt_val().as_cstr(), args)
+    }
+    #[inline]
+    fn call_snprintf_safelen(self, args: &[FmtVal<'_>]) -> usize {
+        vim_snprintf_safelen_fmt(self.0.as_mut_slice(), self.1.into_fmt_val().as_cstr(), args)
+    }
+}
+
+impl SnprintfCall<'_> for (*mut u8, usize) {
+    #[inline]
+    fn call_snprintf(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_fmt(
+            crate::memory::cstr_mut_slice(self.0, self.1),
+            args[0].as_cstr(),
+            &args[1..],
+        )
+    }
+    #[inline]
+    fn call_snprintf_add(self, args: &[FmtVal<'_>]) -> i32 {
+        vim_snprintf_add_fmt(
+            crate::memory::cstr_mut_slice(self.0, self.1),
+            args[0].as_cstr(),
+            &args[1..],
+        )
+    }
+    #[inline]
+    fn call_snprintf_safelen(self, args: &[FmtVal<'_>]) -> usize {
+        vim_snprintf_safelen_fmt(
+            crate::memory::cstr_mut_slice(self.0, self.1),
+            args[0].as_cstr(),
+            &args[1..],
+        )
+    }
+}
+
+impl<T> SnprintfCall<'_> for (CStrCursor<T>, usize) {
+    #[inline]
+    fn call_snprintf(self, args: &[FmtVal<'_>]) -> i32 {
+        (self.0.as_ptr().cast::<u8>(), self.1).call_snprintf(args)
+    }
+    #[inline]
+    fn call_snprintf_add(self, args: &[FmtVal<'_>]) -> i32 {
+        (self.0.as_ptr().cast::<u8>(), self.1).call_snprintf_add(args)
+    }
+    #[inline]
+    fn call_snprintf_safelen(self, args: &[FmtVal<'_>]) -> usize {
+        (self.0.as_ptr().cast::<u8>(), self.1).call_snprintf_safelen(args)
+    }
+}
+
 #[macro_export]
 macro_rules! vim_snprintf {
-    ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::vim_snprintf_fmt(
-            $crate::memory::cstr_mut_slice($str_out, $str_m),
-            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+    ($a:expr, $b:expr $(, $arg:expr)* $(,)?) => {
+        $crate::strings::SnprintfCall::call_snprintf(
+            ($a, $b),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2371,10 +2463,9 @@ pub use vim_snprintf;
 
 #[macro_export]
 macro_rules! vim_snprintf_add {
-    ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::vim_snprintf_add_fmt(
-            $crate::memory::cstr_mut_slice($str_out, $str_m),
-            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+    ($a:expr, $b:expr $(, $arg:expr)* $(,)?) => {
+        $crate::strings::SnprintfCall::call_snprintf_add(
+            ($a, $b),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2383,10 +2474,9 @@ pub use vim_snprintf_add;
 
 #[macro_export]
 macro_rules! vim_snprintf_safelen {
-    ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::vim_snprintf_safelen_fmt(
-            $crate::memory::cstr_mut_slice($str_out, $str_m),
-            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+    ($a:expr, $b:expr $(, $arg:expr)* $(,)?) => {
+        $crate::strings::SnprintfCall::call_snprintf_safelen(
+            ($a, $b),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };

@@ -185,8 +185,6 @@ impl Default for ExceptionState {
     }
 }
 
-use crate::globals::IOSIZE;
-
 struct ExEvalModuleState {
     cause_abort: bool,
 }
@@ -549,19 +547,13 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
     if !excp.throw_name.as_bytes().is_empty() {
         let iobufflen = if excp.throw_lnum != 0 {
             vim_snprintf_safelen!(
-                ptr::addr_of_mut!(g_st().iobuff).cast(),
-                IOSIZE,
+                &mut g_st().iobuff,
                 gettext(c"%s, line %lld"),
                 excp.throw_name.as_ptr(),
                 i64::from(excp.throw_lnum),
             )
         } else {
-            vim_snprintf_safelen!(
-                ptr::addr_of_mut!(g_st().iobuff).cast(),
-                IOSIZE,
-                c"%s",
-                excp.throw_name.as_ptr(),
-            )
+            vim_snprintf_safelen!(&mut g_st().iobuff, c"%s", excp.throw_name.as_ptr())
         };
         set_vim_var_string(
             VV_THROWPOINT,
@@ -613,19 +605,13 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
         if !top.throw_name.as_bytes().is_empty() {
             let iobufflen = if top.throw_lnum != 0 {
                 vim_snprintf_safelen!(
-                    ptr::addr_of_mut!(g_st().iobuff).cast(),
-                    IOSIZE,
+                    &mut g_st().iobuff,
                     gettext(c"%s, line %lld"),
                     top.throw_name.as_ptr(),
                     i64::from(top.throw_lnum),
                 )
             } else {
-                vim_snprintf_safelen!(
-                    ptr::addr_of_mut!(g_st().iobuff).cast(),
-                    IOSIZE,
-                    c"%s",
-                    top.throw_name.as_ptr(),
-                )
+                vim_snprintf_safelen!(&mut g_st().iobuff, c"%s", top.throw_name.as_ptr())
             };
             set_vim_var_string(
                 VV_THROWPOINT,
@@ -701,12 +687,7 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
                     _ => None,
                 };
                 let excp = excp_hold.as_ref().unwrap();
-                vim_snprintf!(
-                    ptr::addr_of_mut!(g_st().iobuff).cast(),
-                    IOSIZE,
-                    mesg,
-                    gettext(c"Exception"),
-                );
+                vim_snprintf!(&mut g_st().iobuff, mesg, gettext(c"Exception"));
                 mesg_owned = Some(concat_str(g_st().iobuff_bytes(), b": %s"));
                 mesg = mesg_owned.as_deref().unwrap_or(c"");
                 excp.value.as_c_str()

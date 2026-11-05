@@ -761,13 +761,7 @@ fn get_line_number_str(wp: &mut WinInfoInfo, lnum: Linenr, buf: &mut [u8]) {
         }
     }
 
-    vim_snprintf!(
-        buf.as_mut_ptr().cast(),
-        buf.len(),
-        fmt,
-        number_width(&mut *wp),
-        num
-    );
+    vim_snprintf!(&mut *buf, fmt, number_width(&mut *wp), num);
 }
 
 fn use_cursor_line_nr(wp: &mut WinInfoInfo, wlv: &Winlinevars) -> bool {

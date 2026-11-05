@@ -2730,8 +2730,7 @@ pub fn readfile(
                     {
                         if s_isfifo(perm as u64) {
                             buflen += vim_snprintf!(
-                                iobuf_ptr.wrapping_offset(buflen as isize).as_ptr(),
-                                (IOSIZE as i32 - buflen) as usize,
+                                &mut g_st().iobuff[buflen as usize..],
                                 c"%s",
                                 tr(c"[fifo]"),
                             );
@@ -2739,8 +2738,7 @@ pub fn readfile(
                         }
                         if s_issock(perm as u64) {
                             buflen += vim_snprintf!(
-                                iobuf_ptr.wrapping_offset(buflen as isize).as_ptr(),
-                                (IOSIZE as i32 - buflen) as usize,
+                                &mut g_st().iobuff[buflen as usize..],
                                 c"%s",
                                 tr(c"[socket]"),
                             );
@@ -2755,8 +2753,7 @@ pub fn readfile(
                         ))]
                         if s_ischr(perm as u64) {
                             buflen += vim_snprintf!(
-                                iobuf_ptr.wrapping_offset(buflen as isize),
-                                (IOSIZE as i32 - buflen) as usize,
+                                &mut g_st().iobuff[buflen as usize..],
                                 c"%s",
                                 tr(c"[character special]"),
                             );
@@ -2765,8 +2762,7 @@ pub fn readfile(
                     }
                     if curbuf_mut().b_p_ro {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             if shortmess(K_SHM_RO) {
                                 tr(c"[RO]")
@@ -2778,8 +2774,7 @@ pub fn readfile(
                     }
                     if read_no_eol_lnum != 0 {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[noeol]"),
                         );
@@ -2787,8 +2782,7 @@ pub fn readfile(
                     }
                     if ff_error == EOL_DOS {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[CR missing]"),
                         );
@@ -2796,8 +2790,7 @@ pub fn readfile(
                     }
                     if split != 0 {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[long lines split]"),
                         );
@@ -2805,16 +2798,14 @@ pub fn readfile(
                     }
                     if notconverted {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[NOT converted]"),
                         );
                         c = true;
                     } else if converted {
                         buflen += vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[converted]"),
                         );
@@ -2822,24 +2813,21 @@ pub fn readfile(
                     }
                     if conv_error != 0 {
                         vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             tr(c"[CONVERSION ERROR in line %lld]"),
                             i64::from(conv_error),
                         );
                         c = true;
                     } else if illegal_byte > 0 {
                         vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             tr(c"[ILLEGAL BYTE in line %lld]"),
                             i64::from(illegal_byte),
                         );
                         c = true;
                     } else if error {
                         vim_snprintf!(
-                            iobuf_ptr.wrapping_offset(buflen as isize),
-                            (IOSIZE as i32 - buflen) as usize,
+                            &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[READ ERRORS]"),
                         );
@@ -3263,8 +3251,7 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
 
     if shortmess(K_SHM_LINES) {
         vim_snprintf!(
-            iobuf_ptr.wrapping_add(len),
-            IOSIZE - len,
+            &mut g_st().iobuff[len..],
             tr(c"%s%lldL, %lldB"),
             space,
             i64::from(lnum),
@@ -3272,16 +3259,14 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
         );
     } else {
         len += vim_snprintf!(
-            iobuf_ptr.wrapping_add(len),
-            IOSIZE - len,
-            ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize,),
+            &mut g_st().iobuff[len..],
+            ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize),
             space,
             i64::from(lnum),
         ) as usize;
         vim_snprintf!(
-            iobuf_ptr.wrapping_add(len),
-            IOSIZE - len,
-            ngettext(c"%lld byte", c"%lld bytes", nchars as usize,),
+            &mut g_st().iobuff[len..],
+            ngettext(c"%lld byte", c"%lld bytes", nchars as usize),
             nchars,
         );
     }
@@ -3673,12 +3658,9 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
     let mut tempname: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
     crate::memory::copy_bytes_to_c_buf(&mut tempname, from_bytes);
     for n in 123..99999 {
-        let tail = path_tail(crate::memory::cstr_until_nul(&tempname))
-            .as_ptr()
-            .cast_mut()
-            .cast::<u8>();
-        let rem = (MAXPATHL + 1) - crate::memory::ptr_offset_from(tail, tempname.as_ptr()) as usize;
-        vim_snprintf!(tail, rem, c"%d", n);
+        let tail = path_tail(crate::memory::cstr_until_nul(&tempname)).as_ptr();
+        let tail_off = crate::memory::ptr_offset_from(tail, tempname.as_ptr().cast()) as usize;
+        vim_snprintf!(&mut tempname[tail_off..], c"%d", n);
 
         let temp_cstr = crate::memory::cstr_until_nul(&tempname);
         if !os_path_exists(temp_cstr) {
@@ -4016,7 +3998,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         let tbufsize = path.as_bytes().len() + mesg.to_bytes().len() + mesg2.to_bytes().len() + 3;
         let mut tbuf_vec = vec![0u8; tbufsize];
         let tbuf = crate::strings::CStrCursor::from_ptr(tbuf_vec.as_mut_ptr());
-        let tbuflen = vim_snprintf!(tbuf.cast(), tbufsize, mesg, path.as_ptr());
+        let tbuflen = vim_snprintf!(&mut tbuf_vec, mesg, path.as_ptr());
         set_vim_var_string(
             VV_WARNINGMSG,
             Some(crate::memory::cstr_until_nul(&tbuf_vec)),
@@ -4024,12 +4006,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         );
         if can_reload {
             if !mesg2.to_bytes().is_empty() {
-                vim_snprintf!(
-                    tbuf.wrapping_offset(tbuflen as isize).cast(),
-                    tbufsize - (tbuflen as usize),
-                    c"\n%s",
-                    mesg2,
-                );
+                vim_snprintf!(&mut tbuf_vec[tbuflen as usize..], c"\n%s", mesg2);
             }
             match do_dialog(
                 VIM_WARNING,
@@ -4049,12 +4026,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             || fio_st().already_warned
         {
             if !mesg2.to_bytes().is_empty() {
-                vim_snprintf!(
-                    tbuf.wrapping_offset(tbuflen as isize).cast(),
-                    tbufsize - (tbuflen as usize),
-                    c"; %s",
-                    mesg2,
-                );
+                vim_snprintf!(&mut tbuf_vec[tbuflen as usize..], c"; %s", mesg2);
             }
             emsg(tbuf.as_cstr());
             retval = 2;
@@ -4293,20 +4265,10 @@ fn vim_mktempdir() {
         }
 
         if after_pathsep(&tmp[..tmplen]) == 0 {
-            tmplen += vim_snprintf!(
-                tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
-                tmp.len() - tmplen,
-                c"%s",
-                PATHSEPSTR,
-            ) as usize;
+            tmplen += vim_snprintf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
             debug_assert!(tmplen < tmp.len());
         }
-        tmplen += vim_snprintf!(
-            tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
-            tmp.len() - tmplen,
-            c"nvim.%s",
-            user.as_ptr(),
-        ) as usize;
+        tmplen += vim_snprintf!(&mut tmp[tmplen..], c"nvim.%s", user.as_ptr()) as usize;
         debug_assert!(tmplen < tmp.len());
         os_mkdir(crate::memory::cstr_until_nul(&tmp), 0o700);
         let owned = os_file_owned(crate::memory::cstr_until_nul(&tmp));
@@ -4319,12 +4281,7 @@ fn vim_mktempdir() {
         let valid = isdir && owned;
         if valid {
             if after_pathsep(&tmp[..tmplen]) == 0 {
-                tmplen += vim_snprintf!(
-                    tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
-                    tmp.len() - tmplen,
-                    c"%s",
-                    PATHSEPSTR,
-                ) as usize;
+                tmplen += vim_snprintf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
                 debug_assert!(tmplen < tmp.len());
             }
         } else {
@@ -4367,11 +4324,7 @@ fn vim_mktempdir() {
             tmp[tmplen] = 0;
         }
 
-        tmplen += vim_snprintf!(
-            tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
-            tmp.len() - tmplen,
-            c"XXXXXX",
-        ) as usize;
+        tmplen += vim_snprintf!(&mut tmp[tmplen..], c"XXXXXX") as usize;
         debug_assert!(tmplen < tmp.len());
         let _ = tmplen;
         let r = os_mkdtemp(crate::memory::cstr_until_nul(&tmp), &mut path);
@@ -4446,16 +4399,10 @@ pub fn delete_recursive(name: &CStr) -> i32 {
         let exp = name.to_owned();
         let mut entries: Vec<std::ffi::CString> = Vec::new();
         if readdir_core(&mut entries, &exp, None) {
-            let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
-            let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/", exp.as_ptr());
+            let len = vim_snprintf!(&mut g_st().name_buff, c"%s/", exp.as_ptr()) as usize;
 
             for entry in &entries {
-                vim_snprintf!(
-                    namebuff_ptr.wrapping_offset(len as isize),
-                    MAXPATHL - (len as usize),
-                    c"%s",
-                    entry.as_ptr(),
-                );
+                vim_snprintf!(&mut g_st().name_buff[len..], c"%s", entry.as_ptr());
                 let sub_cstr = g_st().name_buff_cstr();
                 if delete_recursive(sub_cstr) != 0 {
                     result = -1;
@@ -4578,13 +4525,7 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
 
     let mut templ: [u8; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
     let count = TEMP_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let _ = vim_snprintf!(
-        templ.as_mut_ptr().cast(),
-        TEMP_FILE_PATH_MAXLEN,
-        c"%s%llu",
-        tempdir.as_ptr(),
-        count,
-    );
+    let _ = vim_snprintf!(&mut templ, c"%s%llu", tempdir.as_ptr(), count);
     Some(crate::memory::cstring_until_nul(&templ))
 }
 

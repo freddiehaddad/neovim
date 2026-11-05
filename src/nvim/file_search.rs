@@ -374,8 +374,7 @@ pub fn vim_findfile_init(
         let expand_ptr = expand_buf.as_mut_ptr();
         let mut add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
         expand_size = vim_snprintf!(
-            expand_ptr,
-            MAXPATHL,
+            &mut expand_buf,
             c"%s%s",
             search_ctx.ffsc_start_dir.data,
             if add_sep {
@@ -388,21 +387,18 @@ pub fn vim_findfile_init(
         {
             let bufsize = expand_size + search_ctx.ffsc_fix_path.size + 1;
             let mut buf_vec = vec![0u8; bufsize];
-            let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr());
 
             vim_snprintf!(
-                buf,
-                bufsize,
+                &mut buf_vec,
                 c"%s%s",
                 expand_ptr,
                 search_ctx.ffsc_fix_path.data,
             );
-            if os_isdir(buf.as_cstr()) {
+            if os_isdir(crate::memory::cstr_until_nul(&buf_vec)) {
                 if search_ctx.ffsc_fix_path.size > 0 {
                     add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
                     expand_size += vim_snprintf!(
-                        expand_ptr.wrapping_add(expand_size),
-                        MAXPATHL - expand_size,
+                        &mut expand_buf[expand_size..],
                         c"%s%s",
                         search_ctx.ffsc_fix_path.data,
                         if add_sep {
@@ -429,8 +425,7 @@ pub fn vim_findfile_init(
 
                     add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
                     expand_size += vim_snprintf!(
-                        expand_ptr.wrapping_add(expand_size),
-                        MAXPATHL - expand_size,
+                        &mut expand_buf[expand_size..],
                         c"%.*s%s",
                         len,
                         search_ctx.ffsc_fix_path.data,
@@ -448,8 +443,7 @@ pub fn vim_findfile_init(
                         + 1;
                     let mut temp_vec: Vec<u8> = vec![0; tempsize];
                     let temp_len = vim_snprintf!(
-                        temp_vec.as_mut_ptr().cast(),
-                        tempsize,
+                        &mut temp_vec,
                         c"%s%s",
                         search_ctx.ffsc_fix_path.data.wrapping_add(len as usize),
                         search_ctx.ffsc_wc_path.data,
@@ -578,8 +572,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     }
                     let add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
                     file_path.size = vim_snprintf!(
-                        file_path.data,
-                        MAXPATHL,
+                        &mut file_path_vec,
                         c"%s%s",
                         search_ctx.ffsc_start_dir.data,
                         if add_sep {
@@ -598,8 +591,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 }
                 let add_sep = after_pathsep(stackp.ffs_fix_path.cstr_bytes()) == 0;
                 file_path.size += vim_snprintf!(
-                    file_path.data.wrapping_add(file_path.size),
-                    MAXPATHL - file_path.size,
+                    &mut file_path_vec[file_path.size..],
                     c"%s%s",
                     stackp.ffs_fix_path.data,
                     if add_sep {
@@ -711,8 +703,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         }
                         let add_sep = after_pathsep(crate::memory::cstr_slice(entry, len)) == 0;
                         file_path.size = vim_snprintf!(
-                            file_path.data,
-                            MAXPATHL,
+                            &mut file_path_vec,
                             c"%s%s%s",
                             entry,
                             if add_sep {
@@ -877,8 +868,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
             }
             let add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
             file_path.size = vim_snprintf!(
-                file_path.data,
-                MAXPATHL,
+                &mut file_path_vec,
                 c"%s%s%s",
                 search_ctx.ffsc_start_dir.data,
                 if add_sep {
@@ -1247,8 +1237,7 @@ pub fn find_file_in_path_option(
                         && rel_fnamelen + l < MAXPATHL
                     {
                         l = vim_snprintf!(
-                            name_buff,
-                            MAXPATHL,
+                            &mut g_st().name_buff,
                             c"%.*s%s",
                             crate::memory::ptr_offset_from(
                                 path_tail(rel_fname.as_cstr()).as_ptr(),

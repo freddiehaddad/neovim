@@ -1117,13 +1117,11 @@ fn diff_file(dio: &mut Diffio) -> bool {
         + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
-    let cmd = crate::strings::CStrCursor::from_ptr(cmd_vec.as_mut_ptr());
     if os_env_exists(c"DIFF_OPTIONS", true) {
         let _ = os_unsetenv(c"DIFF_OPTIONS");
     }
     vim_snprintf!(
-        cmd,
-        len,
+        &mut cmd_vec,
         c"diff %s%s%s%s%s%s%s%s %s",
         if diff_st().diff_a_works == K_FALSE {
             c"".as_ptr()
@@ -1160,13 +1158,13 @@ fn diff_file(dio: &mut Diffio) -> bool {
         tmp_new,
     );
     append_redir(
-        unsafe { std::slice::from_raw_parts_mut(cmd.cast(), len) },
+        &mut cmd_vec,
         opt_vars().p_srr.as_cstr(),
         crate::memory::cstr_from_ptr(tmp_diff),
     );
     crate::autocmd::block_autocmds();
     call_shell(
-        cmd.as_opt_cstr(),
+        Some(crate::memory::cstr_until_nul(&cmd_vec)),
         K_SHELL_OPT_FILTER | K_SHELL_OPT_SILENT | K_SHELL_OPT_DO_OUT,
         None,
     );
@@ -1246,8 +1244,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             eval_patch(tmp_orig.as_cstr(), eap.arg.as_cstr(), tmp_new.as_cstr());
         } else {
             vim_snprintf!(
-                buf,
-                buflen,
+                &mut buf_vec,
                 c"patch -o %s %s < %s",
                 tmp_new,
                 tmp_orig,
@@ -3032,7 +3029,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
     if count == 0 {
         ea.arg = crate::strings::CStrCursor::from_ptr(c"".as_ptr());
     } else {
-        vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%zu", count);
+        vim_snprintf!(&mut buf, c"%zu", count);
         ea.arg = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr().cast());
     }
     ea.cmdidx = if put {

@@ -4720,12 +4720,7 @@ pub fn tv_to_argv(
     if !os_can_exe(arg0, Some(&mut exe_resolved), true) {
         if let Some(executable) = executable {
             let mut buf = [0u8; IOSIZE];
-            vim_snprintf!(
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-                c"'%s' is not executable",
-                arg0,
-            );
+            vim_snprintf!(&mut buf, c"'%s' is not executable", arg0);
             semsg!(gettext(E_INVARG_NVAL), c"cmd", buf.as_ptr(),);
             *executable = false;
         }
@@ -6612,12 +6607,7 @@ pub fn eval_call_provider(
     }
 
     let mut func = [0u8; 256];
-    let name_len = vim_snprintf!(
-        func.as_mut_ptr().cast(),
-        func.len(),
-        c"provider#%s#Call",
-        provider.as_ptr(),
-    );
+    let name_len = vim_snprintf!(&mut func, c"provider#%s#Call", provider.as_ptr());
 
     let new_scope = CallerScope {
         script_ctx: g_st().current_sctx,
@@ -6721,12 +6711,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
 
     let mut buf = [0u8; 256];
     let mut tv = tv_initial_value();
-    let mut len = vim_snprintf!(
-        buf.as_mut_ptr().cast(),
-        buf.len(),
-        c"g:loaded_%s_provider",
-        name.as_ptr(),
-    );
+    let mut len = vim_snprintf!(&mut buf, c"g:loaded_%s_provider", name.as_ptr());
     if !eval_variable(
         crate::memory::cstr_until_nul(&buf),
         len,
@@ -6735,20 +6720,10 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
         false,
         true,
     ) {
-        len = vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
-            c"provider#%s#bogus",
-            name.as_ptr(),
-        );
+        len = vim_snprintf!(&mut buf, c"provider#%s#bogus", name.as_ptr());
         script_autoload(&buf[..len as usize], false);
 
-        len = vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
-            c"g:loaded_%s_provider",
-            name.as_ptr(),
-        );
+        len = vim_snprintf!(&mut buf, c"g:loaded_%s_provider", name.as_ptr());
         if !eval_variable(
             crate::memory::cstr_until_nul(&buf),
             len,
@@ -6757,12 +6732,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
             false,
             true,
         ) {
-            vim_snprintf!(
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-                c"provider#%s#Call",
-                name.as_ptr(),
-            );
+            vim_snprintf!(&mut buf, c"provider#%s#Call", name.as_ptr());
             if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_some() && opt_vars().p_lpl {
                 semsg!(
                     c"provider: %s: missing required variable g:loaded_%s_provider",
@@ -6777,12 +6747,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
     let mut ok = tv.v_type == VarType::VarNumber && tv.vval.v_number() == 2;
 
     if ok {
-        vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
-            c"provider#%s#Call",
-            name.as_ptr(),
-        );
+        vim_snprintf!(&mut buf, c"provider#%s#Call", name.as_ptr());
         if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_none() {
             semsg!(
                 c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",

@@ -523,13 +523,11 @@ fn register_closure(fp: &mut UserFunc) {
 fn get_lambda_name() -> NvimString {
     uf_st().lambda_no += 1;
     let buf_ptr = uf_st().lambda_name.as_mut_ptr();
-    let buf_size = uf_st().lambda_name.len();
-    let n = vim_snprintf!(buf_ptr.cast(), buf_size, c"<lambda>%d", uf_st().lambda_no);
-    let size = if n < 1 {
-        0
-    } else {
-        (n as usize).min(buf_size - 1)
-    };
+    let size = crate::strings::vim_snprintf_safelen!(
+        &mut uf_st().lambda_name,
+        c"<lambda>%d",
+        uf_st().lambda_no
+    );
     NvimString {
         data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
         size,
@@ -907,8 +905,7 @@ fn fname_trans_sid<'a>(
             *error = FCERR_SCRIPT;
         } else {
             fname_buflen += vim_snprintf!(
-                fname_buf[fname_buflen..].as_mut_ptr().cast(),
-                FLEN_FIXED + 1 - fname_buflen,
+                &mut fname_buf[fname_buflen..FLEN_FIXED + 1],
                 c"%d_",
                 g_st().current_sctx.sc_sid,
             ) as usize;
@@ -990,14 +987,9 @@ fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
     debug_assert!(uflen > 0);
 
     let len = if !func_is_global(fp) && uflen > 3 {
-        vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            bufsize,
-            c"<SNR>%s",
-            uf2hikey(fp).as_ptr().wrapping_add(3)
-        )
+        vim_snprintf!(&mut *buf, c"<SNR>%s", uf2hikey(fp).as_ptr().wrapping_add(3))
     } else {
-        vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, c"%s", uf2hikey(fp))
+        vim_snprintf!(&mut *buf, c"%s", uf2hikey(fp))
     };
 
     debug_assert!(len > 0);
@@ -1339,7 +1331,7 @@ pub fn call_user_func(
             if (fp.uf_flags & FC_NOARGS) != 0 {
                 break;
             }
-            namelen = vim_snprintf!(numbuf.as_mut_ptr().cast(), NUMBUFLEN, c"%d", ai + 1) as usize;
+            namelen = vim_snprintf!(&mut numbuf, c"%d", ai + 1) as usize;
             name = numbuf.as_ptr();
         }
 
@@ -2329,12 +2321,7 @@ pub fn trans_function_name(
                 emsg(gettext(E_USINGSID));
                 return None;
             }
-            sid_buflen = vim_snprintf!(
-                sid_buf.as_mut_ptr().cast(),
-                sid_buf.len(),
-                c"%d_",
-                g_st().current_sctx.sc_sid,
-            ) as usize;
+            sid_buflen = vim_snprintf!(&mut sid_buf, c"%d_", g_st().current_sctx.sc_sid) as usize;
             lead += sid_buflen as i32;
         }
     } else if (flags & TFN_INT) == 0 && builtin_function(ll_name_ptr.slice(lv.ll_name_len)) {
@@ -3221,12 +3208,7 @@ pub fn ex_function(eap: &mut Exarg) {
         }
 
         uf_st().func_nr += 1;
-        namelen = vim_snprintf!(
-            numbuf.as_mut_ptr().cast(),
-            NUMBUFLEN,
-            c"%d",
-            uf_st().func_nr
-        ) as usize;
+        namelen = vim_snprintf!(&mut numbuf, c"%d", uf_st().func_nr) as usize;
         let nm = cstr_from_bytes(&numbuf[..namelen]);
         name = nm.as_ptr().cast_mut();
         name_owned = Some(nm);

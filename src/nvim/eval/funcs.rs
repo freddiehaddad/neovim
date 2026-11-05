@@ -1343,8 +1343,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     };
     let mut buf = [0u8; 256];
     vim_snprintf!(
-        buf.as_mut_ptr().cast(),
-        buf.len(),
+        &mut buf,
         c"return require('vim._core.vimfn').%s(...)",
         lua_name.as_ptr(),
     );
@@ -4672,8 +4671,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
 
             vim_snprintf!(
-                namebuff,
-                MAXPATHL,
+                &mut g_st().name_buff,
                 c"term://%s//%d:%s",
                 iobuff,
                 pid,
@@ -5713,7 +5711,7 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(tv_list_first(
         list.as_deref(),
     ))) {
-        vim_snprintf!(msgbuf.as_mut_ptr().cast(), msgbuf.len(), msg, idx);
+        vim_snprintf!(&mut msgbuf, msg, idx);
         let msg_cstr = std::ffi::CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"");
         if !encode_vim_to_msgpack(&mut packer, &mut li.li_tv, msg_cstr) {
             break;
@@ -6170,13 +6168,9 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             buf[1] = 0;
             1
         }
-        crate::register::MotionType::MtBlockWise => vim_snprintf_safelen!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
-            c"%c%d",
-            i32::from(CTRL_V_CONST),
-            reglen + 1,
-        ),
+        crate::register::MotionType::MtBlockWise => {
+            vim_snprintf_safelen!(&mut buf, c"%c%d", i32::from(CTRL_V_CONST), reglen + 1)
+        }
         crate::register::MotionType::MtUnknown => std::process::abort(),
     };
     tv_dict_add_str_len(dict, c"regtype", Some(&buf[..buflen]));
@@ -6981,24 +6975,23 @@ pub fn do_searchpair(
     let epatlen = epat_cstr.to_bytes().len();
     let pat2size = spatlen + epatlen + 17;
     let mut pat2_vec = vec![0u8; pat2size];
-    let pat2: *mut _ = pat2_vec.as_mut_ptr().cast();
     let pat3size = spatlen + mpat_cstr.to_bytes().len() + epatlen + 25;
     let mut pat3_vec = vec![0u8; pat3size];
-    let pat3: *mut _ = pat3_vec.as_mut_ptr().cast();
-    let pat2len = vim_snprintf!(pat2, pat2size, c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)", spat, epat,);
+    let pat2len = vim_snprintf!(&mut pat2_vec, c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)", spat, epat);
     let pat3len = if mpat_cstr.to_bytes().is_empty() {
-        unsafe { ptr::copy_nonoverlapping(pat2, pat3, (pat2len as usize) + 1) };
+        pat3_vec[..(pat2len as usize) + 1].copy_from_slice(&pat2_vec[..(pat2len as usize) + 1]);
         pat2len
     } else {
         vim_snprintf!(
-            pat3,
-            pat3size,
+            &mut pat3_vec,
             c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)\\|\\(%s\\m\\)",
             spat,
             epat,
             mpat,
         )
     };
+    let pat2 = pat2_vec.as_mut_ptr();
+    let pat3 = pat3_vec.as_mut_ptr();
     if (flags & SP_START) != 0 {
         options |= SEARCH_START;
     }

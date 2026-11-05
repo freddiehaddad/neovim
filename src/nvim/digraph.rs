@@ -1917,12 +1917,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         buf[pos] = b' ';
         pos += 1;
     }
-    vim_snprintf!(
-        buf[pos..].as_mut_ptr().cast(),
-        buf.len() - pos,
-        c" %3d",
-        dp.result
-    );
+    vim_snprintf!(&mut buf[pos..], c" %3d", dp.result);
     msg_outtrans(crate::memory::cstr_until_nul(&buf), 0, false);
 }
 
@@ -2140,8 +2135,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     for kp in &curbuf_mut().b_kmap_ga {
         vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
+            &mut buf,
             c"<buffer> %s %s",
             kp.from.as_ptr(),
             kp.to.as_ptr(),
@@ -2171,12 +2165,7 @@ fn keymap_unload() {
     let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
 
     for entry in &curbuf_mut().b_kmap_ga {
-        vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buf.len(),
-            c"<buffer> %s",
-            entry.from.as_ptr(),
-        );
+        vim_snprintf!(&mut buf, c"<buffer> %s", entry.from.as_ptr());
         do_map(
             MAPTYPE_UNMAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2217,7 +2206,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
         }
     }
     let len = buf.len() as i32;
-    let mut plen = vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), fmt.as_ptr(), p);
+    let mut plen = vim_snprintf!(&mut *buf, fmt.as_ptr(), p);
     drop(s);
     if plen < 0 || plen > len - 1 {
         if !buf.is_empty() {

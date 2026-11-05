@@ -198,12 +198,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     let mut ea: Exarg = Exarg::new();
 
     let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
-    vim_snprintf!(
-        buff.as_mut_ptr().cast(),
-        DIALOG_MSG_SIZE,
-        gettext(c"Save changes to \"%s\"?"),
-        fname,
-    );
+    vim_snprintf!(&mut buff, gettext(c"Save changes to \"%s\"?"), fname);
     let buff_cstr = crate::memory::cstr_until_nul(&buff);
     let ret = if checkall {
         vim_dialog_yesnoallcancel(VIM_QUESTION, None, buff_cstr, 1)
@@ -260,12 +255,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
 pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
     let fname = buf.fname_opt().unwrap_or(c"?");
-    vim_snprintf!(
-        buff.as_mut_ptr().cast(),
-        DIALOG_MSG_SIZE,
-        gettext(c"Close \"%s\"?"),
-        fname,
-    );
+    vim_snprintf!(&mut buff, gettext(c"Close \"%s\"?"), fname);
     vim_dialog_yesnocancel(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 1) == VIM_YES
 }
 
@@ -731,7 +721,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
     do_unlet(b"g:current_compiler", true);
     do_unlet(b"b:current_compiler", true);
 
-    vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, c"compiler/%s.*", eap.arg);
+    vim_snprintf!(&mut buf, c"compiler/%s.*", eap.arg);
     if !source_runtime_vim_lua(crate::memory::cstr_until_nul(&buf), DIP_ALL) {
         semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR), eap.arg);
     }

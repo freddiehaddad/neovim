@@ -5030,8 +5030,7 @@ fn expand_from_context(
         let len = pat_cstr.to_bytes().len() + 20;
         let mut buf = vec![0u8; len];
         vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            len,
+            &mut buf,
             c"^<SNR>\\d\\+_%s",
             pat_cstr.as_ptr().wrapping_add(3)
         );
