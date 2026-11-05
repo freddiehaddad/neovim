@@ -984,7 +984,7 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
         {
             let val_ptr = item.value.data.string().data;
             if !val_ptr.is_null() {
-                return Some(crate::memory::cstr_from_ptr(val_ptr));
+                return Some(val_ptr.as_cstr());
             }
         }
     }

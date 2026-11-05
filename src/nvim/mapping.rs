@@ -2364,7 +2364,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     {
         let cb_str = callback_di.di_tv.vval.v_string();
         if let Some(fp) = (!cb_str.is_null())
-            .then(|| crate::memory::cstr_from_ptr(cb_str))
+            .then(|| cb_str.as_cstr())
             .and_then(|s| find_func(Some(s)))
             && (fp.uf_flags & FC_LUAREF) != 0
         {

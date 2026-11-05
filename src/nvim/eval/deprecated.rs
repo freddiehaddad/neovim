@@ -63,13 +63,13 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
 
     let prog = arg0.vval.v_string();
-    if crate::memory::cstr_is_empty(prog) {
+    if prog.is_empty() {
         emsg(E_API_SPAWN_FAILED);
         return;
     }
 
     let mut argv = Vec::with_capacity((argsl as usize) + 1);
-    argv.push(crate::memory::cstr_to_cstring(prog));
+    argv.push(prog.to_cstring());
 
     if argsl > 0
         && let Some(args) = args

@@ -1098,7 +1098,7 @@ pub fn u_write_undo(
         {
             let mut file_info_old = FileInfo::new();
             let mut file_info_new = FileInfo::new();
-            let file_name_cstr = crate::memory::cstr_from_ptr(file_name);
+            let file_name_cstr = file_name.as_cstr();
             if buf.b_ffname.is_some()
                 && os_fileinfo(buf.ffname_cstr(), &mut file_info_old)
                 && os_fileinfo(file_name_cstr, &mut file_info_new)

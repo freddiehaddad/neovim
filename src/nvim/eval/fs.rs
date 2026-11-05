@@ -1746,7 +1746,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
         }
 
-        let mut q = path_next_component(crate::memory::cstr_from_ptr(p))
+        let mut q = path_next_component(p.as_cstr())
             .as_ptr()
             .cast_mut()
             .cast::<u8>();
@@ -1797,7 +1797,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 } else {
                     buf
                 };
-                q = path_next_component(crate::memory::cstr_from_ptr(start_comp))
+                q = path_next_component(start_comp.as_cstr())
                     .as_ptr()
                     .cast_mut()
                     .cast::<u8>();
@@ -1818,21 +1818,13 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     buf_vec[buf_len] = 0;
                 }
 
-                q = path_tail(crate::memory::cstr_from_ptr(p))
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>();
+                q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 if (q as usize) > (p as usize) && unsafe { *q } == 0 {
                     // Ignore trailing path separator.
                     unsafe { *q.wrapping_sub(1) = 0 };
-                    q = path_tail(crate::memory::cstr_from_ptr(p))
-                        .as_ptr()
-                        .cast_mut()
-                        .cast::<u8>();
+                    q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 }
-                if (q as usize) > (p as usize)
-                    && !path_is_absolute(crate::memory::cstr_as_bytes(buf))
-                {
+                if (q as usize) > (p as usize) && !path_is_absolute(buf.as_bytes()) {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p as usize);
@@ -1876,7 +1868,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             // Shorten "remain".
             if unsafe { *q } != 0 {
                 let rem_tail = unsafe { q.sub(1) };
-                let rem_len = crate::memory::cstr_len(rem_tail) + 1;
+                let rem_len = rem_tail.len() + 1;
                 unsafe { ptr::copy(rem_tail, remain, rem_len) };
             } else {
                 remain_vec = None;
@@ -1921,7 +1913,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         // if the argument had none.  But keep "/" or "//".
         if !has_trailing_pathsep && after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
             unsafe {
-                *path_tail_with_sep(crate::memory::cstr_from_ptr(p))
+                *path_tail_with_sep(p.as_cstr())
                     .as_ptr()
                     .cast_mut()
                     .cast::<u8>() = 0

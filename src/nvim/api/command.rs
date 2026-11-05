@@ -660,7 +660,7 @@ pub fn nvim_cmd(
             && has_event(EVENT_CMDUNDEFINED)
         {
             let p_raw = arena_string(arena, cmd.cmd).data;
-            let p_ev = crate::memory::cstr_as_opt_cstr(p_raw);
+            let p_ev = p_raw.as_opt_cstr();
             let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_ev, p_ev, true, None);
             p_opt = if ret && !aborting() {
                 find_ex_command(&mut ea, None)
@@ -711,7 +711,7 @@ pub fn nvim_cmd(
                 get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
                     .map_or(ptr::null(), |s| s.as_ptr())
             };
-            let cmdname_bytes = crate::memory::cstr_as_bytes(cmdname);
+            let cmdname_bytes = cmdname.as_bytes();
             let fullname_bytes = crate::memory::cstr_as_bytes(fullname);
             if !fullname_bytes.starts_with(cmdname_bytes) {
                 api_set_error!(

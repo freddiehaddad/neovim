@@ -58,7 +58,7 @@ impl NvimString {
         if self.data.is_null() {
             c"".to_bytes()
         } else if self.size == 0 {
-            crate::memory::cstr_as_bytes(self.data)
+            self.data.as_bytes()
         } else {
             let bytes = unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
@@ -82,17 +82,17 @@ impl NvimString {
 
     #[inline]
     pub fn as_cstr(self) -> &'static std::ffi::CStr {
-        crate::memory::cstr_from_ptr(self.data)
+        self.data.as_cstr()
     }
 
     #[inline]
     pub fn as_opt_cstr(self) -> Option<&'static std::ffi::CStr> {
-        crate::memory::cstr_as_opt_cstr(self.data)
+        self.data.as_opt_cstr()
     }
 
     #[inline]
     pub fn to_cstring(self) -> std::ffi::CString {
-        crate::memory::cstr_to_cstring(self.data)
+        self.data.to_cstring()
     }
 }
 

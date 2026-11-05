@@ -219,7 +219,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        let mut len = crate::memory::cstr_len(tempname) + 29;
+        let mut len = tempname.len() + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -290,7 +290,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        command_vec.extend_from_slice(crate::memory::cstr_as_bytes(tempname));
+        command_vec.extend_from_slice(tempname.as_bytes());
 
         if shell_style != STYLE_BT {
             for &p in pat {
@@ -433,7 +433,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = 0;
-                if len != 0 && (crate::memory::cstr_len(buffer) as i32) < (len as i32) {
+                if len != 0 && (buffer.len() as i32) < (len as i32) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -494,7 +494,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         for entry in raw_entries {
-            let entry_cstr = crate::memory::cstr_from_ptr(entry);
+            let entry_cstr = entry.as_cstr();
             if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry_cstr) {
                 continue;
             }

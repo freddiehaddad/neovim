@@ -486,15 +486,15 @@ mod tests {
         assert_eq!(&invarg.to_bytes()[4..], b": Invalid argument");
         let lmsg = LINE_MSG;
         assert_eq!(lmsg.to_bytes(), b" line ");
-        for ptr in [
-            E_AFTERINIT.as_ptr(),
-            E_JOBTBLFULL.as_ptr(),
-            E_SIGNDATA.as_ptr(),
-            E_WILDEXPAND.as_ptr(),
-            E_INVALIDREG.as_ptr(),
-            E_FNAMETOOLONG.as_ptr(),
+        for cstr in [
+            E_AFTERINIT,
+            E_JOBTBLFULL,
+            E_SIGNDATA,
+            E_WILDEXPAND,
+            E_INVALIDREG,
+            E_FNAMETOOLONG,
         ] {
-            let s = crate::memory::cstr_as_bytes(ptr);
+            let s = cstr.to_bytes();
             assert!(s.starts_with(b"E"));
         }
     }

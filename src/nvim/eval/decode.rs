@@ -1132,9 +1132,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 };
                 for pair in &items[..len] {
                     let key = pair[0].vval.v_string();
-                    let di = crate::eval::typval::tv_dict_item_alloc_len(
-                        crate::memory::cstr_as_bytes(key),
-                    );
+                    let di = crate::eval::typval::tv_dict_item_alloc_len(key.as_bytes());
                     if !tv_dict_add(&mut *dict, di) {
                         for (_, d) in dict.dv_hashtab.iter_items_mut() {
                             d.di_tv.v_type = VarType::VarSpecial;

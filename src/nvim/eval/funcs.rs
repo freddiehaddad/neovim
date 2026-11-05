@@ -1440,10 +1440,10 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
     }
 
     let name = tv.vval.v_string();
-    if crate::memory::cstr_is_empty(name) {
+    if name.is_empty() {
         return g_st().curbuf.opt_mut();
     }
-    if crate::memory::cstr_as_bytes(name) == b"$" {
+    if name.as_bytes() == b"$" {
         return g_st().lastbuf.opt_mut();
     }
 
@@ -1452,7 +1452,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
     let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let buf = buflist_findnr(buflist_findpat(
-        crate::memory::cstr_as_bytes(name),
+        name.as_bytes(),
         true,
         false,
         curtab_only != 0,
@@ -2687,7 +2687,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 crate::eval::typval::tv_set_string(&mut *rettv, Some(&name_cstr));
                 rettv.v_type = VarType::VarFunc;
                 let s_ptr = rettv.vval.v_string();
-                func_ref(crate::memory::cstr_as_opt_cstr(s_ptr));
+                func_ref(s_ptr.as_opt_cstr());
             }
         }
     }
@@ -4997,9 +4997,9 @@ fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType)
     let mut int_out: i32 = 0;
 
     let success = os_libcall(
-        crate::memory::cstr_as_opt_cstr(libname),
-        crate::memory::cstr_as_opt_cstr(funcname),
-        crate::memory::cstr_as_opt_cstr(str_in),
+        libname.as_opt_cstr(),
+        funcname.as_opt_cstr(),
+        str_in.as_opt_cstr(),
         int_in,
         (out_type == VarType::VarString).then_some(&mut str_out),
         Some(&mut int_out),

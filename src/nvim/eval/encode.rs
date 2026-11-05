@@ -185,7 +185,7 @@ pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
     if let Some(first_li) = state.li_opt() {
         let s = first_li.li_tv.vval.v_string();
         if !s.is_null() {
-            state.li_length = crate::memory::cstr_len(s);
+            state.li_length = s.len();
         }
     }
     state
@@ -229,11 +229,7 @@ pub fn encode_read_from_list(
             }
             state.offset = 0;
             let s = next_li.li_tv.vval.v_string();
-            state.li_length = if s.is_null() {
-                0
-            } else {
-                crate::memory::cstr_len(s)
-            };
+            state.li_length = if s.is_null() { 0 } else { s.len() };
         }
     }
     *read_bytes = nbuf;
@@ -255,7 +251,7 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
         len += 1;
         let s = tv.vval.v_string();
         if !s.is_null() {
-            len += crate::memory::cstr_len(s);
+            len += s.len();
         }
     }
     len = len.saturating_sub(1);
@@ -1708,7 +1704,7 @@ mod tests {
                         None => assert!(ptr.is_null()),
                         Some(bytes) => {
                             assert!(!ptr.is_null());
-                            assert_eq!(crate::memory::cstr_as_bytes(ptr), bytes);
+                            assert_eq!(ptr.as_bytes(), bytes);
                         }
                     }
                     li = li_ref.li_next;

@@ -1256,9 +1256,9 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
             #[cfg(unix)]
             eval_patch(
-                crate::memory::cstr_from_ptr(tmp_orig),
+                tmp_orig.as_cstr(),
                 fullname.as_deref().unwrap_or_else(|| eap.arg.as_cstr()),
-                crate::memory::cstr_from_ptr(tmp_new),
+                tmp_new.as_cstr(),
             );
             #[cfg(not(unix))]
             eval_patch(

@@ -903,7 +903,7 @@ pub fn ml_recover(checkext: bool) {
             .li_tv
             .vval
             .v_string();
-        fname_used = (!first_str.is_null()).then(|| crate::memory::cstr_to_cstring(first_str));
+        fname_used = (!first_str.is_null()).then(|| first_str.to_cstring());
         tv_clear(&mut items_tv);
     }
     let Some(fname_used) = fname_used else {

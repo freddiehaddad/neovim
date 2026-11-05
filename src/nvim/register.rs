@@ -769,13 +769,13 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
             let cont_vec: Vec<u8>;
             if colon && i > 0 {
                 let p = crate::charset::skipwhite_ptr(str_);
-                let p_bytes = crate::memory::cstr_as_bytes(p);
+                let p_bytes = p.as_bytes();
                 if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                     cont_vec = execreg_line_continuation(&reg.y_array, &mut i);
                     str_ = crate::strings::CStrCursor::from_ptr(cont_vec.as_ptr().cast());
                 }
             }
-            let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(str_));
+            let escaped = vim_strsave_escape_ks(str_.as_bytes());
             retval = ins_typebuf(&escaped, remap, 0, true, is_silent);
             drop(escaped);
             if !retval {
@@ -2524,10 +2524,10 @@ pub fn ex_display(eap: &mut Exarg) {
         && (arg.is_null()
             || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b'.')))
         && !g_st().got_int
-        && !message_filtered(crate::memory::cstr_from_ptr(p))
+        && !message_filtered(p.as_cstr())
     {
         msg_puts(c"\n  c  \".   ");
-        dis_msg(crate::memory::cstr_as_opt_cstr(p), true);
+        dis_msg(p.as_opt_cstr(), true);
     }
 
     if let Some(last_cmd) = g_st().last_cmdline.as_ref()

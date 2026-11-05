@@ -322,7 +322,7 @@ impl IntoDictKey for RawCCharPtrMut {
 impl<T> IntoDictKey for crate::strings::CStrCursor<T> {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
+        cstr_as_string(self.as_opt_cstr())
     }
 }
 

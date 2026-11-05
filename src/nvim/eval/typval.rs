@@ -338,22 +338,22 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_string_cstr(self) -> Option<&'static CStr> {
-        crate::memory::cstr_as_opt_cstr(self.v_string())
+        self.v_string().as_opt_cstr()
     }
 
     #[inline]
     pub fn v_string_cstr_or_empty(self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.v_string())
+        self.v_string().as_cstr()
     }
 
     #[inline]
     pub fn v_string_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_as_bytes(self.v_string())
+        self.v_string().as_bytes()
     }
 
     #[inline]
     pub fn v_string_opt_bytes(self) -> Option<&'static [u8]> {
-        crate::memory::cstr_as_opt_bytes(self.v_string())
+        self.v_string().as_opt_bytes()
     }
 
     #[inline]
@@ -2364,7 +2364,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
     if argvars[1].v_type == VarType::VarFunc {
         let s = argvars[1].vval.v_string();
         if !s.is_null() {
-            info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
+            info.item_compare_func = Some(s.to_cstring());
         }
     } else if argvars[1].v_type == VarType::VarPartial {
         info.item_compare_partial = argvars[1].vval.v_partial();
@@ -2680,7 +2680,7 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
             tv_set_string(&mut *tv, funcref);
             tv.v_type = VarType::VarFunc;
             let s = tv.vval.v_string();
-            func_ref(crate::memory::cstr_as_opt_cstr(s));
+            func_ref(s.as_opt_cstr());
         }
         _ => {
             tv.v_type = VarType::VarSpecial;
@@ -3255,7 +3255,7 @@ pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &mut UserFunc)
     );
     item.di_tv.v_type = VarType::VarFunc;
     let s = item.di_tv.vval.v_string();
-    func_ref(crate::memory::cstr_as_opt_cstr(s));
+    func_ref(s.as_opt_cstr());
     if !tv_dict_add(d, item) {
         tv_dict_item_free(item);
         return false;
@@ -3850,7 +3850,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
         }
     } else {
         let fun = tv.vval.v_string();
-        func_unref(crate::memory::cstr_as_opt_cstr(fun));
+        func_unref(fun.as_opt_cstr());
         if !fun.is_null() && !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
             drop(unsafe { std::ffi::CString::from_raw(fun.as_ptr()) });
         }
@@ -4198,7 +4198,7 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
                 to.vval = crate::eval::typval::TypvalVval::from_cstring(from.vval.v_string_owned());
                 if from.v_type == VarType::VarFunc {
                     let s = to.vval.v_string();
-                    func_ref(crate::memory::cstr_as_opt_cstr(s));
+                    func_ref(s.as_opt_cstr());
                 }
             }
         }
@@ -4689,7 +4689,7 @@ pub fn tv_check_for_nonempty_string_arg(args: &[TypVal], idx: i32) -> bool {
         return false;
     }
     let s = args[idx as usize].vval.v_string();
-    if s.is_null() || { crate::memory::cstr_is_empty(s) } {
+    if s.is_null() || { s.is_empty() } {
         semsg!(tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR), idx + 1,);
         return false;
     }

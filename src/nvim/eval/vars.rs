@@ -1772,10 +1772,7 @@ fn ex_let_option<'a>(
 
             if !curval_data.is_null() && !newval_data.is_null() {
                 let newval_old = newval;
-                let joined = concat_str(
-                    crate::memory::cstr_as_bytes(curval_data),
-                    crate::memory::cstr_as_bytes(newval_data),
-                );
+                let joined = concat_str(curval_data.as_bytes(), newval_data.as_bytes());
                 newval = crate::api::private::helpers::cstr_to_obj(Some(&*joined));
                 optval_free(newval_old);
             }
@@ -2476,7 +2473,7 @@ pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStrin
         return if s.is_null() {
             None
         } else {
-            Some(crate::memory::cstr_to_cstring(s))
+            Some(s.to_cstring())
         };
     };
 
@@ -2550,7 +2547,7 @@ pub fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CStri
         return if s.is_null() {
             None
         } else {
-            Some(crate::memory::cstr_to_cstring(s))
+            Some(s.to_cstring())
         };
     };
 

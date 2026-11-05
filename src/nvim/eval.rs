@@ -957,16 +957,11 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
             retval = 0;
         } else {
             let mut s = tv.vval.v_string();
-            if !crate::memory::cstr_is_empty(s)
-                && !ascii_isdigit(crate::memory::cstr_first_byte(s))
-                && crate::memory::cstr_first_byte(s) != b'-'
-            {
-                *cp = i32::from(crate::memory::cstr_first_byte(s));
+            if !s.is_empty() && !ascii_isdigit(s.first_byte()) && s.first_byte() != b'-' {
+                *cp = i32::from(s.first_byte());
                 s = s.wrapping_add(1);
             }
-            retval = Varnumber::from(crate::charset::parse_i64_prefix(
-                crate::memory::cstr_as_bytes(s),
-            ));
+            retval = Varnumber::from(crate::charset::parse_i64_prefix(s.as_bytes()));
         }
         tv_clear(&mut tv);
     }
@@ -3003,12 +2998,12 @@ fn call_func_rettv(
             };
         } else {
             let s = functv.vval.v_string();
-            if crate::memory::cstr_is_empty(s) {
+            if s.is_empty() {
                 emsg(gettext(E_EMPTY_FUNCTION_NAME));
                 tv_clear(&mut functv);
                 return false;
             }
-            funcname = crate::memory::cstr_from_ptr(s);
+            funcname = s.as_cstr();
         }
     } else {
         funcname = c"";
@@ -4471,7 +4466,7 @@ pub fn set_ref_in_item(
         }
         VarType::VarFunc => {
             let s = tv.vval.v_string();
-            set_ref_in_func(crate::memory::cstr_as_opt_cstr(s), None, copy_id)
+            set_ref_in_func(s.as_opt_cstr(), None, copy_id)
         }
         VarType::VarPartial => {
             set_ref_in_item_partial(tv_partial(&*tv), copy_id, ht_stack, list_stack)
@@ -4910,15 +4905,15 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         let name = arg.vval.v_string();
         if name.is_null() {
             r = false;
-        } else if crate::memory::cstr_is_empty(name) {
+        } else if name.is_empty() {
             *callback = Callback::NONE;
         } else {
             let funcref = if arg.v_type == VarType::VarString
-                && let Some(sl) = get_scriptlocal_funcname(Some(crate::memory::cstr_from_ptr(name)))
+                && let Some(sl) = get_scriptlocal_funcname(Some(name.as_cstr()))
             {
                 sl
             } else {
-                crate::memory::cstr_to_cstring(name)
+                name.to_cstring()
             };
             func_ref(Some(funcref.as_c_str()));
             callback.data = crate::eval::typval::CallbackData::funcref(funcref);

@@ -662,14 +662,14 @@ pub fn nvim_win_resize(
                 err,
                 c"anchor",
                 c"\"top\", \"bottom\", \"left\" or \"right\"",
-                crate::memory::cstr_as_opt_cstr(anchor),
+                anchor.as_opt_cstr(),
             );
             return;
         }
         if (is_height && height == -1) || (is_width && width == -1) {
             api_err_conflict(
                 err,
-                crate::memory::cstr_from_ptr(anchor),
+                anchor.as_cstr(),
                 crate::memory::cstr_from_ptr(if is_width {
                     c"width".as_ptr()
                 } else {

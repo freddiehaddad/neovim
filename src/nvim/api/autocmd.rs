@@ -1056,7 +1056,7 @@ pub fn nvim_create_augroup(
     };
 
     let save_current_sctx = api_set_sctx(channel_id);
-    let augroup = augroup_add(crate::memory::cstr_from_ptr(augroup_name));
+    let augroup = augroup_add(augroup_name.as_cstr());
     if augroup == AUGROUP_ERROR {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set augroup",);
         g_st().current_sctx = save_current_sctx;

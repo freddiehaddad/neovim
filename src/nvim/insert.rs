@@ -2413,7 +2413,7 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
     if insert.size > 0 {
         let mut p = insert.data.wrapping_add(insert.size - 1);
         while p >= insert.data {
-            if crate::memory::cstr_first_byte(p) == ESC as u8 {
+            if p.first_byte() == ESC as u8 {
                 insert.size = crate::memory::ptr_offset_from(p, insert.data) as usize;
                 break;
             }
@@ -2426,7 +2426,7 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
 
     if insert.size > 0 {
         let p = insert.data.wrapping_add(insert.size - 1);
-        let b = crate::memory::cstr_first_byte(p);
+        let b = p.first_byte();
         if (b == b'0' || b == b'^')
             && (no_esc != 0 || (insert.first_byte() == CTRL_D_CONST as u8 && count > 1))
         {
@@ -2473,9 +2473,7 @@ pub fn get_last_insert_save() -> Option<std::ffi::CString> {
     if insert.data.is_null() {
         return None;
     }
-    if insert.size > 0
-        && crate::memory::cstr_first_byte(insert.data.wrapping_add(insert.size - 1)) == ESC as u8
-    {
+    if insert.size > 0 && insert.data.wrapping_add(insert.size - 1).first_byte() == ESC as u8 {
         insert.size -= 1;
     }
     let slice = insert.as_bytes();

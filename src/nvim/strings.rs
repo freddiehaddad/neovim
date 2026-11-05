@@ -201,6 +201,20 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline(always)]
+    pub const fn byte_at(self, idx: usize) -> u8 {
+        if self.0.is_null() {
+            0
+        } else {
+            unsafe { *self.0.cast::<u8>().add(idx) }
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_opt_bytes(self) -> Option<&'static [u8]> {
+        crate::memory::cstr_as_opt_bytes(self.as_ptr().cast::<u8>())
+    }
+
+    #[inline(always)]
     pub const fn first_byte(self) -> u8 {
         if self.0.is_null() {
             0

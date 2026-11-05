@@ -559,11 +559,11 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 argv.push(CString::default());
             }
         }
-        let id = ui_client_start_server(crate::memory::cstr_from_ptr(first_arg), &argv);
+        let id = ui_client_start_server(first_arg.as_cstr(), &argv);
         g_st().ui_client_error_exit = -1;
         id
     } else {
-        let first_arg_cstr = crate::memory::cstr_from_ptr(first_arg);
+        let first_arg_cstr = first_arg.as_cstr();
         let is_tcp = socket_address_tcp_host_end(first_arg_cstr.to_bytes()).is_some();
         let mut err: Option<&CStr> = None;
         let on_data = CallbackReader::none();

@@ -1492,8 +1492,8 @@ pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'backspace' option.
 pub fn validate_backspace(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    if ascii_isdigit(crate::memory::cstr_first_byte(value)) {
-        return if crate::memory::cstr_first_byte(value) == b'2' {
+    if ascii_isdigit(value.first_byte()) {
+        return if value.first_byte() == b'2' {
             None
         } else {
             Some(E_INVARG)
@@ -1603,8 +1603,7 @@ pub fn validate_buftype(args: &mut Optset) -> Option<&CStr> {
     if errmsg.is_some() {
         return errmsg;
     }
-    if (os_flags & OPT_GLOBAL) == 0
-        && !buf.terminal.is_null() != (crate::memory::cstr_first_byte(newval_data) == b't')
+    if (os_flags & OPT_GLOBAL) == 0 && !buf.terminal.is_null() != (newval_data.first_byte() == b't')
     {
         return Some(E_INVARG);
     }
@@ -2172,7 +2171,7 @@ pub fn did_set_fileformat(args: &mut Optset) -> Option<&CStr> {
 
     redraw_titles();
     ml_setflags(buf);
-    if get_fileformat(buf) == EOL_MAC || crate::memory::cstr_first_byte(oldval) == b'm' {
+    if get_fileformat(buf) == EOL_MAC || oldval.first_byte() == b'm' {
         redraw_buf_later(args.os_buf.borrow(), UPD_NOT_VALID);
     }
     None
@@ -2222,7 +2221,7 @@ pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    let p = vim_strchr(crate::memory::cstr_from_ptr(value), b',' as i32)
+    let p = vim_strchr(value.as_cstr(), b',' as i32)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if p.is_null() {
         return Some(E_COMMA_REQUIRED);
@@ -2633,7 +2632,7 @@ pub fn validate_shortmess(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'showbreak' option.
 pub fn validate_showbreak(args: &mut Optset) -> Option<&CStr> {
     let mut s = args.os_newval.data.string().data;
-    while !crate::memory::cstr_is_empty(s) {
+    while !s.is_empty() {
         if ptr2cells(s) != 1 {
             return Some(E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER);
         }
@@ -2665,7 +2664,7 @@ pub fn did_set_signcolumn(args: &mut Optset) -> Option<&CStr> {
     if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&mut *win)) {
         return Some(E_INVARG);
     }
-    if crate::memory::cstr_as_bytes(oldval).starts_with(b"nu") || win.w_minscwidth == SCL_NUM {
+    if oldval.as_bytes().starts_with(b"nu") || win.w_minscwidth == SCL_NUM {
         win.w_nrwidth_line_count = 0;
     }
     None
@@ -2922,14 +2921,14 @@ pub fn did_set_titlestring(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
     let mut cp = value;
-    while !crate::memory::cstr_is_empty(cp) {
-        if ascii_isdigit(crate::memory::cstr_first_byte(cp)) {
+    while !cp.is_empty() {
+        if ascii_isdigit(cp.first_byte()) {
             cp = cp.wrapping_add(1);
             continue;
         }
-        if crate::memory::cstr_first_byte(cp) == b','
+        if cp.first_byte() == b','
             && (cp.as_ptr() as usize) > (value.as_ptr() as usize)
-            && crate::memory::cstr_first_byte(cp.wrapping_sub(1)) != b','
+            && cp.wrapping_sub(1).first_byte() != b','
         {
             cp = cp.wrapping_add(1);
             continue;
@@ -2938,11 +2937,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
     }
 
     let mut array: Vec<Colnr> = Vec::new();
-    let errmsg = tabstop_set(
-        crate::memory::cstr_as_bytes(value),
-        &mut array,
-        args.os_errbuf,
-    );
+    let errmsg = tabstop_set(value.as_bytes(), &mut array, args.os_errbuf);
     args.os_prep = OptSetPrep::Tabstop(array);
     errmsg
 }

@@ -1196,8 +1196,7 @@ pub fn readfile(
                 target_os = "dragonfly",
                 target_os = "macos"
             ))]
-            let is_chr_dev =
-                s_ischr(perm as u64) && is_dev_fd_file(crate::memory::cstr_as_bytes(fname));
+            let is_chr_dev = s_ischr(perm as u64) && is_dev_fd_file(fname.as_bytes());
             #[cfg(not(any(
                 target_os = "freebsd",
                 target_os = "openbsd",

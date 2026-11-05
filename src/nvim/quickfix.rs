@@ -997,7 +997,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
     };
 
     let s = li.li_tv.vval.v_string();
-    let len = crate::memory::cstr_len(s);
+    let len = s.len();
     if len > IOSIZE - 2 {
         qf_grow_linebuf(state, len);
     } else {
@@ -1005,7 +1005,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
         state.linelen = len;
     }
 
-    crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), crate::memory::cstr_as_bytes(s));
+    crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), s.as_bytes());
 
     state.source = QfInputSource::List(li.li_next);
 

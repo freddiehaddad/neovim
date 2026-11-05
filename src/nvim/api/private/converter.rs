@@ -67,7 +67,7 @@ fn convert_one_value(
     match tv.v_type {
         VarType::VarString => {
             let s = tv.vval.v_string();
-            let bytes = crate::memory::cstr_as_bytes(s);
+            let bytes = s.as_bytes();
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
         }
         VarType::VarNumber => {
@@ -92,7 +92,7 @@ fn convert_one_value(
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
             let obj = if !fun.is_null()
-                && let Some(fp) = find_func(Some(crate::memory::cstr_from_ptr(fun)))
+                && let Some(fp) = find_func(Some(fun.as_cstr()))
                 && (fp.uf_flags & FC_LUAREF) != 0
             {
                 Object {

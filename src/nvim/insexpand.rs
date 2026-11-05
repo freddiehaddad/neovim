@@ -1442,7 +1442,7 @@ fn ins_compl_longest_match(match_: &mut Compl) {
 
     let mut p = insexp().compl_leader.data;
     let mut s = match_.cp_str.data;
-    while !crate::memory::cstr_is_empty(p) {
+    while !p.is_empty() {
         let c1 = utf_ptr2char(p);
         let c2 = utf_ptr2char(s);
 
@@ -1464,7 +1464,7 @@ fn ins_compl_longest_match(match_: &mut Compl) {
         };
     }
 
-    if !crate::memory::cstr_is_empty(p) {
+    if !p.is_empty() {
         p.set_byte(0, 0);
 
         insexp().compl_leader.size =
@@ -4127,12 +4127,9 @@ fn fuzzy_longest_match() {
         let mut match_ptr = match_str;
         let mut j: i32 = 0;
 
-        while j < prefix_len
-            && !crate::memory::cstr_is_empty(match_ptr)
-            && !crate::memory::cstr_is_empty(prefix_ptr)
-        {
+        while j < prefix_len && !match_ptr.is_empty() && !prefix_ptr.is_empty() {
             let clen = utfc_ptr2len(prefix_ptr) as usize;
-            let m_b = crate::memory::cstr_as_bytes(match_ptr);
+            let m_b = match_ptr.as_bytes();
             if crate::memory::cstr_slice(prefix_ptr, clen) != &m_b[..clen.min(m_b.len())] {
                 break;
             }
@@ -4155,7 +4152,7 @@ fn fuzzy_longest_match() {
 
     let lead_b = ins_compl_leader_slice();
     let leader_len = lead_b.len();
-    let pref_b = crate::memory::cstr_as_bytes(prefix);
+    let pref_b = prefix.as_bytes();
 
     if leader_len == 0 || &pref_b[..leader_len.min(pref_b.len())] == lead_b {
         let dup_slice = &pref_b[..(prefix_len as usize).min(pref_b.len())];
@@ -4623,7 +4620,7 @@ fn get_register_completion() {
             if str_ptr.is_null() {
                 continue;
             }
-            let str_b = crate::memory::cstr_as_bytes(str_ptr);
+            let str_b = str_ptr.as_bytes();
 
             if adding_mode {
                 let str_len = str_b.len() as i32;
@@ -5127,7 +5124,7 @@ pub fn ins_compl_delete(new_leader: bool) {
     if new_leader {
         let mut orig = insexp().compl_orig_text.data;
         let mut leader = ins_compl_leader_slice();
-        while !crate::memory::cstr_is_empty(orig)
+        while !orig.is_empty()
             && !leader.is_empty()
             && utf_ptr2char(orig) == utf_ptr2char(leader.as_ptr())
         {
@@ -5328,7 +5325,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     let mut cp_str = shown.cp_str.data;
     let mut cp_str_len = shown.cp_str.size;
     let leader_len = ins_compl_leader_len();
-    let has_multiple = crate::memory::cstr_as_bytes(cp_str).contains(&b'\n');
+    let has_multiple = cp_str.as_bytes().contains(&b'\n');
 
     if insert_prefix {
         if let Some(pref) = find_common_prefix(&mut cp_str_len, false)

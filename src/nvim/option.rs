@@ -5008,12 +5008,10 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
                 option_set_callback_func(value.data.string().as_bytes(), &mut cb);
             } else if value.data.string().size > 0 {
                 let s_ptr = value.data.string().data;
-                let funcref = if let Some(name) =
-                    get_scriptlocal_funcname(crate::memory::cstr_as_opt_cstr(s_ptr))
-                {
+                let funcref = if let Some(name) = get_scriptlocal_funcname(s_ptr.as_opt_cstr()) {
                     name
                 } else {
-                    crate::memory::cstr_to_cstring(s_ptr)
+                    s_ptr.to_cstring()
                 };
                 cb.data = crate::eval::typval::CallbackData::expr(funcref);
             }
@@ -6340,21 +6338,13 @@ fn put_set_value(
             let value_str = value.data.string().data;
             if !value_str.is_null() {
                 if (flags & K_OPT_FLAG_EXPAND) != 0 {
-                    let size = crate::memory::cstr_len(value_str) + 1;
+                    let size = value_str.len() + 1;
                     let mut buf_vec = vec![0u8; size];
-                    home_replace(
-                        None,
-                        crate::memory::cstr_as_opt_cstr(value_str),
-                        &mut buf_vec,
-                        false,
-                    );
+                    home_replace(None, value_str.as_opt_cstr(), &mut buf_vec, false);
 
                     if size >= MAXPATHL
                         && (flags & K_OPT_FLAG_COMMA) != 0
-                        && crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr(value_str),
-                            b',' as i32,
-                        )
+                        && crate::strings::vim_haschr(value_str.as_cstr(), b',' as i32)
                     {
                         let mut part_vec = vec![0u8; size];
                         if !put_eol(fd) {
@@ -6377,7 +6367,7 @@ fn put_set_value(
                     if !put_escstr(fd, crate::memory::cstr_until_nul(&buf_vec), 2) {
                         return false;
                     }
-                } else if !put_escstr(fd, crate::memory::cstr_from_ptr(value_str), 2) {
+                } else if !put_escstr(fd, value_str.as_cstr(), 2) {
                     return false;
                 }
             }

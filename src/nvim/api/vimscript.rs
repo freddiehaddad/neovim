@@ -356,7 +356,7 @@ pub fn nvim_call_dict_function(
                 if s_ptr.is_null() {
                     c""
                 } else {
-                    crate::memory::cstr_from_ptr(s_ptr)
+                    s_ptr.as_cstr()
                 },
                 &mut rettv,
                 None,
@@ -427,7 +427,7 @@ pub fn nvim_call_dict_function(
             let s = di.di_tv.vval.v_string();
             fn_name = NvimString {
                 data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
-                size: crate::memory::cstr_len(s),
+                size: s.len(),
             };
         }
 
