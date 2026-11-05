@@ -354,7 +354,7 @@ pub fn nvim_parse_cmd(
             if len > 0 {
                 add_c(
                     &mut args,
-                    string_obj(cstrn_as_string(crate::memory::cstr_slice(buf.cast(), len))),
+                    string_obj(cstrn_as_string(crate::memory::cstr_slice(buf, len))),
                 );
                 buf = buf.wrapping_add(len + 1);
                 buf_rem = buf_rem.saturating_sub(len + 1);

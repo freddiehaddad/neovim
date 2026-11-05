@@ -4437,10 +4437,10 @@ pub fn fname_expand(
                 (name.wrapping_add(name_len)).cast(),
             )) != 0
             && (name.wrapping_add(name_len) as usize)
-                > (get_past_head(crate::memory::cstr_from_ptr((name).cast())).as_ptr() as usize)
+                > (get_past_head(crate::memory::cstr_from_ptr(name)).as_ptr() as usize)
         {
             unsafe {
-                *path_tail_with_sep(crate::memory::cstr_from_ptr((name).cast()))
+                *path_tail_with_sep(crate::memory::cstr_from_ptr(name))
                     .as_ptr()
                     .cast_mut() = 0;
             }

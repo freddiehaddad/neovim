@@ -458,10 +458,7 @@ pub fn stl_fill_click_defs(
         };
         let rec_ptr: *const u8 = rec_start.as_ptr().cast();
         let rec_len = crate::memory::ptr_offset_from(rec_ptr, buf).max(0) as usize;
-        len += vim_strnsize(
-            crate::memory::cstr_slice(buf.cast(), rec_len),
-            rec_len as i32,
-        );
+        len += vim_strnsize(crate::memory::cstr_slice(buf, rec_len), rec_len as i32);
         debug_assert!(len <= width);
         while col < len {
             click_defs[col as usize] = cur_click_def.clone();
@@ -590,15 +587,13 @@ fn win_redr_stl_expr(
     } else if draw_ruler {
         stl = opt_vars().p_ruf.as_ptr().cast_mut().cast();
         opt_idx = K_OPT_RULERFORMAT;
-        if crate::memory::cstr_first_byte(stl.cast()) == b'%' {
+        if crate::memory::cstr_first_byte(stl) == b'%' {
             stl = stl.wrapping_add(1);
-            if crate::memory::cstr_first_byte(stl.cast()) == b'-' {
+            if crate::memory::cstr_first_byte(stl) == b'-' {
                 stl = stl.wrapping_add(1);
             }
-            if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl.cast())) as i32
-                != 0
-            {
-                while ascii_isdigit(crate::memory::cstr_first_byte(stl.cast())) {
+            if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as i32 != 0 {
+                while ascii_isdigit(crate::memory::cstr_first_byte(stl)) {
                     stl = stl.wrapping_add(1);
                 }
             }
@@ -662,7 +657,7 @@ fn win_redr_stl_expr(
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
         ewp.w_onebuf_opt.wo_crb = false;
 
-        let stl_cstr = crate::memory::cstr_to_cstring(stl.cast());
+        let stl_cstr = crate::memory::cstr_to_cstring(stl);
 
         let mut tabtab: *mut StlClickRecord = ptr::null_mut();
         build_stl_str_hl(
@@ -694,7 +689,7 @@ fn win_redr_stl_expr(
         drop(stl_cstr);
         ewp.w_onebuf_opt.wo_crb = p_crb_save;
 
-        let len = crate::memory::cstr_len(buf.as_ptr().cast());
+        let len = crate::memory::cstr_len(buf.as_ptr());
         let start_col = col;
 
         if !ui_event {
@@ -716,7 +711,7 @@ fn win_redr_stl_expr(
             let src_slice = if p >= buf.as_mut_ptr().wrapping_add(len) || textlen <= 0 {
                 &[][..]
             } else {
-                crate::memory::cstr_slice(p.cast(), textlen as usize)
+                crate::memory::cstr_slice(p, textlen as usize)
             };
             let tsize = transstr_buf(src_slice, &mut transbuf, true);
             if !ui_event {
@@ -735,7 +730,7 @@ fn win_redr_stl_expr(
                 chunk.push(Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
-                        crate::memory::cstr_slice(transbuf.as_ptr().cast(), tsize),
+                        crate::memory::cstr_slice(transbuf.as_ptr(), tsize),
                     )),
                 });
                 chunk.push(Object {
@@ -1266,7 +1261,7 @@ fn stl_truncate(
         }
     }
 
-    if *width - vim_strsize(crate::memory::cstr_from_ptr(trunc_p.cast())) >= maxwid {
+    if *width - vim_strsize(crate::memory::cstr_from_ptr(trunc_p)) >= maxwid {
         trunc_p = start_p;
         *width = 0;
         loop {
@@ -1393,7 +1388,7 @@ fn stl_expand(
 
                 let start = base_ptr.wrapping_add(item.start_off);
                 let seploc = start.wrapping_add(dislocation as usize);
-                let len = crate::memory::cstr_len(start.cast()) + 1;
+                let len = crate::memory::cstr_len(start) + 1;
 
                 unsafe { ptr::copy(start, seploc, len) };
 
@@ -1512,7 +1507,7 @@ pub extern "C" fn build_stl_str_hl(
         false
     };
 
-    if crate::memory::cstr_as_bytes(fmt.cast()).starts_with(b"%!") {
+    if crate::memory::cstr_as_bytes(fmt).starts_with(b"%!") {
         let mut tv = TypVal {
             v_type: VarType::VarNumber,
             v_lock: 0,
@@ -1649,7 +1644,7 @@ pub extern "C" fn build_stl_str_hl(
                 *out_p = 0;
             }
 
-            let mut group_len = vim_strsize(crate::memory::cstr_from_ptr(t.cast()));
+            let mut group_len = vim_strsize(crate::memory::cstr_from_ptr(t));
 
             if stl_st().curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
                 let mut group_start_userhl = 0;
@@ -1763,7 +1758,7 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         if (unsafe { *fmt_p }).is_ascii_digit() {
-            let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
+            let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p);
             let mut rem = fmt_bytes;
             minwid = getdigits_int(&mut rem, false, 0);
             fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
@@ -1816,10 +1811,8 @@ pub extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::ClickFunc;
             stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
             stl_items!()[stl_st().curitem as usize].cmd = if !tabtab.is_null() {
-                let slice = crate::memory::cstr_slice(
-                    t.cast(),
-                    crate::memory::ptr_offset_from(fmt_p, t) as usize,
-                );
+                let slice =
+                    crate::memory::cstr_slice(t, crate::memory::ptr_offset_from(fmt_p, t) as usize);
                 Some(std::ffi::CString::new(slice).unwrap())
             } else {
                 None
@@ -1833,7 +1826,7 @@ pub extern "C" fn build_stl_str_hl(
         if unsafe { *fmt_p } == b'.' {
             fmt_p = fmt_p.wrapping_add(1);
             if (unsafe { *fmt_p }).is_ascii_digit() {
-                let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
+                let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p);
                 let mut rem = fmt_bytes;
                 maxwid = getdigits_int(&mut rem, false, 50);
                 fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
@@ -1847,7 +1840,7 @@ pub extern "C" fn build_stl_str_hl(
             minwid = -minwid;
         }
 
-        if crate::memory::cstr_first_byte(fmt_p.cast()) == b'(' {
+        if crate::memory::cstr_first_byte(fmt_p) == b'(' {
             stl_groupitems!()[groupdepth] = stl_st().curitem;
             groupdepth += 1;
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Group;
@@ -1859,7 +1852,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if crate::memory::cstr_first_byte(fmt_p.cast()) == b'}' && evaldepth > 0 {
+        if crate::memory::cstr_first_byte(fmt_p) == b'}' && evaldepth > 0 {
             fmt_p = fmt_p.wrapping_add(1);
             evaldepth -= 1;
             if groupdepth > 0 {
@@ -1883,7 +1876,7 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         if unsafe { *fmt_p } == STL_HIGHLIGHT {
-            let next_b = crate::memory::cstr_first_byte(fmt_p.wrapping_add(1).cast());
+            let next_b = crate::memory::cstr_first_byte(fmt_p.wrapping_add(1));
             if next_b == b'(' {
                 fmt_p = fmt_p.wrapping_add(2);
                 stl_groupitems!()[groupdepth] = stl_st().curitem;
@@ -1929,11 +1922,8 @@ pub extern "C" fn build_stl_str_hl(
             }
         }
 
-        if !crate::strings::vim_haschr(
-            STL_ALL,
-            i32::from(crate::memory::cstr_first_byte(fmt_p.cast())),
-        ) {
-            if crate::memory::cstr_is_empty(fmt_p.cast()) {
+        if !crate::strings::vim_haschr(STL_ALL, i32::from(crate::memory::cstr_first_byte(fmt_p))) {
+            if crate::memory::cstr_is_empty(fmt_p) {
                 break;
             }
             fmt_p = fmt_p.wrapping_add(1);
@@ -1977,7 +1967,7 @@ pub extern "C" fn build_stl_str_hl(
                 if opt != STL_FILENAME {
                     str = name_buff.cast();
                 } else {
-                    str = path_tail(crate::memory::cstr_from_ptr((name_buff).cast()))
+                    str = path_tail(crate::memory::cstr_from_ptr(name_buff))
                         .as_ptr()
                         .cast_mut()
                         .cast();
@@ -1985,16 +1975,16 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_VIM_EXPR => {
                 let block_start = fmt_p.wrapping_sub(1);
-                let reevaluate = crate::memory::cstr_first_byte(fmt_p.cast()) == b'%';
+                let reevaluate = crate::memory::cstr_first_byte(fmt_p) == b'%';
                 if reevaluate {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 itemisflag = !zeropad;
 
                 let t = out_p;
-                while (crate::memory::cstr_first_byte(fmt_p.cast()) != b'}'
+                while (crate::memory::cstr_first_byte(fmt_p) != b'}'
                     || (reevaluate && unsafe { *fmt_p.wrapping_sub(1) } != b'%'))
-                    && !crate::memory::cstr_is_empty(fmt_p.cast())
+                    && !crate::memory::cstr_is_empty(fmt_p)
                     && out_p < out_end_p
                 {
                     unsafe {
@@ -2003,7 +1993,7 @@ pub extern "C" fn build_stl_str_hl(
                     out_p = out_p.wrapping_add(1);
                     fmt_p = fmt_p.wrapping_add(1);
                 }
-                if crate::memory::cstr_first_byte(fmt_p.cast()) == b'}' {
+                if crate::memory::cstr_first_byte(fmt_p) == b'}' {
                     fmt_p = fmt_p.wrapping_add(1);
                     if reevaluate && out_p > out_data {
                         unsafe {
@@ -2065,29 +2055,28 @@ pub extern "C" fn build_stl_str_hl(
                     do_unlet(b"g:actual_curwin", true);
 
                     if !zeropad
-                        && !crate::memory::cstr_is_empty(str.cast())
-                        && skipdigits_slice(crate::memory::cstr_as_bytes(str.cast())).is_empty()
+                        && !crate::memory::cstr_is_empty(str)
+                        && skipdigits_slice(crate::memory::cstr_as_bytes(str)).is_empty()
                     {
-                        num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                            str.cast(),
-                        )) as i32;
+                        num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str))
+                            as i32;
                         owned_str = None;
                         str = ptr::null_mut();
                         itemisflag = false;
                     }
 
                     if reevaluate
-                        && !crate::memory::cstr_is_empty(str.cast())
+                        && !crate::memory::cstr_is_empty(str)
                         && crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr(str.cast()),
+                            crate::memory::cstr_from_ptr(str),
                             b'%' as i32,
                         )
                         && evaldepth < MAX_STL_EVAL_DEPTH
                     {
                         let parsed_usefmt =
                             crate::memory::ptr_offset_from(block_start, usefmt) as usize;
-                        let str_bytes = crate::memory::cstr_as_bytes(str.cast());
-                        let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
+                        let str_bytes = crate::memory::cstr_as_bytes(str);
+                        let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p);
                         let mut new_bytes = Vec::with_capacity(
                             parsed_usefmt + str_bytes.len() + fmt_bytes.len() + 2,
                         );
@@ -2307,7 +2296,7 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_HIGHLIGHT_COMB | STL_HIGHLIGHT => {
                 let t = fmt_p;
-                while unsafe { *fmt_p } != opt && !crate::memory::cstr_is_empty(fmt_p.cast()) {
+                while unsafe { *fmt_p } != opt && !crate::memory::cstr_is_empty(fmt_p) {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 if unsafe { *fmt_p } == opt {
@@ -2321,7 +2310,7 @@ pub extern "C" fn build_stl_str_hl(
                     stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
                     stl_items!()[stl_st().curitem as usize].minwid =
                         -syn_name2id_len(crate::memory::cstr_slice(
-                            t.cast(),
+                            t,
                             crate::memory::ptr_offset_from(fmt_p, t) as usize,
                         ));
                     stl_st().curitem += 1;
@@ -2417,19 +2406,19 @@ pub extern "C" fn build_stl_str_hl(
         stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
         stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Normal;
 
-        if !crate::memory::cstr_is_empty(str.cast()) {
+        if !crate::memory::cstr_is_empty(str) {
             let mut t = str;
             if itemisflag {
-                if crate::memory::cstr_len(t.cast()) > 1
-                    && ((!prevchar_isitem && crate::memory::cstr_first_byte(t.cast()) == b',')
-                        || (prevchar_isflag && crate::memory::cstr_first_byte(t.cast()) == b' '))
+                if crate::memory::cstr_len(t) > 1
+                    && ((!prevchar_isitem && crate::memory::cstr_first_byte(t) == b',')
+                        || (prevchar_isflag && crate::memory::cstr_first_byte(t) == b' '))
                 {
                     t = t.wrapping_add(1);
                 }
                 prevchar_isflag = true;
             }
 
-            let mut l = vim_strsize(crate::memory::cstr_from_ptr(t.cast()));
+            let mut l = vim_strsize(crate::memory::cstr_from_ptr(t));
             if l > 0 {
                 prevchar_isitem = true;
             }
@@ -2454,7 +2443,7 @@ pub extern "C" fn build_stl_str_hl(
                 while l < minwid && out_p < out_end_p {
                     if l + 1 == minwid
                         && fillchar == schar_from_ascii(b'-')
-                        && ascii_isdigit(crate::memory::cstr_first_byte(t.cast()))
+                        && ascii_isdigit(crate::memory::cstr_first_byte(t))
                     {
                         unsafe {
                             *out_p = b' ';
@@ -2486,10 +2475,10 @@ pub extern "C" fn build_stl_str_hl(
                 minwid = -minwid;
             }
 
-            while !crate::memory::cstr_is_empty(t.cast()) && out_p < out_end_p {
+            while !crate::memory::cstr_is_empty(t) && out_p < out_end_p {
                 if fillable
-                    && crate::memory::cstr_first_byte(t.cast()) == b' '
-                    && (!ascii_isdigit(crate::memory::cstr_first_byte(t.wrapping_add(1).cast()))
+                    && crate::memory::cstr_first_byte(t) == b' '
+                    && (!ascii_isdigit(crate::memory::cstr_first_byte(t.wrapping_add(1)))
                         || fillchar != schar_from_ascii(b'-'))
                 {
                     let adv = schar_get_adv(
@@ -2598,7 +2587,7 @@ pub extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::NormalEmpty;
         }
 
-        if num >= 0 || (!itemisflag && !crate::memory::cstr_is_empty(str.cast())) {
+        if num >= 0 || (!itemisflag && !crate::memory::cstr_is_empty(str)) {
             prevchar_isflag = false;
         }
 
@@ -2618,7 +2607,7 @@ pub extern "C" fn build_stl_str_hl(
 
     drop(owned_usefmt);
 
-    let mut width = vim_strsize(crate::memory::cstr_from_ptr(out_data.cast()));
+    let mut width = vim_strsize(crate::memory::cstr_from_ptr(out_data));
     let out_slice = unsafe { std::slice::from_raw_parts_mut(out_data, out_size) };
     let mut out_idx = crate::memory::ptr_offset_from(out_p, out_data) as usize;
     if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {
@@ -2814,7 +2803,7 @@ mod tests {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                let got = crate::memory::cstr_from_ptr(out_buf.as_ptr().cast())
+                let got = crate::memory::cstr_from_ptr(out_buf.as_ptr())
                     .to_str()
                     .unwrap();
                 assert_eq!(got, expected, "pat={pat:?}");

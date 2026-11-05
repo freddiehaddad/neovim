@@ -1381,8 +1381,8 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                             let hname = HL_NAME_TABLE[i as usize];
                             let len = hname.to_bytes().len();
                             if mb_strnicmp(
-                                crate::memory::cstr_as_bytes(arg[off..].as_ptr().cast()),
-                                crate::memory::cstr_as_bytes((hname.as_ptr()).cast()),
+                                crate::memory::cstr_as_bytes(arg[off..].as_ptr()),
+                                crate::memory::cstr_as_bytes(hname.as_ptr()),
                                 len,
                             ) == 0
                             {
@@ -1432,7 +1432,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     hl_table_at(idx as usize).sg_font = None;
                     if &arg[..arg_len] != b"NONE" {
                         hl_table_at(idx as usize).sg_font =
-                            Some(crate::memory::cstr_to_cstring(arg.as_ptr().cast()));
+                            Some(crate::memory::cstr_to_cstring(arg.as_ptr()));
                     }
                 } else if key_bytes == b"CTERMFG" || key_bytes == b"CTERMBG" {
                     if !init || (hl_table_at(idx as usize).sg_set & SG_CTERM) == 0 {
@@ -1448,10 +1448,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         let color: i32;
                         if arg[0].is_ascii_digit() {
                             color = crate::charset::parse_i64_prefix(&arg[..arg_len]) as i32;
-                        } else if mb_stricmp(
-                            crate::memory::cstr_from_ptr((arg.as_ptr()).cast()),
-                            c"fg",
-                        ) == 0
+                        } else if mb_stricmp(crate::memory::cstr_from_ptr(arg.as_ptr()), c"fg") == 0
                         {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
@@ -1460,10 +1457,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                 error = true;
                                 break;
                             }
-                        } else if mb_stricmp(
-                            crate::memory::cstr_from_ptr((arg.as_ptr()).cast()),
-                            c"bg",
-                        ) == 0
+                        } else if mb_stricmp(crate::memory::cstr_from_ptr(arg.as_ptr()), c"bg") == 0
                         {
                             if g_st().cterm_normal_bg_color > 0 {
                                 color = g_st().cterm_normal_bg_color - 1;
@@ -1479,10 +1473,8 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                 let cname = COLOR_NAMES[i as usize].as_ptr();
                                 if off == crate::memory::cstr_first_byte(cname)
                                     && mb_stricmp(
-                                        crate::memory::cstr_from_ptr(arg[1..].as_ptr().cast()),
-                                        crate::memory::cstr_from_ptr(
-                                            (cname.wrapping_add(1)).cast(),
-                                        ),
+                                        crate::memory::cstr_from_ptr(arg[1..].as_ptr()),
+                                        crate::memory::cstr_from_ptr(cname.wrapping_add(1)),
                                     ) == 0
                                 {
                                     break;
@@ -2546,8 +2538,8 @@ pub fn name_to_color(name: &CStr, idx: &mut i32) -> RgbValue {
     while lo < hi {
         let m = (lo + hi) / 2;
         let cmp = mb_stricmp(
-            crate::memory::cstr_from_ptr((name.as_ptr()).cast()),
-            crate::memory::cstr_from_ptr((COLOR_NAME_TABLE[m].name.as_ptr()).cast()),
+            crate::memory::cstr_from_ptr(name.as_ptr()),
+            crate::memory::cstr_from_ptr(COLOR_NAME_TABLE[m].name.as_ptr()),
         );
         if cmp < 0 {
             hi = m;
@@ -2587,8 +2579,8 @@ pub fn name_to_ctermcolor(name: &CStr) -> i32 {
         let cname = COLOR_NAMES[i as usize].as_ptr();
         if off == crate::memory::cstr_first_byte(cname)
             && mb_stricmp(
-                crate::memory::cstr_from_ptr((name.wrapping_add(1)).cast()),
-                crate::memory::cstr_from_ptr((cname.wrapping_add(1)).cast()),
+                crate::memory::cstr_from_ptr(name.wrapping_add(1)),
+                crate::memory::cstr_from_ptr(cname.wrapping_add(1)),
             ) == 0
         {
             break;

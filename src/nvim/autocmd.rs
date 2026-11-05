@@ -2854,7 +2854,7 @@ pub fn apply_autocmds_group(
                 }
                 Some(crate::memory::cstr_to_cstring(fname))
             } else {
-                sfname_owned = to_slash_save(crate::memory::cstr_as_opt_cstr((fname).cast()));
+                sfname_owned = to_slash_save(crate::memory::cstr_as_opt_cstr(fname));
                 if event == EVENT_CMDATOM
                     || event == EVENT_CMDLINECHANGED
                     || event == EVENT_CMDLINEENTER
@@ -2889,9 +2889,9 @@ pub fn apply_autocmds_group(
                     || event == EVENT_WINSCROLLED
                 {
                     g_st().autocmd_fname_full = true;
-                    to_slash_save(crate::memory::cstr_as_opt_cstr((fname).cast()))
+                    to_slash_save(crate::memory::cstr_as_opt_cstr(fname))
                 } else {
-                    FullName_save(crate::memory::cstr_as_opt_cstr((fname).cast()), false)
+                    FullName_save(crate::memory::cstr_as_opt_cstr(fname), false)
                 }
             };
             fname = fname_owned
@@ -3368,13 +3368,13 @@ fn has_autocmd_ext(
     }
 
     let sfname_ptr = sfname.map_or(ptr::null(), CStr::as_ptr);
-    let tail = path_tail(crate::memory::cstr_from_ptr((sfname_ptr).cast()));
+    let tail = path_tail(crate::memory::cstr_from_ptr(sfname_ptr));
     let mut retval = false;
 
     let fname = if is_full {
         sfname.map(CStr::to_owned)
     } else {
-        FullName_save(crate::memory::cstr_as_opt_cstr((sfname_ptr).cast()), false)
+        FullName_save(crate::memory::cstr_as_opt_cstr(sfname_ptr), false)
     };
     let Some(fname) = fname else {
         return false;
@@ -3593,8 +3593,8 @@ pub fn au_exists(arg: &CStr) -> bool {
                         } else {
                             mb_strcmp_ic(
                                 opt_vars().p_fic,
-                                crate::memory::cstr_from_ptr((ap.pat.as_ptr()).cast()),
-                                crate::memory::cstr_from_ptr((pattern.as_ptr()).cast()),
+                                crate::memory::cstr_from_ptr(ap.pat.as_ptr()),
+                                crate::memory::cstr_from_ptr(pattern.as_ptr()),
                             ) == 0
                         }
                     } else {

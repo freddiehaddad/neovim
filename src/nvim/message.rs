@@ -631,7 +631,7 @@ fn format_progress_message(
             c"%3ld%% ",
             msg_data.unwrap().percent,
         );
-        let percent = cstr_to_string(crate::memory::cstr_as_opt_cstr(percent_buf.as_ptr().cast()));
+        let percent = cstr_to_string(crate::memory::cstr_as_opt_cstr(percent_buf.as_ptr()));
         let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
             text: percent,
@@ -859,7 +859,7 @@ pub fn msg_strtrunc(s: &std::ffi::CStr, force: i32) -> Option<std::ffi::CString>
                 let buflen = (room + 2) * 18;
                 let mut buf: Vec<u8> = vec![0; buflen as usize];
                 trunc_string(Some(s.to_bytes()), &mut buf, room);
-                return Some(crate::memory::cstr_to_cstring(buf.as_ptr().cast()));
+                return Some(crate::memory::cstr_to_cstring(buf.as_ptr()));
             }
         }
         None
@@ -1025,7 +1025,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         let buf_len = sname.to_bytes().len() + p.to_bytes().len() + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, sname);
-        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr().cast()));
+        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
     }
     None
 }
@@ -1042,7 +1042,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         let buf_len = 20 + p.to_bytes().len();
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, slnum);
-        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr().cast()));
+        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
     }
     None
 }
@@ -2792,7 +2792,7 @@ fn msg_ext_emit_chunk() {
     });
     msg_st().msg_ext_last_attr = -1;
     let text = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
-        msg_st().msg_ext_last_chunk.as_ptr().cast(),
+        msg_st().msg_ext_last_chunk.as_ptr(),
         msg_st().msg_ext_last_chunk.len(),
     ));
     msg_st().msg_ext_last_chunk = Vec::new();

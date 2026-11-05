@@ -227,7 +227,7 @@ macro_rules! api_set_error {
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0u8; bufsize];
             $crate::strings::vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, fmt_ptr, $($arg),+);
-            err_ref.msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr().cast()));
+            err_ref.msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr()));
             err_ref.err_type = et;
         }
     }};

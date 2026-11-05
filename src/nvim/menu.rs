@@ -345,10 +345,10 @@ pub fn ex_menu(eap: &mut Exarg) {
     let mut map_to = arg.cast::<u8>().wrapping_add(map_to_off);
     let mut menu_path = crate::memory::cstr_from_ptr(menu_path_ptr);
 
-    if crate::memory::cstr_is_empty(map_to.cast()) && !unmenu && enable == K_NONE {
+    if crate::memory::cstr_is_empty(map_to) && !unmenu && enable == K_NONE {
         show_menus(menu_path, modes);
         return;
-    } else if !crate::memory::cstr_is_empty(map_to.cast()) && (unmenu || enable != K_NONE) {
+    } else if !crate::memory::cstr_is_empty(map_to) && (unmenu || enable != K_NONE) {
         semsg!(gettext(E_TRAILING_ARG), map_to);
         return;
     }
@@ -391,26 +391,25 @@ pub fn ex_menu(eap: &mut Exarg) {
             return;
         }
 
-        let map_buf_owned =
-            if crate::memory::cstr_as_bytes(map_to.cast()).eq_ignore_ascii_case(b"<nop>") {
-                map_to = c"".as_ptr().cast_mut().cast();
-                None
-            } else if (modes & MENU_TIP_MODE) == 0 {
-                replace_termcodes(
-                    crate::memory::cstr_as_bytes(map_to.cast()),
-                    false,
-                    0,
-                    REPTERM_DO_LT,
-                    None,
-                    opt_vars().p_cpo.as_bytes(),
-                )
-            } else {
-                None
-            };
+        let map_buf_owned = if crate::memory::cstr_as_bytes(map_to).eq_ignore_ascii_case(b"<nop>") {
+            map_to = c"".as_ptr().cast_mut().cast();
+            None
+        } else if (modes & MENU_TIP_MODE) == 0 {
+            replace_termcodes(
+                crate::memory::cstr_as_bytes(map_to),
+                false,
+                0,
+                REPTERM_DO_LT,
+                None,
+                opt_vars().p_cpo.as_bytes(),
+            )
+        } else {
+            None
+        };
         if let Some(ref mb) = map_buf_owned {
             map_to = mb.as_ptr().cast_mut().cast();
         }
-        let map_to_cstr = crate::memory::cstr_as_opt_cstr(map_to.cast());
+        let map_to_cstr = crate::memory::cstr_as_opt_cstr(map_to);
 
         let mut menuarg = Vimmenu::new();
         menuarg.modes = modes;
@@ -1718,7 +1717,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
     let mut arg = eap.arg.cast::<u8>();
     let menutrans = &mut menu_st().menutrans_ga;
 
-    if crate::memory::cstr_as_bytes(arg.cast()).starts_with(b"clear")
+    if crate::memory::cstr_as_bytes(arg).starts_with(b"clear")
         && ends_excmd(i32::from(crate::memory::cstr_first_byte(
             crate::charset::skipwhite_ptr(arg.wrapping_add(5).cast::<std::ffi::c_char>()),
         ))) != 0
@@ -1727,23 +1726,23 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         del_menutrans_vars();
     } else {
         let from_arg = arg;
-        let part1_len = menu_skip_part(crate::memory::cstr_as_bytes(from_arg.cast()));
+        let part1_len = menu_skip_part(crate::memory::cstr_as_bytes(from_arg));
         arg = from_arg.wrapping_add(part1_len);
         let to_arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast::<u8>();
 
         unsafe { *arg = 0 };
 
-        let part2_len = menu_skip_part(crate::memory::cstr_as_bytes(to_arg.cast()));
+        let part2_len = menu_skip_part(crate::memory::cstr_as_bytes(to_arg));
         arg = to_arg.wrapping_add(part2_len);
         if arg == to_arg {
             emsg(gettext(E_INVARG));
         } else {
-            let mut from_vec: Vec<u8> = crate::memory::cstr_as_bytes(from_arg.cast()).to_vec();
+            let mut from_vec: Vec<u8> = crate::memory::cstr_as_bytes(from_arg).to_vec();
             from_vec.push(0);
             let from_noamp_cstr = menu_text(&from_vec[..from_vec.len() - 1], None, None);
             let to_len = crate::memory::ptr_offset_from(arg, to_arg) as usize;
             let mut to_vec: Vec<u8> = Vec::with_capacity(to_len + 1);
-            to_vec.extend_from_slice(crate::memory::cstr_slice(to_arg.cast(), to_len));
+            to_vec.extend_from_slice(crate::memory::cstr_slice(to_arg, to_len));
             to_vec.push(0);
             menu_translate_tab_and_shift(&mut from_vec);
             menu_translate_tab_and_shift(&mut to_vec);

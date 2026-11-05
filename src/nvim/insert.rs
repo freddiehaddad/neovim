@@ -3142,7 +3142,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
             let mut vcol: Colnr = 0;
             let mut space_vcol: Colnr = 0;
-            let mut sci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+            let mut sci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
             let mut space_sci = sci;
             let mut prev_space = false;
 
@@ -3244,10 +3244,8 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     if opt_vars().p_deco {
                         let p0 = get_cursor_pos_ptr().as_ptr().cast_mut();
                         has_composing = utf_composinglike(
-                            crate::memory::cstr_as_bytes((p0).cast()),
-                            crate::memory::cstr_as_bytes(
-                                (p0.wrapping_add(utf_ptr2len(p0) as usize)).cast(),
-                            ),
+                            crate::memory::cstr_as_bytes(p0),
+                            crate::memory::cstr_as_bytes(p0.wrapping_add(utf_ptr2len(p0) as usize)),
                             None,
                         );
                     }
@@ -3623,10 +3621,7 @@ fn ins_tab() -> bool {
         }
 
         let mut fpos = curwin_mut().w_cursor;
-        while fpos.col > 0
-            && ascii_iswhite(crate::memory::cstr_first_byte(
-                ptr.wrapping_offset(-1).cast(),
-            ))
+        while fpos.col > 0 && ascii_iswhite(crate::memory::cstr_first_byte(ptr.wrapping_offset(-1)))
         {
             fpos.col -= 1;
             ptr = ptr.wrapping_offset(-1);
@@ -3658,12 +3653,12 @@ fn ins_tab() -> bool {
         let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
-        while ascii_iswhite(crate::memory::cstr_first_byte(ptr.cast())) {
+        while ascii_iswhite(crate::memory::cstr_first_byte(ptr)) {
             let i = win_charsize(cstype, vcol, tab.to_bytes_with_nul(), tab_v, &mut csarg, 1).width;
             if vcol + i > want_vcol {
                 break;
             }
-            if crate::memory::cstr_first_byte(ptr.cast()) != b'\t' {
+            if crate::memory::cstr_first_byte(ptr) != b'\t' {
                 unsafe { *ptr = b'\t' };
 
                 if change_col < 0 {
@@ -3686,13 +3681,13 @@ fn ins_tab() -> bool {
                 &mut csarg,
                 curwin_mut(),
                 0,
-                crate::memory::cstr_from_ptr(ptr.cast()),
+                crate::memory::cstr_from_ptr(ptr),
             );
-            while vcol < want_vcol && crate::memory::cstr_first_byte(ptr.cast()) == b' ' {
+            while vcol < want_vcol && crate::memory::cstr_first_byte(ptr) == b' ' {
                 vcol += win_charsize(
                     cstype,
                     vcol,
-                    crate::memory::cstr_slice(ptr.cast(), 1),
+                    crate::memory::cstr_slice(ptr, 1),
                     b' ' as i32,
                     &mut csarg,
                     1,
@@ -3872,7 +3867,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
         lnum,
         crate::memory::cstr_from_ptr(line),
     );
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
     let mut vcol: i32 = 0;
     while vcol < end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
@@ -3996,7 +3991,7 @@ mod tests {
     fn truncate_spaces_and_can_cindent_work() {
         let mut line = *b"hello   \0";
         truncate_spaces(&mut line, 8);
-        assert_eq!(crate::memory::cstr_as_bytes(line.as_ptr().cast()), b"hello");
+        assert_eq!(crate::memory::cstr_as_bytes(line.as_ptr()), b"hello");
 
         set_can_cindent(true);
         assert!(get_can_cindent());

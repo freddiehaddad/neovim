@@ -1385,7 +1385,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         curargidx += 1;
     }
     let msg_str = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
-        msg_vec.as_ptr().cast(),
+        msg_vec.as_ptr(),
         msg_vec.len(),
     ));
     drop(msg_vec);
@@ -1707,7 +1707,7 @@ unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> 
 unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
     unsafe {
         let name = luaL_checklstring(lstate, 1, ptr::null_mut());
-        let val = os_getenv_cstr(crate::memory::cstr_from_ptr((name).cast()));
+        let val = os_getenv_cstr(crate::memory::cstr_from_ptr(name));
         crate::lua::converter::lua_pushstring_opt(lstate, val.as_deref());
         1
     }
@@ -2216,7 +2216,7 @@ pub fn ex_luado(eap: &mut Exarg) {
             }
             crate::memline::ml_replace_len(
                 l,
-                crate::memory::cstr_slice(new_line_vec.as_mut_ptr().cast(), new_line_len),
+                crate::memory::cstr_slice(new_line_vec.as_mut_ptr(), new_line_len),
                 new_line_len,
                 true,
             );
@@ -2488,9 +2488,8 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         break;
     }
     if found
-        && let Some(source_path) = fix_fname(crate::memory::cstr_as_opt_cstr(
-            (info.source.wrapping_add(1)).cast(),
-        ))
+        && let Some(source_path) =
+            fix_fname(crate::memory::cstr_as_opt_cstr(info.source.wrapping_add(1)))
     {
         let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
@@ -2606,7 +2605,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
             {
                 let src = home_replace_save(
                     None,
-                    crate::memory::cstr_as_opt_cstr((ar.source.wrapping_add(1)).cast()),
+                    crate::memory::cstr_as_opt_cstr(ar.source.wrapping_add(1)),
                 );
                 let src_s = src.to_string_lossy();
                 let formatted = if show_ref {

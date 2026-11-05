@@ -4310,7 +4310,7 @@ pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_l
                 emsg(tr(error_message));
             } else {
                 if name_len == TV_TRANSLATE {
-                    let tr_name = tr(crate::memory::cstr_from_ptr((name).cast()));
+                    let tr_name = tr(crate::memory::cstr_from_ptr(name));
                     name = tr_name.as_ptr();
                     name_len = tr_name.to_bytes().len();
                 } else if name_len == TV_CSTRING {
@@ -4329,7 +4329,7 @@ pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_l
                 emsg(tr(error_message));
             } else {
                 if name_len == TV_TRANSLATE {
-                    let tr_name = tr(crate::memory::cstr_from_ptr((name).cast()));
+                    let tr_name = tr(crate::memory::cstr_from_ptr(name));
                     name = tr_name.as_ptr();
                     name_len = tr_name.to_bytes().len();
                 } else if name_len == TV_CSTRING {

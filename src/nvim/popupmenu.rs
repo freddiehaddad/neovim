@@ -685,7 +685,7 @@ fn pum_compute_text_attrs(
             } else {
                 if matched_len < 0
                     && mb_strnicmp(
-                        crate::memory::cstr_as_bytes((ptr).cast()),
+                        crate::memory::cstr_as_bytes(ptr),
                         (leader).to_bytes(),
                         leader_len,
                     ) == 0

@@ -237,7 +237,7 @@ fn ses_arglist(
         if let Some(s_cstr) = alist_name(entry) {
             let s = if fullname {
                 vim_full_name(
-                    crate::memory::cstr_as_opt_cstr((s_cstr.as_ptr()).cast()),
+                    crate::memory::cstr_as_opt_cstr(s_cstr.as_ptr()),
                     unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), MAXPATHL) },
                     false,
                 );
@@ -590,7 +590,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 g_st()
                     .globaldir
                     .as_deref()
-                    .or_else(|| crate::memory::cstr_as_opt_cstr(dirnow.cast())),
+                    .or_else(|| crate::memory::cstr_as_opt_cstr(dirnow)),
             );
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
@@ -665,7 +665,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 ) < 0
                     || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
-                    || fd.puts(crate::memory::cstr_from_ptr((b_localdir_ptr).cast())) < 0
+                    || fd.puts(crate::memory::cstr_from_ptr(b_localdir_ptr)) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
                 {
                     return false;
@@ -1044,7 +1044,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                         || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                             && g_st().globaldir.is_some()))
                 {
-                    if os_chdir(crate::memory::cstr_from_ptr((dirnow).cast())) != 0 {
+                    if os_chdir(crate::memory::cstr_from_ptr(dirnow)) != 0 {
                         emsg(gettext(E_PREV_DIR));
                     }
                     shorten_fnames(true);
@@ -1085,7 +1085,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         } else if eap.cmdidx == Cmdidx::CmdMksession {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
             if vim_full_name(
-                crate::memory::cstr_as_opt_cstr((fname.as_ptr()).cast()),
+                crate::memory::cstr_as_opt_cstr(fname.as_ptr()),
                 unsafe { std::slice::from_raw_parts_mut(tbuf.as_mut_ptr().cast(), MAXPATHL) },
                 false,
             ) {
@@ -1126,7 +1126,7 @@ fn get_view_file(c: u8) -> Option<CString> {
     retval_vec[..vdir_len + 1].copy_from_slice(vdir_bytes);
     let retval = retval_vec.as_mut_ptr();
     add_pathsep(crate::memory::cstr_buf_as_mut_bytes(retval.cast(), 2));
-    let mut s_idx = crate::memory::cstr_len(retval.cast());
+    let mut s_idx = crate::memory::cstr_len(retval);
     for &b in sname_bytes {
         if b == b'=' {
             retval_vec[s_idx] = b'=';
@@ -1153,7 +1153,7 @@ fn get_view_file(c: u8) -> Option<CString> {
     s_idx += 2;
     retval_vec[s_idx..s_idx + 5].copy_from_slice(b".vim\0");
 
-    Some(crate::memory::cstr_to_cstring(retval.cast()))
+    Some(crate::memory::cstr_to_cstring(retval))
 }
 
 pub fn put_eol(fd: &CFile) -> bool {

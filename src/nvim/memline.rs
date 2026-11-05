@@ -803,7 +803,7 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if same_directory(
-        crate::memory::cstr_as_opt_cstr((mf_fname_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr(mf_fname_ptr),
         buf.ffname_opt(),
     ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);

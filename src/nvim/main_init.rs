@@ -1697,7 +1697,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             {
                 let tail = path_tail(alist_name(&garglist_slice()[0]).unwrap_or(c""));
                 let joined = concat_fnames(
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr().cast())),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr())),
                     cstr_as_string(Some(tail)),
                     true,
                 );
@@ -1711,7 +1711,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
             alist_add(
                 &mut g_st().global_alist,
-                crate::memory::cstr_to_cstring(p_vec.as_ptr().cast()),
+                crate::memory::cstr_to_cstring(p_vec.as_ptr()),
                 alist_fnum_flag,
             );
         }
@@ -1755,7 +1755,7 @@ fn set_argf_var() {
     for i in 0..count {
         if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
             let _ = vim_full_name(
-                crate::memory::cstr_as_opt_cstr((fname.as_ptr()).cast()),
+                crate::memory::cstr_as_opt_cstr(fname.as_ptr()),
                 unsafe {
                     std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast(), MAXPATHL)
                 },
@@ -1821,7 +1821,7 @@ fn init_path(exename: &CStr) {
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
     if os_exepath(&mut exepath, &mut exepathlen) != 0 {
-        path_guess_exepath(crate::memory::cstr_from_ptr((exename).cast()), &mut exepath);
+        path_guess_exepath(crate::memory::cstr_from_ptr(exename), &mut exepath);
     }
     set_vim_var_string(
         VV_PROGPATH,
@@ -1830,7 +1830,7 @@ fn init_path(exename: &CStr) {
     );
     set_vim_var_string(
         VV_PROGNAME,
-        Some(path_tail(crate::memory::cstr_from_ptr((exename).cast()))),
+        Some(path_tail(crate::memory::cstr_from_ptr(exename))),
         -1,
     );
 
@@ -2090,7 +2090,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                     );
                     set_option_value_give_err(
                         K_OPT_SHORTMESS,
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf.as_ptr().cast())),
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf.as_ptr())),
                         0,
                     );
                 }
@@ -2265,10 +2265,10 @@ fn do_user_initialization() -> bool {
     let init_lua_ptr = init_lua_path.as_ptr().cast_mut();
     let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
 
-    if os_path_exists(crate::memory::cstr_from_ptr((init_lua_ptr).cast()))
+    if os_path_exists(crate::memory::cstr_from_ptr(init_lua_ptr))
         && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None)
     {
-        if os_path_exists(crate::memory::cstr_from_ptr((user_vimrc_ptr).cast())) {
+        if os_path_exists(crate::memory::cstr_from_ptr(user_vimrc_ptr)) {
             semsg!(E_CONFLICTING_CONFIGS, init_lua_ptr, user_vimrc_ptr,);
         }
         do_exrc = opt_vars().p_exrc;
@@ -2281,7 +2281,7 @@ fn do_user_initialization() -> bool {
         if do_exrc {
             do_exrc = !path_equal(
                 c".nvimrc",
-                crate::memory::cstr_from_ptr((user_vimrc_ptr).cast()),
+                crate::memory::cstr_from_ptr(user_vimrc_ptr),
                 K_PATH_CMP_EXPAND,
             );
         }
@@ -2345,7 +2345,7 @@ fn do_user_initialization() -> bool {
                 if do_exrc {
                     do_exrc = !path_equal(
                         c".nvimrc",
-                        crate::memory::cstr_from_ptr(init_vim.as_ptr().cast()),
+                        crate::memory::cstr_from_ptr(init_vim.as_ptr()),
                         K_PATH_CMP_EXPAND,
                     );
                 }

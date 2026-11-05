@@ -578,7 +578,7 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
     let len = linetabsize_col(0, crate::memory::cstr_from_ptr(line));
     if let Some(ht) = has_tab {
         *ht = i32::from(crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((first).cast()),
+            crate::memory::cstr_from_ptr(first),
             TAB,
         ));
     }
@@ -913,7 +913,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
                 if !ml_append(
                     lnum,
-                    crate::memory::cstr_as_bytes(sortbuf1_vec.as_mut_ptr().cast()),
+                    crate::memory::cstr_as_bytes(sortbuf1_vec.as_mut_ptr()),
                     0,
                     false,
                 ) {
@@ -1247,7 +1247,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         let str_cstr = cstr_from_bytes(crate::memline::ml_get_slice(l + extra));
         ml_append(
             dest + l - line1,
-            crate::memory::cstr_as_bytes((str_cstr.as_ptr().cast_mut()).cast()),
+            crate::memory::cstr_as_bytes(str_cstr.as_ptr().cast_mut()),
             0,
             false,
         );
@@ -1394,7 +1394,7 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
         let p = cstr_from_bytes(crate::memline::ml_get_slice(line1));
         ml_append(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_as_bytes((p.as_ptr().cast_mut()).cast()),
+            crate::memory::cstr_as_bytes(p.as_ptr().cast_mut()),
             0,
             false,
         );
@@ -1457,7 +1457,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
     loop {
         let mut t: Vec<u8> = Vec::new();
         if !newcmd.is_empty() {
-            t.extend_from_slice(crate::memory::cstr_as_bytes(newcmd.as_ptr().cast()));
+            t.extend_from_slice(crate::memory::cstr_as_bytes(newcmd.as_ptr()));
         }
         if ins_prevcmd {
             if !prevcmd_is_set() {
@@ -1473,8 +1473,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
         while newcmd[p_idx] != 0 {
             if newcmd[p_idx] == b'!' {
                 if p_idx > 0 && newcmd[p_idx - 1] == b'\\' {
-                    let rest_len =
-                        crate::memory::cstr_len(newcmd.as_ptr().wrapping_add(p_idx).cast()) + 1;
+                    let rest_len = crate::memory::cstr_len(newcmd.as_ptr().wrapping_add(p_idx)) + 1;
                     newcmd.copy_within(p_idx..(p_idx + rest_len), p_idx - 1);
                 } else {
                     newcmd[p_idx] = 0;
@@ -1488,7 +1487,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
         let Some(off) = next_trail_off else {
             break;
         };
-        let rem_cstr = crate::memory::cstr_to_cstring(newcmd.as_ptr().wrapping_add(off).cast());
+        let rem_cstr = crate::memory::cstr_to_cstring(newcmd.as_ptr().wrapping_add(off));
         newcmd.truncate(off);
         let rem_bytes = rem_cstr.to_bytes_with_nul();
         let start = newcmd.len();
@@ -1496,8 +1495,8 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
         trailarg = newcmd.as_mut_ptr().wrapping_add(start).cast();
     }
 
-    if !crate::memory::cstr_as_bytes(newcmd.as_ptr().cast()).is_empty() {
-        excmds_st().prevcmd = Some(crate::memory::cstr_to_cstring(newcmd.as_ptr().cast()));
+    if !crate::memory::cstr_as_bytes(newcmd.as_ptr()).is_empty() {
+        excmds_st().prevcmd = Some(crate::memory::cstr_to_cstring(newcmd.as_ptr()));
     }
 
     'theend: {
@@ -1952,7 +1951,7 @@ pub fn make_filter_cmd(
     if let Some(otmp_s) = otmp {
         append_redir(&mut buf_vec, opt_vars().p_srr.as_cstr(), otmp_s);
     }
-    cstr_to_cstring(buf_vec.as_ptr().cast())
+    cstr_to_cstring(buf_vec.as_ptr())
 }
 
 /// Append output redirection for the given file to the end of the buffer.
@@ -2137,7 +2136,7 @@ fn check_writable(fname: &CStr) -> bool {
 
 fn handle_mkdir_p_arg(eap: &mut Exarg, fname: Option<&CStr>) -> bool {
     let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if eap.mkdir_p && os_file_mkdir(crate::memory::cstr_from_ptr((fname_ptr).cast()), 0o755) < 0 {
+    if eap.mkdir_p && os_file_mkdir(crate::memory::cstr_from_ptr(fname_ptr), 0o755) < 0 {
         return false;
     }
     true
@@ -2166,7 +2165,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             other = false;
         } else {
             fname = ffname;
-            free_fname = fix_fname(crate::memory::cstr_as_opt_cstr((ffname).cast()));
+            free_fname = fix_fname(crate::memory::cstr_as_opt_cstr(ffname));
             if let Some(ref ff) = free_fname {
                 ffname = ff.as_ptr().cast_mut();
             }
@@ -2335,10 +2334,10 @@ pub fn check_overwrite(
                     && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
                 || (buf.b_flags & BF_READERR) != 0)))
         && !opt_vars().p_wa
-        && os_path_exists(crate::memory::cstr_from_ptr((ffname).cast()))
+        && os_path_exists(crate::memory::cstr_from_ptr(ffname))
     {
         if !eap.forceit && !eap.append {
-            if os_isdir(crate::memory::cstr_from_ptr((ffname).cast())) {
+            if os_isdir(crate::memory::cstr_from_ptr(ffname)) {
                 semsg!(gettext(E_ISADIR2), ffname);
                 return false;
             }
@@ -2372,7 +2371,7 @@ pub fn check_overwrite(
                 copy_option_part(&mut p, &mut dir, c",");
             }
             if let Some(swapname) = makeswapname(
-                crate::memory::cstr_as_opt_cstr((fname).cast()),
+                crate::memory::cstr_as_opt_cstr(fname),
                 crate::memory::cstr_until_nul(&dir),
             ) && os_path_exists(&swapname)
             {
@@ -2726,7 +2725,7 @@ pub fn do_ecmd(
                         .fname_opt()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 }
-                free_fname = fix_fname(crate::memory::cstr_as_opt_cstr((ffname).cast()));
+                free_fname = fix_fname(crate::memory::cstr_as_opt_cstr(ffname));
                 if let Some(ref ff) = free_fname {
                     ffname = ff.as_ptr().cast_mut();
                 }
@@ -3346,29 +3345,29 @@ pub fn ex_append(eap: &mut Exarg) {
         let mut vcol: i32 = 0;
         let mut p = theline;
         while indent > vcol {
-            if crate::memory::cstr_first_byte(p.cast()) == b' ' {
+            if crate::memory::cstr_first_byte(p) == b' ' {
                 vcol += 1;
-            } else if crate::memory::cstr_first_byte(p.cast()) == TAB as u8 {
+            } else if crate::memory::cstr_first_byte(p) == TAB as u8 {
                 vcol += 8 - vcol % 8;
             } else {
                 break;
             }
             p = p.wrapping_add(1);
         }
-        if crate::memory::cstr_as_bytes(p.cast()) == b"."
+        if crate::memory::cstr_as_bytes(p) == b"."
             || (!did_undo && !u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }))
         {
             break;
         }
 
-        if crate::memory::cstr_is_empty(p.cast()) {
+        if crate::memory::cstr_is_empty(p) {
             theline_v[0] = 0;
         }
 
         did_undo = true;
         ml_append(
             lnum,
-            crate::memory::cstr_as_bytes(theline_v.as_ptr().cast()),
+            crate::memory::cstr_as_bytes(theline_v.as_ptr()),
             0,
             false,
         );
@@ -4141,8 +4140,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             sub_firstline
                                 .as_slice()
                                 .as_ptr()
-                                .wrapping_add(matchcol as usize)
-                                .cast(),
+                                .wrapping_add(matchcol as usize),
                         ) {
                             skip_match = true;
                         } else {
@@ -4204,15 +4202,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 let lnum_slice = crate::memline::ml_get_slice(lnum);
                                 orig_line = SubBuf::from_cbuf(lnum_slice);
                                 let new_line = concat_str(
-                                    crate::memory::cstr_as_bytes(
-                                        new_start.as_slice().as_ptr().cast(),
-                                    ),
+                                    crate::memory::cstr_as_bytes(new_start.as_slice().as_ptr()),
                                     crate::memory::cstr_as_bytes(
                                         sub_firstline
                                             .as_slice()
                                             .as_ptr()
-                                            .wrapping_add(copycol as usize)
-                                            .cast(),
+                                            .wrapping_add(copycol as usize),
                                     ),
                                 );
                                 let new_line_size =
@@ -4223,7 +4218,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 crate::memline::ml_replace_len(
                                     lnum,
                                     crate::memory::cstr_slice(
-                                        (new_line.as_ptr().cast_mut()).cast(),
+                                        new_line.as_ptr().cast_mut(),
                                         new_line_size,
                                     ),
                                     new_line_size,
@@ -4268,10 +4263,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             if let Some(ref orig_vec) = orig_line.vec {
                                 crate::memline::ml_replace_len(
                                     lnum,
-                                    crate::memory::cstr_slice(
-                                        orig_vec.as_ptr().cast(),
-                                        orig_line.size,
-                                    ),
+                                    crate::memory::cstr_slice(orig_vec.as_ptr(), orig_line.size),
                                     orig_line.size,
                                     true,
                                 );
@@ -4482,9 +4474,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let lnum_before_newlines = lnum;
 
                         let mut p1 = new_end;
-                        while !crate::memory::cstr_is_empty(p1.cast()) {
-                            if crate::memory::cstr_first_byte(p1.cast()) == b'\\'
-                                && crate::memory::cstr_len(p1.cast()) > 1
+                        while !crate::memory::cstr_is_empty(p1) {
+                            if crate::memory::cstr_first_byte(p1) == b'\\'
+                                && crate::memory::cstr_len(p1) > 1
                             {
                                 sublen -= 1;
                                 n = new_start.size
@@ -4509,7 +4501,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     ml_append(
                                         lnum - 1,
                                         crate::memory::cstr_slice(
-                                            new_start.as_slice().as_ptr().cast_mut().cast(),
+                                            new_start.as_slice().as_ptr().cast_mut(),
                                             (plen as usize).saturating_sub(1),
                                         ),
                                         plen,
@@ -4583,8 +4575,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         sub_firstline
                             .as_slice()
                             .as_ptr()
-                            .wrapping_add(matchcol as usize)
-                            .cast(),
+                            .wrapping_add(matchcol as usize),
                     ) && nmatch <= 1
                         && re_multiline(unsafe { &*regmatch.regprog }) == 0);
                 nmatch = -1;
@@ -4610,8 +4601,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             sub_firstline
                                 .as_slice()
                                 .as_ptr()
-                                .wrapping_add(copycol as usize)
-                                .cast(),
+                                .wrapping_add(copycol as usize),
                         )
                         .to_bytes_with_nul();
 
@@ -4635,9 +4625,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         ml_replace(
                             lnum,
-                            crate::memory::cstr_as_bytes(
-                                new_start.as_slice().as_ptr().cast_mut().cast(),
-                            ),
+                            crate::memory::cstr_as_bytes(new_start.as_slice().as_ptr().cast_mut()),
                             true,
                         );
 
@@ -4926,14 +4914,13 @@ pub fn ex_global(eap: &mut Exarg) {
     cmd = eap.arg.cast();
     let mut which_pat = RE_LAST;
 
-    if crate::memory::cstr_first_byte(cmd.cast()) == b'\\' {
+    if crate::memory::cstr_first_byte(cmd) == b'\\' {
         cmd = cmd.wrapping_add(1);
-        if !crate::strings::vim_haschr(c"/?&", (crate::memory::cstr_first_byte(cmd.cast())) as i32)
-        {
+        if !crate::strings::vim_haschr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as i32) {
             emsg(gettext(E_BACKSLASH));
             return;
         }
-        if crate::memory::cstr_first_byte(cmd.cast()) == b'&' {
+        if crate::memory::cstr_first_byte(cmd) == b'&' {
             which_pat = RE_SUBST;
         } else {
             which_pat = RE_SEARCH;
@@ -4941,16 +4928,16 @@ pub fn ex_global(eap: &mut Exarg) {
         cmd = cmd.wrapping_add(1);
         pat = c"".as_ptr().cast_mut().cast();
         patlen = 0;
-    } else if crate::memory::cstr_is_empty(cmd.cast()) {
+    } else if crate::memory::cstr_is_empty(cmd) {
         emsg(gettext(c"E148: Regular expression missing from global"));
         return;
-    } else if !check_regexp_delim((crate::memory::cstr_first_byte(cmd.cast())) as i32) {
+    } else if !check_regexp_delim((crate::memory::cstr_first_byte(cmd)) as i32) {
         return;
     } else {
-        delim = crate::memory::cstr_first_byte(cmd.cast());
+        delim = crate::memory::cstr_first_byte(cmd);
         cmd = cmd.wrapping_add(1);
         pat = cmd;
-        let cmd_len = crate::memory::cstr_len(cmd.cast());
+        let cmd_len = crate::memory::cstr_len(cmd);
         let cmd_slice = unsafe { std::slice::from_raw_parts_mut(cmd, cmd_len + 1) };
         let off = skip_regexp_ex(
             cmd_slice,
@@ -4961,18 +4948,18 @@ pub fn ex_global(eap: &mut Exarg) {
             None,
         );
         cmd = cmd.wrapping_add(off);
-        if crate::memory::cstr_first_byte(cmd.cast()) == delim {
+        if crate::memory::cstr_first_byte(cmd) == delim {
             unsafe {
                 *cmd = 0;
             }
             cmd = cmd.wrapping_add(1);
         }
-        patlen = crate::memory::cstr_len(pat.cast());
+        patlen = crate::memory::cstr_len(pat);
     }
 
     let mut used_pat = std::ffi::CString::default();
     if !search_regcomp(
-        crate::memory::cstr_from_ptr(pat.cast()),
+        crate::memory::cstr_from_ptr(pat),
         patlen,
         Some(&mut used_pat),
         RE_BOTH,
@@ -4985,7 +4972,7 @@ pub fn ex_global(eap: &mut Exarg) {
         return;
     }
 
-    let cmd_cstr = crate::memory::cstr_from_ptr(cmd.cast());
+    let cmd_cstr = crate::memory::cstr_from_ptr(cmd);
     if g_st().global_busy != 0 {
         lnum = curwin_mut().w_cursor.lnum;
         let matched = vim_regexec_multi(
@@ -5249,21 +5236,12 @@ fn show_sub(
                     line,
                 );
                 if linenr_preview == 0 {
-                    ml_replace_buf(
-                        cp_buf,
-                        1,
-                        crate::memory::cstr_as_bytes(str.cast()),
-                        true,
-                        false,
-                    );
+                    ml_replace_buf(cp_buf, 1, crate::memory::cstr_as_bytes(str), true, false);
                 } else {
                     ml_append_buf(
                         cp_buf,
                         linenr_preview,
-                        crate::memory::cstr_slice(
-                            str.cast(),
-                            (line_size as usize).saturating_sub(1),
-                        ),
+                        crate::memory::cstr_slice(str, (line_size as usize).saturating_sub(1)),
                         line_size,
                         false,
                     );

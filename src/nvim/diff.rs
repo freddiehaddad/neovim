@@ -998,7 +998,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
     let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
     loop {
         ok = K_FALSE;
-        let Some(fd1) = CFile::open(crate::memory::cstr_from_ptr((orig_fname).cast()), c"w") else {
+        let Some(fd1) = CFile::open(crate::memory::cstr_from_ptr(orig_fname), c"w") else {
             io_error = true;
             if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
                 != K_CALLBACK_NONE_CONST
@@ -1013,13 +1013,13 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             io_error = true;
         }
         drop(fd1);
-        if let Some(fd2) = CFile::open(crate::memory::cstr_from_ptr((new_fname).cast()), c"w") {
+        if let Some(fd2) = CFile::open(crate::memory::cstr_from_ptr(new_fname), c"w") {
             if !fd2.write_all(b"line2\n") {
                 io_error = true;
             }
             drop(fd2);
             let fd3 = diff_file(diffio)
-                .then(|| CFile::open(crate::memory::cstr_from_ptr((diff_fname).cast()), c"r"))
+                .then(|| CFile::open(crate::memory::cstr_from_ptr(diff_fname), c"r"))
                 .flatten();
             if let Some(fd3) = fd3 {
                 let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
@@ -1031,12 +1031,12 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             } else {
                 io_error = true;
             }
-            let _ = os_remove(crate::memory::cstr_from_ptr((diff_fname).cast()));
-            let _ = os_remove(crate::memory::cstr_from_ptr((new_fname).cast()));
+            let _ = os_remove(crate::memory::cstr_from_ptr(diff_fname));
+            let _ = os_remove(crate::memory::cstr_from_ptr(new_fname));
         } else {
             io_error = true;
         }
-        let _ = os_remove(crate::memory::cstr_from_ptr((orig_fname).cast()));
+        let _ = os_remove(crate::memory::cstr_from_ptr(orig_fname));
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
             break;
         }
@@ -1293,14 +1293,11 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let tmp_new_bytes = crate::memory::cstr_as_bytes(tmp_new);
         buf_vec[..tmp_new_bytes.len()].copy_from_slice(tmp_new_bytes);
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 6].copy_from_slice(b".orig\0");
-        let _ = os_remove(crate::memory::cstr_from_ptr((buf).cast()));
+        let _ = os_remove(crate::memory::cstr_from_ptr(buf));
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 5].copy_from_slice(b".rej\0");
-        let _ = os_remove(crate::memory::cstr_from_ptr((buf).cast()));
+        let _ = os_remove(crate::memory::cstr_from_ptr(buf));
         let mut file_info = FileInfo::new();
-        let info_ok = os_fileinfo(
-            crate::memory::cstr_from_ptr((tmp_new).cast()),
-            &mut file_info,
-        );
+        let info_ok = os_fileinfo(crate::memory::cstr_from_ptr(tmp_new), &mut file_info);
         let filesize = os_fileinfo_size(&file_info);
         if !info_ok || filesize == 0 {
             emsg(gettext(c"E816: Cannot read patch output"));
@@ -1558,7 +1555,7 @@ fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> b
             if !ascii_isdigit(i32::from(line[0])) {
                 continue;
             }
-            if !parse_diff_ed(crate::memory::cstr_as_bytes(line.as_ptr().cast()), hunk) {
+            if !parse_diff_ed(crate::memory::cstr_as_bytes(line.as_ptr()), hunk) {
                 continue;
             }
         } else {
@@ -1566,7 +1563,7 @@ fn extract_hunk(fd: &CFile, hunk: &mut Diffhunk, diffstyle: &mut Diffstyle) -> b
             if !line.starts_with(b"@@ ") {
                 continue;
             }
-            if !parse_diff_unified(crate::memory::cstr_as_bytes(line.as_ptr().cast()), hunk) {
+            if !parse_diff_unified(crate::memory::cstr_as_bytes(line.as_ptr()), hunk) {
                 continue;
             }
         }
@@ -2107,8 +2104,8 @@ fn diff_cmp(s1: &[u8], s2: &[u8]) -> i32 {
         let s1_cstr = CString::new(crate::memory::bytes_until_nul(s1)).unwrap_or_default();
         let s2_cstr = CString::new(crate::memory::bytes_until_nul(s2)).unwrap_or_default();
         return mb_stricmp(
-            crate::memory::cstr_from_ptr((s1_cstr.as_ptr()).cast()),
-            crate::memory::cstr_from_ptr((s2_cstr.as_ptr()).cast()),
+            crate::memory::cstr_from_ptr(s1_cstr.as_ptr()),
+            crate::memory::cstr_from_ptr(s2_cstr.as_ptr()),
         );
     }
     let mut p1 = s1;
@@ -3350,7 +3347,7 @@ fn diffgetput(
                     crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(from_buf, nr));
                 let _ = ml_append(
                     lnum + i - 1,
-                    crate::memory::cstr_as_bytes((p.as_ptr().cast_mut()).cast()),
+                    crate::memory::cstr_as_bytes(p.as_ptr().cast_mut()),
                     0,
                     false,
                 );

@@ -912,7 +912,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                         std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
                     );
                 } else {
-                    lua_setfield(lstate, -2, crate::memory::cstr_from_ptr(name.cast()));
+                    lua_setfield(lstate, -2, crate::memory::cstr_from_ptr(name));
                 }
             }
 
@@ -925,9 +925,10 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
             for i in 1..=nfields {
                 crate::lua::converter::lua_pushstring_opt(
                     lstate,
-                    crate::memory::cstr_as_opt_cstr(
-                        ts_language_field_name_for_id(lang, i as TSFieldId).cast(),
-                    ),
+                    crate::memory::cstr_as_opt_cstr(ts_language_field_name_for_id(
+                        lang,
+                        i as TSFieldId,
+                    )),
                 );
                 lua_rawseti(lstate, -2, i as i32);
             }
@@ -976,10 +977,10 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 for j in 1..=nsubtypes {
                     crate::lua::converter::lua_pushstring_opt(
                         lstate,
-                        crate::memory::cstr_as_opt_cstr(
-                            ts_language_symbol_name(lang, *subtypes.wrapping_add(j as usize))
-                                .cast(),
-                        ),
+                        crate::memory::cstr_as_opt_cstr(ts_language_symbol_name(
+                            lang,
+                            *subtypes.wrapping_add(j as usize),
+                        )),
                     );
                     lua_rawseti(lstate, -2, j as i32);
                 }
@@ -987,7 +988,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 lua_setfield(
                     lstate,
                     -2,
-                    crate::memory::cstr_from_ptr(ts_language_symbol_name(lang, supertype).cast()),
+                    crate::memory::cstr_from_ptr(ts_language_symbol_name(lang, supertype)),
                 );
             }
 
@@ -1412,10 +1413,7 @@ unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *con
                 c"lex"
             },
         );
-        crate::lua::converter::lua_pushstring_opt(
-            lstate,
-            crate::memory::cstr_as_opt_cstr(s.cast()),
-        );
+        crate::lua::converter::lua_pushstring_opt(lstate, crate::memory::cstr_as_opt_cstr(s));
         if { lua_pcall(lstate, 2, 0, 0) } != 0 {
             luaL_error(lstate, c"treesitter logger callback failed".as_ptr());
         }
@@ -1621,7 +1619,7 @@ unsafe extern "C-unwind" fn node_tostring(lstate: *mut lua_State) -> i32 {
         lua_pushstring(lstate, c"<node ");
         crate::lua::converter::lua_pushstring_opt(
             lstate,
-            crate::memory::cstr_as_opt_cstr(ts_node_type(node).cast()),
+            crate::memory::cstr_as_opt_cstr(ts_node_type(node)),
         );
         lua_pushstring(lstate, c">");
         lua_concat(lstate, 3);
@@ -1719,7 +1717,7 @@ unsafe extern "C-unwind" fn node_type(lstate: *mut lua_State) -> i32 {
         let node = node_check(lstate, 1);
         crate::lua::converter::lua_pushstring_opt(
             lstate,
-            crate::memory::cstr_as_opt_cstr(ts_node_type(node).cast()),
+            crate::memory::cstr_as_opt_cstr(ts_node_type(node)),
         );
         1
     }
@@ -1748,7 +1746,7 @@ unsafe extern "C-unwind" fn node_field(lstate: *mut lua_State) -> i32 {
         for i in 0..count {
             let child_field_name = ts_node_field_name_for_child(node, i);
             if crate::memory::cstr_as_opt_bytes(field_name)
-                == crate::memory::cstr_as_opt_bytes(child_field_name.cast())
+                == crate::memory::cstr_as_opt_bytes(child_field_name)
             {
                 let child = ts_node_child(node, i);
                 push_node(lstate, child, 1);
@@ -1775,7 +1773,7 @@ unsafe extern "C-unwind" fn node_sexpr(lstate: *mut lua_State) -> i32 {
         let allocated = ts_node_string(node);
         crate::lua::converter::lua_pushstring_opt(
             lstate,
-            crate::memory::cstr_as_opt_cstr(allocated.cast()),
+            crate::memory::cstr_as_opt_cstr(allocated),
         );
         ts_free(allocated.cast::<c_void>());
         1
@@ -1882,7 +1880,7 @@ unsafe extern "C-unwind" fn node_next_child(lstate: *mut lua_State) -> i32 {
 
         let field = ts_node_field_name_for_child(source, *child_index);
         if !field.is_null() {
-            lua_pushstring(lstate, crate::memory::cstr_from_ptr(field.cast()));
+            lua_pushstring(lstate, crate::memory::cstr_from_ptr(field));
         } else {
             lua_pushnil(lstate);
         }
@@ -1925,7 +1923,7 @@ unsafe extern "C-unwind" fn __has_ancestor(lstate: *mut lua_State) -> i32 {
         let mut node = ts_tree_root_node(descendant.tree);
         while node.id != descendant.id && !ts_node_is_null(node) {
             let node_type = ts_node_type(node);
-            let node_type_bytes = crate::memory::cstr_as_bytes(node_type.cast());
+            let node_type_bytes = crate::memory::cstr_as_bytes(node_type);
 
             for i in 3..=pred_len {
                 lua_rawgeti(lstate, 2, i);

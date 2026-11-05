@@ -10942,19 +10942,14 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         new_dir = g_st().name_buff.as_mut_ptr();
     }
 
-    let new_dir_owned =
-        to_slash_save(crate::memory::cstr_as_opt_cstr((new_dir).cast())).unwrap_or_default();
+    let new_dir_owned = to_slash_save(crate::memory::cstr_as_opt_cstr(new_dir)).unwrap_or_default();
     new_dir = new_dir_owned.as_ptr().cast_mut();
 
     let bcd_active = scope != K_CD_SCOPE_BUFFER && curbuf_mut().b_localdir.is_some();
 
-    let dir_differs = pdir.as_ref().is_none_or(|p| {
-        !path_equal(
-            p,
-            crate::memory::cstr_from_ptr((new_dir).cast()),
-            K_PATH_CMP_LITERAL,
-        )
-    });
+    let dir_differs = pdir
+        .as_ref()
+        .is_none_or(|p| !path_equal(p, crate::memory::cstr_from_ptr(new_dir), K_PATH_CMP_LITERAL));
     if dir_differs {
         if !bcd_active {
             do_autocmd_dirchanged(&new_dir_owned, scope, K_CD_CAUSE_MANUAL, true);
@@ -11476,7 +11471,7 @@ fn ex_redir(eap: &mut Exarg) {
 
         close_redir();
 
-        let fname = expand_env_save(crate::memory::cstr_from_ptr((arg).cast()));
+        let fname = expand_env_save(crate::memory::cstr_from_ptr(arg));
         g_st().redir_fd = open_exfile(&fname, eap.forceit, mode);
     } else if let Some(mut rem) = arg_bytes.strip_prefix(b"@") {
         close_redir();
@@ -11624,7 +11619,7 @@ pub fn open_exfile(fname: &CStr, forceit: bool, mode: &std::ffi::CStr) -> Option
 
     if !forceit
         && mode.to_bytes().first() != Some(&b'a')
-        && os_path_exists(crate::memory::cstr_from_ptr((fname_ptr).cast()))
+        && os_path_exists(crate::memory::cstr_from_ptr(fname_ptr))
     {
         let _ = semsg!(
             gettext(c"E189: \"%s\" exists (add ! to override)"),
@@ -11633,7 +11628,7 @@ pub fn open_exfile(fname: &CStr, forceit: bool, mode: &std::ffi::CStr) -> Option
         return None;
     }
 
-    let fd = CFile::open(crate::memory::cstr_from_ptr((fname_ptr).cast()), mode);
+    let fd = CFile::open(crate::memory::cstr_from_ptr(fname_ptr), mode);
     if fd.is_none() {
         let _ = semsg!(gettext(c"E190: Cannot open \"%s\" for writing"), fname_ptr,);
     }
@@ -12243,7 +12238,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE));
                     return None;
                 }
-                result = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr((result).cast()))
+                result = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(result))
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
             SPEC_ABUF => {
@@ -12342,7 +12337,7 @@ pub fn eval_vars(
                 .map_or(ptr::null_mut(), |i| result.wrapping_add(i));
             if !s.is_null()
                 && (s as usize)
-                    >= (path_tail(crate::memory::cstr_from_ptr((result).cast())).as_ptr() as usize)
+                    >= (path_tail(crate::memory::cstr_from_ptr(result)).as_ptr() as usize)
             {
                 resultlen = (s as usize) - (result as usize);
             }

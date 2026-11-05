@@ -123,7 +123,7 @@ impl CharBuf {
 
     #[inline]
     pub fn as_cstr(&self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.as_mut_ptr().cast())
+        crate::memory::cstr_from_ptr(self.as_mut_ptr())
     }
 }
 
@@ -1454,7 +1454,7 @@ fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CSt
     let len = suffix_bytes.len();
 
     crate::memory::ptr_offset_from(colon, args.oe_set_arg.as_ptr().cast()) >= (len as isize)
-        && crate::memory::cstr_slice(colon.wrapping_sub(len).cast(), len) == suffix_bytes
+        && crate::memory::cstr_slice(colon.wrapping_sub(len), len) == suffix_bytes
 }
 
 /// The 'ambiwidth' option is changed.
@@ -2058,7 +2058,7 @@ pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStr
     let xp_pat = args.xp_mut().xp_pattern;
 
     if (xp_pat.as_ptr() as usize) > (args.oe_set_arg.as_ptr() as usize)
-        && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1).cast()) == b':'
+        && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1)) == b':'
     {
         if completing_value_for_subopt(args, c"algorithm") {
             return expand_set_opt_string(args, &OPT_DIP_ALGORITHM_VALUES, matches);
@@ -2232,7 +2232,7 @@ pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    let p = vim_strchr(crate::memory::cstr_from_ptr((value).cast()), b',' as i32)
+    let p = vim_strchr(crate::memory::cstr_from_ptr(value), b',' as i32)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if p.is_null() {
         return Some(E_COMMA_REQUIRED);
@@ -3325,7 +3325,7 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         };
     }
 
-    let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((s).cast()));
+    let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(s));
     let cli = utf_cluster_info(ci);
     *p = crate::memory::cstr_from_ptr(cli.next.ptr);
     if cli.cells > 1 {
@@ -3946,7 +3946,7 @@ pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::
     let xp_pat = args.xp_mut().xp_pattern;
 
     if (xp_pat.as_ptr() as usize) > (args.oe_set_arg.as_ptr() as usize)
-        && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1).cast()) == b':'
+        && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1)) == b':'
     {
         if completing_value_for_subopt(args, c"border") {
             return expand_set_opt_string(args, &OPT_PVP_BORDER_VALUES, matches);

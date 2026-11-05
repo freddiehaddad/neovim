@@ -151,7 +151,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     let env = XDG_ENV_VARS[i].as_ptr();
     let fallback = XDG_DEFAULTS[i];
 
-    let mut env_val = os_getenv_cstr(crate::memory::cstr_from_ptr((env).cast()));
+    let mut env_val = os_getenv_cstr(crate::memory::cstr_from_ptr(env));
 
     #[cfg(target_os = "windows")]
     {

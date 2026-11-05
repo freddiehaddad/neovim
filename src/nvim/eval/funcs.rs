@@ -1361,7 +1361,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
     let mut err = Error::new();
     let mut result = nlua_exec(
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.as_ptr().cast())),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.as_ptr())),
         None,
         args,
         K_RET_OBJECT,
@@ -1799,7 +1799,7 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
     }
 
-    if crate::memory::cstr_is_empty(buttons.cast()) {
+    if crate::memory::cstr_is_empty(buttons) {
         buttons = gettext(c"&Ok").as_ptr().cast();
     }
 
@@ -1808,7 +1808,7 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             type_,
             None,
             message,
-            crate::memory::cstr_from_ptr(buttons.cast()),
+            crate::memory::cstr_from_ptr(buttons),
             def,
             None,
             0,
@@ -2211,13 +2211,10 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut p = p_cstr.as_ptr();
     match p_bytes.first() {
         Some(&b'$') => {
-            if os_env_exists(
-                crate::memory::cstr_from_ptr((p.wrapping_add(1)).cast()),
-                false,
-            ) {
+            if os_env_exists(crate::memory::cstr_from_ptr(p.wrapping_add(1)), false) {
                 n = 1;
             } else {
-                let exp = expand_env_save(crate::memory::cstr_from_ptr((p.cast_mut()).cast()));
+                let exp = expand_env_save(crate::memory::cstr_from_ptr(p.cast_mut()));
                 if exp.to_bytes().first() != Some(&b'$') {
                     n = 1;
                 }
@@ -2407,7 +2404,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     crate::eval::typval::tv_set_string(
         rettv,
-        crate::memory::cstr_as_opt_cstr(cmdline_buf.as_ptr().cast()),
+        crate::memory::cstr_as_opt_cstr(cmdline_buf.as_ptr()),
     );
 }
 
@@ -2547,8 +2544,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         tv_get_string(&argvars[0]).as_ptr().cast_mut()
     };
 
-    if (use_string
-        && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr((s).cast()), AUTOLOAD_CHAR))
+    if (use_string && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr(s), AUTOLOAD_CHAR))
         || is_funcref
     {
         let mut name_cstr = unsafe { CStr::from_ptr(s) };
@@ -3649,7 +3645,7 @@ pub fn f_gettext(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     crate::eval::typval::tv_set_string(
         rettv,
         Some(gettext(crate::memory::cstr_from_ptr(
-            (argvars[0].vval.v_string()).cast(),
+            argvars[0].vval.v_string(),
         ))),
     );
 }
@@ -4536,7 +4532,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             && !new_cwd.to_bytes().is_empty()
         {
             cwd = new_cwd.as_ptr();
-            if !os_isdir(crate::memory::cstr_from_ptr((cwd).cast())) {
+            if !os_isdir(crate::memory::cstr_from_ptr(cwd)) {
                 semsg!(gettext(E_INVARG2), c"expected valid directory",);
                 return;
             }
@@ -4674,7 +4670,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let namebuff = g_st().name_buff.as_mut_ptr();
             let iobuff = g_st().iobuff.as_mut_ptr();
             vim_full_name(
-                crate::memory::cstr_as_opt_cstr((cwd).cast()),
+                crate::memory::cstr_as_opt_cstr(cwd),
                 unsafe { std::slice::from_raw_parts_mut(namebuff.cast(), MAXPATHL) },
                 false,
             );
@@ -8267,11 +8263,11 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     convert_setup(
         &mut conv,
         Some(opt_vars().p_enc.as_cstr()),
-        crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr(enc_ptr),
     );
     let p_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        p_owned = string_convert(&conv, crate::memory::cstr_as_bytes((p).cast()), None);
+        p_owned = string_convert(&conv, crate::memory::cstr_as_bytes(p), None);
         p = p_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -8295,13 +8291,13 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     convert_setup(
         &mut conv,
-        crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr(enc_ptr),
         Some(opt_vars().p_enc.as_cstr()),
     );
     if conv.vc_type != CONV_NONE {
         if let Some(conv_bytes) = string_convert(
             &conv,
-            crate::memory::cstr_as_bytes((result_buf.as_mut_ptr()).cast()),
+            crate::memory::cstr_as_bytes(result_buf.as_mut_ptr()),
             None,
         ) {
             crate::eval::typval::tv_set_string(
@@ -8337,11 +8333,11 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     convert_setup(
         &mut conv,
         Some(opt_vars().p_enc.as_cstr()),
-        crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr(enc_ptr),
     );
     let fmt_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        fmt_owned = string_convert(&conv, crate::memory::cstr_as_bytes((fmt).cast()), None);
+        fmt_owned = string_convert(&conv, crate::memory::cstr_as_bytes(fmt), None);
         fmt = fmt_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());

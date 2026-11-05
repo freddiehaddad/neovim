@@ -971,11 +971,7 @@ fn draw_statuscol(
             .start
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         let textlen = crate::memory::ptr_offset_from(sp_ptr, p).max(0) as usize;
-        let translen = transstr_buf(
-            crate::memory::cstr_slice(p.cast(), textlen),
-            &mut transbuf,
-            true,
-        );
+        let translen = transstr_buf(crate::memory::cstr_slice(p, textlen), &mut transbuf, true);
         draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
         let attr = if sp.item == i32::from(STL_SIGNCOL) {
             scl_attr
@@ -996,11 +992,7 @@ fn draw_statuscol(
         p = sp_ptr;
     }
     let rem_len = crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p).max(0) as usize;
-    let translen = transstr_buf(
-        crate::memory::cstr_slice(p.cast(), rem_len),
-        &mut transbuf,
-        true,
-    );
+    let translen = transstr_buf(crate::memory::cstr_slice(p, rem_len), &mut transbuf, true);
     draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
     draw_col_fill(wlv, schar_from_ascii(b' '), stcp.width - width, cur_attr);
 }
@@ -2517,7 +2509,7 @@ pub fn win_line(
                     wlv.skip_cells = 0;
                 }
 
-                let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((ptr).cast()));
+                let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(ptr));
                 let cli = utf_cluster_info(ci);
                 let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
                 let mb_c = ci.chr.value;
@@ -2537,8 +2529,7 @@ pub fn win_line(
                     }
                     let extra_ptr = wlv.extra.as_ptr();
 
-                    let p_extra_cstr =
-                        crate::memory::cstr_from_ptr(extra_ptr.wrapping_add(1).cast());
+                    let p_extra_cstr = crate::memory::cstr_from_ptr(extra_ptr.wrapping_add(1));
                     wlv.p_extra = Some(p_extra_cstr);
                     mb_schar = schar_from_ascii(wlv.extra[0]);
                     mb_schar_width = 1;
@@ -2686,7 +2677,7 @@ pub fn win_line(
                                 crate::memory::ptr_offset_from(prev_ptr, line) as i32;
                             let tmplen = spell_check(
                                 wp,
-                                crate::memory::cstr_from_ptr(p.cast()),
+                                crate::memory::cstr_from_ptr(p),
                                 &mut spell_hlf,
                                 Some(&mut spv.spv_cap_col),
                                 spv.spv_unchanged,
@@ -2793,8 +2784,7 @@ pub fn win_line(
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }
-                            let lbr_ci =
-                                utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((p).cast()));
+                            let lbr_ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(p));
                             let lbr_cli = utf_cluster_info(lbr_ci);
                             let lbr_size = win_charsize(
                                 cstype,
@@ -3016,7 +3006,7 @@ pub fn win_line(
                                     wlv.n_extra +=
                                         slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                 }
-                                wlv.p_extra = Some(crate::memory::cstr_from_ptr(extra_base.cast()));
+                                wlv.p_extra = Some(crate::memory::cstr_from_ptr(extra_base));
 
                                 if wlv.vcol_off_co + wlv.extconceal_off > 0 {
                                     wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
@@ -3130,11 +3120,11 @@ pub fn win_line(
 
                             extra_slice[wlv.n_extra as usize] = 0;
 
-                            wlv.p_extra = Some(crate::memory::cstr_from_ptr(p.cast_const().cast()));
+                            wlv.p_extra = Some(crate::memory::cstr_from_ptr(p.cast_const()));
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
                             wlv.p_extra = Some(crate::memory::cstr_from_ptr(
-                                wlv.extra.as_ptr().wrapping_add(1).cast(),
+                                wlv.extra.as_ptr().wrapping_add(1),
                             ));
                         }
                         wlv.n_attr = wlv.n_extra + 1;

@@ -136,7 +136,7 @@ fn save_patterns(pat: &[&CStr], file: &mut Vec<std::ffi::CString>) {
     for &p in pat {
         let mut v: Vec<u8> = p.to_bytes_with_nul().to_vec();
         backslash_halve(&mut v);
-        file.push(crate::memory::cstr_to_cstring(v.as_ptr().cast()));
+        file.push(crate::memory::cstr_to_cstring(v.as_ptr()));
     }
 }
 
@@ -433,7 +433,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = 0;
-                if len != 0 && (crate::memory::cstr_len(buffer.cast()) as i32) < (len as i32) {
+                if len != 0 && (crate::memory::cstr_len(buffer) as i32) < (len as i32) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -494,7 +494,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         for entry in raw_entries {
-            let entry_cstr = crate::memory::cstr_from_ptr(entry.cast());
+            let entry_cstr = crate::memory::cstr_from_ptr(entry);
             if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry_cstr) {
                 continue;
             }
@@ -520,7 +520,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                     2,
                 ));
             }
-            file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr().cast()));
+            file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr()));
         }
         drop(buffer_vec);
 
@@ -718,7 +718,7 @@ pub fn get_cmd_output(
 
     let mut result: Option<std::ffi::CString> = None;
 
-    if let Some(f) = CFile::open(crate::memory::cstr_from_ptr((tempname).cast()), c"rb") {
+    if let Some(f) = CFile::open(crate::memory::cstr_from_ptr(tempname), c"rb") {
         'done: {
             if f.seek(0, SEEK_END) == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
@@ -749,7 +749,7 @@ pub fn get_cmd_output(
         semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
     }
 
-    os_remove(crate::memory::cstr_from_ptr((tempname).cast()));
+    os_remove(crate::memory::cstr_from_ptr(tempname));
     drop(tempname_cstr);
     result
 }
@@ -1121,7 +1121,7 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
             curwin_mut().w_cursor.lnum += 1;
             ml_append(
                 lnum,
-                crate::memory::cstr_as_bytes(output[base..].as_mut_ptr().cast()),
+                crate::memory::cstr_as_bytes(output[base..].as_mut_ptr()),
                 0,
                 false,
             );

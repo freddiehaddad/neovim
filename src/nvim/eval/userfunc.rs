@@ -395,8 +395,8 @@ fn get_function_args(
     }
 
     let mut any_default = false;
-    while crate::memory::cstr_first_byte(p.cast()) != endchar {
-        if crate::memory::cstr_as_bytes(p.cast()).starts_with(b"...") {
+    while crate::memory::cstr_first_byte(p) != endchar {
+        if crate::memory::cstr_as_bytes(p).starts_with(b"...") {
             if let Some(ref mut p) = varargs {
                 **p = 1;
             }
@@ -434,13 +434,13 @@ fn get_function_args(
                 p = p_cstr.as_ptr().cast_mut().cast();
                 if eval_ok {
                     while p > expr
-                        && ascii_iswhite(crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()))
+                        && ascii_iswhite(crate::memory::cstr_first_byte(p.wrapping_sub(1)))
                     {
                         p = p.wrapping_sub(1);
                     }
                     if let Some(default_args) = default_args.as_deref_mut() {
                         let expr_slice = crate::memory::cstr_slice(
-                            expr.cast(),
+                            expr,
                             crate::memory::ptr_offset_from(p, expr) as usize,
                         );
                         default_args.push(std::ffi::CString::new(expr_slice).unwrap());
@@ -455,7 +455,7 @@ fn get_function_args(
                 mustend = true;
             }
 
-            if ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
+            if ascii_iswhite(crate::memory::cstr_first_byte(p))
                 && crate::memory::cstr_first_byte(crate::charset::skipwhite_ptr(
                     p.cast::<std::ffi::c_char>(),
                 )) == b','
@@ -476,21 +476,21 @@ fn get_function_args(
                 }
                 p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
             }
-            if crate::memory::cstr_first_byte(p.cast()) == b',' {
+            if crate::memory::cstr_first_byte(p) == b',' {
                 p = p.wrapping_add(1);
             } else {
                 mustend = true;
             }
         }
         p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
-        if mustend && crate::memory::cstr_first_byte(p.cast()) != endchar {
+        if mustend && crate::memory::cstr_first_byte(p) != endchar {
             if !skip {
                 semsg!(gettext(E_INVARG2), argp.as_ptr());
             }
             break;
         }
     }
-    if crate::memory::cstr_first_byte(p.cast()) != endchar {
+    if crate::memory::cstr_first_byte(p) != endchar {
         if let Some(newargs) = newargs {
             newargs.clear();
         }
@@ -649,7 +649,7 @@ pub fn get_lambda_tv(
         let expr_len = crate::memory::ptr_offset_from(end, start) as usize;
         let mut line_bytes = Vec::with_capacity(7 + expr_len);
         line_bytes.extend_from_slice(b"return ");
-        line_bytes.extend_from_slice(crate::memory::cstr_slice(start.cast(), expr_len));
+        line_bytes.extend_from_slice(crate::memory::cstr_slice(start, expr_len));
         let line_cstr = std::ffi::CString::new(line_bytes).unwrap();
         if !line_cstr.to_bytes()[7..].windows(2).any(|w| w == b"a:") {
             flags |= FC_NOARGS;
@@ -772,9 +772,9 @@ fn get_func_arguments(
         argp =
             crate::charset::skipwhite_ptr(argp.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
 
-        if crate::memory::cstr_first_byte(argp.cast()) == b')'
-            || crate::memory::cstr_first_byte(argp.cast()) == b','
-            || crate::memory::cstr_is_empty(argp.cast())
+        if crate::memory::cstr_first_byte(argp) == b')'
+            || crate::memory::cstr_first_byte(argp) == b','
+            || crate::memory::cstr_is_empty(argp)
         {
             break;
         }
@@ -790,13 +790,13 @@ fn get_func_arguments(
         }
         argp = argp_cstr.as_ptr().cast_mut().cast();
         *argcount += 1;
-        if crate::memory::cstr_first_byte(argp.cast()) != b',' {
+        if crate::memory::cstr_first_byte(argp) != b',' {
             break;
         }
     }
 
     argp = crate::charset::skipwhite_ptr(argp.cast::<std::ffi::c_char>()).cast();
-    if crate::memory::cstr_first_byte(argp.cast()) == b')' {
+    if crate::memory::cstr_first_byte(argp) == b')' {
         argp = argp.wrapping_add(1);
     } else {
         ret = false;
@@ -906,7 +906,7 @@ fn fname_trans_sid<'a>(
             ) as usize;
         }
     }
-    let script_bytes = crate::memory::cstr_from_ptr(script_name.cast()).to_bytes_with_nul();
+    let script_bytes = crate::memory::cstr_from_ptr(script_name).to_bytes_with_nul();
     let fnamelen = fname_buflen + script_bytes.len() - 1;
     if fnamelen < FLEN_FIXED {
         fname_buf[fname_buflen..fname_buflen + script_bytes.len()].copy_from_slice(script_bytes);
@@ -915,7 +915,7 @@ fn fname_trans_sid<'a>(
         let mut fname_vec = Vec::with_capacity(fnamelen + 1);
         fname_vec.extend_from_slice(&fname_buf[..fname_buflen]);
         fname_vec.extend_from_slice(script_bytes);
-        let cstr = cstr_to_cstring(fname_vec.as_ptr().cast());
+        let cstr = cstr_to_cstring(fname_vec.as_ptr());
         *tofree = Some(cstr);
         tofree.as_deref().unwrap()
     }
@@ -1336,7 +1336,7 @@ pub fn call_user_func(
             name = numbuf.as_ptr();
         }
 
-        let v = tv_dict_item_alloc_len(crate::memory::cstr_slice(name.cast(), namelen));
+        let v = tv_dict_item_alloc_len(crate::memory::cstr_slice(name, namelen));
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
         v.di_tv = if isdefault {
@@ -2200,9 +2200,7 @@ pub fn trans_function_name(
             *pp = unsafe { CStr::from_ptr(end.cast()) };
         } else if ll_tv.v_type == VarType::VarPartial && !ll_tv.vval.v_partial().is_null() {
             let pt = ll_tv.vval.v_partial();
-            if is_luafunc(unsafe { pt.as_ref() })
-                && crate::memory::cstr_first_byte(end.cast()) == b'.'
-            {
+            if is_luafunc(unsafe { pt.as_ref() }) && crate::memory::cstr_first_byte(end) == b'.' {
                 len =
                     check_luafunc_name(unsafe { CStr::from_ptr(end.wrapping_add(1).cast()) }, true);
                 if len == 0 {
@@ -2492,7 +2490,7 @@ fn list_one_function(
         .as_ptr()
         .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
     if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
-        crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p.cast())),
+        crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p)),
     ))) == 0
     {
         semsg!(gettext(E_TRAILING_ARG), p);
@@ -2699,9 +2697,7 @@ fn get_function_body(
                         };
                     } else if !line_arg.is_null()
                         && crate::memory::cstr_first_byte(line_arg.wrapping_add(
-                            crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                                line_arg.cast(),
-                            )),
+                            crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(line_arg)),
                         )) != 0
                     {
                         nextcmd = line_arg;
@@ -3233,12 +3229,9 @@ pub fn ex_function(eap: &mut Exarg) {
 
     if fp.is_null() {
         if fudi.fd_dict.is_null()
-            && !vim_strchr(
-                crate::memory::cstr_from_ptr((name).cast()),
-                AUTOLOAD_CHAR as i32,
-            )
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-            .is_null()
+            && !vim_strchr(crate::memory::cstr_from_ptr(name), AUTOLOAD_CHAR as i32)
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .is_null()
         {
             let mut j = false;
             if let Some(sname) = sourcing_name() {
@@ -3249,9 +3242,9 @@ pub fn ex_function(eap: &mut Exarg) {
                 let slen = sname.to_bytes().len() as i32;
                 if slen > plen
                     && path_equal(
-                        crate::memory::cstr_from_ptr((p).cast()),
+                        crate::memory::cstr_from_ptr(p),
                         crate::memory::cstr_from_ptr(
-                            (sname.as_ptr().wrapping_add((slen - plen) as usize)).cast(),
+                            sname.as_ptr().wrapping_add((slen - plen) as usize),
                         ),
                         K_PATH_CMP_LITERAL,
                     )
@@ -3431,7 +3424,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     };
     let name = name_cstr.as_ptr();
     if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
-        crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p.cast())),
+        crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p)),
     ))) == 0
     {
         semsg!(gettext(E_TRAILING_ARG), p);

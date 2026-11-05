@@ -2580,7 +2580,7 @@ pub fn nvim_inspect_cell(
     );
     add_c(
         &mut ret,
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(sc_buf.cast())),
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(sc_buf)),
     );
     let attr = g.attrs[off];
     add_c(
@@ -2993,7 +2993,7 @@ pub fn nvim_eval_statusline(
     put_c(
         &mut result,
         c"str",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf_data.cast())),
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf_data)),
     );
 
     result

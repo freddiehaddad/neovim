@@ -853,7 +853,7 @@ pub fn nvim_buf_set_text(
             if !ml_replace_buf(
                 b,
                 lnum as Linenr,
-                crate::memory::cstr_as_bytes(line.cast()),
+                crate::memory::cstr_as_bytes(line),
                 false,
                 true,
             ) {
@@ -881,7 +881,7 @@ pub fn nvim_buf_set_text(
             if !ml_append_buf(
                 b,
                 lnum as Linenr,
-                crate::memory::cstr_as_bytes(line.cast()),
+                crate::memory::cstr_as_bytes(line),
                 0,
                 false,
             ) {

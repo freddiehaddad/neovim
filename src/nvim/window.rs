@@ -5889,17 +5889,17 @@ pub fn update_cwd(cause: CdCause) {
     if let Some(ref new_dir_cstr) = new_dir {
         let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
         if g_st().globaldir.is_none() && cwd[0] != 0 {
-            g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr().cast()));
+            g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
         }
         let dir_differs = !path_equal(
-            crate::memory::cstr_from_ptr((new_dir_ptr).cast()),
-            crate::memory::cstr_from_ptr(cwd.as_ptr().cast()),
+            crate::memory::cstr_from_ptr(new_dir_ptr),
+            crate::memory::cstr_from_ptr(cwd.as_ptr()),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, true);
         }
-        if os_chdir(crate::memory::cstr_from_ptr((new_dir_ptr).cast())) == 0
+        if os_chdir(crate::memory::cstr_from_ptr(new_dir_ptr)) == 0
             && !opt_vars().p_acd
             && dir_differs
         {
@@ -5910,16 +5910,14 @@ pub fn update_cwd(cause: CdCause) {
     } else if let Some(gdir) = g_st().globaldir.take() {
         let gdir_ptr = gdir.as_ptr().cast_mut();
         let dir_differs = !path_equal(
-            crate::memory::cstr_from_ptr((gdir_ptr).cast()),
-            crate::memory::cstr_from_ptr(cwd.as_ptr().cast()),
+            crate::memory::cstr_from_ptr(gdir_ptr),
+            crate::memory::cstr_from_ptr(cwd.as_ptr()),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, true);
         }
-        if os_chdir(crate::memory::cstr_from_ptr((gdir_ptr).cast())) == 0
-            && !opt_vars().p_acd
-            && dir_differs
+        if os_chdir(crate::memory::cstr_from_ptr(gdir_ptr)) == 0 && !opt_vars().p_acd && dir_differs
         {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, false);
         }

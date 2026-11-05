@@ -1016,20 +1016,20 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
 /// does not recognize magic braces.
 fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
     let arg_ptr: *const u8 = arg.as_ptr().cast();
-    if !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg_ptr.cast()))) {
+    if !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg_ptr))) {
         return arg;
     }
 
     let mut p = arg_ptr.wrapping_add(1);
-    while !crate::memory::cstr_is_empty(p.cast())
-        && eval_isnamec(i32::from(crate::memory::cstr_first_byte(p.cast())))
+    while !crate::memory::cstr_is_empty(p)
+        && eval_isnamec(i32::from(crate::memory::cstr_first_byte(p)))
     {
-        if crate::memory::cstr_first_byte(p.cast()) == b':'
+        if crate::memory::cstr_first_byte(p) == b':'
             && (p != arg_ptr.wrapping_add(1)
                 || !use_namespace
                 || !crate::strings::vim_haschr(
                     c"bgstvw",
-                    i32::from(crate::memory::cstr_first_byte(arg_ptr.cast())),
+                    i32::from(crate::memory::cstr_first_byte(arg_ptr)),
                 ))
         {
             break;
@@ -1447,7 +1447,7 @@ pub fn get_lval<'a>(
 
         let in_len = (p as usize).wrapping_sub(name as usize);
         if let Some(cstr) = make_expanded_name(
-            crate::memory::cstr_slice(name.cast(), in_len),
+            crate::memory::cstr_slice(name, in_len),
             expr_start_off,
             expr_end_off,
         ) {
@@ -1869,18 +1869,18 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
 
     if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
         xp.xp_context = EXPAND_USER_VARS;
-        if !crate::memory::cstr_as_bytes(arg.cast())
+        if !crate::memory::cstr_as_bytes(arg)
             .iter()
             .any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
         {
-            let mut p = arg.wrapping_add(crate::memory::cstr_len(arg.cast()));
+            let mut p = arg.wrapping_add(crate::memory::cstr_len(arg));
             while (p as usize) >= (arg as usize) {
                 xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p);
                 p = p.wrapping_offset(
                     -((crate::mbyte::utf_head_off_ptr(arg, p.wrapping_sub(1)) + 1) as isize),
                 );
                 if (p as usize) >= (arg as usize)
-                    && ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
+                    && ascii_iswhite(crate::memory::cstr_first_byte(p))
                 {
                     break;
                 }
@@ -1895,7 +1895,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         };
     }
     while {
-        xp.xp_pattern = crate::memory::cstr_as_bytes(arg.cast())
+        xp.xp_pattern = crate::memory::cstr_as_bytes(arg)
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
             .map_or(crate::strings::CStrCursor::NULL, |i| {
@@ -1968,10 +1968,10 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             xp.xp_context = EXPAND_EXPRESSION;
         }
         arg = xp.xp_pattern.as_ptr();
-        if !crate::memory::cstr_is_empty(arg.cast()) {
+        if !crate::memory::cstr_is_empty(arg) {
             loop {
                 arg = arg.wrapping_add(1);
-                c = i32::from(crate::memory::cstr_first_byte(arg.cast()));
+                c = i32::from(crate::memory::cstr_first_byte(arg));
                 if c == NUL as i32 || (c != b' ' as i32 && c != b'\t' as i32) {
                     break;
                 }
@@ -2794,7 +2794,7 @@ fn eval7(
         *arg = crate::charset::skipwhite_at(arg, 1);
     }
     let mut leader_len = (arg.as_ptr() as usize).wrapping_sub(start_leader as usize);
-    let leader_slice = crate::memory::cstr_slice(start_leader.cast(), leader_len);
+    let leader_slice = crate::memory::cstr_slice(start_leader, leader_len);
 
     if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
         semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), arg.as_ptr());
@@ -3905,7 +3905,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
     let alloc_len = ((p as isize) - (arg_start as isize) - reduce) as usize;
     let mut buf_vec = Vec::with_capacity(alloc_len);
     let start_ptr = arg_start.wrapping_add(off);
-    let mut rem = crate::memory::cstr_as_bytes(start_ptr.cast());
+    let mut rem = crate::memory::cstr_as_bytes(start_ptr);
 
     while !rem.is_empty() {
         if rem[0] == b'\'' {
@@ -6181,7 +6181,7 @@ pub fn var_item_copy(
             } else {
                 if let Some(conv_bytes) = string_convert(
                     conv,
-                    crate::memory::cstr_as_bytes((from.vval.v_string()).cast()),
+                    crate::memory::cstr_as_bytes(from.vval.v_string()),
                     None,
                 ) {
                     crate::eval::typval::tv_set_string(

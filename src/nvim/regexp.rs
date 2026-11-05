@@ -356,27 +356,27 @@ impl RegLinePtr {
 
     #[inline]
     pub fn first_byte(self) -> u8 {
-        crate::memory::cstr_first_byte(self.as_ptr().cast())
+        crate::memory::cstr_first_byte(self.as_ptr())
     }
 
     #[inline]
     pub fn is_empty(self) -> bool {
-        crate::memory::cstr_is_empty(self.as_ptr().cast())
+        crate::memory::cstr_is_empty(self.as_ptr())
     }
 
     #[inline]
     pub fn as_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_as_bytes(self.as_ptr().cast())
+        crate::memory::cstr_as_bytes(self.as_ptr())
     }
 
     #[inline]
     pub fn as_cstr(self) -> &'static std::ffi::CStr {
-        crate::memory::cstr_from_ptr(self.as_ptr().cast())
+        crate::memory::cstr_from_ptr(self.as_ptr())
     }
 
     #[inline]
     pub fn slice(self, len: usize) -> &'static [u8] {
-        crate::memory::cstr_slice(self.as_ptr().cast(), len)
+        crate::memory::cstr_slice(self.as_ptr(), len)
     }
 }
 
@@ -2281,7 +2281,7 @@ pub(super) fn reg_prev_class() -> i32 {
         let head =
             prev.wrapping_sub(crate::mbyte::utf_head_off_ptr(re_st().rex.line, prev) as usize);
         return mb_get_class_tab(
-            crate::memory::cstr_as_bytes(head.cast()),
+            crate::memory::cstr_as_bytes(head),
             &re_st().rex.buf_mut().b_chartab,
         );
     }
@@ -2482,9 +2482,7 @@ pub(super) fn match_with_backref(
         if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
-                    crate::memory::cstr_as_bytes(
-                        (p_cstr.as_ptr().wrapping_add(ccol as usize)).cast(),
-                    ),
+                    crate::memory::cstr_as_bytes(p_cstr.as_ptr().wrapping_add(ccol as usize)),
                     re_st().rex.input.as_bytes(),
                     len as usize,
                 ) != 0)
@@ -2572,8 +2570,8 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         }
         n2 = (s2_b.len() - rem2.len()) as i32;
         let r = utf_strnicmp(
-            crate::memory::cstr_as_bytes(s1_b.as_ptr().cast()),
-            crate::memory::cstr_as_bytes(s2_b.as_ptr().cast()),
+            crate::memory::cstr_as_bytes(s1_b.as_ptr()),
+            crate::memory::cstr_as_bytes(s2_b.as_ptr()),
             *n as usize,
             n2 as usize,
         );
@@ -2620,7 +2618,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_ptr = s.as_ptr();
     if !re_st().rex.reg_ic {
-        let p = vim_strchr(crate::memory::cstr_from_ptr((s_ptr).cast()), c)
+        let p = vim_strchr(crate::memory::cstr_from_ptr(s_ptr), c)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
     }
@@ -2635,7 +2633,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         let u = (c as u8).to_ascii_uppercase() as i32;
         (u, c)
     } else {
-        let p = vim_strchr(crate::memory::cstr_from_ptr((s_ptr).cast()), c)
+        let p = vim_strchr(crate::memory::cstr_from_ptr(s_ptr), c)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
     };
@@ -2733,7 +2731,7 @@ pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi
         };
     }
 
-    newsub_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr().cast()))
+    newsub_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr()))
 }
 
 pub(crate) fn fill_submatch_list(
@@ -2759,7 +2757,7 @@ pub(crate) fn fill_submatch_list(
             tv_set_string(&mut li_mut.li_tv, None);
         } else {
             let len = crate::memory::ptr_offset_from(re_st().rsm.match_mut().endp[i], s) as usize;
-            let bytes = crate::memory::cstr_slice(s.cast(), len);
+            let bytes = crate::memory::cstr_slice(s, len);
             let cs = cstring_from_bytes(bytes).unwrap_or_default();
 
             tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
@@ -3169,13 +3167,13 @@ fn vim_regsub_both(
                             } else {
                                 break;
                             }
-                        } else if crate::memory::cstr_is_empty(s.cast()) {
+                        } else if crate::memory::cstr_is_empty(s) {
                             if copy {
                                 iemsg(tr(E_RE_DAMG));
                             }
                             return (dst_off + 1) as i32;
                         } else {
-                            let s_b0 = crate::memory::cstr_first_byte(s.cast());
+                            let s_b0 = crate::memory::cstr_first_byte(s);
                             if (flags & REGSUB_BACKSLASH) != 0
                                 && (s_b0 == CAR as u8 || s_b0 == b'\\')
                             {
@@ -3281,7 +3279,7 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
             None
         } else {
             let len = crate::memory::ptr_offset_from(e, s) as usize;
-            cstring_from_bytes(crate::memory::cstr_slice(s.cast(), len))
+            cstring_from_bytes(crate::memory::cstr_slice(s, len))
         }
     }
 }

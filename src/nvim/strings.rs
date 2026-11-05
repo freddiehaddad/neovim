@@ -138,42 +138,42 @@ impl<T> CStrCursor<T> {
 
     #[inline]
     pub fn first_byte(self) -> u8 {
-        crate::memory::cstr_first_byte(self.as_ptr().cast())
+        crate::memory::cstr_first_byte(self)
     }
 
     #[inline]
     pub fn is_empty(self) -> bool {
-        crate::memory::cstr_is_empty(self.as_ptr().cast())
+        crate::memory::cstr_is_empty(self)
     }
 
     #[inline]
     pub fn len(self) -> usize {
-        crate::memory::cstr_len(self.as_ptr().cast())
+        crate::memory::cstr_len(self)
     }
 
     #[inline]
     pub fn as_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_as_bytes(self.as_ptr().cast())
+        crate::memory::cstr_as_bytes(self)
     }
 
     #[inline]
     pub fn as_cstr(self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.as_ptr().cast())
+        crate::memory::cstr_from_ptr(self)
     }
 
     #[inline]
     pub fn as_opt_cstr(self) -> Option<&'static CStr> {
-        crate::memory::cstr_as_opt_cstr(self.as_ptr().cast())
+        crate::memory::cstr_as_opt_cstr(self)
     }
 
     #[inline]
     pub fn to_cstring(self) -> std::ffi::CString {
-        crate::memory::cstr_to_cstring(self.as_ptr().cast())
+        crate::memory::cstr_to_cstring(self)
     }
 
     #[inline]
     pub fn slice(self, len: usize) -> &'static [u8] {
-        crate::memory::cstr_slice(self.as_ptr().cast(), len)
+        crate::memory::cstr_slice(self, len)
     }
 }
 

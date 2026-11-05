@@ -1695,8 +1695,8 @@ pub fn search_for_exact_line(
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(
                     opt_vars().p_ic,
-                    crate::memory::cstr_from_ptr(p_slice.as_ptr().cast()),
-                    crate::memory::cstr_from_ptr((pat).cast()),
+                    crate::memory::cstr_from_ptr(p_slice.as_ptr()),
+                    crate::memory::cstr_from_ptr(pat),
                 ) == 0
                 {
                     return true;
@@ -1705,8 +1705,8 @@ pub fn search_for_exact_line(
                 debug_assert!(compl_len >= 0);
                 let eq = if opt_vars().p_ic {
                     mb_strnicmp(
-                        crate::memory::cstr_as_bytes(p_slice.as_ptr().cast()),
-                        crate::memory::cstr_as_bytes((pat).cast()),
+                        crate::memory::cstr_as_bytes(p_slice.as_ptr()),
+                        crate::memory::cstr_as_bytes(pat),
                         compl_len as usize,
                     ) == 0
                 } else {
@@ -3115,7 +3115,7 @@ pub fn find_pattern_in_path(
 
         let mut curr_fname = curbuf_mut().fname_opt();
         let mut prev_fname: Option<&'static std::ffi::CStr> = None;
-        let mut p;
+        let mut p: *mut std::ffi::c_char;
         let mut define_matched: bool;
         let mut regmatch: Regmatch = Regmatch::new();
         let mut incl_regmatch: Regmatch = Regmatch::new();
@@ -3216,7 +3216,7 @@ pub fn find_pattern_in_path(
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
                     find_file_name_in_path(
                         crate::memory::cstr_slice(
-                            incl_regmatch.startp[0].cast(),
+                            incl_regmatch.startp[0],
                             crate::memory::ptr_offset_from(
                                 incl_regmatch.endp[0],
                                 incl_regmatch.startp[0],
@@ -3228,7 +3228,7 @@ pub fn find_pattern_in_path(
                     )
                 } else {
                     file_name_in_line(
-                        crate::memory::cstr_as_bytes(incl_regmatch.endp[0].cast()),
+                        crate::memory::cstr_as_bytes(incl_regmatch.endp[0]),
                         0,
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
@@ -3239,7 +3239,7 @@ pub fn find_pattern_in_path(
                 .map(|cstr| {
                     let mut v: Vec<u8> = cstr.into_bytes_with_nul();
                     to_slash(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
-                    crate::memory::cstr_to_cstring(v.as_ptr().cast())
+                    crate::memory::cstr_to_cstring(v.as_ptr())
                 });
                 let mut already_searched = false;
                 if let Some(ref nf) = new_fname_cstr {
@@ -3253,7 +3253,7 @@ pub fn find_pattern_in_path(
                             break;
                         }
                         if path_equal(
-                            crate::memory::cstr_from_ptr((nf_ptr).cast()),
+                            crate::memory::cstr_from_ptr(nf_ptr),
                             files[i as usize].name_ptr().unwrap_or(c""),
                             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ) {
@@ -3434,8 +3434,8 @@ pub fn find_pattern_in_path(
                             let start_bytes = crate::memory::cstr_as_bytes(startp);
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(
-                                    crate::memory::cstr_as_bytes((startp).cast()),
-                                    crate::memory::cstr_as_bytes((ptr_pat).cast()),
+                                    crate::memory::cstr_as_bytes(startp),
+                                    crate::memory::cstr_as_bytes(ptr_pat),
                                     len,
                                 ) == 0;
                             } else {

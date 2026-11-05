@@ -1281,7 +1281,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
         }
     }
 
-    p = vim_strchr(crate::memory::cstr_from_ptr((last).cast()), b'=' as i32)
+    p = vim_strchr(crate::memory::cstr_from_ptr(last), b'=' as i32)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if p.is_null() {
         xp.xp_pattern = crate::strings::CStrCursor::from_ptr(last.cast());

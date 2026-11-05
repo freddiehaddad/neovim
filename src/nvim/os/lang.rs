@@ -621,14 +621,14 @@ pub fn init_locale() {
 
     let mut localepath = [0u8; MAXPATHL];
     crate::memory::copy_bytes_to_c_buf(&mut localepath, get_vim_var_str(VV_PROGPATH).to_bytes());
-    let mut tail = path_tail_with_sep(crate::memory::cstr_from_ptr(localepath.as_mut_ptr().cast()))
+    let mut tail = path_tail_with_sep(crate::memory::cstr_from_ptr(localepath.as_mut_ptr()))
         .as_ptr()
         .cast_mut()
         .cast::<u8>();
     unsafe {
         *tail = 0;
     }
-    tail = path_tail(crate::memory::cstr_from_ptr(localepath.as_ptr().cast()))
+    tail = path_tail(crate::memory::cstr_from_ptr(localepath.as_ptr()))
         .as_ptr()
         .cast_mut()
         .cast::<u8>();
@@ -636,7 +636,7 @@ pub fn init_locale() {
     crate::memory::copy_bytes_to_c_buf(&mut localepath[offset..], b"share/locale");
 
     if HAVE_LIBINTL {
-        let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr().cast());
+        let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr());
         let len = bytes.len().min(MAXPATHL);
         lang_st().locale_dir[..len].copy_from_slice(&bytes[..len]);
         lang_st().locale_dir_len = len;
@@ -716,15 +716,11 @@ pub fn ex_language(eap: &mut Exarg) {
 
             if what != LC_TIME && what != LC_COLLATE {
                 if what == LC_ALL {
-                    let _ = os_setenv(c"LANG", crate::memory::cstr_from_ptr((name).cast()), 1);
+                    let _ = os_setenv(c"LANG", crate::memory::cstr_from_ptr(name), 1);
                     let _ = os_setenv(c"LANGUAGE", c"", 1);
                 }
                 if what != LC_CTYPE {
-                    let _ = os_setenv(
-                        c"LC_MESSAGES",
-                        crate::memory::cstr_from_ptr((name).cast()),
-                        1,
-                    );
+                    let _ = os_setenv(c"LC_MESSAGES", crate::memory::cstr_from_ptr(name), 1);
                     set_helplang_default(crate::memory::cstr_as_opt_cstr(name));
                 }
             }

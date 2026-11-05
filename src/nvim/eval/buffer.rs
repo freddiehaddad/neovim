@@ -210,7 +210,7 @@ fn set_buffer_lines(
             if u_savesub(lnum)
                 && ml_replace(
                     lnum,
-                    crate::memory::cstr_as_bytes((line_cstr.as_ptr().cast_mut()).cast()),
+                    crate::memory::cstr_as_bytes(line_cstr.as_ptr().cast_mut()),
                     true,
                 )
             {
@@ -225,7 +225,7 @@ fn set_buffer_lines(
             added += 1;
             if ml_append(
                 lnum - 1,
-                crate::memory::cstr_as_bytes((line_cstr.as_ptr().cast_mut()).cast()),
+                crate::memory::cstr_as_bytes(line_cstr.as_ptr().cast_mut()),
                 0,
                 false,
             ) {
@@ -1050,7 +1050,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             ml_replace_buf(
                 &mut *buf,
                 prompt_lno,
-                crate::memory::cstr_as_bytes((new_prompt.as_ptr().cast_mut()).cast()),
+                crate::memory::cstr_as_bytes(new_prompt.as_ptr().cast_mut()),
                 true,
                 false,
             );
@@ -1072,7 +1072,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             let _ = ml_replace_buf(
                 &mut *buf,
                 prompt_lno,
-                crate::memory::cstr_as_bytes((new_line.as_ptr().cast_mut()).cast()),
+                crate::memory::cstr_as_bytes(new_line.as_ptr().cast_mut()),
                 true,
                 false,
             );

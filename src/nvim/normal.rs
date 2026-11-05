@@ -2745,7 +2745,7 @@ pub fn clear_showcmd() {
         return;
     }
 
-    let sc_buf = (&raw mut g_st().showcmd_buf).cast();
+    let sc_buf = g_st().showcmd_buf.as_mut_ptr().cast();
 
     if g_st().visual_global.active && !char_avail() {
         let cursor_bot = lt(g_st().visual_global.start, curwin_mut().w_cursor);
@@ -2881,7 +2881,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         return false;
     }
 
-    let sc_buf = (&raw mut g_st().showcmd_buf).cast();
+    let sc_buf = g_st().showcmd_buf.as_mut_ptr();
 
     if norm_st().showcmd_visual {
         g_st().showcmd_buf[0] = 0;
@@ -2940,7 +2940,7 @@ fn del_from_showcmd(mut len: i32) {
     if !opt_vars().p_sc {
         return;
     }
-    let sc_buf = (&raw mut g_st().showcmd_buf).cast();
+    let sc_buf = g_st().showcmd_buf.as_mut_ptr();
     let old_len = crate::memory::cstr_len(sc_buf) as i32;
     len = len.min(old_len);
     g_st().showcmd_buf[(old_len - len) as usize] = 0;
@@ -2996,7 +2996,7 @@ pub fn display_showcmd() {
 
     let mut mc_buf: [u8; 16] = [0; 16];
     let mc_len = mc_showcmd(&mut mc_buf);
-    let sc_buf = (&raw const g_st().showcmd_buf).cast();
+    let sc_buf = g_st().showcmd_buf.as_ptr();
 
     if ui_has(K_UIMESSAGES) {
         let mut content_items: [Object; 1] = [NIL_OBJ];
@@ -3014,7 +3014,7 @@ pub fn display_showcmd() {
         let mut size = 0;
         if ext_buf[0] != 0 {
             chunk_items[0] = integer_obj(0);
-            chunk_items[1] = cstr_as_obj(crate::memory::cstr_as_opt_cstr(ext_buf.as_ptr().cast()));
+            chunk_items[1] = cstr_as_obj(crate::memory::cstr_as_opt_cstr(ext_buf.as_ptr()));
             chunk_items[2] = integer_obj(0);
             let chunk = Array {
                 items: chunk_items.as_mut_ptr(),
@@ -4401,24 +4401,21 @@ fn nv_ident(cap: &mut Cmdarg) {
         let mut p_idx = buflen;
         while n > 0 {
             n -= 1;
-            let first = crate::memory::cstr_first_byte(ptr.cast());
-            if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((aux_ptr).cast()),
-                i32::from(first),
-            ) {
+            let first = crate::memory::cstr_first_byte(ptr);
+            if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(aux_ptr), i32::from(first)) {
                 buf_vec[p_idx] = b'\\';
                 p_idx += 1;
             }
             let len = (utfc_ptr2len(ptr) - 1) as usize;
             let mut i = 0;
             while i < len && n > 0 {
-                buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr.cast());
+                buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr);
                 p_idx += 1;
                 ptr = ptr.wrapping_add(1);
                 i += 1;
                 n -= 1;
             }
-            buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr.cast());
+            buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr);
             p_idx += 1;
             ptr = ptr.wrapping_add(1);
         }

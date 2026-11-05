@@ -1335,7 +1335,7 @@ fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
     ml_replace_buf(
         buf,
         lnum,
-        crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr().cast()),
+        crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr()),
         true,
         false,
     );
@@ -1414,7 +1414,7 @@ fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
             ml_replace_buf(
                 buf,
                 lnum,
-                crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr().cast()),
+                crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr()),
                 true,
                 false,
             );
@@ -1541,7 +1541,7 @@ pub fn get_foldtext(
             ngettext(c"+--%3d line folded", c"+--%3d lines folded ", count as u64,),
             count,
         );
-        crate::memory::cstr_to_cstring(buf.as_ptr().cast())
+        crate::memory::cstr_to_cstring(buf.as_ptr())
     })
 }
 
@@ -2626,7 +2626,7 @@ fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     } else {
         c"sil! normal! zo".as_ptr()
     };
-    if fd.puts(crate::memory::cstr_from_ptr((cmd).cast())) < 0 || !put_eol(fd) {
+    if fd.puts(crate::memory::cstr_from_ptr(cmd)) < 0 || !put_eol(fd) {
         return false;
     }
     true

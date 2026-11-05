@@ -2020,7 +2020,7 @@ pub fn vcol2col(
     let mut csarg = CharsizeArg::new();
     let cstype: CSType =
         init_charsize_arg(&mut csarg, wp, lnum, crate::memory::cstr_from_ptr(line));
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
     let mut cur_vcol: i32 = 0;
     while cur_vcol < vcol && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);

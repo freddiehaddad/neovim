@@ -263,7 +263,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
         let mut i: usize = 0;
         while i < s1_bytes.len() {
             let clen = utf_ptr2len_len(
-                crate::memory::cstr_as_bytes((s1.wrapping_add(i)).cast()),
+                crate::memory::cstr_as_bytes(s1.wrapping_add(i)),
                 (s1_len - i) as i32,
             ) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
@@ -551,8 +551,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
             let nul1 = slice1.iter().position(|&b| b == 0);
             let nul2 = slice2.iter().position(|&b| b == 0);
             ret = mb_stricmp(
-                crate::memory::cstr_from_ptr((s1).cast()),
-                crate::memory::cstr_from_ptr((s2).cast()),
+                crate::memory::cstr_from_ptr(s1),
+                crate::memory::cstr_from_ptr(s2),
             );
             if ret == 0 {
                 if nul1.is_some() != nul2.is_some() {
@@ -594,10 +594,10 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     let str_ = unsafe { lua_tolstring(lstate, 1, &raw mut str_len) };
 
     let from = enc_canonize(enc_skip(crate::memory::cstr_from_ptr(
-        (unsafe { lua_tolstring(lstate, 2, ptr::null_mut()) }.cast_mut()).cast(),
+        unsafe { lua_tolstring(lstate, 2, ptr::null_mut()) }.cast_mut(),
     )));
     let to = enc_canonize(enc_skip(crate::memory::cstr_from_ptr(
-        (unsafe { lua_tolstring(lstate, 3, ptr::null_mut()) }.cast_mut()).cast(),
+        unsafe { lua_tolstring(lstate, 3, ptr::null_mut()) }.cast_mut(),
     )));
 
     let mut vimconv = Vimconv {
@@ -608,9 +608,9 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     };
     let _ = convert_setup_ext(
         &mut vimconv,
-        crate::memory::cstr_as_opt_cstr((from.as_ptr().cast_mut()).cast()),
+        crate::memory::cstr_as_opt_cstr(from.as_ptr().cast_mut()),
         false,
-        crate::memory::cstr_as_opt_cstr((to.as_ptr().cast_mut()).cast()),
+        crate::memory::cstr_as_opt_cstr(to.as_ptr().cast_mut()),
         false,
     );
 

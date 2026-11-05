@@ -205,7 +205,7 @@ fn coladvance2(
             pos.lnum,
             crate::memory::cstr_from_ptr(line),
         );
-        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
         col = 0;
         while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_cluster_info(ci);
@@ -242,7 +242,7 @@ fn coladvance2(
 
                 ml_replace(
                     pos.lnum,
-                    crate::memory::cstr_as_bytes(newline.as_mut_ptr().cast()),
+                    crate::memory::cstr_as_bytes(newline.as_mut_ptr()),
                     true,
                 );
                 inserted_bytes(pos.lnum, idx, 0, correct);
@@ -272,7 +272,7 @@ fn coladvance2(
 
                 ml_replace(
                     pos.lnum,
-                    crate::memory::cstr_as_bytes(newline.as_mut_ptr().cast()),
+                    crate::memory::cstr_as_bytes(newline.as_mut_ptr()),
                     true,
                 );
                 inserted_bytes(pos.lnum, idx, 1, csize);

@@ -514,8 +514,8 @@ fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64
         let mut p = hay_cstr.as_ptr();
         while !crate::memory::cstr_is_empty(p) {
             if mb_strnicmp(
-                crate::memory::cstr_as_bytes((p).cast()),
-                crate::memory::cstr_as_bytes((needle_cstr.as_ptr()).cast()),
+                crate::memory::cstr_as_bytes(p),
+                crate::memory::cstr_as_bytes(needle_cstr.as_ptr()),
                 needlelen,
             ) == 0
             {

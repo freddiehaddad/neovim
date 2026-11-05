@@ -854,7 +854,7 @@ fn nfa_regatom() -> bool {
             goto_collection = true;
         } else {
             let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
                 no_magic(c),
             )
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -917,7 +917,7 @@ fn nfa_regatom() -> bool {
                 || x == magic_fn(b'U' as i32)
         ) {
             let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
                 no_magic(c),
             )
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -976,7 +976,7 @@ fn nfa_regatom() -> bool {
             };
             let start_ptr = prev_sub.as_ptr().cast::<u8>();
             let mut lp = start_ptr;
-            while crate::memory::cstr_first_byte(lp.cast()) != NUL {
+            while crate::memory::cstr_first_byte(lp) != NUL {
                 emit_fn(utf_ptr2char(lp));
                 if lp != start_ptr {
                     emit_fn(NFA_CONCAT);
@@ -3176,11 +3176,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
             let mut len = mpos.end_col - mpos.start_col;
             if cstrncmp(
                 crate::memory::cstr_as_bytes(
-                    re_st()
-                        .rex
-                        .line
-                        .wrapping_add(mpos.start_col as usize)
-                        .cast(),
+                    re_st().rex.line.wrapping_add(mpos.start_col as usize),
                 ),
                 re_st().rex.input.as_bytes(),
                 &mut len,
@@ -3207,7 +3203,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
         }
         let mut len = crate::memory::ptr_offset_from(lpos.end, lpos.start) as i32;
         if cstrncmp(
-            crate::memory::cstr_as_bytes(lpos.start.cast()),
+            crate::memory::cstr_as_bytes(lpos.start),
             re_st().rex.input.as_bytes(),
             &mut len,
         ) == 0
@@ -4766,7 +4762,7 @@ fn nfa_regtry(
                 let lpos = subs.synt.list.line()[i];
                 if !lpos.start.is_null() && !lpos.end.is_null() {
                     extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
-                        lpos.start.cast(),
+                        lpos.start,
                         crate::memory::ptr_offset_from(lpos.end, lpos.start) as usize,
                     ));
                 }

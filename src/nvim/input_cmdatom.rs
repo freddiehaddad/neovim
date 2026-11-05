@@ -705,7 +705,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
         dict_put(
             &mut d,
             c"reg",
-            cstr_to_obj(crate::memory::cstr_as_opt_cstr(regname.as_ptr().cast())),
+            cstr_to_obj(crate::memory::cstr_as_opt_cstr(regname.as_ptr())),
         );
     }
     if let Some(ref text) = atom.text

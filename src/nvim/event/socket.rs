@@ -326,7 +326,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                 let mut error = None;
 
                 if !socket_alive(&mut *loop_, false, watcher.addr_cstr(), &mut error) {
-                    let rm_result = os_remove(crate::memory::cstr_from_ptr((addr).cast()));
+                    let rm_result = os_remove(crate::memory::cstr_from_ptr(addr));
 
                     if rm_result != 0 {
                         logmsg!(
@@ -375,10 +375,10 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
         debug_assert!(result <= 0);
         if result < 0 {
             if result == UV_EACCES {
-                *path_tail(crate::memory::cstr_from_ptr((addr).cast()))
+                *path_tail(crate::memory::cstr_from_ptr(addr))
                     .as_ptr()
                     .cast_mut() = NUL;
-                if !os_path_exists(crate::memory::cstr_from_ptr((addr).cast())) {
+                if !os_path_exists(crate::memory::cstr_from_ptr(addr)) {
                     result = UV_ENOENT;
                 }
             }

@@ -793,10 +793,7 @@ pub fn set_init_tablocal() {
 fn set_init_default_shell() {
     if let Some(shell) = os_getenv_cstr(c"SHELL") {
         let shell_ptr = shell.as_ptr();
-        if crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((shell_ptr).cast()),
-            b' ' as i32,
-        ) {
+        if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(shell_ptr), b' ' as i32) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
             vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
@@ -6367,7 +6364,7 @@ fn put_set_value(
                     if size >= MAXPATHL
                         && (flags & K_OPT_FLAG_COMMA) != 0
                         && crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr((value_str).cast()),
+                            crate::memory::cstr_from_ptr(value_str),
                             b',' as i32,
                         )
                     {
@@ -7790,7 +7787,7 @@ pub fn expand_string_setting(
     let set_arg_ptr = xp
         .xp_line
         .wrapping_add(opt_st().expand_option_start_col as usize);
-    let set_arg = crate::memory::cstr_from_ptr(set_arg_ptr.cast());
+    let set_arg = crate::memory::cstr_from_ptr(set_arg_ptr);
     optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
     let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
     let mut args = Optexpand {
@@ -7832,27 +7829,26 @@ pub fn expand_setting_subtract(
     let option_flags = get_option(opt_st().expand_option_idx).flags;
 
     if (option_flags & K_OPT_FLAG_COMMA) != 0 {
-        if crate::memory::cstr_is_empty(option_val.cast()) {
+        if crate::memory::cstr_is_empty(option_val) {
             return false;
         }
 
-        let mut option_copy =
-            crate::memory::cstr_to_cstring(option_val.cast()).into_bytes_with_nul();
+        let mut option_copy = crate::memory::cstr_to_cstring(option_val).into_bytes_with_nul();
         let mut next_val = option_copy.as_mut_ptr();
 
         matches.clear();
 
         loop {
             let item = next_val;
-            let mut comma = vim_strchr(crate::memory::cstr_from_ptr(next_val.cast()), b',' as i32)
+            let mut comma = vim_strchr(crate::memory::cstr_from_ptr(next_val), b',' as i32)
                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
                 .cast::<u8>();
             while !comma.is_null()
                 && comma != next_val
-                && crate::memory::cstr_first_byte(comma.wrapping_offset(-1).cast()) == b'\\'
+                && crate::memory::cstr_first_byte(comma.wrapping_offset(-1)) == b'\\'
             {
                 comma = vim_strchr(
-                    crate::memory::cstr_from_ptr(comma.wrapping_add(1).cast()),
+                    crate::memory::cstr_from_ptr(comma.wrapping_add(1)),
                     b',' as i32,
                 )
                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -7866,7 +7862,7 @@ pub fn expand_setting_subtract(
                 next_val = ptr::null_mut();
             }
 
-            let item_cstr = crate::memory::cstr_from_ptr(item.cast());
+            let item_cstr = crate::memory::cstr_from_ptr(item);
             if !item_cstr.to_bytes().is_empty() && vim_regexec(regmatch, item_cstr, 0) {
                 matches.push(escape_option_str_cmdline(item_cstr.to_bytes()));
             }
@@ -7882,7 +7878,7 @@ pub fn expand_setting_subtract(
             return false;
         }
 
-        let num_flags = crate::memory::cstr_len(option_val.cast());
+        let num_flags = crate::memory::cstr_len(option_val);
         if num_flags == 0 {
             return false;
         }
@@ -7890,13 +7886,12 @@ pub fn expand_setting_subtract(
         matches.clear();
         matches.reserve_exact(num_flags + 1);
         matches.push(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-            option_val.cast(),
-            num_flags,
+            option_val, num_flags,
         )));
 
         if num_flags > 1 {
             let flag = option_val;
-            for &flag_byte in crate::memory::cstr_as_bytes(flag.cast()) {
+            for &flag_byte in crate::memory::cstr_as_bytes(flag) {
                 matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
             }
         }

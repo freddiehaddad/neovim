@@ -450,7 +450,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
         xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
             end_subcmd
                 .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    end_subcmd.cast(),
+                    end_subcmd,
                 )))
                 .cast(),
         );
@@ -459,7 +459,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
         xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
             end_subcmd
                 .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    end_subcmd.cast(),
+                    end_subcmd,
                 )))
                 .cast(),
         );
@@ -782,7 +782,7 @@ fn script_dump_profile(fd: &CFile) {
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            if let Some(sfd) = CFile::open(crate::memory::cstr_from_ptr((si_name).cast()), c"r") {
+            if let Some(sfd) = CFile::open(crate::memory::cstr_from_ptr(si_name), c"r") {
                 let mut i: i32 = 0;
                 loop {
                     if vim_fgets(&mut iobuf, &sfd) {

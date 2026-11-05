@@ -604,7 +604,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
             let tail_off = crate::memory::ptr_offset_from(
-                path_tail(crate::memory::cstr_from_ptr((ffname).cast())).as_ptr(),
+                path_tail(crate::memory::cstr_from_ptr(ffname)).as_ptr(),
                 ffname,
             ) as usize;
             let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
@@ -1026,13 +1026,9 @@ pub fn u_write_undo(
     perm &= 0o666;
 
     'theend: {
-        if os_path_exists(crate::memory::cstr_from_ptr((file_name).cast())) {
+        if os_path_exists(crate::memory::cstr_from_ptr(file_name)) {
             if name.is_none() || !forceit {
-                let fd = os_open(
-                    crate::memory::cstr_from_ptr((file_name).cast()),
-                    O_RDONLY,
-                    0,
-                );
+                let fd = os_open(crate::memory::cstr_from_ptr(file_name), O_RDONLY, 0);
                 if fd < 0 {
                     if name.is_some() || opt_vars().p_verbose > 0 {
                         if name.is_none() {
@@ -1072,7 +1068,7 @@ pub fn u_write_undo(
                     }
                 }
             }
-            os_remove(crate::memory::cstr_from_ptr((file_name).cast()));
+            os_remove(crate::memory::cstr_from_ptr(file_name));
         }
 
         if buf.b_u_numhead == 0 && buf.b_u_line_ptr.is_none() {
@@ -1083,7 +1079,7 @@ pub fn u_write_undo(
         }
 
         let fd = os_open(
-            crate::memory::cstr_from_ptr((file_name).cast()),
+            crate::memory::cstr_from_ptr(file_name),
             O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW,
             perm,
         );
@@ -1091,7 +1087,7 @@ pub fn u_write_undo(
             semsg!(gettext(E_NOT_OPEN), file_name);
             break 'theend;
         }
-        os_setperm(crate::memory::cstr_from_ptr((file_name).cast()), perm);
+        os_setperm(crate::memory::cstr_from_ptr(file_name), perm);
         if opt_vars().p_verbose > 0 {
             verbose_enter();
             smsg!(0, gettext(c"Writing undo file: %s"), file_name);
@@ -1120,7 +1116,7 @@ pub fn u_write_undo(
         let Some(bi_fp) = CFile::from_fd(fd, c"w") else {
             semsg!(gettext(E_NOT_OPEN), file_name);
             os_close(fd);
-            os_remove(crate::memory::cstr_from_ptr((file_name).cast()));
+            os_remove(crate::memory::cstr_from_ptr(file_name));
             break 'theend;
         };
 
@@ -1190,7 +1186,7 @@ pub fn u_write_undo(
 
         if buf.b_ffname.is_some() {
             let acl: VimAcl = os_get_acl(buf.ffname_cstr());
-            os_set_acl(crate::memory::cstr_from_ptr((file_name).cast()), acl);
+            os_set_acl(crate::memory::cstr_from_ptr(file_name), acl);
             os_free_acl(acl);
         }
     }
@@ -2065,9 +2061,9 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 let lnum = top + i as Linenr;
                 let line_ptr = line.as_ptr().cast_mut();
                 if empty_buffer && lnum == 0 {
-                    ml_replace(1, crate::memory::cstr_as_bytes((line_ptr).cast()), true);
+                    ml_replace(1, crate::memory::cstr_as_bytes(line_ptr), true);
                 } else {
-                    ml_append_flags(lnum, crate::memory::cstr_as_bytes((line_ptr).cast()), 0, 0);
+                    ml_append_flags(lnum, crate::memory::cstr_as_bytes(line_ptr), 0, 0);
                 }
             }
         }
@@ -2298,7 +2294,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         } else {
             undo_st().u_oldcount as i64
         },
-        gettext(crate::memory::cstr_from_ptr((msgstr).cast())),
+        gettext(crate::memory::cstr_from_ptr(msgstr)),
         if did_undo {
             gettext(c"before")
         } else {
@@ -2788,7 +2784,7 @@ pub fn u_undoline() {
     let new_line_len = new_line.as_bytes().len() as Colnr;
     ml_replace(
         curbuf_mut().b_u_line_lnum,
-        crate::memory::cstr_as_bytes((new_line.as_ptr().cast_mut()).cast()),
+        crate::memory::cstr_as_bytes(new_line.as_ptr().cast_mut()),
         true,
     );
     extmark_splice_cols(

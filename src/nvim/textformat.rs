@@ -776,7 +776,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             pline.push(0);
             ml_replace(
                 curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(pline.as_mut_ptr().cast()),
+                crate::memory::cstr_as_bytes(pline.as_mut_ptr()),
                 true,
             );
             tf_st().did_add_space = true;

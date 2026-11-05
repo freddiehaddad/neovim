@@ -1148,7 +1148,7 @@ fn qf_get_nextline(state: &mut Qfstate) -> QfStatus {
         QfInputSource::None => QfStatus::Fail,
         QfInputSource::File(_) => qf_get_next_file_line(state),
         QfInputSource::Str(p_str) => {
-            qf_get_next_str_line(state, crate::memory::cstr_from_ptr(p_str.cast()))
+            qf_get_next_str_line(state, crate::memory::cstr_from_ptr(p_str))
         }
         QfInputSource::List(p_li) => qf_get_next_list_line(state, unsafe { p_li.as_ref() }),
         QfInputSource::Buf {
@@ -1304,7 +1304,7 @@ fn qf_setup_state(
     if let Some(enc_cstr) = enc.filter(|s| !s.to_bytes().is_empty()) {
         convert_setup(
             &mut pstate.vc,
-            crate::memory::cstr_as_opt_cstr((enc_cstr.as_ptr()).cast()),
+            crate::memory::cstr_as_opt_cstr(enc_cstr.as_ptr()),
             Some(opt_vars().p_enc.as_cstr()),
         );
     }
@@ -3198,7 +3198,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
                 |s| s.as_ptr().cast_mut(),
             );
             if qfp.qf_type == 1 {
-                fname = path_tail(crate::memory::cstr_from_ptr((fname).cast()))
+                fname = path_tail(crate::memory::cstr_from_ptr(fname))
                     .as_ptr()
                     .cast_mut();
             }
@@ -3251,7 +3251,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     }
     qfga_concat(gap, qf_types(i32::from(qfp.qf_type), qfp.qf_nr).as_bytes());
     gap.push(0);
-    if !crate::memory::cstr_is_empty(gap.as_ptr().cast()) {
+    if !crate::memory::cstr_is_empty(gap.as_ptr()) {
         msg_puts_hl(
             crate::memory::cstr_until_nul(gap),
             qf_st().qf_line_hl_id,
@@ -3423,7 +3423,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: &CStr) {
     );
 
     if let Some(title) = title {
-        let len = crate::memory::cstr_len(buf.as_ptr().cast());
+        let len = crate::memory::cstr_len(buf.as_ptr());
         if len < 34 {
             buf[len..34].fill(b' ');
             buf[34] = 0;
@@ -4085,7 +4085,7 @@ fn qf_buf_add_line(
         &mut *buf,
         lnum,
         crate::memory::cstr_slice(
-            gap.as_mut_ptr().cast(),
+            gap.as_mut_ptr(),
             (gap.len() as Colnr as usize).saturating_sub(1),
         ),
         gap.len() as Colnr,
@@ -4395,7 +4395,7 @@ pub fn ex_make(eap: &mut Exarg) {
         return;
     };
     let fname_ptr = fname.as_ptr().cast_mut();
-    os_remove(crate::memory::cstr_from_ptr((fname_ptr).cast()));
+    os_remove(crate::memory::cstr_from_ptr(fname_ptr));
 
     let cmd = make_get_fullcmd(eap.arg.as_cstr(), &fname);
 
@@ -4450,7 +4450,7 @@ pub fn ex_make(eap: &mut Exarg) {
     }
 
     decr_quickfix_busy();
-    os_remove(crate::memory::cstr_from_ptr((fname_ptr).cast()));
+    os_remove(crate::memory::cstr_from_ptr(fname_ptr));
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
@@ -5328,7 +5328,7 @@ fn vgr_process_files(
     let mut aborted = false;
     while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
         let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
-        let fname = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr((fname_exp).cast()));
+        let fname = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(fname_exp));
         let fname_cstr = fname.unwrap_or(c"");
         let now = os_time() as time_t;
         if now > seconds {

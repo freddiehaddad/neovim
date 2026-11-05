@@ -540,7 +540,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             bp.dbg_name = crate::memory::cstr_to_cstring(p);
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);
         } else {
-            let q = expand_env_save(crate::memory::cstr_from_ptr((p).cast()));
+            let q = expand_env_save(crate::memory::cstr_from_ptr(p));
             let p_exp = expand_env_save(&q);
             let raw_name = if p_exp.to_bytes().first().copied().unwrap_or(0) != b'*' {
                 fix_fname(Some(&p_exp))?

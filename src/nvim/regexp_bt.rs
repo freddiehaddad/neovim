@@ -873,7 +873,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
         } else {
             // fallthrough to character classes
             let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
                 no_magic(c),
             )
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -927,7 +927,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 || x == magic_fn(b'U' as i32)
         ) {
             let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
                 no_magic(c),
             )
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -2276,7 +2276,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
     let do_class =
         |mask: i16, testval: i16, scan: &mut crate::regexp::RegLinePtr, count: &mut i64| {
             while *count < maxcount {
-                let b0 = crate::memory::cstr_first_byte((*scan).cast());
+                let b0 = crate::memory::cstr_first_byte(*scan);
                 if b0 == NUL {
                     if !reg_multi()
                         || !with_nl(op)
@@ -2311,7 +2311,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
 
     if op == ANY || op == ANY + ADD_NL {
         while count < maxcount {
-            while crate::memory::cstr_first_byte(scan.cast()) != NUL && count < maxcount {
+            while crate::memory::cstr_first_byte(scan) != NUL && count < maxcount {
                 count += 1;
                 let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
@@ -2336,7 +2336,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             testval = 1;
         }
         while count < maxcount {
-            let b0 = crate::memory::cstr_first_byte(scan.cast());
+            let b0 = crate::memory::cstr_first_byte(scan);
             if vim_is_idc(utf_ptr2char(scan)) && (testval != 0 || !ascii_isdigit(b0 as i32)) {
                 let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
@@ -2365,11 +2365,9 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             testval = 1;
         }
         while count < maxcount {
-            let b0 = crate::memory::cstr_first_byte(scan.cast());
-            if vim_iswordp_buf(
-                crate::memory::cstr_as_bytes(scan.cast()),
-                re_st().rex.buf_mut(),
-            ) && (testval != 0 || !ascii_isdigit(b0 as i32))
+            let b0 = crate::memory::cstr_first_byte(scan);
+            if vim_iswordp_buf(crate::memory::cstr_as_bytes(scan), re_st().rex.buf_mut())
+                && (testval != 0 || !ascii_isdigit(b0 as i32))
             {
                 let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
@@ -2398,7 +2396,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             testval = 1;
         }
         while count < maxcount {
-            let b0 = crate::memory::cstr_first_byte(scan.cast());
+            let b0 = crate::memory::cstr_first_byte(scan);
             if vim_isfilec(utf_ptr2char(scan)) && (testval != 0 || !ascii_isdigit(b0 as i32)) {
                 let step = utfc_ptr2len(scan) as usize;
                 scan = scan.wrapping_add(step);
@@ -2427,7 +2425,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             testval = 1;
         }
         while count < maxcount {
-            let b0 = crate::memory::cstr_first_byte(scan.cast());
+            let b0 = crate::memory::cstr_first_byte(scan);
             if b0 == NUL {
                 if !reg_multi()
                     || !with_nl(op)
@@ -2495,7 +2493,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
             let cu = mb_toupper(opnd_b0 as i32);
             let cl = mb_tolower(opnd_b0 as i32);
             while count < maxcount {
-                let sb = crate::memory::cstr_first_byte(scan.cast()) as i32;
+                let sb = crate::memory::cstr_first_byte(scan) as i32;
                 if sb != cu && sb != cl {
                     break;
                 }
@@ -2503,7 +2501,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 scan = scan.wrapping_add(1);
             }
         } else {
-            while count < maxcount && crate::memory::cstr_first_byte(scan.cast()) == opnd_b0 {
+            while count < maxcount && crate::memory::cstr_first_byte(scan) == opnd_b0 {
                 count += 1;
                 scan = scan.wrapping_add(1);
             }
@@ -2517,7 +2515,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
                 0
             };
             while count < maxcount && (utfc_ptr2len(scan) as usize) >= len {
-                let scan_slice = crate::memory::cstr_slice(scan.cast(), len);
+                let scan_slice = crate::memory::cstr_slice(scan, len);
                 if scan_slice != &opnd[..len]
                     && (!re_st().rex.reg_ic || utf_fold(utf_ptr2char(scan)) != cf)
                 {
@@ -2531,7 +2529,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         let is_anyof = op == ANYOF || op == ANYOF + ADD_NL;
         let opnd_cstr = crate::memory::cstr_until_nul(opnd);
         while count < maxcount {
-            let b0 = crate::memory::cstr_first_byte(scan.cast());
+            let b0 = crate::memory::cstr_first_byte(scan);
             if b0 == NUL {
                 if !reg_multi()
                     || !with_nl(op)
@@ -2565,7 +2563,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         }
     } else if op == NEWL {
         while count < maxcount {
-            let b0 = crate::memory::cstr_first_byte(scan.cast());
+            let b0 = crate::memory::cstr_first_byte(scan);
             if !((b0 == NUL
                 && re_st().rex.lnum <= re_st().rex.reg_maxline
                 && !re_st().rex.reg_line_lbr
@@ -3274,7 +3272,7 @@ fn regmatch(
                                 len = crate::memory::ptr_offset_from(end_no, start_no) as i32;
 
                                 if cstrncmp(
-                                    crate::memory::cstr_as_bytes(start_no.cast()),
+                                    crate::memory::cstr_as_bytes(start_no),
                                     re_st().rex.input.as_bytes(),
                                     &mut len,
                                 ) != 0
@@ -3920,7 +3918,7 @@ fn regtry(
                 let ezp = re_st().reg_endzp[i];
                 if !szp.is_null() && !ezp.is_null() {
                     extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
-                        szp.cast(),
+                        szp,
                         crate::memory::ptr_offset_from(ezp, szp) as usize,
                     ));
                 }
@@ -3988,19 +3986,14 @@ fn bt_regexec_both(
         let mut s = line.as_ptr().wrapping_add(col as usize);
         if !re_st().rex.reg_ic {
             loop {
-                s = vim_strchr(crate::memory::cstr_from_ptr(s.cast()), c)
+                s = vim_strchr(crate::memory::cstr_from_ptr(s), c)
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
                     .cast();
                 if s.is_null() {
                     break;
                 }
                 let mut len = prog.regmlen;
-                if cstrncmp(
-                    crate::memory::cstr_as_bytes(s.cast()),
-                    regmust_slice,
-                    &mut len,
-                ) == 0
-                {
+                if cstrncmp(crate::memory::cstr_as_bytes(s), regmust_slice, &mut len) == 0 {
                     break;
                 }
                 let step = utfc_ptr2len(s) as usize;
@@ -4008,19 +4001,14 @@ fn bt_regexec_both(
             }
         } else {
             loop {
-                let s_cstr = crate::memory::cstr_from_ptr(s.cast());
+                let s_cstr = crate::memory::cstr_from_ptr(s);
                 let Some(found_off) = cstrchr(s_cstr, c) else {
                     s = ptr::null_mut();
                     break;
                 };
                 s = s.wrapping_add(found_off);
                 let mut len = prog.regmlen;
-                if cstrncmp(
-                    crate::memory::cstr_as_bytes(s.cast()),
-                    regmust_slice,
-                    &mut len,
-                ) == 0
-                {
+                if cstrncmp(crate::memory::cstr_as_bytes(s), regmust_slice, &mut len) == 0 {
                     break;
                 }
                 let step = utfc_ptr2len(s) as usize;

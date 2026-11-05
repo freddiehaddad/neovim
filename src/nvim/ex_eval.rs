@@ -503,7 +503,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
 
     if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
         let save_msg_silent = g_st().msg_silent;
-        let saved_iobuff = crate::memory::cstr_to_cstring(ptr::addr_of!(g_st().iobuff).cast());
+        let saved_iobuff = crate::memory::cstr_to_cstring(ptr::addr_of!(g_st().iobuff));
         if g_st().debug_break_level > 0 {
             g_st().msg_silent = 0;
         } else {
@@ -985,7 +985,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
     };
 
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = Some(gettext(crate::memory::cstr_from_ptr((err).cast())));
+        eap.errmsg = Some(gettext(crate::memory::cstr_from_ptr(err)));
     } else {
         let mut fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & csf) == 0 {
@@ -1005,7 +1005,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
             while idx > 0 {
                 fl = cstack.cs_flags[idx as usize];
                 if (fl & CSF_TRY) != 0 && (fl & CSF_FINALLY) == 0 {
-                    eap.errmsg = Some(gettext(crate::memory::cstr_from_ptr((err).cast())));
+                    eap.errmsg = Some(gettext(crate::memory::cstr_from_ptr(err)));
                     return;
                 }
                 if (fl & csf) != 0 {

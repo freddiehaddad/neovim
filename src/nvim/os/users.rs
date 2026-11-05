@@ -130,10 +130,7 @@ fn collect_usernames() -> Vec<CString> {
                 break;
             }
             let pw = &mut *pw;
-            add_user(
-                &mut users,
-                crate::memory::cstr_as_opt_cstr(pw.pw_name.cast()),
-            );
+            add_user(&mut users, crate::memory::cstr_as_opt_cstr(pw.pw_name));
         }
         endpwent();
 
@@ -146,10 +143,7 @@ fn collect_usernames() -> Vec<CString> {
             if !found {
                 let pw = getpwnam(user_env.as_ptr().cast());
                 if !pw.is_null() {
-                    add_user(
-                        &mut users,
-                        crate::memory::cstr_as_opt_cstr((*pw).pw_name.cast()),
-                    );
+                    add_user(&mut users, crate::memory::cstr_as_opt_cstr((*pw).pw_name));
                 }
             }
         }
@@ -214,10 +208,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            crate::memory::copy_bytes_to_c_buf(
-                s,
-                crate::memory::cstr_as_bytes((*pw).pw_name.cast()),
-            );
+            crate::memory::copy_bytes_to_c_buf(s, crate::memory::cstr_as_bytes((*pw).pw_name));
             return true;
         }
     }
@@ -234,7 +225,7 @@ pub fn os_get_userdir(name: Option<&CStr>) -> Option<CString> {
         let name = name.filter(|s| !s.to_bytes().is_empty())?;
         let pw = getpwnam(name.as_ptr().cast());
         if !pw.is_null() && !(*pw).pw_dir.is_null() {
-            return Some(crate::memory::cstr_to_cstring((*pw).pw_dir.cast()));
+            return Some(crate::memory::cstr_to_cstring((*pw).pw_dir));
         }
     }
     #[cfg(not(unix))]

@@ -673,7 +673,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr().cast()),
+            crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr()),
             true,
         );
         if (flags & SIN_NOMARK) == 0 {
@@ -849,11 +849,8 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                         let end_ptr = regmatch.endp[0];
                         let mut indent: i32 = 0;
                         while ptr_cur < end_ptr {
-                            indent += win_chartabsize(
-                                wp,
-                                crate::memory::cstr_as_bytes(ptr_cur.cast()),
-                                indent,
-                            );
+                            indent +=
+                                win_chartabsize(wp, crate::memory::cstr_as_bytes(ptr_cur), indent);
                             ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur) as usize);
                         }
                         ind_st().prev_indent = indent;
@@ -1168,8 +1165,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                 0,
                 crate::memory::cstr_from_ptr(line),
             );
-            let mut ci: StrCharInfo =
-                utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+            let mut ci: StrCharInfo = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
@@ -1239,7 +1235,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_as_bytes(orig_line.as_mut_ptr().cast()),
+            crate::memory::cstr_as_bytes(orig_line.as_mut_ptr()),
             true,
         );
         curwin_mut().w_cursor.col = orig_col;
@@ -1320,7 +1316,7 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
 
     ml_replace(
         curwin_mut().w_cursor.lnum,
-        crate::memory::cstr_as_bytes(line_vec.as_mut_ptr().cast()),
+        crate::memory::cstr_as_bytes(line_vec.as_mut_ptr()),
         true,
     );
     drop(line_vec);
@@ -1457,7 +1453,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
                         new_line = new_line_vec.as_mut_ptr().cast();
 
-                        if ml_replace(lnum, crate::memory::cstr_as_bytes((new_line).cast()), true) {
+                        if ml_replace(lnum, crate::memory::cstr_as_bytes(new_line), true) {
                             new_line = curbuf_mut().b_ml.ml_line_slice.as_ptr().cast_mut().cast();
                             extmark_splice_cols(
                                 curbuf_mut(),
@@ -1679,8 +1675,7 @@ pub fn get_lisp_indent() -> i32 {
                 crate::memory::cstr_from_ptr(line),
             );
 
-            let mut sci: StrCharInfo =
-                utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+            let mut sci: StrCharInfo = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
             amount = 0;
             while !crate::memory::cstr_is_empty(sci.ptr) && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);

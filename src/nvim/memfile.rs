@@ -609,10 +609,7 @@ fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bo
     {
         let mut file_info = FileInfo::new();
         if (flags & O_CREAT) != 0
-            && os_fileinfo_link(
-                crate::memory::cstr_from_ptr((fname_ptr).cast()),
-                &mut file_info,
-            )
+            && os_fileinfo_link(crate::memory::cstr_from_ptr(fname_ptr), &mut file_info)
         {
             mfp.mf_fd = -1;
             emsg(gettext(c"E300: Swap file already exists (symlink attack?)"));
@@ -620,7 +617,7 @@ fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bo
             flags |= O_NOFOLLOW;
             mfp.mf_flags = flags;
             mfp.mf_fd = os_open(
-                crate::memory::cstr_from_ptr((fname_ptr).cast()),
+                crate::memory::cstr_from_ptr(fname_ptr),
                 flags,
                 S_IREAD | S_IWRITE,
             );

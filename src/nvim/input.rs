@@ -1305,7 +1305,7 @@ pub fn openscript(name: &CStr, directly: bool) {
         let cur_idx = inp_st().curscript as usize;
         let error = file_open(
             &mut inp_st().scriptin[cur_idx],
-            crate::memory::cstr_as_opt_cstr(namebuff_ptr.cast()),
+            crate::memory::cstr_as_opt_cstr(namebuff_ptr),
             K_FILE_READ_ONLY,
             0,
         );
@@ -2525,9 +2525,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     curwin_mut().w_cursor.lnum,
                                     crate::memory::cstr_from_ptr(ptr),
                                 );
-                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(
-                                    crate::memory::cstr_from_ptr((ptr).cast()),
-                                );
+                                let mut ci: StrCharInfo =
+                                    utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(ptr));
                                 let mut vcol: i32 = 0;
                                 while ci.ptr < endptr.cast_const() {
                                     if !ascii_iswhite(ci.chr.value) {

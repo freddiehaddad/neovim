@@ -587,12 +587,12 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             curwin_mut().w_cursor.lnum,
             bd.textstart,
         );
-        while ascii_iswhite(i32::from(crate::memory::cstr_first_byte(non_white.cast()))) {
+        while ascii_iswhite(i32::from(crate::memory::cstr_first_byte(non_white))) {
             let incr = win_charsize(
                 cstype,
                 non_white_col,
-                crate::memory::cstr_slice(non_white.cast(), 1),
-                i32::from(crate::memory::cstr_first_byte(non_white.cast())),
+                crate::memory::cstr_slice(non_white, 1),
+                i32::from(crate::memory::cstr_first_byte(non_white)),
                 &mut csarg,
                 1,
             )
@@ -612,8 +612,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             verbatim_copy_width -= bd.start_char_vcols;
         }
         cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart);
-        let mut ci =
-            utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((verbatim_copy_end).cast()));
+        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(verbatim_copy_end));
         while verbatim_copy_width < destination_col {
             let cli = utf_cluster_info(ci);
             let incr = win_charsize(
@@ -653,13 +652,13 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         newlen = fill;
         newp_vec[..fixed_usize].copy_from_slice(crate::memory::cstr_slice(oldp, fixed_usize));
         newp_vec[fixed_usize..prefix_len].fill(b' ');
-        let tail = crate::memory::cstr_as_bytes(non_white.cast());
+        let tail = crate::memory::cstr_as_bytes(non_white);
         newp_vec[prefix_len..prefix_len + tail.len()].copy_from_slice(tail);
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
     }
     ml_replace(
         curwin_mut().w_cursor.lnum,
-        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
         true,
     );
     drop(newp_vec);
@@ -776,7 +775,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
 
             ml_replace(
                 lnum,
-                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
                 true,
             );
             drop(newp_vec);
@@ -938,7 +937,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 newp_vec[textcol + pad_len..textcol + pad_len + tail.len()].copy_from_slice(tail);
                 ml_replace(
                     lnum,
-                    crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                    crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
                     true,
                 );
                 drop(newp_vec);
@@ -1282,7 +1281,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             }
             ml_replace(
                 curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
                 true,
             );
             drop(newp_vec);
@@ -1294,7 +1293,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 ml_append(
                     cur_lnum,
                     crate::memory::cstr_slice(
-                        after_p.as_mut_ptr().cast(),
+                        after_p.as_mut_ptr(),
                         (after_p.len() as i32 as usize).saturating_sub(1),
                     ),
                     after_p.len() as i32,
@@ -1721,7 +1720,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
         len -= add;
         let ins_len = len - pre_textlen - offset;
         if pre_textlen >= 0 && ins_len > 0 {
-            let ins_text = crate::memory::cstr_slice(firstline.cast(), ins_len as usize).to_vec();
+            let ins_text = crate::memory::cstr_slice(firstline, ins_len as usize).to_vec();
             if u_save(oap.start.lnum, oap.end.lnum + 1) {
                 block_insert(oap, &ins_text, oap.op_type == OP_INSERT, &mut bd);
             }
@@ -1823,7 +1822,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     newp_vec[newlen..newlen + tail.len()].copy_from_slice(tail);
                     ml_replace(
                         linenr,
-                        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr()),
                         true,
                     );
                     drop(newp_vec);
@@ -2100,7 +2099,7 @@ pub fn do_join(
 
         ml_replace_len(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_slice(newp_vec.as_ptr().cast(), newp_len),
+            crate::memory::cstr_slice(newp_vec.as_ptr(), newp_len),
             newp_len,
             true,
         );
@@ -2189,7 +2188,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         lnum,
         crate::memory::cstr_from_ptr(line),
     );
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
@@ -2243,7 +2242,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 lnum,
                 crate::memory::cstr_from_ptr(line),
             );
-            ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((pend).cast()));
+            ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(pend));
             vcol = bdp.end_vcol;
             let mut prev_pend = pend;
             while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
@@ -3154,7 +3153,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     len = end_col;
                 }
                 if !s.is_null() {
-                    let s_bytes = crate::memory::cstr_as_bytes(s.cast());
+                    let s_bytes = crate::memory::cstr_as_bytes(s);
                     byte_count_cursor += line_count_info(
                         s_bytes,
                         &mut word_count_cursor,

@@ -1299,8 +1299,8 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
                 };
                 if mb_strcmp_ic(
                     syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_ic,
-                    crate::memory::cstr_from_ptr((bs_m.as_ptr()).cast()),
-                    crate::memory::cstr_from_ptr((si_m.as_ptr()).cast()),
+                    crate::memory::cstr_from_ptr(bs_m.as_ptr()),
+                    crate::memory::cstr_from_ptr(si_m.as_ptr()),
                 ) != 0
                 {
                     break;
@@ -2554,7 +2554,7 @@ fn check_keyword_id(
     if kp.is_none() && !syn_block_mut().b_keywtab_ic.is_empty() {
         let mut keyword = [0u8; MAXKEYWLEN + 1];
         str_foldcase(&kwp[..kwlen], Some(&mut keyword));
-        let folded_len = crate::memory::cstr_len(keyword.as_ptr().cast());
+        let folded_len = crate::memory::cstr_len(keyword.as_ptr());
         kp = match_keyword(
             &keyword[..folded_len],
             &syn_block_mut().b_keywtab_ic,
@@ -3436,7 +3436,7 @@ fn add_keyword(
     let mut name_folded = [0u8; MAXKEYWLEN + 1];
     let kw_vec: &[u8] = if win_s(curwin_mut()).b_syn_ic {
         str_foldcase(name, Some(&mut name_folded));
-        &name_folded[..crate::memory::cstr_len(name_folded.as_ptr().cast())]
+        &name_folded[..crate::memory::cstr_len(name_folded.as_ptr())]
     } else {
         name
     };
@@ -3517,8 +3517,8 @@ fn get_syn_options<'a>(
         }
 
         loop {
-            if crate::memory::cstr_is_empty(arg.cast())
-                || !FIRST_LETTERS.contains(&(crate::memory::cstr_first_byte(arg.cast())))
+            if crate::memory::cstr_is_empty(arg)
+                || !FIRST_LETTERS.contains(&(crate::memory::cstr_first_byte(arg)))
             {
                 break;
             }
@@ -3528,7 +3528,7 @@ fn get_syn_options<'a>(
             while fidx >= 0 {
                 let (p, argtype, flags) = FLAGTAB[fidx as usize];
                 let mut i: usize = 0;
-                let arg_bytes = crate::memory::cstr_as_bytes(arg.cast());
+                let arg_bytes = crate::memory::cstr_as_bytes(arg);
                 len = 0;
                 while p[i] != 0 {
                     let ch = arg_bytes.get(len).copied().unwrap_or(0);
@@ -3583,9 +3583,7 @@ fn get_syn_options<'a>(
                     return None;
                 }
                 arg = arg_cstr.as_ptr().cast_mut().cast();
-            } else if argtype == 11
-                && crate::memory::cstr_as_bytes(arg.cast()).get(5) == Some(&b'=')
-            {
+            } else if argtype == 11 && crate::memory::cstr_as_bytes(arg).get(5) == Some(&b'=') {
                 *conceal_char = utf_ptr2char(arg.wrapping_add(6));
                 arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6)) - 1) as isize);
                 if !vim_isprintc(*conceal_char) {
@@ -3611,7 +3609,7 @@ fn get_syn_options<'a>(
                         return None;
                     }
                     let gname_slice = crate::memory::cstr_slice(
-                        gname_start.cast(),
+                        gname_start,
                         crate::memory::ptr_offset_from(arg, gname_start) as usize,
                     );
                     let gname = std::ffi::CString::new(gname_slice).unwrap();
@@ -3797,19 +3795,19 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 let mut kwlen: usize;
                 'kw_loop: while cnt > 0 {
                     cnt -= 1;
-                    p = vim_strchr(crate::memory::cstr_from_ptr(kw.cast()), b'[' as i32)
+                    p = vim_strchr(crate::memory::cstr_from_ptr(kw), b'[' as i32)
                         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
                         .cast();
                     loop {
                         if p.is_null() {
-                            kwlen = crate::memory::cstr_len(kw.cast());
+                            kwlen = crate::memory::cstr_len(kw);
                         } else {
                             unsafe { *p = 0 };
 
                             kwlen = crate::memory::ptr_offset_from(p, kw) as usize;
                         }
                         add_keyword(
-                            crate::memory::cstr_slice(kw.cast(), kwlen),
+                            crate::memory::cstr_slice(kw, kwlen),
                             syn_id,
                             syn_opt_arg.flags,
                             &syn_opt_arg.cont_in_list,
@@ -3819,7 +3817,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if p.is_null() {
                             break;
                         }
-                        let after_p = crate::memory::cstr_as_bytes(p.wrapping_add(1).cast());
+                        let after_p = crate::memory::cstr_as_bytes(p.wrapping_add(1));
                         if after_p.is_empty() {
                             semsg!(
                                 gettext(c"E789: Missing ']': %s"),
@@ -4324,7 +4322,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         .as_ptr()
         .cast_mut()
         .cast::<u8>();
-        if crate::memory::cstr_first_byte(end.cast()) != delim {
+        if crate::memory::cstr_first_byte(end) != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
                 arg.cast::<std::ffi::c_void>(),
@@ -4332,7 +4330,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             return None;
         }
         let pat_slice = crate::memory::cstr_slice(
-            arg.wrapping_add(1).cast(),
+            arg.wrapping_add(1),
             crate::memory::ptr_offset_from(end, arg) as usize - 1,
         );
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
@@ -4348,7 +4346,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
 
         end = end.wrapping_add(1);
         loop {
-            let end_bytes = crate::memory::cstr_as_bytes(end.cast());
+            let end_bytes = crate::memory::cstr_as_bytes(end);
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
                 if end_bytes.starts_with(SPO_NAME_TAB[idx as usize].to_bytes()) {
@@ -4391,7 +4389,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
                             end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
                         }
                     }
-                    if crate::memory::cstr_first_byte(end.cast()) != b',' {
+                    if crate::memory::cstr_first_byte(end) != b',' {
                         break;
                     }
                     end = end.wrapping_add(1);
@@ -4402,8 +4400,8 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             }
         }
 
-        if ends_excmd(crate::memory::cstr_first_byte(end.cast())) == 0
-            && !ascii_iswhite(crate::memory::cstr_first_byte(end.cast()))
+        if ends_excmd(crate::memory::cstr_first_byte(end)) == 0
+            && !ascii_iswhite(crate::memory::cstr_first_byte(end))
         {
             semsg!(
                 gettext(c"E402: Garbage after pattern: %s"),
@@ -4585,7 +4583,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     .cast::<std::ffi::c_char>(),
             )
             .cast();
-            if crate::memory::cstr_first_byte(p.cast()) != b'=' {
+            if crate::memory::cstr_first_byte(p) != b'=' {
                 semsg!(
                     gettext(c"E405: Missing equal sign: %s"),
                     arg_ptr.cast::<std::ffi::c_void>()
@@ -4593,7 +4591,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                 break;
             }
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
-            if ends_excmd(crate::memory::cstr_first_byte(p.cast())) != 0 {
+            if ends_excmd(crate::memory::cstr_first_byte(p)) != 0 {
                 semsg!(
                     gettext(c"E406: Empty argument: %s"),
                     arg_ptr.cast::<std::ffi::c_void>()
@@ -4604,22 +4602,21 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             let mut count: i32 = 0;
             loop {
                 let mut end = p;
-                while !crate::memory::cstr_is_empty(end.cast())
-                    && !ascii_iswhite(crate::memory::cstr_first_byte(end.cast()))
-                    && crate::memory::cstr_first_byte(end.cast()) != b','
+                while !crate::memory::cstr_is_empty(end)
+                    && !ascii_iswhite(crate::memory::cstr_first_byte(end))
+                    && crate::memory::cstr_first_byte(end) != b','
                 {
                     end = end.wrapping_add(1);
                 }
                 let item_len = crate::memory::ptr_offset_from(end, p) as usize;
                 let mut name_buf = vec![0u8; item_len + 3];
-                name_buf[1..=item_len]
-                    .copy_from_slice(crate::memory::cstr_slice(p.cast(), item_len));
+                name_buf[1..=item_len].copy_from_slice(crate::memory::cstr_slice(p, item_len));
                 let name = name_buf.as_mut_ptr();
                 let mut id: i32;
-                if (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"ALLBUT")
-                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"ALL")
-                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"TOP")
-                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"CONTAINED")
+                if (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"ALLBUT")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"ALL")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"TOP")
+                    || (crate::memory::cstr_as_bytes(name.wrapping_add(1)) == b"CONTAINED")
                 {
                     if !unsafe { *arg_ptr }.eq_ignore_ascii_case(&b'C') {
                         semsg!(
@@ -4650,16 +4647,16 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                         id = -1;
                     } else {
                         id = syn_check_cluster(crate::memory::cstr_slice(
-                            name.wrapping_add(2).cast(),
+                            name.wrapping_add(2),
                             crate::memory::ptr_offset_from(end, p).max(1) as usize - 1,
                         ));
                     }
-                } else if !crate::memory::cstr_as_bytes(name.wrapping_add(1).cast())
+                } else if !crate::memory::cstr_as_bytes(name.wrapping_add(1))
                     .iter()
                     .any(|b| b"\\.*^$~[".contains(b))
                 {
                     id = syn_check_group(crate::memory::cstr_slice(
-                        name.wrapping_add(1).cast(),
+                        name.wrapping_add(1),
                         crate::memory::ptr_offset_from(end, p) as usize,
                     ));
                 } else {
@@ -4716,12 +4713,12 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     count += 1;
                 }
                 p = crate::charset::skipwhite_ptr(end.cast::<std::ffi::c_char>()).cast();
-                if crate::memory::cstr_first_byte(p.cast()) != b',' {
+                if crate::memory::cstr_first_byte(p) != b',' {
                     break;
                 }
                 p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>())
                     .cast();
-                if ends_excmd(crate::memory::cstr_first_byte(p.cast())) != 0 {
+                if ends_excmd(crate::memory::cstr_first_byte(p)) != 0 {
                     break;
                 }
             }

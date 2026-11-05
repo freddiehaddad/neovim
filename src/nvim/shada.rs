@@ -801,8 +801,8 @@ impl PartialEq for PathKey {
         }
         path_cmp(
             CASE_INSENSITIVE_FILENAME,
-            crate::memory::cstr_from_ptr(self.0.cast()),
-            crate::memory::cstr_from_ptr(other.0.cast()),
+            crate::memory::cstr_from_ptr(self.0),
+            crate::memory::cstr_from_ptr(other.0),
             MAXPATHL,
         ) == 0
     }
@@ -815,14 +815,14 @@ impl std::hash::Hash for PathKey {
         let mut p = self.0;
         let mut h: u32 = 0;
         if cfg!(target_os = "windows") {
-            let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+            let p_bytes = crate::memory::cstr_as_bytes(p);
             if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
             {
                 p = p.wrapping_add(2);
             }
         }
         let ic = CASE_INSENSITIVE_FILENAME;
-        let bytes = crate::memory::cstr_as_bytes(p.cast());
+        let bytes = crate::memory::cstr_as_bytes(p);
         let mut idx = 0usize;
         let mut len: i32 = 0;
         while idx < bytes.len() {
@@ -1447,7 +1447,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     .unwrap_or_default()
                     .into_bytes_with_nul();
                 let final_sub = regtilde(&mut sub_bytes, i32::from(opt_vars().p_magic), false)
-                    .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast())));
+                    .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr())));
                 sub_set_replacement(SubReplacementString {
                     sub: final_sub,
                     timestamp: cur_entry.timestamp,
@@ -1584,8 +1584,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         .fname
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let sfname =
-                        path_try_shorten_fname(crate::memory::cstr_as_opt_cstr((fname_ptr).cast()));
+                    let sfname = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(fname_ptr));
                     if let Some(buf) = buflist_new(
                         crate::memory::cstr_as_opt_cstr(fname_ptr),
                         sfname,
@@ -2278,7 +2277,7 @@ fn shada_read_when_writing(
                             for buf in for_all_buffers_mut() {
                                 if buf.b_ffname.is_some()
                                     && path_equal(
-                                        crate::memory::cstr_from_ptr((fname_ptr).cast()),
+                                        crate::memory::cstr_from_ptr(fname_ptr),
                                         buf.ffname_cstr(),
                                         K_PATH_CMP_LITERAL,
                                     )
@@ -3174,7 +3173,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
     if !nomerge {
         let error = file_open(
             &mut sd_reader,
-            crate::memory::cstr_as_opt_cstr(fname.cast()),
+            crate::memory::cstr_as_opt_cstr(fname),
             K_FILE_READ_ONLY,
             0,
         );
@@ -3193,13 +3192,13 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         }
     }
 
-    let mut perm = os_getperm(crate::memory::cstr_from_ptr(fname.cast()));
+    let mut perm = os_getperm(crate::memory::cstr_from_ptr(fname));
     perm = if perm >= 0 {
         (perm & 0o777) | 0o600
     } else {
         0o600
     };
-    let tempname_opt = if os_file_mkdir(crate::memory::cstr_from_ptr(fname.cast()), 0o700) == 0 {
+    let tempname_opt = if os_file_mkdir(crate::memory::cstr_from_ptr(fname), 0o700) == 0 {
         shada_open_tmp(&fname_bytes, &mut sd_writer, perm)
     } else {
         None
@@ -3250,7 +3249,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         #[cfg(not(unix))]
         let unix_not_writable = |_info: &FileInfo| -> bool { false };
 
-        if os_fileinfo(crate::memory::cstr_from_ptr((fname).cast()), &mut old_info) {
+        if os_fileinfo(crate::memory::cstr_from_ptr(fname), &mut old_info) {
             if (old_info.stat.st_mode & S_IFMT) == S_IFDIR || unix_not_writable(&old_info) {
                 semsg!(gettext(c"E137: ShaDa file is not writable: %s"), fname,);
                 can_rename = false;
@@ -3289,7 +3288,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                 );
             } else {
                 did_remove = true;
-                os_remove(crate::memory::cstr_from_ptr((tempname).cast()));
+                os_remove(crate::memory::cstr_from_ptr(tempname));
             }
         }
     } else if sw_ret == ShaDaWriteResult::SDWriteReadNotShada {
@@ -4080,8 +4079,8 @@ fn shada_removable(name: &CStr) -> bool {
                 true,
             );
             if mb_strnicmp(
-                crate::memory::cstr_as_bytes((name_buff_ptr).cast()),
-                crate::memory::cstr_as_bytes((new_name.as_ptr()).cast()),
+                crate::memory::cstr_as_bytes(name_buff_ptr),
+                crate::memory::cstr_as_bytes(new_name.as_ptr()),
                 n,
             ) == 0
             {

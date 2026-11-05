@@ -55,7 +55,7 @@ pub fn os_libcall(
 
             let addr = res as isize;
             *out = if !res.is_null() && addr != 1 && addr != -1 {
-                Some(cstr_to_cstring(res.cast()))
+                Some(cstr_to_cstring(res))
             } else {
                 None
             };

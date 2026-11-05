@@ -875,7 +875,7 @@ mod tests {
         {
             assert!((crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"local")));
             assert!(!(crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"global")));
-            assert!(crate::memory::cstr_as_opt_bytes(std::ptr::null()).is_none());
+            assert!(crate::memory::cstr_as_opt_bytes(std::ptr::null::<u8>()).is_none());
         }
     }
 }

@@ -427,7 +427,7 @@ fn showmap(mp: &Mapblock, local: bool) {
     let mut mapchars = [0u8; 7];
     map_mode_to_chars(mp.m_mode, &mut mapchars);
     msg_puts(crate::memory::cstr_until_nul(&mapchars));
-    let mut len = crate::memory::cstr_len(mapchars.as_ptr().cast());
+    let mut len = crate::memory::cstr_len(mapchars.as_ptr());
 
     loop {
         len += 1;
@@ -559,7 +559,7 @@ fn set_maparg_rhs(
             KE_LUA as i32,
             map_st().map_luaid,
         ) as usize;
-        mapargs.rhs = Some(crate::memory::cstr_to_cstring(tmp_buf.as_ptr().cast()));
+        mapargs.rhs = Some(crate::memory::cstr_to_cstring(tmp_buf.as_ptr()));
     }
 }
 
@@ -800,18 +800,18 @@ fn buf_do_map(
                     let mut same: i32 = -1;
                     let mut keys_unescaped = [0u8; MAXMAPLEN + 1];
                     keys_unescaped[..len as usize]
-                        .copy_from_slice(crate::memory::cstr_slice(lhs.cast(), len as usize));
+                        .copy_from_slice(crate::memory::cstr_slice(lhs, len as usize));
                     let keys_unescaped_len = vim_unescape_ks(&mut keys_unescaped);
                     let mut p = keys_unescaped.as_ptr();
                     let end_p = p.wrapping_add(keys_unescaped_len);
 
-                    let first = vim_iswordp(crate::memory::cstr_as_bytes(p.cast()));
+                    let first = vim_iswordp(crate::memory::cstr_as_bytes(p));
                     let mut last = first;
                     p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     let mut n: i32 = 1;
                     while (p as usize) < (end_p as usize) {
                         n += 1;
-                        last = vim_iswordp(crate::memory::cstr_as_bytes(p.cast()));
+                        last = vim_iswordp(crate::memory::cstr_as_bytes(p));
                         if same == -1 && last != first {
                             same = n - 1;
                         }
@@ -822,7 +822,7 @@ fn buf_do_map(
                         break 'outer;
                     }
 
-                    for &b in crate::memory::cstr_slice(lhs.cast(), len as usize) {
+                    for &b in crate::memory::cstr_slice(lhs, len as usize) {
                         if ascii_iswhite(i32::from(b)) {
                             retval = 1;
                             break 'outer;
@@ -840,7 +840,7 @@ fn buf_do_map(
             }
 
             if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
-                let lhs_slice = crate::memory::cstr_slice(lhs.cast(), len as usize);
+                let lhs_slice = crate::memory::cstr_slice(lhs, len as usize);
                 for bucket in get_map_buckets(None, is_abbrev) {
                     if g_st().got_int {
                         break;
@@ -877,7 +877,7 @@ fn buf_do_map(
                                 let n = mp.m_keylen;
                                 let cmp_len = n.min(len) as usize;
                                 let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
-                                let lhs_slice = crate::memory::cstr_slice(lhs.cast(), cmp_len);
+                                let lhs_slice = crate::memory::cstr_slice(lhs, cmp_len);
                                 if mp_slice == lhs_slice {
                                     showmap(mp, true);
                                     did_local = true;
@@ -901,7 +901,7 @@ fn buf_do_map(
                     let start = if is_abbrev {
                         0
                     } else {
-                        map_hash(mode, crate::memory::cstr_first_byte(lhs.cast()))
+                        map_hash(mode, crate::memory::cstr_first_byte(lhs))
                     };
                     (start, start + 1)
                 } else {
@@ -933,7 +933,7 @@ fn buf_do_map(
                             };
                             let cmp_len = n.min(len) as usize;
                             let p_slice = crate::memory::cstr_slice(p, cmp_len);
-                            let lhs_slice = crate::memory::cstr_slice(lhs.cast(), cmp_len);
+                            let lhs_slice = crate::memory::cstr_slice(lhs, cmp_len);
                             if p_slice == lhs_slice {
                                 if maptype == MAPTYPE_UNMAP {
                                     if n != len
@@ -1022,7 +1022,7 @@ fn buf_do_map(
                     if !keyround1_simplified {
                         retval = 2;
                     }
-                } else if crate::memory::cstr_first_byte(lhs.cast()) == CTRL_C_CONST {
+                } else if crate::memory::cstr_first_byte(lhs) == CTRL_C_CONST {
                     if local {
                         buf.b_mapped_ctrl_c &= !mode;
                     } else {
@@ -1050,7 +1050,7 @@ fn buf_do_map(
             map_add(
                 buf,
                 local,
-                crate::memory::cstr_from_ptr(lhs.cast()),
+                crate::memory::cstr_from_ptr(lhs),
                 args,
                 noremap,
                 mode,
@@ -1326,7 +1326,7 @@ pub fn set_context_in_map_cmd(
         xp.xp_context = EXPAND_MAPPINGS;
         map_st().expand_buffer = false;
         loop {
-            let bytes = crate::memory::cstr_as_bytes(arg.cast());
+            let bytes = crate::memory::cstr_as_bytes(arg);
             if bytes.starts_with(b"<buffer>") {
                 map_st().expand_buffer = true;
                 arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
@@ -1507,24 +1507,21 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 _p
             }
         };
-        let vim_abbr = if !vim_iswordp(crate::memory::cstr_as_bytes(p.cast())) {
+        let vim_abbr = if !vim_iswordp(crate::memory::cstr_as_bytes(p)) {
             true
         } else {
             if (p as usize) > (ptr_arg as usize) {
-                is_id = vim_iswordp(crate::memory::cstr_as_bytes(
-                    {
-                        let _l = ptr_arg;
-                        let _p = p;
-                        if (_p as usize) > (_l as usize) {
-                            _p.wrapping_sub(
-                                1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                            )
-                        } else {
-                            _p
-                        }
+                is_id = vim_iswordp(crate::memory::cstr_as_bytes({
+                    let _l = ptr_arg;
+                    let _p = p;
+                    if (_p as usize) > (_l as usize) {
+                        _p.wrapping_sub(
+                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                        )
+                    } else {
+                        _p
                     }
-                    .cast(),
-                ));
+                }));
             }
             false
         };
@@ -1542,8 +1539,8 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     _p
                 }
             };
-            if ascii_isspace(crate::memory::cstr_first_byte(p.cast()) as i32)
-                || (!vim_abbr && is_id != vim_iswordp(crate::memory::cstr_as_bytes(p.cast())))
+            if ascii_isspace(crate::memory::cstr_first_byte(p) as i32)
+                || (!vim_abbr && is_id != vim_iswordp(crate::memory::cstr_as_bytes(p)))
             {
                 p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 break;
@@ -1573,8 +1570,8 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             }
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
-                && crate::memory::cstr_slice(q.cast(), len as usize)
-                    == crate::memory::cstr_slice(ptr_arg.cast(), len as usize);
+                && crate::memory::cstr_slice(q, len as usize)
+                    == crate::memory::cstr_slice(ptr_arg, len as usize);
             if match_found {
                 mp_opt = Some(cand);
                 break;
@@ -2100,7 +2097,7 @@ fn mapblock_fill_dict(
         put_c(
             &mut dict,
             c"lhsrawalt",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(alt_arena.cast())),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(alt_arena)),
         );
     }
     put_c(&mut dict, c"noremap", integer_obj(noremap_value));
@@ -2143,7 +2140,7 @@ fn mapblock_fill_dict(
     put_c(
         &mut dict,
         c"mode",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(mapmode.cast())),
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(mapmode)),
     );
     put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
     put_c(&mut dict, c"mode_bits", integer_obj(i64::from(mp.m_mode)));
@@ -2990,7 +2987,7 @@ mod tests {
         {
             let mut buf = [0u8; 16];
             map_mode_to_chars(MODE_NORMAL | MODE_VISUAL, &mut buf);
-            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr().cast()), b"nx");
+            assert_eq!(crate::memory::cstr_as_bytes(buf.as_ptr()), b"nx");
 
             langmap_init();
             assert_eq!(langmap_adjust_mb(b'a' as i32), b'a' as i32);

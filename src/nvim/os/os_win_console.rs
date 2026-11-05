@@ -342,7 +342,7 @@ pub fn os_icon_init() {
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
         let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast();
         vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
-        if !os_path_exists(crate::memory::cstr_from_ptr((namebuff).cast())) {
+        if !os_path_exists(crate::memory::cstr_from_ptr(namebuff)) {
             logmsg!(
                 LOGLVL_WRN,
                 None,

@@ -388,7 +388,7 @@ pub fn set_context_in_user_cmdarg<'a>(
     }
 
     if context == EXPAND_MENUS {
-        set_context_in_menu_cmd(xp, cmd, crate::memory::cstr_from_ptr(arg.cast()), forceit);
+        set_context_in_menu_cmd(xp, cmd, crate::memory::cstr_from_ptr(arg), forceit);
         return None;
     }
     if context == EXPAND_COMMANDS {
@@ -1352,7 +1352,7 @@ fn uc_split_args(eap: &Exarg, lenp: &mut usize) -> CString {
         }
     } else {
         for (i, (&arg_i, &arglen_i)) in eap.args.iter().zip(&eap.arglens).enumerate() {
-            let mut rem = crate::memory::cstr_slice(arg_i.cast(), arglen_i);
+            let mut rem = crate::memory::cstr_slice(arg_i, arglen_i);
             while !rem.is_empty() {
                 if matches!(rem[0], b'\\' | b'"') {
                     buf_vec.push(b'\\');
