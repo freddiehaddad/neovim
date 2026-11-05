@@ -3950,8 +3950,10 @@ fn bt_regexec_both(
     let prog: *mut BtRegprog = if reg_multi() {
         let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
         line = RegLinePtr::from_opt_cstr(reg_getline(0));
-        re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
-        re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
+        re_st().rex.reg_startpos =
+            crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().startpos);
+        re_st().rex.reg_endpos =
+            crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().endpos);
         p
     } else {
         re_st().rex.match_mut().prog_mut().bt_mut()
@@ -4132,8 +4134,8 @@ pub(super) fn bt_regexec_nl(
     col: Colnr,
     line_lbr: bool,
 ) -> i32 {
-    re_st().rex.reg_match = rmp;
-    re_st().rex.reg_mmatch = ptr::null_mut();
+    re_st().rex.reg_match = crate::globals::GraphPtr::from(&mut *rmp);
+    re_st().rex.reg_mmatch = crate::globals::GraphPtr::NULL;
     re_st().rex.reg_maxline = 0;
     re_st().rex.reg_line_lbr = line_lbr;
     re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);

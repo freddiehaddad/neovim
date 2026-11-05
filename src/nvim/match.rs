@@ -181,7 +181,7 @@ fn match_add(
         mit_priority: prio,
         mit_pattern: pat.map(std::ffi::CStr::to_owned),
         mit_match: Regmmatch {
-            regprog,
+            regprog: crate::globals::GraphPtr::new(regprog),
             startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; 10],
             endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; 10],
             rmm_matchcol: 0,
@@ -471,8 +471,8 @@ fn next_search_hl(
         if !shl.rm.regprog.is_null() {
             let regprog_is_copy = cur.is_some()
                 && ptr::eq(shl, &raw const cur.as_deref_mut().unwrap().mit_hl)
-                && cur.as_deref_mut().unwrap().mit_match.regprog
-                    == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
+                && cur.as_ref().unwrap().mit_match.regprog
+                    == cur.as_ref().unwrap().mit_hl.rm.regprog;
             let mut timed_out: i32 = 0;
 
             let shl_buf = shl.buf.borrow_mut();
@@ -494,7 +494,7 @@ fn next_search_hl(
                     shl.rm.free_prog();
                     set_no_hlsearch(true);
                 }
-                shl.rm.regprog = ptr::null_mut();
+                shl.rm.regprog = crate::globals::GraphPtr::NULL;
                 shl.lnum = 0;
                 g_st().got_int = false;
                 break;
@@ -538,10 +538,7 @@ pub fn prepare_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, lnum: L
         }
         let is_search_hl = ptr::eq(shl, &raw mut *search_hl);
         let shl = unsafe { &mut *shl };
-        if !shl.rm.regprog.is_null()
-            && shl.lnum == 0
-            && re_multiline(unsafe { &*shl.rm.regprog }) != 0
-        {
+        if !shl.rm.regprog.is_null() && shl.lnum == 0 && re_multiline(&shl.rm.regprog) != 0 {
             if shl.first_lnum == 0 {
                 shl.first_lnum = lnum;
                 while shl.first_lnum > wp.w_topline {

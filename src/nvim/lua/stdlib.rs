@@ -98,10 +98,10 @@ fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
 fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32 {
     let str_ptr = str_.as_ptr();
     let mut rm: Regmatch = Regmatch::new();
-    rm.regprog = regex.prog;
+    rm.regprog = crate::globals::GraphPtr::new(regex.prog);
     rm.rm_ic = false;
     let matched = vim_regexec(&mut rm, str_, 0);
-    regex.prog = rm.regprog;
+    regex.prog = rm.regprog.as_ptr();
 
     if matched {
         unsafe {

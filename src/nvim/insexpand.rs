@@ -2043,7 +2043,7 @@ fn ins_compl_dictionaries(
 
     let mut buf_vec = vec![0u8; LSIZE];
     let buf = buf_vec.as_mut_ptr();
-    regmatch.regprog = ptr::null_mut();
+    regmatch.regprog = crate::globals::GraphPtr::NULL;
 
     let save_p_scs = opt_vars().p_scs;
     if curbuf_mut().b_p_inf {

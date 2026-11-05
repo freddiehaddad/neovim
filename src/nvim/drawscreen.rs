@@ -718,7 +718,7 @@ pub fn update_screen() -> bool {
     }
 
     let mut did_one = false;
-    g_st().screen_search_hl.rm.regprog = ptr::null_mut();
+    g_st().screen_search_hl.rm.regprog = crate::globals::GraphPtr::NULL;
 
     for wp in for_all_windows_ptr() {
         if wp.w_config.hide && !wp.w_grid_alloc.chars.is_empty() {
@@ -1536,13 +1536,15 @@ fn win_update(wp: &mut WinInfoInfo) {
                 mod_bot = buf.b_mod_bot;
             }
 
-            if let Some(regprog) = unsafe { g_st().screen_search_hl.rm.regprog.as_ref() }
+            if let Some(regprog) = g_st().screen_search_hl.rm.regprog.opt()
                 && re_multiline(regprog) != 0
             {
                 top_to_mod = true;
             } else {
                 top_to_mod = wp.w_match_head.iter().any(|cur| {
-                    unsafe { cur.mit_match.regprog.as_ref() }
+                    cur.mit_match
+                        .regprog
+                        .opt()
                         .is_some_and(|rp| re_multiline(rp) != 0)
                 });
             }

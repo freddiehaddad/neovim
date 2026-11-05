@@ -1195,7 +1195,7 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
             if opt_vars().p_magic { RE_MAGIC } else { 0 },
         ));
     } else {
-        pats.regmatch.regprog = ptr::null_mut();
+        pats.regmatch.regprog = crate::globals::GraphPtr::NULL;
     }
 }
 

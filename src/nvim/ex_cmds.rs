@@ -697,7 +697,7 @@ pub fn ex_sort(eap: &mut Exarg) {
     if !u_save(eap.line1 - 1, eap.line2 + 1) {
         return;
     }
-    regmatch.regprog = ptr::null_mut();
+    regmatch.regprog = crate::globals::GraphPtr::NULL;
     let mut nrs_vec: Vec<Sorti> = Vec::with_capacity(count);
 
     excmds_st().sort_abort = false;
@@ -994,7 +994,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
     if !u_save(eap.line1 - 1, eap.line2 + 1) {
         return;
     }
-    regmatch.regprog = ptr::null_mut();
+    regmatch.regprog = crate::globals::GraphPtr::NULL;
 
     excmds_st().sort_abort = false;
     excmds_st().sort_ic = false;
@@ -4577,7 +4577,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             .as_ptr()
                             .wrapping_add(matchcol as usize),
                     ) && nmatch <= 1
-                        && re_multiline(unsafe { &*regmatch.regprog }) == 0);
+                        && re_multiline(&regmatch.regprog) == 0);
                 nmatch = -1;
 
                 if lastone

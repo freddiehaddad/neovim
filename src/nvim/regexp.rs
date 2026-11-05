@@ -237,7 +237,7 @@ impl Regprog {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Regmmatch {
-    pub regprog: *mut Regprog,
+    pub regprog: crate::globals::GraphPtr<Regprog>,
     pub startpos: [Lpos; NSUBEXP],
     pub endpos: [Lpos; NSUBEXP],
     pub rmm_matchcol: Colnr,
@@ -248,7 +248,7 @@ pub struct Regmmatch {
 impl Regmmatch {
     pub const fn new() -> Self {
         Self {
-            regprog: ptr::null_mut(),
+            regprog: crate::globals::GraphPtr::NULL,
             startpos: [Lpos::new(); NSUBEXP],
             endpos: [Lpos::new(); NSUBEXP],
             rmm_matchcol: 0,
@@ -259,19 +259,23 @@ impl Regmmatch {
 
     #[inline]
     pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
-        self.regprog = prog.map_or(ptr::null_mut(), Box::into_raw);
+        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |b| {
+            crate::globals::GraphPtr::new(Box::into_raw(b))
+        });
     }
 
     #[inline]
     pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
-        self.regprog = prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut());
+        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |p| {
+            crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
+        });
     }
 
     #[inline]
     pub fn free_prog(&mut self) {
         if !self.regprog.is_null() {
-            drop(unsafe { Box::from_raw(self.regprog) });
-            self.regprog = ptr::null_mut();
+            drop(unsafe { Box::from_raw(self.regprog.as_ptr()) });
+            self.regprog = crate::globals::GraphPtr::NULL;
         }
     }
 }
@@ -422,7 +426,7 @@ impl crate::memory::IntoMutPtr for RegLinePtr {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Regmatch {
-    pub regprog: *mut Regprog,
+    pub regprog: crate::globals::GraphPtr<Regprog>,
     pub startp: [RegLinePtr; NSUBEXP],
     pub endp: [RegLinePtr; NSUBEXP],
     pub rm_matchcol: Colnr,
@@ -432,7 +436,7 @@ pub struct Regmatch {
 impl Regmatch {
     pub const fn new() -> Self {
         Self {
-            regprog: ptr::null_mut(),
+            regprog: crate::globals::GraphPtr::NULL,
             startp: [RegLinePtr::NULL; NSUBEXP],
             endp: [RegLinePtr::NULL; NSUBEXP],
             rm_matchcol: 0,
@@ -442,19 +446,23 @@ impl Regmatch {
 
     #[inline]
     pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
-        self.regprog = prog.map_or(ptr::null_mut(), Box::into_raw);
+        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |b| {
+            crate::globals::GraphPtr::new(Box::into_raw(b))
+        });
     }
 
     #[inline]
     pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
-        self.regprog = prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut());
+        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |p| {
+            crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
+        });
     }
 
     #[inline]
     pub fn free_prog(&mut self) {
         if !self.regprog.is_null() {
-            drop(unsafe { Box::from_raw(self.regprog) });
-            self.regprog = ptr::null_mut();
+            drop(unsafe { Box::from_raw(self.regprog.as_ptr()) });
+            self.regprog = crate::globals::GraphPtr::NULL;
         }
     }
 }
@@ -995,10 +1003,10 @@ impl Default for ParseState {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Regexec {
-    pub reg_match: *mut Regmatch,
-    pub reg_mmatch: *mut Regmmatch,
-    pub reg_startpos: *mut Lpos,
-    pub reg_endpos: *mut Lpos,
+    pub reg_match: crate::globals::GraphPtr<Regmatch>,
+    pub reg_mmatch: crate::globals::GraphPtr<Regmmatch>,
+    pub reg_startpos: crate::globals::GraphPtr<[Lpos; NSUBEXP]>,
+    pub reg_endpos: crate::globals::GraphPtr<[Lpos; NSUBEXP]>,
     pub reg_win: crate::globals::WinPtr,
     pub reg_buf: crate::globals::BufPtr,
     pub reg_firstlnum: Linenr,
@@ -1024,10 +1032,10 @@ pub(super) struct Regexec {
 impl Regexec {
     pub(super) const fn new() -> Self {
         Self {
-            reg_match: ptr::null_mut(),
-            reg_mmatch: ptr::null_mut(),
-            reg_startpos: ptr::null_mut(),
-            reg_endpos: ptr::null_mut(),
+            reg_match: crate::globals::GraphPtr::NULL,
+            reg_mmatch: crate::globals::GraphPtr::NULL,
+            reg_startpos: crate::globals::GraphPtr::NULL,
+            reg_endpos: crate::globals::GraphPtr::NULL,
             reg_win: crate::globals::WinPtr::NULL,
             reg_buf: crate::globals::BufPtr::NULL,
             reg_firstlnum: 0,
@@ -1061,8 +1069,8 @@ impl Default for Regexec {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct Regsubmatch {
-    pub sm_match: *mut Regmatch,
-    pub sm_mmatch: *mut Regmmatch,
+    pub sm_match: crate::globals::GraphPtr<Regmatch>,
+    pub sm_mmatch: crate::globals::GraphPtr<Regmmatch>,
     pub sm_firstlnum: Linenr,
     pub sm_maxline: Linenr,
     pub sm_line_lbr: i32,
@@ -1071,8 +1079,8 @@ pub(super) struct Regsubmatch {
 impl Regsubmatch {
     pub(super) const fn new() -> Self {
         Self {
-            sm_match: ptr::null_mut(),
-            sm_mmatch: ptr::null_mut(),
+            sm_match: crate::globals::GraphPtr::NULL,
+            sm_mmatch: crate::globals::GraphPtr::NULL,
             sm_firstlnum: 0,
             sm_maxline: 0,
             sm_line_lbr: 0,
@@ -1422,10 +1430,10 @@ impl RegexpState {
             reg_cpo_lit: 0,
             reg_tofree: Vec::new(),
             rex: Regexec {
-                reg_match: ptr::null_mut(),
-                reg_mmatch: ptr::null_mut(),
-                reg_startpos: ptr::null_mut(),
-                reg_endpos: ptr::null_mut(),
+                reg_match: crate::globals::GraphPtr::NULL,
+                reg_mmatch: crate::globals::GraphPtr::NULL,
+                reg_startpos: crate::globals::GraphPtr::NULL,
+                reg_endpos: crate::globals::GraphPtr::NULL,
                 reg_win: crate::globals::WinPtr::NULL,
                 reg_buf: crate::globals::BufPtr::NULL,
                 reg_firstlnum: 0,
@@ -1450,8 +1458,8 @@ impl RegexpState {
             rex_in_use: false,
             can_f_submatch: false,
             rsm: Regsubmatch {
-                sm_match: ptr::null_mut(),
-                sm_mmatch: ptr::null_mut(),
+                sm_match: crate::globals::GraphPtr::NULL,
+                sm_mmatch: crate::globals::GraphPtr::NULL,
                 sm_firstlnum: 0,
                 sm_maxline: 0,
                 sm_line_lbr: 0,
@@ -2783,8 +2791,8 @@ pub fn vim_regsub(
     }
     re_st().rex_in_use = true;
 
-    re_st().rex.reg_match = rmp;
-    re_st().rex.reg_mmatch = ptr::null_mut();
+    re_st().rex.reg_match = crate::globals::GraphPtr::from(&mut *rmp);
+    re_st().rex.reg_mmatch = crate::globals::GraphPtr::NULL;
     re_st().rex.reg_maxline = 0;
     re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
     re_st().rex.reg_line_lbr = true;
@@ -2813,8 +2821,8 @@ pub fn vim_regsub_multi(
     }
     re_st().rex_in_use = true;
 
-    re_st().rex.reg_match = ptr::null_mut();
-    re_st().rex.reg_mmatch = rmp;
+    re_st().rex.reg_match = crate::globals::GraphPtr::NULL;
+    re_st().rex.reg_mmatch = crate::globals::GraphPtr::from(&mut *rmp);
     re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
@@ -3347,8 +3355,8 @@ pub(super) fn init_regexec_multi(
     buf: &mut FileBuf,
     lnum: Linenr,
 ) {
-    re_st().rex.reg_match = ptr::null_mut();
-    re_st().rex.reg_mmatch = rmp;
+    re_st().rex.reg_match = crate::globals::GraphPtr::NULL;
+    re_st().rex.reg_mmatch = crate::globals::GraphPtr::from(&mut *rmp);
     re_st().rex.reg_buf = crate::globals::BufPtr::from(buf);
     re_st().rex.reg_win = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
     re_st().rex.reg_firstlnum = lnum;
@@ -3604,8 +3612,8 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     }
     re_st().rex_in_use = true;
 
-    re_st().rex.reg_startpos = ptr::null_mut();
-    re_st().rex.reg_endpos = ptr::null_mut();
+    re_st().rex.reg_startpos = crate::globals::GraphPtr::NULL;
+    re_st().rex.reg_endpos = crate::globals::GraphPtr::NULL;
 
     let mut result = match rmp.prog_mut().engine {
         RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line, col, nl),
@@ -3616,7 +3624,7 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
         let save_p_re = opt_vars().p_re;
         let re_flags = rmp.prog_mut().re_flags as i32;
-        let prev_prog = unsafe { &mut *rmp.regprog };
+        let prev_prog = rmp.regprog.borrow_mut();
         let pat_owned = prev_prog.nfa_mut().pattern.clone();
 
         opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
@@ -3649,7 +3657,9 @@ pub fn vim_regexec_prog(
     col: Colnr,
 ) -> bool {
     let mut regmatch = Regmatch {
-        regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
+        regprog: prog.map_or(crate::globals::GraphPtr::NULL, |p| {
+            crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
+        }),
         rm_ic: ignore_case,
         ..Regmatch::new()
     };
@@ -3712,7 +3722,7 @@ pub fn vim_regexec_multi(
     if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
         let save_p_re = opt_vars().p_re;
         let re_flags = rmp.prog_mut().re_flags as i32;
-        let prev_prog = unsafe { &mut *rmp.regprog };
+        let prev_prog = rmp.regprog.borrow_mut();
         let pat_owned = prev_prog.nfa_mut().pattern.clone();
 
         opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
@@ -3755,11 +3765,11 @@ pub fn vim_regexec_multi(
 impl Regexec {
     #[inline]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        unsafe { &mut *self.reg_mmatch }
+        self.reg_mmatch.borrow_mut()
     }
     #[inline]
     pub fn match_mut(&self) -> &'static mut Regmatch {
-        unsafe { &mut *self.reg_match }
+        self.reg_match.borrow_mut()
     }
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
@@ -3783,11 +3793,11 @@ impl Regexec {
     }
     #[inline]
     pub fn startpos_slice_mut(&self) -> &'static mut [Lpos] {
-        unsafe { std::slice::from_raw_parts_mut(self.reg_startpos, NSUBEXP) }
+        self.reg_startpos.borrow_mut()
     }
     #[inline]
     pub fn endpos_slice_mut(&self) -> &'static mut [Lpos] {
-        unsafe { std::slice::from_raw_parts_mut(self.reg_endpos, NSUBEXP) }
+        self.reg_endpos.borrow_mut()
     }
 }
 
@@ -3847,25 +3857,25 @@ impl RegexpState {
 impl Regsubmatch {
     #[inline]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        unsafe { &mut *self.sm_mmatch }
+        self.sm_mmatch.borrow_mut()
     }
     #[inline]
     pub fn match_mut(&self) -> &'static mut Regmatch {
-        unsafe { &mut *self.sm_match }
+        self.sm_match.borrow_mut()
     }
 }
 
 impl Regmmatch {
     #[inline]
     pub fn prog_mut(&self) -> &'static mut Regprog {
-        unsafe { &mut *self.regprog }
+        self.regprog.borrow_mut()
     }
 }
 
 impl Regmatch {
     #[inline]
     pub fn prog_mut(&self) -> &'static mut Regprog {
-        unsafe { &mut *self.regprog }
+        self.regprog.borrow_mut()
     }
 }
 
