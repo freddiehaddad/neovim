@@ -717,19 +717,19 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let tab_topframe: *mut Frame;
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
-                if ptr::eq(tp, g_st().curtab) {
-                    tab_firstwin = g_st().firstwin;
+                if g_st().curtab == tp {
+                    tab_firstwin = g_st().firstwin.as_ptr();
                     tab_topframe = g_st().topframe.as_ptr();
                 } else {
                     tab_firstwin = unsafe { (*tp).tp_firstwin.as_ptr() };
                     tab_topframe = unsafe { (*tp).tp_topframe.as_ptr() };
                 }
-                if !ptr::eq(tp, g_st().first_tabpage) {
+                if g_st().first_tabpage != tp {
                     need_tabnext = true;
                 }
             } else {
-                tp = g_st().curtab;
-                tab_firstwin = g_st().firstwin;
+                tp = g_st().curtab.as_ptr();
+                tab_firstwin = g_st().firstwin.as_ptr();
                 tab_topframe = g_st().topframe.as_ptr();
             }
 
@@ -869,10 +869,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0
             && !write_fmt(
                 fd,
-                format!(
-                    "tabnext {}\n",
-                    tabpage_index(unsafe { g_st().curtab.as_ref() })
-                ),
+                format!("tabnext {}\n", tabpage_index(g_st().curtab.opt())),
             )
         {
             return false;

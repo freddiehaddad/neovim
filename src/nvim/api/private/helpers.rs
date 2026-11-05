@@ -648,7 +648,7 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static mut TabPageInfo> {
     if tabpage == 0 {
-        return unsafe { g_st().curtab.as_mut() };
+        return g_st().curtab.opt_mut();
     }
     let rv = g_st()
         .tabpage_handles

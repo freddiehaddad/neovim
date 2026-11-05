@@ -267,7 +267,7 @@ pub fn diff_buf_delete(buf: &FileBuf) {
         if i != DB_COUNT as i32 {
             tp.tp_diffbuf[i as usize] = crate::globals::BufPtr::NULL;
             tp.tp_diff_invalid = 1;
-            if ptr::eq(tp, g_st().curtab) {
+            if g_st().curtab == tp {
                 g_st().need_diff_redraw = true;
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
             }
@@ -335,7 +335,7 @@ pub fn diff_invalidate(buf: &FileBuf) {
         let i = diff_buf_idx(buf, &*tp);
         if i != DB_COUNT as i32 {
             tp.tp_diff_invalid = 1;
-            if ptr::eq(tp, g_st().curtab) {
+            if g_st().curtab == tp {
                 diff_redraw(true);
             }
         }
@@ -530,7 +530,7 @@ fn diff_mark_adjust_tp(
             i_dp += 1;
         }
     }
-    if ptr::eq(tp, g_st().curtab) {
+    if g_st().curtab == tp {
         g_st().need_diff_redraw = true;
         g_st().diff_need_scrollbind = true;
     }

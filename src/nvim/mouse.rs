@@ -264,7 +264,7 @@ fn move_tab_to_mouse() {
     let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
     if tabnr <= 0 {
         tabpage_move(9999);
-    } else if tabnr < tabpage_index(unsafe { g_st().curtab.as_ref() }) {
+    } else if tabnr < tabpage_index(g_st().curtab.opt()) {
         tabpage_move(tabnr - 1);
     } else {
         tabpage_move(tabnr);
@@ -274,11 +274,11 @@ fn move_tab_to_mouse() {
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
     let tp = if c1 == 999 {
-        g_st().curtab
+        g_st().curtab.as_ptr()
     } else {
         find_tabpage(c1).map_or(ptr::null_mut(), ptr::from_mut)
     };
-    if tp == g_st().curtab {
+    if g_st().curtab == tp {
         if !crate::globals::first_tabpage_mut().tp_next.is_null() {
             tabpage_close(false);
         }

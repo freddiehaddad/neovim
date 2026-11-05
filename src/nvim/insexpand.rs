@@ -3037,7 +3037,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             let next_wp = if !wp.w_next.is_null() {
                 wp.w_next.as_ptr()
             } else {
-                g_st().firstwin
+                g_st().firstwin.as_ptr()
             };
             insexp().next_buf_wp = crate::globals::WinPtr::new(next_wp);
             if ptr::eq(next_wp, curwin_ptr())
@@ -3053,7 +3053,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             buf = if unsafe { !(*buf).b_next.is_null() } {
                 unsafe { (*buf).b_next.as_ptr() }
             } else {
-                g_st().firstbuf
+                g_st().firstbuf.as_ptr()
             };
             if ptr::eq(buf, g_st().curbuf) {
                 break;

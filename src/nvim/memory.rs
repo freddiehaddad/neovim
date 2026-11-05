@@ -1011,7 +1011,7 @@ pub fn free_all_mem() {
         free_all_options();
 
         opt_vars().p_acd = false;
-        let mut buf = g_st().firstbuf;
+        let mut buf = g_st().firstbuf.as_ptr();
         while !buf.is_null() {
             let mut bufref = Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
@@ -1036,7 +1036,7 @@ pub fn free_all_mem() {
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {
-                g_st().firstbuf
+                g_st().firstbuf.as_ptr()
             };
         }
 
@@ -1046,8 +1046,8 @@ pub fn free_all_mem() {
         reset_last_sourcing();
 
         if !g_st().first_tabpage.is_null() {
-            free_tabpage(unsafe { g_st().first_tabpage.as_mut() });
-            g_st().first_tabpage = std::ptr::null_mut();
+            free_tabpage(g_st().first_tabpage.opt_mut());
+            g_st().first_tabpage = crate::globals::TabpagePtr::NULL;
         }
 
         msg_hist_clear(0);

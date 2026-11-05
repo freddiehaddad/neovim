@@ -620,8 +620,8 @@ fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<&'static mut QfInfo> {
 
 #[inline]
 fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
-    if ptr::eq(tp, g_st().curtab) {
-        unsafe { &mut *g_st().firstwin }
+    if g_st().curtab == tp {
+        g_st().firstwin.borrow_mut()
     } else {
         tp.tp_firstwin.borrow_mut()
     }
@@ -2676,7 +2676,7 @@ fn qf_goto_win_with_ll_file(
                     break;
                 }
                 if unsafe { (*win).w_prev.is_null() } {
-                    win = g_st().lastwin;
+                    win = g_st().lastwin.as_ptr();
                 } else {
                     win = unsafe { (*win).w_prev.as_ptr() };
                 }
@@ -2703,17 +2703,17 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
             break;
         }
         if unsafe { (*win).w_prev.is_null() } {
-            win = g_st().lastwin;
+            win = g_st().lastwin.as_ptr();
         } else {
             win = unsafe { (*win).w_prev.as_ptr() };
         }
 
         if is_qf_window(unsafe { &*win }) {
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
-                && win_valid(unsafe { g_st().prevwin.as_ref() })
+                && win_valid(g_st().prevwin.opt())
                 && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
             {
-                win = g_st().prevwin;
+                win = g_st().prevwin.as_ptr();
             } else if !altwin.is_null() {
                 win = altwin;
             } else if !curwin_mut().w_prev.is_null() {
@@ -2821,7 +2821,7 @@ fn qf_jump_edit_buffer(
                 return QfStatus::Fail;
             }
 
-            if win_valid(unsafe { g_st().prevwin.as_ref() })
+            if win_valid(g_st().prevwin.opt())
                 && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
                 && !bt_quickfix(crate::globals::prevwin_mut().buf_opt())
             {
@@ -3756,7 +3756,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     }
     curwin_mut().w_onebuf_opt.wo_wfh = true;
     if win_valid(unsafe { win.as_ref() }) {
-        g_st().prevwin = win;
+        g_st().prevwin = (win).into();
     }
     true
 }

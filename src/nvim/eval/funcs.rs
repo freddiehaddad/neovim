@@ -1444,7 +1444,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
         return unsafe { g_st().curbuf.as_mut() };
     }
     if crate::memory::cstr_as_bytes(name) == b"$" {
-        return unsafe { g_st().lastbuf.as_mut() };
+        return g_st().lastbuf.opt_mut();
     }
 
     let save_magic = opt_vars().p_magic;
@@ -8640,10 +8640,10 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut wp: *mut WinInfoInfo = ptr::null_mut();
     if argvars[0].v_type == VarType::VarUnknown {
-        wp = g_st().firstwin;
+        wp = g_st().firstwin.as_ptr();
     } else if let Some(tp) = find_tabpage(tv_get_number(&argvars[0]) as i32) {
-        wp = if ptr::eq(tp, g_st().curtab) {
-            g_st().firstwin
+        wp = if g_st().curtab == tp {
+            g_st().firstwin.as_ptr()
         } else {
             tp.tp_firstwin.as_ptr()
         };

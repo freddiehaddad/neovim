@@ -57,10 +57,10 @@ pub fn win_new_float(
 
         let win_tp = win_find_tabpage(wp).map_or(ptr::null_mut(), ptr::from_mut);
         debug_assert!(!win_tp.is_null());
-        if (win_tp == g_st().curtab
-            && ptr::eq(g_st().firstwin, wp)
+        if (win_tp == g_st().curtab.as_ptr()
+            && g_st().firstwin == wp
             && ptr::eq(lastwin_nofloating(None), wp))
-            || win_tp != g_st().curtab
+            || win_tp != g_st().curtab.as_ptr()
                 && unsafe { (*win_tp).tp_firstwin } == wp
                 && ptr::eq(lastwin_nofloating(unsafe { win_tp.as_ref() }), wp)
         {
@@ -71,7 +71,7 @@ pub fn win_new_float(
             );
             return None;
         }
-        let tp = if win_tp == g_st().curtab {
+        let tp = if win_tp == g_st().curtab.as_ptr() {
             ptr::null_mut()
         } else {
             win_tp
@@ -88,7 +88,7 @@ pub fn win_new_float(
 
         win_remove(wp, unsafe { tp.as_mut() });
 
-        if win_tp == g_st().curtab {
+        if win_tp == g_st().curtab.as_ptr() {
             last_status(false);
             win_comp_pos();
         }
@@ -97,7 +97,7 @@ pub fn win_new_float(
         wp
     } else {
         let mut tp_last: *mut WinInfoInfo = if last {
-            g_st().lastwin
+            g_st().lastwin.as_ptr()
         } else {
             lastwin_nofloating(None)
         };
@@ -109,7 +109,7 @@ pub fn win_new_float(
             }
             let tp_ref = win_find_tabpage(unsafe { &*parent_wp })?;
             let tp: *mut TabPageInfo = tp_ref;
-            tp_last = lastwin_nofloating(if tp == g_st().curtab {
+            tp_last = lastwin_nofloating(if tp == g_st().curtab.as_ptr() {
                 None
             } else {
                 unsafe { tp.as_ref() }
@@ -395,7 +395,7 @@ pub fn win_float_find_altwin(
     tp: Option<&TabPageInfo>,
 ) -> &'static mut WinInfoInfo {
     let Some(tp) = tp else {
-        return if win_valid(unsafe { g_st().prevwin.as_ref() })
+        return if win_valid(g_st().prevwin.opt())
             && let Some(wp) = prevwin_opt()
             && !ptr::eq(wp, win)
             && wp.w_config.focusable
@@ -407,7 +407,7 @@ pub fn win_float_find_altwin(
         };
     };
 
-    debug_assert!(!ptr::eq(tp, g_st().curtab));
+    debug_assert!(g_st().curtab != tp);
     let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.opt()) {
         tp.tp_prevwin.as_ptr()
     } else {

@@ -3840,7 +3840,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
         g_st().no_wait_return += 1;
         g_st().did_check_timestamps = true;
         fio_st().already_warned = false;
-        let mut buf_opt = unsafe { g_st().firstbuf.as_mut() };
+        let mut buf_opt = g_st().firstbuf.opt_mut();
         while let Some(buf) = buf_opt {
             let next_ptr = buf.b_next.as_ptr();
             if buf.b_nwindows > 0 {
@@ -3849,7 +3849,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
                 let n = buf_check_timestamp(buf);
                 didit = didit.max(n);
                 if n > 0 && !bufref_valid(Some(&bufref)) {
-                    buf_opt = unsafe { g_st().firstbuf.as_mut() };
+                    buf_opt = g_st().firstbuf.opt_mut();
                     continue;
                 }
             }

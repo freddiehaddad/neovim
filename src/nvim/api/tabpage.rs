@@ -51,15 +51,15 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
         return rv;
     }
 
-    let first = if std::ptr::eq(tab_ptr, g_st().curtab) {
+    let first = if g_st().curtab == tab_ptr {
         g_st().firstwin
     } else {
-        tab.tp_firstwin.as_ptr()
+        tab.tp_firstwin
     };
-    let n = win_iter_mut(first).count();
+    let n = win_iter_mut(first.as_ptr()).count();
 
     rv = arena_array(arena, n);
-    for wp in win_iter_mut(first) {
+    for wp in win_iter_mut(first.as_ptr()) {
         *rv.next_slot_mut() = window_obj(wp.handle);
         rv.size += 1;
     }
@@ -129,7 +129,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     if !valid_tabpage(Some(tab)) {
         return 0;
     }
-    if std::ptr::eq(tab_ptr, g_st().curtab) {
+    if g_st().curtab == tab_ptr {
         return nvim_get_current_win();
     }
     for wp in win_iter_ptr(tab.tp_firstwin.as_ptr()) {
@@ -163,7 +163,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
         );
         return;
     }
-    if (&raw mut *tp) == g_st().curtab {
+    if (&raw mut *tp) == g_st().curtab.as_ptr() {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         win_goto(unsafe { &mut *wp });

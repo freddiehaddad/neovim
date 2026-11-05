@@ -343,7 +343,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
     let mut buf: *const FileBuf = if !rbuf_ptr.is_null() {
         rbuf_ptr
     } else {
-        g_st().firstbuf
+        g_st().firstbuf.as_ptr()
     };
     let ns = group_get_ns(group);
 

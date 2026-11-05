@@ -414,7 +414,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             curtab_mut().tp_ch_used = opt_vars().p_ch;
         }
         for tp in for_all_tabpages_ptr() {
-            if !ptr::eq(tp, g_st().curtab) {
+            if g_st().curtab != tp {
                 let max_tp_ch = OptInt::from(g_st().rows_global - min_rows(&mut *tp) + 1);
                 if tp.tp_ch_used > 0 && tp.tp_ch_used > max_tp_ch {
                     tp.tp_ch_used = max_tp_ch.max(1);
@@ -692,7 +692,7 @@ pub fn update_screen() -> bool {
     if g_st().redraw_tabline || type_ >= UPD_NOT_VALID {
         update_window_hl(curwin_mut(), type_ >= UPD_NOT_VALID);
         for tp in for_all_tabpages_ptr() {
-            if !ptr::eq(tp, g_st().curtab) {
+            if g_st().curtab != tp {
                 update_window_hl(tp.curwin_mut(), type_ >= UPD_NOT_VALID);
             }
         }

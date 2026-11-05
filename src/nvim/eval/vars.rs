@@ -3239,7 +3239,8 @@ fn get_var_from(
         && (htname != b'b' as i32 || !buf.is_null())
     {
         let varname = varname_cstr.as_ptr();
-        let need_switch_win = !(tp == g_st().curtab && win == curwin_ptr()) && !do_change_curbuf;
+        let need_switch_win =
+            !(tp == g_st().curtab.as_ptr() && win == curwin_ptr()) && !do_change_curbuf;
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
@@ -3316,7 +3317,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
         find_tabpage(tv_get_number_chk(&head[0], None) as i32)
             .map_or(ptr::null_mut(), ptr::from_mut)
     } else {
-        g_st().curtab
+        g_st().curtab.as_ptr()
     };
     let win: *mut WinInfoInfo = unsafe { tp.as_mut() }
         .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
@@ -3481,7 +3482,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         find_tabpage(tv_get_number_chk(&head[0], None) as i32)
             .map_or(ptr::null_mut(), ptr::from_mut)
     } else {
-        g_st().curtab
+        g_st().curtab.as_ptr()
     };
     let win: *mut WinInfoInfo = unsafe { tp.as_mut() }
         .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
@@ -3492,7 +3493,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         return;
     }
 
-    let need_switch_win = !(tp == g_st().curtab && win == curwin_ptr());
+    let need_switch_win = !(g_st().curtab == tp && win == curwin_ptr());
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if !need_switch_win
         || ctx_switch(
@@ -3716,8 +3717,8 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut win: *mut WinInfoInfo = ptr::null_mut();
 
     if let Some(tp_ref) = unsafe { tp.as_mut() } {
-        win = if std::ptr::eq(tp_ref, g_st().curtab) || tp_ref.tp_firstwin.is_null() {
-            g_st().firstwin
+        win = if g_st().curtab == tp_ref || tp_ref.tp_firstwin.is_null() {
+            g_st().firstwin.as_ptr()
         } else {
             tp_ref.tp_firstwin.as_ptr()
         };
@@ -3785,8 +3786,8 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     tabvarname.push(b':');
     tabvarname.extend_from_slice(varname.to_bytes_with_nul());
 
-    let save_curtab = g_st().curtab;
-    let save_lu_tp = g_st().lastused_tabpage;
+    let save_curtab = g_st().curtab.as_ptr();
+    let save_lu_tp = g_st().lastused_tabpage.as_ptr();
     goto_tabpage_tp(Some(tp_ref), false, false);
 
     set_var(&tabvarname[..varname_len + 2], arg2, true);
@@ -3794,7 +3795,7 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     if valid_tabpage(unsafe { save_curtab.as_ref() }) {
         goto_tabpage_tp(unsafe { save_curtab.as_mut() }, false, false);
         if valid_tabpage(unsafe { save_lu_tp.as_ref() }) {
-            g_st().lastused_tabpage = save_lu_tp;
+            g_st().lastused_tabpage = crate::globals::TabpagePtr::new(save_lu_tp);
         }
     }
 }

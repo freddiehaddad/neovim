@@ -2294,7 +2294,7 @@ pub fn autocmd_register(
         if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)
             && !(has_event(EVENT_WINSCROLLED) || has_event(EVENT_WINRESIZED))
         {
-            let save_curtab = g_st().curtab;
+            let save_curtab = g_st().curtab.as_ptr();
             for tp in for_all_tabpages_ptr() {
                 unuse_tabpage(curtab_mut());
                 use_tabpage(tp);

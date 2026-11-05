@@ -171,16 +171,16 @@ pub struct EditorState {
     pub mouse_dragging: i32,
     pub root_menu: Vec<Vimmenu>,
     pub sys_menu: bool,
-    pub firstwin: *mut WinInfoInfo,
-    pub lastwin: *mut WinInfoInfo,
-    pub prevwin: *mut WinInfoInfo,
+    pub firstwin: WinPtr,
+    pub lastwin: WinPtr,
+    pub prevwin: WinPtr,
     pub topframe: FramePtr,
-    pub first_tabpage: *mut TabPageInfo,
-    pub curtab: *mut TabPageInfo,
-    pub lastused_tabpage: *mut TabPageInfo,
+    pub first_tabpage: TabpagePtr,
+    pub curtab: TabpagePtr,
+    pub lastused_tabpage: TabpagePtr,
     pub redraw_tabline: bool,
-    pub firstbuf: *mut FileBuf,
-    pub lastbuf: *mut FileBuf,
+    pub firstbuf: BufPtr,
+    pub lastbuf: BufPtr,
     pub curbuf: *mut FileBuf,
     pub global_alist: Alist,
     pub max_alist_id: i32,
@@ -546,16 +546,16 @@ impl EditorState {
             mouse_dragging: 0,
             root_menu: Vec::new(),
             sys_menu: false,
-            firstwin: ptr::null_mut(),
-            lastwin: ptr::null_mut(),
-            prevwin: ptr::null_mut(),
+            firstwin: WinPtr::NULL,
+            lastwin: WinPtr::NULL,
+            prevwin: WinPtr::NULL,
             topframe: FramePtr::NULL,
-            first_tabpage: ptr::null_mut(),
-            curtab: ptr::null_mut(),
-            lastused_tabpage: ptr::null_mut(),
+            first_tabpage: TabpagePtr::NULL,
+            curtab: TabpagePtr::NULL,
+            lastused_tabpage: TabpagePtr::NULL,
             redraw_tabline: false,
-            firstbuf: ptr::null_mut(),
-            lastbuf: ptr::null_mut(),
+            firstbuf: BufPtr::NULL,
+            lastbuf: BufPtr::NULL,
             curbuf: ptr::null_mut(),
             global_alist: Alist::new(),
             max_alist_id: 0,
@@ -958,22 +958,22 @@ pub fn curbuf_opt_mut() -> Option<&'static mut FileBuf> {
 
 #[inline]
 pub fn curtab_mut() -> &'static mut TabPageInfo {
-    unsafe { &mut *g_st().curtab }
+    g_st().curtab.borrow_mut()
 }
 
 #[inline]
 pub fn firstwin_mut() -> &'static mut WinInfoInfo {
-    unsafe { &mut *g_st().firstwin }
+    g_st().firstwin.borrow_mut()
 }
 
 #[inline]
 pub fn lastwin_mut() -> &'static mut WinInfoInfo {
-    unsafe { &mut *g_st().lastwin }
+    g_st().lastwin.borrow_mut()
 }
 
 #[inline]
 pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
-    unsafe { g_st().prevwin.as_mut() }
+    g_st().prevwin.opt_mut()
 }
 
 /// Zero-cost typed handle for a raw pointer to a global graph node (`WinInfoInfo`,
@@ -1140,7 +1140,7 @@ pub fn curwin_handle() -> WinPtr {
 
 #[inline]
 pub fn curtab_handle() -> TabpagePtr {
-    TabpagePtr::new(g_st().curtab)
+    g_st().curtab
 }
 
 pub struct BufMutIter(*mut FileBuf);
@@ -1183,7 +1183,7 @@ impl Iterator for BufPtrIter {
 
 #[inline]
 pub fn for_all_buffers_mut() -> BufMutIter {
-    BufMutIter(g_st().firstbuf)
+    BufMutIter(g_st().firstbuf.as_ptr())
 }
 
 #[inline]
@@ -1193,7 +1193,7 @@ pub fn buf_iter_mut(start: *mut FileBuf) -> BufMutIter {
 
 #[inline]
 pub fn for_all_buffers_ptr() -> BufPtrIter {
-    BufPtrIter(g_st().firstbuf)
+    BufPtrIter(g_st().firstbuf.as_ptr())
 }
 
 pub struct BufRevPtrIter(*mut FileBuf);
@@ -1217,7 +1217,7 @@ impl Iterator for BufRevPtrIter {
 
 #[inline]
 pub fn for_all_buffers_rev_ptr() -> BufRevPtrIter {
-    BufRevPtrIter(g_st().lastbuf)
+    BufRevPtrIter(g_st().lastbuf.as_ptr())
 }
 
 pub struct WinMutIter(*mut WinInfoInfo);
@@ -1260,7 +1260,7 @@ impl Iterator for WinPtrIter {
 
 #[inline]
 pub fn for_all_windows_mut() -> WinMutIter {
-    WinMutIter(g_st().firstwin)
+    WinMutIter(g_st().firstwin.as_ptr())
 }
 
 #[inline]
@@ -1270,8 +1270,8 @@ pub fn win_iter_mut(start: *mut WinInfoInfo) -> WinMutIter {
 
 #[inline]
 pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
-    WinMutIter(if ptr::eq((&raw const *tp), g_st().curtab) {
-        g_st().firstwin
+    WinMutIter(if g_st().curtab == tp {
+        g_st().firstwin.as_ptr()
     } else {
         tp.tp_firstwin.as_ptr()
     })
@@ -1279,7 +1279,7 @@ pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
 
 #[inline]
 pub fn for_all_windows_ptr() -> WinPtrIter {
-    WinPtrIter(g_st().firstwin)
+    WinPtrIter(g_st().firstwin.as_ptr())
 }
 
 #[inline]
@@ -1289,8 +1289,8 @@ pub fn win_iter_ptr(start: *mut WinInfoInfo) -> WinPtrIter {
 
 #[inline]
 pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
-    WinPtrIter(if ptr::eq((&raw const *tp), g_st().curtab) {
-        g_st().firstwin
+    WinPtrIter(if g_st().curtab == tp {
+        g_st().firstwin.as_ptr()
     } else {
         tp.tp_firstwin.as_ptr()
     })
@@ -1317,7 +1317,7 @@ impl Iterator for WinRevPtrIter {
 
 #[inline]
 pub fn for_all_windows_rev_ptr() -> WinRevPtrIter {
-    WinRevPtrIter(g_st().lastwin)
+    WinRevPtrIter(g_st().lastwin.as_ptr())
 }
 
 pub struct TabMutIter(*mut TabPageInfo);
@@ -1360,12 +1360,12 @@ impl Iterator for TabPtrIter {
 
 #[inline]
 pub fn for_all_tabpages_mut() -> TabMutIter {
-    TabMutIter(g_st().first_tabpage)
+    TabMutIter(g_st().first_tabpage.as_ptr())
 }
 
 #[inline]
 pub fn for_all_tabpages_ptr() -> TabPtrIter {
-    TabPtrIter(g_st().first_tabpage)
+    TabPtrIter(g_st().first_tabpage.as_ptr())
 }
 
 pub struct FrameMutIter(FramePtr);
@@ -1591,12 +1591,12 @@ pub fn topframe_mut() -> &'static mut Frame {
 
 #[inline]
 pub fn first_tabpage_mut() -> &'static mut TabPageInfo {
-    unsafe { &mut *g_st().first_tabpage }
+    g_st().first_tabpage.borrow_mut()
 }
 
 #[inline]
 pub fn prevwin_mut() -> &'static mut WinInfoInfo {
-    unsafe { &mut *g_st().prevwin }
+    g_st().prevwin.borrow_mut()
 }
 
 #[inline]

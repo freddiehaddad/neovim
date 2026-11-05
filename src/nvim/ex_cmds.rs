@@ -2429,7 +2429,7 @@ pub fn do_wqall(eap: &mut Exarg) {
         g_st().exiting = true;
     }
 
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.as_ptr();
     while !buf.is_null() {
         let b = unsafe { &mut *buf };
         if g_st().exiting
@@ -2467,7 +2467,7 @@ pub fn do_wqall(eap: &mut Exarg) {
                 error += 1;
             }
             if !bufref_valid(Some(&bufref)) {
-                buf = g_st().firstbuf;
+                buf = g_st().firstbuf.as_ptr();
                 eap.forceit = save_forceit;
                 if !buf.is_null() {
                     buf = unsafe { (*buf).b_next.as_ptr() };
@@ -2920,7 +2920,7 @@ pub fn do_ecmd(
                     }
                     if !bufref_valid(Some(&g_st().au_new_curbuf)) {
                         if curwin_mut().w_buffer.is_null() {
-                            buf = g_st().lastbuf;
+                            buf = g_st().lastbuf.as_ptr();
                         } else {
                             delbuf_msg(new_name.take());
                             g_st().au_new_curbuf = save_au_new_curbuf;

@@ -70,7 +70,7 @@ impl Viewstate {
 }
 
 pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &mut TabPageInfo) -> bool {
-    let cur = if ptr::eq((&raw mut *tp), g_st().curtab) {
+    let cur = if g_st().curtab == (&raw mut *tp) {
         curwin_ptr()
     } else {
         tp.tp_curwin.as_ptr()
@@ -107,8 +107,8 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
     let mut tp: *mut TabPageInfo = ptr::null_mut();
     let wp: *mut WinInfoInfo;
     if argvars[1].v_type == VarType::VarUnknown {
-        tp = g_st().curtab;
-        wp = g_st().firstwin;
+        tp = g_st().curtab.as_ptr();
+        wp = g_st().firstwin.as_ptr();
     } else {
         let mut tabnr = tv_get_number(&argvars[1]) as i32;
         for tp2 in for_all_tabpages_ptr() {
@@ -299,7 +299,7 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
 fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut nr: i32 = 1;
 
-    let mut twin = if ptr::eq(tp, g_st().curtab) {
+    let mut twin = if g_st().curtab == tp {
         curwin_ptr()
     } else {
         tp.tp_curwin.as_ptr()
@@ -309,14 +309,14 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
         if let Some(arg) = tv_get_string_chk(&*argvar) {
             let bytes = arg.to_bytes();
             if bytes == b"$" {
-                twin = if ptr::eq(tp, g_st().curtab) {
-                    g_st().lastwin
+                twin = if g_st().curtab == tp {
+                    g_st().lastwin.as_ptr()
                 } else {
                     tp.tp_lastwin.as_ptr()
                 };
             } else if bytes == b"#" {
-                twin = if ptr::eq(tp, g_st().curtab) {
-                    g_st().prevwin
+                twin = if g_st().curtab == tp {
+                    g_st().prevwin.as_ptr()
                 } else {
                     tp.tp_prevwin.as_ptr()
                 };
@@ -537,8 +537,8 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             if bytes == b"$" {
                 nr = tabpage_index(None) - 1;
             } else if bytes == b"#" {
-                nr = if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
-                    tabpage_index(unsafe { g_st().lastused_tabpage.as_ref() })
+                nr = if valid_tabpage(g_st().lastused_tabpage.opt()) {
+                    tabpage_index(g_st().lastused_tabpage.opt())
                 } else {
                     0
                 };
@@ -547,7 +547,7 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             }
         }
     } else {
-        nr = tabpage_index(unsafe { g_st().curtab.as_ref() });
+        nr = tabpage_index(g_st().curtab.opt());
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
 }

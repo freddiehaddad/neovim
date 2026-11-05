@@ -868,14 +868,14 @@ fn ui_ext_tabline_update() {
     let name_buff = g_st().name_buff.as_mut_ptr();
 
     let mut n_tabs: usize = 0;
-    let mut tp = g_st().first_tabpage;
+    let mut tp = g_st().first_tabpage.as_ptr();
     while !tp.is_null() {
         n_tabs += 1;
         tp = unsafe { (*tp).tp_next.as_ptr() };
     }
 
     let mut tabs = arena_array(&mut arena, n_tabs);
-    tp = g_st().first_tabpage;
+    tp = g_st().first_tabpage.as_ptr();
     while !tp.is_null() {
         let tp_ref = unsafe { &*tp };
         let mut tab_info = arena_dict(&mut arena, 2);
@@ -889,7 +889,7 @@ fn ui_ext_tabline_update() {
             },
         );
 
-        let cwp = if tp == g_st().curtab {
+        let cwp = if g_st().curtab == tp {
             curwin_ptr()
         } else {
             tp_ref.tp_curwin.as_ptr()
@@ -921,7 +921,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut n_buffers: usize = 0;
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.as_ptr();
     while !buf.is_null() {
         if unsafe { (*buf).b_p_bl } {
             n_buffers += 1;
@@ -930,7 +930,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
-    buf = g_st().firstbuf;
+    buf = g_st().firstbuf.as_ptr();
     while !buf.is_null() {
         let b = unsafe { &mut *buf };
         if b.b_p_bl {
@@ -1005,7 +1005,7 @@ pub fn draw_tabline() {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
         grid_line_start(&mut g_st().default_gridview, 0);
-        let mut tp = g_st().first_tabpage;
+        let mut tp = g_st().first_tabpage.as_ptr();
         while !tp.is_null() {
             tabcount += 1;
             tp = unsafe { (*tp).tp_next.as_ptr() };
@@ -1021,7 +1021,7 @@ pub fn draw_tabline() {
         let mut attr = attr_nosel;
         tabcount = 0;
 
-        tp = g_st().first_tabpage;
+        tp = g_st().first_tabpage.as_ptr();
         while !tp.is_null() {
             if col >= g_st().columns_global - 4 {
                 break;
@@ -1029,8 +1029,8 @@ pub fn draw_tabline() {
 
             let tp_ref = unsafe { &*tp };
             let mut scol = col;
-            let (cwp, mut wp) = if tp == g_st().curtab {
-                (curwin_ptr(), g_st().firstwin)
+            let (cwp, mut wp) = if g_st().curtab == tp {
+                (curwin_ptr(), g_st().firstwin.as_ptr())
             } else {
                 (tp_ref.tp_curwin.as_ptr(), tp_ref.tp_firstwin.as_ptr())
             };

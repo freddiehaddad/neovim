@@ -730,7 +730,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     ctx_win_dirs_save(cs, &mut *cw_win, buf);
 
     if need_append {
-        win_append(unsafe { g_st().lastwin.as_mut() }, &mut *cw_win, None);
+        win_append(g_st().lastwin.opt_mut(), &mut *cw_win, None);
         g_st().window_handles.insert(cw_win.handle, cw_win);
         let cfg = cw_win.w_config.clone();
         win_config_float(cw_win, cfg);
@@ -750,7 +750,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
             for tp in for_all_tabpages_ptr() {
                 for wp in for_all_windows_in_tab_ptr(&*tp) {
                     if std::ptr::eq(wp, cwp) {
-                        if !std::ptr::eq(tp, g_st().curtab) {
+                        if g_st().curtab != tp {
                             goto_tabpage_tp(Some(&mut *tp), true, true);
                         }
                         win_goto(unsafe { &mut *cwp });
@@ -857,7 +857,7 @@ pub fn ctx_switch(
         block_autocmds();
     }
     if !tp.is_null() {
-        cs.cs_curtab = crate::globals::TabpagePtr::new(g_st().curtab);
+        cs.cs_curtab = g_st().curtab;
         if (flags & K_CTX_NO_DISPLAY) != 0 {
             unuse_tabpage(curtab_mut());
             use_tabpage(unsafe { &mut *tp });
@@ -871,7 +871,7 @@ pub fn ctx_switch(
             wp = ctx_win_prep(cs, &mut *buf_ref);
             leaving_window(curwin_mut());
             buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
-            g_st().prevwin = curwin_ptr();
+            g_st().prevwin = (curwin_ptr()).into();
         }
         assert!(wp == curwin_ptr() || win_valid(unsafe { wp.as_ref() }));
     } else if !win_valid(unsafe { wp.as_ref() }) {
@@ -907,7 +907,8 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoI
         set_curwin(save_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
     }
-    g_st().prevwin = win_find_by_handle(cs.cs_prevwin).map_or(ptr::null_mut(), ptr::from_mut);
+    g_st().prevwin =
+        (win_find_by_handle(cs.cs_prevwin).map_or(ptr::null_mut(), ptr::from_mut)).into();
 }
 
 pub fn ctx_restore(cs: &mut CtxSwitch) {
@@ -929,7 +930,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         ctx_restore_curwin(cs, None);
     } else if cs.cs_ctxwin_idx >= 0 {
         let cwp = ctx_win_rest(cs);
-        ctx_restore_curwin(cs, unsafe { g_st().firstwin.as_mut() });
+        ctx_restore_curwin(cs, g_st().firstwin.opt_mut());
         entering_window(curwin_mut());
         if bt_prompt(Some(crate::globals::curbuf_mut())) {
             curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;

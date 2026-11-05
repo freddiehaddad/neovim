@@ -2747,7 +2747,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 g_st().cmdmod.cmod_split |= WSP_VERT;
             }
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_NEWTAB) != 0 && g_st().cmdmod.cmod_tab == 0 {
-                g_st().cmdmod.cmod_tab = tabpage_index(unsafe { g_st().curtab.as_ref() }) + 1;
+                g_st().cmdmod.cmod_tab = tabpage_index(g_st().curtab.opt()) + 1;
             }
             if !win_split(
                 if g_st().postponed_split > 0 {

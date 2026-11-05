@@ -952,8 +952,8 @@ pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
 
 #[inline]
 pub fn first_win_in_tab(tp: &mut TabPageInfo) -> &'static mut WinInfoInfo {
-    if (&raw mut *tp) == g_st().curtab {
-        unsafe { &mut *g_st().firstwin }
+    if (&raw mut *tp) == g_st().curtab.as_ptr() {
+        g_st().firstwin.borrow_mut()
     } else {
         tp.tp_firstwin.borrow_mut()
     }
@@ -1542,12 +1542,12 @@ pub fn close_buffer(
         if let Some(prev) = b_prev.opt_mut() {
             prev.b_next = b_next;
         } else {
-            g_st().firstbuf = b_next.as_ptr();
+            g_st().firstbuf = (b_next.as_ptr()).into();
         }
         if let Some(next) = b_next.opt_mut() {
             next.b_prev = b_prev;
         } else {
-            g_st().lastbuf = b_prev.as_ptr();
+            g_st().lastbuf = (b_prev.as_ptr()).into();
         }
         free_buffer(buf.borrow_mut());
     } else {
@@ -1604,7 +1604,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     let is_curbuf = ptr::eq(g_st().curbuf, buf);
     let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf);
     let the_curwin = curwin_ptr();
-    let the_curtab = g_st().curtab;
+    let the_curtab = g_st().curtab.as_ptr();
 
     buf.b_locked += 1;
     buf.b_locked_split += 1;
@@ -2203,8 +2203,8 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
 
     buf = match start {
-        DOBUF_FIRST => g_st().firstbuf,
-        DOBUF_LAST => g_st().lastbuf,
+        DOBUF_FIRST => g_st().firstbuf.as_ptr(),
+        DOBUF_LAST => g_st().lastbuf.as_ptr(),
         _ => g_st().curbuf,
     };
     if start == DOBUF_MOD {
@@ -2214,7 +2214,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 buf = unsafe { (*buf).b_next.as_ptr() };
 
                 if buf.is_null() {
-                    buf = g_st().firstbuf;
+                    buf = g_st().firstbuf.as_ptr();
                 }
                 if buf == g_st().curbuf || buf_is_changed(unsafe { &mut *buf }) {
                     break;
@@ -2249,12 +2249,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 if !unsafe { (*buf).b_next }.is_null() {
                     unsafe { (*buf).b_next.as_ptr() }
                 } else {
-                    g_st().firstbuf
+                    g_st().firstbuf.as_ptr()
                 }
             } else if !unsafe { (*buf).b_prev }.is_null() {
                 unsafe { (*buf).b_prev.as_ptr() }
             } else {
-                g_st().lastbuf
+                g_st().lastbuf.as_ptr()
             };
             if unload
                 || (if help_only {
@@ -2663,7 +2663,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
 
     let valid = buf_valid_handle(crate::globals::BufPtr::new(buf));
     if (valid && buf != g_st().curbuf && !aborting()) || curwin_mut().w_buffer.is_null() {
-        let target = if valid { buf } else { g_st().lastbuf };
+        let target = if valid { buf } else { g_st().lastbuf.as_ptr() };
         enter_buffer(unsafe { &mut *target });
         if old_tw != curbuf_mut().b_p_tw {
             check_colorcolumn(None::<&CStr>, Some(crate::globals::curwin_mut()));
@@ -2916,14 +2916,12 @@ pub fn buflist_new(
         buf_ref.b_next = crate::globals::BufPtr::NULL;
         if g_st().firstbuf.is_null() {
             buf_ref.b_prev = crate::globals::BufPtr::NULL;
-            g_st().firstbuf = buf;
+            g_st().firstbuf = (buf).into();
         } else {
-            unsafe {
-                (*g_st().lastbuf).b_next = crate::globals::BufPtr::new(buf);
-            }
-            buf_ref.b_prev = crate::globals::BufPtr::new(g_st().lastbuf);
+            g_st().lastbuf.b_next = crate::globals::BufPtr::new(buf);
+            buf_ref.b_prev = g_st().lastbuf;
         }
-        g_st().lastbuf = buf;
+        g_st().lastbuf = (buf).into();
 
         buf_ref.b_fnum = buf_st().top_file_num;
         buf_st().top_file_num += 1;
@@ -4488,21 +4486,21 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     setpcmark();
 
     if had_tab > 0 {
-        goto_tabpage_tp(unsafe { g_st().first_tabpage.as_mut() }, true, true);
+        goto_tabpage_tp(g_st().first_tabpage.opt_mut(), true, true);
     }
     loop {
         let mut tpnext = curtab_mut().tp_next.as_ptr();
         let mut wp = crate::globals::WinPtr::new(if lastwin_mut().w_floating {
-            g_st().lastwin
+            g_st().lastwin.as_ptr()
         } else {
-            g_st().firstwin
+            g_st().firstwin.as_ptr()
         });
         while !wp.is_null() {
             wpnext = crate::globals::WinPtr::new(if wp.borrow().w_floating {
                 if wp.borrow().prev_mut().w_floating {
                     wp.borrow().w_prev.as_ptr()
                 } else {
-                    g_st().firstwin
+                    g_st().firstwin.as_ptr()
                 }
             } else if wp.borrow().next_opt().is_none_or(|next| next.w_floating) {
                 ptr::null_mut()
@@ -4522,7 +4520,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             if (wp.borrow().buf_mut().b_nwindows > 1
                 || wp.borrow().w_floating
                 || size_mismatch
-                || (had_tab > 0 && wp.as_ptr() != g_st().firstwin))
+                || (had_tab > 0 && wp.as_ptr() != g_st().firstwin.as_ptr()))
                 && g_st().firstwin != g_st().lastwin
                 && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked > 0)
                 && !is_ctx_win(&wp)
@@ -4531,11 +4529,11 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                     break;
                 }
                 wpnext = crate::globals::WinPtr::new(if lastwin_mut().w_floating {
-                    g_st().lastwin
+                    g_st().lastwin.as_ptr()
                 } else {
-                    g_st().firstwin
+                    g_st().firstwin.as_ptr()
                 });
-                tpnext = g_st().first_tabpage;
+                tpnext = g_st().first_tabpage.as_ptr();
                 open_wins = 0;
             } else {
                 open_wins += 1;
@@ -4552,7 +4550,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     g_st().autocmd_no_enter += 1;
     win_enter(lastwin_nofloating(None), false);
     g_st().autocmd_no_leave += 1;
-    let mut buf = crate::globals::BufPtr::new(g_st().firstbuf);
+    let mut buf = g_st().firstbuf;
     while !buf.is_null() && open_wins < count {
         if (!all && buf.borrow().b_ml.ml_mfp.is_none()) || !buf.borrow().b_p_bl {
             buf = buf.borrow().b_next;
@@ -4562,12 +4560,12 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         let mut wp: crate::globals::WinPtr;
         if had_tab != 0 {
             wp = crate::globals::WinPtr::new(if buf.borrow().b_nwindows > 0 {
-                g_st().lastwin
+                g_st().lastwin.as_ptr()
             } else {
                 ptr::null_mut()
             });
         } else {
-            wp = crate::globals::WinPtr::new(g_st().firstwin);
+            wp = g_st().firstwin;
             while !wp.is_null() {
                 if !wp.borrow().w_floating && wp.borrow().w_buffer == buf.as_ptr() {
                     break;
@@ -4633,19 +4631,19 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     win_enter(firstwin_mut(), false);
     g_st().autocmd_no_leave -= 1;
 
-    let mut wp = crate::globals::WinPtr::new(g_st().lastwin);
+    let mut wp = g_st().lastwin;
     while open_wins > count {
         let r = (buf_hide(wp.borrow().buf_mut())
             || !buf_is_changed(wp.borrow().buf_mut())
             || autowrite(wp.borrow().buf_mut(), false))
             && !is_ctx_win(&wp);
         if !win_valid(wp.opt()) {
-            wp = crate::globals::WinPtr::new(g_st().lastwin);
+            wp = g_st().lastwin;
         } else if r {
             let close_buf = !buf_hide(wp.borrow().buf_mut());
             win_close(wp.borrow_mut(), close_buf, false);
             open_wins -= 1;
-            wp = crate::globals::WinPtr::new(g_st().lastwin);
+            wp = g_st().lastwin;
         } else {
             wp = wp.borrow().w_prev;
             if wp.is_null() {

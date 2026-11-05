@@ -133,7 +133,7 @@ pub fn autowrite_all() {
         return;
     }
 
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.as_ptr();
     while let Some(buf_ref) = unsafe { buf.as_mut() } {
         if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro && !bt_dontwrite(Some(&*buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
@@ -142,7 +142,7 @@ pub fn autowrite_all() {
             buf_write_all(buf_ref, false);
 
             if !bufref_valid(Some(&bufref)) {
-                buf = g_st().firstbuf;
+                buf = g_st().firstbuf.as_ptr();
                 continue;
             }
         }
@@ -230,7 +230,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     } else if ret == VIM_NO {
         unchanged(buf, true, false);
     } else if ret == VIM_ALL {
-        let mut buf2 = g_st().firstbuf;
+        let mut buf2 = g_st().firstbuf.as_ptr();
         while let Some(buf2_ref) = unsafe { buf2.as_mut() } {
             if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && !buf2_ref.b_p_ro {
                 let mut bufref: Bufref = Bufref::new();
@@ -243,7 +243,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                     buf_write_all(unsafe { &mut *buf2 }, false);
                 }
                 if !bufref_valid(Some(&bufref)) {
-                    buf2 = g_st().firstbuf;
+                    buf2 = g_st().firstbuf.as_ptr();
                     continue;
                 }
             }
@@ -307,7 +307,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     }
 
     for tp in for_all_tabpages_ptr() {
-        if !std::ptr::eq(tp, g_st().curtab) {
+        if g_st().curtab != tp {
             for wp2 in win_iter_mut(first_win_in_tab(&mut *tp)) {
                 add_bufnum(&mut bufnrs, wp2.buf_mut().b_fnum);
             }
@@ -376,7 +376,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut wiped = false;
         if buf != g_st().curbuf {
             let mut found = false;
-            let mut tp = g_st().first_tabpage;
+            let mut tp = g_st().first_tabpage.as_ptr();
             while let Some(tp_ref) = unsafe { tp.as_mut() }
                 && !found
             {
@@ -456,9 +456,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             return;
         }
 
-        if win_valid(unsafe { g_st().prevwin.as_ref() })
-            && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
-        {
+        if win_valid(g_st().prevwin.opt()) && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb {
             win_goto(crate::globals::prevwin_mut());
         }
         if curwin_mut().w_onebuf_opt.wo_wfb {
@@ -492,8 +490,8 @@ pub fn ex_listdo(eap: &mut Exarg) {
     {
         let mut next_fnum: i32 = 0;
         let mut i: i32 = 0;
-        let mut wp = g_st().firstwin;
-        let mut tp = g_st().first_tabpage;
+        let mut wp = g_st().firstwin.as_ptr();
+        let mut tp = g_st().first_tabpage.as_ptr();
         match eap.cmdidx {
             Cmdidx::CmdWindo => {
                 while !wp.is_null() && i + 1 < eap.line1 {
@@ -519,7 +517,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
         let mut qf_size: usize = 0;
 
         if eap.cmdidx == Cmdidx::CmdBufdo {
-            buf = g_st().firstbuf;
+            buf = g_st().firstbuf.as_ptr();
             while let Some(buf_ref) = unsafe { buf.as_ref() }
                 && (buf_ref.b_fnum < eap.line1 || !buf_ref.b_p_bl)
             {
@@ -678,7 +676,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         au_event_restore(save_ei);
 
-        let mut buf = g_st().firstbuf;
+        let mut buf = g_st().firstbuf.as_ptr();
         while let Some(buf_ref) = unsafe { buf.as_mut() } {
             let mut bnext = buf_ref.b_next.as_ptr();
             if buf_ref.b_nwindows > 0 && (buf_ref.b_flags & BF_SYN_SET) != 0 {
@@ -704,7 +702,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     ctx_restore(&mut aco);
                 }
 
-                bnext = g_st().firstbuf;
+                bnext = g_st().firstbuf.as_ptr();
             }
             buf = bnext;
         }

@@ -1508,8 +1508,8 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
     }
     let b_ptr: *mut FileBuf = &raw mut *b;
     for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
-            g_st().firstwin
+        for wp in win_iter_mut(if g_st().curtab == tp {
+            g_st().firstwin.as_ptr()
         } else {
             tp.tp_firstwin.as_ptr()
         }) {

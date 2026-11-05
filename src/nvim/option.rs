@@ -3042,7 +3042,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     }
     let win = args.os_win.as_ptr();
     let tab = if win == curwin_ptr() {
-        g_st().curtab
+        g_st().curtab.as_ptr()
     } else {
         win_find_tabpage(unsafe { &*win }).map_or(ptr::null_mut(), ptr::from_mut)
     };
@@ -5906,10 +5906,10 @@ fn switch_option_context(
             let OptTarget::Tab(tab) = from else {
                 return false;
             };
-            if tab == g_st().curtab {
+            if tab == g_st().curtab.as_ptr() {
                 return false;
             }
-            *ctx = OptSavedCtx::Tab(g_st().curtab);
+            *ctx = OptSavedCtx::Tab(g_st().curtab.as_ptr());
             unuse_tabpage(curtab_mut());
             use_tabpage(unsafe { &mut *tab });
             true
@@ -5967,7 +5967,7 @@ pub fn set_option_value_for(
     err: &mut Error,
 ) {
     if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, from)
-        && tab != g_st().curtab
+        && tab != g_st().curtab.as_ptr()
     {
         assert!(opt_idx == K_OPT_CMDHEIGHT);
         if value.obj_type != ObjectType::ObjectTypeInteger {

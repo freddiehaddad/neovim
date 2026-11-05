@@ -5560,7 +5560,7 @@ fn store_loop_line(lines: &mut Vec<Wcmd>, line: &CStr) {
 
 fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> i32 {
     let mut count = offset;
-    let mut buf = g_st().firstbuf;
+    let mut buf = g_st().firstbuf.as_ptr();
     while unsafe { !(*buf).b_next.is_null() && (*buf).b_fnum < lnum } {
         buf = unsafe { (*buf).b_next.as_ptr() };
     }
@@ -5722,14 +5722,14 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
             eap.line2 = curbuf_mut().b_ml.ml_line_count;
         }
         ADDR_LOADED_BUFFERS => {
-            let mut buf = g_st().firstbuf;
+            let mut buf = g_st().firstbuf.as_ptr();
             while unsafe { !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() } {
                 buf = unsafe { (*buf).b_next.as_ptr() };
             }
 
             eap.line1 = unsafe { (*buf).b_fnum };
 
-            buf = g_st().lastbuf;
+            buf = g_st().lastbuf.as_ptr();
             while unsafe { !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() } {
                 buf = unsafe { (*buf).b_prev.as_ptr() };
             }
@@ -5737,8 +5737,8 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
             eap.line2 = unsafe { (*buf).b_fnum };
         }
         ADDR_BUFFERS => {
-            eap.line1 = unsafe { (*g_st().firstbuf).b_fnum };
-            eap.line2 = unsafe { (*g_st().lastbuf).b_fnum };
+            eap.line1 = g_st().firstbuf.b_fnum;
+            eap.line2 = g_st().lastbuf.b_fnum;
         }
         ADDR_WINDOWS => {
             eap.line2 = current_win_nr(None, Some(&*eap));
@@ -7086,7 +7086,7 @@ pub fn parse_command_modifiers(
                             return false;
                         }
                         if tabnr == MAXLNUM {
-                            cmod.cmod_tab = tabpage_index(unsafe { g_st().curtab.as_ref() }) + 1;
+                            cmod.cmod_tab = tabpage_index(g_st().curtab.opt()) + 1;
                         } else {
                             if tabnr < 0 || tabnr > current_tab_nr(None) {
                                 *errormsg = Some(gettext(E_INVRANGE));
@@ -7283,7 +7283,7 @@ pub fn parse_cmd_address(
                             eap.line2 = curbuf_mut().b_ml.ml_line_count;
                         }
                         ADDR_LOADED_BUFFERS => {
-                            let mut buf = g_st().firstbuf;
+                            let mut buf = g_st().firstbuf.as_ptr();
                             while unsafe {
                                 !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none()
                             } {
@@ -7292,7 +7292,7 @@ pub fn parse_cmd_address(
 
                             eap.line1 = unsafe { (*buf).b_fnum };
 
-                            buf = g_st().lastbuf;
+                            buf = g_st().lastbuf.as_ptr();
                             while unsafe {
                                 !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none()
                             } {
@@ -7302,8 +7302,8 @@ pub fn parse_cmd_address(
                             eap.line2 = unsafe { (*buf).b_fnum };
                         }
                         ADDR_BUFFERS => {
-                            eap.line1 = unsafe { (*g_st().firstbuf).b_fnum };
-                            eap.line2 = unsafe { (*g_st().lastbuf).b_fnum };
+                            eap.line1 = g_st().firstbuf.b_fnum;
+                            eap.line2 = g_st().lastbuf.b_fnum;
                         }
                         ADDR_WINDOWS | ADDR_TABS => {
                             if eap.cmdidx.is_user() {
@@ -7828,7 +7828,7 @@ pub fn get_address(
                         ADDR_WINDOWS => lnum = current_win_nr(None, eap.as_deref()),
                         ADDR_ARGUMENTS => lnum = argcount(),
                         ADDR_LOADED_BUFFERS => {
-                            let mut buf = g_st().lastbuf;
+                            let mut buf = g_st().lastbuf.as_ptr();
                             while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
                                 if unsafe { (*buf).b_prev.is_null() } {
                                     break;
@@ -7839,7 +7839,7 @@ pub fn get_address(
 
                             lnum = unsafe { (*buf).b_fnum };
                         }
-                        ADDR_BUFFERS => lnum = unsafe { (*g_st().lastbuf).b_fnum },
+                        ADDR_BUFFERS => lnum = g_st().lastbuf.b_fnum,
                         ADDR_TABS => lnum = current_tab_nr(None),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                             *errormsg = Some(addr_error(addr_type));
@@ -8840,8 +8840,8 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 if crate::memory::cstr_as_bytes(p) == b"$" {
                     tab_number = last_tab;
                 } else if crate::memory::cstr_as_bytes(p) == b"#" {
-                    if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
-                        tab_number = tabpage_index(unsafe { g_st().lastused_tabpage.as_ref() });
+                    if valid_tabpage(g_st().lastused_tabpage.opt()) {
+                        tab_number = tabpage_index(g_st().lastused_tabpage.opt());
                     } else {
                         eap.errmsg = Some(ex_errmsg(E_INVARGVAL, eap.arg.as_cstr()));
                         tab_number = 0;
@@ -8866,8 +8866,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     eap.errmsg = Some(ex_errmsg(E_INVARG2, eap.arg.as_cstr()));
                     break 'theend;
                 }
-                tab_number =
-                    tab_number * relative + tabpage_index(unsafe { g_st().curtab.as_ref() });
+                tab_number = tab_number * relative + tabpage_index(g_st().curtab.opt());
                 if unaccept_arg0 == 0 && relative == -1 {
                     tab_number -= 1;
                 }
@@ -8897,14 +8896,14 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 }
             }
         } else if eap.cmdidx == Cmdidx::CmdTabnextVariant {
-            tab_number = tabpage_index(unsafe { g_st().curtab.as_ref() }) + 1;
+            tab_number = tabpage_index(g_st().curtab.opt()) + 1;
             if tab_number > last_tab {
                 tab_number = 1;
             }
         } else if eap.cmdidx == Cmdidx::CmdTabmove {
             tab_number = last_tab;
         } else {
-            tab_number = tabpage_index(unsafe { g_st().curtab.as_ref() });
+            tab_number = tabpage_index(g_st().curtab.opt());
         }
     }
 
@@ -9161,7 +9160,7 @@ fn ex_quit(eap: &mut Exarg) {
     let mut wp: crate::globals::WinPtr;
     if eap.addr_count > 0 {
         let mut wnr = eap.line2;
-        wp = crate::globals::WinPtr::new(g_st().firstwin);
+        wp = g_st().firstwin;
         while !wp.borrow().w_next.is_null() {
             wnr -= 1;
             if wnr <= 0 {
@@ -9681,7 +9680,7 @@ fn ex_close(eap: &mut Exarg) {
             curwin_mut()
         } else {
             win_find_nr(eap.line2, Some(curtab_mut()))
-                .unwrap_or_else(|| unsafe { &mut *g_st().lastwin })
+                .unwrap_or_else(|| g_st().lastwin.borrow_mut())
         };
         ex_win_close(eap.forceit, win, None);
     }
@@ -9699,7 +9698,7 @@ fn ex_pclose(eap: &mut Exarg) {
 
 pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&mut TabPageInfo>) {
     let tp = tp_in.map_or(ptr::null_mut(), ptr::from_mut);
-    debug_assert!(tp.is_null() || tp != g_st().curtab);
+    debug_assert!(tp.is_null() || tp != g_st().curtab.as_ptr());
 
     if is_ctx_win(win) {
         let _ = emsg(gettext(E_AUTOCMD_CLOSE));
@@ -9757,7 +9756,7 @@ fn ex_tabclose(eap: &mut Exarg) {
         beep_flush();
         return;
     };
-    if !ptr::eq(tp, g_st().curtab) {
+    if g_st().curtab != tp {
         tabpage_close_other(tp, eap.forceit);
     } else if !text_locked() && !curbuf_locked() {
         tabpage_close(eap.forceit);
@@ -9836,7 +9835,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
     let mut done: i32 = 0;
     let mut prev_idx = [0u8; NUMBUFLEN];
 
-    debug_assert!(!ptr::eq(tp, g_st().curtab));
+    debug_assert!(g_st().curtab != tp);
 
     if window_layout_locked(Cmdidx::CmdSize) {
         return;
@@ -9860,7 +9859,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
         );
         let wp = unsafe { (*tp).tp_lastwin.as_ptr() };
 
-        if ptr::eq(tp, g_st().curtab) {
+        if g_st().curtab == tp {
             done = 1000;
             break;
         }
@@ -9915,7 +9914,7 @@ fn ex_hide(eap: &mut Exarg) {
     let win: *mut WinInfoInfo = if eap.addr_count == 0 {
         curwin_ptr()
     } else {
-        win_find_nr(eap.line2, Some(curtab_mut())).map_or(g_st().lastwin, |w| w)
+        win_find_nr(eap.line2, Some(curtab_mut())).map_or(g_st().lastwin.as_ptr(), |w| w)
     };
 
     if unsafe { !(*win).w_floating } && window_layout_locked(Cmdidx::CmdHide) {
@@ -10276,8 +10275,8 @@ fn ex_tabs(_eap: &mut Exarg) {
     msg_start();
     g_st().msg_scroll = i32::from(true);
 
-    let lastused_win = if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
-        unsafe { (*g_st().lastused_tabpage).tp_curwin.as_ptr() }
+    let lastused_win = if valid_tabpage(g_st().lastused_tabpage.opt()) {
+        g_st().lastused_tabpage.tp_curwin.as_ptr()
     } else {
         ptr::null_mut()
     };

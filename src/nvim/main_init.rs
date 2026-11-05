@@ -892,11 +892,11 @@ pub fn getout(mut exitval: i32) -> ! {
 
     if g_st().v_dying <= 1 {
         let mut next_tp: Option<&'static mut TabPageInfo>;
-        let mut tp_opt = unsafe { g_st().first_tabpage.as_mut() };
+        let mut tp_opt = g_st().first_tabpage.opt_mut();
         while let Some(tp) = tp_opt {
             next_tp = tp.next_opt();
-            let first_wp = if ptr::eq(tp, g_st().curtab) {
-                g_st().firstwin
+            let first_wp = if g_st().curtab == tp {
+                g_st().firstwin.as_ptr()
             } else {
                 tp.tp_firstwin.as_ptr()
             };
@@ -917,7 +917,7 @@ pub fn getout(mut exitval: i32) -> ! {
                     {
                         buf_set_changedtick(buf_now, -1);
                     }
-                    next_tp = unsafe { g_st().first_tabpage.as_mut() };
+                    next_tp = g_st().first_tabpage.opt_mut();
                     break;
                 }
             }
@@ -1996,7 +1996,7 @@ fn create_windows(parmp: &mut Mparm) {
                 if parmp.window_layout == WIN_TABS {
                     goto_tabpage(1);
                 } else {
-                    set_curwin(g_st().firstwin);
+                    set_curwin(g_st().firstwin.as_ptr());
                 }
             } else if parmp.window_layout == WIN_TABS {
                 if curtab_mut().tp_next.is_null() {
@@ -2043,7 +2043,7 @@ fn create_windows(parmp: &mut Mparm) {
         if parmp.window_layout == WIN_TABS {
             goto_tabpage(1);
         } else if parmp.window_count > 1 || !win_valid(unsafe { startup_curwin.as_ref() }) {
-            set_curwin(g_st().firstwin);
+            set_curwin(g_st().firstwin.as_ptr());
         } else {
             set_curwin(startup_curwin);
         }
@@ -2152,14 +2152,14 @@ fn edit_buffers(parmp: &mut Mparm) {
     g_st().autocmd_no_enter -= 1;
 
     let mut win = if parmp.window_count > 1 {
-        g_st().firstwin
+        g_st().firstwin.as_ptr()
     } else {
         curwin_ptr()
     };
     while unsafe { (*win).w_onebuf_opt.wo_pvw } {
         win = unsafe { (*win).w_next.as_ptr() };
         if win.is_null() {
-            win = g_st().firstwin;
+            win = g_st().firstwin.as_ptr();
             break;
         }
     }

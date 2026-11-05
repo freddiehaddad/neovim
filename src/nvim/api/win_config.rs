@@ -352,7 +352,7 @@ pub fn nvim_open_win(
 
     'cleanup: {
         let mut wp: *mut WinInfoInfo = ptr::null_mut();
-        let mut tp = g_st().curtab;
+        let mut tp = g_st().curtab.as_ptr();
         assert!(!(curwin_ptr()).is_null());
         let mut parent = if config.win == 0 {
             curwin_ptr()
@@ -575,7 +575,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> i32 {
 fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) -> bool {
     if one_window(
         wp,
-        if &raw mut *tp == g_st().curtab {
+        if &raw mut *tp == g_st().curtab.as_ptr() {
             None
         } else {
             Some(&*tp)
@@ -618,7 +618,7 @@ fn win_find_altwin(
     win: &mut WinInfoInfo,
     tp: &mut TabPageInfo,
 ) -> Option<&'static mut WinInfoInfo> {
-    let tp_arg = if ptr::eq(tp, g_st().curtab) {
+    let tp_arg = if g_st().curtab == tp {
         ptr::null_mut()
     } else {
         &raw mut *tp
@@ -671,7 +671,7 @@ fn win_config_split(
         let mut parent_tp: *mut TabPageInfo = ptr::null_mut();
         if config.win == 0 {
             parent = curwin_ptr();
-            parent_tp = g_st().curtab;
+            parent_tp = g_st().curtab.as_ptr();
         } else if config.win > 0 {
             parent = find_window_by_handle(fconfig.window, err);
             if parent.is_null() {
@@ -773,7 +773,7 @@ fn win_config_split(
                         altwin = winframe_remove(
                             win,
                             &mut dir,
-                            if win_tp == g_st().curtab {
+                            if win_tp == g_st().curtab.as_ptr() {
                                 None
                             } else {
                                 unsafe { win_tp.as_mut() }
@@ -785,7 +785,7 @@ fn win_config_split(
                         altwin = winframe_remove(
                             win,
                             &mut dir,
-                            if win_tp == g_st().curtab {
+                            if win_tp == g_st().curtab.as_ptr() {
                                 None
                             } else {
                                 unsafe { win_tp.as_mut() }
@@ -807,7 +807,7 @@ fn win_config_split(
                     altwin = winframe_remove(
                         win,
                         &mut dir,
-                        if win_tp == g_st().curtab {
+                        if win_tp == g_st().curtab.as_ptr() {
                             None
                         } else {
                             unsafe { win_tp.as_mut() }
@@ -819,20 +819,20 @@ fn win_config_split(
             } else {
                 altwin = win_float_find_altwin(
                     win,
-                    (win_tp != g_st().curtab).then(|| unsafe { &*win_tp }),
+                    (win_tp != g_st().curtab.as_ptr()).then(|| unsafe { &*win_tp }),
                 );
             }
             let unflat_altfr: *mut Frame = unflat_altfr_opt.map_or(ptr::null_mut(), ptr::from_mut);
 
             win_remove(
                 win,
-                if win_tp == g_st().curtab {
+                if win_tp == g_st().curtab.as_ptr() {
                     None
                 } else {
                     unsafe { win_tp.as_mut() }
                 },
             );
-            if win_tp == g_st().curtab {
+            if win_tp == g_st().curtab.as_ptr() {
                 last_status(false);
                 win_comp_pos();
             }
@@ -841,7 +841,7 @@ fn win_config_split(
             parent_tp = if !parent.is_null() {
                 win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut)
             } else {
-                g_st().curtab
+                g_st().curtab.as_ptr()
             };
 
             let win_ptr: *mut WinInfoInfo = win;
@@ -866,7 +866,7 @@ fn win_config_split(
                     win_append(
                         unsafe { (*win_ptr).w_prev.opt_mut() },
                         unsafe { &mut *win_ptr },
-                        if win_tp == g_st().curtab {
+                        if win_tp == g_st().curtab.as_ptr() {
                             None
                         } else {
                             unsafe { win_tp.as_mut() }
@@ -998,13 +998,13 @@ fn win_config_float_tp(
         if win_tp != parent_tp {
             win_remove(
                 win,
-                if win_tp == g_st().curtab {
+                if win_tp == g_st().curtab.as_ptr() {
                     None
                 } else {
                     unsafe { win_tp.as_mut() }
                 },
             );
-            let append_tp = if parent_tp == g_st().curtab {
+            let append_tp = if parent_tp == g_st().curtab.as_ptr() {
                 ptr::null_mut()
             } else {
                 parent_tp
@@ -1015,7 +1015,7 @@ fn win_config_float_tp(
                 unsafe { append_tp.as_mut() },
             );
 
-            if win_tp != g_st().curtab && unsafe { (*win_tp).tp_curwin } == win {
+            if win_tp != g_st().curtab.as_ptr() && unsafe { (*win_tp).tp_curwin } == win {
                 unsafe { (*win_tp).tp_curwin = crate::globals::WinPtr::new(altwin) };
             }
 

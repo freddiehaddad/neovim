@@ -1403,7 +1403,7 @@ pub fn add_win_cmd_modifiers(buf: &mut Vec<u8>, cmod: &Cmdmod, multi_mods: &mut 
 
     if cmod.cmod_tab > 0 {
         let tabnr = cmod.cmod_tab - 1;
-        if tabnr == tabpage_index(unsafe { g_st().curtab.as_ref() }) {
+        if tabnr == tabpage_index(g_st().curtab.opt()) {
             result += add_cmd_modifier(buf, b"tab", multi_mods);
         } else {
             let s = format!("{tabnr}tab");

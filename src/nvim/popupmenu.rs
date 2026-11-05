@@ -1398,7 +1398,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
         {
             let curwin_save = curwin_ptr();
-            let curtab_save = g_st().curtab;
+            let curtab_save = g_st().curtab.as_ptr();
 
             if use_float {
                 block_autocmds();
