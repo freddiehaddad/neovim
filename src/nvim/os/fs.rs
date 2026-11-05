@@ -2240,9 +2240,7 @@ mod tests {
         {
             let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(&mut cwd_buf));
-            let cwd = crate::memory::cstr_from_ptr(cwd_buf.as_ptr())
-                .to_str()
-                .unwrap();
+            let cwd = crate::memory::cstr_until_nul(&cwd_buf).to_str().unwrap();
             let base = format!("{cwd}/target/ut_fs_{}", std::process::id());
             let _ = std::fs::remove_dir_all(&base);
 

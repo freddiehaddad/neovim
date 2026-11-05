@@ -1059,7 +1059,7 @@ pub fn home_replace(
             let cmp_ok = len != 0
                 && path_cmp(
                     opt_vars().p_fic,
-                    crate::memory::cstr_from_ptr(src_bytes[src_idx..].as_ptr()),
+                    crate::memory::cstr_until_nul(&src_bytes[src_idx..]),
                     crate::memory::cstr_from_ptr(p),
                     len,
                 ) == 0;
@@ -1137,7 +1137,7 @@ pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
         crate::memory::copy_bytes_to_c_buf(&mut xp.xp_buf, envname.to_bytes());
-        return Some(crate::memory::cstr_from_ptr(xp.xp_buf.as_ptr()));
+        return Some(crate::memory::cstr_until_nul(&xp.xp_buf));
     }
     None
 }
@@ -1297,13 +1297,13 @@ mod tests {
 
             assert!(os_getenv_buf(k, &mut buf).is_some());
             assert_eq!(
-                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
                 "val2"
             );
 
             expand_env_esc(c"$NVIM_RUST_ENV_TEST_KEY/sub", &mut buf, None, true, None);
             assert_eq!(
-                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
                 "val2/sub"
             );
             let _ = os_unsetenv(k);

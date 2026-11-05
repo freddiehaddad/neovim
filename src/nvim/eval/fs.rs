@@ -236,7 +236,7 @@ pub fn modify_fname(
                         if path_cmp(
                             opt_vars().p_fic,
                             crate::memory::cstr_from_ptr(p.cast_const()),
-                            crate::memory::cstr_from_ptr(dirname.as_ptr()),
+                            crate::memory::cstr_until_nul(&dirname),
                             dirnamelen,
                         ) == 0
                         {

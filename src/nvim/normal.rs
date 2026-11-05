@@ -3014,7 +3014,7 @@ pub fn display_showcmd() {
         let mut size = 0;
         if ext_buf[0] != 0 {
             chunk_items[0] = integer_obj(0);
-            chunk_items[1] = cstr_as_obj(crate::memory::cstr_as_opt_cstr(ext_buf.as_ptr()));
+            chunk_items[1] = cstr_as_obj(Some(crate::memory::cstr_until_nul(&ext_buf)));
             chunk_items[2] = integer_obj(0);
             let chunk = Array {
                 items: chunk_items.as_mut_ptr(),

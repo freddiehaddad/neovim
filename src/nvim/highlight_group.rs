@@ -1448,8 +1448,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         let color: i32;
                         if arg[0].is_ascii_digit() {
                             color = crate::charset::parse_i64_prefix(&arg[..arg_len]) as i32;
-                        } else if mb_stricmp(crate::memory::cstr_from_ptr(arg.as_ptr()), c"fg") == 0
-                        {
+                        } else if mb_stricmp(crate::memory::cstr_until_nul(&arg), c"fg") == 0 {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
                             } else {
@@ -1457,8 +1456,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                 error = true;
                                 break;
                             }
-                        } else if mb_stricmp(crate::memory::cstr_from_ptr(arg.as_ptr()), c"bg") == 0
-                        {
+                        } else if mb_stricmp(crate::memory::cstr_until_nul(&arg), c"bg") == 0 {
                             if g_st().cterm_normal_bg_color > 0 {
                                 color = g_st().cterm_normal_bg_color - 1;
                             } else {
@@ -1473,7 +1471,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                 let cname = COLOR_NAMES[i as usize].as_ptr();
                                 if off == crate::memory::cstr_first_byte(cname)
                                     && mb_stricmp(
-                                        crate::memory::cstr_from_ptr(arg[1..].as_ptr()),
+                                        crate::memory::cstr_until_nul(&arg[1..]),
                                         crate::memory::cstr_from_ptr(cname.wrapping_add(1)),
                                     ) == 0
                                 {
@@ -2537,10 +2535,7 @@ pub fn name_to_color(name: &CStr, idx: &mut i32) -> RgbValue {
     let mut hi: usize = COLOR_NAME_TABLE.len();
     while lo < hi {
         let m = (lo + hi) / 2;
-        let cmp = mb_stricmp(
-            crate::memory::cstr_from_ptr(name.as_ptr()),
-            COLOR_NAME_TABLE[m].name,
-        );
+        let cmp = mb_stricmp(name, COLOR_NAME_TABLE[m].name);
         if cmp < 0 {
             hi = m;
         } else if cmp > 0 {

@@ -1569,7 +1569,7 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
             while !p.is_empty() {
                 copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
                 if path_equal(
-                    crate::memory::cstr_from_ptr(buf.as_ptr()),
+                    crate::memory::cstr_until_nul(&buf),
                     crate::memory::cstr_from_ptr(fname),
                     K_PATH_CMP_LITERAL,
                 ) {
@@ -3010,7 +3010,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
         if let Some(ref sn) = si.sn_name {
             home_replace(
                 None,
-                crate::memory::cstr_as_opt_cstr(sn.as_ptr()),
+                Some(sn.as_c_str()),
                 g_st().name_buff_bytes_mut(),
                 true,
             );

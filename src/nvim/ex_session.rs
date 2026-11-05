@@ -237,7 +237,7 @@ fn ses_arglist(
         if let Some(s_cstr) = alist_name(entry) {
             let s = if fullname {
                 vim_full_name(
-                    crate::memory::cstr_as_opt_cstr(s_cstr.as_ptr()),
+                    Some(s_cstr),
                     unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), MAXPATHL) },
                     false,
                 );
@@ -1082,7 +1082,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         } else if eap.cmdidx == Cmdidx::CmdMksession {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
             if vim_full_name(
-                crate::memory::cstr_as_opt_cstr(fname.as_ptr()),
+                Some(fname),
                 unsafe { std::slice::from_raw_parts_mut(tbuf.as_mut_ptr().cast(), MAXPATHL) },
                 false,
             ) {

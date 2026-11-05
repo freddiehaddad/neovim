@@ -1698,7 +1698,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             {
                 let tail = path_tail(alist_name(&garglist_slice()[0]).unwrap_or(c""));
                 let joined = concat_fnames(
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr())),
+                    cstr_as_string(Some(crate::memory::cstr_until_nul(&p_vec))),
                     cstr_as_string(Some(tail)),
                     true,
                 );
@@ -1756,17 +1756,13 @@ fn set_argf_var() {
     for i in 0..count {
         if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
             let _ = vim_full_name(
-                crate::memory::cstr_as_opt_cstr(fname.as_ptr()),
+                Some(fname),
                 unsafe {
                     std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast(), MAXPATHL)
                 },
                 false,
             );
-            tv_list_append_string(
-                &mut *list,
-                Some(crate::memory::cstr_from_ptr(g_st().name_buff.as_ptr())),
-                -1,
-            );
+            tv_list_append_string(&mut *list, Some(g_st().name_buff_cstr()), -1);
         }
     }
     tv_list_set_lock(Some(&mut *list), VAR_FIXED);
@@ -2091,7 +2087,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                     );
                     set_option_value_give_err(
                         K_OPT_SHORTMESS,
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf.as_ptr())),
+                        cstr_as_obj(Some(crate::memory::cstr_until_nul(&buf))),
                         0,
                     );
                 }
@@ -2348,7 +2344,7 @@ fn do_user_initialization() -> bool {
                 if do_exrc {
                     do_exrc = !path_equal(
                         c".nvimrc",
-                        crate::memory::cstr_from_ptr(init_vim.as_ptr()),
+                        crate::memory::cstr_until_nul(&init_vim),
                         K_PATH_CMP_EXPAND,
                     );
                 }

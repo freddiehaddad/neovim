@@ -2073,7 +2073,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
             if !cmd.to_bytes().is_empty() {
                 cmd_owned = expand_sfile(cmd);
                 match cmd_owned {
-                    Some(ref co) => cmd = crate::memory::cstr_from_ptr(co.as_ptr()),
+                    Some(ref co) => cmd = co.as_c_str(),
                     None => break 'run,
                 }
             }
@@ -3386,7 +3386,7 @@ fn has_autocmd_ext(
                     ap.reg_prog.as_deref(),
                     Some(&fname),
                     sfname,
-                    crate::memory::cstr_from_ptr((tail).as_ptr()),
+                    tail,
                     i32::from(ap.allow_dirs),
                 )
             } else {
@@ -3588,11 +3588,7 @@ pub fn au_exists(arg: &CStr) -> bool {
                         if let Some(fnum) = buflocal_fnum {
                             ap.buflocal_nr == fnum
                         } else {
-                            mb_strcmp_ic(
-                                opt_vars().p_fic,
-                                crate::memory::cstr_from_ptr(ap.pat.as_ptr()),
-                                crate::memory::cstr_from_ptr(pattern.as_ptr()),
-                            ) == 0
+                            mb_strcmp_ic(opt_vars().p_fic, ap.pat.as_c_str(), pattern) == 0
                         }
                     } else {
                         true

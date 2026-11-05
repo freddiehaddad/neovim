@@ -2283,7 +2283,7 @@ pub fn cat_prefix_varname(prefix: i32, name: Option<&CStr>) -> &'static CStr {
     vars_st().varnamebuf.push(prefix as u8);
     vars_st().varnamebuf.push(b':');
     vars_st().varnamebuf.extend_from_slice(name_bytes);
-    crate::memory::cstr_from_ptr(vars_st().varnamebuf.as_ptr())
+    crate::memory::cstr_until_nul(&vars_st().varnamebuf)
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.

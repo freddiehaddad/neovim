@@ -234,7 +234,7 @@ pub fn vim_findfile_init(
             let handled_drive = if path_bytes.get(1) == Some(&b':') {
                 let drive: [u8; 3] = [path_bytes[0], b':', 0];
                 if !vim_full_name(
-                    crate::memory::cstr_as_opt_cstr(drive.as_ptr()),
+                    Some(crate::memory::cstr_until_nul(&drive)),
                     unsafe {
                         std::slice::from_raw_parts_mut((expand_buf.as_mut_ptr()).cast(), MAXPATHL)
                     },
@@ -1036,8 +1036,8 @@ fn ff_check_visited(
     for vp in &*visited_list {
         if ((url
             && path_equal(
-                crate::memory::cstr_from_ptr(vp.ffv_fname.as_ptr()),
-                crate::memory::cstr_from_ptr(expand_buf.as_ptr()),
+                crate::memory::cstr_until_nul(&vp.ffv_fname),
+                crate::memory::cstr_until_nul(&expand_buf),
                 K_PATH_CMP_LITERAL,
             ))
             || (!url && vp.file_id_valid && os_fileid_equal(&vp.file_id, &file_id)))
@@ -1771,7 +1771,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         }
 
         if path_equal(
-            crate::memory::cstr_from_ptr(dir.as_ptr()),
+            crate::memory::cstr_until_nul(&dir),
             crate::memory::cstr_from_ptr(name_buff),
             K_PATH_CMP_LITERAL,
         ) {

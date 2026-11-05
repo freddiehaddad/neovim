@@ -2798,9 +2798,7 @@ mod tests {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                let got = crate::memory::cstr_from_ptr(out_buf.as_ptr())
-                    .to_str()
-                    .unwrap();
+                let got = crate::memory::cstr_until_nul(&out_buf).to_str().unwrap();
                 assert_eq!(got, expected, "pat={pat:?}");
                 assert_eq!(cells, exp_cells.unwrap_or(max_cells), "pat={pat:?}");
             };

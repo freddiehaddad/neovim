@@ -2826,13 +2826,7 @@ fn sug_compare(p1: &Suggest, p2: &Suggest) -> std::cmp::Ordering {
     p1.st_score
         .cmp(&p2.st_score)
         .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
-        .then_with(|| {
-            mb_stricmp(
-                crate::memory::cstr_from_ptr(p1.st_word.as_ptr()),
-                crate::memory::cstr_from_ptr(p2.st_word.as_ptr()),
-            )
-            .cmp(&0)
-        })
+        .then_with(|| mb_stricmp(p1.st_word.as_c_str(), p2.st_word.as_c_str()).cmp(&0))
 }
 fn cleanup_suggestions(gap: &mut Vec<Suggest>, maxscore: i32, keep: i32) -> i32 {
     if gap.is_empty() {

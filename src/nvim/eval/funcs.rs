@@ -1361,7 +1361,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
     let mut err = Error::new();
     let mut result = nlua_exec(
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.as_ptr())),
+        cstr_as_string(Some(crate::memory::cstr_until_nul(&buf))),
         None,
         args,
         K_RET_OBJECT,
@@ -2403,10 +2403,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         g_st().emsg_off -= 1;
     }
 
-    crate::eval::typval::tv_set_string(
-        rettv,
-        crate::memory::cstr_as_opt_cstr(cmdline_buf.as_ptr()),
-    );
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&cmdline_buf)));
 }
 
 /// "flatten()" and "flattennew()" functions

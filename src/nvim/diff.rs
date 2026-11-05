@@ -2103,10 +2103,7 @@ fn diff_cmp(s1: &[u8], s2: &[u8]) -> i32 {
     if (diff_st().diff_flags & DIFF_ICASE) != 0 && (diff_st().diff_flags & ALL_WHITE_DIFF) == 0 {
         let s1_cstr = CString::new(crate::memory::bytes_until_nul(s1)).unwrap_or_default();
         let s2_cstr = CString::new(crate::memory::bytes_until_nul(s2)).unwrap_or_default();
-        return mb_stricmp(
-            crate::memory::cstr_from_ptr(s1_cstr.as_ptr()),
-            crate::memory::cstr_from_ptr(s2_cstr.as_ptr()),
-        );
+        return mb_stricmp(s1_cstr.as_c_str(), s2_cstr.as_c_str());
     }
     let mut p1 = s1;
     let mut p2 = s2;

@@ -623,7 +623,7 @@ fn format_progress_message(
             c"%3ld%% ",
             msg_data.unwrap().percent,
         );
-        let percent = cstr_to_string(crate::memory::cstr_as_opt_cstr(percent_buf.as_ptr()));
+        let percent = cstr_to_string(Some(crate::memory::cstr_until_nul(&percent_buf)));
         let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
             text: percent,

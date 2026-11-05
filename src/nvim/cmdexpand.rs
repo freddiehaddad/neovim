@@ -2945,7 +2945,7 @@ pub fn showmatches(
                 let name_buff = g_st().name_buff.as_mut_ptr();
                 home_replace(
                     None,
-                    crate::memory::cstr_as_opt_cstr(match_i.as_ptr()),
+                    Some(match_i.as_c_str()),
                     g_st().name_buff_bytes_mut(),
                     true,
                 );
@@ -5048,8 +5048,8 @@ fn expand_from_context(
             c"^<SNR>\\d\\+_%s",
             pat_cstr.as_ptr().wrapping_add(3)
         );
-        pat_cstr = crate::memory::cstr_from_ptr(buf.as_ptr());
         tofree = Some(buf);
+        pat_cstr = crate::memory::cstr_until_nul(tofree.as_deref().unwrap());
     }
 
     if xp.xp_context == EXPAND_LUA {
@@ -5314,7 +5314,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
             buf_vec[pathlen + patlen] = 0;
 
             expand_shellcmd_onedir(
-                crate::memory::cstr_from_ptr(buf_vec.as_ptr()),
+                crate::memory::cstr_until_nul(&buf_vec),
                 pathlen,
                 flags,
                 &mut found_ht,
@@ -5576,7 +5576,7 @@ pub fn globpath(
             buf_vec[pathlen + filelen] = 0;
 
             let mut p: Vec<CString> = Vec::new();
-            let pat_cstr = crate::memory::cstr_from_ptr(buf_vec.as_ptr());
+            let pat_cstr = crate::memory::cstr_until_nul(&buf_vec);
             expand_from_context(&mut xpc, pat_cstr, &mut p, WILD_SILENT | expand_options);
             if !p.is_empty() {
                 expand_escape(

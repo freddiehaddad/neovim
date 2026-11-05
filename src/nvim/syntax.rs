@@ -1299,8 +1299,8 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
                 };
                 if mb_strcmp_ic(
                     syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_ic,
-                    crate::memory::cstr_from_ptr(bs_m.as_ptr()),
-                    crate::memory::cstr_from_ptr(si_m.as_ptr()),
+                    bs_m.as_c_str(),
+                    si_m.as_c_str(),
                 ) != 0
                 {
                     break;

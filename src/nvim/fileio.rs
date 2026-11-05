@@ -3691,7 +3691,7 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
     let mut tempname: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
     crate::memory::copy_bytes_to_c_buf(&mut tempname, from_bytes);
     for n in 123..99999 {
-        let tail = path_tail(crate::memory::cstr_from_ptr(tempname.as_ptr()))
+        let tail = path_tail(crate::memory::cstr_until_nul(&tempname))
             .as_ptr()
             .cast_mut();
         let rem = (MAXPATHL + 1)
@@ -4494,7 +4494,7 @@ pub fn delete_recursive(name: &CStr) -> i32 {
                     c"%s",
                     entry.as_ptr(),
                 );
-                let sub_cstr = crate::memory::cstr_from_ptr(g_st().name_buff.as_ptr());
+                let sub_cstr = g_st().name_buff_cstr();
                 if delete_recursive(sub_cstr) != 0 {
                     result = -1;
                 }
@@ -4591,7 +4591,7 @@ fn vim_settempdir(tempdir: &CStr) -> bool {
     let mut buf_vec: Vec<u8> = vec![0; MAXPATHL + 2];
 
     vim_full_name(
-        crate::memory::cstr_as_opt_cstr(tempdir.as_ptr()),
+        Some(tempdir),
         unsafe { std::slice::from_raw_parts_mut((buf_vec.as_mut_ptr()).cast(), MAXPATHL) },
         cfg!(windows),
     );

@@ -1695,7 +1695,7 @@ pub fn search_for_exact_line(
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(
                     opt_vars().p_ic,
-                    crate::memory::cstr_from_ptr(p_slice.as_ptr()),
+                    crate::memory::cstr_until_nul(p_slice),
                     crate::memory::cstr_from_ptr(pat),
                 ) == 0
                 {

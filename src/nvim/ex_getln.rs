@@ -3988,7 +3988,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     ui_call_cmdline_show(
         content,
         line.cmdpos as Integer,
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(charbuf.as_ptr())),
+        cstr_as_string(Some(crate::memory::cstr_until_nul(&charbuf))),
         cstr_as_string(line.cmdprompt.as_deref()),
         line.cmdindent as Integer,
         line.level as Integer,
@@ -4001,7 +4001,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     if line.special_char != 0 {
         charbuf[0] = line.special_char;
         ui_call_cmdline_special_char(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(charbuf.as_ptr())),
+            cstr_as_string(Some(crate::memory::cstr_until_nul(&charbuf))),
             line.special_shift,
             line.level as Integer,
         );
@@ -4131,7 +4131,7 @@ pub fn putcmdline(c: u8, shift: bool) {
     } else if getln_st().ccline.redraw_state != K_CMD_REDRAW_ALL {
         let charbuf: [u8; 2] = [c, 0];
         ui_call_cmdline_special_char(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(charbuf.as_ptr())),
+            cstr_as_string(Some(crate::memory::cstr_until_nul(&charbuf))),
             shift,
             getln_st().ccline.level as Integer,
         );

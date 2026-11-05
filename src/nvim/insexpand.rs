@@ -6831,7 +6831,7 @@ mod tests {
         let mut buf: Vec<u8> = b".,w^5,b,u^10,Ffunc^3,k\0".to_vec();
         {
             strip_caret_numbers_in_place(&mut buf);
-            let s = crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap();
+            let s = crate::memory::cstr_until_nul(&buf).to_str().unwrap();
             assert_eq!(s, ".,w,b,u,Ffunc,k");
         }
     }

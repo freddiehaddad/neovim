@@ -3159,7 +3159,7 @@ pub fn tv_dict_wrong_func_name(d: &mut TvDict, tv: &mut TypVal, name: &CStr) -> 
 
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
-    let key = crate::memory::cstr_from_ptr(item.di_key.as_ptr());
+    let key = crate::memory::cstr_until_nul(&item.di_key);
     if tv_dict_wrong_func_name(d, &mut item.di_tv, key) != 0 {
         return false;
     }
@@ -3321,7 +3321,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
         }
         if let Some(di2) = d2.dv_hashtab.ht_array[i].di_opt() {
             todo -= 1;
-            let key2 = crate::memory::cstr_from_ptr(di2.di_key.as_ptr());
+            let key2 = crate::memory::cstr_until_nul(&di2.di_key);
             let di1_opt = tv_dict_find_opt(Some(d1), key2, -1);
             if d1.dv_scope != VAR_NO_SCOPE && !valid_varname(di2.key_cstr()) {
                 break;

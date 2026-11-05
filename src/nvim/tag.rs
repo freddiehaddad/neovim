@@ -1693,7 +1693,7 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
         }
         convert_setup(
             &mut st.vimconv,
-            crate::memory::cstr_as_opt_cstr(st.lbuf[20..].as_ptr()),
+            Some(crate::memory::cstr_until_nul(&st.lbuf[20..])),
             Some(opt_vars().p_enc.as_cstr()),
         );
     }
@@ -1949,7 +1949,7 @@ fn findtags_string_convert(st: &mut FindtagsState) {
     if len > st.lbuf.len() {
         st.lbuf.resize(len, 0);
     }
-    let conv_bytes = crate::memory::cstr_from_ptr(conv_line.as_ptr()).to_bytes_with_nul();
+    let conv_bytes = crate::memory::cstr_until_nul(&conv_line).to_bytes_with_nul();
     st.lbuf[..conv_bytes.len()].copy_from_slice(conv_bytes);
 }
 
@@ -1995,8 +1995,7 @@ fn findtags_add_match(
             let mut v = vec![0u8; mfp_size];
             v[..len].copy_from_slice(tagname_slice);
             v[len] = b'@';
-            let lang_bytes =
-                crate::memory::cstr_from_ptr(st.help_lang.as_ptr()).to_bytes_with_nul();
+            let lang_bytes = crate::memory::cstr_until_nul(&st.help_lang).to_bytes_with_nul();
             v[len + 1..len + 1 + lang_bytes.len()].copy_from_slice(lang_bytes);
             let heur = help_heuristic(
                 tagname_slice,
@@ -2493,7 +2492,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             let stopdirs_cstr =
                 stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]).to_owned());
             let tail_off = crate::memory::ptr_offset_from(
-                path_tail(crate::memory::cstr_from_ptr(buf.as_ptr())).as_ptr(),
+                path_tail(crate::memory::cstr_until_nul(buf)).as_ptr(),
                 buf.as_ptr().cast(),
             ) as usize;
             let filename_cstr = crate::memory::cstring_until_nul(&buf[tail_off..]);

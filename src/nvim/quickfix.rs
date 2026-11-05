@@ -1304,7 +1304,7 @@ fn qf_setup_state(
     if let Some(enc_cstr) = enc.filter(|s| !s.to_bytes().is_empty()) {
         convert_setup(
             &mut pstate.vc,
-            crate::memory::cstr_as_opt_cstr(enc_cstr.as_ptr()),
+            Some(enc_cstr),
             Some(opt_vars().p_enc.as_cstr()),
         );
     }

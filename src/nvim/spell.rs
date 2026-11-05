@@ -1683,10 +1683,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     .rev()
                     .find(|s| {
                         s.sl_name.as_ref().is_some_and(|n| {
-                            mb_stricmp(
-                                crate::memory::cstr_from_ptr(lang_ptr),
-                                crate::memory::cstr_from_ptr(n.as_ptr()),
-                            ) == 0
+                            mb_stricmp(crate::memory::cstr_from_ptr(lang_ptr), n.as_c_str()) == 0
                         })
                     })
                     .map_or(ptr::null_mut(), |s| &raw mut **s);
@@ -1726,10 +1723,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     })
                 } else {
                     slang.sl_name.as_ref().is_some_and(|n| {
-                        mb_stricmp(
-                            crate::memory::cstr_from_ptr(lang_ptr),
-                            crate::memory::cstr_from_ptr(n.as_ptr()),
-                        ) == 0
+                        mb_stricmp(crate::memory::cstr_from_ptr(lang_ptr), n.as_c_str()) == 0
                     })
                 };
                 if matched {

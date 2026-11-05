@@ -5879,7 +5879,7 @@ pub fn update_cwd(cause: CdCause) {
         }
         let dir_differs = !path_equal(
             crate::memory::cstr_from_ptr(new_dir_ptr),
-            crate::memory::cstr_from_ptr(cwd.as_ptr()),
+            crate::memory::cstr_until_nul(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
@@ -5897,7 +5897,7 @@ pub fn update_cwd(cause: CdCause) {
         let gdir_ptr = gdir.as_ptr().cast_mut();
         let dir_differs = !path_equal(
             crate::memory::cstr_from_ptr(gdir_ptr),
-            crate::memory::cstr_from_ptr(cwd.as_ptr()),
+            crate::memory::cstr_until_nul(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
