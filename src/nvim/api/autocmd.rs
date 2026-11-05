@@ -1131,7 +1131,7 @@ pub fn nvim_exec_autocmds(
     err: &mut Error,
 ) {
     let mut au_group = AUGROUP_ALL;
-    let mut b = g_st().curbuf;
+    let mut b = g_st().curbuf.as_ptr();
     let mut data: *mut Object = std::ptr::null_mut();
 
     let event_array = unpack_string_or_array(event, c"event", true, arena, err);

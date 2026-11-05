@@ -351,12 +351,12 @@ pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
         } else {
             syn_id2attr(cur.mit_hlg_id)
         };
-        cur.mit_hl.buf = crate::globals::BufPtr::new(buf);
+        cur.mit_hl.buf = buf;
         cur.mit_hl.lnum = 0;
         cur.mit_hl.first_lnum = 0;
         cur.mit_hl.tm = profile_setlimit(opt_vars().p_rdt);
     }
-    search_hl.buf = crate::globals::BufPtr::new(wp.w_buffer);
+    search_hl.buf = wp.w_buffer;
     search_hl.lnum = 0;
     search_hl.first_lnum = 0;
     search_hl.attr = win_hl_attr(&mut *wp, HLF_L as i32);

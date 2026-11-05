@@ -756,7 +756,7 @@ fn decor_free_sh(first_idx: u32) {
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
     if let Some(win) = g_st().decor_state.win.opt()
-        && std::ptr::eq(win.w_buffer, buf)
+        && win.w_buffer == buf
     {
         g_st().decor_state.itr_valid = false;
     }
@@ -986,7 +986,7 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
         return true;
     }
 
-    let k = marktree_itr_current(unsafe { &(*state.win.w_buffer).b_marktree }, &state.itr);
+    let k = marktree_itr_current(&state.win.w_buffer.b_marktree, &state.itr);
     k.pos.row >= 0 && k.pos.row <= row
 }
 
@@ -1749,7 +1749,7 @@ pub fn decor_virt_lines(
     mut lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> i32 {
-    let buf = unsafe { &*wp.w_buffer };
+    let buf = wp.w_buffer.borrow();
     if buf_meta_total(buf, K_MTMETA_LINES) == 0 {
         return 0;
     }

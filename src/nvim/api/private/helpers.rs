@@ -605,7 +605,7 @@ pub fn dict_set_var(
 
 pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
     if buffer == 0 {
-        return unsafe { g_st().curbuf.as_mut() };
+        return g_st().curbuf.opt_mut();
     }
     let rv = g_st()
         .buffer_handles

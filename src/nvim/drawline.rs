@@ -783,7 +783,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 
     if (wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below {
         if wlv.prev_num_attr == -1 {
-            let wp_buf = unsafe { &mut *wp.w_buffer };
+            let wp_buf = wp.w_buffer.borrow_mut();
             decor_redraw_signs(
                 wp,
                 wp_buf,
@@ -1540,7 +1540,7 @@ pub fn win_line(
     };
 
     let buf = wp.w_buffer;
-    let draw_text = !concealed && (lnum != unsafe { (*buf).b_ml.ml_line_count } + 1);
+    let draw_text = !concealed && (lnum != buf.b_ml.ml_line_count + 1);
 
     let mut decor_provider_end_col: i32 = 0;
     let mut check_decor_providers = false;
@@ -1765,7 +1765,7 @@ pub fn win_line(
     let mut sign_line_attr: i32 = 0;
     decor_redraw_signs(
         &mut *wp,
-        unsafe { &mut *buf },
+        buf.borrow_mut(),
         wlv.lnum - 1,
         Some(&mut wlv.sattrs),
         Some(&mut sign_line_attr),
@@ -2189,13 +2189,7 @@ pub fn win_line(
             }
 
             if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= cursor_vcol {
-                draw_virt_text(
-                    wp,
-                    unsafe { &mut *buf },
-                    win_col_offset,
-                    &mut wlv.col,
-                    wlv.row,
-                );
+                draw_virt_text(wp, buf.borrow_mut(), win_col_offset, &mut wlv.col, wlv.row);
 
                 wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
                 if wp.w_onebuf_opt.wo_cuc {
@@ -3440,7 +3434,7 @@ pub fn win_line(
 
                 if !fold_vt.is_empty() {
                     draw_virt_text_item(
-                        unsafe { &mut *buf },
+                        buf.borrow_mut(),
                         win_col_offset,
                         &fold_vt,
                         K_HL_MODE_COMBINE,
@@ -3451,13 +3445,7 @@ pub fn win_line(
                     );
                 }
 
-                draw_virt_text(
-                    wp,
-                    unsafe { &mut *buf },
-                    win_col_offset,
-                    &mut wlv.col,
-                    wlv.row,
-                );
+                draw_virt_text(wp, buf.borrow_mut(), win_col_offset, &mut wlv.col, wlv.row);
 
                 wlv_put_linebuf(wp, &wlv, wlv.col, true, bg_attr, SLF_INC_VCOL);
                 wlv.row += 1;
@@ -3739,7 +3727,7 @@ pub fn win_line(
                 }
 
                 draw_virt_text_item(
-                    unsafe { &mut *buf },
+                    buf.borrow_mut(),
                     if (virt_line_flags & K_VLLEFTCOL) != 0 {
                         0
                     } else {
@@ -3753,13 +3741,7 @@ pub fn win_line(
                     true,
                 );
             } else if wlv.filler_todo <= 0 {
-                draw_virt_text(
-                    wp,
-                    unsafe { &mut *buf },
-                    win_col_offset,
-                    &mut draw_col,
-                    wlv.row,
-                );
+                draw_virt_text(wp, buf.borrow_mut(), win_col_offset, &mut draw_col, wlv.row);
             }
 
             wlv_put_linebuf(

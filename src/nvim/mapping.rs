@@ -1222,7 +1222,7 @@ pub fn map_to_exists_mode(rhs: &CStr, mode: i32, abbr: bool) -> bool {
     let rhs_b = rhs.to_bytes();
     for exp_buffer in [false, true] {
         let b = if exp_buffer {
-            unsafe { g_st().curbuf.as_ref() }
+            g_st().curbuf.opt()
         } else {
             None
         };
@@ -1416,7 +1416,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
     }
 
     let exp_buf = if !map_st().expand_isabbrev && map_st().expand_buffer {
-        unsafe { g_st().curbuf.as_ref() }
+        g_st().curbuf.opt()
     } else {
         None
     };
@@ -1983,7 +1983,7 @@ pub fn check_map(
 
     for local in (0..=1).rev() {
         let b = if local != 0 {
-            unsafe { g_st().curbuf.as_ref() }
+            g_st().curbuf.opt()
         } else {
             None
         };
@@ -2461,7 +2461,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     for buffer_local in 0..=1 {
         let b = if buffer_local != 0 {
-            unsafe { g_st().curbuf.as_ref() }
+            g_st().curbuf.opt()
         } else {
             None
         };

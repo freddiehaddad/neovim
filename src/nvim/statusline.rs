@@ -1944,7 +1944,7 @@ pub extern "C" fn build_stl_str_hl(
         match opt {
             STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                 fillable = false;
-                if let Some(name) = buf_spname(unsafe { &*wp.w_buffer }) {
+                if let Some(name) = buf_spname(&wp.w_buffer) {
                     crate::memory::copy_bytes_to_c_buf(
                         g_st().name_buff_bytes_mut(),
                         name.to_bytes(),
@@ -1956,12 +1956,7 @@ pub extern "C" fn build_stl_str_hl(
                         (*wp).buf_mut().fname_opt()
                     };
 
-                    home_replace(
-                        unsafe { wp.w_buffer.as_ref() },
-                        t,
-                        g_st().name_buff_bytes_mut(),
-                        true,
-                    );
+                    home_replace(wp.w_buffer.opt(), t, g_st().name_buff_bytes_mut(), true);
                 }
                 trans_characters(g_st().name_buff_bytes_mut());
                 if opt != STL_FILENAME {
@@ -2271,7 +2266,7 @@ pub extern "C" fn build_stl_str_hl(
                 }
             }
             STL_QUICKFIX => {
-                if bt_quickfix(unsafe { wp.w_buffer.as_ref() }) {
+                if bt_quickfix(wp.w_buffer.opt()) {
                     str = if !wp.w_llist_ref.is_null() {
                         tr(MSG_LOCLIST).as_ptr().cast_mut().cast()
                     } else {

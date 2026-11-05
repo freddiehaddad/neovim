@@ -498,7 +498,7 @@ pub fn nvim_open_win(
         }
         if !tp.is_null()
             && bufref_valid(Some(&bufref))
-            && (&raw mut *b) != unsafe { (*wp).w_buffer }
+            && (&raw mut *b) != unsafe { (*wp).w_buffer.as_ptr() }
         {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {

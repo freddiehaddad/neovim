@@ -1100,7 +1100,7 @@ fn command_line_enter(
                 (false, curbuf_mut().b_p_imsearch)
             };
             s.b_im_use_insert = Some(use_insert);
-            s.b_im_ptr_buf = crate::globals::BufPtr::new(g_st().curbuf);
+            s.b_im_ptr_buf = g_st().curbuf;
             if im_val == B_IMODE_LMAP {
                 g_st().state_global |= MODE_LANGMAP;
             }
@@ -2921,7 +2921,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         cmdpreview_buf = buflist_findnr(bufnr).map_or(ptr::null_mut(), ptr::from_mut);
     }
 
-    if cmdpreview_buf == g_st().curbuf {
+    if cmdpreview_buf == g_st().curbuf.as_ptr() {
         return None;
     }
 
@@ -3011,7 +3011,7 @@ fn cmdpreview_prepare() -> CpInfo {
     };
 
     for win in for_all_windows_ptr() {
-        let buf = unsafe { &mut *win.w_buffer };
+        let buf = win.w_buffer.borrow_mut();
 
         if buf.b_fnum != getln_st().cmdpreview_bufnr {
             if saved_bufs.insert(buf) {
@@ -5011,7 +5011,7 @@ fn open_cmdwin() -> i32 {
 
 /// @return true if `curbuf` is the cmdwin and we're not editing the command line.
 pub fn is_in_cmdwin() -> bool {
-    bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) && get_cmdline_type() == NUL as i32
+    bt_cmdwin(g_st().curbuf.opt()) && get_cmdline_type() == NUL as i32
 }
 
 /// Get script string.

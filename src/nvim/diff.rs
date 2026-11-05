@@ -1349,7 +1349,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut old_curbuf, unsafe { g_st().curbuf.as_mut() });
+    set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
     validate_cursor(curwin_mut());
     set_fraction(curwin_mut());
     g_st().cmdmod.cmod_tab = 0;
@@ -2202,7 +2202,7 @@ fn parse_diffanchors(
     } else {
         let mut found_bw: *mut WinInfoInfo = ptr::null_mut();
         for bw in crate::globals::win_iter_ptr(firstwin_mut()) {
-            if ptr::eq(bw.w_buffer, buf) && bw.w_onebuf_opt.wo_diff {
+            if bw.w_buffer == buf && bw.w_onebuf_opt.wo_diff {
                 found_bw = bw;
                 break;
             }
@@ -2218,7 +2218,7 @@ fn parse_diffanchors(
         if crate::memory::cstr_first_byte(dia) == b',' {
             return false;
         }
-        g_st().curbuf = buf;
+        g_st().curbuf = (buf).into();
         set_curwin(bufwin);
         let mut errormsg = None;
         let mut dia_opt = crate::memory::cstr_as_opt_cstr(dia);
@@ -3165,7 +3165,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             semsg!(gettext(c"E102: Can't find buffer \"%s\""), eap.arg,);
             return;
         };
-        if ptr::eq(&*buf, g_st().curbuf) {
+        if g_st().curbuf == &*buf {
             return;
         }
         let idx_o = diff_buf_idx(&*buf, curtab_mut());

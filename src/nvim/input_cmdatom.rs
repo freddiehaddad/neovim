@@ -480,7 +480,7 @@ fn atom_origin() -> CmdOrigin {
         mcursor: mc_mark_at(curbuf_mut(), curwin_mut().w_cursor, 0),
         ..CmdOrigin::default()
     };
-    set_bufref(&mut origin.buf, unsafe { g_st().curbuf.as_mut() });
+    set_bufref(&mut origin.buf, g_st().curbuf.opt_mut());
     origin
 }
 

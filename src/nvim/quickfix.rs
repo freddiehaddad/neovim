@@ -1929,7 +1929,7 @@ fn wipe_qf_buffer(qi: &mut QfInfo) {
         close_buffer(None, Some(qfbuf), DOBUF_WIPE, false, false, false);
         qi.qf_bufnr = INVALID_QFBUFNR;
         if buf_was_null {
-            curwin_mut().w_buffer = ptr::null_mut();
+            curwin_mut().w_buffer = crate::globals::BufPtr::NULL;
         }
     }
 }
@@ -2672,7 +2672,7 @@ fn qf_goto_win_with_ll_file(
         if win.is_null() {
             win = curwin_ptr();
             loop {
-                if bt_normal(unsafe { (*win).w_buffer.as_ref() }) {
+                if bt_normal(unsafe { (*win).w_buffer.opt() }) {
                     break;
                 }
                 if unsafe { (*win).w_prev.is_null() } {
@@ -2727,7 +2727,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         if altwin.is_null()
             && !unsafe { (*win).w_onebuf_opt.wo_pvw }
             && !unsafe { (*win).w_onebuf_opt.wo_wfb }
-            && bt_normal(unsafe { (*win).w_buffer.as_ref() })
+            && bt_normal(unsafe { (*win).w_buffer.opt() })
         {
             altwin = win;
         }
@@ -3895,7 +3895,7 @@ fn qf_find_buf(qi: &mut QfInfo) -> Option<&'static mut FileBuf> {
     for tp in for_all_tabpages_mut() {
         for win in win_iter_mut(tab_firstwin(tp)) {
             if is_qf_win(win, &*qi) {
-                return unsafe { win.w_buffer.as_mut() };
+                return win.w_buffer.opt_mut();
             }
         }
     }
@@ -4156,7 +4156,7 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
     let old_key_typed = g_st().key_typed;
 
     if old_count == 0 {
-        if !ptr::eq(buf, g_st().curbuf) {
+        if g_st().curbuf != buf {
             internal_error(c"qf_fill_buffer()");
             return;
         }
@@ -5240,7 +5240,7 @@ fn vgr_jump_to_match(
         *redraw_for_dummy = false;
     }
 
-    if first_match_buf.is_some_and(|b| ptr::eq(g_st().curbuf, b))
+    if first_match_buf.is_some_and(|b| g_st().curbuf == b)
         && let Some(target_dir) = target_dir
     {
         let mut ea: Exarg = Exarg::new();
@@ -5605,7 +5605,7 @@ fn load_dummy_buffer(
             failed = false;
             if g_st().curbuf != newbuf {
                 set_bufref(&mut newbuf_to_wipe, unsafe { newbuf.as_mut() });
-                newbuf = g_st().curbuf;
+                newbuf = g_st().curbuf.as_ptr();
             }
         }
 
@@ -6744,7 +6744,7 @@ fn cbuffer_process_args(
     let mut buf: *mut FileBuf = ptr::null_mut();
 
     if eap.arg.is_empty() {
-        buf = g_st().curbuf;
+        buf = g_st().curbuf.as_ptr();
     } else if skipwhite_slice(skipdigits_slice(eap.arg.as_bytes())).is_empty() {
         buf = buflist_findnr(crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32)
             .map_or(ptr::null_mut(), ptr::from_mut);

@@ -419,7 +419,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
 
 pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     if (flags & K_CTX_CURSOR) != 0 {
-        assert!(handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf)));
+        assert!(handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b));
         curwin_mut().w_cursor = ctx.pos;
         if ctx.curswant >= 0 {
             curwin_mut().w_curswant = ctx.curswant;
@@ -723,7 +723,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
     cs.cs_ctxwin_idx = idx as i32;
 
-    cw_win.w_buffer = (&raw mut *buf);
+    cw_win.w_buffer = (&raw mut *buf).into();
     buf.b_nwindows += 1;
     win_init_empty(&mut *cw_win);
 
@@ -812,7 +812,7 @@ pub fn ctx_switch(
     }
 
     if !buf.is_null() {
-        if buf == g_st().curbuf {
+        if buf == g_st().curbuf.as_ptr() {
             wp = curwin_ptr();
         } else {
             for wp2 in for_all_windows_ptr() {
@@ -880,7 +880,7 @@ pub fn ctx_switch(
     set_curwin(wp);
     g_st().curbuf = curwin_mut().w_buffer;
     cs.cs_new_curwin = curwin_mut().handle;
-    set_bufref(&mut cs.cs_new_curbuf, unsafe { g_st().curbuf.as_mut() });
+    set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.opt_mut());
 
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
         if ctx_st().ctx_switch_depth == 0 {
@@ -959,7 +959,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             && unsafe { (*saved_buf).b_ml.ml_mfp.is_some() }
         {
             curbuf_mut().b_nwindows -= 1;
-            g_st().curbuf = saved_buf;
+            g_st().curbuf = (saved_buf).into();
             curwin_mut().w_buffer = g_st().curbuf;
             curbuf_mut().b_nwindows += 1;
         }

@@ -2308,7 +2308,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
         return hi_key;
     }
 
-    let ht = unsafe { &(*prevwin_curwin().w_buffer).b_vars().dv_hashtab };
+    let ht = &prevwin_curwin().w_buffer.b_vars().dv_hashtab;
     if vars_st().bdone < ht.ht_used {
         let arr = ht.ht_array.as_slice();
         if vars_st().bdone == 0 {
@@ -3255,7 +3255,7 @@ fn get_var_from(
                 let save_curbuf = g_st().curbuf;
 
                 if do_change_curbuf {
-                    g_st().curbuf = buf;
+                    g_st().curbuf = (buf).into();
                 }
 
                 if varname_cstr.to_bytes().len() == 1 {
@@ -3836,7 +3836,7 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
         let varname_len = crate::memory::cstr_len(varname);
         let mut bufvarname = Vec::with_capacity(varname_len + 3);
         let save_curbuf = g_st().curbuf;
-        g_st().curbuf = buf;
+        g_st().curbuf = (buf).into();
         bufvarname.push(b'b');
         bufvarname.push(b':');
         bufvarname.extend_from_slice(crate::memory::cstr_slice(varname, varname_len + 1));

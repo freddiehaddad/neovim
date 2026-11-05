@@ -2879,7 +2879,7 @@ fn update_search_stat(
             col: 0,
             coladd: 0,
         };
-        srch().stat_lbuf = crate::globals::BufPtr::new(g_st().curbuf);
+        srch().stat_lbuf = g_st().curbuf;
     }
 
     if equalpos(srch().stat_lastpos, *cursor_pos)
@@ -2949,7 +2949,7 @@ fn update_search_stat(
         if done_search {
             srch().stat_lastpat = srch().spats[srch().last_idx as usize].pat.clone();
             srch().stat_chgtick = buf_get_changedtick(curbuf_mut()) as i32;
-            srch().stat_lbuf = crate::globals::BufPtr::new(g_st().curbuf);
+            srch().stat_lbuf = g_st().curbuf;
             srch().stat_lastpos = p;
         }
     }

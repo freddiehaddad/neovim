@@ -1677,7 +1677,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     if !cl_bufs.is_empty() {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(&*tp) {
-                if cl_bufs.contains(&(wp.w_buffer as usize)) {
+                if cl_bufs.contains(&(wp.w_buffer.as_ptr() as usize)) {
                     wp.w_changelistidx = wp.buf_mut().b_changelistlen;
                 }
             }
@@ -2944,7 +2944,7 @@ fn shada_write(
         }
 
         if dump_global_marks
-            && !ignore_buf(unsafe { g_st().curbuf.as_ref() }, &removable_bufs)
+            && !ignore_buf(g_st().curbuf.opt(), &removable_bufs)
             && curwin_mut().w_cursor.lnum != 0
         {
             replace_numbered_mark(

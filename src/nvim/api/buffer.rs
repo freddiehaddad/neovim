@@ -566,7 +566,7 @@ pub fn nvim_buf_set_lines(
         );
 
         if g_st().visual_global.active
-            && ptr::eq(b, g_st().curbuf)
+            && g_st().curbuf == b
             && g_st().visual_global.start.lnum >= (start as Linenr)
         {
             if g_st().visual_global.start.lnum >= (end as Linenr) {
@@ -592,7 +592,7 @@ pub fn nvim_buf_set_lines(
 
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&*tp) {
-                if ptr::eq(win.w_buffer, b) {
+                if win.w_buffer == b {
                     fix_cursor(win, start as Linenr, end as Linenr, extra as Linenr);
                 }
             }
@@ -912,7 +912,7 @@ pub fn nvim_buf_set_text(
         );
 
         if g_st().visual_global.active
-            && b_ptr == g_st().curbuf
+            && b_ptr == g_st().curbuf.as_ptr()
             && g_st().visual_global.mode != CTRL_V_CONST
         {
             fix_pos_col(
@@ -1328,7 +1328,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 
     let mut ren_ret = true;
     try_wrap(err, || {
-        let is_curbuf = b_ptr == g_st().curbuf;
+        let is_curbuf = b_ptr == g_st().curbuf.as_ptr();
         let save_acd = opt_vars().p_acd;
         if !is_curbuf {
             g_st().redrawing_disabled += 1;

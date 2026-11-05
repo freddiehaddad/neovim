@@ -2195,7 +2195,7 @@ pub fn ex_luado(eap: &mut Exarg) {
             break;
         }
 
-        if !ptr::eq(g_st().curbuf, was_curbuf) || l > curbuf_mut().b_ml.ml_line_count {
+        if g_st().curbuf != was_curbuf || l > curbuf_mut().b_ml.ml_line_count {
             break;
         }
 

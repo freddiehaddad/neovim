@@ -2037,9 +2037,9 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 
 pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
     let new_fname_ptr = new_fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let mut buf = g_st().curbuf;
+    let mut buf = g_st().curbuf.as_ptr();
     apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
-    if buf != g_st().curbuf {
+    if g_st().curbuf != buf {
         return false;
     }
     if aborting() {
@@ -2572,7 +2572,7 @@ pub fn getfile(
     }
 
     if fnum == 0 {
-        expanded = fname_expand(unsafe { g_st().curbuf.as_ref() }, ffname_arg, sfname_arg);
+        expanded = fname_expand(g_st().curbuf.opt(), ffname_arg, sfname_arg);
         other = otherfile(expanded.as_ref().map(|(ff, _)| ff.as_c_str()));
     } else {
         expanded = None;
@@ -2691,7 +2691,7 @@ pub fn do_ecmd(
         &raw mut opt_vars().p_so
     };
 
-    set_bufref(&mut old_curbuf, unsafe { g_st().curbuf.as_mut() });
+    set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
 
     'theend: {
         if fnum != 0 {
@@ -2825,7 +2825,7 @@ pub fn do_ecmd(
                 if !oldwin.is_null() {
                     oldwin = curwin_ptr();
                 }
-                set_bufref(&mut old_curbuf, unsafe { g_st().curbuf.as_mut() });
+                set_bufref(&mut old_curbuf, g_st().curbuf.opt_mut());
             }
             if buf.is_null() {
                 break 'theend;
@@ -2857,7 +2857,7 @@ pub fn do_ecmd(
                 solcol = pos.col;
             }
 
-            if buf != g_st().curbuf {
+            if buf != g_st().curbuf.as_ptr() {
                 if let Some(f) = unsafe { (*buf).fname_opt() } {
                     new_name = Some(f.to_owned());
                 }
@@ -2874,7 +2874,7 @@ pub fn do_ecmd(
                     g_st().au_new_curbuf = save_au_new_curbuf;
                     break 'theend;
                 }
-                if buf == g_st().curbuf {
+                if buf == g_st().curbuf.as_ptr() {
                     auto_buf = true;
                 } else {
                     let the_curwin = curwin_ptr();
@@ -2891,7 +2891,7 @@ pub fn do_ecmd(
                     u_sync(false);
                     close_buffer(
                         unsafe { curwin_ptr().as_mut() },
-                        unsafe { g_st().curbuf.as_mut() },
+                        g_st().curbuf.opt_mut(),
                         if (flags & ECMD_HIDE) != 0
                             || (!curbuf_mut().terminal.is_null()
                                 && terminal_running(curbuf_mut().terminal.borrow()))
@@ -2927,15 +2927,15 @@ pub fn do_ecmd(
                             break 'theend;
                         }
                     }
-                    if buf == g_st().curbuf {
+                    if buf == g_st().curbuf.as_ptr() {
                         auto_buf = true;
                     } else {
                         if !curwin_mut().w_buffer.is_null() {
                             curwin_mut().buf_mut().b_nwindows -= 1;
                         }
 
-                        curwin_mut().w_buffer = buf;
-                        g_st().curbuf = buf;
+                        curwin_mut().w_buffer = (buf).into();
+                        g_st().curbuf = (buf).into();
                         curbuf_mut().b_nwindows += 1;
 
                         if !oldbuf && let Some(eap) = eap {
@@ -2963,14 +2963,14 @@ pub fn do_ecmd(
         g_st().redrawing_disabled += 1;
         did_inc_redrawing_disabled = true;
 
-        buf = g_st().curbuf;
+        buf = g_st().curbuf.as_ptr();
         if (flags & ECMD_SET_HELP) != 0 || g_st().keep_help_flag {
             prepare_help_buffer();
         } else if !curbuf_mut().b_help {
             set_buflisted(1);
         }
 
-        if buf != g_st().curbuf {
+        if buf != g_st().curbuf.as_ptr() {
             break 'theend;
         }
         if aborting() {
@@ -2985,7 +2985,7 @@ pub fn do_ecmd(
                 newlnum = curwin_mut().w_cursor.lnum;
                 solcol = curwin_mut().w_cursor.col;
             }
-            buf = g_st().curbuf;
+            buf = g_st().curbuf.as_ptr();
             new_name = unsafe { (*buf).fname_opt().map(CStr::to_owned) };
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
 
@@ -3016,7 +3016,7 @@ pub fn do_ecmd(
             }
             new_name = None;
 
-            if buf != g_st().curbuf {
+            if buf != g_st().curbuf.as_ptr() {
                 break 'theend;
             }
             if aborting() {

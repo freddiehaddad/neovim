@@ -196,7 +196,7 @@ pub fn buf_updates_send_changes(
         return;
     }
 
-    let send_tick = !(g_st().cmdpreview && (&raw mut *buf) == g_st().curbuf);
+    let send_tick = !(g_st().cmdpreview && (&raw mut *buf) == g_st().curbuf.as_ptr());
     let mut badchannelid: u64 = 0;
 
     let mut arena = ARENA_EMPTY;

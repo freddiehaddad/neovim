@@ -1138,7 +1138,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 }
 
 pub fn terminal_enter() -> bool {
-    let buf = g_st().curbuf;
+    let buf = g_st().curbuf.as_ptr();
 
     debug_assert!(!unsafe { (*buf).terminal.is_null() });
 

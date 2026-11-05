@@ -1223,8 +1223,8 @@ fn pum_preview_set_text(
         size: 0,
         capacity: 0,
     };
-    let buf = win.w_buffer;
-    unsafe { (*buf).b_p_ma = true };
+    let mut buf = win.w_buffer;
+    buf.b_p_ma = true;
 
     if let Some(info_bytes) = info.map(crate::memory::bytes_until_nul) {
         let mut rem_opt: Option<&[u8]> = Some(info_bytes);
@@ -1254,7 +1254,7 @@ fn pum_preview_set_text(
     g_st().textlock = 0;
     nvim_buf_set_lines(
         0,
-        unsafe { (*buf).b_fnum },
+        buf.b_fnum,
         0,
         -1,
         false,
@@ -1269,7 +1269,7 @@ fn pum_preview_set_text(
     }
     arena_mem_free(arena_finish(&mut arena));
     api_free_array(replacement);
-    unsafe { (*buf).b_p_ma = false };
+    buf.b_p_ma = false;
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).

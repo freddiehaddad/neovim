@@ -374,7 +374,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         }
 
         let mut wiped = false;
-        if buf != g_st().curbuf {
+        if buf != g_st().curbuf.as_ptr() {
             let mut found = false;
             let mut tp = g_st().first_tabpage.as_ptr();
             while let Some(tp_ref) = unsafe { tp.as_mut() }
@@ -399,7 +399,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
             }
         }
 
-        if !wiped && buf != g_st().curbuf {
+        if !wiped && buf != g_st().curbuf.as_ptr() {
             set_curbuf(
                 unsafe { &mut *buf },
                 if unload { DOBUF_UNLOAD } else { DOBUF_GOTO },
@@ -422,7 +422,7 @@ pub fn check_fname() -> bool {
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
-    let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf.as_ptr();
     let retval = buf_write(
         buf,
         buf.ffname_opt(),
@@ -513,7 +513,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             _ => {}
         }
 
-        let mut buf = g_st().curbuf;
+        let mut buf = g_st().curbuf.as_ptr();
         let mut qf_size: usize = 0;
 
         if eap.cmdidx == Cmdidx::CmdBufdo {
@@ -543,7 +543,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             } else {
                 ex_cc(eap);
 
-                buf = g_st().curbuf;
+                buf = g_st().curbuf.as_ptr();
                 i = eap.line1 - 1;
                 if eap.addr_count <= 0 {
                     debug_assert!(qf_size < MAXLNUM);
@@ -682,7 +682,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             if buf_ref.b_nwindows > 0 && (buf_ref.b_flags & BF_SYN_SET) != 0 {
                 buf_ref.b_flags &= !BF_SYN_SET;
 
-                if buf == g_st().curbuf {
+                if buf == g_st().curbuf.as_ptr() {
                     apply_autocmds(
                         EVENT_SYNTAX,
                         Some(curbuf_mut().b_p_syn.as_cstr()),

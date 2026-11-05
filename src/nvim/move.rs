@@ -2549,7 +2549,7 @@ pub fn do_check_cursorbind() {
         return;
     }
     move_cb_st().prev_curwin = crate::globals::WinPtr::new(curwin_ptr());
-    move_cb_st().prev_curbuf = crate::globals::BufPtr::new(g_st().curbuf);
+    move_cb_st().prev_curbuf = g_st().curbuf;
     move_cb_st().prev_changedtick = buf_get_changedtick(curbuf_mut());
     move_cb_st().prev_cursor = curwin_mut().w_cursor;
 
@@ -2570,8 +2570,7 @@ pub fn do_check_cursorbind() {
         g_st().curbuf = curwin_mut().w_buffer;
         if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb {
             if curwin_mut().w_onebuf_opt.wo_diff {
-                curwin_mut().w_cursor.lnum =
-                    diff_get_corresponding_line(unsafe { &*old_curbuf }, line);
+                curwin_mut().w_cursor.lnum = diff_get_corresponding_line(&old_curbuf, line);
             } else {
                 curwin_mut().w_cursor.lnum = line;
             }

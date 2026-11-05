@@ -2423,7 +2423,7 @@ pub fn ex_doautoall(eap: &mut Exarg) {
     let mut did_aucmd = false;
 
     for buf in for_all_buffers_ptr() {
-        if buf.b_ml.ml_mfp.is_none() || std::ptr::eq(buf, g_st().curbuf) {
+        if buf.b_ml.ml_mfp.is_none() || g_st().curbuf == buf {
             continue;
         }
 
@@ -2751,7 +2751,7 @@ pub fn apply_autocmds_group(
             }
 
             let mut win_ignore = false;
-            if buf == g_st().curbuf && EVENT_NAMES[event as usize].event <= 0 {
+            if buf == g_st().curbuf.as_ptr() && EVENT_NAMES[event as usize].event <= 0 {
                 win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw.as_cstr());
             } else if !buf.is_null()
                 && EVENT_NAMES[event as usize].event <= 0
@@ -2910,7 +2910,7 @@ pub fn apply_autocmds_group(
                 0
             };
 
-            if with_buf && !buf.is_null() && buf != g_st().curbuf {
+            if with_buf && !buf.is_null() && buf != g_st().curbuf.as_ptr() {
                 ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
             }
 

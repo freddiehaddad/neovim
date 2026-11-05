@@ -194,7 +194,7 @@ pub fn changed(buf: &mut FileBuf) {
     }
     buf_inc_changedtick(buf);
 
-    if std::ptr::eq(buf, g_st().curbuf) {
+    if g_st().curbuf == buf {
         g_st().search_global.hl_match = false;
     }
 }

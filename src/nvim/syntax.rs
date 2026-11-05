@@ -575,7 +575,7 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
         || syn_st().changedtick_last != buf_get_changedtick(syn_st().syn_buf_mut())
     {
         invalidate_current_state();
-        syn_st().syn_buf = crate::globals::BufPtr::new(wp.w_buffer);
+        syn_st().syn_buf = wp.w_buffer;
         syn_st().syn_block = crate::globals::GraphPtr::new(win_s(wp));
     }
     syn_st().changedtick_last = buf_get_changedtick(syn_st().syn_buf_mut());
@@ -735,7 +735,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
         let curwin_save = curwin_ptr();
         set_curwin(&raw mut *wp);
         let curbuf_save = g_st().curbuf;
-        g_st().curbuf = syn_st().syn_buf.as_ptr();
+        g_st().curbuf = (syn_st().syn_buf.as_ptr()).into();
 
         while start_lnum > 1 {
             if crate::memline::ml_get_slice(start_lnum - 1).last() != Some(&b'\\') {

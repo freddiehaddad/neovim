@@ -110,7 +110,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
     cob.cob_save_visual_active = g_st().visual_global.active;
     g_st().visual_global.active = false;
     cob.cob_curwin_save = crate::globals::WinPtr::new(curwin_ptr());
-    g_st().curbuf = buf_ptr;
+    g_st().curbuf = (buf_ptr).into();
     find_win_for_curbuf();
 
     if curwin_mut().w_buffer != buf_ptr {
@@ -146,7 +146,7 @@ fn set_buffer_lines(
         return;
     };
     let buf_ptr: *mut FileBuf = buf;
-    let is_curbuf = buf_ptr == g_st().curbuf;
+    let is_curbuf = buf_ptr == g_st().curbuf.as_ptr();
     if (!is_curbuf && buf.b_ml.ml_mfp.is_none()) || lnum < 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
@@ -266,13 +266,7 @@ pub fn f_append(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let did_emsg_before = g_st().did_emsg;
     let lnum = tv_get_lnum(&argvars[0]);
     if g_st().did_emsg == did_emsg_before {
-        set_buffer_lines(
-            unsafe { g_st().curbuf.as_mut() },
-            lnum,
-            true,
-            &mut argvars[1],
-            rettv,
-        );
+        set_buffer_lines(g_st().curbuf.opt_mut(), lnum, true, &mut argvars[1], rettv);
     }
 }
 
@@ -567,7 +561,7 @@ pub fn f_bufloaded(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_set_string(rettv, None);
     let buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf
+        g_st().curbuf.as_ptr()
     } else {
         tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b)
     };
@@ -585,7 +579,7 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
     let mut buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf
+        g_st().curbuf.as_ptr()
     } else {
         if !tv_check_str_or_nr(&argvars[0]) {
             return;
@@ -622,7 +616,7 @@ fn buf_win_common(argvars: &mut [TypVal], rettv: &mut TypVal, get_nr: bool) {
     let mut found_buf = false;
     for wp in for_all_windows_mut() {
         winnr += i32::from(win_has_winnr(wp, curtab_mut()));
-        if ptr::eq(wp.w_buffer, buf) && (!get_nr || win_has_winnr(wp, curtab_mut())) {
+        if wp.w_buffer == buf && (!get_nr || win_has_winnr(wp, curtab_mut())) {
             found_buf = true;
             winid = wp.handle;
             break;
@@ -668,7 +662,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     }
 
     let buf_ptr: *mut FileBuf = buf;
-    let is_curbuf = std::ptr::eq(buf_ptr, g_st().curbuf);
+    let is_curbuf = g_st().curbuf == buf_ptr;
     let mut cob = Cob::new();
     if !is_curbuf {
         change_other_buffer_prepare(&mut cob, buf);
@@ -719,7 +713,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
 
     tv_dict_add_nr(&mut *dict, c"bufnr", buf.b_fnum as Varnumber);
     tv_dict_add_str(&mut *dict, c"name", Some(buf.ffname_cstr()));
-    let lnum = if ptr::eq(buf, g_st().curbuf) {
+    let lnum = if g_st().curbuf == buf {
         curwin_mut().w_cursor.lnum
     } else {
         buflist_findlnum(buf)
@@ -928,13 +922,7 @@ pub fn f_setline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let did_emsg_before = g_st().did_emsg;
     let lnum = tv_get_lnum(&argvars[0]);
     if g_st().did_emsg == did_emsg_before {
-        set_buffer_lines(
-            unsafe { g_st().curbuf.as_mut() },
-            lnum,
-            false,
-            &mut argvars[1],
-            rettv,
-        );
+        set_buffer_lines(g_st().curbuf.opt_mut(), lnum, false, &mut argvars[1], rettv);
     }
 }
 
@@ -1086,7 +1074,8 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             cursor_col += new_prompt_len - mark_col;
         }
 
-        if ptr::eq(curwin_mut().w_buffer, buf) && curwin_mut().w_cursor.lnum == prompt_lno {
+        if ptr::eq(curwin_mut().w_buffer.as_ptr(), buf) && curwin_mut().w_cursor.lnum == prompt_lno
+        {
             curwin_mut().w_cursor.col = cursor_col;
             check_cursor_col(curwin_mut());
         }

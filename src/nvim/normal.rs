@@ -3099,7 +3099,8 @@ pub fn do_check_scrollbind(check: bool) {
 
     norm_st().do_check_scrollbind_old_curwin = crate::globals::WinPtr::new(curwin_ptr());
     norm_st().do_check_scrollbind_old_vtopline = vtopline;
-    norm_st().do_check_scrollbind_old_buf = crate::globals::BufPtr::new(curwin_mut().w_buffer);
+    norm_st().do_check_scrollbind_old_buf =
+        crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
     norm_st().do_check_scrollbind_old_leftcol = curwin_mut().w_leftcol;
 }
 
@@ -4743,7 +4744,7 @@ fn nv_down(cap: &mut Cmdarg) {
     if (g_st().mod_mask & i32::from(MOD_MASK_SHIFT)) != 0 {
         cap.arg = FORWARD;
         nv_page(cap);
-    } else if bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) && cap.cmdchar == CAR {
+    } else if bt_cmdwin(g_st().curbuf.opt()) && cap.cmdchar == CAR {
         cmdwin_do_action(c"confirm");
     } else if bt_quickfix(Some(crate::globals::curbuf_mut())) && cap.cmdchar == CAR {
         qf_view_result(false);
@@ -6977,7 +6978,7 @@ fn nv_esc(cap: &mut Cmdarg) {
         && cap.opcount == 0
         && cap.count0 == 0
         && cap.oap_mut().regname == 0;
-    let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(unsafe { g_st().curbuf.as_ref() });
+    let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(g_st().curbuf.opt());
 
     if cmdwin_cancel {
         g_st().got_int = false;

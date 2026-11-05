@@ -161,7 +161,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
         let buf = if bufnr != 0 {
             handle_get_buffer(bufnr).map_or(ptr::null_mut(), ptr::from_mut)
         } else {
-            g_st().curbuf
+            g_st().curbuf.as_ptr()
         };
         if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
             return luaL_error(lstate, c"invalid buffer".as_ptr());

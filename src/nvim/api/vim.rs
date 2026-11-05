@@ -2831,7 +2831,7 @@ pub fn nvim_eval_statusline(
         let mut num_id: i32 = 0;
         let lnum = statuscol_lnum as Linenr;
         let mut cursorline_fi = Foldinfo::new();
-        let wp_buf = unsafe { &mut *wp.w_buffer };
+        let wp_buf = wp.w_buffer.borrow_mut();
         decor_redraw_signs(
             wp,
             wp_buf,
@@ -3158,11 +3158,11 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let end_raw = r[1].data.integer();
 
         let rbuf = if !win.is_null() {
-            unsafe { (*win).w_buffer }
+            unsafe { (*win).w_buffer.as_ptr() }
         } else if !buf.is_null() {
             buf
         } else {
-            g_st().curbuf
+            g_st().curbuf.as_ptr()
         };
         let line_count = i64::from(unsafe { (*rbuf).b_ml.ml_line_count });
         let begin = begin_raw.min(line_count) as i32;

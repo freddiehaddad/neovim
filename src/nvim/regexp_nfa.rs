@@ -4961,7 +4961,7 @@ pub(super) fn nfa_regexec_nl(
     re_st().rex.reg_mmatch = crate::globals::GraphPtr::NULL;
     re_st().rex.reg_maxline = 0;
     re_st().rex.reg_line_lbr = line_lbr;
-    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    re_st().rex.reg_buf = g_st().curbuf;
     re_st().rex.reg_win = crate::globals::WinPtr::NULL;
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;

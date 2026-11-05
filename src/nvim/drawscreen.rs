@@ -272,7 +272,7 @@ pub fn conceal_check_visual() {
     }
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_mut(&*tp) {
-            if !ptr::eq(wp.w_buffer, g_st().curbuf) {
+            if g_st().curbuf != wp.w_buffer {
                 continue;
             }
             if old[0] == 0 {
@@ -1468,7 +1468,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     }
 
     for win in for_all_windows_ptr() {
-        if ptr::eq(win.w_buffer, wp.w_buffer) && win_redraw_signcols(&mut *win) {
+        if wp.w_buffer == win.w_buffer && win_redraw_signcols(&mut *win) {
             changed_line_abv_curs_win(&mut *win);
             redraw_later(Some(&mut *win), UPD_NOT_VALID);
         }
@@ -1753,7 +1753,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         type_ = UPD_NOT_VALID;
     }
 
-    if (g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer))
+    if (g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer.as_ptr()))
         || (wp.w_old_cursor_lnum != 0 && type_ != UPD_NOT_VALID)
     {
         let mut from: Linenr;
@@ -1891,7 +1891,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
     }
 
-    if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer) {
+    if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer.as_ptr()) {
         wp.w_old_visual_mode = g_st().visual_global.mode as u8;
         wp.w_old_cursor_lnum = curwin_mut().w_cursor.lnum;
         wp.w_old_visual_lnum = g_st().visual_global.start.lnum;
@@ -2615,7 +2615,7 @@ pub fn redraw_curbuf_later(type_: i32) {
 
 pub fn redraw_buf_later(buf: &FileBuf, type_: i32) {
     for wp in for_all_windows_ptr() {
-        if ptr::eq(wp.w_buffer, buf) {
+        if wp.w_buffer == buf {
             redraw_later(Some(&mut *wp), type_);
         }
     }
@@ -2623,7 +2623,7 @@ pub fn redraw_buf_later(buf: &FileBuf, type_: i32) {
 
 pub fn redraw_buf_line_later(buf: &FileBuf, line: Linenr, force: bool) {
     for wp in for_all_windows_ptr() {
-        if ptr::eq(wp.w_buffer, buf) {
+        if wp.w_buffer == buf {
             redraw_winline(&mut *wp, line.min(buf.b_ml.ml_line_count));
             if force && line > buf.b_ml.ml_line_count {
                 wp.w_redraw_bot = line;
@@ -2650,7 +2650,7 @@ pub fn redraw_winline(wp: &mut WinInfoInfo, lnum: Linenr) {
 
 pub fn redraw_buf_range_later(buf: &FileBuf, first: Linenr, last: Linenr) {
     for wp in for_all_windows_ptr() {
-        if ptr::eq(wp.w_buffer, buf) {
+        if wp.w_buffer == buf {
             redraw_win_range_later(&mut *wp, first, last);
         }
     }
@@ -2658,7 +2658,7 @@ pub fn redraw_buf_range_later(buf: &FileBuf, first: Linenr, last: Linenr) {
 
 pub fn redraw_buf_status_later(buf: &FileBuf) {
     for wp in for_all_windows_ptr() {
-        if ptr::eq(wp.w_buffer, buf)
+        if wp.w_buffer == buf
             && (wp.w_status_height != 0
                 || (ptr::eq(wp, curwin_ptr()) && global_stl_height() != 0)
                 || wp.w_winbar_height != 0)
@@ -2668,7 +2668,7 @@ pub fn redraw_buf_status_later(buf: &FileBuf) {
         }
     }
     if opt_vars().p_ru
-        && ptr::eq(curwin_mut().w_buffer, buf)
+        && ptr::eq(curwin_mut().w_buffer.as_ptr(), buf)
         && curwin_mut().w_status_height == 0
         && !curwin_mut().w_redr_status
     {
@@ -2698,7 +2698,7 @@ pub fn status_redraw_buf(buf: &FileBuf) {
     let is_stl_global = global_stl_height() != 0;
 
     for wp in for_all_windows_ptr() {
-        if ptr::eq(wp.w_buffer, buf)
+        if wp.w_buffer == buf
             && ((!is_stl_global && wp.w_status_height != 0)
                 || (is_stl_global && ptr::eq(wp, curwin_ptr()))
                 || wp.w_winbar_height != 0)
@@ -2787,7 +2787,7 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
         return true;
     }
     g_st().visual_global.active
-        && ptr::eq(wp.w_buffer, curwin_mut().w_buffer)
+        && ptr::eq(wp.w_buffer.as_ptr(), curwin_mut().w_buffer.as_ptr())
         && lnum
             >= g_st()
                 .visual_global

@@ -2884,7 +2884,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
     insexp().compl_num_bests = 0;
     insexp().compl_ins_end_col = 0;
 
-    if c == CTRL_C_CONST && bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) {
+    if c == CTRL_C_CONST && bt_cmdwin(g_st().curbuf.opt()) {
         update_screen();
     }
 
@@ -3027,7 +3027,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
 fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
     let mut buf: *mut FileBuf = buf_arg;
     if flag == b'w' as i32 {
-        if ptr::eq(buf, g_st().curbuf) || !win_valid(insexp().next_buf_wp.opt()) {
+        if g_st().curbuf == buf || !win_valid(insexp().next_buf_wp.opt()) {
             insexp().next_buf_wp = crate::globals::WinPtr::new(curwin_ptr());
         }
 
@@ -3047,7 +3047,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             }
         }
 
-        buf = insexp().next_buf_wp.w_buffer;
+        buf = insexp().next_buf_wp.w_buffer.as_ptr();
     } else {
         loop {
             buf = if unsafe { !(*buf).b_next.is_null() } {
@@ -3055,7 +3055,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             } else {
                 g_st().firstbuf.as_ptr()
             };
-            if ptr::eq(buf, g_st().curbuf) {
+            if g_st().curbuf == buf {
                 break;
             }
 
@@ -3845,7 +3845,7 @@ fn process_next_cpt_value(
         && !skip_source
         && !insexp().compl_time_slice_expired
     {
-        st.ins_buf = crate::globals::BufPtr::new(g_st().curbuf);
+        st.ins_buf = g_st().curbuf;
         st.first_match_pos = *start_match_pos;
         if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut st.first_match_pos) < 0 {
             st.first_match_pos.lnum = st.ins_buf.b_ml.ml_line_count;
@@ -4921,7 +4921,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             insexp().next_state_cleared = true;
         }
         st.found_all = false;
-        st.ins_buf = crate::globals::BufPtr::new(g_st().curbuf);
+        st.ins_buf = g_st().curbuf;
         let mut e_cpt_copy: Vec<u8> = if (insexp().compl_cont_status & CONT_LOCAL) != 0 {
             c".".to_owned().into_bytes_with_nul()
         } else {
@@ -4938,7 +4938,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
         st.first_match_pos = start_pos;
         st.last_match_pos = start_pos;
     } else if st.ins_buf != g_st().curbuf && !buf_valid(st.ins_buf.opt()) {
-        st.ins_buf = crate::globals::BufPtr::new(g_st().curbuf);
+        st.ins_buf = g_st().curbuf;
     }
     debug_assert!(!st.ins_buf.is_null());
 
@@ -5609,7 +5609,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
         return -1;
     }
 
-    if !ptr::eq(g_st().curbuf, orig_curbuf) {
+    if g_st().curbuf != orig_curbuf {
         return -1;
     }
 
@@ -6433,7 +6433,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
     }
 
     insexp().compl_curr_win = crate::globals::WinPtr::new(curwin_ptr());
-    insexp().compl_curr_buf = crate::globals::BufPtr::new(curwin_mut().w_buffer);
+    insexp().compl_curr_buf = crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
     insexp().compl_shown_idx = insexp().compl_curr_idx;
     insexp().compl_shows_dir = insexp().compl_direction;
     insexp().compl_num_bests = 0;

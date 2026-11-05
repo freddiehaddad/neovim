@@ -2104,7 +2104,9 @@ fn edit_buffers(parmp: &mut Mparm) {
         }
         advance = true;
 
-        if ptr::eq(g_st().curbuf, firstwin_mut().w_buffer) || curbuf_mut().b_ffname.is_none() {
+        if ptr::eq(g_st().curbuf.as_ptr(), firstwin_mut().w_buffer.as_ptr())
+            || curbuf_mut().b_ffname.is_none()
+        {
             curwin_mut().w_arg_idx = arg_idx;
             g_st().swap_exists_did_quit = false;
             let fname = if arg_idx < gargcount() {

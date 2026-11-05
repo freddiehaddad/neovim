@@ -1600,7 +1600,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, unsafe { wp.w_buffer.as_mut() });
+    set_bufref(&mut bufref, wp.w_buffer.opt_mut());
     if spell_priv_st().parse_spelllang_recursive {
         return None;
     }

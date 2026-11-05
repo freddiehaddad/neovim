@@ -1312,7 +1312,7 @@ pub fn nvim_buf_create_user_command(
     };
 
     let save_curbuf = g_st().curbuf;
-    g_st().curbuf = target_buf;
+    g_st().curbuf = (target_buf).into();
     create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER, err);
     g_st().curbuf = save_curbuf;
 }

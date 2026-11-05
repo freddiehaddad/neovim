@@ -1441,7 +1441,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
 
     let name = tv.vval.v_string();
     if crate::memory::cstr_is_empty(name) {
-        return unsafe { g_st().curbuf.as_mut() };
+        return g_st().curbuf.opt_mut();
     }
     if crate::memory::cstr_as_bytes(name) == b"$" {
         return g_st().lastbuf.opt_mut();
@@ -2855,7 +2855,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
     let buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf
+        g_st().curbuf.as_ptr()
     } else {
         g_st().vim_ignored = tv_get_number(&argvars[0]) as i32;
         g_st().emsg_off += 1;
@@ -2869,7 +2869,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
     let l = tv_list_alloc(buf_ref.b_changelistlen as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), Some(l));
-    let mut changelistindex = if ptr::eq(buf, curwin_mut().w_buffer) {
+    let mut changelistindex = if ptr::eq(buf, curwin_mut().w_buffer.as_ptr()) {
         curwin_mut().w_changelistidx
     } else {
         let mut idx = buf_ref.b_changelistlen;
@@ -2931,7 +2931,8 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         if !fp.is_null() && charcol {
             pos = unsafe { *fp };
 
-            pos.col = buf_byteidx_to_charidx(unsafe { (*wp).w_buffer.as_mut() }, pos.lnum, pos.col);
+            pos.col =
+                buf_byteidx_to_charidx(unsafe { (*wp).w_buffer.opt_mut() }, pos.lnum, pos.col);
 
             fp = &raw mut pos;
         }
@@ -3182,7 +3183,7 @@ fn getregionpos(
     let findbuf = if fnum1 != 0 {
         buflist_findnr(fnum1)
     } else {
-        unsafe { g_st().curbuf.as_mut() }
+        g_st().curbuf.opt_mut()
     };
     let Some(findbuf_ref) = findbuf else {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
@@ -3215,7 +3216,7 @@ fn getregionpos(
         return false;
     }
 
-    g_st().curbuf = findbuf_ref;
+    g_st().curbuf = (findbuf_ref).into();
     curwin_mut().w_buffer = g_st().curbuf;
     g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
 
@@ -4639,8 +4640,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
 
         let pid = unsafe { (*chan).uv.proc_.pid };
-        let buf = g_st().curbuf;
-        let buf = unsafe { &mut *buf };
+        let buf = g_st().curbuf.borrow_mut();
 
         buf.b_p_swf = false;
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {

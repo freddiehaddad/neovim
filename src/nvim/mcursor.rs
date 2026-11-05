@@ -348,7 +348,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
         extmark_del_id(buf, mc_session_ns(), sb.cursor_mark);
         topline_valid = extmark_get_pos(buf, mc_session_ns(), sb.topline_mark, &mut topline);
         extmark_del_id(buf, mc_session_ns(), sb.topline_mark);
-        std::ptr::eq(buf, g_st().curbuf)
+        g_st().curbuf == buf
     } else {
         g_st().curbuf.is_null()
     };
@@ -385,7 +385,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         )
     };
 
-    if !handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf)) {
+    if !handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
         return;
     }
 
@@ -555,7 +555,7 @@ fn mc_cascade() {
     mc_sandbox_leave(&mut sb);
 
     mc_cleanup(true, Some(&curwin_mut().w_cursor), mcursor);
-    if handle_get_buffer(bufnr).is_some_and(|b| ptr::eq(b, g_st().curbuf))
+    if handle_get_buffer(bufnr).is_some_and(|b| g_st().curbuf == b)
         && !curbuf_mut().b_u_synced
         && let Some(nh) = curbuf_mut().b_u_newhead
     {
@@ -603,7 +603,7 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
         let dup = dedupe
             && ctx.mark != 0
             && ((!(curwin_ptr()).is_null()
-                && std::ptr::eq(buf, g_st().curbuf)
+                && g_st().curbuf == buf
                 && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                 && ctx.mark != keep_mark)
                 || mc_mark_at(buf, ctx.pos, 0) != ctx.mark);
@@ -714,7 +714,7 @@ fn mc_ins_regions_clear() {
 
 #[inline]
 fn mc_ctx_resolve(ctx: &Context, pos: &mut CursorPos) -> bool {
-    handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf))
+    handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b)
         && ctx.mark != 0
         && extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, pos)
 }
@@ -1045,9 +1045,7 @@ fn mc_reg_gather() {
     let mut order: Vec<&mut Context> = Vec::new();
     order.push(&mut primary);
     for ctx in cursors_mut().iter_mut() {
-        if !ctx.regs.is_empty()
-            && handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf))
-        {
+        if !ctx.regs.is_empty() && handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
             order.push(ctx);
         }
     }

@@ -181,7 +181,7 @@ pub struct EditorState {
     pub redraw_tabline: bool,
     pub firstbuf: BufPtr,
     pub lastbuf: BufPtr,
-    pub curbuf: *mut FileBuf,
+    pub curbuf: BufPtr,
     pub global_alist: Alist,
     pub max_alist_id: i32,
     pub arg_had_last: bool,
@@ -556,7 +556,7 @@ impl EditorState {
             redraw_tabline: false,
             firstbuf: BufPtr::NULL,
             lastbuf: BufPtr::NULL,
-            curbuf: ptr::null_mut(),
+            curbuf: BufPtr::NULL,
             global_alist: Alist::new(),
             max_alist_id: 0,
             arg_had_last: false,
@@ -948,12 +948,12 @@ pub fn set_curwin(wp: *mut WinInfoInfo) {
 
 #[inline]
 pub fn curbuf_mut() -> &'static mut FileBuf {
-    unsafe { &mut *g_st().curbuf }
+    g_st().curbuf.borrow_mut()
 }
 
 #[inline]
 pub fn curbuf_opt_mut() -> Option<&'static mut FileBuf> {
-    unsafe { g_st().curbuf.as_mut() }
+    g_st().curbuf.opt_mut()
 }
 
 #[inline]

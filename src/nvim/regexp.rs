@@ -2794,7 +2794,7 @@ pub fn vim_regsub(
     re_st().rex.reg_match = crate::globals::GraphPtr::from(&mut *rmp);
     re_st().rex.reg_mmatch = crate::globals::GraphPtr::NULL;
     re_st().rex.reg_maxline = 0;
-    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    re_st().rex.reg_buf = g_st().curbuf;
     re_st().rex.reg_line_lbr = true;
     let result = vim_regsub_both(Some(source), expr, dest, flags);
 
@@ -2823,7 +2823,7 @@ pub fn vim_regsub_multi(
 
     re_st().rex.reg_match = crate::globals::GraphPtr::NULL;
     re_st().rex.reg_mmatch = crate::globals::GraphPtr::from(&mut *rmp);
-    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    re_st().rex.reg_buf = g_st().curbuf;
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
     re_st().rex.reg_line_lbr = false;
@@ -3524,7 +3524,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         }
     }
 
-    re_st().rex.reg_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    re_st().rex.reg_buf = g_st().curbuf;
 
     let called_emsg_before = g_st().called_emsg;
     let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {

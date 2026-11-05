@@ -9125,7 +9125,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
         None,
         None,
         false,
-        unsafe { (*wp).w_buffer.as_mut() },
+        unsafe { (*wp).w_buffer.opt_mut() },
         unsafe { wp.as_ref() },
     );
 
@@ -9716,7 +9716,7 @@ pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&mut Tab
             && opt_vars().p_write
         {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, unsafe { buf.as_mut() });
+            set_bufref(&mut bufref, buf.opt_mut());
             dialog_changed(win.buf_mut(), false);
             if bufref_valid(Some(&bufref)) && bufref.buf_opt().is_some_and(buf_is_changed_fn) {
                 return;

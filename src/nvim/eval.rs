@@ -5446,7 +5446,7 @@ pub fn var2fpos(
 
         if error
             || eval_st().var2_fpos_pos.lnum <= 0
-            || eval_st().var2_fpos_pos.lnum > unsafe { (*bp).b_ml.ml_line_count }
+            || eval_st().var2_fpos_pos.lnum > bp.b_ml.ml_line_count
         {
             return None;
         }
@@ -5459,11 +5459,11 @@ pub fn var2fpos(
         }
         let len = if charcol {
             mb_charlen(crate::memline::ml_get_buf_slice(
-                unsafe { &mut *bp },
+                bp.borrow_mut(),
                 eval_st().var2_fpos_pos.lnum,
             ))
         } else {
-            ml_get_buf_len(unsafe { &mut *bp }, eval_st().var2_fpos_pos.lnum)
+            ml_get_buf_len(bp.borrow_mut(), eval_st().var2_fpos_pos.lnum)
         };
 
         if let Some(li) = tv_list_find(unsafe { l.as_mut() }, 1)
@@ -5516,7 +5516,7 @@ pub fn var2fpos(
     } else if name_bytes.first() == Some(&b'\'') {
         let mname_b = name_bytes.get(1).copied().unwrap_or(0);
         let mname = i32::from(mname_b);
-        let fm = mark_get(unsafe { &mut *bp }, wp, None, K_MARK_ALL, mname)?;
+        let fm = mark_get(bp.borrow_mut(), wp, None, K_MARK_ALL, mname)?;
         if fm.mark.lnum <= 0 {
             return None;
         }
@@ -5530,7 +5530,7 @@ pub fn var2fpos(
     if eval_st().var2_fpos_pos.lnum != 0 {
         if charcol {
             eval_st().var2_fpos_pos.col = buf_byteidx_to_charidx(
-                unsafe { bp.as_mut() },
+                bp.opt_mut(),
                 eval_st().var2_fpos_pos.lnum,
                 eval_st().var2_fpos_pos.col,
             );
@@ -5559,18 +5559,18 @@ pub fn var2fpos(
         }
     } else if name_bytes.first() == Some(&b'$') {
         if dollar_lnum {
-            eval_st().var2_fpos_pos.lnum = unsafe { (*bp).b_ml.ml_line_count };
+            eval_st().var2_fpos_pos.lnum = bp.b_ml.ml_line_count;
 
             eval_st().var2_fpos_pos.col = 0;
         } else {
             eval_st().var2_fpos_pos.lnum = wp.w_cursor.lnum;
             eval_st().var2_fpos_pos.col = if charcol {
                 mb_charlen(crate::memline::ml_get_buf_slice(
-                    unsafe { &mut *bp },
+                    bp.borrow_mut(),
                     wp.w_cursor.lnum,
                 ))
             } else {
-                ml_get_buf_len(unsafe { &mut *bp }, wp.w_cursor.lnum)
+                ml_get_buf_len(bp.borrow_mut(), wp.w_cursor.lnum)
             };
         }
         return Some(&mut eval_st().var2_fpos_pos);

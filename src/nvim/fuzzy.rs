@@ -799,7 +799,7 @@ pub fn search_for_fuzzy_match(
     let mut looped_around = false;
 
     let whole_line = ctrl_x_mode_whole_line();
-    let circly_end = if std::ptr::eq(buf, g_st().curbuf) {
+    let circly_end = if g_st().curbuf == buf {
         *start_pos
     } else {
         CursorPos {

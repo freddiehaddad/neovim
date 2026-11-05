@@ -358,7 +358,7 @@ pub fn u_savecommon(
             return false;
         }
 
-        if (&raw mut *buf) == g_st().curbuf {
+        if (&raw mut *buf) == g_st().curbuf.as_ptr() {
             change_warning(buf, 0);
         }
 
@@ -1278,7 +1278,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 0
             };
             let mut bi = Bufinfo {
-                bi_buf: crate::globals::BufPtr::new(g_st().curbuf),
+                bi_buf: g_st().curbuf,
                 bi_fp,
                 bi_fsize: fsize,
             };
@@ -2893,7 +2893,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let tv = &mut argvars[0];
     let buf = if tv.v_type == VarType::VarUnknown {
-        unsafe { g_st().curbuf.as_mut() }
+        g_st().curbuf.opt_mut()
     } else {
         get_buf_arg(tv)
     };

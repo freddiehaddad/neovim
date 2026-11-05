@@ -5589,7 +5589,7 @@ fn set_option<'a>(
         os_restore_chartab: false,
         os_errbuf: errbuf,
         os_win: crate::globals::WinPtr::new(curwin_ptr()),
-        os_buf: crate::globals::BufPtr::new(g_st().curbuf),
+        os_buf: g_st().curbuf,
     };
 
     let opt = get_option(opt_idx);
@@ -5715,7 +5715,7 @@ fn set_option<'a>(
     args.os_varp = varp.map_or(ptr::null_mut(), |vp| ptr::from_mut(vp).cast());
     args.os_oldval = old_value;
     args.os_newval = value;
-    args.os_buf = crate::globals::BufPtr::new(g_st().curbuf);
+    args.os_buf = g_st().curbuf;
     args.os_win = crate::globals::WinPtr::new(curwin_ptr());
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted)
         .map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
@@ -5784,7 +5784,7 @@ pub fn set_option_direct_for(
             g_st().curbuf = curwin_mut().w_buffer;
         }
         OptTarget::Buf(buf) => {
-            g_st().curbuf = buf;
+            g_st().curbuf = (buf).into();
         }
         OptTarget::Tab(_) => std::process::abort(),
     }
@@ -5894,7 +5894,7 @@ fn switch_option_context(
             let OptTarget::Buf(buf) = from else {
                 return false;
             };
-            if buf == g_st().curbuf {
+            if buf == g_st().curbuf.as_ptr() {
                 return false;
             }
             let mut cs = CtxSwitch::new();
