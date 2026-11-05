@@ -309,13 +309,13 @@ struct Spellinfo {
     si_first_free: Option<usize>,
     si_free_count: i32,
     si_spellbuf: Option<Box<FileBuf>>,
-    si_ascii: i32,
+    si_ascii: bool,
     si_add: i32,
     si_clear_chartab: i32,
     si_region: i32,
     si_conv: Vimconv,
     si_memtot: i32,
-    si_verbose: i32,
+    si_verbose: bool,
     si_msg_count: i32,
     si_info: Option<std::ffi::CString>,
     si_region_count: i32,
@@ -328,11 +328,11 @@ struct Spellinfo {
     si_nosugfile: i32,
     si_nosplitsugs: i32,
     si_nocompoundsugs: i32,
-    si_followup: i32,
-    si_collapse: i32,
+    si_followup: bool,
+    si_collapse: bool,
     si_commonwords: std::collections::BTreeSet<Vec<u8>>,
     si_sugtime: time_t,
-    si_rem_accents: i32,
+    si_rem_accents: bool,
     si_map: Vec<u8>,
     si_midword: Option<std::ffi::CString>,
     si_compmax: i32,
@@ -363,13 +363,13 @@ impl Default for Spellinfo {
             si_first_free: None,
             si_free_count: 0,
             si_spellbuf: None,
-            si_ascii: 0,
+            si_ascii: false,
             si_add: 0,
             si_clear_chartab: 0,
             si_region: 0,
             si_conv: Vimconv::new(),
             si_memtot: 0,
-            si_verbose: 0,
+            si_verbose: false,
             si_msg_count: 0,
             si_info: None,
             si_region_count: 0,
@@ -382,11 +382,11 @@ impl Default for Spellinfo {
             si_nosugfile: 0,
             si_nosplitsugs: 0,
             si_nocompoundsugs: 0,
-            si_followup: 0,
-            si_collapse: 0,
+            si_followup: false,
+            si_collapse: false,
             si_commonwords: std::collections::BTreeSet::new(),
             si_sugtime: 0,
-            si_rem_accents: 0,
+            si_rem_accents: false,
             si_map: Vec::new(),
             si_midword: None,
             si_compmax: 0,
@@ -1781,7 +1781,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                     .af_enc
                     .as_ref()
                     .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
-                if spin.si_ascii == 0
+                if !spin.si_ascii
                     && !convert_setup(
                         &mut spin.si_conv,
                         crate::memory::cstr_as_opt_cstr((af_enc_ptr).cast()),
@@ -2175,7 +2175,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                     }
                 }
 
-                if spin.si_ascii == 0
+                if !spin.si_ascii
                     || ((*aff_entry)
                         .chop_cstr()
                         .is_none_or(|s| s.to_bytes().is_ascii())
@@ -2407,11 +2407,11 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 if do_sal {
                     let item2_bytes = items[2].to_bytes();
                     if items[1].to_bytes() == b"followup" {
-                        spin.si_followup = i32::from(sal_to_bool(item2_bytes));
+                        spin.si_followup = sal_to_bool(item2_bytes);
                     } else if items[1].to_bytes() == b"collapse_result" {
-                        spin.si_collapse = i32::from(sal_to_bool(item2_bytes));
+                        spin.si_collapse = sal_to_bool(item2_bytes);
                     } else if items[1].to_bytes() == b"remove_accents" {
-                        spin.si_rem_accents = i32::from(sal_to_bool(item2_bytes));
+                        spin.si_rem_accents = sal_to_bool(item2_bytes);
                     } else {
                         let to_s = if item2_bytes == b"_" {
                             &[][..]
@@ -2887,12 +2887,12 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         }
         let w = w_slice.as_mut_ptr();
 
-        if spin.si_ascii != 0 && !crate::memory::cstr_as_bytes(w.cast()).is_ascii() {
+        if spin.si_ascii && !crate::memory::cstr_as_bytes(w.cast()).is_ascii() {
             non_ascii += 1;
             continue;
         }
 
-        if spin.si_verbose != 0 && spin.si_msg_count > 10000 {
+        if spin.si_verbose && spin.si_msg_count > 10000 {
             spin.si_msg_count = 0;
             if os_time() > last_msg_time {
                 last_msg_time = os_time();
@@ -3018,7 +3018,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     if duplicate > 0 {
         smsg!(0, gettext(c"%d duplicate word(s) in %s"), duplicate, fname,);
     }
-    if spin.si_ascii != 0 && non_ascii > 0 {
+    if spin.si_ascii && non_ascii > 0 {
         smsg!(
             0,
             gettext(c"Ignored %d word(s) with non-ASCII characters in %s"),
@@ -3483,7 +3483,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                     } else {
                         line = line.wrapping_add(9);
                         let enc = enc_canonize(crate::memory::cstr_from_ptr((line).cast()));
-                        if spin.si_ascii == 0
+                        if !spin.si_ascii
                             && !convert_setup(
                                 &mut spin.si_conv,
                                 crate::memory::cstr_as_opt_cstr((enc.as_ptr().cast_mut()).cast()),
@@ -3591,7 +3591,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                 line_bytes
             };
 
-            if spin.si_ascii != 0 && !word_bytes.is_ascii() {
+            if spin.si_ascii && !word_bytes.is_ascii() {
                 non_ascii += 1;
                 continue;
             }
@@ -3605,7 +3605,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
 
         spell_close(fd);
 
-        if spin.si_ascii != 0 && non_ascii > 0 {
+        if spin.si_ascii && non_ascii > 0 {
             vim_snprintf!(
                 g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
@@ -3827,7 +3827,7 @@ fn tree_add_word(
         spin.si_blocks_cnt -= spellfile_st().compress_inc;
         spin.si_compress_cnt = spellfile_st().compress_added;
 
-        if spin.si_verbose != 0 {
+        if spin.si_verbose {
             msg_start();
             msg_puts(gettext(MSG_COMPRESSING));
             msg_clr_eos();
@@ -3903,7 +3903,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
 
     let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
 
-    if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
+    if spin.si_verbose || opt_vars().p_verbose > 2 {
         let perc: i64 = if tot > 1_000_000 {
             ((tot - n) / (tot / 100)) as i64
         } else if tot == 0 {
@@ -4061,7 +4061,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
         0
     };
 
-    if spin.si_ascii == 0 && spin.si_add == 0 {
+    if !spin.si_ascii && spin.si_add == 0 {
         let mut folchars = [0u8; 128 * 8];
 
         spell_putc(SN_CHARFLAGS, &fd);
@@ -4152,13 +4152,13 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
 
         if round == 2 {
             let mut i: i32 = 0;
-            if spin.si_followup != 0 {
+            if spin.si_followup {
                 i |= SAL_F0LLOWUP;
             }
-            if spin.si_collapse != 0 {
+            if spin.si_collapse {
                 i |= SAL_COLLAPSE;
             }
-            if spin.si_rem_accents != 0 {
+            if spin.si_rem_accents {
                 i |= SAL_REM_ACCENTS;
             }
             spell_putc(i, &fd);
@@ -4806,10 +4806,10 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
     spell_check_msm(opt_vars().p_msm.as_bytes(), true);
 
-    spin.si_verbose = i32::from(!added_word);
-    spin.si_ascii = i32::from(ascii);
-    spin.si_followup = 1;
-    spin.si_rem_accents = 1;
+    spin.si_verbose = !added_word;
+    spin.si_ascii = ascii;
+    spin.si_followup = true;
+    spin.si_rem_accents = true;
     spin.si_newcomp_id = 127;
 
     let fcount = fnames.len() as i32;
@@ -4834,11 +4834,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 MAXPATHL,
                 SPL_FNAME_TMPL,
                 f0,
-                if spin.si_ascii != 0 {
-                    c"ascii"
-                } else {
-                    spell_enc()
-                },
+                if spin.si_ascii { c"ascii" } else { spell_enc() },
             );
         } else if len > 4 && (crate::memory::cstr_as_bytes(f0.wrapping_add(len - 4)) == b".spl") {
             crate::memory::copy_bytes_to_c_buf(&mut wfname_buf, crate::memory::cstr_as_bytes(f0));
@@ -4848,11 +4844,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 MAXPATHL,
                 SPL_FNAME_TMPL,
                 f0,
-                if spin.si_ascii != 0 {
-                    c"ascii"
-                } else {
-                    spell_enc()
-                },
+                if spin.si_ascii { c"ascii" } else { spell_enc() },
             );
         }
 
@@ -4862,7 +4854,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
         .windows(SPL_FNAME_ASCII.len())
         .any(|w| w == SPL_FNAME_ASCII)
         {
-            spin.si_ascii = 1;
+            spin.si_ascii = true;
         }
         if crate::memory::cstr_as_bytes(
             (path_tail(crate::memory::cstr_from_ptr(wfname.cast()))).as_ptr(),
@@ -5015,13 +5007,13 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 }
 
 fn spell_message(spin: &Spellinfo, str_: &std::ffi::CStr) {
-    if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
-        if spin.si_verbose == 0 {
+    if spin.si_verbose || opt_vars().p_verbose > 2 {
+        if !spin.si_verbose {
             verbose_enter();
         }
         msg(str_, 0);
         ui_flush();
-        if spin.si_verbose == 0 {
+        if !spin.si_verbose {
             verbose_leave();
         }
     }

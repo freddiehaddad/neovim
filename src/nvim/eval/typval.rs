@@ -630,7 +630,7 @@ impl Drop for DictWatcher {
 }
 
 struct Sortinfo {
-    item_compare_ic: i32,
+    item_compare_ic: bool,
     item_compare_lc: bool,
     item_compare_numeric: bool,
     item_compare_numbers: bool,
@@ -645,7 +645,7 @@ struct Sortinfo {
 impl Sortinfo {
     const fn new() -> Self {
         Self {
-            item_compare_ic: 0,
+            item_compare_ic: false,
             item_compare_lc: false,
             item_compare_numeric: false,
             item_compare_numbers: false,
@@ -2086,7 +2086,7 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
     if !info.item_compare_numeric {
         if info.item_compare_lc {
             res = unsafe { strcoll(p1, p2) };
-        } else if info.item_compare_ic != 0 {
+        } else if info.item_compare_ic {
             res = crate::memory::cstr_as_bytes(p1)
                 .iter()
                 .map(u8::to_ascii_lowercase)
@@ -2288,7 +2288,7 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
 }
 
 fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
-    info.item_compare_ic = 0;
+    info.item_compare_ic = false;
     info.item_compare_lc = false;
     info.item_compare_numeric = false;
     info.item_compare_numbers = false;
@@ -2316,7 +2316,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             return false;
         }
         if nr == 1 {
-            info.item_compare_ic = 1;
+            info.item_compare_ic = true;
         } else if argvars[1].v_type != VarType::VarNumber {
             let s = tv_get_string(&argvars[1]);
             info.item_compare_func = Some(s.to_owned());
@@ -2341,7 +2341,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
                 }
                 b"i" => {
                     info.item_compare_func = None;
-                    info.item_compare_ic = 1;
+                    info.item_compare_ic = true;
                 }
                 b"l" => {
                     info.item_compare_func = None;

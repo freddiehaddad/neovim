@@ -930,7 +930,7 @@ pub fn peekkey_csi(
     nbytep: &mut usize,
 ) -> TermKeyResult {
     if tk.buffcount == 0 {
-        return if tk.is_closed != 0 {
+        return if tk.is_closed {
             TERMKEY_RES_EOF
         } else {
             TERMKEY_RES_NONE

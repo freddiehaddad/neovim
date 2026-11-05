@@ -355,7 +355,7 @@ pub fn profile_reset() {
     let functbl = func_tbl_get();
     for &fp in functbl.values() {
         let uf = unsafe { &mut *fp };
-        if uf.uf_prof_initialized != 0 {
+        if uf.uf_prof_initialized {
             uf.uf_profiling = 0;
             uf.uf_tm_count = 0;
             uf.uf_tm_total = profile_zero();
@@ -552,7 +552,7 @@ fn prof_self_cmp(s1: &&UserFunc, s2: &&UserFunc) -> std::cmp::Ordering {
 pub fn func_do_profile(fp: &mut UserFunc) {
     let mut len = fp.uf_lines.len() as i32;
 
-    if fp.uf_prof_initialized == 0 {
+    if !fp.uf_prof_initialized {
         if len == 0 {
             len = 1;
         }
@@ -572,7 +572,7 @@ pub fn func_do_profile(fp: &mut UserFunc) {
         }
 
         fp.uf_tml_idx = -1;
-        fp.uf_prof_initialized = 1;
+        fp.uf_prof_initialized = true;
     }
 
     fp.uf_profiling = 1;
@@ -655,7 +655,7 @@ fn func_dump_profile(fd: &CFile) {
 
     for &fp_ptr in functbl.values() {
         let fp = unsafe { &*fp_ptr };
-        if fp.uf_prof_initialized != 0 {
+        if fp.uf_prof_initialized {
             sorttab.push(fp);
 
             let name_ptr = fp.uf_name.as_ptr();

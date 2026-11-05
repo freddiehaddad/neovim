@@ -183,7 +183,7 @@ pub struct Mparm {
     pub exmode: bool,
     pub input_istext: bool,
 
-    pub no_swap_file: i32,
+    pub no_swap_file: bool,
     pub use_debug_break_level: i32,
     pub window_count: i32,
     pub window_layout: i32,
@@ -215,7 +215,7 @@ impl Mparm {
             use_ef: None,
             exmode: false,
             input_istext: false,
-            no_swap_file: 0,
+            no_swap_file: false,
             use_debug_break_level: 0,
             window_count: 0,
             window_layout: 0,
@@ -657,7 +657,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     set_init_3();
     time_msg_if_enabled(c"inits 3");
 
-    if params.no_swap_file != 0 {
+    if params.no_swap_file {
         opt_vars().p_uc = 0;
     }
 
@@ -1310,7 +1310,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if parmp.exmode {
                         g_st().silent_mode = true;
                         g_st().exmode_active = true;
-                        parmp.no_swap_file = 1;
+                        parmp.no_swap_file = true;
                     } else {
                         if parmp.edit_type > EDIT_STDIN {
                             mainerr(ERR_TOO_MANY_ARGS, Some(&arg0_cstr), None);
@@ -1416,7 +1416,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     opt_vars().p_write = false;
                 }
                 b'n' => {
-                    parmp.no_swap_file = 1;
+                    parmp.no_swap_file = true;
                 }
                 b'p' => {
                     parmp.window_count = get_number_arg(arg0, &mut argv_idx, 0);
@@ -1455,7 +1455,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if parmp.exmode {
                         g_st().silent_mode = true;
                         g_st().exmode_active = true;
-                        parmp.no_swap_file = 1;
+                        parmp.no_swap_file = true;
                         if opt_vars().p_shadafile.is_null() || opt_vars().p_shadafile.is_empty() {
                             set_option_value_give_err(
                                 K_OPT_SHADAFILE,
@@ -1603,7 +1603,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         g_st().headless_mode = true;
                         g_st().silent_mode = true;
                         opt_vars().p_verbose = 1;
-                        parmp.no_swap_file = 1;
+                        parmp.no_swap_file = true;
                         if parmp.use_vimrc.is_none() {
                             parmp.use_vimrc = Some(c"NONE".to_owned());
                         }
@@ -2625,7 +2625,7 @@ mod tests {
         command_line_scan(&mut params);
 
         assert_eq!(params.diff_mode, 1);
-        assert_eq!(params.no_swap_file, 1);
+        assert!(params.no_swap_file);
         assert_eq!(params.window_layout, WIN_VER);
         assert_eq!(params.window_count, 3);
         assert_eq!(

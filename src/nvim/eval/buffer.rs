@@ -48,7 +48,7 @@ struct Cob {
     cob_curwin_save: *mut WinInfoInfo,
     cob_aco: CtxSwitch,
     cob_using_aco: i32,
-    cob_save_visual_active: i32,
+    cob_save_visual_active: bool,
 }
 
 impl Cob {
@@ -57,7 +57,7 @@ impl Cob {
             cob_curwin_save: ptr::null_mut(),
             cob_aco: CtxSwitch::new(),
             cob_using_aco: 0,
-            cob_save_visual_active: 0,
+            cob_save_visual_active: false,
         }
     }
 }
@@ -108,7 +108,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
     let buf_ptr: *mut FileBuf = buf;
     *cob = Cob::new();
 
-    cob.cob_save_visual_active = i32::from(g_st().visual_global.active);
+    cob.cob_save_visual_active = g_st().visual_global.active;
     g_st().visual_global.active = false;
     cob.cob_curwin_save = curwin_ptr();
     g_st().curbuf = buf_ptr;
@@ -128,7 +128,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
         set_curwin(cob.cob_curwin_save);
         g_st().curbuf = curwin_mut().w_buffer;
     }
-    g_st().visual_global.active = cob.cob_save_visual_active != 0;
+    g_st().visual_global.active = cob.cob_save_visual_active;
 }
 
 /// Set line or list of lines in buffer `buf` to `lines` (`set_buffer_lines`).

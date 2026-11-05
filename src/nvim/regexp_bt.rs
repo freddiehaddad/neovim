@@ -851,7 +851,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
     if c == magic_fn(b'^' as i32) {
         return regnode(BOL);
     } else if c == magic_fn(b'$' as i32) {
-        re_st().had_eol = 1;
+        re_st().had_eol = true;
         return regnode(EOL);
     } else if c == magic_fn(b'<' as i32) {
         return regnode(BOW);
@@ -863,7 +863,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             return regnode(BOL);
         }
         if c == b'$' as i32 {
-            re_st().had_eol = 1;
+            re_st().had_eol = true;
             return regnode(EOL);
         }
         extra = ADD_NL;
@@ -2651,7 +2651,7 @@ fn regstack_pop(scan: &mut Option<usize>) {
 
 fn save_subexpr(bp: &mut Regbehind) {
     bp.save_need_clear_subexpr = re_st().rex.need_clear_subexpr;
-    if re_st().rex.need_clear_subexpr != 0 {
+    if re_st().rex.need_clear_subexpr {
         return;
     }
     if reg_multi() {
@@ -2672,7 +2672,7 @@ fn save_subexpr(bp: &mut Regbehind) {
 
 fn restore_subexpr(bp: &mut Regbehind) {
     re_st().rex.need_clear_subexpr = bp.save_need_clear_subexpr;
-    if re_st().rex.need_clear_subexpr != 0 {
+    if re_st().rex.need_clear_subexpr {
         return;
     }
     if reg_multi() {
@@ -3924,8 +3924,8 @@ fn regtry(
     timed_out: Option<&mut i32>,
 ) -> i32 {
     re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
-    re_st().rex.need_clear_subexpr = 1;
-    re_st().rex.need_clear_zsubexpr = i32::from(prog.reghasz == REX_SET as u8);
+    re_st().rex.need_clear_subexpr = true;
+    re_st().rex.need_clear_zsubexpr = prog.reghasz == REX_SET as u8;
 
     if !regmatch(
         &prog.program,

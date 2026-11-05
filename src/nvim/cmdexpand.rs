@@ -5179,7 +5179,7 @@ fn expand_from_context(
         if regmatch.regprog.is_null() {
             return false;
         }
-        regmatch.rm_ic = ignorecase(pat_cstr) != 0;
+        regmatch.rm_ic = ignorecase(pat_cstr);
     }
 
     let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS {

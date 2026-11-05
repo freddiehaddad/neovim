@@ -130,7 +130,7 @@ const MT_NAMES: [&CStr; MT_COUNT / 2] = [
 pub struct Tagname {
     pub tn_tags: Option<std::ffi::CString>,
     pub tn_np_off: usize,
-    pub tn_did_filefind_init: i32,
+    pub tn_did_filefind_init: bool,
     pub tn_hf_idx: i32,
     pub tn_search_ctx: Option<crate::file_search::FfSearchCtx>,
 }
@@ -140,7 +140,7 @@ impl Tagname {
         Self {
             tn_tags: None,
             tn_np_off: 0,
-            tn_did_filefind_init: 0,
+            tn_did_filefind_init: false,
             tn_hf_idx: 0,
             tn_search_ctx: None,
         }
@@ -2261,8 +2261,8 @@ pub fn find_tags(
             K_OPT_TC_FLAG_FOLLOWIC => {}
             K_OPT_TC_FLAG_IGNORE => opt_vars().p_ic = true,
             K_OPT_TC_FLAG_MATCH => opt_vars().p_ic = false,
-            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic = ignorecase(pat_cstr) != 0,
-            K_OPT_TC_FLAG_SMART => opt_vars().p_ic = ignorecase_opt(pat_cstr, 1, 1) != 0,
+            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic = ignorecase(pat_cstr),
+            K_OPT_TC_FLAG_SMART => opt_vars().p_ic = ignorecase_opt(pat_cstr, true, true),
             _ => std::process::abort(),
         }
 
@@ -2468,12 +2468,12 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
     }
 
     loop {
-        if tnp.tn_did_filefind_init != 0 {
+        if tnp.tn_did_filefind_init {
             fname = vim_findfile(tnp.tn_search_ctx.as_mut());
             if fname.is_some() {
                 break;
             }
-            tnp.tn_did_filefind_init = 0;
+            tnp.tn_did_filefind_init = false;
         } else {
             let tags_bytes = tnp.tn_tags.as_ref().map_or(&[][..], |s| s.as_bytes());
             if tnp.tn_np_off >= tags_bytes.len() {
@@ -2505,11 +2505,11 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 false,
                 FindFileWhat::File,
                 tnp.tn_search_ctx.take(),
-                1,
+                true,
                 curbuf_mut().ffname_opt(),
             );
             if tnp.tn_search_ctx.is_some() {
-                tnp.tn_did_filefind_init = 1;
+                tnp.tn_did_filefind_init = true;
             }
         }
     }

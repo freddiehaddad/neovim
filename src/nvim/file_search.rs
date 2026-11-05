@@ -87,7 +87,7 @@ pub struct FfStack {
     pub ffs_filearray_cur: usize,
     pub ffs_stage: i32,
     pub ffs_level: i32,
-    pub ffs_star_star_empty: i32,
+    pub ffs_star_star_empty: bool,
 }
 
 impl Drop for FfStack {
@@ -125,7 +125,7 @@ pub struct FfSearchCtx {
     pub ffsc_level: i32,
     pub ffsc_stopdirs_v: Vec<std::ffi::CString>,
     pub ffsc_find_what: FindFileWhat,
-    pub ffsc_tagfile: i32,
+    pub ffsc_tagfile: bool,
 }
 
 impl FfSearchCtx {
@@ -143,7 +143,7 @@ impl FfSearchCtx {
             ffsc_level: 0,
             ffsc_stopdirs_v: Vec::new(),
             ffsc_find_what: FindFileWhat::File,
-            ffsc_tagfile: 0,
+            ffsc_tagfile: false,
         }
     }
 }
@@ -169,7 +169,7 @@ pub fn vim_findfile_init(
     free_visited: bool,
     find_what: FindFileWhat,
     search_ctx_arg: Option<FfSearchCtx>,
-    tagfile: i32,
+    tagfile: bool,
     rel_fname: Option<&std::ffi::CStr>,
 ) -> Option<FfSearchCtx> {
     let mut path = path_cstr.as_ptr();
@@ -204,8 +204,7 @@ pub fn vim_findfile_init(
                 .get(1)
                 .is_some_and(|&b| vim_ispathsep(i32::from(b)))
                 || path_bytes.len() == 1)
-            && (tagfile == 0
-                || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOTTAG))
+            && (!tagfile || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOTTAG))
             && !rel_fname.is_null()
         {
             let len = crate::memory::ptr_offset_from(
@@ -497,7 +496,7 @@ pub fn vim_findfile_init(
             &expand_buf[..expand_size],
             search_ctx.ffsc_wc_path.as_bytes(),
             level,
-            0,
+            false,
         );
 
         ff_push(&mut search_ctx, sptr);
@@ -684,8 +683,8 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                             rest_of_wildcards.size -= 3;
                         }
 
-                        if stackp.ffs_star_star_empty == 0 {
-                            stackp.ffs_star_star_empty = 1;
+                        if !stackp.ffs_star_star_empty {
+                            stackp.ffs_star_star_empty = true;
                             dirptrs[1] = stackp.ffs_fix_path.data;
                         }
                     }
@@ -779,7 +778,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         }
 
                         len = file_path.size;
-                        let mut suf = if search_ctx.ffsc_tagfile != 0 {
+                        let mut suf = if search_ctx.ffsc_tagfile {
                             EMPTY_C.as_ptr().cast_mut()
                         } else {
                             curbuf_mut().b_p_sua.as_ptr().cast_mut()
@@ -859,7 +858,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 entry_cstr.as_bytes(),
                                 rest_of_wildcards.as_bytes(),
                                 stackp.ffs_level - 1,
-                                0,
+                                false,
                             ),
                         );
                     }
@@ -887,7 +886,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                             entry_cstr.as_bytes(),
                             stackp.ffs_wc_path.as_bytes(),
                             stackp.ffs_level - 1,
-                            1,
+                            true,
                         ),
                     );
                 }
@@ -962,7 +961,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 file_path.as_bytes(),
                 search_ctx.ffsc_wc_path.as_bytes(),
                 search_ctx.ffsc_level,
-                0,
+                false,
             );
             ff_push(search_ctx, sptr);
         } else {
@@ -1091,7 +1090,7 @@ fn ff_create_stack_element(
     fix_part: &[u8],
     wc_part: &[u8],
     level: i32,
-    star_star_empty: i32,
+    star_star_empty: bool,
 ) -> FfStack {
     let fix_bytes = crate::memory::bytes_until_nul(fix_part);
     let wc_bytes = crate::memory::bytes_until_nul(wc_part);
@@ -1407,7 +1406,7 @@ pub fn find_file_in_path_option(
                         false,
                         find_what,
                         search_ctx.take(),
-                        i32::from(false),
+                        false,
                         rel_fname_opt,
                     );
                     if search_ctx.is_some() {

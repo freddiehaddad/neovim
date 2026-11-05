@@ -792,7 +792,7 @@ impl EditorState {
                     startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
                     endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
                     rmm_matchcol: 0,
-                    rmm_ic: 0,
+                    rmm_ic: false,
                     rmm_maxcol: 0,
                 },
                 buf: ptr::null_mut(),

@@ -447,7 +447,7 @@ pub struct Cmdmod {
     pub cmod_filter_force: bool,
     pub cmod_verbose: i32,
     pub cmod_save_ei: Option<std::ffi::CString>,
-    pub cmod_did_sandbox: i32,
+    pub cmod_did_sandbox: bool,
     pub cmod_verbose_save: i64,
     pub cmod_save_msg_silent: i32,
     pub cmod_save_msg_scroll: i32,
@@ -465,7 +465,7 @@ impl Cmdmod {
             cmod_filter_force: false,
             cmod_verbose: 0,
             cmod_save_ei: None,
-            cmod_did_sandbox: 0,
+            cmod_did_sandbox: false,
             cmod_verbose_save: 0,
             cmod_save_msg_silent: 0,
             cmod_save_msg_scroll: 0,
@@ -7230,9 +7230,9 @@ pub fn parse_command_modifiers(
 }
 
 pub fn apply_cmdmod(cmod: &mut Cmdmod) {
-    if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && cmod.cmod_did_sandbox == 0 {
+    if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && !cmod.cmod_did_sandbox {
         g_st().sandbox += 1;
-        cmod.cmod_did_sandbox = 1;
+        cmod.cmod_did_sandbox = true;
     }
     if cmod.cmod_verbose > 0 {
         if cmod.cmod_verbose_save == 0 {
@@ -7269,9 +7269,9 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
         cmod.cmod_verbose_save = 0;
     }
 
-    if cmod.cmod_did_sandbox != 0 {
+    if cmod.cmod_did_sandbox {
         g_st().sandbox -= 1;
-        cmod.cmod_did_sandbox = 0;
+        cmod.cmod_did_sandbox = false;
     }
 
     if let Some(save_ei) = cmod.cmod_save_ei.take() {

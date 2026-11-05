@@ -426,12 +426,12 @@ pub struct FileBuf {
     pub b_ind_cpp_extern_c: i32,
     pub b_ind_pragma: i32,
     pub b_no_eol_lnum: i32,
-    pub b_start_eof: i32,
-    pub b_start_eol: i32,
+    pub b_start_eof: bool,
+    pub b_start_eol: bool,
     pub b_start_ffc: i32,
     pub b_start_fenc: Option<std::ffi::CString>,
     pub b_bad_char: i32,
-    pub b_start_bomb: i32,
+    pub b_start_bomb: bool,
     pub b_bufvar: crate::eval::typval::ScopeDictDictItem,
     pub b_may_swap: bool,
     pub b_did_warn: bool,
@@ -719,12 +719,12 @@ impl FileBuf {
             b_ind_cpp_extern_c: 0,
             b_ind_pragma: 0,
             b_no_eol_lnum: 0,
-            b_start_eof: 0,
-            b_start_eol: 0,
+            b_start_eof: false,
+            b_start_eol: false,
             b_start_ffc: 0,
             b_start_fenc: None,
             b_bad_char: 0,
-            b_start_bomb: 0,
+            b_start_bomb: false,
             b_bufvar: crate::eval::typval::ScopeDictDictItem::new(),
             b_may_swap: false,
             b_did_warn: false,
@@ -1579,11 +1579,11 @@ pub fn buf_clear_file(buf: &mut FileBuf) {
     buf.b_ml.ml_line_count = 1;
     unchanged(&mut *buf, true, true);
     buf.b_p_eof = false;
-    buf.b_start_eof = 0;
+    buf.b_start_eof = false;
     buf.b_p_eol = true;
-    buf.b_start_eol = 1;
+    buf.b_start_eol = true;
     buf.b_p_bomb = false;
-    buf.b_start_bomb = 0;
+    buf.b_start_bomb = false;
     buf.b_ml.ml_mfp = None;
     buf.b_ml.ml_flags = ML_EMPTY;
 }

@@ -241,7 +241,7 @@ pub struct Regmmatch {
     pub startpos: [Lpos; NSUBEXP],
     pub endpos: [Lpos; NSUBEXP],
     pub rmm_matchcol: Colnr,
-    pub rmm_ic: i32,
+    pub rmm_ic: bool,
     pub rmm_maxcol: Colnr,
 }
 
@@ -252,7 +252,7 @@ impl Regmmatch {
             startpos: [Lpos::new(); NSUBEXP],
             endpos: [Lpos::new(); NSUBEXP],
             rmm_matchcol: 0,
-            rmm_ic: 0,
+            rmm_ic: false,
             rmm_maxcol: 0,
         }
     }
@@ -505,8 +505,8 @@ pub(super) struct NfaRegprog {
     pub reganch: i32,
     pub regstart: i32,
     pub match_text: Option<std::ffi::CString>,
-    pub has_zend: i32,
-    pub has_backref: i32,
+    pub has_zend: bool,
+    pub has_backref: bool,
     pub reghasz: i32,
     pub pattern: std::ffi::CString,
     pub nsubexp: i32,
@@ -687,7 +687,7 @@ impl Default for Regitem {
 pub(super) struct Regbehind {
     pub save_after: Regsave,
     pub save_behind: Regsave,
-    pub save_need_clear_subexpr: i32,
+    pub save_need_clear_subexpr: bool,
     pub save_start: [SaveSe; NSUBEXP],
     pub save_end: [SaveSe; NSUBEXP],
 }
@@ -904,7 +904,7 @@ pub(super) struct NfaList {
     pub t: Vec<NfaThread>,
     pub n: i32,
     pub id: i32,
-    pub has_pim: i32,
+    pub has_pim: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -974,18 +974,18 @@ pub(super) struct Regexec {
     pub lnum: Linenr,
     pub line: RegLinePtr,
     pub input: RegLinePtr,
-    pub need_clear_subexpr: i32,
-    pub need_clear_zsubexpr: i32,
+    pub need_clear_subexpr: bool,
+    pub need_clear_zsubexpr: bool,
     pub reg_ic: bool,
     pub reg_icombine: bool,
     pub reg_nobreak: bool,
     pub reg_maxcol: Colnr,
-    pub nfa_has_zend: i32,
-    pub nfa_has_backref: i32,
+    pub nfa_has_zend: bool,
+    pub nfa_has_backref: bool,
     pub nfa_nsubexpr: i32,
     pub nfa_listid: i32,
     pub nfa_alt_listid: i32,
-    pub nfa_has_zsubexpr: i32,
+    pub nfa_has_zsubexpr: bool,
 }
 
 impl Regexec {
@@ -1003,18 +1003,18 @@ impl Regexec {
             lnum: 0,
             line: RegLinePtr::NULL,
             input: RegLinePtr::NULL,
-            need_clear_subexpr: 0,
-            need_clear_zsubexpr: 0,
+            need_clear_subexpr: false,
+            need_clear_zsubexpr: false,
             reg_ic: false,
             reg_icombine: false,
             reg_nobreak: false,
             reg_maxcol: 0,
-            nfa_has_zend: 0,
-            nfa_has_backref: 0,
+            nfa_has_zend: false,
+            nfa_has_backref: false,
             nfa_nsubexpr: 0,
             nfa_listid: 0,
             nfa_alt_listid: 0,
-            nfa_has_zsubexpr: 0,
+            nfa_has_zsubexpr: false,
         }
     }
 }
@@ -1315,7 +1315,7 @@ pub(super) struct RegexpState {
     pub(super) regnzpar: i32,
     pub(super) re_has_z: i32,
     pub(super) regflags: u32,
-    pub(super) had_eol: i32,
+    pub(super) had_eol: bool,
     pub(super) reg_magic: RegMagic,
     pub(super) reg_string: i32,
     pub(super) reg_strict: i32,
@@ -1374,7 +1374,7 @@ impl RegexpState {
             regnzpar: 0,
             re_has_z: 0,
             regflags: 0,
-            had_eol: 0,
+            had_eol: false,
             reg_magic: 0,
             reg_string: 0,
             reg_strict: 0,
@@ -1401,18 +1401,18 @@ impl RegexpState {
                 lnum: 0,
                 line: RegLinePtr::NULL,
                 input: RegLinePtr::NULL,
-                need_clear_subexpr: 0,
-                need_clear_zsubexpr: 0,
+                need_clear_subexpr: false,
+                need_clear_zsubexpr: false,
                 reg_ic: false,
                 reg_icombine: false,
                 reg_nobreak: false,
                 reg_maxcol: 0,
-                nfa_has_zend: 0,
-                nfa_has_backref: 0,
+                nfa_has_zend: false,
+                nfa_has_backref: false,
                 nfa_nsubexpr: 0,
                 nfa_listid: 0,
                 nfa_alt_listid: 0,
-                nfa_has_zsubexpr: 0,
+                nfa_has_zsubexpr: false,
             },
             rex_in_use: false,
             can_f_submatch: false,
@@ -2373,7 +2373,7 @@ pub(super) fn prog_magic_wrong() -> bool {
 }
 
 pub(super) fn cleanup_subexpr() {
-    if re_st().rex.need_clear_subexpr == 0 {
+    if !re_st().rex.need_clear_subexpr {
         return;
     }
     if reg_multi() {
@@ -2385,11 +2385,11 @@ pub(super) fn cleanup_subexpr() {
         m.startp.fill(RegLinePtr::NULL);
         m.endp.fill(RegLinePtr::NULL);
     }
-    re_st().rex.need_clear_subexpr = 0;
+    re_st().rex.need_clear_subexpr = false;
 }
 
 pub(super) fn cleanup_zsubexpr() {
-    if re_st().rex.need_clear_zsubexpr == 0 {
+    if !re_st().rex.need_clear_zsubexpr {
         return;
     }
     if reg_multi() {
@@ -2400,7 +2400,7 @@ pub(super) fn cleanup_zsubexpr() {
         re_st().reg_startzp = [RegLinePtr::NULL; NSUBEXP];
         re_st().reg_endzp = [RegLinePtr::NULL; NSUBEXP];
     }
-    re_st().rex.need_clear_zsubexpr = 0;
+    re_st().rex.need_clear_zsubexpr = false;
 }
 
 pub(super) fn reg_nextline() {
@@ -3326,7 +3326,7 @@ pub(super) fn init_regexec_multi(
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
     re_st().rex.reg_line_lbr = false;
-    re_st().rex.reg_ic = rmp.rmm_ic != 0;
+    re_st().rex.reg_ic = rmp.rmm_ic;
     re_st().rex.reg_icombine = false;
     re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
     re_st().rex.reg_maxcol = rmp.rmm_maxcol;
@@ -3421,7 +3421,7 @@ pub(super) fn regcomp_start(expr: &CStr, re_flags: i32) {
     re_st().reg_toolong = 0;
     re_st().bt_reg_parse_depth = 0;
     re_st().regflags = 0;
-    re_st().had_eol = 0;
+    re_st().had_eol = false;
 }
 
 pub(super) fn seen_endbrace(refnum: i32) -> bool {
@@ -3461,7 +3461,7 @@ pub(super) fn coll_get_char() -> i32 {
     nr as i32
 }
 
-pub fn vim_regcomp_had_eol() -> i32 {
+pub fn vim_regcomp_had_eol() -> bool {
     re_st().had_eol
 }
 

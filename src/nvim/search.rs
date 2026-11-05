@@ -516,18 +516,18 @@ fn restore_incsearch_state() {
     g_st().search_global.match_lines = srch().saved_search_match_lines;
 }
 
-pub fn ignorecase(pat: &CStr) -> i32 {
-    ignorecase_opt(pat, i32::from(opt_vars().p_ic), i32::from(opt_vars().p_scs))
+pub fn ignorecase(pat: &CStr) -> bool {
+    ignorecase_opt(pat, opt_vars().p_ic, opt_vars().p_scs)
 }
 
-pub fn ignorecase_opt(pat: &CStr, ic_in: i32, scs: i32) -> i32 {
+pub fn ignorecase_opt(pat: &CStr, ic_in: bool, scs: bool) -> bool {
     let mut ic = ic_in;
-    if ic != 0
+    if ic
         && !g_st().search_global.no_smartcase
-        && scs != 0
+        && scs
         && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf)
     {
-        ic = i32::from(!pat_has_uppercase(pat));
+        ic = !pat_has_uppercase(pat);
     }
     g_st().search_global.no_smartcase = false;
     ic
@@ -3173,7 +3173,7 @@ pub fn find_pattern_in_path(
                 ptr_pat,
             );
             let pat_cstr = crate::memory::cstr_from_ptr(pat);
-            regmatch.rm_ic = ignorecase(pat_cstr) != 0;
+            regmatch.rm_ic = ignorecase(pat_cstr);
             regmatch.set_prog(vim_regcomp(
                 pat_cstr,
                 if opt_vars().p_magic { RE_MAGIC } else { 0 },

@@ -85,7 +85,7 @@ pub struct UserFunc {
     pub uf_def_args: Vec<std::ffi::CString>,
     pub uf_lines: Vec<Option<std::ffi::CString>>,
     pub uf_profiling: i32,
-    pub uf_prof_initialized: i32,
+    pub uf_prof_initialized: bool,
     pub uf_luaref: i32,
     pub uf_tm_count: i32,
     pub uf_tm_total: u64,
@@ -576,7 +576,7 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
         uf_def_args: Vec::new(),
         uf_lines: Vec::new(),
         uf_profiling: 0,
-        uf_prof_initialized: 0,
+        uf_prof_initialized: false,
         uf_luaref: 0,
         uf_tm_count: 0,
         uf_tm_total: 0,
@@ -3340,7 +3340,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
                 fp_ref.uf_profiling = 0;
 
-                fp_ref.uf_prof_initialized = 0;
+                fp_ref.uf_prof_initialized = false;
             }
         }
     } else {

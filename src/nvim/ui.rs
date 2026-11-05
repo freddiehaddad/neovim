@@ -113,7 +113,7 @@ struct UiState {
     ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback>,
     ui_cb_ext: [bool; K_UIEXT_COUNT],
     has_mouse: bool,
-    pending_has_mouse: i32,
+    pending_has_mouse: Option<bool>,
     pending_default_colors: bool,
     beep_count: i32,
     beep_start_time: u64,
@@ -141,7 +141,7 @@ impl UiState {
             ui_event_cbs: std::collections::BTreeMap::new(),
             ui_cb_ext: [false; K_UIEXT_COUNT],
             has_mouse: false,
-            pending_has_mouse: -1,
+            pending_has_mouse: None,
             pending_default_colors: false,
             beep_count: 0,
             beep_start_time: 0,
@@ -291,7 +291,7 @@ pub fn ui_refresh() {
     ui_mode_info_set();
     ui_state().pending_mode_update = true;
     ui_cursor_shape();
-    ui_state().pending_has_mouse = -1;
+    ui_state().pending_has_mouse = None;
 }
 
 pub fn ui_pum_get_height() -> i32 {
@@ -629,13 +629,13 @@ pub fn ui_flush() {
         ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
     }
 
-    if ui_state().pending_has_mouse != i32::from(ui_state().has_mouse) {
+    if ui_state().pending_has_mouse != Some(ui_state().has_mouse) {
         if ui_state().has_mouse {
             ui_call_mouse_on();
         } else {
             ui_call_mouse_off();
         }
-        ui_state().pending_has_mouse = i32::from(ui_state().has_mouse);
+        ui_state().pending_has_mouse = Some(ui_state().has_mouse);
     }
     ui_call_flush();
 

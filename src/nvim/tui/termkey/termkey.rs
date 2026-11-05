@@ -350,8 +350,8 @@ pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: i32) -> Option<
         buffstart: 0,
         buffcount: 0,
         hightide: 0,
-        is_closed: 0,
-        is_started: 0,
+        is_closed: false,
+        is_started: false,
         keynames: vec![None; 64],
         c0: [TiKeyInfo {
             r#type: 0,
@@ -385,7 +385,7 @@ pub fn termkey_start(
     term: Option<&TerminfoEntry>,
     input: Option<&mut crate::tui::input::TermInput>,
 ) -> i32 {
-    if tk.is_started != 0 {
+    if tk.is_started {
         return 1;
     }
 
@@ -393,17 +393,17 @@ pub fn termkey_start(
         return 0;
     }
 
-    tk.is_started = 1;
+    tk.is_started = true;
     1
 }
 
 #[cfg(test)]
 pub fn termkey_stop(tk: &mut TermKey) -> i32 {
-    if tk.is_started == 0 {
+    if !tk.is_started {
         return 1;
     }
 
-    tk.is_started = 0;
+    tk.is_started = false;
     1
 }
 
@@ -597,7 +597,7 @@ fn peekkey(
 ) -> TermKeyResult {
     let mut again = false;
 
-    if tk.is_started == 0 {
+    if !tk.is_started {
         return TERMKEY_RES_ERROR;
     }
 
@@ -644,7 +644,7 @@ fn peekkey_simple(
     nbytep: &mut usize,
 ) -> TermKeyResult {
     if tk.buffcount == 0 {
-        return if tk.is_closed != 0 {
+        return if tk.is_closed {
             TERMKEY_RES_EOF
         } else {
             TERMKEY_RES_NONE
@@ -1143,12 +1143,12 @@ mod tests {
         let mut tk = termkey_new_abstract(None, 0).unwrap();
         let tk = &mut tk;
         assert_eq!(termkey_get_buffer_size(tk), 256);
-        assert_eq!(tk.is_started, 1);
+        assert!(tk.is_started);
 
         termkey_stop(tk);
-        assert_eq!(tk.is_started, 0);
+        assert!(!tk.is_started);
         termkey_start(tk, None, None);
-        assert_eq!(tk.is_started, 1);
+        assert!(tk.is_started);
 
         let mut key = TermKeyKey::new();
         assert_eq!(termkey_get_buffer_remaining(tk), 256);

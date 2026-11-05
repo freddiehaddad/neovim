@@ -118,7 +118,7 @@ pub struct MessageHistoryEntry {
 // To be able to scroll back at the "more" and "hit-enter" prompts we need to
 // store the displayed text and remember where screen lines start.
 struct Msgchunk {
-    sb_eol: u8,
+    sb_eol: bool,
     sb_msg_col: i32,
     sb_hl_id: i32,
     sb_text: Vec<u8>,
@@ -3237,7 +3237,7 @@ fn store_sb_text<'a>(
         text.extend_from_slice(&sb_str[..text_len]);
         text.push(0);
         msg_st().msgchunks.push(Msgchunk {
-            sb_eol: finish as u8,
+            sb_eol: finish != 0,
             sb_msg_col: *sb_col,
             sb_hl_id: hl_id,
             sb_text: text,
@@ -3245,7 +3245,7 @@ fn store_sb_text<'a>(
     } else if finish != 0
         && let Some(last) = msg_st().msgchunks.last_mut()
     {
-        last.sb_eol = 1;
+        last.sb_eol = true;
     }
 
     *sb_str = s;
@@ -3276,7 +3276,7 @@ pub fn sb_text_restart_cmdline() {
     let Some(last) = msg_st().msgchunks.last() else {
         return;
     };
-    if last.sb_eol != 0 {
+    if last.sb_eol {
         return;
     }
 
@@ -3322,7 +3322,7 @@ pub fn show_sb_text() {
 /// Move to the start of screen line in already displayed text.
 fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
     let mut idx = mps?;
-    while idx > 0 && msg_st().msgchunks.as_slice()[idx - 1].sb_eol == 0 {
+    while idx > 0 && !msg_st().msgchunks.as_slice()[idx - 1].sb_eol {
         idx -= 1;
     }
     Some(idx)
@@ -3331,7 +3331,7 @@ fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
 /// Mark the last message chunk as finishing the line.
 pub fn msg_sb_eol() {
     if let Some(last) = msg_st().msgchunks.last_mut() {
-        last.sb_eol = 1;
+        last.sb_eol = true;
     }
 }
 
@@ -3351,7 +3351,7 @@ fn disp_sb_line(row: i32, smp: usize) -> Option<usize> {
         };
         g_st().msg_col = sb_msg_col;
         msg_puts_display(&text, -1, hl_id, 1);
-        if eol != 0 || idx + 1 >= msg_st().msgchunks.len() {
+        if eol || idx + 1 >= msg_st().msgchunks.len() {
             break;
         }
         idx += 1;

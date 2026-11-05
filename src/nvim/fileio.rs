@@ -1377,12 +1377,12 @@ pub fn readfile(
             if set_options {
                 if !read_buffer {
                     curbuf_mut().b_p_eof = false;
-                    curbuf_mut().b_start_eof = 0;
+                    curbuf_mut().b_start_eof = false;
                     curbuf_mut().b_p_eol = true;
-                    curbuf_mut().b_start_eol = 1;
+                    curbuf_mut().b_start_eol = true;
                 }
                 curbuf_mut().b_p_bomb = false;
-                curbuf_mut().b_start_bomb = 0;
+                curbuf_mut().b_start_bomb = false;
             }
 
             if !bt_dontwrite(Some(crate::globals::curbuf_mut())) {
@@ -1642,7 +1642,7 @@ pub fn readfile(
                     file_rewind = false;
                     if set_options {
                         curbuf_mut().b_p_bomb = false;
-                        curbuf_mut().b_start_bomb = 0;
+                        curbuf_mut().b_start_bomb = false;
                     }
                     conv_error = 0;
                 }
@@ -1950,7 +1950,7 @@ pub fn readfile(
                                 };
                                 if set_options {
                                     curbuf_mut().b_p_bomb = true;
-                                    curbuf_mut().b_start_bomb = 1;
+                                    curbuf_mut().b_start_bomb = true;
                                 }
                             }
 

@@ -4067,9 +4067,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     }
 
     if excmds_st().subflags.do_ic == SubIgnoreType::SubIgnoreCase {
-        regmatch.rmm_ic = 1;
+        regmatch.rmm_ic = true;
     } else if excmds_st().subflags.do_ic == SubIgnoreType::SubMatchCase {
-        regmatch.rmm_ic = 0;
+        regmatch.rmm_ic = false;
     }
 
     sub_firstline = SubBuf::new();

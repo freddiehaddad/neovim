@@ -201,8 +201,8 @@ pub struct TermKey {
     pub buffstart: usize,
     pub buffcount: usize,
     pub hightide: usize,
-    pub is_closed: u8,
-    pub is_started: u8,
+    pub is_closed: bool,
+    pub is_started: bool,
     pub keynames: Vec<Option<&'static str>>,
     pub c0: [TiKeyInfo; 32],
     pub ti: TermKeyTI,
@@ -555,7 +555,7 @@ pub fn peekkey_ti(
     nbytep: &mut usize,
 ) -> TermKeyResult {
     if tk.buffcount == 0 {
-        return if tk.is_closed != 0 {
+        return if tk.is_closed {
             TERMKEY_RES_EOF
         } else {
             TERMKEY_RES_NONE

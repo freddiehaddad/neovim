@@ -600,9 +600,9 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut FileBuf) {
     buf.b_start_ffc = i32::from(buf.b_p_ff.first_byte());
-    buf.b_start_eof = i32::from(buf.b_p_eof);
-    buf.b_start_eol = i32::from(buf.b_p_eol);
-    buf.b_start_bomb = i32::from(buf.b_p_bomb);
+    buf.b_start_eof = buf.b_p_eof;
+    buf.b_start_eol = buf.b_p_eol;
+    buf.b_start_bomb = buf.b_p_bomb;
 
     let p_fenc_bytes = buf.b_p_fenc.as_bytes();
     if buf
@@ -631,11 +631,11 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
         return true;
     }
     if (buf.b_p_bin || !buf.b_p_fixeol)
-        && ((buf.b_start_eof != 0) != buf.b_p_eof || (buf.b_start_eol != 0) != buf.b_p_eol)
+        && (buf.b_start_eof != buf.b_p_eof || buf.b_start_eol != buf.b_p_eol)
     {
         return true;
     }
-    if !buf.b_p_bin && (buf.b_start_bomb != 0) != buf.b_p_bomb {
+    if !buf.b_p_bin && buf.b_start_bomb != buf.b_p_bomb {
         return true;
     }
     let Some(ref start_fenc) = buf.b_start_fenc else {

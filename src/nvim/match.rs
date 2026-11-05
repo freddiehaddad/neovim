@@ -186,7 +186,7 @@ fn match_add(
             startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; 10],
             endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; 10],
             rmm_matchcol: 0,
-            rmm_ic: 0,
+            rmm_ic: false,
             rmm_maxcol: 0,
         },
         mit_pos: if pos_len > 0 {

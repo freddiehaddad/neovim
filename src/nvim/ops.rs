@@ -484,7 +484,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
 
     g_st().state_global = MODE_INSERT;
     block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
-    if bd.is_short != 0 {
+    if bd.is_short {
         return;
     }
 
@@ -691,7 +691,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
 
         for lnum in (oap.start.lnum + 1)..=oap.end.lnum {
             block_prep(oap, bdp, lnum, true);
-            if bdp.is_short != 0 && b_insert {
+            if bdp.is_short && b_insert {
                 continue;
             }
 
@@ -706,7 +706,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
                 offset = bdp.textcol;
             } else {
                 ts_val = bdp.end_char_vcols;
-                if bdp.is_short == 0 {
+                if !bdp.is_short {
                     spaces = if bdp.endspaces != 0 {
                         ts_val - bdp.endspaces
                     } else {
@@ -717,7 +717,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
                     }
                     offset = bdp.textcol + bdp.textlen - i32::from(spaces != 0);
                 } else {
-                    if bdp.is_max == 0 {
+                    if !bdp.is_max {
                         spaces = (oap.end_vcol - bdp.end_vcol) + 1;
                     } else {
                         spaces = 0;
@@ -742,7 +742,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             let alloc_len = (ml_get_len(lnum) as usize)
                 + (spaces as usize)
                 + slen
-                + if spaces > 0 && bdp.is_short == 0 {
+                + if spaces > 0 && !bdp.is_short {
                     (ts_val - spaces) as usize
                 } else {
                     0
@@ -763,7 +763,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             offset += slen as i32;
 
             let mut skipped: i32 = 0;
-            if spaces > 0 && bdp.is_short == 0 {
+            if spaces > 0 && !bdp.is_short {
                 if crate::memory::cstr_first_byte(oldp) == b'\t' {
                     let pad_start = (offset + spaces) as usize;
                     let pad_len = (ts_val - spaces) as usize;
@@ -1208,16 +1208,16 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
     }
 
     if oap.motion_type == MT_BLOCK_WISE {
-        bd.is_max = i32::from(curwin_mut().w_curswant == MAXCOL);
+        bd.is_max = curwin_mut().w_curswant == MAXCOL;
         while curwin_mut().w_cursor.lnum <= oap.end.lnum {
             curwin_mut().w_cursor.col = 0;
             block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
-            if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_max != 0) {
+            if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_max) {
                 curwin_mut().w_cursor.lnum += 1;
                 continue;
             }
 
-            if g_st().virtual_op != 0 && bd.is_short != 0 && bd.textstart.to_bytes().is_empty() {
+            if g_st().virtual_op != 0 && bd.is_short && bd.textstart.to_bytes().is_empty() {
                 let mut vpos = CursorPos {
                     lnum: curwin_mut().w_cursor.lnum,
                     col: 0,
@@ -1234,18 +1234,18 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 };
             }
 
-            n += if bd.endspaces != 0 && bd.is_one_char == 0 && bd.end_char_vcols > 0 {
+            n += if bd.endspaces != 0 && !bd.is_one_char && bd.end_char_vcols > 0 {
                 bd.end_char_vcols - 1
             } else {
                 0
             };
             let mut numc = oap.end_vcol - oap.start_vcol + 1;
-            if bd.is_short != 0 && (g_st().virtual_op == 0 || bd.is_max != 0) {
+            if bd.is_short && (g_st().virtual_op == 0 || bd.is_max) {
                 numc -= (oap.end_vcol - bd.end_vcol) + 1;
             }
 
             if utf_char2cells(c) > 1 {
-                if (numc & 1) != 0 && bd.is_short == 0 {
+                if (numc & 1) != 0 && !bd.is_short {
                     bd.endspaces += 1;
                     n += 1;
                 }
@@ -1262,7 +1262,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             let mut newp_size = (bd.textcol as usize) + (bd.startspaces as usize);
             if had_ctrl_v_cr || (c != b'\r' as i32 && c != b'\n' as i32) {
                 newp_size += numc as usize;
-                if bd.is_short == 0 {
+                if !bd.is_short {
                     newp_size += (bd.endspaces + oldlen - bd.textcol - bd.textlen) as usize;
                 }
             }
@@ -1282,7 +1282,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                     num_chars -= 1;
                     newp_len += utf_char2slice(c, &mut newp_vec[newp_len..]);
                 }
-                if bd.is_short == 0 {
+                if !bd.is_short {
                     let endspaces = bd.endspaces as usize;
                     newp_vec[newp_len..newp_len + endspaces].fill(b' ');
                     newp_len += endspaces;
@@ -1578,7 +1578,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
     let mut ind_pre_vcol: i32 = 0;
     let mut bd = BlockDef::new();
 
-    bd.is_max = i32::from(curwin_mut().w_curswant == MAXCOL);
+    bd.is_max = curwin_mut().w_curswant == MAXCOL;
 
     curwin_mut().w_cursor.lnum = oap.start.lnum;
     redraw_curbuf_later(UPD_INVERTED);
@@ -1619,7 +1619,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             {
                 curwin_mut().w_cursor.col += 1;
             }
-            if bd.is_short != 0 && bd.is_max == 0 {
+            if bd.is_short && !bd.is_max {
                 if !u_save_cursor() {
                     return;
                 }
@@ -1663,7 +1663,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             did_indent = true;
         }
 
-        if oap.start.lnum == curbuf_mut().b_op_start_orig.lnum && bd.is_max == 0 && !did_indent {
+        if oap.start.lnum == curbuf_mut().b_op_start_orig.lnum && !bd.is_max && !did_indent {
             let t = getviscol2(
                 curbuf_mut().b_op_start_orig.col,
                 curbuf_mut().b_op_start_orig.coladd,
@@ -1701,7 +1701,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             oap.end.col -= ind_post_col - ind_pre_col;
             oap.end_vcol -= ind_post_vcol - ind_pre_vcol;
         }
-        if bd.is_max == 0 || bd2.textlen < bd.textlen {
+        if !bd.is_max || bd2.textlen < bd.textlen {
             if oap.op_type == OP_APPEND {
                 pre_textlen += bd2.textlen - bd.textlen;
                 if bd2.endspaces != 0 {
@@ -1718,7 +1718,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
         let mut offset: Colnr = 0;
         if oap.op_type == OP_APPEND {
             add += bd.textlen;
-            if bd.is_max != 0
+            if bd.is_max
                 && start_insert.lnum == g_st().ins_global.start.lnum
                 && start_insert.col > g_st().ins_global.start.col
             {
@@ -1812,13 +1812,13 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                 .to_vec();
             for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
                 block_prep(oap, &mut bd, linenr, true);
-                if bd.is_short == 0 || g_st().virtual_op != 0 {
+                if !bd.is_short || g_st().virtual_op != 0 {
                     let mut vpos = CursorPos {
                         lnum: linenr,
                         col: 0,
                         coladd: 0,
                     };
-                    if bd.is_short != 0 {
+                    if bd.is_short {
                         getvpos(curwin_mut(), &mut vpos, oap.start_vcol);
                     } else {
                         vpos.coladd = 0;
@@ -2187,8 +2187,8 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     bdp.textlen = 0;
     bdp.start_vcol = 0;
     bdp.end_vcol = 0;
-    bdp.is_short = 0;
-    bdp.is_one_char = 0;
+    bdp.is_short = false;
+    bdp.is_one_char = false;
     bdp.pre_whitesp = 0;
     bdp.pre_whitesp_c = 0;
     bdp.end_char_vcols = 0;
@@ -2226,7 +2226,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     bdp.start_char_vcols = incr;
     if bdp.start_vcol < oap.start_vcol {
         bdp.end_vcol = bdp.start_vcol;
-        bdp.is_short = 1;
+        bdp.is_short = true;
         if !is_del || oap.op_type == OP_APPEND {
             bdp.endspaces = oap.end_vcol - oap.start_vcol + 1;
         }
@@ -2238,7 +2238,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         let mut pend = pstart.cast_const();
         bdp.end_vcol = bdp.start_vcol;
         if bdp.end_vcol > oap.end_vcol {
-            bdp.is_one_char = 1;
+            bdp.is_one_char = true;
             if oap.op_type == OP_INSERT {
                 bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
             } else if oap.op_type == OP_APPEND {
@@ -2275,7 +2275,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             if bdp.end_vcol <= oap.end_vcol
                 && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
             {
-                bdp.is_short = 1;
+                bdp.is_short = true;
                 if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
                     bdp.endspaces = oap.end_vcol - bdp.end_vcol + i32::from(oap.inclusive);
                 }
@@ -2379,7 +2379,7 @@ pub fn getregionpos_line(
             charwise_block_prep(p1, p2, &mut bd, lnum, inclusive);
         }
 
-        if bd.is_one_char != 0 {
+        if bd.is_one_char {
             if region_type == MT_BLOCK_WISE {
                 ret_p1.col = (crate::memory::ptr_offset_from(
                     {
@@ -2406,7 +2406,7 @@ pub fn getregionpos_line(
         } else if region_type == MT_BLOCK_WISE && oap.start_vcol > bd.start_vcol {
             ret_p1.col = MAXCOL;
             ret_p1.coladd = oap.start_vcol - bd.start_vcol;
-            bd.is_one_char = 1;
+            bd.is_one_char = true;
         } else if bd.startspaces > 0 {
             ret_p1.col = (crate::memory::ptr_offset_from(
                 {
@@ -2429,7 +2429,7 @@ pub fn getregionpos_line(
             ret_p1.coladd = 0;
         }
 
-        if bd.is_one_char != 0 {
+        if bd.is_one_char {
             ret_p2.col = ret_p1.col;
             ret_p2.coladd = ret_p1.coladd + bd.startspaces + bd.endspaces;
         } else if bd.endspaces > 0 {
@@ -2475,7 +2475,7 @@ pub fn charwise_block_prep(
 
     bdp.startspaces = 0;
     bdp.endspaces = 0;
-    bdp.is_one_char = 0;
+    bdp.is_one_char = false;
     bdp.start_char_vcols = 0;
 
     if lnum == start.lnum {
@@ -2518,7 +2518,7 @@ pub fn charwise_block_prep(
                 } == 0)
             {
                 if start.lnum == end.lnum && start.col == end.col {
-                    bdp.is_one_char = 1;
+                    bdp.is_one_char = true;
                     bdp.startspaces = end.coladd - start.coladd + i32::from(inclusive);
                     endcol = startcol;
                 } else {
@@ -2531,7 +2531,7 @@ pub fn charwise_block_prep(
     if endcol == MAXCOL {
         endcol = ml_get_len(lnum);
     }
-    if startcol > endcol || bdp.is_one_char != 0 {
+    if startcol > endcol || bdp.is_one_char {
         bdp.textlen = 0;
     } else {
         bdp.textlen = endcol - startcol + i32::from(inclusive);

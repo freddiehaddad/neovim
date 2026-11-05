@@ -252,7 +252,7 @@ pub struct Synpat {
     sp_offsets: [i32; SPO_COUNT],
     sp_flags: i32,
     sp_cchar: i32,
-    sp_ic: i32,
+    sp_ic: bool,
     sp_sync_idx: i32,
     sp_line_id: i32,
     sp_startcol: i32,
@@ -274,7 +274,7 @@ impl Synpat {
             sp_offsets: [0; SPO_COUNT],
             sp_flags: 0,
             sp_cchar: 0,
-            sp_ic: 0,
+            sp_ic: false,
             sp_sync_idx: 0,
             sp_line_id: 0,
             sp_startcol: 0,
@@ -1298,7 +1298,7 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
                     break;
                 };
                 if mb_strcmp_ic(
-                    syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_ic != 0,
+                    syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_ic,
                     crate::memory::cstr_from_ptr((bs_m.as_ptr()).cast()),
                     crate::memory::cstr_from_ptr((si_m.as_ptr()).cast()),
                 ) != 0
@@ -2643,7 +2643,7 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
         crate::memory::cstr_as_bytes(arg.cast()),
     ));
     if crate::memory::cstr_is_empty(arg) {
-        if win_s(curwin_mut()).b_syn_ic != 0 {
+        if win_s(curwin_mut()).b_syn_ic {
             msg(c"syntax case ignore", 0);
         } else {
             msg(c"syntax case match", 0);
@@ -2651,11 +2651,11 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
     } else if crate::memory::ptr_offset_from(next, arg) == 5
         && crate::memory::cstr_slice(arg, 5).eq_ignore_ascii_case(b"match")
     {
-        win_s(curwin_mut()).b_syn_ic = 0;
+        win_s(curwin_mut()).b_syn_ic = false;
     } else if crate::memory::ptr_offset_from(next, arg) == 6
         && crate::memory::cstr_slice(arg, 6).eq_ignore_ascii_case(b"ignore")
     {
-        win_s(curwin_mut()).b_syn_ic = 1;
+        win_s(curwin_mut()).b_syn_ic = true;
     } else {
         semsg!(gettext(E_ILLEGAL_ARG), arg);
     }
@@ -2785,7 +2785,7 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
 pub fn syntax_clear(block: &mut Synblock) {
     block.b_syn_error = false;
     block.b_syn_slow = false;
-    block.b_syn_ic = 0;
+    block.b_syn_ic = false;
     block.b_syn_foldlevel = SYNFLD_START;
     block.b_syn_spell = SYNSPL_DEFAULT;
     block.b_syn_containedin = 0;
@@ -3458,7 +3458,7 @@ fn add_keyword(
     conceal_char: i32,
 ) {
     let mut name_folded = [0u8; MAXKEYWLEN + 1];
-    let kw_vec: &[u8] = if win_s(curwin_mut()).b_syn_ic != 0 {
+    let kw_vec: &[u8] = if win_s(curwin_mut()).b_syn_ic {
         str_foldcase(name, Some(&mut name_folded));
         &name_folded[..crate::memory::cstr_len(name_folded.as_ptr().cast())]
     } else {
@@ -3480,7 +3480,7 @@ fn add_keyword(
         keyword: std::ffi::CString::new(kw_vec).unwrap_or_default(),
     };
 
-    let ht = if win_s(curwin_mut()).b_syn_ic != 0 {
+    let ht = if win_s(curwin_mut()).b_syn_ic {
         &mut win_s(curwin_mut()).b_keywtab_ic
     } else {
         &mut win_s(curwin_mut()).b_keywtab
@@ -3938,7 +3938,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
     rest = get_syn_options(rest, &mut syn_opt_arg, &mut conceal_char, eap.skip);
 
     rest = get_syn_pattern(rest, &mut item);
-    if vim_regcomp_had_eol() != 0 && (syn_opt_arg.flags & HL_EXCLUDENL) == 0 {
+    if vim_regcomp_had_eol() && (syn_opt_arg.flags & HL_EXCLUDENL) == 0 {
         syn_opt_arg.flags |= HL_HAS_EOL;
     }
 
@@ -4104,9 +4104,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
             }
             rest_opt = get_syn_pattern(rest_opt, &mut synp);
             g_st().reg_do_extmatch = 0;
-            if item == ITEM_END
-                && vim_regcomp_had_eol() != 0
-                && (syn_opt_arg.flags & HL_EXCLUDENL) == 0
+            if item == ITEM_END && vim_regcomp_had_eol() && (syn_opt_arg.flags & HL_EXCLUDENL) == 0
             {
                 synp.sp_flags |= HL_HAS_EOL;
             }

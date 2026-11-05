@@ -181,11 +181,11 @@ pub struct Qfline {
     pub qf_fname: Option<std::ffi::CString>,
     pub qf_pattern: Option<std::ffi::CString>,
     pub qf_text: std::ffi::CString,
-    pub qf_viscol: u8,
-    pub qf_cleared: u8,
+    pub qf_viscol: bool,
+    pub qf_cleared: bool,
     pub qf_type: u8,
     pub qf_user_data: TypVal,
-    pub qf_valid: u8,
+    pub qf_valid: bool,
 }
 
 impl Qfline {
@@ -201,11 +201,11 @@ impl Qfline {
             qf_fname: None,
             qf_pattern: None,
             qf_text: std::ffi::CString::default(),
-            qf_viscol: 0,
-            qf_cleared: 0,
+            qf_viscol: false,
+            qf_cleared: false,
             qf_type: 0,
             qf_user_data: tv_initial_value(),
-            qf_valid: 0,
+            qf_valid: false,
         }
     }
 }
@@ -691,12 +691,12 @@ fn qf_init_process_nextline(
         fields.end_lnum,
         fields.col,
         fields.end_col,
-        u8::from(fields.use_viscol),
+        fields.use_viscol,
         Some(crate::memory::cstr_until_nul(&fields.pattern)),
         fields.enr,
         fields.type_,
         None,
-        u8::from(fields.valid),
+        fields.valid,
     )
 }
 
@@ -1898,7 +1898,7 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
         }
         if qfprev.qf_col == 0 {
             qfprev.qf_col = fields.col;
-            qfprev.qf_viscol = u8::from(fields.use_viscol);
+            qfprev.qf_viscol = fields.use_viscol;
         }
         if qfprev.qf_end_col == 0 {
             qfprev.qf_end_col = fields.end_col;
@@ -2026,12 +2026,12 @@ fn qf_add_entry(
     end_lnum: Linenr,
     col: i32,
     end_col: i32,
-    vis_col: u8,
+    vis_col: bool,
     pattern: Option<&CStr>,
     nr: i32,
     mut type_: u8,
     user_data: Option<&TypVal>,
-    valid: u8,
+    valid: bool,
 ) -> QfStatus {
     let mut qfp = Qfline::new();
 
@@ -2087,13 +2087,13 @@ fn qf_add_entry(
     }
     qfp.qf_type = type_;
     qfp.qf_valid = valid;
-    qfp.qf_cleared = 0;
+    qfp.qf_cleared = false;
 
     if qf_list_empty(Some(&*qfl)) {
         qfl.qf_index = 0;
     }
     qfl.qf_items.push(qfp);
-    if qfl.qf_index == 0 && valid != 0 {
+    if qfl.qf_index == 0 && valid {
         qfl.qf_index = qfl.count();
     }
 
@@ -2461,7 +2461,7 @@ fn get_next_valid_entry<'a>(
         }
         idx += 1;
         let qfp = &qfl.qf_items[(idx - 1) as usize];
-        if !((!qfl.qf_nonevalid && qfp.qf_valid == 0)
+        if !((!qfl.qf_nonevalid && !qfp.qf_valid)
             || (dir == FORWARD_FILE && qfp.qf_fnum == old_qf_fnum))
         {
             break;
@@ -2489,7 +2489,7 @@ fn get_prev_valid_entry<'a>(
         }
         idx -= 1;
         let qfp = &qfl.qf_items[(idx - 1) as usize];
-        if !((!qfl.qf_nonevalid && qfp.qf_valid == 0)
+        if !((!qfl.qf_nonevalid && !qfp.qf_valid)
             || (dir == BACKWARD_FILE && qfp.qf_fnum == old_qf_fnum))
         {
             break;
@@ -2915,7 +2915,7 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
     crate::memory::ptr_offset_from(p, line) as i32
 }
 
-fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: u8, qf_pattern: Option<&CStr>) {
+fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: Option<&CStr>) {
     if let Some(qf_pattern) = qf_pattern {
         let save_cursor = curwin_mut().w_cursor;
         curwin_mut().w_cursor.lnum = 0;
@@ -2941,7 +2941,7 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: u8, qf_pattern: Op
         }
         if qf_col > 0 {
             curwin_mut().w_cursor.coladd = 0;
-            if qf_viscol != 0 {
+            if qf_viscol {
                 curwin_mut().w_cursor.col = qf_screen_col_to_idx(qf_col - 1);
             } else {
                 curwin_mut().w_cursor.col = qf_col - 1;
@@ -2970,7 +2970,7 @@ fn qf_jump_print_msg(
         }
     }
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-    let deleted_str = if qf_ptr.qf_cleared != 0 {
+    let deleted_str = if qf_ptr.qf_cleared {
         gettext(c" (line deleted)")
     } else {
         c""
@@ -3372,7 +3372,7 @@ pub fn qf_list(eap: &mut Exarg) {
             break;
         }
         let i = (idx + 1) as i32;
-        if (qfp.qf_valid != 0 || all) && idx1 <= i && i <= idx2 {
+        if (qfp.qf_valid || all) && idx1 <= i && i <= idx2 {
             qf_list_entry(qfp, i, i == qfl.qf_index);
         }
         os_breakcheck();
@@ -3575,10 +3575,10 @@ pub fn qf_mark_adjust(
             }
             if qfp.qf_fnum == buf.b_fnum {
                 found_one = true;
-                if qfp.qf_cleared == 0 {
+                if !qfp.qf_cleared {
                     if qfp.qf_lnum >= line1 && qfp.qf_lnum <= line2 {
                         if amount == MAXLNUM {
-                            qfp.qf_cleared = 1;
+                            qfp.qf_cleared = true;
                         } else {
                             qfp.qf_lnum += amount;
                         }
@@ -4535,7 +4535,7 @@ pub fn qf_get_valid_size(eap: &mut Exarg) -> usize {
         if g_st().got_int {
             break;
         }
-        if qfp.qf_valid != 0 {
+        if qfp.qf_valid {
             if eap.cmdidx == Cmdidx::CmdCdo || eap.cmdidx == Cmdidx::CmdLdo {
                 sz += 1;
             } else if qfp.qf_fnum > 0 && qfp.qf_fnum != prev_fnum {
@@ -4572,7 +4572,7 @@ pub fn qf_get_cur_valid_idx(eap: &mut Exarg) -> i32 {
     assert!(qfl.qf_index >= 0);
     let limit = (qfl.qf_index as usize).min(qfl.qf_items.len());
     for qfp in &(&qfl.qf_items)[..limit] {
-        if qfp.qf_valid != 0 {
+        if qfp.qf_valid {
             if eap.cmdidx == Cmdidx::CmdCfdo || eap.cmdidx == Cmdidx::CmdLfdo {
                 if qfp.qf_fnum > 0 && qfp.qf_fnum != prev_fnum {
                     eidx += 1;
@@ -4598,7 +4598,7 @@ fn qf_get_nth_valid_entry(qfl: &mut QfList, n: usize, fdo: bool) -> usize {
         if g_st().got_int {
             break;
         }
-        if qfp.qf_valid != 0 {
+        if qfp.qf_valid {
             if fdo {
                 if qfp.qf_fnum > 0 && qfp.qf_fnum != prev_fnum {
                     eidx += 1;
@@ -5074,7 +5074,7 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
         regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
     }
 
-    regmatch.rmm_ic = i32::from(opt_vars().p_ic);
+    regmatch.rmm_ic = opt_vars().p_ic;
     regmatch.rmm_maxcol = 0;
 }
 
@@ -5172,12 +5172,12 @@ fn vgr_match_buflines(
                     regmatch.endpos[0].lnum + lnum,
                     regmatch.startpos[0].col + 1,
                     regmatch.endpos[0].col + 1,
-                    0,
+                    false,
                     None,
                     0,
                     0,
                     None,
-                    1,
+                    true,
                 ) == QfStatus::Fail
                 {
                     g_st().got_int = true;
@@ -5220,12 +5220,12 @@ fn vgr_match_buflines(
                     0,
                     matches[0] as Colnr + col + 1,
                     0,
-                    0,
+                    false,
                     None,
                     0,
                     0,
                     None,
-                    1,
+                    true,
                 ) == QfStatus::Fail
                 {
                     g_st().got_int = true;
@@ -6167,7 +6167,7 @@ fn qf_add_entry_from_dict(
     let end_lnum = tv_dict_get_number(Some(d), c"end_lnum") as Linenr;
     let col = tv_dict_get_number(Some(d), c"col") as i32;
     let end_col = tv_dict_get_number(Some(d), c"end_col") as i32;
-    let vcol = tv_dict_get_number(Some(d), c"vcol") as u8;
+    let vcol = tv_dict_get_number(Some(d), c"vcol") != 0;
     let nr = tv_dict_get_number(Some(d), c"nr") as i32;
     let type_ = tv_dict_get_string(Some(d), c"type");
     let pattern = crate::eval::typval::tv_dict_get_cstring(Some(d), c"pattern");
@@ -6212,7 +6212,7 @@ fn qf_add_entry_from_dict(
             .and_then(|s| s.to_bytes().first().copied())
             .unwrap_or(0),
         Some(&user_data),
-        u8::from(valid),
+        valid,
     );
 
     drop(filename);
@@ -7033,12 +7033,12 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
                 0,
                 (crate::memory::ptr_offset_from(p_regmatch.startp[0], line.cast()) as i32) + 1,
                 (crate::memory::ptr_offset_from(p_regmatch.endp[0], line.cast()) as i32) + 1,
-                0,
+                false,
                 None,
                 0,
                 1,
                 None,
-                1,
+                true,
             ) == QfStatus::Fail
             {
                 g_st().got_int = true;

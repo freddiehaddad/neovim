@@ -1852,7 +1852,7 @@ fn ins_compl_build_pum() -> i32 {
         if ctrl_x_mode_normal()
             && !opt_vars().p_inf
             && !insexp().compl_orig_text.data.is_null()
-            && ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data)) == 0
+            && !ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data))
             && !cot_fuzzy()
         {
             comp.cp_flags &= !CP_ICASE;
@@ -2077,7 +2077,7 @@ fn ins_compl_dictionaries(
         }
     }
 
-    regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat)) != 0;
+    regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat));
     while !crate::memory::cstr_is_empty(dict) && !g_st().got_int && !insexp().compl_interrupted {
         if flags == DICT_EXACT {
             count = 1;
@@ -4044,7 +4044,7 @@ fn get_next_dict_tsr_completion(compl_type: i32, dict: Option<&CStr>, dict_f: i3
 fn get_next_tag_completion() {
     let save_p_ic = opt_vars().p_ic;
     let pat_cstr = compl_pattern_cstr().unwrap_or(c"");
-    opt_vars().p_ic = ignorecase(pat_cstr) != 0;
+    opt_vars().p_ic = ignorecase(pat_cstr);
 
     g_st().g_tag_at_cursor = true;
     let mut matches: Vec<Vec<u8>> = Vec::new();
@@ -5271,7 +5271,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
         if ctrl_x_mode_normal()
             && !opt_vars().p_inf
             && !insexp().compl_orig_text.data.is_null()
-            && ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data)) == 0
+            && !ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data))
         {
             compl.cp_flags &= !CP_ICASE;
         }
