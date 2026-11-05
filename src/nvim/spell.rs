@@ -2189,15 +2189,16 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             )) {
                 need_cap = true;
             } else {
+                let len = ml_get_buf_len(wp.buf_mut(), lnum - 1);
                 line_copy = Some(concat_str(crate::memory::cstr_as_bytes(line), b" "));
                 line = line_copy
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-                endcol = crate::memory::cstr_len(line) as Colnr;
+                endcol = len + 1;
             }
         }
     } else {
-        let len = crate::memory::cstr_len(line) as Colnr;
+        let len = ml_get_buf_len(wp.buf_mut(), lnum);
         endcol = col.min(len);
     }
     if endcol > 0 {
