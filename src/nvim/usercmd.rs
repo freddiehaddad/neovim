@@ -329,7 +329,7 @@ pub fn find_ucmd(
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
 pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Option<&'a CStr> {
-    let arg_base = arg_in.as_ptr().cast::<u8>();
+    let arg_base = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
     let full_bytes = arg_in.to_bytes();
     let mut rem = full_bytes;
 
@@ -384,13 +384,13 @@ pub fn set_context_in_user_cmdarg<'a>(
     xp: &mut ExpandCtx,
     forceit: bool,
 ) -> Option<&'a CStr> {
-    let mut arg = arg_in.as_ptr().cast::<u8>();
+    let mut arg = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
     if context == EXPAND_NOTHING || (argt & EX_XFILE) != 0 {
         return None;
     }
 
     if context == EXPAND_MENUS {
-        set_context_in_menu_cmd(xp, cmd, crate::memory::cstr_from_ptr(arg), forceit);
+        set_context_in_menu_cmd(xp, cmd, arg.as_cstr(), forceit);
         return None;
     }
     if context == EXPAND_COMMANDS {
@@ -413,7 +413,9 @@ pub fn set_context_in_user_cmdarg<'a>(
         let mut rem = full_bytes;
         while !rem.is_empty() {
             if rem[0] == b' ' {
-                arg = arg_base.wrapping_add(full_bytes.len() - rem.len() + 1);
+                arg = crate::strings::CStrCursor::of(
+                    arg_base.wrapping_add(full_bytes.len() - rem.len() + 1),
+                );
             } else if rem[0] == b'\\' && rem.len() >= 2 {
                 rem = &rem[1..];
             }
@@ -421,7 +423,7 @@ pub fn set_context_in_user_cmdarg<'a>(
             rem = &rem[clen..];
         }
     }
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+    xp.xp_pattern = arg;
     xp.xp_context = context;
 
     None

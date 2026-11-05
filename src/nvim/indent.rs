@@ -490,8 +490,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     let mut todo = size;
     let mut ind_len: i32 = 0;
-    let oldline = get_cursor_line_ptr().as_ptr().cast_mut();
-    let oldline_bytes = crate::memory::cstr_as_bytes(oldline);
+    let oldline = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+    let oldline_bytes = oldline.as_bytes();
     let mut p_idx = 0usize;
     let mut p;
     let mut line_len = get_cursor_line_len() + 1;
@@ -1147,17 +1147,12 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         curwin_mut().w_virtcol = end_vcol;
 
         new_cursor_col = 0;
-        let line = get_cursor_line_ptr().as_ptr().cast_mut();
+        let line = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
         vcol = 0;
-        if !crate::memory::cstr_is_empty(line) {
+        if !line.is_empty() {
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(
-                &mut csarg,
-                curwin_mut(),
-                0,
-                crate::memory::cstr_from_ptr(line),
-            );
-            let mut ci: StrCharInfo = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
+            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line.as_cstr());
+            let mut ci: StrCharInfo = utf_ptr2_str_char_info(line.as_cstr());
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
@@ -1336,30 +1331,24 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut last_line: Linenr = 0;
     let mut is_indent_only = false;
 
-    let mut ptr = eap.arg.as_ptr();
-    let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+    let mut ptr = crate::strings::CStrCursor::from_ptr(eap.arg.as_ptr());
+    let ptr_bytes = ptr.as_bytes();
     if ptr_bytes.starts_with(b"-indentonly")
         && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))
     {
         is_indent_only = true;
-        ptr = crate::charset::skipwhite_ptr(ptr.wrapping_add(11));
+        ptr = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(ptr.wrapping_add(11)));
     }
 
     let ts_start = ptr;
     let mut errbuf_storage = [0u8; IOSIZE];
     let errbuf = CharBuf::from_slice(&mut errbuf_storage);
-    if let Some(errmsg) = tabstop_set(
-        crate::memory::cstr_as_bytes(ptr),
-        &mut new_vts_array,
-        Some(errbuf),
-    ) {
+    if let Some(errmsg) = tabstop_set(ptr.as_bytes(), &mut new_vts_array, Some(errbuf)) {
         emsg(gettext(errmsg));
         return;
     }
-    while ascii_isdigit(crate::memory::cstr_first_byte(ptr))
-        || crate::memory::cstr_first_byte(ptr) == b','
-    {
-        ptr = ptr.wrapping_add(1);
+    while ascii_isdigit(ptr.first_byte()) || ptr.first_byte() == b',' {
+        ptr = crate::strings::CStrCursor::of(ptr.wrapping_add(1));
     }
 
     let new_ts_str = if new_vts_array.is_empty() {
@@ -1380,13 +1369,13 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let mut lnum = eap.line1;
     while !g_st().got_int && lnum <= eap.line2 {
-        ptr = ml_get(lnum).as_ptr().cast_mut();
+        ptr = crate::strings::CStrCursor::of(ml_get(lnum).as_ptr().cast_mut());
         let mut old_len = ml_get_len(lnum);
         let mut col: i32 = 0;
         let mut vcol: i64 = 0;
         let mut did_undo = false;
         loop {
-            let cur_b = crate::memory::cstr_first_byte(ptr.wrapping_add(col as usize));
+            let cur_b = ptr.wrapping_add(col as usize).first_byte();
             if ascii_iswhite(cur_b) {
                 if !got_tab && num_spaces == 0 {
                     start_vcol = vcol;
@@ -1436,7 +1425,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         let len_usize = len as usize;
                         let tabs_usize = num_tabs as usize;
                         let tail_len = (old_len - col + 1) as usize;
-                        let old_slice = crate::memory::cstr_slice(ptr, col_usize + tail_len);
+                        let old_slice = ptr.slice(col_usize + tail_len);
                         let mut new_line_vec = vec![0u8; new_len as usize];
                         new_line_vec[..start_usize].copy_from_slice(&old_slice[..start_usize]);
                         new_line_vec[start_usize + len_usize..start_usize + len_usize + tail_len]
@@ -1461,7 +1450,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                             first_line = lnum;
                         }
                         last_line = lnum;
-                        ptr = new_line;
+                        ptr = crate::strings::CStrCursor::of(new_line);
                         old_len = new_len - 1;
                         col = start_col + len;
                     }
@@ -1473,12 +1462,12 @@ pub fn ex_retab(eap: &mut Exarg) {
                     break;
                 }
             }
-            if crate::memory::cstr_is_empty(ptr.wrapping_add(col as usize)) {
+            if ptr.wrapping_add(col as usize).is_empty() {
                 break;
             }
             vcol += i64::from(win_chartabsize(
                 curwin_mut(),
-                crate::memory::cstr_as_bytes(ptr.wrapping_add(col as usize)),
+                ptr.wrapping_add(col as usize).as_bytes(),
                 vcol as Colnr,
             ));
             if vcol >= i64::from(MAXCOL) {
@@ -1658,16 +1647,13 @@ pub fn get_lisp_indent() -> i32 {
             curwin_mut().w_cursor.col = pos.col;
             let mut col = pos.col;
 
-            let line = get_cursor_line_ptr().as_ptr().cast_mut();
+            let line =
+                crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(
-                &mut csarg,
-                curwin_mut(),
-                pos.lnum,
-                crate::memory::cstr_from_ptr(line),
-            );
+            let cstype: CSType =
+                init_charsize_arg(&mut csarg, curwin_mut(), pos.lnum, line.as_cstr());
 
-            let mut sci: StrCharInfo = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
+            let mut sci: StrCharInfo = utf_ptr2_str_char_info(line.as_cstr());
             amount = 0;
             while !sci.ptr.is_empty() && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);

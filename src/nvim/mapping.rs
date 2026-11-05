@@ -662,9 +662,9 @@ fn map_add(
     simplified: bool,
     alt: Option<std::rc::Rc<MapAltLink>>,
 ) {
-    let keys = keys.as_ptr();
+    let keys = crate::strings::CStrCursor::from_ptr(keys.as_ptr());
     {
-        if crate::memory::cstr_first_byte(keys) == CTRL_C_CONST {
+        if keys.first_byte() == CTRL_C_CONST {
             if local {
                 buf.b_mapped_ctrl_c |= mode;
             } else {
@@ -672,7 +672,7 @@ fn map_add(
             }
         }
 
-        let m_keys = crate::memory::cstr_to_cstring(keys);
+        let m_keys = keys.to_cstring();
         if let Some(ref alt_rc) = alt {
             alt_rc.keys[usize::from(simplified)].set(Some(m_keys.clone()));
         }
@@ -1561,17 +1561,17 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
         for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
             let mut qlen = cand.m_keylen;
             let mut q_vec: Vec<u8>;
-            let mut q: *mut u8 = cand.m_keys.as_ptr().cast_mut().cast();
+            let mut q =
+                crate::strings::CStrCursor::<u8>::of(cand.m_keys.as_ptr().cast_mut().cast());
 
             if cand.m_keys.as_bytes().contains(&K_SPECIAL) {
                 q_vec = cand.m_keys.as_bytes_with_nul().to_vec();
                 qlen = vim_unescape_ks(&mut q_vec) as i32;
-                q = q_vec.as_mut_ptr();
+                q = crate::strings::CStrCursor::<u8>::of(q_vec.as_mut_ptr());
             }
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
-                && crate::memory::cstr_slice(q, len as usize)
-                    == crate::memory::cstr_slice(ptr_arg, len as usize);
+                && q.slice(len as usize) == crate::memory::cstr_slice(ptr_arg, len as usize);
             if match_found {
                 mp_opt = Some(cand);
                 break;
@@ -1713,14 +1713,14 @@ pub fn makemap(fd: &CFile, buf: Option<&FileBuf>) -> bool {
                     continue;
                 }
 
-                let mut p = mp.m_str.as_ptr();
-                while !crate::memory::cstr_is_empty(p) {
-                    if crate::memory::cstr_as_bytes(p).starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
+                let mut p = crate::strings::CStrCursor::from_ptr(mp.m_str.as_ptr());
+                while !p.is_empty() {
+                    if p.as_bytes().starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
                         break;
                     }
-                    p = p.wrapping_add(1);
+                    p = crate::strings::CStrCursor::of(p.wrapping_add(1));
                 }
-                if !crate::memory::cstr_is_empty(p) {
+                if !p.is_empty() {
                     continue;
                 }
 
@@ -1991,17 +1991,14 @@ pub fn check_map(
             for mp in bucket {
                 if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
                     let mp: &'static Mapblock = unsafe { &*(std::ptr::from_ref(mp)) };
-                    let mut s = mp.m_keys.as_ptr();
+                    let mut s = crate::strings::CStrCursor::from_ptr(mp.m_keys.as_ptr());
                     let mut keylen = mp.m_keylen;
-                    if ign_mod != 0
-                        && keylen >= 3
-                        && crate::memory::cstr_slice(s, 2) == [K_SPECIAL, KS_MODIFIER]
-                    {
-                        s = s.wrapping_add(3);
+                    if ign_mod != 0 && keylen >= 3 && s.slice(2) == [K_SPECIAL, KS_MODIFIER] {
+                        s = crate::strings::CStrCursor::of(s.wrapping_add(3));
                         keylen -= 3;
                     }
                     let minlen = keylen.min(len).max(0) as usize;
-                    if crate::memory::cstr_slice(s, minlen) == &keys_bytes[..minlen] {
+                    if s.slice(minlen) == &keys_bytes[..minlen] {
                         if let Some(ref mut out) = mp_out {
                             **out = Some(mp);
                         }

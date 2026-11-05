@@ -894,9 +894,9 @@ fn fname2fnum(fm: &Xfmark) {
         let Some(ref fname_cstr) = fm.fname else {
             return;
         };
-        let fname = fname_cstr.as_ptr();
+        let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
 
-        let fname_bytes = crate::memory::cstr_as_bytes(fname);
+        let fname_bytes = fname.as_bytes();
         if fname_bytes.first() == Some(&b'~')
             && fname_bytes
                 .get(1)

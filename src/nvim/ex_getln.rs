@@ -4276,7 +4276,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
         let Some(vec_val) = opt_vec else {
             return false;
         };
-        let arg = vec_val.as_ptr().cast_mut();
+        let arg = crate::strings::CStrCursor::from_ptr(vec_val.as_ptr().cast_mut());
 
         let mut p = arg;
         if opt_vars().p_is && regname == CTRL_W_CONST {
@@ -4301,7 +4301,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                 w,
             ) as usize;
             let w_slice = crate::memory::cstr_slice(w, len);
-            let arg_b = crate::memory::cstr_as_bytes(arg);
+            let arg_b = arg.as_bytes();
             let arg_prefix = &arg_b[..len.min(arg_b.len())];
             let matches = if opt_vars().p_ic {
                 w_slice.eq_ignore_ascii_case(arg_prefix)
@@ -5024,14 +5024,14 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     }
 
     let prompt: *const u8;
-    let mut defstr: *const u8 = c"".as_ptr().cast();
+    let mut defstr = crate::strings::CStrCursor::<u8>::of(c"".as_ptr().cast());
     let mut cancelreturn = crate::globals::GraphPtr::<TypVal>::NULL;
     let mut cancelreturn_strarg2 = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: 0,
         vval: TypvalVval::Number(0),
     };
-    let mut xp_name: *const u8 = ptr::null();
+    let mut xp_name = crate::strings::CStrCursor::<u8>::NULL;
     let mut input_callback: Callback = Callback::new();
     let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
@@ -5055,19 +5055,19 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         else {
             return;
         };
-        defstr = defstr_cstr.as_ptr().cast();
+        defstr = crate::strings::CStrCursor::<u8>::of(defstr_cstr.as_ptr().cast());
         if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
             cancelreturn = crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_di.di_tv);
         }
         if tv_dict_find(dict_ref, c"completion", 10).is_none() {
-            xp_name = ptr::null();
+            xp_name = crate::strings::CStrCursor::NULL;
         } else {
             let Some(xp_cstr) =
                 tv_dict_get_string_buf_chk(dict_ref, c"completion", 10, &mut xp_name_buf, None)
             else {
                 return;
             };
-            xp_name = xp_cstr.as_ptr().cast();
+            xp_name = crate::strings::CStrCursor::<u8>::of(xp_cstr.as_ptr().cast());
         }
         if !tv_dict_get_callback(dict.opt_mut(), c"highlight", 9, &mut input_callback) {
             return;
@@ -5081,7 +5081,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                 return;
             };
-            defstr = defstr_cstr.as_ptr().cast();
+            defstr = crate::strings::CStrCursor::<u8>::of(defstr_cstr.as_ptr().cast());
             if argvars[2].v_type != VarType::VarUnknown {
                 let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
                 else {
@@ -5093,7 +5093,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                     cancelreturn =
                         crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_strarg2);
                 } else {
-                    xp_name = strarg2.as_ptr().cast();
+                    xp_name = crate::strings::CStrCursor::<u8>::of(strarg2.as_ptr().cast());
                 }
             }
         }
@@ -5103,12 +5103,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     let mut xp_arg: Option<std::ffi::CString> = None;
     if !xp_name.is_null() {
         let mut argt: u32 = 0;
-        if !parse_compl_arg(
-            crate::memory::cstr_as_bytes(xp_name),
-            &mut xp_type,
-            &mut argt,
-            &mut xp_arg,
-        ) {
+        if !parse_compl_arg(xp_name.as_bytes(), &mut xp_type, &mut argt, &mut xp_arg) {
             return;
         }
     }
@@ -5136,7 +5131,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     }
     g_st().cmdline_row = g_st().msg_row;
 
-    stuff_readbuff_special(crate::memory::cstr_from_ptr(defstr));
+    stuff_readbuff_special(defstr.as_cstr());
 
     let save_ex_normal_busy = g_st().ex_normal_busy;
     g_st().ex_normal_busy = 0;

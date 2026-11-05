@@ -472,7 +472,7 @@ fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
 }
 
 fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
-    let mut p = arg.as_ptr().cast_mut();
+    let mut p = crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast_mut());
     {
         let mut here = false;
         let mut bp = Debuggy {
@@ -486,7 +486,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             dbg_level: 0,
         };
 
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = p.as_bytes();
         if p_bytes.starts_with(b"func") {
             bp.dbg_type = DBG_FUNC;
         } else if p_bytes.starts_with(b"file") {
@@ -504,21 +504,21 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             semsg!(E_INVARG2, p);
             return None;
         }
-        p = crate::charset::skipwhite_ptr(p.wrapping_add(4));
+        p = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p.wrapping_add(4)));
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;
-        } else if !is_prof && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-            let p_bytes = crate::memory::cstr_as_bytes(p);
+        } else if !is_prof && (p.first_byte()).is_ascii_digit() {
+            let p_bytes = p.as_bytes();
             let mut rem = p_bytes;
             bp.dbg_lnum = getdigits_int32(&mut rem, true, 0);
             let rem = skipwhite_slice(rem);
-            p = p.wrapping_add(p_bytes.len() - rem.len());
+            p = crate::strings::CStrCursor::of(p.wrapping_add(p_bytes.len() - rem.len()));
         } else {
             bp.dbg_lnum = 0;
         }
 
-        let rem_bytes = crate::memory::cstr_as_bytes(p);
+        let rem_bytes = p.as_bytes();
         if (!here && rem_bytes.is_empty())
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
@@ -537,10 +537,10 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
         } else if here {
             bp.dbg_name = curbuf_mut().b_ffname.clone()?;
         } else if bp.dbg_type == DBG_EXPR {
-            bp.dbg_name = crate::memory::cstr_to_cstring(p);
+            bp.dbg_name = p.to_cstring();
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);
         } else {
-            let q = expand_env_save(crate::memory::cstr_from_ptr(p));
+            let q = expand_env_save(p.as_cstr());
             let p_exp = expand_env_save(&q);
             let raw_name = if p_exp.to_bytes().first().copied().unwrap_or(0) != b'*' {
                 fix_fname(Some(&p_exp))?

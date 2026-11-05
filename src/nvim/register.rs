@@ -1002,10 +1002,9 @@ fn yank_copy_line(
     let text_usize = bd.textlen as usize;
     let end_usize = bd.endspaces as usize;
     let mut buf_vec = vec![0u8; (size as usize) + 1];
-    let text_ptr = bd.textstart.as_ptr();
+    let text_ptr = crate::strings::CStrCursor::from_ptr(bd.textstart.as_ptr());
     buf_vec[..start_usize].fill(b' ');
-    buf_vec[start_usize..start_usize + text_usize]
-        .copy_from_slice(crate::memory::cstr_slice(text_ptr, text_usize));
+    buf_vec[start_usize..start_usize + text_usize].copy_from_slice(text_ptr.slice(text_usize));
     buf_vec[start_usize + text_usize..start_usize + text_usize + end_usize].fill(b' ');
     let mut out_size = start_usize + text_usize + end_usize;
     if exclude_trailing_space {
@@ -2393,33 +2392,29 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
     let Some(p_cstr) = p_opt else {
         return;
     };
-    let mut p = p_cstr.as_ptr();
+    let mut p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
     let mut n = g_st().columns_global - 6;
-    while !crate::memory::cstr_is_empty(p)
-        && !(crate::memory::cstr_first_byte(p) == ESC
-            && skip_esc
-            && crate::memory::cstr_len(p) == 1)
-    {
+    while !p.is_empty() && !(p.first_byte() == ESC && skip_esc && p.len() == 1) {
         n -= ptr2cells(p);
         if n < 0 {
             break;
         }
         let l = utfc_ptr2len(p);
         if l > 1 {
-            msg_outtrans_len(crate::memory::cstr_slice(p, l as usize), l, 0, false);
-            p = p.wrapping_add(l as usize);
+            msg_outtrans_len(p.slice(l as usize), l, 0, false);
+            p = crate::strings::CStrCursor::of(p.wrapping_add(l as usize));
         } else {
-            msg_outtrans_len(crate::memory::cstr_slice(p, 1), 1, 0, false);
-            p = p.wrapping_add(1);
+            msg_outtrans_len(p.slice(1), 1, 0, false);
+            p = crate::strings::CStrCursor::of(p.wrapping_add(1));
         }
     }
     os_breakcheck();
 }
 
 pub fn ex_display(eap: &mut Exarg) {
-    let mut arg = eap.arg.as_ptr();
-    if !arg.is_null() && crate::memory::cstr_is_empty(arg) {
-        arg = ptr::null_mut();
+    let mut arg = crate::strings::CStrCursor::from_ptr(eap.arg.as_ptr());
+    if !arg.is_null() && arg.is_empty() {
+        arg = crate::strings::CStrCursor::NULL;
     }
     let hl_id = HLF_8;
 
@@ -2431,7 +2426,7 @@ pub fn ex_display(eap: &mut Exarg) {
     let mut i: i32 = -1;
     while i < (NUM_REGISTERS as i32) && !g_st().got_int {
         let name = get_register_name(i);
-        if !arg.is_null() && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), name) {
+        if !arg.is_null() && !crate::strings::vim_haschr(arg.as_cstr(), name) {
             i += 1;
             continue;
         }
@@ -2521,8 +2516,7 @@ pub fn ex_display(eap: &mut Exarg) {
     let insert = get_last_insert();
     let p = insert.data;
     if !p.is_null()
-        && (arg.is_null()
-            || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b'.')))
+        && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'.')))
         && !g_st().got_int
         && !message_filtered(p.as_cstr())
     {
@@ -2531,8 +2525,7 @@ pub fn ex_display(eap: &mut Exarg) {
     }
 
     if let Some(last_cmd) = g_st().last_cmdline.as_ref()
-        && (arg.is_null()
-            || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b':')))
+        && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b':')))
         && !g_st().got_int
         && !message_filtered(last_cmd)
     {
@@ -2541,8 +2534,7 @@ pub fn ex_display(eap: &mut Exarg) {
     }
 
     if curbuf_mut().fname_opt().is_some()
-        && (arg.is_null()
-            || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b'%')))
+        && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'%')))
         && !g_st().got_int
         && !message_filtered(curbuf_mut().fname_cstr())
     {
@@ -2550,8 +2542,7 @@ pub fn ex_display(eap: &mut Exarg) {
         dis_msg(curbuf_mut().fname_opt(), false);
     }
 
-    if (arg.is_null()
-        || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b'#')))
+    if (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'#')))
         && !g_st().got_int
     {
         let mut fname = None;
@@ -2563,8 +2554,7 @@ pub fn ex_display(eap: &mut Exarg) {
     }
 
     if last_search_pat().is_some()
-        && (arg.is_null()
-            || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b'/')))
+        && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'/')))
         && !g_st().got_int
         && !message_filtered(last_search_pat().unwrap_or(c""))
     {
@@ -2573,8 +2563,7 @@ pub fn ex_display(eap: &mut Exarg) {
     }
 
     if let Some(el) = &reg_st().expr_line
-        && (arg.is_null()
-            || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(arg), i32::from(b'=')))
+        && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'=')))
         && !g_st().got_int
         && !message_filtered(el)
     {

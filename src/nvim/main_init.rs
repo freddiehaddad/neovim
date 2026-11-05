@@ -1285,7 +1285,7 @@ fn command_line_scan(parmp: &mut Mparm) {
 
     while arg_idx < raw_len {
         let arg0_cstr = parmp.argv[arg_idx].clone();
-        let arg0_ptr = arg0_cstr.as_ptr();
+        let arg0_ptr = crate::strings::CStrCursor::from_ptr(arg0_cstr.as_ptr());
         let arg0 = arg0_cstr.as_bytes();
         if arg0.first() == Some(&b'+') && !had_minmin {
             if parmp.commands.len() >= MAX_ARG_CMDS {
@@ -1818,22 +1818,18 @@ fn check_and_set_isatty(_paramp: &mut Mparm) {
 }
 
 fn init_path(exename: &CStr) {
-    let exename = exename.as_ptr();
+    let exename = crate::strings::CStrCursor::from_ptr(exename.as_ptr());
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
     if os_exepath(&mut exepath, &mut exepathlen) != 0 {
-        path_guess_exepath(crate::memory::cstr_from_ptr(exename), &mut exepath);
+        path_guess_exepath(exename.as_cstr(), &mut exepath);
     }
     set_vim_var_string(
         VV_PROGPATH,
         Some(crate::memory::cstr_until_nul(&exepath)),
         -1,
     );
-    set_vim_var_string(
-        VV_PROGNAME,
-        Some(path_tail(crate::memory::cstr_from_ptr(exename))),
-        -1,
-    );
+    set_vim_var_string(VV_PROGNAME, Some(path_tail(exename.as_cstr())), -1);
 
     #[cfg(windows)]
     {
@@ -2265,13 +2261,13 @@ fn do_user_initialization() -> bool {
 
     let init_lua_path = stdpaths_user_conf_subpath(c"init.lua");
     let user_vimrc = stdpaths_user_conf_subpath(c"init.vim");
-    let init_lua_ptr = init_lua_path.as_ptr().cast_mut();
-    let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
+    let init_lua_ptr = crate::strings::CStrCursor::from_ptr(init_lua_path.as_ptr().cast_mut());
+    let user_vimrc_ptr = crate::strings::CStrCursor::from_ptr(user_vimrc.as_ptr().cast_mut());
 
-    if os_path_exists(crate::memory::cstr_from_ptr(init_lua_ptr))
+    if os_path_exists(init_lua_ptr.as_cstr())
         && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None)
     {
-        if os_path_exists(crate::memory::cstr_from_ptr(user_vimrc_ptr)) {
+        if os_path_exists(user_vimrc_ptr.as_cstr()) {
             semsg!(E_CONFLICTING_CONFIGS, init_lua_ptr, user_vimrc_ptr,);
         }
         do_exrc = opt_vars().p_exrc;
@@ -2282,11 +2278,7 @@ fn do_user_initialization() -> bool {
     if do_source(user_vimrc.as_c_str(), true, DOSO_VIMRC, None) {
         do_exrc = opt_vars().p_exrc;
         if do_exrc {
-            do_exrc = !path_equal(
-                c".nvimrc",
-                crate::memory::cstr_from_ptr(user_vimrc_ptr),
-                K_PATH_CMP_EXPAND,
-            );
+            do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr.as_cstr(), K_PATH_CMP_EXPAND);
         }
         return do_exrc;
     }

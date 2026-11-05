@@ -2137,7 +2137,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw)?;
 
-    let io_buff = g_st().iobuff.as_mut_ptr();
+    let io_buff = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     vim_snprintf!(
         io_buff,
         IOSIZE,
@@ -2149,7 +2149,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         },
         name.as_ptr(),
     );
-    Some(crate::memory::cstr_from_ptr(io_buff))
+    Some(io_buff.as_cstr())
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2842,7 +2842,7 @@ fn did_set_statustabline_rulerformat<'a>(
         args.set_var_cstr(def.data.string().as_cstr());
         optval_free_read(args.os_idx, def);
     }
-    let s = args.var_cstr().as_ptr();
+    let s = crate::strings::CStrCursor::from_ptr(args.var_cstr().as_ptr());
 
     if is_stl
         && let Some(win) = args.win_opt()
@@ -2852,7 +2852,7 @@ fn did_set_statustabline_rulerformat<'a>(
         win_config_float(win, cfg);
     }
 
-    if rulerformat && !ui_has(K_UIMESSAGES) && crate::memory::cstr_first_byte(s) == b'%' {
+    if rulerformat && !ui_has(K_UIMESSAGES) && s.first_byte() == b'%' {
         let mut s_ptr = s.wrapping_add(1);
         if crate::memory::cstr_first_byte(s_ptr) == b'-' {
             s_ptr = s_ptr.wrapping_add(1);
@@ -3276,7 +3276,7 @@ pub fn check_ff_value(p: &CStr) -> bool {
 
 /// Calls mb_cptr2char_adv(p) and returns the character.
 fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
-    let s = p.as_ptr();
+    let s = crate::strings::CStrCursor::from_ptr(p.as_ptr());
 
     let s_bytes = p.to_bytes();
     if s_bytes.first() == Some(&b'\\')
@@ -3310,7 +3310,7 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         };
     }
 
-    let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(s));
+    let ci = utf_ptr2_str_char_info(s.as_cstr());
     let cli = utf_cluster_info(ci);
     *p = crate::memory::cstr_from_ptr(cli.next.ptr);
     if cli.cells > 1 {

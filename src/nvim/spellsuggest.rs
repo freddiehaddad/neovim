@@ -670,7 +670,8 @@ pub fn spell_suggest(count: i32) {
             || curwin_mut().w_cursor.col > prev_cursor.col
         {
             curwin_mut().w_cursor = prev_cursor;
-            let curline = get_cursor_line_ptr().as_ptr().cast_mut();
+            let curline =
+                crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
             let curline_bytes = get_cursor_line_slice();
             let mut p_idx = (curwin_mut().w_cursor.col as usize).min(curline_bytes.len());
             while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], curwin_mut()) {
@@ -698,7 +699,7 @@ pub fn spell_suggest(count: i32) {
         );
         let mut line_vec = get_cursor_line_slice().to_vec();
         line_vec.push(0);
-        let line = line_vec.as_mut_ptr();
+        let line = crate::strings::CStrCursor::from_ptr(line_vec.as_mut_ptr());
         sps_st().spell_suggest_timeout = 5000;
         let mut sug = Suginfo::default();
         let limit = sps_st().sps_limit.min(g_st().rows_global - 2);
@@ -755,9 +756,7 @@ pub fn spell_suggest(count: i32) {
             }
             let c = crate::memory::ptr_offset_from(sug.su_badptr.as_ptr().cast(), line) as i32;
             let mut p_vec: Vec<u8> = Vec::with_capacity(
-                crate::memory::cstr_len(line) - stp.st_orglen as usize
-                    + stp.st_wordlen as usize
-                    + 1,
+                line.len() - stp.st_orglen as usize + stp.st_wordlen as usize + 1,
             );
             p_vec.extend_from_slice(&line_vec[..c as usize]);
             p_vec.extend_from_slice(stp.st_word.to_bytes());
@@ -767,7 +766,7 @@ pub fn spell_suggest(count: i32) {
                 )
                 .to_bytes_with_nul(),
             );
-            let p = p_vec.as_mut_ptr();
+            let p = crate::strings::CStrCursor::from_ptr(p_vec.as_mut_ptr());
             prep_redo(
                 false,
                 false,
@@ -781,11 +780,7 @@ pub fn spell_suggest(count: i32) {
             let rep_len = (stp.st_wordlen + sug.su_badlen - stp.st_orglen).max(0) as usize;
             redo_append_lit(&p_vec[c as usize..c as usize + rep_len]);
             redo_append_char(ESC);
-            let _ = ml_replace(
-                curwin_mut().w_cursor.lnum,
-                crate::memory::cstr_as_bytes(p),
-                true,
-            );
+            let _ = ml_replace(curwin_mut().w_cursor.lnum, p.as_bytes(), true);
             curwin_mut().w_cursor.col = c;
             inserted_bytes(curwin_mut().w_cursor.lnum, c, stp.st_orglen, stp.st_wordlen);
         } else {

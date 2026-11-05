@@ -993,12 +993,15 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
 fn check_external_diff(diffio: &mut Diffio) -> bool {
     let mut io_error = false;
     let mut ok: TriState;
-    let orig_fname = diffio.dio_orig.din_fname.as_ref().unwrap().as_ptr();
-    let new_fname = diffio.dio_new.din_fname.as_ref().unwrap().as_ptr();
-    let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
+    let orig_fname =
+        crate::strings::CStrCursor::from_ptr(diffio.dio_orig.din_fname.as_ref().unwrap().as_ptr());
+    let new_fname =
+        crate::strings::CStrCursor::from_ptr(diffio.dio_new.din_fname.as_ref().unwrap().as_ptr());
+    let diff_fname =
+        crate::strings::CStrCursor::from_ptr(diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr());
     loop {
         ok = K_FALSE;
-        let Some(fd1) = CFile::open(crate::memory::cstr_from_ptr(orig_fname), c"w") else {
+        let Some(fd1) = CFile::open(orig_fname.as_cstr(), c"w") else {
             io_error = true;
             if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
                 != K_CALLBACK_NONE_CONST
@@ -1013,13 +1016,13 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             io_error = true;
         }
         drop(fd1);
-        if let Some(fd2) = CFile::open(crate::memory::cstr_from_ptr(new_fname), c"w") {
+        if let Some(fd2) = CFile::open(new_fname.as_cstr(), c"w") {
             if !fd2.write_all(b"line2\n") {
                 io_error = true;
             }
             drop(fd2);
             let fd3 = diff_file(diffio)
-                .then(|| CFile::open(crate::memory::cstr_from_ptr(diff_fname), c"r"))
+                .then(|| CFile::open(diff_fname.as_cstr(), c"r"))
                 .flatten();
             if let Some(fd3) = fd3 {
                 let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
@@ -1031,12 +1034,12 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             } else {
                 io_error = true;
             }
-            let _ = os_remove(crate::memory::cstr_from_ptr(diff_fname));
-            let _ = os_remove(crate::memory::cstr_from_ptr(new_fname));
+            let _ = os_remove(diff_fname.as_cstr());
+            let _ = os_remove(new_fname.as_cstr());
         } else {
             io_error = true;
         }
-        let _ = os_remove(crate::memory::cstr_from_ptr(orig_fname));
+        let _ = os_remove(orig_fname.as_cstr());
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
             break;
         }
@@ -1132,7 +1135,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
         + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
-    let cmd = cmd_vec.as_mut_ptr().cast();
+    let cmd = crate::strings::CStrCursor::from_ptr(cmd_vec.as_mut_ptr().cast());
     if os_env_exists(c"DIFF_OPTIONS", true) {
         let _ = os_unsetenv(c"DIFF_OPTIONS");
     }
@@ -1181,7 +1184,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     );
     crate::autocmd::block_autocmds();
     call_shell(
-        crate::memory::cstr_as_opt_cstr(cmd),
+        cmd.as_opt_cstr(),
         K_SHELL_OPT_FILTER | K_SHELL_OPT_SILENT | K_SHELL_OPT_DO_OUT,
         None,
     );
@@ -1201,8 +1204,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let (Some(tmp_orig_cstr), Some(tmp_new_cstr)) = (&tmp_orig_owned, &tmp_new_owned) else {
             break 'theend;
         };
-        let tmp_orig = tmp_orig_cstr.as_ptr().cast_mut();
-        let tmp_new = tmp_new_cstr.as_ptr().cast_mut();
+        let tmp_orig = crate::strings::CStrCursor::from_ptr(tmp_orig_cstr.as_ptr().cast_mut());
+        let tmp_new = crate::strings::CStrCursor::from_ptr(tmp_new_cstr.as_ptr().cast_mut());
         if !buf_write(
             curbuf_mut(),
             Some(tmp_orig_cstr.as_c_str()),
@@ -1233,12 +1236,9 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             esc_name = Some(vim_strsave_shellescape(eap.arg.as_bytes(), true, true));
         }
         let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-        let buflen = crate::memory::cstr_len(tmp_orig)
-            + crate::memory::cstr_len(esc_ptr)
-            + crate::memory::cstr_len(tmp_new)
-            + 16;
+        let buflen = tmp_orig.len() + crate::memory::cstr_len(esc_ptr) + tmp_new.len() + 16;
         buf_vec = vec![0; buflen];
-        let buf = buf_vec.as_mut_ptr().cast();
+        let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr().cast());
         #[cfg(unix)]
         let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]
@@ -1261,11 +1261,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 tmp_new.as_cstr(),
             );
             #[cfg(not(unix))]
-            eval_patch(
-                crate::memory::cstr_from_ptr(tmp_orig),
-                eap.arg.as_cstr(),
-                crate::memory::cstr_from_ptr(tmp_new),
-            );
+            eval_patch(tmp_orig.as_cstr(), eap.arg.as_cstr(), tmp_new.as_cstr());
         } else {
             vim_snprintf!(
                 buf,
@@ -1276,11 +1272,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 esc_ptr,
             );
             crate::autocmd::block_autocmds();
-            call_shell(
-                crate::memory::cstr_as_opt_cstr(buf),
-                K_SHELL_OPT_FILTER,
-                None,
-            );
+            call_shell(buf.as_opt_cstr(), K_SHELL_OPT_FILTER, None);
             crate::autocmd::unblock_autocmds();
         }
         #[cfg(unix)]
@@ -1290,14 +1282,14 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             }
             shorten_fnames(true);
         }
-        let tmp_new_bytes = crate::memory::cstr_as_bytes(tmp_new);
+        let tmp_new_bytes = tmp_new.as_bytes();
         buf_vec[..tmp_new_bytes.len()].copy_from_slice(tmp_new_bytes);
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 6].copy_from_slice(b".orig\0");
-        let _ = os_remove(crate::memory::cstr_from_ptr(buf));
+        let _ = os_remove(buf.as_cstr());
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 5].copy_from_slice(b".rej\0");
-        let _ = os_remove(crate::memory::cstr_from_ptr(buf));
+        let _ = os_remove(buf.as_cstr());
         let mut file_info = FileInfo::new();
-        let info_ok = os_fileinfo(crate::memory::cstr_from_ptr(tmp_new), &mut file_info);
+        let info_ok = os_fileinfo(tmp_new.as_cstr(), &mut file_info);
         let filesize = os_fileinfo_size(&file_info);
         if !info_ok || filesize == 0 {
             emsg(gettext(c"E816: Cannot read patch output"));
@@ -1318,7 +1310,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 },
             ) {
                 eap.cmdidx = Cmdidx::CmdSplit;
-                eap.arg = crate::strings::CStrCursor::from_ptr(tmp_new);
+                eap.arg = tmp_new;
                 do_exedit(eap, old_curwin.opt_mut());
                 if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
                     diff_win_options(curwin_mut(), true);

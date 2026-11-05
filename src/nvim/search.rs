@@ -1364,7 +1364,7 @@ pub fn do_search(
             && (!g_st().cmd_silent || !shortmess(K_SHM_SEARCHCOUNT))
         {
             let mut off_buf = [0u8; 40];
-            let off_buf_ptr = off_buf.as_mut_ptr();
+            let off_buf_ptr = crate::strings::CStrCursor::from_ptr(off_buf.as_mut_ptr());
             let mut off_len: usize = 0;
 
             msg_start();
@@ -1651,7 +1651,7 @@ pub fn search_for_exact_line(
     dir: Direction,
     pat: &CStr,
 ) -> bool {
-    let pat = pat.as_ptr();
+    let pat = crate::strings::CStrCursor::from_ptr(pat.as_ptr());
     {
         let mut start: Linenr = 0;
         let compl_len = ins_compl_len();
@@ -1698,7 +1698,7 @@ pub fn search_for_exact_line(
                 if mb_strcmp_ic(
                     opt_vars().p_ic,
                     crate::memory::CStrSubslice::advance(line_cstr, skip_len),
-                    crate::memory::cstr_from_ptr(pat),
+                    pat.as_cstr(),
                 ) == 0
                 {
                     return true;
@@ -1708,11 +1708,11 @@ pub fn search_for_exact_line(
                 let eq = if opt_vars().p_ic {
                     mb_strnicmp(
                         crate::memory::bytes_until_nul(p_slice),
-                        crate::memory::cstr_as_bytes(pat),
+                        pat.as_bytes(),
                         compl_len as usize,
                     ) == 0
                 } else {
-                    let pat_b = crate::memory::cstr_as_bytes(pat);
+                    let pat_b = pat.as_bytes();
                     p_slice[..p_slice.len().min(compl_len as usize)]
                         == pat_b[..(compl_len as usize).min(pat_b.len())]
                 };
@@ -1768,7 +1768,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
 
     cap.oap_mut().inclusive = dir != BACKWARD;
 
-    let p = get_cursor_line_ptr().as_ptr().cast_mut();
+    let p = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
     let mut col = curwin_mut().w_cursor.col;
     let len = get_cursor_line_len();
 
@@ -1787,12 +1787,12 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 col -= crate::mbyte::utf_head_off_ptr(p, p.wrapping_add((col - 1) as usize)) + 1;
             }
             if srch().lastc_bytelen <= 1 {
-                if i32::from(crate::memory::cstr_first_byte(p.wrapping_add(col as usize))) == c
-                    && stop
-                {
+                if i32::from(p.wrapping_add(col as usize).first_byte()) == c && stop {
                     break;
                 }
-            } else if crate::memory::cstr_as_bytes(p.wrapping_add(col as usize))
+            } else if p
+                .wrapping_add(col as usize)
+                .as_bytes()
                 .starts_with(&srch().lastc_bytes[..srch().lastc_bytelen as usize])
                 && stop
             {
@@ -3110,7 +3110,7 @@ pub fn find_pattern_in_path(
     let len = ptr_pat_slice.len();
     let ptr_pat_cstr =
         CString::new(crate::memory::bytes_until_nul(ptr_pat_slice)).unwrap_or_default();
-    let ptr_pat = ptr_pat_cstr.as_ptr();
+    let ptr_pat = crate::strings::CStrCursor::from_ptr(ptr_pat_cstr.as_ptr());
     {
         let mut max_path_depth: i32 = 50;
         let mut match_count: i32 = 1;
@@ -3242,7 +3242,7 @@ pub fn find_pattern_in_path(
                 });
                 let mut already_searched = false;
                 if let Some(ref nf) = new_fname_cstr {
-                    let nf_ptr = nf.as_ptr().cast_mut();
+                    let nf_ptr = crate::strings::CStrCursor::from_ptr(nf.as_ptr().cast_mut());
                     i = 0;
                     loop {
                         if i == depth + 1 {
@@ -3252,7 +3252,7 @@ pub fn find_pattern_in_path(
                             break;
                         }
                         if path_equal(
-                            crate::memory::cstr_from_ptr(nf_ptr),
+                            nf_ptr.as_cstr(),
                             files[i as usize].name_ptr().unwrap_or(c""),
                             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ) {
@@ -3262,7 +3262,7 @@ pub fn find_pattern_in_path(
                             {
                                 msg_putchar(b'\n' as i32);
                                 if !g_st().got_int {
-                                    msg_home_replace(crate::memory::cstr_as_opt_cstr(nf_ptr));
+                                    msg_home_replace(nf_ptr.as_opt_cstr());
                                     msg_puts(tr(c" (includes previously listed match)"));
                                     prev_fname = None;
                                 }
@@ -3410,7 +3410,7 @@ pub fn find_pattern_in_path(
                     }
                 }
             } else {
-                let pat_slice = crate::memory::cstr_slice(ptr_pat, len);
+                let pat_slice = ptr_pat.slice(len);
                 p = line;
                 loop {
                     define_matched = false;
@@ -3434,7 +3434,7 @@ pub fn find_pattern_in_path(
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(
                                     crate::memory::cstr_as_bytes(startp),
-                                    crate::memory::cstr_as_bytes(ptr_pat),
+                                    ptr_pat.as_bytes(),
                                     len,
                                 ) == 0;
                             } else {

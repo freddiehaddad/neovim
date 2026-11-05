@@ -310,14 +310,14 @@ fn nfa_get_match_text(states: &[NfaState], start: Option<usize>) -> Option<std::
 
     let mut ret = vec![0u8; len];
     p = states[states[start_idx].out?].out?;
-    let mut s = ret.as_mut_ptr();
+    let mut s = crate::strings::CStrCursor::from_ptr(ret.as_mut_ptr());
     while states[p].c > 0 {
         s = s.wrapping_add(utf_char2bytes(states[p].c, unsafe {
             std::slice::from_raw_parts_mut(s.cast(), 6)
         }) as usize);
         p = states[p].out?;
     }
-    let actual_len = s as usize - ret.as_ptr() as usize;
+    let actual_len = s.as_ptr() as usize - ret.as_ptr() as usize;
     ret.truncate(actual_len);
     std::ffi::CString::new(ret).ok()
 }

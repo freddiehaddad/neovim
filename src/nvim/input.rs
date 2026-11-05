@@ -1281,7 +1281,7 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 
 /// Open a new script file for the `":source!"` command.
 pub fn openscript(name: &CStr, directly: bool) {
-    let name_ptr = name.as_ptr();
+    let name_ptr = crate::strings::CStrCursor::from_ptr(name.as_ptr());
     {
         if inp_st().curscript + 1 == NSCRIPT as i32 {
             emsg(gettext(E_NESTING));
@@ -1297,15 +1297,12 @@ pub fn openscript(name: &CStr, directly: bool) {
         }
 
         inp_st().curscript += 1;
-        expand_env(
-            crate::memory::cstr_from_ptr(name_ptr),
-            g_st().name_buff_bytes_mut(),
-        );
-        let namebuff_ptr = g_st().name_buff.as_mut_ptr();
+        expand_env(name_ptr.as_cstr(), g_st().name_buff_bytes_mut());
+        let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
         let cur_idx = inp_st().curscript as usize;
         let error = file_open(
             &mut inp_st().scriptin[cur_idx],
-            crate::memory::cstr_as_opt_cstr(namebuff_ptr),
+            namebuff_ptr.as_opt_cstr(),
             K_FILE_READ_ONLY,
             0,
         );
@@ -2515,7 +2512,9 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 ))
                             {
                                 curwin_mut().w_wcol = 0;
-                                let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
+                                let ptr = crate::strings::CStrCursor::from_ptr(
+                                    get_cursor_line_ptr().as_ptr().cast_mut(),
+                                );
                                 let endptr = ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
 
                                 let mut csarg = CharsizeArg::new();
@@ -2523,10 +2522,9 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     &mut csarg,
                                     curwin_mut(),
                                     curwin_mut().w_cursor.lnum,
-                                    crate::memory::cstr_from_ptr(ptr),
+                                    ptr.as_cstr(),
                                 );
-                                let mut ci: StrCharInfo =
-                                    utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(ptr));
+                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr.as_cstr());
                                 let mut vcol: i32 = 0;
                                 while ci.ptr < endptr.cast_const() {
                                     if !ascii_iswhite(ci.chr.value) {
@@ -2560,7 +2558,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                             col = curwin_mut().w_cursor.col - 1;
                         }
                         if col > 0 && curwin_mut().w_wcol > 0 {
-                            let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
+                            let ptr = crate::strings::CStrCursor::of(
+                                crate::strings::CStrCursor::from_ptr(
+                                    get_cursor_line_ptr().as_ptr().cast_mut(),
+                                ),
+                            );
                             col -=
                                 crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add(col as usize));
                             if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {

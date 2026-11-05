@@ -818,22 +818,17 @@ pub fn buf_get_backup_name(
     no_prepend_dot: bool,
     backup_ext: &CStr,
 ) -> Option<std::ffi::CString> {
-    let fname_ptr = fname.as_ptr().cast_mut();
-    let backup_ext_ptr = backup_ext.as_ptr();
+    let fname_ptr = crate::strings::CStrCursor::from_ptr(fname.as_ptr().cast_mut());
+    let backup_ext_ptr = crate::strings::CStrCursor::from_ptr(backup_ext.as_ptr());
     let mut backup: Option<std::ffi::CString> = None;
-    let iobuf = g_st().iobuff.as_mut_ptr();
+    let iobuf = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     let mut dirp_bytes = dirp.to_bytes();
     let old_len = dirp_bytes.len();
     let dir_len = copy_option_part(&mut dirp_bytes, g_st().iobuff_bytes_mut(), c",");
     *dirp = crate::memory::CStrSubslice::advance(*dirp, old_len - dirp_bytes.len());
-    if dirp.to_bytes().is_empty() && !os_isdir(crate::memory::cstr_from_ptr(iobuf)) {
+    if dirp.to_bytes().is_empty() && !os_isdir(iobuf.as_cstr()) {
         let mut failed_dir: Option<std::ffi::CString> = None;
-        let ret = os_mkdir_recurse(
-            crate::memory::cstr_from_ptr(iobuf),
-            0o755,
-            &mut failed_dir,
-            None,
-        );
+        let ret = os_mkdir_recurse(iobuf.as_cstr(), 0o755, &mut failed_dir, None);
         if ret != 0 {
             let _ = semsg!(
                 gettext(c"E303: Unable to create directory \"%s\" for backup file: %s",),
@@ -847,26 +842,15 @@ pub fn buf_get_backup_name(
         && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
         && let Some(swname) = make_percent_swname(
             &g_st().iobuff_bytes_mut()[..dir_len - 1],
-            crate::memory::cstr_as_opt_cstr(fname_ptr),
+            fname_ptr.as_opt_cstr(),
         )
     {
-        backup = modname(
-            Some(&swname),
-            crate::memory::cstr_from_ptr(backup_ext_ptr),
-            no_prepend_dot,
-        );
+        backup = modname(Some(&swname), backup_ext_ptr.as_cstr(), no_prepend_dot);
     }
     if backup.is_none()
-        && let Some(rootname) = get_file_in_dir(
-            crate::memory::cstr_as_opt_cstr(fname_ptr),
-            crate::memory::cstr_from_ptr(iobuf),
-        )
+        && let Some(rootname) = get_file_in_dir(fname_ptr.as_opt_cstr(), iobuf.as_cstr())
     {
-        backup = modname(
-            Some(&rootname),
-            crate::memory::cstr_from_ptr(backup_ext_ptr),
-            no_prepend_dot,
-        );
+        backup = modname(Some(&rootname), backup_ext_ptr.as_cstr(), no_prepend_dot);
     }
     backup
 }
@@ -884,7 +868,7 @@ fn buf_write_make_backup(
     backupp: &mut Option<std::ffi::CString>,
     err: &mut BwError,
 ) -> bool {
-    let fname = fname_cstr.as_ptr().cast_mut();
+    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr().cast_mut());
     let mut file_info = FileInfo::new();
     let no_prepend_dot = false;
 
@@ -892,16 +876,15 @@ fn buf_write_make_backup(
         *backup_copyp = true;
     } else if (bkc & K_OPT_BKC_FLAG_AUTO) != 0 {
         if os_fileinfo_hardlinks(file_info_old) > 1
-            || !os_fileinfo_link(crate::memory::cstr_from_ptr(fname), &mut file_info)
+            || !os_fileinfo_link(fname.as_cstr(), &mut file_info)
             || !os_fileinfo_id_equal(&file_info, file_info_old)
         {
             *backup_copyp = true;
         } else {
-            let dirlen = (path_tail(crate::memory::cstr_from_ptr(fname)).as_ptr() as usize)
-                - (fname as usize);
+            let dirlen = (path_tail(fname.as_cstr()).as_ptr() as usize) - (fname.as_ptr() as usize);
             assert!(dirlen < MAXPATHL);
             let mut tmp_fname = [0u8; MAXPATHL];
-            tmp_fname[..dirlen].copy_from_slice(crate::memory::cstr_slice(fname, dirlen));
+            tmp_fname[..dirlen].copy_from_slice(fname.slice(dirlen));
             let mut i: i32 = 4913;
             loop {
                 let suffix = format!(".{i}.swp\0");
@@ -1006,15 +989,10 @@ fn buf_write_make_backup(
                 }
 
                 if keep_bk {
-                    let bk_ptr = bk_vec.as_mut_ptr();
-                    let bk_cstr = crate::memory::cstr_from_ptr(bk_ptr);
+                    let bk_ptr = crate::strings::CStrCursor::from_ptr(bk_vec.as_mut_ptr());
+                    let bk_cstr = bk_ptr.as_cstr();
                     let _ = os_remove(bk_cstr);
-                    if os_copy(
-                        crate::memory::cstr_from_ptr(fname),
-                        bk_cstr,
-                        UV_FS_COPYFILE_FICLONE,
-                    ) != 0
-                    {
+                    if os_copy(fname.as_cstr(), bk_cstr, UV_FS_COPYFILE_FICLONE) != 0 {
                         *err = set_err(Some(gettext(
                             c"E509: Cannot create backup file (add ! to override)",
                         )));
@@ -1042,7 +1020,7 @@ fn buf_write_make_backup(
                     }
 
                     os_set_acl(bk_cstr, acl);
-                    os_copy_xattr(crate::memory::cstr_as_opt_cstr(fname), Some(bk_cstr));
+                    os_copy_xattr(fname.as_opt_cstr(), Some(bk_cstr));
                     *backupp = Some(bk_cstr.to_owned());
                     *err = set_err(None);
                     break;
@@ -1093,10 +1071,7 @@ fn buf_write_make_backup(
                     }
                 }
                 if keep_bk
-                    && vim_rename(
-                        crate::memory::cstr_from_ptr(fname),
-                        crate::memory::cstr_until_nul(&bk_vec),
-                    ) == 0
+                    && vim_rename(fname.as_cstr(), crate::memory::cstr_until_nul(&bk_vec)) == 0
                 {
                     *backupp = Some(crate::memory::cstring_until_nul(&bk_vec));
                     break;

@@ -775,7 +775,7 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
 }
 
 fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32) {
-    let msg = msg.as_ptr();
+    let msg = crate::strings::CStrCursor::from_ptr(msg.as_ptr());
     logmsg!(loglevel, Some(c"RPC: "), None, -1, true, c"%s", msg,);
     let p = channel.unpacker_mut();
 
@@ -785,10 +785,7 @@ fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32)
         }
         frame.returned.set(true);
         frame.errored.set(true);
-        let s = arena_string(
-            &mut p.arena,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(msg)),
-        );
+        let s = arena_string(&mut p.arena, cstr_as_string(msg.as_opt_cstr()));
         frame.result.set(Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(s),

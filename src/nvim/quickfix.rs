@@ -954,7 +954,7 @@ fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) {
 }
 
 fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
-    let p_str = p_str_in.as_ptr();
+    let p_str = crate::strings::CStrCursor::from_ptr(p_str_in.as_ptr());
     let p_bytes = p_str_in.to_bytes();
     if p_bytes.is_empty() {
         return QfStatus::EndOfInput;
@@ -1044,7 +1044,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
     let QfInputSource::File(ref fd) = state.source else {
         return QfStatus::Fail;
     };
-    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+    let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     loop {
         os_set_errno(0);
         if !fd.gets(g_st().iobuff_bytes_mut()) {
@@ -1057,14 +1057,13 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
     }
 
     let mut discard = false;
-    state.linelen = crate::memory::cstr_len(iobuff_ptr);
+    state.linelen = iobuff_ptr.len();
     if state.linelen == IOSIZE - 1 && g_st().iobuff[state.linelen - 1] != NL {
         if state.growbuf.len() < 2 * (IOSIZE - 1) {
             state.growbuf.resize(2 * (IOSIZE - 1), 0);
         }
 
-        state.growbuf[..IOSIZE - 1]
-            .copy_from_slice(crate::memory::cstr_slice(iobuff_ptr, IOSIZE - 1));
+        state.growbuf[..IOSIZE - 1].copy_from_slice(iobuff_ptr.slice(IOSIZE - 1));
         let mut growbuflen = state.linelen;
         state.growbuf[growbuflen] = 0;
 
@@ -1102,9 +1101,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
                     }
                     break;
                 }
-                if crate::memory::cstr_len(iobuff_ptr) < IOSIZE - 1
-                    || g_st().iobuff[IOSIZE - 2] == NL
-                {
+                if iobuff_ptr.len() < IOSIZE - 1 || g_st().iobuff[IOSIZE - 2] == NL {
                     break;
                 }
             }
@@ -3369,7 +3366,7 @@ fn qf_fmt_text(gap: &mut Vec<u8>, text: &[u8]) {
 }
 
 fn qf_range_text(gap: &mut Vec<u8>, qfp: &Qfline) {
-    let buf_data = g_st().iobuff.as_mut_ptr();
+    let buf_data = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d", qfp.qf_lnum);
 
     if qfp.qf_end_lnum > 0 && qfp.qf_lnum != qfp.qf_end_lnum {
@@ -4388,8 +4385,8 @@ pub fn ex_make(eap: &mut Exarg) {
     let Some(fname) = get_mef_name() else {
         return;
     };
-    let fname_ptr = fname.as_ptr().cast_mut();
-    os_remove(crate::memory::cstr_from_ptr(fname_ptr));
+    let fname_ptr = crate::strings::CStrCursor::from_ptr(fname.as_ptr().cast_mut());
+    os_remove(fname_ptr.as_cstr());
 
     let cmd = make_get_fullcmd(eap.arg.as_cstr(), &fname);
 
@@ -4444,7 +4441,7 @@ pub fn ex_make(eap: &mut Exarg) {
     }
 
     decr_quickfix_busy();
-    os_remove(crate::memory::cstr_from_ptr(fname_ptr));
+    os_remove(fname_ptr.as_cstr());
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
@@ -6788,11 +6785,11 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     };
 
     let qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
-    let mut qf_title = qf_title_cstr.as_ptr().cast_mut();
+    let mut qf_title = crate::strings::CStrCursor::from_ptr(qf_title_cstr.as_ptr().cast_mut());
     if let Some(buf_sfname) = buf.sfname_opt() {
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuff_ptr, IOSIZE, c"%s (%s)", qf_title, buf_sfname,);
-        qf_title = iobuff_ptr;
+        qf_title = crate::strings::CStrCursor::of(iobuff_ptr);
     }
 
     incr_quickfix_busy();
@@ -6808,7 +6805,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         eap.cmdidx != Cmdidx::CmdCaddbuffer && eap.cmdidx != Cmdidx::CmdLaddbuffer,
         eap.line1,
         eap.line2,
-        crate::memory::cstr_as_opt_cstr(qf_title),
+        qf_title.as_opt_cstr(),
         None,
     );
     if qf_stack_empty(Some(qi)) {

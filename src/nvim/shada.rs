@@ -1710,12 +1710,9 @@ fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {
             if file.is_none_or(|s| s.is_empty()) {
                 file = Some(shada_get_default_file());
             }
-            let name_buff_ptr = g_st().name_buff.as_mut_ptr();
+            let name_buff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
             let len = expand_env(file.unwrap_or(c""), g_st().name_buff_bytes_mut());
-            return Some(
-                std::ffi::CString::new(crate::memory::cstr_slice(name_buff_ptr, len))
-                    .unwrap_or_default(),
-            );
+            return Some(std::ffi::CString::new(name_buff_ptr.slice(len)).unwrap_or_default());
         }
     }
     Some(file.unwrap_or(c"").to_owned())
@@ -3164,19 +3161,14 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         return false;
     };
     let mut fname_bytes = fname_cstr.into_bytes_with_nul();
-    let fname = fname_bytes.as_mut_ptr();
+    let fname = crate::strings::CStrCursor::from_ptr(fname_bytes.as_mut_ptr());
 
     let mut sd_writer = FileDescriptor::new();
     let mut sd_reader = FileDescriptor::new();
     let mut did_open_reader = false;
 
     if !nomerge {
-        let error = file_open(
-            &mut sd_reader,
-            crate::memory::cstr_as_opt_cstr(fname),
-            K_FILE_READ_ONLY,
-            0,
-        );
+        let error = file_open(&mut sd_reader, fname.as_opt_cstr(), K_FILE_READ_ONLY, 0);
         if error == 0 {
             did_open_reader = true;
         } else if error != UV_ENOENT {
@@ -3192,13 +3184,13 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         }
     }
 
-    let mut perm = os_getperm(crate::memory::cstr_from_ptr(fname));
+    let mut perm = os_getperm(fname.as_cstr());
     perm = if perm >= 0 {
         (perm & 0o777) | 0o600
     } else {
         0o600
     };
-    let tempname_opt = if os_file_mkdir(crate::memory::cstr_from_ptr(fname), 0o700) == 0 {
+    let tempname_opt = if os_file_mkdir(fname.as_cstr(), 0o700) == 0 {
         shada_open_tmp(&fname_bytes, &mut sd_writer, perm)
     } else {
         None
@@ -3227,8 +3219,9 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         close_file(&mut sd_reader);
     }
     let tempname_cstr = CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default();
-    let tempname = tempname_cstr.as_ptr();
-    let fname = fname_cstr.as_ptr();
+    let tempname = crate::strings::CStrCursor::from_ptr(tempname_cstr.as_ptr());
+    let fname =
+        crate::strings::CStrCursor::of(crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr()));
     let mut did_remove = false;
     if sw_ret == ShaDaWriteResult::SDWriteSuccessful {
         let mut can_rename = true;
@@ -3249,7 +3242,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         #[cfg(not(unix))]
         let unix_not_writable = |_info: &FileInfo| -> bool { false };
 
-        if os_fileinfo(crate::memory::cstr_from_ptr(fname), &mut old_info) {
+        if os_fileinfo(fname.as_cstr(), &mut old_info) {
             if (old_info.stat.st_mode & S_IFMT) == S_IFDIR || unix_not_writable(&old_info) {
                 semsg!(gettext(c"E137: ShaDa file is not writable: %s"), fname,);
                 can_rename = false;
@@ -3276,11 +3269,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
             }
         }
         if can_rename && close_file(&mut sd_writer) == 0 {
-            if vim_rename(
-                crate::memory::cstr_from_ptr(tempname),
-                crate::memory::cstr_from_ptr(fname),
-            ) == -1
-            {
+            if vim_rename(tempname.as_cstr(), fname.as_cstr()) == -1 {
                 semsg!(
                     gettext(c"E136: Can't rename ShaDa file from %s to %s!"),
                     tempname,
@@ -3288,7 +3277,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                 );
             } else {
                 did_remove = true;
-                os_remove(crate::memory::cstr_from_ptr(tempname));
+                os_remove(tempname.as_cstr());
             }
         }
     } else if sw_ret == ShaDaWriteResult::SDWriteReadNotShada {
@@ -4066,19 +4055,14 @@ fn shada_removable(name: &CStr) -> bool {
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
         if part[0] == b'r' {
-            let name_buff_ptr = g_st().name_buff.as_mut_ptr();
+            let name_buff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
             let n = home_replace(
                 None,
                 Some(crate::memory::cstr_until_nul(&part[1..])),
                 g_st().name_buff_bytes_mut(),
                 true,
             );
-            if mb_strnicmp(
-                crate::memory::cstr_as_bytes(name_buff_ptr),
-                new_name.as_bytes(),
-                n,
-            ) == 0
-            {
+            if mb_strnicmp(name_buff_ptr.as_bytes(), new_name.as_bytes(), n) == 0 {
                 retval = true;
                 break;
             }

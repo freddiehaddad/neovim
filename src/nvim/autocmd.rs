@@ -3413,12 +3413,12 @@ pub fn aucmd_set_expand_context<'a>(
         group = AUGROUP_ALL;
     }
 
-    let ev_base = arg.as_ptr();
+    let ev_base = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
     let arg_bytes = arg.to_bytes();
     let mut p_idx = 0usize;
     while p_idx < arg_bytes.len() && !ascii_iswhite(arg_bytes[p_idx] as i32) {
         if arg_bytes[p_idx] == b',' {
-            arg = crate::memory::cstr_from_ptr(ev_base.wrapping_add(p_idx + 1));
+            arg = ev_base.wrapping_add(p_idx + 1).as_cstr();
         }
         p_idx += 1;
     }

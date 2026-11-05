@@ -2191,11 +2191,11 @@ fn ins_compl_files(
     let leader_len = leader_slice.len() as i32;
 
     for file_cstr in files {
-        let file = file_cstr.as_ptr().cast_mut();
+        let file = crate::strings::CStrCursor::from_ptr(file_cstr.as_ptr().cast_mut());
         if g_st().got_int || ins_compl_interrupted() {
             break;
         }
-        let fp = CFile::open(crate::memory::cstr_from_ptr(file), c"r");
+        let fp = CFile::open(file.as_cstr(), c"r");
         if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(
@@ -3701,7 +3701,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
     }
 
     if ret && (what_flag & CI_WHAT_PREINSERTED_TEXT) != 0 {
-        let line = get_cursor_line_ptr().as_ptr().cast_mut();
+        let line = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
         let len = insexp().compl_ins_end_col - curwin_mut().w_cursor.col;
         ret = tv_dict_add_str_len(
             retdict,
@@ -6168,7 +6168,7 @@ fn compl_get_info(line: &CStr, startcol: i32, curs_col: Colnr, line_invalid: &mu
 }
 
 fn ins_compl_continue_search(line_cstr: &CStr) {
-    let line = line_cstr.as_ptr();
+    let line = crate::strings::CStrCursor::from_ptr(line_cstr.as_ptr());
     insexp().compl_cont_status &= !CONT_INTRPT;
     if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
         if insexp().compl_startpos.lnum != curwin_mut().w_cursor.lnum {
@@ -6216,7 +6216,9 @@ fn ins_compl_start() -> bool {
         return false;
     }
 
-    let mut line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
+    let mut line = crate::strings::CStrCursor::from_ptr(
+        ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut(),
+    );
     let curs_col = curwin_mut().w_cursor.col;
     insexp().compl_pending = 0;
     insexp().compl_lnum = curwin_mut().w_cursor.lnum;
@@ -6224,7 +6226,7 @@ fn ins_compl_start() -> bool {
     if (insexp().compl_cont_status & CONT_INTRPT) == CONT_INTRPT
         && insexp().compl_cont_mode == insexp().ctrl_x_mode
     {
-        ins_compl_continue_search(crate::memory::cstr_from_ptr(line));
+        ins_compl_continue_search(line.as_cstr());
     } else {
         insexp().compl_cont_status &= CONT_LOCAL;
     }
@@ -6242,12 +6244,7 @@ fn ins_compl_start() -> bool {
     }
 
     let mut line_invalid = false;
-    if !compl_get_info(
-        crate::memory::cstr_from_ptr(line),
-        startcol,
-        curs_col,
-        &mut line_invalid,
-    ) {
+    if !compl_get_info(line.as_cstr(), startcol, curs_col, &mut line_invalid) {
         if ctrl_x_mode_function()
             || ctrl_x_mode_omni()
             || thesaurus_func_complete(insexp().ctrl_x_mode)
@@ -6257,7 +6254,8 @@ fn ins_compl_start() -> bool {
         return false;
     }
     if line_invalid {
-        line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
+        line =
+            crate::strings::CStrCursor::of(ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut());
     }
 
     if compl_status_adding() {

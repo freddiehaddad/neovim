@@ -625,7 +625,7 @@ fn pum_compute_text_attrs(
     hlf: Hlf,
     user_hlattr: i32,
 ) -> Option<Vec<i32>> {
-    let text = text_cstr.as_ptr();
+    let text = crate::strings::CStrCursor::from_ptr(text_cstr.as_ptr());
     {
         if text_cstr.is_empty()
             || (hlf != HLF_PSI && hlf != HLF_PNI)
@@ -658,7 +658,7 @@ fn pum_compute_text_attrs(
             match_positions.as_ref()?;
         }
 
-        let mut attrs = vec![0; vim_strsize(crate::memory::cstr_from_ptr(text)) as usize];
+        let mut attrs = vec![0; vim_strsize(text.as_cstr()) as usize];
         let mut ptr = text;
         let mut cell_idx: usize = 0;
         let mut char_pos: u32 = 0;
@@ -721,7 +721,7 @@ fn pum_grid_puts_with_attrs(
     textlen: i32,
     attrs: &[i32],
 ) {
-    let text = text_cstr.as_ptr();
+    let text = crate::strings::CStrCursor::from_ptr(text_cstr.as_ptr());
     {
         let col_start = col;
         let mut ptr = text;
@@ -1881,7 +1881,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 }
 
 pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
-    let path_name = path_name.as_ptr();
+    let path_name = crate::strings::CStrCursor::from_ptr(path_name.as_ptr());
     {
         if !use_mouse_pos {
             g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
@@ -1900,7 +1900,7 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
             }
         }
 
-        if let Some(menu) = menu_find(crate::memory::cstr_from_ptr(path_name)) {
+        if let Some(menu) = menu_find(path_name.as_cstr()) {
             pum_show_popupmenu(menu);
         }
     }

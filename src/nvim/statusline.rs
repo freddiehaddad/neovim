@@ -698,7 +698,7 @@ fn win_redr_stl_expr(
             screengrid_line_start(unsafe { &mut *grid }, row, 0);
         }
 
-        let mut p = buf.as_mut_ptr();
+        let mut p = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr());
         let mut curattr = attr;
         let mut curgroup = group;
         let mut content = Array::new();
@@ -713,7 +713,7 @@ fn win_redr_stl_expr(
             let src_slice = if p >= buf.as_mut_ptr().wrapping_add(len) || textlen <= 0 {
                 &[][..]
             } else {
-                crate::memory::cstr_slice(p, textlen as usize)
+                p.slice(textlen as usize)
             };
             let tsize = transstr_buf(src_slice, &mut transbuf, true);
             if !ui_event {
@@ -748,7 +748,7 @@ fn win_redr_stl_expr(
             let Some(sp_start) = sp_ref.start else {
                 break;
             };
-            p = sp_start.as_ptr().cast_mut().cast();
+            p = crate::strings::CStrCursor::of(sp_start.as_ptr().cast_mut().cast());
 
             if sp_ref.userhl == 0 {
                 curattr = attr;
@@ -860,7 +860,7 @@ pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
 
 fn ui_ext_tabline_update() {
     let mut arena = Arena::new();
-    let name_buff = g_st().name_buff.as_mut_ptr();
+    let name_buff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
 
     let mut n_tabs: usize = 0;
     let mut tp = g_st().first_tabpage;
@@ -899,7 +899,7 @@ fn ui_ext_tabline_update() {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(arena_string(
                     &mut arena,
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(name_buff)),
+                    cstr_as_string(name_buff.as_opt_cstr()),
                 )),
             },
         );
@@ -949,7 +949,7 @@ fn ui_ext_tabline_update() {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(arena_string(
                         &mut arena,
-                        cstr_as_string(crate::memory::cstr_as_opt_cstr(name_buff)),
+                        cstr_as_string(name_buff.as_opt_cstr()),
                     )),
                 },
             );
@@ -975,7 +975,7 @@ pub fn draw_tabline() {
     let attr_fill = hl_attr(HLF_TPF);
     let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
     let use_sep_chars = g_st().t_colors < 8;
-    let name_buff = g_st().name_buff.as_mut_ptr();
+    let name_buff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
 
     if !crate::grid::grid_allocated(&g_st().default_grid) {
         return;
@@ -1068,7 +1068,7 @@ pub fn draw_tabline() {
 
                     grid_line_puts(
                         col,
-                        crate::memory::cstr_from_ptr(name_buff),
+                        name_buff.as_cstr(),
                         len,
                         hl_combine_attr(attr, win_hl_attr(unsafe { &mut *cwp }, HLF_T)),
                     );
@@ -1088,7 +1088,7 @@ pub fn draw_tabline() {
                 get_trans_bufname(unsafe { (*cwp).buf_mut() });
 
                 shorten_dir(g_st().name_buff_bytes_mut());
-                let mut len = vim_strsize(crate::memory::cstr_from_ptr(name_buff));
+                let mut len = vim_strsize(name_buff.as_cstr());
                 let mut p = name_buff;
                 while len > room {
                     len -= ptr2cells(p);

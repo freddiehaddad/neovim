@@ -582,14 +582,14 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
     #[cfg(unix)]
     let mut ffname = ffname_cstr.as_ptr();
     #[cfg(not(unix))]
-    let ffname = ffname_cstr.as_ptr();
+    let ffname = crate::strings::CStrCursor::from_ptr(ffname_cstr.as_ptr());
 
     #[cfg(unix)]
     let mut fname_buf = [0u8; MAXPATHL];
     #[cfg(unix)]
     {
         if resolve_symlink(Some(ffname_cstr), &mut fname_buf) {
-            ffname = fname_buf.as_ptr().cast();
+            ffname = crate::strings::CStrCursor::of(fname_buf.as_ptr().cast());
         }
     }
 
@@ -597,16 +597,15 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
     let mut munged_vec: Vec<u8> = Vec::new();
     let mut undo_file_name: Option<std::ffi::CString> = None;
 
-    let ffname_len = crate::memory::cstr_len(ffname);
-    let ffname_slice = crate::memory::cstr_slice(ffname, ffname_len);
+    let ffname_len = ffname.len();
+    let ffname_slice = ffname.slice(ffname_len);
     let mut dirp = opt_vars().p_udir.as_bytes();
     while !dirp.is_empty() {
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
-            let tail_off = crate::memory::ptr_offset_from(
-                path_tail(crate::memory::cstr_from_ptr(ffname)).as_ptr(),
-                ffname,
-            ) as usize;
+            let tail_off =
+                crate::memory::ptr_offset_from(path_tail(ffname.as_cstr()).as_ptr(), ffname)
+                    as usize;
             let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
             ufn_vec.extend_from_slice(&ffname_slice[..tail_off]);
             ufn_vec.push(b'.');
@@ -642,7 +641,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
             }
             if has_directory {
                 if munged_vec.is_empty() {
-                    munged_vec = crate::memory::cstr_slice(ffname, ffname_len + 1).to_vec();
+                    munged_vec = ffname.slice(ffname_len + 1).to_vec();
                     let mut idx = 0usize;
                     while idx < ffname_len {
                         if vim_ispathsep(i32::from(munged_vec[idx])) {
@@ -1014,7 +1013,7 @@ pub fn u_write_undo(
         };
         f.as_c_str()
     };
-    let file_name = file_name_cstr.as_ptr().cast_mut();
+    let file_name = crate::strings::CStrCursor::from_ptr(file_name_cstr.as_ptr().cast_mut());
 
     let mut perm: i32 = 0o600;
     if buf.b_ffname.is_some() {
@@ -1026,9 +1025,9 @@ pub fn u_write_undo(
     perm &= 0o666;
 
     'theend: {
-        if os_path_exists(crate::memory::cstr_from_ptr(file_name)) {
+        if os_path_exists(file_name.as_cstr()) {
             if name.is_none() || !forceit {
-                let fd = os_open(crate::memory::cstr_from_ptr(file_name), O_RDONLY, 0);
+                let fd = os_open(file_name.as_cstr(), O_RDONLY, 0);
                 if fd < 0 {
                     if name.is_some() || opt_vars().p_verbose > 0 {
                         if name.is_none() {
@@ -1068,7 +1067,7 @@ pub fn u_write_undo(
                     }
                 }
             }
-            os_remove(crate::memory::cstr_from_ptr(file_name));
+            os_remove(file_name.as_cstr());
         }
 
         if buf.b_u_numhead == 0 && buf.b_u_line_ptr.is_none() {
@@ -1079,7 +1078,7 @@ pub fn u_write_undo(
         }
 
         let fd = os_open(
-            crate::memory::cstr_from_ptr(file_name),
+            file_name.as_cstr(),
             O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW,
             perm,
         );
@@ -1087,7 +1086,7 @@ pub fn u_write_undo(
             semsg!(gettext(E_NOT_OPEN), file_name);
             break 'theend;
         }
-        os_setperm(crate::memory::cstr_from_ptr(file_name), perm);
+        os_setperm(file_name.as_cstr(), perm);
         if opt_vars().p_verbose > 0 {
             verbose_enter();
             smsg!(0, gettext(c"Writing undo file: %s"), file_name);
@@ -1116,7 +1115,7 @@ pub fn u_write_undo(
         let Some(bi_fp) = CFile::from_fd(fd, c"w") else {
             semsg!(gettext(E_NOT_OPEN), file_name);
             os_close(fd);
-            os_remove(crate::memory::cstr_from_ptr(file_name));
+            os_remove(file_name.as_cstr());
             break 'theend;
         };
 
@@ -1186,7 +1185,7 @@ pub fn u_write_undo(
 
         if buf.b_ffname.is_some() {
             let acl: VimAcl = os_get_acl(buf.ffname_cstr());
-            os_set_acl(crate::memory::cstr_from_ptr(file_name), acl);
+            os_set_acl(file_name.as_cstr(), acl);
             os_free_acl(acl);
         }
     }
@@ -2059,11 +2058,11 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         if newsize != 0 {
             for (i, line) in uep.ue_array.drain(..).enumerate() {
                 let lnum = top + i as Linenr;
-                let line_ptr = line.as_ptr().cast_mut();
+                let line_ptr = crate::strings::CStrCursor::from_ptr(line.as_ptr().cast_mut());
                 if empty_buffer && lnum == 0 {
-                    ml_replace(1, crate::memory::cstr_as_bytes(line_ptr), true);
+                    ml_replace(1, line_ptr.as_bytes(), true);
                 } else {
-                    ml_append_flags(lnum, crate::memory::cstr_as_bytes(line_ptr), 0, 0);
+                    ml_append_flags(lnum, line_ptr.as_bytes(), 0, 0);
                 }
             }
         }
@@ -2373,7 +2372,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
     let nomark = undo_st().lastmark;
     let mut lines: Vec<std::ffi::CString> = Vec::new();
 
-    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
+    let iobuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     let mut uhp = curbuf_mut().b_u_oldhead;
     while let Some(uh) = uhp {
         let uh_prev = uhp_ref(curbuf_mut(), uh).uh_prev;
@@ -2383,15 +2382,15 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let uh_save_nr = uhp_ref(curbuf_mut(), uh).uh_save_nr;
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
             vim_snprintf!(iobuf_ptr, IOSIZE, c"%6d %7d  ", uh_seq, changes,);
-            let cur_len = crate::memory::cstr_len(iobuf_ptr);
+            let cur_len = iobuf_ptr.len();
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
-                while crate::memory::cstr_len(iobuf_ptr) < 33 {
+                while iobuf_ptr.len() < 33 {
                     crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b" ");
                 }
                 vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
             }
-            lines.push(crate::memory::cstr_to_cstring(iobuf_ptr));
+            lines.push(iobuf_ptr.to_cstring());
         }
 
         uhp_mut(curbuf_mut(), uh).uh_walk = mark;

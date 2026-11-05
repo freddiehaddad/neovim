@@ -792,8 +792,8 @@ pub fn set_init_tablocal() {
 /// Initialize the 'shell' option to a default value.
 fn set_init_default_shell() {
     if let Some(shell) = os_getenv_cstr(c"SHELL") {
-        let shell_ptr = shell.as_ptr();
-        if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(shell_ptr), b' ' as i32) {
+        let shell_ptr = crate::strings::CStrCursor::from_ptr(shell.as_ptr());
+        if crate::strings::vim_haschr(shell_ptr.as_cstr(), b' ' as i32) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
             vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
@@ -2252,7 +2252,7 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'st
     let var = opt.var.cast::<*mut u8>();
     let esc = ptr::eq(var, (&raw mut opt_vars().p_tags).cast())
         || ptr::eq(var, (&raw mut opt_vars().p_path).cast());
-    let namebuf_ptr = g_st().name_buff.as_mut_ptr();
+    let namebuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
     expand_env_esc(
         val_cstr,
         g_st().name_buff_bytes_mut(),
@@ -2260,11 +2260,11 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'st
         false,
         ptr::eq(var, (&raw mut opt_vars().p_sps).cast()).then_some(c"file:"),
     );
-    if crate::memory::cstr_as_bytes(namebuf_ptr) == val_cstr.to_bytes() {
+    if namebuf_ptr.as_bytes() == val_cstr.to_bytes() {
         return None;
     }
 
-    Some(crate::memory::cstr_from_ptr(namebuf_ptr))
+    Some(namebuf_ptr.as_cstr())
 }
 
 /// After setting various option values: recompute variables that depend on option values.
@@ -6133,9 +6133,9 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
     if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         msg_putchar(b'=' as i32);
         optval_fmt(opt_idx, opt_flags);
-        let namebuf_ptr = g_st().name_buff.as_ptr();
-        if !crate::memory::cstr_is_empty(namebuf_ptr) {
-            msg_outtrans(crate::memory::cstr_from_ptr(namebuf_ptr), 0, false);
+        let namebuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_ptr());
+        if !namebuf_ptr.is_empty() {
+            msg_outtrans(namebuf_ptr.as_cstr(), 0, false);
         }
     }
 
@@ -7364,7 +7364,7 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
 }
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
-    let mut arg = arg_cstr.as_ptr().cast_mut();
+    let mut arg = crate::strings::CStrCursor::from_ptr(arg_cstr.as_ptr().cast_mut());
     opt_st().expand_option_flags = opt_flags;
 
     xp.xp_context = EXPAND_SETTINGS;
@@ -7404,7 +7404,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     let mut p = arg.wrapping_add(p_idx);
     xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p.cast());
     let p_bytes = &arg_bytes[p_idx..];
-    arg = p;
+    arg = crate::strings::CStrCursor::of(p);
 
     let mut nextchar: u8;
     let mut flags: u32 = 0;
@@ -7416,7 +7416,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
             return;
         };
         p = p.wrapping_add(gt_off + 1);
-        let key = get_special_key_code(crate::memory::cstr_as_bytes(arg.wrapping_add(1)));
+        let key = get_special_key_code(arg.wrapping_add(1).as_bytes());
         if key == 0 {
             xp.xp_context = EXPAND_NOTHING;
             return;

@@ -1298,9 +1298,9 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     if dir.to_bytes().is_empty() {
         return;
     }
-    let dir = dir.as_ptr();
+    let dir = crate::strings::CStrCursor::from_ptr(dir.as_ptr());
 
-    if path_tail(crate::memory::cstr_from_ptr(dir)).is_empty() {
+    if path_tail(dir.as_cstr()).is_empty() {
         // Remove trailing slashes.
         unsafe {
             *path_tail_with_sep(crate::memory::cstr_from_ptr(dir.cast_mut()))
@@ -1329,7 +1329,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         if crate::strings::vim_haschr(arg2, b'p' as i32) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(
-                crate::memory::cstr_from_ptr(dir),
+                dir.as_cstr(),
                 prot,
                 &mut failed_dir,
                 (defer || defer_recurse).then_some(&mut created),
@@ -1348,14 +1348,14 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
     if rettv.vval.v_number() == 0 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_mkdir_emsg(
-            crate::memory::cstr_from_ptr(dir),
+            dir.as_cstr(),
             prot,
         )));
     }
 
     // Handle "D" and "R": deferred deletion of the created directory.
     if rettv.vval.v_number() == 1 && created.is_none() && (defer || defer_recurse) {
-        created = FullName_save(crate::memory::cstr_as_opt_cstr(dir), false);
+        created = FullName_save(dir.as_opt_cstr(), false);
     }
     if let Some(created_cstr) = created {
         let mut tv = [TypVal::new(), TypVal::new()];
@@ -1394,7 +1394,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// Evaluate "expr" (= "context") for readdir().
 pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
-    let name = name.as_ptr();
+    let name = crate::strings::CStrCursor::from_ptr(name.as_ptr());
     let tv_init = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: VAR_UNLOCKED,
@@ -1410,7 +1410,7 @@ pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
 
     let mut save_val = tv_init;
     prepare_vimvar(VV_VAL, &mut save_val);
-    set_vim_var_string(VV_VAL, crate::memory::cstr_as_opt_cstr(name), -1);
+    set_vim_var_string(VV_VAL, name.as_opt_cstr(), -1);
     argv[0].v_type = VarType::VarString;
     argv[0].vval = crate::eval::typval::TypvalVval::from_raw_str(name.cast_mut());
 
@@ -1729,7 +1729,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let mut limit: i32 = 100;
 
         let mut p_vec = fname.to_bytes_with_nul().to_vec();
-        let mut p = p_vec.as_mut_ptr();
+        let mut p = crate::strings::CStrCursor::from_ptr(p_vec.as_mut_ptr());
         let mut p_len = p_vec.len() - 1;
 
         if p_vec.first() == Some(&b'.')
@@ -1740,7 +1740,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             is_relative_to_current = true;
         }
 
-        if p_len > 1 && after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
+        if p_len > 1 && after_pathsep(p.slice(p_len)) != 0 {
             has_trailing_pathsep = true;
             p_len -= 1;
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
@@ -1754,7 +1754,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         if unsafe { *q } != 0 {
             // Separate the first path component in "p", and keep the
             // remainder (beginning with the path separator).
-            let q_off = (q as usize) - (p as usize);
+            let q_off = (q as usize) - (p.as_ptr() as usize);
             let mut rem = Vec::with_capacity(p_len - (q_off - 1) + 1);
             rem.extend_from_slice(&p_vec[q_off - 1..p_len]);
             rem.push(0);
@@ -1819,15 +1819,15 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 }
 
                 q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
-                if (q as usize) > (p as usize) && unsafe { *q } == 0 {
+                if (q as usize) > (p.as_ptr() as usize) && unsafe { *q } == 0 {
                     // Ignore trailing path separator.
                     unsafe { *q.wrapping_sub(1) = 0 };
                     q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 }
-                if (q as usize) > (p as usize) && !path_is_absolute(buf.as_bytes()) {
+                if (q as usize) > (p.as_ptr() as usize) && !path_is_absolute(buf.as_bytes()) {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
-                    let prefix_len = (q as usize) - (p as usize);
+                    let prefix_len = (q as usize) - (p.as_ptr() as usize);
                     let mut new_p = vec![0u8; prefix_len + buf_len + 1];
                     unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len) };
                     unsafe {
@@ -1835,35 +1835,35 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     };
                     p_len = prefix_len + buf_len;
                     p_vec = new_p;
-                    p = p_vec.as_mut_ptr();
+                    p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
                 } else {
                     let mut new_p = Vec::with_capacity(buf_len + 1);
                     new_p.extend_from_slice(&buf_vec[..buf_len]);
                     new_p.push(0);
                     p_len = buf_len;
                     p_vec = new_p;
-                    p = p_vec.as_mut_ptr();
+                    p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
                 }
             }
 
             let Some(ref mut rem_v) = remain_vec else {
                 break;
             };
-            let remain = rem_v.as_mut_ptr();
+            let remain = crate::strings::CStrCursor::from_ptr(rem_v.as_mut_ptr());
 
             // Append the first path component of "remain" to "p".
             q = path_next_component(crate::memory::cstr_from_ptr(unsafe { remain.add(1) }))
                 .as_ptr()
                 .cast_mut()
                 .cast::<u8>();
-            let comp_len =
-                (q as usize).wrapping_sub(remain as usize) - usize::from(unsafe { *q } != 0);
+            let comp_len = (q as usize).wrapping_sub(remain.as_ptr() as usize)
+                - usize::from(unsafe { *q } != 0);
             let mut new_p = vec![0u8; p_len + comp_len + 1];
             unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len) };
             unsafe { ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), comp_len) };
             p_len += comp_len;
             p_vec = new_p;
-            p = p_vec.as_mut_ptr();
+            p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
 
             // Shorten "remain".
             if unsafe { *q } != 0 {
@@ -1892,7 +1892,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr().add(2), p_len) };
                 p_len += 2;
                 p_vec = new_p;
-                p = p_vec.as_mut_ptr();
+                p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
             } else if !is_relative_to_current {
                 // Strip leading "./".
                 let mut q_idx = 0usize;
@@ -1911,7 +1911,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         // Ensure that the result will have no trailing path separator
         // if the argument had none.  But keep "/" or "//".
-        if !has_trailing_pathsep && after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
+        if !has_trailing_pathsep && after_pathsep(p.slice(p_len)) != 0 {
             unsafe {
                 *path_tail_with_sep(p.as_cstr())
                     .as_ptr()
@@ -2083,9 +2083,9 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let Some(flags_cstr) = tv_get_string_chk(&argvars[2]) else {
             return;
         };
-        let mut p = flags_cstr.as_ptr();
-        while !crate::memory::cstr_is_empty(p) {
-            match crate::memory::cstr_first_byte(p) {
+        let mut p = crate::strings::CStrCursor::from_ptr(flags_cstr.as_ptr());
+        while !p.is_empty() {
+            match p.first_byte() {
                 b'b' => binary = true,
                 b'a' => append = true,
                 b'D' => defer = true,
@@ -2097,7 +2097,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     return;
                 }
             }
-            p = p.wrapping_add(1);
+            p = crate::strings::CStrCursor::of(p.wrapping_add(1));
         }
     }
 
@@ -2114,7 +2114,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if fname.to_bytes().is_empty() {
         emsg(gettext(c"E482: Can't open file with an empty name"));
     } else {
-        let fname = fname.as_ptr();
+        let fname = crate::strings::CStrCursor::from_ptr(fname.as_ptr());
         let open_flags = (if append {
             K_FILE_APPEND
         } else {
@@ -2124,12 +2124,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else {
             K_FILE_CREATE
         }) | K_FILE_CREATE;
-        let mut error = file_open(
-            &mut fp,
-            crate::memory::cstr_as_opt_cstr(fname),
-            open_flags,
-            0o666,
-        );
+        let mut error = file_open(&mut fp, fname.as_opt_cstr(), open_flags, 0o666);
         if error != 0 {
             semsg!(
                 gettext(c"E482: Can't open file %s for writing: %s"),
@@ -2139,7 +2134,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else {
             if defer {
                 let mut tv = TypVal::new();
-                if let Some(full) = FullName_save(crate::memory::cstr_as_opt_cstr(fname), false) {
+                if let Some(full) = FullName_save(fname.as_opt_cstr(), false) {
                     crate::eval::typval::tv_set_string(&mut tv, Some(full.as_c_str()));
                 } else {
                     tv.v_type = VarType::VarString;

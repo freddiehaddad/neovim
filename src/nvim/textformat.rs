@@ -550,7 +550,7 @@ fn fmt_check_par(
     leader_flags: &mut Option<&'static CStr>,
     do_comments: bool,
 ) -> bool {
-    let ptr = ml_get(lnum).as_ptr().cast_mut();
+    let ptr = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
     if do_comments {
         *leader_flags = None;
         *leader_len = get_leader_len(
@@ -709,12 +709,12 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     }
 
     let pos = curwin_mut().w_cursor;
-    let old = get_cursor_line_ptr().as_ptr().cast_mut();
+    let old = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
 
     check_auto_format(false);
 
     let wasatend = pos.col == get_cursor_line_len();
-    if !crate::memory::cstr_is_empty(old) && !trailblank && wasatend {
+    if !old.is_empty() && !trailblank && wasatend {
         dec_cursor();
         let mut cc = gchar_cursor();
         if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(K_FO_ONE_LETTER) {
@@ -728,7 +728,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         curwin_mut().w_cursor = pos;
     }
 
-    if !crate::memory::cstr_is_empty(old)
+    if !old.is_empty()
         && !trailblank
         && !wasatend
         && pos.col > 0
@@ -743,7 +743,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
     if has_format_option(K_FO_WRAP_COMS)
         && !has_format_option(K_FO_WRAP)
-        && get_leader_len(crate::memory::cstr_as_bytes(old), None, false, true) == 0
+        && get_leader_len(old.as_bytes(), None, false, true) == 0
     {
         return;
     }

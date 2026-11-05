@@ -1049,7 +1049,7 @@ pub fn ml_recover(checkext: bool) {
         b0p = hp_zero_block(unsafe { &mut *hp });
     }
 
-    let namebuff_ptr = g_st().name_buff.as_mut_ptr();
+    let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
     if directly {
         #[cfg(windows)]
         path_to_slash(&mut b0p.b0_fname);
@@ -1059,12 +1059,7 @@ pub fn ml_recover(checkext: bool) {
             g_st().name_buff_bytes_mut(),
         );
 
-        if !setfname(
-            curbuf_mut(),
-            crate::memory::cstr_as_opt_cstr(namebuff_ptr),
-            None,
-            true,
-        ) {
+        if !setfname(curbuf_mut(), namebuff_ptr.as_opt_cstr(), None, true) {
             ml_recover_theend(
                 Some(&mut *mfp),
                 unsafe { hp.as_mut() },
@@ -3469,7 +3464,7 @@ fn findswapname(
         {
             let mut b0 = ZeroBlock::new();
             let mut differ = false;
-            let namebuff_ptr = g_st().name_buff.as_mut_ptr();
+            let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
 
             let fd = os_open(fname_cstr, O_RDONLY, 0);
             if fd >= 0 {
@@ -3496,7 +3491,7 @@ fn findswapname(
                             expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                             if fnamecmp_ino(
                                 buf_ffname_opt,
-                                crate::memory::cstr_as_opt_cstr(namebuff_ptr),
+                                namebuff_ptr.as_opt_cstr(),
                                 char_to_long(&b0.b0_ino),
                             ) {
                                 differ = true;
@@ -3506,7 +3501,7 @@ fn findswapname(
                         expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                         if fnamecmp_ino(
                             buf_ffname_opt,
-                            crate::memory::cstr_as_opt_cstr(namebuff_ptr),
+                            namebuff_ptr.as_opt_cstr(),
                             char_to_long(&b0.b0_ino),
                         ) {
                             differ = true;

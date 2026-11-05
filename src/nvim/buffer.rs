@@ -2006,7 +2006,7 @@ pub fn do_bufdel(
     forceit: bool,
 ) -> Option<&'static std::ffi::CStr> {
     let arg_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(arg_in));
-    let mut arg = arg_cstr.as_ptr().cast_mut();
+    let mut arg = crate::strings::CStrCursor::from_ptr(arg_cstr.as_ptr().cast_mut());
     let mut do_current = 0;
     let mut deleted: i32 = 0;
     let mut errormsg: Option<&'static std::ffi::CStr> = None;
@@ -2016,8 +2016,8 @@ pub fn do_bufdel(
         do_buffer(command, DOBUF_CURRENT, FORWARD, 0, i32::from(forceit));
     } else {
         if addr_count == 2 {
-            if !crate::memory::cstr_is_empty(arg) {
-                return Some(ex_errmsg(E_TRAILING_ARG, crate::memory::cstr_from_ptr(arg)));
+            if !arg.is_empty() {
+                return Some(ex_errmsg(E_TRAILING_ARG, arg.as_cstr()));
             }
             bnr = start_bnr;
         } else {
@@ -2037,11 +2037,11 @@ pub fn do_bufdel(
                     break;
                 }
             } else {
-                arg = crate::charset::skipwhite_ptr(arg);
-                if crate::memory::cstr_is_empty(arg) {
+                arg = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(arg));
+                if arg.is_empty() {
                     break;
                 }
-                if !ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
+                if !ascii_isdigit(arg.first_byte()) {
                     let p = crate::charset::skiptowhite_esc_ptr(arg);
                     bnr = buflist_findpat(
                         crate::memory::cstr_slice(
@@ -2055,12 +2055,14 @@ pub fn do_bufdel(
                     if bnr < 0 {
                         break;
                     }
-                    arg = p;
+                    arg = crate::strings::CStrCursor::of(p);
                 } else {
-                    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+                    let arg_bytes = arg.as_bytes();
                     let mut rem = arg_bytes;
                     bnr = getdigits_int(&mut rem, false, 0);
-                    arg = arg.wrapping_add(arg_bytes.len() - rem.len());
+                    arg = crate::strings::CStrCursor::of(
+                        arg.wrapping_add(arg_bytes.len() - rem.len()),
+                    );
                 }
             }
             os_breakcheck();
@@ -2079,7 +2081,7 @@ pub fn do_bufdel(
         }
 
         if deleted == 0 {
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+            let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
             let msg_cstr = if command == DOBUF_UNLOAD {
                 gettext(c"E515: No buffers were unloaded")
             } else if command == DOBUF_DEL {
@@ -2088,7 +2090,7 @@ pub fn do_bufdel(
                 gettext(c"E517: No buffers were wiped out")
             };
             crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg_cstr.to_bytes());
-            errormsg = Some(crate::memory::cstr_from_ptr(iobuff_ptr));
+            errormsg = Some(iobuff_ptr.as_cstr());
         } else if i64::from(deleted) >= opt_vars().p_report {
             if command == DOBUF_UNLOAD {
                 smsg!(
@@ -3727,7 +3729,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         if !ui_has(K_UIMESSAGES) || g_st().msg_col > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+        let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
         let mut len = vim_snprintf_safelen!(
             iobuff_ptr,
             IOSIZE - 20,

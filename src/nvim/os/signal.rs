@@ -229,7 +229,7 @@ fn deadly_signal(signum: i32) -> ! {
     set_vim_var_nr(VV_DYING, 1);
     g_st().v_dying = 1;
 
-    let io_buf = g_st().iobuff.as_mut_ptr();
+    let io_buf = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     vim_snprintf!(
         io_buf,
         IOSIZE,
@@ -242,7 +242,7 @@ fn deadly_signal(signum: i32) -> ! {
     }
 
     // Preserve files and exit.
-    preserve_exit(crate::memory::cstr_as_opt_cstr(io_buf));
+    preserve_exit(io_buf.as_opt_cstr());
 }
 
 pub(crate) fn on_signal(signum: i32) {

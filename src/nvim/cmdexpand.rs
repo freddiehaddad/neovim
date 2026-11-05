@@ -2930,14 +2930,14 @@ pub fn showmatches(
                     || xp.xp_context == EXPAND_SHELLCMD
                     || xp.xp_context == EXPAND_BUFFERS)
             {
-                let name_buff = g_st().name_buff.as_mut_ptr();
+                let name_buff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
                 home_replace(
                     None,
                     Some(match_i.as_c_str()),
                     g_st().name_buff_bytes_mut(),
                     true,
                 );
-                vim_strsize(crate::memory::cstr_from_ptr(name_buff))
+                vim_strsize(name_buff.as_cstr())
             } else {
                 vim_strsize(show_match(matches, i, showtail))
             };
@@ -3036,14 +3036,14 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
         return false;
     }
 
-    let mut s = xp.xp_pattern.as_ptr();
-    while (s as usize) < (end as usize) {
-        if rem_backslash(crate::memory::cstr_as_bytes(s)) {
-            s = s.wrapping_add(1);
-        } else if crate::strings::vim_haschr(c"*?[", crate::memory::cstr_first_byte(s)) {
+    let mut s = crate::strings::CStrCursor::from_ptr(xp.xp_pattern.as_ptr());
+    while (s.as_ptr() as usize) < (end as usize) {
+        if rem_backslash(s.as_bytes()) {
+            s = crate::strings::CStrCursor::of(s.wrapping_add(1));
+        } else if crate::strings::vim_haschr(c"*?[", s.first_byte()) {
             return false;
         }
-        s = s.wrapping_add(1);
+        s = crate::strings::CStrCursor::of(s.wrapping_add(1));
     }
     true
 }
@@ -3535,19 +3535,19 @@ fn find_cmd_after_isearch_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&
 
 /// Set the completion context for the :unlet command.
 fn set_context_in_unlet_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let mut p: *const u8 = arg.as_ptr().cast();
+    let mut p = crate::strings::CStrCursor::<u8>::of(arg.as_ptr().cast());
     while {
-        xp.xp_pattern = vim_strchr(crate::memory::cstr_from_ptr(p), b' ' as i32)
+        xp.xp_pattern = vim_strchr(p.as_cstr(), b' ' as i32)
             .map_or(crate::strings::CStrCursor::NULL, |s| {
                 crate::strings::CStrCursor::from_ptr(s.as_ptr().cast())
             });
         !xp.xp_pattern.is_null()
     } {
-        p = xp.xp_pattern.wrapping_add(1).as_ptr();
+        p = crate::strings::CStrCursor::<u8>::of(xp.xp_pattern.wrapping_add(1).as_ptr());
     }
 
     xp.xp_context = EXPAND_USER_VARS;
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p);
+    xp.xp_pattern = p;
 
     if xp.xp_pattern.first_byte() == b'$' {
         xp.xp_context = EXPAND_ENV_VARS;
@@ -3728,7 +3728,7 @@ fn set_context_by_cmdname<'a>(
     context: i32,
     forceit: bool,
 ) -> Option<&'a CStr> {
-    let mut arg: *const u8 = arg_cstr.as_ptr().cast();
+    let mut arg = crate::strings::CStrCursor::<u8>::of(arg_cstr.as_ptr().cast());
     match cmdidx {
         Cmdidx::CmdFind | Cmdidx::CmdSfind | Cmdidx::CmdTabfind => {
             if xp.xp_context == EXPAND_FILES {
@@ -3753,7 +3753,7 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdHelp => {
             xp.xp_context = EXPAND_HELP;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdAboveleft
         | Cmdidx::CmdArgdo
@@ -3803,7 +3803,7 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdDelcommand => {
             xp.xp_context = EXPAND_USER_COMMANDS;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdGlobal | Cmdidx::CmdVglobal => {
             let nextcmd = find_cmd_after_global_cmd(arg_cstr);
@@ -3837,13 +3837,13 @@ fn set_context_by_cmdname<'a>(
             return aucmd_set_expand_context(xp, arg_cstr, true);
         }
         Cmdidx::CmdSet => {
-            set_context_in_set_cmd(xp, crate::memory::cstr_from_ptr(arg), 0);
+            set_context_in_set_cmd(xp, arg.as_cstr(), 0);
         }
         Cmdidx::CmdSetglobal => {
-            set_context_in_set_cmd(xp, crate::memory::cstr_from_ptr(arg), OPT_GLOBAL);
+            set_context_in_set_cmd(xp, arg.as_cstr(), OPT_GLOBAL);
         }
         Cmdidx::CmdSetlocal => {
-            set_context_in_set_cmd(xp, crate::memory::cstr_from_ptr(arg), OPT_LOCAL);
+            set_context_in_set_cmd(xp, arg.as_cstr(), OPT_LOCAL);
         }
         Cmdidx::CmdTag
         | Cmdidx::CmdStag
@@ -3860,11 +3860,11 @@ fn set_context_by_cmdname<'a>(
             } else {
                 xp.xp_context = EXPAND_TAGS;
             }
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdAugroup => {
             xp.xp_context = EXPAND_AUGROUP;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdSyntax => {
             set_context_in_syntax_cmd(xp, arg_cstr);
@@ -3896,7 +3896,7 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdFunction | Cmdidx::CmdDelfunction => {
             xp.xp_context = EXPAND_USER_FUNC;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdEchohl => {
             set_context_in_echohl_cmd(xp, arg_cstr);
@@ -3909,24 +3909,24 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdBdelete | Cmdidx::CmdBwipeout | Cmdidx::CmdBunload => {
             while {
-                xp.xp_pattern = vim_strchr(crate::memory::cstr_from_ptr(arg), b' ' as i32)
+                xp.xp_pattern = vim_strchr(arg.as_cstr(), b' ' as i32)
                     .map_or(crate::strings::CStrCursor::NULL, |s| {
                         crate::strings::CStrCursor::from_ptr(s.as_ptr().cast())
                     });
                 !xp.xp_pattern.is_null()
             } {
-                arg = xp.xp_pattern.wrapping_add(1).as_ptr();
+                arg = crate::strings::CStrCursor::<u8>::of(xp.xp_pattern.wrapping_add(1).as_ptr());
             }
             xp.xp_context = EXPAND_BUFFERS;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdBuffer | Cmdidx::CmdSbuffer | Cmdidx::CmdPbuffer | Cmdidx::CmdChecktime => {
             xp.xp_context = EXPAND_BUFFERS;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdDiffget | Cmdidx::CmdDiffput => {
             xp.xp_context = EXPAND_DIFF_BUFFERS;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdUser | Cmdidx::CmdUserBuf => {
             return set_context_in_user_cmdarg(cmd, arg_cstr, argt, context, xp, forceit);
@@ -3972,7 +3972,7 @@ fn set_context_by_cmdname<'a>(
         | Cmdidx::CmdSmapclear
         | Cmdidx::CmdXmapclear => {
             xp.xp_context = EXPAND_MAPCLEAR;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdAbbreviate
         | Cmdidx::CmdNoreabbrev
@@ -4018,23 +4018,23 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdColorscheme => {
             xp.xp_context = EXPAND_COLORS;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdCompiler => {
             xp.xp_context = EXPAND_COMPILER;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdOwnsyntax => {
             xp.xp_context = EXPAND_OWNSYNTAX;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdSetfiletype => {
             xp.xp_context = EXPAND_FILETYPE;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdPackadd => {
             xp.xp_context = EXPAND_PACKADD;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdRuntime => {
             set_context_in_runtime_cmd(xp, arg_cstr);
@@ -4066,32 +4066,32 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdRetab => {
             xp.xp_context = EXPAND_RETAB;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdMessages => {
             xp.xp_context = EXPAND_MESSAGES;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdHistory => {
             xp.xp_context = EXPAND_HISTORY;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdSyntime => {
             xp.xp_context = EXPAND_SYNTIME;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdArgdelete => {
             while {
-                xp.xp_pattern = vim_strchr(crate::memory::cstr_from_ptr(arg), b' ' as i32)
+                xp.xp_pattern = vim_strchr(arg.as_cstr(), b' ' as i32)
                     .map_or(crate::strings::CStrCursor::NULL, |s| {
                         crate::strings::CStrCursor::from_ptr(s.as_ptr().cast())
                     });
                 !xp.xp_pattern.is_null()
             } {
-                arg = xp.xp_pattern.wrapping_add(1).as_ptr();
+                arg = crate::strings::CStrCursor::<u8>::of(xp.xp_pattern.wrapping_add(1).as_ptr());
             }
             xp.xp_context = EXPAND_ARGLIST;
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+            xp.xp_pattern = arg;
         }
         Cmdidx::CmdBreakadd | Cmdidx::CmdProfdel | Cmdidx::CmdBreakdel => {
             set_context_in_breakadd_cmd(xp, arg_cstr, cmdidx);
@@ -4389,13 +4389,13 @@ fn expand_files_and_dirs(
     mut flags: i32,
     options: i32,
 ) -> bool {
-    let mut pat: *mut u8 = pat_arg.as_ptr().cast_mut().cast();
+    let mut pat = crate::strings::CStrCursor::<u8>::of(pat_arg.as_ptr().cast_mut().cast());
     {
         let mut pat_owned: Option<Vec<u8>> = None;
 
         if xp.xp_backslash != XP_BS_NONE {
-            let pat_len = crate::memory::cstr_len(pat);
-            let mut pat_vec = crate::memory::cstr_slice(pat, pat_len + 1).to_vec();
+            let pat_len = pat.len();
+            let mut pat_vec = pat.slice(pat_len + 1).to_vec();
             let mut cur_len = pat_len;
             let mut idx = 0usize;
             while idx < cur_len {
@@ -4425,12 +4425,12 @@ fn expand_files_and_dirs(
                 }
                 idx += 1;
             }
-            pat = pat_vec.as_mut_ptr();
+            pat = crate::strings::CStrCursor::<u8>::of(pat_vec.as_mut_ptr());
             pat_owned = Some(pat_vec);
         }
 
         let ret = if xp.xp_context == EXPAND_FINDFUNC {
-            expand_findfunc(xp, crate::memory::cstr_from_ptr(pat), matches)
+            expand_findfunc(xp, pat.as_cstr(), matches)
         } else {
             if xp.xp_context == EXPAND_FILES {
                 flags |= EW_FILE;
@@ -4444,7 +4444,7 @@ fn expand_files_and_dirs(
             if (options & WILD_ICASE) != 0 {
                 flags |= EW_ICASE;
             }
-            expand_wildcards_eval(crate::memory::cstr_from_ptr(pat), matches, flags)
+            expand_wildcards_eval(pat.as_cstr(), matches, flags)
         };
         drop(pat_owned);
         #[cfg(windows)]
@@ -4520,9 +4520,9 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     }
 
     let si = script_item(idx + 1);
-    let name_buff = g_st().name_buff.as_mut_ptr();
+    let name_buff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
     home_replace(None, (*si).name_cstr(), g_st().name_buff_bytes_mut(), true);
-    Some(crate::memory::cstr_from_ptr(name_buff))
+    Some(name_buff.as_cstr())
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":retab".
@@ -5225,7 +5225,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
         }
         idx += 1;
     }
-    let pat = pat_vec.as_mut_ptr();
+    let pat = crate::strings::CStrCursor::from_ptr(pat_vec.as_mut_ptr());
     let mut e: *mut u8;
     let mut s: *mut u8;
 
@@ -5239,7 +5239,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
     {
         c".".as_ptr().cast_mut().cast()
     } else {
-        if !path_is_absolute(crate::memory::cstr_as_bytes(pat)) {
+        if !path_is_absolute(pat.as_bytes()) {
             path_owned = vim_getenv(c"PATH");
         }
         path_owned
@@ -5528,7 +5528,7 @@ pub fn globpath(
     expand_options: i32,
     dirs: bool,
 ) {
-    let path = path_arg.as_ptr().cast_mut();
+    let path = crate::strings::CStrCursor::from_ptr(path_arg.as_ptr().cast_mut());
     let file_bytes = file_arg.to_bytes();
     let filelen = file_bytes.len();
     let mut buf_vec = vec![0u8; MAXPATHL];
@@ -5540,7 +5540,7 @@ pub fn globpath(
         EXPAND_FILES
     };
 
-    let mut path_bytes = crate::memory::cstr_as_bytes(path);
+    let mut path_bytes = path.as_bytes();
     while !path_bytes.is_empty() {
         let mut pathlen = copy_option_part(&mut path_bytes, &mut buf_vec[..MAXPATHL], c",");
         let seplen = if buf_vec[0] != 0 && after_pathsep(&buf_vec[..pathlen]) == 0 {
@@ -6015,7 +6015,7 @@ fn copy_substring_from_pos(
 
     let mut ga: Vec<u8> = Vec::with_capacity(128);
 
-    let start_line = ml_get(start.lnum).as_ptr().cast_mut();
+    let start_line = crate::strings::CStrCursor::from_ptr(ml_get(start.lnum).as_ptr().cast_mut());
     let start_ptr = start_line.wrapping_add(start.col as usize);
     let is_single_line = start.lnum == end.lnum;
 
@@ -6036,9 +6036,9 @@ fn copy_substring_from_pos(
     if !is_single_line {
         let mut lnum = start.lnum + 1;
         while lnum < end.lnum {
-            let line = ml_get(lnum).as_ptr().cast_mut();
+            let line = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
             let linelen = ml_get_len(lnum);
-            ga.extend_from_slice(crate::memory::cstr_slice(line, linelen as usize));
+            ga.extend_from_slice(line.slice(linelen as usize));
             if exacttext {
                 ga.extend_from_slice(b"\\n");
             } else {

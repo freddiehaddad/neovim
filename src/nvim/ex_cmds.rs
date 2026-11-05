@@ -337,7 +337,7 @@ use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
-    let data = get_cursor_pos_ptr().as_ptr().cast_mut();
+    let data = crate::strings::CStrCursor::from_ptr(get_cursor_pos_ptr().as_ptr().cast_mut());
     let len = utfc_ptr2len(data) as usize;
 
     if len == 0 {
@@ -351,7 +351,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
 
     let mut c = utf_ptr2char(data);
     let mut off: usize = 0;
-    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+    let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
 
     if c < 0x80 {
         if c == NL {
@@ -400,7 +400,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
 
         msg_multiline(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(iobuff_ptr)),
+            cstr_as_string(iobuff_ptr.as_opt_cstr()),
             0,
             true,
             false,
@@ -460,7 +460,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
         }
 
         msg_multiline(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(iobuff_ptr)),
+            cstr_as_string(iobuff_ptr.as_opt_cstr()),
             0,
             true,
             false,
@@ -5217,7 +5217,7 @@ fn show_sub(
                         str_buf.resize(line_size as usize, 0);
                     }
                 }
-                let str = str_buf.as_mut_ptr();
+                let str = crate::strings::CStrCursor::from_ptr(str_buf.as_mut_ptr());
                 vim_snprintf!(
                     str.cast(),
                     line_size as usize,
@@ -5227,7 +5227,7 @@ fn show_sub(
                     line,
                 );
                 if linenr_preview == 0 {
-                    ml_replace_buf(cp_buf, 1, crate::memory::cstr_as_bytes(str), true, false);
+                    ml_replace_buf(cp_buf, 1, str.as_bytes(), true, false);
                 } else {
                     ml_append_buf(
                         cp_buf,
@@ -5290,7 +5290,7 @@ pub fn skip_vimgrep_pat<'a>(
     mut flags: Option<&mut i32>,
 ) -> Option<&'a CStr> {
     let p_bytes = p_cstr.to_bytes();
-    let p_base = p_cstr.as_ptr();
+    let p_base = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
     let first_b = p_bytes.first().copied().unwrap_or(0);
     let mut off: usize;
     if vim_is_idc(i32::from(first_b)) {
@@ -5308,7 +5308,7 @@ pub fn skip_vimgrep_pat<'a>(
         return None;
     } else {
         let c = i32::from(first_b);
-        let after_delim = crate::memory::cstr_from_ptr(p_base.wrapping_add(1));
+        let after_delim = p_base.wrapping_add(1).as_cstr();
         let end_cstr = skip_regexp(after_delim, c, 1);
         let pat_len = (end_cstr.as_ptr() as usize) - (after_delim.as_ptr() as usize);
         off = 1 + pat_len;
@@ -5338,7 +5338,7 @@ pub fn skip_vimgrep_pat<'a>(
         }
         off += count;
     }
-    Some(crate::memory::cstr_from_ptr(p_base.wrapping_add(off)))
+    Some(p_base.wrapping_add(off).as_cstr())
 }
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).

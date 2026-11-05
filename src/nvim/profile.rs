@@ -524,8 +524,8 @@ fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, pre
             &fp.uf_tm_self,
             prefer_self,
         );
-        let name_ptr = fp.uf_name.as_ptr();
-        if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
+        let name_ptr = crate::strings::CStrCursor::from_ptr(fp.uf_name.as_ptr());
+        if (name_ptr.first_byte()) == K_SPECIAL {
             fprintf!(fd, c" <SNR>%s()\n", name_ptr.wrapping_add(3));
         } else {
             fprintf!(fd, c" %s()\n", name_ptr);
@@ -652,8 +652,8 @@ fn func_dump_profile(fd: &CFile) {
         if fp.uf_prof_initialized {
             sorttab.push(fp);
 
-            let name_ptr = fp.uf_name.as_ptr();
-            if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
+            let name_ptr = crate::strings::CStrCursor::from_ptr(fp.uf_name.as_ptr());
+            if (name_ptr.first_byte()) == K_SPECIAL {
                 fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
             } else {
                 fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);

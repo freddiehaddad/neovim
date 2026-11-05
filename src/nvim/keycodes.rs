@@ -2150,7 +2150,7 @@ pub fn get_special_key(
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
     let mut string_buf = SPECIAL_KEY_STRING.handle();
-    let string = string_buf.as_mut_ptr();
+    let string = crate::strings::CStrCursor::from_ptr(string_buf.as_mut_ptr());
     let mut is_ascii_ctrl = false;
 
     string_buf[0] = b'<';

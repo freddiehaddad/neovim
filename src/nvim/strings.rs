@@ -102,6 +102,45 @@ impl<T> PartialEq<*const T> for CStrCursor<T> {
 
 impl<T> Eq for CStrCursor<T> {}
 
+pub trait AsCStrCursor<T> {
+    fn into_cstr_cursor(self) -> CStrCursor<T>;
+}
+
+impl<T> AsCStrCursor<T> for CStrCursor<T> {
+    #[inline(always)]
+    fn into_cstr_cursor(self) -> CStrCursor<T> {
+        self
+    }
+}
+
+impl<T> AsCStrCursor<T> for *const T {
+    #[inline(always)]
+    fn into_cstr_cursor(self) -> CStrCursor<T> {
+        CStrCursor::from_ptr(self)
+    }
+}
+
+impl<T> AsCStrCursor<T> for *mut T {
+    #[inline(always)]
+    fn into_cstr_cursor(self) -> CStrCursor<T> {
+        CStrCursor::new(self)
+    }
+}
+
+impl<T> AsCStrCursor<T> for &CStr {
+    #[inline(always)]
+    fn into_cstr_cursor(self) -> CStrCursor<T> {
+        CStrCursor::from_ptr(self.as_ptr().cast())
+    }
+}
+
+impl<T> AsCStrCursor<T> for Option<&CStr> {
+    #[inline(always)]
+    fn into_cstr_cursor(self) -> CStrCursor<T> {
+        CStrCursor::from_opt_cstr(self)
+    }
+}
+
 impl<T> std::fmt::Debug for CStrCursor<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Pointer::fmt(&self.0, f)
@@ -128,6 +167,11 @@ impl<T> CStrCursor<T> {
     #[inline(always)]
     pub const fn new(p: *mut T) -> Self {
         Self(p)
+    }
+
+    #[inline(always)]
+    pub fn of(val: impl AsCStrCursor<T>) -> Self {
+        val.into_cstr_cursor()
     }
 
     #[inline(always)]

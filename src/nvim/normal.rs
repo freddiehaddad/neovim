@@ -2881,7 +2881,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         return false;
     }
 
-    let sc_buf = g_st().showcmd_buf.as_mut_ptr();
+    let sc_buf = crate::strings::CStrCursor::from_ptr(g_st().showcmd_buf.as_mut_ptr());
 
     if norm_st().showcmd_visual {
         g_st().showcmd_buf[0] = 0;
@@ -2906,7 +2906,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         mbyte_buf.as_ptr().cast()
     };
 
-    let old_len = crate::memory::cstr_len(sc_buf);
+    let old_len = sc_buf.len();
     let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes_with_nul();
     let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
@@ -2940,8 +2940,8 @@ fn del_from_showcmd(mut len: i32) {
     if !opt_vars().p_sc {
         return;
     }
-    let sc_buf = g_st().showcmd_buf.as_mut_ptr();
-    let old_len = crate::memory::cstr_len(sc_buf) as i32;
+    let sc_buf = crate::strings::CStrCursor::from_ptr(g_st().showcmd_buf.as_mut_ptr());
+    let old_len = sc_buf.len() as i32;
     len = len.min(old_len);
     g_st().showcmd_buf[(old_len - len) as usize] = 0;
 
@@ -2996,7 +2996,7 @@ pub fn display_showcmd() {
 
     let mut mc_buf: [u8; 16] = [0; 16];
     let mc_len = mc_showcmd(&mut mc_buf);
-    let sc_buf = g_st().showcmd_buf.as_ptr();
+    let sc_buf = crate::strings::CStrCursor::from_ptr(g_st().showcmd_buf.as_ptr());
 
     if ui_has(K_UIMESSAGES) {
         let mut content_items: [Object; 1] = [NIL_OBJ];
@@ -3008,7 +3008,7 @@ pub fn display_showcmd() {
             if norm_st().showcmd_is_clear {
                 b""
             } else {
-                crate::memory::cstr_as_bytes(sc_buf)
+                sc_buf.as_bytes()
             },
         );
         let mut size = 0;
@@ -3053,7 +3053,7 @@ pub fn display_showcmd() {
     if !norm_st().showcmd_is_clear {
         len += grid_line_puts(
             g_st().sc_col + len,
-            crate::memory::cstr_from_ptr(sc_buf),
+            sc_buf.as_cstr(),
             -1,
             hl_attr(HLF_MSG as i32),
         );
@@ -3279,7 +3279,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
 
         let patsize = len + 7;
         let mut pat_vec = vec![0u8; patsize];
-        let pat = pat_vec.as_mut_ptr().cast();
+        let pat = crate::strings::CStrCursor::from_ptr(pat_vec.as_mut_ptr().cast());
 
         assert!(patsize <= i32::MAX as usize);
         let patlen = vim_snprintf!(
@@ -3324,7 +3324,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
                 &mut cursor_pos,
                 None,
                 FORWARD,
-                crate::memory::cstr_from_ptr(pat),
+                pat.as_cstr(),
                 patlen,
                 1,
                 searchflags,
@@ -4189,7 +4189,7 @@ fn nv_k_getcmd(
         return true;
     }
 
-    let buf = buf_slice.as_mut_ptr().cast();
+    let buf = crate::strings::CStrCursor::from_ptr(buf_slice.as_mut_ptr().cast());
     if kp_ex {
         *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp_ptr) as usize;
         if cap.count0 != 0 {
@@ -4359,7 +4359,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         }
     }
 
-    let mut ptr: *const u8 = ident_slice.as_ptr();
+    let mut ptr = crate::strings::CStrCursor::<u8>::of(ident_slice.as_ptr());
     let mut n: usize = ident_slice.len();
     if cmdchar == b'K' as i32 && kp_helpbang && !visual_sel {
         buf_vec[..6].copy_from_slice(b"help!\0");
@@ -4402,7 +4402,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         let mut p_idx = buflen;
         while n > 0 {
             n -= 1;
-            let first = crate::memory::cstr_first_byte(ptr);
+            let first = ptr.first_byte();
             if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(aux_ptr), i32::from(first)) {
                 buf_vec[p_idx] = b'\\';
                 p_idx += 1;
@@ -4410,15 +4410,15 @@ fn nv_ident(cap: &mut Cmdarg) {
             let len = (utfc_ptr2len(ptr) - 1) as usize;
             let mut i = 0;
             while i < len && n > 0 {
-                buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr);
+                buf_vec[p_idx] = ptr.first_byte();
                 p_idx += 1;
-                ptr = ptr.wrapping_add(1);
+                ptr = crate::strings::CStrCursor::<u8>::of(ptr.wrapping_add(1));
                 i += 1;
                 n -= 1;
             }
-            buf_vec[p_idx] = crate::memory::cstr_first_byte(ptr);
+            buf_vec[p_idx] = ptr.first_byte();
             p_idx += 1;
-            ptr = ptr.wrapping_add(1);
+            ptr = crate::strings::CStrCursor::<u8>::of(ptr.wrapping_add(1));
         }
         buf_vec[p_idx] = 0;
         buflen = p_idx;
@@ -4427,9 +4427,11 @@ fn nv_ident(cap: &mut Cmdarg) {
     if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
         if !g_cmd
             && vim_iswordp(crate::memory::cstr_as_bytes({
-                let _l = get_cursor_line_ptr().as_ptr().cast_mut();
-                let _p: *mut std::ffi::c_char = ptr.cast_mut().cast();
-                if (_p as usize) > (_l as usize) {
+                let _l =
+                    crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+                let mut _p =
+                    crate::strings::CStrCursor::<std::ffi::c_char>::of(ptr.cast_mut().cast());
+                if (_p.as_ptr() as usize) > (_l.as_ptr() as usize) {
                     _p.wrapping_sub(
                         1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
                     )

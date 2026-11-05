@@ -1699,18 +1699,16 @@ pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
     let fname =
         crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(fname_vec.as_mut_ptr().cast());
     if !dir_of_file_exists(fname.as_cstr()) {
-        let tail = path_tail_with_sep(fname.as_cstr()).as_ptr().cast_mut();
-        let last_char = tail
-            .wrapping_add(crate::memory::cstr_len(tail))
-            .wrapping_sub(1);
+        let tail = crate::strings::CStrCursor::from_ptr(
+            path_tail_with_sep(fname.as_cstr()).as_ptr().cast_mut(),
+        );
+        let last_char = tail.wrapping_add(tail.len()).wrapping_sub(1);
         if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(last_char))) {
             emsg(gettext(E_NONAME));
             return -1;
         }
-        let c = unsafe { *tail };
-        unsafe {
-            *tail = NUL;
-        }
+        let c = tail.first_byte();
+        tail.set_byte(0, (NUL) as u8);
         let mut failed_dir: Option<std::ffi::CString> = None;
         let r = os_mkdir_recurse(fname.as_cstr(), mode, &mut failed_dir, None);
         if r < 0 {
@@ -1720,9 +1718,7 @@ pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
                 unsafe { uv_strerror(r) },
             );
         }
-        unsafe {
-            *tail = c;
-        }
+        tail.set_byte(0, c);
         return r;
     }
     0

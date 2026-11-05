@@ -338,7 +338,7 @@ fn one_function_arg<'a>(
     newargs: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> &'a CStr {
-    let arg = arg_in.as_ptr().cast::<u8>();
+    let arg = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
     let bytes = arg_in.to_bytes();
     let len = bytes
         .iter()
@@ -374,7 +374,7 @@ fn one_function_arg<'a>(
         newargs.push(arg_copy);
     }
 
-    crate::memory::cstr_from_ptr(arg.wrapping_add(len))
+    arg.wrapping_add(len).as_cstr()
 }
 
 /// Get function arguments.
@@ -771,44 +771,44 @@ fn get_func_arguments(
     argvars: &mut [TypVal],
     argcount: &mut i32,
 ) -> bool {
-    let mut argp: *mut u8 = arg.as_ptr().cast_mut().cast();
+    let mut argp = crate::strings::CStrCursor::<u8>::of(arg.as_ptr().cast_mut().cast());
     let mut ret = true;
 
     while *argcount < MAX_FUNC_ARGS as i32 - partial_argc {
-        argp =
-            crate::charset::skipwhite_ptr(argp.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
+        argp = crate::strings::CStrCursor::<u8>::of(
+            crate::charset::skipwhite_ptr(argp.wrapping_add(1).cast::<std::ffi::c_char>()).cast(),
+        );
 
-        if crate::memory::cstr_first_byte(argp) == b')'
-            || crate::memory::cstr_first_byte(argp) == b','
-            || crate::memory::cstr_is_empty(argp)
-        {
+        if argp.first_byte() == b')' || argp.first_byte() == b',' || argp.is_empty() {
             break;
         }
-        let mut argp_cstr = crate::memory::cstr_from_ptr(argp);
+        let mut argp_cstr = argp.as_cstr();
         if !eval1(
             &mut argp_cstr,
             &mut argvars[*argcount as usize],
             evalarg.as_deref_mut(),
         ) {
-            argp = argp_cstr.as_ptr().cast_mut().cast();
+            argp = crate::strings::CStrCursor::<u8>::of(argp_cstr.as_ptr().cast_mut().cast());
             ret = false;
             break;
         }
-        argp = argp_cstr.as_ptr().cast_mut().cast();
+        argp = crate::strings::CStrCursor::<u8>::of(argp_cstr.as_ptr().cast_mut().cast());
         *argcount += 1;
-        if crate::memory::cstr_first_byte(argp) != b',' {
+        if argp.first_byte() != b',' {
             break;
         }
     }
 
-    argp = crate::charset::skipwhite_ptr(argp.cast::<std::ffi::c_char>()).cast();
-    if crate::memory::cstr_first_byte(argp) == b')' {
-        argp = argp.wrapping_add(1);
+    argp = crate::strings::CStrCursor::<u8>::of(
+        crate::charset::skipwhite_ptr(argp.cast::<std::ffi::c_char>()).cast(),
+    );
+    if argp.first_byte() == b')' {
+        argp = crate::strings::CStrCursor::<u8>::of(argp.wrapping_add(1));
     } else {
         ret = false;
     }
 
-    *arg = crate::memory::cstr_from_ptr(argp);
+    *arg = argp.as_cstr();
 
     ret
 }
@@ -1400,13 +1400,13 @@ pub fn call_user_func(
                     g_st().emsg_off += 1;
                     let tf = encode_tv2string(arg_tv, None);
                     g_st().emsg_off -= 1;
-                    let mut s = tf.as_ptr().cast_mut();
+                    let mut s = crate::strings::CStrCursor::from_ptr(tf.as_ptr().cast_mut());
                     let mut buf = [0u8; MSG_BUF_LEN];
                     if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                         trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
-                        s = buf.as_mut_ptr().cast();
+                        s = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
                     }
-                    msg_puts(crate::memory::cstr_from_ptr(s));
+                    msg_puts(s.as_cstr());
                 }
             }
             msg_puts(c")");
@@ -1507,10 +1507,10 @@ pub fn call_user_func(
             g_st().emsg_off += 1;
             let tf = encode_tv2string(fc.fc_rettv.borrow_mut(), None);
             g_st().emsg_off -= 1;
-            let mut s = tf.as_ptr().cast_mut();
+            let mut s = crate::strings::CStrCursor::of(tf.as_ptr().cast_mut());
             if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                 trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
-                s = buf.as_mut_ptr().cast();
+                s = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
             }
             smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
         }
@@ -3402,7 +3402,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             return Some(uf2hikey(&*fp));
         }
 
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+        let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
         let len = cat_func_name(g_st().iobuff_bytes_mut(), &*fp);
         if xp.xp_context != EXPAND_USER_FUNC {
             crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
@@ -3410,7 +3410,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
                 crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len + 1..], b")");
             }
         }
-        return Some(crate::memory::cstr_from_ptr(iobuff_ptr));
+        return Some(iobuff_ptr.as_cstr());
     }
     None
 }
@@ -3432,7 +3432,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         }
         return;
     };
-    let name = name_cstr.as_ptr();
+    let name = crate::strings::CStrCursor::from_ptr(name_cstr.as_ptr());
     if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
         crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p)),
     ))) == 0
@@ -3450,7 +3450,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         }
     }
 
-    if (crate::memory::cstr_first_byte(name)).is_ascii_digit() && fudi.fd_dict.is_null() {
+    if (name.first_byte()).is_ascii_digit() && fudi.fd_dict.is_null() {
         if !eap.skip {
             semsg!(gettext(E_INVARG2), eap.arg);
         }
@@ -3976,7 +3976,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
         (c"".as_ptr(), 0)
     };
 
-    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+    let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
     crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
     crate::memory::copy_bytes_to_c_buf(
         &mut g_st().iobuff_bytes_mut()[8..],
@@ -3988,7 +3988,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
         iobuff_len = IOSIZE - 1;
     }
     drop(tofree);
-    cstr_from_bytes(crate::memory::cstr_slice(iobuff_ptr, iobuff_len))
+    cstr_from_bytes(iobuff_ptr.slice(iobuff_len))
 }
 
 /// Get next function line.

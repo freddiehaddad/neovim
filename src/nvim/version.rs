@@ -4241,7 +4241,7 @@ pub fn intro_message(colon: bool) {
 }
 
 fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
-    let mesg = mesg_cstr.as_ptr();
+    let mesg = crate::strings::CStrCursor::from_ptr(mesg_cstr.as_ptr());
     let mesg_bytes = mesg_cstr.to_bytes();
     {
         let mut col = (g_st().columns_global - vim_strsize(mesg_cstr)) / 2;
@@ -4290,12 +4290,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             let attr = if is_sep { nontext_attr } else { string_attr };
             let mut idx = 0usize;
             while idx < mesg_bytes.len() {
-                col += grid_line_puts(
-                    col,
-                    crate::memory::cstr_from_ptr(mesg.wrapping_add(idx)),
-                    clen,
-                    attr,
-                );
+                col += grid_line_puts(col, mesg.wrapping_add(idx).as_cstr(), clen, attr);
                 idx += clen as usize;
             }
             grid_line_flush();

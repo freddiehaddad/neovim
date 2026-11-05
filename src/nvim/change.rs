@@ -667,7 +667,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
     let mut buf_cstr = [0u8; MB_MAXCHAR + 1];
     let copy_len = buf_slice.len().min(MB_MAXCHAR);
     buf_cstr[..copy_len].copy_from_slice(&buf_slice[..copy_len]);
-    let buf_ptr = buf_cstr.as_ptr().cast::<u8>();
+    let buf_ptr = crate::strings::CStrCursor::from_ptr(buf_cstr.as_ptr().cast::<u8>());
     {
         if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
@@ -675,7 +675,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
 
         let col = curwin_mut().w_cursor.col as usize;
         let lnum = curwin_mut().w_cursor.lnum;
-        let oldp = ml_get(lnum).as_ptr().cast_mut();
+        let oldp = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
         let linelen = ml_get_len(lnum) as usize + 1;
 
         let mut oldlen: usize = 0;
@@ -697,19 +697,14 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     None,
                     0,
                 );
-                let new_vcol = vcol
-                    + win_chartabsize(curwin_mut(), crate::memory::cstr_as_bytes(buf_ptr), vcol);
-                while !crate::memory::cstr_is_empty(oldp.wrapping_add(col + oldlen))
-                    && vcol < new_vcol
-                {
+                let new_vcol = vcol + win_chartabsize(curwin_mut(), buf_ptr.as_bytes(), vcol);
+                while !oldp.wrapping_add(col + oldlen).is_empty() && vcol < new_vcol {
                     vcol += win_chartabsize(
                         curwin_mut(),
-                        crate::memory::cstr_as_bytes(oldp.wrapping_add(col + oldlen)),
+                        oldp.wrapping_add(col + oldlen).as_bytes(),
                         vcol,
                     );
-                    if vcol > new_vcol
-                        && crate::memory::cstr_first_byte(oldp.wrapping_add(col + oldlen)) == TAB
-                    {
+                    if vcol > new_vcol && oldp.wrapping_add(col + oldlen).first_byte() == TAB {
                         break;
                     }
                     oldlen += utfc_ptr2len(oldp.wrapping_add(col + oldlen)) as usize;
@@ -718,15 +713,15 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     }
                 }
                 curwin_mut().w_onebuf_opt.wo_list = old_list;
-            } else if !crate::memory::cstr_is_empty(oldp.wrapping_add(col)) {
+            } else if !oldp.wrapping_add(col).is_empty() {
                 oldlen = utfc_ptr2len(oldp.wrapping_add(col)) as usize;
             }
 
             replace_push_nul();
-            replace_push(crate::memory::cstr_slice(oldp.wrapping_add(col), oldlen));
+            replace_push(oldp.wrapping_add(col).slice(oldlen));
         }
 
-        let old_slice = crate::memory::cstr_slice(oldp, linelen);
+        let old_slice = oldp.slice(linelen);
         let mut newp_vec = vec![0u8; linelen + newlen - oldlen];
         newp_vec[..col].copy_from_slice(&old_slice[..col]);
         if linelen > col + oldlen {
@@ -814,7 +809,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     let lnum = curwin_mut().w_cursor.lnum;
     let mut col = curwin_mut().w_cursor.col;
     let mut fixpos = fixpos_arg;
-    let oldp = ml_get(lnum).as_ptr().cast_mut();
+    let oldp = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
     let oldlen = ml_get_len(lnum);
 
     if col >= oldlen {
@@ -846,8 +841,8 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
                 count = utf_ptr2len(oldp.wrapping_add(n as usize));
                 n += count;
                 if !utf_composinglike(
-                    crate::memory::cstr_as_bytes(oldp.wrapping_add(col as usize)),
-                    crate::memory::cstr_as_bytes(oldp.wrapping_add(n as usize)),
+                    oldp.wrapping_add(col as usize).as_bytes(),
+                    oldp.wrapping_add(n as usize).as_bytes(),
                     Some(&mut state),
                 ) {
                     break;
@@ -1891,12 +1886,12 @@ pub fn open_line(
 pub fn truncate_line(fixpos: i32) {
     let lnum = curwin_mut().w_cursor.lnum;
     let col = curwin_mut().w_cursor.col;
-    let old_line = ml_get(lnum).as_ptr().cast_mut();
+    let old_line = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
     let mut newp_vec: Vec<u8> = if col == 0 {
         vec![0]
     } else {
         let mut v = Vec::with_capacity(col as usize + 1);
-        v.extend_from_slice(crate::memory::cstr_slice(old_line, col as usize));
+        v.extend_from_slice(old_line.slice(col as usize));
         v.push(0);
         v
     };
@@ -1957,7 +1952,7 @@ pub fn get_leader_len(
     let mut got_com = false;
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
     let mut middle_match_len: usize = 0;
-    let mut saved_flags: *mut u8 = ptr::null_mut();
+    let mut saved_flags = crate::strings::CStrCursor::<u8>::NULL;
 
     let mut result: usize = 0;
     let mut i: usize = 0;
@@ -2027,7 +2022,8 @@ pub fn get_leader_len(
             if part_flags.contains(&COM_MIDDLE) {
                 if middle_match_len == 0 {
                     middle_match_len = j;
-                    saved_flags = prev_list.as_ptr().cast_mut().cast();
+                    saved_flags =
+                        crate::strings::CStrCursor::<u8>::of(prev_list.as_ptr().cast_mut().cast());
                 }
                 continue;
             }
@@ -2044,7 +2040,7 @@ pub fn get_leader_len(
 
         if middle_match_len != 0 {
             if !got_com && let Some(flags_out) = flags.as_deref_mut() {
-                *flags_out = crate::memory::cstr_as_opt_cstr(saved_flags);
+                *flags_out = saved_flags.as_opt_cstr();
             }
             i += middle_match_len;
             found_one = true;

@@ -1038,7 +1038,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
 
     let mut lnum: Linenr = -1;
     if let Some(fname_cstr) = grab_file_name(prenum1, &mut lnum) {
-        let ptr = fname_cstr.as_ptr().cast_mut();
+        let ptr = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr().cast_mut());
         let oldtab = g_st().curtab;
         let oldwin = curwin_mut();
         setpcmark();
@@ -1047,7 +1047,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
         if (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && g_st().cmdmod.cmod_tab == 0
         {
-            let found = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(ptr));
+            let found = buflist_findname_exp(ptr.as_opt_cstr());
             wp = crate::globals::GraphPtr::from(swbuf_goto_win_with_buf(found));
         }
 
@@ -1055,7 +1055,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
             reset_binding(curwin_mut());
             if !do_ecmd(
                 0,
-                crate::memory::cstr_as_opt_cstr(ptr),
+                ptr.as_opt_cstr(),
                 None,
                 None,
                 ECMD_LASTL,
@@ -5806,38 +5806,34 @@ pub fn update_cwd(cause: CdCause) {
     }
 
     if let Some(ref new_dir_cstr) = new_dir {
-        let new_dir_ptr = new_dir_cstr.as_ptr().cast_mut();
+        let new_dir_ptr = crate::strings::CStrCursor::from_ptr(new_dir_cstr.as_ptr().cast_mut());
         if g_st().globaldir.is_none() && cwd[0] != 0 {
             g_st().globaldir = Some(crate::memory::cstring_until_nul(&cwd));
         }
         let dir_differs = !path_equal(
-            crate::memory::cstr_from_ptr(new_dir_ptr),
+            new_dir_ptr.as_cstr(),
             crate::memory::cstr_until_nul(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, true);
         }
-        if os_chdir(crate::memory::cstr_from_ptr(new_dir_ptr)) == 0
-            && !opt_vars().p_acd
-            && dir_differs
-        {
+        if os_chdir(new_dir_ptr.as_cstr()) == 0 && !opt_vars().p_acd && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, false);
         }
         g_st().last_chdir_reason = None;
         shorten_fnames(true);
     } else if let Some(gdir) = g_st().globaldir.take() {
-        let gdir_ptr = gdir.as_ptr().cast_mut();
+        let gdir_ptr = crate::strings::CStrCursor::from_ptr(gdir.as_ptr().cast_mut());
         let dir_differs = !path_equal(
-            crate::memory::cstr_from_ptr(gdir_ptr),
+            gdir_ptr.as_cstr(),
             crate::memory::cstr_until_nul(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, true);
         }
-        if os_chdir(crate::memory::cstr_from_ptr(gdir_ptr)) == 0 && !opt_vars().p_acd && dir_differs
-        {
+        if os_chdir(gdir_ptr.as_cstr()) == 0 && !opt_vars().p_acd && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, false);
         }
         g_st().last_chdir_reason = None;

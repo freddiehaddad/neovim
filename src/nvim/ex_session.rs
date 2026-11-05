@@ -549,7 +549,7 @@ fn store_session_globals(fd: &CFile) -> bool {
 }
 
 fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
-    let dirnow = dirnow.as_ptr();
+    let dirnow = crate::strings::CStrCursor::from_ptr(dirnow.as_ptr());
     {
         let mut only_save_windows = true;
         let mut edited_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
@@ -587,10 +587,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         } else if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             let sname = home_replace_save(
                 None,
-                g_st()
-                    .globaldir
-                    .as_deref()
-                    .or_else(|| crate::memory::cstr_as_opt_cstr(dirnow)),
+                g_st().globaldir.as_deref().or_else(|| dirnow.as_opt_cstr()),
             );
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
@@ -659,13 +656,13 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 {
                     continue;
                 }
-                let b_localdir_ptr = b_localdir.as_ptr();
+                let b_localdir_ptr = crate::strings::CStrCursor::from_ptr(b_localdir.as_ptr());
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
                     || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
-                    || fd.puts(crate::memory::cstr_from_ptr(b_localdir_ptr)) < 0
+                    || fd.puts(b_localdir_ptr.as_cstr()) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
                 {
                     return false;

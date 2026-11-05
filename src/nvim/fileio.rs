@@ -2724,7 +2724,8 @@ pub fn readfile(
                 }
 
                 if !filtering && (flags & READ_DUMMY) == 0 && !silent {
-                    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
+                    let iobuf_ptr =
+                        crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
                     add_quoted_fname(
                         g_st().iobuff_bytes_mut(),
                         g_st().curbuf.opt(),
@@ -2732,7 +2733,7 @@ pub fn readfile(
                     );
                     let mut c = false;
 
-                    let mut buflen = crate::memory::cstr_len(iobuf_ptr) as i32;
+                    let mut buflen = iobuf_ptr.len() as i32;
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm as u64) {
@@ -3260,8 +3261,8 @@ pub fn msg_add_fileformat(eol_type: i32) -> bool {
 
 /// Append line and character count to IObuff.
 pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
-    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-    let mut len = crate::memory::cstr_len(iobuf_ptr);
+    let iobuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let mut len = iobuf_ptr.len();
     let space = if insert_space != 0 {
         c" ".as_ptr()
     } else {
@@ -3718,19 +3719,12 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
 
 /// Rename a file, falling back to copying across filesystems if needed.
 pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
-    let from_ptr = from.as_ptr();
-    let to_ptr = to.as_ptr();
+    let from_ptr = crate::strings::CStrCursor::from_ptr(from.as_ptr());
+    let to_ptr = crate::strings::CStrCursor::from_ptr(to.as_ptr());
     let mut use_tmp_file = false;
 
-    if path_equal(
-        crate::memory::cstr_from_ptr(from_ptr),
-        crate::memory::cstr_from_ptr(to_ptr),
-        K_PATH_CMP_LITERAL,
-    ) {
-        if opt_vars().p_fic
-            && path_tail(crate::memory::cstr_from_ptr(from_ptr))
-                != path_tail(crate::memory::cstr_from_ptr(to_ptr))
-        {
+    if path_equal(from_ptr.as_cstr(), to_ptr.as_cstr(), K_PATH_CMP_LITERAL) {
+        if opt_vars().p_fic && path_tail(from_ptr.as_cstr()) != path_tail(to_ptr.as_cstr()) {
             use_tmp_file = true;
         } else {
             return 0;
@@ -4037,7 +4031,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         }
         let tbufsize = path.as_bytes().len() + mesg.to_bytes().len() + mesg2.to_bytes().len() + 3;
         let mut tbuf_vec = vec![0u8; tbufsize];
-        let tbuf = tbuf_vec.as_mut_ptr();
+        let tbuf = crate::strings::CStrCursor::from_ptr(tbuf_vec.as_mut_ptr());
         let tbuflen = vim_snprintf!(tbuf.cast(), tbufsize, mesg, path.as_ptr());
         set_vim_var_string(
             VV_WARNINGMSG,
@@ -4056,7 +4050,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             match do_dialog(
                 VIM_WARNING,
                 Some(tr(c"Warning")),
-                crate::memory::cstr_from_ptr(tbuf),
+                tbuf.as_cstr(),
                 tr(c"&OK\n&Load File\nLoad File &and Options"),
                 1,
                 None,
@@ -4078,12 +4072,12 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     mesg2,
                 );
             }
-            emsg(crate::memory::cstr_from_ptr(tbuf));
+            emsg(tbuf.as_cstr());
             retval = 2;
         } else {
             if !g_st().autocmd_busy {
                 msg_start();
-                msg_puts_hl(crate::memory::cstr_from_ptr(tbuf), HLF_E, true);
+                msg_puts_hl(tbuf.as_cstr(), HLF_E, true);
                 if !mesg2.to_bytes().is_empty() {
                     msg_puts_hl(mesg2, HLF_W, true);
                 }
@@ -4425,11 +4419,11 @@ pub fn readdir_core(
     path: &CStr,
     mut context: Option<&mut crate::eval::typval::TypVal>,
 ) -> bool {
-    let path_ptr = path.as_ptr();
+    let path_ptr = crate::strings::CStrCursor::from_ptr(path.as_ptr());
     entries.clear();
 
     let mut dir = Directory::new();
-    if !os_scandir(&mut dir, crate::memory::cstr_from_ptr(path_ptr)) {
+    if !os_scandir(&mut dir, path_ptr.as_cstr()) {
         smsg!(0, tr(E_NOTOPEN), path_ptr);
         return false;
     }
@@ -4468,7 +4462,7 @@ pub fn delete_recursive(name: &CStr) -> i32 {
         let exp = name.to_owned();
         let mut entries: Vec<std::ffi::CString> = Vec::new();
         if readdir_core(&mut entries, &exp, None) {
-            let namebuff_ptr = g_st().name_buff.as_mut_ptr();
+            let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
             let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/", exp.as_ptr());
 
             for entry in &entries {
