@@ -2899,9 +2899,7 @@ pub fn buflist_new(
     let buf_ref = unsafe { &mut *buf };
     if let Some((ff_cstr, sf_cstr)) = expanded {
         let mut sf_vec = sf_cstr.into_bytes_with_nul();
-        to_slash(crate::memory::cstr_as_mut_bytes(
-            (sf_vec.as_mut_ptr()).cast(),
-        ));
+        to_slash(&mut sf_vec);
         buf_ref.set_ffname(Some(ff_cstr));
         buf_ref.set_sfname(Some(std::ffi::CString::from_vec_with_nul(sf_vec).unwrap()));
     }
@@ -3879,12 +3877,8 @@ pub fn setfname(
         }
         let mut sf_vec = sfname_raw.into_bytes_with_nul();
         if CASE_INSENSITIVE_FILENAME {
-            to_slash(crate::memory::cstr_as_mut_bytes(
-                (sf_vec.as_mut_ptr()).cast(),
-            ));
-            path_fix_case(crate::memory::cstr_as_mut_bytes(
-                (sf_vec.as_mut_ptr()).cast(),
-            ));
+            to_slash(&mut sf_vec);
+            path_fix_case(&mut sf_vec);
         }
         let sfname_cstr = crate::memory::cstring_until_nul(&sf_vec);
         buf.set_ffname(Some(ffname_cstr));

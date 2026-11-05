@@ -3681,7 +3681,7 @@ fn shada_read_next_item(
                         let mut bytes = it.f.as_bytes().to_vec();
                         bytes.push(0);
                         #[cfg(windows)]
-                        path_to_slash(crate::memory::cstr_as_mut_bytes(bytes.as_mut_ptr().cast()));
+                        path_to_slash(&mut bytes);
                         fm.fname = Some(
                             CStr::from_bytes_with_nul(&bytes)
                                 .unwrap_or_default()
@@ -3976,9 +3976,7 @@ fn shada_read_next_item(
                                 let mut bytes = it.f.as_bytes().to_vec();
                                 bytes.push(0);
                                 #[cfg(windows)]
-                                path_to_slash(crate::memory::cstr_as_mut_bytes(
-                                    bytes.as_mut_ptr().cast(),
-                                ));
+                                path_to_slash(&mut bytes);
                                 e.fname = Some(
                                     CStr::from_bytes_with_nul(&bytes)
                                         .unwrap_or_default()

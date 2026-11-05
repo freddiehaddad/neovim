@@ -520,7 +520,7 @@ pub fn os_dirname(buf: &mut [u8]) -> bool {
         );
         return false;
     }
-    to_slash(crate::memory::cstr_as_mut_bytes(buf.as_mut_ptr().cast()));
+    to_slash(buf);
     true
 }
 
@@ -601,7 +601,7 @@ pub fn os_nodetype(name: &CStr) -> i32 {
 /// Gets the absolute path of the currently running executable.
 pub fn os_exepath(buffer: &mut [u8], size: &mut usize) -> i32 {
     let r = unsafe { uv_exepath(buffer.as_mut_ptr().cast(), size) };
-    to_slash(crate::memory::cstr_as_mut_bytes(buffer.as_mut_ptr().cast()));
+    to_slash(buffer);
     r
 }
 
@@ -1750,7 +1750,7 @@ pub fn os_mkdtemp(templ: &CStr, path: &mut [u8]) -> i32 {
             path,
             crate::memory::cstr_as_bytes(unsafe { uv_fs_get_path(&raw const request) }),
         );
-        to_slash(crate::memory::cstr_as_mut_bytes((path.as_mut_ptr()).cast()));
+        to_slash(path);
     }
     unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
     result
@@ -2003,7 +2003,7 @@ pub fn os_realpath<'a>(name: &CStr, buf: &'a mut [u8]) -> Option<&'a CStr> {
                 buf,
                 crate::memory::cstr_as_bytes(uv_fs_get_ptr(&raw const request)),
             );
-            to_slash(crate::memory::cstr_as_mut_bytes((buf.as_mut_ptr()).cast()));
+            to_slash(buf);
         }
         uv_fs_req_cleanup((&raw mut request).cast());
         (result == 0).then(|| crate::memory::cstr_until_nul(buf))
@@ -2069,7 +2069,7 @@ pub fn os_resolve_shortcut(fname_opt: Option<&CStr>) -> Option<std::ffi::CString
                                 semsg!(c"utf16_to_utf8 failed: %d", r2);
                             } else if let Some(cstr) = rfname_cstr {
                                 let mut v = cstr.into_bytes_with_nul();
-                                to_slash(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
+                                to_slash(&mut v);
                                 rfname = Some(std::ffi::CString::from_vec_with_nul(v).unwrap());
                             }
                         }

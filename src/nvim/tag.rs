@@ -2380,9 +2380,7 @@ pub fn find_tags(
 pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
     for fname in fnames {
         let mut tag_fname = fname.clone().into_bytes_with_nul();
-        simplify_filename(crate::memory::cstr_as_mut_bytes(
-            tag_fname.as_mut_ptr().cast(),
-        ));
+        simplify_filename(&mut tag_fname);
         tag_st()
             .tag_fnames
             .push(crate::memory::cstring_until_nul(&tag_fname));
@@ -3012,7 +3010,7 @@ fn expand_tag_fname(
                 let off = crate::memory::ptr_offset_from(p, tag_fname) as usize;
                 retval[..off].copy_from_slice(crate::memory::cstr_slice(tag_fname, off));
                 crate::memory::copy_bytes_to_c_buf(&mut retval[off..], fname.as_bytes());
-                simplify_filename(crate::memory::cstr_as_mut_bytes(retval.as_mut_ptr().cast()));
+                simplify_filename(&mut retval);
                 return crate::memory::cstring_until_nul(&retval);
             }
         }

@@ -7022,23 +7022,18 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
 
 fn hgr_search_files_in_dir(
     qfl: &mut QfList,
-    dirname: &mut [crate::strings::RawCChar; MAXPATHL],
+    dirname: &mut [u8],
     p_regmatch: &mut Regmatch,
     lang: Option<&CStr>,
 ) {
     let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
-    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
-        dirname.as_mut_ptr().cast(),
-        2,
-    ));
-    let dir_len = crate::memory::cstr_len(dirname.as_ptr());
+    add_pathsep(dirname);
+    let dir_len = crate::memory::bytes_until_nul(dirname).len();
     let pat_suffix = b"doc/*.\\(txt\\|??x\\)\0";
-    for (i, &b) in pat_suffix.iter().enumerate() {
-        dirname[dir_len + i] = b as crate::strings::RawCChar;
-    }
+    dirname[dir_len..dir_len + pat_suffix.len()].copy_from_slice(pat_suffix);
     if gen_expand_wildcards_vec(
-        &[crate::memory::cstr_from_ptr(dirname.as_ptr())],
+        &[crate::memory::cstr_until_nul(dirname)],
         &mut fnames,
         EW_FILE | EW_SILENT,
     ) && !fnames.is_empty()
@@ -7071,7 +7066,7 @@ fn hgr_search_in_rtp(qfl: &mut QfList, p_regmatch: &mut Regmatch, lang: Option<&
     let mut p = opt_vars().p_rtp.as_bytes();
     while !p.is_empty() && !g_st().got_int {
         copy_option_part(&mut p, g_st().name_buff_bytes_mut(), c",");
-        hgr_search_files_in_dir(qfl, &mut g_st().name_buff, p_regmatch, lang);
+        hgr_search_files_in_dir(qfl, g_st().name_buff_bytes_mut(), p_regmatch, lang);
     }
 }
 

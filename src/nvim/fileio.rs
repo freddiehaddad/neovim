@@ -3474,10 +3474,7 @@ pub fn modname(
         if !os_dirname(&mut retval_vec) || retval_vec[0] == 0 {
             return None;
         }
-        add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
-            retval_vec.as_mut_ptr().cast(),
-            2,
-        ));
+        add_pathsep(&mut retval_vec);
         fnamelen = crate::memory::bytes_until_nul(&retval_vec).len();
         prepend_dot = false;
     } else {

@@ -277,7 +277,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
     crate::memory::copy_bytes_to_c_buf(&mut addr, endpoint.to_bytes());
-    to_slash(crate::memory::cstr_as_mut_bytes(addr.as_mut_ptr().cast()));
+    to_slash(&mut addr);
     let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
     let addr_bytes = addr_cstr.to_bytes();
 

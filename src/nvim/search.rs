@@ -3235,7 +3235,7 @@ pub fn find_pattern_in_path(
                 }
                 .map(|cstr| {
                     let mut v: Vec<u8> = cstr.into_bytes_with_nul();
-                    to_slash(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
+                    to_slash(&mut v);
                     crate::memory::cstring_until_nul(&v)
                 });
                 let mut already_searched = false;

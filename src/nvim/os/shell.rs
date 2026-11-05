@@ -515,10 +515,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             let mut new_vec = vec![0u8; entry_bytes.len() + usize::from(dir)];
             new_vec[..entry_bytes.len()].copy_from_slice(entry_bytes);
             if dir {
-                add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
-                    new_vec.as_mut_ptr().cast(),
-                    2,
-                ));
+                add_pathsep(&mut new_vec);
             }
             file.push(crate::memory::cstring_until_nul(&new_vec));
         }

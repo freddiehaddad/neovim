@@ -1387,7 +1387,7 @@ pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CS
     #[cfg(windows)]
     let fname = {
         let mut bytes: Vec<u8> = fname.into_bytes_with_nul();
-        path_to_slash(crate::memory::cstr_as_mut_bytes(bytes.as_mut_ptr().cast()));
+        path_to_slash(&mut bytes);
         crate::memory::cstring_until_nul(&bytes)
     };
     Some(fname)

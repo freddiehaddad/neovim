@@ -283,7 +283,7 @@ fn time_msg_if_enabled(s: &std::ffi::CStr) {
 #[inline]
 fn to_slash_if_needed(buf: &mut [u8]) {
     if !buf.is_empty() {
-        path_to_slash(crate::memory::cstr_as_mut_bytes(buf.as_mut_ptr().cast()));
+        path_to_slash(buf);
     }
 }
 
@@ -1706,7 +1706,7 @@ fn command_line_scan(parmp: &mut Mparm) {
             }
 
             if CASE_INSENSITIVE_FILENAME {
-                path_fix_case(crate::memory::cstr_as_mut_bytes(p_vec.as_mut_ptr().cast()));
+                path_fix_case(&mut p_vec);
             }
 
             let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };

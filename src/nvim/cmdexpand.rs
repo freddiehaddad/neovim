@@ -1969,7 +1969,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         if ccline.input_fn != 0 && ccline.xp_context == EXPAND_COMMANDS {
             set_cmd_context(
                 xp,
-                crate::memory::cstr_as_mut_bytes(ccline.cmdbuff().cast()),
+                &mut ccline.cmdbuff_vec,
                 ccline.cmdlen,
                 ccline.cmdpos,
                 false,
@@ -3223,7 +3223,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
 
     set_cmd_context(
         xp,
-        crate::memory::cstr_as_mut_bytes(ccline.cmdbuff().cast()),
+        &mut ccline.cmdbuff_vec,
         ccline.cmdlen,
         ccline.cmdpos,
         true,

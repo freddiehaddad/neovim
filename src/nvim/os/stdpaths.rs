@@ -80,9 +80,7 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
         name_buff[..5].copy_from_slice(b"nvim\0");
     }
     #[cfg(windows)]
-    path_to_slash(crate::memory::cstr_as_mut_bytes(
-        name_buff.as_mut_ptr().cast(),
-    ));
+    path_to_slash(name_buff);
     if namelike {
         for b in name_buff.iter_mut() {
             if *b == 0 {

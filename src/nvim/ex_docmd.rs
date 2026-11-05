@@ -11015,9 +11015,7 @@ pub fn ex_cd(eap: &mut Exarg) {
 fn ex_pwd(_eap: &mut Exarg) {
     if os_dirname(g_st().name_buff_bytes_mut()) {
         #[cfg(windows)]
-        slash_adjust(crate::memory::cstr_as_mut_bytes(
-            g_st().name_buff.as_mut_ptr().cast(),
-        ));
+        slash_adjust(g_st().name_buff_bytes_mut());
         if opt_vars().p_verbose > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason {
                 reason.as_ptr()

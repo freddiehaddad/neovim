@@ -835,10 +835,7 @@ fn do_in_cached_path(
             callback.invoke(std::slice::from_ref(&item.path), do_all);
         } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
             buf[..=buflen].copy_from_slice(item.path.to_bytes_with_nul());
-            add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
-                buf.as_mut_ptr().cast(),
-                2,
-            ));
+            add_pathsep(&mut buf);
             let tail = buf
                 .as_mut_ptr()
                 .wrapping_add(crate::memory::bytes_until_nul(&buf).len());

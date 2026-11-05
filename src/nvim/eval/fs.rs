@@ -412,7 +412,7 @@ pub fn modify_fname(
             #[cfg(windows)]
             if !didit && use_shellslash && !fname.is_null() {
                 let mut v = cstr_to_cstring(fname).into_bytes_with_nul();
-                slash_adjust(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
+                slash_adjust(&mut v);
                 *fbuf = v;
                 fname = fbuf.as_mut_ptr();
             }
@@ -528,7 +528,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut cwd = vec![0u8; MAXPATHL];
     if os_dirname(&mut cwd) {
         #[cfg(windows)]
-        slash_adjust(crate::memory::cstr_as_mut_bytes(cwd.as_mut_ptr().cast()));
+        slash_adjust(&mut cwd);
         crate::eval::typval::tv_set_string(
             rettv,
             Some(CStr::from_bytes_until_nul(&cwd).unwrap_or_default()),
@@ -634,7 +634,7 @@ pub fn f_exepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         #[cfg(windows)]
         {
             let mut v = p.into_bytes_with_nul();
-            slash_adjust(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
+            slash_adjust(&mut v);
             crate::eval::typval::tv_set_string(
                 rettv,
                 Some(CStr::from_bytes_until_nul(&v).unwrap_or_default()),
@@ -1008,7 +1008,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 
     #[cfg(windows)]
-    slash_adjust(crate::memory::cstr_as_mut_bytes(cwd.as_mut_ptr().cast()));
+    slash_adjust(&mut cwd);
     crate::eval::typval::tv_set_string(
         rettv,
         Some(CStr::from_bytes_until_nul(&cwd).unwrap_or_default()),
@@ -1379,10 +1379,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     if let Some(p) = tv_get_string_chk(&argvars[0]) {
         let mut v = p.to_owned().into_bytes_with_nul();
-        shorten_dir_len(
-            crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()),
-            trim_len,
-        );
+        shorten_dir_len(&mut v, trim_len);
         crate::eval::typval::tv_set_string(
             rettv,
             Some(CStr::from_bytes_until_nul(&v).unwrap_or_default()),
@@ -1947,7 +1944,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_simplify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let p = tv_get_string(&argvars[0]);
     let mut v = (*p).to_owned().into_bytes_with_nul();
-    simplify_filename(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast())); // Simplify in place.
+    simplify_filename(&mut v); // Simplify in place.
     crate::eval::typval::tv_set_string(
         rettv,
         Some(CStr::from_bytes_until_nul(&v).unwrap_or_default()),
