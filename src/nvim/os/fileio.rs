@@ -69,7 +69,7 @@ pub fn file_open(
     flags: i32,
     mode: i32,
 ) -> i32 {
-    let fname = fname.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
+    let fname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
     let mut os_open_flags: i32 = 0;
     let mut wr: Option<bool> = None;
 
@@ -117,7 +117,7 @@ pub fn file_open(
         }
     }
 
-    let fd = os_open(crate::memory::cstr_from_ptr(fname), os_open_flags, mode);
+    let fd = os_open(fname.as_cstr(), os_open_flags, mode);
     if fd < 0 {
         return fd;
     }

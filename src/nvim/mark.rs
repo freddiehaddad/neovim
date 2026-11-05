@@ -1015,8 +1015,9 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
         return c"-invalid-".to_owned();
     }
     debug_assert!(g_st().columns_global >= 0);
-    let line = crate::charset::skipwhite_ptr(ml_get(mp.lnum).as_ptr().cast_mut());
-    let max_bytes = crate::memory::cstr_len(line).min((g_st().columns_global as usize) * 5);
+    let line =
+        crate::strings::CStrCursor::from_ptr(ml_get(mp.lnum).as_ptr().cast_mut()).skipwhite();
+    let max_bytes = line.len().min((g_st().columns_global as usize) * 5);
 
     let mut len: i32 = 0;
     let mut p = line;
@@ -1029,7 +1030,7 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
         p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
     let keep = (crate::memory::ptr_offset_from(p, line) as usize).min(max_bytes);
-    std::ffi::CString::new(crate::memory::cstr_slice(line, keep)).unwrap_or_default()
+    std::ffi::CString::new(line.slice(keep)).unwrap_or_default()
 }
 
 /// `:marks {arg}` (`ex_marks`).

@@ -568,13 +568,13 @@ fn buf_write_do_post_autocmds(
     reset_changed: bool,
     whole: bool,
 ) {
-    let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
     let mut aco: CtxSwitch = CtxSwitch::new();
     curbuf_mut().b_no_eol_lnum = 0;
 
     let _ = ctx_switch(&mut aco, None, None, Some(buf), 0);
 
-    let fname_opt = crate::memory::cstr_as_opt_cstr(fname_ptr);
+    let fname_opt = fname_ptr.as_opt_cstr();
     if append {
         let _ = apply_autocmds_exarg(
             EVENT_FILEAPPENDPOST,
@@ -734,11 +734,11 @@ fn get_fileinfo_os(
     newfile: &mut bool,
     err: &mut BwError,
 ) -> bool {
-    let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
     let nodetype = if fname_ptr.is_null() {
         NODE_OTHER
     } else {
-        os_nodetype(crate::memory::cstr_from_ptr(fname_ptr))
+        os_nodetype(fname_ptr.as_cstr())
     };
     if nodetype == NODE_OTHER {
         *err = set_err_num(c"E503", gettext(c"is not a file or writable device"));
@@ -749,15 +749,15 @@ fn get_fileinfo_os(
         *newfile = true;
         *perm = -1;
     } else {
-        *perm = os_getperm(crate::memory::cstr_from_ptr(fname_ptr));
+        *perm = os_getperm(fname_ptr.as_cstr());
         if *perm < 0 {
             *newfile = true;
-        } else if os_isdir(crate::memory::cstr_from_ptr(fname_ptr)) {
+        } else if os_isdir(fname_ptr.as_cstr()) {
             *err = set_err_num(c"E502", gettext(c"is a directory"));
             return false;
         }
         if overwriting {
-            let _ = os_fileinfo(crate::memory::cstr_from_ptr(fname_ptr), file_info_old);
+            let _ = os_fileinfo(fname_ptr.as_cstr(), file_info_old);
         }
     }
     true
@@ -775,7 +775,7 @@ fn get_fileinfo(
     readonly: &mut bool,
     err: &mut BwError,
 ) -> bool {
-    let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
     if !get_fileinfo_os(
         fname,
         file_info_old,
@@ -791,7 +791,7 @@ fn get_fileinfo(
     *readonly = false;
 
     if !*device && !*newfile {
-        *readonly = os_file_is_writable(crate::memory::cstr_from_ptr(fname_ptr)) == 0;
+        *readonly = os_file_is_writable(fname_ptr.as_cstr()) == 0;
 
         if !forceit && *readonly {
             if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {

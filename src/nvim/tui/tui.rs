@@ -3010,7 +3010,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
     value: Option<&'a CStr>,
     input: &mut TermInput,
 ) -> Option<&'a [u8]> {
-    let val_ptr = value.map_or(ptr::null(), CStr::as_ptr);
+    let val_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(value);
     if !tui_st().stty_erase_inited {
         tui_st().stty_erase_inited = true;
         tui_init_stty_erase(input);

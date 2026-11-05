@@ -24,7 +24,7 @@ pub fn os_libcall(
     };
     let libname = libname.as_ptr();
     let funcname = funcname.as_ptr();
-    let argv = argv.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
+    let argv = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(argv);
 
     unsafe {
         let mut lib = UvLib {

@@ -19,7 +19,6 @@ use crate::os::env::ExpandCtx;
 use crate::os::time::os_time;
 use crate::regexp::{NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
 use std::ffi::CStr;
-use std::ptr;
 
 pub const HIST_DEFAULT: i32 = -2;
 pub const HIST_INVALID: i32 = -1;
@@ -647,11 +646,13 @@ pub fn ex_history(eap: &mut Exarg) {
                     i = 0;
                 }
                 let entry = &hist[i as usize];
-                let entry_ptr = entry.hisstr_cstr().map_or(ptr::null(), CStr::as_ptr);
+                let entry_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(
+                    entry.hisstr_cstr(),
+                );
                 if !entry_ptr.is_null()
                     && entry.hisnum >= j
                     && entry.hisnum <= k
-                    && !message_filtered(crate::memory::cstr_from_ptr(entry_ptr))
+                    && !message_filtered(entry_ptr.as_cstr())
                 {
                     msg_putchar(b'\n' as i32);
                     let marker = if i == idx { '>' } else { ' ' };
@@ -659,19 +660,14 @@ pub fn ex_history(eap: &mut Exarg) {
                     let prefix_bytes = prefix.as_bytes();
                     let len = prefix_bytes.len();
                     iobuf[..len].copy_from_slice(prefix_bytes);
-                    if vim_strsize(crate::memory::cstr_from_ptr(entry_ptr))
-                        > g_st().columns_global - 10
-                    {
+                    if vim_strsize(entry_ptr.as_cstr()) > g_st().columns_global - 10 {
                         trunc_string(
-                            Some(crate::memory::cstr_as_bytes(entry_ptr)),
+                            Some(entry_ptr.as_bytes()),
                             &mut iobuf[len..],
                             g_st().columns_global - 10,
                         );
                     } else {
-                        crate::memory::copy_bytes_to_c_buf(
-                            &mut iobuf[len..],
-                            crate::memory::cstr_as_bytes(entry_ptr),
-                        );
+                        crate::memory::copy_bytes_to_c_buf(&mut iobuf[len..], entry_ptr.as_bytes());
                     }
                     msg_outtrans(crate::memory::cstr_until_nul(&iobuf), 0, false);
                 }

@@ -843,7 +843,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 + isize::from(!crate::memory::cstr_is_empty(path_end));
 
             if ff_path_in_stoplist(
-                crate::memory::cstr_slice(search_ctx.ffsc_start_dir.data, plen as usize),
+                search_ctx.ffsc_start_dir.data.slice(plen as usize),
                 &search_ctx.ffsc_stopdirs_v,
             ) {
                 break;
@@ -1173,7 +1173,8 @@ pub fn find_file_in_path_option(
         if rel_fname_opt.is_some_and(|rf| path_with_url(rf.to_bytes())) {
             rel_fname_opt = None;
         }
-        let rel_fname = rel_fname_opt.map_or(ptr::null(), std::ffi::CStr::as_ptr);
+        let rel_fname =
+            crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(rel_fname_opt);
 
         if first {
             if len == 0 {
@@ -1231,7 +1232,7 @@ pub fn find_file_in_path_option(
                 }
 
                 let rel_fnamelen = if !rel_fname.is_null() {
-                    crate::memory::cstr_len(rel_fname)
+                    rel_fname.len()
                 } else {
                     0
                 };
@@ -1250,7 +1251,7 @@ pub fn find_file_in_path_option(
                             MAXPATHL,
                             c"%.*s%s",
                             crate::memory::ptr_offset_from(
-                                path_tail(crate::memory::cstr_from_ptr(rel_fname)).as_ptr(),
+                                path_tail(rel_fname.as_cstr()).as_ptr(),
                                 rel_fname
                             ) as i32,
                             rel_fname,

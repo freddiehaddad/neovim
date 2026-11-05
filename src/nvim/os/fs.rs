@@ -1368,8 +1368,8 @@ pub fn os_fsetperm(fd: i32, perm: i32) -> bool {
 
 /// Copy extended attributes `from_file` to `to_file`.
 pub fn os_copy_xattr(from_file_opt: Option<&CStr>, to_file_opt: Option<&CStr>) {
-    let from_file = from_file_opt.map_or(ptr::null(), CStr::as_ptr);
-    let to_file = to_file_opt.map_or(ptr::null(), CStr::as_ptr);
+    let from_file = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(from_file_opt);
+    let to_file = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(to_file_opt);
     #[cfg(not(target_os = "linux"))]
     let _ = (from_file, to_file);
     #[cfg(target_os = "linux")]
@@ -1703,7 +1703,7 @@ pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
             path_tail_with_sep(fname.as_cstr()).as_ptr().cast_mut(),
         );
         let last_char = tail.wrapping_add(tail.len()).wrapping_sub(1);
-        if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(last_char))) {
+        if vim_ispathsep(i32::from(last_char.first_byte())) {
             emsg(gettext(E_NONAME));
             return -1;
         }

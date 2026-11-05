@@ -3342,14 +3342,14 @@ fn has_autocmd_ext(
         return false;
     }
 
-    let sfname_ptr = sfname.map_or(ptr::null(), CStr::as_ptr);
-    let tail = path_tail(crate::memory::cstr_from_ptr(sfname_ptr));
+    let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
+    let tail = path_tail(sfname_ptr.as_cstr());
     let mut retval = false;
 
     let fname = if is_full {
         sfname.map(CStr::to_owned)
     } else {
-        FullName_save(crate::memory::cstr_as_opt_cstr(sfname_ptr), false)
+        FullName_save(sfname_ptr.as_opt_cstr(), false)
     };
     let Some(fname) = fname else {
         return false;

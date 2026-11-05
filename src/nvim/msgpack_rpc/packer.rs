@@ -239,7 +239,7 @@ pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    let slice = crate::memory::cstr_slice(str_val.data, len);
+    let slice = str_val.data.slice(len);
     mpack_raw(slice, packer);
 }
 
@@ -258,7 +258,7 @@ pub fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    let slice = crate::memory::cstr_slice(str_val.data, len);
+    let slice = str_val.data.slice(len);
     mpack_raw(slice, packer);
 }
 

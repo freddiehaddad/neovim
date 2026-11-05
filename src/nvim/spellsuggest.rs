@@ -678,15 +678,13 @@ pub fn spell_suggest(count: i32) {
                 crate::mbyte::mb_idx_back(curline_bytes, &mut p_idx);
             }
             let mut p = curline.wrapping_add(p_idx);
-            while !crate::memory::cstr_is_empty(p)
-                && !spell_iswordp_nmw(crate::memory::cstr_as_bytes(p), curwin_mut())
-            {
+            while !p.is_empty() && !spell_iswordp_nmw(p.as_bytes(), curwin_mut()) {
                 {
                     let _adv = crate::mbyte::utfc_ptr2len(p) as usize;
                     p = (p).wrapping_add(_adv);
                 };
             }
-            if !spell_iswordp_nmw(crate::memory::cstr_as_bytes(p), curwin_mut()) {
+            if !spell_iswordp_nmw(p.as_bytes(), curwin_mut()) {
                 beep_flush();
                 break 'skip;
             }

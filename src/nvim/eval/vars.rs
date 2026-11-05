@@ -1178,8 +1178,9 @@ pub fn ex_let(eap: &mut Exarg) {
     ) else {
         return;
     };
-    let mut expr = crate::charset::skipwhite_ptr(argend_cstr.as_ptr().cast_mut());
-    let expr_bytes = crate::memory::cstr_as_bytes(expr);
+    let mut expr =
+        crate::strings::CStrCursor::from_ptr(argend_cstr.as_ptr().cast_mut()).skipwhite();
+    let expr_bytes = expr.as_bytes();
     let concat = expr_bytes.starts_with(b"..=");
     let has_assign = expr_bytes.first() == Some(&b'=')
         || (expr_bytes
@@ -1209,11 +1210,7 @@ pub fn ex_let(eap: &mut Exarg) {
     }
 
     if expr_bytes.starts_with(b"=<<") {
-        if let Some(l) = heredoc_get(
-            eap,
-            crate::memory::cstr_from_ptr(expr.wrapping_add(3)),
-            false,
-        ) {
+        if let Some(l) = heredoc_get(eap, expr.wrapping_add(3).as_cstr(), false) {
             tv_list_set_ret(&mut rettv, Some(l));
             if !eap.skip {
                 op[0] = b'=';
@@ -1243,27 +1240,22 @@ pub fn ex_let(eap: &mut Exarg) {
         {
             op[0] = b0;
             if expr_bytes.starts_with(b"..") {
-                expr = expr.wrapping_add(1);
+                expr = crate::strings::CStrCursor::of(expr.wrapping_add(1));
             }
         }
-        expr = expr.wrapping_add(2);
+        expr = crate::strings::CStrCursor::of(expr.wrapping_add(2));
     } else {
-        expr = expr.wrapping_add(1);
+        expr = crate::strings::CStrCursor::of(expr.wrapping_add(1));
     }
 
-    expr = crate::charset::skipwhite_ptr(expr);
+    expr = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(expr));
 
     if eap.skip {
         g_st().emsg_skip += 1;
     }
     let mut evalarg = Evalarg::new();
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
-    let eval_res = eval0(
-        crate::memory::cstr_from_ptr(expr),
-        &mut rettv,
-        Some(&mut *eap),
-        &mut evalarg,
-    );
+    let eval_res = eval0(expr.as_cstr(), &mut rettv, Some(&mut *eap), &mut evalarg);
     if eap.skip {
         g_st().emsg_skip -= 1;
     }
@@ -1637,7 +1629,7 @@ fn ex_let_env<'a>(
         emsg(gettext(E_LETUNEXP));
     } else if !check_secure() {
         let mut tofree: Option<std::ffi::CString> = None;
-        let name_cstr = cstr_from_bytes(crate::memory::cstr_slice(name, len));
+        let name_cstr = cstr_from_bytes(name.slice(len));
         let mut p = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
         if !p.is_null()
             && op_b == b'.'
@@ -3816,7 +3808,8 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     let [arg0, arg1, arg2, ..] = argvars else {
         unreachable!()
     };
-    let varname = tv_get_string_chk(arg1).map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let varname =
+        crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(tv_get_string_chk(arg1));
     let Some(buf) = tv_get_buf(arg0, 0) else {
         return;
     };
@@ -3825,19 +3818,19 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
 
-    if crate::memory::cstr_first_byte(varname) == b'&' {
+    if varname.first_byte() == b'&' {
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(buf), 0);
-        set_option_from_tv(crate::memory::cstr_from_ptr(varname.wrapping_add(1)), arg2);
+        set_option_from_tv(varname.wrapping_add(1).as_cstr(), arg2);
         ctx_restore(&mut aco);
     } else {
-        let varname_len = crate::memory::cstr_len(varname);
+        let varname_len = varname.len();
         let mut bufvarname = Vec::with_capacity(varname_len + 3);
         let save_curbuf = g_st().curbuf;
         g_st().curbuf = (buf).into();
         bufvarname.push(b'b');
         bufvarname.push(b':');
-        bufvarname.extend_from_slice(crate::memory::cstr_slice(varname, varname_len + 1));
+        bufvarname.extend_from_slice(varname.slice(varname_len + 1));
         set_var(&bufvarname[..varname_len + 2], arg2, true);
         g_st().curbuf = save_curbuf;
     }

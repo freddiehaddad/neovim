@@ -596,11 +596,11 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         p = oldline;
         skipcols = orig_char_len;
         let orig_usize = orig_char_len as usize;
-        newline_vec[..orig_usize].copy_from_slice(crate::memory::cstr_slice(p, orig_usize));
+        newline_vec[..orig_usize].copy_from_slice(p.slice(orig_usize));
         s_idx = orig_usize;
         p = p.wrapping_add(orig_usize);
 
-        while ascii_iswhite(crate::memory::cstr_first_byte(p)) {
+        while ascii_iswhite(p.first_byte()) {
             p = p.wrapping_add(1);
         }
     } else {
@@ -617,8 +617,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             p = oldline;
             ind_done = 0;
 
-            while todo > 0 && ascii_iswhite(crate::memory::cstr_first_byte(p)) {
-                if crate::memory::cstr_first_byte(p) == TAB {
+            while todo > 0 && ascii_iswhite(p.first_byte()) {
+                if p.first_byte() == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -630,7 +630,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                     todo -= 1;
                     ind_done += 1;
                 }
-                newline_vec[s_idx] = crate::memory::cstr_first_byte(p);
+                newline_vec[s_idx] = p.first_byte();
                 s_idx += 1;
                 p = p.wrapping_add(1);
                 skipcols += 1;
@@ -664,8 +664,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         s_idx += todo_usize;
     }
     let line_usize = line_len as usize;
-    newline_vec[s_idx..s_idx + line_usize]
-        .copy_from_slice(crate::memory::cstr_slice(p, line_usize));
+    newline_vec[s_idx..s_idx + line_usize].copy_from_slice(p.slice(line_usize));
 
     if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.lnum) {
         let old_offset = crate::memory::ptr_offset_from(p, oldline) as Colnr;
@@ -1671,24 +1670,23 @@ pub fn get_lisp_indent() -> i32 {
             }
             let mut that = sci.ptr;
 
-            if (crate::memory::cstr_first_byte(that) == b'('
-                || crate::memory::cstr_first_byte(that) == b'[')
-                && lisp_match(crate::memory::cstr_as_bytes(that.wrapping_add(1)))
+            if (that.first_byte() == b'(' || that.first_byte() == b'[')
+                && lisp_match(that.wrapping_add(1).as_bytes())
             {
                 amount += 2;
             } else {
-                if !crate::memory::cstr_is_empty(that) {
+                if !that.is_empty() {
                     that = that.wrapping_add(1);
                     amount += 1;
                 }
                 let mut firsttry: Colnr = amount;
 
-                while ascii_iswhite(crate::memory::cstr_first_byte(that)) {
+                while ascii_iswhite(that.first_byte()) {
                     amount += win_charsize(
                         cstype,
                         amount,
-                        crate::memory::cstr_slice(that, 1),
-                        i32::from(crate::memory::cstr_first_byte(that)),
+                        that.slice(1),
+                        i32::from(that.first_byte()),
                         &mut csarg,
                         1,
                     )
@@ -1696,12 +1694,8 @@ pub fn get_lisp_indent() -> i32 {
                     that = that.wrapping_add(1);
                 }
 
-                if !crate::memory::cstr_is_empty(that)
-                    && crate::memory::cstr_first_byte(that) != b';'
-                {
-                    if crate::memory::cstr_first_byte(that) != b'('
-                        && crate::memory::cstr_first_byte(that) != b'['
-                    {
+                if !that.is_empty() && that.first_byte() != b';' {
+                    if that.first_byte() != b'(' && that.first_byte() != b'[' {
                         firsttry += 1;
                     }
 
@@ -1714,7 +1708,7 @@ pub fn get_lisp_indent() -> i32 {
                         && !(b'0' as i32..=b'9' as i32).contains(&ci.value)
                     {
                         let mut quotecount = false;
-                        while !crate::memory::cstr_is_empty(that)
+                        while !that.is_empty()
                             && (!ascii_iswhite(ci.value) || quotecount || parencount != 0)
                         {
                             if ci.value == b'"' as i32 {
@@ -1726,12 +1720,12 @@ pub fn get_lisp_indent() -> i32 {
                             if (ci.value == b')' as i32 || ci.value == b']' as i32) && !quotecount {
                                 parencount -= 1;
                             }
-                            if ci.value == b'\\' as i32 && crate::memory::cstr_len(that) > 1 {
+                            if ci.value == b'\\' as i32 && that.len() > 1 {
                                 let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
                                 amount += win_charsize(
                                     cstype,
                                     amount,
-                                    crate::memory::cstr_slice(that, 1),
+                                    that.slice(1),
                                     ci.value,
                                     &mut csarg,
                                     cli.cells,
@@ -1745,7 +1739,7 @@ pub fn get_lisp_indent() -> i32 {
                             amount += win_charsize(
                                 cstype,
                                 amount,
-                                crate::memory::cstr_slice(that, 1),
+                                that.slice(1),
                                 ci.value,
                                 &mut csarg,
                                 cli.cells,
@@ -1756,12 +1750,12 @@ pub fn get_lisp_indent() -> i32 {
                         }
                     }
 
-                    while ascii_iswhite(crate::memory::cstr_first_byte(that)) {
+                    while ascii_iswhite(that.first_byte()) {
                         amount += win_charsize(
                             cstype,
                             amount,
-                            crate::memory::cstr_slice(that, 1),
-                            i32::from(crate::memory::cstr_first_byte(that)),
+                            that.slice(1),
+                            i32::from(that.first_byte()),
                             &mut csarg,
                             1,
                         )
@@ -1769,9 +1763,7 @@ pub fn get_lisp_indent() -> i32 {
                         that = that.wrapping_add(1);
                     }
 
-                    if crate::memory::cstr_is_empty(that)
-                        || crate::memory::cstr_first_byte(that) == b';'
-                    {
+                    if that.is_empty() || that.first_byte() == b';' {
                         amount = firsttry;
                     }
                 }

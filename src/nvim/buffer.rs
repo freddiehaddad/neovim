@@ -107,9 +107,7 @@ use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
-use crate::strings::{
-    RawCCharPtr, RawCCharPtrMut, gettext, ngettext, vim_snprintf, vim_snprintf_safelen,
-};
+use crate::strings::{RawCCharPtr, gettext, ngettext, vim_snprintf, vim_snprintf_safelen};
 use crate::syntax::{Synblock, reset_synblock, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
@@ -4009,7 +4007,7 @@ fn buf_same_file_id(buf: &FileBuf, file_id: &FileID) -> bool {
 /// Print info about the current buffer.
 pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     let mut buffer_vec = vec![0u8; IOSIZE];
-    let buffer: RawCCharPtrMut = buffer_vec.as_mut_ptr().cast();
+    let buffer = crate::strings::CStrCursor::<std::ffi::c_char>::of(buffer_vec.as_mut_ptr().cast());
     let mut bufferlen = 0usize;
 
     if fullname > 1 {
@@ -4158,8 +4156,8 @@ pub fn col_print(buf: &mut [u8], col: i32, vcol: i32) -> i32 {
 
 /// Put the title name in the title bar and icon of the window.
 pub fn maketitle() {
-    let mut title_str: RawCCharPtrMut = ptr::null_mut();
-    let mut icon_str: RawCCharPtrMut = ptr::null_mut();
+    let mut title_str = crate::strings::CStrCursor::<std::ffi::c_char>::NULL;
+    let mut icon_str = crate::strings::CStrCursor::<std::ffi::c_char>::NULL;
     let mut buf = [0u8; IOSIZE];
     let outbuf = CharBuf::from_slice(&mut buf);
 
@@ -4200,9 +4198,10 @@ pub fn maketitle() {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                title_str = buf.as_mut_ptr().cast();
+                title_str = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
             } else {
-                title_str = opt_vars().p_titlestring.as_ptr().cast_mut();
+                title_str =
+                    crate::strings::CStrCursor::of(opt_vars().p_titlestring.as_ptr().cast_mut());
             }
         } else {
             #[cfg(windows)]
@@ -4228,20 +4227,17 @@ pub fn maketitle() {
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
-            title_str = buf.as_mut_ptr().cast();
+            title_str = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
             #[cfg(windows)]
             {
                 opt_vars().p_ssl = p_ssl_save;
             }
         }
     }
-    let mut mustset = value_change(
-        crate::memory::cstr_as_opt_cstr(title_str),
-        &mut buf_st().lasttitle,
-    );
+    let mut mustset = value_change(title_str.as_opt_cstr(), &mut buf_st().lasttitle);
 
     if opt_vars().p_icon {
-        icon_str = buf.as_mut_ptr().cast();
+        icon_str = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
         if !opt_vars().p_iconstring.is_empty() {
             if (g_st().stl_syntax & STL_IN_ICON) != 0 {
                 build_stl_str_hl(
@@ -4258,7 +4254,8 @@ pub fn maketitle() {
                     ptr::null_mut(),
                 );
             } else {
-                icon_str = opt_vars().p_iconstring.as_ptr().cast_mut();
+                icon_str =
+                    crate::strings::CStrCursor::of(opt_vars().p_iconstring.as_ptr().cast_mut());
             }
         } else {
             let name_bytes = if let Some(sp) = buf_spname(curbuf_mut()) {
@@ -4279,10 +4276,7 @@ pub fn maketitle() {
         }
     }
 
-    mustset |= value_change(
-        crate::memory::cstr_as_opt_cstr(icon_str),
-        &mut buf_st().lasticon,
-    );
+    mustset |= value_change(icon_str.as_opt_cstr(), &mut buf_st().lasticon);
 
     if mustset {
         resettitle();
@@ -4398,17 +4392,15 @@ pub fn fname_expand(
     let mut sf_cstr = sfname_in.to_owned();
     if os_isdir(&full_cstr) {
         let mut name_vec: Vec<u8> = sf_cstr.as_bytes_with_nul().to_vec();
-        let name: RawCCharPtrMut = name_vec.as_mut_ptr().cast();
+        let name = crate::strings::CStrCursor::<std::ffi::c_char>::of(name_vec.as_mut_ptr().cast());
         let name_len = name_vec.len() - 1;
         if name_len > 0
-            && after_pathsep(crate::memory::cstr_slice(name, name_len)) != 0
-            && (name.wrapping_add(name_len) as usize)
-                > (get_past_head(crate::memory::cstr_from_ptr(name)).as_ptr() as usize)
+            && after_pathsep(name.slice(name_len)) != 0
+            && (name.wrapping_add(name_len).as_ptr() as usize)
+                > (get_past_head(name.as_cstr()).as_ptr() as usize)
         {
             unsafe {
-                *path_tail_with_sep(crate::memory::cstr_from_ptr(name))
-                    .as_ptr()
-                    .cast_mut() = 0;
+                *path_tail_with_sep(name.as_cstr()).as_ptr().cast_mut() = 0;
             }
         }
         let full = fix_fname(Some(crate::memory::cstr_until_nul(&name_vec)));

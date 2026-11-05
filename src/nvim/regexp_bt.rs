@@ -3688,7 +3688,9 @@ fn regmatch(
                                 }
                             } else {
                                 let line =
-                                    reg_getline(rp_pos.lnum).map_or(ptr::null(), |s| s.as_ptr());
+                                    crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(
+                                        reg_getline(rp_pos.lnum),
+                                    );
                                 rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
                                     crate::mbyte::utf_head_off_ptr(
                                         line,

@@ -533,7 +533,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             } else {
                 p
             };
-            bp.dbg_name = crate::memory::cstr_to_cstring(name_src);
+            bp.dbg_name = name_src.to_cstring();
         } else if here {
             bp.dbg_name = curbuf_mut().b_ffname.clone()?;
         } else if bp.dbg_type == DBG_EXPR {

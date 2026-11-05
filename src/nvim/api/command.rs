@@ -215,14 +215,11 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
     );
 
     let rhs_start = crate::charset::skipwhite_ptr(lhs_end);
-    if !crate::memory::cstr_is_empty(rhs_start) {
-        let rhs_len = crate::memory::cstr_len(rhs_start);
+    if !rhs_start.is_empty() {
+        let rhs_len = rhs_start.len();
         add_c(
             &mut args,
-            string_obj(cbuf_to_arena_str(
-                arena,
-                crate::memory::cstr_slice(rhs_start, rhs_len),
-            )),
+            string_obj(cbuf_to_arena_str(arena, rhs_start.slice(rhs_len))),
         );
     }
 

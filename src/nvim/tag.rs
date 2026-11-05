@@ -1228,7 +1228,7 @@ fn find_tagfunc_tags(
     buf_ffname: Option<&std::ffi::CStr>,
 ) -> Option<bool> {
     let pat = pat.as_ptr().cast_mut();
-    let buf_ffname = buf_ffname.map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let buf_ffname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(buf_ffname);
     let mut ntags: i32 = 0;
     let mut args = [TypVal {
         v_type: VarType::VarUnknown,
@@ -1271,11 +1271,7 @@ fn find_tagfunc_tags(
         tv_dict_add_str(d, c"user_data", Some(ud.as_c_str()));
     }
     if !buf_ffname.is_null() {
-        tv_dict_add_str(
-            d,
-            c"buf_ffname",
-            crate::memory::cstr_as_opt_cstr(buf_ffname),
-        );
+        tv_dict_add_str(d, c"buf_ffname", buf_ffname.as_opt_cstr());
     }
 
     d.dv_refcount += 1;
@@ -2539,7 +2535,7 @@ fn test_for_static(tagp: &Tagptrs) -> bool {
 }
 
 fn matching_line_len(lbuf_slice: &[u8]) -> usize {
-    let lbuf: crate::strings::RawCCharPtr = lbuf_slice.as_ptr().cast();
+    let lbuf = crate::strings::CStrCursor::<std::ffi::c_char>::of(lbuf_slice.as_ptr().cast());
     {
         let mut p = lbuf.wrapping_add(1);
         p = p.wrapping_add(crate::memory::cstr_len(p) + 1);

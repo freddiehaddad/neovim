@@ -2854,10 +2854,10 @@ fn did_set_statustabline_rulerformat<'a>(
 
     if rulerformat && !ui_has(K_UIMESSAGES) && s.first_byte() == b'%' {
         let mut s_ptr = s.wrapping_add(1);
-        if crate::memory::cstr_first_byte(s_ptr) == b'-' {
+        if s_ptr.first_byte() == b'-' {
             s_ptr = s_ptr.wrapping_add(1);
         }
-        let mut rem = crate::memory::cstr_as_bytes(s_ptr);
+        let mut rem = s_ptr.as_bytes();
         let wid = getdigits_int(&mut rem, true, 0);
         if wid != 0 && rem.first() == Some(&b'(') {
             g_st().ru_wid = wid;
@@ -3293,16 +3293,16 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         let mut cur = s;
         while bytes > 0 {
             cur = cur.wrapping_add(2);
-            let n = hexhex2nr(crate::memory::cstr_as_bytes(cur));
+            let n = hexhex2nr(cur.as_bytes());
             if n < 0 {
-                *p = crate::memory::cstr_from_ptr(cur);
+                *p = cur.as_cstr();
                 return 0;
             }
             num = num * 256 + i64::from(n);
             bytes -= 1;
         }
         cur = cur.wrapping_add(2);
-        *p = crate::memory::cstr_from_ptr(cur);
+        *p = cur.as_cstr();
         return if char2cells(num as i32) > 1 {
             0
         } else {
@@ -3312,7 +3312,7 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
 
     let ci = utf_ptr2_str_char_info(s.as_cstr());
     let cli = utf_cluster_info(ci);
-    *p = crate::memory::cstr_from_ptr(cli.next.ptr);
+    *p = cli.next.ptr.as_cstr();
     if cli.cells > 1 {
         0
     } else {

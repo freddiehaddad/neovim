@@ -1138,7 +1138,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
 
     let line = crate::strings::CStrCursor::from_ptr(ml_get(oap.end.lnum).as_ptr().cast_mut());
     let mut ptr_line = line.wrapping_add(oap.end.col as usize);
-    if !crate::memory::cstr_is_empty(ptr_line) {
+    if !ptr_line.is_empty() {
         ptr_line = ptr_line.wrapping_sub(crate::mbyte::utf_head_off_ptr(line, ptr_line) as usize);
         ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
         oap.end.col = crate::memory::ptr_offset_from(ptr_line, line) as Colnr;

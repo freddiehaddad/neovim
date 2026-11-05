@@ -1252,7 +1252,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 let str_ptr = crate::strings::CStrCursor::from_ptr(str_.as_ptr().cast_mut());
                 if !str_ptr.is_empty() && stop_arrow() {
                     let mut p = str_ptr;
-                    while !crate::memory::cstr_is_empty(p) {
+                    while !p.is_empty() {
                         s.c = utf_ptr2char(p);
                         if s.c == CAR || s.c == K_KENTER || s.c == NL {
                             ins_eol(s.c);

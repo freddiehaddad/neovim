@@ -804,7 +804,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
 }
 
 fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
-    let msg_ptr = msg.map_or(ptr::null(), CStr::as_ptr);
+    let msg_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(msg);
     let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)").as_ptr();
     logmsg!(
         LOGLVL_ERR,

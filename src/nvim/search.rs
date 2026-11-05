@@ -3890,7 +3890,7 @@ fn show_pat_in_path(
     lnum: &mut Linenr,
     count: i32,
 ) {
-    let mut line: crate::strings::RawCCharPtrMut = line_buf.as_mut_ptr().cast();
+    let mut line = crate::strings::CStrCursor::<std::ffi::c_char>::of(line_buf.as_mut_ptr().cast());
     if did_show {
         msg_putchar(b'\n' as i32);
     } else if g_st().msg_silent == 0 {
@@ -3899,7 +3899,7 @@ fn show_pat_in_path(
     if g_st().got_int {
         return;
     }
-    let mut linelen = crate::memory::cstr_len(line);
+    let mut linelen = line.len();
     loop {
         if fp.is_some() {
             if linelen > 0 && line_buf[linelen - 1] == b'\n' {
@@ -3910,7 +3910,7 @@ fn show_pat_in_path(
             }
             line_buf[linelen] = 0;
         }
-        let has_trailing_bsl = crate::memory::cstr_slice(line, linelen).last() == Some(&b'\\');
+        let has_trailing_bsl = line.slice(linelen).last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
@@ -3923,7 +3923,7 @@ fn show_pat_in_path(
             );
             msg_puts(c" ");
         }
-        msg_prt_line(crate::memory::cstr_as_bytes(line), false);
+        msg_prt_line(line.as_bytes(), false);
 
         if g_st().got_int || type_ != FIND_DEFINE || !has_trailing_bsl {
             break;
@@ -3933,14 +3933,14 @@ fn show_pat_in_path(
             if vim_fgets(line_buf, fp) {
                 break;
             }
-            linelen = crate::memory::cstr_len(line);
+            linelen = line.len();
             *lnum += 1;
         } else {
             *lnum += 1;
             if *lnum > curbuf_mut().b_ml.ml_line_count {
                 break;
             }
-            line = ml_get(*lnum).as_ptr().cast_mut();
+            line = crate::strings::CStrCursor::of(ml_get(*lnum).as_ptr().cast_mut());
             linelen = ml_get_len(*lnum) as usize;
         }
         msg_putchar(b'\n' as i32);

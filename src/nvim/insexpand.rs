@@ -2020,16 +2020,16 @@ fn ins_compl_dictionaries(
     flags: i32,
     thesaurus: bool,
 ) {
-    let mut dict = dict_start.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let mut dict = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(dict_start);
     let pat = pat_arg.map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
     let mut regmatch: Regmatch = Regmatch::new();
     let mut files: Vec<std::ffi::CString> = Vec::new();
     let mut count: i32;
     let mut dir = insexp().compl_direction;
 
-    if crate::memory::cstr_is_empty(dict) {
+    if dict.is_empty() {
         if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell {
-            dict = c"spell".as_ptr().cast_mut();
+            dict = crate::strings::CStrCursor::of(c"spell".as_ptr().cast_mut());
         } else {
             return;
         }
@@ -2064,14 +2064,14 @@ fn ins_compl_dictionaries(
     }
 
     regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat));
-    while !crate::memory::cstr_is_empty(dict) && !g_st().got_int && !insexp().compl_interrupted {
+    while !dict.is_empty() && !g_st().got_int && !insexp().compl_interrupted {
         if flags == DICT_EXACT {
             count = 1;
         } else {
-            let mut dict_bytes = crate::memory::cstr_as_bytes(dict);
+            let mut dict_bytes = dict.as_bytes();
             let old_len = dict_bytes.len();
             copy_option_part(&mut dict_bytes, &mut buf_vec, c",");
-            dict = dict.wrapping_add(old_len - dict_bytes.len());
+            dict = crate::strings::CStrCursor::of(dict.wrapping_add(old_len - dict_bytes.len()));
             if !thesaurus && crate::memory::cstr_as_bytes(buf) == b"spell" {
                 count = -1;
             } else if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(buf), b'`' as i32)
@@ -2102,7 +2102,7 @@ fn ins_compl_dictionaries(
         } else if count > 0 {
             if flags == DICT_EXACT {
                 ins_compl_files(
-                    &[crate::memory::cstr_to_cstring(dict)],
+                    &[dict.to_cstring()],
                     thesaurus,
                     flags,
                     &mut regmatch,
@@ -4130,7 +4130,7 @@ fn fuzzy_longest_match() {
         while j < prefix_len && !match_ptr.is_empty() && !prefix_ptr.is_empty() {
             let clen = utfc_ptr2len(prefix_ptr) as usize;
             let m_b = match_ptr.as_bytes();
-            if crate::memory::cstr_slice(prefix_ptr, clen) != &m_b[..clen.min(m_b.len())] {
+            if prefix_ptr.slice(clen) != &m_b[..clen.min(m_b.len())] {
                 break;
             }
 
@@ -5352,7 +5352,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     }
 
     if compl_len < cp_str_len as i32 {
-        let cp_slice = crate::memory::cstr_slice(cp_str, cp_str_len);
+        let cp_slice = cp_str.slice(cp_str_len);
         let skip = (compl_len.max(0) as usize).min(cp_slice.len());
         if has_multiple {
             ins_compl_expand_multiple(&cp_slice[skip..]);
@@ -6364,8 +6364,9 @@ fn ins_compl_show_statusmsg() {
 
             let curr = compl_at(curr_idx);
             if curr.cp_number != -1 {
-                let match_ref_ptr: crate::strings::RawCCharPtrMut =
-                    insexp().match_ref.as_mut_ptr().cast();
+                let match_ref_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::of(
+                    insexp().match_ref.as_mut_ptr().cast(),
+                );
                 if insexp().compl_matches > 0 {
                     vim_snprintf!(
                         match_ref_ptr,
@@ -6377,7 +6378,7 @@ fn ins_compl_show_statusmsg() {
                 } else {
                     vim_snprintf!(match_ref_ptr, 81, gettext(c"match %d"), curr.cp_number,);
                 }
-                g_st().edit_submode_extra = Some(crate::memory::cstr_from_ptr(match_ref_ptr));
+                g_st().edit_submode_extra = Some(match_ref_ptr.as_cstr());
                 g_st().edit_submode_highl = HLF_R;
                 if g_st().dollar_vcol >= 0 {
                     curs_columns(curwin_mut(), false);

@@ -2758,7 +2758,7 @@ pub fn nvim_eval_statusline(
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
         let ci = utf_ptr2_str_char_info(opts.fillchar.as_cstr());
         let cli = utf_cluster_info(ci);
-        if ci.ptr.is_empty() || !crate::memory::cstr_is_empty(cli.next.ptr) || cli.cells != 1 {
+        if ci.ptr.is_empty() || !cli.next.ptr.is_empty() || cli.cells != 1 {
             api_err_exp(err, c"fillchar", c"one single-width character", None);
             return result;
         }

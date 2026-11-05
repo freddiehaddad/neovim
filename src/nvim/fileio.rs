@@ -988,10 +988,10 @@ pub fn readfile(
     flags: i32,
     silent: bool,
 ) -> Option<bool> {
-    let fname: *mut u8 = fname_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-    let mut sfname: *mut u8 = sfname_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+    let fname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname_opt);
+    let mut sfname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname_opt);
     #[cfg(unix)]
-    let mut fname = fname;
+    let mut fname = crate::strings::CStrCursor::of(fname);
     {
         let mut retval = Some(false);
         let mut fd: i32 = if g_st().stdin_fd >= 0 {
@@ -1060,10 +1060,7 @@ pub fn readfile(
                 && !fname.is_null()
                 && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMER)
                 && (flags & READ_DUMMY) == 0
-                && !set_rw_fname(
-                    crate::memory::cstr_as_opt_cstr(fname),
-                    crate::memory::cstr_as_opt_cstr(sfname),
-                )
+                && !set_rw_fname(fname.as_opt_cstr(), sfname.as_opt_cstr())
             {
                 break 'theend;
             }
@@ -1081,11 +1078,11 @@ pub fn readfile(
             g_st().need_fileinfo = false;
 
             if sfname.is_null() {
-                sfname = fname;
+                sfname = crate::strings::CStrCursor::of(fname);
             }
             #[cfg(unix)]
             {
-                fname = sfname;
+                fname = crate::strings::CStrCursor::of(sfname);
             }
 
             if !filtering && !read_stdin && !read_buffer {
@@ -1094,7 +1091,7 @@ pub fn readfile(
                 curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
                 curbuf_mut().b_op_start.col = 0;
 
-                let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
+                let sfname_opt = sfname.as_opt_cstr();
                 if newfile {
                     if apply_autocmds_exarg(
                         EVENT_BUFREADCMD,
@@ -1154,13 +1151,13 @@ pub fn readfile(
                 g_st().msg_scroll = 1;
             }
 
-            if !crate::memory::cstr_is_empty(fname) {
-                let fnamelen = crate::memory::cstr_len(fname);
+            if !fname.is_empty() {
+                let fnamelen = fname.len();
 
                 if fnamelen >= MAXPATHL {
                     filemess(
                         g_st().curbuf.opt(),
-                        crate::memory::cstr_as_opt_cstr(fname),
+                        fname.as_opt_cstr(),
                         tr(c"Illegal file name"),
                         None,
                     );
@@ -1169,11 +1166,11 @@ pub fn readfile(
                     break 'theend;
                 }
 
-                if after_pathsep(crate::memory::cstr_slice(fname, fnamelen)) != 0 {
+                if after_pathsep(fname.slice(fnamelen)) != 0 {
                     if !silent {
                         filemess(
                             g_st().curbuf.opt(),
-                            crate::memory::cstr_as_opt_cstr(fname),
+                            fname.as_opt_cstr(),
                             tr(MSG_IS_A_DIRECTORY),
                             None,
                         );
@@ -1186,7 +1183,7 @@ pub fn readfile(
             }
 
             if !read_stdin && !fname.is_null() {
-                perm = os_getperm(crate::memory::cstr_from_ptr(fname));
+                perm = os_getperm(fname.as_cstr());
             }
 
             #[cfg(any(
@@ -1219,7 +1216,7 @@ pub fn readfile(
                     if !silent {
                         filemess(
                             g_st().curbuf.opt(),
-                            crate::memory::cstr_as_opt_cstr(fname),
+                            fname.as_opt_cstr(),
                             tr(MSG_IS_A_DIRECTORY),
                             None,
                         );
@@ -1228,7 +1225,7 @@ pub fn readfile(
                 } else {
                     filemess(
                         g_st().curbuf.opt(),
-                        crate::memory::cstr_as_opt_cstr(fname),
+                        fname.as_opt_cstr(),
                         tr(c"is not a file"),
                         None,
                     );
@@ -1246,7 +1243,7 @@ pub fn readfile(
             }
 
             if newfile && !read_stdin && !read_buffer && !read_fifo {
-                if os_fileinfo(crate::memory::cstr_from_ptr(fname), &mut file_info) {
+                if os_fileinfo(fname.as_cstr(), &mut file_info) {
                     buf_store_file_info(curbuf_mut(), &mut file_info);
                     curbuf_mut().b_mtime_read = curbuf_mut().b_mtime;
                     curbuf_mut().b_mtime_read_ns = curbuf_mut().b_mtime_ns;
@@ -1271,11 +1268,11 @@ pub fn readfile(
                 if !newfile
                     || g_st().readonlymode
                     || (perm & 0o222) == 0
-                    || os_file_is_writable(crate::memory::cstr_from_ptr(fname)) == 0
+                    || os_file_is_writable(fname.as_cstr()) == 0
                 {
                     file_readonly = true;
                 }
-                fd = os_open(crate::memory::cstr_from_ptr(fname), O_RDONLY, 0);
+                fd = os_open(fname.as_cstr(), O_RDONLY, 0);
             }
 
             if fd < 0 {
@@ -1305,17 +1302,17 @@ pub fn readfile(
                         }
                     }
                     if !silent {
-                        if dir_of_file_exists(crate::memory::cstr_from_ptr(fname)) {
+                        if dir_of_file_exists(fname.as_cstr()) {
                             filemess(
                                 g_st().curbuf.opt(),
-                                crate::memory::cstr_as_opt_cstr(sfname),
+                                sfname.as_opt_cstr(),
                                 tr(c"[New]"),
                                 None,
                             );
                         } else {
                             filemess(
                                 g_st().curbuf.opt(),
-                                crate::memory::cstr_as_opt_cstr(sfname),
+                                sfname.as_opt_cstr(),
                                 tr(c"[New DIRECTORY]"),
                                 None,
                             );
@@ -1325,7 +1322,7 @@ pub fn readfile(
                     if let Some(eap) = eap {
                         set_forced_fenc(eap);
                     }
-                    let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
+                    let sfname_opt = sfname.as_opt_cstr();
                     apply_autocmds_exarg(
                         EVENT_BUFNEWFILE,
                         sfname_opt,
@@ -1347,7 +1344,7 @@ pub fn readfile(
                 let is_too_big = fd == UV_EFBIG;
                 filemess(
                     g_st().curbuf.opt(),
-                    crate::memory::cstr_as_opt_cstr(sfname),
+                    sfname.as_opt_cstr(),
                     if is_too_big {
                         tr(c"[File too big]")
                     } else {
@@ -1456,7 +1453,7 @@ pub fn readfile(
                 }
 
                 g_st().msg_scroll = 1;
-                let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
+                let sfname_opt = sfname.as_opt_cstr();
                 if filtering {
                     apply_autocmds_exarg(
                         EVENT_FILTERREADPRE,
@@ -1533,7 +1530,7 @@ pub fn readfile(
                                     .fname_opt()
                                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()))
                         || {
-                            fd = os_open(crate::memory::cstr_from_ptr(fname), O_RDONLY, 0);
+                            fd = os_open(fname.as_cstr(), O_RDONLY, 0);
                             fd < 0
                         })
                 {
@@ -1560,12 +1557,7 @@ pub fn readfile(
                 && !read_buffer
                 && g_st().msg_silent == 0;
             if show_msg && !silent {
-                filemess(
-                    g_st().curbuf.opt(),
-                    crate::memory::cstr_as_opt_cstr(sfname),
-                    c"",
-                    None,
-                );
+                filemess(g_st().curbuf.opt(), sfname.as_opt_cstr(), c"", None);
             }
 
             let mut msg_id = [0u8; MAXPATHL + 32];
@@ -1573,7 +1565,7 @@ pub fn readfile(
                 &mut msg_id,
                 c"nvim.bufread",
                 g_st().curbuf.opt(),
-                crate::memory::cstr_as_opt_cstr(sfname),
+                sfname.as_opt_cstr(),
             );
             let mut progress = false;
             let mut percent: i32 = -1;
@@ -1705,7 +1697,7 @@ pub fn readfile(
                         did_iconv = false;
                         if tmpname.is_none() {
                             tmpname = readfile_charconvert(
-                                crate::memory::cstr_from_ptr(fname),
+                                fname.as_cstr(),
                                 crate::memory::cstr_from_ptr(fenc),
                                 &mut fd,
                             );
@@ -2577,7 +2569,7 @@ pub fn readfile(
                             add_quoted_fname(
                                 g_st().iobuff_bytes_mut(),
                                 g_st().curbuf.opt(),
-                                crate::memory::cstr_as_opt_cstr(sfname),
+                                sfname.as_opt_cstr(),
                             );
                             let _ = readfile_progress(
                                 Some(g_st().iobuff_bytes_mut()),
@@ -2709,7 +2701,7 @@ pub fn readfile(
                     if (flags & READ_DUMMY) == 0 {
                         filemess(
                             g_st().curbuf.opt(),
-                            crate::memory::cstr_as_opt_cstr(sfname),
+                            sfname.as_opt_cstr(),
                             tr(E_INTERR),
                             None,
                         );
@@ -2729,7 +2721,7 @@ pub fn readfile(
                     add_quoted_fname(
                         g_st().iobuff_bytes_mut(),
                         g_st().curbuf.opt(),
-                        crate::memory::cstr_as_opt_cstr(sfname),
+                        sfname.as_opt_cstr(),
                     );
                     let mut c = false;
 
@@ -2934,7 +2926,7 @@ pub fn readfile(
             if read_undo_file {
                 let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
                 sha_ctx.finish_into(&mut hash);
-                u_read_undo(None, &hash, crate::memory::cstr_as_opt_cstr(fname));
+                u_read_undo(None, &hash, fname.as_opt_cstr());
             }
 
             if !read_stdin && !read_fifo && (!read_buffer || !sfname.is_null()) {
@@ -2946,7 +2938,7 @@ pub fn readfile(
                 }
 
                 g_st().msg_scroll = 1;
-                let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
+                let sfname_opt = sfname.as_opt_cstr();
                 if filtering {
                     apply_autocmds_exarg(
                         EVENT_FILTERREADPOST,
@@ -3160,8 +3152,8 @@ fn readfile_charconvert(fname: &CStr, fenc: &CStr, fdp: &mut i32) -> Option<std:
 
 /// Set the name of the current buffer.
 pub fn set_rw_fname(fname: Option<&CStr>, sfname: Option<&CStr>) -> bool {
-    let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let sfname_ptr = sfname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
+    let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
     let buf = g_st().curbuf;
 
     if curbuf_mut().b_p_bl {
@@ -3178,8 +3170,8 @@ pub fn set_rw_fname(fname: Option<&CStr>, sfname: Option<&CStr>) -> bool {
 
     if setfname(
         curbuf_mut(),
-        crate::memory::cstr_as_opt_cstr(fname_ptr),
-        crate::memory::cstr_as_opt_cstr(sfname_ptr),
+        fname_ptr.as_opt_cstr(),
+        sfname_ptr.as_opt_cstr(),
         false,
     ) {
         curbuf_mut().b_flags |= BF_NOTEDITED;
@@ -4641,10 +4633,8 @@ pub fn match_file_pat(
 
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: &CStr, sfname: Option<&CStr>, ffname: &CStr) -> bool {
-    let sfname_ptr = sfname.map_or(ptr::null(), CStr::as_ptr);
-    let tail = crate::memory::cstr_from_ptr(
-        (path_tail(crate::memory::cstr_from_ptr(sfname_ptr))).as_ptr(),
-    );
+    let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
+    let tail = crate::memory::cstr_from_ptr((path_tail(sfname_ptr.as_cstr())).as_ptr());
 
     let mut p = list.to_bytes();
     while !p.is_empty() {

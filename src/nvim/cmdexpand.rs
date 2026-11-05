@@ -6024,7 +6024,7 @@ fn copy_substring_from_pos(
     } else {
         ml_get_len(start.lnum) - start.col
     };
-    ga.extend_from_slice(crate::memory::cstr_slice(start_ptr, segment_len as usize));
+    ga.extend_from_slice(start_ptr.slice(segment_len as usize));
     if !is_single_line {
         if exacttext {
             ga.extend_from_slice(b"\\n");

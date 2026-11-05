@@ -766,7 +766,8 @@ fn script_dump_profile(fd: &CFile) {
     for id in 1..=crate::runtime::script_items_len() {
         let si = script_item(id);
         if si.sn_prof_on {
-            let si_name = si.name_cstr().map_or(std::ptr::null(), CStr::as_ptr);
+            let si_name =
+                crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(si.name_cstr());
             fprintf!(fd, c"SCRIPT  %s\n", si_name);
             if si.sn_pr_count == 1 {
                 fprintf!(fd, c"Sourced 1 time\n");
@@ -782,7 +783,7 @@ fn script_dump_profile(fd: &CFile) {
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            if let Some(sfd) = CFile::open(crate::memory::cstr_from_ptr(si_name), c"r") {
+            if let Some(sfd) = CFile::open(si_name.as_cstr(), c"r") {
                 let mut i: i32 = 0;
                 loop {
                     if vim_fgets(&mut iobuf, &sfd) {

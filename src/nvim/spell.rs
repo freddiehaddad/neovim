@@ -1156,13 +1156,7 @@ pub fn spell_move_to(
                     break;
                 }
                 attr = HLF_COUNT;
-                len = spell_check(
-                    wp,
-                    crate::memory::cstr_from_ptr(p),
-                    &mut attr,
-                    Some(&mut capcol),
-                    false,
-                );
+                len = spell_check(wp, p.as_cstr(), &mut attr, Some(&mut capcol), false);
                 if attr != HLF_COUNT
                     && (behaviour == SMT_ALL
                         || (behaviour == SMT_BAD && attr == HLF_SPB)

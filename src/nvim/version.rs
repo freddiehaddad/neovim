@@ -4276,7 +4276,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
                         special_attr
                     };
                 }
-                col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), clen, attr);
+                col += grid_line_puts(col, p.as_cstr(), clen, attr);
                 idx += clen as usize;
             }
             grid_line_flush();
@@ -4308,7 +4308,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             }
 
             if rem[0] == b'<' {
-                col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), l as i32, hlf8_attr);
+                col += grid_line_puts(col, p.as_cstr(), l as i32, hlf8_attr);
             } else {
                 let colon_off = rem[..l].iter().position(|&b| b == b':');
                 if let Some(c_off) = colon_off
@@ -4316,18 +4316,13 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
                 {
                     let colon_pos = p.wrapping_add(c_off);
                     let prefix_len = c_off as i32;
-                    col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), prefix_len, 0);
-                    col +=
-                        grid_line_puts(col, crate::memory::cstr_from_ptr(colon_pos), 1, hlf8_attr);
+                    col += grid_line_puts(col, p.as_cstr(), prefix_len, 0);
+                    col += grid_line_puts(col, colon_pos.as_cstr(), 1, hlf8_attr);
                     let cmd_len = l as i32 - prefix_len - 1;
-                    col += grid_line_puts(
-                        col,
-                        crate::memory::cstr_from_ptr(colon_pos.wrapping_add(1)),
-                        cmd_len,
-                        id_attr,
-                    );
+                    col +=
+                        grid_line_puts(col, colon_pos.wrapping_add(1).as_cstr(), cmd_len, id_attr);
                 } else {
-                    col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), l as i32, 0);
+                    col += grid_line_puts(col, p.as_cstr(), l as i32, 0);
                 }
             }
             idx += l;

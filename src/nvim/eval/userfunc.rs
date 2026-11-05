@@ -914,7 +914,7 @@ fn fname_trans_sid<'a>(
             ) as usize;
         }
     }
-    let script_bytes = crate::memory::cstr_from_ptr(script_name).to_bytes_with_nul();
+    let script_bytes = script_name.as_cstr().to_bytes_with_nul();
     let fnamelen = fname_buflen + script_bytes.len() - 1;
     if fnamelen < FLEN_FIXED {
         fname_buf[fname_buflen..fname_buflen + script_bytes.len()].copy_from_slice(script_bytes);
@@ -2313,7 +2313,7 @@ pub fn trans_function_name(
 
     let mut sid_buflen = 0usize;
     let mut sid_buf = [0u8; 20];
-    let ll_name_ptr = lv.ll_name.map_or(ptr::null(), CStr::as_ptr);
+    let ll_name_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(lv.ll_name);
 
     if skip {
         lead = 0;
@@ -2337,9 +2337,7 @@ pub fn trans_function_name(
             ) as usize;
             lead += sid_buflen as i32;
         }
-    } else if (flags & TFN_INT) == 0
-        && builtin_function(crate::memory::cstr_slice(ll_name_ptr, lv.ll_name_len))
-    {
+    } else if (flags & TFN_INT) == 0 && builtin_function(ll_name_ptr.slice(lv.ll_name_len)) {
         semsg!(
             gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
             start.cast::<std::ffi::c_char>(),
@@ -3364,10 +3362,10 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
         flag |= TFN_NO_DEREF;
     }
     let p = trans_function_name(&mut nm, false, flag, None, None);
-    let nm_ptr = crate::charset::skipwhite_ptr(nm.as_ptr().cast_mut());
+    let nm_ptr = crate::strings::CStrCursor::from_ptr(nm.as_ptr().cast_mut()).skipwhite();
 
     if let Some(ref p) = p
-        && (crate::memory::cstr_is_empty(nm_ptr) || crate::memory::cstr_first_byte(nm_ptr) == b'(')
+        && (nm_ptr.is_empty() || nm_ptr.first_byte() == b'(')
     {
         n = translated_function_exists(p);
     }

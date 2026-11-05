@@ -1231,7 +1231,7 @@ fn grid_draw_bordertext(
                 continue;
             }
             let mut p = text;
-            while !crate::memory::cstr_is_empty(p) && overflow > 0 {
+            while !p.is_empty() && overflow > 0 {
                 overflow -= utf_ptr2cells(p);
                 p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
@@ -1429,7 +1429,7 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
         return schar_from_ascii(ci.chr.value as u8);
     }
     if cli.first_compose || len > 4 {
-        return schar_from_cluster_impl(crate::memory::cstr_slice(ci.ptr, len), cli.first_compose);
+        return schar_from_cluster_impl(ci.ptr.slice(len), cli.first_compose);
     }
     let mut sc: Schar = 0;
 

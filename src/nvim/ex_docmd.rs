@@ -9007,9 +9007,9 @@ pub fn find_nextcmd(p: &CStr) -> Option<&CStr> {
 }
 
 pub fn check_nextcmd(p: &CStr) -> Option<&CStr> {
-    let s = crate::charset::skipwhite_ptr(p.as_ptr());
-    if crate::memory::cstr_first_byte(s) == b'|' || crate::memory::cstr_first_byte(s) == b'\n' {
-        return Some(crate::memory::cstr_from_ptr(s.wrapping_add(1)));
+    let s = crate::strings::CStrCursor::from_ptr(p.as_ptr()).skipwhite();
+    if s.first_byte() == b'|' || s.first_byte() == b'\n' {
+        return Some(s.wrapping_add(1).as_cstr());
     }
     None
 }
@@ -12480,9 +12480,11 @@ fn ex_filetype(eap: &mut Exarg) {
 }
 
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
-    let buf: RawCCharPtrMut = (&raw mut docmd_st().ex_error_buf).cast();
+    let buf = crate::strings::CStrCursor::<std::ffi::c_char>::of(
+        (&raw mut docmd_st().ex_error_buf).cast(),
+    );
     let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg.as_ptr());
-    crate::memory::cstr_from_ptr(buf)
+    buf.as_cstr()
 }
 
 pub fn filetype_plugin_enable() {

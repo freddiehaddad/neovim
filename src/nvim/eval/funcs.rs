@@ -1175,7 +1175,7 @@ pub fn check_internal_func(fdef: &EvalFuncDef, argcount: i32) -> i32 {
         return i32::from(fdef.base_arg);
     };
 
-    let name = fdef.name.map_or(ptr::null(), |s| s.as_ptr());
+    let name = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fdef.name);
     if res == FCERR_TOOMANY {
         semsg!(gettext(E_TOOMANYARG), name);
     } else {
@@ -4320,7 +4320,8 @@ pub fn create_environment(
     set_nvim_addr: bool,
     pty_term_name: Option<&CStr>,
 ) -> &'static mut TvDict {
-    let pty_term_name = pty_term_name.map_or(ptr::null(), CStr::as_ptr);
+    let pty_term_name =
+        crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(pty_term_name);
     let env = tv_dict_alloc();
 
     if !clear_env {
@@ -4366,11 +4367,7 @@ pub fn create_environment(
         if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&*env), c"TERM", 4) {
             tv_dict_item_remove(&mut *env, dv);
         }
-        tv_dict_add_str(
-            &mut *env,
-            c"TERM",
-            crate::memory::cstr_as_opt_cstr(pty_term_name),
-        );
+        tv_dict_add_str(&mut *env, c"TERM", pty_term_name.as_opt_cstr());
     }
 
     if set_nvim_addr {

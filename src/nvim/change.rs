@@ -831,7 +831,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         let p0 = oldp.wrapping_add(col as usize);
         let mut state = GRAPHEME_STATE_INIT;
         if utf_composinglike(
-            crate::memory::cstr_as_bytes(p0),
+            p0.as_bytes(),
             crate::memory::cstr_as_bytes(p0.wrapping_add(utf_ptr2len(p0) as usize)),
             Some(&mut state),
         ) {

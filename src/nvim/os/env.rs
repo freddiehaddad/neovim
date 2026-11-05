@@ -511,13 +511,13 @@ pub fn expand_env_esc(
     one: bool,
     prefix: Option<&CStr>,
 ) -> usize {
-    let esc_chars = esc_chars.map_or(ptr::null(), CStr::as_ptr);
-    let prefix = prefix.map_or(ptr::null(), CStr::as_ptr);
+    let esc_chars = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(esc_chars);
+    let prefix = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(prefix);
     let srcp = crate::strings::CStrCursor::from_ptr(srcp_in.as_ptr());
     let mut dst_idx = 0usize;
     let mut dst_rem = dst_slice.len().saturating_sub(1) as i32;
     let mut at_start = true;
-    let prefix_bytes = crate::memory::cstr_as_bytes(prefix);
+    let prefix_bytes = prefix.as_bytes();
 
     let mut src: *mut u8 = srcp
         .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
@@ -662,7 +662,7 @@ pub fn expand_env_esc(
 
             if !esc_chars.is_null() && !var.is_null() {
                 let var_bytes = crate::memory::cstr_as_bytes(var);
-                let esc_bytes = crate::memory::cstr_as_bytes(esc_chars);
+                let esc_bytes = esc_chars.as_bytes();
                 if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
                     var_cstr = Some(vim_strsave_escaped(var_bytes, esc_bytes));
                     var = var_cstr

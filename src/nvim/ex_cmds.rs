@@ -2045,7 +2045,7 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 }
 
 pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
-    let new_fname_ptr = new_fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let new_fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(new_fname);
     let mut buf = g_st().curbuf;
     apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
     if g_st().curbuf != buf {
@@ -2055,12 +2055,7 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
         return false;
     }
     let (fname_cstr, sfname_cstr, xfname_kind) = curbuf_mut().take_fnames();
-    if !setfname(
-        curbuf_mut(),
-        crate::memory::cstr_as_opt_cstr(new_fname_ptr),
-        None,
-        true,
-    ) {
+    if !setfname(curbuf_mut(), new_fname_ptr.as_opt_cstr(), None, true) {
         curbuf_mut().restore_fnames(fname_cstr, sfname_cstr, xfname_kind);
         return false;
     }
@@ -2148,8 +2143,8 @@ fn check_writable(fname: &CStr) -> bool {
 }
 
 fn handle_mkdir_p_arg(eap: &mut Exarg, fname: Option<&CStr>) -> bool {
-    let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if eap.mkdir_p && os_file_mkdir(crate::memory::cstr_from_ptr(fname_ptr), 0o755) < 0 {
+    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
+    if eap.mkdir_p && os_file_mkdir(fname_ptr.as_cstr(), 0o755) < 0 {
         return false;
     }
     true
@@ -2332,8 +2327,8 @@ pub fn check_overwrite(
     ffname_opt: Option<&CStr>,
     other: bool,
 ) -> bool {
-    let fname = fname_opt.map_or(ptr::null(), CStr::as_ptr);
-    let ffname = ffname_opt.map_or(ptr::null(), CStr::as_ptr);
+    let fname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname_opt);
+    let ffname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(ffname_opt);
     if (other
         || (!bt_nofilename(Some(&*buf))
             && ((buf.b_flags & BF_NOTEDITED) != 0
@@ -2341,10 +2336,10 @@ pub fn check_overwrite(
                     && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
                 || (buf.b_flags & BF_READERR) != 0)))
         && !opt_vars().p_wa
-        && os_path_exists(crate::memory::cstr_from_ptr(ffname))
+        && os_path_exists(ffname.as_cstr())
     {
         if !eap.forceit && !eap.append {
-            if os_isdir(crate::memory::cstr_from_ptr(ffname)) {
+            if os_isdir(ffname.as_cstr()) {
                 semsg!(gettext(E_ISADIR2), ffname);
                 return false;
             }
@@ -2377,10 +2372,9 @@ pub fn check_overwrite(
                 let mut p = opt_vars().p_dir.as_bytes();
                 copy_option_part(&mut p, &mut dir, c",");
             }
-            if let Some(swapname) = makeswapname(
-                crate::memory::cstr_as_opt_cstr(fname),
-                crate::memory::cstr_until_nul(&dir),
-            ) && os_path_exists(&swapname)
+            if let Some(swapname) =
+                makeswapname(fname.as_opt_cstr(), crate::memory::cstr_until_nul(&dir))
+                && os_path_exists(&swapname)
             {
                 if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];

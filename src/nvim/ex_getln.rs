@@ -3922,7 +3922,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
         content = arena_array(&mut arena, 1);
         let mut len: usize = 0;
         let mut p = getln_st().ccline.cmdbuff();
-        while !crate::memory::cstr_is_empty(p) {
+        while !p.is_empty() {
             p = p.wrapping_add(utfc_ptr2len(p) as usize);
             len += 1;
         }
@@ -4300,7 +4300,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                     .wrapping_add(getln_st().ccline.cmdpos as usize),
                 w,
             ) as usize;
-            let w_slice = crate::memory::cstr_slice(w, len);
+            let w_slice = w.slice(len);
             let arg_b = arg.as_bytes();
             let arg_prefix = &arg_b[..len.min(arg_b.len())];
             let matches = if opt_vars().p_ic {
@@ -4313,7 +4313,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
             }
         }
 
-        cmdline_paste_str(crate::memory::cstr_as_bytes(p), literally);
+        cmdline_paste_str(p.as_bytes(), literally);
         return true;
     }
 

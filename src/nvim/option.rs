@@ -7458,9 +7458,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
 
     opt_st().expand_option_append = false;
     let mut expand_option_subtract = false;
-    if matches!(nextchar, b'-' | b'+' | b'^')
-        && crate::memory::cstr_as_bytes(p).get(1) == Some(&b'=')
-    {
+    if matches!(nextchar, b'-' | b'+' | b'^') && p.as_bytes().get(1) == Some(&b'=') {
         if nextchar == b'-' {
             expand_option_subtract = true;
         }
@@ -7556,26 +7554,25 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     {
         p = argend.wrapping_offset(-1);
         while p.cast::<u8>() > xp.xp_pattern.as_ptr() {
-            if crate::memory::cstr_first_byte(p) == b' '
-                || crate::memory::cstr_first_byte(p) == b','
-                || (crate::memory::cstr_first_byte(p) == b':' && (flags & K_OPT_FLAG_COLON) != 0)
+            if p.first_byte() == b' '
+                || p.first_byte() == b','
+                || (p.first_byte() == b':' && (flags & K_OPT_FLAG_COLON) != 0)
             {
                 let mut s = p;
                 while s.cast::<u8>() > xp.xp_pattern.as_ptr()
-                    && crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b'\\'
+                    && s.wrapping_offset(-1).first_byte() == b'\\'
                 {
                     s = s.wrapping_offset(-1);
                 }
-                let comma_unesc = crate::memory::cstr_first_byte(p) == b','
+                let comma_unesc = p.first_byte() == b','
                     && (flags & K_OPT_FLAG_COMMA) != 0
                     && crate::memory::ptr_offset_from(p, s) < if cfg!(windows) { 1 } else { 2 };
 
-                if (crate::memory::cstr_first_byte(p) == b' '
+                if (p.first_byte() == b' '
                     && ((xp.xp_backslash & XP_BS_THREE) != 0
                         && crate::memory::ptr_offset_from(p, s) < 3))
                     || comma_unesc
-                    || (crate::memory::cstr_first_byte(p) == b':'
-                        && (flags & K_OPT_FLAG_COLON) != 0)
+                    || (p.first_byte() == b':' && (flags & K_OPT_FLAG_COLON) != 0)
                 {
                     xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p.wrapping_add(1).cast());
                     break;

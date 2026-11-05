@@ -2791,7 +2791,7 @@ fn str_to_reg(
             let mut s_vec = vec![0u8; s_len + 1];
             if extra > 0 {
                 let last_data = y_ptr.y_array.last().unwrap().data;
-                s_vec[..extra].copy_from_slice(crate::memory::cstr_slice(last_data, extra));
+                s_vec[..extra].copy_from_slice(last_data.slice(extra));
             }
             if line_len > 0 {
                 s_vec[extra..s_len].copy_from_slice(&slice[..line_len]);

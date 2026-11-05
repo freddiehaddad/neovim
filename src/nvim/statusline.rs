@@ -1097,7 +1097,7 @@ pub fn draw_tabline() {
                 let n = g_st().columns_global - col - 1;
                 len = len.min(n);
 
-                grid_line_puts(col, crate::memory::cstr_from_ptr(p), -1, attr);
+                grid_line_puts(col, p.as_cstr(), -1, attr);
                 col += len;
             }
             grid_line_put_schar(col, schar_from_ascii(b' '), attr);

@@ -3371,7 +3371,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
 
         let mut rem = slice;
         while !rem.is_empty() {
-            let s_ptr: crate::strings::RawCCharPtr = rem.as_ptr().cast();
+            let s_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::of(rem.as_ptr().cast());
             let len = (utf_ptr2len(s_ptr) as usize).max(1).min(rem.len());
             let first = rem[0];
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {

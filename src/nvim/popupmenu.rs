@@ -664,7 +664,7 @@ fn pum_compute_text_attrs(
         let mut char_pos: u32 = 0;
         let is_select = hlf == HLF_PSI;
 
-        while !crate::memory::cstr_is_empty(ptr) {
+        while !ptr.is_empty() {
             let mut new_attr = win_hl_attr(curwin_mut(), hlf);
 
             if let Some(ref positions) = match_positions {
@@ -676,11 +676,7 @@ fn pum_compute_text_attrs(
                 }
             } else {
                 if matched_len < 0
-                    && mb_strnicmp(
-                        crate::memory::cstr_as_bytes(ptr),
-                        (leader).to_bytes(),
-                        leader_len,
-                    ) == 0
+                    && mb_strnicmp(ptr.as_bytes(), (leader).to_bytes(), leader_len) == 0
                 {
                     matched_len = leader_len as i32;
                 }
@@ -726,9 +722,7 @@ fn pum_grid_puts_with_attrs(
         let col_start = col;
         let mut ptr = text;
 
-        while !crate::memory::cstr_is_empty(ptr)
-            && (textlen < 0 || ptr < text.wrapping_add(textlen as usize))
-        {
+        while !ptr.is_empty() && (textlen < 0 || ptr < text.wrapping_add(textlen as usize)) {
             let char_len = utfc_ptr2len(ptr);
             let attr_idx = if pum().rl {
                 col_start + cells - col - 1
@@ -736,7 +730,7 @@ fn pum_grid_puts_with_attrs(
                 col - col_start
             };
             let attr = attrs[attr_idx as usize];
-            grid_line_puts(col, crate::memory::cstr_from_ptr(ptr), char_len, attr);
+            grid_line_puts(col, ptr.as_cstr(), char_len, attr);
             col += utf_ptr2cells(ptr);
             ptr = ptr.wrapping_add(char_len as usize);
         }

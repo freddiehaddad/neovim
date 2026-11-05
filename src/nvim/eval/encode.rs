@@ -203,7 +203,7 @@ pub fn encode_read_from_list(
         if state.offset < state.li_length
             && let Some(cur_li) = state.li_opt()
         {
-            let s = crate::memory::cstr_slice(cur_li.li_tv.vval.v_string(), state.li_length);
+            let s = cur_li.li_tv.vval.v_string().slice(state.li_length);
             while state.offset < state.li_length && p < nbuf {
                 let ch = s[state.offset];
                 state.offset += 1;

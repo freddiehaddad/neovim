@@ -2687,21 +2687,26 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             lnum += 1;
         }
 
-        let mut s = crate::charset::skipwhite_ptr(ml_get(lnum).as_ptr().cast_mut());
-        let s_bytes = crate::memory::cstr_as_bytes(s);
+        let mut s =
+            crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut()).skipwhite();
+        let s_bytes = s.as_bytes();
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
-            s = crate::charset::skipwhite_ptr(s.wrapping_add(2));
+            s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(s.wrapping_add(2)));
             if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(s)) && lnum + 1 < foldend
             {
-                s = crate::charset::skipwhite_ptr(ml_get(lnum + 1).as_ptr().cast_mut());
-                if crate::memory::cstr_first_byte(s) == b'*' {
-                    s = crate::charset::skipwhite_ptr(s.wrapping_add(1));
+                s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(
+                    ml_get(lnum + 1).as_ptr().cast_mut(),
+                ));
+                if s.first_byte() == b'*' {
+                    s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(
+                        s.wrapping_add(1),
+                    ));
                 }
             }
         }
         let count = foldend - foldstart + 1;
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
-        let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes_with_nul();
+        let s_bytes = s.as_cstr().to_bytes_with_nul();
         let s_len = s_bytes.len() - 1;
         let len = txt.to_bytes().len() + dashes.to_bytes().len() + 20 + s_len;
         let mut r_vec = vec![0u8; len];

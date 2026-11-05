@@ -682,7 +682,7 @@ pub fn do_in_path(
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let path = path_cstr.as_ptr();
-    let name = name_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let name = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(name_opt);
     let mut did_one = false;
 
     let rtp_copy = path_cstr.to_owned();
@@ -725,14 +725,14 @@ pub fn do_in_path(
                 did_one = true;
             } else {
                 let prefix_len = prefix.to_bytes().len();
-                let name_len = crate::memory::cstr_len(name);
+                let name_len = name.len();
                 if buflen + 2 + prefix_len + name_len < MAXPATHL {
                     add_pathsep(&mut buf_vec);
                     let cur_len = crate::memory::bytes_until_nul(&buf_vec).len();
                     buf_vec[cur_len..(cur_len + prefix_len + 1)]
                         .copy_from_slice(prefix.to_bytes_with_nul());
 
-                    let mut np = crate::memory::cstr_as_bytes(name);
+                    let mut np = name.as_bytes();
                     while !np.is_empty() && (do_all || !did_one) {
                         let tail_off = cur_len + prefix_len;
                         debug_assert!(MAXPATHL >= tail_off);
@@ -809,7 +809,7 @@ fn do_in_cached_path(
     flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
-    let name = name_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let name = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(name_opt);
     let mut did_one = false;
     let mut buf = [0u8; MAXPATHL];
 
@@ -835,14 +835,14 @@ fn do_in_cached_path(
 
         if name.is_null() {
             callback.invoke(std::slice::from_ref(&item.path), do_all);
-        } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
+        } else if buflen + name.len() + 2 < MAXPATHL {
             buf[..=buflen].copy_from_slice(item.path.to_bytes_with_nul());
             add_pathsep(&mut buf);
             let tail = buf
                 .as_mut_ptr()
                 .wrapping_add(crate::memory::bytes_until_nul(&buf).len());
 
-            let mut np = crate::memory::cstr_as_bytes(name);
+            let mut np = name.as_bytes();
             while !np.is_empty() && (do_all || !did_one) {
                 let tail_off = (tail as usize) - (buf.as_ptr() as usize);
                 debug_assert!(MAXPATHL >= tail_off);
@@ -2547,7 +2547,7 @@ fn do_source_ext(
     ex_lua: bool,
     str_opt: Option<&std::ffi::CStr>,
 ) -> bool {
-    let fname = fname_opt.map_or(ptr::null(), CStr::as_ptr);
+    let fname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname_opt);
     let mut cookie = SourceCookie::new();
     let mut firstline: Option<std::ffi::CString> = None;
     let mut retval = false;
@@ -2561,7 +2561,7 @@ fn do_source_ext(
             do_source_str_init(&mut cookie, str_cstr);
             fname_cstr.to_owned()
         } else {
-            let p = expand_env_save(crate::memory::cstr_from_ptr(fname));
+            let p = expand_env_save(fname.as_cstr());
             let Some(fe) = fix_fname(Some(&p)) else {
                 return retval;
             };

@@ -3446,10 +3446,10 @@ fn get_group_name<'a>(arg: &'a CStr, name_len: &mut usize) -> Option<&'a CStr> {
     let name_end = crate::charset::skiptowhite_ptr(arg_ptr);
     *name_len = crate::memory::ptr_offset_from(name_end, arg_ptr).max(0) as usize;
     let rest = crate::charset::skipwhite_ptr(name_end);
-    if ends_excmd(arg_ptr.first_byte()) != 0 || crate::memory::cstr_is_empty(rest) {
+    if ends_excmd(arg_ptr.first_byte()) != 0 || rest.is_empty() {
         return None;
     }
-    Some(crate::memory::cstr_from_ptr(rest))
+    Some(rest.as_cstr())
 }
 
 fn get_syn_options<'a>(
@@ -3935,9 +3935,9 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         }
 
         let mut key_end = rest;
-        while !crate::memory::cstr_is_empty(key_end)
-            && !ascii_iswhite(crate::memory::cstr_first_byte(key_end))
-            && crate::memory::cstr_first_byte(key_end) != b'='
+        while !key_end.is_empty()
+            && !ascii_iswhite(key_end.first_byte())
+            && key_end.first_byte() != b'='
         {
             key_end = key_end.wrapping_add(1);
         }

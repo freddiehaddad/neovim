@@ -18,7 +18,6 @@ use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
 use crate::window::WinInfoInfo;
-use std::ptr;
 
 pub(crate) const CB_MAX_ERROR: u8 = 3;
 pub(crate) const K_DECOR_PROVIDER_ACTIVE: i32 = 1;
@@ -108,7 +107,7 @@ fn decor_provider_error(
     name: &std::ffi::CStr,
     msg: Option<&std::ffi::CStr>,
 ) {
-    let msg_ptr = msg.map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let msg_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(msg);
     let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)").as_ptr();
     logmsg!(
         LOGLVL_ERR,
