@@ -2197,7 +2197,8 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             }
         }
     } else {
-        endcol = col;
+        let len = crate::memory::cstr_len(line) as Colnr;
+        endcol = col.min(len);
     }
     if endcol > 0 {
         let mut regmatch = Regmatch::new();

@@ -3850,7 +3850,9 @@ pub fn setfname(
                 }
                 return false;
             }
+            buf.b_locked += 1;
             close_buffer(None, obuf.opt_mut(), DOBUF_WIPE, false, false, false);
+            buf.b_locked -= 1;
         }
         let mut sf_vec = sfname_raw.into_bytes_with_nul();
         if CASE_INSENSITIVE_FILENAME {
