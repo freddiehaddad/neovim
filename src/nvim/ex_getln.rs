@@ -479,7 +479,9 @@ fn set_search_match(t: &mut CursorPos) {
     t.col = g_st().search_global.match_endcol;
     if t.lnum > curbuf_mut().b_ml.ml_line_count {
         t.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_cursor = *t;
         coladvance(curwin_mut(), MAXCOL);
+        *t = curwin_mut().w_cursor;
     }
 }
 
@@ -812,7 +814,9 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     let mut end_pos = curwin_mut().w_cursor;
     if found != 0 {
         s.match_start = curwin_mut().w_cursor;
-        set_search_match(&mut curwin_mut().w_cursor);
+        let mut match_pos = curwin_mut().w_cursor;
+        set_search_match(&mut match_pos);
+        curwin_mut().w_cursor = match_pos;
         validate_cursor(curwin_mut());
         s.match_end = curwin_mut().w_cursor;
         curwin_mut().w_cursor = end_pos;
@@ -4259,7 +4263,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
         let Some(vec_val) = opt_vec else {
             return false;
         };
-        let arg = crate::strings::CStrCursor::from_ptr(vec_val.as_ptr().cast_mut());
+        let arg = crate::strings::ByteSlice::from_bytes(&vec_val);
 
         let mut p = arg;
         if opt_vars().p_is && regname == CTRL_W_CONST {
@@ -4997,14 +5001,14 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     }
 
     let prompt: *const u8;
-    let mut defstr = crate::strings::CStrCursor::<u8>::of(c"".as_ptr().cast());
+    let mut defstr = crate::strings::ByteSlice::from_cstr(c"");
     let mut cancelreturn = crate::globals::GraphPtr::<TypVal>::NULL;
     let mut cancelreturn_strarg2 = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: 0,
         vval: TypvalVval::Number(0),
     };
-    let mut xp_name = crate::strings::CStrCursor::<u8>::NULL;
+    let mut xp_name = crate::strings::BYTE_SLICE_NULL;
     let mut input_callback: Callback = Callback::new();
     let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
@@ -5028,19 +5032,19 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         else {
             return;
         };
-        defstr = crate::strings::CStrCursor::<u8>::of(defstr_cstr.as_ptr().cast());
+        defstr = crate::strings::ByteSlice::from_cstr(defstr_cstr);
         if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
             cancelreturn = crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_di.di_tv);
         }
         if tv_dict_find(dict_ref, c"completion", 10).is_none() {
-            xp_name = crate::strings::CStrCursor::NULL;
+            xp_name = crate::strings::BYTE_SLICE_NULL;
         } else {
             let Some(xp_cstr) =
                 tv_dict_get_string_buf_chk(dict_ref, c"completion", 10, &mut xp_name_buf, None)
             else {
                 return;
             };
-            xp_name = crate::strings::CStrCursor::<u8>::of(xp_cstr.as_ptr().cast());
+            xp_name = crate::strings::ByteSlice::from_cstr(xp_cstr);
         }
         if !tv_dict_get_callback(dict.opt_mut(), c"highlight", 9, &mut input_callback) {
             return;
@@ -5054,7 +5058,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                 return;
             };
-            defstr = crate::strings::CStrCursor::<u8>::of(defstr_cstr.as_ptr().cast());
+            defstr = crate::strings::ByteSlice::from_cstr(defstr_cstr);
             if argvars[2].v_type != VarType::VarUnknown {
                 let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
                 else {
@@ -5066,7 +5070,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                     cancelreturn =
                         crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_strarg2);
                 } else {
-                    xp_name = crate::strings::CStrCursor::<u8>::of(strarg2.as_ptr().cast());
+                    xp_name = crate::strings::ByteSlice::from_cstr(strarg2);
                 }
             }
         }

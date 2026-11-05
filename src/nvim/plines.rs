@@ -1178,13 +1178,15 @@ pub fn getvcol(
 pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
     let list_save = curwin_mut().w_onebuf_opt.wo_list;
     let mut vcol: Colnr = 0;
+    let mut pos = *posp;
 
     curwin_mut().w_onebuf_opt.wo_list = false;
-    if posp.coladd != 0 {
-        getvvcol(curwin_mut(), posp, None, Some(&mut vcol), None, 0);
+    if pos.coladd != 0 {
+        getvvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
     } else {
-        getvcol(curwin_mut(), posp, None, Some(&mut vcol), None, 0);
+        getvcol(curwin_mut(), &mut pos, None, Some(&mut vcol), None, 0);
     }
+    *posp = pos;
     curwin_mut().w_onebuf_opt.wo_list = list_save;
     vcol
 }

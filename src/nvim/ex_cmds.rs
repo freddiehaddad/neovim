@@ -335,7 +335,7 @@ use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
-    let data = crate::strings::CStrCursor::from_ptr(get_cursor_pos_ptr().as_ptr().cast_mut());
+    let data = crate::strings::ByteSlice::from_cstr(get_cursor_pos_ptr());
     let len = utfc_ptr2len(data) as usize;
 
     if len == 0 {
@@ -349,7 +349,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
 
     let mut c = utf_ptr2char(data);
     let mut off: usize = 0;
-    let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
 
     if c < 0x80 {
         if c == NL {
@@ -1990,7 +1990,7 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 }
 
 pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
-    let new_fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(new_fname);
+    let new_fname_ptr = crate::strings::ByteSlice::from_opt_cstr(new_fname);
     let mut buf = g_st().curbuf;
     apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
     if g_st().curbuf != buf {
@@ -2088,7 +2088,7 @@ fn check_writable(fname: &CStr) -> bool {
 }
 
 fn handle_mkdir_p_arg(eap: &mut Exarg, fname: Option<&CStr>) -> bool {
-    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
+    let fname_ptr = crate::strings::ByteSlice::from_opt_cstr(fname);
     if eap.mkdir_p && os_file_mkdir(fname_ptr.as_cstr(), 0o755) < 0 {
         return false;
     }
@@ -2272,8 +2272,8 @@ pub fn check_overwrite(
     ffname_opt: Option<&CStr>,
     other: bool,
 ) -> bool {
-    let fname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname_opt);
-    let ffname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(ffname_opt);
+    let fname = crate::strings::ByteSlice::from_opt_cstr(fname_opt);
+    let ffname = crate::strings::ByteSlice::from_opt_cstr(ffname_opt);
     if (other
         || (!bt_nofilename(Some(&*buf))
             && ((buf.b_flags & BF_NOTEDITED) != 0
@@ -5147,7 +5147,7 @@ fn show_sub(
                         str_buf.resize(line_size as usize, 0);
                     }
                 }
-                let str = crate::strings::CStrCursor::from_ptr(str_buf.as_mut_ptr());
+                let str = crate::strings::ByteSlice::from_bytes(&str_buf);
                 vim_snprintf!(
                     &mut str_buf[..line_size as usize],
                     c"|%*d| %s",
@@ -5219,7 +5219,7 @@ pub fn skip_vimgrep_pat<'a>(
     mut flags: Option<&mut i32>,
 ) -> Option<&'a CStr> {
     let p_bytes = p_cstr.to_bytes();
-    let p_base = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+    let p_base = crate::strings::ByteSlice::from_cstr(p_cstr);
     let first_b = p_bytes.first().copied().unwrap_or(0);
     let mut off: usize;
     if vim_is_idc(i32::from(first_b)) {

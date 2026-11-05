@@ -669,8 +669,7 @@ pub fn spell_suggest(count: i32) {
             || curwin_mut().w_cursor.col > prev_cursor.col
         {
             curwin_mut().w_cursor = prev_cursor;
-            let curline =
-                crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+            let curline = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
             let curline_bytes = get_cursor_line_slice();
             let mut p_idx = (curwin_mut().w_cursor.col as usize).min(curline_bytes.len());
             while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], curwin_mut()) {
@@ -696,7 +695,7 @@ pub fn spell_suggest(count: i32) {
         );
         let mut line_vec = get_cursor_line_slice().to_vec();
         line_vec.push(0);
-        let line = crate::strings::CStrCursor::from_ptr(line_vec.as_mut_ptr());
+        let line = crate::strings::ByteSlice::from_bytes(&line_vec);
         sps_st().spell_suggest_timeout = 5000;
         let mut sug = Suginfo::default();
         let limit = sps_st().sps_limit.min(g_st().rows_global - 2);
@@ -762,7 +761,7 @@ pub fn spell_suggest(count: i32) {
                 )
                 .to_bytes_with_nul(),
             );
-            let p = crate::strings::CStrCursor::from_ptr(p_vec.as_mut_ptr());
+            let p = crate::strings::ByteSlice::from_bytes(&p_vec);
             prep_redo(
                 false,
                 false,
@@ -2738,7 +2737,7 @@ fn add_suggestion(
     }
 }
 fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
-    let badptr = crate::strings::CStrCursor::<u8>::from_ptr(su.su_badptr.as_ptr().cast());
+    let badptr = crate::strings::ByteSlice::from_cstr(su.su_badptr);
     let gap = if use_sga {
         &mut su.su_sga
     } else {

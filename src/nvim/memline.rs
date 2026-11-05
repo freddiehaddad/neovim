@@ -1049,7 +1049,7 @@ pub fn ml_recover(checkext: bool) {
         b0p = hp_zero_block(unsafe { &mut *hp });
     }
 
-    let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+    let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
     if directly {
         #[cfg(windows)]
         path_to_slash(&mut b0p.b0_fname);
@@ -3464,7 +3464,7 @@ fn findswapname(
         {
             let mut b0 = ZeroBlock::new();
             let mut differ = false;
-            let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+            let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
 
             let fd = os_open(fname_cstr, O_RDONLY, 0);
             if fd >= 0 {

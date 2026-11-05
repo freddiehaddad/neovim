@@ -1827,10 +1827,8 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p.as_ptr() as usize);
                     let mut new_p = vec![0u8; prefix_len + buf_len + 1];
-                    unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr(), prefix_len) };
-                    unsafe {
-                        ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len)
-                    };
+                    new_p[..prefix_len].copy_from_slice(&p_vec[..prefix_len]);
+                    new_p[prefix_len..prefix_len + buf_len].copy_from_slice(&buf_vec[..buf_len]);
                     p_len = prefix_len + buf_len;
                     p_vec = new_p;
                     p = crate::strings::ByteSlice::from_bytes(&p_vec);
@@ -1857,19 +1855,17 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let comp_len = (q as usize).wrapping_sub(remain.as_ptr() as usize)
                 - usize::from(unsafe { *q } != 0);
             let mut new_p = vec![0u8; p_len + comp_len + 1];
-            unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr(), p_len) };
-            unsafe {
-                ptr::copy_nonoverlapping(remain.as_ptr(), new_p.as_mut_ptr().add(p_len), comp_len)
-            };
+            new_p[..p_len].copy_from_slice(&p_vec[..p_len]);
+            new_p[p_len..p_len + comp_len].copy_from_slice(&rem_v[..comp_len]);
             p_len += comp_len;
             p_vec = new_p;
             p = crate::strings::ByteSlice::from_bytes(&p_vec);
 
             // Shorten "remain".
             if unsafe { *q } != 0 {
-                let rem_tail = unsafe { q.sub(1) };
-                let rem_len = crate::memory::cstr_len(rem_tail) + 1;
-                unsafe { ptr::copy(rem_tail, remain.as_mut_ptr(), rem_len) };
+                let rem_tail_off = ((q as usize) - 1) - (remain.as_ptr() as usize);
+                let rem_len = crate::memory::bytes_until_nul(&rem_v[rem_tail_off..]).len() + 1;
+                rem_v.copy_within(rem_tail_off..rem_tail_off + rem_len, 0);
             } else {
                 remain_vec = None;
             }
@@ -1889,7 +1885,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 let mut new_p = vec![0u8; p_len + 3];
                 new_p[0] = b'.';
                 new_p[1] = b'/';
-                unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr().add(2), p_len) };
+                new_p[2..2 + p_len].copy_from_slice(&p_vec[..p_len]);
                 p_len += 2;
                 p_vec = new_p;
                 p = crate::strings::ByteSlice::from_bytes(&p_vec);

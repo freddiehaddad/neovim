@@ -472,7 +472,7 @@ fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
 }
 
 fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
-    let mut p = crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast_mut());
+    let mut p = crate::strings::ByteSlice::from_cstr(arg);
     {
         let mut here = false;
         let mut bp = Debuggy {
@@ -504,7 +504,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             semsg!(E_INVARG2, p);
             return None;
         }
-        p = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p.wrapping_add(4)));
+        p = p.wrapping_add(4).skipwhite();
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;
@@ -513,7 +513,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             let mut rem = p_bytes;
             bp.dbg_lnum = getdigits_int32(&mut rem, true, 0);
             let rem = skipwhite_slice(rem);
-            p = crate::strings::CStrCursor::of(p.wrapping_add(p_bytes.len() - rem.len()));
+            p = p.wrapping_add(p_bytes.len() - rem.len());
         } else {
             bp.dbg_lnum = 0;
         }

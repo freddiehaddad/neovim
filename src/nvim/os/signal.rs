@@ -13,6 +13,7 @@ use crate::main_init::preserve_exit;
 #[cfg(target_os = "linux")]
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
+use crate::strings::ByteSliceExt;
 use crate::strings::vim_snprintf;
 use std::ffi::CStr;
 #[cfg(unix)]
@@ -229,7 +230,7 @@ fn deadly_signal(signum: i32) -> ! {
     set_vim_var_nr(VV_DYING, 1);
     g_st().v_dying = 1;
 
-    let io_buf = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let io_buf = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     vim_snprintf!(
         &mut g_st().iobuff,
         c"Nvim: Caught deadly signal '%s'\n",

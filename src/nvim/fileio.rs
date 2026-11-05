@@ -988,10 +988,10 @@ pub fn readfile(
     flags: i32,
     silent: bool,
 ) -> Option<bool> {
-    let fname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname_opt);
-    let mut sfname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname_opt);
+    let fname = crate::strings::ByteSlice::from_opt_cstr(fname_opt);
+    let mut sfname = crate::strings::ByteSlice::from_opt_cstr(sfname_opt);
     #[cfg(unix)]
-    let mut fname = crate::strings::CStrCursor::of(fname);
+    let mut fname = fname;
     {
         let mut retval = Some(false);
         let mut fd: i32 = if g_st().stdin_fd >= 0 {
@@ -1072,17 +1072,19 @@ pub fn readfile(
             let old_b_fname = curbuf_mut()
                 .fname_opt()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            let using_b_ffname = fname == old_b_ffname.cast() || sfname == old_b_ffname.cast();
-            let using_b_fname = fname == old_b_fname.cast() || sfname == old_b_fname.cast();
+            let using_b_ffname =
+                fname.as_ptr() == old_b_ffname.cast() || sfname.as_ptr() == old_b_ffname.cast();
+            let using_b_fname =
+                fname.as_ptr() == old_b_fname.cast() || sfname.as_ptr() == old_b_fname.cast();
 
             g_st().need_fileinfo = false;
 
             if sfname.is_null() {
-                sfname = crate::strings::CStrCursor::of(fname);
+                sfname = fname;
             }
             #[cfg(unix)]
             {
-                fname = crate::strings::CStrCursor::of(sfname);
+                fname = sfname;
             }
 
             if !filtering && !read_stdin && !read_buffer {
@@ -2716,8 +2718,7 @@ pub fn readfile(
                 }
 
                 if !filtering && (flags & READ_DUMMY) == 0 && !silent {
-                    let iobuf_ptr =
-                        crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+                    let iobuf_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
                     add_quoted_fname(
                         g_st().iobuff_bytes_mut(),
                         g_st().curbuf.opt(),
@@ -3140,8 +3141,8 @@ fn readfile_charconvert(fname: &CStr, fenc: &CStr, fdp: &mut i32) -> Option<std:
 
 /// Set the name of the current buffer.
 pub fn set_rw_fname(fname: Option<&CStr>, sfname: Option<&CStr>) -> bool {
-    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
-    let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
+    let fname_ptr = crate::strings::ByteSlice::from_opt_cstr(fname);
+    let sfname_ptr = crate::strings::ByteSlice::from_opt_cstr(sfname);
     let buf = g_st().curbuf;
 
     if curbuf_mut().b_p_bl {
@@ -3241,7 +3242,7 @@ pub fn msg_add_fileformat(eol_type: i32) -> bool {
 
 /// Append line and character count to IObuff.
 pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
-    let iobuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let iobuf_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     let mut len = iobuf_ptr.len();
     let space = if insert_space != 0 {
         c" ".as_ptr()
@@ -3690,8 +3691,8 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
 
 /// Rename a file, falling back to copying across filesystems if needed.
 pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
-    let from_ptr = crate::strings::CStrCursor::from_ptr(from.as_ptr());
-    let to_ptr = crate::strings::CStrCursor::from_ptr(to.as_ptr());
+    let from_ptr = crate::strings::ByteSlice::from_cstr(from);
+    let to_ptr = crate::strings::ByteSlice::from_cstr(to);
     let mut use_tmp_file = false;
 
     if path_equal(from_ptr.as_cstr(), to_ptr.as_cstr(), K_PATH_CMP_LITERAL) {
@@ -3997,7 +3998,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         }
         let tbufsize = path.as_bytes().len() + mesg.to_bytes().len() + mesg2.to_bytes().len() + 3;
         let mut tbuf_vec = vec![0u8; tbufsize];
-        let tbuf = crate::strings::CStrCursor::from_ptr(tbuf_vec.as_mut_ptr());
+        let tbuf = crate::strings::ByteSlice::from_bytes(&tbuf_vec);
         let tbuflen = vim_snprintf!(&mut tbuf_vec, mesg, path.as_ptr());
         set_vim_var_string(
             VV_WARNINGMSG,
@@ -4356,7 +4357,7 @@ pub fn readdir_core(
     path: &CStr,
     mut context: Option<&mut crate::eval::typval::TypVal>,
 ) -> bool {
-    let path_ptr = crate::strings::CStrCursor::from_ptr(path.as_ptr());
+    let path_ptr = crate::strings::ByteSlice::from_cstr(path);
     entries.clear();
 
     let mut dir = Directory::new();
@@ -4566,7 +4567,7 @@ pub fn match_file_pat(
 
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: &CStr, sfname: Option<&CStr>, ffname: &CStr) -> bool {
-    let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
+    let sfname_ptr = crate::strings::ByteSlice::from_opt_cstr(sfname);
     let tail = path_tail(sfname_ptr.as_cstr());
 
     let mut p = list.to_bytes();

@@ -1710,7 +1710,7 @@ fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {
             if file.is_none_or(|s| s.is_empty()) {
                 file = Some(shada_get_default_file());
             }
-            let name_buff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+            let name_buff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
             let len = expand_env(file.unwrap_or(c""), g_st().name_buff_bytes_mut());
             return Some(std::ffi::CString::new(name_buff_ptr.slice(len)).unwrap_or_default());
         }
@@ -3160,8 +3160,8 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
     let Some(fname_cstr) = shada_filename(file) else {
         return false;
     };
-    let mut fname_bytes = fname_cstr.into_bytes_with_nul();
-    let fname = crate::strings::CStrCursor::from_ptr(fname_bytes.as_mut_ptr());
+    let fname_bytes = fname_cstr.into_bytes_with_nul();
+    let fname = crate::strings::ByteSlice::from_bytes(&fname_bytes);
 
     let mut sd_writer = FileDescriptor::new();
     let mut sd_reader = FileDescriptor::new();
@@ -3219,9 +3219,8 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         close_file(&mut sd_reader);
     }
     let tempname_cstr = CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default();
-    let tempname = crate::strings::CStrCursor::from_ptr(tempname_cstr.as_ptr());
-    let fname =
-        crate::strings::CStrCursor::of(crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr()));
+    let tempname = crate::strings::ByteSlice::from_cstr(tempname_cstr);
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let mut did_remove = false;
     if sw_ret == ShaDaWriteResult::SDWriteSuccessful {
         let mut can_rename = true;
@@ -4055,7 +4054,7 @@ fn shada_removable(name: &CStr) -> bool {
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
         if part[0] == b'r' {
-            let name_buff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+            let name_buff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
             let n = home_replace(
                 None,
                 Some(crate::memory::cstr_until_nul(&part[1..])),

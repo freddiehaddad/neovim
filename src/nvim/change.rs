@@ -667,7 +667,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
     let mut buf_cstr = [0u8; MB_MAXCHAR + 1];
     let copy_len = buf_slice.len().min(MB_MAXCHAR);
     buf_cstr[..copy_len].copy_from_slice(&buf_slice[..copy_len]);
-    let buf_ptr = crate::strings::CStrCursor::from_ptr(buf_cstr.as_ptr().cast::<u8>());
+    let buf_ptr = crate::strings::ByteSlice::from_bytes(&buf_cstr);
     {
         if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
@@ -675,7 +675,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
 
         let col = curwin_mut().w_cursor.col as usize;
         let lnum = curwin_mut().w_cursor.lnum;
-        let oldp = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
+        let oldp = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
         let linelen = ml_get_len(lnum) as usize + 1;
 
         let mut oldlen: usize = 0;
@@ -689,14 +689,9 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     curwin_mut().w_onebuf_opt.wo_list = false;
                 }
                 let mut vcol: Colnr = 0;
-                getvcol(
-                    curwin_mut(),
-                    &mut curwin_mut().w_cursor,
-                    None,
-                    Some(&mut vcol),
-                    None,
-                    0,
-                );
+                let mut cursor = curwin_mut().w_cursor;
+                getvcol(curwin_mut(), &mut cursor, None, Some(&mut vcol), None, 0);
+                curwin_mut().w_cursor = cursor;
                 let new_vcol = vcol + win_chartabsize(curwin_mut(), buf_ptr.as_bytes(), vcol);
                 while !oldp.wrapping_add(col + oldlen).is_empty() && vcol < new_vcol {
                     vcol += win_chartabsize(
@@ -801,7 +796,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     let lnum = curwin_mut().w_cursor.lnum;
     let mut col = curwin_mut().w_cursor.col;
     let mut fixpos = fixpos_arg;
-    let oldp = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
+    let oldp = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
     let oldlen = ml_get_len(lnum);
 
     if col >= oldlen {
@@ -883,6 +878,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         };
 
         curbuf_mut().b_ml.ml_line_textlen = newlen + 1;
+        curbuf_mut().b_ml.ml_line_slice = &curbuf_mut().b_ml.ml_line_slice[..(newlen + 1) as usize];
     }
 
     inserted_bytes(lnum, col, count, 0);
@@ -1874,7 +1870,7 @@ pub fn open_line(
 pub fn truncate_line(fixpos: i32) {
     let lnum = curwin_mut().w_cursor.lnum;
     let col = curwin_mut().w_cursor.col;
-    let old_line = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
+    let old_line = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
     let newp_vec: Vec<u8> = if col == 0 {
         vec![0]
     } else {
@@ -1936,7 +1932,7 @@ pub fn get_leader_len(
     let mut got_com = false;
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
     let mut middle_match_len: usize = 0;
-    let mut saved_flags = crate::strings::CStrCursor::<u8>::NULL;
+    let mut saved_flags = crate::strings::BYTE_SLICE_NULL;
 
     let mut result: usize = 0;
     let mut i: usize = 0;
@@ -2006,8 +2002,7 @@ pub fn get_leader_len(
             if part_flags.contains(&COM_MIDDLE) {
                 if middle_match_len == 0 {
                     middle_match_len = j;
-                    saved_flags =
-                        crate::strings::CStrCursor::<u8>::of(prev_list.as_ptr().cast_mut().cast());
+                    saved_flags = crate::strings::ByteSlice::from_cstr(prev_list);
                 }
                 continue;
             }

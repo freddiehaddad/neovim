@@ -3342,7 +3342,7 @@ fn has_autocmd_ext(
         return false;
     }
 
-    let sfname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(sfname);
+    let sfname_ptr = crate::strings::ByteSlice::from_opt_cstr(sfname);
     let tail = path_tail(sfname_ptr.as_cstr());
     let mut retval = false;
 
@@ -3413,7 +3413,7 @@ pub fn aucmd_set_expand_context<'a>(
         group = AUGROUP_ALL;
     }
 
-    let ev_base = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
+    let ev_base = crate::strings::ByteSlice::from_cstr(arg);
     let arg_bytes = arg.to_bytes();
     let mut p_idx = 0usize;
     while p_idx < arg_bytes.len() && !ascii_iswhite(arg_bytes[p_idx] as i32) {

@@ -984,7 +984,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
 
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
 pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, forceit: bool) {
-    let arg_ptr = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast_mut());
+    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg_in);
     let mut unmenu = false;
 
     xp.xp_context = EXPAND_UNSUCCESSFUL;

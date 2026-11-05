@@ -1368,8 +1368,8 @@ pub fn os_fsetperm(fd: i32, perm: i32) -> bool {
 
 /// Copy extended attributes `from_file` to `to_file`.
 pub fn os_copy_xattr(from_file_opt: Option<&CStr>, to_file_opt: Option<&CStr>) {
-    let from_file = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(from_file_opt);
-    let to_file = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(to_file_opt);
+    let from_file = crate::strings::ByteSlice::from_opt_cstr(from_file_opt);
+    let to_file = crate::strings::ByteSlice::from_opt_cstr(to_file_opt);
     #[cfg(not(target_os = "linux"))]
     let _ = (from_file, to_file);
     #[cfg(target_os = "linux")]
@@ -1696,19 +1696,16 @@ pub fn os_mkdir_recurse(
 /// Create the parent directory of a file if it does not exist.
 pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
     let mut fname_vec = fname_in.to_bytes_with_nul().to_vec();
-    let fname =
-        crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(fname_vec.as_mut_ptr().cast());
+    let fname = crate::strings::ByteSlice::from_bytes(&fname_vec);
     if !dir_of_file_exists(fname.as_cstr()) {
-        let tail = crate::strings::CStrCursor::from_ptr(
-            path_tail_with_sep(fname.as_cstr()).as_ptr().cast_mut(),
-        );
-        let last_char = tail.wrapping_add(tail.len()).wrapping_sub(1);
-        if vim_ispathsep(i32::from(last_char.first_byte())) {
+        let tail_cstr = path_tail_with_sep(fname.as_cstr());
+        let tail_off = (tail_cstr.as_ptr() as usize) - (fname.as_ptr() as usize);
+        if fname_vec.len() >= 2 && vim_ispathsep(i32::from(fname_vec[fname_vec.len() - 2])) {
             emsg(gettext(E_NONAME));
             return -1;
         }
-        let c = tail.first_byte();
-        tail.set_byte(0, (NUL) as u8);
+        let c = fname_vec[tail_off];
+        fname_vec[tail_off] = (NUL) as u8;
         let mut failed_dir: Option<std::ffi::CString> = None;
         let r = os_mkdir_recurse(fname.as_cstr(), mode, &mut failed_dir, None);
         if r < 0 {
@@ -1718,7 +1715,7 @@ pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
                 unsafe { uv_strerror(r) },
             );
         }
-        tail.set_byte(0, c);
+        fname_vec[tail_off] = c;
         return r;
     }
     0

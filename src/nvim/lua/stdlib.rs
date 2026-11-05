@@ -469,7 +469,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
                         return luaL_error(
                             lstate,
                             c"Setting v:%s to value with wrong type".as_ptr(),
-                            key.data,
+                            key.data.as_ptr(),
                         );
                     }
                     return 0;

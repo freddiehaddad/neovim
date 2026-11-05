@@ -902,17 +902,6 @@ impl CStrPtrSkip for *mut u8 {
     }
 }
 
-impl<T> CStrPtrSkip for crate::strings::CStrCursor<T> {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
 impl CStrPtrSkip for Option<&'static [u8]> {
     #[inline]
     fn as_c_char_ptr(self) -> *const std::ffi::c_char {

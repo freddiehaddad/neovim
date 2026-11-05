@@ -5854,7 +5854,7 @@ fn parse_count(
             if !eap.args.is_empty() {
                 let arg0 = eap.args.as_slice()[0];
                 let arglen0 = eap.arglens.as_slice()[0];
-                debug_assert!(eap.arg >= arg0);
+                debug_assert!(eap.arg.addr() >= arg0.addr());
                 if (eap.arg.as_ptr() as usize) < (arg0.as_ptr() as usize) + arglen0 {
                     eap.arglens.as_mut_slice()[0] -=
                         (eap.arg.as_ptr() as usize) - (arg0.as_ptr() as usize);
@@ -8321,7 +8321,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         let mut srclen: usize = 0;
         let mut escaped = false;
         let arg_off = (p as usize) - (eap.arg.as_ptr() as usize);
-        let arg_mut = eap.arg_mut_bytes();
+        let arg_mut = eap.arg_cstr_buf_mut();
         let repl_owned = eval_vars(
             arg_mut,
             arg_off,

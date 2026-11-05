@@ -1034,7 +1034,7 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
 
     let mut lnum: Linenr = -1;
     if let Some(fname_cstr) = grab_file_name(prenum1, &mut lnum) {
-        let ptr = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr().cast_mut());
+        let ptr = crate::strings::ByteSlice::from_cstr(&fname_cstr);
         let oldtab = g_st().curtab;
         let oldwin = curwin_mut();
         setpcmark();
@@ -5797,7 +5797,7 @@ pub fn update_cwd(cause: CdCause) {
     }
 
     if let Some(ref new_dir_cstr) = new_dir {
-        let new_dir_ptr = crate::strings::CStrCursor::from_ptr(new_dir_cstr.as_ptr().cast_mut());
+        let new_dir_ptr = crate::strings::ByteSlice::from_cstr(new_dir_cstr);
         if g_st().globaldir.is_none() && cwd[0] != 0 {
             g_st().globaldir = Some(crate::memory::cstring_until_nul(&cwd));
         }
@@ -5815,7 +5815,7 @@ pub fn update_cwd(cause: CdCause) {
         g_st().last_chdir_reason = None;
         shorten_fnames(true);
     } else if let Some(gdir) = g_st().globaldir.take() {
-        let gdir_ptr = crate::strings::CStrCursor::from_ptr(gdir.as_ptr().cast_mut());
+        let gdir_ptr = crate::strings::ByteSlice::from_cstr(&gdir);
         let dir_differs = !path_equal(
             gdir_ptr.as_cstr(),
             crate::memory::cstr_until_nul(&cwd),

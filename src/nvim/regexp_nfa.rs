@@ -310,14 +310,11 @@ fn nfa_get_match_text(states: &[NfaState], start: Option<usize>) -> Option<std::
 
     let mut ret = vec![0u8; len];
     p = states[states[start_idx].out?].out?;
-    let mut s = crate::strings::CStrCursor::from_ptr(ret.as_mut_ptr());
+    let mut actual_len = 0usize;
     while states[p].c > 0 {
-        s = s.wrapping_add(utf_char2bytes(states[p].c, unsafe {
-            std::slice::from_raw_parts_mut(s.cast(), 6)
-        }) as usize);
+        actual_len += utf_char2bytes(states[p].c, &mut ret[actual_len..]) as usize;
         p = states[p].out?;
     }
-    let actual_len = s.as_ptr() as usize - ret.as_ptr() as usize;
     ret.truncate(actual_len);
     std::ffi::CString::new(ret).ok()
 }
@@ -3686,7 +3683,7 @@ fn nfa_regmatch(
             match t_st.c {
                 NFA_MATCH => {
                     if !re_st().rex.reg_icombine
-                        && re_st().rex.input != re_st().rex.line
+                        && re_st().rex.input.addr() != re_st().rex.line.addr()
                         && utf_iscomposing_legacy(curc)
                     {
                         listidx += 1;
@@ -3711,7 +3708,7 @@ fn nfa_regmatch(
                             re_st().rex.lnum != end_pos.lnum
                                 || re_st().rex.input_col() != end_pos.col
                         } else {
-                            re_st().rex.input != endp.se_u.ptr
+                            re_st().rex.input.addr() != endp.se_u.ptr.addr()
                         }
                     {
                         listidx += 1;
@@ -3861,7 +3858,7 @@ fn nfa_regmatch(
                     }
                 }
                 NFA_BOL => {
-                    if re_st().rex.input == re_st().rex.line {
+                    if re_st().rex.input.addr() == re_st().rex.line.addr() {
                         add_here = true;
                         add_state = t_st.out;
                     }
@@ -3885,7 +3882,7 @@ fn nfa_regmatch(
                     }
                 }
                 NFA_EOW => {
-                    if re_st().rex.input != re_st().rex.line {
+                    if re_st().rex.input.addr() != re_st().rex.line.addr() {
                         let this_class = mb_get_class_tab(
                             re_st().rex.input.as_bytes(),
                             &re_st().rex.buf_mut().b_chartab,
@@ -3899,7 +3896,7 @@ fn nfa_regmatch(
                 }
                 NFA_BOF => {
                     if re_st().rex.lnum == 0
-                        && re_st().rex.input == re_st().rex.line
+                        && re_st().rex.input.addr() == re_st().rex.line.addr()
                         && (!reg_multi() || re_st().rex.reg_firstlnum == 1)
                     {
                         add_here = true;

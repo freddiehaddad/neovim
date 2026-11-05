@@ -3,6 +3,7 @@
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::memory::cstr_to_cstring;
 use crate::message::semsg;
+use crate::strings::ByteSliceExt;
 use std::ffi::{CString, c_void};
 
 #[repr(C)]
@@ -24,7 +25,7 @@ pub fn os_libcall(
     };
     let libname = libname.as_ptr();
     let funcname = funcname.as_ptr();
-    let argv = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(argv);
+    let argv = crate::strings::ByteSlice::from_opt_cstr(argv);
 
     unsafe {
         let mut lib = UvLib {

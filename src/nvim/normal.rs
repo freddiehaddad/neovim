@@ -2767,14 +2767,16 @@ pub fn clear_showcmd() {
             let saved_sbr = std::mem::take(&mut opt_vars().p_sbr);
             let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
 
+            let mut cursor = curwin_mut().w_cursor;
             getvcols(
                 curwin_mut(),
-                &mut curwin_mut().w_cursor,
+                &mut cursor,
                 &mut g_st().visual_global.start,
                 &mut leftcol,
                 &mut rightcol,
                 GETVCOL_END_EXCL_LBR,
             );
+            curwin_mut().w_cursor = cursor;
             opt_vars().p_sbr = saved_sbr;
             curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
             vim_snprintf!(
@@ -2878,7 +2880,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         return false;
     }
 
-    let sc_buf = crate::strings::CStrCursor::from_ptr(g_st().showcmd_buf.as_mut_ptr());
+    let sc_buf = crate::strings::ByteSlice::from_bytes(&g_st().showcmd_buf);
 
     if norm_st().showcmd_visual {
         g_st().showcmd_buf[0] = 0;
@@ -2937,7 +2939,7 @@ fn del_from_showcmd(mut len: i32) {
     if !opt_vars().p_sc {
         return;
     }
-    let sc_buf = crate::strings::CStrCursor::from_ptr(g_st().showcmd_buf.as_mut_ptr());
+    let sc_buf = crate::strings::ByteSlice::from_bytes(&g_st().showcmd_buf);
     let old_len = sc_buf.len() as i32;
     len = len.min(old_len);
     g_st().showcmd_buf[(old_len - len) as usize] = 0;
@@ -2993,7 +2995,7 @@ pub fn display_showcmd() {
 
     let mut mc_buf: [u8; 16] = [0; 16];
     let mc_len = mc_showcmd(&mut mc_buf);
-    let sc_buf = crate::strings::CStrCursor::from_ptr(g_st().showcmd_buf.as_ptr());
+    let sc_buf = crate::strings::ByteSlice::from_bytes(&g_st().showcmd_buf);
 
     if ui_has(K_UIMESSAGES) {
         let mut content_items: [Object; 1] = [NIL_OBJ];
@@ -3276,7 +3278,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
 
         let patsize = len + 7;
         let mut pat_vec = vec![0u8; patsize];
-        let pat = crate::strings::CStrCursor::from_ptr(pat_vec.as_mut_ptr());
+        let pat = crate::strings::ByteSlice::from_bytes(&pat_vec);
 
         assert!(patsize <= i32::MAX as usize);
         let patlen = vim_snprintf!(
@@ -3750,14 +3752,9 @@ fn nv_zet(cap: &mut Cmdarg) {
                 if has_folding(curwin_mut(), cursor_lnum, None, None) {
                     col = 0;
                 } else {
-                    getvcol(
-                        curwin_mut(),
-                        &mut curwin_mut().w_cursor,
-                        Some(&mut col),
-                        None,
-                        None,
-                        0,
-                    );
+                    let mut cursor = curwin_mut().w_cursor;
+                    getvcol(curwin_mut(), &mut cursor, Some(&mut col), None, None, 0);
+                    curwin_mut().w_cursor = cursor;
                 }
                 if i64::from(col) > siso {
                     col -= siso as Colnr;
@@ -3776,14 +3773,9 @@ fn nv_zet(cap: &mut Cmdarg) {
                 if has_folding(curwin_mut(), cursor_lnum, None, None) {
                     col = 0;
                 } else {
-                    getvcol(
-                        curwin_mut(),
-                        &mut curwin_mut().w_cursor,
-                        None,
-                        None,
-                        Some(&mut col),
-                        0,
-                    );
+                    let mut cursor = curwin_mut().w_cursor;
+                    getvcol(curwin_mut(), &mut cursor, None, None, Some(&mut col), 0);
+                    curwin_mut().w_cursor = cursor;
                 }
                 let n = i64::from(curwin_mut().w_view_width - win_col_off(curwin_mut()));
                 if i64::from(col) + siso < n {
@@ -4338,7 +4330,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         }
     }
 
-    let mut ptr = crate::strings::CStrCursor::<u8>::of(ident_slice.as_ptr());
+    let mut ptr = crate::strings::ByteSlice::from_bytes(ident_slice);
     let mut n: usize = ident_slice.len();
     if cmdchar == b'K' as i32 && kp_helpbang && !visual_sel {
         buf_vec[..6].copy_from_slice(b"help!\0");
@@ -4391,38 +4383,26 @@ fn nv_ident(cap: &mut Cmdarg) {
             while i < len && n > 0 {
                 buf_vec[p_idx] = ptr.first_byte();
                 p_idx += 1;
-                ptr = crate::strings::CStrCursor::<u8>::of(ptr.wrapping_add(1));
+                ptr = ptr.wrapping_add(1);
                 i += 1;
                 n -= 1;
             }
             buf_vec[p_idx] = ptr.first_byte();
             p_idx += 1;
-            ptr = crate::strings::CStrCursor::<u8>::of(ptr.wrapping_add(1));
+            ptr = ptr.wrapping_add(1);
         }
         buf_vec[p_idx] = 0;
         buflen = p_idx;
     }
 
     if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
-        if !g_cmd
-            && vim_iswordp(
-                ({
-                    let _l = crate::strings::CStrCursor::from_ptr(
-                        get_cursor_line_ptr().as_ptr().cast_mut(),
-                    );
-                    let mut _p =
-                        crate::strings::CStrCursor::<std::ffi::c_char>::of(ptr.cast_mut().cast());
-                    if (_p.as_ptr() as usize) > (_l.as_ptr() as usize) {
-                        _p.wrapping_sub(
-                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                        )
-                    } else {
-                        _p
-                    }
-                })
-                .as_bytes(),
-            )
-        {
+        let last_char_slice = if !ident_slice.is_empty() {
+            let off = crate::mbyte::utf_head_off_slice(ident_slice, ident_slice.len() - 1) as usize;
+            &ident_slice[ident_slice.len() - 1 - off..]
+        } else {
+            &[][..]
+        };
+        if !g_cmd && vim_iswordp(last_char_slice) {
             buf_vec[buflen..buflen + 3].copy_from_slice(b"\\>\0");
             buflen += 2;
         }
@@ -4958,14 +4938,16 @@ fn nv_csearch(cap: &mut Cmdarg) {
     {
         let mut scol: Colnr = 0;
         let mut ecol: Colnr = 0;
+        let mut cursor = curwin_mut().w_cursor;
         getvcol(
             curwin_mut(),
-            &mut curwin_mut().w_cursor,
+            &mut cursor,
             Some(&mut scol),
             None,
             Some(&mut ecol),
             0,
         );
+        curwin_mut().w_cursor = cursor;
         curwin_mut().w_cursor.coladd = ecol - scol;
     } else {
         curwin_mut().w_cursor.coladd = 0;
@@ -6313,14 +6295,9 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
             && utf_ptr2cells(get_cursor_pos_ptr().as_ptr().cast_mut()) > 1
         {
             let mut vcol: Colnr = 0;
-            getvvcol(
-                curwin_mut(),
-                &mut curwin_mut().w_cursor,
-                None,
-                None,
-                Some(&mut vcol),
-                0,
-            );
+            let mut cursor = curwin_mut().w_cursor;
+            getvvcol(curwin_mut(), &mut cursor, None, None, Some(&mut vcol), 0);
+            curwin_mut().w_cursor = cursor;
             if vcol >= curwin_mut().w_leftcol + curwin_mut().w_view_width - col_off {
                 curwin_mut().w_cursor.col -= 1;
             }
@@ -6880,16 +6857,16 @@ pub fn unadjust_for_sel() -> bool {
     if opt_vars().p_sel.first_byte() == b'e'
         && !equalpos(g_st().visual_global.start, curwin_mut().w_cursor)
     {
-        return unadjust_for_sel_inner(
-            if lt(
-                g_st().borrow_mut().visual_global.start,
-                curwin_mut().w_cursor,
-            ) {
-                &mut curwin_mut().w_cursor
-            } else {
-                &mut g_st().borrow_mut().visual_global.start
-            },
-        );
+        if lt(
+            g_st().borrow_mut().visual_global.start,
+            curwin_mut().w_cursor,
+        ) {
+            let mut cursor = curwin_mut().w_cursor;
+            let rc = unadjust_for_sel_inner(&mut cursor);
+            curwin_mut().w_cursor = cursor;
+            return rc;
+        }
+        return unadjust_for_sel_inner(&mut g_st().borrow_mut().visual_global.start);
     }
     false
 }

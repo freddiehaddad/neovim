@@ -2337,7 +2337,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw)?;
 
-    let io_buff = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let io_buff = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     vim_snprintf!(
         &mut g_st().iobuff,
         c"%s%s",
@@ -3039,7 +3039,7 @@ fn did_set_statustabline_rulerformat<'a>(
         args.set_var_cstr(def.data.string().as_cstr());
         optval_free_read(args.os_idx, def);
     }
-    let s = crate::strings::CStrCursor::from_ptr(args.var_cstr().as_ptr());
+    let s = crate::strings::ByteSlice::from_cstr(args.var_cstr());
 
     if is_stl
         && let Some(win) = args.win_opt()
@@ -3467,7 +3467,7 @@ pub fn check_ff_value(p: &CStr) -> bool {
 
 /// Calls mb_cptr2char_adv(p) and returns the character.
 fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
-    let s = crate::strings::CStrCursor::from_ptr(p.as_ptr());
+    let s = crate::strings::ByteSlice::from_cstr(p);
 
     let s_bytes = p.to_bytes();
     if s_bytes.first() == Some(&b'\\')

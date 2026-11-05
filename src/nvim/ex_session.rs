@@ -549,7 +549,7 @@ fn store_session_globals(fd: &CFile) -> bool {
 }
 
 fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
-    let dirnow = crate::strings::CStrCursor::from_ptr(dirnow.as_ptr());
+    let dirnow = crate::strings::ByteSlice::from_cstr(dirnow);
     {
         let mut only_save_windows = true;
         let mut edited_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
@@ -656,7 +656,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 {
                     continue;
                 }
-                let b_localdir_ptr = crate::strings::CStrCursor::from_ptr(b_localdir.as_ptr());
+                let b_localdir_ptr = crate::strings::ByteSlice::from_cstr(b_localdir);
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
@@ -1016,9 +1016,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 {
                     dirnow_vec[0] = 0;
                 }
-                let dirnow = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(
-                    dirnow_vec.as_mut_ptr().cast(),
-                );
+                let dirnow = crate::strings::ByteSlice::from_bytes(&dirnow_vec);
                 if !dirnow.is_empty() && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
                     if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
                         shorten_fnames(true);

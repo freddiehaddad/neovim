@@ -894,7 +894,7 @@ fn fname2fnum(fm: &Xfmark) {
         let Some(ref fname_cstr) = fm.fname else {
             return;
         };
-        let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+        let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
 
         let fname_bytes = fname.as_bytes();
         if fname_bytes.first() == Some(&b'~')
@@ -1012,14 +1012,13 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
         return c"-invalid-".to_owned();
     }
     debug_assert!(g_st().columns_global >= 0);
-    let line =
-        crate::strings::CStrCursor::from_ptr(ml_get(mp.lnum).as_ptr().cast_mut()).skipwhite();
+    let line = crate::strings::ByteSlice::from_cstr(ml_get(mp.lnum)).skipwhite();
     let max_bytes = line.len().min((g_st().columns_global as usize) * 5);
 
     let mut len: i32 = 0;
     let mut p = line;
     let end = line.wrapping_add(max_bytes);
-    while p < end && !p.is_empty() {
+    while (p.as_ptr() as usize) < (end.as_ptr() as usize) && !p.is_empty() {
         len += ptr2cells(p);
         if len >= g_st().columns_global - lead_len {
             break;

@@ -341,13 +341,6 @@ impl AsCStrPtr for *mut c_void {
     }
 }
 
-impl<T> AsCStrPtr for crate::strings::CStrCursor<T> {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-}
-
 impl AsCStrPtr for Option<&[u8]> {
     #[inline(always)]
     fn into_cstr_ptr(self) -> *const std::ffi::c_char {
@@ -409,14 +402,6 @@ impl<T> IntoMutPtr for &mut T {
     #[inline(always)]
     fn into_mut_ptr(self) -> *mut T {
         std::ptr::from_mut(self)
-    }
-}
-
-impl<T> IntoMutPtr for crate::strings::CStrCursor<T> {
-    type Target = T;
-    #[inline(always)]
-    fn into_mut_ptr(self) -> *mut T {
-        self.as_ptr()
     }
 }
 

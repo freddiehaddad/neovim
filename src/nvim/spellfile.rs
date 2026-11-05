@@ -469,7 +469,7 @@ pub fn spell_load_file(
     old_lp: Option<&mut Slang>,
     silent: bool,
 ) -> Option<&'static mut Slang> {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let Some(fd) = CFile::open(fname.as_cstr(), c"r") else {
         if !silent {
             semsg!(gettext(E_NOTOPEN), fname);
@@ -800,7 +800,7 @@ pub fn suggest_load_files() {
             let mut sug_bytes = fname_cstr.as_bytes()[..prefix_len].to_vec();
             sug_bytes.extend_from_slice(b".sug");
             let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
-            let sug_ptr = crate::strings::CStrCursor::from_ptr(sug_fname.as_ptr());
+            let sug_ptr = crate::strings::ByteSlice::from_cstr(&sug_fname);
             if let Some(fd) = CFile::open(sug_ptr.as_cstr(), c"r") {
                 let mut ok = true;
                 for slot in buf.iter_mut().take(VIMSUGMAGICL) {
@@ -1583,7 +1583,7 @@ fn read_tree_node(
 }
 
 fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let mut didit = false;
 
     let len = spell_priv_st().first_lang.len();
@@ -1652,7 +1652,7 @@ pub fn spell_check_msm(value: &[u8], apply: bool) -> bool {
 }
 
 fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<Afffile> {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let mut rline = [0u8; MAXLINELEN];
     let mut pc_vec: Vec<u8>;
     let mut items = [c""; MAXITEMCNT];
@@ -2775,7 +2775,7 @@ fn sal_to_bool(s: &[u8]) -> bool {
 }
 
 fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Afffile) -> bool {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     let mut line = [0u8; MAXLINELEN];
     let mut store_afflist = [0u8; MAXWLEN];
@@ -2844,7 +2844,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         };
 
         let mut w_len = crate::memory::bytes_until_nul(w_slice).len();
-        let mut afflist = crate::strings::CStrCursor::<u8>::NULL;
+        let mut afflist = crate::strings::BYTE_SLICE_NULL;
         let mut idx = 0;
         while idx < w_len {
             if w_slice[idx] == b'\\'
@@ -2855,13 +2855,13 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
                 w_len -= 1;
             } else if w_slice[idx] == b'/' {
                 w_slice[idx] = 0;
-                afflist = crate::strings::CStrCursor::<u8>::of(w_slice[idx + 1..].as_mut_ptr());
+                afflist = crate::strings::ByteSlice::from_bytes(&w_slice[idx + 1..]);
                 w_len = idx;
                 break;
             }
             idx += crate::mbyte::utfc_slice2len(&w_slice[idx..w_len]);
         }
-        let w = crate::strings::CStrCursor::from_ptr(w_slice.as_mut_ptr());
+        let w = crate::strings::ByteSlice::from_bytes(w_slice);
 
         if spin.si_ascii && !w.as_bytes().is_ascii() {
             non_ascii += 1;
@@ -3373,7 +3373,7 @@ fn store_aff_word(
 }
 
 fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     {
         let mut lnum: Linenr = 0;
         let mut rline = [0u8; MAXLINELEN];
@@ -3992,7 +3992,7 @@ fn node_equal(nodes: &[Wordnode], n1: usize, n2: usize) -> bool {
 }
 
 fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let mut retval = true;
 
     let Some(fd) = CFile::open(fname.as_cstr(), c"w") else {
@@ -4438,7 +4438,7 @@ pub fn ex_mkspell(eap: &mut Exarg) {
 }
 
 fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
-    let wfname = crate::strings::CStrCursor::from_ptr(wfname_cstr.as_ptr());
+    let wfname = crate::strings::ByteSlice::from_cstr(wfname_cstr);
     let mut slang = spell_priv_st()
         .first_lang
         .iter_mut()
@@ -4686,7 +4686,7 @@ fn offset2bytes(nr: i32, buf: &mut [u8; 8]) -> i32 {
 }
 
 fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let Some(fd) = CFile::open(fname.as_cstr(), c"w") else {
         semsg!(gettext(E_NOTOPEN), fname);
         return;
@@ -4774,7 +4774,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
     let mut incount = fcount - 1;
 
     if let Some(f0_cstr) = fnames.first() {
-        let f0 = crate::strings::CStrCursor::from_ptr(f0_cstr.as_ptr());
+        let f0 = crate::strings::ByteSlice::from_cstr(f0_cstr);
         let len = f0_cstr.as_bytes().len();
         if fcount == 1 && len > 4 && (f0.wrapping_add(len - 4).as_bytes() == b".add") {
             incount = 1;
@@ -4816,7 +4816,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
         }
     }
 
-    let wfname = crate::strings::CStrCursor::from_ptr(wfname_buf.as_mut_ptr());
+    let wfname = crate::strings::ByteSlice::from_bytes(&wfname_buf);
 
     if incount <= 0 {
         emsg(gettext(E_INVARG));
@@ -5189,7 +5189,7 @@ fn init_spellfile() {
     let buf_len = MAXPATHL;
 
     if !aspath {
-        let buf = crate::strings::CStrCursor::from_ptr(buf_arr.as_mut_ptr());
+        let buf = crate::strings::ByteSlice::from_bytes(&buf_arr);
         let xdg_path = get_xdg_home(XDGVarType::XDGDataHome).unwrap_or_default();
         crate::memory::copy_bytes_to_c_buf(&mut buf_arr, xdg_path.as_bytes());
         crate::memory::append_bytes_to_c_buf(&mut buf_arr, b"/site/spell");
@@ -5234,8 +5234,7 @@ fn init_spellfile() {
     let cur_len2 = crate::memory::cstr_until_nul(&buf_arr).to_bytes().len();
     vim_snprintf!(&mut buf_arr[cur_len2..], c".%s.add", enc_suffix);
 
-    let buf =
-        crate::strings::CStrCursor::of(crate::strings::CStrCursor::from_ptr(buf_arr.as_mut_ptr()));
+    let buf = crate::strings::ByteSlice::from_bytes(&buf_arr);
     set_option_value_give_err(K_OPT_SPELLFILE, cstr_as_obj(buf.as_opt_cstr()), OPT_LOCAL);
 }
 

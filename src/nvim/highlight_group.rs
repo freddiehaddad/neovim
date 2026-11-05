@@ -1872,11 +1872,11 @@ fn highlight_list_arg(
     }
 
     let mut buf = [0u8; 100];
-    let mut ts = crate::strings::CStrCursor::from_ptr(buf.as_ptr().cast());
+    let mut ts = crate::strings::ByteSlice::from_bytes(&buf);
     if type_ == LIST_INT {
         write_dec(&mut buf, iarg - 1);
     } else if type_ == LIST_STRING {
-        ts = crate::strings::CStrCursor::of(sarg.map_or(ptr::null(), CStr::as_ptr));
+        ts = crate::strings::ByteSlice::from_opt_cstr(sarg);
     } else {
         buf[0] = 0;
         let mut i = 0;
@@ -2566,7 +2566,7 @@ pub fn coloridx_to_name(idx: i32, val: i32, hexbuf: &mut [u8; 8]) -> Option<&CSt
 }
 
 pub fn name_to_ctermcolor(name: &CStr) -> i32 {
-    let name = crate::strings::CStrCursor::from_ptr(name.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(name);
     let off = (name.first_byte()).to_ascii_uppercase();
     let mut i = COLOR_NAMES.len() as isize - 1;
     while i >= 0 {

@@ -1088,14 +1088,9 @@ fn get_baseclass_amount(col: Colnr) -> i32 {
         }
     } else {
         curwin_mut().w_cursor.col = col;
-        getvcol(
-            curwin_mut(),
-            &mut curwin_mut().w_cursor,
-            Some(&mut vcol),
-            None,
-            None,
-            0,
-        );
+        let mut cursor = curwin_mut().w_cursor;
+        getvcol(curwin_mut(), &mut cursor, Some(&mut vcol), None, None, 0);
+        curwin_mut().w_cursor = cursor;
         amount = vcol;
     }
     if amount < curbuf_mut().b_ind_cpp_baseclass {

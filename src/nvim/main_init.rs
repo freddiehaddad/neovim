@@ -1274,7 +1274,7 @@ fn command_line_scan(parmp: &mut Mparm) {
 
     while arg_idx < raw_len {
         let arg0_cstr = parmp.argv[arg_idx].clone();
-        let arg0_ptr = crate::strings::CStrCursor::from_ptr(arg0_cstr.as_ptr());
+        let arg0_ptr = crate::strings::ByteSlice::from_cstr(&arg0_cstr);
         let arg0 = arg0_cstr.as_bytes();
         if arg0.first() == Some(&b'+') && !had_minmin {
             if parmp.commands.len() >= MAX_ARG_CMDS {
@@ -1805,7 +1805,7 @@ fn check_and_set_isatty(_paramp: &mut Mparm) {
 }
 
 fn init_path(exename: &CStr) {
-    let exename = crate::strings::CStrCursor::from_ptr(exename.as_ptr());
+    let exename = crate::strings::ByteSlice::from_cstr(exename);
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
     if os_exepath(&mut exepath, &mut exepathlen) != 0 {
@@ -2223,8 +2223,8 @@ fn do_user_initialization() -> bool {
 
     let init_lua_path = stdpaths_user_conf_subpath(c"init.lua");
     let user_vimrc = stdpaths_user_conf_subpath(c"init.vim");
-    let init_lua_ptr = crate::strings::CStrCursor::from_ptr(init_lua_path.as_ptr().cast_mut());
-    let user_vimrc_ptr = crate::strings::CStrCursor::from_ptr(user_vimrc.as_ptr().cast_mut());
+    let init_lua_ptr = crate::strings::ByteSlice::from_cstr(&init_lua_path);
+    let user_vimrc_ptr = crate::strings::ByteSlice::from_cstr(&user_vimrc);
 
     if os_path_exists(init_lua_ptr.as_cstr())
         && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None)

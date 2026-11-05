@@ -807,7 +807,7 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
 }
 
 fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32) {
-    let msg = crate::strings::CStrCursor::from_ptr(msg.as_ptr());
+    let msg = crate::strings::ByteSlice::from_cstr(msg);
     logmsg!(loglevel, Some(c"RPC: "), None, -1, true, c"%s", msg,);
     let p = channel.unpacker_mut();
 

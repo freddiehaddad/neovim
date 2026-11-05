@@ -1050,29 +1050,30 @@ impl AsMbyteSlice for *mut u8 {
     }
 }
 
-impl<T> AsMbyteSlice for crate::strings::CStrCursor<T> {
-    #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        crate::memory::cstr_char_bytes(self.as_ptr().cast())
-    }
-    #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        crate::memory::cstr_cluster_bytes(self.as_ptr().cast())
-    }
-}
-
 impl AsMbyteSlice for Option<&[u8]> {
-    #[inline]
+    #[inline(always)]
     fn as_char_bytes(&self) -> &[u8] {
         match *self {
-            Some(b) if !b.is_empty() => &b[..b.len().saturating_sub(1).min(MB_MAXCHAR as usize)],
+            Some(b) if !b.is_empty() && b[0] != 0 => {
+                if b[0] < 0x80 {
+                    &b[..1]
+                } else {
+                    &b[..b.len().saturating_sub(1).min(MB_MAXCHAR as usize)]
+                }
+            }
             _ => &[],
         }
     }
-    #[inline]
+    #[inline(always)]
     fn as_cluster_bytes(&self) -> &[u8] {
         match *self {
-            Some(b) if !b.is_empty() => &b[..b.len().saturating_sub(1).min(64)],
+            Some(b) if !b.is_empty() && b[0] != 0 => {
+                if b[0] < 0x80 && b.get(1).is_none_or(|&b1| b1 < 0x80) {
+                    &b[..1]
+                } else {
+                    &b[..b.len().saturating_sub(1).min(64)]
+                }
+            }
             _ => &[],
         }
     }
@@ -1572,8 +1573,15 @@ pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
     !utf8proc_grapheme_break_stateful(c1, c2, Some(state)) || arabic_combine(c1, c2)
 }
 
+#[inline(always)]
 pub fn utf_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
     let bytes = bytes.as_char_bytes();
+    if let Some(&b0) = bytes.first()
+        && b0 != 0
+        && b0 < 0x80
+    {
+        return 1;
+    }
     let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
     utf_slice2len(slice) as i32
 }
@@ -1611,8 +1619,16 @@ pub fn utf_ptr2len_len(bytes: &[u8], size: i32) -> i32 {
     utf_slice2len_incomplete(&bytes[..m]) as i32
 }
 
+#[inline(always)]
 pub fn utfc_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
     let bytes = bytes.as_cluster_bytes();
+    if let Some(&b0) = bytes.first()
+        && b0 != 0
+        && b0 < 0x80
+        && bytes.get(1).is_none_or(|&b1| b1 < 0x80)
+    {
+        return 1;
+    }
     utfc_slice2len(crate::memory::bytes_until_nul(bytes)) as i32
 }
 

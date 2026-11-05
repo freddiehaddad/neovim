@@ -946,8 +946,8 @@ fn draw_statuscol(
         return;
     }
 
-    let buf_ptr = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr());
-    let mut p = crate::strings::CStrCursor::of(buf_ptr);
+    let buf_ptr = crate::strings::ByteSlice::from_bytes(&buf);
+    let mut p = buf_ptr;
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: Option<&[Colnr]> = None;
     let len = crate::memory::bytes_until_nul(&buf).len();
@@ -983,7 +983,7 @@ fn draw_statuscol(
             },
         );
         fold_vcol = (sp.item == i32::from(STL_FOLDCOL)).then_some(&stcp.fold_vcol);
-        p = crate::strings::CStrCursor::of(sp_ptr);
+        p = p.wrapping_add(textlen);
     }
     let rem_len = crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p).max(0) as usize;
     let translen = transstr_buf(p.slice(rem_len), &mut transbuf, true);
@@ -1643,14 +1643,16 @@ pub fn win_line(
             && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines
         {
             if lnum == curwin_mut().w_cursor.lnum {
+                let mut cursor = curwin_mut().w_cursor;
                 getvcol(
                     curwin_mut(),
-                    &mut curwin_mut().w_cursor,
+                    &mut cursor,
                     Some(&mut wlv.fromcol),
                     None,
                     None,
                     GETVCOL_DISP,
                 );
+                curwin_mut().w_cursor = cursor;
             } else {
                 wlv.fromcol = 0;
             }

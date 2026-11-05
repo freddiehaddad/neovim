@@ -329,7 +329,7 @@ pub fn find_ucmd(
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
 pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Option<&'a CStr> {
-    let arg_base = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
+    let arg_base = crate::strings::ByteSlice::from_cstr(arg_in);
     let full_bytes = arg_in.to_bytes();
     let mut rem = full_bytes;
 

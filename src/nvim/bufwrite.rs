@@ -568,7 +568,7 @@ fn buf_write_do_post_autocmds(
     reset_changed: bool,
     whole: bool,
 ) {
-    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
+    let fname_ptr = crate::strings::ByteSlice::from_opt_cstr(fname);
     let mut aco: CtxSwitch = CtxSwitch::new();
     curbuf_mut().b_no_eol_lnum = 0;
 
@@ -731,7 +731,7 @@ fn get_fileinfo_os(
     newfile: &mut bool,
     err: &mut BwError,
 ) -> bool {
-    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
+    let fname_ptr = crate::strings::ByteSlice::from_opt_cstr(fname);
     let nodetype = if fname_ptr.is_null() {
         NODE_OTHER
     } else {
@@ -772,7 +772,7 @@ fn get_fileinfo(
     readonly: &mut bool,
     err: &mut BwError,
 ) -> bool {
-    let fname_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fname);
+    let fname_ptr = crate::strings::ByteSlice::from_opt_cstr(fname);
     if !get_fileinfo_os(
         fname,
         file_info_old,
@@ -815,10 +815,10 @@ pub fn buf_get_backup_name(
     no_prepend_dot: bool,
     backup_ext: &CStr,
 ) -> Option<std::ffi::CString> {
-    let fname_ptr = crate::strings::CStrCursor::from_ptr(fname.as_ptr().cast_mut());
-    let backup_ext_ptr = crate::strings::CStrCursor::from_ptr(backup_ext.as_ptr());
+    let fname_ptr = crate::strings::ByteSlice::from_cstr(fname);
+    let backup_ext_ptr = crate::strings::ByteSlice::from_cstr(backup_ext);
     let mut backup: Option<std::ffi::CString> = None;
-    let iobuf = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let iobuf = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     let mut dirp_bytes = dirp.to_bytes();
     let old_len = dirp_bytes.len();
     let dir_len = copy_option_part(&mut dirp_bytes, g_st().iobuff_bytes_mut(), c",");
@@ -865,7 +865,7 @@ fn buf_write_make_backup(
     backupp: &mut Option<std::ffi::CString>,
     err: &mut BwError,
 ) -> bool {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr().cast_mut());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     let mut file_info = FileInfo::new();
     let no_prepend_dot = false;
 
@@ -987,7 +987,7 @@ fn buf_write_make_backup(
                 }
 
                 if keep_bk {
-                    let bk_ptr = crate::strings::CStrCursor::from_ptr(bk_vec.as_mut_ptr());
+                    let bk_ptr = crate::strings::ByteSlice::from_bytes(&bk_vec);
                     let bk_cstr = bk_ptr.as_cstr();
                     let _ = os_remove(bk_cstr);
                     if os_copy(fname.as_cstr(), bk_cstr, UV_FS_COPYFILE_FICLONE) != 0 {

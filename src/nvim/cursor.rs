@@ -93,14 +93,9 @@ pub(crate) const K_OPT_VE_FLAG_ALL: u32 = 0x04;
 /// Return the screen position of the cursor (`getviscol`).
 pub fn getviscol() -> i32 {
     let mut x: Colnr = 0;
-    getvvcol(
-        curwin_mut(),
-        &mut curwin_mut().w_cursor,
-        Some(&mut x),
-        None,
-        None,
-        0,
-    );
+    let mut cursor = curwin_mut().w_cursor;
+    getvvcol(curwin_mut(), &mut cursor, Some(&mut x), None, None, 0);
+    curwin_mut().w_cursor = cursor;
     x as i32
 }
 
@@ -118,7 +113,9 @@ pub fn getviscol2(col: Colnr, coladd: Colnr) -> i32 {
 
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
 pub fn coladvance_force(wcol: Colnr) -> bool {
-    let rc = coladvance2(curwin_mut(), &mut curwin_mut().w_cursor, true, false, wcol);
+    let mut cursor = curwin_mut().w_cursor;
+    let rc = coladvance2(curwin_mut(), &mut cursor, true, false, wcol);
+    curwin_mut().w_cursor = cursor;
 
     if wcol == MAXCOL {
         curwin_mut().w_valid &= !VALID_VIRTCOL;
@@ -461,14 +458,16 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
 
     let mut s: Colnr = 0;
     let mut e: Colnr = 0;
+    let mut cursor = curwin_mut().w_cursor;
     getvvcol(
         curwin_mut(),
-        &mut curwin_mut().w_cursor,
+        &mut cursor,
         Some(&mut s),
         None,
         Some(&mut e),
         0,
     );
+    curwin_mut().w_cursor = cursor;
     if e > lastcol as Colnr {
         retval = true;
         coladvance(curwin_mut(), s - 1);

@@ -604,7 +604,7 @@ pub fn mf_need_trans(mfp: &mut Memfile) -> bool {
 
 fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bool {
     mf_set_fnames(mfp, fname);
-    let fname_ptr = crate::strings::CStrCursor::from_ptr(mfp.mf_fname.as_ref().unwrap().as_ptr());
+    let fname_ptr = crate::strings::ByteSlice::from_cstr(mfp.mf_fname.as_deref().unwrap());
 
     {
         let mut file_info = FileInfo::new();

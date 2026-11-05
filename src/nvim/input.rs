@@ -1276,7 +1276,7 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 
 /// Open a new script file for the `":source!"` command.
 pub fn openscript(name: &CStr, directly: bool) {
-    let name_ptr = crate::strings::CStrCursor::from_ptr(name.as_ptr());
+    let name_ptr = crate::strings::ByteSlice::from_cstr(name);
     {
         if inp_st().curscript + 1 == NSCRIPT as i32 {
             emsg(gettext(E_NESTING));
@@ -1293,7 +1293,7 @@ pub fn openscript(name: &CStr, directly: bool) {
 
         inp_st().curscript += 1;
         expand_env(name_ptr.as_cstr(), g_st().name_buff_bytes_mut());
-        let namebuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+        let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
         let cur_idx = inp_st().curscript as usize;
         let error = file_open(
             &mut inp_st().scriptin[cur_idx],
@@ -2506,9 +2506,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 ))
                             {
                                 curwin_mut().w_wcol = 0;
-                                let ptr = crate::strings::CStrCursor::from_ptr(
-                                    get_cursor_line_ptr().as_ptr().cast_mut(),
-                                );
+                                let ptr =
+                                    crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
                                 let endptr = ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
 
                                 let mut csarg = CharsizeArg::new();
@@ -2554,11 +2553,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                             col = curwin_mut().w_cursor.col - 1;
                         }
                         if col > 0 && curwin_mut().w_wcol > 0 {
-                            let ptr = crate::strings::CStrCursor::of(
-                                crate::strings::CStrCursor::from_ptr(
-                                    get_cursor_line_ptr().as_ptr().cast_mut(),
-                                ),
-                            );
+                            let ptr = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
                             col -=
                                 crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add(col as usize));
                             if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {
@@ -2656,8 +2651,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                         && g_st().cmdline_star == 0
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
-                        let p = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(
-                            g_st().typebuf.tb_buf[last_idx..].as_ptr().cast(),
+                        let p = crate::strings::ByteSlice::from_bytes(
+                            &g_st().typebuf.tb_buf[last_idx..],
                         );
                         if utf_ptr2cells(p) == 1 && (p.first_byte()) < 128 {
                             putcmdline(p.first_byte(), false);

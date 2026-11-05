@@ -323,7 +323,7 @@ struct Efm {
 enum QfInputSource {
     None,
     File(crate::os::fs::CFile),
-    Str(crate::strings::CStrCursor<u8>),
+    Str(crate::strings::ByteSlice),
     List(crate::globals::GraphPtr<Listitem>),
     Buf {
         buf: crate::globals::GraphPtr<FileBuf>,
@@ -954,7 +954,7 @@ fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) {
 }
 
 fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
-    let p_str = crate::strings::CStrCursor::from_ptr(p_str_in.as_ptr());
+    let p_str = crate::strings::ByteSlice::from_cstr(p_str_in);
     let p_bytes = p_str_in.to_bytes();
     if p_bytes.is_empty() {
         return QfStatus::EndOfInput;
@@ -976,9 +976,7 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
     dst[..copy_len].copy_from_slice(&p_bytes[..copy_len]);
     dst[copy_len] = 0;
 
-    state.source = QfInputSource::Str(crate::strings::CStrCursor::from_ptr(
-        p_str.wrapping_add(len).cast(),
-    ));
+    state.source = QfInputSource::Str(p_str.wrapping_add(len));
 
     QfStatus::Ok
 }
@@ -1044,7 +1042,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
     let QfInputSource::File(ref fd) = state.source else {
         return QfStatus::Fail;
     };
-    let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     loop {
         os_set_errno(0);
         if !fd.gets(g_st().iobuff_bytes_mut()) {
@@ -1316,9 +1314,7 @@ fn qf_setup_state(
         pstate.source = QfInputSource::File(fd);
     } else if let Some(tv) = tv {
         if tv.v_type == VarType::VarString {
-            pstate.source = QfInputSource::Str(crate::strings::CStrCursor::from_opt_cstr(
-                tv.vval.v_string_cstr(),
-            ));
+            pstate.source = QfInputSource::Str(tv.vval.v_string());
         } else if tv.v_type == VarType::VarList {
             pstate.source =
                 QfInputSource::List(tv_list_first(tv.vval.v_list_opt().as_deref()).into());
@@ -4377,7 +4373,7 @@ pub fn ex_make(eap: &mut Exarg) {
     let Some(fname) = get_mef_name() else {
         return;
     };
-    let fname_ptr = crate::strings::CStrCursor::from_ptr(fname.as_ptr().cast_mut());
+    let fname_ptr = crate::strings::ByteSlice::from_cstr(&fname);
     os_remove(fname_ptr.as_cstr());
 
     let cmd = make_get_fullcmd(eap.arg.as_cstr(), &fname);
@@ -4461,8 +4457,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         name_vec.extend_from_slice(format!("{}{}", qf_st().mef_start, qf_st().mef_off).as_bytes());
         name_vec.extend_from_slice(&mef_bytes[off_idx + 2..]);
         name_vec.push(0);
-        let name =
-            crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(name_vec.as_mut_ptr().cast());
+        let name = crate::strings::ByteSlice::from_bytes(&name_vec);
         let mut file_info = FileInfo::new();
         let file_or_link_found = os_fileinfo_link(name.as_cstr(), &mut file_info);
         if !file_or_link_found {
@@ -6777,11 +6772,10 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     };
 
     let qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
-    let mut qf_title = crate::strings::CStrCursor::from_ptr(qf_title_cstr.as_ptr().cast_mut());
+    let mut qf_title = crate::strings::ByteSlice::from_cstr(&qf_title_cstr);
     if let Some(buf_sfname) = buf.sfname_opt() {
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(&mut g_st().iobuff, c"%s (%s)", qf_title, buf_sfname);
-        qf_title = crate::strings::CStrCursor::of(iobuff_ptr.cast());
+        qf_title = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     }
 
     incr_quickfix_busy();

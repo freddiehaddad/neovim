@@ -378,7 +378,7 @@ pub fn do_tag(
     forceit: bool,
     verbose: bool,
 ) {
-    let tag = crate::strings::CStrCursor::from_ptr(tag.as_ptr().cast_mut());
+    let tag = crate::strings::ByteSlice::from_cstr(tag);
     {
         let tagstack: *mut Taggy = (&raw mut curwin_mut().w_tagstack).cast::<Taggy>();
         let mut tagstackidx = curwin_mut().w_tagstackidx;
@@ -899,7 +899,7 @@ fn select_tag_match(
     matches: &[Vec<u8>],
     name: &std::ffi::CStr,
 ) {
-    let name = crate::strings::CStrCursor::from_ptr(name.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(name);
     {
         let tagstackidx = curwin_mut().w_tagstackidx;
 
@@ -1192,7 +1192,7 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
 
 fn tagfunc_cmd_kind(cmd: &std::ffi::CStr) -> Tagcmd {
     let cmd_bytes = cmd.to_bytes();
-    let cmd = crate::strings::CStrCursor::from_ptr(cmd.as_ptr().cast_mut());
+    let cmd = crate::strings::ByteSlice::from_cstr(cmd);
     let first_b = cmd_bytes.first().copied().unwrap_or(0);
     if first_b.is_ascii_digit() {
         return if cmd_bytes.iter().all(u8::is_ascii_digit) {
@@ -1224,7 +1224,7 @@ fn find_tagfunc_tags(
     buf_ffname: Option<&std::ffi::CStr>,
 ) -> Option<bool> {
     let pat = pat.as_ptr().cast_mut();
-    let buf_ffname = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(buf_ffname);
+    let buf_ffname = crate::strings::ByteSlice::from_opt_cstr(buf_ffname);
     let mut ntags: i32 = 0;
     let mut args = [TypVal {
         v_type: VarType::VarUnknown,
@@ -1316,10 +1316,10 @@ fn find_tagfunc_tags(
     let taglist = rettv.vval.v_list_opt();
 
     for li in tv_list_iter(taglist.as_deref()) {
-        let mut res_name = crate::strings::CStrCursor::<u8>::NULL;
-        let mut res_fname = crate::strings::CStrCursor::<u8>::NULL;
-        let mut res_cmd = crate::strings::CStrCursor::<u8>::NULL;
-        let mut res_kind = crate::strings::CStrCursor::<u8>::NULL;
+        let mut res_name = crate::strings::BYTE_SLICE_NULL;
+        let mut res_fname = crate::strings::BYTE_SLICE_NULL;
+        let mut res_cmd = crate::strings::BYTE_SLICE_NULL;
+        let mut res_kind = crate::strings::BYTE_SLICE_NULL;
         let mut has_extra = false;
         let name_only = (flags & TAG_NAMES) != 0;
 
@@ -1341,25 +1341,24 @@ fn find_tagfunc_tags(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                     ) == b"name"
                     {
-                        res_name = crate::strings::CStrCursor::<u8>::of(tv.vval.v_string().cast());
+                        res_name = tv.vval.v_string();
                     } else if crate::memory::cstr_as_bytes(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                     ) == b"filename"
                     {
-                        res_fname = crate::strings::CStrCursor::<u8>::of(tv.vval.v_string().cast());
+                        res_fname = tv.vval.v_string();
                     } else if crate::memory::cstr_as_bytes(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                     ) == b"cmd"
                     {
-                        res_cmd = crate::strings::CStrCursor::<u8>::of(tv.vval.v_string().cast());
+                        res_cmd = tv.vval.v_string();
                     } else {
                         has_extra = true;
                         if crate::memory::cstr_as_bytes(
                             (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                         ) == b"kind"
                         {
-                            res_kind =
-                                crate::strings::CStrCursor::<u8>::of(tv.vval.v_string().cast());
+                            res_kind = tv.vval.v_string();
                         } else {
                             len += crate::memory::cstr_len(
                                 (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
@@ -1618,7 +1617,7 @@ fn findtags_get_next_line(st: &mut FindtagsState, sinfo_p: &mut TagsearchInfo) -
         }
     }
 
-    let lbuf_ptr = crate::strings::CStrCursor::from_ptr(st.lbuf.as_mut_ptr());
+    let lbuf_ptr = crate::strings::ByteSlice::from_bytes(&st.lbuf);
     let fp = st.fp.as_ref().unwrap();
     if st.state == TagsearchState::TsBinary || st.state == TagsearchState::TsSkipBack {
         sinfo_p.curr_offset_used = sinfo_p.curr_offset;
@@ -1941,8 +1940,8 @@ fn findtags_add_match(
 ) {
     {
         let name_only = (st.flags & TAG_NAMES) != 0;
-        let tag_fname_ptr = crate::strings::CStrCursor::from_ptr(st.tag_fname.as_mut_ptr());
-        let lbuf_ptr = crate::strings::CStrCursor::from_ptr(st.lbuf.as_ptr());
+        let tag_fname_ptr = crate::strings::ByteSlice::from_bytes(&st.tag_fname);
+        let lbuf_ptr = crate::strings::ByteSlice::from_bytes(&st.lbuf);
 
         let is_current = test_for_current(tagpp.fname, tag_fname_ptr.as_cstr(), buf_ffname) != 0;
         let is_static = test_for_static(tagpp);
@@ -2213,7 +2212,7 @@ pub fn find_tags(
     mincount: i32,
     buf_ffname: Option<&std::ffi::CStr>,
 ) -> bool {
-    let pat = crate::strings::CStrCursor::from_ptr(pat_cstr.as_ptr().cast_mut());
+    let pat = crate::strings::ByteSlice::from_cstr(pat_cstr);
     {
         let mut st = FindtagsState::new();
         let mut retval: bool;
@@ -2376,7 +2375,7 @@ pub fn free_tag_stuff() {
 /// Get the next name of a tag file from the tag file list.
 pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
     let mut fname: Option<std::ffi::CString>;
-    let buf_ptr = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr());
+    let buf_ptr = crate::strings::ByteSlice::from_bytes(buf);
 
     if first != 0 {
         *tnp = Tagname::new();
@@ -2522,7 +2521,7 @@ fn test_for_static(tagp: &Tagptrs) -> bool {
 }
 
 fn matching_line_len(lbuf_slice: &[u8]) -> usize {
-    let lbuf = crate::strings::CStrCursor::<std::ffi::c_char>::of(lbuf_slice.as_ptr().cast());
+    let lbuf = crate::strings::ByteSlice::from_bytes(lbuf_slice);
     {
         let mut p = lbuf.wrapping_add(1);
         p = p.wrapping_add(p.len() + 1);
@@ -2948,8 +2947,8 @@ fn expand_tag_fname(
     tag_fname: &std::ffi::CStr,
     expand: bool,
 ) -> std::ffi::CString {
-    let tag_fname = crate::strings::CStrCursor::from_ptr(tag_fname.as_ptr().cast_mut());
-    let fname_arg = crate::strings::CStrCursor::from_ptr(fname_arg.as_ptr());
+    let tag_fname = crate::strings::ByteSlice::from_cstr(tag_fname);
+    let fname_arg = crate::strings::ByteSlice::from_cstr(fname_arg);
     {
         let mut xpc: ExpandCtx = ExpandCtx::new();
 

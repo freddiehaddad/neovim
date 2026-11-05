@@ -512,20 +512,15 @@ pub fn expand_env_esc(
     one: bool,
     prefix: Option<&CStr>,
 ) -> usize {
-    let esc_chars = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(esc_chars);
-    let prefix = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(prefix);
-    let srcp = crate::strings::CStrCursor::from_ptr(srcp_in.as_ptr());
+    let esc_chars = crate::strings::ByteSlice::from_opt_cstr(esc_chars);
+    let prefix = crate::strings::ByteSlice::from_opt_cstr(prefix);
+    let srcp = crate::strings::ByteSlice::from_cstr(srcp_in);
     let mut dst_idx = 0usize;
     let mut dst_rem = dst_slice.len().saturating_sub(1) as i32;
     let mut at_start = true;
     let prefix_bytes = prefix.as_bytes();
 
-    let mut src: *mut u8 = srcp
-        .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            srcp,
-        )))
-        .cast_mut()
-        .cast();
+    let mut src: *mut u8 = srcp.skipwhite().cast();
     while crate::memory::cstr_first_byte(src) != 0 && dst_rem > 0 {
         let src_bytes = crate::memory::cstr_as_bytes(src);
         if src_bytes.starts_with(b"`=") {
@@ -815,7 +810,7 @@ pub fn vim_env_iter_rev<'a>(
 
 pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
     crate::memory::copy_bytes_to_c_buf(exe_name, get_vim_var_str(VV_PROGPATH).to_bytes());
-    let ptr = crate::strings::CStrCursor::from_ptr(exe_name.as_mut_ptr());
+    let ptr = crate::strings::ByteSlice::from_bytes(exe_name);
     let path_end: *mut u8 = path_tail_with_sep(ptr.as_cstr()).as_ptr().cast_mut().cast();
     unsafe {
         *path_end = 0;
@@ -873,20 +868,18 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             }
 
             if vim_path_cstr.is_none() {
-                let mut vim_path = crate::strings::CStrCursor::<u8>::NULL;
+                let mut vim_path = crate::strings::BYTE_SLICE_NULL;
                 if !opt_vars().p_hf.is_null()
                     && !crate::strings::vim_haschr(opt_vars().p_hf.as_cstr(), b'$' as i32)
                 {
-                    vim_path = crate::strings::CStrCursor::<u8>::of(
-                        opt_vars().p_hf.as_ptr().cast_mut().cast(),
-                    );
+                    vim_path = crate::strings::ByteSlice::from_cstr(opt_vars().p_hf.as_cstr());
                 }
 
                 let mut exe_name = [0u8; MAXPATHL];
                 if vim_path.is_null() {
                     vim_get_prefix_from_exepath(&mut exe_name);
                     if append_path(&mut exe_name, c"share/nvim/runtime/") {
-                        vim_path = crate::strings::CStrCursor::<u8>::of(exe_name.as_mut_ptr());
+                        vim_path = crate::strings::ByteSlice::from_bytes(&exe_name);
                     }
                 }
 
@@ -895,7 +888,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                         path_tail(vim_path.as_cstr()).as_ptr().cast_mut().cast();
                     let mut end_off = (vim_path_end as usize) - (vim_path.as_ptr() as usize);
                     let vim_path_slice = vim_path.slice(end_off);
-                    if vim_path == opt_vars().p_hf.as_ptr().cast_mut().cast() {
+                    if vim_path.as_ptr().cast_const() == opt_vars().p_hf.as_ptr() {
                         end_off = remove_tail(vim_path_slice, end_off, b"doc");
                     }
                     if !vimruntime {
@@ -954,7 +947,7 @@ pub fn home_replace(
         }
         return 0;
     };
-    let mut src = crate::strings::CStrCursor::<u8>::of(src_cstr.as_ptr().cast());
+    let mut src = crate::strings::ByteSlice::from_cstr(src_cstr);
 
     if buf.is_some() && buf.unwrap().b_help {
         let dlen =
@@ -1022,9 +1015,7 @@ pub fn home_replace(
     };
 
     if !one {
-        src = crate::strings::CStrCursor::<u8>::of(
-            crate::charset::skipwhite_ptr(src.cast::<std::ffi::c_char>()).cast(),
-        );
+        src = src.skipwhite();
     }
     let src_bytes = src.as_bytes();
     let mut src_idx = 0usize;
@@ -1122,7 +1113,7 @@ pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
 /// Appends the head of `fname` to `$PATH` and sets it in the environment.
 #[cfg_attr(not(windows), cfg(test))]
 pub fn os_setenv_append_path(fname_cstr: &CStr) -> bool {
-    let fname = crate::strings::CStrCursor::from_ptr(fname_cstr.as_ptr());
+    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
     {
         if !path_is_absolute(fname.as_bytes()) {
             internal_error(c"os_setenv_append_path()");

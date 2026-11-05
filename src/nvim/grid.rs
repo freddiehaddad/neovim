@@ -1223,7 +1223,7 @@ fn grid_draw_bordertext(
         let Some(text_cstr) = next_virt_text_chunk(vt, &mut i, &mut attr) else {
             break;
         };
-        let mut text = crate::strings::CStrCursor::from_ptr(text_cstr.as_ptr().cast_mut());
+        let mut text = crate::strings::ByteSlice::from_cstr(text_cstr);
         if overflow > 0 {
             let cells = mb_string2cells(text_cstr.to_bytes()) as i32;
             if overflow >= cells {
@@ -1235,7 +1235,7 @@ fn grid_draw_bordertext(
                 overflow -= utf_ptr2cells(p);
                 p = p.wrapping_add(utfc_ptr2len(p) as usize);
             }
-            text = crate::strings::CStrCursor::of(p);
+            text = p;
         }
         if attr == -1 {
             attr = default_attr;

@@ -2020,7 +2020,7 @@ fn ins_compl_dictionaries(
     flags: i32,
     thesaurus: bool,
 ) {
-    let mut dict = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(dict_start);
+    let mut dict = crate::strings::ByteSlice::from_opt_cstr(dict_start);
     let pat = pat_arg.map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
     let mut regmatch: Regmatch = Regmatch::new();
     let mut files: Vec<std::ffi::CString> = Vec::new();
@@ -2029,7 +2029,7 @@ fn ins_compl_dictionaries(
 
     if dict.is_empty() {
         if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell {
-            dict = crate::strings::CStrCursor::of(c"spell".as_ptr().cast_mut());
+            dict = crate::strings::ByteSlice::from_cstr(c"spell");
         } else {
             return;
         }
@@ -2073,7 +2073,7 @@ fn ins_compl_dictionaries(
             let mut dict_bytes = dict.as_bytes();
             let old_len = dict_bytes.len();
             copy_option_part(&mut dict_bytes, &mut buf_vec, c",");
-            dict = crate::strings::CStrCursor::of(dict.wrapping_add(old_len - dict_bytes.len()));
+            dict = dict.wrapping_add(old_len - dict_bytes.len());
             if !thesaurus && crate::memory::cstr_as_bytes(buf) == b"spell" {
                 count = -1;
             } else if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(buf), b'`' as i32)
@@ -2193,7 +2193,7 @@ fn ins_compl_files(
     let leader_len = leader_slice.len() as i32;
 
     for file_cstr in files {
-        let file = crate::strings::CStrCursor::from_ptr(file_cstr.as_ptr().cast_mut());
+        let file = crate::strings::ByteSlice::from_cstr(file_cstr);
         if g_st().got_int || ins_compl_interrupted() {
             break;
         }
@@ -3701,7 +3701,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
     }
 
     if ret && (what_flag & CI_WHAT_PREINSERTED_TEXT) != 0 {
-        let line = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+        let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
         let len = insexp().compl_ins_end_col - curwin_mut().w_cursor.col;
         ret = tv_dict_add_str_len(
             retdict,
@@ -6163,7 +6163,7 @@ fn compl_get_info(line: &CStr, startcol: i32, curs_col: Colnr, line_invalid: &mu
 }
 
 fn ins_compl_continue_search(line_cstr: &CStr) {
-    let line = crate::strings::CStrCursor::from_ptr(line_cstr.as_ptr());
+    let line = crate::strings::ByteSlice::from_cstr(line_cstr);
     insexp().compl_cont_status &= !CONT_INTRPT;
     if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
         if insexp().compl_startpos.lnum != curwin_mut().w_cursor.lnum {
@@ -6211,9 +6211,7 @@ fn ins_compl_start() -> bool {
         return false;
     }
 
-    let mut line = crate::strings::CStrCursor::from_ptr(
-        ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut(),
-    );
+    let mut line = crate::strings::ByteSlice::from_cstr(ml_get(curwin_mut().w_cursor.lnum));
     let curs_col = curwin_mut().w_cursor.col;
     insexp().compl_pending = 0;
     insexp().compl_lnum = curwin_mut().w_cursor.lnum;
@@ -6249,8 +6247,7 @@ fn ins_compl_start() -> bool {
         return false;
     }
     if line_invalid {
-        line =
-            crate::strings::CStrCursor::of(ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut());
+        line = crate::strings::ByteSlice::from_cstr(ml_get(curwin_mut().w_cursor.lnum));
     }
 
     if compl_status_adding() {
@@ -6359,9 +6356,7 @@ fn ins_compl_show_statusmsg() {
 
             let curr = compl_at(curr_idx);
             if curr.cp_number != -1 {
-                let match_ref_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::of(
-                    insexp().match_ref.as_mut_ptr().cast(),
-                );
+                let match_ref_ptr = crate::strings::ByteSlice::from_bytes(&insexp().match_ref);
                 if insexp().compl_matches > 0 {
                     vim_snprintf!(
                         &mut insexp().match_ref,

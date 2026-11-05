@@ -1597,7 +1597,7 @@ pub fn do_search(
             cmdline_search_stat(
                 dirc,
                 &mut pos,
-                &mut curwin_mut().w_cursor,
+                curwin_mut().w_cursor,
                 show_top_bot_msg,
                 &mut msgbuf_vec,
                 msgbuflen,
@@ -1646,7 +1646,7 @@ pub fn search_for_exact_line(
     dir: Direction,
     pat: &CStr,
 ) -> bool {
-    let pat = crate::strings::CStrCursor::from_ptr(pat.as_ptr());
+    let pat = crate::strings::ByteSlice::from_cstr(pat);
     {
         let mut start: Linenr = 0;
         let compl_len = ins_compl_len();
@@ -1763,7 +1763,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
 
     cap.oap_mut().inclusive = dir != BACKWARD;
 
-    let p = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+    let p = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
     let mut col = curwin_mut().w_cursor.col;
     let len = get_cursor_line_len();
 
@@ -2551,7 +2551,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         srch().spats[srch().last_idx as usize].pat_ptr(),
         srch().spats[srch().last_idx as usize].patlen(),
         true,
-        &mut curwin_mut().w_cursor,
+        curwin_mut().w_cursor,
         FORWARD,
     );
     if zero_width == -1 {
@@ -2662,7 +2662,7 @@ fn is_zero_width(
     pattern_opt: Option<&CStr>,
     mut patternlen: usize,
     move_to_start: bool,
-    cur: &mut CursorPos,
+    cur: CursorPos,
     direction: Direction,
 ) -> i32 {
     {
@@ -2704,7 +2704,7 @@ fn is_zero_width(
         if move_to_start {
             clearpos(&mut pos);
         } else {
-            pos = *cur;
+            pos = cur;
             flag = SEARCH_START;
         }
         if searchit(
@@ -2770,7 +2770,7 @@ pub fn linewhite(lnum: Linenr) -> bool {
 fn cmdline_search_stat(
     dirc: i32,
     pos: &mut CursorPos,
-    cursor_pos: &mut CursorPos,
+    cursor_pos: CursorPos,
     show_top_bot_msg: bool,
     msgbuf: &mut [u8],
     msgbuflen: usize,
@@ -2830,7 +2830,7 @@ fn cmdline_search_stat(
 fn update_search_stat(
     dirc: i32,
     pos: &mut CursorPos,
-    cursor_pos: &mut CursorPos,
+    cursor_pos: CursorPos,
     stat: &mut Searchstat,
     recompute: bool,
     maxcount: i32,
@@ -2856,7 +2856,7 @@ fn update_search_stat(
     if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(curbuf_mut())
         && srch().stat_lastpat.is_some()
         && srch().stat_lastpat.as_deref() == srch().spats[srch().last_idx as usize].pat.as_deref()
-        && equalpos(srch().stat_lastpos, *cursor_pos)
+        && equalpos(srch().stat_lastpos, cursor_pos)
         && srch().stat_lbuf == g_st().curbuf)
         || wraparound
         || srch().stat_cur < 0
@@ -2875,7 +2875,7 @@ fn update_search_stat(
         srch().stat_lbuf = g_st().curbuf;
     }
 
-    if equalpos(srch().stat_lastpos, *cursor_pos)
+    if equalpos(srch().stat_lastpos, cursor_pos)
         && !wraparound
         && (if dirc == 0 || dirc == b'/' as i32 {
             srch().stat_cur < srch().stat_cnt
@@ -3042,13 +3042,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     {
         let cursor_pos = pos;
         update_search_stat(
-            0,
-            &mut pos,
-            &mut { cursor_pos },
-            &mut stat,
-            recompute,
-            maxcount,
-            timeout,
+            0, &mut pos, cursor_pos, &mut stat, recompute, maxcount, timeout,
         );
 
         tv_dict_add_nr(
@@ -3101,7 +3095,7 @@ pub fn find_pattern_in_path(
     let len = ptr_pat_slice.len();
     let ptr_pat_cstr =
         CString::new(crate::memory::bytes_until_nul(ptr_pat_slice)).unwrap_or_default();
-    let ptr_pat = crate::strings::CStrCursor::from_ptr(ptr_pat_cstr.as_ptr());
+    let ptr_pat = crate::strings::ByteSlice::from_cstr(&ptr_pat_cstr);
     {
         let mut max_path_depth: i32 = 50;
         let mut match_count: i32 = 1;
@@ -3228,7 +3222,7 @@ pub fn find_pattern_in_path(
                 });
                 let mut already_searched = false;
                 if let Some(ref nf) = new_fname_cstr {
-                    let nf_ptr = crate::strings::CStrCursor::from_ptr(nf.as_ptr().cast_mut());
+                    let nf_ptr = crate::strings::ByteSlice::from_cstr(nf);
                     i = 0;
                     loop {
                         if i == depth + 1 {
@@ -3873,7 +3867,7 @@ fn show_pat_in_path(
     lnum: &mut Linenr,
     count: i32,
 ) {
-    let mut line = crate::strings::CStrCursor::<std::ffi::c_char>::of(line_buf.as_mut_ptr().cast());
+    let mut line = crate::strings::ByteSlice::from_bytes(line_buf);
     if did_show {
         msg_putchar(b'\n' as i32);
     } else if g_st().msg_silent == 0 {
@@ -3922,7 +3916,7 @@ fn show_pat_in_path(
             if *lnum > curbuf_mut().b_ml.ml_line_count {
                 break;
             }
-            line = crate::strings::CStrCursor::of(ml_get(*lnum).as_ptr().cast_mut());
+            line = crate::strings::ByteSlice::from_cstr(ml_get(*lnum));
             linelen = ml_get_len(*lnum) as usize;
         }
         msg_putchar(b'\n' as i32);

@@ -579,16 +579,16 @@ pub fn u_compute_hash(buf: &mut FileBuf, hash: &mut [u8; UNDO_HASH_SIZE]) {
 pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<std::ffi::CString> {
     let ffname_cstr = buf_ffname?;
     #[cfg(unix)]
-    let mut ffname = crate::strings::CStrCursor::from_ptr(ffname_cstr.as_ptr());
+    let mut ffname = crate::strings::ByteSlice::from_cstr(ffname_cstr);
     #[cfg(not(unix))]
-    let ffname = crate::strings::CStrCursor::from_ptr(ffname_cstr.as_ptr());
+    let ffname = crate::strings::ByteSlice::from_cstr(ffname_cstr);
 
     #[cfg(unix)]
     let mut fname_buf = [0u8; MAXPATHL];
     #[cfg(unix)]
     {
         if resolve_symlink(Some(ffname_cstr), &mut fname_buf) {
-            ffname = crate::strings::CStrCursor::of(fname_buf.as_ptr().cast());
+            ffname = crate::strings::ByteSlice::from_bytes(&fname_buf);
         }
     }
 
@@ -1012,7 +1012,7 @@ pub fn u_write_undo(
         };
         f.as_c_str()
     };
-    let file_name = crate::strings::CStrCursor::from_ptr(file_name_cstr.as_ptr().cast_mut());
+    let file_name = crate::strings::ByteSlice::from_cstr(file_name_cstr);
 
     let mut perm: i32 = 0o600;
     if buf.b_ffname.is_some() {
@@ -2057,7 +2057,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         if newsize != 0 {
             for (i, line) in uep.ue_array.drain(..).enumerate() {
                 let lnum = top + i as Linenr;
-                let line_ptr = crate::strings::CStrCursor::from_ptr(line.as_ptr().cast_mut());
+                let line_ptr = crate::strings::ByteSlice::from_cstr(&line);
                 if empty_buffer && lnum == 0 {
                     ml_replace(1, line_ptr.as_bytes(), true);
                 } else {
@@ -2370,7 +2370,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
     let nomark = undo_st().lastmark;
     let mut lines: Vec<std::ffi::CString> = Vec::new();
 
-    let iobuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let iobuf_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     let mut uhp = curbuf_mut().b_u_oldhead;
     while let Some(uh) = uhp {
         let uh_prev = uhp_ref(curbuf_mut(), uh).uh_prev;

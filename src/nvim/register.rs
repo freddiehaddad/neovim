@@ -1002,18 +1002,14 @@ fn yank_copy_line(
     let text_usize = bd.textlen as usize;
     let end_usize = bd.endspaces as usize;
     let mut buf_vec = vec![0u8; (size as usize) + 1];
-    let text_ptr = crate::strings::CStrCursor::from_ptr(bd.textstart.as_ptr());
+    let text_ptr = crate::strings::ByteSlice::from_cstr(bd.textstart);
     buf_vec[..start_usize].fill(b' ');
     buf_vec[start_usize..start_usize + text_usize].copy_from_slice(text_ptr.slice(text_usize));
     buf_vec[start_usize + text_usize..start_usize + text_usize + end_usize].fill(b' ');
     let mut out_size = start_usize + text_usize + end_usize;
     if exclude_trailing_space {
         let mut s = bd.textlen + bd.endspaces;
-        while s > 0
-            && ascii_iswhite(crate::memory::cstr_first_byte(
-                text_ptr.wrapping_add((s - 1) as usize),
-            ))
-        {
+        while s > 0 && ascii_iswhite(text_ptr.wrapping_add((s - 1) as usize).first_byte()) {
             s = s
                 - crate::mbyte::utf_head_off_ptr(text_ptr, text_ptr.wrapping_add((s - 1) as usize))
                 - 1;
@@ -1762,37 +1758,34 @@ pub fn do_put(
             let mut endcol2: Colnr = 0;
 
             if dir == FORWARD && c != 0 {
+                let mut cursor = curwin_mut().w_cursor;
                 if cur_ve_flags == K_OPT_VE_FLAG_ALL {
                     getvcol(
                         curwin_mut(),
-                        &mut curwin_mut().w_cursor,
+                        &mut cursor,
                         Some(&mut col),
                         None,
                         Some(&mut endcol2),
                         0,
                     );
                 } else {
-                    getvcol(
-                        curwin_mut(),
-                        &mut curwin_mut().w_cursor,
-                        None,
-                        None,
-                        Some(&mut col),
-                        0,
-                    );
+                    getvcol(curwin_mut(), &mut cursor, None, None, Some(&mut col), 0);
                 }
+                curwin_mut().w_cursor = cursor;
                 curwin_mut().w_cursor.col +=
                     crate::mbyte::utfc_slice2len(crate::cursor::get_cursor_pos_slice()) as Colnr;
                 col += 1;
             } else {
+                let mut cursor = curwin_mut().w_cursor;
                 getvcol(
                     curwin_mut(),
-                    &mut curwin_mut().w_cursor,
+                    &mut cursor,
                     Some(&mut col),
                     None,
                     Some(&mut endcol2),
                     0,
                 );
+                curwin_mut().w_cursor = cursor;
             }
 
             col += curwin_mut().w_cursor.coladd;
@@ -2377,7 +2370,7 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
     let Some(p_cstr) = p_opt else {
         return;
     };
-    let mut p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+    let mut p = crate::strings::ByteSlice::from_cstr(p_cstr);
     let mut n = g_st().columns_global - 6;
     while !p.is_empty() && !(p.first_byte() == ESC && skip_esc && p.len() == 1) {
         n -= ptr2cells(p);
@@ -2387,19 +2380,19 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
         let l = utfc_ptr2len(p);
         if l > 1 {
             msg_outtrans_len(p.slice(l as usize), l, 0, false);
-            p = crate::strings::CStrCursor::of(p.wrapping_add(l as usize));
+            p = p.wrapping_add(l as usize);
         } else {
             msg_outtrans_len(p.slice(1), 1, 0, false);
-            p = crate::strings::CStrCursor::of(p.wrapping_add(1));
+            p = p.wrapping_add(1);
         }
     }
     os_breakcheck();
 }
 
 pub fn ex_display(eap: &mut Exarg) {
-    let mut arg = crate::strings::CStrCursor::from_ptr(eap.arg.as_ptr());
+    let mut arg = eap.arg;
     if !arg.is_null() && arg.is_empty() {
-        arg = crate::strings::CStrCursor::NULL;
+        arg = crate::strings::BYTE_SLICE_NULL;
     }
     let hl_id = HLF_8;
 

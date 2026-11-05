@@ -257,7 +257,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
     }
     curwin_mut().w_cursor.lnum = curr;
     if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as i32 && dir == FORWARD {
-        let line = crate::strings::CStrCursor::from_ptr(ml_get(curr).as_ptr().cast_mut());
+        let line = crate::strings::ByteSlice::from_cstr(ml_get(curr));
 
         // Put the cursor on the last character in the last line and make the
         // motion inclusive.
@@ -1069,7 +1069,7 @@ pub fn current_block(
 
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
-    let line = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+    let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
     let line_bytes = line.as_cstr().to_bytes_with_nul();
     let mut idx = (curwin_mut().w_cursor.col as usize).min(line_bytes.len().saturating_sub(1));
     let mut lc: i32 = i32::from(NUL);

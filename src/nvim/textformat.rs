@@ -550,7 +550,7 @@ fn fmt_check_par(
     leader_flags: &mut Option<&'static CStr>,
     do_comments: bool,
 ) -> bool {
-    let ptr = crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut());
+    let ptr = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
     if do_comments {
         *leader_flags = None;
         *leader_len = get_leader_len(
@@ -708,7 +708,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     }
 
     let pos = curwin_mut().w_cursor;
-    let old = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+    let old = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
 
     check_auto_format(false);
 

@@ -319,13 +319,6 @@ impl IntoDictKey for RawCCharPtrMut {
     }
 }
 
-impl<T> IntoDictKey for crate::strings::CStrCursor<T> {
-    #[inline]
-    fn into_dict_key(self) -> NvimString {
-        cstr_as_string(self.as_opt_cstr())
-    }
-}
-
 impl IntoDictKey for Option<&[u8]> {
     #[inline]
     fn into_dict_key(self) -> NvimString {

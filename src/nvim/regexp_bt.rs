@@ -2179,9 +2179,9 @@ fn reg_save_equal(save: &Regsave) -> bool {
     if reg_multi() {
         let pos = save.rs_u.pos();
         re_st().rex.lnum == pos.lnum
-            && re_st().rex.input == re_st().rex.line.wrapping_add(pos.col as usize)
+            && re_st().rex.input.addr() == re_st().rex.line.wrapping_add(pos.col as usize).addr()
     } else {
-        re_st().rex.input == save.rs_u.ptr
+        re_st().rex.input.addr() == save.rs_u.ptr.addr()
     }
 }
 
@@ -2729,7 +2729,7 @@ fn regmatch(
                 let c = utf_ptr2char(re_st().rex.input);
                 match op {
                     BOL => {
-                        if re_st().rex.input != re_st().rex.line {
+                        if re_st().rex.input.addr() != re_st().rex.line.addr() {
                             status = RegAction::NoMatch;
                         }
                     }
@@ -2740,7 +2740,7 @@ fn regmatch(
                     }
                     RE_BOF => {
                         if re_st().rex.lnum != 0
-                            || re_st().rex.input != re_st().rex.line
+                            || re_st().rex.input.addr() != re_st().rex.line.addr()
                             || (reg_multi() && re_st().rex.reg_firstlnum > 1)
                         {
                             status = RegAction::NoMatch;
@@ -2872,7 +2872,7 @@ fn regmatch(
                         }
                     }
                     EOW => {
-                        if re_st().rex.input == re_st().rex.line {
+                        if re_st().rex.input.addr() == re_st().rex.line.addr() {
                             status = RegAction::NoMatch;
                         } else {
                             let this_class = mb_get_class_tab(
@@ -3471,7 +3471,7 @@ fn regmatch(
                             {
                                 status = RegAction::NoMatch;
                             }
-                        } else if re_st().behind_pos.rs_u.ptr != re_st().rex.input {
+                        } else if re_st().behind_pos.rs_u.ptr.addr() != re_st().rex.input.addr() {
                             status = RegAction::NoMatch;
                         }
                     }
@@ -3671,24 +3671,22 @@ fn regmatch(
                                         reg_getline_len(re_st().rex.lnum);
                                 }
                             } else {
-                                let line =
-                                    crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(
-                                        reg_getline(rp_pos.lnum),
-                                    );
+                                let line_bytes =
+                                    reg_getline(rp_pos.lnum).map_or(&[][..], CStr::to_bytes);
                                 rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
-                                    crate::mbyte::utf_head_off_ptr(
-                                        line,
-                                        line.wrapping_add(rp_pos.col as usize - 1),
+                                    crate::mbyte::utf_head_off_slice(
+                                        line_bytes,
+                                        rp_pos.col as usize - 1,
                                     ) + 1;
                             }
-                        } else if rp.rs_un.regsave().rs_u.ptr == re_st().rex.line {
+                        } else if rp.rs_un.regsave().rs_u.ptr.addr() == re_st().rex.line.addr() {
                             no = false;
                         } else {
                             let line = re_st().rex.line;
                             let p_off = rp.rs_un.regsave().rs_u.ptr.offset_from(line);
                             let prev_off = p_off
                                 - 1
-                                - crate::mbyte::utf_head_off_slice(line.as_bytes(), p_off - 1)
+                                - crate::mbyte::utf_head_off_slice(line.unwrap_or(&[]), p_off - 1)
                                     as usize;
                             let p = line.wrapping_add(prev_off);
                             rp.rs_un.regsave_mut().rs_u.ptr = p;
@@ -3746,7 +3744,7 @@ fn regmatch(
                                     if rst.count < rst.minval {
                                         break;
                                     }
-                                    if re_st().rex.input == re_st().rex.line {
+                                    if re_st().rex.input.addr() == re_st().rex.line.addr() {
                                         if re_st().rex.lnum == 0 {
                                             status = RegAction::NoMatch;
                                             break;
@@ -3771,7 +3769,7 @@ fn regmatch(
                                         let prev_off = inp_off
                                             - 1
                                             - crate::mbyte::utf_head_off_slice(
-                                                line.as_bytes(),
+                                                line.unwrap_or(&[]),
                                                 inp_off - 1,
                                             )
                                                 as usize;

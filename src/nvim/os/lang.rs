@@ -655,32 +655,26 @@ pub fn init_locale() {
 pub fn ex_language(eap: &mut Exarg) {
     let mut what = LC_ALL;
     let mut whatstr: &CStr = c"";
-    let mut name = crate::strings::CStrCursor::from_ptr(eap.arg.as_ptr());
+    let mut name = eap.arg;
 
-    let p = eap
-        .arg
-        .as_ptr()
-        .wrapping_add(crate::charset::skiptowhite_len(eap.arg.as_bytes()));
-    let arg_len = (p as usize) - (eap.arg.as_ptr() as usize);
-    if (crate::memory::cstr_is_empty(p)
-        || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
-        && arg_len >= 3
-    {
+    let arg_len = crate::charset::skiptowhite_len(eap.arg.as_bytes());
+    let p = eap.arg.wrapping_add(arg_len);
+    if (p.is_empty() || matches!(p.first_byte(), b' ' | b'\t')) && arg_len >= 3 {
         if mb_strnicmp(eap.arg.as_bytes(), (c"messages").to_bytes(), arg_len) == 0 {
             what = VIM_LC_MESSAGES;
-            name = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p));
+            name = p.skipwhite();
             whatstr = c"messages ";
         } else if mb_strnicmp(eap.arg.as_bytes(), (c"ctype").to_bytes(), arg_len) == 0 {
             what = LC_CTYPE;
-            name = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p));
+            name = p.skipwhite();
             whatstr = c"ctype ";
         } else if mb_strnicmp(eap.arg.as_bytes(), (c"time").to_bytes(), arg_len) == 0 {
             what = LC_TIME;
-            name = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p));
+            name = p.skipwhite();
             whatstr = c"time ";
         } else if mb_strnicmp(eap.arg.as_bytes(), (c"collate").to_bytes(), arg_len) == 0 {
             what = LC_COLLATE;
-            name = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p));
+            name = p.skipwhite();
             whatstr = c"collate ";
         }
     }

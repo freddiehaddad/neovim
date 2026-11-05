@@ -2411,8 +2411,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
     }
 
     old_height = old_height.min(buf.b_ml.ml_line_count);
-    let textbuf_ptr =
-        crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr((&raw const term.textbuf).cast());
+    let textbuf_ptr = crate::strings::ByteSlice::from_bytes(&term.textbuf);
     while term.sb_pending > 0 {
         fetch_row(term, -term.sb_pending, width);
         let buf_index = buf.b_ml.ml_line_count - old_height;
@@ -2449,8 +2448,7 @@ fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
         return;
     }
 
-    let textbuf_ptr =
-        crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr((&raw const term.textbuf).cast());
+    let textbuf_ptr = crate::strings::ByteSlice::from_bytes(&term.textbuf);
     let mut r = term.invalid_start;
     let mut linenr = row_to_linenr(term, r);
     while r < term.invalid_end {

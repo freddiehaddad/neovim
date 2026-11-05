@@ -51,7 +51,6 @@ use crate::textformat::{Oparg, has_format_option};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::msgpack_rpc::packer::ObjHandle;
 pub type IndentGetter = fn() -> i32;
@@ -490,7 +489,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     let mut todo = size;
     let mut ind_len: i32 = 0;
-    let oldline = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+    let oldline = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
     let oldline_bytes = oldline.as_bytes();
     let mut p_idx = 0usize;
     let mut p;
@@ -1143,7 +1142,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         curwin_mut().w_virtcol = end_vcol;
 
         new_cursor_col = 0;
-        let line = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+        let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
         vcol = 0;
         if !line.is_empty() {
             let line_cstr = line.as_cstr();
@@ -1321,20 +1320,20 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut num_spaces: i32 = 0;
     let mut start_col: i32 = 0;
     let mut start_vcol: i64 = 0;
-    let mut new_line = crate::strings::CStrCursor::<std::ffi::c_char>::of(ptr::dangling_mut());
+    let mut new_line;
     let mut new_vts_array: Vec<Colnr> = Vec::new();
 
     let mut first_line: Linenr = 0;
     let mut last_line: Linenr = 0;
     let mut is_indent_only = false;
 
-    let mut ptr = crate::strings::CStrCursor::from_ptr(eap.arg.as_ptr());
+    let mut ptr = eap.arg;
     let ptr_bytes = ptr.as_bytes();
     if ptr_bytes.starts_with(b"-indentonly")
         && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))
     {
         is_indent_only = true;
-        ptr = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(ptr.wrapping_add(11)));
+        ptr = ptr.wrapping_add(11).skipwhite();
     }
 
     let ts_start = ptr;
@@ -1345,7 +1344,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         return;
     }
     while ascii_isdigit(ptr.first_byte()) || ptr.first_byte() == b',' {
-        ptr = crate::strings::CStrCursor::of(ptr.wrapping_add(1));
+        ptr = ptr.wrapping_add(1);
     }
 
     let new_ts_str = if new_vts_array.is_empty() {
@@ -1366,11 +1365,12 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let mut lnum = eap.line1;
     while !g_st().got_int && lnum <= eap.line2 {
-        ptr = crate::strings::CStrCursor::of(ml_get(lnum).as_ptr().cast_mut());
+        ptr = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
         let mut old_len = ml_get_len(lnum);
         let mut col: i32 = 0;
         let mut vcol: i64 = 0;
         let mut did_undo = false;
+        let mut had_err = false;
         loop {
             let cur_b = ptr.wrapping_add(col as usize).first_byte();
             if ascii_iswhite(cur_b) {
@@ -1406,7 +1406,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         if !did_undo {
                             did_undo = true;
                             if !u_save(lnum - 1, lnum + 1) {
-                                new_line = crate::strings::CStrCursor::NULL;
+                                had_err = true;
                                 break;
                             }
                         }
@@ -1429,11 +1429,11 @@ pub fn ex_retab(eap: &mut Exarg) {
                             .copy_from_slice(&old_slice[col_usize..]);
                         new_line_vec[start_usize..start_usize + tabs_usize].fill(b'\t');
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
-                        new_line = crate::strings::CStrCursor::of(new_line_vec.as_mut_ptr().cast());
+                        new_line = crate::strings::ByteSlice::from_bytes(&new_line_vec);
 
                         if ml_replace(lnum, new_line.as_bytes(), true) {
-                            new_line = crate::strings::CStrCursor::of(
-                                curbuf_mut().b_ml.ml_line_slice.as_ptr().cast_mut().cast(),
+                            new_line = crate::strings::ByteSlice::from_bytes(
+                                curbuf_mut().b_ml.ml_line_slice,
                             );
                             extmark_splice_cols(
                                 curbuf_mut(),
@@ -1449,7 +1449,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                             first_line = lnum;
                         }
                         last_line = lnum;
-                        ptr = crate::strings::CStrCursor::of(new_line);
+                        ptr = new_line;
                         old_len = new_len - 1;
                         col = start_col + len;
                     }
@@ -1475,7 +1475,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             }
             col += utfc_ptr2len(ptr.wrapping_add(col as usize));
         }
-        if new_line.is_null() {
+        if had_err {
             break;
         }
         line_breakcheck();

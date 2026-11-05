@@ -1800,14 +1800,16 @@ fn win_update(wp: &mut WinInfoInfo) {
             if g_st().visual_global.mode == CTRL_V_CONST {
                 let mut fromc: Colnr = 0;
                 let mut toc: Colnr = 0;
+                let mut cursor = curwin_mut().w_cursor;
                 getvcols(
                     &mut *wp,
                     &mut g_st().visual_global.start,
-                    &mut curwin_mut().w_cursor,
+                    &mut cursor,
                     &mut fromc,
                     &mut toc,
                     GETVCOL_END_EXCL_LBR,
                 );
+                curwin_mut().w_cursor = cursor;
                 toc += 1;
                 if curwin_mut().w_curswant == MAXCOL {
                     if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {

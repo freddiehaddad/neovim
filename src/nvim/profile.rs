@@ -516,7 +516,7 @@ fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, pre
             &fp.uf_tm_self,
             prefer_self,
         );
-        let name_ptr = crate::strings::CStrCursor::from_ptr(fp.uf_name.as_ptr());
+        let name_ptr = crate::strings::ByteSlice::from_cstr(&fp.uf_name);
         if (name_ptr.first_byte()) == K_SPECIAL {
             fprintf!(fd, c" <SNR>%s()\n", name_ptr.wrapping_add(3));
         } else {
@@ -644,7 +644,7 @@ fn func_dump_profile(fd: &CFile) {
         if fp.uf_prof_initialized {
             sorttab.push(fp);
 
-            let name_ptr = crate::strings::CStrCursor::from_ptr(fp.uf_name.as_ptr());
+            let name_ptr = crate::strings::ByteSlice::from_cstr(&fp.uf_name);
             if (name_ptr.first_byte()) == K_SPECIAL {
                 fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
             } else {
@@ -758,8 +758,7 @@ fn script_dump_profile(fd: &CFile) {
     for id in 1..=crate::runtime::script_items_len() {
         let si = script_item(id);
         if si.sn_prof_on {
-            let si_name =
-                crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(si.name_cstr());
+            let si_name = crate::strings::ByteSlice::from_opt_cstr(si.name_cstr());
             fprintf!(fd, c"SCRIPT  %s\n", si_name);
             if si.sn_pr_count == 1 {
                 fprintf!(fd, c"Sourced 1 time\n");

@@ -977,11 +977,11 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
     let mut io_error = false;
     let mut ok: TriState;
     let orig_fname =
-        crate::strings::CStrCursor::from_ptr(diffio.dio_orig.din_fname.as_ref().unwrap().as_ptr());
+        crate::strings::ByteSlice::from_cstr(diffio.dio_orig.din_fname.as_deref().unwrap());
     let new_fname =
-        crate::strings::CStrCursor::from_ptr(diffio.dio_new.din_fname.as_ref().unwrap().as_ptr());
+        crate::strings::ByteSlice::from_cstr(diffio.dio_new.din_fname.as_deref().unwrap());
     let diff_fname =
-        crate::strings::CStrCursor::from_ptr(diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr());
+        crate::strings::ByteSlice::from_cstr(diffio.dio_diff.dout_fname.as_deref().unwrap());
     loop {
         ok = K_FALSE;
         let Some(fd1) = CFile::open(orig_fname.as_cstr(), c"w") else {
@@ -1184,8 +1184,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let (Some(tmp_orig_cstr), Some(tmp_new_cstr)) = (&tmp_orig_owned, &tmp_new_owned) else {
             break 'theend;
         };
-        let tmp_orig = crate::strings::CStrCursor::from_ptr(tmp_orig_cstr.as_ptr().cast_mut());
-        let tmp_new = crate::strings::CStrCursor::from_ptr(tmp_new_cstr.as_ptr().cast_mut());
+        let tmp_orig = crate::strings::ByteSlice::from_cstr(tmp_orig_cstr);
+        let tmp_new = crate::strings::ByteSlice::from_cstr(tmp_new_cstr);
         if !buf_write(
             curbuf_mut(),
             Some(tmp_orig_cstr.as_c_str()),
@@ -1218,7 +1218,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
         let buflen = tmp_orig.len() + crate::memory::cstr_len(esc_ptr) + tmp_new.len() + 16;
         buf_vec = vec![0; buflen];
-        let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr());
+        let buf = crate::strings::ByteSlice::from_bytes(&buf_vec);
         #[cfg(unix)]
         let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]

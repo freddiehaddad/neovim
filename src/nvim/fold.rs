@@ -1503,9 +1503,7 @@ pub fn get_foldtext(
             let mut idx = 0;
             let slen = bytes.len() - 1;
             while idx < slen && bytes[idx] != 0 {
-                let p_at = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(
-                    bytes[idx..].as_ptr().cast(),
-                );
+                let p_at = crate::strings::ByteSlice::from_bytes(&bytes[idx..]);
                 let len = utfc_ptr2len(&bytes[idx..slen]) as usize;
                 if len > 1 {
                     if !vim_isprintc(utf_ptr2char(&bytes[idx..slen])) {
@@ -2680,19 +2678,14 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             lnum += 1;
         }
 
-        let mut s =
-            crate::strings::CStrCursor::from_ptr(ml_get(lnum).as_ptr().cast_mut()).skipwhite();
+        let mut s = crate::strings::ByteSlice::from_cstr(ml_get(lnum)).skipwhite();
         let s_bytes = s.as_bytes();
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
-            s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(s.wrapping_add(2)));
-            if (crate::charset::skipwhite_ptr(s)).is_empty() && lnum + 1 < foldend {
-                s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(
-                    ml_get(lnum + 1).as_ptr().cast_mut(),
-                ));
+            s = s.wrapping_add(2).skipwhite();
+            if s.skipwhite().is_empty() && lnum + 1 < foldend {
+                s = crate::strings::ByteSlice::from_cstr(ml_get(lnum + 1)).skipwhite();
                 if s.first_byte() == b'*' {
-                    s = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(
-                        s.wrapping_add(1),
-                    ));
+                    s = s.wrapping_add(1).skipwhite();
                 }
             }
         }

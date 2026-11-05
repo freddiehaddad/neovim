@@ -443,7 +443,7 @@ pub fn stl_fill_click_defs(
     let Some(click_defs) = click_defs else {
         return;
     };
-    let mut buf = crate::strings::CStrCursor::<u8>::from_ptr(buf_cstr.as_ptr().cast());
+    let mut buf = crate::strings::ByteSlice::from_cstr(buf_cstr);
     let mut col: i32 = 0;
     let mut len: i32 = 0;
 
@@ -456,7 +456,7 @@ pub fn stl_fill_click_defs(
         let Some(rec_start) = rec.start else {
             break;
         };
-        let rec_ptr = crate::strings::CStrCursor::<u8>::from_ptr(rec_start.as_ptr().cast());
+        let rec_ptr = crate::strings::ByteSlice::from_cstr(rec_start);
         let rec_len = crate::memory::ptr_offset_from(rec_ptr, buf).max(0) as usize;
         len += vim_strnsize(buf.slice(rec_len), rec_len as i32);
         debug_assert!(len <= width);
@@ -698,7 +698,7 @@ fn win_redr_stl_expr(
             screengrid_line_start(unsafe { &mut *grid }, row, 0);
         }
 
-        let mut p = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr());
+        let mut p = crate::strings::ByteSlice::from_bytes(&buf);
         let mut curattr = attr;
         let mut curgroup = group;
         let mut content = Array::new();
@@ -708,9 +708,11 @@ fn win_redr_stl_expr(
             let textlen = if let Some(sp_start) = sp_ref.start {
                 crate::memory::ptr_offset_from(sp_start.as_ptr().cast(), p)
             } else {
-                crate::memory::ptr_offset_from(buf.as_mut_ptr().wrapping_add(len), p)
+                crate::memory::ptr_offset_from(buf.as_ptr().wrapping_add(len).cast(), p)
             };
-            let src_slice = if p >= buf.as_mut_ptr().wrapping_add(len) || textlen <= 0 {
+            let src_slice = if (p.as_ptr() as usize) >= (buf.as_ptr().wrapping_add(len) as usize)
+                || textlen <= 0
+            {
                 &[][..]
             } else {
                 p.slice(textlen as usize)
@@ -748,7 +750,7 @@ fn win_redr_stl_expr(
             let Some(sp_start) = sp_ref.start else {
                 break;
             };
-            p = crate::strings::CStrCursor::of(sp_start.as_ptr().cast_mut().cast());
+            p = crate::strings::ByteSlice::from_cstr(sp_start);
 
             if sp_ref.userhl == 0 {
                 curattr = attr;
@@ -860,7 +862,7 @@ pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
 
 fn ui_ext_tabline_update() {
     let mut arena = Arena::new();
-    let name_buff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+    let name_buff = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
 
     let mut n_tabs: usize = 0;
     let mut tp = g_st().first_tabpage;
@@ -975,7 +977,7 @@ pub fn draw_tabline() {
     let attr_fill = hl_attr(HLF_TPF);
     let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
     let use_sep_chars = g_st().t_colors < 8;
-    let name_buff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+    let name_buff = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
 
     if !crate::grid::grid_allocated(&g_st().default_grid) {
         return;

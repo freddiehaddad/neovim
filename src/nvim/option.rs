@@ -712,7 +712,7 @@ pub fn set_init_tablocal() {
 /// Initialize the 'shell' option to a default value.
 fn set_init_default_shell() {
     if let Some(shell) = os_getenv_cstr(c"SHELL") {
-        let shell_ptr = crate::strings::CStrCursor::from_ptr(shell.as_ptr());
+        let shell_ptr = crate::strings::ByteSlice::from_cstr(&shell);
         if crate::strings::vim_haschr(shell_ptr.as_cstr(), b' ' as i32) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
@@ -2164,7 +2164,7 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'st
 
     let var = opt.var;
     let esc = var.ptr_eq(&opt_vars().p_tags) || var.ptr_eq(&opt_vars().p_path);
-    let namebuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
+    let namebuf_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
     expand_env_esc(
         val_cstr,
         g_st().name_buff_bytes_mut(),
@@ -6028,7 +6028,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
     if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         msg_putchar(b'=' as i32);
         optval_fmt(opt_idx, opt_flags);
-        let namebuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_ptr());
+        let namebuf_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
         if !namebuf_ptr.is_empty() {
             msg_outtrans(namebuf_ptr.as_cstr(), 0, false);
         }
@@ -7263,19 +7263,19 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
 }
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
-    let mut arg = crate::strings::CStrCursor::from_ptr(arg_cstr.as_ptr().cast_mut());
+    let mut arg = crate::strings::ByteSlice::from_cstr(arg_cstr);
     opt_st().expand_option_flags = opt_flags;
 
     xp.xp_context = EXPAND_SETTINGS;
     let arg_bytes = arg_cstr.to_bytes();
     if arg_bytes.is_empty() {
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg);
+        xp.xp_pattern = arg;
         return;
     }
     let argend = arg.wrapping_add(arg_bytes.len());
     let mut p_idx = arg_bytes.len() - 1;
     if arg_bytes[p_idx] == b' ' && (p_idx == 0 || arg_bytes[p_idx - 1] != b'\\') {
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg.wrapping_add(p_idx + 1));
+        xp.xp_pattern = arg.wrapping_add(p_idx + 1);
         return;
     }
     while p_idx > 0 {
@@ -7301,9 +7301,9 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         p_idx += 3;
     }
     let mut p = arg.wrapping_add(p_idx);
-    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p);
+    xp.xp_pattern = p;
     let p_bytes = &arg_bytes[p_idx..];
-    arg = crate::strings::CStrCursor::of(p);
+    arg = p;
 
     let mut nextchar: u8;
     let mut flags: u32 = 0;
@@ -7449,38 +7449,35 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         || (flags & K_OPT_FLAG_COMMA) != 0
         || (flags & K_OPT_FLAG_COLON) != 0
     {
-        p = argend.wrapping_offset(-1);
-        while p.as_ptr() > xp.xp_pattern.as_ptr() {
-            if p.first_byte() == b' '
-                || p.first_byte() == b','
-                || (p.first_byte() == b':' && (flags & K_OPT_FLAG_COLON) != 0)
-            {
-                let mut s = p;
-                while s.as_ptr() > xp.xp_pattern.as_ptr()
-                    && s.wrapping_offset(-1).first_byte() == b'\\'
-                {
-                    s = s.wrapping_offset(-1);
+        let pat_start_idx = (xp.xp_pattern.as_ptr() as usize) - (arg_cstr.as_ptr() as usize);
+        let mut idx = arg_bytes.len();
+        while idx > pat_start_idx + 1 {
+            idx -= 1;
+            let b = arg_bytes[idx];
+            if b == b' ' || b == b',' || (b == b':' && (flags & K_OPT_FLAG_COLON) != 0) {
+                let mut s_idx = idx;
+                while s_idx > pat_start_idx && arg_bytes[s_idx - 1] == b'\\' {
+                    s_idx -= 1;
                 }
-                let comma_unesc = p.first_byte() == b','
+                let bsl_cnt = (idx - s_idx) as isize;
+                let comma_unesc = b == b','
                     && (flags & K_OPT_FLAG_COMMA) != 0
-                    && crate::memory::ptr_offset_from(p, s) < if cfg!(windows) { 1 } else { 2 };
+                    && bsl_cnt < if cfg!(windows) { 1 } else { 2 };
 
-                if (p.first_byte() == b' '
-                    && ((xp.xp_backslash & XP_BS_THREE) != 0
-                        && crate::memory::ptr_offset_from(p, s) < 3))
+                if (b == b' ' && ((xp.xp_backslash & XP_BS_THREE) != 0 && bsl_cnt < 3))
                     || comma_unesc
-                    || (p.first_byte() == b':' && (flags & K_OPT_FLAG_COLON) != 0)
+                    || (b == b':' && (flags & K_OPT_FLAG_COLON) != 0)
                 {
-                    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p.wrapping_add(1));
+                    xp.xp_pattern =
+                        crate::strings::ByteSlice::from_cstr(arg_cstr).wrapping_add(idx + 1);
                     break;
                 }
             }
-            p = p.wrapping_offset(-1);
         }
     }
 
     if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(argend);
+        xp.xp_pattern = argend;
     }
 
     if get_option(opt_idx).var.ptr_eq(&opt_vars().p_sps) {

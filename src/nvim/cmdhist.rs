@@ -646,9 +646,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     i = 0;
                 }
                 let entry = &hist[i as usize];
-                let entry_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(
-                    entry.hisstr_cstr(),
-                );
+                let entry_ptr = crate::strings::ByteSlice::from_opt_cstr(entry.hisstr_cstr());
                 if !entry_ptr.is_null()
                     && entry.hisnum >= j
                     && entry.hisnum <= k

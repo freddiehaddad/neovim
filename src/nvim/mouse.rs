@@ -467,14 +467,16 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
             } else if g_st().visual_global.mode == CTRL_V_CONST {
                 let mut leftcol: Colnr = 0;
                 let mut rightcol: Colnr = 0;
+                let mut cursor = curwin_mut().w_cursor;
                 getvcols(
                     curwin_mut(),
-                    &mut curwin_mut().w_cursor,
+                    &mut cursor,
                     &mut g_st().visual_global.start,
                     &mut leftcol,
                     &mut rightcol,
                     0,
                 );
+                curwin_mut().w_cursor = cursor;
                 let mut col = m_pos.col;
                 getvcol(curwin_mut(), &mut m_pos, None, Some(&mut col), None, 0);
                 m_pos.col = col;

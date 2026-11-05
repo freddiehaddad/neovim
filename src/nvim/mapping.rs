@@ -661,7 +661,7 @@ fn map_add(
     simplified: bool,
     alt: Option<std::rc::Rc<MapAltLink>>,
 ) {
-    let keys = crate::strings::CStrCursor::from_ptr(keys.as_ptr());
+    let keys = crate::strings::ByteSlice::from_cstr(keys);
     {
         if keys.first_byte() == CTRL_C_CONST {
             if local {
@@ -1560,13 +1560,12 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
         for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
             let mut qlen = cand.m_keylen;
             let mut q_vec: Vec<u8>;
-            let mut q =
-                crate::strings::CStrCursor::<u8>::of(cand.m_keys.as_ptr().cast_mut().cast());
+            let mut q = crate::strings::ByteSlice::from_cstr(cand.m_keys.as_c_str());
 
             if cand.m_keys.as_bytes().contains(&K_SPECIAL) {
                 q_vec = cand.m_keys.as_bytes_with_nul().to_vec();
                 qlen = vim_unescape_ks(&mut q_vec) as i32;
-                q = crate::strings::CStrCursor::<u8>::of(q_vec.as_mut_ptr());
+                q = crate::strings::ByteSlice::from_bytes(&q_vec);
             }
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
@@ -1712,12 +1711,12 @@ pub fn makemap(fd: &CFile, buf: Option<&FileBuf>) -> bool {
                     continue;
                 }
 
-                let mut p = crate::strings::CStrCursor::from_ptr(mp.m_str.as_ptr());
+                let mut p = crate::strings::ByteSlice::from_cstr(mp.m_str.as_c_str());
                 while !p.is_empty() {
                     if p.as_bytes().starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
                         break;
                     }
-                    p = crate::strings::CStrCursor::of(p.wrapping_add(1));
+                    p = p.wrapping_add(1);
                 }
                 if !p.is_empty() {
                     continue;
@@ -1990,10 +1989,10 @@ pub fn check_map(
             for mp in bucket {
                 if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
                     let mp: &'static Mapblock = unsafe { &*(std::ptr::from_ref(mp)) };
-                    let mut s = crate::strings::CStrCursor::from_ptr(mp.m_keys.as_ptr());
+                    let mut s = crate::strings::ByteSlice::from_cstr(mp.m_keys.as_c_str());
                     let mut keylen = mp.m_keylen;
                     if ign_mod != 0 && keylen >= 3 && s.slice(2) == [K_SPECIAL, KS_MODIFIER] {
-                        s = crate::strings::CStrCursor::of(s.wrapping_add(3));
+                        s = s.wrapping_add(3);
                         keylen -= 3;
                     }
                     let minlen = keylen.min(len).max(0) as usize;

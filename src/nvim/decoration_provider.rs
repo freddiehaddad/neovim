@@ -107,7 +107,7 @@ fn decor_provider_error(
     name: &std::ffi::CStr,
     msg: Option<&std::ffi::CStr>,
 ) {
-    let msg_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(msg);
+    let msg_ptr = crate::strings::ByteSlice::from_opt_cstr(msg);
     let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)").as_ptr();
     logmsg!(
         LOGLVL_ERR,

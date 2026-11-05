@@ -694,7 +694,7 @@ pub fn get_cmd_output(
         emsg(gettext(E_NOTMP));
         return None;
     };
-    let tempname = crate::strings::CStrCursor::from_ptr(tempname_cstr.as_ptr().cast_mut());
+    let tempname = crate::strings::ByteSlice::from_cstr(&tempname_cstr);
 
     let command = make_filter_cmd(
         cmd.unwrap_or(c""),
@@ -1033,12 +1033,12 @@ fn tokenize(str_in: Option<&CStr>, argv: &mut Vec<std::ffi::CString>) {
     let Some(str_in) = str_in else {
         return;
     };
-    let mut p = crate::strings::CStrCursor::from_ptr(str_in.as_ptr());
+    let mut p = crate::strings::ByteSlice::from_cstr(str_in);
 
     while !p.is_empty() {
         let len = word_length(p.as_cstr());
         argv.push(vim_strnsave_unquoted(p.slice(len)));
-        p = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(p.wrapping_add(len)));
+        p = p.wrapping_add(len).skipwhite();
     }
 }
 

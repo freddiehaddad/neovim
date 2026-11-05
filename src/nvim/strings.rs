@@ -135,13 +135,6 @@ impl<T> AsByteSlice for *mut T {
     }
 }
 
-impl<T> AsByteSlice for CStrCursor<T> {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self.as_ptr().cast::<u8>().into_byte_slice()
-    }
-}
-
 pub trait ByteSliceExt: Copy {
     fn from_cstr(s: &CStr) -> Self;
     fn from_opt_cstr(s: Option<&CStr>) -> Self;
@@ -238,17 +231,26 @@ impl ByteSliceExt for ByteSlice {
 
     #[inline(always)]
     fn as_bytes(self) -> &'static [u8] {
-        self.map_or(&[], crate::memory::bytes_until_nul)
+        self.as_cstr().to_bytes()
     }
 
     #[inline(always)]
     fn as_cstr(self) -> &'static CStr {
-        self.map_or(c"", crate::memory::cstr_until_nul)
+        match self {
+            Some(b) if !b.is_empty() => crate::memory::cstr_from_ptr(b.as_ptr()),
+            _ => c"",
+        }
     }
 
     #[inline(always)]
     fn as_opt_cstr(self) -> Option<&'static CStr> {
-        self.map(crate::memory::cstr_until_nul)
+        self.map(|b| {
+            if b.is_empty() {
+                c""
+            } else {
+                crate::memory::cstr_from_ptr(b.as_ptr())
+            }
+        })
     }
 
     #[inline(always)]
@@ -302,266 +304,6 @@ impl ByteSliceExt for ByteSlice {
     #[inline(always)]
     fn before(self, other: Self) -> bool {
         self.addr() < other.addr()
-    }
-}
-
-#[repr(transparent)]
-pub struct CStrCursor<T = u8>(*mut T);
-
-impl<T> Clone for CStrCursor<T> {
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for CStrCursor<T> {}
-
-impl<T> PartialEq for CStrCursor<T> {
-    #[inline(always)]
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl<T> PartialEq<*mut T> for CStrCursor<T> {
-    #[inline(always)]
-    fn eq(&self, other: &*mut T) -> bool {
-        self.0 == *other
-    }
-}
-
-impl<T> PartialEq<*const T> for CStrCursor<T> {
-    #[inline(always)]
-    fn eq(&self, other: &*const T) -> bool {
-        self.0.cast_const() == *other
-    }
-}
-
-impl<T> Eq for CStrCursor<T> {}
-
-pub trait AsCStrCursor<T> {
-    fn into_cstr_cursor(self) -> CStrCursor<T>;
-}
-
-impl<T> AsCStrCursor<T> for CStrCursor<T> {
-    #[inline(always)]
-    fn into_cstr_cursor(self) -> CStrCursor<T> {
-        self
-    }
-}
-
-impl<T> AsCStrCursor<T> for *const T {
-    #[inline(always)]
-    fn into_cstr_cursor(self) -> CStrCursor<T> {
-        CStrCursor::from_ptr(self)
-    }
-}
-
-impl<T> AsCStrCursor<T> for *mut T {
-    #[inline(always)]
-    fn into_cstr_cursor(self) -> CStrCursor<T> {
-        CStrCursor::new(self)
-    }
-}
-
-impl<T> AsCStrCursor<T> for &CStr {
-    #[inline(always)]
-    fn into_cstr_cursor(self) -> CStrCursor<T> {
-        CStrCursor::from_ptr(self.as_ptr().cast())
-    }
-}
-
-impl<T> AsCStrCursor<T> for Option<&CStr> {
-    #[inline(always)]
-    fn into_cstr_cursor(self) -> CStrCursor<T> {
-        CStrCursor::from_opt_cstr(self)
-    }
-}
-
-impl<T> std::fmt::Debug for CStrCursor<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Pointer::fmt(&self.0, f)
-    }
-}
-
-impl<T> From<*mut T> for CStrCursor<T> {
-    #[inline(always)]
-    fn from(p: *mut T) -> Self {
-        Self(p)
-    }
-}
-
-impl<T> From<*const T> for CStrCursor<T> {
-    #[inline(always)]
-    fn from(p: *const T) -> Self {
-        Self(p.cast_mut())
-    }
-}
-
-impl<T> CStrCursor<T> {
-    pub const NULL: Self = Self(ptr::null_mut());
-
-    #[inline(always)]
-    pub const fn new(p: *mut T) -> Self {
-        Self(p)
-    }
-
-    #[inline(always)]
-    pub fn of(val: impl AsCStrCursor<T>) -> Self {
-        val.into_cstr_cursor()
-    }
-
-    #[inline(always)]
-    pub const fn from_ptr(p: *const T) -> Self {
-        Self(p.cast_mut())
-    }
-
-    #[inline(always)]
-    pub const fn from_opt_cstr(s: Option<&CStr>) -> Self {
-        match s {
-            Some(c) => Self(c.as_ptr().cast_mut().cast()),
-            None => Self::NULL,
-        }
-    }
-
-    #[inline(always)]
-    pub const fn is_null(self) -> bool {
-        self.0.is_null()
-    }
-
-    #[inline(always)]
-    pub const fn as_ptr(self) -> *mut T {
-        self.0
-    }
-
-    #[inline(always)]
-    pub const fn cast<U>(self) -> *mut U {
-        self.0.cast()
-    }
-
-    #[inline(always)]
-    pub fn set_byte(self, idx: usize, val: u8) {
-        if !self.0.is_null() {
-            unsafe { *self.0.cast::<u8>().add(idx) = val };
-        }
-    }
-
-    #[inline(always)]
-    pub const fn cast_const(self) -> *const T {
-        self.0.cast_const()
-    }
-
-    #[inline(always)]
-    pub const fn cast_mut(self) -> *mut T {
-        self.0
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_add(self, n: usize) -> Self {
-        Self(self.0.wrapping_add(n))
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_sub(self, n: usize) -> Self {
-        Self(self.0.wrapping_sub(n))
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_offset(self, d: isize) -> Self {
-        Self(self.0.wrapping_offset(d))
-    }
-
-    #[inline(always)]
-    pub fn skipwhite(self) -> Self {
-        self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
-    }
-
-    #[inline(always)]
-    pub const fn first_byte(self) -> u8 {
-        if self.0.is_null() {
-            0
-        } else {
-            unsafe { *self.0.cast::<u8>() }
-        }
-    }
-
-    #[inline(always)]
-    pub const fn is_empty(self) -> bool {
-        self.first_byte() == 0
-    }
-
-    #[inline(always)]
-    pub fn len(self) -> usize {
-        crate::memory::cstr_len(self.as_ptr().cast::<u8>())
-    }
-
-    #[inline(always)]
-    pub fn as_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_as_bytes(self.as_ptr().cast::<u8>())
-    }
-
-    #[inline(always)]
-    pub fn as_cstr(self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.as_ptr().cast::<u8>())
-    }
-
-    #[inline(always)]
-    pub fn as_opt_cstr(self) -> Option<&'static CStr> {
-        crate::memory::cstr_as_opt_cstr(self.as_ptr().cast::<u8>())
-    }
-
-    #[inline(always)]
-    pub fn to_cstring(self) -> std::ffi::CString {
-        crate::memory::cstr_to_cstring(self.as_ptr().cast::<u8>())
-    }
-
-    #[inline(always)]
-    pub fn slice(self, len: usize) -> &'static [u8] {
-        crate::memory::cstr_slice(self.as_ptr().cast::<u8>(), len)
-    }
-}
-
-impl<T> Default for CStrCursor<T> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::NULL
-    }
-}
-
-impl<T> PartialOrd for CStrCursor<T> {
-    #[inline(always)]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T> PartialOrd<*const T> for CStrCursor<T> {
-    #[inline(always)]
-    fn partial_cmp(&self, other: &*const T) -> Option<std::cmp::Ordering> {
-        self.0.cast_const().partial_cmp(other)
-    }
-}
-
-impl<T> PartialOrd<*mut T> for CStrCursor<T> {
-    #[inline(always)]
-    fn partial_cmp(&self, other: &*mut T) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(other)
-    }
-}
-
-impl<T> Ord for CStrCursor<T> {
-    #[inline(always)]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (self.as_ptr() as usize).cmp(&(other.as_ptr() as usize))
-    }
-}
-
-impl<T> crate::memory::IntoConstPtr for CStrCursor<T> {
-    type Target = T;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const T {
-        self.as_ptr().cast_const()
     }
 }
 
@@ -1561,13 +1303,6 @@ impl<'a> FmtVal<'a> {
 
 pub trait IntoFmtVal<'a> {
     fn into_fmt_val(self) -> FmtVal<'a>;
-}
-
-impl<'a, T> IntoFmtVal<'a> for CStrCursor<T> {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::Addr(self.as_ptr() as usize)
-    }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {

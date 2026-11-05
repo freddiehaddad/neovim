@@ -4241,7 +4241,7 @@ pub fn intro_message(colon: bool) {
 }
 
 fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
-    let mesg = crate::strings::CStrCursor::from_ptr(mesg_cstr.as_ptr());
+    let mesg = crate::strings::ByteSlice::from_cstr(mesg_cstr);
     let mesg_bytes = mesg_cstr.to_bytes();
     {
         let mut col = (g_st().columns_global - vim_strsize(mesg_cstr)) / 2;
