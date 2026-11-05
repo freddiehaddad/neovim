@@ -753,7 +753,7 @@ fn win_config_split(
                     break 'restore_curwin;
                 } else if !parent.is_null() && unsafe { (*parent).handle } == win.handle {
                     let mut n_frames = 0;
-                    for _fr in frame_iter_mut(unsafe { (*win.frame_mut().fr_parent).fr_child }) {
+                    for _fr in frame_iter_mut(win.frame_mut().fr_parent.fr_child) {
                         n_frames += 1;
                     }
 
@@ -761,7 +761,7 @@ fn win_config_split(
 
                     if n_frames > 2 {
                         let frame = win.frame_mut().fr_parent;
-                        if !unsafe { (*frame).fr_parent }.is_null() {
+                        if !frame.fr_parent.is_null() {
                             neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                 || fconfig.split == K_WIN_SPLIT_LEFT
                             {

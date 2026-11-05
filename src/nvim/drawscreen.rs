@@ -2734,7 +2734,7 @@ pub fn redraw_statuslines() {
 
 pub fn win_redraw_last_status(mut frp: &Frame) {
     if frp.fr_layout == FR_LEAF {
-        unsafe { (*frp.fr_win).w_redr_status = true };
+        frp.fr_win.borrow_mut().w_redr_status = true;
     } else if frp.fr_layout == FR_ROW {
         for child in frame_iter_ptr(frp.fr_child) {
             win_redraw_last_status(child);

@@ -174,7 +174,7 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
 
     frc = ses_skipframe(fr.child_opt());
     while let Some(cur_frc) = frc {
-        let next_opt = unsafe { cur_frc.fr_next.as_mut() };
+        let next_opt = cur_frc.fr_next.opt_mut();
         ses_win_rec(fd, cur_frc);
         frc = ses_skipframe(next_opt);
         if frc.is_some() && !put_line(fd, c"wincmd w") {
@@ -186,7 +186,7 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
 }
 
 fn ses_skipframe(fr: Option<&'static mut Frame>) -> Option<&'static mut Frame> {
-    frame_iter_mut(fr.map_or(ptr::null_mut(), ptr::from_mut)).find(|frc| ses_do_frame(frc))
+    frame_iter_mut(crate::globals::FramePtr::from(fr)).find(|frc| ses_do_frame(frc))
 }
 
 fn ses_do_frame(fr: &Frame) -> bool {
@@ -719,7 +719,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
                 if ptr::eq(tp, g_st().curtab) {
                     tab_firstwin = g_st().firstwin;
-                    tab_topframe = g_st().topframe;
+                    tab_topframe = g_st().topframe.as_ptr();
                 } else {
                     tab_firstwin = unsafe { (*tp).tp_firstwin.as_ptr() };
                     tab_topframe = unsafe { (*tp).tp_topframe.as_ptr() };
@@ -730,7 +730,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             } else {
                 tp = g_st().curtab;
                 tab_firstwin = g_st().firstwin;
-                tab_topframe = g_st().topframe;
+                tab_topframe = g_st().topframe.as_ptr();
             }
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0

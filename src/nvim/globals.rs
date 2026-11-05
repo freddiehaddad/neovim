@@ -174,7 +174,7 @@ pub struct EditorState {
     pub firstwin: *mut WinInfoInfo,
     pub lastwin: *mut WinInfoInfo,
     pub prevwin: *mut WinInfoInfo,
-    pub topframe: *mut Frame,
+    pub topframe: FramePtr,
     pub first_tabpage: *mut TabPageInfo,
     pub curtab: *mut TabPageInfo,
     pub lastused_tabpage: *mut TabPageInfo,
@@ -549,7 +549,7 @@ impl EditorState {
             firstwin: ptr::null_mut(),
             lastwin: ptr::null_mut(),
             prevwin: ptr::null_mut(),
-            topframe: ptr::null_mut(),
+            topframe: FramePtr::NULL,
             first_tabpage: ptr::null_mut(),
             curtab: ptr::null_mut(),
             lastused_tabpage: ptr::null_mut(),
@@ -1368,51 +1368,39 @@ pub fn for_all_tabpages_ptr() -> TabPtrIter {
     TabPtrIter(g_st().first_tabpage)
 }
 
-pub struct FrameMutIter(*mut Frame);
+pub struct FrameMutIter(FramePtr);
 
 impl Iterator for FrameMutIter {
     type Item = &'static mut Frame;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).fr_next;
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.fr_next;
+        Some(cur)
     }
 }
 
-pub struct FramePtrIter(*mut Frame);
+pub struct FramePtrIter(FramePtr);
 
 impl Iterator for FramePtrIter {
     type Item = &'static mut Frame;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            unsafe {
-                self.0 = (*cur).fr_next;
-                Some(&mut *cur)
-            }
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.fr_next;
+        Some(cur)
     }
 }
 
 #[inline]
-pub fn frame_iter_mut(start: *mut Frame) -> FrameMutIter {
+pub fn frame_iter_mut(start: FramePtr) -> FrameMutIter {
     FrameMutIter(start)
 }
 
 #[inline]
-pub fn frame_iter_ptr(start: *mut Frame) -> FramePtrIter {
+pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
     FramePtrIter(start)
 }
 
@@ -1598,7 +1586,7 @@ pub(crate) static TEST_GLOBAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new
 
 #[inline]
 pub fn topframe_mut() -> &'static mut Frame {
-    unsafe { &mut *g_st().topframe }
+    g_st().topframe.borrow_mut()
 }
 
 #[inline]

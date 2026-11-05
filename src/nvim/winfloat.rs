@@ -81,10 +81,10 @@ pub fn win_new_float(
         winframe_remove(wp, &mut dir, unsafe { tp.as_mut() }, None);
 
         if !wp.w_frame.is_null() {
-            drop(unsafe { Box::from_raw(wp.w_frame) });
+            drop(unsafe { Box::from_raw(wp.w_frame.as_ptr()) });
         }
 
-        wp.w_frame = ptr::null_mut();
+        wp.w_frame = crate::globals::FramePtr::NULL;
 
         win_remove(wp, unsafe { tp.as_mut() });
 

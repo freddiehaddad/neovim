@@ -1933,7 +1933,7 @@ pub fn mouse_find_win_inner(
 
     let fr_win = fp.fr_win;
     for wp in for_all_windows_mut() {
-        if std::ptr::eq(wp, fr_win) {
+        if fr_win == wp {
             *rowp -= wp.w_winbar_height;
             return Some(wp);
         }

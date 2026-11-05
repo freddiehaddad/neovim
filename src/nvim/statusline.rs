@@ -401,13 +401,13 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
 /// line of the window right of it. If not, then it's a vertical separator.
 pub fn stl_connected(wp: &mut WinInfoInfo) -> bool {
     let mut fr = wp.w_frame;
-    while unsafe { !(*fr).fr_parent.is_null() } {
-        let parent = unsafe { (*fr).fr_parent };
-        if unsafe { (*parent).fr_layout } == FR_COL {
-            if unsafe { !(*fr).fr_next.is_null() } {
+    while !fr.fr_parent.is_null() {
+        let parent = fr.fr_parent;
+        if parent.fr_layout == FR_COL {
+            if !fr.fr_next.is_null() {
                 break;
             }
-        } else if unsafe { !(*fr).fr_next.is_null() } {
+        } else if !fr.fr_next.is_null() {
             return true;
         }
 
