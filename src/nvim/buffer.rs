@@ -2823,11 +2823,11 @@ pub fn buflist_new(
         && (flags & (BLN_DUMMY | BLN_NEW)) == 0
         && let Some(buf_ref) = buflist_findname_file_id(Some(ff_cstr), &mut file_id, file_id_valid)
     {
-        let buf_ptr: *mut FileBuf = buf_ref;
+        let mut buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_ref);
         drop(expanded);
         if lnum != 0 {
             buflist_setfpos(
-                unsafe { &mut *buf_ptr },
+                buf_ptr.borrow_mut(),
                 if (flags & BLN_NOCURWIN) != 0 {
                     None
                 } else {
@@ -2839,22 +2839,20 @@ pub fn buflist_new(
             );
         }
         if (flags & BLN_NOOPT) == 0 {
-            buf_copy_options(unsafe { &mut *buf_ptr }, 0);
+            buf_copy_options(buf_ptr.borrow_mut(), 0);
         }
-        if (flags & BLN_LISTED) != 0 && !unsafe { (*buf_ptr).b_p_bl } {
-            unsafe {
-                (*buf_ptr).b_p_bl = true;
-            }
+        if (flags & BLN_LISTED) != 0 && !buf_ptr.b_p_bl {
+            buf_ptr.b_p_bl = true;
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
+            set_bufref(&mut bufref, buf_ptr.opt_mut());
             if (flags & BLN_DUMMY) == 0
-                && apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { buf_ptr.as_mut() })
+                && apply_autocmds(EVENT_BUFADD, None, None, false, buf_ptr.opt_mut())
                 && !bufref_valid(Some(&bufref))
             {
                 return None;
             }
         }
-        return unsafe { buf_ptr.as_mut() };
+        return buf_ptr.opt_mut();
     }
 
     buf = ptr::null_mut();
@@ -3073,7 +3071,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         }
         return false;
     };
-    let buf: *mut FileBuf = buf_ref;
+    let buf = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_ref);
 
     if buf == g_st().curbuf.as_ptr() {
         return true;
@@ -3098,7 +3096,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     let buf_fnum = buf_ref.b_fnum;
 
     if (options & GETF_SWITCH) != 0 {
-        let wp = swbuf_goto_win_with_buf(unsafe { buf.as_mut() });
+        let wp = swbuf_goto_win_with_buf(buf.opt_mut());
 
         if wp.is_none()
             && (opt_vars().swb_flags
@@ -3557,7 +3555,7 @@ fn find_wininfo(
     need_options: bool,
     skip_diff_buffer: bool,
 ) -> Option<&'static mut WinInfo> {
-    let buf_ptr: *mut FileBuf = &raw mut *buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
     let pos = buf
         .b_wininfo
         .iter()
@@ -3584,7 +3582,7 @@ fn find_wininfo(
 
 /// Reset the local window options to the values last used in this window.
 pub fn get_winopts(buf: &mut FileBuf) {
-    let buf_ptr: *mut FileBuf = &raw mut *buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
     clear_winopt(&mut curwin_mut().w_onebuf_opt);
     clear_folding(curwin_mut());
 
@@ -4915,13 +4913,13 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
     let Some(newbuf_ref) = buflist_new(None, None, 1, BLN_DUMMY) else {
         return true;
     };
-    let newbuf: *mut FileBuf = newbuf_ref;
+    let newbuf = crate::globals::GraphPtr::<FileBuf>::from_ref(newbuf_ref);
 
     let mut ea: Exarg = Exarg::new();
     let _ea_cmd = prep_exarg(&mut ea, &*buf);
 
     let mut aco: CtxSwitch = CtxSwitch::new();
-    ctx_switch(&mut aco, None, None, unsafe { newbuf.as_mut() }, 0);
+    ctx_switch(&mut aco, None, None, newbuf.opt_mut(), 0);
 
     block_autocmds();
 
@@ -4951,7 +4949,7 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
     ctx_restore(&mut aco);
 
     if g_st().curbuf != newbuf {
-        wipe_buffer(unsafe { &mut *newbuf }, false);
+        wipe_buffer(newbuf.borrow_mut(), false);
     }
 
     unblock_autocmds();
@@ -5091,39 +5089,33 @@ mod tests {
             let p2 = c"file_path_test";
             let p3 = c"path_test_file";
 
-            let buf: *mut FileBuf = buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap();
-            assert!(buf_valid(unsafe { buf.as_ref() }));
-            close_buffer(None, unsafe { buf.as_mut() }, 0, false, false, false);
-            assert!(buf_valid(unsafe { buf.as_ref() }));
-            close_buffer(
-                None,
-                unsafe { buf.as_mut() },
-                DOBUF_UNLOAD,
-                false,
-                false,
-                false,
+            let buf = crate::globals::GraphPtr::<FileBuf>::from_ref(
+                buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap(),
             );
-            assert!(buf_valid(unsafe { buf.as_ref() }));
-            close_buffer(
-                None,
-                unsafe { buf.as_mut() },
-                DOBUF_WIPE,
-                false,
-                false,
-                false,
-            );
-            assert!(!buf_valid(unsafe { buf.as_ref() }));
+            assert!(buf_valid(buf.opt()));
+            close_buffer(None, buf.opt_mut(), 0, false, false, false);
+            assert!(buf_valid(buf.opt()));
+            close_buffer(None, buf.opt_mut(), DOBUF_UNLOAD, false, false, false);
+            assert!(buf_valid(buf.opt()));
+            close_buffer(None, buf.opt_mut(), DOBUF_WIPE, false, false, false);
+            assert!(!buf_valid(buf.opt()));
 
             let findpat = |pat: &CStr, allow_unlisted: bool| -> i32 {
                 buflist_findpat(pat.to_bytes(), allow_unlisted, false, false)
             };
 
-            let buf1: *mut FileBuf = buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap();
-            let buf2: *mut FileBuf = buflist_new(Some(p2), Some(p2), 1, BLN_LISTED).unwrap();
-            let buf3: *mut FileBuf = buflist_new(Some(p3), Some(p3), 1, BLN_LISTED).unwrap();
-            let buf1_fnum = unsafe { (*buf1).b_fnum };
-            let buf2_fnum = unsafe { (*buf2).b_fnum };
-            let buf3_fnum = unsafe { (*buf3).b_fnum };
+            let buf1 = crate::globals::GraphPtr::<FileBuf>::from_ref(
+                buflist_new(Some(p1), Some(p1), 1, BLN_LISTED).unwrap(),
+            );
+            let buf2 = crate::globals::GraphPtr::<FileBuf>::from_ref(
+                buflist_new(Some(p2), Some(p2), 1, BLN_LISTED).unwrap(),
+            );
+            let buf3 = crate::globals::GraphPtr::<FileBuf>::from_ref(
+                buflist_new(Some(p3), Some(p3), 1, BLN_LISTED).unwrap(),
+            );
+            let buf1_fnum = buf1.b_fnum;
+            let buf2_fnum = buf2.b_fnum;
+            let buf3_fnum = buf3.b_fnum;
 
             assert_eq!(findpat(c"test_file_path", false), buf1_fnum);
             assert_eq!(findpat(c"test", false), buf1_fnum);
@@ -5132,65 +5124,23 @@ mod tests {
             assert_eq!(findpat(c"_test_", false), buf3_fnum);
 
             // Include / ignore unlisted buffers based on the flag
-            close_buffer(
-                None,
-                unsafe { buf3.as_mut() },
-                DOBUF_DEL,
-                false,
-                false,
-                false,
-            );
+            close_buffer(None, buf3.opt_mut(), DOBUF_DEL, false, false, false);
             assert_eq!(findpat(c"_test_", false), -1);
             assert_eq!(findpat(c"_test_", true), buf3_fnum);
-            close_buffer(
-                None,
-                unsafe { buf3.as_mut() },
-                DOBUF_WIPE,
-                false,
-                false,
-                false,
-            );
+            close_buffer(None, buf3.opt_mut(), DOBUF_WIPE, false, false, false);
             assert_eq!(findpat(c"_test_", false), -1);
             assert_eq!(findpat(c"_test_", true), -1);
 
             // Unlisted vs listed preference
-            close_buffer(
-                None,
-                unsafe { buf1.as_mut() },
-                DOBUF_DEL,
-                false,
-                false,
-                false,
-            );
+            close_buffer(None, buf1.opt_mut(), DOBUF_DEL, false, false, false);
             assert_eq!(findpat(c"test", false), buf2_fnum);
             assert_eq!(findpat(c"test", true), buf2_fnum);
-            close_buffer(
-                None,
-                unsafe { buf2.as_mut() },
-                DOBUF_DEL,
-                false,
-                false,
-                false,
-            );
+            close_buffer(None, buf2.opt_mut(), DOBUF_DEL, false, false, false);
             assert_eq!(findpat(c"test", true), buf1_fnum);
             assert_eq!(findpat(c"test", false), -1);
 
-            close_buffer(
-                None,
-                unsafe { buf1.as_mut() },
-                DOBUF_WIPE,
-                false,
-                false,
-                false,
-            );
-            close_buffer(
-                None,
-                unsafe { buf2.as_mut() },
-                DOBUF_WIPE,
-                false,
-                false,
-                false,
-            );
+            close_buffer(None, buf1.opt_mut(), DOBUF_WIPE, false, false, false);
+            close_buffer(None, buf2.opt_mut(), DOBUF_WIPE, false, false, false);
 
             g_st().emsg_skip -= 1;
         }

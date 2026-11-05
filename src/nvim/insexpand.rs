@@ -3024,7 +3024,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
 }
 
 fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
-    let mut buf: *mut FileBuf = buf_arg;
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_arg);
     if flag == b'w' as i32 {
         if g_st().curbuf == buf || !win_valid(insexp().next_buf_wp.opt()) {
             insexp().next_buf_wp = crate::globals::curwin_ptr();
@@ -3046,30 +3046,30 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             }
         }
 
-        buf = insexp().next_buf_wp.w_buffer.as_ptr();
+        buf = insexp().next_buf_wp.w_buffer;
     } else {
         loop {
-            buf = if unsafe { !(*buf).b_next.is_null() } {
-                unsafe { (*buf).b_next.as_ptr() }
+            buf = if !buf.b_next.is_null() {
+                buf.b_next
             } else {
-                g_st().firstbuf.as_ptr()
+                g_st().firstbuf
             };
             if g_st().curbuf == buf {
                 break;
             }
 
             let skip_buffer = if flag == b'U' as i32 {
-                unsafe { (*buf).b_p_bl }
+                buf.b_p_bl
             } else {
-                unsafe { !(*buf).b_p_bl || (*buf).b_ml.ml_mfp.is_none() != (flag == b'u' as i32) }
+                !buf.b_p_bl || buf.b_ml.ml_mfp.is_none() != (flag == b'u' as i32)
             };
 
-            if !skip_buffer && unsafe { !(*buf).b_scanned } {
+            if !skip_buffer && !buf.b_scanned {
                 break;
             }
         }
     }
-    unsafe { &mut *buf }
+    buf.borrow_mut()
 }
 
 fn get_cpt_sources_count(cpt: &CStr) -> i32 {

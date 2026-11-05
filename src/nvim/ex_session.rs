@@ -710,7 +710,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
         let mut restore_height_width = false;
         for tp_iter in for_all_tabpages_ptr() {
-            let mut tp: *mut TabPageInfo = tp_iter;
+            let mut tp = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp_iter);
             let mut need_tabnext = false;
             let mut cnr: i32 = 1;
             let tab_firstwin: *mut WinInfoInfo;
@@ -721,20 +721,20 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     tab_firstwin = g_st().firstwin.as_ptr();
                     tab_topframe = g_st().topframe.as_ptr();
                 } else {
-                    tab_firstwin = unsafe { (*tp).tp_firstwin.as_ptr() };
-                    tab_topframe = unsafe { (*tp).tp_topframe.as_ptr() };
+                    tab_firstwin = tp.tp_firstwin.as_ptr();
+                    tab_topframe = tp.tp_topframe.as_ptr();
                 }
                 if g_st().first_tabpage != tp {
                     need_tabnext = true;
                 }
             } else {
-                tp = g_st().curtab.as_ptr();
+                tp = g_st().curtab;
                 tab_firstwin = g_st().firstwin.as_ptr();
                 tab_topframe = g_st().topframe.as_ptr();
             }
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
-                && let Some(tp_localdir) = unsafe { &(*tp).tp_localdir }
+                && let Some(tp_localdir) = &(tp.borrow().tp_localdir)
             {
                 if need_tabnext && !put_line(fd, c"tabnext") {
                     return false;
@@ -837,7 +837,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 if !put_view(
                     fd,
                     wp_ref,
-                    unsafe { &mut *tp },
+                    tp.borrow_mut(),
                     !ptr::eq(wp, edited_win),
                     &mut opt_vars().ssop_flags,
                     cur_arg_idx,

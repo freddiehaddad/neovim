@@ -631,10 +631,14 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             return;
         }
 
-        let mut d1: *mut TvDict = d1_ref;
+        let mut d1 = crate::globals::GraphPtr::<TvDict>::from_ref(d1_ref);
         if is_new {
-            d1 = tv_dict_copy(None, Some(d1_ref), false, get_copy_id())
-                .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+            d1 = crate::globals::GraphPtr::from(tv_dict_copy(
+                None,
+                Some(d1_ref),
+                false,
+                get_copy_id(),
+            ));
             if d1.is_null() {
                 return;
             }
@@ -646,7 +650,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             if arg2.v_type != VarType::VarUnknown {
                 let Some(act) = tv_get_string_chk(arg2) else {
                     if is_new {
-                        tv_dict_unref(unsafe { d1.as_mut() });
+                        tv_dict_unref(d1.opt_mut());
                     }
                     return;
                 };
@@ -654,20 +658,20 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 let action_bytes = action.to_bytes();
                 if action_bytes != b"keep" && action_bytes != b"force" && action_bytes != b"error" {
                     if is_new {
-                        tv_dict_unref(unsafe { d1.as_mut() });
+                        tv_dict_unref(d1.opt_mut());
                     }
                     semsg!(E_INVARG2, action);
                     return;
                 }
             }
-            tv_dict_extend(unsafe { &mut *d1 }, d2, action.to_bytes());
+            tv_dict_extend(d1.borrow_mut(), d2, action.to_bytes());
         }
 
         if is_new {
             *rettv = TypVal {
                 v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d1)),
+                vval: TypvalVval::Dict(d1),
             };
         } else {
             tv_copy(&argvars[0], &mut *rettv);

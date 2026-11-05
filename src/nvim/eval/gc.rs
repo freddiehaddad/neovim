@@ -50,10 +50,10 @@ pub static gc_first_list: crate::globals::GlobalState<crate::globals::TvListPtr>
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
     let idx = gc_st().gc_lists.len();
-    let ptr: *mut TvList = l;
-    gc_st().gc_lists.push(crate::globals::GraphPtr::new(ptr));
+    let ptr = crate::globals::GraphPtr::<TvList>::from_ref(l);
+    gc_st().gc_lists.push(ptr);
     l.lv_gc_idx = Some(idx);
-    gc_first_list.set(crate::globals::TvListPtr::new(ptr));
+    gc_first_list.set(ptr);
 }
 
 #[inline]

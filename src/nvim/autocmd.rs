@@ -2498,7 +2498,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
     let mut err = Error::new();
     if let Some(buf) = find_buffer_by_handle(e.buf, &mut err) {
-        let buf_ptr: *mut FileBuf = buf;
+        let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
         if let Some(ref data_obj) = data
@@ -2528,7 +2528,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
             e.fname_io.as_deref(),
             false,
             group,
-            unsafe { buf_ptr.as_mut() },
+            buf_ptr.opt_mut(),
             win.opt(),
             None,
             data.as_ref(),

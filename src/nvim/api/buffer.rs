@@ -652,7 +652,7 @@ pub fn nvim_buf_set_text(
     let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return;
     };
-    let b_ptr: *mut FileBuf = b;
+    let b_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(b);
 
     let mut oob = false;
 
@@ -1324,7 +1324,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
     let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
     };
-    let b_ptr: *mut FileBuf = b;
+    let b_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(b);
 
     let mut ren_ret = true;
     try_wrap(err, || {

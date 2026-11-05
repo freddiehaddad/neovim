@@ -1266,19 +1266,19 @@ pub fn tv_list_unref(l: Option<&mut TvList>) {
 
 /// Remove items "item" to "item2" from list "l".
 pub fn tv_list_drop_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
-    let item: *mut Listitem = item_in;
-    let item2: *mut Listitem = item2_in;
-    let mut end_next = unsafe { (*item2).li_next };
+    let item = crate::globals::GraphPtr::<Listitem>::from_ref(item_in);
+    let item2 = crate::globals::GraphPtr::<Listitem>::from_ref(item2_in);
+    let mut end_next = item2.li_next;
     let mut ip = item;
-    while ip != end_next.as_ptr() {
+    while ip != end_next {
         l.lv_len -= 1;
 
-        tv_list_watch_fix(l, unsafe { &*ip });
+        tv_list_watch_fix(l, &ip);
 
-        ip = unsafe { (*ip).li_next.as_ptr() };
+        ip = ip.li_next;
     }
 
-    let mut item_prev = unsafe { (*item).li_prev };
+    let mut item_prev = item.li_prev;
     if end_next.is_null() {
         l.lv_last = item_prev;
     } else {
@@ -1316,19 +1316,17 @@ pub fn tv_list_move_items(
     tgt_l: &mut TvList,
     cnt: i32,
 ) {
-    let item: *mut Listitem = item_in;
-    let item2: *mut Listitem = item2_in;
-    tv_list_drop_items(&mut *l, unsafe { &mut *item }, unsafe { &mut *item2 });
-    unsafe {
-        (*item).li_prev = tgt_l.lv_last;
-        (*item2).li_next = crate::globals::ListitemPtr::NULL;
-    }
+    let mut item = crate::globals::GraphPtr::<Listitem>::from_ref(item_in);
+    let mut item2 = crate::globals::GraphPtr::<Listitem>::from_ref(item2_in);
+    tv_list_drop_items(&mut *l, item.borrow_mut(), item2.borrow_mut());
+    item.li_prev = tgt_l.lv_last;
+    item2.li_next = crate::globals::ListitemPtr::NULL;
     if let Some(last_ref) = tgt_l.lv_last.opt_mut() {
-        last_ref.li_next = crate::globals::ListitemPtr::new(item);
+        last_ref.li_next = item;
     } else {
-        tgt_l.lv_first = crate::globals::ListitemPtr::new(item);
+        tgt_l.lv_first = item;
     }
-    tgt_l.lv_last = crate::globals::ListitemPtr::new(item2);
+    tgt_l.lv_last = item2;
     tgt_l.lv_len += cnt;
 }
 
@@ -1338,11 +1336,11 @@ pub fn tv_list_insert(l: &mut TvList, ni: &mut Listitem, item_opt: Option<&mut L
         tv_list_append(l, ni);
         return;
     };
-    let item: *mut Listitem = item_ref;
+    let mut item = crate::globals::GraphPtr::<Listitem>::from_ref(item_ref);
     let ni_ptr = crate::globals::ListitemPtr::from(&mut *ni);
-    ni.li_prev = unsafe { (*item).li_prev };
-    ni.li_next = crate::globals::ListitemPtr::new(item);
-    if let Some(prev_ref) = unsafe { (*item).li_prev.opt_mut() } {
+    ni.li_prev = item.li_prev;
+    ni.li_next = item;
+    if let Some(prev_ref) = item.li_prev.opt_mut() {
         prev_ref.li_next = ni_ptr;
         l.lv_idx_item = crate::globals::ListitemPtr::NULL;
     } else {
@@ -1350,9 +1348,7 @@ pub fn tv_list_insert(l: &mut TvList, ni: &mut Listitem, item_opt: Option<&mut L
         l.lv_idx += 1;
     }
 
-    unsafe {
-        (*item).li_prev = ni_ptr;
-    }
+    item.li_prev = ni_ptr;
     l.lv_len += 1;
 }
 
@@ -2016,13 +2012,13 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
             semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), end);
             return;
         };
-        let item_ptr: *mut Listitem = item;
-        let item2_ptr: *mut Listitem = item2;
+        let item_ptr = crate::globals::GraphPtr::<Listitem>::from_ref(item);
+        let item2_ptr = crate::globals::GraphPtr::<Listitem>::from_ref(item2);
         let mut cnt: i32 = 0;
         let mut found_end = false;
-        for li in crate::eval::typval::list_iter_ptr(unsafe { item_ptr.as_mut() }) {
+        for li in crate::eval::typval::list_iter_ptr(item_ptr.opt_mut()) {
             cnt += 1;
-            if ptr::eq(li, item2_ptr) {
+            if item2_ptr == li {
                 found_end = true;
                 break;
             }
@@ -2033,8 +2029,8 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
             let tgt = tv_list_alloc_ret(rettv, cnt as isize);
             tv_list_move_items(
                 l,
-                unsafe { &mut *item_ptr },
-                unsafe { &mut *item2_ptr },
+                item_ptr.borrow_mut(),
+                item2_ptr.borrow_mut(),
                 &mut *tgt,
                 cnt,
             );
@@ -3431,13 +3427,13 @@ pub fn tv_dict_copy(
     }
 
     copy.dv_refcount += 1;
-    let copy_ptr: *mut TvDict = copy;
+    let copy_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(copy);
     if g_st().got_int {
-        tv_dict_unref(unsafe { copy_ptr.as_mut() });
+        tv_dict_unref(copy_ptr.opt_mut());
         return None;
     }
 
-    unsafe { copy_ptr.as_mut() }
+    copy_ptr.opt_mut()
 }
 
 /// Set all existing keys in "dict" as read-only.

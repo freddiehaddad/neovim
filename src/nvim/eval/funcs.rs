@@ -2169,7 +2169,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
     if argvars[off].v_type != VarType::VarList {
         do_cmdline_cmd(tv_get_string(&argvars[off]));
     } else if let Some(list) = argvars[off].vval.v_list_opt() {
-        let list_ptr: *mut TvList = list;
+        let list_ptr = crate::globals::GraphPtr::<TvList>::from_ref(list);
         let first_li = list.lv_first.as_ptr();
         tv_list_ref(Some(list));
         let mut cookie = GetListLineCookie {
@@ -2180,7 +2180,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
             crate::cmdexpand::LineGetter::List((&mut cookie).into()),
             DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT | DOCMD_KEYTYPED,
         );
-        tv_list_unref(unsafe { list_ptr.as_mut() });
+        tv_list_unref(list_ptr.opt_mut());
     }
     g_st().msg_silent = save_msg_silent;
     g_st().emsg_silent = save_emsg_silent;
@@ -5433,8 +5433,8 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
         return;
     };
-    let buf: *mut FileBuf = buf_ref;
-    if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+    let buf = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_ref);
+    if buf.b_ml.ml_mfp.is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return;
     }
@@ -5443,7 +5443,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let pat = tv_get_string_buf(&argvars[1], &mut patbuf);
 
     let did_emsg_before = g_st().did_emsg;
-    let mut slnum = tv_get_lnum_buf(&argvars[2], unsafe { buf.as_ref() });
+    let mut slnum = tv_get_lnum_buf(&argvars[2], buf.opt());
     if g_st().did_emsg > did_emsg_before {
         return;
     }
@@ -5452,7 +5452,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    let mut elnum = tv_get_lnum_buf(&argvars[3], unsafe { buf.as_ref() });
+    let mut elnum = tv_get_lnum_buf(&argvars[3], buf.opt());
     if g_st().did_emsg > did_emsg_before {
         return;
     }
@@ -5461,8 +5461,8 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    if elnum > unsafe { (*buf).b_ml.ml_line_count } {
-        elnum = unsafe { (*buf).b_ml.ml_line_count };
+    if elnum > buf.b_ml.ml_line_count {
+        elnum = buf.b_ml.ml_line_count;
     }
 
     let mut submatches = false;
@@ -5487,7 +5487,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         regmatch.rm_ic = opt_vars().p_ic;
 
         while slnum <= elnum {
-            let str_ = ml_get_buf(unsafe { &mut *buf }, slnum).as_ptr().cast_mut();
+            let str_ = ml_get_buf(buf.borrow_mut(), slnum).as_ptr().cast_mut();
 
             get_matches_in_str(
                 crate::memory::cstr_from_ptr(str_),
@@ -7734,7 +7734,7 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(wp_ref) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
-    let wp: *mut WinInfoInfo = wp_ref;
+    let wp = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp_ref);
     if !tv_check_for_dict_arg(argvars, 1) {
         return;
     }
@@ -7760,7 +7760,7 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
     }
 
-    if set_tagstack(unsafe { &mut *wp }, d.opt(), i32::from(action)) {
+    if set_tagstack(wp.borrow_mut(), d.opt(), i32::from(action)) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
 }

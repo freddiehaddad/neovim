@@ -1156,6 +1156,11 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
+    pub fn from_ref(r: &T) -> Self {
+        Self::from(r)
+    }
+
+    #[inline(always)]
     pub const fn as_ptr(self) -> *mut T {
         self.0
     }

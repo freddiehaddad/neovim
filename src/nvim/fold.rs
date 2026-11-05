@@ -2544,8 +2544,8 @@ pub fn put_folds(fd: &CFile, wp: &mut WinInfoInfo) -> bool {
     }
 
     if wp.w_fold_manual {
-        let wp_ptr: *mut WinInfoInfo = wp;
-        return put_foldopen_recurse(fd, unsafe { &mut *wp_ptr }, &wp.w_folds, 0);
+        let wp_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp);
+        return put_foldopen_recurse(fd, wp_ptr.borrow_mut(), &wp.w_folds, 0);
     }
 
     true

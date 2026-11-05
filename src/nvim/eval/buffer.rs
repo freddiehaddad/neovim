@@ -104,13 +104,13 @@ fn find_win_for_curbuf() {
 
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
 fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
-    let buf_ptr: *mut FileBuf = buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
     *cob = Cob::new();
 
     cob.cob_save_visual_active = g_st().visual_global.active;
     g_st().visual_global.active = false;
     cob.cob_curwin_save = crate::globals::curwin_ptr();
-    g_st().curbuf = (buf_ptr).into();
+    g_st().curbuf = buf_ptr;
     find_win_for_curbuf();
 
     if curwin_mut().w_buffer != buf_ptr {
@@ -145,7 +145,7 @@ fn set_buffer_lines(
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
     };
-    let buf_ptr: *mut FileBuf = buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
     let is_curbuf = buf_ptr == g_st().curbuf.as_ptr();
     if (!is_curbuf && buf.b_ml.ml_mfp.is_none()) || lnum < 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
@@ -421,18 +421,18 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     let Some(buf_ref) = tv_get_buf_from_arg(&mut argvars[0]) else {
         return;
     };
-    let buf: *mut FileBuf = buf_ref;
-    if !bt_prompt(unsafe { buf.as_ref() }) {
+    let mut buf = crate::globals::GraphPtr::<FileBuf>::from_ref(buf_ref);
+    if !bt_prompt(buf.opt()) {
         return;
     }
 
-    let lnum = (unsafe { (*buf).b_prompt_start.mark.lnum } - 1).max(0);
+    let lnum = (buf.b_prompt_start.mark.lnum - 1).max(0);
     let lines = &mut argvars[1];
     let mut did_concat = false;
 
-    if !unsafe { (*buf).b_prompt_append_new_line } {
+    if !buf.b_prompt_append_new_line {
         let text = if lnum > 0 {
-            ml_get_buf(unsafe { &mut *buf }, lnum)
+            ml_get_buf(buf.borrow_mut(), lnum)
                 .as_ptr()
                 .cast_mut()
                 .cast_const()
@@ -461,7 +461,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             let li: *mut Listitem = tv_list_first(l.opt()).unwrap();
 
             set_buffer_lines(
-                unsafe { buf.as_mut() },
+                buf.opt_mut(),
                 lnum,
                 false,
                 unsafe { &mut (*li).li_tv },
@@ -471,28 +471,16 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             if rettv.vval.v_number() == 0 {
                 tv_list_item_remove(l.borrow_mut(), unsafe { &mut *li });
 
-                set_buffer_lines(
-                    unsafe { buf.as_mut() },
-                    lnum,
-                    true,
-                    &mut *lines,
-                    &mut *rettv,
-                );
+                set_buffer_lines(buf.opt_mut(), lnum, true, &mut *lines, &mut *rettv);
             }
         } else {
-            let append_new = unsafe { (*buf).b_prompt_append_new_line };
-            set_buffer_lines(
-                unsafe { buf.as_mut() },
-                lnum,
-                append_new,
-                &mut *lines,
-                &mut *rettv,
-            );
+            let append_new = buf.b_prompt_append_new_line;
+            set_buffer_lines(buf.opt_mut(), lnum, append_new, &mut *lines, &mut *rettv);
         }
     }
 
     if rettv.vval.v_number() == 0 {
-        unsafe { (*buf).b_prompt_append_new_line = false };
+        buf.b_prompt_append_new_line = false;
 
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
@@ -501,18 +489,18 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 let str_ = tv_get_string(&li.li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {
-                    unsafe { (*buf).b_prompt_append_new_line = true };
+                    buf.b_prompt_append_new_line = true;
                 }
             }
         } else if lines.v_type == VarType::VarString {
             let str_ = tv_get_string(&*lines);
             let bytes = str_.to_bytes();
             if bytes.last() == Some(&b'\n') {
-                unsafe { (*buf).b_prompt_append_new_line = true };
+                buf.b_prompt_append_new_line = true;
             }
         }
 
-        prompt_trim_scrollback(unsafe { &mut *buf });
+        prompt_trim_scrollback(buf.borrow_mut());
     }
 }
 
@@ -661,7 +649,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
 
-    let buf_ptr: *mut FileBuf = buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
     let is_curbuf = g_st().curbuf == buf_ptr;
     let mut cob = Cob::new();
     if !is_curbuf {

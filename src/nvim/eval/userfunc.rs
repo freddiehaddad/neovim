@@ -731,10 +731,10 @@ pub fn deref_func_name<'a>(
             *lenp = 0;
             return c"";
         };
-        let pt_ptr: *mut TvPartial = pt;
-        let s = partial_name(Some(unsafe { &*pt_ptr }));
+        let pt_ptr = crate::globals::GraphPtr::<TvPartial>::from_ref(pt);
+        let s = partial_name(Some(pt_ptr.borrow()));
         if let Some(partialp) = partialp {
-            *partialp = Some(unsafe { &mut *pt_ptr });
+            *partialp = Some(pt_ptr.borrow_mut());
         }
         *lenp = s.to_bytes().len() as i32;
         return s;

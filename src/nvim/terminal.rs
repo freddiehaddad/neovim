@@ -464,7 +464,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         return;
     }
     let term = buf.terminal_mut();
-    let buf_ptr: *mut FileBuf = buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
 
     if term.sb_pending > 0 {
         multiqueue_put_event(term.pending_events_mut(), Event::TermRequest(req));
@@ -527,7 +527,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         None,
         true,
         AUGROUP_ALL,
-        unsafe { buf_ptr.as_mut() },
+        buf_ptr.opt_mut(),
         Some(crate::globals::curwin_mut()),
         None,
         Some(&data_obj),
@@ -2252,7 +2252,7 @@ fn refresh_terminal(term: &mut Terminal) {
     let Some(buf) = handle_get_buffer_opt(term.buf_handle) else {
         return;
     };
-    let buf_ptr: *mut FileBuf = buf;
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(buf);
     let ml_before = buf.b_ml.ml_line_count;
 
     let resized = refresh_size(term);

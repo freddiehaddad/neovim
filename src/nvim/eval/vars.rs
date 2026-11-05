@@ -2062,17 +2062,17 @@ fn tv_list_unlet_range(
     n2: i32,
 ) {
     debug_assert!(l.is_some());
-    let mut li_last: *mut Listitem = li_first;
+    let mut li_last = crate::globals::GraphPtr::<Listitem>::from_ref(li_first);
     let mut n1 = n1_arg;
     loop {
-        let li = unsafe { (*li_last).li_next.as_ptr() };
+        let li = li_last.li_next;
         n1 += 1;
         if li.is_null() || (has_n2 && n2 < n1) {
             break;
         }
         li_last = li;
     }
-    tv_list_remove_items(l.unwrap(), li_first, unsafe { &mut *li_last });
+    tv_list_remove_items(l.unwrap(), li_first, li_last.borrow_mut());
 }
 
 /// unlet a variable.
@@ -2736,9 +2736,9 @@ fn find_var_ht_dict<'a>(
         }
 
         if let Some(local_d) = get_funccal_local_dict() {
-            let local_d_ptr: *mut TvDict = local_d;
-            *d = Some(unsafe { &mut *local_d_ptr });
-            return Some(unsafe { &mut (*local_d_ptr).dv_hashtab });
+            let local_d_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(local_d);
+            *d = Some(local_d_ptr.borrow_mut());
+            return Some(&mut (local_d_ptr.borrow_mut().dv_hashtab));
         }
 
         let glob_d: *mut TvDict = get_globvar_dict();

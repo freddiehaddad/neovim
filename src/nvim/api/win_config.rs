@@ -844,7 +844,7 @@ fn win_config_split(
                 g_st().curtab.as_ptr()
             };
 
-            let win_ptr: *mut WinInfoInfo = win;
+            let win_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(win);
             try_wrap(err, || {
                 let need_switch = !parent.is_null() && parent != curwin_ptr();
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -858,18 +858,12 @@ fn win_config_split(
                     );
                     assert!(result);
                 }
-                to_split_ok = win_split_ins(
-                    0,
-                    flags,
-                    unsafe { win_ptr.as_mut() },
-                    0,
-                    unflat_altfr.opt_mut(),
-                )
-                .is_some();
+                to_split_ok =
+                    win_split_ins(0, flags, win_ptr.opt_mut(), 0, unflat_altfr.opt_mut()).is_some();
                 if !to_split_ok {
                     win_append(
-                        unsafe { (*win_ptr).w_prev.opt_mut() },
-                        unsafe { &mut *win_ptr },
+                        win_ptr.w_prev.opt_mut(),
+                        win_ptr.borrow_mut(),
                         if win_tp == g_st().curtab.as_ptr() {
                             None
                         } else {

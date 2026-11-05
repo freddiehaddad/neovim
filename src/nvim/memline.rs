@@ -915,9 +915,9 @@ pub fn ml_recover(checkext: bool) {
         getout(1);
     }
 
-    let mut allocated_buf = Box::new(FileBuf::new());
-    let buf_ptr: *mut FileBuf = &raw mut *allocated_buf;
-    let buf: &'static mut FileBuf = unsafe { &mut *buf_ptr };
+    let allocated_buf = Box::new(FileBuf::new());
+    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(&*allocated_buf);
+    let buf: &'static mut FileBuf = buf_ptr.borrow_mut();
     buf_box = Some(allocated_buf);
 
     buf.b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);

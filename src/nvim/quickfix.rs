@@ -2779,14 +2779,14 @@ fn qf_jump_edit_buffer(
     opened_window: &mut bool,
 ) -> QfStatus {
     let qi = crate::globals::GraphPtr::from(qi_ref);
-    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
-    let old_changetick = unsafe { (*qfl).qf_changedtick };
+    let qfl = crate::globals::GraphPtr::<QfList>::from_ref(qf_get_curlist(qi.borrow_mut()));
+    let old_changetick = qfl.qf_changedtick;
     let old_qf_curlist = qi.qf_curlist;
-    let qfl_type = unsafe { (*qfl).qfl_type };
+    let qfl_type = qfl.qfl_type;
     let mut retval = QfStatus::Ok;
-    let save_qfid = unsafe { (*qfl).qf_id };
+    let save_qfid = qfl.qf_id;
     let (qf_type, fnum) = {
-        let qfp = &unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize];
+        let qfp = &&(qfl.borrow().qf_items)[(qf_index - 1) as usize];
         (qfp.qf_type, qfp.qf_fnum)
     };
 
@@ -2856,8 +2856,8 @@ fn qf_jump_edit_buffer(
     }
 
     if old_qf_curlist != qi.qf_curlist
-        || old_changetick != unsafe { (*qfl).qf_changedtick }
-        || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
+        || old_changetick != qfl.qf_changedtick
+        || !is_qf_entry_present(qfl.borrow(), qf_index)
     {
         if qfl_type == QFLT_QUICKFIX {
             emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
@@ -2986,11 +2986,11 @@ fn qf_jump_open_window(
     opened_window: &mut bool,
 ) -> Option<QfStatus> {
     let qi = crate::globals::GraphPtr::from(qi_ref);
-    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
-    let old_changetick = unsafe { (*qfl).qf_changedtick };
+    let qfl = crate::globals::GraphPtr::<QfList>::from_ref(qf_get_curlist(qi.borrow_mut()));
+    let old_changetick = qfl.qf_changedtick;
     let old_qf_curlist = qi.qf_curlist;
-    let qfl_type = unsafe { (*qfl).qfl_type };
-    let qf_type = unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_type;
+    let qfl_type = qfl.qfl_type;
+    let qf_type = qfl.qf_items[(qf_index - 1) as usize].qf_type;
 
     if qf_type == 1
         && (!bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0)
@@ -2999,8 +2999,8 @@ fn qf_jump_open_window(
         return Some(QfStatus::Fail);
     }
     if old_qf_curlist != qi.qf_curlist
-        || old_changetick != unsafe { (*qfl).qf_changedtick }
-        || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
+        || old_changetick != qfl.qf_changedtick
+        || !is_qf_entry_present(qfl.borrow(), qf_index)
     {
         if qfl_type == QFLT_QUICKFIX {
             emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
@@ -3010,7 +3010,7 @@ fn qf_jump_open_window(
         return Some(QfStatus::Abort);
     }
 
-    let qf_fnum = unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum;
+    let qf_fnum = qfl.qf_items[(qf_index - 1) as usize].qf_fnum;
     if bt_quickfix(Some(crate::globals::curbuf_mut())) && !*opened_window {
         if qf_fnum == 0 {
             return None;
@@ -3021,8 +3021,8 @@ fn qf_jump_open_window(
         }
     }
     if old_qf_curlist != qi.qf_curlist
-        || old_changetick != unsafe { (*qfl).qf_changedtick }
-        || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
+        || old_changetick != qfl.qf_changedtick
+        || !is_qf_entry_present(qfl.borrow(), qf_index)
     {
         if qfl_type == QFLT_QUICKFIX {
             emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
@@ -3048,9 +3048,9 @@ fn qf_jump_to_buffer(
     let old_curbuf = g_st().curbuf;
     let old_lnum = curwin_mut().w_cursor.lnum;
     let retval;
-    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
+    let qfl = crate::globals::GraphPtr::<QfList>::from_ref(qf_get_curlist(qi.borrow_mut()));
 
-    if unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum != 0 {
+    if qfl.qf_items[(qf_index - 1) as usize].qf_fnum != 0 {
         retval = qf_jump_edit_buffer(
             qi.borrow_mut(),
             qf_index,
@@ -3069,7 +3069,7 @@ fn qf_jump_to_buffer(
         setpcmark();
     }
 
-    let qfp = &mut unsafe { &mut (*qfl).qf_items }[(qf_index - 1) as usize];
+    let qfp = &mut (qfl.borrow_mut().qf_items)[(qf_index - 1) as usize];
     qf_jump_goto_line(
         qfp.qf_lnum,
         qfp.qf_col,
@@ -3120,14 +3120,14 @@ fn qf_jump_newwin(
 
     incr_quickfix_busy();
 
-    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
+    let mut qfl = crate::globals::GraphPtr::<QfList>::from_ref(qf_get_curlist(qi.borrow_mut()));
 
-    let mut qf_index = unsafe { (*qfl).qf_index };
+    let mut qf_index = qfl.qf_index;
     let old_qf_index = qf_index;
 
-    let qf_ptr = qf_get_entry(unsafe { &mut *qfl }, errornr, dir, &mut qf_index);
+    let qf_ptr = qf_get_entry(qfl.borrow_mut(), errornr, dir, &mut qf_index);
     if qf_ptr.is_some() {
-        unsafe { (*qfl).qf_index = qf_index };
+        qfl.qf_index = qf_index;
 
         let print_message = !qf_win_pos_update(qi.borrow_mut(), old_qf_index);
         let prev_winid = curwin_mut().handle;
@@ -3154,9 +3154,7 @@ fn qf_jump_newwin(
                 if opened_window {
                     win_close(curwin_mut(), true, false);
                 }
-                if !qi.is_null()
-                    && unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum != 0
-                {
+                if !qi.is_null() && qfl.qf_items[(qf_index - 1) as usize].qf_fnum != 0 {
                     qf_index = old_qf_index;
                 }
             }
@@ -3166,7 +3164,7 @@ fn qf_jump_newwin(
     }
 
     if !qi.is_null() {
-        unsafe { (*qfl).qf_index = qf_index };
+        qfl.qf_index = qf_index;
     }
     if opt_vars().p_swb != old_swb && opt_vars().p_swb.is_null() {
         opt_vars().p_swb = old_swb;
@@ -7118,7 +7116,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         qf_update_buffer(qi, 0);
     }
 
-    let qi_ptr: *mut QfInfo = ptr::from_mut(qi);
+    let qi_ptr = crate::globals::GraphPtr::<QfInfo>::from_ref(qi);
     if let Some(au_name) = au_name {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
@@ -7128,16 +7126,16 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
             curbuf_opt_mut(),
         );
         if !new_qi
-            && is_ll_stack(unsafe { &*qi_ptr })
-            && qf_find_win_with_loclist(unsafe { &*qi_ptr }).is_none()
+            && is_ll_stack(qi_ptr.borrow())
+            && qf_find_win_with_loclist(qi_ptr.borrow()).is_none()
         {
             decr_quickfix_busy();
             return;
         }
     }
 
-    if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi_ptr })))) {
-        qf_jump(unsafe { qi_ptr.as_mut() }, 0, 0, false);
+    if !qf_list_empty(Some(&*(qf_get_curlist(qi_ptr.borrow_mut())))) {
+        qf_jump(qi_ptr.opt_mut(), 0, 0, false);
     } else {
         semsg!(gettext(E_NOMATCH2), eap.arg);
     }
@@ -7147,10 +7145,10 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     if eap.cmdidx == Cmdidx::CmdLhelpgrep {
         if !bt_help(curwin_mut().buf_opt()) || curwin_mut().w_llist == qi_ptr {
             if new_qi {
-                ll_free_all(unsafe { qi_ptr.as_mut() });
+                ll_free_all(qi_ptr.opt_mut());
             }
         } else if curwin_mut().w_llist.is_null() && new_qi {
-            curwin_mut().w_llist = crate::globals::GraphPtr::new(qi_ptr);
+            curwin_mut().w_llist = qi_ptr;
         }
     }
 }

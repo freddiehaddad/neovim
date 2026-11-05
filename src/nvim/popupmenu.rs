@@ -1322,7 +1322,7 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
         wp_ref.w_onebuf_opt.wo_wfb = true;
         wp_ref
     };
-    let wp_ptr: *mut WinInfoInfo = wp_ref;
+    let wp_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp_ref);
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
     pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
@@ -1332,7 +1332,7 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
 
     let ok = pum_adjust_info_position(&mut *wp_ref, max_info_width);
     unblock_autocmds();
-    ok.then(|| unsafe { &mut *wp_ptr })
+    ok.then(|| wp_ptr.borrow_mut())
 }
 
 /// Set the index of the currently selected item (`pum_set_selected`).

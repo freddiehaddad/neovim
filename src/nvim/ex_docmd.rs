@@ -9777,9 +9777,9 @@ fn ex_tabonly(eap: &mut Exarg) {
     while done < 1000 {
         for tp in for_all_tabpages_ptr() {
             if tp.tp_topframe != g_st().topframe {
-                let tp_ptr: *mut TabPageInfo = tp;
-                tabpage_close_other(unsafe { &mut *tp_ptr }, eap.forceit);
-                if valid_tabpage(unsafe { tp_ptr.as_ref() }) {
+                let tp_ptr = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp);
+                tabpage_close_other(tp_ptr.borrow_mut(), eap.forceit);
+                if valid_tabpage(tp_ptr.opt()) {
                     done = 1000;
                 }
                 break;

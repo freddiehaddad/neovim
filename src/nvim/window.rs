@@ -2379,11 +2379,11 @@ pub fn win_split_ins(
         }
     }
 
-    let oldwin_ptr: *mut WinInfoInfo = oldwin;
-    let wp_ptr: *mut WinInfoInfo = wp;
+    let mut oldwin_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(oldwin);
+    let wp_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp);
     if (flags & WSP_NOENTER) == 0 {
         win_enter_ext(
-            unsafe { &mut *wp_ptr },
+            wp_ptr.borrow_mut(),
             (if new_wp.is_null() {
                 WEE_TRIGGER_NEW_AUTOCMDS
             } else {
@@ -2398,13 +2398,11 @@ pub fn win_split_ins(
         opt_vars().p_wh = OptInt::from(i);
     }
 
-    if win_valid(unsafe { oldwin_ptr.as_ref() }) {
-        unsafe {
-            (*oldwin_ptr).w_pos_changed = true;
-        }
+    if win_valid(oldwin_ptr.opt()) {
+        oldwin_ptr.w_pos_changed = true;
     }
 
-    unsafe { wp_ptr.as_mut() }
+    wp_ptr.opt_mut()
 }
 pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_buffer = oldp.w_buffer;
@@ -4963,11 +4961,11 @@ pub fn win_new_tabpage(
             return None;
         }
 
-        let newtp: *mut TabPageInfo = alloc_tabpage();
+        let mut newtp = crate::globals::GraphPtr::<TabPageInfo>::from_ref(alloc_tabpage());
 
         if enter {
             if !leave_tabpage(g_st().curbuf.opt_mut(), true) {
-                free_tabpage(unsafe { newtp.as_mut() });
+                free_tabpage(newtp.opt_mut());
                 return None;
             }
         } else {
@@ -4978,10 +4976,10 @@ pub fn win_new_tabpage(
         }
 
         unsafe {
-            (*newtp).tp_localdir = (*old_curtab).tp_localdir.clone();
+            newtp.tp_localdir = (*old_curtab).tp_localdir.clone();
         }
 
-        g_st().curtab = (newtp).into();
+        g_st().curtab = newtp;
 
         let result = win_alloc_firstwin(unsafe { (*old_curtab).tp_curwin.opt_mut() });
         debug_assert!(result);
@@ -4990,10 +4988,8 @@ pub fn win_new_tabpage(
         }
 
         if after == 1 {
-            unsafe {
-                (*newtp).tp_next = g_st().first_tabpage;
-            }
-            g_st().first_tabpage = (newtp).into();
+            newtp.tp_next = g_st().first_tabpage;
+            g_st().first_tabpage = newtp;
         } else {
             let mut tp = old_curtab;
             if after > 0 {
@@ -5005,24 +5001,20 @@ pub fn win_new_tabpage(
                 }
             }
             unsafe {
-                (*newtp).tp_next = (*tp).tp_next;
-                (*tp).tp_next = crate::globals::TabpagePtr::new(newtp);
+                newtp.tp_next = (*tp).tp_next;
+                (*tp).tp_next = newtp;
             }
         }
-        unsafe {
-            (*newtp).tp_firstwin = crate::globals::curwin_ptr();
-            (*newtp).tp_lastwin = crate::globals::curwin_ptr();
-            (*newtp).tp_curwin = crate::globals::curwin_ptr();
-        }
+        newtp.tp_firstwin = crate::globals::curwin_ptr();
+        newtp.tp_lastwin = crate::globals::curwin_ptr();
+        newtp.tp_curwin = crate::globals::curwin_ptr();
 
         win_init_size();
         firstwin_mut().w_winrow = tabline_height();
         firstwin_mut().w_prev_winrow = firstwin_mut().w_winrow;
         win_comp_scroll(curwin_mut());
 
-        unsafe {
-            (*newtp).tp_topframe = g_st().topframe;
-        }
+        newtp.tp_topframe = g_st().topframe;
         last_status(false);
 
         if !curbuf_mut().terminal.is_null() {
@@ -5056,8 +5048,8 @@ pub fn win_new_tabpage(
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             let sw_ok = ctx_switch(
                 &mut switchwin,
-                unsafe { (*newtp).tp_curwin.opt_mut() },
-                unsafe { newtp.as_mut() },
+                newtp.tp_curwin.opt_mut(),
+                newtp.opt_mut(),
                 None,
                 K_CTX_NO_DISPLAY,
             );
@@ -5075,7 +5067,7 @@ pub fn win_new_tabpage(
             ctx_restore(&mut switchwin);
         }
 
-        unsafe { newtp.as_mut() }
+        newtp.opt_mut()
     }
 }
 
@@ -5197,7 +5189,7 @@ pub fn tabpage_index(ftp: Option<&TabPageInfo>) -> i32 {
 fn leave_tabpage(new_curbuf_in: Option<&mut FileBuf>, trigger_leave_autocmds: bool) -> bool {
     let new_curbuf = crate::globals::GraphPtr::from(new_curbuf_in);
     let tp = curtab_mut();
-    let tp_ptr: *mut TabPageInfo = tp;
+    let tp_ptr = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp);
 
     leaving_window(curwin_mut());
     reset_visual_and_resel();
@@ -5218,7 +5210,7 @@ fn leave_tabpage(new_curbuf_in: Option<&mut FileBuf>, trigger_leave_autocmds: bo
         }
     }
 
-    let tp = unsafe { &mut *tp_ptr };
+    let tp = tp_ptr.borrow_mut();
     reset_dragwin();
     tp.tp_curwin = crate::globals::curwin_ptr();
     tp.tp_prevwin = g_st().prevwin;
@@ -5245,20 +5237,20 @@ fn enter_tabpage(
     let old_off = tp.firstwin_mut().w_winrow;
     let next_prevwin = tp.tp_prevwin.as_ptr();
     let old_curtab = curtab_mut();
-    let old_curtab_ptr: *mut TabPageInfo = old_curtab;
+    let old_curtab_ptr = crate::globals::GraphPtr::<TabPageInfo>::from_ref(old_curtab);
     let prev_p_ch = opt_vars().p_ch;
 
     use_tabpage(tp);
 
     if g_st().curtab != old_curtab_ptr && opt_vars().p_ch != prev_p_ch {
-        tabpage_check_windows(unsafe { &mut *old_curtab_ptr });
+        tabpage_check_windows(old_curtab_ptr.borrow_mut());
         let new_ch = opt_vars().p_ch;
         opt_vars().p_ch = prev_p_ch;
         win_st().command_frame_height = false;
         set_option_value(K_OPT_CMDHEIGHT, integer_obj(new_ch), 0, true, None);
         win_st().command_frame_height = true;
     } else if g_st().curtab != old_curtab_ptr {
-        tabpage_check_windows(unsafe { &mut *old_curtab_ptr });
+        tabpage_check_windows(old_curtab_ptr.borrow_mut());
     }
 
     let tp_curwin = tp_ptr.tp_curwin.as_ptr();
@@ -5297,7 +5289,7 @@ fn enter_tabpage(
         }
     }
 
-    g_st().lastused_tabpage = (old_curtab_ptr).into();
+    g_st().lastused_tabpage = old_curtab_ptr;
 
     if trigger_enter_autocmds {
         apply_autocmds(EVENT_TABENTER, None, None, false, curbuf_opt_mut());
@@ -5869,9 +5861,9 @@ pub fn buf_jump_open_win(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInf
     }
     for wp in for_all_windows_ptr() {
         if wp.w_buffer == buf {
-            let wp_ptr: *mut WinInfoInfo = wp;
-            win_enter(unsafe { &mut *wp_ptr }, false);
-            return unsafe { wp_ptr.as_mut() };
+            let wp_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp);
+            win_enter(wp_ptr.borrow_mut(), false);
+            return wp_ptr.opt_mut();
         }
     }
     None
@@ -5889,10 +5881,10 @@ pub fn buf_jump_open_tab(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInf
         }
         for wp2 in win_iter_ptr(tp.tp_firstwin.as_ptr()) {
             if wp2.w_buffer == buf {
-                let wp2_ptr: *mut WinInfoInfo = wp2;
-                goto_tabpage_win(&mut *tp, unsafe { &mut *wp2_ptr });
+                let wp2_ptr = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp2);
+                goto_tabpage_win(&mut *tp, wp2_ptr.borrow_mut());
                 return if curwin_ptr() == wp2_ptr {
-                    unsafe { wp2_ptr.as_mut() }
+                    wp2_ptr.opt_mut()
                 } else {
                     None
                 };
@@ -6079,40 +6071,39 @@ pub fn win_append(
     tp_in: Option<&mut TabPageInfo>,
 ) {
     let after = crate::globals::GraphPtr::from(after_in);
-    let wp: *mut WinInfoInfo = ptr::from_mut(wp_in);
+    let wp = crate::globals::GraphPtr::<WinInfoInfo>::from_ref(wp_in);
     let tp = crate::globals::GraphPtr::from(tp_in);
     debug_assert!(tp.is_null() || g_st().curtab != tp);
 
     let first = if tp.is_null() {
-        (&raw mut g_st().firstwin).cast::<*mut WinInfoInfo>()
+        &mut g_st().firstwin
     } else {
-        (&raw mut (tp.borrow_mut()).tp_firstwin).cast::<*mut WinInfoInfo>()
+        &mut tp.borrow_mut().tp_firstwin
     };
     let last = if tp.is_null() {
-        (&raw mut g_st().lastwin).cast::<*mut WinInfoInfo>()
+        &mut g_st().lastwin
     } else {
-        (&raw mut (tp.borrow_mut()).tp_lastwin).cast::<*mut WinInfoInfo>()
+        &mut tp.borrow_mut().tp_lastwin
     };
 
-    let before = if after.is_null() {
-        *unsafe { &mut *(first) }
+    let mut before = if after.is_null() {
+        *first
     } else {
-        (after.borrow_mut()).w_next.as_ptr()
+        after.w_next
     };
 
-    (unsafe { &mut *(wp) }).w_next = crate::globals::WinPtr::new(before);
-
-    (unsafe { &mut *(wp) }).w_prev = after;
+    wp.borrow_mut().w_next = before;
+    wp.borrow_mut().w_prev = after;
 
     if after.is_null() {
-        *unsafe { &mut *(first) } = wp;
+        *first = wp;
     } else {
-        (after.borrow_mut()).w_next = crate::globals::WinPtr::new(wp);
+        after.borrow_mut().w_next = wp;
     }
     if before.is_null() {
-        *unsafe { &mut *(last) } = wp;
+        *last = wp;
     } else {
-        (unsafe { &mut *(before) }).w_prev = crate::globals::WinPtr::new(wp);
+        before.w_prev = wp;
     }
 }
 
@@ -6349,18 +6340,16 @@ fn check_window_scroll_resize(
             let mut winid = [0u8; NUMBUFLEN];
             let key_len = vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", wp.handle,);
             let _ = key_len;
-            let d_ptr: *mut TvDict = d;
+            let mut d_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(d);
             if !tv_dict_add_dict(
                 ve,
                 crate::memory::cstr_until_nul(&winid),
-                Some(unsafe { &mut *d_ptr }),
+                Some(d_ptr.borrow_mut()),
             ) {
-                tv_dict_unref(Some(unsafe { &mut *d_ptr }));
+                tv_dict_unref(Some(d_ptr.borrow_mut()));
                 break;
             }
-            unsafe {
-                (*d_ptr).dv_refcount -= 1;
-            }
+            d_ptr.dv_refcount -= 1;
 
             tot_width += width.abs();
             tot_height += height.abs();
@@ -6381,13 +6370,11 @@ fn check_window_scroll_resize(
             tot_skipcol,
         )
     {
-        let alldict_ptr: *mut TvDict = alldict;
-        if !tv_dict_add_dict(v_event, c"all", Some(unsafe { &mut *alldict_ptr })) {
-            tv_dict_unref(Some(unsafe { &mut *alldict_ptr }));
+        let mut alldict_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(alldict);
+        if !tv_dict_add_dict(v_event, c"all", Some(alldict_ptr.borrow_mut())) {
+            tv_dict_unref(Some(alldict_ptr.borrow_mut()));
         } else {
-            unsafe {
-                (*alldict_ptr).dv_refcount -= 1;
-            }
+            alldict_ptr.dv_refcount -= 1;
         }
     }
 }

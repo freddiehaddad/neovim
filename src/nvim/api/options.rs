@@ -266,15 +266,15 @@ fn do_ft_buf(
         return Some(ftbuf_ref);
     }
 
-    let ftbuf: *mut FileBuf = ftbuf_ref;
+    let mut ftbuf = crate::globals::GraphPtr::<FileBuf>::from_ref(ftbuf_ref);
     let mut bufref = Bufref {
         br_buf: crate::globals::BufPtr::NULL,
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, unsafe { ftbuf.as_mut() });
+    set_bufref(&mut bufref, ftbuf.opt_mut());
 
-    ctx_switch(&mut *aco, None, None, unsafe { ftbuf.as_mut() }, 0);
+    ctx_switch(&mut *aco, None, None, ftbuf.opt_mut(), 0);
 
     set_option_direct(
         K_OPT_BUFHIDDEN,
@@ -289,21 +289,19 @@ fn do_ft_buf(
         SID_NONE,
     );
 
-    assert!(unsafe { (*ftbuf).b_ml.ml_mfp.as_ref().unwrap().mf_fd } < 0);
+    assert!(ftbuf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
 
-    unsafe {
-        (*ftbuf).b_p_swf = false;
-        (*ftbuf).b_p_ml = false;
-        (*ftbuf).b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(filetype);
-    }
+    ftbuf.b_p_swf = false;
+    ftbuf.b_p_ml = false;
+    ftbuf.b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(filetype);
 
     if !has_event(EVENT_FILETYPE) {
-        return unsafe { ftbuf.as_mut() };
+        return ftbuf.opt_mut();
     }
 
     let mut did_au_ft = false;
     try_wrap(err, || {
-        did_au_ft = do_filetype_autocmd(unsafe { &mut *ftbuf }, true);
+        did_au_ft = do_filetype_autocmd(ftbuf.borrow_mut(), true);
     });
 
     if !bufref_valid(Some(&bufref)) {
@@ -324,7 +322,7 @@ fn do_ft_buf(
             c"Could not execute FileType autocommands",
         );
     }
-    unsafe { ftbuf.as_mut() }
+    ftbuf.opt_mut()
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {

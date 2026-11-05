@@ -108,11 +108,11 @@ pub fn win_new_float(
                 return None;
             }
             let tp_ref = win_find_tabpage(parent_wp.borrow())?;
-            let tp: *mut TabPageInfo = tp_ref;
+            let tp = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp_ref);
             tp_last = lastwin_nofloating(if tp == g_st().curtab.as_ptr() {
                 None
             } else {
-                unsafe { tp.as_ref() }
+                tp.opt()
             });
         }
         let wp = win_alloc(unsafe { tp_last.as_mut() }, false);
