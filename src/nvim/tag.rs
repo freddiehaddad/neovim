@@ -164,7 +164,6 @@ use crate::charset::NUL;
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::eval::funcs::{K_SPECIAL_VAR_NULL_CONST, SEARCH_KEEP};
 use crate::fileio::{SEEK_END, SEEK_SET};
-use crate::globals::IOSIZE;
 use crate::os::env::ExpandCtx;
 use crate::os::fs::MAXPATHL;
 use crate::viml::parser::parser::CONV_NONE;
@@ -804,15 +803,13 @@ pub fn do_tag(
                         && (do_tag_num_matches > 1 || ic)
                         && !skip_msg
                     {
-                        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                         let more_str = if tag_st().do_tag_max_num_matches != MAXCOL {
                             gettext(c" or more")
                         } else {
                             c""
                         };
                         vim_snprintf!(
-                            iobuf_ptr,
-                            IOSIZE,
+                            g_st().iobuff_bytes_mut(),
                             gettext(c"tag %d of %d%s"),
                             cur_match + 1,
                             do_tag_num_matches,
@@ -839,10 +836,12 @@ pub fn do_tag(
                         }
                     }
 
-                    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
                     let name_cstr = crate::memory::cstr_as_opt_cstr(name).unwrap_or(c"");
-                    let iobufflen =
-                        vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r", name_cstr.as_ptr());
+                    let iobufflen = vim_snprintf_safelen!(
+                        g_st().iobuff_bytes_mut(),
+                        c":ta %s\r",
+                        name_cstr.as_ptr(),
+                    );
                     set_vim_var_string(
                         VV_SWAPCOMMAND,
                         Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
@@ -1069,8 +1068,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             }
         }
 
-        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-        vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
+        vim_snprintf!(g_st().iobuff_bytes_mut(), c"ltag %s", tag);
         set_errorlist(
             Some(curwin_mut()),
             Some(&*list),
@@ -1104,10 +1102,8 @@ pub fn do_tags(_eap: &mut Exarg) {
             };
 
             msg_putchar(b'\n' as i32);
-            let iobuf_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(
-                iobuf_ptr,
-                IOSIZE,
+                g_st().iobuff_bytes_mut(),
                 c"%c%2d %2d %-15s %5d  ",
                 if i == tagstackidx {
                     b'>' as i32
@@ -1280,8 +1276,7 @@ fn find_tagfunc_tags(
     args[3].v_type = VarType::VarUnknown;
 
     vim_snprintf!(
-        flag_string.as_mut_ptr().cast(),
-        flag_string.len(),
+        &mut flag_string[..],
         c"%s%s%s",
         if g_st().g_tag_at_cursor {
             c"c".as_ptr()
@@ -1986,12 +1981,7 @@ fn findtags_add_match(
                 if margs.match_re { margs.matchoff } else { 0 },
                 !margs.match_no_ic,
             ) + st.help_pri;
-            vim_snprintf!(
-                v[len + 1 + ML_EXTRA..].as_mut_ptr().cast(),
-                mfp_size - (len + 1 + ML_EXTRA),
-                c"%06d",
-                heur,
-            );
+            vim_snprintf!(&mut v[len + 1 + ML_EXTRA..mfp_size], c"%06d", heur,);
             mfp_vec = Some(v);
         } else if name_only {
             if st.get_searchpat {
@@ -2840,11 +2830,11 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                         test_for_static(&tagp);
                         let tagname_cstr = std::ffi::CString::new(tagp.tagname).unwrap_or_default();
                         pbuflen = vim_snprintf!(
-                            pbuf.cast(),
-                            LSIZE as usize,
+                            &mut pbuf_vec[..LSIZE as usize],
                             c"^%s\\s\\*(",
                             tagname_cstr.as_ptr(),
                         ) as usize;
+                        let pbuf = pbuf_vec.as_mut_ptr();
                         if do_search(
                             None,
                             b'/' as i32,
@@ -2858,11 +2848,11 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                         ) == 0
                         {
                             pbuflen = vim_snprintf!(
-                                pbuf.cast(),
-                                LSIZE as usize,
+                                &mut pbuf_vec[..LSIZE as usize],
                                 c"^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(",
                                 tagname_cstr.as_ptr(),
                             ) as usize;
+                            let pbuf = pbuf_vec.as_mut_ptr();
                             if do_search(
                                 None,
                                 b'/' as i32,

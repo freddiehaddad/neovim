@@ -416,20 +416,10 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
             }
         } else {
             drop(fd1);
-            iobuflen = vim_snprintf_safelen!(
-                iobuf.as_mut_ptr().cast(),
-                IOSIZE,
-                E_CANT_READ_FILE_STR,
-                fname2,
-            );
+            iobuflen = vim_snprintf_safelen!(&mut iobuf[..], E_CANT_READ_FILE_STR, fname2);
         }
     } else {
-        iobuflen = vim_snprintf_safelen!(
-            iobuf.as_mut_ptr().cast(),
-            IOSIZE,
-            E_CANT_READ_FILE_STR,
-            fname1
-        );
+        iobuflen = vim_snprintf_safelen!(&mut iobuf[..], E_CANT_READ_FILE_STR, fname1);
     }
 
     if iobuflen > 0 {
@@ -749,13 +739,7 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             let mut expected_str = [0u8; 200];
-            vim_snprintf!(
-                expected_str.as_mut_ptr().cast(),
-                expected_str.len(),
-                c"range %g - %g,",
-                flower,
-                fupper,
-            );
+            vim_snprintf!(&mut expected_str[..], c"range %g - %g,", flower, fupper,);
             let (first, rest) = argvars.split_at_mut(3);
             fill_assert_error(
                 &mut ga,

@@ -16,7 +16,6 @@ use crate::ex_cmds::do_sub_msg;
 use crate::ex_docmd::{Exarg, do_cmdline_cmd};
 use crate::ex_getln::Hlf;
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
-use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
@@ -1298,9 +1297,9 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
     sl.sl_lang[..lang_bytes.len()].copy_from_slice(lang_bytes);
     curbuf_mut().b_locked += 1;
     for round in 1..=2 {
+        let max_len = fname_enc.len() - 5;
         vim_snprintf!(
-            (&raw mut fname_enc).cast(),
-            fname_enc.len() - 5,
+            &mut fname_enc[..max_len],
             c"spell/%s.%s.spl",
             lang,
             spell_enc(),
@@ -1312,12 +1311,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
         );
         r = ok;
         if !ok && sl.sl_lang[0] != 0 {
-            vim_snprintf!(
-                (&raw mut fname_enc).cast(),
-                fname_enc.len() - 5,
-                c"spell/%s.ascii.spl",
-                lang,
-            );
+            vim_snprintf!(&mut fname_enc[..max_len], c"spell/%s.ascii.spl", lang);
             let ok2 = do_in_runtimepath(
                 crate::memory::cstr_until_nul(&fname_enc),
                 0,
@@ -1345,8 +1339,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
         if starting_val() != 0 {
             let mut autocmd_buf: [u8; 512] = [0; 512];
             vim_snprintf!(
-                (&raw mut autocmd_buf).cast(),
-                autocmd_buf.len(),
+                &mut autocmd_buf[..],
                 c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell",
                 lang,
             );
@@ -1379,8 +1372,7 @@ pub fn spell_enc() -> &'static std::ffi::CStr {
 }
 fn int_wordlist_spl(fname: &mut [u8; MAXPATHL]) {
     vim_snprintf!(
-        fname.as_mut_ptr().cast(),
-        fname.len(),
+        &mut fname[..],
         c"%s.%s.spl",
         spell_priv_st()
             .int_wordlist
@@ -2241,9 +2233,12 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     let addlen = repl_to_len as i64 - repl_from_len as i64;
     let frompatsize = repl_from_len + 7;
     let mut frompat_vec: Vec<u8> = vec![0; frompatsize];
+    let frompatlen = vim_snprintf!(
+        &mut frompat_vec[..frompatsize],
+        c"\\V\\<%s\\>",
+        repl_from_ptr,
+    ) as usize;
     let frompat = crate::strings::CStrCursor::from_ptr(frompat_vec.as_mut_ptr());
-    let frompatlen =
-        vim_snprintf!(frompat.cast(), frompatsize, c"\\V\\<%s\\>", repl_from_ptr,) as usize;
     opt_vars().p_ws = false;
     g_st().sub_nsubs = 0;
     g_st().sub_nlines = 0;
@@ -2755,8 +2750,7 @@ pub fn spell_dump_compl(
     }
     if do_region && !region_names.is_null() && pat.is_none() {
         vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
+            g_st().iobuff_bytes_mut(),
             c"/regions=%s",
             region_names.cast::<std::ffi::c_void>(),
         );
@@ -2772,8 +2766,7 @@ pub fn spell_dump_compl(
         }
         if pat.is_none() {
             vim_snprintf!(
-                g_st().iobuff.as_mut_ptr(),
-                IOSIZE,
+                g_st().iobuff_bytes_mut(),
                 c"# file: %s",
                 slang.sl_fname.as_deref().unwrap_or(c""),
             );
@@ -2949,28 +2942,22 @@ fn dump_word(
                 bw_len += 1;
             }
             badword[bw_len] = 0;
-            let bw_ptr = (&raw mut badword).cast::<u8>();
             if (flags & WF_REGION) != 0 {
                 for i in 0..7 {
                     if (flags & (0x10000 << i)) != 0 {
-                        let badword_len = crate::memory::cstr_len(bw_ptr);
-                        vim_snprintf!(
-                            bw_ptr.wrapping_add(badword_len).cast(),
-                            badword.len() - badword_len,
-                            c"%d",
-                            i + 1,
-                        );
+                        let badword_len = crate::memory::bytes_until_nul(&badword).len();
+                        vim_snprintf!(&mut badword[badword_len..], c"%d", i + 1,);
                     }
                 }
             }
+            let bw_ptr = (&raw mut badword).cast::<u8>();
             p = bw_ptr;
         }
         if (dumpflags & DUMPFLAG_COUNT) != 0 {
             let tw_bytes = crate::memory::cstr_as_bytes(tw);
             if let Some(&wc_count) = slang.sl_wordcount.get(tw_bytes) {
                 vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
+                    g_st().iobuff_bytes_mut(),
                     c"%s\t%d",
                     tw.cast::<std::ffi::c_void>(),
                     wc_count as i32,

@@ -1364,7 +1364,6 @@ pub fn do_search(
             && (!g_st().cmd_silent || !shortmess(K_SHM_SEARCHCOUNT))
         {
             let mut off_buf = [0u8; 40];
-            let off_buf_ptr = crate::strings::CStrCursor::from_ptr(off_buf.as_mut_ptr());
             let mut off_len: usize = 0;
 
             msg_start();
@@ -1386,12 +1385,8 @@ pub fn do_search(
                 }
                 off_buf[off_len] = 0;
                 if srch().spats[0].off.off != 0 || srch().spats[0].off.line {
-                    let n = vim_snprintf!(
-                        off_buf_ptr.wrapping_add(off_len).cast(),
-                        off_buf.len() - off_len,
-                        c"%+lld",
-                        srch().spats[0].off.off,
-                    );
+                    let n =
+                        vim_snprintf!(&mut off_buf[off_len..], c"%+lld", srch().spats[0].off.off,);
                     if n > 0 {
                         off_len += n as usize;
                     }
@@ -2793,30 +2788,26 @@ fn cmdline_search_stat(
     }
 
     let mut t = [0u8; SEARCH_STAT_BUF_LEN];
-    let t_ptr: *mut _ = t.as_mut_ptr().cast();
     let mut len: usize;
 
     if curwin_mut().w_onebuf_opt.wo_rl && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's' {
         if stat.incomplete == 1 {
-            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
+            len = vim_snprintf!(&mut t[..], c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
-            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,)
-                as usize;
+            len = vim_snprintf!(&mut t[..], c"[>%d/>%d]", maxcount, maxcount,) as usize;
         } else if stat.cnt > maxcount {
-            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/%d]", maxcount, stat.cur,)
-                as usize;
+            len = vim_snprintf!(&mut t[..], c"[>%d/%d]", maxcount, stat.cur,) as usize;
         } else {
-            len =
-                vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cnt, stat.cur,) as usize;
+            len = vim_snprintf!(&mut t[..], c"[%d/%d]", stat.cnt, stat.cur,) as usize;
         }
     } else if stat.incomplete == 1 {
-        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
+        len = vim_snprintf!(&mut t[..], c"[?/??]") as usize;
     } else if stat.cnt > maxcount && stat.cur > maxcount {
-        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[>%d/>%d]", maxcount, maxcount,) as usize;
+        len = vim_snprintf!(&mut t[..], c"[>%d/>%d]", maxcount, maxcount,) as usize;
     } else if stat.cnt > maxcount {
-        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/>%d]", stat.cur, maxcount,) as usize;
+        len = vim_snprintf!(&mut t[..], c"[%d/>%d]", stat.cur, maxcount,) as usize;
     } else {
-        len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[%d/%d]", stat.cur, stat.cnt,) as usize;
+        len = vim_snprintf!(&mut t[..], c"[%d/%d]", stat.cur, stat.cnt,) as usize;
     }
 
     if show_top_bot_msg && len + 2 < SEARCH_STAT_BUF_LEN {
@@ -3136,11 +3127,9 @@ pub fn find_pattern_in_path(
         if type_ != CHECK_PATH && type_ != FIND_DEFINE && !compl_status_sol() {
             let patsize = len + 5;
             let mut pat_vec: Vec<u8> = vec![0; patsize];
-            let pat: *mut _ = pat_vec.as_mut_ptr().cast();
             debug_assert!(len <= i32::MAX as usize);
             vim_snprintf!(
-                pat,
-                patsize,
+                &mut pat_vec[..patsize],
                 if whole {
                     c"\\<%.*s\\>".as_ptr()
                 } else {
@@ -3149,7 +3138,7 @@ pub fn find_pattern_in_path(
                 len as i32,
                 ptr_pat,
             );
-            let pat_cstr = crate::memory::cstr_from_ptr(pat);
+            let pat_cstr = crate::memory::cstr_until_nul(&pat_vec);
             regmatch.rm_ic = ignorecase(pat_cstr);
             regmatch.set_prog(vim_regcomp(
                 pat_cstr,
@@ -3389,11 +3378,9 @@ pub fn find_pattern_in_path(
                         files[depth as usize].lnum = 0;
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
-                            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                             g_st().msg_hist_off = true;
                             vim_snprintf!(
-                                iobuff_ptr,
-                                IOSIZE,
+                                g_st().iobuff_bytes_mut(),
                                 tr(c"Scanning included file: %s"),
                                 curr_fname.unwrap_or(c""),
                             );
@@ -3912,10 +3899,9 @@ fn show_pat_in_path(
         }
         let has_trailing_bsl = line.slice(linelen).last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
+            vim_snprintf!(g_st().iobuff_bytes_mut(), c"%3d: ", count);
             msg_puts(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
-            vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);
+            vim_snprintf!(g_st().iobuff_bytes_mut(), c"%4d", *lnum);
             msg_puts_hl(
                 crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
                 HLF_N,

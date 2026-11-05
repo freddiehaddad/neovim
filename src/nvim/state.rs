@@ -341,8 +341,7 @@ pub fn may_trigger_modechanged() {
     tv_dict_set_keys_readonly(&mut *v_event);
 
     vim_snprintf!(
-        pattern_buf.as_mut_ptr().cast(),
-        pattern_buf.len(),
+        &mut pattern_buf[..],
         c"%s:%s",
         old_cstr.as_ptr(),
         curr_cstr.as_ptr(),

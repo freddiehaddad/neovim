@@ -53,7 +53,6 @@ use std::ptr;
 
 pub type SpellAddType = i32;
 use crate::change::TAB;
-use crate::globals::IOSIZE;
 use crate::viml::parser::parser::CONV_NONE;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
@@ -1681,8 +1680,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
     };
 
     vim_snprintf!(
-        g_st().iobuff.as_mut_ptr(),
-        IOSIZE,
+        g_st().iobuff_bytes_mut(),
         gettext(c"Reading affix file %s..."),
         fname,
     );
@@ -2194,8 +2192,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                         let mut buf = [0u8; MAXLINELEN];
                         aff_entry.ae_cond = Some(items[4].to_owned());
                         vim_snprintf!(
-                            buf.as_mut_ptr().cast(),
-                            MAXLINELEN,
+                            &mut buf[..],
                             if item0_bytes.first() == Some(&b'P') {
                                 c"^%s"
                             } else {
@@ -2248,12 +2245,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                                         let mut buf = [0u8; MAXLINELEN];
                                         onecap_copy(items[4].to_bytes(), &mut buf, true);
                                         let cond_cstr = crate::memory::cstring_until_nul(&buf);
-                                        vim_snprintf!(
-                                            buf.as_mut_ptr().cast(),
-                                            MAXLINELEN,
-                                            c"^%s",
-                                            cond_cstr.as_ptr(),
-                                        );
+                                        vim_snprintf!(&mut buf[..], c"^%s", cond_cstr.as_ptr(),);
                                         aff_entry.ae_cond = Some(cond_cstr);
                                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
                                             crate::memory::cstr_until_nul(&buf),
@@ -2800,8 +2792,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     };
 
     vim_snprintf!(
-        g_st().iobuff.as_mut_ptr(),
-        IOSIZE,
+        g_st().iobuff_bytes_mut(),
         gettext(c"Reading dictionary file %s..."),
         fname,
     );
@@ -2882,8 +2873,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
             if os_time() > last_msg_time {
                 last_msg_time = os_time();
                 vim_snprintf!(
-                    message.as_mut_ptr().cast(),
-                    message.len(),
+                    &mut message[..],
                     gettext(c"line %6d, word %6d - %s"),
                     lnum,
                     spin.si_foldwcount + spin.si_keepwcount,
@@ -3398,8 +3388,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
         };
 
         vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
+            g_st().iobuff_bytes_mut(),
             gettext(c"Reading word file %s..."),
             fname,
         );
@@ -3587,8 +3576,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
 
         if spin.si_ascii && non_ascii > 0 {
             vim_snprintf!(
-                g_st().iobuff.as_mut_ptr(),
-                IOSIZE,
+                g_st().iobuff_bytes_mut(),
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
@@ -3892,8 +3880,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
             ((tot - n) * 100 / tot) as i64
         };
         vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
+            g_st().iobuff_bytes_mut(),
             gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
             name.as_ptr(),
             n,
@@ -4706,8 +4693,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     };
 
     vim_snprintf!(
-        g_st().iobuff.as_mut_ptr(),
-        IOSIZE,
+        g_st().iobuff_bytes_mut(),
         gettext(c"Writing suggestion file %s..."),
         fname,
     );
@@ -4758,8 +4744,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
         }
 
         vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
+            g_st().iobuff_bytes_mut(),
             gettext(c"Estimated runtime memory use: %d bytes"),
             spin.si_memtot,
         );
@@ -4788,19 +4773,16 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
     let innames = if fcount == 1 { fnames } else { &fnames[1..] };
     let mut incount = fcount - 1;
 
-    let wfname = crate::strings::CStrCursor::from_ptr(wfname_buf.as_mut_ptr());
-
     if let Some(f0_cstr) = fnames.first() {
         let f0 = crate::strings::CStrCursor::from_ptr(f0_cstr.as_ptr());
         let len = f0_cstr.as_bytes().len();
         if fcount == 1 && len > 4 && (f0.wrapping_add(len - 4).as_bytes() == b".add") {
             incount = 1;
-            vim_snprintf!(wfname.cast(), MAXPATHL, c"%s.spl", f0);
+            vim_snprintf!(&mut wfname_buf[..], c"%s.spl", f0);
         } else if fcount == 1 {
             incount = 1;
             vim_snprintf!(
-                wfname.cast(),
-                MAXPATHL,
+                &mut wfname_buf[..],
                 SPL_FNAME_TMPL,
                 f0,
                 if spin.si_ascii { c"ascii" } else { spell_enc() },
@@ -4809,22 +4791,23 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             crate::memory::copy_bytes_to_c_buf(&mut wfname_buf, f0.as_bytes());
         } else {
             vim_snprintf!(
-                wfname.cast(),
-                MAXPATHL,
+                &mut wfname_buf[..],
                 SPL_FNAME_TMPL,
                 f0,
                 if spin.si_ascii { c"ascii" } else { spell_enc() },
             );
         }
 
-        if path_tail(wfname.as_cstr())
+        let wfname = crate::memory::cstr_until_nul(&wfname_buf);
+
+        if path_tail(wfname)
             .to_bytes()
             .windows(SPL_FNAME_ASCII.len())
             .any(|w| w == SPL_FNAME_ASCII)
         {
             spin.si_ascii = true;
         }
-        if path_tail(wfname.as_cstr())
+        if path_tail(wfname)
             .to_bytes()
             .windows(SPL_FNAME_ADD.len())
             .any(|w| w == SPL_FNAME_ADD)
@@ -4832,6 +4815,8 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             spin.si_add = 1;
         }
     }
+
+    let wfname = crate::strings::CStrCursor::from_ptr(wfname_buf.as_mut_ptr());
 
     if incount <= 0 {
         emsg(gettext(E_INVARG));
@@ -4850,8 +4835,6 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
     } else if os_isdir(wfname.as_cstr()) {
         semsg!(gettext(E_ISADIR2), wfname.cast::<std::ffi::c_void>(),);
     } else {
-        let fname = crate::strings::CStrCursor::from_ptr(fname_buf.as_mut_ptr());
-
         let mut region_ok = true;
         for (i, slot) in afile.iter_mut().enumerate().take(incount as usize) {
             *slot = None;
@@ -4891,11 +4874,11 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 spin.si_conv.vc_type = CONV_NONE;
                 spin.si_region = 1 << i;
 
-                vim_snprintf!(fname.cast(), MAXPATHL, c"%s.aff", in_i);
-                if os_path_exists(fname.as_cstr()) {
+                vim_snprintf!(&mut fname_buf[..], c"%s.aff", in_i);
+                if os_path_exists(crate::memory::cstr_until_nul(&fname_buf)) {
                     afile[i] = spell_read_aff(&mut spin, crate::memory::cstr_until_nul(&fname_buf));
                     if let Some(ref aff) = afile[i] {
-                        vim_snprintf!(fname.cast(), MAXPATHL, c"%s.dic", in_i);
+                        vim_snprintf!(&mut fname_buf[..], c"%s.dic", in_i);
                         if !spell_read_dic(
                             &mut spin,
                             crate::memory::cstr_until_nul(&fname_buf),
@@ -4933,8 +4916,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
             if !error && !g_st().got_int {
                 vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
+                    g_st().iobuff_bytes_mut(),
                     gettext(c"Writing spell file %s..."),
                     wfname.cast::<std::ffi::c_void>(),
                 );
@@ -4944,8 +4926,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
                 spell_message(&spin, gettext(c"Done!"));
                 vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
+                    g_st().iobuff_bytes_mut(),
                     gettext(c"Estimated runtime memory use: %d bytes"),
                     spin.si_memtot,
                 );
@@ -5229,19 +5210,11 @@ fn init_spellfile() {
         buf_arr[plen] = 0;
     }
 
-    let buf =
-        crate::strings::CStrCursor::of(crate::strings::CStrCursor::from_ptr(buf_arr.as_mut_ptr()));
-    let cur_len = buf.len();
+    let cur_len = crate::memory::cstr_until_nul(&buf_arr).to_bytes().len();
     let lstart_len =
         crate::memory::ptr_offset_from(spl_cstr.as_ptr().wrapping_add(lend_off), lstart.as_ptr())
             as i32;
-    vim_snprintf!(
-        buf.wrapping_add(cur_len).cast(),
-        buf_len - cur_len,
-        c"/%.*s",
-        lstart_len,
-        lstart,
-    );
+    vim_snprintf!(&mut buf_arr[cur_len..], c"/%.*s", lstart_len, lstart);
 
     let fname = (&win_s(curwin_mut()).b_langp)[0]
         .slang_mut()
@@ -5258,14 +5231,11 @@ fn init_spellfile() {
     } else {
         spell_enc()
     };
-    let cur_len2 = buf.len();
-    vim_snprintf!(
-        buf.wrapping_add(cur_len2).cast(),
-        buf_len - cur_len2,
-        c".%s.add",
-        enc_suffix,
-    );
+    let cur_len2 = crate::memory::cstr_until_nul(&buf_arr).to_bytes().len();
+    vim_snprintf!(&mut buf_arr[cur_len2..], c".%s.add", enc_suffix);
 
+    let buf =
+        crate::strings::CStrCursor::of(crate::strings::CStrCursor::from_ptr(buf_arr.as_mut_ptr()));
     set_option_value_give_err(K_OPT_SPELLFILE, cstr_as_obj(buf.as_opt_cstr()), OPT_LOCAL);
 }
 

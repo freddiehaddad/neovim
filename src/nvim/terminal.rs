@@ -604,12 +604,7 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: Option<&mut Terminal>) 
     if frag.initial() {
         term.termrequest_buffer.clear();
         let mut prefix = [0u8; 32];
-        let n = vim_snprintf!(
-            prefix.as_mut_ptr().cast(),
-            prefix.len(),
-            c"\x1b]%d;",
-            command,
-        );
+        let n = vim_snprintf!(&mut prefix[..], c"\x1b]%d;", command);
         if n > 0 {
             term.termrequest_buffer
                 .extend_from_slice(&prefix[..n as usize]);
@@ -878,12 +873,7 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
     let state = vterm_obtain_state(&mut term.vt);
     for i in 0..16 {
         let mut var = [0u8; 64];
-        let n = vim_snprintf!(
-            var.as_mut_ptr().cast(),
-            var.len(),
-            c"terminal_color_%d",
-            i as i32,
-        ) as usize;
+        let n = vim_snprintf!(&mut var[..], c"terminal_color_%d", i as i32) as usize;
         if let Some(name) = get_config_string(buf, &var[..n]) {
             let mut dummy: i32 = 0;
             let color_val = name_to_color(&name, &mut dummy);

@@ -1061,7 +1061,7 @@ pub fn draw_tabline() {
 
             if modified || wincount > 1 {
                 if wincount > 1 {
-                    let len = vim_snprintf!(name_buff, MAXPATHL, c"%d", wincount);
+                    let len = vim_snprintf!(g_st().name_buff_bytes_mut(), c"%d", wincount);
                     if col + len >= g_st().columns_global - 3 {
                         break;
                     }
@@ -1996,22 +1996,12 @@ pub extern "C" fn build_stl_str_hl(
 
                     out_p = t;
 
-                    vim_snprintf!(
-                        buf_tmp.as_mut_ptr().cast(),
-                        buf_tmp.len(),
-                        c"%d",
-                        curbuf_mut().b_fnum,
-                    );
+                    vim_snprintf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum);
                     set_internal_string_var(
                         c"g:actual_curbuf",
                         crate::memory::cstr_until_nul(&buf_tmp),
                     );
-                    vim_snprintf!(
-                        buf_tmp.as_mut_ptr().cast(),
-                        buf_tmp.len(),
-                        c"%d",
-                        curwin_mut().handle,
-                    );
+                    vim_snprintf!(&mut buf_tmp[..], c"%d", curwin_mut().handle);
                     set_internal_string_var(
                         c"g:actual_curwin",
                         crate::memory::cstr_until_nul(&buf_tmp),
@@ -2231,7 +2221,7 @@ pub extern "C" fn build_stl_str_hl(
             STL_FILETYPE => {
                 let ft = (*wp).buf_mut().b_p_ft.as_cstr();
                 if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 3 {
-                    vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c"[%s]", ft);
+                    vim_snprintf!(&mut buf_tmp[..], c"[%s]", ft);
                     str = buf_tmp.as_mut_ptr();
                 }
             }
@@ -2239,7 +2229,7 @@ pub extern "C" fn build_stl_str_hl(
                 itemisflag = true;
                 let ft = (*wp).buf_mut().b_p_ft.as_cstr();
                 if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 2 {
-                    vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c",%s", ft);
+                    vim_snprintf!(&mut buf_tmp[..], c",%s", ft);
                     for b in &mut buf_tmp {
                         if *b == 0 {
                             break;
@@ -2540,6 +2530,7 @@ pub extern "C" fn build_stl_str_hl(
                 num_chars += 1;
             }
 
+            let out_offset = crate::memory::ptr_offset_from(out_p, out_data) as usize;
             let remaining_buf_len = crate::memory::ptr_offset_from(out_end_p, out_p) as usize + 1;
             if num_chars > maxwid {
                 num_chars += 2;
@@ -2555,22 +2546,22 @@ pub extern "C" fn build_stl_str_hl(
                 nstr[t_idx + 2] = base_ch;
                 nstr[t_idx + 3] = 0;
 
-                out_p = out_p.wrapping_add(vim_snprintf_safelen!(
-                    out_p.cast(),
-                    remaining_buf_len,
+                let written = vim_snprintf_safelen!(
+                    &mut out.as_mut_slice()[out_offset..out_offset + remaining_buf_len],
                     crate::memory::cstr_until_nul(&nstr),
                     0_i32,
                     num,
                     n,
-                ));
+                );
+                out_p = out_p.wrapping_add(written);
             } else {
-                out_p = out_p.wrapping_add(vim_snprintf_safelen!(
-                    out_p.cast(),
-                    remaining_buf_len,
+                let written = vim_snprintf_safelen!(
+                    &mut out.as_mut_slice()[out_offset..out_offset + remaining_buf_len],
                     crate::memory::cstr_until_nul(&nstr),
                     minwid,
                     num,
-                ));
+                );
+                out_p = out_p.wrapping_add(written);
             }
         } else {
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::NormalEmpty;

@@ -30,7 +30,7 @@ use crate::message::{
 };
 use crate::option_vars::*;
 use crate::optionstr::CStrOptionSlot;
-use crate::os::env::{EXPAND_BUF_LEN, ExpandCtx};
+use crate::os::env::ExpandCtx;
 use crate::os::input::line_breakcheck;
 use crate::path::path_is_absolute;
 #[cfg(windows)]
@@ -2921,12 +2921,7 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
         syn_st().did_syntax_onoff = true;
         let mut buf = [0u8; 100];
         buf[..3].copy_from_slice(b"so ");
-        vim_snprintf!(
-            buf.as_mut_ptr().wrapping_add(3).cast(),
-            100 - 3,
-            SYNTAX_FNAME,
-            name.as_ptr()
-        );
+        vim_snprintf!(&mut buf[3..], SYNTAX_FNAME, name.as_ptr());
         do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
     }
 }
@@ -5075,8 +5070,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
         EXP_CLUSTER => {
             if (idx as usize) < win_s(curwin_mut()).b_syn_clusters.len() {
                 vim_snprintf!(
-                    xp.xp_buf.as_mut_ptr().cast(),
-                    EXPAND_BUF_LEN,
+                    &mut xp.xp_buf[..],
                     c"@%s",
                     syn_clstr(&mut *win_s(curwin_mut()), idx as isize)
                         .scl_name

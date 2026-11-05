@@ -33,7 +33,6 @@ use crate::extmark::{
 use crate::fileio::getuid;
 use crate::fileio::{EOF, O_RDONLY, Off, get2c, get4c, get8ctime, read_eintr};
 use crate::fold::fold_open_cursor;
-use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::beep_flush;
 use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
@@ -2336,8 +2335,7 @@ pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
     } else {
         let seconds = now - tt;
         vim_snprintf!(
-            buf.as_mut_ptr().cast(),
-            buflen,
+            &mut buf[..buflen],
             ngettext(
                 c"%lld second ago",
                 c"%lld seconds ago",
@@ -2381,14 +2379,14 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let uh_time = uhp_ref(curbuf_mut(), uh).uh_time;
         let uh_save_nr = uhp_ref(curbuf_mut(), uh).uh_save_nr;
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
-            vim_snprintf!(iobuf_ptr, IOSIZE, c"%6d %7d  ", uh_seq, changes,);
+            vim_snprintf!(g_st().iobuff_bytes_mut(), c"%6d %7d  ", uh_seq, changes);
             let cur_len = iobuf_ptr.len();
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
                 while iobuf_ptr.len() < 33 {
                     crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b" ");
                 }
-                vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
+                vim_snprintf_add!(g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
             }
             lines.push(iobuf_ptr.to_cstring());
         }

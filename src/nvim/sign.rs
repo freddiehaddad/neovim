@@ -355,12 +355,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         if buf_has_signs(buf_ref) {
             msg_putchar(b'\n' as i32);
             let fname = buf_ref.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
-            vim_snprintf!(
-                lbuf.as_mut_ptr().cast(),
-                MSG_BUF_LEN,
-                gettext(c"Signs for %s:"),
-                fname,
-            );
+            vim_snprintf!(&mut lbuf[..], gettext(c"Signs for %s:"), fname);
             msg_puts_hl(crate::memory::cstr_until_nul(&lbuf), HLF_D, false);
         }
 
@@ -391,24 +386,17 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
 
                     let sh = decor_find_sign(mt_decor(mark)).unwrap();
                     if sh.sign_name.is_some() {
-                        vim_snprintf!(
-                            namebuf.as_mut_ptr().cast(),
-                            MSG_BUF_LEN,
-                            gettext(c"  name=%s"),
-                            sign_get_name(sh),
-                        );
+                        vim_snprintf!(&mut namebuf[..], gettext(c"  name=%s"), sign_get_name(sh));
                     }
                     if mark.ns != 0 {
                         vim_snprintf!(
-                            groupbuf.as_mut_ptr().cast(),
-                            MSG_BUF_LEN,
+                            &mut groupbuf[..],
                             gettext(c"  group=%s"),
                             describe_ns(mark.ns as i32, c"").as_ptr(),
                         );
                     }
                     vim_snprintf!(
-                        lbuf.as_mut_ptr().cast(),
-                        MSG_BUF_LEN,
+                        &mut lbuf[..],
                         gettext(c"    line=%d  id=%u%s%s  priority=%d"),
                         mark.pos.row + 1,
                         mark.id,
@@ -619,12 +607,7 @@ fn sign_list_defined(sp: &mut Sign) {
     }
     if sp.sn_priority > 0 {
         let mut lbuf = [0u8; MSG_BUF_LEN];
-        vim_snprintf!(
-            lbuf.as_mut_ptr().cast(),
-            MSG_BUF_LEN,
-            c" priority=%d",
-            sp.sn_priority,
-        );
+        vim_snprintf!(&mut lbuf[..], c" priority=%d", sp.sn_priority);
         msg_puts(crate::memory::cstr_until_nul(&lbuf));
     }
     let args = [c" linehl=", c" texthl=", c" culhl=", c" numhl="];

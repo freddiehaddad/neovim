@@ -48,7 +48,6 @@ pub type Salfirst = i32;
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::ex_getln::Hlf;
-use crate::globals::IOSIZE;
 use crate::keycodes::ESC;
 use crate::search::FORWARD;
 const WF_MIXCAP: i32 = 0x20;
@@ -738,8 +737,7 @@ pub fn spell_suggest(count: i32) {
                 )
                 .unwrap_or(c"");
                 vim_snprintf!(
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
+                    g_st().iobuff_bytes_mut(),
                     c"%s%.*s",
                     stp.st_word.as_ptr(),
                     sug.su_badlen - stp.st_orglen,
