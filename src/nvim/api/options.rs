@@ -33,10 +33,9 @@ use crate::option::{
 };
 use crate::window::close_windows;
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::highlight::OptionalKeys;
-use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, Optset};
+use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, OptVar, Optset};
 use crate::runtime::SID_NONE;
 
 const KEYSET_OPTIDX_OPTION_BUF: u64 = 1;
@@ -605,7 +604,7 @@ pub fn nvim_set_option_value(
     } else {
         crate::globals::curwin_handle()
     };
-    let mut varp = get_varp_from(&mut *option, buf.borrow_mut(), win.opt_mut());
+    let varp = get_varp_from(&mut *option, buf.borrow_mut(), win.opt_mut());
 
     let nitems = if is_array {
         value.data.array().size
@@ -685,7 +684,7 @@ pub fn nvim_set_option_value(
             || optval_right.obj_type == ObjectType::ObjectTypeString
         {
             let mut oldval = if i == 0 {
-                optval_own(opt_idx, opt_from_varp(opt_idx, varp.as_deref_mut()))
+                optval_own(opt_idx, opt_from_varp(opt_idx, varp))
             } else {
                 merged_val
             };
@@ -697,7 +696,7 @@ pub fn nvim_set_option_value(
                 &mut argp,
                 0,
                 operation,
-                varp.as_deref_mut(),
+                varp,
                 Some(&mut oldval),
                 &mut errmsg,
             );
@@ -714,7 +713,7 @@ pub fn nvim_set_option_value(
         let mut raw_buf = [0u8; IOSIZE];
         let errbuf = CharBuf::from_slice(&mut raw_buf);
         let mut args = Optset {
-            os_varp: ptr::null_mut(),
+            os_varp: OptVar::None,
             os_idx: opt_idx,
             os_flags: opt_flags,
             os_oldval: OBJECT_NIL,

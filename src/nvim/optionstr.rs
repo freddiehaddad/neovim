@@ -64,7 +64,7 @@ use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
 use crate::window::{FcsChars, LcsChars, WinInfoInfo, check_colorcolumn, global_stl_height};
 use crate::winfloat::{win_config_float, win_previewpopup_config};
-use std::ffi::{CStr, c_void};
+use std::ffi::CStr;
 use std::ptr;
 
 pub type OptIndex = i32;
@@ -187,9 +187,213 @@ impl OptSetPrep {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum OptVar {
+    #[default]
+    None,
+    Bool(crate::globals::GraphPtr<bool>),
+    I32Bool(crate::globals::GraphPtr<i32>),
+    OptBool(crate::globals::GraphPtr<Option<bool>>),
+    Int(crate::globals::GraphPtr<crate::option::OptInt>),
+    Str(crate::globals::GraphPtr<OptString>),
+    Callback(crate::globals::GraphPtr<crate::eval::typval::Callback>),
+    DefVal(crate::globals::GraphPtr<Object>),
+}
+
+impl OptVar {
+    #[inline]
+    pub const fn is_some(self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    #[inline]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    #[inline]
+    pub fn ptr_eq<T>(self, other: &T) -> bool {
+        let p = std::ptr::from_ref(other).cast::<()>();
+        match self {
+            Self::None => false,
+            Self::Bool(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::I32Bool(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::OptBool(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::Int(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::Str(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::Callback(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::DefVal(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+        }
+    }
+
+    #[inline]
+    pub fn as_cstr(self) -> &'static CStr {
+        match self {
+            Self::Str(s) => s.as_cstr(),
+            _ => c"",
+        }
+    }
+
+    #[inline]
+    pub fn opt_cstr(self) -> Option<&'static CStr> {
+        match self {
+            Self::Str(s) => Some(s.as_cstr()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn set_cstr(self, val: &CStr) {
+        if let Self::Str(mut s) = self {
+            s.set_option_cstr(val);
+        }
+    }
+
+    #[inline]
+    pub fn set_bytes(self, bytes: &[u8]) {
+        if let Self::Str(mut s) = self {
+            s.set_option_bytes(bytes);
+        }
+    }
+
+    #[inline]
+    pub fn clear_str(self) {
+        if let Self::Str(mut s) = self {
+            s.clear_option_str();
+        }
+    }
+
+    #[inline]
+    pub fn check_str(self) {
+        if let Self::Str(mut s) = self {
+            s.check_option_str();
+        }
+    }
+
+    #[inline]
+    pub fn int_val(self) -> crate::option::OptInt {
+        match self {
+            Self::Int(p) => *p,
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub fn set_int(self, val: crate::option::OptInt) {
+        if let Self::Int(mut p) = self {
+            *p = val;
+        }
+    }
+
+    #[inline]
+    pub fn bool_tristate(self) -> i32 {
+        match self {
+            Self::Bool(p) => i32::from(*p),
+            Self::I32Bool(p) => i32::from(*p != 0),
+            Self::OptBool(p) => match *p {
+                Some(b) => i32::from(b),
+                None => crate::extmark::K_NONE,
+            },
+            _ => 0,
+        }
+    }
+
+    #[inline]
+    pub fn set_bool(self, val: Option<bool>) {
+        match self {
+            Self::Bool(mut p) => *p = val.unwrap(),
+            Self::I32Bool(mut p) => *p = i32::from(val.unwrap()),
+            Self::OptBool(mut p) => *p = val,
+            _ => {}
+        }
+    }
+
+    #[inline]
+    pub fn callback_mut(self) -> &'static mut crate::eval::typval::Callback {
+        match self {
+            Self::Callback(p) => p.borrow_mut(),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl From<&mut bool> for OptVar {
+    #[inline]
+    fn from(r: &mut bool) -> Self {
+        Self::Bool(crate::globals::GraphPtr::from(r))
+    }
+}
+
+impl From<&mut i32> for OptVar {
+    #[inline]
+    fn from(r: &mut i32) -> Self {
+        Self::I32Bool(crate::globals::GraphPtr::from(r))
+    }
+}
+
+impl From<&mut Option<bool>> for OptVar {
+    #[inline]
+    fn from(r: &mut Option<bool>) -> Self {
+        Self::OptBool(crate::globals::GraphPtr::from(r))
+    }
+}
+
+impl From<&mut crate::option::OptInt> for OptVar {
+    #[inline]
+    fn from(r: &mut crate::option::OptInt) -> Self {
+        Self::Int(crate::globals::GraphPtr::from(r))
+    }
+}
+
+impl From<&mut OptString> for OptVar {
+    #[inline]
+    fn from(r: &mut OptString) -> Self {
+        Self::Str(crate::globals::GraphPtr::from(r))
+    }
+}
+
+impl From<&mut crate::eval::typval::Callback> for OptVar {
+    #[inline]
+    fn from(r: &mut crate::eval::typval::Callback) -> Self {
+        Self::Callback(crate::globals::GraphPtr::from(r))
+    }
+}
+
+pub struct OptVarWrap<T>(pub *mut T);
+
+impl OptVarWrap<bool> {
+    pub const fn into_opt_var(self) -> OptVar {
+        OptVar::Bool(crate::globals::GraphPtr::new(self.0))
+    }
+}
+
+impl OptVarWrap<crate::option::OptInt> {
+    pub const fn into_opt_var(self) -> OptVar {
+        OptVar::Int(crate::globals::GraphPtr::new(self.0))
+    }
+}
+
+impl OptVarWrap<OptString> {
+    pub const fn into_opt_var(self) -> OptVar {
+        OptVar::Str(crate::globals::GraphPtr::new(self.0))
+    }
+}
+
+impl OptVarWrap<crate::eval::typval::Callback> {
+    pub const fn into_opt_var(self) -> OptVar {
+        OptVar::Callback(crate::globals::GraphPtr::new(self.0))
+    }
+}
+
+impl OptVarWrap<Object> {
+    pub const fn into_opt_var(self) -> OptVar {
+        OptVar::DefVal(crate::globals::GraphPtr::new(self.0))
+    }
+}
+
 #[repr(C)]
 pub struct Optset {
-    pub os_varp: *mut c_void,
+    pub os_varp: OptVar,
     pub os_idx: OptIndex,
     pub os_flags: i32,
     pub os_oldval: Object,
@@ -206,7 +410,7 @@ pub struct Optset {
 impl Optset {
     pub const fn new() -> Self {
         Self {
-            os_varp: ptr::null_mut(),
+            os_varp: OptVar::None,
             os_idx: 0,
             os_flags: 0,
             os_oldval: Object {
@@ -244,14 +448,12 @@ impl Optset {
 
     #[inline]
     pub fn var_cstr(&self) -> &'static CStr {
-        let slot = unsafe { &*self.os_varp.cast::<OptString>() };
-        slot.as_cstr()
+        self.os_varp.as_cstr()
     }
 
     #[inline]
     pub fn set_var_cstr(&mut self, val: &CStr) {
-        let slot = unsafe { &mut *self.os_varp.cast::<OptString>() };
-        slot.set_option_cstr(val);
+        self.os_varp.set_cstr(val);
     }
 }
 
@@ -284,7 +486,7 @@ pub struct Vimoption {
     pub flags: u32,
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
-    pub var: *mut c_void,
+    pub var: OptVar,
     pub flags_var: crate::globals::GraphPtr<u32>,
     pub scope_idx: [isize; 4],
     pub immutable: bool,
@@ -1290,10 +1492,7 @@ fn check_str_opt<'a>(
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
     let opt = get_option(idx);
-    let val_cstr = var_cstr.unwrap_or_else(|| {
-        let varp = opt.var.cast::<OptString>();
-        unsafe { (*varp).as_cstr() }
-    });
+    let val_cstr = var_cstr.unwrap_or_else(|| opt.var.as_cstr());
     let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
     opt_strings_flags(val_cstr, values, opt.flags_var.opt_mut(), list, errbuf)
@@ -1584,7 +1783,7 @@ pub fn did_set_breakat(_args: &mut Optset) -> Option<&CStr> {
 /// The 'breakindentopt' option is changed.
 pub fn did_set_breakindentopt(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    let is_local = ptr::eq(args.os_varp, (&raw mut win.w_onebuf_opt.wo_briopt).cast());
+    let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_briopt);
     briopt_check(is_local.then_some(&mut *win));
 
     if is_local && win.w_briopt_list != 0 {
@@ -1720,11 +1919,11 @@ fn did_set_global_chars_option<'a>(
 /// The 'fillchars' option or the 'listchars' option is changed.
 pub fn did_set_chars_option(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    let varp = args.os_varp.cast::<*mut u8>();
+    let varp = args.os_varp;
     let val = args.var_cstr();
     let mut errmsg: Option<&CStr> = None;
 
-    if ptr::eq(varp, (&raw mut opt_vars().p_lcs).cast()) {
+    if varp.ptr_eq(&opt_vars().p_lcs) {
         errmsg = did_set_global_chars_option(
             win,
             val,
@@ -1732,7 +1931,7 @@ pub fn did_set_chars_option(args: &mut Optset) -> Option<&CStr> {
             args.os_flags,
             args.os_errbuf,
         );
-    } else if ptr::eq(varp, (&raw mut opt_vars().p_fcs).cast()) {
+    } else if varp.ptr_eq(&opt_vars().p_fcs) {
         errmsg = did_set_global_chars_option(
             win,
             val,
@@ -1740,9 +1939,9 @@ pub fn did_set_chars_option(args: &mut Optset) -> Option<&CStr> {
             args.os_flags,
             args.os_errbuf,
         );
-    } else if ptr::eq(varp, (&raw mut win.w_onebuf_opt.wo_lcs).cast()) {
+    } else if varp.ptr_eq(&win.w_onebuf_opt.wo_lcs) {
         errmsg = set_chars_option(win, val, CharsOption::Listchars, true, args.os_errbuf);
-    } else if ptr::eq(varp, (&raw mut win.w_onebuf_opt.wo_fcs).cast()) {
+    } else if varp.ptr_eq(&win.w_onebuf_opt.wo_fcs) {
         errmsg = set_chars_option(win, val, CharsOption::Fillchars, true, args.os_errbuf);
     }
 
@@ -1776,8 +1975,7 @@ pub fn validate_colorcolumn(args: &mut Optset) -> Option<&CStr> {
 /// The 'colorcolumn' option is changed.
 pub fn did_set_colorcolumn(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    let varp = args.os_varp.cast::<*mut u8>();
-    let is_local = ptr::eq(varp, (&raw mut win.w_onebuf_opt.wo_cc).cast());
+    let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_cc);
     check_colorcolumn(Some(args.var_cstr()), is_local.then_some(win))
 }
 
@@ -2099,7 +2297,6 @@ pub fn validate_encoding(args: &mut Optset) -> Option<&CStr> {
 
 /// One of the 'encoding', 'fileencoding' or 'makeencoding' options is changed.
 pub fn did_set_encoding(args: &mut Optset) -> Option<&CStr> {
-    let varp = args.os_varp.cast::<*mut u8>();
     if args.os_idx == K_OPT_FILEENCODING {
         redraw_titles();
         ml_setflags(args.buf_mut());
@@ -2108,7 +2305,7 @@ pub fn did_set_encoding(args: &mut Optset) -> Option<&CStr> {
     if let Some(prep_cstr) = args.os_prep.take_encoding() {
         args.set_var_cstr(prep_cstr.as_c_str());
     }
-    if ptr::eq(varp, (&raw mut opt_vars().p_enc).cast()) {
+    if args.os_varp.ptr_eq(&opt_vars().p_enc) {
         spell_reload();
     }
     None
@@ -2338,8 +2535,7 @@ pub fn validate_isopt(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'iskeyword' option is changed.
 pub fn did_set_iskeyword(args: &mut Optset) -> Option<&CStr> {
-    let varp = args.os_varp.cast::<*mut u8>();
-    if !ptr::eq(varp, (&raw mut opt_vars().p_isk).cast()) && !buf_init_isk_chartab(args.buf_mut()) {
+    if !args.os_varp.ptr_eq(&opt_vars().p_isk) && !buf_init_isk_chartab(args.buf_mut()) {
         return Some(E_INVARG);
     }
     None
@@ -2347,7 +2543,7 @@ pub fn did_set_iskeyword(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'isident', 'iskeyword', 'isprint' or 'isfname' option is changed.
 pub fn did_set_isopt(args: &mut Optset) -> Option<&CStr> {
-    let res = if ptr::eq(args.os_varp, (&raw mut opt_vars().p_isf).cast()) {
+    let res = if args.os_varp.ptr_eq(&opt_vars().p_isf) {
         init_isf_chartab()
     } else {
         init_isi_chartab()
@@ -2658,9 +2854,8 @@ pub fn validate_signcolumn(args: &mut Optset) -> Option<&CStr> {
 /// The 'signcolumn' option is changed.
 pub fn did_set_signcolumn(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    let varp = args.os_varp.cast::<*mut u8>();
     let oldval = args.os_oldval.data.string().data;
-    let is_local = ptr::eq(varp, (&raw mut win.w_onebuf_opt.wo_scl).cast());
+    let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
     if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&mut *win)) {
         return Some(E_INVARG);
     }
@@ -2703,7 +2898,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'spellcapcheck' option is changed.
 pub fn did_set_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
-    if ptr::eq(args.os_varp, (&raw mut opt_vars().p_spc).cast()) {
+    if args.os_varp.ptr_eq(&opt_vars().p_spc) {
         return None;
     }
     let ws = args.win_mut().w_s_ptr();
@@ -2944,9 +3139,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
 pub fn did_set_vartabstop(args: &mut Optset) -> Option<&CStr> {
-    if ptr::eq(args.os_varp, (&raw mut opt_vars().p_vts).cast())
-        || ptr::eq(args.os_varp, (&raw mut opt_vars().p_vsts).cast())
-    {
+    if args.os_varp.ptr_eq(&opt_vars().p_vts) || args.os_varp.ptr_eq(&opt_vars().p_vsts) {
         return None;
     }
     let buf = args.buf_mut();
@@ -3051,8 +3244,7 @@ pub fn validate_border(args: &mut Optset) -> Option<&CStr> {
 /// The 'winhighlight' option is changed.
 pub fn did_set_winhighlight(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    let varp = args.os_varp.cast::<*mut u8>();
-    let is_local = ptr::eq(varp, (&raw mut win.w_onebuf_opt.wo_winhl).cast());
+    let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_winhl);
     if !parse_winhl_opt(Some(args.var_cstr()), is_local.then_some(win)) {
         return Some(E_INVARG);
     }

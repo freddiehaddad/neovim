@@ -103,9 +103,9 @@ use crate::normal::{K_OPT_FOLDENABLE, K_OPT_FOLDLEVEL, do_check_scrollbind, get_
 use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
 use crate::optionstr::{
-    CStrOptionSlot, CharBuf, CharsOption, OptIndex, OptScopeFlags, Optexpand, Optset, Vimoption,
-    check_buf_options, check_illegal_path_names, check_signcolumn, did_set_breakat,
-    didset_string_options, opt_dict_schema, opt_strings_check, set_chars_option,
+    CStrOptionSlot, CharBuf, CharsOption, OptIndex, OptScopeFlags, OptVar, OptVarWrap, Optexpand,
+    Optset, Vimoption, check_buf_options, check_illegal_path_names, check_signcolumn,
+    did_set_breakat, didset_string_options, opt_dict_schema, opt_strings_check, set_chars_option,
 };
 use crate::os::env::{
     ExpandCtx, expand_env_esc, home_replace, os_env_exists, os_getenv_cstr, os_setenv, vim_getenv,
@@ -139,7 +139,7 @@ use crate::window::{
     win_new_screen_rows, win_setheight, win_setwidth,
 };
 use crate::winfloat::win_float_update_statusline;
-use std::ffi::{CStr, c_void};
+use std::ffi::CStr;
 use std::ptr;
 
 pub type OptInt = i64;
@@ -700,87 +700,12 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
 }
 
 #[inline]
-fn varp_eq<T>(varp: &u8, r: &T) -> bool {
-    ptr::eq(ptr::from_ref(varp), ptr::from_ref(r).cast())
-}
-
-#[inline]
-fn varp_bool(opt_idx: OptIndex, varp: &u8) -> i32 {
-    let opt = get_option(opt_idx);
-    if option_is_global_local(opt_idx) && !ptr::eq(ptr::from_ref(varp), opt.var.cast()) {
-        match unsafe { *ptr::from_ref(varp).cast::<Option<bool>>() } {
-            Some(b) => i32::from(b),
-            None => K_NONE,
-        }
-    } else {
-        i32::from(unsafe { *ptr::from_ref(varp).cast::<bool>() })
-    }
-}
-
-#[inline]
-fn varp_set_bool(opt_idx: OptIndex, varp: &mut u8, val: Option<bool>) {
-    let opt = get_option(opt_idx);
-    if option_is_global_local(opt_idx) && !ptr::eq(ptr::from_ref(varp), opt.var.cast()) {
-        unsafe { *ptr::from_mut(varp).cast::<Option<bool>>() = val };
-    } else {
-        unsafe { *ptr::from_mut(varp).cast::<bool>() = val.unwrap() };
-    }
-}
-
-#[inline]
-fn varp_int(varp: &u8) -> OptInt {
-    unsafe { *ptr::from_ref(varp).cast::<OptInt>() }
-}
-
-#[inline]
-fn varp_set_int(varp: &mut u8, val: OptInt) {
-    unsafe { *ptr::from_mut(varp).cast::<OptInt>() = val };
-}
-
-#[inline]
-fn varp_callback_mut(varp: &mut u8) -> &'static mut Callback {
-    unsafe { &mut *ptr::from_mut(varp).cast::<Callback>() }
-}
-
-#[inline]
-fn varp_clear_str(varp: &mut u8) {
-    unsafe { (*ptr::from_mut(varp).cast::<OptString>()).clear_option_str() };
-}
-
-#[inline]
-fn varp_check_str(varp: &mut u8) {
-    unsafe { (*ptr::from_mut(varp).cast::<OptString>()).check_option_str() };
-}
-
-#[inline]
-fn varp_copy_str_from(varp: &mut u8, s: NvimString) {
-    let slot = unsafe { &mut *ptr::from_mut(varp).cast::<OptString>() };
-    slot.set_option_bytes(s.as_bytes());
-}
-
-#[inline]
-fn varp_opt_cstr(varp: &u8) -> Option<&'static CStr> {
-    let slot = unsafe { &*ptr::from_ref(varp).cast::<OptString>() };
-    Some(slot.as_cstr())
-}
-
-#[inline]
-fn varp_cstr(varp: &u8) -> &'static CStr {
-    varp_opt_cstr(varp).unwrap_or(c"")
-}
-
-#[inline]
-fn varp_from_mut<T>(r: &mut T) -> &'static mut u8 {
-    unsafe { &mut *ptr::from_mut(r).cast::<u8>() }
-}
-
-#[inline]
 fn get_opt_idx(opt: &Vimoption) -> OptIndex {
     crate::memory::ptr_offset_from(ptr::from_ref(opt), get_option(0)) as OptIndex
 }
 
 #[inline]
-fn get_varp(p: &mut Vimoption) -> Option<&'static mut u8> {
+fn get_varp(p: &mut Vimoption) -> OptVar {
     get_varp_from(p, curbuf_mut(), Some(curwin_mut()))
 }
 
@@ -926,10 +851,8 @@ fn set_init_expand_env() {
             continue;
         }
         let mut p: Option<&CStr> = None;
-        if (opt.flags & K_OPT_FLAG_GETTEXT) != 0
-            && let Some(varp) = unsafe { opt.var.cast::<u8>().as_ref() }
-        {
-            if let Some(cstr) = varp_opt_cstr(varp) {
+        if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && opt.var.is_some() {
+            if let Some(cstr) = opt.var.opt_cstr() {
                 p = Some(tr(cstr));
             }
         } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
@@ -937,8 +860,8 @@ fn set_init_expand_env() {
         }
         if let Some(p) = p {
             let ov = cstr_to_obj(Some(p));
-            if let Some(varp) = unsafe { opt.var.cast::<u8>().as_mut() } {
-                set_option_varp(opt_idx, varp, ov);
+            if opt.var.is_some() {
+                set_option_varp(opt_idx, opt.var, ov);
             }
             change_option_default(opt_idx, ov);
         }
@@ -1142,12 +1065,12 @@ pub fn free_all_options() {
 
         if !hidden
             && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
-            && let Some(varp) = unsafe { opt.var.cast::<u8>().as_mut() }
+            && opt.var.is_some()
         {
             if is_callback_option(opt_idx) {
-                callback_free(varp_callback_mut(varp));
+                callback_free(opt.var.callback_mut());
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                varp_clear_str(varp);
+                opt.var.clear_str();
             }
         }
         optval_free(opt.def_val);
@@ -1577,7 +1500,7 @@ fn stropt_remove_dupflags(newval: &mut [u8], flags: u32) {
 fn stropt_get_newval(
     opt_idx: OptIndex,
     argp: &mut &[u8],
-    varp: &u8,
+    varp: OptVar,
     origval: Option<&std::ffi::CStr>,
     op_arg: &mut SetOp,
 ) -> std::ffi::CString {
@@ -1587,7 +1510,7 @@ fn stropt_get_newval(
     let mut arg = &argp[usize::from(!argp.is_empty())..];
     let mut save_arg: Option<&[u8]> = None;
 
-    if varp_eq(varp, &opt_vars().p_kp)
+    if varp.ptr_eq(&opt_vars().p_kp)
         && (crate::memory::bytes_until_nul(arg).is_empty() || arg.first() == Some(&b' '))
     {
         save_arg = Some(arg);
@@ -1769,11 +1692,11 @@ pub fn get_option_newval(
     argp: &mut &[u8],
     nextchar: i32,
     mut op: SetOp,
-    varp: Option<&mut u8>,
+    varp: OptVar,
     mut oldval_override: Option<&mut Object>,
     errmsg: &mut Option<&'static CStr>,
 ) -> Object {
-    let varp = varp.unwrap();
+    assert!(varp.is_some());
     let opt = get_option(opt_idx);
     let mut arg = crate::memory::bytes_until_nul(argp);
     let mut newval = nil_obj();
@@ -1798,7 +1721,7 @@ pub fn get_option_newval(
                 if oldval_is_global {
                     get_varp(&mut *opt)
                 } else {
-                    Some(&mut *varp)
+                    varp
                 },
             ),
         )
@@ -1816,7 +1739,7 @@ pub fn get_option_newval(
                     K_TRUE
                 }
             } else if prefix == PREFIX_INV {
-                varp_bool(opt_idx, varp) ^ 1
+                varp.bool_tristate() ^ 1
             } else if prefix == PREFIX_NO {
                 0
             } else {
@@ -1831,7 +1754,7 @@ pub fn get_option_newval(
 
             arg = &arg[usize::from(!arg.is_empty())..];
             let arg_bytes = arg;
-            if (varp_eq(varp, &opt_vars().p_wc) || varp_eq(varp, &opt_vars().p_wcm))
+            if (varp.ptr_eq(&opt_vars().p_wc) || varp.ptr_eq(&opt_vars().p_wcm))
                 && (matches!(arg_bytes.first(), Some(b'<' | b'^'))
                     || (!arg_bytes.is_empty()
                         && arg_bytes.get(1).is_none_or(|&b| ascii_iswhite(b as i32))
@@ -1984,10 +1907,7 @@ fn do_one_set_option<'a>(
         showoneopt(&mut *opt, opt_flags);
 
         if opt_vars().p_verbose > 0 {
-            if varp
-                .as_deref()
-                .is_some_and(|v| ptr::eq(ptr::from_ref(v), opt.var.cast()))
-            {
+            if varp.is_some() && varp == opt.var {
                 last_set_msg(opt.script_ctx);
             } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
                 last_set_msg(
@@ -2243,22 +2163,20 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'st
         return None;
     }
 
-    let val_cstr =
-        val.or_else(|| unsafe { opt.var.cast::<u8>().as_ref() }.and_then(varp_opt_cstr))?;
+    let val_cstr = val.or_else(|| opt.var.opt_cstr())?;
     if val_cstr.to_bytes().len() > MAXPATHL {
         return None;
     }
 
-    let var = opt.var.cast::<*mut u8>();
-    let esc = ptr::eq(var, (&raw mut opt_vars().p_tags).cast())
-        || ptr::eq(var, (&raw mut opt_vars().p_path).cast());
+    let var = opt.var;
+    let esc = var.ptr_eq(&opt_vars().p_tags) || var.ptr_eq(&opt_vars().p_path);
     let namebuf_ptr = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
     expand_env_esc(
         val_cstr,
         g_st().name_buff_bytes_mut(),
         esc.then_some(c" \t"),
         false,
-        ptr::eq(var, (&raw mut opt_vars().p_sps).cast()).then_some(c"file:"),
+        var.ptr_eq(&opt_vars().p_sps).then_some(c"file:"),
     );
     if namebuf_ptr.as_bytes() == val_cstr.to_bytes() {
         return None;
@@ -2336,9 +2254,9 @@ pub fn check_options() {
         if option_has_type(opt_idx, ObjectType::ObjectTypeString)
             && !is_callback_option(opt_idx)
             && !opt.immutable
-            && let Some(varp) = get_varp(&mut *opt)
         {
-            varp_check_str(varp);
+            let varp = get_varp(&mut *opt);
+            varp.check_str();
         }
     }
 }
@@ -2749,7 +2667,7 @@ pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
 /// Process the new 'foldenable' option value.
 pub fn did_set_foldenable(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    if args.os_varp == (&raw mut win.w_onebuf_opt.wo_fen).cast::<c_void>()
+    if args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_fen)
         && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen
         && foldmethod_is_diff(&mut *win)
         && win.w_onebuf_opt.wo_scb
@@ -2867,11 +2785,7 @@ pub fn did_set_lines_or_columns(args: &mut Optset) -> Option<&CStr> {
     {
         if g_st().updating_screen {
             let oldval = integer_obj(args.os_oldval.data.integer());
-            set_option_varp(
-                args.os_idx,
-                unsafe { &mut *args.os_varp.cast::<u8>() },
-                oldval,
-            );
+            set_option_varp(args.os_idx, args.os_varp, oldval);
         } else if g_st().full_screen {
             screen_resize(opt_vars().p_columns as i32, opt_vars().p_lines as i32);
         } else {
@@ -3102,12 +3016,11 @@ pub fn did_set_scrollbind(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_shiftwidth_tabstop(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
     let win = args.win_mut();
-    let pp = args.os_varp.cast::<OptInt>();
 
     if foldmethod_is_indent(win) {
         fold_update_all(win);
     }
-    if pp == &raw mut buf.b_p_sw || buf.b_p_sw == 0 {
+    if args.os_varp.ptr_eq(&buf.b_p_sw) || buf.b_p_sw == 0 {
         parse_cino(buf);
     }
     None
@@ -3219,11 +3132,10 @@ pub fn did_set_buflocal_undolevels(
 /// Process the new 'undolevels' option value.
 pub fn did_set_undolevels(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
-    let pp = args.os_varp.cast::<OptInt>();
 
-    if pp == &raw mut opt_vars().p_ul {
+    if args.os_varp.ptr_eq(&opt_vars().p_ul) {
         did_set_global_undolevels(args.os_newval.data.integer(), args.os_oldval.data.integer());
-    } else if pp == &raw mut buf.b_p_ul {
+    } else if args.os_varp.ptr_eq(&buf.b_p_ul) {
         did_set_buflocal_undolevels(
             buf,
             args.os_newval.data.integer(),
@@ -3307,12 +3219,12 @@ pub fn did_set_wrap(args: &mut Optset) -> Option<&CStr> {
 
 /// Process the new 'chistory' or 'lhistory' option value.
 pub fn did_set_xhistory(args: &mut Optset) -> Option<&CStr> {
-    let is_p_chi = args.os_varp.cast::<OptInt>() == &raw mut opt_vars().p_chi;
+    let is_p_chi = args.os_varp.ptr_eq(&opt_vars().p_chi);
 
     if is_p_chi {
         qf_resize_stack(opt_vars().p_chi as i32);
     } else {
-        let val = unsafe { *args.os_varp.cast::<OptInt>() } as i32;
+        let val = args.os_varp.int_val() as i32;
         ll_resize_stack(args.win_mut(), val);
     }
 
@@ -3684,7 +3596,7 @@ macro_rules! opt_cb {
 
 macro_rules! opt_var {
     ($field:ident) => {
-        unsafe { (&raw mut (*OPT_VARS.as_ptr()).$field).cast() }
+        OptVarWrap(unsafe { &raw mut (*OPT_VARS.as_ptr()).$field }).into_opt_var()
     };
 }
 
@@ -3696,7 +3608,7 @@ macro_rules! opt_flags {
 
 macro_rules! opt_def_var {
     ($idx:literal) => {
-        unsafe { (&raw mut (*OPTIONS.as_ptr())[$idx].def_val).cast() }
+        OptVarWrap(unsafe { &raw mut (*OPTIONS.as_ptr())[$idx].def_val }).into_opt_var()
     };
 }
 
@@ -3704,7 +3616,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"aleph", shortname: Some(c"al"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(0), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [0, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(224) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"allowrevins", shortname: Some(c"ari"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ari), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [1, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"ambiwidth", shortname: Some(c"ambw"), flags: K_OPT_FLAG_REDR_ALL|K_OPT_FLAG_UIOPTION, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ambw), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [2, -1, -1, -1], immutable: false, values: &OPT_AMBW_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_ambiwidth), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"single"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"arabic", shortname: Some(c"arab"), flags: K_OPT_FLAG_CURSWANT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 0, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_arabic), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"arabic", shortname: Some(c"arab"), flags: K_OPT_FLAG_CURSWANT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 0, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_arabic), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"arabicshape", shortname: Some(c"arshape"), flags: K_OPT_FLAG_REDR_ALL|K_OPT_FLAG_UIOPTION, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_arshape), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [3, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"autochdir", shortname: Some(c"acd"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_acd), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [4, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_autochdir), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"autocomplete", shortname: Some(c"ac"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_ac), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [5, -1, 0, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3728,8 +3640,8 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"binary", shortname: Some(c"bin"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_bin), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 4, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_binary), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"bomb", shortname: None, flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_NO_MKRC, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_bomb), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 5, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_eof_eol_fixeol_bomb), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"breakat", shortname: Some(c"brk"), flags: K_OPT_FLAG_FLAG_LIST|K_OPT_FLAG_REDR_ALL, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_breakat), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [19, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_breakat), opt_expand_cb: None, def_val: cstr_def_val!(c" \t!@*-+;:,./?"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"breakindent", shortname: Some(c"bri"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"breakindentopt", shortname: Some(c"briopt"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_BUF|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 2, -1, -1], immutable: false, values: &OPT_BRIOPT_VALUES, schema: &OPT_BRIOPT_SCHEMA, opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_breakindentopt), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"breakindent", shortname: Some(c"bri"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"breakindentopt", shortname: Some(c"briopt"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_BUF|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 2, -1, -1], immutable: false, values: &OPT_BRIOPT_VALUES, schema: &OPT_BRIOPT_SCHEMA, opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_breakindentopt), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"browsedir", shortname: Some(c"bsdir"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(26), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [20, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"bufhidden", shortname: Some(c"bh"), flags: K_OPT_FLAG_NO_GLOB, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_bh), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 6, -1], immutable: false, values: &OPT_BH_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"buflisted", shortname: Some(c"bl"), flags: K_OPT_FLAG_NO_GLOB, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_bl), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 7, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_buflisted), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3753,7 +3665,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"clipboard", shortname: Some(c"cb"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_cb), flags_var: opt_flags!(cb_flags), scope_idx: [27, -1, -1, -1], immutable: false, values: &OPT_CB_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_str_generic), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"cmdheight", shortname: Some(c"ch"), flags: K_OPT_FLAG_REDR_ALL, opt_type: ObjectType::ObjectTypeInteger, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_TAB)) as u8, var: opt_var!(p_ch), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [28, -1, -1, 0], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_cmdheight), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"cmdwinheight", shortname: Some(c"cwh"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_cwh), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [29, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(7) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"colorcolumn", shortname: Some(c"cc"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 3, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_colorcolumn), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_colorcolumn), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"colorcolumn", shortname: Some(c"cc"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 3, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_colorcolumn), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_colorcolumn), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"columns", shortname: Some(c"co"), flags: K_OPT_FLAG_NO_MKRC, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_columns), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [30, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_lines_or_columns), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(80) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"comments", shortname: Some(c"com"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_com), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 16, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_comments), opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c"s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-,fb:•"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"commentstring", shortname: Some(c"cms"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_cms), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 17, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_commentstring), opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3767,20 +3679,20 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     #[cfg(not(windows))]
     Vimoption { fullname: c"completeslash", shortname: Some(c"csl"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_def_var!(55), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 21, -1], immutable: true, values: &OPT_CSL_VALUES, schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"completetimeout", shortname: Some(c"cto"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_cto), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [34, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"concealcursor", shortname: Some(c"cocu"), flags: K_OPT_FLAG_FLAG_LIST|K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 4, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_concealcursor), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_concealcursor), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"conceallevel", shortname: Some(c"cole"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 5, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"concealcursor", shortname: Some(c"cocu"), flags: K_OPT_FLAG_FLAG_LIST|K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 4, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_concealcursor), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_concealcursor), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"conceallevel", shortname: Some(c"cole"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 5, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"confirm", shortname: Some(c"cf"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_confirm), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [35, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"copyindent", shortname: Some(c"ci"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_ci), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 22, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"cpoptions", shortname: Some(c"cpo"), flags: K_OPT_FLAG_FLAG_LIST|K_OPT_FLAG_REDR_ALL, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_cpo), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [36, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_cpoptions), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_cpoptions), def_val: cstr_def_val!(CPO_VIM_CSTR), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"cursorbind", shortname: Some(c"crb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 6, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"cursorcolumn", shortname: Some(c"cuc"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 7, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"cursorline", shortname: Some(c"cul"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 8, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"cursorlineopt", shortname: Some(c"culopt"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 9, -1, -1], immutable: false, values: &OPT_CULOPT_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_cursorlineopt), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_cursorlineopt), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"both"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"cursorbind", shortname: Some(c"crb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 6, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"cursorcolumn", shortname: Some(c"cuc"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 7, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"cursorline", shortname: Some(c"cul"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 8, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"cursorlineopt", shortname: Some(c"culopt"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 9, -1, -1], immutable: false, values: &OPT_CULOPT_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_cursorlineopt), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_cursorlineopt), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"both"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"debug", shortname: None, flags: K_OPT_FLAG_COMMA, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_debug), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [37, -1, -1, -1], immutable: false, values: &OPT_DEBUG_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"define", shortname: Some(c"def"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_def), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [38, -1, 23, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"delcombine", shortname: Some(c"deco"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_deco), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [39, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"dictionary", shortname: Some(c"dict"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_EXPAND|K_OPT_FLAG_NO_DUP|K_OPT_FLAG_NDNAME, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_dict), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [40, -1, 24, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"diff", shortname: None, flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_GLOB, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 10, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_diff), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"diff", shortname: None, flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_GLOB, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 10, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_diff), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"diffanchors", shortname: Some(c"dia"), flags: K_OPT_FLAG_ONE_COMMA, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_dia), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [41, -1, 25, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_diffanchors), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"diffexpr", shortname: Some(c"dex"), flags: K_OPT_FLAG_CURSWANT|K_OPT_FLAG_EXPR|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_dex), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [42, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"diffopt", shortname: Some(c"dip"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_COLON|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_dip), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [43, -1, -1, -1], immutable: false, values: &OPT_DIP_VALUES, schema: &OPT_DIP_SCHEMA, opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_diffopt), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_diffopt), def_val: cstr_def_val!(c"internal,filler,closeoff,indent-heuristic,inline:char,linematch:40"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3799,7 +3711,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"errorfile", shortname: Some(c"ef"), flags: K_OPT_FLAG_EXPAND|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ef), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [54, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c"errors.err"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"errorformat", shortname: Some(c"efm"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_efm), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [55, -1, 29, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(DFLT_EFM_CSTR), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"eventignore", shortname: Some(c"ei"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ei), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [56, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_eventignore), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_eventignore), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"eventignorewin", shortname: Some(c"eiw"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 11, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_eventignore), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_eventignore), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"eventignorewin", shortname: Some(c"eiw"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 11, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_eventignore), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_eventignore), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"expandtab", shortname: Some(c"et"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_et), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 30, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"exrc", shortname: Some(c"ex"), flags: K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_exrc), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [57, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"fileencoding", shortname: Some(c"fenc"), flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_REDR_BUF|K_OPT_FLAG_NO_MKRC, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_fenc), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 31, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_encoding), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_encoding), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_encoding), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3821,18 +3733,18 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"findfunc", shortname: Some(c"ffu"), flags: K_OPT_FLAG_FUNC|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_ffu), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [62, -1, 34, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"fixendofline", shortname: Some(c"fixeol"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_fixeol), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 35, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_eof_eol_fixeol_bomb), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"foldclose", shortname: Some(c"fcl"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_fcl), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [63, -1, -1, -1], immutable: false, values: &OPT_FCL_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldcolumn", shortname: Some(c"fdc"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 13, -1, -1], immutable: false, values: &OPT_FDC_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"0"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldenable", shortname: Some(c"fen"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 14, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldenable), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldexpr", shortname: Some(c"fde"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_EXPR|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 15, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldexpr), opt_expand_cb: None, def_val: cstr_def_val!(c"0"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldignore", shortname: Some(c"fdi"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 16, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldignore), opt_expand_cb: None, def_val: cstr_def_val!(c"#"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldlevel", shortname: Some(c"fdl"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 17, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldlevel), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldcolumn", shortname: Some(c"fdc"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 13, -1, -1], immutable: false, values: &OPT_FDC_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"0"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldenable", shortname: Some(c"fen"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 14, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldenable), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldexpr", shortname: Some(c"fde"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_EXPR|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 15, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldexpr), opt_expand_cb: None, def_val: cstr_def_val!(c"0"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldignore", shortname: Some(c"fdi"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 16, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldignore), opt_expand_cb: None, def_val: cstr_def_val!(c"#"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldlevel", shortname: Some(c"fdl"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 17, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldlevel), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"foldlevelstart", shortname: Some(c"fdls"), flags: K_OPT_FLAG_CURSWANT, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_fdls), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [64, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(-1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldmarker", shortname: Some(c"fmr"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 18, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_foldmarker), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldmarker), opt_expand_cb: None, def_val: cstr_def_val!(c"{{{,}}}"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldmethod", shortname: Some(c"fdm"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 19, -1, -1], immutable: false, values: &OPT_FDM_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldmethod), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"manual"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldminlines", shortname: Some(c"fml"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 20, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldminlines), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldnestmax", shortname: Some(c"fdn"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 21, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldnestmax), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(20) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldmarker", shortname: Some(c"fmr"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 18, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_foldmarker), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldmarker), opt_expand_cb: None, def_val: cstr_def_val!(c"{{{,}}}"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldmethod", shortname: Some(c"fdm"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 19, -1, -1], immutable: false, values: &OPT_FDM_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_foldmethod), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"manual"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldminlines", shortname: Some(c"fml"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 20, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldminlines), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldnestmax", shortname: Some(c"fdn"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 21, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_foldnestmax), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(20) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"foldopen", shortname: Some(c"fdo"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_CURSWANT|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_fdo), flags_var: opt_flags!(fdo_flags), scope_idx: [65, -1, -1, -1], immutable: false, values: &OPT_FDO_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_str_generic), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"block,hor,mark,percent,quickfix,search,tag,undo"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"foldtext", shortname: Some(c"fdt"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_EXPR|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 22, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c"foldtext()"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"foldtext", shortname: Some(c"fdt"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_EXPR|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 22, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c"foldtext()"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"follow", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_follow), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 36, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_follow), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"formatexpr", shortname: Some(c"fex"), flags: K_OPT_FLAG_EXPR|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_fex), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 37, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"formatlistpat", shortname: Some(c"flp"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_flp), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 38, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c"^\\s*\\d\\+[\\]:.)}\\t ]\\s*"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3896,14 +3808,14 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"langremap", shortname: Some(c"lrm"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_lrm), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [105, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_langremap), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"laststatus", shortname: Some(c"ls"), flags: K_OPT_FLAG_REDR_ALL, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ls), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [106, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_laststatus), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(2) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"lazyredraw", shortname: Some(c"lz"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_lz), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [107, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"lhistory", shortname: Some(c"lhi"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 23, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_xhistory), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(10) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"linebreak", shortname: Some(c"lbr"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 24, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"lhistory", shortname: Some(c"lhi"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 23, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_xhistory), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(10) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"linebreak", shortname: Some(c"lbr"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 24, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"lines", shortname: None, flags: K_OPT_FLAG_NO_MKRC, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_lines), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [108, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_lines_or_columns), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(24) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"linespace", shortname: Some(c"lsp"), flags: K_OPT_FLAG_UIOPTION, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_linespace), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [109, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"lisp", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_lisp), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 54, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_lisp), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"lispoptions", shortname: Some(c"lop"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_lop), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 55, -1], immutable: false, values: &OPT_LOP_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_lispoptions), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"lispwords", shortname: Some(c"lw"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF)) as u8, var: opt_var!(p_lispwords), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [110, -1, 56, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(LISPWORD_VALUE_CSTR), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"list", shortname: None, flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 25, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"list", shortname: None, flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 25, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"listchars", shortname: Some(c"lcs"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_COLON|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_WIN)) as u8, var: opt_var!(p_lcs), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [111, 26, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_chars_option), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_chars_option), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_chars_option), def_val: cstr_def_val!(c"tab:> ,trail:-,nbsp:+"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"loadplugins", shortname: Some(c"lpl"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_lpl), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [112, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"magic", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_magic), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [113, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3935,8 +3847,8 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"mouseshape", shortname: Some(c"mouses"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(204), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [135, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"mousetime", shortname: Some(c"mouset"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_mouset), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [136, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(500) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"nrformats", shortname: Some(c"nf"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_nf), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 63, -1], immutable: false, values: &OPT_NF_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"bin,hex"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"number", shortname: Some(c"nu"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 27, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_number_relativenumber), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"numberwidth", shortname: Some(c"nuw"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 28, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_numberwidth), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(4) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"number", shortname: Some(c"nu"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 27, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_number_relativenumber), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"numberwidth", shortname: Some(c"nuw"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 28, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_numberwidth), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(4) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"omnifunc", shortname: Some(c"ofu"), flags: K_OPT_FLAG_FUNC|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_ofu), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 64, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"opendevice", shortname: Some(c"odev"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(210), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [137, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"operatorfunc", shortname: Some(c"opfunc"), flags: K_OPT_FLAG_FUNC|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_opfunc), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [138, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3951,7 +3863,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"preserveindent", shortname: Some(c"pi"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_pi), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 66, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"previewheight", shortname: Some(c"pvh"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_pvh), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [147, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(12) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"previewpopup", shortname: Some(c"pvp"), flags: K_OPT_FLAG_COMMA|K_OPT_FLAG_COLON, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_pvp), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [148, -1, -1, -1], immutable: false, values: &OPT_PVP_VALUES, schema: &OPT_PVP_SCHEMA, opt_validate_cb: opt_cb!(crate::optionstr::validate_previewpopup), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_popupoption), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"previewwindow", shortname: Some(c"pvw"), flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_NO_GLOB, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 29, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(validate_previewwindow), opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"previewwindow", shortname: Some(c"pvw"), flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_NO_GLOB, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 29, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(validate_previewwindow), opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"prompt", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(224), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [149, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"pumblend", shortname: Some(c"pb"), flags: K_OPT_FLAG_UIOPTION, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_pb), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [150, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_pumblend), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"pumborder", shortname: None, flags: K_OPT_FLAG_ONE_COMMA, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_pumborder), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [151, -1, -1, -1], immutable: false, values: &OPT_PUMBORDER_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_border), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -3965,18 +3877,18 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"redrawdebug", shortname: Some(c"rdb"), flags: K_OPT_FLAG_ONE_COMMA, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_rdb), flags_var: opt_flags!(rdb_flags), scope_idx: [157, -1, -1, -1], immutable: false, values: &OPT_RDB_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_str_generic), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"redrawtime", shortname: Some(c"rdt"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_rdt), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [158, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(2000) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"regexpengine", shortname: Some(c"re"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_re), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [159, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"relativenumber", shortname: Some(c"rnu"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 30, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_number_relativenumber), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"relativenumber", shortname: Some(c"rnu"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 30, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_number_relativenumber), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"remap", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(238), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [160, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"report", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_report), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [161, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(2) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"revins", shortname: Some(c"ri"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ri), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [162, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"rightleft", shortname: Some(c"rl"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 31, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"rightleftcmd", shortname: Some(c"rlc"), flags: K_OPT_FLAG_COMMA|K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 32, -1, -1], immutable: false, values: &OPT_RLC_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"search"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"rightleft", shortname: Some(c"rl"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 31, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"rightleftcmd", shortname: Some(c"rlc"), flags: K_OPT_FLAG_COMMA|K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 32, -1, -1], immutable: false, values: &OPT_RLC_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"search"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"ruler", shortname: Some(c"ru"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ru), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [163, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"rulerformat", shortname: Some(c"ruf"), flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ruf), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [164, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_statustabline_rulerformat), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_rulerformat), opt_expand_cb: None, def_val: cstr_def_val!(c"%18(%l,%c%V%= %P%)%<"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"runtimepath", shortname: Some(c"rtp"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_EXPAND|K_OPT_FLAG_NO_DEF_EXP|K_OPT_FLAG_NO_DUP|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_rtp), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [165, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::runtime::did_set_runtimepackpath), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"scroll", shortname: Some(c"scr"), flags: K_OPT_FLAG_NO_MKRC, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 33, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"scroll", shortname: Some(c"scr"), flags: K_OPT_FLAG_NO_MKRC, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 33, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"scrollback", shortname: Some(c"scbk"), flags: K_OPT_FLAG_REDR_BUF, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_scbk), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 69, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_scrollback), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(-1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"scrollbind", shortname: Some(c"scb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 34, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_scrollbind), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"scrollbind", shortname: Some(c"scb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 34, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_scrollbind), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"scrolljump", shortname: Some(c"sj"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_sj), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [166, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"scrolloff", shortname: Some(c"so"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_WIN)) as u8, var: opt_var!(p_so), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [167, 35, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"scrolloffpad", shortname: Some(c"sop"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_WIN)) as u8, var: opt_var!(p_sop), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [168, 36, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -4021,13 +3933,13 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"showtabline", shortname: Some(c"stal"), flags: K_OPT_FLAG_REDR_ALL|K_OPT_FLAG_UIOPTION, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_stal), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [194, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_showtabline), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"sidescroll", shortname: Some(c"ss"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ss), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [195, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"sidescrolloff", shortname: Some(c"siso"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_WIN)) as u8, var: opt_var!(p_siso), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [196, 38, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"signcolumn", shortname: Some(c"scl"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 39, -1, -1], immutable: false, values: &OPT_SCL_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_signcolumn), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_signcolumn), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"auto"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"signcolumn", shortname: Some(c"scl"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 39, -1, -1], immutable: false, values: &OPT_SCL_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_signcolumn), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_signcolumn), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"auto"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"smartcase", shortname: Some(c"scs"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_scs), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [197, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"smartindent", shortname: Some(c"si"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_si), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 71, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"smarttab", shortname: Some(c"sta"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_sta), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [198, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"smoothscroll", shortname: Some(c"sms"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 40, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_smoothscroll), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"smoothscroll", shortname: Some(c"sms"), flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 40, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_smoothscroll), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"softtabstop", shortname: Some(c"sts"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_sts), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 72, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"spell", shortname: None, flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 41, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_spell), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"spell", shortname: None, flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 41, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_spell), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"spellcapcheck", shortname: Some(c"spc"), flags: K_OPT_FLAG_REDR_BUF|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_spc), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 73, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_spellcapcheck), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_spellcapcheck), opt_expand_cb: None, def_val: cstr_def_val!(c"[.?!]\\_[\\])'\"\\t ]\\+"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"spellfile", shortname: Some(c"spf"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_EXPAND|K_OPT_FLAG_NO_DUP|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_spf), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 74, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_spellfile), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_spellfile), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"spelllang", shortname: Some(c"spl"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_REDR_BUF|K_OPT_FLAG_HLONLY|K_OPT_FLAG_EXPAND|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_spl), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 75, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_spelllang), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_spelllang), opt_expand_cb: None, def_val: cstr_def_val!(c"en"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -4037,7 +3949,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"splitkeep", shortname: Some(c"spk"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_spk), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [201, -1, -1, -1], immutable: false, values: &OPT_SPK_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_splitkeep), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"cursor"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"splitright", shortname: Some(c"spr"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_spr), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [202, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"startofline", shortname: Some(c"sol"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_sol), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [203, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"statuscolumn", shortname: Some(c"stc"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 42, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_statustabline_rulerformat), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_statuscolumn), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"statuscolumn", shortname: Some(c"stc"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_SECURE, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 42, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_statustabline_rulerformat), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_statuscolumn), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"statusline", shortname: Some(c"stl"), flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_WIN)) as u8, var: opt_var!(p_stl), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [204, 43, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_statustabline_rulerformat), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_statusline), opt_expand_cb: None, def_val: cstr_def_val!(c"%<%f%( %h%w%m%r%{ v:lua.require('vim._core.util').term_exitcode() }%)%= %(%-10S %)%{ &busy > 0 ? '◐ ' : '' }%(%{ luaeval('(package.loaded[''vim.ui''] and vim.api.nvim_get_current_win() == tonumber(vim.g.actual_curwin or -1) and vim.ui.progress_status()) or '''' ')} %)%{% luaeval('(package.loaded[''vim.diagnostic''] and next(vim.diagnostic.count(0)) and vim.diagnostic.status() .. '' '') or '''' ') %}%(%k %)%{% &ruler ? &rulerformat : '' %}"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"suffixes", shortname: Some(c"su"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_su), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [205, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c".bak,~,.o,.h,.info,.swp,.obj"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"suffixesadd", shortname: Some(c"sua"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_sua), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 77, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -4100,19 +4012,19 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"wildoptions", shortname: Some(c"wop"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wop), flags_var: opt_flags!(wop_flags), scope_idx: [253, -1, -1, -1], immutable: false, values: &OPT_WOP_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_str_generic), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"pum,tagfile"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winaltkeys", shortname: Some(c"wak"), flags: 0, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wak), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [254, -1, -1, -1], immutable: false, values: &OPT_WAK_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"menu"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winbar", shortname: Some(c"wbr"), flags: K_OPT_FLAG_REDR_STAT|K_OPT_FLAG_MLE, opt_type: ObjectType::ObjectTypeString, scope_flags: ((1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_WIN)) as u8, var: opt_var!(p_wbr), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [255, 45, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_statustabline_rulerformat), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_winbar), opt_expand_cb: None, def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"winblend", shortname: Some(c"winbl"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 46, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_winblend), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"winblend", shortname: Some(c"winbl"), flags: K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 46, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_winblend), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winborder", shortname: None, flags: K_OPT_FLAG_ONE_COMMA, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_winborder), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [256, -1, -1, -1], immutable: false, values: &OPT_WINBORDER_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_border), opt_did_set_cb: None, opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"window", shortname: Some(c"wi"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_window), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [257, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_window), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"winfixbuf", shortname: Some(c"wfb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 47, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"winfixheight", shortname: Some(c"wfh"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 48, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"winfixwidth", shortname: Some(c"wfw"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 49, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"winfixbuf", shortname: Some(c"wfb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 47, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"winfixheight", shortname: Some(c"wfh"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 48, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"winfixwidth", shortname: Some(c"wfw"), flags: K_OPT_FLAG_REDR_STAT, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 49, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winheight", shortname: Some(c"wh"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wh), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [258, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_winheight), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"winhighlight", shortname: Some(c"winhl"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_COLON|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 50, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_winhighlight), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_winhighlight), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"winhighlight", shortname: Some(c"winhl"), flags: K_OPT_FLAG_ONE_COMMA|K_OPT_FLAG_COLON|K_OPT_FLAG_REDR_WIN|K_OPT_FLAG_HLONLY|K_OPT_FLAG_NO_DUP, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 50, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::optionstr::did_set_winhighlight), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_winhighlight), def_val: cstr_def_val!(c""), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winminheight", shortname: Some(c"wmh"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wmh), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [259, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::window::did_set_winminheight), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winminwidth", shortname: Some(c"wmw"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wmw), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [260, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(crate::window::did_set_winminwidth), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(1) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"winpinned", shortname: Some(c"wp"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 51, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"winpinned", shortname: Some(c"wp"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 51, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"winwidth", shortname: Some(c"wiw"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wiw), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [261, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_winwidth), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(20) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-    Vimoption { fullname: c"wrap", shortname: None, flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: ptr::null_mut(), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 52, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_wrap), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
+    Vimoption { fullname: c"wrap", shortname: None, flags: K_OPT_FLAG_REDR_WIN, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_WIN) as u8, var: OptVar::None, flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, 52, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: opt_cb!(did_set_wrap), opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"wrapmargin", shortname: Some(c"wm"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_BUF) as u8, var: opt_var!(p_wm), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [-1, -1, 92, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"wrapscan", shortname: Some(c"ws"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ws), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [262, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"write", shortname: None, flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_write), flags_var: crate::globals::GraphPtr::NULL, scope_idx: [263, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -4966,7 +4878,7 @@ fn optval_snapshot(value: Object) -> Object {
     copy_object(value, None)
 }
 
-fn optval_snapshot_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
+fn optval_snapshot_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     let value = opt_from_varp(opt_idx, varp);
     let snapshot = optval_snapshot(value);
     optval_free_read(opt_idx, value);
@@ -5022,7 +4934,7 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
 }
 
 /// Creates Object from var pointer.
-pub fn opt_from_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
+pub fn opt_from_varp(opt_idx: OptIndex, varp: OptVar) -> Object {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return if opt.opt_type == ObjectType::ObjectTypeString {
@@ -5032,34 +4944,34 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
         };
     }
 
-    let varp = varp.unwrap();
-    if varp_eq(varp, &curbuf_mut().b_changed) {
+    assert!(varp.is_some());
+    if varp.ptr_eq(&curbuf_mut().b_changed) {
         return boolean_obj(curbuf_is_changed_fn());
     }
 
     if is_callback_option(opt_idx) {
-        return opt_from_callback(varp_callback_mut(varp));
+        return opt_from_callback(varp.callback_mut());
     }
 
     match opt.opt_type {
         ObjectType::ObjectTypeBoolean => {
-            opt_from_tristate(tristate_from_int(OptInt::from(varp_bool(opt_idx, varp))))
+            opt_from_tristate(tristate_from_int(OptInt::from(varp.bool_tristate())))
         }
-        ObjectType::ObjectTypeInteger => integer_obj(varp_int(varp)),
-        ObjectType::ObjectTypeString => string_obj(cstr_as_string(varp_opt_cstr(varp))),
+        ObjectType::ObjectTypeInteger => integer_obj(varp.int_val()),
+        ObjectType::ObjectTypeString => string_obj(cstr_as_string(varp.opt_cstr())),
         _ => std::process::abort(),
     }
 }
 
 /// Stores an option value at its "varp", freeing the previously-stored value.
-fn set_option_varp(opt_idx: OptIndex, varp: &mut u8, value: Object) {
+fn set_option_varp(opt_idx: OptIndex, varp: OptVar, value: Object) {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return;
     }
 
     if is_callback_option(opt_idx) {
-        let cb = varp_callback_mut(varp);
+        let cb = varp.callback_mut();
         callback_free(cb);
         *cb = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
         return;
@@ -5069,31 +4981,31 @@ fn set_option_varp(opt_idx: OptIndex, varp: &mut u8, value: Object) {
         ObjectType::ObjectTypeUnset => {
             assert!(option_is_global_local(opt_idx));
             if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                varp_set_bool(opt_idx, varp, None);
+                varp.set_bool(None);
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                varp_clear_str(varp);
+                varp.clear_str();
             } else if opt_idx == K_OPT_UNDOLEVELS {
-                varp_set_int(varp, NO_LOCAL_UNDOLEVEL);
+                varp.set_int(NO_LOCAL_UNDOLEVEL);
             } else {
                 assert!(
                     opt_idx == K_OPT_SCROLLOFF
                         || opt_idx == K_OPT_SCROLLOFFPAD
                         || opt_idx == K_OPT_SIDESCROLLOFF
                 );
-                varp_set_int(varp, -1);
+                varp.set_int(-1);
             }
         }
         ObjectType::ObjectTypeBoolean => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
-            varp_set_bool(opt_idx, varp, Some(value.data.boolean()));
+            varp.set_bool(Some(value.data.boolean()));
         }
         ObjectType::ObjectTypeInteger => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
-            varp_set_int(varp, value.data.integer());
+            varp.set_int(value.data.integer());
         }
         ObjectType::ObjectTypeString => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
-            varp_copy_str_from(varp, value.data.string());
+            varp.set_bytes(value.data.string().as_bytes());
         }
         _ => std::process::abort(),
     }
@@ -5343,8 +5255,7 @@ fn did_set_option<'a>(
     value_untrusted: bool,
 ) -> Option<&'a CStr> {
     let opt_idx = args.os_idx;
-    let varp = unsafe { &mut *args.os_varp.cast::<u8>() };
-    let varp_ptr = ptr::from_mut(varp);
+    let varp = args.os_varp;
     let opt_flags = args.os_flags;
     let opt = get_option(opt_idx);
     let mut errmsg: Option<&'a CStr> = None;
@@ -5369,7 +5280,7 @@ fn did_set_option<'a>(
         return errmsg;
     }
 
-    let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, Some(&mut *varp)));
+    let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
 
     if set_sid != SID_NONE {
         let script_ctx = if set_sid == 0 {
@@ -5391,13 +5302,15 @@ fn did_set_option<'a>(
 
     if scope_both {
         if option_is_global_local(opt_idx) {
-            if let Some(varp_local) = get_varp_scope(opt, OPT_LOCAL) {
+            let varp_local = get_varp_scope(opt, OPT_LOCAL);
+            if varp_local.is_some() {
                 set_option_varp(opt_idx, varp_local, unset_obj());
             }
-        } else if let Some(varp_global) = get_varp_scope(opt, OPT_GLOBAL)
-            && !ptr::eq(varp_global, varp_ptr)
-        {
-            set_option_varp(opt_idx, varp_global, new_value);
+        } else {
+            let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+            if varp_global.is_some() && varp_global != varp {
+                set_option_varp(opt_idx, varp_global, new_value);
+            }
         }
     }
 
@@ -5408,26 +5321,26 @@ fn did_set_option<'a>(
     }
 
     let ws = curwin_mut().w_s_ptr();
-    if varp_eq(varp, &curbuf_mut().b_p_syn) {
+    if varp.ptr_eq(&curbuf_mut().b_p_syn) {
         do_syntax_autocmd(curbuf_mut(), args.os_value_changed);
-    } else if varp_eq(varp, &curbuf_mut().b_p_ft) {
+    } else if varp.ptr_eq(&curbuf_mut().b_p_ft) {
         if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
             do_filetype_autocmd(curbuf_mut(), args.os_value_changed);
         }
-    } else if varp_eq(varp, &ws.b_p_spl) {
+    } else if varp.ptr_eq(&ws.b_p_spl) {
         do_spelllang_source(curwin_mut());
     }
 
     comp_col();
 
-    if varp_eq(varp, &opt_vars().p_mouse) {
+    if varp.ptr_eq(&opt_vars().p_mouse) {
         setmouse();
-    } else if (varp_eq(varp, &opt_vars().p_flp) || varp_eq(varp, &curbuf_mut().b_p_flp))
+    } else if (varp.ptr_eq(&opt_vars().p_flp) || varp.ptr_eq(&curbuf_mut().b_p_flp))
         && curwin_mut().w_briopt_list != 0
     {
         redraw_all_later(UPD_NOT_VALID);
-    } else if varp_eq(varp, &opt_vars().p_wbr) || varp_eq(varp, &curwin_mut().w_onebuf_opt.wo_wbr) {
-        if varp_eq(varp, &opt_vars().p_wbr) {
+    } else if varp.ptr_eq(&opt_vars().p_wbr) || varp.ptr_eq(&curwin_mut().w_onebuf_opt.wo_wbr) {
+        if varp.ptr_eq(&opt_vars().p_wbr) {
             set_winbar_all(true);
         } else {
             set_winbar(true);
@@ -5539,13 +5452,12 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         && let Some(validate_cb) = opt.opt_validate_cb
     {
         let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
-        let mut varp = if scope_both && option_is_global_local(opt_idx) {
-            unsafe { opt.var.cast::<u8>().as_mut() }
+        let varp = if scope_both && option_is_global_local(opt_idx) {
+            opt.var
         } else {
             get_varp_scope_from(opt, opt_flags, buf, Some(&mut *win))
         };
-        let varp_ptr = crate::globals::GraphPtr::from(varp.as_deref_mut());
-        args.os_varp = varp_ptr.cast();
+        args.os_varp = varp;
         args.os_oldval = opt_from_varp(opt_idx, varp);
         let validate_err = validate_cb(args).map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
         optval_free_read(opt_idx, args.os_oldval);
@@ -5569,7 +5481,7 @@ fn set_option<'a>(
 
     let mut errmsg: Option<&'a CStr> = None;
     let mut args = Optset {
-        os_varp: ptr::null_mut(),
+        os_varp: OptVar::None,
         os_idx: opt_idx,
         os_flags: opt_flags,
         os_oldval: nil_obj(),
@@ -5655,15 +5567,15 @@ fn set_option<'a>(
     let scope_both = !scope_local && !scope_global;
     let is_opt_local_unset = is_option_local_value_unset(opt_idx);
 
-    let mut varp = if scope_both && option_is_global_local(opt_idx) {
-        unsafe { opt.var.cast::<u8>().as_mut() }
+    let varp = if scope_both && option_is_global_local(opt_idx) {
+        opt.var
     } else {
         get_varp_scope(opt, opt_flags)
     };
     let varp_local = get_varp_scope(opt, OPT_LOCAL);
     let varp_global = get_varp_scope(opt, OPT_GLOBAL);
 
-    let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.as_deref_mut()));
+    let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
 
     let mut saved_used_value = nil_obj();
     let mut saved_old_global_value = nil_obj();
@@ -5694,16 +5606,16 @@ fn set_option<'a>(
         g_st().secure = 1;
     }
 
-    if let Some(ref mut vp) = varp {
-        set_option_varp(opt_idx, vp, value);
+    if varp.is_some() {
+        set_option_varp(opt_idx, varp, value);
     }
     if value.obj_type == ObjectType::ObjectTypeUnset {
-        value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.as_deref_mut()));
+        value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
     }
     if !direct {
         saved_new_value = optval_snapshot(value);
     }
-    args.os_varp = varp.map_or(ptr::null_mut(), |vp| ptr::from_mut(vp).cast());
+    args.os_varp = varp;
     args.os_oldval = old_value;
     args.os_newval = value;
     args.os_buf = g_st().curbuf;
@@ -6013,7 +5925,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 continue;
             }
 
-            let mut varp: Option<&'static mut u8> = None;
+            let mut varp = OptVar::None;
             if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) != 0 {
                 if !option_is_global_only(opt_idx) {
                     varp = get_varp_scope(opt, opt_flags);
@@ -6070,7 +5982,7 @@ fn showoptions(all: bool, opt_flags: i32) {
     }
 }
 
-fn optval_default(opt_idx: OptIndex, varp: Option<&mut u8>) -> i32 {
+fn optval_default(opt_idx: OptIndex, varp: OptVar) -> i32 {
     if is_option_hidden(opt_idx) {
         return 1;
     }
@@ -6091,7 +6003,7 @@ pub fn ui_refresh_options() {
             continue;
         }
         let name = cstr_as_string(Some(opt.fullname));
-        let value = opt_from_varp(opt_idx, unsafe { opt.var.cast::<u8>().as_mut() });
+        let value = opt_from_varp(opt_idx, opt.var);
         ui_call_option_set(name, value);
     }
     if !opt_vars().p_mouse.is_null() {
@@ -6111,13 +6023,10 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
     if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         let val_int = if opt.immutable {
             i32::from(opt.def_val.data.boolean())
+        } else if varp.ptr_eq(&curbuf_mut().b_changed) {
+            i32::from(curbuf_is_changed_fn())
         } else {
-            let vp = varp.as_deref().unwrap();
-            if varp_eq(vp, &curbuf_mut().b_changed) {
-                i32::from(curbuf_is_changed_fn())
-            } else {
-                varp_bool(opt_idx, vp)
-            }
+            varp.bool_tristate()
         };
         if val_int == 0 {
             msg_puts(c"no");
@@ -6164,28 +6073,25 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                 if varp.is_none() {
                     continue;
                 }
-                if (opt_flags & OPT_GLOBAL) != 0
-                    && optval_default(opt_idx, varp.as_deref_mut()) != 0
-                {
+                if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp) != 0 {
                     continue;
                 }
 
                 if (opt_flags & OPT_SKIPRTP) != 0
-                    && (opt.var == (&raw mut opt_vars().p_rtp).cast::<c_void>()
-                        || opt.var == (&raw mut opt_vars().p_pp).cast::<c_void>())
+                    && (opt.var.ptr_eq(&opt_vars().p_rtp) || opt.var.ptr_eq(&opt_vars().p_pp))
                 {
                     continue;
                 }
 
                 let mut round: i32 = 2;
-                let mut varp_local: Option<&'static mut u8> = None;
+                let mut varp_local = OptVar::None;
                 if option_is_window_local(opt_idx) {
                     if (opt_flags & OPT_LOCAL) == 0 {
                         continue;
                     }
                     if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
-                        let mut varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
-                        if optval_default(opt_idx, varp_fresh.as_deref_mut()) == 0 {
+                        let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
+                        if optval_default(opt_idx, varp_fresh) == 0 {
                             round = 1;
                             varp_local = varp;
                             varp = varp_fresh;
@@ -6200,14 +6106,13 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                         c"setlocal"
                     };
 
-                    let vp = varp.as_deref_mut().unwrap();
                     let mut do_endif = false;
                     if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
                         if fprintf!(
                             fd,
                             c"if &%s != '%s'",
                             opt.fullname.as_ptr(),
-                            varp_cstr(vp).as_ptr(),
+                            varp.as_cstr().as_ptr(),
                         ) < 0
                             || !put_eol(fd)
                         {
@@ -6215,14 +6120,14 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                         }
                         do_endif = true;
                     }
-                    if !put_set(fd, cmd, opt_idx, vp) {
+                    if !put_set(fd, cmd, opt_idx, varp) {
                         return false;
                     }
                     if do_endif && !put_line(fd, c"endif") {
                         return false;
                     }
 
-                    varp = varp_local.take();
+                    varp = std::mem::take(&mut varp_local);
                     round += 1;
                 }
             }
@@ -6238,42 +6143,42 @@ pub fn makefoldset(fd: &crate::os::fs::CFile) -> bool {
         fd,
         cmd,
         K_OPT_FOLDMETHOD,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdm),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdm),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDEXPR,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fde),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fde),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDMARKER,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fmr),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fmr),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDIGNORE,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdi),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdi),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDLEVEL,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdl),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdl),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDMINLINES,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fml),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fml),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDNESTMAX,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdn),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fdn),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDENABLE,
-        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fen),
+        OptVar::from(&mut curwin_mut().w_onebuf_opt.wo_fen),
     ) {
         return false;
     }
@@ -6284,7 +6189,7 @@ fn put_set_value(
     fd: &crate::os::fs::CFile,
     cmd: &std::ffi::CStr,
     opt_idx: OptIndex,
-    varp: &u8,
+    varp: OptVar,
     value: Object,
 ) -> bool {
     let cmd = cmd.as_ptr();
@@ -6292,7 +6197,7 @@ fn put_set_value(
     let name = opt.fullname.as_ptr();
     let flags = opt.flags;
 
-    if !ptr::eq(ptr::from_ref(varp), opt.var.cast()) && optval_is_unset_local(opt_idx, value) {
+    if varp != opt.var && optval_is_unset_local(opt_idx, value) {
         return true;
     }
 
@@ -6385,9 +6290,9 @@ fn put_set(
     fd: &crate::os::fs::CFile,
     cmd: &std::ffi::CStr,
     opt_idx: OptIndex,
-    varp: &mut u8,
+    varp: OptVar,
 ) -> bool {
-    let value = opt_from_varp(opt_idx, Some(&mut *varp));
+    let value = opt_from_varp(opt_idx, varp);
     let ret = if value.obj_type == ObjectType::ObjectTypeLuaRef {
         true
     } else {
@@ -6397,72 +6302,121 @@ fn put_set(
     ret
 }
 
+fn get_winopt_var(wop: &mut Winopt, opt_idx: OptIndex) -> OptVar {
+    match opt_idx {
+        K_OPT_ARABIC => OptVar::from(&mut wop.wo_arab),
+        K_OPT_LIST => OptVar::from(&mut wop.wo_list),
+        K_OPT_SPELL => OptVar::from(&mut wop.wo_spell),
+        K_OPT_CURSORCOLUMN => OptVar::from(&mut wop.wo_cuc),
+        K_OPT_CURSORLINE => OptVar::from(&mut wop.wo_cul),
+        K_OPT_CURSORLINEOPT => OptVar::from(&mut wop.wo_culopt),
+        K_OPT_COLORCOLUMN => OptVar::from(&mut wop.wo_cc),
+        K_OPT_DIFF => OptVar::from(&mut wop.wo_diff),
+        K_OPT_EVENTIGNOREWIN => OptVar::from(&mut wop.wo_eiw),
+        K_OPT_FOLDCOLUMN => OptVar::from(&mut wop.wo_fdc),
+        K_OPT_FOLDENABLE => OptVar::from(&mut wop.wo_fen),
+        K_OPT_FOLDIGNORE => OptVar::from(&mut wop.wo_fdi),
+        K_OPT_FOLDLEVEL => OptVar::from(&mut wop.wo_fdl),
+        K_OPT_FOLDMETHOD => OptVar::from(&mut wop.wo_fdm),
+        K_OPT_FOLDMINLINES => OptVar::from(&mut wop.wo_fml),
+        K_OPT_FOLDNESTMAX => OptVar::from(&mut wop.wo_fdn),
+        K_OPT_FOLDEXPR => OptVar::from(&mut wop.wo_fde),
+        K_OPT_FOLDTEXT => OptVar::from(&mut wop.wo_fdt),
+        K_OPT_FOLDMARKER => OptVar::from(&mut wop.wo_fmr),
+        K_OPT_NUMBER => OptVar::from(&mut wop.wo_nu),
+        K_OPT_RELATIVENUMBER => OptVar::from(&mut wop.wo_rnu),
+        K_OPT_NUMBERWIDTH => OptVar::from(&mut wop.wo_nuw),
+        K_OPT_WINFIXBUF => OptVar::from(&mut wop.wo_wfb),
+        K_OPT_WINFIXHEIGHT => OptVar::from(&mut wop.wo_wfh),
+        K_OPT_WINFIXWIDTH => OptVar::from(&mut wop.wo_wfw),
+        K_OPT_WINPINNED => OptVar::from(&mut wop.wo_wp),
+        K_OPT_PREVIEWWINDOW => OptVar::from(&mut wop.wo_pvw),
+        K_OPT_LHISTORY => OptVar::from(&mut wop.wo_lhi),
+        K_OPT_RIGHTLEFT => OptVar::from(&mut wop.wo_rl),
+        K_OPT_RIGHTLEFTCMD => OptVar::from(&mut wop.wo_rlc),
+        K_OPT_SCROLL => OptVar::from(&mut wop.wo_scr),
+        K_OPT_SMOOTHSCROLL => OptVar::from(&mut wop.wo_sms),
+        K_OPT_WRAP => OptVar::from(&mut wop.wo_wrap),
+        K_OPT_LINEBREAK => OptVar::from(&mut wop.wo_lbr),
+        K_OPT_BREAKINDENT => OptVar::from(&mut wop.wo_bri),
+        K_OPT_BREAKINDENTOPT => OptVar::from(&mut wop.wo_briopt),
+        K_OPT_SCROLLBIND => OptVar::from(&mut wop.wo_scb),
+        K_OPT_CURSORBIND => OptVar::from(&mut wop.wo_crb),
+        K_OPT_CONCEALCURSOR => OptVar::from(&mut wop.wo_cocu),
+        K_OPT_CONCEALLEVEL => OptVar::from(&mut wop.wo_cole),
+        K_OPT_SIGNCOLUMN => OptVar::from(&mut wop.wo_scl),
+        K_OPT_WINHIGHLIGHT => OptVar::from(&mut wop.wo_winhl),
+        K_OPT_WINBLEND => OptVar::from(&mut wop.wo_winbl),
+        K_OPT_STATUSCOLUMN => OptVar::from(&mut wop.wo_stc),
+        _ => OptVar::None,
+    }
+}
+
 pub fn get_varp_scope_from(
     p: &mut Vimoption,
     opt_flags: i32,
     buf: &mut FileBuf,
     mut win: Option<&mut WinInfoInfo>,
-) -> Option<&'static mut u8> {
+) -> OptVar {
     let opt_idx = get_opt_idx(p);
 
     if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
         if option_is_window_local(opt_idx) {
-            return get_varp_from(p, buf, win).map(|vp| unsafe {
-                &mut *ptr::from_mut(vp).wrapping_add(std::mem::size_of::<Winopt>())
-            });
+            return get_winopt_var(&mut win.unwrap().w_allbuf_opt, opt_idx);
         }
-        return unsafe { p.var.cast::<u8>().as_mut() };
+        return p.var;
     }
 
     if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
-        let ptr: *mut u8 = match opt_idx {
-            K_OPT_FORMATPRG => (&raw mut buf.b_p_fp).cast(),
-            K_OPT_FSYNC => (&raw mut buf.b_p_fs).cast(),
-            K_OPT_FINDFUNC => (&raw mut buf.b_p_ffu).cast(),
-            K_OPT_ERRORFORMAT => (&raw mut buf.b_p_efm).cast(),
-            K_OPT_GREPFORMAT => (&raw mut buf.b_p_gefm).cast(),
-            K_OPT_GREPPRG => (&raw mut buf.b_p_gp).cast(),
-            K_OPT_MAKEPRG => (&raw mut buf.b_p_mp).cast(),
-            K_OPT_EQUALPRG => (&raw mut buf.b_p_ep).cast(),
-            K_OPT_KEYWORDPRG => (&raw mut buf.b_p_kp).cast(),
-            K_OPT_PATH => (&raw mut buf.b_p_path).cast(),
-            K_OPT_AUTOCOMPLETE => (&raw mut buf.b_p_ac).cast(),
-            K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
-            K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
-            K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
+        return match opt_idx {
+            K_OPT_FORMATPRG => OptVar::from(&mut buf.b_p_fp),
+            K_OPT_FSYNC => OptVar::from(&mut buf.b_p_fs),
+            K_OPT_FINDFUNC => OptVar::from(&mut buf.b_p_ffu),
+            K_OPT_ERRORFORMAT => OptVar::from(&mut buf.b_p_efm),
+            K_OPT_GREPFORMAT => OptVar::from(&mut buf.b_p_gefm),
+            K_OPT_GREPPRG => OptVar::from(&mut buf.b_p_gp),
+            K_OPT_MAKEPRG => OptVar::from(&mut buf.b_p_mp),
+            K_OPT_EQUALPRG => OptVar::from(&mut buf.b_p_ep),
+            K_OPT_KEYWORDPRG => OptVar::from(&mut buf.b_p_kp),
+            K_OPT_PATH => OptVar::from(&mut buf.b_p_path),
+            K_OPT_AUTOCOMPLETE => OptVar::from(&mut buf.b_p_ac),
+            K_OPT_AUTOREAD => OptVar::from(&mut buf.b_p_ar),
+            K_OPT_TAGS => OptVar::from(&mut buf.b_p_tags),
+            K_OPT_TAGCASE => OptVar::from(&mut buf.b_p_tc),
             K_OPT_SIDESCROLLOFF => {
-                (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_siso).cast()
+                OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_siso)
             }
-            K_OPT_SCROLLOFF => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_so).cast(),
-            K_OPT_SCROLLOFFPAD => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sop).cast(),
-            K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
-            K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
-            K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
-            K_OPT_DICTIONARY => (&raw mut buf.b_p_dict).cast(),
-            K_OPT_DIFFANCHORS => (&raw mut buf.b_p_dia).cast(),
-            K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
-            K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
-            K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-            K_OPT_SHOWBREAK => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sbr).cast(),
-            K_OPT_STATUSLINE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_stl).cast(),
-            K_OPT_WINBAR => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wbr).cast(),
-            K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
-            K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
-            K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
-            K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
-            K_OPT_FILLCHARS => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fcs).cast(),
-            K_OPT_LISTCHARS => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lcs).cast(),
-            K_OPT_VIRTUALEDIT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_ve).cast(),
+            K_OPT_SCROLLOFF => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_so),
+            K_OPT_SCROLLOFFPAD => {
+                OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sop)
+            }
+            K_OPT_DEFINE => OptVar::from(&mut buf.b_p_def),
+            K_OPT_INCLUDE => OptVar::from(&mut buf.b_p_inc),
+            K_OPT_COMPLETEOPT => OptVar::from(&mut buf.b_p_cot),
+            K_OPT_DICTIONARY => OptVar::from(&mut buf.b_p_dict),
+            K_OPT_DIFFANCHORS => OptVar::from(&mut buf.b_p_dia),
+            K_OPT_THESAURUS => OptVar::from(&mut buf.b_p_tsr),
+            K_OPT_THESAURUSFUNC => OptVar::from(&mut buf.b_p_tsrfu),
+            K_OPT_TAGFUNC => OptVar::from(&mut buf.b_p_tfu),
+            K_OPT_SHOWBREAK => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sbr),
+            K_OPT_STATUSLINE => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_stl),
+            K_OPT_WINBAR => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wbr),
+            K_OPT_UNDOLEVELS => OptVar::from(&mut buf.b_p_ul),
+            K_OPT_LISPWORDS => OptVar::from(&mut buf.b_p_lw),
+            K_OPT_BACKUPCOPY => OptVar::from(&mut buf.b_p_bkc),
+            K_OPT_MAKEENCODING => OptVar::from(&mut buf.b_p_menc),
+            K_OPT_FILLCHARS => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fcs),
+            K_OPT_LISTCHARS => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lcs),
+            K_OPT_VIRTUALEDIT => OptVar::from(&mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_ve),
             _ => std::process::abort(),
         };
-        return unsafe { ptr.as_mut() };
     }
 
     get_varp_from(p, buf, win)
 }
 
 /// Get pointer to option variable, depending on local or global scope.
-pub fn get_varp_scope(p: &mut Vimoption, opt_flags: i32) -> Option<&'static mut u8> {
+pub fn get_varp_scope(p: &mut Vimoption, opt_flags: i32) -> OptVar {
     get_varp_scope_from(p, opt_flags, curbuf_mut(), Some(curwin_mut()))
 }
 
@@ -6472,7 +6426,7 @@ pub fn get_option_varp_scope_from(
     opt_flags: i32,
     buf: &mut FileBuf,
     win: Option<&mut WinInfoInfo>,
-) -> Option<&'static mut u8> {
+) -> OptVar {
     get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win)
 }
 
@@ -6480,59 +6434,66 @@ pub fn get_varp_from(
     p: &mut Vimoption,
     buf: &mut FileBuf,
     mut win: Option<&mut WinInfoInfo>,
-) -> Option<&'static mut u8> {
+) -> OptVar {
     let opt_idx = get_opt_idx(p);
 
     if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
-        return unsafe { p.var.cast::<u8>().as_mut() };
+        return p.var;
     }
 
-    let ptr: *mut c_void = match opt_idx {
+    if let Some(ref mut w) = win {
+        let win_var = get_winopt_var(&mut w.w_onebuf_opt, opt_idx);
+        if win_var.is_some() {
+            return win_var;
+        }
+    }
+
+    match opt_idx {
         K_OPT_EQUALPRG => {
             if !buf.b_p_ep.is_empty() {
-                (&raw mut buf.b_p_ep).cast()
+                OptVar::from(&mut buf.b_p_ep)
             } else {
                 p.var
             }
         }
         K_OPT_KEYWORDPRG => {
             if !buf.b_p_kp.is_empty() {
-                (&raw mut buf.b_p_kp).cast()
+                OptVar::from(&mut buf.b_p_kp)
             } else {
                 p.var
             }
         }
         K_OPT_PATH => {
             if !buf.b_p_path.is_empty() {
-                (&raw mut buf.b_p_path).cast()
+                OptVar::from(&mut buf.b_p_path)
             } else {
                 p.var
             }
         }
         K_OPT_AUTOCOMPLETE => {
             if buf.b_p_ac.is_some() {
-                (&raw mut buf.b_p_ac).cast()
+                OptVar::from(&mut buf.b_p_ac)
             } else {
                 p.var
             }
         }
         K_OPT_AUTOREAD => {
             if buf.b_p_ar.is_some() {
-                (&raw mut buf.b_p_ar).cast()
+                OptVar::from(&mut buf.b_p_ar)
             } else {
                 p.var
             }
         }
         K_OPT_TAGS => {
             if !buf.b_p_tags.is_empty() {
-                (&raw mut buf.b_p_tags).cast()
+                OptVar::from(&mut buf.b_p_tags)
             } else {
                 p.var
             }
         }
         K_OPT_TAGCASE => {
             if !buf.b_p_tc.is_empty() {
-                (&raw mut buf.b_p_tc).cast()
+                OptVar::from(&mut buf.b_p_tc)
             } else {
                 p.var
             }
@@ -6540,7 +6501,7 @@ pub fn get_varp_from(
         K_OPT_SIDESCROLLOFF => {
             let w = win.as_deref_mut().unwrap();
             if w.w_onebuf_opt.wo_siso >= 0 {
-                (&raw mut w.w_onebuf_opt.wo_siso).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_siso)
             } else {
                 p.var
             }
@@ -6548,7 +6509,7 @@ pub fn get_varp_from(
         K_OPT_SCROLLOFF => {
             let w = win.as_deref_mut().unwrap();
             if w.w_onebuf_opt.wo_so >= 0 {
-                (&raw mut w.w_onebuf_opt.wo_so).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_so)
             } else {
                 p.var
             }
@@ -6556,112 +6517,112 @@ pub fn get_varp_from(
         K_OPT_SCROLLOFFPAD => {
             let w = win.as_deref_mut().unwrap();
             if w.w_onebuf_opt.wo_sop >= 0 {
-                (&raw mut w.w_onebuf_opt.wo_sop).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_sop)
             } else {
                 p.var
             }
         }
         K_OPT_BACKUPCOPY => {
             if !buf.b_p_bkc.is_empty() {
-                (&raw mut buf.b_p_bkc).cast()
+                OptVar::from(&mut buf.b_p_bkc)
             } else {
                 p.var
             }
         }
         K_OPT_DEFINE => {
             if !buf.b_p_def.is_empty() {
-                (&raw mut buf.b_p_def).cast()
+                OptVar::from(&mut buf.b_p_def)
             } else {
                 p.var
             }
         }
         K_OPT_INCLUDE => {
             if !buf.b_p_inc.is_empty() {
-                (&raw mut buf.b_p_inc).cast()
+                OptVar::from(&mut buf.b_p_inc)
             } else {
                 p.var
             }
         }
         K_OPT_COMPLETEOPT => {
             if !buf.b_p_cot.is_empty() {
-                (&raw mut buf.b_p_cot).cast()
+                OptVar::from(&mut buf.b_p_cot)
             } else {
                 p.var
             }
         }
         K_OPT_DICTIONARY => {
             if !buf.b_p_dict.is_empty() {
-                (&raw mut buf.b_p_dict).cast()
+                OptVar::from(&mut buf.b_p_dict)
             } else {
                 p.var
             }
         }
         K_OPT_DIFFANCHORS => {
             if !buf.b_p_dia.is_empty() {
-                (&raw mut buf.b_p_dia).cast()
+                OptVar::from(&mut buf.b_p_dia)
             } else {
                 p.var
             }
         }
         K_OPT_THESAURUS => {
             if !buf.b_p_tsr.is_empty() {
-                (&raw mut buf.b_p_tsr).cast()
+                OptVar::from(&mut buf.b_p_tsr)
             } else {
                 p.var
             }
         }
         K_OPT_THESAURUSFUNC => {
             if buf.b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-                (&raw mut buf.b_p_tsrfu).cast()
+                OptVar::from(&mut buf.b_p_tsrfu)
             } else {
                 p.var
             }
         }
         K_OPT_FORMATPRG => {
             if !buf.b_p_fp.is_empty() {
-                (&raw mut buf.b_p_fp).cast()
+                OptVar::from(&mut buf.b_p_fp)
             } else {
                 p.var
             }
         }
         K_OPT_FSYNC => {
             if buf.b_p_fs.is_some() {
-                (&raw mut buf.b_p_fs).cast()
+                OptVar::from(&mut buf.b_p_fs)
             } else {
                 p.var
             }
         }
         K_OPT_FINDFUNC => {
             if buf.b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
-                (&raw mut buf.b_p_ffu).cast()
+                OptVar::from(&mut buf.b_p_ffu)
             } else {
                 p.var
             }
         }
         K_OPT_ERRORFORMAT => {
             if !buf.b_p_efm.is_empty() {
-                (&raw mut buf.b_p_efm).cast()
+                OptVar::from(&mut buf.b_p_efm)
             } else {
                 p.var
             }
         }
         K_OPT_GREPFORMAT => {
             if !buf.b_p_gefm.is_empty() {
-                (&raw mut buf.b_p_gefm).cast()
+                OptVar::from(&mut buf.b_p_gefm)
             } else {
                 p.var
             }
         }
         K_OPT_GREPPRG => {
             if !buf.b_p_gp.is_empty() {
-                (&raw mut buf.b_p_gp).cast()
+                OptVar::from(&mut buf.b_p_gp)
             } else {
                 p.var
             }
         }
         K_OPT_MAKEPRG => {
             if !buf.b_p_mp.is_empty() {
-                (&raw mut buf.b_p_mp).cast()
+                OptVar::from(&mut buf.b_p_mp)
             } else {
                 p.var
             }
@@ -6669,7 +6630,7 @@ pub fn get_varp_from(
         K_OPT_SHOWBREAK => {
             let w = win.as_deref_mut().unwrap();
             if !w.w_onebuf_opt.wo_sbr.is_empty() {
-                (&raw mut w.w_onebuf_opt.wo_sbr).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_sbr)
             } else {
                 p.var
             }
@@ -6677,7 +6638,7 @@ pub fn get_varp_from(
         K_OPT_STATUSLINE => {
             let w = win.as_deref_mut().unwrap();
             if !w.w_onebuf_opt.wo_stl.is_empty() {
-                (&raw mut w.w_onebuf_opt.wo_stl).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_stl)
             } else {
                 p.var
             }
@@ -6685,28 +6646,28 @@ pub fn get_varp_from(
         K_OPT_WINBAR => {
             let w = win.as_deref_mut().unwrap();
             if !w.w_onebuf_opt.wo_wbr.is_empty() {
-                (&raw mut w.w_onebuf_opt.wo_wbr).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_wbr)
             } else {
                 p.var
             }
         }
         K_OPT_UNDOLEVELS => {
             if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
-                (&raw mut buf.b_p_ul).cast()
+                OptVar::from(&mut buf.b_p_ul)
             } else {
                 p.var
             }
         }
         K_OPT_LISPWORDS => {
             if !buf.b_p_lw.is_empty() {
-                (&raw mut buf.b_p_lw).cast()
+                OptVar::from(&mut buf.b_p_lw)
             } else {
                 p.var
             }
         }
         K_OPT_MAKEENCODING => {
             if !buf.b_p_menc.is_empty() {
-                (&raw mut buf.b_p_menc).cast()
+                OptVar::from(&mut buf.b_p_menc)
             } else {
                 p.var
             }
@@ -6714,7 +6675,7 @@ pub fn get_varp_from(
         K_OPT_FILLCHARS => {
             let w = win.as_deref_mut().unwrap();
             if !w.w_onebuf_opt.wo_fcs.is_empty() {
-                (&raw mut w.w_onebuf_opt.wo_fcs).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_fcs)
             } else {
                 p.var
             }
@@ -6722,7 +6683,7 @@ pub fn get_varp_from(
         K_OPT_LISTCHARS => {
             let w = win.as_deref_mut().unwrap();
             if !w.w_onebuf_opt.wo_lcs.is_empty() {
-                (&raw mut w.w_onebuf_opt.wo_lcs).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_lcs)
             } else {
                 p.var
             }
@@ -6730,118 +6691,75 @@ pub fn get_varp_from(
         K_OPT_VIRTUALEDIT => {
             let w = win.as_deref_mut().unwrap();
             if !w.w_onebuf_opt.wo_ve.is_empty() {
-                (&raw mut w.w_onebuf_opt.wo_ve).cast()
+                OptVar::from(&mut w.w_onebuf_opt.wo_ve)
             } else {
                 p.var
             }
         }
 
-        K_OPT_ARABIC => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_arab).cast(),
-        K_OPT_LIST => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_list).cast(),
-        K_OPT_SPELL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_spell).cast(),
-        K_OPT_CURSORCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cuc).cast(),
-        K_OPT_CURSORLINE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cul).cast(),
-        K_OPT_CURSORLINEOPT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_culopt).cast(),
-        K_OPT_COLORCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cc).cast(),
-        K_OPT_DIFF => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_diff).cast(),
-        K_OPT_EVENTIGNOREWIN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_eiw).cast(),
-        K_OPT_FOLDCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdc).cast(),
-        K_OPT_FOLDENABLE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fen).cast(),
-        K_OPT_FOLDIGNORE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdi).cast(),
-        K_OPT_FOLDLEVEL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdl).cast(),
-        K_OPT_FOLDMETHOD => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdm).cast(),
-        K_OPT_FOLDMINLINES => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fml).cast(),
-        K_OPT_FOLDNESTMAX => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdn).cast(),
-        K_OPT_FOLDEXPR => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fde).cast(),
-        K_OPT_FOLDTEXT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdt).cast(),
-        K_OPT_FOLDMARKER => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fmr).cast(),
-        K_OPT_NUMBER => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_nu).cast(),
-        K_OPT_RELATIVENUMBER => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_rnu).cast(),
-        K_OPT_NUMBERWIDTH => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_nuw).cast(),
-        K_OPT_WINFIXBUF => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wfb).cast(),
-        K_OPT_WINFIXHEIGHT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wfh).cast(),
-        K_OPT_WINFIXWIDTH => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wfw).cast(),
-        K_OPT_WINPINNED => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wp).cast(),
-        K_OPT_PREVIEWWINDOW => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_pvw).cast(),
-        K_OPT_LHISTORY => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lhi).cast(),
-        K_OPT_RIGHTLEFT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_rl).cast(),
-        K_OPT_RIGHTLEFTCMD => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_rlc).cast(),
-        K_OPT_SCROLL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_scr).cast(),
-        K_OPT_SMOOTHSCROLL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sms).cast(),
-        K_OPT_WRAP => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wrap).cast(),
-        K_OPT_LINEBREAK => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lbr).cast(),
-        K_OPT_BREAKINDENT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_bri).cast(),
-        K_OPT_BREAKINDENTOPT => {
-            (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt).cast()
-        }
-        K_OPT_SCROLLBIND => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_scb).cast(),
-        K_OPT_CURSORBIND => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_crb).cast(),
-        K_OPT_CONCEALCURSOR => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cocu).cast(),
-        K_OPT_CONCEALLEVEL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cole).cast(),
-
-        K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
-        K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
-        K_OPT_BOMB => (&raw mut buf.b_p_bomb).cast(),
-        K_OPT_BUFHIDDEN => (&raw mut buf.b_p_bh).cast(),
-        K_OPT_BUFTYPE => (&raw mut buf.b_p_bt).cast(),
-        K_OPT_BUFLISTED => (&raw mut buf.b_p_bl).cast(),
-        K_OPT_BUSY => (&raw mut buf.b_p_busy).cast(),
-        K_OPT_CHANNEL => (&raw mut buf.b_p_channel).cast(),
-        K_OPT_COPYINDENT => (&raw mut buf.b_p_ci).cast(),
-        K_OPT_CINDENT => (&raw mut buf.b_p_cin).cast(),
-        K_OPT_CINKEYS => (&raw mut buf.b_p_cink).cast(),
-        K_OPT_CINOPTIONS => (&raw mut buf.b_p_cino).cast(),
-        K_OPT_CINSCOPEDECLS => (&raw mut buf.b_p_cinsd).cast(),
-        K_OPT_CINWORDS => (&raw mut buf.b_p_cinw).cast(),
-        K_OPT_COMMENTS => (&raw mut buf.b_p_com).cast(),
-        K_OPT_COMMENTSTRING => (&raw mut buf.b_p_cms).cast(),
-        K_OPT_COMPLETE => (&raw mut buf.b_p_cpt).cast(),
+        K_OPT_AUTOINDENT => OptVar::from(&mut buf.b_p_ai),
+        K_OPT_BINARY => OptVar::from(&mut buf.b_p_bin),
+        K_OPT_BOMB => OptVar::from(&mut buf.b_p_bomb),
+        K_OPT_BUFHIDDEN => OptVar::from(&mut buf.b_p_bh),
+        K_OPT_BUFTYPE => OptVar::from(&mut buf.b_p_bt),
+        K_OPT_BUFLISTED => OptVar::from(&mut buf.b_p_bl),
+        K_OPT_BUSY => OptVar::from(&mut buf.b_p_busy),
+        K_OPT_CHANNEL => OptVar::from(&mut buf.b_p_channel),
+        K_OPT_COPYINDENT => OptVar::from(&mut buf.b_p_ci),
+        K_OPT_CINDENT => OptVar::from(&mut buf.b_p_cin),
+        K_OPT_CINKEYS => OptVar::from(&mut buf.b_p_cink),
+        K_OPT_CINOPTIONS => OptVar::from(&mut buf.b_p_cino),
+        K_OPT_CINSCOPEDECLS => OptVar::from(&mut buf.b_p_cinsd),
+        K_OPT_CINWORDS => OptVar::from(&mut buf.b_p_cinw),
+        K_OPT_COMMENTS => OptVar::from(&mut buf.b_p_com),
+        K_OPT_COMMENTSTRING => OptVar::from(&mut buf.b_p_cms),
+        K_OPT_COMPLETE => OptVar::from(&mut buf.b_p_cpt),
         #[cfg(windows)]
-        K_OPT_COMPLETESLASH => (&raw mut buf.b_p_csl).cast(),
-        K_OPT_COMPLETEFUNC => (&raw mut buf.b_p_cfu).cast(),
-        K_OPT_OMNIFUNC => (&raw mut buf.b_p_ofu).cast(),
-        K_OPT_ENDOFFILE => (&raw mut buf.b_p_eof).cast(),
-        K_OPT_ENDOFLINE => (&raw mut buf.b_p_eol).cast(),
-        K_OPT_FIXENDOFLINE => (&raw mut buf.b_p_fixeol).cast(),
-        K_OPT_EXPANDTAB => (&raw mut buf.b_p_et).cast(),
-        K_OPT_FILEENCODING => (&raw mut buf.b_p_fenc).cast(),
-        K_OPT_FILEFORMAT => (&raw mut buf.b_p_ff).cast(),
-        K_OPT_FILETYPE => (&raw mut buf.b_p_ft).cast(),
-        K_OPT_FOLLOW => (&raw mut buf.b_p_follow).cast(),
-        K_OPT_FORMATOPTIONS => (&raw mut buf.b_p_fo).cast(),
-        K_OPT_FORMATLISTPAT => (&raw mut buf.b_p_flp).cast(),
-        K_OPT_IMINSERT => (&raw mut buf.b_p_iminsert).cast(),
-        K_OPT_IMSEARCH => (&raw mut buf.b_p_imsearch).cast(),
-        K_OPT_INFERCASE => (&raw mut buf.b_p_inf).cast(),
-        K_OPT_ISKEYWORD => (&raw mut buf.b_p_isk).cast(),
-        K_OPT_INCLUDEEXPR => (&raw mut buf.b_p_inex).cast(),
-        K_OPT_INDENTEXPR => (&raw mut buf.b_p_inde).cast(),
-        K_OPT_INDENTKEYS => (&raw mut buf.b_p_indk).cast(),
-        K_OPT_FORMATEXPR => (&raw mut buf.b_p_fex).cast(),
-        K_OPT_LISP => (&raw mut buf.b_p_lisp).cast(),
-        K_OPT_LISPOPTIONS => (&raw mut buf.b_p_lop).cast(),
-        K_OPT_MODELINE => (&raw mut buf.b_p_ml).cast(),
-        K_OPT_MATCHPAIRS => (&raw mut buf.b_p_mps).cast(),
-        K_OPT_MODIFIABLE => (&raw mut buf.b_p_ma).cast(),
-        K_OPT_MODIFIED => (&raw mut buf.b_changed).cast(),
-        K_OPT_NRFORMATS => (&raw mut buf.b_p_nf).cast(),
-        K_OPT_PRESERVEINDENT => (&raw mut buf.b_p_pi).cast(),
-        K_OPT_QUOTEESCAPE => (&raw mut buf.b_p_qe).cast(),
-        K_OPT_READONLY => (&raw mut buf.b_p_ro).cast(),
-        K_OPT_SCROLLBACK => (&raw mut buf.b_p_scbk).cast(),
-        K_OPT_SMARTINDENT => (&raw mut buf.b_p_si).cast(),
-        K_OPT_SOFTTABSTOP => (&raw mut buf.b_p_sts).cast(),
-        K_OPT_SUFFIXESADD => (&raw mut buf.b_p_sua).cast(),
-        K_OPT_SWAPFILE => (&raw mut buf.b_p_swf).cast(),
-        K_OPT_SYNMAXCOL => (&raw mut buf.b_p_smc).cast(),
-        K_OPT_SYNTAX => (&raw mut buf.b_p_syn).cast(),
+        K_OPT_COMPLETESLASH => OptVar::from(&mut buf.b_p_csl),
+        K_OPT_COMPLETEFUNC => OptVar::from(&mut buf.b_p_cfu),
+        K_OPT_OMNIFUNC => OptVar::from(&mut buf.b_p_ofu),
+        K_OPT_ENDOFFILE => OptVar::from(&mut buf.b_p_eof),
+        K_OPT_ENDOFLINE => OptVar::from(&mut buf.b_p_eol),
+        K_OPT_FIXENDOFLINE => OptVar::from(&mut buf.b_p_fixeol),
+        K_OPT_EXPANDTAB => OptVar::from(&mut buf.b_p_et),
+        K_OPT_FILEENCODING => OptVar::from(&mut buf.b_p_fenc),
+        K_OPT_FILEFORMAT => OptVar::from(&mut buf.b_p_ff),
+        K_OPT_FILETYPE => OptVar::from(&mut buf.b_p_ft),
+        K_OPT_FOLLOW => OptVar::from(&mut buf.b_p_follow),
+        K_OPT_FORMATOPTIONS => OptVar::from(&mut buf.b_p_fo),
+        K_OPT_FORMATLISTPAT => OptVar::from(&mut buf.b_p_flp),
+        K_OPT_IMINSERT => OptVar::from(&mut buf.b_p_iminsert),
+        K_OPT_IMSEARCH => OptVar::from(&mut buf.b_p_imsearch),
+        K_OPT_INFERCASE => OptVar::from(&mut buf.b_p_inf),
+        K_OPT_ISKEYWORD => OptVar::from(&mut buf.b_p_isk),
+        K_OPT_INCLUDEEXPR => OptVar::from(&mut buf.b_p_inex),
+        K_OPT_INDENTEXPR => OptVar::from(&mut buf.b_p_inde),
+        K_OPT_INDENTKEYS => OptVar::from(&mut buf.b_p_indk),
+        K_OPT_FORMATEXPR => OptVar::from(&mut buf.b_p_fex),
+        K_OPT_LISP => OptVar::from(&mut buf.b_p_lisp),
+        K_OPT_LISPOPTIONS => OptVar::from(&mut buf.b_p_lop),
+        K_OPT_MODELINE => OptVar::from(&mut buf.b_p_ml),
+        K_OPT_MATCHPAIRS => OptVar::from(&mut buf.b_p_mps),
+        K_OPT_MODIFIABLE => OptVar::from(&mut buf.b_p_ma),
+        K_OPT_MODIFIED => OptVar::from(&mut buf.b_changed),
+        K_OPT_NRFORMATS => OptVar::from(&mut buf.b_p_nf),
+        K_OPT_PRESERVEINDENT => OptVar::from(&mut buf.b_p_pi),
+        K_OPT_QUOTEESCAPE => OptVar::from(&mut buf.b_p_qe),
+        K_OPT_READONLY => OptVar::from(&mut buf.b_p_ro),
+        K_OPT_SCROLLBACK => OptVar::from(&mut buf.b_p_scbk),
+        K_OPT_SMARTINDENT => OptVar::from(&mut buf.b_p_si),
+        K_OPT_SOFTTABSTOP => OptVar::from(&mut buf.b_p_sts),
+        K_OPT_SUFFIXESADD => OptVar::from(&mut buf.b_p_sua),
+        K_OPT_SWAPFILE => OptVar::from(&mut buf.b_p_swf),
+        K_OPT_SYNMAXCOL => OptVar::from(&mut buf.b_p_smc),
+        K_OPT_SYNTAX => OptVar::from(&mut buf.b_p_syn),
         K_OPT_SPELLCAPCHECK => {
             let ws = if let Some(ref mut w) = win {
                 w.w_s_ptr()
             } else {
                 &mut buf.b_s
             };
-            (&raw mut ws.b_p_spc).cast()
+            OptVar::from(&mut ws.b_p_spc)
         }
         K_OPT_SPELLFILE => {
             let ws = if let Some(ref mut w) = win {
@@ -6849,7 +6767,7 @@ pub fn get_varp_from(
             } else {
                 &mut buf.b_s
             };
-            (&raw mut ws.b_p_spf).cast()
+            OptVar::from(&mut ws.b_p_spf)
         }
         K_OPT_SPELLLANG => {
             let ws = if let Some(ref mut w) = win {
@@ -6857,7 +6775,7 @@ pub fn get_varp_from(
             } else {
                 &mut buf.b_s
             };
-            (&raw mut ws.b_p_spl).cast()
+            OptVar::from(&mut ws.b_p_spl)
         }
         K_OPT_SPELLOPTIONS => {
             let ws = if let Some(ref mut w) = win {
@@ -6865,27 +6783,22 @@ pub fn get_varp_from(
             } else {
                 &mut buf.b_s
             };
-            (&raw mut ws.b_p_spo).cast()
+            OptVar::from(&mut ws.b_p_spo)
         }
-        K_OPT_SHIFTWIDTH => (&raw mut buf.b_p_sw).cast(),
-        K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-        K_OPT_TABSTOP => (&raw mut buf.b_p_ts).cast(),
-        K_OPT_TEXTWIDTH => (&raw mut buf.b_p_tw).cast(),
-        K_OPT_UNDOFILE => (&raw mut buf.b_p_udf).cast(),
-        K_OPT_WRAPMARGIN => (&raw mut buf.b_p_wm).cast(),
-        K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
-        K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
-        K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
-        K_OPT_SIGNCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_scl).cast(),
-        K_OPT_WINHIGHLIGHT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_winhl).cast(),
-        K_OPT_WINBLEND => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_winbl).cast(),
-        K_OPT_STATUSCOLUMN => (&raw mut win.unwrap().w_onebuf_opt.wo_stc).cast(),
+        K_OPT_SHIFTWIDTH => OptVar::from(&mut buf.b_p_sw),
+        K_OPT_TAGFUNC => OptVar::from(&mut buf.b_p_tfu),
+        K_OPT_TABSTOP => OptVar::from(&mut buf.b_p_ts),
+        K_OPT_TEXTWIDTH => OptVar::from(&mut buf.b_p_tw),
+        K_OPT_UNDOFILE => OptVar::from(&mut buf.b_p_udf),
+        K_OPT_WRAPMARGIN => OptVar::from(&mut buf.b_p_wm),
+        K_OPT_VARSOFTTABSTOP => OptVar::from(&mut buf.b_p_vsts),
+        K_OPT_VARTABSTOP => OptVar::from(&mut buf.b_p_vts),
+        K_OPT_KEYMAP => OptVar::from(&mut buf.b_p_keymap),
         _ => {
             iemsg(tr(c"E356: get_varp ERROR"));
-            (&raw mut buf.b_p_wm).cast()
+            OptVar::from(&mut buf.b_p_wm)
         }
-    };
-    unsafe { ptr.cast::<u8>().as_mut() }
+    }
 }
 
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
@@ -7484,15 +7397,15 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line.cast()) as i32;
 
     let opt_var = get_option(opt_idx).var;
-    if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
+    if opt_var.ptr_eq(&opt_vars().p_syn) {
         xp.xp_context = EXPAND_OWNSYNTAX;
         return;
     }
-    if opt_var == (&raw mut opt_vars().p_ft).cast::<c_void>() {
+    if opt_var.ptr_eq(&opt_vars().p_ft) {
         xp.xp_context = EXPAND_FILETYPE;
         return;
     }
-    if opt_var == (&raw mut opt_vars().p_keymap).cast::<c_void>() {
+    if opt_var.ptr_eq(&opt_vars().p_keymap) {
         xp.xp_context = EXPAND_KEYMAP;
         return;
     }
@@ -7519,25 +7432,23 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
 
     if (flags & K_OPT_FLAG_EXPAND) != 0 {
         let v = get_option(opt_idx).var;
-        if v == (&raw mut opt_vars().p_bdir).cast()
-            || v == (&raw mut opt_vars().p_dir).cast()
-            || v == (&raw mut opt_vars().p_path).cast()
-            || v == (&raw mut opt_vars().p_pp).cast()
-            || v == (&raw mut opt_vars().p_rtp).cast()
-            || v == (&raw mut opt_vars().p_cdpath).cast()
-            || v == (&raw mut opt_vars().p_vdir).cast()
+        if v.ptr_eq(&opt_vars().p_bdir)
+            || v.ptr_eq(&opt_vars().p_dir)
+            || v.ptr_eq(&opt_vars().p_path)
+            || v.ptr_eq(&opt_vars().p_pp)
+            || v.ptr_eq(&opt_vars().p_rtp)
+            || v.ptr_eq(&opt_vars().p_cdpath)
+            || v.ptr_eq(&opt_vars().p_vdir)
         {
             xp.xp_context = EXPAND_DIRECTORIES;
-            if v == (&raw mut opt_vars().p_path).cast()
-                || v == (&raw mut opt_vars().p_cdpath).cast()
-            {
+            if v.ptr_eq(&opt_vars().p_path) || v.ptr_eq(&opt_vars().p_cdpath) {
                 xp.xp_backslash = XP_BS_THREE;
             } else {
                 xp.xp_backslash = XP_BS_ONE;
             }
         } else {
             xp.xp_context = EXPAND_FILES;
-            if v == (&raw mut opt_vars().p_tags).cast() {
+            if v.ptr_eq(&opt_vars().p_tags) {
                 xp.xp_backslash = XP_BS_THREE;
             } else {
                 xp.xp_backslash = XP_BS_ONE;
@@ -7586,7 +7497,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         xp.xp_pattern = crate::strings::CStrCursor::from_ptr(argend.cast());
     }
 
-    if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
+    if get_option(opt_idx).var.ptr_eq(&opt_vars().p_sps) {
         if xp.xp_pattern.as_bytes().starts_with(b"file:") {
             xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
         } else if get_option(opt_st().expand_option_idx)
@@ -7798,7 +7709,7 @@ pub fn expand_setting_subtract(
         curbuf_mut(),
         Some(curwin_mut()),
     )
-    .map_or(c"", |vp| varp_cstr(vp))
+    .as_cstr()
     .as_ptr();
 
     let option_flags = get_option(opt_st().expand_option_idx).flags;
@@ -7879,7 +7790,8 @@ pub fn expand_setting_subtract(
 
 fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     let opt = get_option(opt_idx);
-    let vp = get_varp_scope(opt, opt_flags).unwrap();
+    let vp = get_varp_scope(opt, opt_flags);
+    assert!(vp.is_some());
 
     let mut wc: OptInt = 0;
     if wc_use_keyname(vp, &mut wc) != 0 {
@@ -7902,22 +7814,22 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     {
         home_replace(
             None,
-            Some(varp_cstr(vp)),
+            Some(vp.as_cstr()),
             g_st().name_buff_bytes_mut(),
             false,
         );
         return;
     }
 
-    let o = opt_from_varp(opt_idx, Some(vp));
+    let o = opt_from_varp(opt_idx, vp);
     let s = optval_to_cstr(o, false);
     crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), s.as_bytes());
     optval_free_read(opt_idx, o);
 }
 
-fn wc_use_keyname(varp: &u8, wcp: &mut OptInt) -> i32 {
-    if varp_eq(varp, &opt_vars().p_wc) || varp_eq(varp, &opt_vars().p_wcm) {
-        *wcp = varp_int(varp);
+fn wc_use_keyname(varp: OptVar, wcp: &mut OptInt) -> i32 {
+    if varp.ptr_eq(&opt_vars().p_wc) || varp.ptr_eq(&opt_vars().p_wcm) {
+        *wcp = varp.int_val();
         if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
             return 1;
         }
