@@ -17,16 +17,17 @@ use crate::api::private::validate::{
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
 use crate::charset::{ascii_isupper, getdigits_long};
+use crate::cmdexpand::Cmdidx;
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
-    CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
-    CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
-    CMOD_UNSILENT, Cmdmod, EX_ARGOPT, EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL,
-    EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_PREVIEW, EX_RANGE, EX_REGSTR, EX_SBOXOK,
-    EX_TRLBAR, EX_XFILE, EX_ZEROR, Exarg, excmd_get_argt, execute_cmd, find_ex_command,
-    get_command_name, getargcmd, getargopt, invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline,
-    replace_makeprg, set_cmd_count, undo_cmdmod,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
+    CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
+    CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, Cmdmod, EX_ARGOPT,
+    EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG,
+    EX_NOSPC, EX_PREVIEW, EX_RANGE, EX_REGSTR, EX_SBOXOK, EX_TRLBAR, EX_XFILE, EX_ZEROR, Exarg,
+    excmd_get_argt, execute_cmd, find_ex_command, get_command_name, getargcmd, getargopt,
+    invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline, replace_makeprg, set_cmd_count,
+    undo_cmdmod,
 };
 use crate::ex_eval::aborting;
 use crate::globals::*;
@@ -47,9 +48,6 @@ use std::ptr;
 
 use crate::cmdexpand::{CmdAddr, EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::cursor::Linenr;
-
-const CMD_IPUT: i32 = 200;
-const CMD_PUT: i32 = 350;
 
 const KEYSET_OPTIDX_CMD_CMD: u64 = 1;
 const KEYSET_OPTIDX_CMD_REG: u64 = 2;
@@ -337,8 +335,8 @@ pub fn nvim_parse_cmd(
     let mut args = Array::new();
     let length = crate::memory::cstr_len(ea.arg);
 
-    if ea.cmdidx != CMD_SIZE
-        && is_map_cmd(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
+    if ea.cmdidx != Cmdidx::CmdSize
+        && is_map_cmd(ea.cmdidx)
         && !crate::memory::cstr_is_empty(ea.arg)
     {
         args = parse_map_cmd(crate::memory::cstr_from_ptr(ea.arg), arena);
@@ -376,21 +374,21 @@ pub fn nvim_parse_cmd(
         }
     }
 
-    let cmd = if ea.cmdidx == CMD_USER {
+    let cmd = if ea.cmdidx == Cmdidx::CmdUser {
         let u = ucmds_mut();
         Some(&(u)[ea.useridx as usize])
-    } else if ea.cmdidx == CMD_USER_BUF {
+    } else if ea.cmdidx == Cmdidx::CmdUserBuf {
         Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
     } else {
         None
     };
 
-    let name = if ea.cmdidx == CMD_SIZE {
+    let name = if ea.cmdidx == Cmdidx::CmdSize {
         c"".as_ptr()
     } else if let Some(cmd) = cmd {
         cmd.uc_name.as_ptr()
     } else {
-        get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
+        get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
             .map_or(ptr::null(), |s| s.as_ptr())
     };
 
@@ -675,7 +673,7 @@ pub fn nvim_cmd(
         let mut p_opt = find_ex_command(&mut ea, None);
 
         if p_opt.is_some()
-            && ea.cmdidx == CMD_SIZE
+            && ea.cmdidx == Cmdidx::CmdSize
             && ascii_isupper(crate::memory::cstr_first_byte(ea.cmd))
             && has_event(EVENT_CMDUNDEFINED)
         {
@@ -689,12 +687,12 @@ pub fn nvim_cmd(
             };
         }
 
-        let range_only = ea.cmdidx == CMD_SIZE
+        let range_only = ea.cmdidx == Cmdidx::CmdSize
             && crate::memory::cstr_is_empty(cmd.cmd.data)
             && has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
             && cmd.range.size > 0;
 
-        if ea.cmdidx == CMD_SIZE
+        if ea.cmdidx == Cmdidx::CmdSize
             && crate::memory::cstr_is_empty(cmd.cmd.data)
             && (!has_key(mask, KEYSET_OPTIDX_CMD_RANGE) || cmd.range.size == 0)
             && has_key(mask, KEYSET_OPTIDX_CMD_MODS)
@@ -702,7 +700,7 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        if !((p_opt.is_some() && ea.cmdidx != CMD_SIZE) || range_only) {
+        if !((p_opt.is_some() && ea.cmdidx != Cmdidx::CmdSize) || range_only) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -714,7 +712,7 @@ pub fn nvim_cmd(
 
         let mut p: *mut crate::strings::RawCChar;
 
-        if !(range_only || !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))) {
+        if !(range_only || !is_cmd_ni(ea.cmdidx)) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -728,7 +726,7 @@ pub fn nvim_cmd(
             let fullname = if is_user_cmdidx(ea.cmdidx) {
                 get_user_command_name(ea.useridx, ea.cmdidx).map_or(ptr::null(), |s| s.as_ptr())
             } else {
-                get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
+                get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
                     .map_or(ptr::null(), |s| s.as_ptr())
             };
             let cmdname_bytes = crate::memory::cstr_as_bytes(cmdname);
@@ -747,7 +745,7 @@ pub fn nvim_cmd(
         if range_only {
             ea.argt = EX_RANGE | EX_SBOXOK;
         } else if !is_user_cmdidx(ea.cmdidx) {
-            ea.argt = excmd_get_argt(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx));
+            ea.argt = excmd_get_argt(ea.cmdidx);
         }
 
         let mut count_from_first_arg = false;
@@ -964,7 +962,9 @@ pub fn nvim_cmd(
             }
             if !valid_yank_reg(
                 i32::from(regname),
-                !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_PUT && ea.cmdidx != CMD_IPUT,
+                !is_user_cmdidx(ea.cmdidx)
+                    && ea.cmdidx != Cmdidx::CmdPut
+                    && ea.cmdidx != Cmdidx::CmdIput,
             ) {
                 api_set_error!(
                     err,
@@ -1154,7 +1154,7 @@ pub fn nvim_cmd(
             while crate::memory::cstr_as_bytes(ea.arg).starts_with(b"++") {
                 let orig_arg = ea.arg;
                 let result = getargopt(&mut ea);
-                if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx)) {
+                if !result && !is_cmd_ni(ea.cmdidx) {
                     api_err_invalid(
                         err,
                         c"argument ",
@@ -1739,9 +1739,9 @@ mod tests {
 
     #[test]
     fn ascii_and_user_cmdidx_predicates() {
-        assert!(is_user_cmdidx(CMD_USER));
-        assert!(is_user_cmdidx(CMD_USER_BUF));
-        assert!(!is_user_cmdidx(CMD_SIZE));
+        assert!(is_user_cmdidx(Cmdidx::CmdUser));
+        assert!(is_user_cmdidx(Cmdidx::CmdUserBuf));
+        assert!(!is_user_cmdidx(Cmdidx::CmdSize));
         assert!(ascii_isupper(i32::from(b'A')));
         assert!(!ascii_isupper(i32::from(b'a')));
         assert!(string_iswhite(NvimString::from_bytes(b" \t")));

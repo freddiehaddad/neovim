@@ -4069,7 +4069,7 @@ pub fn ex_call(eap: &mut Exarg) {
         return;
     }
 
-    let failed = if eap.cmdidx == Cmdidx::CmdDefer as i32 {
+    let failed = if eap.cmdidx == Cmdidx::CmdDefer {
         arg = startarg;
         !ex_defer_inner(name, &mut arg, partial_opt.as_deref(), &mut evalarg)
     } else {

@@ -1183,7 +1183,7 @@ pub fn heredoc_get(
 
 /// ":let" and ":const" commands.
 pub fn ex_let(eap: &mut Exarg) {
-    let is_const = eap.cmdidx == Cmdidx::CmdConst as i32;
+    let is_const = eap.cmdidx == Cmdidx::CmdConst;
     let mut arg = eap.arg.as_ptr();
     let mut rettv: TypVal = TypVal::new();
     let mut var_count: i32 = 0;
@@ -2243,7 +2243,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
 
 /// Lock or unlock variable indicated by `lp`.
 fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
-    let lock = eap.cmdidx == Cmdidx::CmdLockvar as i32;
+    let lock = eap.cmdidx == Cmdidx::CmdLockvar;
     let mut ret = true;
     let ll_name = lp.ll_name.unwrap_or(c"");
 

@@ -1,5 +1,6 @@
 //! Ex command-line evaluation, conditionals, loops, and exception handling (`src/nvim/ex_eval.c`).
 
+use crate::cmdexpand::Cmdidx;
 use crate::cursor::Linenr;
 use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
@@ -23,11 +24,6 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 
 const CSTACK_LEN: usize = 50;
-
-const CMD_ELSE: i32 = 142;
-const CMD_ELSEIF: i32 = 143;
-const CMD_ENDWHILE: i32 = 149;
-const CMD_WHILE: i32 = 532;
 
 pub const CSF_TRUE: i32 = 0x0001;
 pub const CSF_ACTIVE: i32 = 0x0002;
@@ -843,14 +839,14 @@ pub fn ex_else(eap: &mut Exarg) {
     if cstack.cs_idx < 0
         || (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY)) != 0
     {
-        if eap.cmdidx == CMD_ELSE {
+        if eap.cmdidx == Cmdidx::CmdElse {
             eap.errmsg = Some(gettext(c"E581: :else without :if"));
             return;
         }
         eap.errmsg = Some(gettext(c"E582: :elseif without :if"));
         skip = true;
     } else if (cstack.cs_flags[cstack.cs_idx as usize] & CSF_ELSE) != 0 {
-        if eap.cmdidx == CMD_ELSE {
+        if eap.cmdidx == Cmdidx::CmdElse {
             eap.errmsg = Some(gettext(E_MULTIPLE_ELSE));
             return;
         }
@@ -873,7 +869,7 @@ pub fn ex_else(eap: &mut Exarg) {
         skip = true;
     }
 
-    if eap.cmdidx == CMD_ELSEIF {
+    if eap.cmdidx == Cmdidx::CmdElseif {
         let mut result = false;
         let mut error = false;
         if skip
@@ -918,14 +914,14 @@ pub fn ex_while(eap: &mut Exarg) {
             cstack.cs_line[cstack.cs_idx as usize] = -1;
         }
         let idx = cstack.cs_idx as usize;
-        cstack.cs_flags[idx] = if eap.cmdidx == CMD_WHILE {
+        cstack.cs_flags[idx] = if eap.cmdidx == Cmdidx::CmdWhile {
             CSF_WHILE
         } else {
             CSF_FOR
         };
 
         let skip = check_skip(&*cstack);
-        let result = if eap.cmdidx == CMD_WHILE {
+        let result = if eap.cmdidx == Cmdidx::CmdWhile {
             eval_to_bool(
                 crate::memory::cstr_from_ptr(eap.arg),
                 &mut error,
@@ -1012,7 +1008,7 @@ pub fn ex_break(eap: &mut Exarg) {
 
 pub fn ex_endwhile(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
-    let (err, csf) = if eap.cmdidx == CMD_ENDWHILE {
+    let (err, csf) = if eap.cmdidx == Cmdidx::CmdEndwhile {
         (E_WHILE.as_ptr(), CSF_WHILE)
     } else {
         (E_FOR.as_ptr(), CSF_FOR)

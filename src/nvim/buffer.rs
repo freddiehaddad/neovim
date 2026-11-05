@@ -1919,7 +1919,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
 pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
     let save_sea = g_st().swap_exists_action;
     let skip_help_buf = matches!(
-        Cmdidx::from_raw(eap.cmdidx),
+        eap.cmdidx,
         Cmdidx::CmdBnextVariant
             | Cmdidx::CmdSbnextVariant
             | Cmdidx::CmdBnext
@@ -4518,7 +4518,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
 
     let count = if eap.addr_count == 0 { 9999 } else { eap.line2 };
 
-    let all = eap.cmdidx != Cmdidx::CmdUnhide as i32 && eap.cmdidx != Cmdidx::CmdSunhide as i32;
+    let all = eap.cmdidx != Cmdidx::CmdUnhide && eap.cmdidx != Cmdidx::CmdSunhide;
 
     reset_visual_and_resel();
     setpcmark();

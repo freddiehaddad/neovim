@@ -8,6 +8,7 @@ use crate::buffer::{
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, getdigits_int32};
+use crate::cmdexpand::Cmdidx;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, Linenr, check_cursor};
 use crate::decoration::decor_conceal_line;
@@ -95,9 +96,6 @@ const XDF_INDENT_HEURISTIC: i32 = 1 << 23;
 pub(crate) const K_OPT_DIFF: OptIndex = 70;
 pub(crate) const K_OPT_DIFFOPT: OptIndex = 73;
 pub(crate) const K_OPT_FOLDMETHOD: OptIndex = 109;
-const CMD_DIFFGET: i32 = 121;
-const CMD_DIFFPUT: i32 = 124;
-const CMD_SPLIT: i32 = 426;
 pub(crate) const K_SHELL_OPT_FILTER: i32 = 1;
 pub(crate) const K_SHELL_OPT_DO_OUT: i32 = 4;
 pub(crate) const K_SHELL_OPT_SILENT: i32 = 8;
@@ -1328,7 +1326,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     0
                 },
             ) {
-                eap.cmdidx = CMD_SPLIT;
+                eap.cmdidx = Cmdidx::CmdSplit;
                 eap.arg = crate::strings::CStrCursor::from_ptr(tmp_new);
                 do_exedit(eap, unsafe { old_curwin.as_mut() });
                 if curwin_ptr() != old_curwin && win_valid(unsafe { old_curwin.as_ref() }) {
@@ -1374,7 +1372,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
     ) {
         return;
     }
-    eap.cmdidx = CMD_SPLIT;
+    eap.cmdidx = Cmdidx::CmdSplit;
     curwin_mut().w_onebuf_opt.wo_diff = true;
     do_exedit(eap, unsafe { old_curwin.as_mut() });
     if curwin_ptr() == old_curwin {
@@ -3126,7 +3124,11 @@ pub fn nv_diffgetput(put: bool, count: usize) {
         vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%zu", count);
         ea.arg = crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr().cast());
     }
-    ea.cmdidx = if put { CMD_DIFFPUT } else { CMD_DIFFGET };
+    ea.cmdidx = if put {
+        Cmdidx::CmdDiffput
+    } else {
+        Cmdidx::CmdDiffget
+    };
     ea.addr_count = 0;
     ea.line1 = curwin_mut().w_cursor.lnum;
     ea.line2 = curwin_mut().w_cursor.lnum;
@@ -3151,7 +3153,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             if curtab_mut().tp_diffbuf[idx] != g_st().curbuf
                 && let Some(buf) = curtab_mut().diffbuf_opt(idx)
             {
-                if eap.cmdidx != CMD_DIFFPUT || modifiable(buf) {
+                if eap.cmdidx != Cmdidx::CmdDiffput || modifiable(buf) {
                     break;
                 }
                 found_not_ma = true;
@@ -3170,7 +3172,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         for i in (idx_other + 1)..DB_COUNT {
             if curtab_mut().tp_diffbuf[i] != g_st().curbuf
                 && let Some(buf) = curtab_mut().diffbuf_opt(i)
-                && (eap.cmdidx != CMD_DIFFPUT || modifiable(buf))
+                && (eap.cmdidx != Cmdidx::CmdDiffput || modifiable(buf))
             {
                 emsg(gettext(
                     c"E101: More than two buffers in diff mode, don't know which one to use",
@@ -3229,15 +3231,15 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         }
     }
     let mut aco = CtxSwitch::new();
-    if eap.cmdidx != CMD_DIFFGET {
+    if eap.cmdidx != Cmdidx::CmdDiffget {
         ctx_switch(&mut aco, None, None, curtab_mut().diffbuf_opt(idx_other), 0);
     }
-    let idx_from = if eap.cmdidx == CMD_DIFFGET {
+    let idx_from = if eap.cmdidx == Cmdidx::CmdDiffget {
         idx_other
     } else {
         idx_cur
     };
-    let idx_to = if eap.cmdidx == CMD_DIFFGET {
+    let idx_to = if eap.cmdidx == Cmdidx::CmdDiffget {
         idx_cur
     } else {
         idx_other
@@ -3259,7 +3261,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             eap.line1,
             eap.line2,
         );
-        if eap.cmdidx != CMD_DIFFGET {
+        if eap.cmdidx != Cmdidx::CmdDiffget {
             if g_st().key_typed {
                 u_sync(false);
             }

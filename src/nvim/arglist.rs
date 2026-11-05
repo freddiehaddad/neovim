@@ -5,6 +5,7 @@ use crate::buffer::{
     bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
 };
 use crate::charset::{ascii_isspace, rem_backslash};
+use crate::cmdexpand::Cmdidx;
 use crate::context::is_ctx_win;
 use crate::errors::*;
 use crate::eval::typval::{
@@ -47,13 +48,6 @@ use crate::os::env::ExpandCtx;
 const AL_SET: i32 = 1;
 const AL_ADD: i32 = 2;
 const AL_DEL: i32 = 3;
-
-const CMD_ARGS: i32 = 7;
-pub(crate) const CMD_ARGDO: i32 = 10;
-const CMD_ARGGLOBAL: i32 = 13;
-const CMD_ARGLOCAL: i32 = 14;
-const CMD_DROP: i32 = 132;
-const CMD_SNEXT_VARIANT: i32 = 420;
 
 pub(crate) const CCGD_AW: i32 = 1;
 pub(crate) const CCGD_MULTWIN: i32 = 2;
@@ -500,11 +494,11 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
 
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
 pub fn ex_args(eap: &mut Exarg) {
-    if eap.cmdidx != CMD_ARGS {
+    if eap.cmdidx != Cmdidx::CmdArgs {
         if !check_arglist_locked() {
             return;
         }
-        if eap.cmdidx == CMD_ARGGLOBAL {
+        if eap.cmdidx == Cmdidx::CmdArgglobal {
             curwin_mut().w_alist = None;
         } else {
             alist_new();
@@ -519,7 +513,7 @@ pub fn ex_args(eap: &mut Exarg) {
         return;
     }
 
-    if eap.cmdidx == CMD_ARGS {
+    if eap.cmdidx == Cmdidx::CmdArgs {
         let count = argcount();
         if count <= 0 {
             return;
@@ -535,7 +529,7 @@ pub fn ex_args(eap: &mut Exarg) {
         return;
     }
 
-    if eap.cmdidx == CMD_ARGLOCAL {
+    if eap.cmdidx == Cmdidx::CmdArglocal {
         let al = win_alist(curwin_mut());
         let gslice = garglist_slice();
         al.al_ga.reserve(gslice.len());
@@ -652,7 +646,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         Some(curwin_mut()),
     ) {
         curwin_mut().w_arg_idx = old_arg_idx;
-    } else if eap.cmdidx != CMD_ARGDO {
+    } else if eap.cmdidx != Cmdidx::CmdArgdo {
         setmark(b'\'' as i32);
     }
 }
@@ -660,7 +654,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
 /// `:next`, and commands that behave like it (`ex_next`).
 pub fn ex_next(eap: &mut Exarg) {
     if buf_hide(curbuf_mut())
-        || eap.cmdidx == CMD_SNEXT_VARIANT
+        || eap.cmdidx == Cmdidx::CmdSnextVariant
         || !check_changed(
             curbuf_mut(),
             CCGD_AW | (if eap.forceit { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
@@ -1136,7 +1130,7 @@ pub fn ex_all(eap: &mut Exarg) {
     if eap.addr_count == 0 {
         eap.line2 = 9999;
     }
-    do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CMD_DROP);
+    do_arg_all(eap.line2, eap.forceit, eap.cmdidx == Cmdidx::CmdDrop);
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).

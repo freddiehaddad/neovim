@@ -1279,9 +1279,9 @@ pub fn set_title_defaults() {
 pub fn ex_set(eap: &mut Exarg) {
     let mut flags: i32 = 0;
 
-    if eap.cmdidx == Cmdidx::CmdSetlocal as i32 {
+    if eap.cmdidx == Cmdidx::CmdSetlocal {
         flags = OPT_LOCAL;
-    } else if eap.cmdidx == Cmdidx::CmdSetglobal as i32 {
+    } else if eap.cmdidx == Cmdidx::CmdSetglobal {
         flags = OPT_GLOBAL;
     }
     if eap.forceit {

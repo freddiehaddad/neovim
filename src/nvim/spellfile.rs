@@ -4,6 +4,7 @@ use crate::api::private::helpers::cstr_as_obj;
 use crate::arglist::get_arglist_exp;
 use crate::buffer::{FileBuf, buflist_findname_exp};
 use crate::charset::{NUL, ascii_isdigit, getdigits_int, skipdigits_slice};
+use crate::cmdexpand::Cmdidx;
 use crate::cursor::Linenr;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
@@ -58,10 +59,6 @@ use crate::viml::parser::parser::CONV_NONE;
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
 pub const SPELL_ADD_BAD: SpellAddType = 1;
 pub const SPELL_ADD_RARE: SpellAddType = 2;
-
-const CMD_SPELLRARE: i32 = 431;
-const CMD_SPELLUNDO: i32 = 432;
-const CMD_SPELLWRONG: i32 = 433;
 
 pub(crate) const MAXREGIONS: usize = 8;
 
@@ -5035,9 +5032,9 @@ fn spell_message(spin: &Spellinfo, str_: &std::ffi::CStr) {
 /// ":[count]spellundo  {word}"
 /// ":[count]spellrare  {word}"
 pub fn ex_spell(eap: &mut Exarg) {
-    let what = if eap.cmdidx == CMD_SPELLWRONG {
+    let what = if eap.cmdidx == Cmdidx::CmdSpellwrong {
         SPELL_ADD_BAD
-    } else if eap.cmdidx == CMD_SPELLRARE {
+    } else if eap.cmdidx == Cmdidx::CmdSpellrare {
         SPELL_ADD_RARE
     } else {
         SPELL_ADD_GOOD
@@ -5046,7 +5043,7 @@ pub fn ex_spell(eap: &mut Exarg) {
         crate::memory::cstr_as_bytes(eap.arg),
         what,
         if eap.forceit { 0 } else { eap.line2 },
-        eap.cmdidx == CMD_SPELLUNDO,
+        eap.cmdidx == Cmdidx::CmdSpellundo,
     );
 }
 

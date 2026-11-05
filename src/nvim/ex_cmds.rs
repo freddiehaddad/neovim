@@ -486,16 +486,16 @@ pub fn ex_align(eap: &mut Exarg) {
     let mut new_indent: i32;
 
     if curwin_mut().w_onebuf_opt.wo_rl {
-        if eap.cmdidx == Cmdidx::CmdRight as i32 {
-            eap.cmdidx = Cmdidx::CmdLeft as i32;
-        } else if eap.cmdidx == Cmdidx::CmdLeft as i32 {
-            eap.cmdidx = Cmdidx::CmdRight as i32;
+        if eap.cmdidx == Cmdidx::CmdRight {
+            eap.cmdidx = Cmdidx::CmdLeft;
+        } else if eap.cmdidx == Cmdidx::CmdLeft {
+            eap.cmdidx = Cmdidx::CmdRight;
         }
     }
 
     let mut width = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
     let save_curpos = curwin_mut().w_cursor;
-    if eap.cmdidx == Cmdidx::CmdLeft as i32 {
+    if eap.cmdidx == Cmdidx::CmdLeft {
         if width >= 0 {
             indent = width;
         }
@@ -517,19 +517,19 @@ pub fn ex_align(eap: &mut Exarg) {
 
     curwin_mut().w_cursor.lnum = eap.line1;
     while curwin_mut().w_cursor.lnum <= eap.line2 {
-        if eap.cmdidx == Cmdidx::CmdLeft as i32 {
+        if eap.cmdidx == Cmdidx::CmdLeft {
             new_indent = indent;
         } else {
             let mut has_tab: i32 = 0;
-            let len = linelen((eap.cmdidx == Cmdidx::CmdRight as i32).then_some(&mut has_tab))
-                - get_indent();
+            let len =
+                linelen((eap.cmdidx == Cmdidx::CmdRight).then_some(&mut has_tab)) - get_indent();
 
             if len <= 0 {
                 curwin_mut().w_cursor.lnum += 1;
                 continue;
             }
 
-            if eap.cmdidx == Cmdidx::CmdCenter as i32 {
+            if eap.cmdidx == Cmdidx::CmdCenter {
                 new_indent = (width - len) / 2;
             } else {
                 new_indent = width - len;
@@ -2121,7 +2121,7 @@ pub fn ex_update(eap: &mut Exarg) {
 
 /// `":write"` and `":saveas"`.
 pub fn ex_write(eap: &mut Exarg) {
-    if eap.cmdidx == Cmdidx::CmdSaveas as i32 {
+    if eap.cmdidx == Cmdidx::CmdSaveas {
         eap.line1 = 1;
         eap.line2 = curbuf_mut().b_ml.ml_line_count;
     }
@@ -2169,7 +2169,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 
     'theend: {
         if crate::memory::cstr_is_empty(ffname) {
-            if eap.cmdidx == Cmdidx::CmdSaveas as i32 {
+            if eap.cmdidx == Cmdidx::CmdSaveas {
                 emsg(gettext(E_ARGREQ));
                 break 'theend;
             }
@@ -2185,7 +2185,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
 
         if other {
             if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ALTWRITE)
-                || eap.cmdidx == Cmdidx::CmdSaveas as i32
+                || eap.cmdidx == Cmdidx::CmdSaveas
             {
                 alt_buf = setaltfname(
                     crate::memory::cstr_as_opt_cstr(ffname),
@@ -2251,7 +2251,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             crate::memory::cstr_as_opt_cstr(ffname),
             other,
         ) {
-            if eap.cmdidx == Cmdidx::CmdSaveas as i32 && !alt_buf.is_null() {
+            if eap.cmdidx == Cmdidx::CmdSaveas && !alt_buf.is_null() {
                 let was_curbuf = g_st().curbuf;
 
                 apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
@@ -2313,12 +2313,12 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 false,
             );
 
-            if eap.cmdidx == Cmdidx::CmdSaveas as i32 && retval {
+            if eap.cmdidx == Cmdidx::CmdSaveas && retval {
                 curbuf_mut().b_p_ro = false;
                 g_st().redraw_tabline = true;
             }
 
-            if eap.cmdidx == Cmdidx::CmdSaveas as i32 || name_was_missing {
+            if eap.cmdidx == Cmdidx::CmdSaveas || name_was_missing {
                 do_autochdir();
             }
         }
@@ -2433,7 +2433,7 @@ pub fn do_wqall(eap: &mut Exarg) {
     let save_forceit = eap.forceit;
     let save_exiting = g_st().exiting;
 
-    if eap.cmdidx == Cmdidx::CmdXall as i32 || eap.cmdidx == Cmdidx::CmdWqall as i32 {
+    if eap.cmdidx == Cmdidx::CmdXall || eap.cmdidx == Cmdidx::CmdWqall {
         if !before_quit_all(eap) {
             return;
         }
@@ -3322,11 +3322,11 @@ pub fn ex_append(eap: &mut Exarg) {
         curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
     }
 
-    if eap.cmdidx != Cmdidx::CmdChange as i32 && curbuf_mut().b_p_ai && lnum > 0 {
+    if eap.cmdidx != Cmdidx::CmdChange && curbuf_mut().b_p_ai && lnum > 0 {
         excmds_st().append_indent = get_indent_lnum(lnum);
     }
 
-    if eap.cmdidx != Cmdidx::CmdAppend as i32 {
+    if eap.cmdidx != Cmdidx::CmdAppend {
         lnum -= 1;
     }
 
@@ -3413,7 +3413,7 @@ pub fn ex_append(eap: &mut Exarg) {
         } else {
             curbuf_mut().b_ml.ml_line_count
         };
-        if eap.cmdidx != Cmdidx::CmdAppend as i32 {
+        if eap.cmdidx != Cmdidx::CmdAppend {
             curbuf_mut().b_op_start.lnum -= 1;
         }
         curbuf_mut().b_op_end.lnum = if eap.line2 < lnum {
@@ -3879,7 +3879,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     }
     let start_nsubs = g_st().sub_nsubs;
 
-    if eap.cmdidx == Cmdidx::CmdTilde as i32 {
+    if eap.cmdidx == Cmdidx::CmdTilde {
         which_pat = RE_LAST;
     } else {
         which_pat = RE_SUBST;
@@ -4043,9 +4043,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         return 0;
     }
 
-    let magic = if eap.cmdidx == Cmdidx::CmdSmagic as i32 {
+    let magic = if eap.cmdidx == Cmdidx::CmdSmagic {
         true
-    } else if eap.cmdidx == Cmdidx::CmdSnomagic as i32 {
+    } else if eap.cmdidx == Cmdidx::CmdSnomagic {
         false
     } else {
         opt_vars().p_magic

@@ -1,6 +1,7 @@
 //! Vimscript debugger (`src/nvim/debugger.c`).
 
 use crate::charset::{getdigits_int32, skipwhite_slice};
+use crate::cmdexpand::Cmdidx;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::{E_INVARG2, E_NONAME};
 use crate::eval::typval::{Callback, TypVal, tv_clear};
@@ -21,10 +22,6 @@ use std::ffi::{CStr, CString};
 const DBG_FUNC: i32 = 1;
 const DBG_FILE: i32 = 2;
 const DBG_EXPR: i32 = 3;
-
-const CMD_BREAKDEL: i32 = 38;
-const CMD_PROFILE: i32 = 338;
-const CMD_PROFDEL: i32 = 339;
 
 const CMD_CONT: i32 = 1;
 const CMD_NEXT: i32 = 2;
@@ -568,7 +565,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
 pub fn ex_breakadd(eap: &mut Exarg) {
-    let is_prof = eap.cmdidx == CMD_PROFILE;
+    let is_prof = eap.cmdidx == Cmdidx::CmdProfile;
     let gap = dbg_vec_mut(is_prof);
 
     let Some(mut bp) = dbg_parsearg(crate::memory::cstr_from_ptr(eap.arg), is_prof) else {
@@ -586,7 +583,7 @@ pub fn ex_breakadd(eap: &mut Exarg) {
             if bp.dbg_lnum == 0 {
                 bp.dbg_lnum = 1;
             }
-            if eap.cmdidx != CMD_PROFILE {
+            if eap.cmdidx != Cmdidx::CmdProfile {
                 dbg_st().last_breakp += 1;
                 bp.dbg_nr = dbg_st().last_breakp;
                 g_st().debug_tick += 1;
@@ -620,7 +617,7 @@ pub fn ex_breakdel(eap: &mut Exarg) {
     let mut todel: isize = -1;
     let mut del_all = false;
     let mut best_lnum: i32 = 0;
-    let is_prof = eap.cmdidx == CMD_PROFDEL;
+    let is_prof = eap.cmdidx == Cmdidx::CmdProfdel;
     let gap = dbg_vec_mut(is_prof);
 
     let first_byte = crate::memory::cstr_first_byte(eap.arg);
@@ -656,7 +653,7 @@ pub fn ex_breakdel(eap: &mut Exarg) {
     let idx = todel as usize;
     while idx < gap.len() {
         let _ = gap.remove(idx);
-        if eap.cmdidx == CMD_BREAKDEL {
+        if eap.cmdidx == Cmdidx::CmdBreakdel {
             g_st().debug_tick += 1;
         }
         if !del_all {

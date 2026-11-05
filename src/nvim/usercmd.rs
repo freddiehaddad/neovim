@@ -8,6 +8,7 @@ use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
 use crate::buffer::FileBuf;
 use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_int};
+use crate::cmdexpand::Cmdidx;
 use crate::cmdexpand::{
     CmdAddr, EXPAND_ARGLIST, EXPAND_AUGROUP, EXPAND_BREAKPOINT, EXPAND_BUFFERS, EXPAND_CHECKHEALTH,
     EXPAND_COLORS, EXPAND_COMMANDS, EXPAND_COMPILER, EXPAND_DIFF_BUFFERS, EXPAND_DIRECTORIES,
@@ -26,12 +27,11 @@ use crate::eval::last_set_msg;
 use crate::eval::typval::nlua_clear_ref;
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
-    CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
-    CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
-    CMOD_UNSILENT, Cmdmod, EX_ARGSPACE, EX_BANG, EX_BUFNAME, EX_COUNT, EX_DFLALL, EX_EXTRA,
-    EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, Exarg,
-    do_cmdline, ends_excmd,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
+    CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
+    CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, Cmdmod, EX_ARGSPACE,
+    EX_BANG, EX_BUFNAME, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC,
+    EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, Exarg, do_cmdline, ends_excmd,
 };
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -273,9 +273,9 @@ pub fn find_ucmd(
                     }
 
                     if is_global {
-                        eap.cmdidx = CMD_USER;
+                        eap.cmdidx = Cmdidx::CmdUser;
                     } else {
-                        eap.cmdidx = CMD_USER_BUF;
+                        eap.cmdidx = Cmdidx::CmdUserBuf;
                     }
                     eap.argt = uc.uc_argt;
                     eap.useridx = j;
@@ -426,7 +426,10 @@ pub fn set_context_in_user_cmdarg<'a>(
 }
 
 pub fn expand_user_command_name(idx: i32) -> Option<&'static CStr> {
-    get_user_commands(&mut crate::os::env::ExpandCtx::new(), idx - CMD_SIZE)
+    get_user_commands(
+        &mut crate::os::env::ExpandCtx::new(),
+        idx - Cmdidx::CmdSize as i32,
+    )
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
@@ -455,12 +458,12 @@ pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: i32) -> Option<&'static C
 }
 
 /// Get the name of user command `idx` (`get_user_command_name`).
-pub fn get_user_command_name(idx: i32, cmdidx: i32) -> Option<&'static CStr> {
+pub fn get_user_command_name(idx: i32, cmdidx: Cmdidx) -> Option<&'static CStr> {
     let u = ucmds_mut();
-    if cmdidx == CMD_USER && idx >= 0 && (idx as usize) < u.len() {
+    if cmdidx == Cmdidx::CmdUser && idx >= 0 && (idx as usize) < u.len() {
         return Some(u[idx as usize].uc_name.as_c_str());
     }
-    if cmdidx == CMD_USER_BUF {
+    if cmdidx == Cmdidx::CmdUserBuf {
         let buf = prevwin_curwin().buf_mut();
         if idx >= 0 && (idx as usize) < buf.b_ucmds.len() {
             return Some(buf.b_ucmds[idx as usize].uc_name.as_c_str());
@@ -1663,7 +1666,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     let mut split_len: usize = 0;
     let mut split_buf: Option<CString> = None;
 
-    let cmd = if eap.cmdidx == CMD_USER {
+    let cmd = if eap.cmdidx == Cmdidx::CmdUser {
         let u = ucmds_mut();
         &mut u[eap.useridx as usize]
     } else {

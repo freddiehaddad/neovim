@@ -298,8 +298,9 @@ impl LineGetter {
 pub type CmdAddr = i32;
 
 #[repr(i32)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Cmdidx {
+    #[default]
     CmdAppend = 0,
     CmdAbbreviate,
     CmdAbclear,
@@ -1435,6 +1436,16 @@ impl Cmdidx {
         Self::CmdTilde,
         Self::CmdCapNext,
     ];
+
+    #[inline]
+    pub const fn is_user(self) -> bool {
+        (self as i32) < 0
+    }
+
+    #[inline]
+    pub const fn is_builtin(self) -> bool {
+        (self as i32) >= 0 && (self as i32) < (Self::CmdSize as i32)
+    }
 
     #[inline]
     pub const fn from_raw(idx: i32) -> Self {
@@ -3241,7 +3252,7 @@ fn set_cmd_index<'a>(
         && cmd_bytes.first() == Some(&b'k')
         && cmd_bytes.get(1) != Some(&b'e')
     {
-        eap.cmdidx = Cmdidx::CmdK as i32;
+        eap.cmdidx = Cmdidx::CmdK;
         p_idx = 1;
     } else {
         p_idx = cmd_bytes
@@ -3268,10 +3279,10 @@ fn set_cmd_index<'a>(
             return None;
         }
 
-        eap.cmdidx = excmd_get_cmdidx(cmd_bytes, p_idx) as i32;
+        eap.cmdidx = excmd_get_cmdidx(cmd_bytes, p_idx);
 
         if cmd_bytes[0].is_ascii_uppercase()
-            || (fuzzy && eap.cmdidx != Cmdidx::CmdBang as i32 && p_idx < cmd_bytes.len())
+            || (fuzzy && eap.cmdidx != Cmdidx::CmdBang && p_idx < cmd_bytes.len())
         {
             p_idx += cmd_bytes[p_idx..]
                 .iter()
@@ -3284,24 +3295,24 @@ fn set_cmd_index<'a>(
         return None;
     }
 
-    if eap.cmdidx == Cmdidx::CmdSize as i32 {
+    if eap.cmdidx == Cmdidx::CmdSize {
         if cmd_bytes.first() == Some(&b's')
             && cmd_bytes.get(1).is_some_and(|b| b"cgriI".contains(b))
         {
-            eap.cmdidx = Cmdidx::CmdSubstitute as i32;
+            eap.cmdidx = Cmdidx::CmdSubstitute;
             p_idx = 1;
         } else if cmd_bytes.first().is_some_and(u8::is_ascii_uppercase) {
             eap.cmd = crate::strings::CStrCursor::from_ptr(cmd.as_ptr());
             if let Some(off) = find_ucmd(eap, p_idx, None, Some(&mut *xp), Some(&mut *complp)) {
                 p_idx = off;
             } else {
-                eap.cmdidx = Cmdidx::CmdSize as i32;
+                eap.cmdidx = Cmdidx::CmdSize;
                 xp.xp_context = EXPAND_UNSUCCESSFUL;
                 return None;
             }
         }
     }
-    if eap.cmdidx == Cmdidx::CmdSize as i32 {
+    if eap.cmdidx == Cmdidx::CmdSize {
         xp.xp_context = EXPAND_UNSUCCESSFUL;
         return None;
     }
@@ -3375,9 +3386,7 @@ fn set_context_for_wildcard_arg(
     xp.xp_context = EXPAND_FILES;
 
     if usefilter
-        || eap.is_some_and(|eap| {
-            eap.cmdidx == Cmdidx::CmdBang as i32 || eap.cmdidx == Cmdidx::CmdTerminal as i32
-        })
+        || eap.is_some_and(|eap| eap.cmdidx == Cmdidx::CmdBang || eap.cmdidx == Cmdidx::CmdTerminal)
         || *complp == EXPAND_SHELLCMDLINE
     {
         #[cfg(not(windows))]
@@ -4244,8 +4253,8 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         p = p.wrapping_add(1);
     }
 
-    if !is_user_cmdidx(Cmdidx::from_raw(ea.cmdidx)) {
-        ea.argt = excmd_get_argt(Cmdidx::from_raw(ea.cmdidx));
+    if !is_user_cmdidx(ea.cmdidx) {
+        ea.argt = excmd_get_argt(ea.cmdidx);
     }
 
     let mut arg: *const u8 = {
@@ -4282,7 +4291,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         }
     }
 
-    if ea.cmdidx == Cmdidx::CmdWrite as i32 || ea.cmdidx == Cmdidx::CmdUpdate as i32 {
+    if ea.cmdidx == Cmdidx::CmdWrite || ea.cmdidx == Cmdidx::CmdUpdate {
         if crate::memory::cstr_first_byte(arg.cast()) == b'>' {
             arg = arg.wrapping_add(1);
             if crate::memory::cstr_first_byte(arg.cast()) == b'>' {
@@ -4296,14 +4305,14 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
             }
             .cast();
         } else if crate::memory::cstr_first_byte(arg.cast()) == b'!'
-            && ea.cmdidx == Cmdidx::CmdWrite as i32
+            && ea.cmdidx == Cmdidx::CmdWrite
         {
             arg = arg.wrapping_add(1);
             usefilter = true;
         }
     }
 
-    if ea.cmdidx == Cmdidx::CmdRead as i32 {
+    if ea.cmdidx == Cmdidx::CmdRead {
         usefilter = forceit;
         if crate::memory::cstr_first_byte(arg.cast()) == b'!' {
             arg = arg.wrapping_add(1);
@@ -4311,7 +4320,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         }
     }
 
-    if ea.cmdidx == Cmdidx::CmdLshift as i32 || ea.cmdidx == Cmdidx::CmdRshift as i32 {
+    if ea.cmdidx == Cmdidx::CmdLshift || ea.cmdidx == Cmdidx::CmdRshift {
         let cmd_first = crate::memory::cstr_first_byte(cmd.cast());
         while crate::memory::cstr_first_byte(arg.cast()) == cmd_first {
             arg = arg.wrapping_add(1);
@@ -4351,7 +4360,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         p = arg;
         let p_base = p;
         let p_bytes = crate::memory::cstr_as_bytes(p_base.cast());
-        let mut idx = if ea.cmdidx == Cmdidx::CmdRedir as i32 && p_bytes.starts_with(b"@\"") {
+        let mut idx = if ea.cmdidx == Cmdidx::CmdRedir && p_bytes.starts_with(b"@\"") {
             2
         } else {
             0
@@ -4401,15 +4410,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         set_context_for_wildcard_arg(Some(&ea), arg_cstr, usefilter, xp, &mut context);
     }
 
-    set_context_by_cmdname(
-        cmd_cstr,
-        Cmdidx::from_raw(ea.cmdidx),
-        xp,
-        arg_cstr,
-        ea.argt,
-        context,
-        forceit,
-    )
+    set_context_by_cmdname(cmd_cstr, ea.cmdidx, xp, arg_cstr, ea.argt, context, forceit)
 }
 
 /// Set the completion context in "xp" for command "str".

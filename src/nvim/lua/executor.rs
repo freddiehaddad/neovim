@@ -10,6 +10,7 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::change::inserted_bytes;
+use crate::cmdexpand::Cmdidx;
 use crate::cursor::{Colnr, check_cursor};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::errors::*;
@@ -119,8 +120,6 @@ const LUVF_CALLBACK_NOEXIT: i32 = 0x01;
 const K_CALLBACK: isize = 0;
 const K_THREAD: isize = 1;
 const K_THREAD_CALLBACK: isize = 2;
-
-const CMD_EQUAL: i32 = 559;
 
 #[derive(Clone, Copy)]
 struct BuiltinModule {
@@ -353,7 +352,7 @@ use crate::buffer::VAR_FIXED;
 use crate::cmdexpand::{K_UICMDLINE, MB_MAXBYTES};
 use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_docmd::{
-    CMD_SIZE, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
+    CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
     CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
     CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE, EX_EXTRA, EX_NEEDARG, EX_NOSPC,
 };
@@ -472,11 +471,11 @@ fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &Cmdmod) {
 }
 
 fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
-    if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CMD_SIZE {
+    if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < Cmdidx::CmdSize {
         crate::lua::converter::lua_pushstring_opt(
             lstate,
             crate::memory::cstr_as_opt_cstr(
-                (get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx))
+                (get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx as i32))
                     .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
             ),
         );
@@ -2154,8 +2153,8 @@ pub fn ex_lua(eap: &mut Exarg) {
     }
 
     let raw_bytes = raw_cstr.to_bytes();
-    if eap.cmdidx == CMD_EQUAL || raw_bytes.first() == Some(&b'=') {
-        let off: usize = if eap.cmdidx == CMD_EQUAL { 0 } else { 1 };
+    if eap.cmdidx == Cmdidx::CmdEqual || raw_bytes.first() == Some(&b'=') {
+        let off: usize = if eap.cmdidx == Cmdidx::CmdEqual { 0 } else { 1 };
         let body = &raw_bytes[off..];
         let mut buf = Vec::with_capacity(18 + body.len());
         buf.extend_from_slice(b"vim._print(true, ");
@@ -2697,15 +2696,14 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
 mod tests {
     use super::*;
     use crate::api::command::is_user_cmdidx;
-    use crate::ex_docmd::{CMD_USER, CMD_USER_BUF};
 
     #[test]
     fn mode_ret_and_user_cmdidx_helpers_work() {
         assert_eq!(mode_ret(K_RET_OBJECT), 1);
         assert_eq!(mode_ret(K_RET_MULTI), LUA_MULTRET);
         assert_eq!(mode_ret(K_RET_MULTI_STACK), LUA_MULTRET);
-        assert!(is_user_cmdidx(CMD_USER));
-        assert!(is_user_cmdidx(CMD_USER_BUF));
+        assert!(is_user_cmdidx(Cmdidx::CmdUser));
+        assert!(is_user_cmdidx(Cmdidx::CmdUserBuf));
         assert!(!is_user_cmdidx(0));
         assert!(nlua_is_deferred_safe());
         assert_eq!(api_new_luaref(LUA_NOREF), LUA_NOREF);

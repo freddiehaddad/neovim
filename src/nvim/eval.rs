@@ -6597,16 +6597,16 @@ pub fn ex_echo(eap: &mut Exarg) {
         if !eap.skip {
             if atstart {
                 atstart = false;
-                msg_ext_set_append(eap.cmdidx == Cmdidx::CmdEchon as i32);
+                msg_ext_set_append(eap.cmdidx == Cmdidx::CmdEchon);
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echo");
-                if eap.cmdidx == Cmdidx::CmdEcho as i32 {
+                if eap.cmdidx == Cmdidx::CmdEcho {
                     if !g_st().msg_didout {
                         msg_sb_eol();
                     }
                     msg_start();
                 }
-            } else if eap.cmdidx == Cmdidx::CmdEcho as i32 {
+            } else if eap.cmdidx == Cmdidx::CmdEcho {
                 msg_puts_hl(c" ", eval_st().echo_hl_id, false);
             }
             let tofree = encode_tv2echo(&mut rettv, None);
@@ -6643,7 +6643,7 @@ pub fn ex_echo(eap: &mut Exarg) {
         } else if need_clear {
             msg_clr_eos();
         }
-        if eap.cmdidx == Cmdidx::CmdEcho as i32 {
+        if eap.cmdidx == Cmdidx::CmdEcho {
             msg_end();
         }
     }
@@ -6681,7 +6681,7 @@ pub fn ex_execute(eap: &mut Exarg) {
 
         if !eap.skip {
             let mut argstr_owned: Option<std::ffi::CString> = None;
-            let argstr = if eap.cmdidx == Cmdidx::CmdExecute as i32 {
+            let argstr = if eap.cmdidx == Cmdidx::CmdExecute {
                 tv_get_string(&rettv)
             } else {
                 argstr_owned = Some(if rettv.v_type == VarType::VarString {
@@ -6715,18 +6715,18 @@ pub fn ex_execute(eap: &mut Exarg) {
 
     if ret && has_arg {
         buf.push(0);
-        if eap.cmdidx == Cmdidx::CmdEchomsg as i32 {
+        if eap.cmdidx == Cmdidx::CmdEchomsg {
             msg_ext_no_fast();
             msg_ext_set_kind(c"echomsg");
             msg(crate::memory::cstr_until_nul(&buf), eval_st().echo_hl_id);
-        } else if eap.cmdidx == Cmdidx::CmdEchoerr as i32 {
+        } else if eap.cmdidx == Cmdidx::CmdEchoerr {
             let save_did_emsg = g_st().did_emsg;
             msg_ext_no_fast();
             emsg_multiline(crate::memory::cstr_until_nul(&buf), c"echoerr", HLF_E, true);
             if !g_st().force_abort {
                 g_st().did_emsg = save_did_emsg;
             }
-        } else if eap.cmdidx == Cmdidx::CmdExecute as i32 {
+        } else if eap.cmdidx == Cmdidx::CmdExecute {
             do_cmdline(
                 Some(crate::memory::cstr_until_nul(&buf)),
                 eap.ea_getline,

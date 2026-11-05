@@ -3,6 +3,7 @@
 use crate::arglist::{Aentry, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
 use crate::buffer::{FileBuf, bt_help, bt_nofilename, bt_normal, bt_terminal, buflist_findnr};
+use crate::cmdexpand::Cmdidx;
 use crate::errors::*;
 use crate::eval::typval::{VarType, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
@@ -33,10 +34,6 @@ use crate::regexp::MAXCOL;
 
 pub(crate) const OPT_SKIPRTP: i32 = 0x80;
 pub(crate) const K_CD_CAUSE_OTHER: i32 = -1;
-
-const CMD_MKSESSION: i32 = 287;
-const CMD_MKVIMRC: i32 = 289;
-const CMD_MKVIEW: i32 = 290;
 
 const K_OPT_SSOP_FLAG_BUFFERS: u32 = 0x01;
 const K_OPT_SSOP_FLAG_RESIZE: u32 = 0x04;
@@ -944,14 +941,14 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     let mut using_vdir = false;
     let mut view_file: Option<CString> = None;
 
-    if eap.cmdidx == CMD_MKSESSION || eap.cmdidx == CMD_MKVIEW {
+    if eap.cmdidx == Cmdidx::CmdMksession || eap.cmdidx == Cmdidx::CmdMkview {
         view_session = true;
     }
 
     exses_st().did_lcd = false;
 
     let fname: &CStr;
-    if eap.cmdidx == CMD_MKVIEW && {
+    if eap.cmdidx == Cmdidx::CmdMkview && {
         let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
         arg_bytes.is_empty() || (arg_bytes.len() == 1 && arg_bytes[0].is_ascii_digit())
     } {
@@ -964,9 +961,9 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         using_vdir = true;
     } else if !crate::memory::cstr_is_empty(eap.arg) {
         fname = crate::memory::cstr_from_ptr(eap.arg);
-    } else if eap.cmdidx == CMD_MKVIMRC {
+    } else if eap.cmdidx == Cmdidx::CmdMkvimrc {
         fname = c".nvimrc";
-    } else if eap.cmdidx == CMD_MKSESSION {
+    } else if eap.cmdidx == Cmdidx::CmdMksession {
         fname = c"Session.vim";
     } else {
         fname = c".exrc";
@@ -978,29 +975,32 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
     if let Some(fd) = open_exfile(fname, eap.forceit, c"wb") {
         let mut failed = false;
-        let flagp = if eap.cmdidx == CMD_MKVIEW {
+        let flagp = if eap.cmdidx == Cmdidx::CmdMkview {
             &raw mut opt_vars().vop_flags
         } else {
             &raw mut opt_vars().ssop_flags
         };
 
-        if eap.cmdidx == CMD_MKSESSION {
+        if eap.cmdidx == Cmdidx::CmdMksession {
             apply_autocmds(EVENT_SESSIONWRITEPRE, None, None, false, curbuf_opt_mut());
         }
 
-        if eap.cmdidx == CMD_MKVIMRC {
+        if eap.cmdidx == Cmdidx::CmdMkvimrc {
             put_line(&fd, c"version 6.0");
         }
 
-        if eap.cmdidx == CMD_MKSESSION && !put_line(&fd, c"let SessionLoad = 1") {
+        if eap.cmdidx == Cmdidx::CmdMksession && !put_line(&fd, c"let SessionLoad = 1") {
             failed = true;
         }
 
         if !view_session
-            || (eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_OPTIONS) != 0)
+            || (eap.cmdidx == Cmdidx::CmdMksession
+                && (unsafe { *flagp } & K_OPT_SSOP_FLAG_OPTIONS) != 0)
         {
             let mut flags = OPT_GLOBAL;
-            if eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0 {
+            if eap.cmdidx == Cmdidx::CmdMksession
+                && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0
+            {
                 flags |= OPT_SKIPRTP;
             }
             failed |= !makemap(&fd, None) || !makeset(&fd, flags, 0);
@@ -1014,7 +1014,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 {
                     failed = true;
                 }
-            if eap.cmdidx == CMD_MKSESSION {
+            if eap.cmdidx == Cmdidx::CmdMksession {
                 let mut dirnow_vec: Vec<u8> = vec![0; MAXPATHL];
 
                 if !os_dirname(&mut dirnow_vec)
@@ -1071,7 +1071,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             if g_st().search_global.no_hlsearch && !write_bytes(&fd, b"nohlsearch\n") {
                 failed = true;
             }
-            if eap.cmdidx == CMD_MKSESSION
+            if eap.cmdidx == Cmdidx::CmdMksession
                 && !write_bytes(&fd, b"doautoall SessionLoadPost\nunlet SessionLoad\n")
             {
                 failed = true;
@@ -1085,7 +1085,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
         if failed {
             emsg(gettext(E_WRITE));
-        } else if eap.cmdidx == CMD_MKSESSION {
+        } else if eap.cmdidx == Cmdidx::CmdMksession {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
             if vim_full_name(
                 crate::memory::cstr_as_opt_cstr((fname.as_ptr()).cast()),
@@ -1103,7 +1103,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
     drop(view_file);
 
-    if eap.cmdidx == CMD_MKSESSION {
+    if eap.cmdidx == Cmdidx::CmdMksession {
         apply_autocmds(EVENT_SESSIONWRITEPOST, None, None, false, curbuf_opt_mut());
     }
 }
