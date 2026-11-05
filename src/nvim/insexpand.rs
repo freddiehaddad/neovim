@@ -4181,10 +4181,8 @@ fn get_next_filename_completion() {
 
     if in_fuzzy_collect {
         #[cfg(windows)]
-        if let Some(leader_cstr) = ins_compl_leader() {
-            path_to_slash(crate::memory::cstr_as_mut_bytes(
-                leader_cstr.as_ptr().cast_mut().cast(),
-            ));
+        if !insexp().compl_leader.is_empty() {
+            path_to_slash(insexp().compl_leader.as_bytes_with_nul_mut());
             leader_slice = ins_compl_leader_slice();
         }
         if let Some(sep_idx) = leader_slice.iter().rposition(|&b| b == PATHSEP) {

@@ -174,10 +174,10 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     }
 
     #[cfg(windows)]
-    if let Some(ref ev) = env_val {
-        path_to_slash(crate::memory::cstr_as_mut_bytes(
-            ev.as_ptr().cast_mut().cast(),
-        ));
+    if let Some(ref mut ev) = env_val {
+        crate::memory::cstring_modify(ev, |b| {
+            path_to_slash(b);
+        });
     }
 
     let mut ret: Option<CString> = if env_val.is_some() {

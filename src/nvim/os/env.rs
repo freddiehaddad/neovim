@@ -599,10 +599,8 @@ pub fn expand_env_esc(
                     }
                     dst_slice[dst_idx + var_len] = 0;
                     var_cstr = vim_getenv(crate::memory::cstr_until_nul(&dst_slice[dst_idx..]));
-                    if let Some(ref c) = var_cstr {
-                        to_slash(crate::memory::cstr_as_mut_bytes(
-                            c.as_ptr().cast_mut().cast(),
-                        ));
+                    if let Some(ref mut c) = var_cstr {
+                        crate::memory::cstring_modify(c, to_slash);
                     }
                     var = var_cstr
                         .as_ref()
@@ -613,10 +611,8 @@ pub fn expand_env_esc(
                 {
                     dst_slice[dst_idx + var_len] = 0;
                     var_cstr = vim_getenv(crate::memory::cstr_until_nul(&dst_slice[dst_idx..]));
-                    if let Some(ref c) = var_cstr {
-                        to_slash(crate::memory::cstr_as_mut_bytes(
-                            c.as_ptr().cast_mut().cast(),
-                        ));
+                    if let Some(ref mut c) = var_cstr {
+                        crate::memory::cstring_modify(c, to_slash);
                     }
                     var = var_cstr
                         .as_ref()
@@ -848,9 +844,9 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             return env_st().homedir.clone();
         }
 
-        let kos_env_path = os_getenv_cstr(name);
+        let mut kos_env_path = os_getenv_cstr(name);
         #[cfg(windows)]
-        if let Some(ref c) = kos_env_path
+        if let Some(ref mut c) = kos_env_path
             && (name_bytes.eq_ignore_ascii_case(b"VIMRUNTIME")
                 || name_bytes.eq_ignore_ascii_case(b"PATH")
                 || name_bytes.eq_ignore_ascii_case(b"CDPATH")
@@ -860,9 +856,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                 || name_bytes.eq_ignore_ascii_case(b"VIM")
                 || name_bytes.eq_ignore_ascii_case(b"MYVIMRC"))
         {
-            to_slash(crate::memory::cstr_as_mut_bytes(
-                c.as_ptr().cast_mut().cast(),
-            ));
+            crate::memory::cstring_modify(c, to_slash);
         }
         if kos_env_path.is_some() {
             return kos_env_path;
@@ -995,10 +989,8 @@ pub fn home_replace(
     if homedir_env_cstr.is_none() {
         homedir_env_cstr = os_getenv_cstr(c"USERPROFILE");
     }
-    if let Some(ref c) = homedir_env_cstr {
-        to_slash(crate::memory::cstr_as_mut_bytes(
-            c.as_ptr().cast_mut().cast(),
-        ));
+    if let Some(ref mut c) = homedir_env_cstr {
+        crate::memory::cstring_modify(c, to_slash);
     }
     let homedir_env = homedir_env_cstr
         .as_ref()

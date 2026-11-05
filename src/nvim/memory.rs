@@ -515,6 +515,15 @@ pub fn cstring_until_nul(bytes: &[u8]) -> CString {
     cstr_until_nul(bytes).to_owned()
 }
 
+/// Safely mutate the bytes of a `CString` in place via its owned `Vec<u8>`.
+#[inline]
+pub fn cstring_modify<R>(s: &mut CString, f: impl FnOnce(&mut [u8]) -> R) -> R {
+    let mut v = std::mem::take(s).into_bytes_with_nul();
+    let r = f(&mut v);
+    *s = cstring_until_nul(&v);
+    r
+}
+
 /// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
 #[inline]
 pub fn cstr_as_opt_cstr<'a>(s: impl AsCStrPtr) -> Option<&'a CStr> {

@@ -10099,10 +10099,8 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
         tv_list_free(Some(l));
     }
 
-    if let Some(ref rf) = ret_fname {
-        to_slash(crate::memory::cstr_as_mut_bytes(
-            rf.as_ptr().cast_mut().cast(),
-        ));
+    if let Some(ref mut rf) = ret_fname {
+        crate::memory::cstring_modify(rf, to_slash);
     }
     ret_fname
 }
