@@ -2994,12 +2994,20 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
     if !wp.w_onebuf_opt.wo_diff {
         return false;
     }
+
+    // "wp" may be in another tab page.
+    let tp = if crate::window::win_valid(Some(&*wp)) {
+        curtab_mut()
+    } else {
+        crate::window::win_find_tabpage(wp).unwrap_or_else(curtab_mut)
+    };
+
     let mut idx: i32 = -1;
     let mut other = false;
     for i in 0..DB_COUNT {
-        if curtab_mut().tp_diffbuf[i] == wp.w_buffer {
+        if tp.tp_diffbuf[i] == wp.w_buffer {
             idx = i as i32;
-        } else if !curtab_mut().tp_diffbuf[i].is_null() {
+        } else if !tp.tp_diffbuf[i].is_null() {
             other = true;
         }
     }
@@ -3007,17 +3015,17 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         return false;
     }
     let u_idx = idx as usize;
-    if curtab_mut().tp_diff_invalid != 0 {
+    if g_st().curtab == tp && tp.tp_diff_invalid != 0 {
         ex_diffupdate(&mut crate::ex_docmd::Exarg::new());
     }
-    if curtab_mut().tp_diffs.is_empty() {
+    if tp.tp_diffs.is_empty() {
         return true;
     }
     let mut le: Option<usize> = None;
     let mut result = true;
-    let mut dp_idx = diff_scan_start(curtab_mut(), idx, lnum);
-    while dp_idx < curtab_mut().tp_diffs.len() {
-        let dp = &(&curtab_mut().tp_diffs)[dp_idx];
+    let mut dp_idx = diff_scan_start(tp, idx, lnum);
+    while dp_idx < tp.tp_diffs.len() {
+        let dp = &tp.tp_diffs[dp_idx];
         if dp.df_lnum[u_idx] <= lnum {
             le = Some(dp_idx);
         }
@@ -3030,7 +3038,7 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
         }
         dp_idx += 1;
     }
-    diff_scan_remember(curtab_mut(), idx, lnum, le);
+    diff_scan_remember(tp, idx, lnum, le);
     result
 }
 pub fn nv_diffgetput(put: bool, count: usize) {
