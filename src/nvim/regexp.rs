@@ -2465,7 +2465,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         let mut n2: i32 = 0;
         let mut n1 = *n;
         while n1 > 0 && !rem1.is_empty() {
-            let step = crate::mbyte::utfc_slice2len(rem1);
+            let step = crate::mbyte::utf_slice2len(rem1);
             n1 -= step as i32;
             rem1 = &rem1[step..];
             n2 += 1;
@@ -2473,7 +2473,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         let mut rem2 = s2_b;
         while n2 > 0 && !rem2.is_empty() {
             n2 -= 1;
-            let step = crate::mbyte::utfc_slice2len(rem2);
+            let step = crate::mbyte::utf_slice2len(rem2);
             rem2 = &rem2[step..];
         }
         n2 = (s2_b.len() - rem2.len()) as i32;
