@@ -861,9 +861,23 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE));
         assert!(!has_key(mask, KEYSET_OPTIDX_OPTION_WIN));
         {
-            assert!((crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"local")));
-            assert!(!(crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"global")));
-            assert!(crate::memory::cstr_as_opt_bytes(std::ptr::null::<u8>()).is_none());
+            assert!(
+                crate::strings::ByteSlice::from_ptr(c"local".as_ptr())
+                    .as_opt_cstr()
+                    .map(CStr::to_bytes)
+                    == Some(b"local")
+            );
+            assert!(
+                crate::strings::ByteSlice::from_ptr(c"local".as_ptr())
+                    .as_opt_cstr()
+                    .map(CStr::to_bytes)
+                    != Some(b"global")
+            );
+            assert!(
+                crate::strings::ByteSlice::from_ptr(std::ptr::null::<u8>())
+                    .as_opt_cstr()
+                    .is_none()
+            );
         }
     }
 }

@@ -53,7 +53,7 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes};
+use crate::memory::{Arena, arena_finish, arena_mem_free, bytes_to_cstring};
 use crate::message::{emsg, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
 use crate::r#move::{validate_cursor, win_col_off};
@@ -351,7 +351,7 @@ pub fn get_recorded() -> std::ffi::CString {
         bytes.pop();
     }
 
-    crate::memory::cstr_from_bytes(&bytes)
+    crate::memory::bytes_to_cstring(&bytes)
 }
 
 fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<u8>, replay: bool) {
@@ -409,7 +409,7 @@ pub fn redo_keys(spec: Option<&CmdSpec>) -> Option<std::ffi::CString> {
     if buf.is_empty() {
         None
     } else {
-        Some(crate::memory::cstr_from_bytes(&buf))
+        Some(crate::memory::bytes_to_cstring(&buf))
     }
 }
 
@@ -2988,7 +2988,7 @@ pub fn getcmdkeycmd(promptc: i32, _indent: i32, _do_concat: bool) -> Option<std:
     if aborted {
         None
     } else {
-        let out = cstr_from_bytes(&line);
+        let out = bytes_to_cstring(&line);
         if promptc == b':' as i32 {
             atom_cmdline_set(K_COMMAND, out.as_bytes());
         }

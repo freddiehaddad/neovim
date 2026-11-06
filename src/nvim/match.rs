@@ -1243,7 +1243,7 @@ pub fn ex_match(eap: &mut Exarg) {
 
                 let p_next = p.wrapping_add(1);
                 let pat_len = end.offset_from(p_next);
-                let pat_cstr = crate::memory::cstr_from_bytes(p_next.slice(pat_len));
+                let pat_cstr = crate::memory::bytes_to_cstring(p_next.slice(pat_len));
                 match_add(
                     curwin_mut(),
                     g.as_deref(),

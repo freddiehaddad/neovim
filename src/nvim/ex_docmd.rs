@@ -147,7 +147,7 @@ use crate::mark::{
 use crate::r#match::ex_match;
 use crate::mbyte::{get_encoding_name, utf_head_off_slice, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
-use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes};
+use crate::memory::{ArenaMem, arena_mem_free, bytes_to_cstring};
 use crate::menu::{SaveState, ex_emenu, ex_menu, ex_menutranslate};
 use crate::message::{
     emsg, emsg_multiline, ex_messages, iemsg, msg, msg_ext_set_kind, msg_make, msg_outtrans,
@@ -6475,7 +6475,7 @@ fn do_one_cmd(
             while ascii_isalnum((cmdend).first_byte()) {
                 cmdend = cmdend.wrapping_add(1);
             }
-            let cmdname = cstr_from_bytes(
+            let cmdname = bytes_to_cstring(
                 ea.cmd
                     .slice((cmdend.as_ptr() as usize) - (ea.cmd.as_ptr() as usize)),
             );
@@ -9036,7 +9036,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
                     ),
                     n,
                 );
-                if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 1)
+                if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::bytes_as_cstr(&buff), 1)
                     == VIM_YES
                 {
                     return true;
@@ -9265,12 +9265,16 @@ fn ex_restart(eap: &mut Exarg) {
         .map_or(c"qall".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
     let mut after_cmd = eap.arg.as_ptr();
 
-    if crate::memory::cstr_as_opt_bytes(quit_cmd) == Some(b":::") {
+    if crate::strings::ByteSlice::from_ptr(quit_cmd)
+        .as_opt_cstr()
+        .map(std::ffi::CStr::to_bytes)
+        == Some(b":::")
+    {
         startreason = c"restart".as_ptr();
         if eap.args.len() > 1 {
             let arg1 = eap.args.as_slice()[1];
             let arglen1 = eap.arglens.as_slice()[1];
-            quit_cmd_cstr = cstr_from_bytes((arg1).slice(arglen1));
+            quit_cmd_cstr = bytes_to_cstring((arg1).slice(arglen1));
             quit_cmd = quit_cmd_cstr.as_ptr().cast_mut();
             after_cmd = if eap.args.len() > 2 {
                 eap.args.as_slice()[2].as_ptr()
@@ -9547,7 +9551,7 @@ fn ex_restart(eap: &mut Exarg) {
             let _ = emsg(c"restart failed: could not get listen address from new server");
             break 'fail_2;
         }
-        let listen_addr = cstr_from_bytes(result.data.string().as_bytes());
+        let listen_addr = bytes_to_cstring(result.data.string().as_bytes());
         arena_mem_free(result_mem);
         result_mem = ArenaMem::NULL;
 
@@ -9602,7 +9606,7 @@ fn ex_restart(eap: &mut Exarg) {
         if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
             let mut bytes = Vec::from(&b"confirm "[..]);
             bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(quit_cmd).as_bytes());
-            let cstr = cstr_from_bytes(&bytes);
+            let cstr = bytes_to_cstring(&bytes);
             quit_cmd = cstr.as_ptr().cast_mut();
             quit_cmd_copy = Some(cstr);
         }
@@ -10051,7 +10055,7 @@ pub fn expand_findfunc(xp: &mut ExpandCtx, pat: &CStr, files: &mut Vec<std::ffi:
 }
 
 fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
-    let findarg_cstr = cstr_from_bytes(crate::memory::bytes_until_nul(findarg));
+    let findarg_cstr = bytes_to_cstring(crate::memory::bytes_until_nul(findarg));
     let mut ret_fname: Option<std::ffi::CString> = None;
 
     let mut fname_list = call_findfunc(&findarg_cstr, K_BOOL_VAR_FALSE_CONST);
@@ -10266,7 +10270,7 @@ fn ex_tabs(_eap: &mut Exarg) {
         }
         let _ = vim_snprintf!(&mut g_st().iobuff, gettext(c"Tab page %d"), tabcount);
         let _ = msg_outtrans(
-            crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+            crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
             HLF_T,
             false,
         );
@@ -10306,7 +10310,7 @@ fn ex_tabs(_eap: &mut Exarg) {
                 );
             }
             let _ = msg_outtrans(
-                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
                 0,
                 false,
             );
@@ -10741,7 +10745,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
         if old_linenr != curwin_mut().w_cursor.lnum {
             let ctrl_o = [CTRL_O, 0];
             let _ = ins_typebuf(
-                crate::memory::cstr_until_nul(&ctrl_o),
+                crate::memory::bytes_as_cstr(&ctrl_o),
                 REMAP_NONE,
                 0,
                 true,
@@ -10865,7 +10869,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
 
     if trigger_dirchanged {
         do_autocmd_dirchanged(
-            crate::memory::cstr_until_nul(&cwd),
+            crate::memory::bytes_as_cstr(&cwd),
             scope,
             K_CD_CAUSE_MANUAL,
             false,
@@ -11001,7 +11005,7 @@ fn ex_pwd(_eap: &mut Exarg) {
             let _ = smsg!(0, c"[%s] %s", context, g_st().name_buff.as_ptr(),);
         } else {
             let _ = msg(
-                crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()),
+                crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()),
                 0,
             );
         }
@@ -11722,7 +11726,7 @@ fn ex_normal(eap: &mut Exarg) {
         exec_normal_cmd(
             arg_vec
                 .as_ref()
-                .map_or_else(|| eap.arg.as_cstr(), |v| crate::memory::cstr_until_nul(v)),
+                .map_or_else(|| eap.arg.as_cstr(), |v| crate::memory::bytes_as_cstr(v)),
             if eap.forceit { REMAP_NONE } else { REMAP_YES },
             false,
         );
@@ -12289,7 +12293,9 @@ pub fn eval_vars(
         } else if !skip_mod {
             let mut fbuf = match resultbuf.take() {
                 Some(v) => v,
-                None => crate::memory::cstr_to_cstring(result).into_bytes_with_nul(),
+                None => crate::strings::ByteSlice::from_ptr(result)
+                    .to_cstring()
+                    .into_bytes_with_nul(),
             };
             let mut fname_off = 0usize;
             let mod_res = modify_fname(
@@ -12323,7 +12329,7 @@ pub fn eval_vars(
         }
         None
     } else {
-        Some(cstr_from_bytes(unsafe {
+        Some(bytes_to_cstring(unsafe {
             std::slice::from_raw_parts(result.cast::<u8>(), resultlen)
         }))
     };
@@ -12477,7 +12483,7 @@ fn ex_filetype(eap: &mut Exarg) {
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
     let mut st = docmd_st();
     let _ = vim_snprintf!(&mut st.ex_error_buf, gettext(msg), arg.as_ptr());
-    crate::memory::cstr_until_nul(&st.borrow().ex_error_buf)
+    crate::memory::bytes_as_cstr(&st.borrow().ex_error_buf)
 }
 
 pub fn filetype_plugin_enable() {

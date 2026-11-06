@@ -1591,7 +1591,7 @@ pub fn open_line(
         let lead_off = ((crate::strings::AsByteSlice::byte_addr(leader) as isize)
             - (crate::strings::AsByteSlice::byte_addr(allocated_vec.as_ptr()) as isize))
             as usize;
-        let mut cur_len = crate::memory::cstr_until_nul(&allocated_vec[lead_off..])
+        let mut cur_len = crate::memory::bytes_as_cstr(&allocated_vec[lead_off..])
             .to_bytes()
             .len();
         if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {

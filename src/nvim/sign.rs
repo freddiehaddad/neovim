@@ -356,7 +356,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
             msg_putchar(b'\n' as i32);
             let fname = buf_ref.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
             vim_snprintf!(&mut lbuf[..], gettext(c"Signs for %s:"), fname);
-            msg_puts_hl(crate::memory::cstr_until_nul(&lbuf), HLF_D, false);
+            msg_puts_hl(crate::memory::bytes_as_cstr(&lbuf), HLF_D, false);
         }
 
         if ns >= 0 {
@@ -404,7 +404,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
                         namebuf.as_ptr(),
                         i32::from(sh.priority),
                     );
-                    msg_puts(crate::memory::cstr_until_nul(&lbuf));
+                    msg_puts(crate::memory::bytes_as_cstr(&lbuf));
                     if i < signs.len() - 1 {
                         msg_putchar(b'\n' as i32);
                     }
@@ -456,7 +456,7 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], te
     unescaped.push(0);
 
     let mut cells: usize = 0;
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_until_nul(&unescaped));
+    let mut ci = utf_ptr2_str_char_info(crate::memory::bytes_as_cstr(&unescaped));
     while !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         if !vim_isprintc(ci.chr.value) || cells + (cli.cells as usize) > SIGN_WIDTH {
@@ -603,12 +603,12 @@ fn sign_list_defined(sp: &mut Sign) {
         msg_puts(c" text=");
         let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
         describe_sign_text(&mut buf, &sp.sn_text);
-        msg_outtrans(crate::memory::cstr_until_nul(&buf), 0, false);
+        msg_outtrans(crate::memory::bytes_as_cstr(&buf), 0, false);
     }
     if sp.sn_priority > 0 {
         let mut lbuf = [0u8; MSG_BUF_LEN];
         vim_snprintf!(&mut lbuf[..], c" priority=%d", sp.sn_priority);
-        msg_puts(crate::memory::cstr_until_nul(&lbuf));
+        msg_puts(crate::memory::bytes_as_cstr(&lbuf));
     }
     let args = [c" linehl=", c" texthl=", c" culhl=", c" numhl="];
     let hls = [sp.sn_line_hl, sp.sn_text_hl, sp.sn_cul_hl, sp.sn_num_hl];
@@ -1055,7 +1055,7 @@ fn sign_get_info_dict(sp: &mut Sign) -> &'static mut TvDict {
     if sp.sn_text[0] != 0 {
         let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
         describe_sign_text(&mut buf, &sp.sn_text);
-        tv_dict_add_str(&mut *d, c"text", Some(crate::memory::cstr_until_nul(&buf)));
+        tv_dict_add_str(&mut *d, c"text", Some(crate::memory::bytes_as_cstr(&buf)));
     }
     if sp.sn_priority > 0 {
         tv_dict_add_nr(&mut *d, c"priority", i64::from(sp.sn_priority));

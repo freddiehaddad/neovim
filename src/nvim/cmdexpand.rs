@@ -55,7 +55,7 @@ use crate::lua::executor::{
 use crate::mapping::{expand_mappings, set_context_in_map_cmd};
 use crate::mbyte::{mb_tolower, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
 use crate::message::{
     emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
@@ -2015,7 +2015,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     } else {
         let tmp =
             if cmdline_fuzzy_completion_supported(xp) || xp.xp_context == EXPAND_PATTERN_IN_BUF {
-                cstr_from_bytes(xp.xp_pattern.slice(xp.xp_pattern_len))
+                bytes_to_cstring(xp.xp_pattern.slice(xp.xp_pattern_len))
             } else {
                 addstar(xp.xp_pattern.slice(xp.xp_pattern_len), xp.xp_context)
             };
@@ -2027,7 +2027,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             | if escape { WILD_ESCAPE } else { 0 }
             | if opt_vars().p_wic { WILD_ICASE } else { 0 };
         let orig =
-            cstr_from_bytes((ccline.cmdbuff().wrapping_add(i as usize)).slice(xp.xp_pattern_len));
+            bytes_to_cstring((ccline.cmdbuff().wrapping_add(i as usize)).slice(xp.xp_pattern_len));
         p = expand_one(xp, Some(tmp.as_c_str()), Some(orig), use_options, type_arg);
         if let Some(ref p_str) = p
             && type_arg == WILD_LONGEST
@@ -2422,14 +2422,14 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
             row,
         );
 
-        grid_line_puts(0, crate::memory::cstr_until_nul(&buf_vec), -1, attr);
+        grid_line_puts(0, crate::memory::bytes_as_cstr(&buf_vec), -1, attr);
         if let Some(start_idx) = selstart_idx
             && highlight
         {
             buf_vec[selend_idx] = 0;
             grid_line_puts(
                 selstart_col,
-                crate::memory::cstr_until_nul(&buf_vec[start_idx..]),
+                crate::memory::bytes_as_cstr(&buf_vec[start_idx..]),
                 -1,
                 hl_attr(HLF_WM),
             );
@@ -2636,7 +2636,7 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
         len += mb_len;
     }
 
-    cstr_from_bytes(unsafe { std::slice::from_raw_parts((first_file).cast::<u8>(), len) })
+    bytes_to_cstring(unsafe { std::slice::from_raw_parts((first_file).cast::<u8>(), len) })
 }
 
 pub fn free_xp_files_extra(xp: &mut ExpandCtx) {
@@ -2737,7 +2737,7 @@ pub fn expand_one(
                 out.extend_from_slice(suffix);
             }
         }
-        ss = Some(cstr_from_bytes(&out));
+        ss = Some(bytes_to_cstring(&out));
     }
 
     if mode == WILD_EXPAND_FREE || mode == WILD_ALL {
@@ -3083,7 +3083,7 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
                 || context == EXPAND_MARKS
                 || context == EXPAND_LUA
             {
-                cstr_from_bytes(fname_slice)
+                bytes_to_cstring(fname_slice)
             } else {
                 let mut new_len = len + 2;
                 for &ch in fname_slice {
@@ -3143,7 +3143,7 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
                     i += 1;
                     j += 1;
                 }
-                cstr_from_bytes(&retval[..j])
+                bytes_to_cstring(&retval[..j])
             }
         } else {
             let mut len = len;
@@ -3187,7 +3187,7 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
                 len -= 1;
             }
             retval_vec[len] = 0;
-            cstr_from_bytes(&retval_vec[..len])
+            bytes_to_cstring(&retval_vec[..len])
         }
     }
 }
@@ -4298,7 +4298,7 @@ pub fn set_cmd_context(
     cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
 
     if use_ccline && ccline.cmdfirstc == b'=' as i32 {
-        set_context_for_expression(xp, crate::memory::cstr_until_nul(str_buf), Cmdidx::CmdSize);
+        set_context_for_expression(xp, crate::memory::bytes_as_cstr(str_buf), Cmdidx::CmdSize);
     } else if use_ccline && ccline.input_fn != 0 {
         xp.xp_context = ccline.xp_context;
         xp.xp_pattern = ccline.cmdbuff();
@@ -4312,7 +4312,7 @@ pub fn set_cmd_context(
             set_context_for_wildcard_arg(None, pat_cstr, false, xp, &mut context);
         }
     } else {
-        let mut nextcomm = Some(crate::memory::cstr_until_nul(str_buf));
+        let mut nextcomm = Some(crate::memory::bytes_as_cstr(str_buf));
         while let Some(comm) = nextcomm {
             nextcomm = set_one_cmd_context(xp, comm);
         }
@@ -4450,7 +4450,7 @@ fn expand_files_and_dirs(
                         .iter()
                         .map(|&b| if b == PATHSEP { b'\\' } else { b })
                         .collect();
-                    *slot = cstr_from_bytes(&bytes);
+                    *slot = bytes_to_cstring(&bytes);
                 }
             }
         }
@@ -5024,7 +5024,7 @@ fn expand_from_context(
             pat_cstr.as_ptr().wrapping_add(3)
         );
         tofree = Some(buf);
-        pat_cstr = crate::memory::cstr_until_nul(tofree.as_deref().unwrap());
+        pat_cstr = crate::memory::bytes_as_cstr(tofree.as_deref().unwrap());
     }
 
     if xp.xp_context == EXPAND_LUA {
@@ -5190,7 +5190,7 @@ fn expand_shellcmd_onedir(
         if namelen > pathlen {
             let tail_bytes = &name_bytes[pathlen..];
             if found_ht.insert(tail_bytes.to_vec()) {
-                gap.push(cstr_from_bytes(tail_bytes));
+                gap.push(bytes_to_cstring(tail_bytes));
             }
         }
     }
@@ -5286,7 +5286,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
             buf_vec[pathlen + patlen] = 0;
 
             expand_shellcmd_onedir(
-                crate::memory::cstr_until_nul(&buf_vec),
+                crate::memory::bytes_as_cstr(&buf_vec),
                 pathlen,
                 flags,
                 &mut found_ht,
@@ -5323,7 +5323,7 @@ where
         ccline.cmdbuff_vec[ccline.cmdlen as usize] = 0;
     }
 
-    let pat = cstr_from_bytes(xp.xp_pattern.slice(xp.xp_pattern_len));
+    let pat = bytes_to_cstring(xp.xp_pattern.slice(xp.xp_pattern_len));
     args[0].v_type = VarType::VarString;
     args[1].v_type = VarType::VarString;
     args[2].v_type = VarType::VarNumber;
@@ -5367,7 +5367,7 @@ fn expand_user_defined(
     let mut rem = retstr_cstr.to_bytes();
     while !rem.is_empty() {
         let line_len = rem.iter().position(|&b| b == b'\n').unwrap_or(rem.len());
-        let line_cstr = cstr_from_bytes(&rem[..line_len]);
+        let line_cstr = bytes_to_cstring(&rem[..line_len]);
 
         let match_ok: bool;
         let mut score: i32 = 0;
@@ -5539,7 +5539,7 @@ pub fn globpath(
             buf_vec[pathlen + filelen] = 0;
 
             let mut p: Vec<CString> = Vec::new();
-            let pat_cstr = crate::memory::cstr_until_nul(&buf_vec);
+            let pat_cstr = crate::memory::bytes_as_cstr(&buf_vec);
             expand_from_context(&mut xpc, pat_cstr, &mut p, WILD_SILENT | expand_options);
             if !p.is_empty() {
                 expand_escape(
@@ -5824,7 +5824,12 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let cmdline_len = pattern_cstr.to_bytes().len() as i32;
         set_cmd_context(
             &mut xpc,
-            crate::memory::cstr_as_mut_bytes(pattern.cast_mut()),
+            unsafe {
+                std::slice::from_raw_parts_mut(
+                    pattern.cast_mut().cast::<u8>(),
+                    cmdline_len as usize + 1,
+                )
+            },
             cmdline_len,
             cmdline_len,
             false,
@@ -5904,7 +5909,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         xpc.xp_pattern_len -= ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
     }
     let pat = if cmdline_fuzzy_completion_supported(&xpc) {
-        cstr_from_bytes(xpc.xp_pattern.slice(xpc.xp_pattern_len))
+        bytes_to_cstring(xpc.xp_pattern.slice(xpc.xp_pattern_len))
     } else {
         addstar((xpc.xp_pattern).slice(xpc.xp_pattern_len), xpc.xp_context)
     };
@@ -6042,7 +6047,7 @@ fn copy_substring_from_pos(
     match_end.lnum = end.lnum;
     match_end.col = segment_len;
 
-    Some(cstr_from_bytes(&ga))
+    Some(bytes_to_cstring(&ga))
 }
 
 /// Returns true if the given string `str` matches the regex pattern `pat`.
@@ -6100,7 +6105,7 @@ fn concat_pattern_with_buffer_match(
             out.extend_from_slice(match_slice);
         }
     }
-    cstr_from_bytes(&out)
+    bytes_to_cstring(&out)
 }
 
 /// Search for strings matching "pat" in the specified range and return them.

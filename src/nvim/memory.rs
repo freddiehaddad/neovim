@@ -278,13 +278,13 @@ pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> crate::strings::ByteSlice {
 
 /// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
 #[inline(always)]
-pub fn free_cstring(p: impl IntoConstPtr<Target = std::ffi::c_char>) {
-    raw_dealloc(p.into_const_ptr().cast_mut().cast::<c_void>());
+pub fn free_cstring(p: crate::strings::ByteSlice) {
+    use crate::strings::ByteSliceExt as _;
+    raw_dealloc(p.as_ptr().cast::<c_void>());
 }
 
 /// Portable `strnlen` (`xstrnlen`).
-pub fn xstrnlen(s: impl IntoConstPtr<Target = std::ffi::c_char>, n: usize) -> usize {
-    let s = s.into_const_ptr();
+pub fn xstrnlen(s: *const std::ffi::c_char, n: usize) -> usize {
     if s.is_null() {
         return 0;
     }
@@ -293,134 +293,6 @@ pub fn xstrnlen(s: impl IntoConstPtr<Target = std::ffi::c_char>, n: usize) -> us
         len += 1;
     }
     len
-}
-
-pub trait AsCStrPtr {
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char;
-}
-
-impl AsCStrPtr for *const i8 {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl AsCStrPtr for *mut i8 {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl AsCStrPtr for *const u8 {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl AsCStrPtr for *mut u8 {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl AsCStrPtr for *const c_void {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl AsCStrPtr for *mut c_void {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl AsCStrPtr for Option<&[u8]> {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
-    }
-}
-
-pub trait IntoMutPtr {
-    type Target;
-    fn into_mut_ptr(self) -> *mut Self::Target;
-}
-
-impl<T> IntoMutPtr for *mut T {
-    type Target = T;
-    #[inline(always)]
-    fn into_mut_ptr(self) -> *mut T {
-        self
-    }
-}
-
-impl<T> IntoMutPtr for &mut T {
-    type Target = T;
-    #[inline(always)]
-    fn into_mut_ptr(self) -> *mut T {
-        std::ptr::from_mut(self)
-    }
-}
-
-/// Compute the signed element offset `(p - origin)` between two pointers of the same type.
-pub trait IntoConstPtr {
-    type Target;
-    fn into_const_ptr(self) -> *const Self::Target;
-}
-
-impl<T> IntoConstPtr for *const T {
-    type Target = T;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const T {
-        self
-    }
-}
-
-impl<T> IntoConstPtr for *mut T {
-    type Target = T;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const T {
-        self
-    }
-}
-
-impl<T> IntoConstPtr for &T {
-    type Target = T;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const T {
-        std::ptr::from_ref(self)
-    }
-}
-
-impl<T> IntoConstPtr for &mut T {
-    type Target = T;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const T {
-        std::ptr::from_ref(self)
-    }
-}
-
-impl IntoConstPtr for &[u8] {
-    type Target = std::ffi::c_char;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoConstPtr for Option<&[u8]> {
-    type Target = std::ffi::c_char;
-    #[inline(always)]
-    fn into_const_ptr(self) -> *const std::ffi::c_char {
-        self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
-    }
 }
 
 /// Safe O(1) sub-slicing of a `&CStr`.
@@ -454,22 +326,19 @@ impl<'a> CStrSubslice<'a> for &mut &'a CStr {
 /// View a byte slice up to the first NUL byte (or the whole slice if no NUL is present).
 #[inline(always)]
 pub fn bytes_until_nul(bytes: &[u8]) -> &[u8] {
-    match bytes.iter().position(|&b| b == 0) {
-        Some(pos) => &bytes[..pos],
-        None => bytes,
-    }
+    CStr::from_bytes_until_nul(bytes).map_or(bytes, CStr::to_bytes)
 }
 
 /// View a byte slice up to the first NUL byte as a `&CStr` (or `c""` if no NUL is present).
 #[inline(always)]
-pub fn cstr_until_nul(bytes: &[u8]) -> &CStr {
+pub fn bytes_as_cstr(bytes: &[u8]) -> &CStr {
     CStr::from_bytes_until_nul(bytes).unwrap_or(c"")
 }
 
 /// Clone a byte slice up to the first NUL byte into an owned `CString`.
 #[inline(always)]
 pub fn cstring_until_nul(bytes: &[u8]) -> CString {
-    cstr_until_nul(bytes).to_owned()
+    bytes_as_cstr(bytes).to_owned()
 }
 
 /// Safely mutate the bytes of a `CString` in place via its owned `Vec<u8>`.
@@ -479,104 +348,6 @@ pub fn cstring_modify<R>(s: &mut CString, f: impl FnOnce(&mut [u8]) -> R) -> R {
     let r = f(&mut v);
     *s = cstring_until_nul(&v);
     r
-}
-
-/// View up to 1 UTF-8 codepoint (at most 6 bytes before NUL) starting at `p`.
-#[inline(always)]
-pub fn cstr_char_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
-    let p = p.into_const_ptr();
-    if p.is_null() {
-        return &[];
-    }
-    let p = p.cast::<u8>();
-    let b0 = unsafe { *p };
-    if b0 == 0 {
-        return &[];
-    }
-    if b0 < 0x80 {
-        return unsafe { std::slice::from_raw_parts(p, 1) };
-    }
-    let mut n = 1usize;
-    while n < 6 && unsafe { *p.wrapping_add(n) } != 0 {
-        n += 1;
-    }
-    unsafe { std::slice::from_raw_parts(p, n) }
-}
-
-/// View up to 1 UTF-8 grapheme cluster (at most 64 bytes before NUL) starting at `p`.
-#[inline(always)]
-pub fn cstr_cluster_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
-    let p = p.into_const_ptr();
-    if p.is_null() {
-        return &[];
-    }
-    let p = p.cast::<u8>();
-    let b0 = unsafe { *p };
-    if b0 == 0 {
-        return &[];
-    }
-    if b0 < 0x80 && unsafe { *p.wrapping_add(1) } < 0x80 {
-        return unsafe { std::slice::from_raw_parts(p, 1) };
-    }
-    let mut n = 1usize;
-    while n < 64 && unsafe { *p.wrapping_add(n) } != 0 {
-        n += 1;
-    }
-    unsafe { std::slice::from_raw_parts(p, n) }
-}
-
-/// View the span `[base .. p + 6]` (stopping at NUL after `p`) and return `(slice, p - base)`.
-#[inline(always)]
-pub fn cstr_span_to_char<'a>(
-    base: impl IntoConstPtr<Target = std::ffi::c_char>,
-    p: impl IntoConstPtr<Target = std::ffi::c_char>,
-) -> (&'a [u8], usize) {
-    let base = base.into_const_ptr();
-    let p = p.into_const_ptr();
-    if base.is_null() || p.is_null() || (p as usize) < (base as usize) {
-        return (&[], 0);
-    }
-    let base_u8 = base.cast::<u8>();
-    let p_u8 = p.cast::<u8>();
-    if unsafe { *p_u8 } < 0x80 {
-        return (&[], 0);
-    }
-    let idx = (p_u8 as usize) - (base_u8 as usize);
-    let mut tail_len = 1usize;
-    while tail_len < 6 && unsafe { *p_u8.wrapping_add(tail_len) } != 0 {
-        tail_len += 1;
-    }
-    (
-        unsafe { std::slice::from_raw_parts(base_u8, idx + tail_len) },
-        idx,
-    )
-}
-
-/// View a NUL-terminated C string buffer (including the trailing NUL byte) as a mutable byte slice.
-#[inline(always)]
-pub fn cstr_as_mut_bytes<'a>(s: impl IntoMutPtr<Target = std::ffi::c_char>) -> &'a mut [u8] {
-    cstr_buf_as_mut_bytes(s, 0)
-}
-
-/// View a NUL-terminated C string buffer (plus `extra` trailing capacity bytes) as a mutable byte slice.
-#[inline(always)]
-pub fn cstr_buf_as_mut_bytes<'a>(
-    s: impl IntoMutPtr<Target = std::ffi::c_char>,
-    extra: usize,
-) -> &'a mut [u8] {
-    let s = s.into_mut_ptr();
-    if s.is_null() {
-        return &mut [];
-    }
-    let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-    unsafe { std::slice::from_raw_parts_mut(s.cast::<u8>(), len + 1 + extra) }
-}
-
-/// View a nullable NUL-terminated C string as `Option<&[u8]>`.
-#[inline(always)]
-pub fn cstr_as_opt_bytes<'a>(s: impl AsCStrPtr) -> Option<&'a [u8]> {
-    let s = s.into_cstr_ptr();
-    (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
 }
 
 /// Copy `src` (up to any embedded NUL) into sized C buffer `dst`, NUL-terminating `dst`.
@@ -605,18 +376,8 @@ pub fn append_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
     }
 }
 
-/// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
-pub fn cstr_to_cstring(ptr: impl AsCStrPtr) -> CString {
-    let ptr = ptr.into_cstr_ptr();
-    if ptr.is_null() {
-        CString::default()
-    } else {
-        unsafe { CStr::from_ptr(ptr).to_owned() }
-    }
-}
-
 /// Copy a byte slice (truncating at any embedded NUL) into an owned `CString`.
-pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
+pub fn bytes_to_cstring(bytes: &[u8]) -> CString {
     match CStr::from_bytes_until_nul(bytes) {
         Ok(c) => c.to_owned(),
         Err(_) => CString::new(bytes).unwrap_or_default(),

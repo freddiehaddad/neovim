@@ -2,7 +2,7 @@
 
 use crate::fileio::vim_gettempdir;
 use crate::globals::*;
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
 use crate::os::env::{expand_env_save, os_getenv_buf, os_getenv_cstr};
@@ -140,7 +140,7 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
         }
         joined.extend_from_slice(tok.as_bytes());
     }
-    Some(cstr_from_bytes(&joined))
+    Some(bytes_to_cstring(&joined))
 }
 
 /// Return owned XDG variable value for `idx` (`stdpaths_get_xdg_var`).
@@ -168,7 +168,9 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        if env_val.is_none() && os_env_exists((env).as_cstr(), false) {
+        if env_val.is_none()
+            && os_env_exists(crate::strings::ByteSlice::from_ptr(env).as_cstr(), false)
+        {
             env_val = Some(CString::default());
         }
     }
@@ -187,7 +189,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     } else if idx == XDGVarType::XDGRuntimeDir {
         let raw = vim_gettempdir().map_or(b"/tmp/" as &[u8], |s| s.to_bytes());
         let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
-        Some(cstr_from_bytes(&raw[..trimmed_len]))
+        Some(bytes_to_cstring(&raw[..trimmed_len]))
     } else {
         None
     };
@@ -212,7 +214,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     if matches!(idx, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
         suffix.extend_from_slice(b"-data");
     }
-    let suffix_cstr = cstr_from_bytes(&suffix);
+    let suffix_cstr = bytes_to_cstring(&suffix);
 
     Some(concat_fnames_cstr(&dir, &suffix_cstr, true))
 }
@@ -257,7 +259,7 @@ pub fn stdpaths_user_state_subpath(
         out.push(b);
     }
     out.extend(std::iter::repeat_n(PATHSEP, trailing_pathseps));
-    cstr_from_bytes(&out)
+    bytes_to_cstring(&out)
 }
 
 #[cfg(test)]

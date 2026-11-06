@@ -509,8 +509,8 @@ fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64
     let mut n: i64 = 0;
 
     if ic {
-        let hay_cstr = crate::memory::cstr_from_bytes(hay_bytes);
-        let needle_cstr = crate::memory::cstr_from_bytes(needle_bytes);
+        let hay_cstr = crate::memory::bytes_to_cstring(hay_bytes);
+        let needle_cstr = crate::memory::bytes_to_cstring(needle_bytes);
         let mut p = crate::strings::ByteSlice::from_cstr(&hay_cstr);
         while !p.is_empty() {
             if mb_strnicmp(p.as_bytes(), needle_cstr.as_bytes(), needlelen) == 0 {

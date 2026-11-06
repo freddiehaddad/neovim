@@ -1751,8 +1751,12 @@ unsafe extern "C-unwind" fn node_field(lstate: *mut lua_State) -> i32 {
 
         for i in 0..count {
             let child_field_name = ts_node_field_name_for_child(node, i);
-            if crate::memory::cstr_as_opt_bytes(field_name)
-                == crate::memory::cstr_as_opt_bytes(child_field_name)
+            if crate::strings::ByteSlice::from_ptr(field_name)
+                .as_opt_cstr()
+                .map(std::ffi::CStr::to_bytes)
+                == crate::strings::ByteSlice::from_ptr(child_field_name)
+                    .as_opt_cstr()
+                    .map(std::ffi::CStr::to_bytes)
             {
                 let child = ts_node_child(node, i);
                 push_node(lstate, child, 1);

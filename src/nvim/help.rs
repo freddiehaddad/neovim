@@ -386,7 +386,7 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
                 }
             }
             if !found_other {
-                file[i] = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
+                file[i] = crate::memory::bytes_to_cstring(&fi_bytes[..len]);
             }
         }
     }
@@ -399,7 +399,7 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
             }
             let len = fi_bytes.len() - 3;
             if fi_bytes[len..] == buf {
-                *slot = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
+                *slot = crate::memory::bytes_to_cstring(&fi_bytes[..len]);
             }
         }
     }

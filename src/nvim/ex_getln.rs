@@ -452,7 +452,7 @@ use crate::api::private::helpers::array_add;
 
 fn trigger_cmd_autocmd(typechar: i32, evt: AuEvent) {
     let typestr: [u8; 2] = [typechar as u8, 0];
-    let typestr_cstr = crate::memory::cstr_until_nul(&typestr);
+    let typestr_cstr = crate::memory::bytes_as_cstr(&typestr);
     apply_autocmds(
         evt,
         Some(typestr_cstr),
@@ -1109,7 +1109,7 @@ fn command_line_enter(
         if has_event(EVENT_CMDLINEENTER) {
             let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
-            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
+            let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
 
             tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
             tv_dict_add_nr(
@@ -1193,7 +1193,7 @@ fn command_line_enter(
         if has_event(EVENT_CMDLINELEAVE) {
             let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
-            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
+            let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
 
             tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
             tv_dict_add_nr(
@@ -1214,7 +1214,7 @@ fn command_line_enter(
             set_vim_var_char(s.c);
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
-            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
+            let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
             apply_autocmds(
                 EVENT_CMDLINELEAVE,
                 Some(firstc_cstr),
@@ -1263,7 +1263,7 @@ fn command_line_enter(
                     },
                 );
                 if s.firstc == b':' as i32 {
-                    g_st().new_last_cmdline = Some(crate::memory::cstr_from_bytes(
+                    g_st().new_last_cmdline = Some(crate::memory::bytes_to_cstring(
                         (getln_st().ccline.cmdbuff()).slice(getln_st().ccline.cmdlen as usize),
                     ));
                 }
@@ -3168,7 +3168,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
         let dict = get_v_event(&mut save_v_event);
 
         let firstcbuf: [u8; 2] = [firstc as u8, 0];
-        let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
+        let firstc_cstr = crate::memory::bytes_as_cstr(&firstcbuf);
 
         tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
         tv_dict_add_nr(
@@ -3947,7 +3947,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     ui_call_cmdline_show(
         content,
         line.cmdpos as Integer,
-        cstr_as_string(Some(crate::memory::cstr_until_nul(&charbuf))),
+        cstr_as_string(Some(crate::memory::bytes_as_cstr(&charbuf))),
         cstr_as_string(line.cmdprompt.as_deref()),
         line.cmdindent as Integer,
         line.level as Integer,
@@ -3960,7 +3960,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     if line.special_char != 0 {
         charbuf[0] = line.special_char;
         ui_call_cmdline_special_char(
-            cstr_as_string(Some(crate::memory::cstr_until_nul(&charbuf))),
+            cstr_as_string(Some(crate::memory::bytes_as_cstr(&charbuf))),
             line.special_shift,
             line.level as Integer,
         );
@@ -4068,7 +4068,7 @@ pub fn putcmdline(c: u8, shift: bool) {
     } else if getln_st().ccline.redraw_state != K_CMD_REDRAW_ALL {
         let charbuf: [u8; 2] = [c, 0];
         ui_call_cmdline_special_char(
-            cstr_as_string(Some(crate::memory::cstr_until_nul(&charbuf))),
+            cstr_as_string(Some(crate::memory::bytes_as_cstr(&charbuf))),
             shift,
             getln_st().ccline.level as Integer,
         );
@@ -4517,7 +4517,7 @@ pub fn escape_fname_cstr(s: &mut std::ffi::CString) {
     let mut out = Vec::with_capacity(bytes.len() + 1);
     out.push(b'\\');
     out.extend_from_slice(bytes);
-    *s = crate::memory::cstr_from_bytes(&out);
+    *s = crate::memory::bytes_to_cstring(&out);
 }
 
 /// For each file name in `files`:
@@ -4585,7 +4585,7 @@ fn get_cmdline_str() -> Option<std::ffi::CString> {
     let p = get_ccline_opt()?;
     let slice = p.cmdbuff().slice(p.cmdlen as usize);
     let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
-    Some(crate::memory::cstr_from_bytes(&slice[..len]))
+    Some(crate::memory::bytes_to_cstring(&slice[..len]))
 }
 
 /// Get the current command-line completion pattern.

@@ -552,7 +552,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         for i in 0..cmdargs.size {
             let item = cmdargs[i];
             if item.obj_type == ObjectType::ObjectTypeString {
-                argv.push(crate::memory::cstr_from_bytes(
+                argv.push(crate::memory::bytes_to_cstring(
                     item.data.string().cstr_bytes(),
                 ));
             } else {

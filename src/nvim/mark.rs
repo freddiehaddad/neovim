@@ -344,7 +344,7 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
     };
     aucmd_defer(
         EVENT_MARKSET,
-        Some(crate::memory::cstr_until_nul(&mark_str)),
+        Some(crate::memory::bytes_as_cstr(&mark_str)),
         None,
         AUGROUP_ALL,
         buf,
@@ -1220,7 +1220,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.as_bytes());
 
             msg_outtrans(
-                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
                 0,
                 false,
             );
@@ -1273,7 +1273,7 @@ pub fn ex_changes(_eap: &mut Exarg) {
             crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.as_bytes());
 
             msg_outtrans(
-                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
                 0,
                 false,
             );

@@ -2781,7 +2781,7 @@ pub fn replace_termcodes(
         pos += char_len;
     }
 
-    Some(crate::memory::cstr_from_bytes(&temp_buf[..dlen]))
+    Some(crate::memory::bytes_to_cstring(&temp_buf[..dlen]))
 }
 
 /// Add character `c` to buffer `dst`, escaping `K_SPECIAL` (`add_char2buf`).
@@ -2818,7 +2818,7 @@ pub fn vim_strsave_escape_ks(bytes: &[u8]) -> std::ffi::CString {
             s += utf_slice2len(rest);
         }
     }
-    crate::memory::cstr_from_bytes(&res[..d])
+    crate::memory::bytes_to_cstring(&res[..d])
 }
 
 /// Remove escaping from `K_SPECIAL` characters in-place (`vim_unescape_ks`).

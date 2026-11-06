@@ -427,7 +427,7 @@ fn showmap(mp: &Mapblock, local: bool) {
 
     let mut mapchars = [0u8; 7];
     map_mode_to_chars(mp.m_mode, &mut mapchars);
-    msg_puts(crate::memory::cstr_until_nul(&mapchars));
+    msg_puts(crate::memory::bytes_as_cstr(&mapchars));
     let mut len = crate::memory::bytes_until_nul(&mapchars).len();
 
     loop {
@@ -1301,7 +1301,7 @@ fn translate_mapping(bytes: &[u8], cpo_val: &CStr) -> CString {
         }
         idx += 1;
     }
-    crate::memory::cstr_from_bytes(&buf)
+    crate::memory::bytes_to_cstring(&buf)
 }
 
 /// Work out what to complete when doing command line completion of mapping
@@ -1693,7 +1693,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
             api_clear_error(&mut err);
         }
     } else {
-        p = eval_to_string(crate::memory::cstr_until_nul(&expr_bytes), false, false);
+        p = eval_to_string(crate::memory::bytes_as_cstr(&expr_bytes), false, false);
     }
     g_st().expr_map_lock -= 1;
     curwin_mut().w_cursor = save_cursor;

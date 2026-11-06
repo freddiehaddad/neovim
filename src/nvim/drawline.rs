@@ -553,7 +553,7 @@ fn draw_col_buf(
     mut fold_vcol: Option<&[Colnr]>,
     inc_vcol: bool,
 ) {
-    let text_cstr = crate::memory::cstr_until_nul(text_buf);
+    let text_cstr = crate::memory::bytes_as_cstr(text_buf);
     {
         let mut ci = utf_ptr2_str_char_info(text_cstr);
         while ci.offset_from(text_cstr) < len && wlv.off < wp.w_view_width {
@@ -1839,7 +1839,7 @@ pub fn win_line(
             if (line_len as usize) < SPWORDLEN {
                 nextlinecol = 0;
                 nextline[..line_len as usize].copy_from_slice(line_slice);
-                let tail_len = crate::memory::cstr_until_nul(&nextline[SPWORDLEN..])
+                let tail_len = crate::memory::bytes_as_cstr(&nextline[SPWORDLEN..])
                     .to_bytes()
                     .len();
                 nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);

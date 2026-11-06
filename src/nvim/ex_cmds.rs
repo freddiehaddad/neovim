@@ -93,7 +93,7 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring};
+use crate::memory::bytes_to_cstring;
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -650,8 +650,8 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: &mut [u8], sortbuf2: &mut [u8]
             sortbuf2[len2] = 0;
 
             result = string_compare(
-                crate::memory::cstr_until_nul(sortbuf1),
-                crate::memory::cstr_until_nul(sortbuf2),
+                crate::memory::bytes_as_cstr(sortbuf1),
+                crate::memory::bytes_as_cstr(sortbuf2),
             );
         }
         _ => unreachable!(),
@@ -887,7 +887,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             let s_cstr = crate::strings::ByteSlice::from_ptr(s).as_cstr();
             if !unique
                 || i == 0
-                || string_compare(s_cstr, crate::memory::cstr_until_nul(&sortbuf1_vec)) != 0
+                || string_compare(s_cstr, crate::memory::bytes_as_cstr(&sortbuf1_vec)) != 0
             {
                 let s_bytes = s_cstr.to_bytes_with_nul();
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
@@ -1094,7 +1094,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 string_compare(
                     crate::strings::ByteSlice::from_ptr(s.wrapping_add(start_col as usize))
                         .as_cstr(),
-                    crate::memory::cstr_until_nul(&sortbuf1_vec),
+                    crate::memory::bytes_as_cstr(&sortbuf1_vec),
                 ) == 0
             } else {
                 false
@@ -1231,7 +1231,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
 
     let mut extra: Linenr = 0;
     for l in line1..=line2 {
-        let str_cstr = cstr_from_bytes(crate::memline::ml_get_slice(l + extra));
+        let str_cstr = bytes_to_cstring(crate::memline::ml_get_slice(l + extra));
         ml_append(dest + l - line1, str_cstr.to_bytes(), 0, false);
         if dest < line1 {
             extra += 1;
@@ -1373,7 +1373,7 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
 
     curwin_mut().w_cursor.lnum = n;
     while line1 <= line2 {
-        let p = cstr_from_bytes(crate::memline::ml_get_slice(line1));
+        let p = bytes_to_cstring(crate::memline::ml_get_slice(line1));
         ml_append(curwin_mut().w_cursor.lnum, p.to_bytes(), 0, false);
 
         if line1 == n {
@@ -1468,7 +1468,8 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
         let Some(off) = next_trail_off else {
             break;
         };
-        let rem_cstr = crate::memory::cstr_to_cstring(newcmd.as_ptr().wrapping_add(off));
+        let rem_cstr =
+            crate::strings::ByteSlice::from_ptr(newcmd.as_ptr().wrapping_add(off)).to_cstring();
         newcmd.truncate(off);
         let rem_bytes = rem_cstr.to_bytes_with_nul();
         let start = newcmd.len();
@@ -1516,17 +1517,17 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             msg_ext_set_kind(c"shell_cmd");
             msg_putchar(b':' as i32);
             msg_putchar(b'!' as i32);
-            msg_outtrans(crate::memory::cstr_until_nul(&newcmd), 0, false);
+            msg_outtrans(crate::memory::bytes_as_cstr(&newcmd), 0, false);
             msg_clr_eos();
             ui_cursor_goto(g_st().msg_row, g_st().msg_col);
 
-            do_shell(Some(crate::memory::cstr_until_nul(&newcmd)), 0);
+            do_shell(Some(crate::memory::bytes_as_cstr(&newcmd)), 0);
         } else {
             do_filter(
                 line1,
                 line2,
                 eap,
-                crate::memory::cstr_until_nul(&newcmd),
+                crate::memory::bytes_as_cstr(&newcmd),
                 do_in,
                 do_out,
             );
@@ -1737,7 +1738,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                             linecount as i64,
                         );
                         let msg_cstr =
-                            crate::memory::cstr_until_nul(g_st().borrow_mut().msg_buf_bytes_mut());
+                            crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
                         if msg(msg_cstr, 0) && g_st().borrow_mut().msg_scroll == 0 {
                             set_keep_msg(Some(msg_cstr), 0);
                         }
@@ -1973,7 +1974,7 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
 
     if curwin_mut().w_onebuf_opt.wo_nu || use_number {
         vim_snprintf!(&mut numbuf, c"%*d ", number_width(curwin_mut()), lnum);
-        msg_puts_hl(crate::memory::cstr_until_nul(&numbuf), HLF_N + 1, false);
+        msg_puts_hl(crate::memory::bytes_as_cstr(&numbuf), HLF_N + 1, false);
     }
     msg_prt_line(crate::memline::ml_get_slice(lnum), list);
 }
@@ -2312,7 +2313,7 @@ pub fn check_overwrite(
                     gettext(c"Overwrite existing file \"%s\"?"),
                     fname,
                 );
-                if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 2)
+                if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::bytes_as_cstr(&buff), 2)
                     != VIM_YES
                 {
                     return false;
@@ -2334,7 +2335,7 @@ pub fn check_overwrite(
                 copy_option_part(&mut p, &mut dir, c",");
             }
             if let Some(swapname) =
-                makeswapname(fname.as_opt_cstr(), crate::memory::cstr_until_nul(&dir))
+                makeswapname(fname.as_opt_cstr(), crate::memory::bytes_as_cstr(&dir))
                 && os_path_exists(&swapname)
             {
                 if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -2344,7 +2345,7 @@ pub fn check_overwrite(
                         gettext(c"Swap file \"%s\" exists, overwrite anyway?"),
                         swapname.as_ptr(),
                     );
-                    if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 2)
+                    if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::bytes_as_cstr(&buff), 2)
                         != VIM_YES
                     {
                         return false;
@@ -2485,7 +2486,7 @@ fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
                 );
             }
 
-            if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 2)
+            if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::bytes_as_cstr(&buff), 2)
                 == VIM_YES
             {
                 *forceit = true;
@@ -2661,7 +2662,10 @@ pub fn do_ecmd(
                 sfname = ffname;
             }
             if CASE_INSENSITIVE_FILENAME && !sfname.is_null() {
-                path_fix_case(crate::memory::cstr_as_mut_bytes(sfname.cast()));
+                let sfname_len = crate::strings::ByteSlice::from_ptr(sfname).len();
+                path_fix_case(unsafe {
+                    std::slice::from_raw_parts_mut(sfname.cast::<u8>(), sfname_len + 1)
+                });
             }
 
             if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0
@@ -3866,7 +3870,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         let sub_slice = unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), sub_len + 1) };
         let sub_off = skip_substitute(sub_slice, delimiter);
         cmd = cmd.wrapping_add(sub_off);
-        let sub_cstr = cstr_to_cstring(p);
+        let sub_cstr = crate::strings::ByteSlice::from_ptr(p).to_cstring();
         sub = sub_cstr.as_ptr().cast_mut();
         sub_owned = Some(sub_cstr);
 
@@ -4197,7 +4201,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                             );
                             vim_snprintf!(&mut g_st().iobuff, p_fmt, sub);
-                            let p = cstr_to_cstring(iobuff_ptr);
+                            let p = crate::strings::ByteSlice::from_ptr(iobuff_ptr).to_cstring();
                             typed = prompt_for_input(Some(p.as_c_str()), HLF_R, true, None);
                             g_st().search_global.hl_match = false;
                             drop(p);
@@ -4823,7 +4827,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             g_st().sub_nsubs as i64,
             g_st().sub_nlines as i64,
         );
-        let msg_cstr = crate::memory::cstr_until_nul(g_st().borrow_mut().msg_buf_bytes_mut());
+        let msg_cstr = crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
         }
@@ -5262,7 +5266,7 @@ pub fn skip_vimgrep_pat<'a>(
             .position(|&b| ascii_iswhite(i32::from(b)))
             .unwrap_or(p_bytes.len());
         if let Some(ref mut s) = s {
-            **s = Some(cstr_from_bytes(&p_bytes[..off]));
+            **s = Some(bytes_to_cstring(&p_bytes[..off]));
         }
         if s.is_some() && off < p_bytes.len() {
             off += 1;
@@ -5280,7 +5284,7 @@ pub fn skip_vimgrep_pat<'a>(
         }
 
         if let Some(ref mut s) = s {
-            **s = Some(cstr_from_bytes(&p_bytes[1..off]));
+            **s = Some(bytes_to_cstring(&p_bytes[1..off]));
         }
         off += 1;
 

@@ -219,7 +219,10 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        let mut len = (tempname).as_bytes().len() + 29;
+        let mut len = crate::strings::ByteSlice::from_ptr(tempname)
+            .as_bytes()
+            .len()
+            + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -290,7 +293,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        command_vec.extend_from_slice((tempname).as_bytes());
+        command_vec.extend_from_slice(crate::strings::ByteSlice::from_ptr(tempname).as_bytes());
 
         if shell_style != STYLE_BT {
             for &p in pat {
@@ -341,7 +344,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         let res = call_shell(
-            Some(crate::memory::cstr_until_nul(&command_vec)),
+            Some(crate::memory::bytes_as_cstr(&command_vec)),
             shellopts,
             extra_shell_arg,
         );
@@ -433,7 +436,10 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = 0;
-                if len != 0 && ((buffer).as_bytes().len() as i32) < (len as i32) {
+                if len != 0
+                    && (crate::strings::ByteSlice::from_ptr(buffer).as_bytes().len() as i32)
+                        < (len as i32)
+                {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -494,7 +500,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         for entry in raw_entries {
-            let entry_cstr = (entry).as_cstr();
+            let entry_cstr = crate::strings::ByteSlice::from_ptr(entry).as_cstr();
             if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry_cstr) {
                 continue;
             }
@@ -818,7 +824,7 @@ fn do_os_system(
                     false,
                 );
                 msg_puts(c": ");
-                msg_outtrans(crate::memory::cstr_until_nul(&prog), 0, false);
+                msg_outtrans(crate::memory::bytes_as_cstr(&prog), 0, false);
                 msg_putchar(b'\n' as i32);
             }
             break 'end;
@@ -1181,7 +1187,7 @@ fn shell_xescape_xquote(cmd: &CStr) -> std::ffi::CString {
         out.extend_from_slice(sxq_bytes);
     }
 
-    crate::memory::cstr_from_bytes(&out)
+    crate::memory::bytes_to_cstring(&out)
 }
 
 #[cfg(test)]

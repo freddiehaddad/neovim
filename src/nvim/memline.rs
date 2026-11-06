@@ -816,13 +816,7 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     let size = B0_FNAME_SIZE_NOCRYPT;
     let fenc_bytes = buf.b_p_fenc.as_bytes();
     let n = fenc_bytes.len();
-    if crate::memory::cstr_until_nul(&b0p.b0_fname)
-        .to_bytes()
-        .len()
-        + n
-        + 1
-        > size
-    {
+    if crate::memory::bytes_as_cstr(&b0p.b0_fname).to_bytes().len() + n + 1 > size {
         b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
     } else {
         b0p.b0_fname[(size - n)..size].copy_from_slice(fenc_bytes);
@@ -998,7 +992,7 @@ pub fn ml_recover(checkext: bool) {
 
         b0p.b0_fname[0] = 0;
 
-        msg_puts_hl(crate::memory::cstr_until_nul(&b0p.b0_hname), hl_id, true);
+        msg_puts_hl(crate::memory::bytes_as_cstr(&b0p.b0_hname), hl_id, true);
 
         msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
         msg_end();
@@ -1055,7 +1049,7 @@ pub fn ml_recover(checkext: bool) {
         path_to_slash(&mut b0p.b0_fname);
 
         expand_env(
-            crate::memory::cstr_until_nul(&b0p.b0_fname),
+            crate::memory::bytes_as_cstr(&b0p.b0_fname),
             g_st().name_buff_bytes_mut(),
         );
 
@@ -1541,7 +1535,7 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvL
     #[cfg(unix)]
     let fname_res: Option<&CStr> = fname.map(|f| {
         if resolve_symlink(Some(f), &mut fname_buf) {
-            crate::memory::cstr_until_nul(&fname_buf)
+            crate::memory::bytes_as_cstr(&fname_buf)
         } else {
             f
         }
@@ -1636,7 +1630,7 @@ pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std:
     let mut fname_vec: Vec<u8> = fname.into_bytes_with_nul();
 
     let mut file_info = FileInfo::new();
-    if !os_fileinfo2(crate::memory::cstr_until_nul(&fname_vec), &mut file_info) {
+    if !os_fileinfo2(crate::memory::bytes_as_cstr(&fname_vec), &mut file_info) {
         return None;
     }
     let mut fixed_off = file_info.root_off;
@@ -1734,7 +1728,7 @@ fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
             let mut uname = [0u8; B0_UNAME_SIZE];
             if os_get_uname(file_info.stat.st_uid as u32, &mut uname) {
                 sb_push_cstr(msg, tr(c"          owned by: "));
-                sb_push_cstr(msg, crate::memory::cstr_until_nul(&uname));
+                sb_push_cstr(msg, crate::memory::bytes_as_cstr(&uname));
                 sb_push_cstr(msg, tr(c"   dated: "));
             } else {
                 sb_push_cstr(msg, tr(c"             dated: "));
@@ -1767,7 +1761,7 @@ fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
                 if b0.b0_fname[0] == 0 {
                     sb_push_cstr(msg, tr(c"[No Name]"));
                 } else {
-                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_fname));
+                    sb_push_cstr(msg, crate::memory::bytes_as_cstr(&b0.b0_fname));
                 }
 
                 sb_push_cstr(msg, tr(c"\n          modified: "));
@@ -1782,7 +1776,7 @@ fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
 
                 if b0.b0_uname[0] != 0 {
                     sb_push_cstr(msg, tr(c"\n         user name: "));
-                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_uname));
+                    sb_push_cstr(msg, crate::memory::bytes_as_cstr(&b0.b0_uname));
                 }
 
                 if b0.b0_hname[0] != 0 {
@@ -1791,7 +1785,7 @@ fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
                     } else {
                         sb_push_cstr(msg, tr(c"\n         host name: "));
                     }
-                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_hname));
+                    sb_push_cstr(msg, crate::memory::bytes_as_cstr(&b0.b0_hname));
                 }
 
                 let pid = char_to_long(&b0.b0_pid) as i32;
@@ -1851,7 +1845,7 @@ fn swapfile_unchanged(fname: &CStr) -> bool {
         os_get_hostname(&mut hostname);
         hostname[B0_HNAME_SIZE - 1] = 0;
         b0.b0_hname[B0_HNAME_SIZE - 1] = 0;
-        if !crate::memory::cstr_until_nul(&b0.b0_hname)
+        if !crate::memory::bytes_as_cstr(&b0.b0_hname)
             .to_bytes()
             .eq_ignore_ascii_case(crate::memory::bytes_until_nul(&hostname))
         {
@@ -2167,7 +2161,7 @@ fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
     ml_st().ml_get_questions = *b"???\0";
     buf.b_ml.ml_line_textlen = 4;
     buf.b_ml.ml_line_lnum = lnum;
-    crate::memory::cstr_until_nul(&ml_st().borrow_mut().ml_get_questions)
+    crate::memory::bytes_as_cstr(&ml_st().borrow_mut().ml_get_questions)
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
@@ -3262,7 +3256,7 @@ pub fn resolve_symlink(fname: Option<&CStr>, buf: &mut [u8]) -> bool {
         if path_is_absolute(buf_bytes) {
             crate::memory::copy_bytes_to_c_buf(&mut tmp, buf_bytes);
         } else {
-            let tmp_cstr = crate::memory::cstr_until_nul(&tmp);
+            let tmp_cstr = crate::memory::bytes_as_cstr(&tmp);
             let tail = path_tail(tmp_cstr);
             let off = tmp_cstr.to_bytes().len() - tail.to_bytes().len();
             if tail.to_bytes().len() + buf_bytes.len() >= MAXPATHL {
@@ -3272,7 +3266,7 @@ pub fn resolve_symlink(fname: Option<&CStr>, buf: &mut [u8]) -> bool {
         }
     }
 
-    vim_full_name(Some(crate::memory::cstr_until_nul(&tmp)), buf, true)
+    vim_full_name(Some(crate::memory::bytes_as_cstr(&tmp)), buf, true)
 }
 
 /// Make swapfile name out of the file name and a directory name.
@@ -3281,7 +3275,7 @@ pub fn makeswapname(fname: Option<&CStr>, dir_name: &CStr) -> Option<std::ffi::C
     let mut fname_buf = [0u8; MAXPATHL];
     #[cfg(unix)]
     let fname_res: Option<&CStr> = if resolve_symlink(fname, &mut fname_buf) {
-        Some(crate::memory::cstr_until_nul(&fname_buf))
+        Some(crate::memory::bytes_as_cstr(&fname_buf))
     } else {
         fname
     };
@@ -3439,13 +3433,13 @@ fn findswapname(
     let dir_len = dirp.len() + 1;
     let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
     copy_option_part(dirp, &mut dir_name_vec, c",");
-    let dir_name = crate::memory::cstr_until_nul(&dir_name_vec);
+    let dir_name = crate::memory::bytes_as_cstr(&dir_name_vec);
 
     let mut fname_vec: Option<Vec<u8>> =
         makeswapname(buf_fname, dir_name).map(std::ffi::CString::into_bytes_with_nul);
 
     while let Some(ref mut fvec) = fname_vec {
-        let fname_cstr = crate::memory::cstr_until_nul(fvec);
+        let fname_cstr = crate::memory::bytes_as_cstr(fvec);
         let n = fname_cstr.to_bytes().len();
         if n == 0 {
             fname_vec = None;
@@ -3487,7 +3481,7 @@ fn findswapname(
                     path_to_slash(&mut b0.b0_fname);
                     ml_st().proc_running = swapfile_proc_running(&b0, fname_cstr);
 
-                    let b0_fname_cstr = crate::memory::cstr_until_nul(&b0.b0_fname);
+                    let b0_fname_cstr = crate::memory::bytes_as_cstr(&b0.b0_fname);
                     let buf_ffname_opt = buf.ffname_opt();
                     if (b0.flags() & B0_SAME_DIR) != 0 {
                         if !path_equal(
@@ -3565,7 +3559,7 @@ fn findswapname(
                         choice = do_dialog(
                             VIM_WARNING,
                             Some(tr(c"VIM - ATTENTION")),
-                            crate::memory::cstr_until_nul(&msg_sb),
+                            crate::memory::bytes_as_cstr(&msg_sb),
                             if ml_st().proc_running != 0 {
                                 run_but
                             } else {
@@ -3626,7 +3620,7 @@ fn findswapname(
                     _ => {}
                 }
 
-                if choice != SEA_CHOICE_NONE && !os_path_exists(crate::memory::cstr_until_nul(fvec))
+                if choice != SEA_CHOICE_NONE && !os_path_exists(crate::memory::bytes_as_cstr(fvec))
                 {
                     break;
                 }
@@ -3697,7 +3691,7 @@ fn fnamecmp_ino(fname_c: Option<&CStr>, fname_s: Option<&CStr>, ino_block0: i64)
     let retval_c = vim_full_name(fname_c, &mut buf_c, true);
     let retval_s = vim_full_name(fname_s, &mut buf_s, true);
     if retval_c && retval_s {
-        return crate::memory::cstr_until_nul(&buf_c) != crate::memory::cstr_until_nul(&buf_s);
+        return crate::memory::bytes_as_cstr(&buf_c) != crate::memory::bytes_as_cstr(&buf_s);
     }
 
     if ino_s == 0 && ino_c == 0 && !retval_c && !retval_s {

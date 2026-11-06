@@ -327,7 +327,7 @@ impl IntoDictKey for RawCCharPtrMut {
 impl IntoDictKey for Option<&[u8]> {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(self.map(crate::memory::cstr_until_nul))
+        cstr_as_string(self.map(crate::memory::bytes_as_cstr))
     }
 }
 
@@ -713,7 +713,7 @@ pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
 }
 
 pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
-    crate::memory::cstr_from_bytes(str_.as_bytes())
+    crate::memory::bytes_to_cstring(str_.as_bytes())
 }
 
 pub fn bytes_to_string(bytes: &[u8]) -> NvimString {

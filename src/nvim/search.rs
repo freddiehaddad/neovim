@@ -374,7 +374,7 @@ pub fn search_regcomp(
         }
 
         if let Some(used_pat) = used_pat {
-            *used_pat = crate::memory::cstr_to_cstring(pat);
+            *used_pat = crate::strings::ByteSlice::from_ptr(pat).to_cstring();
         }
 
         srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl
@@ -1436,7 +1436,7 @@ pub fn do_search(
                     msgbuf_vec[plen + 1..plen + 1 + off_len].copy_from_slice(&off_buf[..off_len]);
                 }
 
-                if let Some(trunc) = msg_strtrunc(crate::memory::cstr_until_nul(&msgbuf_vec), 1) {
+                if let Some(trunc) = msg_strtrunc(crate::memory::bytes_as_cstr(&msgbuf_vec), 1) {
                     msgbuflen = trunc.as_bytes().len();
                     msgbuf_vec = trunc.into_bytes_with_nul();
                 }
@@ -1455,7 +1455,7 @@ pub fn do_search(
                     msgbuf_vec.copy_within(r_off..msgbuflen, 0);
                     msgbuf_vec[pat_len..msgbuflen].fill(b' ');
                 }
-                msg_outtrans(crate::memory::cstr_until_nul(&msgbuf_vec), 0, false);
+                msg_outtrans(crate::memory::bytes_as_cstr(&msgbuf_vec), 0, false);
                 msg_clr_eos();
                 msg_check();
 
@@ -2819,7 +2819,7 @@ fn cmdline_search_stat(
 
     g_st().msg_ext_overwrite = true;
     msg_ext_set_kind(c"search_count");
-    give_warning(crate::memory::cstr_until_nul(msgbuf), false, false);
+    give_warning(crate::memory::bytes_as_cstr(msgbuf), false, false);
 }
 
 fn update_search_stat(
@@ -3027,7 +3027,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             do_update = false;
         } else {
             srch().spats[srch().last_idx as usize].pat =
-                Some(crate::memory::cstr_to_cstring(pattern));
+                Some(crate::strings::ByteSlice::from_ptr(pattern).to_cstring());
         }
     }
     if do_update
@@ -3127,7 +3127,7 @@ pub fn find_pattern_in_path(
                 len as i32,
                 ptr_pat,
             );
-            let pat_cstr = crate::memory::cstr_until_nul(&pat_vec);
+            let pat_cstr = crate::memory::bytes_as_cstr(&pat_vec);
             regmatch.rm_ic = ignorecase(pat_cstr);
             regmatch.set_prog(vim_regcomp(
                 pat_cstr,
@@ -3926,10 +3926,10 @@ fn show_pat_in_path(
         let has_trailing_bsl = line.slice(linelen).last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
             vim_snprintf!(g_st().iobuff_bytes_mut(), c"%3d: ", count);
-            msg_puts(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
+            msg_puts(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
             vim_snprintf!(g_st().iobuff_bytes_mut(), c"%4d", *lnum);
             msg_puts_hl(
-                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
                 HLF_N,
                 false,
             );

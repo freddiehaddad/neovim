@@ -822,7 +822,7 @@ pub fn hl_add_font_idx(font_name: Option<&[u8]>) -> i32 {
     let idx = hl_st().fonts.len() as i32;
     hl_st()
         .fonts
-        .push(crate::memory::cstr_from_bytes(font_bytes));
+        .push(crate::memory::bytes_to_cstring(font_bytes));
     idx
 }
 

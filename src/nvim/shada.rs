@@ -1415,7 +1415,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         off: sp.offset,
                     },
                     pat: (!sp.pat.data.is_null()).then(|| {
-                        let s = crate::memory::cstr_from_bytes(unsafe {
+                        let s = crate::memory::bytes_to_cstring(unsafe {
                             std::slice::from_raw_parts(sp.pat.data.cast::<u8>(), sp.pat.size)
                         });
                         api_free_string(sp.pat);
@@ -3113,7 +3113,7 @@ fn shada_open_tmp(
     sd_writer: &mut FileDescriptor,
     perm: i32,
 ) -> Option<Vec<u8>> {
-    let fname = crate::memory::cstr_until_nul(fname_bytes);
+    let fname = crate::memory::bytes_as_cstr(fname_bytes);
     let tn = modname(Some(fname), c".tmp.a", false)?;
     let mut tempname_bytes = tn.into_bytes_with_nul();
     let flags = K_FILE_CREATE_ONLY | K_FILE_NO_SYMLINK;
@@ -3143,7 +3143,7 @@ fn shada_open_tmp(
             return None;
         }
         let mut info = FileInfo::new();
-        if os_fileinfo_link(crate::memory::cstr_until_nul(&tempname_bytes), &mut info)
+        if os_fileinfo_link(crate::memory::bytes_as_cstr(&tempname_bytes), &mut info)
             && (oldest == 0 || info.stat.st_mtim.tv_sec < oldest_mtime)
         {
             oldest = c;
@@ -3152,7 +3152,7 @@ fn shada_open_tmp(
     }
     if oldest != 0 {
         tempname_bytes[last_idx] = oldest;
-        if os_remove(crate::memory::cstr_until_nul(&tempname_bytes)) == 0
+        if os_remove(crate::memory::bytes_as_cstr(&tempname_bytes)) == 0
             && file_open(
                 sd_writer,
                 CStr::from_bytes_with_nul(&tempname_bytes).ok(),
@@ -4074,7 +4074,7 @@ fn shada_removable(name: &CStr) -> bool {
             let name_buff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
             let n = home_replace(
                 None,
-                Some(crate::memory::cstr_until_nul(&part[1..])),
+                Some(crate::memory::bytes_as_cstr(&part[1..])),
                 g_st().name_buff_bytes_mut(),
                 true,
             );

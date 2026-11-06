@@ -577,7 +577,7 @@ fn diff_check_unchanged(tp: &mut TabPageInfo, dp_idx: usize) {
             if dir == BACKWARD {
                 off_org = (&tp.tp_diffs)[dp_idx].df_count[i_org] - 1;
             }
-            let line_org = crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(
+            let line_org = crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(
                 tp.diffbuf_mut(i_org),
                 (&tp.tp_diffs)[dp_idx].df_lnum[i_org] + off_org,
             ));
@@ -1170,7 +1170,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     );
     crate::autocmd::block_autocmds();
     call_shell(
-        Some(crate::memory::cstr_until_nul(&cmd_vec)),
+        Some(crate::memory::bytes_as_cstr(&cmd_vec)),
         K_SHELL_OPT_FILTER | K_SHELL_OPT_SILENT | K_SHELL_OPT_DO_OUT,
         None,
     );
@@ -1231,7 +1231,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         #[cfg(unix)]
         {
             if !crate::os::fs::os_dirname(&mut dirbuf)
-                || crate::os::fs::os_chdir(crate::memory::cstr_until_nul(&dirbuf)) != 0
+                || crate::os::fs::os_chdir(crate::memory::bytes_as_cstr(&dirbuf)) != 0
             {
                 dirbuf[0] = 0;
             } else {
@@ -1263,7 +1263,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         }
         #[cfg(unix)]
         if dirbuf[0] != 0 {
-            if crate::os::fs::os_chdir(crate::memory::cstr_until_nul(&dirbuf)) != 0 {
+            if crate::os::fs::os_chdir(crate::memory::bytes_as_cstr(&dirbuf)) != 0 {
                 emsg(gettext(E_PREV_DIR));
             }
             shorten_fnames(true);
@@ -2023,7 +2023,7 @@ fn diff_equal_entry(dp: &DiffBlock, idx1: usize, idx2: usize) -> bool {
         return false;
     }
     for i in 0..dp.df_count[idx1] {
-        let line = crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(
+        let line = crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(
             curtab_mut().diffbuf_mut(idx1),
             dp.df_lnum[idx1] + i,
         ));
@@ -2400,7 +2400,7 @@ fn diff_find_change_simple(
     let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
         None
     } else {
-        Some(crate::memory::cstr_from_bytes(
+        Some(crate::memory::bytes_to_cstring(
             crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum),
         ))
     };
@@ -3296,7 +3296,7 @@ fn diffgetput(
                     break;
                 }
                 let p =
-                    crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(from_buf, nr));
+                    crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(from_buf, nr));
                 let _ = ml_append(lnum + i - 1, p.to_bytes(), 0, false);
                 added += 1;
                 if buf_empty && curbuf_mut().b_ml.ml_line_count == 2 {

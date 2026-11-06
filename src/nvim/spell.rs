@@ -324,7 +324,7 @@ pub fn spell_check(
     }
     let fold_len = mi.mi_fend;
     spell_casefold(wp, &ptr_bytes[..fold_len], &mut mi.mi_fword);
-    mi.mi_fwordlen = crate::memory::cstr_until_nul(&mi.mi_fword).to_bytes().len() as i32;
+    mi.mi_fwordlen = crate::memory::bytes_as_cstr(&mi.mi_fword).to_bytes().len() as i32;
     if is_camel_case && mi.mi_fwordlen > 0 {
         mi.mi_fword[mi.mi_fwordlen as usize - 1] = b' ';
     }
@@ -1037,7 +1037,7 @@ fn fold_more(mip: &mut Matchinf) -> i32 {
         &word_bytes[p_off..p_off + fold_len],
         &mut mip.mi_fword[fword_off..MAXWLEN],
     );
-    let flen = crate::memory::cstr_until_nul(&mip.mi_fword[fword_off..])
+    let flen = crate::memory::bytes_as_cstr(&mip.mi_fword[fword_off..])
         .to_bytes()
         .len() as i32;
     mip.mi_fwordlen += flen;
@@ -1310,7 +1310,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
             spell_enc(),
         );
         let ok = do_in_runtimepath(
-            crate::memory::cstr_until_nul(&fname_enc),
+            crate::memory::bytes_as_cstr(&fname_enc),
             0,
             &mut RuntimeCallback::SpellLoad(&mut sl),
         );
@@ -1318,7 +1318,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
         if !ok && sl.sl_lang[0] != 0 {
             vim_snprintf!(&mut fname_enc[..max_len], c"spell/%s.ascii.spl", lang);
             let ok2 = do_in_runtimepath(
-                crate::memory::cstr_until_nul(&fname_enc),
+                crate::memory::bytes_as_cstr(&fname_enc),
                 0,
                 &mut RuntimeCallback::SpellLoad(&mut sl),
             );
@@ -1348,7 +1348,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell",
                 lang,
             );
-            do_cmdline_cmd(crate::memory::cstr_until_nul(&autocmd_buf));
+            do_cmdline_cmd(crate::memory::bytes_as_cstr(&autocmd_buf));
         } else {
             smsg!(
                 0,
@@ -1362,7 +1362,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
         let fn_len = crate::memory::bytes_until_nul(&fname_enc).len();
         fname_enc[fn_len - 3..fn_len + 5].copy_from_slice(b"add.spl\0");
         do_in_runtimepath(
-            crate::memory::cstr_until_nul(&fname_enc),
+            crate::memory::bytes_as_cstr(&fname_enc),
             DIP_ALL,
             &mut RuntimeCallback::SpellLoad(&mut sl),
         );
@@ -1607,7 +1607,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
             let len = copy_option_part(&mut splp, &mut lang[..MAXWLEN], c",") as i32;
             let mut region = crate::strings::BYTE_SLICE_NULL;
             let lang_ptr = (&raw mut lang).cast::<u8>();
-            if !valid_spelllang(crate::memory::cstr_until_nul(&lang)) {
+            if !valid_spelllang(crate::memory::bytes_as_cstr(&lang)) {
                 continue;
             }
             if crate::strings::ByteSlice::from_ptr(lang_ptr).as_bytes() == b"cjk" {
@@ -1695,10 +1695,10 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
             if slang.is_null() {
                 if filename {
                     let fname_cstr =
-                        crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(&lang));
+                        crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(&lang));
                     let _ = spell_load_file(fname_cstr.as_c_str(), Some(&mut lang), None, false);
                 } else {
-                    spell_load_lang(crate::memory::cstr_until_nul(&lang));
+                    spell_load_lang(crate::memory::bytes_as_cstr(&lang));
                     if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(Some(wp)) {
                         ret_msg = Some(c"E797: SpellFileMissing autocommand deleted buffer");
                         break 'theend;
@@ -1814,7 +1814,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
                 }
                 slang = spell_load_file(
-                    crate::memory::cstr_until_nul(&spf_name),
+                    crate::memory::bytes_as_cstr(&spf_name),
                     Some(&mut lang),
                     None,
                     true,
@@ -1984,7 +1984,7 @@ pub fn spell_delete_wordlist() {
     let mut fname: [u8; MAXPATHL] = [0; MAXPATHL];
     let _ = os_remove(wl);
     int_wordlist_spl(&mut fname);
-    let _ = os_remove(crate::memory::cstr_until_nul(&fname));
+    let _ = os_remove(crate::memory::bytes_as_cstr(&fname));
     spell_priv_st().int_wordlist = None;
 }
 pub fn spell_free_all() {
@@ -2387,7 +2387,7 @@ pub fn eval_soundfold(word: &std::ffi::CStr) -> std::ffi::CString {
             if slang.has_sal() {
                 let mut sound: [u8; MAXWLEN] = [0; MAXWLEN];
                 spell_soundfold(slang, word.to_bytes(), false, &mut sound);
-                return crate::memory::cstr_until_nul(&sound).to_owned();
+                return crate::memory::bytes_as_cstr(&sound).to_owned();
             }
         }
     }
@@ -2839,7 +2839,7 @@ pub fn spell_dump_compl(
                             if c == 0 || curi[udepth] == 2 {
                                 dump_word(
                                     lp.slang_mut(),
-                                    crate::memory::cstr_until_nul(&word),
+                                    crate::memory::bytes_as_cstr(&word),
                                     pat,
                                     (dir.is_some()).then(|| dir.as_deref_mut().unwrap()),
                                     dumpflags,
@@ -2853,7 +2853,7 @@ pub fn spell_dump_compl(
                             if c != 0 {
                                 lnum = dump_prefixes(
                                     lp.slang_mut(),
-                                    crate::memory::cstr_until_nul(&word),
+                                    crate::memory::bytes_as_cstr(&word),
                                     pat,
                                     (dir.is_some()).then(|| dir.as_deref_mut().unwrap()),
                                     dumpflags,
@@ -3041,7 +3041,7 @@ fn dump_prefixes(
                         crate::memory::copy_bytes_to_c_buf(&mut prefix[udepth..], word.to_bytes());
                         dump_word(
                             slang,
-                            crate::memory::cstr_until_nul(&prefix),
+                            crate::memory::bytes_as_cstr(&prefix),
                             pat,
                             (dir.is_some()).then(|| dir.as_deref_mut().unwrap()),
                             dumpflags,
@@ -3061,7 +3061,7 @@ fn dump_prefixes(
                             i,
                             n,
                             flags,
-                            crate::memory::cstr_until_nul(&word_up),
+                            crate::memory::bytes_as_cstr(&word_up),
                             slang,
                             true,
                         );
@@ -3069,7 +3069,7 @@ fn dump_prefixes(
                             crate::memory::copy_bytes_to_c_buf(&mut prefix[udepth..], &word_up);
                             dump_word(
                                 slang,
-                                crate::memory::cstr_until_nul(&prefix),
+                                crate::memory::bytes_as_cstr(&prefix),
                                 pat,
                                 (dir.is_some()).then(|| dir.as_deref_mut().unwrap()),
                                 dumpflags,

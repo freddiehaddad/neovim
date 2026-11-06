@@ -691,7 +691,7 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
         }
         out.extend_from_slice(item.to_bytes());
     }
-    crate::memory::cstr_from_bytes(&out)
+    crate::memory::bytes_to_cstring(&out)
 }
 
 #[inline]
@@ -718,7 +718,7 @@ fn set_init_default_shell() {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
             vim_snprintf!(&mut cmd, c"\"%s\"", shell_ptr);
-            set_string_default(K_OPT_SHELL, crate::memory::cstr_until_nul(&cmd));
+            set_string_default(K_OPT_SHELL, crate::memory::bytes_as_cstr(&cmd));
         } else {
             set_string_default(K_OPT_SHELL, shell.as_c_str());
         }
@@ -736,25 +736,28 @@ fn set_init_default_backupskip() {
     let opt_idx = K_OPT_BACKUPSKIP;
 
     for &name in &names {
+        let env_owned: Option<std::ffi::CString>;
         #[cfg(unix)]
-        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const _, usize) =
-            if name.to_bytes().is_empty() {
-                #[cfg(target_os = "macos")]
-                {
-                    (None, c"/private/tmp".as_ptr(), "/private/tmp".len())
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    (None, c"/tmp".as_ptr(), "/tmp".len())
-                }
-            } else {
-                let env = vim_getenv(name);
-                let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-                (env, ptr, 0)
-            };
+        let env_cstr: Option<&CStr> = if name.to_bytes().is_empty() {
+            #[cfg(target_os = "macos")]
+            {
+                Some(c"/private/tmp")
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                Some(c"/tmp")
+            }
+        } else {
+            env_owned = vim_getenv(name);
+            env_owned.as_deref()
+        };
         #[cfg(not(unix))]
-        let env = vim_getenv(name);
-        if let Some(ref env_cstr) = env
+        let env_cstr: Option<&CStr> = {
+            env_owned = vim_getenv(name);
+            env_owned.as_deref()
+        };
+
+        if let Some(env_cstr) = env_cstr
             && !env_cstr.is_empty()
         {
             let p_bytes = env_cstr.to_bytes();
@@ -794,7 +797,7 @@ fn set_init_default_backupskip() {
         }
     }
     if !buf.is_empty() {
-        set_string_default(K_OPT_BACKUPSKIP, crate::memory::cstr_until_nul(&buf));
+        set_string_default(K_OPT_BACKUPSKIP, crate::memory::bytes_as_cstr(&buf));
     }
 }
 
@@ -825,7 +828,7 @@ fn set_init_default_cdpath() {
     change_option_default(
         K_OPT_CDPATH,
         cstr_to_obj(
-            crate::strings::ByteSlice::from_ptr((crate::memory::cstr_until_nul(&buf_vec)).as_ptr())
+            crate::strings::ByteSlice::from_ptr((crate::memory::bytes_as_cstr(&buf_vec)).as_ptr())
                 .as_opt_cstr(),
         ),
     );
@@ -875,7 +878,7 @@ pub fn set_init_1(clean_arg: bool) {
     let mut backupdir_bytes = Vec::with_capacity(raw_backupdir.as_bytes().len() + 2);
     backupdir_bytes.extend_from_slice(b".,");
     backupdir_bytes.extend_from_slice(raw_backupdir.as_bytes());
-    let backupdir = crate::memory::cstr_from_bytes(&backupdir_bytes);
+    let backupdir = crate::memory::bytes_to_cstring(&backupdir_bytes);
     set_string_default(K_OPT_BACKUPDIR, backupdir.as_c_str());
     set_string_default(
         K_OPT_VIEWDIR,
@@ -1243,7 +1246,7 @@ fn stropt_expand_envvar(
     newval: &mut Vec<u8>,
     op: SetOp,
 ) {
-    let Some(s) = option_expand(opt_idx, Some(crate::memory::cstr_until_nul(newval))) else {
+    let Some(s) = option_expand(opt_idx, Some(crate::memory::bytes_as_cstr(newval))) else {
         return;
     };
 
@@ -2020,7 +2023,7 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
                     trans_characters(iobuf);
 
                     g_st().no_wait_return += 1;
-                    emsg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
+                    emsg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
                     g_st().no_wait_return -= 1;
 
                     return false;
@@ -2455,7 +2458,7 @@ pub fn apply_optionset_autocmd_now(
     );
     set_vim_var_string(
         VV_OPTION_TYPE,
-        Some(crate::memory::cstr_until_nul(&buf_type)),
+        Some(crate::memory::bytes_as_cstr(&buf_type)),
         typelen as isize,
     );
     if (opt_flags & OPT_LOCAL) != 0 {
@@ -3247,7 +3250,7 @@ fn do_spelllang_source(win: &mut WinInfoInfo) {
         .count();
     if len > 0 {
         vim_snprintf!(&mut fname, c"spell/%.*s.*", len as i32, q);
-        source_runtime_vim_lua(crate::memory::cstr_until_nul(&fname), DIP_ALL);
+        source_runtime_vim_lua(crate::memory::bytes_as_cstr(&fname), DIP_ALL);
     }
 }
 
@@ -3505,7 +3508,7 @@ pub fn get_tty_option(name: &[u8]) -> Object {
             vim_snprintf!(&mut value, c"%d", g_st().t_colors);
             cstr_to_obj(
                 crate::strings::ByteSlice::from_ptr(
-                    (crate::memory::cstr_until_nul(&value)).as_ptr(),
+                    (crate::memory::bytes_as_cstr(&value)).as_ptr(),
                 )
                 .as_opt_cstr(),
             )
@@ -5017,7 +5020,7 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
         }
         ObjectType::ObjectTypeInteger => {
             let s = format!("{}", o.data.integer());
-            crate::memory::cstr_from_bytes(s.as_bytes())
+            crate::memory::bytes_to_cstring(s.as_bytes())
         }
         ObjectType::ObjectTypeString => {
             let slice = if o.data.string().data.is_null() || o.data.string().size == 0 {
@@ -5026,13 +5029,13 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
                 o.data.string().as_bytes()
             };
             if !quote {
-                return crate::memory::cstr_from_bytes(slice);
+                return crate::memory::bytes_to_cstring(slice);
             }
             let mut out = Vec::with_capacity(slice.len() + 2);
             out.push(b'"');
             out.extend_from_slice(slice);
             out.push(b'"');
-            crate::memory::cstr_from_bytes(&out)
+            crate::memory::bytes_to_cstring(&out)
         }
         ObjectType::ObjectTypeLuaRef => nlua_funcref_str(o.data.luaref(), false),
         _ => std::process::abort(),
@@ -5112,14 +5115,14 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
                 kv.extend_from_slice(k_bytes);
                 kv.push(b':');
                 kv.extend_from_slice(v_bytes);
-                items.push(crate::memory::cstr_from_bytes(&kv));
+                items.push(crate::memory::bytes_to_cstring(&kv));
             } else if v.obj_type == ObjectType::ObjectTypeInteger {
                 let k_bytes = k.cstr_bytes();
                 let num_s = format!(":{}", v.data.integer());
                 let mut kv = Vec::with_capacity(k_bytes.len() + num_s.len());
                 kv.extend_from_slice(k_bytes);
                 kv.extend_from_slice(num_s.as_bytes());
-                items.push(crate::memory::cstr_from_bytes(&kv));
+                items.push(crate::memory::bytes_to_cstring(&kv));
             } else if v.obj_type == ObjectType::ObjectTypeBoolean
                 || v.obj_type == ObjectType::ObjectTypeNil
             {
@@ -5934,7 +5937,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 } else {
                     optval_fmt(opt_idx, opt_flags);
                     (opt.fullname.to_bytes().len() as i32)
-                        + vim_strsize(crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()))
+                        + vim_strsize(crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()))
                         + 1
                 };
                 if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -6224,7 +6227,7 @@ fn put_set_value(
                 }
             } else {
                 let num_s = format!("{value_num}\0");
-                if fd.puts(crate::memory::cstr_until_nul(num_s.as_bytes())) < 0 {
+                if fd.puts(crate::memory::bytes_as_cstr(num_s.as_bytes())) < 0 {
                     return false;
                 }
             }
@@ -6254,7 +6257,7 @@ fn put_set_value(
                                 return false;
                             }
                             copy_option_part(&mut p, &mut part_vec, c",");
-                            if !put_escstr(fd, crate::memory::cstr_until_nul(&part_vec), 2)
+                            if !put_escstr(fd, crate::memory::bytes_as_cstr(&part_vec), 2)
                                 || !put_eol(fd)
                             {
                                 return false;
@@ -6262,7 +6265,7 @@ fn put_set_value(
                         }
                         return true;
                     }
-                    if !put_escstr(fd, crate::memory::cstr_until_nul(&buf_vec), 2) {
+                    if !put_escstr(fd, crate::memory::bytes_as_cstr(&buf_vec), 2) {
                         return false;
                     }
                 } else if !put_escstr(fd, value_str.as_cstr(), 2) {
@@ -7607,7 +7610,7 @@ pub fn escape_option_str_cmdline(var_arg: &[u8]) -> std::ffi::CString {
             out.extend_from_slice(&src[idx..idx + clen]);
             idx += clen;
         }
-        crate::memory::cstr_from_bytes(&out)
+        crate::memory::bytes_to_cstring(&out)
     }
     #[cfg(not(windows))]
     {
@@ -7769,7 +7772,7 @@ pub fn expand_setting_subtract(
         if num_flags > 1 {
             let flag = option_val;
             for &flag_byte in crate::strings::ByteSlice::from_ptr(flag).as_bytes() {
-                matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
+                matches.push(crate::memory::bytes_to_cstring(&[flag_byte]));
             }
         }
 
@@ -7901,7 +7904,7 @@ pub fn option_set_callback_func(optval: &[u8], optcb: &mut Callback) -> bool {
         return true;
     }
 
-    let optval_cstr = crate::memory::cstr_from_bytes(bytes);
+    let optval_cstr = crate::memory::bytes_to_cstring(bytes);
     let mut tv: TypVal =
         if bytes[0] == b'{' || bytes.starts_with(b"function(") || bytes.starts_with(b"funcref(") {
             let Some(evaluated) = eval_expr(&optval_cstr, None) else {

@@ -1024,7 +1024,7 @@ fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [u8; 40]) {
         crate::memory::append_bytes_to_c_buf(cbuf, b"v");
     }
     crate::memory::append_bytes_to_c_buf(cbuf, b"new");
-    do_cmdline_cmd(crate::memory::cstr_until_nul(cbuf));
+    do_cmdline_cmd(crate::memory::bytes_as_cstr(cbuf));
 }
 
 fn do_window_gotofile(nchar: i32, prenum1: i32) {
@@ -1139,12 +1139,12 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
         c if c == CTRL_Q_CONST || c == b'q' as i32 => {
             reset_visual_and_resel();
             cmd_with_count(c"quit", &mut cbuf, i64::from(prenum));
-            do_cmdline_cmd(crate::memory::cstr_until_nul(&cbuf));
+            do_cmdline_cmd(crate::memory::bytes_as_cstr(&cbuf));
         }
         c if c == CTRL_C_CONST || c == b'c' as i32 => {
             reset_visual_and_resel();
             cmd_with_count(c"close", &mut cbuf, i64::from(prenum));
-            do_cmdline_cmd(crate::memory::cstr_until_nul(&cbuf));
+            do_cmdline_cmd(crate::memory::bytes_as_cstr(&cbuf));
         }
         c if c == CTRL_Z_CONST || c == b'z' as i32 => {
             reset_visual_and_resel();
@@ -1167,7 +1167,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
         c if c == CTRL_O || c == b'o' as i32 => {
             reset_visual_and_resel();
             cmd_with_count(c"only", &mut cbuf, i64::from(prenum));
-            do_cmdline_cmd(crate::memory::cstr_until_nul(&cbuf));
+            do_cmdline_cmd(crate::memory::bytes_as_cstr(&cbuf));
         }
         c if c == CTRL_W_CONST || c == b'w' as i32 || c == b'W' as i32 => {
             if one_window_macro() && prenum != 1 {
@@ -3758,7 +3758,7 @@ fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
     win_st().winclosed_recursive = true;
     let mut winid = [0u8; NUMBUFLEN];
     vim_snprintf!(&mut winid[..], c"%d", win.handle);
-    let winid_cstr = crate::memory::cstr_until_nul(&winid);
+    let winid_cstr = crate::memory::bytes_as_cstr(&winid);
     apply_autocmds_win(
         EVENT_WINCLOSED,
         Some(winid_cstr),
@@ -3942,7 +3942,7 @@ pub fn win_close_othertab(
         if has_event(EVENT_TABCLOSED) {
             let mut prev_idx = [0u8; NUMBUFLEN];
             vim_snprintf!(&mut prev_idx[..], c"%i", free_tp_idx);
-            let prev_idx_cstr = crate::memory::cstr_until_nul(&prev_idx);
+            let prev_idx_cstr = crate::memory::bytes_as_cstr(&prev_idx);
             let buf_opt = if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
                 bufref.br_buf.opt_mut()
             } else {
@@ -5475,7 +5475,7 @@ pub fn tabpage_move(nr: i32) {
         let mut obj = dict_obj(data);
         aucmd_defer(
             EVENT_TABMOVED,
-            Some(crate::memory::cstr_until_nul(&prev_idx)),
+            Some(crate::memory::bytes_as_cstr(&prev_idx)),
             None,
             AUGROUP_ALL,
             curbuf_mut(),
@@ -5806,7 +5806,7 @@ pub fn update_cwd(cause: CdCause) {
         }
         let dir_differs = !path_equal(
             new_dir_ptr.as_cstr(),
-            crate::memory::cstr_until_nul(&cwd),
+            crate::memory::bytes_as_cstr(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
@@ -5821,7 +5821,7 @@ pub fn update_cwd(cause: CdCause) {
         let gdir_ptr = crate::strings::ByteSlice::from_cstr(&gdir);
         let dir_differs = !path_equal(
             gdir_ptr.as_cstr(),
-            crate::memory::cstr_until_nul(&cwd),
+            crate::memory::bytes_as_cstr(&cwd),
             K_PATH_CMP_LITERAL,
         );
         if !opt_vars().p_acd && dir_differs {
@@ -6325,7 +6325,7 @@ fn check_window_scroll_resize(
             let mut d_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(d);
             if !tv_dict_add_dict(
                 ve,
-                crate::memory::cstr_until_nul(&winid),
+                crate::memory::bytes_as_cstr(&winid),
                 Some(d_ptr.borrow_mut()),
             ) {
                 tv_dict_unref(Some(d_ptr.borrow_mut()));
@@ -6455,7 +6455,7 @@ pub fn may_trigger_win_scrolled_resized() {
             } else {
                 curwin_ptr()
             };
-            let resize_winid_cstr = crate::memory::cstr_until_nul(&resize_winid);
+            let resize_winid_cstr = crate::memory::bytes_as_cstr(&resize_winid);
             apply_autocmds_win(
                 EVENT_WINRESIZED,
                 Some(resize_winid_cstr),
@@ -6486,7 +6486,7 @@ pub fn may_trigger_win_scrolled_resized() {
         } else {
             curwin_ptr()
         };
-        let scroll_winid_cstr = crate::memory::cstr_until_nul(&scroll_winid);
+        let scroll_winid_cstr = crate::memory::bytes_as_cstr(&scroll_winid);
         apply_autocmds_win(
             EVENT_WINSCROLLED,
             Some(scroll_winid_cstr),

@@ -2599,7 +2599,7 @@ pub fn readfile(
                             );
                             let _ = readfile_progress(
                                 Some(g_st().iobuff_bytes_mut()),
-                                crate::memory::cstr_until_nul(&msg_id),
+                                crate::memory::bytes_as_cstr(&msg_id),
                                 c"running",
                                 percent,
                                 false,
@@ -2725,7 +2725,7 @@ pub fn readfile(
                     if progress {
                         let _ = readfile_progress(
                             None,
-                            crate::memory::cstr_until_nul(&msg_id),
+                            crate::memory::bytes_as_cstr(&msg_id),
                             c"cancel",
                             -1,
                             false,
@@ -2882,7 +2882,7 @@ pub fn readfile(
                         p = if progress {
                             readfile_progress(
                                 Some(g_st().iobuff_bytes_mut()),
-                                crate::memory::cstr_until_nul(&msg_id),
+                                crate::memory::bytes_as_cstr(&msg_id),
                                 if error { c"failed" } else { c"success" },
                                 -1,
                                 true,
@@ -2905,7 +2905,7 @@ pub fn readfile(
                 } else if progress {
                     let _ = readfile_progress(
                         None,
-                        crate::memory::cstr_until_nul(&msg_id),
+                        crate::memory::bytes_as_cstr(&msg_id),
                         if error { c"failed" } else { c"success" },
                         -1,
                         false,
@@ -3451,7 +3451,7 @@ pub fn shorten_fnames(force: bool) {
     let mut changed = false;
 
     os_dirname(&mut dirname);
-    let dirname_cstr = crate::memory::cstr_until_nul(&dirname);
+    let dirname_cstr = crate::memory::bytes_as_cstr(&dirname);
     for buf in for_all_buffers_mut() {
         changed |= shorten_buf_fname(buf, dirname_cstr, i32::from(force));
         mf_fullname(buf.b_ml.mfp_opt());
@@ -3512,7 +3512,7 @@ pub fn modname(
     retval_vec[s_idx..(s_idx + extlen)].copy_from_slice(ext_bytes);
     retval_vec[s_idx + extlen] = 0;
 
-    let e_ptr = path_tail(crate::memory::cstr_until_nul(&retval_vec)).as_ptr();
+    let e_ptr = path_tail(crate::memory::bytes_as_cstr(&retval_vec)).as_ptr();
     let e_idx = ((crate::strings::AsByteSlice::byte_addr(e_ptr) as isize)
         - (crate::strings::AsByteSlice::byte_addr(retval_vec.as_ptr()) as isize))
         as usize;
@@ -3692,13 +3692,13 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
     let mut tempname: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
     crate::memory::copy_bytes_to_c_buf(&mut tempname, from_bytes);
     for n in 123..99999 {
-        let tail = path_tail(crate::memory::cstr_until_nul(&tempname)).as_ptr();
+        let tail = path_tail(crate::memory::bytes_as_cstr(&tempname)).as_ptr();
         let tail_off = ((crate::strings::AsByteSlice::byte_addr(tail) as isize)
             - (crate::strings::AsByteSlice::byte_addr(tempname.as_ptr()) as isize))
             as usize;
         vim_snprintf!(&mut tempname[tail_off..], c"%d", n);
 
-        let temp_cstr = crate::memory::cstr_until_nul(&tempname);
+        let temp_cstr = crate::memory::bytes_as_cstr(&tempname);
         if !os_path_exists(temp_cstr) {
             if os_rename(from, temp_cstr) {
                 if os_rename(temp_cstr, to) {
@@ -4037,7 +4037,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         let tbuflen = vim_snprintf!(&mut tbuf_vec, mesg, path.as_ptr());
         set_vim_var_string(
             VV_WARNINGMSG,
-            Some(crate::memory::cstr_until_nul(&tbuf_vec)),
+            Some(crate::memory::bytes_as_cstr(&tbuf_vec)),
             tbuflen as isize,
         );
         if can_reload {
@@ -4274,8 +4274,12 @@ fn vim_mktempdir() {
     let umask_save = call_umask(0o077);
     for temp_dir in TEMP_DIRS {
         let mut tmplen = expand_env(temp_dir, &mut tmp[..TEMP_FILE_PATH_MAXLEN - 64]);
-        if !os_isdir(crate::memory::cstr_until_nul(&tmp)) {
-            if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
+        if !os_isdir(crate::memory::bytes_as_cstr(&tmp)) {
+            if crate::strings::ByteSlice::from_ptr(temp_dir.as_ptr())
+                .as_opt_cstr()
+                .map(std::ffi::CStr::to_bytes)
+                == Some(b"$TMPDIR")
+            {
                 if !os_env_exists(c"TMPDIR", true) {
                     logmsg!(
                         LOG_DEBUG,
@@ -4306,11 +4310,11 @@ fn vim_mktempdir() {
         }
         tmplen += vim_snprintf!(&mut tmp[tmplen..], c"nvim.%s", user.as_ptr()) as usize;
         debug_assert!(tmplen < tmp.len());
-        os_mkdir(crate::memory::cstr_until_nul(&tmp), 0o700);
-        let owned = os_file_owned(crate::memory::cstr_until_nul(&tmp));
-        let isdir = os_isdir(crate::memory::cstr_until_nul(&tmp));
+        os_mkdir(crate::memory::bytes_as_cstr(&tmp), 0o700);
+        let owned = os_file_owned(crate::memory::bytes_as_cstr(&tmp));
+        let isdir = os_isdir(crate::memory::bytes_as_cstr(&tmp));
         #[cfg(unix)]
-        let perm = os_getperm(crate::memory::cstr_until_nul(&tmp));
+        let perm = os_getperm(crate::memory::bytes_as_cstr(&tmp));
         #[cfg(unix)]
         let valid = isdir && owned && 0o700 == (perm & 0o777);
         #[cfg(not(unix))]
@@ -4363,7 +4367,7 @@ fn vim_mktempdir() {
         tmplen += vim_snprintf!(&mut tmp[tmplen..], c"XXXXXX") as usize;
         debug_assert!(tmplen < tmp.len());
         let _ = tmplen;
-        let r = os_mkdtemp(crate::memory::cstr_until_nul(&tmp), &mut path);
+        let r = os_mkdtemp(crate::memory::bytes_as_cstr(&tmp), &mut path);
         if r != 0 {
             logmsg!(
                 LOG_WARN,
@@ -4378,10 +4382,10 @@ fn vim_mktempdir() {
             continue;
         }
 
-        if vim_settempdir(crate::memory::cstr_until_nul(&path)) {
+        if vim_settempdir(crate::memory::bytes_as_cstr(&path)) {
             break;
         }
-        os_rmdir(crate::memory::cstr_until_nul(&path));
+        os_rmdir(crate::memory::bytes_as_cstr(&path));
     }
     call_umask(umask_save);
 }
@@ -4498,14 +4502,14 @@ pub fn vim_deltempdir() {
     vim_closetempdir();
 
     let mut td_vec: Vec<u8> = td.into_bytes_with_nul();
-    let tail_ptr = path_tail(crate::memory::cstr_until_nul(&td_vec)).as_ptr();
+    let tail_ptr = path_tail(crate::memory::bytes_as_cstr(&td_vec)).as_ptr();
     let tail_off = ((crate::strings::AsByteSlice::byte_addr(tail_ptr) as isize)
         - (crate::strings::AsByteSlice::byte_addr(td_vec.as_ptr()) as isize))
         as usize;
     if tail_off > 0 {
         td_vec[tail_off - 1] = 0;
     }
-    delete_recursive(crate::memory::cstr_until_nul(&td_vec));
+    delete_recursive(crate::memory::bytes_as_cstr(&td_vec));
 }
 
 /// Gets path to Nvim's own temp dir (ending with slash).

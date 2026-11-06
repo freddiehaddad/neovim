@@ -2372,7 +2372,7 @@ pub(super) fn match_with_backref(
             }
             re_st().reg_tofree[..line_bytes.len()].copy_from_slice(line_bytes);
             re_st().rex.line =
-                reg_line_from_cstr(crate::memory::cstr_until_nul(&re_st().reg_tofree));
+                reg_line_from_cstr(crate::memory::bytes_as_cstr(&re_st().reg_tofree));
             re_st().rex.input = re_st().rex.line.wrapping_add(off);
         }
 
@@ -2648,7 +2648,7 @@ pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi
         };
     }
 
-    newsub_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr()))
+    newsub_vec.map(|v| crate::strings::ByteSlice::from_ptr(v.as_ptr()).to_cstring())
 }
 
 pub(crate) fn fill_submatch_list(
@@ -3179,7 +3179,7 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
             let src = reg_getline_submatch_slice(lnum).unwrap_or(b"");
             buf.extend_from_slice(&src[..ecol.min(src.len())]);
         }
-        Some(crate::memory::cstr_from_bytes(&buf))
+        Some(crate::memory::bytes_to_cstring(&buf))
     } else {
         let s = re_st().rsm.match_mut().startp[no];
         let e = re_st().rsm.match_mut().endp[no];

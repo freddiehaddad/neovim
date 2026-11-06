@@ -35,7 +35,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, cstr_from_bytes};
+use crate::memory::{Arena, arena_alloc, bytes_to_cstring};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -1014,7 +1014,7 @@ pub fn nvim_cmd(
                 ) {
                     cmod.cmod_filter_force = filter.force;
                     if !filter.pattern.cstr_bytes().is_empty() || cmod.cmod_filter_force {
-                        let pat = cstr_from_bytes(filter.pattern.as_bytes());
+                        let pat = bytes_to_cstring(filter.pattern.as_bytes());
                         cmod.cmod_filter_regmatch
                             .set_prog(vim_regcomp(&pat, RE_MAGIC));
                         cmod.cmod_filter_pat = Some(pat);

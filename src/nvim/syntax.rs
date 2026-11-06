@@ -2736,7 +2736,7 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
             emsg(gettext(E_INVARG));
             return;
         }
-        let isk = crate::memory::cstr_from_bytes(arg_bytes);
+        let isk = crate::memory::bytes_to_cstring(arg_bytes);
         parse_isopt(isk.as_bytes(), Some(&mut win_s(curwin_mut()).b_syn_chartab));
         win_s(curwin_mut()).b_syn_isk = Some(isk);
     }
@@ -2912,7 +2912,7 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
         let mut buf = [0u8; 100];
         buf[..3].copy_from_slice(b"so ");
         vim_snprintf!(&mut buf[3..], SYNTAX_FNAME, name.as_ptr());
-        do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
+        do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
     }
 }
 
@@ -3928,7 +3928,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         {
             key_end = key_end.wrapping_add(1);
         }
-        key = Some(crate::memory::cstr_from_bytes(
+        key = Some(crate::memory::bytes_to_cstring(
             &rest.slice(key_end.offset_from(rest)).to_ascii_uppercase(),
         ));
         let key_ptr = key.as_deref().unwrap_or(c"");
@@ -4160,7 +4160,7 @@ fn syn_add_cluster(name: std::ffi::CString) -> i32 {
     let name_ptr = crate::strings::ByteSlice::from_cstr(&name);
     let is_spell = name_ptr.as_bytes().eq_ignore_ascii_case(b"Spell");
     let is_nospell = name_ptr.as_bytes().eq_ignore_ascii_case(b"NoSpell");
-    let scl_name_u = crate::memory::cstr_from_bytes(&name_ptr.as_bytes().to_ascii_uppercase());
+    let scl_name_u = crate::memory::bytes_to_cstring(&name_ptr.as_bytes().to_ascii_uppercase());
 
     let clusters = &mut win_s(curwin_mut()).b_syn_clusters;
     clusters.push(SynCluster {
@@ -4369,7 +4369,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
     while ends_excmd((arg_start).first_byte()) == 0 {
         let mut arg_end = arg_start.skiptowhite();
         let mut next_arg = arg_end.skipwhite();
-        key_owned = Some(crate::memory::cstr_from_bytes(
+        key_owned = Some(crate::memory::bytes_to_cstring(
             &arg_start
                 .slice(((arg_end).offset_from(arg_start) as isize) as usize)
                 .to_ascii_uppercase(),
@@ -5052,7 +5052,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
                         .scl_name
                         .as_ptr(),
                 );
-                Some(crate::memory::cstr_until_nul(&xp.xp_buf))
+                Some(crate::memory::bytes_as_cstr(&xp.xp_buf))
             } else {
                 None
             }

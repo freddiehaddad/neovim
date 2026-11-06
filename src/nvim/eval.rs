@@ -128,7 +128,7 @@ use crate::mbyte::{
     Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len,
 };
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes};
+use crate::memory::{Arena, arena_finish, arena_mem_free, bytes_to_cstring};
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::OptIndex;
@@ -679,7 +679,7 @@ fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> 
                 out.push(b'\n');
             }
         }
-        return Some(cstr_from_bytes(&out));
+        return Some(bytes_to_cstring(&out));
     } else if tv.v_type == VarType::VarList || tv.v_type == VarType::VarDict {
         return Some(encode_tv2string(&mut *tv, None));
     }
@@ -1057,7 +1057,7 @@ fn get_lval_dict_item<'a>(
     if let Some(rettv) = rettv.as_deref()
         && lp.ll_dict.dv_scope != 0
     {
-        let key_cstr = (len != -1).then(|| cstr_from_bytes(key.slice(len as usize)));
+        let key_cstr = (len != -1).then(|| bytes_to_cstring(key.slice(len as usize)));
         let key_ref = key_cstr.as_deref().unwrap_or_else(|| key.as_cstr());
         let wrong = (lp.ll_dict.dv_scope == VAR_DEF_SCOPE
             && tv_is_func(rettv)
@@ -1512,7 +1512,7 @@ pub fn set_var_lval(
             let full_len = ((crate::strings::AsByteSlice::byte_addr(endp) as isize)
                 - (crate::strings::AsByteSlice::byte_addr(ll_name.as_ptr()) as isize))
                 as usize;
-            cstr_from_bytes(unsafe {
+            bytes_to_cstring(unsafe {
                 std::slice::from_raw_parts((ll_name.as_ptr()).cast::<u8>(), full_len)
             })
         };
@@ -1994,7 +1994,7 @@ fn eval_func(
     let partial = crate::globals::GraphPtr::from(partial_opt);
     let s = crate::strings::ByteSlice::from_cstr(deref);
 
-    let s_cstr = cstr_from_bytes(s.slice(len as usize));
+    let s_cstr = bytes_to_cstring(s.slice(len as usize));
 
     let lnum = curwin_mut().w_cursor.lnum;
     let mut funcexe = Funcexe {
@@ -3144,7 +3144,7 @@ fn eval_method<'a>(
             && let Some(paren_cstr) = paren
         {
             let expr_len = (paren_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize);
-            let expr_cstr = cstr_from_bytes(unsafe {
+            let expr_cstr = bytes_to_cstring(unsafe {
                 std::slice::from_raw_parts((name.as_ptr()).cast::<u8>(), expr_len)
             });
             let expr_base = expr_cstr.as_ptr();
@@ -3467,12 +3467,12 @@ fn eval_index_inner(
                 if n1 >= len || n2 < 0 || n1 > n2 {
                     None
                 } else {
-                    Some(cstr_from_bytes(&s_bytes[n1 as usize..=n2 as usize]))
+                    Some(bytes_to_cstring(&s_bytes[n1 as usize..=n2 as usize]))
                 }
             } else if n1 >= len || n1 < 0 {
                 None
             } else {
-                Some(cstr_from_bytes(&s_bytes[n1 as usize..=n1 as usize]))
+                Some(bytes_to_cstring(&s_bytes[n1 as usize..=n1 as usize]))
             };
             tv_clear(rettv);
             if let Some(ref c) = v {
@@ -3561,7 +3561,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
     let mut ret = true;
     if opt_idx == K_OPT_INVALID && !is_tty_opt {
         if rettv.is_some() {
-            let opt_cstr = cstr_from_bytes(opt_bytes);
+            let opt_cstr = bytes_to_cstring(opt_bytes);
             semsg!(gettext(c"E113: Unknown option: %s"), opt_cstr.as_ptr());
         }
 
@@ -3836,7 +3836,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
         }
     }
     buf_vec.push(0);
-    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&buf_vec)));
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&buf_vec)));
     if rem.first() == Some(&b'"') && !interpolate {
         rem = &rem[1..];
     }
@@ -3908,7 +3908,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
         mb_copy_char(&mut rem, &mut buf_vec);
     }
     buf_vec.push(0);
-    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&buf_vec)));
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&buf_vec)));
     *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
 
     true
@@ -4665,7 +4665,7 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
         if len == 0 {
             return false;
         }
-        let env_with_dollar = cstr_from_bytes(unsafe {
+        let env_with_dollar = bytes_to_cstring(unsafe {
             std::slice::from_raw_parts((orig_arg.as_ptr()).cast::<u8>(), len as usize + 1)
         });
         let env_name = unsafe {
@@ -5809,7 +5809,7 @@ fn make_expanded_name(
         return None;
     }
 
-    let expr_cstr = cstr_from_bytes(&in_bytes[expr_start_off + 1..expr_end_off]);
+    let expr_cstr = bytes_to_cstring(&in_bytes[expr_start_off + 1..expr_end_off]);
     let temp_result = eval_to_string(&expr_cstr, false, false)?;
 
     let prefix = &in_bytes[..expr_start_off];
@@ -5818,7 +5818,7 @@ fn make_expanded_name(
     buf.extend_from_slice(prefix);
     buf.extend_from_slice(temp_result.as_bytes());
     buf.extend_from_slice(suffix);
-    let mut retval = Some(cstr_from_bytes(&buf));
+    let mut retval = Some(bytes_to_cstring(&buf));
 
     if let Some(ref rv) = retval {
         let mut next_range: Option<(usize, usize)> = None;
@@ -5925,7 +5925,7 @@ pub fn char_from_string(s: &[u8], index: Varnumber) -> Option<std::ffi::CString>
     let clen = crate::mbyte::utfc_slice2len(&s[nbyte..])
         .max(1)
         .min(slen - nbyte);
-    Some(cstr_from_bytes(&s[nbyte..nbyte + clen]))
+    Some(bytes_to_cstring(&s[nbyte..nbyte + clen]))
 }
 
 fn char_idx2byte(s: &[u8], idx: Varnumber) -> isize {
@@ -5978,7 +5978,7 @@ pub fn string_slice(
     if start_byte >= (slen as isize) || end_byte <= start_byte {
         return None;
     }
-    Some(cstr_from_bytes(
+    Some(bytes_to_cstring(
         &s[start_byte as usize..(end_byte as usize).min(slen)],
     ))
 }
@@ -6125,7 +6125,7 @@ pub fn var_item_copy(
                 if let Some(conv_bytes) = string_convert(conv, from.vval.v_string_bytes(), None) {
                     crate::eval::typval::tv_set_string(
                         &mut *to,
-                        Some(crate::memory::cstr_until_nul(&conv_bytes)),
+                        Some(crate::memory::bytes_as_cstr(&conv_bytes)),
                     );
                 } else {
                     crate::eval::typval::tv_set_string(&mut *to, from.vval.v_string_cstr());
@@ -6331,17 +6331,17 @@ pub fn ex_execute(eap: &mut Exarg) {
         if eap.cmdidx == Cmdidx::CmdEchomsg {
             msg_ext_no_fast();
             msg_ext_set_kind(c"echomsg");
-            msg(crate::memory::cstr_until_nul(&buf), eval_st().echo_hl_id);
+            msg(crate::memory::bytes_as_cstr(&buf), eval_st().echo_hl_id);
         } else if eap.cmdidx == Cmdidx::CmdEchoerr {
             let save_did_emsg = g_st().did_emsg;
             msg_ext_no_fast();
-            emsg_multiline(crate::memory::cstr_until_nul(&buf), c"echoerr", HLF_E, true);
+            emsg_multiline(crate::memory::bytes_as_cstr(&buf), c"echoerr", HLF_E, true);
             if !g_st().force_abort {
                 g_st().did_emsg = save_did_emsg;
             }
         } else if eap.cmdidx == Cmdidx::CmdExecute {
             do_cmdline(
-                Some(crate::memory::cstr_until_nul(&buf)),
+                Some(crate::memory::bytes_as_cstr(&buf)),
                 eap.ea_getline,
                 DOCMD_NOWAIT | DOCMD_VERBOSE,
             );
@@ -6502,9 +6502,9 @@ pub fn do_string_sub(
     }
 
     let ret = if let Some(buf) = &out {
-        cstr_from_bytes(buf)
+        bytes_to_cstring(buf)
     } else {
-        cstr_from_bytes(&str_bytes[..len])
+        bytes_to_cstring(&str_bytes[..len])
     };
     drop(out);
     if opt_vars().p_cpo.is_null() {
@@ -6663,7 +6663,7 @@ pub fn eval_call_provider(
         fe_found_var: false,
     };
     call_func(
-        crate::memory::cstr_until_nul(&func),
+        crate::memory::bytes_as_cstr(&func),
         name_len,
         &mut rettv,
         2,
@@ -6719,7 +6719,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
     let mut tv = tv_initial_value();
     let mut len = vim_snprintf!(&mut buf, c"g:loaded_%s_provider", name.as_ptr());
     if !eval_variable(
-        crate::memory::cstr_until_nul(&buf),
+        crate::memory::bytes_as_cstr(&buf),
         len,
         Some(&mut tv),
         None,
@@ -6731,7 +6731,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
 
         len = vim_snprintf!(&mut buf, c"g:loaded_%s_provider", name.as_ptr());
         if !eval_variable(
-            crate::memory::cstr_until_nul(&buf),
+            crate::memory::bytes_as_cstr(&buf),
             len,
             Some(&mut tv),
             None,
@@ -6739,7 +6739,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
             true,
         ) {
             vim_snprintf!(&mut buf, c"provider#%s#Call", name.as_ptr());
-            if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_some() && opt_vars().p_lpl {
+            if find_func(Some(crate::memory::bytes_as_cstr(&buf))).is_some() && opt_vars().p_lpl {
                 semsg!(
                     c"provider: %s: missing required variable g:loaded_%s_provider",
                     name.as_ptr(),
@@ -6754,7 +6754,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
 
     if ok {
         vim_snprintf!(&mut buf, c"provider#%s#Call", name.as_ptr());
-        if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_none() {
+        if find_func(Some(crate::memory::bytes_as_cstr(&buf))).is_none() {
             semsg!(
                 c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",
                 name.as_ptr(),

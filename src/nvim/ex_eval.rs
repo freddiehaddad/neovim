@@ -411,7 +411,7 @@ pub fn get_error_exception_string(mesg_bytes: &[u8], cmdname: Option<&CStr>) -> 
         }
         p_idx += 1;
     }
-    crate::memory::cstr_from_bytes(&out)
+    crate::memory::bytes_to_cstring(&out)
 }
 
 fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
@@ -557,7 +557,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         };
         set_vim_var_string(
             VV_THROWPOINT,
-            Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
+            Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
             iobufflen as isize,
         );
     } else {
@@ -615,7 +615,7 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
             };
             set_vim_var_string(
                 VV_THROWPOINT,
-                Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
+                Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
                 iobufflen as isize,
             );
         } else {
@@ -1140,7 +1140,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 let pat_cstr = if let Some(end_cstr) = end {
                     let end_slice = crate::strings::ByteSlice::from_cstr(end_cstr);
                     let pat_len = end_slice.offset_from(pat);
-                    Some(crate::memory::cstr_from_bytes(pat.slice(pat_len)))
+                    Some(crate::memory::bytes_to_cstring(pat.slice(pat_len)))
                 } else {
                     None
                 };

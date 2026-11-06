@@ -26,7 +26,7 @@ impl OptString {
     #[inline(always)]
     pub fn from_bytes(bytes: &[u8]) -> Self {
         let bytes = crate::memory::bytes_until_nul(bytes);
-        Self(Some(crate::memory::cstr_from_bytes(bytes)))
+        Self(Some(crate::memory::bytes_to_cstring(bytes)))
     }
 
     #[inline(always)]

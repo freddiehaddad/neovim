@@ -1200,7 +1200,10 @@ pub fn nvim_echo(
         };
     }
 
-    let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
+    let is_progress = crate::strings::ByteSlice::from_ptr(kind)
+        .as_opt_cstr()
+        .map(std::ffi::CStr::to_bytes)
+        == Some(b"progress");
     let mut needs_clear = !history;
     let has_percent = (opts.is_set_echo_opts & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
 

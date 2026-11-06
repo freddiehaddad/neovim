@@ -1007,12 +1007,12 @@ pub fn pum_redraw() {
                     }
                     let width_limit = pum().width;
 
-                    let seg_cstr = crate::memory::cstr_from_bytes(&item_bytes[seg_start..p_idx]);
+                    let seg_cstr = crate::memory::bytes_to_cstring(&item_bytes[seg_start..p_idx]);
                     let mut st_bytes = transstr(seg_cstr.as_bytes(), true).into_bytes_with_nul();
 
                     let attrs = if item_type == CPT_ABBR {
                         pum_compute_text_attrs(
-                            crate::memory::cstr_until_nul(&st_bytes),
+                            crate::memory::bytes_as_cstr(&st_bytes),
                             hlf,
                             pum().item(idx).pum_user_abbr_hlattr,
                         )
@@ -1047,7 +1047,7 @@ pub fn pum_redraw() {
                             }
                         }
 
-                        let rt_cstr = crate::memory::cstr_until_nul(&rt_bytes[rt_idx..]);
+                        let rt_cstr = crate::memory::bytes_as_cstr(&rt_bytes[rt_idx..]);
                         if let Some(ref attrs_vec) = attrs {
                             pum_grid_puts_with_attrs(
                                 grid_col - cells + 1,
@@ -1085,7 +1085,7 @@ pub fn pum_redraw() {
                             width = displayed;
                         }
 
-                        let st_cstr = crate::memory::cstr_until_nul(&st_bytes);
+                        let st_cstr = crate::memory::bytes_as_cstr(&st_bytes);
                         if let Some(ref attrs_vec) = attrs {
                             pum_grid_puts_with_attrs(grid_col, cells, st_cstr, -1, attrs_vec);
                         } else {

@@ -47,7 +47,7 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st};
+use crate::memory::{bytes_to_cstring, mem_st};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
     msg_prt_line, msg_putchar, msg_puts, msg_start, semsg, smsg, swmsg, trunc_string,
@@ -537,7 +537,7 @@ fn get_lambda_name() -> NvimString {
 /// Allocate a `UserFunc` for a function called `name`.
 fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
     let namelen = name.len();
-    let name_cstr = cstr_from_bytes(name);
+    let name_cstr = bytes_to_cstring(name);
     let mut fp = Box::new(UserFunc {
         uf_varargs: 0,
         uf_flags: 0,
@@ -750,7 +750,7 @@ pub fn emsg_funcname(errmsg: &CStr, name: &CStr) {
     if name_bytes.first() == Some(&K_SPECIAL) && name_bytes.len() >= 3 {
         let mut bytes = Vec::from(&b"<SNR>"[..]);
         bytes.extend_from_slice(&name_bytes[3..]);
-        let joined = cstr_from_bytes(&bytes);
+        let joined = bytes_to_cstring(&bytes);
         p = joined.as_ptr();
         p_owned = Some(joined);
     }
@@ -909,7 +909,7 @@ fn fname_trans_sid<'a>(
     let fnamelen = fname_buflen + script_bytes.len() - 1;
     if fnamelen < FLEN_FIXED {
         fname_buf[fname_buflen..fname_buflen + script_bytes.len()].copy_from_slice(script_bytes);
-        crate::memory::cstr_until_nul(fname_buf)
+        crate::memory::bytes_as_cstr(fname_buf)
     } else {
         let mut fname_vec = Vec::with_capacity(fnamelen + 1);
         fname_vec.extend_from_slice(&fname_buf[..fname_buflen]);
@@ -1820,7 +1820,7 @@ pub fn call_func(
         fp = partial_ref.pt_func.opt_mut();
     }
     if fp.is_none() {
-        let nm = cstr_from_bytes(unsafe {
+        let nm = bytes_to_cstring(unsafe {
             std::slice::from_raw_parts((funcname.as_ptr()).cast::<u8>(), len as usize)
         });
         name_owned = Some(nm);
@@ -2022,7 +2022,7 @@ pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> {
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let name = cstr_from_bytes(funcname);
+    let name = bytes_to_cstring(funcname);
 
     let mut error = FCERR_NONE;
     let mut tofree: Option<std::ffi::CString> = None;
@@ -2158,7 +2158,7 @@ pub fn trans_function_name(
         *pp = crate::memory::CStrSubslice::advance(*pp, 3);
 
         len = get_id_len(pp) + 3;
-        return Some(cstr_from_bytes(unsafe {
+        return Some(bytes_to_cstring(unsafe {
             std::slice::from_raw_parts(start, len as usize)
         }));
     }
@@ -2223,14 +2223,17 @@ pub fn trans_function_name(
                     return None;
                 }
 
-                res = Some(cstr_from_bytes(unsafe {
+                res = Some(bytes_to_cstring(unsafe {
                     std::slice::from_raw_parts(end.wrapping_add(1), len as usize)
                 }));
 
                 *pp = crate::strings::ByteSlice::from_ptr(end.wrapping_add(1 + len as usize))
                     .as_cstr();
             } else {
-                res = Some(cstr_to_cstring((partial_name(pt.opt())).as_ptr()));
+                res = Some(
+                    crate::strings::ByteSlice::from_ptr((partial_name(pt.opt())).as_ptr())
+                        .to_cstring(),
+                );
 
                 *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
             }
@@ -2285,7 +2288,7 @@ pub fn trans_function_name(
             let mut bytes = Vec::with_capacity(3 + tail.len());
             bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
             bytes.extend_from_slice(tail);
-            return Some(cstr_from_bytes(&bytes));
+            return Some(bytes_to_cstring(&bytes));
         }
         return Some(name_cstr.to_owned());
     }
@@ -2377,7 +2380,7 @@ pub fn trans_function_name(
 
     *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
 
-    Some(cstr_from_bytes(&bytes))
+    Some(bytes_to_cstring(&bytes))
 }
 
 pub fn get_scriptlocal_funcname(funcname: Option<&CStr>) -> Option<std::ffi::CString> {
@@ -2418,7 +2421,7 @@ pub fn save_function_name(
         getdigits(&mut rem, false, 0);
         let consumed = 8 + tail.len() - rem.len();
         p = crate::memory::CStrSubslice::advance(p, consumed);
-        saved = Some(cstr_from_bytes(&start.to_bytes()[..consumed]));
+        saved = Some(bytes_to_cstring(&start.to_bytes()[..consumed]));
         if fudi.is_some() {
             *fudi.as_deref_mut().unwrap() = Funcdict::new();
         }
@@ -2478,7 +2481,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
         let pat_len = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
             - (crate::strings::AsByteSlice::byte_addr(pat_start) as isize))
             as usize;
-        let pat_cstr = cstr_from_bytes(unsafe {
+        let pat_cstr = bytes_to_cstring(unsafe {
             std::slice::from_raw_parts((pat_start).cast::<u8>(), pat_len)
         });
         regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
@@ -2618,7 +2621,7 @@ fn get_function_body(
                 .iter()
                 .position(|&b| b == b'\n')
                 .unwrap_or(rem_bytes.len());
-            line_arg_cstr = cstr_from_bytes(&rem_bytes[..line_len]);
+            line_arg_cstr = bytes_to_cstring(&rem_bytes[..line_len]);
             theline = line_arg_cstr.as_ptr().cast_mut();
             line_arg = line_arg.wrapping_add(if line_len < rem_bytes.len() {
                 line_len + 1
@@ -2949,7 +2952,9 @@ fn get_function_body(
             }
         }
 
-        newlines.push(Some(crate::memory::cstr_to_cstring(theline)));
+        newlines.push(Some(
+            crate::strings::ByteSlice::from_ptr(theline).to_cstring(),
+        ));
 
         while sourcing_lnum_off > 0 {
             sourcing_lnum_off -= 1;
@@ -3286,7 +3291,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
         uf_st().func_nr += 1;
         namelen = vim_snprintf!(&mut numbuf, c"%d", uf_st().func_nr) as usize;
-        let nm = cstr_from_bytes(&numbuf[..namelen]);
+        let nm = bytes_to_cstring(&numbuf[..namelen]);
         name = nm.as_ptr().cast_mut();
         name_owned = Some(nm);
     }
@@ -4054,7 +4059,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
         iobuff_len = IOSIZE - 1;
     }
     drop(tofree);
-    cstr_from_bytes(iobuff_ptr.slice(iobuff_len))
+    bytes_to_cstring(iobuff_ptr.slice(iobuff_len))
 }
 
 /// Get next function line.
@@ -4344,7 +4349,7 @@ pub fn find_hi_in_scoped_ht(
 }
 
 pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'static mut Dictitem> {
-    let name_cstr = crate::memory::cstr_from_bytes(name_slice);
+    let name_cstr = crate::memory::bytes_to_cstring(name_slice);
     let namelen = name_slice.len();
     if uf_st().current_funccal.is_null() || cur_funccal_mut().fc_func.uf_scoped.is_null() {
         return None;

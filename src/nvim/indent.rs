@@ -1425,7 +1425,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
                         new_line = crate::strings::ByteSlice::from_bytes(&new_line_vec);
 
-                        if ml_replace(lnum, new_line.as_bytes(), true) {
+                        if ml_replace(lnum, &new_line_vec[..(new_len - 1) as usize], true) {
                             new_line = crate::strings::ByteSlice::from_bytes(
                                 curbuf_mut().b_ml.ml_line_slice,
                             );
@@ -1460,7 +1460,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             }
             vcol += i64::from(win_chartabsize(
                 curwin_mut(),
-                ptr.wrapping_add(col as usize).as_bytes(),
+                ptr.wrapping_add(col as usize),
                 vcol as Colnr,
             ));
             if vcol >= i64::from(MAXCOL) {

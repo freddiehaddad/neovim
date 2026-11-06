@@ -236,7 +236,7 @@ macro_rules! smsg {
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg(
-                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
+                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
                 hl,
             )
         }
@@ -255,7 +255,7 @@ macro_rules! smsg_keep {
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg_keep(
-                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
+                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
                 hl,
                 true,
                 false,
@@ -272,7 +272,7 @@ pub fn semsg_fmt(fmt: &std::ffi::CStr, args: &[crate::strings::FmtVal]) -> bool 
     }
     let mut errbuf = [0u8; 1025];
     crate::strings::vim_snprintf_fmt(&mut errbuf, Some(fmt), args);
-    emsg(crate::memory::cstr_until_nul(&errbuf))
+    emsg(crate::memory::bytes_as_cstr(&errbuf))
 }
 
 #[inline(never)]
@@ -286,7 +286,7 @@ pub fn semsg_multiline_fmt(
     }
     let mut errbuf = [0u8; 8192];
     crate::strings::vim_snprintf_fmt(&mut errbuf, Some(fmt), args);
-    emsg_multiline(crate::memory::cstr_until_nul(&errbuf), kind, 6, true)
+    emsg_multiline(crate::memory::bytes_as_cstr(&errbuf), kind, 6, true)
 }
 
 #[macro_export]
@@ -330,7 +330,7 @@ macro_rules! msg_schedule_semsg {
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg_schedule_semsg_cstr(
-                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
+                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
             );
         }
     }};
@@ -347,7 +347,7 @@ macro_rules! msg_schedule_semsg_multiline {
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg_schedule_semsg_multiline_cstr(
-                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
+                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
             );
         }
     }};
@@ -365,7 +365,7 @@ macro_rules! swmsg {
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::give_warning(
-                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
+                $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
                 hl_val,
                 true,
             );
@@ -598,7 +598,7 @@ fn format_progress_message(
     if msg_data.as_deref_mut().unwrap().percent >= 0 {
         let mut percent_buf = [0u8; 10];
         vim_snprintf!(&mut percent_buf, c"%3ld%% ", msg_data.unwrap().percent);
-        let percent = cstr_to_string(Some(crate::memory::cstr_until_nul(&percent_buf)));
+        let percent = cstr_to_string(Some(crate::memory::bytes_as_cstr(&percent_buf)));
         let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
             text: percent,
@@ -1288,7 +1288,7 @@ pub fn msg_trunc(s: &mut [u8], force: bool, hl_id: i32) -> Option<&std::ffi::CSt
 /// @note: May change the message by replacing a character with '<'.
 pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
     if ui_has(K_UIMESSAGES) {
-        return crate::memory::cstr_until_nul(s);
+        return crate::memory::bytes_as_cstr(s);
     }
 
     let slen = crate::memory::bytes_until_nul(s).len() as i32;
@@ -1296,11 +1296,11 @@ pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
         (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global + g_st().sc_col - 1;
     let mut off = 0usize;
     if room > 0 && (force || shortmess(K_SHM_TRUNC)) && slen - room > 0 {
-        let mut size = vim_strsize(crate::memory::cstr_until_nul(s));
+        let mut size = vim_strsize(crate::memory::bytes_as_cstr(s));
 
         // There may be room anyway when there are multibyte chars.
         if size <= room {
-            return crate::memory::cstr_until_nul(s);
+            return crate::memory::bytes_as_cstr(s);
         }
         let mut n = 0usize;
         while size >= room {
@@ -1311,7 +1311,7 @@ pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
         s[n] = b'<';
         off = n;
     }
-    crate::memory::cstr_until_nul(&s[off..])
+    crate::memory::bytes_as_cstr(&s[off..])
 }
 
 /// Shows a progress-message.  A non-"running" `status` ends the message and announces the
@@ -1357,7 +1357,7 @@ pub fn msg_with_id<'a>(
         let s_cstr = if trunc {
             msg_may_trunc(false, s_buf)
         } else {
-            crate::memory::cstr_until_nul(s_buf)
+            crate::memory::bytes_as_cstr(s_buf)
         };
         chunks.push(HlMessageChunk {
             text: cstr_to_string(Some(s_cstr)),
@@ -1991,7 +1991,7 @@ pub fn msgmore(n: i32) {
                 gettext(c" (Interrupted)").to_bytes(),
             );
         }
-        let msg_cstr = crate::memory::cstr_until_nul(g_st().borrow_mut().msg_buf_bytes_mut());
+        let msg_cstr = crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
             msg_st().keep_msg_more = true;
@@ -2110,13 +2110,13 @@ pub fn msg_putchar_hl(c: i32, hl_id: i32) {
         let len = utf_char2bytes(c, &mut buf) as usize;
         buf[len] = 0;
     }
-    msg_puts_hl(crate::memory::cstr_until_nul(&buf), hl_id, false);
+    msg_puts_hl(crate::memory::bytes_as_cstr(&buf), hl_id, false);
 }
 
 pub fn msg_outnum(n: i32) {
     let mut buf = [0u8; 20];
     vim_snprintf!(&mut buf, c"%d", n);
-    msg_puts(crate::memory::cstr_until_nul(&buf));
+    msg_puts(crate::memory::bytes_as_cstr(&buf));
 }
 
 pub fn msg_home_replace(fname: Option<&std::ffi::CStr>) {
@@ -2306,7 +2306,7 @@ pub fn str2special_save(
         let s = str2special(&mut rem, replace_spaces, replace_others, None);
         buf.extend_from_slice(s.to_bytes());
     }
-    crate::memory::cstr_from_bytes(&buf)
+    crate::memory::bytes_to_cstring(&buf)
 }
 
 /// Convert string, replacing key codes with printables
@@ -2511,7 +2511,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                     buf[..l].copy_from_slice(&rem[..l]);
                     buf[l] = 0;
                 }
-                msg_puts(crate::memory::cstr_until_nul(&buf));
+                msg_puts(crate::memory::bytes_as_cstr(&buf));
                 idx += l;
                 continue;
             } else {
@@ -2898,7 +2898,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                     ch_buf[..copy_len].copy_from_slice(&s_slice[..copy_len]);
                     grid_line_puts(
                         g_st().msg_col,
-                        crate::memory::cstr_until_nul(&ch_buf),
+                        crate::memory::bytes_as_cstr(&ch_buf),
                         l,
                         print_attr,
                     );
@@ -3323,7 +3323,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
         let mut buf = [0u8; 7];
 
         if crate::eval::typval::Callback::raw_cb_type(&g_st().on_print) != K_CALLBACK_NONE_CONST {
-            let cstr = crate::memory::cstr_from_bytes(slice);
+            let cstr = crate::memory::bytes_to_cstring(slice);
             let mut argv = [TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,

@@ -2525,7 +2525,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
         }
     } else if op == ANYOF || op == ANYOF + ADD_NL || op == ANYBUT || op == ANYBUT + ADD_NL {
         let is_anyof = op == ANYOF || op == ANYOF + ADD_NL;
-        let opnd_cstr = crate::memory::cstr_until_nul(opnd);
+        let opnd_cstr = crate::memory::bytes_as_cstr(opnd);
         while count < maxcount {
             let b0 = (scan).first_byte();
             if b0 == NUL {
@@ -3113,7 +3113,7 @@ fn regmatch(
                     }
                     ANYOF | ANYBUT => {
                         let q_slice = &prog[operand_idx(scan_idx)..];
-                        let q_cstr = crate::memory::cstr_until_nul(q_slice);
+                        let q_cstr = crate::memory::bytes_as_cstr(q_slice);
                         let matched = cstrchr(q_cstr, c);
                         if c == NUL as i32 || (matched.is_none() == (op == ANYOF)) {
                             status = RegAction::NoMatch;

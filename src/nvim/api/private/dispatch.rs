@@ -15453,7 +15453,7 @@ pub fn msgpack_rpc_get_handler_for(
         } else {
             msg.extend_from_slice(key_bytes);
         }
-        error.msg = Some(crate::memory::cstr_from_bytes(&msg));
+        error.msg = Some(crate::memory::bytes_to_cstring(&msg));
         error.err_type = ErrorType::ErrorTypeException;
         return MsgpackRpcRequestHandler {
             name: c"",

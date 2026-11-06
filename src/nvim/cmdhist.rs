@@ -619,7 +619,7 @@ pub fn ex_history(eap: &mut Exarg) {
     while !g_st().got_int && histype1 <= histype2 {
         let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
         let title = format!("\n      #  {hname} history\0");
-        msg_puts_title(crate::memory::cstr_until_nul(title.as_bytes()));
+        msg_puts_title(crate::memory::bytes_as_cstr(title.as_bytes()));
 
         let idx = hist_st().hisidx[histype1 as usize];
         let hist = hist_st().borrow_mut().history[histype1 as usize].as_slice();
@@ -667,7 +667,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     } else {
                         crate::memory::copy_bytes_to_c_buf(&mut iobuf[len..], entry_ptr.as_bytes());
                     }
-                    msg_outtrans(crate::memory::cstr_until_nul(&iobuf), 0, false);
+                    msg_outtrans(crate::memory::bytes_as_cstr(&iobuf), 0, false);
                 }
                 if i == idx {
                     break;

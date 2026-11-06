@@ -51,7 +51,7 @@ use crate::hashtab::{
 };
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::mbyte::utf_char2bytes;
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
     msg_outtrans, msg_putchar, msg_puts, msg_puts_len, msg_start, semsg,
@@ -931,7 +931,7 @@ pub fn eval_one_expr_in_str<'a>(
     }
     if evaluate {
         let expr_len = block_end.offset_from(block_start);
-        let expr_cstr = cstr_from_bytes(block_start.slice(expr_len));
+        let expr_cstr = bytes_to_cstring(block_start.slice(expr_len));
         let expr_val = eval_to_string(&expr_cstr, false, false)?;
         let bytes = expr_val.as_bytes();
         if !bytes.is_empty() {
@@ -991,7 +991,7 @@ fn eval_all_expr_in_str(str_arg_in: &CStr) -> Option<std::ffi::CString> {
         rem = &full_bytes[consumed.min(full_bytes.len())..];
     }
 
-    Some(cstr_from_bytes(&buf))
+    Some(bytes_to_cstring(&buf))
 }
 
 /// Get a list of lines from a HERE document.
@@ -1054,7 +1054,7 @@ pub fn heredoc_get(
             && after_b != comment_char
         {
             let p_off = cmd_line_len - after_marker.len();
-            let trailing_cstr = cstr_from_bytes(&full_cmd_bytes[p_off..cmd_line_len]);
+            let trailing_cstr = bytes_to_cstring(&full_cmd_bytes[p_off..cmd_line_len]);
             semsg!(gettext(E_TRAILING_ARG), trailing_cstr.as_ptr());
             return None;
         }
@@ -1062,9 +1062,9 @@ pub fn heredoc_get(
             emsg(gettext(c"E221: Marker cannot start with lower case letter"));
             return None;
         }
-        cstr_from_bytes(&marker_start[..marker_len])
+        bytes_to_cstring(&marker_start[..marker_len])
     } else if script_get {
-        cstr_from_bytes(b".")
+        bytes_to_cstring(b".")
     } else {
         emsg(gettext(c"E172: Missing marker"));
         return None;
@@ -1088,7 +1088,7 @@ pub fn heredoc_get(
                 .iter()
                 .position(|&b| b == b'\n')
                 .unwrap_or(rem_bytes.len());
-            theline_owned = Some(cstr_from_bytes(&rem_bytes[..line_len]));
+            theline_owned = Some(bytes_to_cstring(&rem_bytes[..line_len]));
             line_arg = line_arg.wrapping_add(if line_len < rem_bytes.len() {
                 line_len + 1
             } else {
@@ -1233,7 +1233,7 @@ pub fn ex_let(eap: &mut Exarg) {
                     semicolon,
                     var_count,
                     i32::from(is_const),
-                    Some(crate::memory::cstr_until_nul(&op)),
+                    Some(crate::memory::bytes_as_cstr(&op)),
                 );
             }
             tv_clear(&mut rettv);
@@ -1279,7 +1279,7 @@ pub fn ex_let(eap: &mut Exarg) {
             semicolon,
             var_count,
             i32::from(is_const),
-            Some(crate::memory::cstr_until_nul(&op)),
+            Some(crate::memory::bytes_as_cstr(&op)),
         );
     }
     if eval_res {
@@ -1441,7 +1441,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
 
         crate::memory::copy_bytes_to_c_buf(&mut buf, prefix.to_bytes());
         crate::memory::append_bytes_to_c_buf(&mut buf, di.key_bytes());
-        if message_filtered(crate::memory::cstr_until_nul(&buf)) {
+        if message_filtered(crate::memory::bytes_as_cstr(&buf)) {
             continue;
         }
 
@@ -1637,7 +1637,7 @@ fn ex_let_env<'a>(
         emsg(gettext(E_LETUNEXP));
     } else if !check_secure() {
         let mut tofree: Option<std::ffi::CString> = None;
-        let name_cstr = cstr_from_bytes(name.slice(len));
+        let name_cstr = bytes_to_cstring(name.slice(len));
         let mut p = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
         if !p.is_null()
             && op_b == b'.'
@@ -1645,7 +1645,7 @@ fn ex_let_env<'a>(
         {
             let mut bytes = Vec::from(s.as_bytes());
             bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(p).as_bytes());
-            let joined = crate::memory::cstr_from_bytes(&bytes);
+            let joined = crate::memory::bytes_to_cstring(&bytes);
             p = joined.as_ptr();
             tofree = Some(joined);
         }
@@ -1692,7 +1692,7 @@ fn ex_let_option<'a>(
 
     let opt_len = (p as usize).wrapping_sub(arg_name as usize);
     let opt_bytes = unsafe { std::slice::from_raw_parts((arg_name).cast::<u8>(), opt_len) };
-    let opt_cstr = cstr_from_bytes(opt_bytes);
+    let opt_cstr = bytes_to_cstring(opt_bytes);
 
     let is_tty_opt = is_tty_option(opt_bytes);
     let hidden = is_option_hidden(opt_idx);
@@ -1820,7 +1820,7 @@ fn ex_let_register<'a>(
             if let Some(s) = get_reg_contents_str(reg_c, K_GREG_EXPR_SRC) {
                 let mut bytes = Vec::from(s.as_bytes());
                 bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(p).as_bytes());
-                let joined = cstr_from_bytes(&bytes);
+                let joined = bytes_to_cstring(&bytes);
                 p = joined.as_ptr();
                 ptofree = Some(joined);
             }
@@ -1987,7 +1987,7 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
         let name_slice =
             unsafe { std::slice::from_raw_parts((ll_name.as_ptr()).cast::<u8>(), lp.ll_name_len) };
         if name_slice.first() == Some(&b'$') {
-            let env_cstr = cstr_from_bytes(&name_slice[1..]);
+            let env_cstr = bytes_to_cstring(&name_slice[1..]);
             vim_unsetenv_ext(env_cstr.as_c_str());
         } else if !do_unlet(name_slice, forceit) {
             ret = false;
@@ -2058,7 +2058,7 @@ fn tv_list_unlet_range(
 
 /// unlet a variable.
 pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
-    let name_cstr = cstr_from_bytes(name_slice);
+    let name_cstr = bytes_to_cstring(name_slice);
     let name = crate::strings::ByteSlice::from_cstr(&name_cstr);
     let name_len = name_slice.len();
     let mut varname_opt: Option<&CStr> = None;
@@ -2258,7 +2258,7 @@ pub fn cat_prefix_varname(prefix: i32, name: Option<&CStr>) -> &'static CStr {
     vars_st().varnamebuf.push(prefix as u8);
     vars_st().varnamebuf.push(b':');
     vars_st().varnamebuf.extend_from_slice(name_bytes);
-    crate::memory::cstr_until_nul(&vars_st().borrow_mut().varnamebuf)
+    crate::memory::bytes_as_cstr(&vars_st().borrow_mut().varnamebuf)
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
@@ -2588,7 +2588,7 @@ pub fn check_vars(name_slice: &[u8]) {
         return;
     }
 
-    let name_cstr = cstr_from_bytes(name_slice);
+    let name_cstr = bytes_to_cstring(name_slice);
     let len = name_slice.len();
     let mut varname_opt: Option<&CStr> = None;
     let ht_opt = find_var_ht(&name_cstr, len, &mut varname_opt);
@@ -2979,7 +2979,7 @@ pub fn set_var(name_slice: &[u8], tv: &mut TypVal, copy: bool) {
 
 /// Set variable to the given value, optionally locking as const.
 pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: bool) {
-    let name_cstr = cstr_from_bytes(name_slice);
+    let name_cstr = bytes_to_cstring(name_slice);
     let name = crate::strings::ByteSlice::from_cstr(&name_cstr);
     let name_len = name_slice.len();
     let mut varname_opt: Option<&CStr> = None;

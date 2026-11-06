@@ -468,7 +468,7 @@ fn add_menu_path(
     while path_name_vec.get(name_off).is_some_and(|&b| b != 0) {
         let next_rel = menu_name_skip(&mut path_name_vec[name_off..]);
         let next_off = name_off + next_rel;
-        let orig_name_cstr = crate::memory::cstr_until_nul(&path_name_vec[name_off..]);
+        let orig_name_cstr = crate::memory::bytes_as_cstr(&path_name_vec[name_off..]);
         let map_to = menutrans_lookup(orig_name_cstr.to_bytes());
         let (name_cstr, en_name_cstr) = if let Some(mapped) = map_to {
             (mapped, Some(orig_name_cstr))
@@ -620,9 +620,9 @@ fn menu_enable_recurse(menus: &mut [Vimmenu], name: &CStr, modes: i32, enable: b
     }
     let mut name_buf = name.to_bytes_with_nul().to_vec();
     let p_off = menu_name_skip(&mut name_buf);
-    let cur_name = crate::memory::cstr_until_nul(&name_buf);
+    let cur_name = crate::memory::bytes_as_cstr(&name_buf);
     let cur_bytes = cur_name.to_bytes();
-    let p_cstr = crate::memory::cstr_until_nul(&name_buf[p_off..]);
+    let p_cstr = crate::memory::bytes_as_cstr(&name_buf[p_off..]);
 
     let mut matched = false;
     for menu in menus.iter_mut() {
@@ -665,9 +665,9 @@ fn remove_menu(menup: &mut Vec<Vimmenu>, name: &CStr, modes: i32, silent: bool) 
     }
     let mut name_buf = name.to_bytes_with_nul().to_vec();
     let p_off = menu_name_skip(&mut name_buf);
-    let cur_name = crate::memory::cstr_until_nul(&name_buf);
+    let cur_name = crate::memory::bytes_as_cstr(&name_buf);
     let cur_bytes = cur_name.to_bytes();
-    let p_cstr = crate::memory::cstr_until_nul(&name_buf[p_off..]);
+    let p_cstr = crate::memory::bytes_as_cstr(&name_buf[p_off..]);
 
     let mut idx: usize = 0;
     let mut found_menu = false;
@@ -856,7 +856,7 @@ fn find_menu<'a>(
 
     while saved_name_vec.get(name_off).is_some_and(|&b| b != 0) {
         let p_off = name_off + menu_name_skip(&mut saved_name_vec[name_off..]);
-        let cur_cstr = crate::memory::cstr_until_nul(&saved_name_vec[name_off..]);
+        let cur_cstr = crate::memory::bytes_as_cstr(&saved_name_vec[name_off..]);
         let p_is_empty = saved_name_vec.get(p_off).is_none_or(|&b| b == 0);
         let mut found_idx: Option<usize> = None;
         for (idx, menu) in menus.iter_mut().enumerate() {
@@ -1185,7 +1185,7 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                     menu_st().get_menu_names_advance = true;
                 }
             }
-            let tlen = crate::memory::cstr_until_nul(&menu_st().get_menu_names_tbuffer)
+            let tlen = crate::memory::bytes_as_cstr(&menu_st().get_menu_names_tbuffer)
                 .to_bytes()
                 .len();
             if tlen + 1 < TBUFFER_LEN {
@@ -1389,7 +1389,7 @@ fn menu_text(
 ) -> std::ffi::CString {
     let src = if let Some(tab_pos) = full_bytes.iter().position(|&b| b == TAB) {
         if let Some(actext_out) = actext {
-            *actext_out = Some(crate::memory::cstr_from_bytes(&full_bytes[tab_pos + 1..]));
+            *actext_out = Some(crate::memory::bytes_to_cstring(&full_bytes[tab_pos + 1..]));
         }
         &full_bytes[..tab_pos]
     } else {
@@ -1412,7 +1412,7 @@ fn menu_text(
             idx += 1;
         }
     }
-    crate::memory::cstr_from_bytes(&out)
+    crate::memory::bytes_to_cstring(&out)
 }
 
 /// Return true if `name` can be a menu in the MenuBar (`menu_is_menubar`).
@@ -1759,8 +1759,8 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
             menu_translate_tab_and_shift(&mut to_vec);
             menu_unescape_name(&mut from_vec);
             menu_unescape_name(&mut to_vec);
-            let from_cstr = crate::memory::cstr_until_nul(&from_vec).to_owned();
-            let to_cstr = crate::memory::cstr_until_nul(&to_vec).to_owned();
+            let from_cstr = crate::memory::bytes_as_cstr(&from_vec).to_owned();
+            let to_cstr = crate::memory::bytes_as_cstr(&to_vec).to_owned();
             menutrans.push(Menutrans {
                 from: from_cstr,
                 from_noamp: from_noamp_cstr,

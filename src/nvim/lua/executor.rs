@@ -1110,12 +1110,20 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
         let val = unsafe { lua_toboolean(lstate, -1) } != 0;
 
         let mut matched = false;
-        if crate::memory::cstr_as_opt_bytes(s) == Some(b"set_cmdheight") {
+        if crate::strings::ByteSlice::from_ptr(s)
+            .as_opt_cstr()
+            .map(std::ffi::CStr::to_bytes)
+            == Some(b"set_cmdheight")
+        {
             g_st().ui_refresh_cmdheight = val;
             matched = true;
         } else {
             for (i, slot) in ext_widgets.iter_mut().enumerate() {
-                if crate::memory::cstr_as_opt_bytes(s) == Some(UI_EXT_NAMES[i].to_bytes()) {
+                if crate::strings::ByteSlice::from_ptr(s)
+                    .as_opt_cstr()
+                    .map(std::ffi::CStr::to_bytes)
+                    == Some(UI_EXT_NAMES[i].to_bytes())
+                {
                     if val {
                         tbl_has_true_val = true;
                     }
@@ -2339,7 +2347,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
                 }
                 nlua_st()
                     .expand_result_array
-                    .push(crate::memory::cstr_from_bytes(v.data.string().as_bytes()));
+                    .push(crate::memory::bytes_to_cstring(v.data.string().as_bytes()));
             }
 
             if all_strings {
@@ -2620,7 +2628,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
                 } else {
                     format!("<Lua {src_s}:{}>", ar.linedefined)
                 };
-                return crate::memory::cstr_from_bytes(formatted.as_bytes());
+                return crate::memory::bytes_to_cstring(formatted.as_bytes());
             }
         }
     }
@@ -2630,7 +2638,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
     } else {
         "<Lua>".to_string()
     };
-    crate::memory::cstr_from_bytes(formatted.as_bytes())
+    crate::memory::bytes_to_cstring(formatted.as_bytes())
 }
 
 pub fn nlua_init_defaults() {

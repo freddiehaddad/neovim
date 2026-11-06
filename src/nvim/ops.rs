@@ -334,7 +334,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             amount,
         );
         msg_keep(
-            crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+            crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
             0,
             true,
             false,
@@ -3296,7 +3296,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 msg_start();
                 g_st().msg_scroll = 1;
             }
-            msg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()), 0);
+            msg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()), 0);
             opt_vars().p_shm = p;
         }
     }

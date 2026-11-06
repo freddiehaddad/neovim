@@ -1452,7 +1452,7 @@ pub fn get_foldtext(
         dashes[level as usize] = 0;
         set_vim_var_string(
             VV_FOLDDASHES,
-            Some(crate::memory::cstr_until_nul(&dashes)),
+            Some(crate::memory::bytes_as_cstr(&dashes)),
             level as isize,
         );
         set_vim_var_nr(VV_FOLDLEVEL, Varnumber::from(level));
@@ -2562,7 +2562,7 @@ fn put_folds_recurse(fd: &CFile, gap: &[FoldEntry], off: Linenr) -> bool {
             i64::from(fp.fd_top + off),
             i64::from(fp.fd_top + off + fp.fd_len - 1),
         );
-        if fd.puts(crate::memory::cstr_until_nul(&buf)) < 0 || !put_eol(fd) {
+        if fd.puts(crate::memory::bytes_as_cstr(&buf)) < 0 || !put_eol(fd) {
             return false;
         }
     }
@@ -2575,7 +2575,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
             if !fp.fd_nested.is_empty() {
                 let mut buf = [0u8; 32];
                 vim_snprintf!(&mut buf, c"%lld", i64::from(fp.fd_top + off));
-                if fd.puts(crate::memory::cstr_until_nul(&buf)) < 0
+                if fd.puts(crate::memory::bytes_as_cstr(&buf)) < 0
                     || !put_eol(fd)
                     || !put_line(fd, c"sil! normal! zo")
                 {
@@ -2605,7 +2605,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
 fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     let mut buf = [0u8; 32];
     vim_snprintf!(&mut buf, c"%d", fp.fd_top + off);
-    if fd.puts(crate::memory::cstr_until_nul(&buf)) < 0 || !put_eol(fd) {
+    if fd.puts(crate::memory::bytes_as_cstr(&buf)) < 0 || !put_eol(fd) {
         return false;
     }
     let cmd = if fp.fd_flags == FD_CLOSED {

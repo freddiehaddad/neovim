@@ -276,7 +276,10 @@ impl ByteSliceExt for ByteSlice {
 
     #[inline(always)]
     fn as_bytes(self) -> &'static [u8] {
-        self.as_cstr().to_bytes()
+        match self {
+            Some(b) => crate::memory::bytes_until_nul(b),
+            None => &[],
+        }
     }
 
     #[inline(always)]
@@ -315,7 +318,14 @@ impl ByteSliceExt for ByteSlice {
 
     #[inline(always)]
     fn wrapping_add(self, n: usize) -> Self {
-        self.map(|b| &b[n.min(b.len().saturating_sub(1))..])
+        self.map(|b| {
+            let max = if b.last() == Some(&0) {
+                b.len() - 1
+            } else {
+                b.len()
+            };
+            &b[n.min(max)..]
+        })
     }
 
     #[inline(always)]
@@ -631,7 +641,7 @@ pub fn vim_strsave_escaped_ext(
         i += 1;
     }
 
-    crate::memory::cstr_from_bytes(&escaped)
+    crate::memory::bytes_to_cstring(&escaped)
 }
 
 pub fn vim_strnsave_unquoted(bytes: &[u8]) -> std::ffi::CString {
@@ -654,7 +664,7 @@ pub fn vim_strnsave_unquoted(bytes: &[u8]) -> std::ffi::CString {
         i += 1;
     }
 
-    crate::memory::cstr_from_bytes(&ret)
+    crate::memory::bytes_to_cstring(&ret)
 }
 
 pub fn vim_strsave_shellescape(
@@ -717,7 +727,7 @@ pub fn vim_strsave_shellescape(
     }
 
     escaped.push(quote_byte);
-    crate::memory::cstr_from_bytes(&escaped)
+    crate::memory::bytes_to_cstring(&escaped)
 }
 
 #[cfg(windows)]
@@ -758,7 +768,7 @@ pub fn strcase_save(bytes: &[u8], upper: bool) -> std::ffi::CString {
         i += char_info.len as usize;
     }
 
-    crate::memory::cstr_from_bytes(&res)
+    crate::memory::bytes_to_cstring(&res)
 }
 
 pub fn del_trailing_spaces(slice: &mut [u8]) {
@@ -809,7 +819,7 @@ pub fn concat_str(b1: &[u8], b2: &[u8]) -> std::ffi::CString {
     let mut dest = Vec::with_capacity(b1.len() + b2.len());
     dest.extend_from_slice(b1);
     dest.extend_from_slice(b2);
-    crate::memory::cstr_from_bytes(&dest)
+    crate::memory::bytes_to_cstring(&dest)
 }
 
 pub fn tv_nr(tvs: &[TypVal], idxp: &mut i32) -> Varnumber {
@@ -1522,14 +1532,14 @@ impl<'a> IntoFmtVal<'a> for Option<&'a std::ffi::CString> {
 impl<'a> IntoFmtVal<'a> for &'a [u8] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::cstr_until_nul(self)))
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(self.map(crate::memory::cstr_until_nul))
+        FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
     }
 }
 
@@ -2413,7 +2423,7 @@ pub fn reverse_text(bytes: &[u8]) -> std::ffi::CString {
         rev[rev_i..rev_i + mb_len].copy_from_slice(&bytes[s_i..s_i + mb_len]);
         s_i += mb_len;
     }
-    crate::memory::cstr_from_bytes(&rev)
+    crate::memory::bytes_to_cstring(&rev)
 }
 
 pub fn strrep(src_bytes: &[u8], what_bytes: &[u8], rep_bytes: &[u8]) -> Option<std::ffi::CString> {
@@ -2456,7 +2466,7 @@ pub fn strrep(src_bytes: &[u8], what_bytes: &[u8], rep_bytes: &[u8]) -> Option<s
     }
     ret.extend_from_slice(&src_bytes[cur..]);
 
-    Some(crate::memory::cstr_from_bytes(&ret))
+    Some(crate::memory::bytes_to_cstring(&ret))
 }
 
 fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
@@ -3248,14 +3258,14 @@ mod tests {
         );
         assert_eq!(n, 23);
         assert_eq!(
-            crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
+            crate::memory::bytes_as_cstr(&buf).to_str().unwrap(),
             "val -42 deadbeef 001100"
         );
 
         let added = vim_snprintf_add!(&mut buf[..], c" %2$s %1$d", 7, c"ok");
         assert_eq!(added, 5);
         assert_eq!(
-            crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
+            crate::memory::bytes_as_cstr(&buf).to_str().unwrap(),
             "val -42 deadbeef 001100 ok 7"
         );
 
@@ -3263,7 +3273,7 @@ mod tests {
         let safelen = vim_snprintf_safelen!(&mut small[..], c"hello world",);
         assert_eq!(safelen, 4);
         assert_eq!(
-            crate::memory::cstr_until_nul(&small).to_str().unwrap(),
+            crate::memory::bytes_as_cstr(&small).to_str().unwrap(),
             "hell"
         );
     }

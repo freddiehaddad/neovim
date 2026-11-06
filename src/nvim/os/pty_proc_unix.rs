@@ -454,7 +454,8 @@ mod unix_impl {
     }
 
     pub fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> Option<&std::ffi::CStr> {
-        unsafe { (ptsname(ptyproc.tty_fd)).as_opt_cstr() }
+        use crate::strings::ByteSliceExt as _;
+        unsafe { crate::strings::ByteSlice::from_ptr(ptsname(ptyproc.tty_fd)).as_opt_cstr() }
     }
 
     pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {

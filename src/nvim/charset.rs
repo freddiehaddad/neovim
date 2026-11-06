@@ -7,7 +7,7 @@ use crate::mbyte::{
     utf_class_tab, utf_cluster_info, utf_printable, utf_ptr2_str_char_info, utf_slice2char,
     utf_slice2len, utfc_slice2len,
 };
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 use crate::option::{get_fileformat, skip_to_option_part_slice};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
@@ -457,7 +457,7 @@ pub fn transstr(s: &[u8], untab: bool) -> CString {
     let len = transstr_len(bytes, untab) + 1;
     let mut buf = vec![0u8; len];
     let written = transstr_buf(bytes, &mut buf, untab);
-    cstr_from_bytes(&buf[..written])
+    bytes_to_cstring(&buf[..written])
 }
 
 pub fn kv_transstr(str_: &mut Vec<u8>, bytes: &[u8], untab: bool) -> usize {
@@ -551,7 +551,7 @@ pub fn str_foldcase(src: &[u8], mut buf: Option<&mut [u8]>) -> Option<CString> {
 
     if buf.is_none() {
         let out_len = vec.iter().position(|&b| b == 0).unwrap_or(len);
-        Some(cstr_from_bytes(&vec[..out_len]))
+        Some(bytes_to_cstring(&vec[..out_len]))
     } else {
         None
     }
@@ -665,7 +665,7 @@ pub fn vim_strnsize(s: &[u8], mut len: i32) -> i32 {
     if slice.is_empty() {
         return 0;
     }
-    let cstr = crate::memory::cstr_from_bytes(slice);
+    let cstr = crate::memory::bytes_to_cstring(slice);
     let mut size: i32 = 0;
     let mut ci = utf_ptr2_str_char_info(&cstr);
     while !ci.ptr.is_empty() && len > 0 {
@@ -1377,7 +1377,7 @@ pub fn backslash_halve_save(bytes: &[u8]) -> CString {
             i += 1;
         }
     }
-    cstr_from_bytes(&res)
+    bytes_to_cstring(&res)
 }
 
 #[cfg(test)]

@@ -349,7 +349,7 @@ pub fn may_trigger_modechanged() {
 
     apply_autocmds(
         EVENT_MODECHANGED,
-        Some(crate::memory::cstr_until_nul(&pattern_buf)),
+        Some(crate::memory::bytes_as_cstr(&pattern_buf)),
         None,
         false,
         curbuf_opt_mut(),

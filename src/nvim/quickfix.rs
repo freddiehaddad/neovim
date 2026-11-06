@@ -668,7 +668,7 @@ fn qf_init_process_nextline(
         return status;
     }
 
-    let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
+    let namebuf_cstr = crate::memory::bytes_as_cstr(&fields.namebuf);
     let currfile_owned: Option<std::ffi::CString>;
     let fname = if !namebuf_cstr.to_bytes().is_empty() || !qfl.qf_dir_stack.is_empty() {
         Some(namebuf_cstr)
@@ -684,15 +684,15 @@ fn qf_init_process_nextline(
         qfl,
         dir_owned.as_deref(),
         fname,
-        Some(crate::memory::cstr_until_nul(&fields.module)),
+        Some(crate::memory::bytes_as_cstr(&fields.module)),
         fields.bnr,
-        crate::memory::cstr_until_nul(&fields.errmsg),
+        crate::memory::bytes_as_cstr(&fields.errmsg),
         fields.lnum,
         fields.end_lnum,
         fields.col,
         fields.end_col,
         fields.use_viscol,
-        Some(crate::memory::cstr_until_nul(&fields.pattern)),
+        Some(crate::memory::bytes_as_cstr(&fields.pattern)),
         fields.enr,
         fields.type_,
         None,
@@ -920,7 +920,7 @@ fn parse_efm_option(efm: &[u8]) -> Vec<Efm> {
             break;
         }
         fmt_item.prog = crate::regexp::vim_regcomp_box(
-            crate::memory::cstr_until_nul(&fmtstr),
+            crate::memory::bytes_as_cstr(&fmtstr),
             RE_MAGIC + RE_STRING,
         );
         if fmt_item.prog.is_none() {
@@ -1074,7 +1074,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
                 }
                 break;
             }
-            state.linelen = crate::memory::cstr_until_nul(&state.growbuf[growbuflen..])
+            state.linelen = crate::memory::bytes_as_cstr(&state.growbuf[growbuflen..])
                 .to_bytes()
                 .len();
             growbuflen += state.linelen;
@@ -1466,7 +1466,7 @@ fn qf_store_title(qfl: &mut QfList, title: Option<&CStr>) {
 fn qf_cmdtitle(cmd: &CStr) -> std::ffi::CString {
     let mut buf = [0u8; IOSIZE];
     let len = vim_snprintf_safelen!(&mut buf, c":%s", cmd.as_ptr());
-    crate::memory::cstr_from_bytes(&buf[..len])
+    crate::memory::bytes_to_cstring(&buf[..len])
 }
 
 #[inline]
@@ -1523,7 +1523,7 @@ fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix
     expand_env(match_cstr.as_c_str(), &mut fields.namebuf[..CMDBUFFSIZE]);
 
     if crate::strings::vim_haschr(c"OPQ", prefix)
-        && !os_path_exists(crate::memory::cstr_until_nul(&fields.namebuf))
+        && !os_path_exists(crate::memory::bytes_as_cstr(&fields.namebuf))
     {
         return QfStatus::Fail;
     }
@@ -1781,7 +1781,7 @@ fn qf_parse_get_fields(
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.rm_ic = true;
     regmatch.borrow_prog(fmt_ptr.prog.as_deref());
-    let line_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(line));
+    let line_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(line));
     let line_base = line_cstr.as_ptr() as usize;
     let r = vim_regexec(&mut regmatch, &line_cstr, 0);
     let mut status = QfStatus::Fail;
@@ -1803,7 +1803,7 @@ fn qf_parse_get_fields(
 
 fn qf_parse_dir_pfx(idx: i32, fields: &mut Qffields, qfl: &mut QfList) -> QfStatus {
     if idx == i32::from(b'D') {
-        let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
+        let namebuf_cstr = crate::memory::bytes_as_cstr(&fields.namebuf);
         if namebuf_cstr.to_bytes().is_empty() {
             emsg(gettext(c"E379: Missing or empty directory name"));
             return QfStatus::Fail;
@@ -1823,7 +1823,7 @@ fn qf_parse_file_pfx(
     tail: Option<&[u8]>,
 ) -> QfStatus {
     fields.valid = false;
-    let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
+    let namebuf_cstr = crate::memory::bytes_as_cstr(&fields.namebuf);
     if namebuf_cstr.to_bytes().is_empty() || os_path_exists(namebuf_cstr) {
         if !namebuf_cstr.to_bytes().is_empty() && idx == i32::from(b'P') {
             qf_push_dir(namebuf_cstr, &mut qfl.qf_file_stack, true);
@@ -1883,7 +1883,7 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
             qfprev.qf_end_col = fields.end_col;
         }
         if qfprev.qf_fnum == 0 {
-            let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
+            let namebuf_cstr = crate::memory::bytes_as_cstr(&fields.namebuf);
             let currfile_owned: Option<std::ffi::CString>;
             let fname = if !namebuf_cstr.to_bytes().is_empty() || !qfl.qf_dir_stack.is_empty() {
                 Some(namebuf_cstr)
@@ -2314,7 +2314,12 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         fname.as_ptr().cast_mut()
     };
     #[cfg(windows)]
-    path_to_slash(crate::memory::cstr_as_mut_bytes(bufname_ptr.cast()));
+    {
+        let bufname_len = crate::strings::ByteSlice::from_ptr(bufname_ptr).len();
+        path_to_slash(unsafe {
+            std::slice::from_raw_parts_mut(bufname_ptr.cast::<u8>(), bufname_len + 1)
+        });
+    }
 
     let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
         crate::strings::ByteSlice::from_ptr(bufname_ptr).as_bytes() == last.to_bytes()
@@ -2329,8 +2334,8 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
             0,
             BLN_NOOPT,
         ));
-        qf_st().qf_last_bufname =
-            ptr_cstr.or_else(|| Some(crate::memory::cstr_to_cstring(bufname_ptr)));
+        qf_st().qf_last_bufname = ptr_cstr
+            .or_else(|| Some(crate::strings::ByteSlice::from_ptr(bufname_ptr).to_cstring()));
         set_bufref(&mut qf_st().qf_last_bufref, b.opt_mut());
         b
     };
@@ -2977,7 +2982,7 @@ fn qf_jump_print_msg(
         g_st().msg_scroll = 0;
     }
     msg_ext_set_kind(c"quickfix");
-    msg_keep(crate::memory::cstr_until_nul(gap), 0, true, false);
+    msg_keep(crate::memory::bytes_as_cstr(gap), 0, true, false);
     g_st().msg_scroll = i;
 
     qfga_clear();
@@ -3230,7 +3235,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         msg_putchar(b'\n' as i32);
     }
     msg_outtrans(
-        crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+        crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
         if cursel {
             HLF_QFL
         } else {
@@ -3250,7 +3255,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     gap.push(0);
     if !crate::memory::bytes_until_nul(gap).is_empty() {
         msg_puts_hl(
-            crate::memory::cstr_until_nul(gap),
+            crate::memory::bytes_as_cstr(gap),
             qf_st().qf_line_hl_id,
             false,
         );
@@ -3260,7 +3265,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         gap = qfga_get();
         qf_fmt_text(gap, pat.as_bytes());
         gap.push(0);
-        msg_puts(crate::memory::cstr_until_nul(gap));
+        msg_puts(crate::memory::bytes_as_cstr(gap));
         msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
     }
     msg_puts(c" ");
@@ -3411,7 +3416,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: &CStr) {
         crate::memory::append_bytes_to_c_buf(&mut buf, title.as_bytes());
     }
     trunc_string(None, &mut buf, g_st().columns_global - 1);
-    msg(crate::memory::cstr_until_nul(&buf), 0);
+    msg(crate::memory::bytes_as_cstr(&buf), 0);
 }
 
 pub fn qf_age(eap: &mut Exarg) {
@@ -3571,7 +3576,7 @@ fn qf_types(c: i32, nr: i32) -> std::ffi::CString {
 
     let mut buf = [0u8; 20];
     let len = vim_snprintf_safelen!(&mut buf, c"%s %3d", p.as_ptr(), nr);
-    crate::memory::cstr_from_bytes(&buf[..len])
+    crate::memory::bytes_to_cstring(&buf[..len])
 }
 
 pub fn qf_view_result(split: bool) {
@@ -4030,7 +4035,7 @@ fn qf_buf_add_line(
                     if dirname[0] == 0 {
                         os_dirname(dirname);
                     }
-                    shorten_buf_fname(errbuf, crate::memory::cstr_until_nul(dirname), 0);
+                    shorten_buf_fname(errbuf, crate::memory::bytes_as_cstr(dirname), 0);
                 }
                 qfga_concat(
                     gap,
@@ -4334,7 +4339,7 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
     }
     msg_start();
     msg_puts(c":!");
-    msg_outtrans(crate::memory::cstr_until_nul(&cmd_vec), 0, false);
+    msg_outtrans(crate::memory::bytes_as_cstr(&cmd_vec), 0, false);
 
     crate::memory::cstring_until_nul(&cmd_vec)
 }
@@ -5299,7 +5304,7 @@ fn vgr_process_files(
     let mut dirname_now = vec![0u8; MAXPATHL];
 
     os_dirname(&mut dirname_start);
-    let dirname_start_cstr = crate::memory::cstr_until_nul(&dirname_start);
+    let dirname_start_cstr = crate::memory::bytes_as_cstr(&dirname_start);
 
     let mut seconds: time_t = 0;
     let mut fi: usize = 0;
@@ -7003,7 +7008,7 @@ fn hgr_search_files_in_dir(
     let pat_suffix = b"doc/*.\\(txt\\|??x\\)\0";
     dirname[dir_len..dir_len + pat_suffix.len()].copy_from_slice(pat_suffix);
     if gen_expand_wildcards_vec(
-        &[crate::memory::cstr_until_nul(dirname)],
+        &[crate::memory::bytes_as_cstr(dirname)],
         &mut fnames,
         EW_FILE | EW_SILENT,
     ) && !fnames.is_empty()

@@ -3017,7 +3017,7 @@ pub fn display_showcmd() {
         let mut size = 0;
         if ext_buf[0] != 0 {
             chunk_items[0] = integer_obj(0);
-            chunk_items[1] = cstr_as_obj(Some(crate::memory::cstr_until_nul(&ext_buf)));
+            chunk_items[1] = cstr_as_obj(Some(crate::memory::bytes_as_cstr(&ext_buf)));
             chunk_items[2] = integer_obj(0);
             let chunk = Array {
                 items: crate::globals::GraphPtr::new(chunk_items.as_mut_ptr()),
@@ -3065,7 +3065,7 @@ pub fn display_showcmd() {
 
     grid_line_puts(
         g_st().sc_col + len,
-        crate::memory::cstr_until_nul(&b"          \0"[len as usize..]),
+        crate::memory::bytes_as_cstr(&b"          \0"[len as usize..]),
         -1,
         hl_attr(HLF_MSG as i32),
     );
@@ -4431,7 +4431,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         );
     } else {
         g_st().g_tag_at_cursor = true;
-        do_cmdline_cmd(crate::memory::cstr_until_nul(&buf_vec));
+        do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf_vec));
         g_st().g_tag_at_cursor = false;
 
         if cmdchar == b'K' as i32 && !kp_ex && !kp_help {
@@ -6721,7 +6721,7 @@ fn set_op_var(optype: i32) {
         let opchar1 = get_extra_op_char(optype);
         assert!((0..=u8::MAX as i32).contains(&opchar1));
         let opchars: [u8; 3] = [opchar0 as u8, opchar1 as u8, 0];
-        set_vim_var_string(VV_OP, Some(crate::memory::cstr_until_nul(&opchars)), 2);
+        set_vim_var_string(VV_OP, Some(crate::memory::bytes_as_cstr(&opchars)), 2);
     }
 }
 

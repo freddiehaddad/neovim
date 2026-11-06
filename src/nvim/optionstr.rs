@@ -1634,7 +1634,7 @@ fn expand_set_opt_listflag(
             if include_orig_val && option_bytes == [flag_b] {
                 continue;
             }
-            matches.push(crate::memory::cstr_from_bytes(&[flag_b]));
+            matches.push(crate::memory::bytes_to_cstring(&[flag_b]));
         }
     }
 
@@ -3349,7 +3349,7 @@ fn opt_schema_err<'a>(
     let mut keybuf = [0u8; 64];
     let copy_len = key.len().min(keybuf.len() - 1);
     keybuf[..copy_len].copy_from_slice(&key[..copy_len]);
-    opt_error(errbuf, fmt, crate::memory::cstr_until_nul(&keybuf))
+    opt_error(errbuf, fmt, crate::memory::bytes_as_cstr(&keybuf))
 }
 
 /// Validates a dict option against its schema (options.lua).

@@ -17,7 +17,7 @@ use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::mbyte::{utf_char2len, utf_printable, utf_slice2char, utf_slice2len};
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
     PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
@@ -382,7 +382,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
             }
         }
     }
-    let path_cstr = cstr_from_bytes(&msg_ga);
+    let path_cstr = bytes_to_cstring(&msg_ga);
     let path_ptr = if mpstack.is_empty() {
         c"itself".as_ptr()
     } else {
@@ -437,7 +437,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) -> bool {
             _ => {
                 if ch > 0x7F && shift == 1 {
                     let start = i - shift;
-                    let err_cstr = cstr_from_bytes(&bytes[start..]);
+                    let err_cstr = bytes_to_cstring(&bytes[start..]);
                     semsg!(
                         c"E474: String \"%s\" contains byte that does not start any UTF-8 character",
                         err_cstr.as_ptr(),
@@ -447,7 +447,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) -> bool {
                     || (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
                 {
                     let start = i - shift;
-                    let err_cstr = cstr_from_bytes(&bytes[start..]);
+                    let err_cstr = bytes_to_cstring(&bytes[start..]);
                     semsg!(
                         c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %s",
                         err_cstr.as_ptr(),
@@ -1595,7 +1595,7 @@ pub fn encode_tv2string(tv: &mut TypVal, mut len: Option<&mut usize>) -> std::ff
     if let Some(ref mut p) = len {
         **p = ga.len();
     }
-    cstr_from_bytes(&ga)
+    bytes_to_cstring(&ga)
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
@@ -1612,7 +1612,7 @@ pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CSt
     if let Some(len) = len {
         *len = ga.len();
     }
-    cstr_from_bytes(&ga)
+    bytes_to_cstring(&ga)
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
@@ -1630,7 +1630,7 @@ pub fn encode_tv2json(tv: &mut TypVal, mut len: Option<&mut usize>) -> std::ffi:
     if let Some(ref mut p) = len {
         **p = ga.len();
     }
-    cstr_from_bytes(&ga)
+    bytes_to_cstring(&ga)
 }
 
 #[cfg(test)]

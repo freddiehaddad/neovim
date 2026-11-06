@@ -12,7 +12,7 @@ use crate::globals::*;
 use crate::mbyte::utf_isalnum;
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -168,13 +168,13 @@ pub fn os_getenv_cstr(name: &CStr) -> Option<std::ffi::CString> {
         } else {
             let bytes =
                 unsafe { std::slice::from_raw_parts((vec_buf.as_ptr()).cast::<u8>(), size) };
-            Some(cstr_from_bytes(bytes))
+            Some(bytes_to_cstring(bytes))
         }
     } else if r != 0 || size == 0 || buf[0] == 0 {
         None
     } else {
         let bytes = unsafe { std::slice::from_raw_parts((buf.as_ptr()).cast::<u8>(), size) };
-        Some(cstr_from_bytes(bytes))
+        Some(bytes_to_cstring(bytes))
     };
     assert_ne!(r, UV_EINVAL);
     res
@@ -203,7 +203,7 @@ pub fn os_getenv_buf<'a>(name: &CStr, buf: &'a mut [u8]) -> Option<&'a CStr> {
     if r != 0 || size == 0 || buf[0] == 0 {
         return None;
     }
-    Some(crate::memory::cstr_until_nul(buf))
+    Some(crate::memory::bytes_as_cstr(buf))
 }
 
 /// Returns true if environment variable `name` is defined (even if empty).
@@ -317,7 +317,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         }
         let str_ptr = *env_arr.add(index);
         assert!(!str_ptr.is_null());
-        let bytes = (str_ptr).as_bytes();
+        let bytes = crate::strings::ByteSlice::from_ptr(str_ptr).as_bytes();
         let pos = bytes.iter().position(|&b| b == b'=')?;
         assert!(pos > 0);
         std::ffi::CString::new(&bytes[..pos]).ok()
@@ -465,7 +465,13 @@ pub fn init_homedir() {
             var = os_uv_homedir().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         }
 
-        if !var.is_null() && os_realpath((var).as_cstr(), g_st().iobuff_bytes_mut()).is_some() {
+        if !var.is_null()
+            && os_realpath(
+                crate::strings::ByteSlice::from_ptr(var).as_cstr(),
+                g_st().iobuff_bytes_mut(),
+            )
+            .is_some()
+        {
             var = g_st().iobuff.as_mut_ptr().cast();
         }
 
@@ -591,7 +597,7 @@ pub fn expand_env_esc(
                         tail = tail.wrapping_add(1);
                     }
                     dst_slice[dst_idx + var_len] = 0;
-                    var_cstr = vim_getenv(crate::memory::cstr_until_nul(&dst_slice[dst_idx..]));
+                    var_cstr = vim_getenv(crate::memory::bytes_as_cstr(&dst_slice[dst_idx..]));
                     if let Some(ref mut c) = var_cstr {
                         crate::memory::cstring_modify(c, to_slash);
                     }
@@ -603,7 +609,7 @@ pub fn expand_env_esc(
                 #[cfg(windows)]
                 {
                     dst_slice[dst_idx + var_len] = 0;
-                    var_cstr = vim_getenv(crate::memory::cstr_until_nul(&dst_slice[dst_idx..]));
+                    var_cstr = vim_getenv(crate::memory::bytes_as_cstr(&dst_slice[dst_idx..]));
                     if let Some(ref mut c) = var_cstr {
                         crate::memory::cstring_modify(c, to_slash);
                     }
@@ -640,8 +646,10 @@ pub fn expand_env_esc(
                     if dst_slice[dst_idx] == 0 {
                         var = ptr::null_mut();
                     } else {
-                        var_cstr =
-                            os_get_userdir((dst_slice[dst_idx + 1..].as_ptr()).as_opt_cstr());
+                        var_cstr = os_get_userdir(
+                            crate::strings::ByteSlice::from_ptr(dst_slice[dst_idx + 1..].as_ptr())
+                                .as_opt_cstr(),
+                        );
                         var = var_cstr
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
@@ -757,7 +765,7 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
     let len = dirname.len();
     if pend_off > len {
         let new_tail = pend.wrapping_sub(len + 1);
-        let dirname_cstr = cstr_from_bytes(dirname);
+        let dirname_cstr = bytes_to_cstring(dirname);
         if path_cmp(
             opt_vars().p_fic,
             crate::strings::ByteSlice::from_ptr(new_tail).as_cstr(),
@@ -987,7 +995,9 @@ pub fn home_replace(
 
     if !homedir_env_mod.is_null() && unsafe { *homedir_env_mod } == b'~' {
         let mut usedlen: usize = 0;
-        let mut fbuf = crate::memory::cstr_to_cstring(homedir_env_mod).into_bytes_with_nul();
+        let mut fbuf = crate::strings::ByteSlice::from_ptr(homedir_env_mod)
+            .to_cstring()
+            .into_bytes_with_nul();
         let mut fname_off = 0usize;
         let mut flen = fbuf.len() - 1;
         let _ = modify_fname(
@@ -1114,7 +1124,7 @@ pub fn get_env_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     assert!(idx >= 0);
     if let Some(envname) = os_getenvname_at_index(idx as usize) {
         crate::memory::copy_bytes_to_c_buf(&mut xp.xp_buf, envname.to_bytes());
-        return Some(crate::memory::cstr_until_nul(&xp.xp_buf));
+        return Some(crate::memory::bytes_as_cstr(&xp.xp_buf));
     }
     None
 }
@@ -1149,7 +1159,7 @@ pub fn os_setenv_append_path(fname_cstr: &CStr) -> bool {
             }
             let dir_slice = fname.slice(dirlen);
             crate::memory::append_bytes_to_c_buf(&mut temp_vec, dir_slice);
-            let _ = os_setenv(c"PATH", crate::memory::cstr_until_nul(&temp_vec), 1);
+            let _ = os_setenv(c"PATH", crate::memory::bytes_as_cstr(&temp_vec), 1);
             retval = true;
         }
         retval
@@ -1273,14 +1283,11 @@ mod tests {
             );
 
             assert!(os_getenv_buf(k, &mut buf).is_some());
-            assert_eq!(
-                crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
-                "val2"
-            );
+            assert_eq!(crate::memory::bytes_as_cstr(&buf).to_str().unwrap(), "val2");
 
             expand_env_esc(c"$NVIM_RUST_ENV_TEST_KEY/sub", &mut buf, None, true, None);
             assert_eq!(
-                crate::memory::cstr_until_nul(&buf).to_str().unwrap(),
+                crate::memory::bytes_as_cstr(&buf).to_str().unwrap(),
                 "val2/sub"
             );
             let _ = os_unsetenv(k);

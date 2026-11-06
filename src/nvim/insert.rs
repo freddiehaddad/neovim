@@ -1514,7 +1514,7 @@ pub fn edit_putchar(c: i32, highlight: bool) {
     let len = utf_char2bytes(c, &mut buf);
     grid_line_puts(
         ins_st().pc_col,
-        crate::memory::cstr_until_nul(&buf),
+        crate::memory::bytes_as_cstr(&buf),
         len,
         attr,
     );
@@ -2206,7 +2206,7 @@ pub fn set_last_insert(c: i32) {
     len += add_char2buf(c, &mut buf[len..]);
     buf[len] = ESC as u8;
     len += 1;
-    ins_st().last_insert = Some(crate::memory::cstr_from_bytes(&buf[..len]));
+    ins_st().last_insert = Some(crate::memory::bytes_to_cstring(&buf[..len]));
     ins_st().last_insert_skip = 0;
 }
 
@@ -3930,7 +3930,7 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
     g_st().textlock += 1;
     set_vim_var_string(
         VV_CHAR,
-        Some(crate::memory::cstr_until_nul(&buf)),
+        Some(crate::memory::bytes_as_cstr(&buf)),
         buflen as isize,
     );
 

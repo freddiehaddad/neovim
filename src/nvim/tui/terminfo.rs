@@ -2892,7 +2892,7 @@ fn onum(out_buf: &mut [u8], out_pos: &mut usize, fmt: &[u8], num: i32, mut len: 
     }
     let l = vim_snprintf!(
         &mut out_buf[*out_pos..*out_pos + len + 2],
-        crate::memory::cstr_until_nul(fmt),
+        crate::memory::bytes_as_cstr(fmt),
         num
     );
     if l < 0 {
@@ -3055,7 +3055,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
                     let s_cstr = CStr::from_bytes_until_nul(s_arr).unwrap_or(c"");
                     let r = vim_snprintf!(
                         &mut out_buf[out_pos..out_pos + l + 1],
-                        crate::memory::cstr_until_nul(&fmt),
+                        crate::memory::bytes_as_cstr(&fmt),
                         s_cstr
                     );
                     if r >= 0 {

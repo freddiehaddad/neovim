@@ -236,7 +236,7 @@ pub fn vim_findfile_init(
             let handled_drive = if path_bytes.get(1) == Some(&b':') {
                 let drive: [u8; 3] = [path_bytes[0], b':', 0];
                 if !vim_full_name(
-                    Some(crate::memory::cstr_until_nul(&drive)),
+                    Some(crate::memory::bytes_as_cstr(&drive)),
                     &mut expand_buf,
                     true,
                 ) {
@@ -403,7 +403,7 @@ pub fn vim_findfile_init(
                 expand_ptr,
                 search_ctx.ffsc_fix_path.data,
             );
-            if os_isdir(crate::memory::cstr_until_nul(&buf_vec)) {
+            if os_isdir(crate::memory::bytes_as_cstr(&buf_vec)) {
                 if search_ctx.ffsc_fix_path.size > 0 {
                     add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
                     expand_size += vim_snprintf!(
@@ -668,7 +668,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
                 if path_with_url(crate::strings::ByteSlice::from_ptr(dirptrs[0]).as_bytes()) {
                     let dir_len = crate::memory::xstrnlen(dirptrs[0], file_path.size);
-                    stackp.ffs_filearray = vec![crate::memory::cstr_from_bytes(unsafe {
+                    stackp.ffs_filearray = vec![crate::memory::bytes_to_cstring(unsafe {
                         std::slice::from_raw_parts((dirptrs[0]).cast::<u8>(), dir_len)
                     })];
                 } else {
@@ -760,7 +760,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 if os_dirname(&mut expand_buf)
                                     && let Some(p) = path_shorten_fname(
                                         file_path.as_opt_cstr(),
-                                        crate::memory::cstr_until_nul(&expand_buf),
+                                        crate::memory::bytes_as_cstr(&expand_buf),
                                     )
                                 {
                                     let p_off = ((crate::strings::AsByteSlice::byte_addr(p.as_ptr())
@@ -920,7 +920,7 @@ fn vim_findfile_free_visited(search_ctx: Option<&mut FfSearchCtx>) {
 }
 
 fn ff_get_visited_list(filename: &[u8], list_headp: &mut Vec<FfVisitedListHdr>) -> usize {
-    let fn_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(filename));
+    let fn_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(filename));
     if let Some(pos) = list_headp.iter().position(|item| {
         path_equal(
             &fn_cstr,
@@ -976,7 +976,7 @@ fn ff_check_visited(
     wc_path: Option<&[u8]>,
 ) -> bool {
     let fname_bytes = crate::memory::bytes_until_nul(fname);
-    let fname_cstr = crate::memory::cstr_from_bytes(fname_bytes);
+    let fname_cstr = crate::memory::bytes_to_cstring(fname_bytes);
     let mut url = false;
     let mut file_id = FileID::new();
     let mut expand_buf: [u8; MAXPATHL] = [0; MAXPATHL];
@@ -992,8 +992,8 @@ fn ff_check_visited(
     for vp in &*visited_list {
         if ((url
             && path_equal(
-                crate::memory::cstr_until_nul(&vp.ffv_fname),
-                crate::memory::cstr_until_nul(&expand_buf),
+                crate::memory::bytes_as_cstr(&vp.ffv_fname),
+                crate::memory::bytes_as_cstr(&expand_buf),
                 K_PATH_CMP_LITERAL,
             ))
             || (!url && vp.file_id_valid && os_fileid_equal(&vp.file_id, &file_id)))
@@ -1011,7 +1011,7 @@ fn ff_check_visited(
     }
 
     let ffv_wc_path =
-        wc_path.map(|bytes| crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(bytes)));
+        wc_path.map(|bytes| crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(bytes)));
 
     visited_list.push(FfVisited {
         ffv_wc_path,
@@ -1079,7 +1079,7 @@ fn ff_path_in_stoplist(path: &[u8], stopdirs_v: &[std::ffi::CString]) -> bool {
         return true;
     }
 
-    let path_cstr = crate::memory::cstr_from_bytes(&path_slice[..path_len]);
+    let path_cstr = crate::memory::bytes_to_cstring(&path_slice[..path_len]);
     for stopdir in stopdirs_v {
         let bytes = stopdir.to_bytes();
         if path_cmp(opt_vars().p_fic, stopdir, &path_cstr, path_len) == 0
@@ -1326,9 +1326,9 @@ pub fn find_file_in_path_option(
                     ff_opt.dir_off += old_len - dir_bytes.len();
 
                     let stop_off = vim_findfile_stopdir(&mut buf);
-                    let stopdirs = stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]));
+                    let stopdirs = stop_off.map(|off| crate::memory::bytes_as_cstr(&buf[off..]));
                     *search_ctx = vim_findfile_init(
-                        crate::memory::cstr_until_nul(&buf),
+                        crate::memory::bytes_as_cstr(&buf),
                         unsafe {
                             std::slice::from_raw_parts((ftf).cast::<u8>(), ff_opt.file_to_findlen)
                         },
@@ -1675,7 +1675,7 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
         tv_dict_add_str(
             &mut *dict,
             c"scope",
-            Some(crate::memory::cstr_until_nul(&buf)),
+            Some(crate::memory::bytes_as_cstr(&buf)),
         );
         tv_dict_add_bool(
             &mut *dict,
@@ -1694,7 +1694,7 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
 
         apply_autocmds(
             event,
-            Some(crate::memory::cstr_until_nul(&buf)),
+            Some(crate::memory::bytes_as_cstr(&buf)),
             new_dir.as_opt_cstr(),
             false,
             curbuf_opt_mut(),
@@ -1714,7 +1714,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
 
         crate::memory::copy_bytes_to_c_buf(&mut dir, fname.to_bytes());
         let tail_off = ((crate::strings::AsByteSlice::byte_addr(
-            path_tail_with_sep(crate::memory::cstr_until_nul(&dir)).as_ptr(),
+            path_tail_with_sep(crate::memory::bytes_as_cstr(&dir)).as_ptr(),
         ) as isize)
             - (crate::strings::AsByteSlice::byte_addr(dir.as_ptr()) as isize))
             as usize;
@@ -1725,14 +1725,14 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         }
 
         if path_equal(
-            crate::memory::cstr_until_nul(&dir),
+            crate::memory::bytes_as_cstr(&dir),
             name_buff.as_cstr(),
             K_PATH_CMP_LITERAL,
         ) {
             return true;
         }
 
-        let dir_cstr = crate::memory::cstr_until_nul(&dir);
+        let dir_cstr = crate::memory::bytes_as_cstr(&dir);
         if cause != K_CD_CAUSE_OTHER {
             do_autocmd_dirchanged(dir_cstr, K_CD_SCOPE_WINDOW, cause, true);
         }
@@ -1742,7 +1742,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         }
 
         if cause != K_CD_CAUSE_OTHER {
-            let dir_cstr = crate::memory::cstr_until_nul(&dir);
+            let dir_cstr = crate::memory::bytes_as_cstr(&dir);
             do_autocmd_dirchanged(dir_cstr, K_CD_SCOPE_WINDOW, cause, false);
         }
 

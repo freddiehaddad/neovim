@@ -241,7 +241,7 @@ fn ses_arglist(
                     unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), MAXPATHL) },
                     false,
                 );
-                crate::memory::cstr_until_nul(&buf)
+                crate::memory::bytes_as_cstr(&buf)
             } else {
                 s_cstr
             };
@@ -1012,7 +1012,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 let mut dirnow_vec: Vec<u8> = vec![0; MAXPATHL];
 
                 if !os_dirname(&mut dirnow_vec)
-                    || os_chdir(crate::memory::cstr_until_nul(&dirnow_vec)) != 0
+                    || os_chdir(crate::memory::bytes_as_cstr(&dirnow_vec)) != 0
                 {
                     dirnow_vec[0] = 0;
                 }
@@ -1029,7 +1029,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     shorten_fnames(true);
                 }
 
-                failed |= !makeopens(&fd, crate::memory::cstr_until_nul(&dirnow_vec));
+                failed |= !makeopens(&fd, crate::memory::bytes_as_cstr(&dirnow_vec));
 
                 if !dirnow.is_empty()
                     && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
@@ -1083,7 +1083,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             ) {
                 set_vim_var_string(
                     VV_THIS_SESSION,
-                    Some(crate::memory::cstr_until_nul(&tbuf)),
+                    Some(crate::memory::bytes_as_cstr(&tbuf)),
                     -1,
                 );
             }

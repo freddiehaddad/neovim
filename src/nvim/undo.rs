@@ -621,11 +621,11 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
                 dir_name[dir_len] = 0;
             }
 
-            let mut has_directory = os_isdir(crate::memory::cstr_until_nul(&dir_name));
+            let mut has_directory = os_isdir(crate::memory::bytes_as_cstr(&dir_name));
             if !has_directory && dirp.is_empty() && !reading {
                 let mut failed_dir: Option<std::ffi::CString> = None;
                 let ret = os_mkdir_recurse(
-                    crate::memory::cstr_until_nul(&dir_name),
+                    crate::memory::bytes_as_cstr(&dir_name),
                     0o755,
                     &mut failed_dir,
                     None,
@@ -2807,7 +2807,7 @@ fn u_save_line(lnum: Linenr) -> std::ffi::CString {
 }
 
 fn u_save_line_buf(buf: &mut FileBuf, lnum: Linenr) -> std::ffi::CString {
-    crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(buf, lnum))
+    crate::memory::bytes_to_cstring(crate::memline::ml_get_buf_slice(buf, lnum))
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.

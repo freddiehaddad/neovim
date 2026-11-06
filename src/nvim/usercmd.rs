@@ -744,7 +744,7 @@ fn uc_list(name_prefix: &[u8]) {
 
                 iobuff[len] = 0;
                 msg_outtrans(
-                    crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                    crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
                     0,
                     false,
                 );
@@ -1738,7 +1738,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
         g_st().current_sctx.sc_sid = cmd.uc_script_ctx.sc_sid;
     }
     do_cmdline(
-        Some(crate::memory::cstr_until_nul(&buf_vec)),
+        Some(crate::memory::bytes_as_cstr(&buf_vec)),
         eap.ea_getline,
         DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
     );

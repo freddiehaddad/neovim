@@ -1023,7 +1023,7 @@ pub fn showmode() -> i32 {
                         > 0
                     {
                         msg_puts_hl(
-                            crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()),
+                            crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()),
                             hl_id,
                             false,
                         );

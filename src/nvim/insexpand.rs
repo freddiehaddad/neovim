@@ -375,7 +375,7 @@ impl InsComplNextState {
 
     #[inline]
     fn e_cpt_cstr(&self) -> &CStr {
-        crate::memory::cstr_until_nul(&self.e_cpt_copy[self.e_cpt_idx..])
+        crate::memory::bytes_as_cstr(&self.e_cpt_copy[self.e_cpt_idx..])
     }
 
     #[inline]
@@ -615,7 +615,7 @@ fn compl_pattern_len() -> usize {
 
 #[inline]
 fn set_compl_pattern_bytes(bytes: &[u8]) {
-    insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(
+    insexp().compl_pattern = Some(crate::memory::bytes_to_cstring(
         crate::memory::bytes_until_nul(bytes),
     ));
 }
@@ -2055,7 +2055,7 @@ fn ins_compl_dictionaries(
         let mut ptr_vec = vec![0u8; len];
         vim_snprintf!(&mut ptr_vec, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
         regmatch.set_prog(vim_regcomp(
-            crate::memory::cstr_until_nul(&ptr_vec),
+            crate::memory::bytes_as_cstr(&ptr_vec),
             RE_MAGIC,
         ));
     } else {
@@ -2085,7 +2085,7 @@ fn ins_compl_dictionaries(
                 crate::strings::ByteSlice::from_ptr(buf).as_cstr(),
                 b'`' as i32,
             ) || !expand_wildcards_vec(
-                &[crate::memory::cstr_until_nul(&buf_vec)],
+                &[crate::memory::bytes_as_cstr(&buf_vec)],
                 &mut files,
                 EW_FILE | EW_SILENT,
             ) {
@@ -2275,7 +2275,7 @@ fn ins_compl_files(
                     }
                 }
             } else {
-                let buf_cstr = crate::memory::cstr_until_nul(buf_slice);
+                let buf_cstr = crate::memory::bytes_as_cstr(buf_slice);
                 let buf_base = buf_cstr.as_ptr() as usize;
                 let mut col_off: usize = 0;
                 while vim_regexec(&mut *regmatch, buf_cstr, col_off as Colnr) {
@@ -4234,7 +4234,7 @@ fn get_next_filename_completion() {
                         .iter()
                         .map(|&b| if b == b'/' { b'\\' } else { b })
                         .collect();
-                    *slot = crate::memory::cstr_from_bytes(&bytes);
+                    *slot = crate::memory::bytes_to_cstring(&bytes);
                 }
             }
         }
@@ -5438,7 +5438,7 @@ fn ins_compl_show_filename() {
             },
             s.as_ptr(),
         );
-        msg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()), 0);
+        msg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()), 0);
         g_st().msg_hist_off = false;
         g_st().redraw_cmdline = false;
     }
@@ -6008,10 +6008,13 @@ fn get_cmdline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     let line_bytes = line.to_bytes();
     set_compl_pattern_bytes(&line_bytes[..(curs_col as usize).min(line_bytes.len())]);
     let pat_cstr = compl_pattern_cstr().unwrap_or(c"");
+    let pat_len = compl_pattern_len();
     set_cmd_context(
         &mut insexp().compl_xp,
-        crate::memory::cstr_as_mut_bytes(pat_cstr.as_ptr().cast_mut()),
-        compl_pattern_len() as i32,
+        unsafe {
+            std::slice::from_raw_parts_mut(pat_cstr.as_ptr().cast_mut().cast::<u8>(), pat_len + 1)
+        },
+        pat_len as i32,
         curs_col,
         false,
     );
@@ -6675,7 +6678,7 @@ fn setup_cpt_sources() {
             buf.fill(0);
             let slen = copy_option_part(&mut p, &mut buf, c",");
             if slen > 0 {
-                let caret = vim_strchr(crate::memory::cstr_until_nul(&buf), b'^' as i32)
+                let caret = vim_strchr(crate::memory::bytes_as_cstr(&buf), b'^' as i32)
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if !caret.is_null() {
                     sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(
@@ -6856,7 +6859,7 @@ mod tests {
         let mut buf: Vec<u8> = b".,w^5,b,u^10,Ffunc^3,k\0".to_vec();
         {
             strip_caret_numbers_in_place(&mut buf);
-            let s = crate::memory::cstr_until_nul(&buf).to_str().unwrap();
+            let s = crate::memory::bytes_as_cstr(&buf).to_str().unwrap();
             assert_eq!(s, ".,w,b,u,Ffunc,k");
         }
     }

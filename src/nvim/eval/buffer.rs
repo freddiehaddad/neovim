@@ -1031,7 +1031,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             if let Some(tail) = old_line_slice.get(mark_col as usize..) {
                 new_vec.extend_from_slice(tail);
             }
-            let new_line = crate::memory::cstr_from_bytes(&new_vec);
+            let new_line = crate::memory::bytes_to_cstring(&new_vec);
             let _ = ml_replace_buf(&mut *buf, prompt_lno, new_line.to_bytes(), true, false);
             extmark_splice_cols(
                 &mut *buf,

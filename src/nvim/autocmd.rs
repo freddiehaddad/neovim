@@ -1628,7 +1628,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                 let copy_len = formatted.len().min(msglen - 1);
                 mbuf[..copy_len].copy_from_slice(&formatted.as_bytes()[..copy_len]);
                 mbuf[copy_len] = 0;
-                msg_outtrans(crate::memory::cstr_until_nul(&mbuf), 0, false);
+                msg_outtrans(crate::memory::bytes_as_cstr(&mbuf), 0, false);
             } else if ac.handler.is_cmd() {
                 msg_outtrans(&handler_str, 0, false);
             } else {
@@ -2805,7 +2805,7 @@ pub fn apply_autocmds_group(
                 fname_io
             };
             let afile_orig_owned = if !raw_autocmd_fname.is_null() {
-                let orig = crate::memory::cstr_to_cstring(raw_autocmd_fname);
+                let orig = crate::strings::ByteSlice::from_ptr(raw_autocmd_fname).to_cstring();
                 g_st().autocmd_fname = Some(orig.clone());
                 Some(orig)
             } else {
@@ -2833,7 +2833,7 @@ pub fn apply_autocmds_group(
                 if fname.is_null() {
                     fname = c"".as_ptr().cast_mut();
                 }
-                Some(crate::memory::cstr_to_cstring(fname))
+                Some(crate::strings::ByteSlice::from_ptr(fname).to_cstring())
             } else {
                 sfname_owned =
                     to_slash_save(crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr());
@@ -2903,7 +2903,7 @@ pub fn apply_autocmds_group(
             let old_curbuf = g_st().curbuf;
 
             g_st().autocmd_match =
-                (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
+                (!fname.is_null()).then(|| crate::strings::ByteSlice::from_ptr(fname).to_cstring());
 
             g_st().redrawing_disabled += 1;
 
@@ -3532,7 +3532,7 @@ pub fn au_exists(arg: &CStr) -> bool {
         arg_save_vec[idx] = 0;
     }
 
-    let arg_save = crate::memory::cstr_until_nul(&arg_save_vec);
+    let arg_save = crate::memory::bytes_as_cstr(&arg_save_vec);
     let mut group = augroup_find(arg_save);
     let mut p_idx = first_hash.map(|idx| idx + 1);
     let ev_start = if group == AUGROUP_ERROR {
@@ -3552,8 +3552,8 @@ pub fn au_exists(arg: &CStr) -> bool {
         start
     };
 
-    let event_name = crate::memory::cstr_until_nul(&arg_save_vec[ev_start..]);
-    let pattern_opt = p_idx.map(|idx| crate::memory::cstr_until_nul(&arg_save_vec[idx..]));
+    let event_name = crate::memory::bytes_as_cstr(&arg_save_vec[ev_start..]);
+    let pattern_opt = p_idx.map(|idx| crate::memory::bytes_as_cstr(&arg_save_vec[idx..]));
     let mut ev_rem = event_name.to_bytes();
     let event = event_name2nr(&mut ev_rem);
     if event != NUM_EVENTS as AuEvent {

@@ -136,9 +136,7 @@ use crate::memline::{
     decl, incl, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len, ml_get_len, ml_open,
     recover_names, swapfile_dict,
 };
-use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring,
-};
+use crate::memory::{ARENA_BLOCK_SIZE, Arena, arena_finish, arena_mem_free, bytes_to_cstring};
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
     emsg, internal_error, msg_clr_eos, msg_ext_set_kind, msg_putchar, msg_puts, msg_scroll_flush,
@@ -1350,7 +1348,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
     let mut err = Error::new();
     let mut result = nlua_exec(
-        cstr_as_string(Some(crate::memory::cstr_until_nul(&buf))),
+        cstr_as_string(Some(crate::memory::bytes_as_cstr(&buf))),
         None,
         args,
         K_RET_OBJECT,
@@ -2385,7 +2383,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         g_st().emsg_off -= 1;
     }
 
-    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&cmdline_buf)));
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&cmdline_buf)));
 }
 
 /// "flatten()" and "flattennew()" functions
@@ -2587,7 +2585,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 get_scriptlocal_funcname(Some(crate::strings::ByteSlice::from_ptr(s).as_cstr()))
                     .unwrap_or_default()
             } else {
-                cstr_to_cstring(s)
+                crate::strings::ByteSlice::from_ptr(s).to_cstring()
             };
 
             if argvars[1].v_type != VarType::VarUnknown {
@@ -4900,7 +4898,7 @@ pub fn f_json_decode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
     if !json_decode_string(json_slice, rettv) {
-        let cstr = crate::memory::cstr_from_bytes(json_slice);
+        let cstr = crate::memory::bytes_to_cstring(json_slice);
         semsg!(gettext(c"E474: Failed to parse %s"), cstr.as_ptr());
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -7943,7 +7941,7 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
         let mut dir: &[u8] = &[];
         iter = vim_env_iter(ENV_SEPCHAR, dirs_bytes, iter, &mut dir);
         if !dir.is_empty() {
-            let dir_cstr = cstr_from_bytes(dir);
+            let dir_cstr = bytes_to_cstring(dir);
             let dir_with_nvim = concat_fnames_cstr(&dir_cstr, appname, true);
             tv_list_append_string(&mut *list, Some(dir_with_nvim.as_c_str()), -1);
         }
@@ -8082,13 +8080,13 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         {
             crate::eval::typval::tv_set_string(
                 rettv,
-                Some(crate::memory::cstr_until_nul(&conv_bytes)),
+                Some(crate::memory::bytes_as_cstr(&conv_bytes)),
             );
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     } else {
-        crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&result_buf)));
+        crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&result_buf)));
     }
 }
 
@@ -8404,7 +8402,7 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     );
     tv_list_append_string(
         rettv.vval.v_list_ref(),
-        Some(crate::memory::cstr_until_nul(&str_)),
+        Some(crate::memory::bytes_as_cstr(&str_)),
         -1,
     );
     tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(matchid));
@@ -8653,7 +8651,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "visualmode()" function
 pub fn f_visualmode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let str_ = [curbuf_mut().b_visual_mode_eval as u8, 0];
-    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&str_)));
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&str_)));
 
     if non_zero_arg(&argvars[0]) {
         curbuf_mut().b_visual_mode_eval = 0;
@@ -8673,7 +8671,7 @@ pub fn f_wildmenumode(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 pub fn f_windowsversion(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     crate::eval::typval::tv_set_string(
         rettv,
-        Some(crate::memory::cstr_until_nul(&g_st().windows_version)),
+        Some(crate::memory::bytes_as_cstr(&g_st().windows_version)),
     );
 }
 

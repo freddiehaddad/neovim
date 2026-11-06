@@ -29,7 +29,7 @@ use crate::hashtab::{
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len};
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{RawCCharPtr, RawCCharPtrMut, strcoll, strtod, tr, vim_snprintf};
@@ -268,8 +268,8 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub fn from_raw_str(p: impl crate::memory::AsCStrPtr) -> Self {
-        Self::String(crate::strings::ByteSlice::from_ptr(p.into_cstr_ptr()))
+    pub fn from_raw_str(p: impl crate::strings::AsByteSlice) -> Self {
+        Self::String(crate::strings::ByteSlice::from_ptr(p))
     }
 
     #[inline]
@@ -883,14 +883,14 @@ pub fn tv_set_string(tv: &mut TypVal, s: Option<&CStr>) {
 #[inline]
 pub fn tv_set_bytes(tv: &mut TypVal, bytes: &[u8]) {
     tv.v_type = VarType::VarString;
-    tv.vval = crate::eval::typval::TypvalVval::from_cstring(crate::memory::cstr_from_bytes(bytes));
+    tv.vval = crate::eval::typval::TypvalVval::from_cstring(crate::memory::bytes_to_cstring(bytes));
 }
 
 #[inline]
 pub fn tv_set_string_len(tv: &mut TypVal, s: Option<&[u8]>) {
     tv.v_type = VarType::VarString;
     tv.vval = crate::eval::typval::TypvalVval::from_raw_str(s.map_or(ptr::null_mut(), |bytes| {
-        crate::memory::cstr_from_bytes(bytes).into_raw()
+        crate::memory::bytes_to_cstring(bytes).into_raw()
     }));
 }
 
@@ -1432,7 +1432,7 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::from_cstring(crate::memory::cstr_from_bytes(bytes)),
+            vval: TypvalVval::from_cstring(crate::memory::bytes_to_cstring(bytes)),
         },
     );
 }
@@ -1440,7 +1440,7 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
 pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
     let v_string = match str_ {
         None => ptr::null_mut(),
-        Some(s) if len >= 0 => crate::memory::cstr_from_bytes(unsafe {
+        Some(s) if len >= 0 => crate::memory::bytes_to_cstring(unsafe {
             std::slice::from_raw_parts((s.as_ptr()).cast::<u8>(), len as usize)
         })
         .into_raw(),
@@ -2628,7 +2628,7 @@ pub fn tv_dict_watcher_add(dict: Option<&mut TvDict>, key_pattern: &[u8], callba
     };
     let key_pattern_len = key_pattern.len();
     dict.watchers.push(DictWatcher {
-        key_pattern: crate::memory::cstr_from_bytes(key_pattern),
+        key_pattern: crate::memory::bytes_to_cstring(key_pattern),
         key_pattern_len,
         callback,
         busy: false,
@@ -2754,7 +2754,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
         }
         _ => {}
     }
-    cstr_from_bytes(&msg)
+    bytes_to_cstring(&msg)
 }
 
 /// Remove watcher from a dictionary.
@@ -3062,7 +3062,7 @@ pub fn tv_dict_to_env(denv: Option<&TvDict>) -> Vec<std::ffi::CString> {
             entry.extend_from_slice(key_bytes);
             entry.push(b'=');
             entry.extend_from_slice(val_bytes);
-            env.push(cstr_from_bytes(&entry));
+            env.push(bytes_to_cstring(&entry));
         }
     }
 
@@ -3142,7 +3142,7 @@ pub fn tv_dict_wrong_func_name(d: &mut TvDict, tv: &mut TypVal, name: &CStr) -> 
 
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &mut TvDict, item: &mut Dictitem) -> bool {
-    let key = crate::memory::cstr_until_nul(&item.di_key);
+    let key = crate::memory::bytes_as_cstr(&item.di_key);
     if tv_dict_wrong_func_name(d, &mut item.di_tv, key) != 0 {
         return false;
     }
@@ -3238,7 +3238,7 @@ pub fn tv_dict_add_str(d: &mut TvDict, key: &CStr, val: Option<&CStr>) -> bool {
 /// Add a string entry to dictionary.
 pub fn tv_dict_add_str_len(d: &mut TvDict, key: &CStr, val: Option<&[u8]>) -> bool {
     let s = val.map_or(ptr::null_mut(), |bytes| {
-        crate::memory::cstr_from_bytes(bytes).into_raw()
+        crate::memory::bytes_to_cstring(bytes).into_raw()
     });
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarString;
@@ -3304,7 +3304,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
         }
         if let Some(di2) = d2.dv_hashtab.ht_array[i].di_opt() {
             todo -= 1;
-            let key2 = crate::memory::cstr_until_nul(&di2.di_key);
+            let key2 = crate::memory::bytes_as_cstr(&di2.di_key);
             let di1_opt = tv_dict_find_opt(Some(d1), key2, -1);
             if d1.dv_scope != VAR_NO_SCOPE && !valid_varname(di2.key_cstr()) {
                 break;
@@ -4871,11 +4871,11 @@ pub fn tv_get_string_buf_chk<'a>(
             use std::io::Write;
             let mut slice = &mut buf[..];
             let _ = write!(slice, "{}\0", tv.vval.v_number());
-            Some(crate::memory::cstr_until_nul(buf))
+            Some(crate::memory::bytes_as_cstr(buf))
         }
         VarType::VarFloat => {
             vim_snprintf!(buf, c"%g", tv.vval.v_float());
-            Some(crate::memory::cstr_until_nul(buf))
+            Some(crate::memory::bytes_as_cstr(buf))
         }
         VarType::VarString => {
             if !tv.vval.v_string().is_null() {
@@ -4889,14 +4889,14 @@ pub fn tv_get_string_buf_chk<'a>(
                 buf,
                 ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize].to_bytes(),
             );
-            Some(crate::memory::cstr_until_nul(buf))
+            Some(crate::memory::bytes_as_cstr(buf))
         }
         VarType::VarSpecial => {
             crate::memory::copy_bytes_to_c_buf(
                 buf,
                 ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize].to_bytes(),
             );
-            Some(crate::memory::cstr_until_nul(buf))
+            Some(crate::memory::bytes_as_cstr(buf))
         }
         VarType::VarPartial
         | VarType::VarFunc

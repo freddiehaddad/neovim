@@ -26,7 +26,7 @@ use crate::eval::typval::{
 use crate::globals::*;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use crate::memory::{Arena, arena_memdupz, cstr_from_bytes};
+use crate::memory::{Arena, arena_memdupz, bytes_to_cstring};
 use crate::msgpack_rpc::packer::Integer;
 use std::ffi::{CStr, CString};
 
@@ -822,7 +822,7 @@ pub fn nvim_create_autocmd(
                     callback.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
                 }
                 ObjectType::ObjectTypeString => {
-                    let s = cstr_from_bytes(callback.data.string().as_bytes());
+                    let s = bytes_to_cstring(callback.data.string().as_bytes());
                     handler_fn.data = crate::eval::typval::CallbackData::funcref(s);
                 }
                 _ => {
@@ -836,7 +836,7 @@ pub fn nvim_create_autocmd(
                 }
             }
         } else if has_command {
-            handler_cmd = Some(cstr_from_bytes(opts.command.as_bytes()));
+            handler_cmd = Some(bytes_to_cstring(opts.command.as_bytes()));
         } else {
             api_err_req(err, c"'command' or 'callback'");
             break 'body;

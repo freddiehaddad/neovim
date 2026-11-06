@@ -75,7 +75,7 @@ use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
     ml_close, ml_delete, ml_get_buf_slice, ml_open, ml_recover, ml_setname, ml_timestamp,
 };
-use crate::memory::{cstr_to_cstring, mem_st};
+use crate::memory::mem_st;
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -2003,7 +2003,7 @@ pub fn do_bufdel(
     end_bnr: i32,
     forceit: bool,
 ) -> Option<&'static std::ffi::CStr> {
-    let arg_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(arg_in));
+    let arg_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(arg_in));
     let mut arg = crate::strings::ByteSlice::from_cstr(&arg_cstr);
     let mut do_current = 0;
     let mut deleted: i32 = 0;
@@ -3207,7 +3207,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
             return -1;
         };
         let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();
-        let pat_end_idx = crate::memory::cstr_until_nul(&pat_vec)
+        let pat_end_idx = crate::memory::bytes_as_cstr(&pat_vec)
             .to_bytes()
             .len()
             .saturating_sub(1);
@@ -3220,7 +3220,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                     pat_vec[pat_end_idx] = if attempt < 2 { 0 } else { b'$' };
                 }
                 let pat_start = usize::from(pat_vec[0] == b'^' && (attempt & 1) == 0);
-                let p = crate::memory::cstr_until_nul(&pat_vec[pat_start..]);
+                let p = crate::memory::bytes_as_cstr(&pat_vec[pat_start..]);
 
                 let mut regmatch: Regmatch = Regmatch::new();
                 regmatch.set_prog(vim_regcomp(
@@ -3270,7 +3270,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
     }
 
     if match_fnum < 0 {
-        let pat_cstr = crate::memory::cstr_from_bytes(pat_slice);
+        let pat_cstr = crate::memory::bytes_to_cstring(pat_slice);
         if match_fnum == -2 {
             semsg!(
                 gettext(c"E93: More than one match for %s"),
@@ -3293,7 +3293,7 @@ fn buf_time_compare(buf1: &FileBuf, buf2: &FileBuf) -> std::cmp::Ordering {
 /// Find all buffer names that match.
 pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options: i32) -> bool {
     let pat_bytes = crate::memory::bytes_until_nul(pat_in);
-    let pat_cstr = crate::memory::cstr_from_bytes(pat_bytes);
+    let pat_cstr = crate::memory::bytes_to_cstring(pat_bytes);
     let pat = pat_cstr.as_ptr();
     {
         let mut matches: Vec<Bufmatch> = Vec::new();
@@ -3313,7 +3313,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
         if !fuzzy {
             let patc: RawCCharPtr = if pat_bytes.first() == Some(&b'^') && pat_bytes.len() > 1 {
-                let pc = cstr_to_cstring(pat.wrapping_add(1));
+                let pc = crate::strings::ByteSlice::from_ptr(pat.wrapping_add(1)).to_cstring();
                 let ptr = pc.as_ptr();
                 patc_owned = Some(pc);
                 ptr
@@ -3692,7 +3692,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             );
         }
 
-        if message_filtered(crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut())) {
+        if message_filtered(crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut())) {
             continue;
         }
 
@@ -3746,7 +3746,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         )
         .min(IOSIZE - 20);
 
-        let mut i = 40 - vim_strsize(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
+        let mut i = 40 - vim_strsize(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
         loop {
             g_st().iobuff_bytes_mut()[len] = b' ';
             len += 1;
@@ -3770,7 +3770,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         }
 
         msg_outtrans(
-            crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+            crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
             0,
             false,
         );
@@ -4116,7 +4116,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         msg_start();
         let n = g_st().msg_scroll;
         g_st().msg_scroll = 1;
-        msg(crate::memory::cstr_until_nul(&buffer_vec), 0);
+        msg(crate::memory::bytes_as_cstr(&buffer_vec), 0);
         g_st().msg_scroll = n;
     } else {
         let p = msg_trunc(&mut buffer_vec, false, 0);
@@ -4373,7 +4373,7 @@ pub fn fname_expand(
                 *path_tail_with_sep(name.as_cstr()).as_ptr().cast_mut() = 0;
             }
         }
-        let full = fix_fname(Some(crate::memory::cstr_until_nul(&name_vec)));
+        let full = fix_fname(Some(crate::memory::bytes_as_cstr(&name_vec)));
         drop(name_vec);
         if let Some(dir_full) = full {
             full_cstr = dir_full;
@@ -4726,7 +4726,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
             g_st().secure = 1;
 
             retval = do_set(
-                crate::memory::cstr_until_nul(&linecopy_vec[s_idx..]),
+                crate::memory::bytes_as_cstr(&linecopy_vec[s_idx..]),
                 OPT_MODELINE | OPT_LOCAL | flags,
             );
 

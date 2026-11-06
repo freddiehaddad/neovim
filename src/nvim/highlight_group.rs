@@ -900,7 +900,7 @@ pub fn load_colors(name: &CStr) -> bool {
     buf.extend_from_slice(b"colors/");
     buf.extend_from_slice(name_bytes);
     buf.extend_from_slice(b".*\0");
-    let retval = source_runtime_vim_lua(crate::memory::cstr_until_nul(&buf), DIP_START + DIP_OPT);
+    let retval = source_runtime_vim_lua(crate::memory::bytes_as_cstr(&buf), DIP_START + DIP_OPT);
     if retval {
         apply_autocmds(
             EVENT_COLORSCHEME,
@@ -1431,7 +1431,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         let color: i32;
                         if arg[0].is_ascii_digit() {
                             color = crate::charset::parse_i64_prefix(&arg[..arg_len]) as i32;
-                        } else if mb_stricmp(crate::memory::cstr_until_nul(&arg), c"fg") == 0 {
+                        } else if mb_stricmp(crate::memory::bytes_as_cstr(&arg), c"fg") == 0 {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
                             } else {
@@ -1439,7 +1439,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                 error = true;
                                 break;
                             }
-                        } else if mb_stricmp(crate::memory::cstr_until_nul(&arg), c"bg") == 0 {
+                        } else if mb_stricmp(crate::memory::bytes_as_cstr(&arg), c"bg") == 0 {
                             if g_st().cterm_normal_bg_color > 0 {
                                 color = g_st().cterm_normal_bg_color - 1;
                             } else {
@@ -1454,7 +1454,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                 let cname = COLOR_NAMES[i as usize];
                                 if off == cname.to_bytes()[0]
                                     && mb_stricmp(
-                                        crate::memory::cstr_until_nul(&arg[1..]),
+                                        crate::memory::bytes_as_cstr(&arg[1..]),
                                         crate::memory::CStrSubslice::advance(cname, 1),
                                     ) == 0
                                 {
@@ -1526,7 +1526,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     did_change = set_gui_color(
                         idx,
                         init,
-                        crate::memory::cstr_until_nul(&arg),
+                        crate::memory::bytes_as_cstr(&arg),
                         &mut g.sg_rgb_fg,
                         &mut g.sg_rgb_fg_idx,
                     );
@@ -1538,7 +1538,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     did_change = set_gui_color(
                         idx,
                         init,
-                        crate::memory::cstr_until_nul(&arg),
+                        crate::memory::bytes_as_cstr(&arg),
                         &mut g.sg_rgb_bg,
                         &mut g.sg_rgb_bg_idx,
                     );
@@ -1550,7 +1550,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     did_change = set_gui_color(
                         idx,
                         init,
-                        crate::memory::cstr_until_nul(&arg),
+                        crate::memory::bytes_as_cstr(&arg),
                         &mut g.sg_rgb_sp,
                         &mut g.sg_rgb_sp_idx,
                     );
@@ -2367,7 +2367,7 @@ pub fn highlight_changed() {
         userhl[3] = b'r';
         userhl[4] = b'1' + i as u8;
         userhl[5] = 0;
-        let id = syn_name2id(crate::memory::cstr_until_nul(&userhl));
+        let id = syn_name2id(crate::memory::bytes_as_cstr(&userhl));
         if id == 0 {
             g_st().highlight_user[i] = 0;
             g_st().highlight_stlnc[i] = 0;

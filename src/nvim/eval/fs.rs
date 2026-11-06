@@ -31,9 +31,7 @@ use crate::fileio::{
 };
 use crate::globals::*;
 use crate::mbyte::utfc_slice2len;
-use crate::memory::cstr_from_bytes;
-#[cfg(windows)]
-use crate::memory::cstr_to_cstring;
+use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::os::env::{ExpandCtx, expand_env_save, home_replace};
@@ -242,7 +240,7 @@ pub fn modify_fname(
                         if path_cmp(
                             opt_vars().p_fic,
                             crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr(),
-                            crate::memory::cstr_until_nul(&dirname),
+                            crate::memory::bytes_as_cstr(&dirname),
                             dirnamelen,
                         ) == 0
                         {
@@ -425,7 +423,9 @@ pub fn modify_fname(
 
             #[cfg(windows)]
             if !didit && use_shellslash && !fname.is_null() {
-                let mut v = cstr_to_cstring(fname).into_bytes_with_nul();
+                let mut v = crate::strings::ByteSlice::from_ptr(fname)
+                    .to_cstring()
+                    .into_bytes_with_nul();
                 slash_adjust(&mut v);
                 *fbuf = v;
                 fname = fbuf.as_mut_ptr();
@@ -457,14 +457,14 @@ pub fn modify_fname(
                         .get(s_idx..)
                         .and_then(|r| r.iter().position(|&b| b == sep))
                     {
-                        let pat = cstr_from_bytes(&src_bytes[s_idx..s_idx + pat_len]);
+                        let pat = bytes_to_cstring(&src_bytes[s_idx..s_idx + pat_len]);
                         s_idx += pat_len + 1;
                         // find end of substitution
                         if let Some(sub_len) = src_bytes
                             .get(s_idx..)
                             .and_then(|r| r.iter().position(|&b| b == sep))
                         {
-                            let sub = cstr_from_bytes(&src_bytes[s_idx..s_idx + sub_len]);
+                            let sub = bytes_to_cstring(&src_bytes[s_idx..s_idx + sub_len]);
                             let mut str_copy = vec![0u8; *fnamelen + 1];
                             if *fnamelen > 0 {
                                 unsafe {
@@ -477,7 +477,7 @@ pub fn modify_fname(
                             }
                             *usedlen = s_idx + sub_len + 1;
                             let sub_res = do_string_sub(
-                                crate::memory::cstr_until_nul(&str_copy),
+                                crate::memory::bytes_as_cstr(&str_copy),
                                 *fnamelen,
                                 &pat,
                                 &sub,
@@ -1806,7 +1806,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 } else {
                     buf
                 };
-                q = path_next_component((start_comp).as_cstr())
+                q = path_next_component(crate::strings::ByteSlice::from_ptr(start_comp).as_cstr())
                     .as_ptr()
                     .cast_mut()
                     .cast::<u8>();
@@ -1833,7 +1833,9 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     unsafe { *q.wrapping_sub(1) = 0 };
                     q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 }
-                if (q as usize) > (p.as_ptr() as usize) && !path_is_absolute((buf).as_bytes()) {
+                if (q as usize) > (p.as_ptr() as usize)
+                    && !path_is_absolute(crate::strings::ByteSlice::from_ptr(buf).as_bytes())
+                {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p.as_ptr() as usize);

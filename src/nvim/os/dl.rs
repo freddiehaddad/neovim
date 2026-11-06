@@ -1,7 +1,6 @@
 //! Functions for calling external native shared libraries (`src/nvim/os/dl.c`).
 
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
-use crate::memory::cstr_to_cstring;
 use crate::message::semsg;
 use crate::strings::ByteSliceExt;
 use std::ffi::{CString, c_void};
@@ -56,7 +55,7 @@ pub fn os_libcall(
 
             let addr = res as isize;
             *out = if !res.is_null() && addr != 1 && addr != -1 {
-                Some(cstr_to_cstring(res))
+                Some(crate::strings::ByteSlice::from_ptr(res).to_cstring())
             } else {
                 None
             };

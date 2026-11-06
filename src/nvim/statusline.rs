@@ -662,7 +662,7 @@ fn win_redr_stl_expr(
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
         ewp.w_onebuf_opt.wo_crb = false;
 
-        let stl_cstr = crate::memory::cstr_to_cstring(stl);
+        let stl_cstr = crate::strings::ByteSlice::from_ptr(stl).to_cstring();
 
         let mut tabtab: *mut StlClickRecord = ptr::null_mut();
         build_stl_str_hl(
@@ -686,7 +686,7 @@ fn win_redr_stl_expr(
             (!click_defs.is_null())
                 .then(|| unsafe { std::slice::from_raw_parts_mut(click_defs, maxwidth as usize) }),
             stl_st().stl_tabtab_vec.as_slice(),
-            crate::memory::cstr_until_nul(&buf),
+            crate::memory::bytes_as_cstr(&buf),
             maxwidth,
             wp.is_null(),
         );
@@ -726,7 +726,7 @@ fn win_redr_stl_expr(
             if !ui_event {
                 col += grid_line_puts(
                     col,
-                    crate::memory::cstr_until_nul(&transbuf),
+                    crate::memory::bytes_as_cstr(&transbuf),
                     tsize as i32,
                     curattr,
                 );
@@ -1143,7 +1143,7 @@ pub fn draw_tabline() {
             if sc_width > 0 {
                 grid_line_puts(
                     g_st().columns_global - sc_width - i32::from(tabcount > 1) * 2,
-                    crate::memory::cstr_until_nul(&g_st().showcmd_buf),
+                    crate::memory::bytes_as_cstr(&g_st().showcmd_buf),
                     sc_width,
                     attr_nosel,
                 );
@@ -1221,7 +1221,7 @@ pub fn build_statuscol_str(
         stl_fill_click_defs(
             Some(cdp),
             stl_st().stl_tabtab_vec.as_slice(),
-            crate::memory::cstr_until_nul(buf),
+            crate::memory::bytes_as_cstr(buf),
             width,
             false,
         );
@@ -2025,12 +2025,12 @@ pub extern "C" fn build_stl_str_hl(
                     vim_snprintf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum);
                     set_internal_string_var(
                         c"g:actual_curbuf",
-                        crate::memory::cstr_until_nul(&buf_tmp),
+                        crate::memory::bytes_as_cstr(&buf_tmp),
                     );
                     vim_snprintf!(&mut buf_tmp[..], c"%d", curwin_mut().handle);
                     set_internal_string_var(
                         c"g:actual_curwin",
-                        crate::memory::cstr_until_nul(&buf_tmp),
+                        crate::memory::bytes_as_cstr(&buf_tmp),
                     );
 
                     let save_curbuf = g_st().curbuf;
@@ -2586,7 +2586,7 @@ pub extern "C" fn build_stl_str_hl(
 
                 let written = vim_snprintf_safelen!(
                     &mut out.as_mut_slice()[out_offset..out_offset + remaining_buf_len],
-                    crate::memory::cstr_until_nul(&nstr),
+                    crate::memory::bytes_as_cstr(&nstr),
                     0_i32,
                     num,
                     n,
@@ -2595,7 +2595,7 @@ pub extern "C" fn build_stl_str_hl(
             } else {
                 let written = vim_snprintf_safelen!(
                     &mut out.as_mut_slice()[out_offset..out_offset + remaining_buf_len],
-                    crate::memory::cstr_until_nul(&nstr),
+                    crate::memory::bytes_as_cstr(&nstr),
                     minwid,
                     num,
                 );
@@ -2827,7 +2827,7 @@ mod tests {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                let got = crate::memory::cstr_until_nul(&out_buf).to_str().unwrap();
+                let got = crate::memory::bytes_as_cstr(&out_buf).to_str().unwrap();
                 assert_eq!(got, expected, "pat={pat:?}");
                 assert_eq!(cells, exp_cells.unwrap_or(max_cells), "pat={pat:?}");
             };

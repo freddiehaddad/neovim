@@ -302,10 +302,8 @@ pub fn get_unname_register() -> i32 {
     if reg_st().y_previous.is_null() {
         -1
     } else {
-        ((crate::strings::AsByteSlice::byte_addr(reg_st().y_previous.as_ptr()) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(
-                (&raw const reg_st().y_regs).cast::<Yankreg>(),
-            ) as isize)) as i32
+        ((reg_st().y_previous.as_ptr() as usize - reg_st().y_regs.as_ptr() as usize)
+            / std::mem::size_of::<Yankreg>()) as i32
     }
 }
 
@@ -934,7 +932,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
                 None,
             );
             if !ident.is_empty() {
-                Some(cstr_to_vec(Some(crate::memory::cstr_from_bytes(ident))))
+                Some(cstr_to_vec(Some(crate::memory::bytes_to_cstring(ident))))
             } else {
                 Some(None)
             }
@@ -2621,7 +2619,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
 
     if let Some(spec) = get_spec_reg(regname, false) {
         let retval = spec?;
-        return Some(crate::memory::cstr_until_nul(&retval).to_owned());
+        return Some(crate::memory::bytes_as_cstr(&retval).to_owned());
     }
 
     let reg = &*get_yank_register(regname, YankRegMode::Put);
@@ -2671,7 +2669,7 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<&'static mu
 
     if let Some(spec) = get_spec_reg(regname, false) {
         let retval = spec?;
-        return get_reg_wrap_one_line_list(Some(crate::memory::cstr_until_nul(&retval).to_owned()));
+        return get_reg_wrap_one_line_list(Some(crate::memory::bytes_as_cstr(&retval).to_owned()));
     }
 
     let reg = &*get_yank_register(regname, YankRegMode::Put);
@@ -2872,7 +2870,7 @@ pub fn write_reg_contents_ex(
     };
 
     if name == i32::from(b'/') {
-        let pat_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(str_slice));
+        let pat_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(str_slice));
         set_last_search_pat(Some(&pat_cstr), RE_SEARCH, 1, true);
         return;
     }

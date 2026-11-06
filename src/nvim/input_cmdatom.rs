@@ -29,7 +29,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
-use crate::memory::cstr_from_bytes;
+use crate::memory::bytes_to_cstring;
 use crate::normal::{
     NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is,
 };
@@ -613,7 +613,7 @@ fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> std::ffi::CString {
             keys.extend_from_slice(k.as_bytes());
         }
     }
-    cstr_from_bytes(&keys)
+    bytes_to_cstring(&keys)
 }
 
 fn atom_key_name(c: i32) -> std::ffi::CString {
@@ -629,7 +629,7 @@ fn atom_key_name(c: i32) -> std::ffi::CString {
     let mut buf = [0u8; MB_MAXBYTES + 1];
     let n = utf_char2bytes(c, &mut buf) as usize;
     buf[n] = 0;
-    cstr_from_bytes(&buf[..n])
+    bytes_to_cstring(&buf[..n])
 }
 
 fn atom_dict(atom: &CmdAtom) -> Dict {
@@ -646,13 +646,13 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     if spec.op_extra != NUL {
         op_bytes.extend_from_slice(atom_key_name(spec.op_extra).as_bytes());
     }
-    let op = cstr_from_bytes(&op_bytes);
+    let op = bytes_to_cstring(&op_bytes);
 
     let mut cmd_bytes = atom_key_name(spec.cmd).into_bytes();
     if spec.cmd2 != NUL {
         cmd_bytes.extend_from_slice(atom_key_name(spec.cmd2).as_bytes());
     }
-    let cmd = cstr_from_bytes(&cmd_bytes);
+    let cmd = bytes_to_cstring(&cmd_bytes);
 
     let mut d = Dict {
         items: crate::globals::GraphPtr::NULL,
@@ -701,7 +701,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
         dict_put(
             &mut d,
             c"reg",
-            cstr_to_obj(Some(crate::memory::cstr_until_nul(&regname))),
+            cstr_to_obj(Some(crate::memory::bytes_as_cstr(&regname))),
         );
     }
     if let Some(ref text) = atom.text
@@ -848,7 +848,7 @@ fn atom_composite_lhs() -> std::ffi::CString {
     let tail =
         &atom_st().borrow_mut().typed.keys.as_slice()[atom_st().borrow_mut().typed.map_start..];
     keys.extend_from_slice(tail);
-    cstr_from_bytes(&keys)
+    bytes_to_cstring(&keys)
 }
 
 pub fn atom_lhs_replay_queue() {
@@ -1266,7 +1266,7 @@ pub fn atom_visual_span() -> Option<std::ffi::CString> {
     let mut keys: Vec<u8> = Vec::with_capacity(2 + tail.as_bytes().len());
     keys.extend_from_slice(b"gv");
     keys.extend_from_slice(tail.as_bytes());
-    Some(cstr_from_bytes(&keys))
+    Some(bytes_to_cstring(&keys))
 }
 
 fn atom_visual_span_flush() {
@@ -1342,7 +1342,7 @@ fn atom_visual_end_suffix(
             if let Some(ref suf) = suffix {
                 bytes.extend_from_slice(suf.as_bytes());
             }
-            label = Some(cstr_from_bytes(&bytes));
+            label = Some(bytes_to_cstring(&bytes));
         }
         atom_visual_reset();
         if emit {
@@ -1366,7 +1366,7 @@ fn atom_visual_end_suffix(
     if let Some(ref suf) = suffix {
         keys_bytes.extend_from_slice(suf.as_bytes());
     }
-    let keys_cstr = cstr_from_bytes(&keys_bytes);
+    let keys_cstr = bytes_to_cstring(&keys_bytes);
     let mut atom = CmdAtom::new();
     atom.r#type = K_AVISUAL;
     if let Some(spec) = spec {
@@ -1443,7 +1443,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                     NL as u8
                 },
             ];
-            atom_visual_end_suffix(Some(cstr_from_bytes(&suffix)), Some(&spec), redoable);
+            atom_visual_end_suffix(Some(bytes_to_cstring(&suffix)), Some(&spec), redoable);
         } else {
             spec.cmdarg = if oap.op_type == OP_REPLACE {
                 cap.nchar
@@ -1622,7 +1622,7 @@ fn atom_ins_push(session: &InsSession, cascade: bool) {
         assert!(cur_keys.as_bytes().starts_with(b"1v"));
         let mut bytes = Vec::from(vsel.as_bytes());
         bytes.extend_from_slice(&cur_keys.as_bytes()[2..]);
-        atom.keys = Some(cstr_from_bytes(&bytes));
+        atom.keys = Some(bytes_to_cstring(&bytes));
     }
     let Some(ref cur_keys) = atom.keys else {
         return;
@@ -1748,7 +1748,7 @@ fn atom_capture_cmd(ca: &mut Cmdarg, old: &mut CmdFrame, is_root: bool) -> bool 
             drop(own);
             atom_visual_end_suffix(Some(suffix), None, false);
         } else if user && atom_visual_replayable() && !atom_st().vatom.atoms.is_empty() {
-            atom_visual_end_suffix(Some(cstr_from_bytes(&[ESC])), None, false);
+            atom_visual_end_suffix(Some(bytes_to_cstring(&[ESC])), None, false);
         } else {
             atom_visual_end_suffix(None, None, false);
         }

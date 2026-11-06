@@ -793,7 +793,7 @@ fn is_executable_in_path(
             );
 
             if is_executable_ext(
-                crate::memory::cstr_until_nul(&buf_vec),
+                crate::memory::bytes_as_cstr(&buf_vec),
                 abspath.as_deref_mut(),
             ) {
                 rv = true;
@@ -1445,7 +1445,8 @@ pub fn os_copy_xattr(from_file_opt: Option<&CStr>, to_file_opt: Option<&CStr>) {
                     max_vallen = vallen;
                 }
 
-                let keylen = ((key).as_bytes().len() + 1) as isize;
+                let keylen =
+                    (crate::strings::ByteSlice::from_ptr(key).as_bytes().len() + 1) as isize;
                 size -= keylen;
                 key = key.add(keylen as usize);
             }
@@ -2004,7 +2005,7 @@ pub fn os_realpath<'a>(name: &CStr, buf: &'a mut [u8]) -> Option<&'a CStr> {
             to_slash(buf);
         }
         uv_fs_req_cleanup((&raw mut request).cast());
-        (result == 0).then(|| crate::memory::cstr_until_nul(buf))
+        (result == 0).then(|| crate::memory::bytes_as_cstr(buf))
     }
 }
 
@@ -2208,7 +2209,7 @@ mod tests {
             assert!(!os_isdir(c"/non-existing-directory-xyz"));
             assert!(os_isdir(c"."));
             assert!(os_isdir(c".."));
-            assert!(os_isdir(crate::memory::cstr_until_nul(&cwd)));
+            assert!(os_isdir(crate::memory::bytes_as_cstr(&cwd)));
 
             assert_eq!(os_nodetype(c"non-existing-file-xyz"), NODE_NORMAL);
             #[cfg(not(windows))]
@@ -2242,7 +2243,7 @@ mod tests {
         {
             let mut cwd_buf = [0u8; MAXPATHL];
             assert!(os_dirname(&mut cwd_buf));
-            let cwd = crate::memory::cstr_until_nul(&cwd_buf).to_str().unwrap();
+            let cwd = crate::memory::bytes_as_cstr(&cwd_buf).to_str().unwrap();
             let base = format!("{cwd}/target/ut_fs_{}", std::process::id());
             let _ = std::fs::remove_dir_all(&base);
 

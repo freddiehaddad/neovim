@@ -61,7 +61,7 @@ struct ValuesStackItem {
 
 #[inline]
 fn json_err(fmt: &std::ffi::CStr, slice: &[u8]) {
-    let cstr = crate::memory::cstr_from_bytes(slice);
+    let cstr = crate::memory::bytes_to_cstring(slice);
     semsg!(fmt, cstr.as_ptr());
 }
 
@@ -511,7 +511,7 @@ fn parse_json_number(
     let exp_num_len = p - s;
     if fracs.is_some() || exps.is_some() {
         let mut flt: f64 = 0.0;
-        let num_cstr = crate::memory::cstr_from_bytes(&buf[s..p]);
+        let num_cstr = crate::memory::bytes_to_cstring(&buf[s..p]);
         let num_len = string2float(&num_cstr, &mut flt);
         if exp_num_len != num_len {
             semsg!(
@@ -537,7 +537,7 @@ fn parse_json_number(
             None,
         );
         if (exp_num_len as i32) != num_len {
-            let num_cstr = crate::memory::cstr_from_bytes(&buf[s..p]);
+            let num_cstr = crate::memory::bytes_to_cstring(&buf[s..p]);
             semsg!(
                 c"E685: internal error: while converting number \"%s\" to integer vim_str2nr consumed %i bytes in place of %zu",
                 num_cstr.as_ptr(),

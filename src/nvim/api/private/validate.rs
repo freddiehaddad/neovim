@@ -522,7 +522,7 @@ pub const fn object_typename(t: ObjectType) -> &'static str {
 fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
     let bytes = msg.as_bytes();
     let len = bytes.len().min((1024 * 1024) - 1);
-    err.msg = Some(crate::memory::cstr_from_bytes(&bytes[..len]));
+    err.msg = Some(crate::memory::bytes_to_cstring(&bytes[..len]));
     err.err_type = err_type;
 }
 

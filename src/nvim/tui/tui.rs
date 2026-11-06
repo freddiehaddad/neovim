@@ -1932,7 +1932,7 @@ pub fn tui_add_url(_tui: &mut TUIData, url: NvimString) -> i32 {
     let idx = tui_st().urls.len() as i32;
     tui_st()
         .urls
-        .push(crate::memory::cstr_from_bytes(url_bytes));
+        .push(crate::memory::bytes_to_cstring(url_bytes));
     idx
 }
 

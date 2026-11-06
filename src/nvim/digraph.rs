@@ -1898,7 +1898,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
     buf[1] = dp.char2;
     buf[2] = b' ';
     buf[3] = 0;
-    msg_outtrans(crate::memory::cstr_until_nul(&buf), 0, false);
+    msg_outtrans(crate::memory::bytes_as_cstr(&buf), 0, false);
 
     let mut pos = 0usize;
     if utf_iscomposing_first(dp.result) {
@@ -1909,7 +1909,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         std::slice::from_raw_parts_mut(buf[pos..].as_mut_ptr().cast(), 6)
     }) as usize;
     buf[pos] = 0;
-    msg_outtrans(crate::memory::cstr_until_nul(&buf), HLF_8, false);
+    msg_outtrans(crate::memory::bytes_as_cstr(&buf), HLF_8, false);
 
     pos = 0;
     if char2cells(dp.result) == 1 {
@@ -1917,7 +1917,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         pos += 1;
     }
     vim_snprintf!(&mut buf[pos..], c" %3d", dp.result);
-    msg_outtrans(crate::memory::cstr_until_nul(&buf), 0, false);
+    msg_outtrans(crate::memory::bytes_as_cstr(&buf), 0, false);
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).

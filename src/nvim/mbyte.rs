@@ -1005,47 +1005,109 @@ impl<const N: usize> AsMbyteSlice for &mut [u8; N] {
     }
 }
 
+#[inline(always)]
+fn ptr_char_bytes<'a>(p: *const u8) -> &'a [u8] {
+    if p.is_null() {
+        return &[];
+    }
+    let b0 = unsafe { *p };
+    if b0 == 0 {
+        return &[];
+    }
+    if b0 < 0x80 {
+        return unsafe { std::slice::from_raw_parts(p, 1) };
+    }
+    let mut n = 1usize;
+    while n < 6 && unsafe { *p.wrapping_add(n) } != 0 {
+        n += 1;
+    }
+    unsafe { std::slice::from_raw_parts(p, n) }
+}
+
+#[inline(always)]
+fn ptr_cluster_bytes<'a>(p: *const u8) -> &'a [u8] {
+    if p.is_null() {
+        return &[];
+    }
+    let b0 = unsafe { *p };
+    if b0 == 0 {
+        return &[];
+    }
+    if b0 < 0x80 && unsafe { *p.wrapping_add(1) } < 0x80 {
+        return unsafe { std::slice::from_raw_parts(p, 1) };
+    }
+    let mut n = 1usize;
+    while n < 64 && unsafe { *p.wrapping_add(n) } != 0 {
+        n += 1;
+    }
+    unsafe { std::slice::from_raw_parts(p, n) }
+}
+
+#[inline(always)]
+fn ptr_span_to_char<'a>(
+    base: *const std::ffi::c_char,
+    p: *const std::ffi::c_char,
+) -> (&'a [u8], usize) {
+    if base.is_null() || p.is_null() || (p as usize) < (base as usize) {
+        return (&[], 0);
+    }
+    let base_u8 = base.cast::<u8>();
+    let p_u8 = p.cast::<u8>();
+    if unsafe { *p_u8 } < 0x80 {
+        return (&[], 0);
+    }
+    let idx = (p_u8 as usize) - (base_u8 as usize);
+    let mut tail_len = 1usize;
+    while tail_len < 6 && unsafe { *p_u8.wrapping_add(tail_len) } != 0 {
+        tail_len += 1;
+    }
+    (
+        unsafe { std::slice::from_raw_parts(base_u8, idx + tail_len) },
+        idx,
+    )
+}
+
 impl AsMbyteSlice for *const i8 {
     #[inline]
     fn as_char_bytes(&self) -> &[u8] {
-        crate::memory::cstr_char_bytes(self.cast())
+        ptr_char_bytes(self.cast())
     }
     #[inline]
     fn as_cluster_bytes(&self) -> &[u8] {
-        crate::memory::cstr_cluster_bytes(self.cast())
+        ptr_cluster_bytes(self.cast())
     }
 }
 
 impl AsMbyteSlice for *mut i8 {
     #[inline]
     fn as_char_bytes(&self) -> &[u8] {
-        crate::memory::cstr_char_bytes(self.cast())
+        ptr_char_bytes(self.cast())
     }
     #[inline]
     fn as_cluster_bytes(&self) -> &[u8] {
-        crate::memory::cstr_cluster_bytes(self.cast())
+        ptr_cluster_bytes(self.cast())
     }
 }
 
 impl AsMbyteSlice for *const u8 {
     #[inline]
     fn as_char_bytes(&self) -> &[u8] {
-        crate::memory::cstr_char_bytes(self.cast())
+        ptr_char_bytes(*self)
     }
     #[inline]
     fn as_cluster_bytes(&self) -> &[u8] {
-        crate::memory::cstr_cluster_bytes(self.cast())
+        ptr_cluster_bytes(*self)
     }
 }
 
 impl AsMbyteSlice for *mut u8 {
     #[inline]
     fn as_char_bytes(&self) -> &[u8] {
-        crate::memory::cstr_char_bytes(self.cast())
+        ptr_char_bytes(self.cast_const())
     }
     #[inline]
     fn as_cluster_bytes(&self) -> &[u8] {
-        crate::memory::cstr_cluster_bytes(self.cast())
+        ptr_cluster_bytes(self.cast_const())
     }
 }
 
@@ -1057,7 +1119,7 @@ impl AsMbyteSlice for Option<&[u8]> {
                 if b[0] < 0x80 {
                     &b[..1]
                 } else {
-                    &b[..b.len().saturating_sub(1).min(MB_MAXCHAR as usize)]
+                    &b[..b.len().min(MB_MAXCHAR as usize)]
                 }
             }
             _ => &[],
@@ -1070,7 +1132,7 @@ impl AsMbyteSlice for Option<&[u8]> {
                 if b[0] < 0x80 && b.get(1).is_none_or(|&b1| b1 < 0x80) {
                     &b[..1]
                 } else {
-                    &b[..b.len().saturating_sub(1).min(64)]
+                    &b[..b.len().min(64)]
                 }
             }
             _ => &[],
@@ -2495,7 +2557,7 @@ pub fn show_utf8() {
     }
 
     let copy_len = out.len().min(IOSIZE - 1);
-    let msg_cstr = crate::memory::cstr_from_bytes(&out.as_bytes()[..copy_len]);
+    let msg_cstr = crate::memory::bytes_to_cstring(&out.as_bytes()[..copy_len]);
     msg(msg_cstr.as_c_str(), 0);
 }
 
@@ -2600,7 +2662,7 @@ pub fn utf_head_off_ptr(
     base: impl crate::charset::CStrPtrSkip,
     p: impl crate::charset::CStrPtrSkip,
 ) -> i32 {
-    let (b, i) = crate::memory::cstr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
+    let (b, i) = ptr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
     utf_head_off_slice(b, i)
 }
 
@@ -2609,7 +2671,7 @@ pub fn mb_off_next_ptr(
     base: impl crate::charset::CStrPtrSkip,
     p: impl crate::charset::CStrPtrSkip,
 ) -> i32 {
-    let (b, i) = crate::memory::cstr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
+    let (b, i) = ptr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
     mb_off_next(b, i)
 }
 
@@ -3083,7 +3145,7 @@ pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
         r_vec.remove(5);
     }
 
-    let r_cstr = crate::memory::cstr_from_bytes(&r_vec);
+    let r_cstr = crate::memory::bytes_to_cstring(&r_vec);
     if enc_canon_search(r_cstr.as_bytes()) >= 0 {
         return r_cstr;
     }
@@ -3149,7 +3211,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
                 0
             };
             buf[6] = 0;
-            return Some(enc_canonize(crate::memory::cstr_until_nul(&buf)));
+            return Some(enc_canonize(crate::memory::bytes_as_cstr(&buf)));
         }
         s_full = &s_full[dot_idx + 1..];
     }
@@ -3169,7 +3231,7 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
     buf[i] = 0;
 
-    Some(enc_canonize(crate::memory::cstr_until_nul(&buf)))
+    Some(enc_canonize(crate::memory::bytes_as_cstr(&buf)))
 }
 
 pub fn my_iconv_open(to: &CStr, from: &CStr) -> Option<usize> {
@@ -3262,7 +3324,7 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     if vimconv.vc_type == CONV_NONE {
         crate::eval::typval::tv_set_string(rettv, Some(str_));
     } else if let Some(conv_bytes) = string_convert(&vimconv, str_.to_bytes(), None) {
-        crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&conv_bytes)));
+        crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&conv_bytes)));
     }
 }
 

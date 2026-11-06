@@ -615,7 +615,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         };
         tv_list_append_tv(items_tv.vval.v_list_ref(), &mut item);
     }
-    let bad_cstr = crate::memory::cstr_from_bytes(unsafe {
+    let bad_cstr = crate::memory::bytes_to_cstring(unsafe {
         std::slice::from_raw_parts(
             (sug.su_badptr.as_ptr()).cast::<u8>(),
             sug.su_badlen as usize,
@@ -734,7 +734,7 @@ pub fn spell_suggest(count: i32) {
         if selected > 0 && selected <= sug_len && u_save_cursor() {
             let stp = &sug.su_ga[(selected - 1) as usize];
             if sug.su_badlen > stp.st_orglen {
-                spell_priv_st().repl_from = Some(crate::memory::cstr_from_bytes(unsafe {
+                spell_priv_st().repl_from = Some(crate::memory::bytes_to_cstring(unsafe {
                     std::slice::from_raw_parts(
                         (sug.su_badptr.as_ptr()).cast::<u8>(),
                         sug.su_badlen as usize,
@@ -754,7 +754,7 @@ pub fn spell_suggest(count: i32) {
                 );
                 spell_priv_st().repl_to = Some(g_st().iobuff_cstr().to_owned());
             } else {
-                spell_priv_st().repl_from = Some(crate::memory::cstr_from_bytes(unsafe {
+                spell_priv_st().repl_from = Some(crate::memory::bytes_to_cstring(unsafe {
                     std::slice::from_raw_parts(
                         (sug.su_badptr.as_ptr()).cast::<u8>(),
                         stp.st_orglen as usize,
@@ -899,16 +899,16 @@ fn spell_find_suggest(
     let mut p = sps_copy.as_bytes();
     while !p.is_empty() {
         copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
-        let buf_cstr = crate::memory::cstr_until_nul(&buf);
+        let buf_cstr = crate::memory::bytes_as_cstr(&buf);
         let buf_bytes = buf_cstr.to_bytes();
         if buf_bytes.starts_with(b"expr:") {
             if !sps_st().expr_busy {
                 sps_st().expr_busy = true;
-                spell_suggest_expr(su, crate::memory::cstr_until_nul(&buf[5..]));
+                spell_suggest_expr(su, crate::memory::bytes_as_cstr(&buf[5..]));
                 sps_st().expr_busy = false;
             }
         } else if buf_bytes.starts_with(b"file:") {
-            spell_suggest_file(su, crate::memory::cstr_until_nul(&buf[5..]));
+            spell_suggest_file(su, crate::memory::bytes_as_cstr(&buf[5..]));
         } else if let Some(rest) = buf_bytes.strip_prefix(b"timeout:") {
             sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(rest) as i32 as i64;
         } else if !did_intern {
@@ -925,7 +925,7 @@ fn spell_find_suggest(
 }
 fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     let mut p: Option<&CStr> = None;
-    let list_opt = eval_spell_expr(crate::memory::cstr_until_nul(&su.su_badword), expr);
+    let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
     if let Some(list) = list_opt {
         let list_ptr = crate::globals::GraphPtr::<crate::eval::typval::TvList>::from_ref(list);
         for li in crate::eval::typval::list_iter_mut(list_ptr.first_opt()) {
@@ -962,7 +962,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
     };
     while !vim_fgets(&mut line, &fd) && !g_st().got_int {
         line_breakcheck();
-        let Some(slash_pos) = crate::memory::cstr_until_nul(&line)
+        let Some(slash_pos) = crate::memory::bytes_as_cstr(&line)
             .to_bytes()
             .iter()
             .position(|&b| b == b'/')
@@ -971,11 +971,11 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
         };
         line[slash_pos] = 0;
         if mb_stricmp(
-            crate::memory::cstr_until_nul(&su.su_badword),
-            crate::memory::cstr_until_nul(&line),
+            crate::memory::bytes_as_cstr(&su.su_badword),
+            crate::memory::bytes_as_cstr(&line),
         ) == 0
         {
-            let len = crate::memory::cstr_until_nul(&line[slash_pos + 1..])
+            let len = crate::memory::bytes_as_cstr(&line[slash_pos + 1..])
                 .to_bytes()
                 .iter()
                 .take_while(|&&b| b >= b' ')
@@ -1242,7 +1242,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 c,
                                 n,
                                 flags,
-                                crate::memory::cstr_until_nul(
+                                crate::memory::bytes_as_cstr(
                                     &tword[stack[udepth].ts_splitoff as usize..],
                                 ),
                                 slang,
@@ -1308,7 +1308,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             }
                             if slang.sl_compminlen > 0
                                 && mb_charlen(
-                                    crate::memory::cstr_until_nul(
+                                    crate::memory::bytes_as_cstr(
                                         &tword[stack[udepth].ts_splitoff as usize..],
                                     )
                                     .to_bytes(),
@@ -1359,7 +1359,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         let pw_off = stack[udepth].ts_prewordlen as usize;
                         let tw_off = stack[udepth].ts_splitoff as usize;
                         let tw_bytes =
-                            crate::memory::cstr_until_nul(&tword[tw_off..]).to_bytes_with_nul();
+                            crate::memory::bytes_as_cstr(&tword[tw_off..]).to_bytes_with_nul();
                         preword[pw_off..pw_off + tw_bytes.len()].copy_from_slice(tw_bytes);
                     } else if (flags & WF_KEEPCAP) != 0 {
                         find_keepcap_word(
@@ -1496,7 +1496,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 >= slang.sl_compminlen
                             && (slang.sl_compminlen == 0
                                 || mb_charlen(
-                                    crate::memory::cstr_until_nul(
+                                    crate::memory::bytes_as_cstr(
                                         &tword[stack[udepth].ts_splitoff as usize..],
                                     )
                                     .to_bytes(),
@@ -2109,7 +2109,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 fl = ftp.ft_from.as_bytes().len() as i32;
                                 tl = ftp.ft_to.as_bytes().len() as i32;
                                 if fl != tl {
-                                    let tail_len = crate::memory::cstr_until_nul(
+                                    let tail_len = crate::memory::bytes_as_cstr(
                                         &fword_buf[fidx + fl as usize..],
                                     )
                                     .to_bytes()
@@ -2146,7 +2146,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     let fidx = stack[udepth].ts_fidx as usize;
                     if fl != tl {
                         let tail_len =
-                            crate::memory::cstr_until_nul(&fword_buf[fidx + tl as usize..])
+                            crate::memory::bytes_as_cstr(&fword_buf[fidx + tl as usize..])
                                 .to_bytes()
                                 .len();
                         fword_buf.copy_within(
@@ -2807,7 +2807,7 @@ fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
         let mut attr: Hlf = HLF_COUNT;
         let _ = spell_check(
             curwin_mut(),
-            crate::memory::cstr_until_nul(&longword),
+            crate::memory::bytes_as_cstr(&longword),
             &mut attr,
             None,
             false,
