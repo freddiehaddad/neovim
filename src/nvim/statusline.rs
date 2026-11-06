@@ -1570,7 +1570,7 @@ pub extern "C" fn build_stl_str_hl(
     let mut prevchar_isflag = true;
     let mut prevchar_isitem = false;
 
-    let out_data = out.as_mut_ptr();
+    let out_data = out.as_mut_slice().as_mut_ptr();
     let out_size = out.len();
     let mut out_p = out_data;
     let out_end_p = out_p.wrapping_add(out_size - 1);

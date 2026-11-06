@@ -2256,7 +2256,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     result
 }
 pub fn diffopt_changed() -> bool {
-    let v: &OptKeyDict_dip = opt_keyset(opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
+    let v: &OptKeyDict_dip = &opt_keyset(opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
     let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
         | (if v.anchor { DIFF_ANCHOR } else { 0 })
         | (if v.iblank { DIFF_IBLANK } else { 0 })

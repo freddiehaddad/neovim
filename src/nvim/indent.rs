@@ -750,7 +750,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
     if wp.is_none() {
         return;
     }
-    let vr: &OptKeyDict_briopt = opt_keyset(
+    let vr: &OptKeyDict_briopt = &opt_keyset(
         wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
         K_OPT_BREAKINDENTOPT,
     );

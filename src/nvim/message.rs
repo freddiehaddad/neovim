@@ -1578,7 +1578,7 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
-    let v: &OptKeyDict_mopt =
+    let v: OptKeyDict_mopt =
         opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MESSAGESOPT);
 
     let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
@@ -1597,7 +1597,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
-    let v: &OptKeyDict_mopt = opt_keyset(opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
+    let v: OptKeyDict_mopt = opt_keyset(opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
 
     msg_st().msg_hit_enter = v.hit_enter;
     msg_st().msg_wait = v.wait as i32;

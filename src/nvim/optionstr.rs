@@ -32,7 +32,7 @@ use crate::highlight_group::{get_highlight_name, init_highlight};
 use crate::indent::{K_OPT_BREAKINDENTOPT, briopt_check, tabstop_set};
 use crate::indent_c::parse_cino;
 use crate::insexpand::{LSIZE, set_cpt_callbacks};
-use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
+use crate::lua::converter::Boolean;
 use crate::mark::{Fmark, Fmarkv};
 use crate::mbyte::{
     enc_canonize, get_encoding_name, utf_cluster_info, utf_ptr2_str_char_info, utfc_ptr2len,
@@ -112,11 +112,6 @@ impl CharBuf {
     }
 
     #[inline]
-    pub fn as_mut_ptr(&self) -> *mut u8 {
-        self.addr as *mut u8
-    }
-
-    #[inline]
     pub fn as_mut_slice(&self) -> &'static mut [u8] {
         unsafe { std::slice::from_raw_parts_mut(self.addr as *mut u8, self.size) }
     }
@@ -128,7 +123,7 @@ impl CharBuf {
 
     #[inline]
     pub fn as_cstr(&self) -> &'static CStr {
-        crate::strings::ByteSlice::from_ptr(self.as_mut_ptr()).as_cstr()
+        crate::memory::bytes_as_cstr(self.as_mut_slice())
     }
 }
 
@@ -143,9 +138,7 @@ pub struct OptSchemaItem {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptDictSchema {
-    pub get_field: FieldHashfn,
     pub schema: &'static [OptSchemaItem],
-    pub size: usize,
 }
 
 pub enum OptSetPrep {
@@ -364,38 +357,6 @@ impl From<&mut crate::eval::typval::Callback> for OptVar {
     }
 }
 
-pub struct OptVarWrap<T>(pub *mut T);
-
-impl OptVarWrap<bool> {
-    pub const fn into_opt_var(self) -> OptVar {
-        OptVar::Bool(crate::globals::GraphPtr::new(self.0))
-    }
-}
-
-impl OptVarWrap<crate::option::OptInt> {
-    pub const fn into_opt_var(self) -> OptVar {
-        OptVar::Int(crate::globals::GraphPtr::new(self.0))
-    }
-}
-
-impl OptVarWrap<OptString> {
-    pub const fn into_opt_var(self) -> OptVar {
-        OptVar::Str(crate::globals::GraphPtr::new(self.0))
-    }
-}
-
-impl OptVarWrap<crate::eval::typval::Callback> {
-    pub const fn into_opt_var(self) -> OptVar {
-        OptVar::Callback(crate::globals::GraphPtr::new(self.0))
-    }
-}
-
-impl OptVarWrap<Object> {
-    pub const fn into_opt_var(self) -> OptVar {
-        OptVar::DefVal(crate::globals::GraphPtr::new(self.0))
-    }
-}
-
 #[repr(C)]
 pub struct Optset {
     pub os_varp: OptVar,
@@ -491,8 +452,8 @@ pub struct Vimoption {
     pub flags: u32,
     pub opt_type: ObjectType,
     pub scope_flags: OptScopeFlags,
-    pub var: OptVar,
-    pub flags_var: crate::globals::GraphPtr<u32>,
+    pub var: Option<fn() -> OptVar>,
+    pub flags_var: Option<fn() -> &'static mut u32>,
     pub scope_idx: [isize; 4],
     pub immutable: bool,
     pub values: &'static [&'static std::ffi::CStr],
@@ -504,6 +465,18 @@ pub struct Vimoption {
     pub script_ctx: Sctx,
 }
 
+impl Vimoption {
+    #[inline]
+    pub fn var(&self) -> OptVar {
+        self.var.map_or(OptVar::None, |f| f())
+    }
+
+    #[inline]
+    pub fn flags_var_mut(&self) -> Option<&'static mut u32> {
+        self.flags_var.map(|f| f())
+    }
+}
+
 use crate::decoration::SCL_NUM;
 use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{K_OPT_SSOP_FLAG_CURDIR, K_OPT_SSOP_FLAG_SESDIR};
@@ -511,8 +484,26 @@ use crate::fileio::K_OPT_FILEENCODING;
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
 use crate::runtime::SID_NONE;
 
+pub trait OptKeyDict: Default {
+    fn set_field(&mut self, key: &[u8], v: Option<&[u8]>);
+}
+
+#[inline]
+fn parse_opt_int(v: Option<&[u8]>) -> Integer {
+    let mut rem = v.unwrap_or(&[]);
+    Integer::from(getdigits_int(&mut rem, false, 0))
+}
+
+#[inline]
+fn copy_opt_str<const N: usize>(dst: &mut [u8; N], v: Option<&[u8]>) {
+    let src = v.unwrap_or(&[]);
+    let len = src.len().min(N - 1);
+    dst[..len].copy_from_slice(&src[..len]);
+    dst[len] = 0;
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct OptKeyDict_briopt {
     pub is_set_briopt: OptionalKeys,
     pub shift: Integer,
@@ -522,8 +513,37 @@ pub struct OptKeyDict_briopt {
     pub column: Integer,
 }
 
+impl OptKeyDict for OptKeyDict_briopt {
+    fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
+        let idx = match key {
+            b"min" => {
+                self.min = parse_opt_int(v);
+                1
+            }
+            b"sbr" => {
+                self.sbr = true;
+                2
+            }
+            b"list" => {
+                self.list = parse_opt_int(v);
+                3
+            }
+            b"shift" => {
+                self.shift = parse_opt_int(v);
+                4
+            }
+            b"column" => {
+                self.column = parse_opt_int(v);
+                5
+            }
+            _ => return,
+        };
+        self.is_set_briopt |= 1u64 << idx;
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct OptKeyDict_dip {
     pub is_set_dip: OptionalKeys,
     pub filler: Boolean,
@@ -547,6 +567,91 @@ pub struct OptKeyDict_dip {
     pub linematch: Integer,
 }
 
+impl OptKeyDict for OptKeyDict_dip {
+    fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
+        let idx = match key {
+            b"icase" => {
+                self.icase = true;
+                1
+            }
+            b"iblank" => {
+                self.iblank = true;
+                2
+            }
+            b"filler" => {
+                self.filler = true;
+                3
+            }
+            b"anchor" => {
+                self.anchor = true;
+                4
+            }
+            b"inline" => {
+                copy_opt_str(&mut self.inline_, v);
+                5
+            }
+            b"iwhite" => {
+                self.iwhite = true;
+                6
+            }
+            b"context" => {
+                self.context = parse_opt_int(v);
+                7
+            }
+            b"closeoff" => {
+                self.closeoff = true;
+                8
+            }
+            b"internal" => {
+                self.internal = true;
+                9
+            }
+            b"vertical" => {
+                self.vertical = true;
+                10
+            }
+            b"linematch" => {
+                self.linematch = parse_opt_int(v);
+                11
+            }
+            b"hiddenoff" => {
+                self.hiddenoff = true;
+                12
+            }
+            b"algorithm" => {
+                copy_opt_str(&mut self.algorithm, v);
+                13
+            }
+            b"iwhiteall" => {
+                self.iwhiteall = true;
+                14
+            }
+            b"iwhiteeol" => {
+                self.iwhiteeol = true;
+                15
+            }
+            b"foldcolumn" => {
+                self.foldcolumn = parse_opt_int(v);
+                16
+            }
+            b"horizontal" => {
+                self.horizontal = true;
+                17
+            }
+            b"followwrap" => {
+                self.followwrap = true;
+                18
+            }
+            b"indent-heuristic" => {
+                self.indent_heuristic = true;
+                19
+            }
+            _ => return,
+        };
+        self.is_set_dip |= 1u64 << idx;
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct OptKeyDict_mopt {
@@ -560,16 +665,85 @@ pub struct OptKeyDict_mopt {
     pub wait: Integer,
 }
 
+impl Default for OptKeyDict_mopt {
+    fn default() -> Self {
+        Self {
+            is_set_mopt: 0,
+            hit_enter: false,
+            history: 0,
+            maxheight: 0,
+            pager: [0; 256],
+            progress: [0; 2],
+            timeout: 0,
+            wait: 0,
+        }
+    }
+}
+
+impl OptKeyDict for OptKeyDict_mopt {
+    fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
+        let idx = match key {
+            b"wait" => {
+                self.wait = parse_opt_int(v);
+                1
+            }
+            b"pager" => {
+                copy_opt_str(&mut self.pager, v);
+                2
+            }
+            b"history" => {
+                self.history = parse_opt_int(v);
+                3
+            }
+            b"timeout" => {
+                self.timeout = parse_opt_int(v);
+                4
+            }
+            b"progress" => {
+                copy_opt_str(&mut self.progress, v);
+                5
+            }
+            b"hit-enter" => {
+                self.hit_enter = true;
+                6
+            }
+            b"maxheight" => {
+                self.maxheight = parse_opt_int(v);
+                7
+            }
+            _ => return,
+        };
+        self.is_set_mopt |= 1u64 << idx;
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct OptKeyDict_mousescroll {
     pub is_set_mousescroll: OptionalKeys,
     pub hor: Integer,
     pub ver: Integer,
 }
 
+impl OptKeyDict for OptKeyDict_mousescroll {
+    fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
+        let idx = match key {
+            b"hor" => {
+                self.hor = parse_opt_int(v);
+                1
+            }
+            b"ver" => {
+                self.ver = parse_opt_int(v);
+                2
+            }
+            _ => return,
+        };
+        self.is_set_mousescroll |= 1u64 << idx;
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct OptKeyDict_pvp {
     pub is_set_pvp: OptionalKeys,
     pub height: Integer,
@@ -577,13 +751,26 @@ pub struct OptKeyDict_pvp {
     pub border: [u8; 8],
 }
 
-const _: () = {
-    const MOPT_SIZE: usize = std::mem::size_of::<OptKeyDict_mopt>();
-    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_briopt>());
-    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_dip>());
-    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_mousescroll>());
-    assert!(MOPT_SIZE >= std::mem::size_of::<OptKeyDict_pvp>());
-};
+impl OptKeyDict for OptKeyDict_pvp {
+    fn set_field(&mut self, key: &[u8], v: Option<&[u8]>) {
+        let idx = match key {
+            b"width" => {
+                self.width = parse_opt_int(v);
+                1
+            }
+            b"border" => {
+                copy_opt_str(&mut self.border, v);
+                2
+            }
+            b"height" => {
+                self.height = parse_opt_int(v);
+                3
+            }
+            _ => return,
+        };
+        self.is_set_pvp |= 1u64 << idx;
+    }
+}
 
 const K_OPT_AMBIWIDTH: OptIndex = 2;
 const K_OPT_BACKUPEXT: OptIndex = 18;
@@ -656,7 +843,6 @@ struct OptionStrState {
     set_opt_callback_orig_option: Option<&'static std::ffi::CStr>,
     set_opt_callback_func: CompleteListItemGetter,
     expand_eiw: bool,
-    opt_keyset_shared: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
 }
 
 impl OptionStrState {
@@ -665,7 +851,6 @@ impl OptionStrState {
             set_opt_callback_orig_option: None,
             set_opt_callback_func: None,
             expand_eiw: false,
-            opt_keyset_shared: [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
         }
     }
 }
@@ -677,474 +862,23 @@ fn optstr_st() -> crate::globals::GraphPtr<OptionStrState> {
     OPTSTR_STATE.handle()
 }
 
-static BRIOPT_TABLE: [KeySetLink; 6] = [
-    KeySetLink {
-        str: Some(c"min"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_briopt, min),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 1,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"sbr"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_briopt, sbr),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 2,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"list"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_briopt, list),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 3,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"shift"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_briopt, shift),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 4,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"column"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_briopt, column),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 5,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: None,
-        ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as i32,
-        opt_index: -1,
-        is_hlgroup: false,
-    },
-];
-
-static DIP_TABLE: [KeySetLink; 20] = [
-    KeySetLink {
-        str: Some(c"icase"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, icase),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 1,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"iblank"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, iblank),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 2,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"filler"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, filler),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 3,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"anchor"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, anchor),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 4,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"inline"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, inline_),
-        key_type: ObjectType::ObjectTypeString as i32,
-        opt_index: 5,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"iwhite"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhite),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 6,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"context"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, context),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 7,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"closeoff"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, closeoff),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 8,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"internal"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, internal),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 9,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"vertical"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, vertical),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 10,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"linematch"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, linematch),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 11,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"hiddenoff"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, hiddenoff),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 12,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"algorithm"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, algorithm),
-        key_type: ObjectType::ObjectTypeString as i32,
-        opt_index: 13,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"iwhiteall"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteall),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 14,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"iwhiteeol"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, iwhiteeol),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 15,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"foldcolumn"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, foldcolumn),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 16,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"horizontal"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, horizontal),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 17,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"followwrap"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, followwrap),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 18,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"indent-heuristic"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_dip, indent_heuristic),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 19,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: None,
-        ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as i32,
-        opt_index: -1,
-        is_hlgroup: false,
-    },
-];
-
-static MOPT_TABLE: [KeySetLink; 8] = [
-    KeySetLink {
-        str: Some(c"wait"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, wait),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 1,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"pager"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, pager),
-        key_type: ObjectType::ObjectTypeString as i32,
-        opt_index: 2,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"history"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, history),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 3,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"timeout"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, timeout),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 4,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"progress"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, progress),
-        key_type: ObjectType::ObjectTypeString as i32,
-        opt_index: 5,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"hit-enter"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, hit_enter),
-        key_type: ObjectType::ObjectTypeBoolean as i32,
-        opt_index: 6,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"maxheight"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mopt, maxheight),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 7,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: None,
-        ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as i32,
-        opt_index: -1,
-        is_hlgroup: false,
-    },
-];
-
-static MOUSESCROLL_TABLE: [KeySetLink; 3] = [
-    KeySetLink {
-        str: Some(c"hor"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, hor),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 1,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"ver"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_mousescroll, ver),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 2,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: None,
-        ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as i32,
-        opt_index: -1,
-        is_hlgroup: false,
-    },
-];
-
-static PVP_TABLE: [KeySetLink; 4] = [
-    KeySetLink {
-        str: Some(c"width"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_pvp, width),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 1,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"border"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_pvp, border),
-        key_type: ObjectType::ObjectTypeString as i32,
-        opt_index: 2,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: Some(c"height"),
-        ptr_off: std::mem::offset_of!(OptKeyDict_pvp, height),
-        key_type: ObjectType::ObjectTypeInteger as i32,
-        opt_index: 3,
-        is_hlgroup: false,
-    },
-    KeySetLink {
-        str: None,
-        ptr_off: 0,
-        key_type: ObjectType::ObjectTypeNil as i32,
-        opt_index: -1,
-        is_hlgroup: false,
-    },
-];
-
 use crate::mbyte::ptr2cells;
-
-fn briopt_hash(key: &[u8]) -> isize {
-    let low: isize = match key.len() {
-        3 => match key[0] {
-            b'm' => 0,
-            b's' => 1,
-            _ => -1,
-        },
-        4 => 2,
-        5 => 3,
-        6 => 4,
-        _ => -1,
-    };
-    if low < 0 || BRIOPT_TABLE[low as usize].str.unwrap().to_bytes() != key {
-        return -1;
-    }
-    low
-}
-
-fn opt_key_dict_briopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
-    let hash = briopt_hash(key);
-    (hash >= 0).then(|| &BRIOPT_TABLE[hash as usize])
-}
-
-fn dip_hash(key: &[u8]) -> isize {
-    let (low, high): (usize, usize) = match key.len() {
-        5 => (0, 1),
-        6 => match key[1] {
-            b'b' => (1, 2),
-            b'i' => (2, 3),
-            b'n' => (3, 5),
-            b'w' => (5, 6),
-            _ => (0, 0),
-        },
-        7 => (6, 7),
-        8 => match key[0] {
-            b'c' => (7, 8),
-            b'i' => (8, 9),
-            b'v' => (9, 10),
-            _ => (0, 0),
-        },
-        9 => match key[7] {
-            b'c' => (10, 11),
-            b'f' => (11, 12),
-            b'h' => (12, 13),
-            b'l' => (13, 14),
-            b'o' => (14, 15),
-            _ => (0, 0),
-        },
-        10 => match key[3] {
-            b'd' => (15, 16),
-            b'i' => (16, 17),
-            b'l' => (17, 18),
-            _ => (0, 0),
-        },
-        16 => (18, 19),
-        _ => (0, 0),
-    };
-    for (i, entry) in DIP_TABLE.iter().enumerate().take(high).skip(low) {
-        if entry.str.unwrap().to_bytes() == key {
-            return i as isize;
-        }
-    }
-    -1
-}
-
-fn opt_key_dict_dip_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
-    let hash = dip_hash(key);
-    (hash >= 0).then(|| &DIP_TABLE[hash as usize])
-}
-
-fn mopt_hash(key: &[u8]) -> isize {
-    let low: isize = match key.len() {
-        4 => 0,
-        5 => 1,
-        7 => match key[0] {
-            b'h' => 2,
-            b't' => 3,
-            _ => -1,
-        },
-        8 => 4,
-        9 => match key[0] {
-            b'h' => 5,
-            b'm' => 6,
-            _ => -1,
-        },
-        _ => -1,
-    };
-    if low < 0 || MOPT_TABLE[low as usize].str.unwrap().to_bytes() != key {
-        return -1;
-    }
-    low
-}
-
-fn opt_key_dict_mopt_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
-    let hash = mopt_hash(key);
-    (hash >= 0).then(|| &MOPT_TABLE[hash as usize])
-}
-
-fn mousescroll_hash(key: &[u8]) -> isize {
-    let low: isize = match key.len() {
-        3 => match key[0] {
-            b'h' => 0,
-            b'v' => 1,
-            _ => -1,
-        },
-        _ => -1,
-    };
-    if low < 0 || MOUSESCROLL_TABLE[low as usize].str.unwrap().to_bytes() != key {
-        return -1;
-    }
-    low
-}
-
-fn opt_key_dict_mousescroll_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
-    let hash = mousescroll_hash(key);
-    (hash >= 0).then(|| &MOUSESCROLL_TABLE[hash as usize])
-}
-
-fn pvp_hash(key: &[u8]) -> isize {
-    let low: isize = match key.len() {
-        5 => 0,
-        6 => match key[0] {
-            b'b' => 1,
-            b'h' => 2,
-            _ => -1,
-        },
-        _ => -1,
-    };
-    if low < 0 || PVP_TABLE[low as usize].str.unwrap().to_bytes() != key {
-        return -1;
-    }
-    low
-}
-
-fn opt_key_dict_pvp_get_field(key: &[u8]) -> Option<&'static KeySetLink> {
-    let hash = pvp_hash(key);
-    (hash >= 0).then(|| &PVP_TABLE[hash as usize])
-}
 
 pub(crate) fn opt_dict_schema(opt_idx: OptIndex) -> Option<&'static OptDictSchema> {
     static INFO_BRIOPT: OptDictSchema = OptDictSchema {
-        get_field: Some(opt_key_dict_briopt_get_field),
         schema: &OPT_BRIOPT_SCHEMA,
-        size: std::mem::size_of::<OptKeyDict_briopt>(),
     };
     static INFO_DIP: OptDictSchema = OptDictSchema {
-        get_field: Some(opt_key_dict_dip_get_field),
         schema: &OPT_DIP_SCHEMA,
-        size: std::mem::size_of::<OptKeyDict_dip>(),
     };
     static INFO_MOPT: OptDictSchema = OptDictSchema {
-        get_field: Some(opt_key_dict_mopt_get_field),
         schema: &OPT_MOPT_SCHEMA,
-        size: std::mem::size_of::<OptKeyDict_mopt>(),
     };
     static INFO_MOUSESCROLL: OptDictSchema = OptDictSchema {
-        get_field: Some(opt_key_dict_mousescroll_get_field),
         schema: &OPT_MOUSESCROLL_SCHEMA,
-        size: std::mem::size_of::<OptKeyDict_mousescroll>(),
     };
     static INFO_PVP: OptDictSchema = OptDictSchema {
-        get_field: Some(opt_key_dict_pvp_get_field),
         schema: &OPT_PVP_SCHEMA,
-        size: std::mem::size_of::<OptKeyDict_pvp>(),
     };
 
     match opt_idx {
@@ -1496,10 +1230,10 @@ fn check_str_opt<'a>(
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
     let opt = get_option(idx);
-    let val_cstr = var_cstr.unwrap_or_else(|| opt.var.as_cstr());
+    let val_cstr = var_cstr.unwrap_or_else(|| opt.var().as_cstr());
     let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
-    opt_strings_flags(val_cstr, values, opt.flags_var.opt_mut(), list, errbuf)
+    opt_strings_flags(val_cstr, values, opt.flags_var_mut(), list, errbuf)
 }
 
 pub fn expand_set_str_generic(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2661,7 +2395,7 @@ pub fn expand_set_mouse(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStrin
 
 /// Validate the 'mousescroll' option.
 pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
-    let v: &OptKeyDict_mousescroll =
+    let v: OptKeyDict_mousescroll =
         opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
@@ -2674,7 +2408,7 @@ pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
 
 /// Handle setting 'mousescroll'.
 pub fn did_set_mousescroll(_args: &mut Optset) -> Option<&CStr> {
-    let v: &OptKeyDict_mousescroll =
+    let v: OptKeyDict_mousescroll =
         opt_keyset(opt_vars().p_mousescroll.as_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
@@ -3415,47 +3149,16 @@ pub fn opt_strings_check<'a>(
     None
 }
 
-/// Parses a validated dict option into `out`.
-fn opt_fill(value: &[u8], get_field: FieldHashfn, out: &mut OptKeySet) {
-    let Some(get_field_fn) = get_field else {
-        return;
-    };
-    let out_ptr = ptr::from_mut(out);
-    let mut p = value;
-    while let Some((key_bytes, v)) = option_next_keyval(&mut p) {
-        let Some(f) = get_field_fn(key_bytes) else {
-            continue;
-        };
-        let field = out_ptr.cast::<u8>().wrapping_add(f.ptr_off);
-        if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
-            unsafe { *field.cast::<Boolean>() = true };
-        } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
-            let mut rem = v.unwrap_or(&[]);
-
-            unsafe {
-                *field.cast::<Integer>() = Integer::from(getdigits_int(&mut rem, false, 0));
-            }
-        } else if f.key_type == ObjectType::ObjectTypeString as i32 {
-            let v_bytes = v.unwrap_or(&[]);
-            unsafe {
-                ptr::copy_nonoverlapping(v_bytes.as_ptr(), field, v_bytes.len());
-                *field.wrapping_add(v_bytes.len()) = 0;
-            }
-        }
-
-        out.is_set_ |= 1u64 << (f.opt_index as u32);
-    }
-}
-
 /// Reify a dict-option value to a keyset (`OptKeyDict_…`).
-pub fn opt_keyset<T>(value: &[u8], opt_idx: OptIndex) -> &'static mut T {
-    let keyset = (&raw mut optstr_st().opt_keyset_shared).cast::<OptKeySet>();
-    let si = opt_dict_schema(opt_idx).unwrap();
-    unsafe { ptr::write_bytes(keyset.cast::<u8>(), 0, si.size) };
+pub fn opt_keyset<T: OptKeyDict>(value: &[u8], _opt_idx: OptIndex) -> T {
+    let mut out = T::default();
     if !value.is_empty() {
-        opt_fill(value, si.get_field, unsafe { &mut *keyset });
+        let mut p = value;
+        while let Some((key_bytes, v)) = option_next_keyval(&mut p) {
+            out.set_field(key_bytes, v);
+        }
     }
-    unsafe { &mut *keyset.cast::<T>() }
+    out
 }
 
 /// Return OK if "p" is a valid fileformat name, FAIL otherwise.

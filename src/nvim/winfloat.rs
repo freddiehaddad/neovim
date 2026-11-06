@@ -552,7 +552,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     let row = wp.w_wantline.max(0).min(g_st().rows_global - 1);
     let col = wp.w_wantcol.max(0).min(g_st().columns_global - 1);
 
-    let v: &OptKeyDict_pvp = opt_keyset(opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
+    let v: OptKeyDict_pvp = opt_keyset(opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
     let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
         v.width as i32
     } else {
@@ -605,7 +605,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
 pub fn win_previewpopup_config(value: &std::ffi::CStr, config: &mut WinConfig) -> bool {
     {
-        let v: &OptKeyDict_pvp = opt_keyset(value.to_bytes(), K_OPT_PREVIEWPOPUP);
+        let v: OptKeyDict_pvp = opt_keyset(value.to_bytes(), K_OPT_PREVIEWPOPUP);
 
         if (has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_HEIGHT) && v.height < 1)
             || (has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) && v.width < 1)
