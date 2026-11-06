@@ -6,7 +6,7 @@ use crate::fileio::getuid;
 use crate::os::env::os_getenv_buf;
 #[cfg(unix)]
 use crate::strings::ByteSliceExt as _;
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 #[cfg(windows)]
 use std::ffi::c_void;
 use std::ffi::{CStr, CString};
@@ -224,7 +224,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
         }
     }
 
-    vim_snprintf!(&mut *s, c"%d", uid as i32);
+    format_to_buf!(&mut *s, c"%d", uid as i32);
     false
 }
 

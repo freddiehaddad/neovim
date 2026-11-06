@@ -68,7 +68,7 @@ use crate::runtime::{
     set_sourcing_lnum, sourcing_lnum, sourcing_name,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{format_to_buf, gettext, vim_strchr};
 use crate::ui::ui_has;
 use std::ffi::CStr;
 use std::ptr;
@@ -312,7 +312,7 @@ fn func_hashtab_add(fp: &mut UserFunc) -> bool {
     let key_cstr = uf2hikey(fp);
     let key = key_cstr.to_bytes();
     if uf_st().func_hashtab.contains_key(key) {
-        crate::siemsg!(c"Duplicate key in hash table: \"%s\"", key_cstr.as_ptr());
+        crate::siemsg!(c"Duplicate key in hash table: \"%s\"", key_cstr);
         return false;
     }
     uf_st().func_hashtab.insert(key.to_vec(), fp);
@@ -353,7 +353,7 @@ fn one_function_arg<'a>(
         if !skip {
             semsg!(
                 gettext(c"E125: Illegal argument: %s"),
-                arg.cast::<std::ffi::c_void>()
+                crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>())
             );
         }
         return arg_in;
@@ -364,10 +364,7 @@ fn one_function_arg<'a>(
 
         for existing in newargs.iter() {
             if existing.as_bytes() == arg_copy.as_bytes() {
-                semsg!(
-                    gettext(c"E853: Duplicate argument name: %s"),
-                    arg_copy.as_ptr(),
-                );
+                semsg!(gettext(c"E853: Duplicate argument name: %s"), &arg_copy,);
                 return arg_in;
             }
         }
@@ -465,7 +462,7 @@ fn get_function_args(
                     semsg!(
                         gettext(E_NO_WHITE_SPACE_ALLOWED_BEFORE_STR_STR),
                         c",",
-                        p.cast::<std::ffi::c_void>(),
+                        crate::strings::ByteSlice::from_ptr(p.cast::<std::ffi::c_void>()),
                     );
                     if let Some(newargs) = newargs.as_deref_mut() {
                         newargs.clear();
@@ -486,7 +483,7 @@ fn get_function_args(
         p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
         if mustend && unsafe { *p } != endchar {
             if !skip {
-                semsg!(gettext(E_INVARG2), argp.as_ptr());
+                semsg!(gettext(E_INVARG2), *argp);
             }
             break;
         }
@@ -523,7 +520,7 @@ fn register_closure(fp: &mut UserFunc) {
 /// Return a name for a lambda in static memory.
 fn get_lambda_name() -> NvimString {
     uf_st().lambda_no += 1;
-    let size = crate::strings::vim_snprintf_safelen!(
+    let size = crate::strings::format_to_buf_safelen!(
         &mut uf_st().lambda_name,
         c"<lambda>%d",
         uf_st().lambda_no
@@ -755,7 +752,7 @@ pub fn emsg_funcname(errmsg: &CStr, name: &CStr) {
         p_owned = Some(joined);
     }
 
-    semsg!(gettext(errmsg), p);
+    semsg!(gettext(errmsg), crate::strings::ByteSlice::from_ptr(p));
     drop(p_owned);
 }
 
@@ -898,7 +895,7 @@ fn fname_trans_sid<'a>(
         if g_st().current_sctx.sc_sid <= 0 {
             *error = FCERR_SCRIPT;
         } else {
-            fname_buflen += vim_snprintf!(
+            fname_buflen += format_to_buf!(
                 &mut fname_buf[fname_buflen..FLEN_FIXED + 1],
                 c"%d_",
                 g_st().current_sctx.sc_sid,
@@ -981,9 +978,13 @@ fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
     debug_assert!(uflen > 0);
 
     let len = if !func_is_global(fp) && uflen > 3 {
-        vim_snprintf!(&mut *buf, c"<SNR>%s", uf2hikey(fp).as_ptr().wrapping_add(3))
+        format_to_buf!(
+            &mut *buf,
+            c"<SNR>%s",
+            crate::strings::ByteSlice::from_ptr(uf2hikey(fp).as_ptr().wrapping_add(3))
+        )
     } else {
-        vim_snprintf!(&mut *buf, c"%s", uf2hikey(fp))
+        format_to_buf!(&mut *buf, c"%s", uf2hikey(fp))
     };
 
     debug_assert!(len > 0);
@@ -1325,7 +1326,7 @@ pub fn call_user_func(
             if (fp.uf_flags & FC_NOARGS) != 0 {
                 break;
             }
-            namelen = vim_snprintf!(&mut numbuf, c"%d", ai + 1) as usize;
+            namelen = format_to_buf!(&mut numbuf, c"%d", ai + 1) as usize;
             name = numbuf.as_ptr();
         }
 
@@ -1760,7 +1761,7 @@ fn user_func_error(error: i32, name: &CStr, found_var: bool) {
     match error {
         FCERR_UNKNOWN => {
             if found_var {
-                semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), name.as_ptr());
+                semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), name);
             } else {
                 emsg_funcname(E_UNKNOWN_FUNCTION_STR, name);
             }
@@ -2188,7 +2189,10 @@ pub fn trans_function_name(
     if end.is_null() || (!lv.ll_tv.is_null() && (lead > 2 || lv.ll_range)) {
         if !aborting() {
             if !end.is_null() {
-                semsg!(gettext(E_INVARG2), start.cast::<std::ffi::c_char>());
+                semsg!(
+                    gettext(E_INVARG2),
+                    crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>())
+                );
             }
         } else {
             *pp = find_name_end(
@@ -2230,10 +2234,7 @@ pub fn trans_function_name(
                 *pp = crate::strings::ByteSlice::from_ptr(end.wrapping_add(1 + len as usize))
                     .as_cstr();
             } else {
-                res = Some(
-                    crate::strings::ByteSlice::from_ptr((partial_name(pt.opt())).as_ptr())
-                        .to_cstring(),
-                );
+                res = Some(partial_name(pt.opt()).to_owned());
 
                 *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
             }
@@ -2333,13 +2334,13 @@ pub fn trans_function_name(
                 emsg(gettext(E_USINGSID));
                 return None;
             }
-            sid_buflen = vim_snprintf!(&mut sid_buf, c"%d_", g_st().current_sctx.sc_sid) as usize;
+            sid_buflen = format_to_buf!(&mut sid_buf, c"%d_", g_st().current_sctx.sc_sid) as usize;
             lead += sid_buflen as i32;
         }
     } else if (flags & TFN_INT) == 0 && builtin_function(ll_name_ptr.slice(lv.ll_name_len)) {
         semsg!(
             gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
-            start.cast::<std::ffi::c_char>(),
+            crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>()),
         );
         return None;
     }
@@ -2360,7 +2361,7 @@ pub fn trans_function_name(
         if !cp.is_null() && cp < end {
             semsg!(
                 gettext(c"E884: Function name cannot contain a colon: %s"),
-                start.cast::<std::ffi::c_char>(),
+                crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>()),
             );
             return None;
         }
@@ -2514,7 +2515,10 @@ fn list_one_function(
             .unwrap_or(0),
     ) == 0
     {
-        semsg!(gettext(E_TRAILING_ARG), p);
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            crate::strings::ByteSlice::from_ptr(p)
+        );
         return None;
     }
 
@@ -2643,7 +2647,7 @@ fn get_function_body(
         }
         if theline.is_null() {
             if let Some(ref marker) = skip_until {
-                semsg!(gettext(E_MISSING_HEREDOC_END_MARKER_STR), marker.as_ptr(),);
+                semsg!(gettext(E_MISSING_HEREDOC_END_MARKER_STR), marker,);
             } else {
                 emsg(gettext(c"E126: Missing :endfunction"));
             }
@@ -2731,7 +2735,11 @@ fn get_function_body(
                     {
                         nextcmd = line_arg;
                     } else if unsafe { *p != 0 && *p as u8 != b'"' } && opt_vars().p_verbose > 0 {
-                        swmsg!(true, gettext(c"W22: Text found after :endfunction: %s"), p,);
+                        swmsg!(
+                            true,
+                            gettext(c"W22: Text found after :endfunction: %s"),
+                            crate::strings::ByteSlice::from_ptr(p),
+                        );
                     }
                     if !nextcmd.is_null() {
                         if let Some(ref ltf) = line_to_free {
@@ -3017,7 +3025,7 @@ pub fn ex_function(eap: &mut Exarg) {
     if name.is_null() && (fudi.fd_dict.is_null() || !paren) && !eap.skip {
         if !aborting() {
             if let Some(ref newkey) = fudi.fd_newkey {
-                semsg!(gettext(E_DICTKEY), newkey.as_ptr());
+                semsg!(gettext(E_DICTKEY), newkey);
             }
             return;
         }
@@ -3185,7 +3193,10 @@ pub fn ex_function(eap: &mut Exarg) {
     if unsafe { *p as u8 } == b'\n' {
         line_arg = Some(crate::strings::ByteSlice::from_ptr(p.wrapping_add(1)).as_cstr());
     } else if unsafe { *p != 0 && *p as u8 != b'"' } && !eap.skip && g_st().did_emsg == 0 {
-        semsg!(gettext(E_TRAILING_ARG), p);
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            crate::strings::ByteSlice::from_ptr(p)
+        );
     }
 
     if g_st().key_typed {
@@ -3290,7 +3301,7 @@ pub fn ex_function(eap: &mut Exarg) {
         }
 
         uf_st().func_nr += 1;
-        namelen = vim_snprintf!(&mut numbuf, c"%d", uf_st().func_nr) as usize;
+        namelen = format_to_buf!(&mut numbuf, c"%d", uf_st().func_nr) as usize;
         let nm = bytes_to_cstring(&numbuf[..namelen]);
         name = nm.as_ptr().cast_mut();
         name_owned = Some(nm);
@@ -3328,7 +3339,7 @@ pub fn ex_function(eap: &mut Exarg) {
             if !j {
                 semsg!(
                     gettext(c"E746: Function name does not match script file name: %s",),
-                    name,
+                    crate::strings::ByteSlice::from_ptr(name),
                 );
                 erret!();
             }
@@ -3509,7 +3520,10 @@ pub fn ex_delfunction(eap: &mut Exarg) {
             .unwrap_or(0),
     ) == 0
     {
-        semsg!(gettext(E_TRAILING_ARG), p);
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            crate::strings::ByteSlice::from_ptr(p)
+        );
         return;
     }
     eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::BYTE_SLICE_NULL, |s| {
@@ -3932,7 +3946,7 @@ pub fn ex_call(eap: &mut Exarg) {
         Some(&mut partial_opt),
     );
     if let Some(ref newkey) = fudi.fd_newkey {
-        semsg!(gettext(E_DICTKEY), newkey.as_ptr());
+        semsg!(gettext(E_DICTKEY), newkey);
     }
     let Some(ref tofree_cstr) = tofree_owned else {
         return;
@@ -3986,7 +4000,7 @@ pub fn ex_call(eap: &mut Exarg) {
         if ends_excmd(arg.to_bytes().first().copied().unwrap_or(0)) == 0 {
             if !failed && !aborting() {
                 g_st().emsg_severe = true;
-                semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());
+                semsg!(gettext(E_TRAILING_ARG), arg);
             }
         } else {
             eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));

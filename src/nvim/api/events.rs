@@ -27,7 +27,7 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
         true,
         c"async error on channel %lld: %s",
         channel_id as i64,
-        msg_ptr,
+        crate::strings::ByteSlice::from_ptr(msg_ptr),
     );
 }
 

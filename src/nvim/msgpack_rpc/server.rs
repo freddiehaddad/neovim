@@ -13,7 +13,7 @@ use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use std::ffi::CStr;
 use std::ptr;
 
@@ -84,23 +84,18 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
 
     if rv != 0 && user_arg != K_NONE {
         let fmt = if user_arg == K_TRUE {
-            c"Failed to --listen: %s: \"%s\"".as_ptr()
+            c"Failed to --listen: %s: \"%s\""
         } else {
-            c"Failed $NVIM_LISTEN_ADDRESS: %s: \"%s\"".as_ptr()
+            c"Failed $NVIM_LISTEN_ADDRESS: %s: \"%s\""
         };
         let reason = if rv < 0 {
-            unsafe { uv_strerror(rv) }
+            uv_strerror(rv)
         } else if rv == 1 {
-            c"empty address".as_ptr()
+            c"empty address"
         } else {
-            c"?".as_ptr()
+            c"?"
         };
-        vim_snprintf!(
-            &mut g_st().iobuff,
-            fmt,
-            reason,
-            listen_addr.map_or(ptr::null(), CStr::as_ptr),
-        );
+        format_to_buf!(&mut g_st().iobuff, fmt, reason, listen_addr);
         ok = false;
     }
 
@@ -135,10 +130,10 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     let r = {
         get_appname(true);
         let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
-        vim_snprintf!(
+        format_to_buf!(
             &mut fmt,
             c"//./pipe/%s.%llu.%u",
-            app,
+            crate::strings::ByteSlice::from_ptr(app),
             os_get_pid() as u64,
             cur_count,
         )
@@ -148,11 +143,11 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     let r = {
         let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
         get_appname(true);
-        let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
-        vim_snprintf!(
+        let app = name.unwrap_or_else(|| crate::memory::bytes_as_cstr(&g_st().name_buff));
+        format_to_buf!(
             &mut fmt,
             c"%s/%s.%llu.%u",
-            dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+            dir.as_deref(),
             app,
             os_get_pid() as u64,
             cur_count,
@@ -168,7 +163,7 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
             133,
             true,
             c"truncated server address: %.40s...",
-            addr_cstr.as_ptr(),
+            addr_cstr,
         );
     }
     addr_cstr.to_owned()
@@ -226,7 +221,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 184,
                 true,
                 c"Already listening on %s",
-                unsafe { (*watcher).addr_cstr().as_ptr() },
+                crate::strings::ByteSlice::from_ptr(unsafe { (*watcher).addr_cstr().as_ptr() }),
             );
 
             if unsafe { uv_handle_get_type(ptr::from_mut((*watcher).stream_mut()).cast()) }
@@ -251,8 +246,8 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
             195,
             true,
             c"Failed to start server: %s: %s",
-            unsafe { uv_strerror(result) },
-            unsafe { (*watcher).addr_cstr().as_ptr() },
+            uv_strerror(result),
+            crate::strings::ByteSlice::from_ptr(unsafe { (*watcher).addr_cstr().as_ptr() }),
         );
 
         socket_watcher_close(unsafe { &mut *watcher });
@@ -289,7 +284,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
             238,
             true,
             c"Not listening on %s",
-            addr_cstr.as_ptr(),
+            addr_cstr,
         );
         return false;
     };
@@ -322,7 +317,7 @@ pub(crate) fn connection_cb(watcher: &mut SocketWatcher, result: i32) {
             276,
             true,
             c"Failed to accept connection: %s",
-            unsafe { uv_strerror(result) },
+            uv_strerror(result),
         );
         return;
     }

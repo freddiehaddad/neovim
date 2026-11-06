@@ -103,7 +103,7 @@ use crate::state::{
     virtual_active,
 };
 use crate::statusline::{K_UITABLINE, stl_clear_click_defs};
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::syntax::reset_synblock;
 use crate::tag::{K_OPT_SWB_FLAG_USEOPEN, tagstack_clear_entry};
 use crate::terminal::terminal_check_size;
@@ -1016,7 +1016,7 @@ pub fn swbuf_goto_win_with_buf(buf: Option<&mut FileBuf>) -> Option<&'static mut
 fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [u8; 40]) {
     if Prenum != 0 {
         let max_len = cbuf.len() - 5;
-        vim_snprintf!(&mut cbuf[..max_len], c"%lld", i64::from(Prenum));
+        format_to_buf!(&mut cbuf[..max_len], c"%lld", i64::from(Prenum));
     } else {
         cbuf[0] = 0;
     }
@@ -1461,7 +1461,7 @@ fn cmd_with_count(cmd: &std::ffi::CStr, cbuf: &mut [u8], prenum: i64) {
     let bufsize = cbuf.len();
     let len = crate::memory::copy_bytes_to_c_buf(cbuf, cmd.to_bytes());
     if prenum > 0 && len < bufsize {
-        vim_snprintf!(&mut cbuf[len..], c"%lld", prenum);
+        format_to_buf!(&mut cbuf[len..], c"%lld", prenum);
     }
 }
 
@@ -3757,7 +3757,7 @@ fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
     }
     win_st().winclosed_recursive = true;
     let mut winid = [0u8; NUMBUFLEN];
-    vim_snprintf!(&mut winid[..], c"%d", win.handle);
+    format_to_buf!(&mut winid[..], c"%d", win.handle);
     let winid_cstr = crate::memory::bytes_as_cstr(&winid);
     apply_autocmds_win(
         EVENT_WINCLOSED,
@@ -3941,7 +3941,7 @@ pub fn win_close_othertab(
 
         if has_event(EVENT_TABCLOSED) {
             let mut prev_idx = [0u8; NUMBUFLEN];
-            vim_snprintf!(&mut prev_idx[..], c"%i", free_tp_idx);
+            format_to_buf!(&mut prev_idx[..], c"%i", free_tp_idx);
             let prev_idx_cstr = crate::memory::bytes_as_cstr(&prev_idx);
             let buf_opt = if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
                 bufref.br_buf.opt_mut()
@@ -5456,7 +5456,7 @@ pub fn tabpage_move(nr: i32) {
 
     if has_event(EVENT_TABMOVED) {
         let mut prev_idx = [0u8; NUMBUFLEN];
-        vim_snprintf!(&mut prev_idx[..], c"%i", old_nr);
+        format_to_buf!(&mut prev_idx[..], c"%i", old_nr);
         let mut data_items = [
             KeyValuePair {
                 key: cstr_as_string(Some(c"tabnr_old")),
@@ -6320,7 +6320,7 @@ fn check_window_scroll_resize(
                 break;
             };
             let mut winid = [0u8; NUMBUFLEN];
-            let key_len = vim_snprintf!(&mut winid[..], c"%d", wp.handle);
+            let key_len = format_to_buf!(&mut winid[..], c"%d", wp.handle);
             let _ = key_len;
             let mut d_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(d);
             if !tv_dict_add_dict(
@@ -6426,7 +6426,7 @@ pub fn may_trigger_win_scrolled_resized() {
     let mut resize_bufref: Bufref = Bufref::new();
     if trigger_resize && let Some(rw) = first_size_win {
         resize_win = crate::globals::GraphPtr::<WinInfoInfo>::of(&rw);
-        vim_snprintf!(&mut resize_winid[..], c"%d", rw.handle);
+        format_to_buf!(&mut resize_winid[..], c"%d", rw.handle);
         set_bufref(&mut resize_bufref, rw.w_buffer.opt_mut());
     }
 
@@ -6435,7 +6435,7 @@ pub fn may_trigger_win_scrolled_resized() {
     let mut scroll_bufref: Bufref = Bufref::new();
     if trigger_scroll && let Some(sw) = first_scroll_win {
         scroll_win = crate::globals::GraphPtr::<WinInfoInfo>::of(&sw);
-        vim_snprintf!(&mut scroll_winid[..], c"%d", sw.handle);
+        format_to_buf!(&mut scroll_winid[..], c"%d", sw.handle);
         set_bufref(&mut scroll_bufref, sw.w_buffer.opt_mut());
     }
 

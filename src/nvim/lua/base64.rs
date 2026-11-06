@@ -72,7 +72,6 @@ static BASE64_FUNCTIONS: [luaL_Reg; 3] = [
 ///
 /// # Safety
 /// `lstate` must be a valid `lua_State` pointer.
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaopen_base64(lstate: *mut lua_State) -> i32 {
     unsafe {
         {

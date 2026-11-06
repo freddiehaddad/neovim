@@ -77,7 +77,7 @@ use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, s
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::statusline::{Foldinfo, Statuscol, build_statuscol_str};
 use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use crate::syntax::{
     HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present, syntax_start,
 };
@@ -760,7 +760,7 @@ fn get_line_number_str(wp: &mut WinInfoInfo, lnum: Linenr, buf: &mut [u8]) {
         }
     }
 
-    vim_snprintf!(&mut *buf, fmt, number_width(&mut *wp), num);
+    format_to_buf!(&mut *buf, fmt, number_width(&mut *wp), num);
 }
 
 fn use_cursor_line_nr(wp: &mut WinInfoInfo, wlv: &Winlinevars) -> bool {

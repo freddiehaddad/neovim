@@ -43,7 +43,7 @@ use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
 use crate::msgpack_rpc::packer::Integer;
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{format_to_buf, gettext, vim_strchr};
 use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
 use std::ffi::CStr;
@@ -355,7 +355,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         if buf_has_signs(buf_ref) {
             msg_putchar(b'\n' as i32);
             let fname = buf_ref.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
-            vim_snprintf!(&mut lbuf[..], gettext(c"Signs for %s:"), fname);
+            format_to_buf!(&mut lbuf[..], gettext(c"Signs for %s:"), fname);
             msg_puts_hl(crate::memory::bytes_as_cstr(&lbuf), HLF_D, false);
         }
 
@@ -386,22 +386,24 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
 
                     let sh = decor_find_sign(mt_decor(mark)).unwrap();
                     if sh.sign_name.is_some() {
-                        vim_snprintf!(&mut namebuf[..], gettext(c"  name=%s"), sign_get_name(sh));
+                        format_to_buf!(&mut namebuf[..], gettext(c"  name=%s"), sign_get_name(sh));
                     }
                     if mark.ns != 0 {
-                        vim_snprintf!(
+                        format_to_buf!(
                             &mut groupbuf[..],
                             gettext(c"  group=%s"),
-                            describe_ns(mark.ns as i32, c"").as_ptr(),
+                            crate::strings::ByteSlice::from_ptr(
+                                describe_ns(mark.ns as i32, c"").as_ptr()
+                            ),
                         );
                     }
-                    vim_snprintf!(
+                    format_to_buf!(
                         &mut lbuf[..],
                         gettext(c"    line=%d  id=%u%s%s  priority=%d"),
                         mark.pos.row + 1,
                         mark.id,
-                        groupbuf.as_ptr(),
-                        namebuf.as_ptr(),
+                        &groupbuf,
+                        &namebuf,
                         i32::from(sh.priority),
                     );
                     msg_puts(crate::memory::bytes_as_cstr(&lbuf));
@@ -463,7 +465,9 @@ pub fn init_sign_text(sp: Option<&Sign>, sign_text: &mut [Schar; SIGN_WIDTH], te
             if sp.is_some() {
                 semsg!(
                     gettext(c"E239: Invalid sign text: %s"),
-                    unescaped.as_ptr().cast::<std::ffi::c_char>()
+                    crate::strings::ByteSlice::from_ptr(
+                        unescaped.as_ptr().cast::<std::ffi::c_char>()
+                    )
                 );
             }
             return false;
@@ -585,7 +589,7 @@ fn sign_undefine_by_name(name: &CStr) -> bool {
         .iter()
         .position(|sp| sp.sn_name.as_c_str() == name)
     else {
-        semsg!(gettext(c"E155: Unknown sign: %s"), name.as_ptr());
+        semsg!(gettext(c"E155: Unknown sign: %s"), name);
         return false;
     };
     sign_st().sign_map.swap_remove(pos);
@@ -593,7 +597,7 @@ fn sign_undefine_by_name(name: &CStr) -> bool {
 }
 
 fn sign_list_defined(sp: &mut Sign) {
-    smsg!(0, c"sign %s", sp.sn_name.as_ptr());
+    smsg!(0, c"sign %s", &sp.sn_name);
     if let Some(ref icon) = sp.sn_icon {
         msg_puts(c" icon=");
         msg_outtrans(icon, 0, false);
@@ -607,7 +611,7 @@ fn sign_list_defined(sp: &mut Sign) {
     }
     if sp.sn_priority > 0 {
         let mut lbuf = [0u8; MSG_BUF_LEN];
-        vim_snprintf!(&mut lbuf[..], c" priority=%d", sp.sn_priority);
+        format_to_buf!(&mut lbuf[..], c" priority=%d", sp.sn_priority);
         msg_puts(crate::memory::bytes_as_cstr(&lbuf));
     }
     let args = [c" linehl=", c" texthl=", c" culhl=", c" numhl="];
@@ -626,7 +630,7 @@ fn sign_list_by_name(name: &CStr) {
     if let Some(sp) = pmap_get_sign(name.to_bytes()) {
         sign_list_defined(sp);
     } else {
-        semsg!(gettext(c"E155: Unknown sign: %s"), name.as_ptr());
+        semsg!(gettext(c"E155: Unknown sign: %s"), name);
     }
 }
 
@@ -645,7 +649,7 @@ fn sign_place(
     }
 
     let Some(sp) = pmap_get_sign(name.to_bytes()) else {
-        semsg!(gettext(c"E155: Unknown sign: %s"), name.as_ptr());
+        semsg!(gettext(c"E155: Unknown sign: %s"), name);
         return false;
     };
 
@@ -663,10 +667,7 @@ fn sign_place(
         lnum = buf_mod_sign(buf, &mut *id, group, prio, sp);
     }
     if lnum <= 0 {
-        semsg!(
-            gettext(c"E885: Not possible to change sign %s"),
-            name.as_ptr()
-        );
+        semsg!(gettext(c"E885: Not possible to change sign %s"), name);
         return false;
     }
 
@@ -774,7 +775,7 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
         } else if let Some(rest) = arg_bytes.strip_prefix(b"priority=") {
             prio = crate::charset::parse_i64_prefix(rest) as i32;
         } else {
-            semsg!(gettext(E_INVARG2), arg);
+            semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(arg));
             return;
         }
         if unsafe { *cmdline == 0 } {
@@ -952,7 +953,10 @@ fn parse_sign_cmd_args<'a>(
             *buf = buflist_findnr(getdigits_int(&mut rem, true, 0));
             arg = arg.wrapping_add(arg_bytes.len() - rem.len());
             if unsafe { *crate::charset::skipwhite_ptr(arg) != 0 } {
-                semsg!(gettext(E_TRAILING_ARG), arg);
+                semsg!(
+                    gettext(E_TRAILING_ARG),
+                    crate::strings::ByteSlice::from_ptr(arg)
+                );
             }
             break;
         } else {
@@ -963,7 +967,10 @@ fn parse_sign_cmd_args<'a>(
     }
 
     if !filename.is_null() && buf.is_none() {
-        semsg!(gettext(E_INVALID_BUFFER_NAME_STR), filename);
+        semsg!(
+            gettext(E_INVALID_BUFFER_NAME_STR),
+            crate::strings::ByteSlice::from_ptr(filename)
+        );
         return false;
     }
 
@@ -984,7 +991,10 @@ pub fn ex_sign(eap: &mut Exarg) {
         )
     });
     if idx == SIGNCMD_LAST {
-        semsg!(gettext(c"E160: Unknown sign command: %s"), arg);
+        semsg!(
+            gettext(c"E160: Unknown sign command: %s"),
+            crate::strings::ByteSlice::from_ptr(arg)
+        );
         return;
     }
     arg = crate::charset::skipwhite_ptr(p);

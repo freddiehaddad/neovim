@@ -113,7 +113,7 @@ macro_rules! logmsg {
             let ctx_opt: Option<&::std::ffi::CStr> = $context;
             let fn_opt: Option<&::std::ffi::CStr> = $func_name;
             let mut stack_buf = [0u8; 1024];
-            let len = $crate::strings::vim_snprintf_fmt(
+            let len = $crate::strings::format_to_buf_fmt(
                 &mut stack_buf,
                 Some(fmt_cstr),
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+],
@@ -121,7 +121,7 @@ macro_rules! logmsg {
             if len >= stack_buf.len() as i32 {
                 let cap = (len as usize) + 1;
                 let mut heap_buf = vec![0u8; cap];
-                $crate::strings::vim_snprintf_fmt(
+                $crate::strings::format_to_buf_fmt(
                     &mut heap_buf,
                     Some(fmt_cstr),
                     &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+],
@@ -201,19 +201,12 @@ fn log_path_init() {
         }
         os_setenv(c"NVIM_LOG_FILE", cur_cstr, 1);
         if log_dir_failure != 0 {
-            let err_str = unsafe { uv_strerror(log_dir_failure) };
+            let err_str = uv_strerror(log_dir_failure);
             let failed_s = match failed_dir {
                 None => "(null)",
                 Some(ref d) => d.to_str().unwrap_or(""),
             };
-            let err_s = if err_str.is_null() {
-                ""
-            } else {
-                crate::strings::ByteSlice::from_ptr(err_str)
-                    .as_cstr()
-                    .to_str()
-                    .unwrap_or("")
-            };
+            let err_s = err_str.to_str().unwrap_or("");
             let mut msg = Vec::with_capacity(128);
             let _ = write!(
                 msg,
@@ -274,11 +267,11 @@ pub fn logmsg_str(
         fprintf!(
             &stderr,
             c"FATAL: error in free_all_mem\n %s %s %d: ",
-            context.map_or(ptr::null(), CStr::as_ptr),
-            func_name.map_or(ptr::null(), CStr::as_ptr),
+            crate::strings::ByteSlice::from_ptr(context.map_or(ptr::null(), CStr::as_ptr)),
+            crate::strings::ByteSlice::from_ptr(func_name.map_or(ptr::null(), CStr::as_ptr)),
             line_num,
         );
-        fprintf!(&stderr, c"%s", msg.as_ptr());
+        fprintf!(&stderr, c"%s", msg);
         if eol {
             fprintf!(&stderr, c"\n");
         }
@@ -291,7 +284,9 @@ pub fn logmsg_str(
             log_st().did_msg = true;
             msg_schedule_semsg!(
                 c"E5430: %s:%d: recursive log!",
-                func_name.or(context).map_or(ptr::null(), CStr::as_ptr),
+                crate::strings::ByteSlice::from_ptr(
+                    func_name.or(context).map_or(ptr::null(), CStr::as_ptr)
+                ),
                 line_num,
             );
         }
@@ -330,15 +325,7 @@ pub fn open_log_file() -> CFile {
     }
 
     let stderr = log_get_stderr();
-    let err_ptr = unsafe { strerror(errnum) };
-    let err_s = if err_ptr.is_null() {
-        ""
-    } else {
-        crate::strings::ByteSlice::from_ptr(err_ptr)
-            .as_cstr()
-            .to_str()
-            .unwrap_or("")
-    };
+    let err_s = strerror(errnum).to_str().unwrap_or("");
     let path_s = path_cstr.to_str().unwrap_or("");
     let mut msg = Vec::with_capacity(128);
     let _ = write!(msg, "failed to open $NVIM_LOG_FILE ({err_s}): {path_s}\0");
@@ -434,30 +421,30 @@ fn do_log_to_file_str(
         fprintf!(
             log_file,
             c"%s %s.%03d %-10s %s%s:%d: ",
-            level_ptr,
-            date_time_ptr,
+            crate::strings::ByteSlice::from_ptr(level_ptr),
+            crate::strings::ByteSlice::from_ptr(date_time_ptr),
             millis,
-            name_cptr,
-            context.unwrap_or(c"").as_ptr(),
-            func_name.as_ptr(),
+            crate::strings::ByteSlice::from_ptr(name_cptr),
+            crate::strings::ByteSlice::from_ptr(context.unwrap_or(c"").as_ptr()),
+            func_name,
             line_num,
         )
     } else {
         fprintf!(
             log_file,
             c"%s %s.%03d %-10s %s",
-            level_ptr,
-            date_time_ptr,
+            crate::strings::ByteSlice::from_ptr(level_ptr),
+            crate::strings::ByteSlice::from_ptr(date_time_ptr),
             millis,
-            name_cptr,
-            context.unwrap_or(c"?:").as_ptr(),
+            crate::strings::ByteSlice::from_ptr(name_cptr),
+            crate::strings::ByteSlice::from_ptr(context.unwrap_or(c"?:").as_ptr()),
         )
     };
 
     if rv < 0 {
         return false;
     }
-    if fprintf!(log_file, c"%s", msg.as_ptr()) < 0 {
+    if fprintf!(log_file, c"%s", msg) < 0 {
         return false;
     }
     if eol {

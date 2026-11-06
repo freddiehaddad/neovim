@@ -167,7 +167,7 @@ pub fn eexe_mod_op(tv1: &mut TypVal, tv2: &TypVal, op: &CStr) -> bool {
         || tv2.v_type == VarType::VarDict
         || (matches!(tv2.v_type, VarType::VarBool | VarType::VarSpecial) && op_byte == b'.')
     {
-        semsg!(E_LETWRONG, op.as_ptr());
+        semsg!(E_LETWRONG, op);
         return false;
     }
 

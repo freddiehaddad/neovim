@@ -1683,7 +1683,7 @@ fn nlua_check_type(
             err,
             ErrorType::ErrorTypeValidation,
             c"Expected Lua %s",
-            name,
+            crate::strings::ByteSlice::from_ptr(name),
         );
         return LuaTableProps {
             maxidx: 0,
@@ -2175,7 +2175,7 @@ pub fn nlua_pop_keydict_opt<T>(
                     ErrorType::ErrorTypeValidation,
                     c"invalid key: %.*s",
                     len as i32,
-                    s,
+                    crate::strings::ByteSlice::from_ptr(s),
                 );
                 lua_pop(lstate, 3);
                 return;

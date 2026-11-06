@@ -220,7 +220,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    RawCCharPtr, RawCCharPtrMut, del_trailing_spaces, gettext, ngettext, strrep, vim_snprintf,
+    RawCCharPtr, RawCCharPtrMut, del_trailing_spaces, format_to_buf, gettext, ngettext, strrep,
     vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
@@ -4959,9 +4959,9 @@ fn msg_verbose_cmd(lnum: Linenr, cmd: &CStr) {
     verbose_enter_scroll();
 
     if lnum == 0 {
-        let _ = smsg!(0, gettext(c"Executing: %s"), cmd.as_ptr());
+        let _ = smsg!(0, gettext(c"Executing: %s"), cmd);
     } else {
-        let _ = smsg!(0, gettext(c"line %d: %s"), lnum, cmd.as_ptr());
+        let _ = smsg!(0, gettext(c"line %d: %s"), lnum, cmd);
     }
     if g_st().msg_silent == 0 {
         msg_puts(c"\n");
@@ -5505,10 +5505,10 @@ pub fn handle_did_throw() {
 
     match excp.r#type {
         ET_USER => {
-            let _ = vim_snprintf!(
+            let _ = format_to_buf!(
                 &mut g_st().iobuff,
                 gettext(c"E605: Exception not caught: %s"),
-                excp.value.as_ptr(),
+                &excp.value,
             );
             p = Some(g_st().iobuff_cstr().to_owned());
         }
@@ -9027,7 +9027,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
                 && curbuf_mut().fname_opt().is_some()
             {
                 let mut buff = [0u8; DIALOG_MSG_SIZE];
-                let _ = vim_snprintf!(
+                let _ = format_to_buf!(
                     &mut buff,
                     ngettext(
                         c"%d more file to edit.  Quit anyway?",
@@ -9282,7 +9282,10 @@ fn ex_restart(eap: &mut Exarg) {
                 c"".as_ptr().cast_mut()
             };
         } else {
-            let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
+            let _ = semsg!(
+                E_RESTART_FAILED_CMD_NO_QUIT,
+                crate::strings::ByteSlice::from_ptr(quit_cmd)
+            );
             return;
         }
     }
@@ -9437,7 +9440,10 @@ fn ex_restart(eap: &mut Exarg) {
         let _ = emsg(c"cannot create a channel job");
         let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if server_stopped && server_start(listen_arg.as_deref()) != 0 {
-            let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
+            let _ = semsg!(
+                c"couldn't resume listening on %s",
+                crate::strings::ByteSlice::from_ptr(la_ptr)
+            );
         }
         return;
     };
@@ -9619,7 +9625,10 @@ fn ex_restart(eap: &mut Exarg) {
             let _ = emsg(err.msg_cstr().unwrap_or(c""));
             api_clear_error(&mut err);
         } else if !g_st().exiting {
-            let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
+            let _ = semsg!(
+                E_RESTART_FAILED_CMD_NO_QUIT,
+                crate::strings::ByteSlice::from_ptr(quit_cmd)
+            );
         }
         drop(quit_cmd_copy);
     }
@@ -9660,7 +9669,10 @@ fn ex_restart(eap: &mut Exarg) {
 
     let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
     if server_stopped && server_start(listen_arg.as_deref()) != 0 {
-        let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
+        let _ = semsg!(
+            c"couldn't resume listening on %s",
+            crate::strings::ByteSlice::from_ptr(la_ptr)
+        );
     }
 }
 
@@ -9839,7 +9851,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
         done += 1;
         done < 1000
     } {
-        let _ = vim_snprintf!(&mut prev_idx, c"%i", tabpage_index(tp.opt()));
+        let _ = format_to_buf!(&mut prev_idx, c"%i", tabpage_index(tp.opt()));
         let wp = tp.tp_lastwin;
 
         if g_st().curtab == tp {
@@ -10062,12 +10074,9 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     let fname_count = fname_list.as_ref().map_or(0, |l| l.lv_len);
 
     if fname_count == 0 {
-        let _ = semsg!(gettext(E_CANT_FIND_FILE_STR_IN_PATH), findarg_cstr.as_ptr());
+        let _ = semsg!(gettext(E_CANT_FIND_FILE_STR_IN_PATH), &findarg_cstr);
     } else if count > fname_count {
-        let _ = semsg!(
-            gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH),
-            findarg_cstr.as_ptr()
-        );
+        let _ = semsg!(gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH), &findarg_cstr);
     } else if let Some(li) =
         crate::eval::typval::tv_list_find_opt(fname_list.as_deref_mut(), count - 1)
     {
@@ -10268,7 +10277,7 @@ fn ex_tabs(_eap: &mut Exarg) {
         if g_st().msg_col > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let _ = vim_snprintf!(&mut g_st().iobuff, gettext(c"Tab page %d"), tabcount);
+        let _ = format_to_buf!(&mut g_st().iobuff, gettext(c"Tab page %d"), tabcount);
         let _ = msg_outtrans(
             crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
             HLF_T,
@@ -10433,7 +10442,7 @@ fn ex_connect(eap: &mut Exarg) {
             return;
         }
 
-        addr = crate::strings::ByteSlice::from_ptr(ssh_rettv.vval.v_string().as_ptr());
+        addr = ssh_rettv.vval.v_string();
     } else if (is_tcp || crate::path::path_is_absolute(addr_bytes))
         && !crate::event::socket::socket_alive(
             &mut g_st().main_loop,
@@ -11002,7 +11011,12 @@ fn ex_pwd(_eap: &mut Exarg) {
             } else {
                 c"global".as_ptr()
             };
-            let _ = smsg!(0, c"[%s] %s", context, g_st().name_buff.as_ptr(),);
+            let _ = smsg!(
+                0,
+                c"[%s] %s",
+                crate::strings::ByteSlice::from_ptr(context),
+                &g_st().name_buff,
+            );
         } else {
             let _ = msg(
                 crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()),
@@ -11560,7 +11574,7 @@ fn close_redir() {
 pub fn vim_mkdir_emsg(name: &CStr, prot: i32) -> bool {
     let ret = os_mkdir(name, prot);
     if ret != 0 {
-        let _ = semsg!(gettext(E_MKDIR), name.as_ptr(), unsafe { uv_strerror(ret) });
+        let _ = semsg!(gettext(E_MKDIR), name, uv_strerror(ret));
         return false;
     }
     true
@@ -12199,7 +12213,7 @@ pub fn eval_vars(
                     ));
                     return None;
                 }
-                let _ = vim_snprintf!(&mut strbuf, c"%d", g_st().autocmd_bufnr);
+                let _ = format_to_buf!(&mut strbuf, c"%d", g_st().autocmd_bufnr);
                 result = strbuf.as_mut_ptr().cast();
             }
             SPEC_AMATCH => {
@@ -12249,7 +12263,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM));
                     return None;
                 }
-                let _ = vim_snprintf!(&mut strbuf, c"%d", *sourcing_lnum_ptr());
+                let _ = format_to_buf!(&mut strbuf, c"%d", *sourcing_lnum_ptr());
                 result = strbuf.as_mut_ptr().cast();
             }
             SPEC_SFLNUM => {
@@ -12258,7 +12272,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM));
                     return None;
                 }
-                let _ = vim_snprintf!(&mut strbuf, c"%d", sflnum);
+                let _ = format_to_buf!(&mut strbuf, c"%d", sflnum);
                 result = strbuf.as_mut_ptr().cast();
             }
             SPEC_SID => {
@@ -12266,7 +12280,7 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_USINGSID));
                     return None;
                 }
-                let _ = vim_snprintf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.sc_sid);
+                let _ = format_to_buf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.sc_sid);
                 result = strbuf.as_mut_ptr().cast();
             }
             _ => {
@@ -12398,12 +12412,12 @@ fn ex_filetype(eap: &mut Exarg) {
         let _ = smsg!(
             0,
             c"filetype detection:%s  plugin:%s  indent:%s",
-            if docmd_st().filetype_detect == K_TRUE {
+            crate::strings::ByteSlice::from_ptr(if docmd_st().filetype_detect == K_TRUE {
                 c"ON".as_ptr()
             } else {
                 c"OFF".as_ptr()
-            },
-            if docmd_st().filetype_plugin == K_TRUE {
+            }),
+            crate::strings::ByteSlice::from_ptr(if docmd_st().filetype_plugin == K_TRUE {
                 if docmd_st().filetype_detect == K_TRUE {
                     c"ON".as_ptr()
                 } else {
@@ -12411,8 +12425,8 @@ fn ex_filetype(eap: &mut Exarg) {
                 }
             } else {
                 c"OFF".as_ptr()
-            },
-            if docmd_st().filetype_indent == K_TRUE {
+            }),
+            crate::strings::ByteSlice::from_ptr(if docmd_st().filetype_indent == K_TRUE {
                 if docmd_st().filetype_detect == K_TRUE {
                     c"ON".as_ptr()
                 } else {
@@ -12420,7 +12434,7 @@ fn ex_filetype(eap: &mut Exarg) {
                 }
             } else {
                 c"OFF".as_ptr()
-            },
+            }),
         );
         return;
     }
@@ -12482,7 +12496,7 @@ fn ex_filetype(eap: &mut Exarg) {
 
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
     let mut st = docmd_st();
-    let _ = vim_snprintf!(&mut st.ex_error_buf, gettext(msg), arg.as_ptr());
+    let _ = format_to_buf!(&mut st.ex_error_buf, gettext(msg), arg);
     crate::memory::bytes_as_cstr(&st.borrow().ex_error_buf)
 }
 
@@ -12617,10 +12631,7 @@ fn ex_checkhealth(eap: &mut Exarg) {
             .windows(vr_bytes.len())
             .any(|w| w == vr_bytes);
     if rtp_ok {
-        let _ = semsg!(
-            gettext(c"E5009: Invalid $VIMRUNTIME: %s"),
-            vimruntime_env.as_ptr(),
-        );
+        let _ = semsg!(gettext(c"E5009: Invalid $VIMRUNTIME: %s"), &vimruntime_env,);
     } else {
         let _ = emsg(gettext(c"E5009: Invalid 'runtimepath'"));
     }

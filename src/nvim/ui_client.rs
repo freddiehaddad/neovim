@@ -457,8 +457,8 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             302,
             true,
             c"Cannot connect to server %s: %s",
-            addr_ptr,
-            err_cstr.as_ptr(),
+            crate::strings::ByteSlice::from_ptr(addr_ptr),
+            err_cstr,
         );
         drop(server_addr);
         g_st().ui_client_exit_status = 1;
@@ -480,7 +480,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
         312,
         true,
         c"Connected to server %s on channel %lld",
-        addr_ptr,
+        crate::strings::ByteSlice::from_ptr(addr_ptr),
         chan as i64,
     );
 }
@@ -577,7 +577,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 true,
                 c"cannot connect to server %s: %s",
                 first_arg,
-                err_cstr.as_ptr(),
+                err_cstr,
             );
             cleanup();
             return;
@@ -651,7 +651,7 @@ fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
         0,
         true,
         c"Error handling ui event '%s'",
-        ev_name.as_ptr(),
+        ev_name,
     );
 }
 

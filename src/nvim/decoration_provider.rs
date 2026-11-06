@@ -116,14 +116,14 @@ fn decor_provider_error(
         31,
         true,
         c"Error in decoration provider \"%s\" (ns=%s):\n%s",
-        name.as_ptr(),
-        ns,
+        name,
+        crate::strings::ByteSlice::from_ptr(ns),
         msg_ptr,
     );
     msg_schedule_semsg_multiline!(
         c"Decoration provider \"%s\" (ns=%s):\n%s",
-        name.as_ptr(),
-        ns,
+        name,
+        crate::strings::ByteSlice::from_ptr(ns),
         msg_ptr,
     );
 }

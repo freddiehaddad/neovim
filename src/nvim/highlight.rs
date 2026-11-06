@@ -1580,11 +1580,13 @@ pub fn dict2hlattrs(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Invalid Key: '%s'",
-                if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
-                    c"link_global".as_ptr()
-                } else {
-                    c"link".as_ptr()
-                },
+                crate::strings::ByteSlice::from_ptr(
+                    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
+                        c"link_global".as_ptr()
+                    } else {
+                        c"link".as_ptr()
+                    }
+                ),
             );
             return hlattrs;
         }

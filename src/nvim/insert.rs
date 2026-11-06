@@ -141,7 +141,7 @@ use crate::state::{
     REPLACE_FLAG, VREPLACE_FLAG, may_trigger_modechanged, may_trigger_safestate, state_enter,
     state_handle_k_event, virtual_active,
 };
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;
 use crate::textformat::{
@@ -1982,7 +1982,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
 fn redo_literal(c: i32) {
     if ascii_isdigit(c) {
         let mut buf = [0u8; 10];
-        let n = vim_snprintf!(&mut buf, c"%03d", c);
+        let n = format_to_buf!(&mut buf, c"%03d", c);
         redo_append_str(&buf[..n.max(0) as usize]);
     } else {
         redo_append_char(c);

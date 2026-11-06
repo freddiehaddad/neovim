@@ -750,11 +750,11 @@ fn extend_impl(
     } else {
         semsg!(
             E_LISTDICTARG,
-            if is_new {
+            crate::strings::ByteSlice::from_ptr(if is_new {
                 c"extendnew()".as_ptr()
             } else {
                 c"extend()".as_ptr()
-            },
+            }),
         );
     }
 }

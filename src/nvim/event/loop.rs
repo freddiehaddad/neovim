@@ -152,6 +152,26 @@ impl Loop {
     }
 }
 
+#[inline]
+pub fn uv_strerror(err: i32) -> &'static std::ffi::CStr {
+    let p = unsafe { c_uv_strerror(err) };
+    if p.is_null() {
+        c""
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(p) }
+    }
+}
+
+#[inline]
+pub fn uv_err_name(err: i32) -> &'static std::ffi::CStr {
+    let p = unsafe { c_uv_err_name(err) };
+    if p.is_null() {
+        c""
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(p) }
+    }
+}
+
 unsafe extern "C" {
     pub fn uv_loop_size() -> usize;
     pub fn uv_handle_size(h_type: i32) -> usize;
@@ -159,8 +179,10 @@ unsafe extern "C" {
     pub fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
     pub fn uv_handle_get_type(handle: *const uv_handle_t) -> i32;
     pub fn uv_guess_handle(file: i32) -> i32;
-    pub fn uv_strerror(err: i32) -> *const std::ffi::c_char;
-    pub fn uv_err_name(err: i32) -> *const std::ffi::c_char;
+    #[link_name = "uv_strerror"]
+    fn c_uv_strerror(err: i32) -> *const std::ffi::c_char;
+    #[link_name = "uv_err_name"]
+    fn c_uv_err_name(err: i32) -> *const std::ffi::c_char;
     pub fn uv_translate_sys_error(sys_errno: i32) -> i32;
 
     pub fn uv_loop_init(loop_: *mut uv_loop_t) -> i32;

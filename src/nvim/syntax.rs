@@ -44,7 +44,7 @@ use crate::regexp::{
     skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{format_to_buf, gettext, vim_strchr};
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
 use std::ptr;
@@ -2911,7 +2911,7 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
         syn_st().did_syntax_onoff = true;
         let mut buf = [0u8; 100];
         buf[..3].copy_from_slice(b"so ");
-        vim_snprintf!(&mut buf[3..], SYNTAX_FNAME, name.as_ptr());
+        format_to_buf!(&mut buf[3..], SYNTAX_FNAME, name);
         do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
     }
 }
@@ -3587,10 +3587,7 @@ fn get_syn_options<'a>(
                             i -= 1;
                         }
                         if i < 0 {
-                            semsg!(
-                                gettext(c"E394: Didn't find region item for %s"),
-                                gname.as_ptr(),
-                            );
+                            semsg!(gettext(c"E394: Didn't find region item for %s"), &gname,);
                             return None;
                         }
                     }
@@ -3781,7 +3778,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if after_p.is_empty() {
                             semsg!(
                                 gettext(c"E789: Missing ']': %s"),
-                                kw.cast::<std::ffi::c_void>()
+                                crate::strings::ByteSlice::from_ptr(kw.cast::<std::ffi::c_void>())
                             );
                             break 'kw_loop;
                         }
@@ -3789,8 +3786,12 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             if after_p.len() > 1 {
                                 semsg!(
                                     gettext(E_TRAILING_CHAR_AFTER_RSB_STR_STR),
-                                    kw.cast::<std::ffi::c_void>(),
-                                    p.wrapping_add(2).cast::<std::ffi::c_void>()
+                                    crate::strings::ByteSlice::from_ptr(
+                                        kw.cast::<std::ffi::c_void>()
+                                    ),
+                                    crate::strings::ByteSlice::from_ptr(
+                                        p.wrapping_add(2).cast::<std::ffi::c_void>()
+                                    )
                                 );
                                 break 'kw_loop;
                             }
@@ -4225,7 +4226,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
 
             let mut clstr_list: SynIdList = None;
             if !get_id_list(&mut rest_cstr, opt_len, &mut clstr_list, eap.skip) {
-                semsg!(gettext(E_INVARG2), rest_cstr.as_ptr());
+                semsg!(gettext(E_INVARG2), rest_cstr);
                 break;
             }
             if scl_id >= 0 {
@@ -4267,7 +4268,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         if unsafe { *end } != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
-                arg.cast::<std::ffi::c_void>(),
+                crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>()),
             );
             return None;
         }
@@ -4342,7 +4343,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         if ends_excmd(unsafe { *end }) == 0 && !ascii_iswhite(unsafe { *end }) {
             semsg!(
                 gettext(c"E402: Garbage after pattern: %s"),
-                arg.cast::<std::ffi::c_void>()
+                crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>())
             );
             return None;
         }
@@ -4516,7 +4517,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             if unsafe { *p } != b'=' {
                 semsg!(
                     gettext(c"E405: Missing equal sign: %s"),
-                    arg_ptr.cast::<std::ffi::c_void>()
+                    crate::strings::ByteSlice::from_ptr(arg_ptr.cast::<std::ffi::c_void>())
                 );
                 break;
             }
@@ -4524,7 +4525,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             if ends_excmd(unsafe { *p }) != 0 {
                 semsg!(
                     gettext(c"E406: Empty argument: %s"),
-                    arg_ptr.cast::<std::ffi::c_void>()
+                    crate::strings::ByteSlice::from_ptr(arg_ptr.cast::<std::ffi::c_void>())
                 );
                 break;
             }
@@ -4552,7 +4553,9 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     if !unsafe { *arg_ptr }.eq_ignore_ascii_case(&b'C') {
                         semsg!(
                             gettext(c"E407: %s not allowed here"),
-                            name.wrapping_add(1).cast::<std::ffi::c_void>()
+                            crate::strings::ByteSlice::from_ptr(
+                                name.wrapping_add(1).cast::<std::ffi::c_void>()
+                            )
                         );
                         failed = true;
                         break;
@@ -4560,7 +4563,9 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     if count != 0 {
                         semsg!(
                             gettext(c"E408: %s must be first in contains list"),
-                            name.wrapping_add(1).cast::<std::ffi::c_void>(),
+                            crate::strings::ByteSlice::from_ptr(
+                                name.wrapping_add(1).cast::<std::ffi::c_void>()
+                            ),
                         );
                         failed = true;
                         break;
@@ -4625,7 +4630,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                 if id == 0 {
                     semsg!(
                         gettext(c"E409: Unknown group name: %s"),
-                        p.cast::<std::ffi::c_void>()
+                        crate::strings::ByteSlice::from_ptr(p.cast::<std::ffi::c_void>())
                     );
                     failed = true;
                     break;
@@ -4901,7 +4906,7 @@ pub fn ex_syntax(eap: &mut Exarg) {
     if !found {
         semsg!(
             gettext(c"E410: Invalid :syntax subcommand: %s"),
-            subcmd_name.as_ptr(),
+            &subcmd_name,
         );
     }
 
@@ -5045,12 +5050,14 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
         }
         EXP_CLUSTER => {
             if (idx as usize) < win_s(curwin_mut()).b_syn_clusters.len() {
-                vim_snprintf!(
+                format_to_buf!(
                     &mut xp.xp_buf[..],
                     c"@%s",
-                    syn_clstr(&mut *win_s(curwin_mut()), idx as isize)
-                        .scl_name
-                        .as_ptr(),
+                    crate::strings::ByteSlice::from_ptr(
+                        syn_clstr(&mut *win_s(curwin_mut()), idx as isize)
+                            .scl_name
+                            .as_ptr()
+                    ),
                 );
                 Some(crate::memory::bytes_as_cstr(&xp.xp_buf))
             } else {

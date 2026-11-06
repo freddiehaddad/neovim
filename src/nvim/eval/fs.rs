@@ -1345,8 +1345,10 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             if ret != 0 {
                 semsg!(
                     gettext(E_MKDIR),
-                    failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    unsafe { uv_strerror(ret) },
+                    crate::strings::ByteSlice::from_ptr(
+                        failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr())
+                    ),
+                    uv_strerror(ret),
                 );
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
                 return;
@@ -2019,9 +2021,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         }
     }
 
-    semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
-        uv_strerror(error)
-    },);
+    semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
 
     false
 }
@@ -2032,17 +2032,13 @@ fn write_data(fp: &mut FileDescriptor, data: &[u8]) -> bool {
         let written = file_write(fp, data);
         if written < data.len() as isize {
             let error = written as i32;
-            semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
-                uv_strerror(error)
-            },);
+            semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
             return false;
         }
     }
     let error = file_flush(fp);
     if error != 0 {
-        semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
-            uv_strerror(error)
-        },);
+        semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
         return false;
     }
     true
@@ -2140,7 +2136,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             semsg!(
                 gettext(c"E482: Can't open file %s for writing: %s"),
                 fname,
-                unsafe { uv_strerror(error) },
+                uv_strerror(error),
             );
         } else {
             if defer {
@@ -2171,7 +2167,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                 semsg!(
                     gettext(c"E80: Error when closing file %s: %s"),
                     fname,
-                    unsafe { uv_strerror(error) },
+                    uv_strerror(error),
                 );
             }
         }

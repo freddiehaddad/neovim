@@ -25,7 +25,7 @@ use crate::msgpack_rpc::packer::{
 };
 use crate::regexp::NUMBUFLEN;
 use crate::strings::ByteSliceExt;
-use crate::strings::vim_snprintf_safelen;
+use crate::strings::format_to_buf_safelen;
 use crate::testing::ga_concat_literal;
 use std::ffi::CStr;
 use std::io::Write as _;
@@ -388,7 +388,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
     } else {
         path_cstr.as_ptr()
     };
-    semsg!(msg, objname.as_ptr(), path_ptr);
+    semsg!(msg, objname, crate::strings::ByteSlice::from_ptr(path_ptr));
     false
 }
 
@@ -440,7 +440,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) -> bool {
                     let err_cstr = bytes_to_cstring(&bytes[start..]);
                     semsg!(
                         c"E474: String \"%s\" contains byte that does not start any UTF-8 character",
-                        err_cstr.as_ptr(),
+                        &err_cstr,
                     );
                     return false;
                 } else if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch)
@@ -450,7 +450,7 @@ fn convert_to_json_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) -> bool {
                     let err_cstr = bytes_to_cstring(&bytes[start..]);
                     semsg!(
                         c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %s",
-                        err_cstr.as_ptr(),
+                        &err_cstr,
                     );
                     return false;
                 } else if ch >= 0x20 && utf_printable(ch) {
@@ -664,7 +664,7 @@ impl EncodeBackend<'_> {
                     ga_concat_literal(gap, b"str2float('inf')");
                 } else {
                     let mut numbuf = [0u8; NUMBUFLEN];
-                    let len = vim_snprintf_safelen!(&mut numbuf, c"%g", flt);
+                    let len = format_to_buf_safelen!(&mut numbuf, c"%g", flt);
                     gap.extend_from_slice(&numbuf[..len]);
                 }
                 true
@@ -681,7 +681,7 @@ impl EncodeBackend<'_> {
                     return false;
                 } else {
                     let mut numbuf = [0u8; NUMBUFLEN];
-                    let len = vim_snprintf_safelen!(&mut numbuf, c"%g", flt);
+                    let len = format_to_buf_safelen!(&mut numbuf, c"%g", flt);
                     gap.extend_from_slice(&numbuf[..len]);
                 }
                 true

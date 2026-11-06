@@ -526,11 +526,7 @@ pub fn channel_job_start(
 
     let status = proc_spawn(unsafe { &mut *proc_ptr }, has_in, has_out, has_err);
     if status != 0 {
-        semsg!(
-            gettext(E_JOBSPAWN),
-            unsafe { uv_strerror(status) },
-            cmd.as_ptr(),
-        );
+        semsg!(gettext(E_JOBSPAWN), uv_strerror(status), &cmd,);
 
         let ph = unsafe { &mut *proc_ptr };
         if let Some(env_ref) = ph.env.opt_mut() {
@@ -857,7 +853,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                     let _ =
                         tv_dict_add_list(reader.self_dict.borrow_mut(), reader_type, Some(data));
                 } else {
-                    semsg!(gettext(E_STREAMKEY), reader_type.as_ptr(), chan.id,);
+                    semsg!(gettext(E_STREAMKEY), reader_type, chan.id,);
                 }
                 reader.eof = false;
             } else {

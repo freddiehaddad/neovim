@@ -72,7 +72,7 @@ use crate::profile::{
     script_line_end, script_line_start, time_msg, time_pop, time_push,
 };
 use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
-use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen};
+use crate::strings::{format_to_buf, format_to_buf_safelen, gettext};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
 use std::ffi::CStr;
@@ -461,7 +461,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
             }
             if lnum != 0 {
                 let mut lnum_buf = [0u8; 32];
-                let n = vim_snprintf_safelen!(&mut lnum_buf, c"[%d]", lnum);
+                let n = format_to_buf_safelen!(&mut lnum_buf, c"[%d]", lnum);
                 buf.extend_from_slice(&lnum_buf[..n]);
             }
             if idx != es_len - 1 {
@@ -681,11 +681,16 @@ pub fn do_in_path(
                     0,
                     gettext(c"Searching for \"%s\" under \"%s\" in \"%s\""),
                     name,
-                    prefix.as_ptr(),
-                    path,
+                    prefix,
+                    crate::strings::ByteSlice::from_ptr(path),
                 );
             } else {
-                smsg!(0, gettext(c"Searching for \"%s\" in \"%s\""), name, path,);
+                smsg!(
+                    0,
+                    gettext(c"Searching for \"%s\" in \"%s\""),
+                    name,
+                    crate::strings::ByteSlice::from_ptr(path),
+                );
             }
             verbose_leave();
         }
@@ -760,10 +765,19 @@ pub fn do_in_path(
         };
 
         if (flags & DIP_ERR) != 0 {
-            semsg!(gettext(E_DIRNOTF), basepath, name);
+            semsg!(
+                gettext(E_DIRNOTF),
+                crate::strings::ByteSlice::from_ptr(basepath),
+                name
+            );
         } else if opt_vars().p_verbose > 1 {
             verbose_enter();
-            smsg!(0, gettext(c"not found in '%s': \"%s\""), basepath, name,);
+            smsg!(
+                0,
+                gettext(c"not found in '%s': \"%s\""),
+                crate::strings::ByteSlice::from_ptr(basepath),
+                name,
+            );
             verbose_leave();
         }
     }
@@ -835,7 +849,7 @@ fn do_in_cached_path(
 
                 if opt_vars().p_verbose > 10 {
                     verbose_enter();
-                    smsg!(0, gettext(c"Searching for \"%s\""), buf.as_ptr());
+                    smsg!(0, gettext(c"Searching for \"%s\""), &buf);
                     verbose_leave();
                 }
 
@@ -931,7 +945,7 @@ fn runtime_get_named_common(
     for item in path.iter_mut() {
         if lua {
             if item.has_lua == K_NONE {
-                let size = vim_snprintf!(&mut *buf_slice, c"%s/lua/", item.path.as_ptr()) as usize;
+                let size = format_to_buf!(&mut *buf_slice, c"%s/lua/", &item.path) as usize;
                 item.has_lua = TriState::from(size < buf_len && os_isdir(buf.as_cstr()));
             }
             if item.has_lua == K_FALSE {
@@ -942,10 +956,10 @@ fn runtime_get_named_common(
         for j in 0..pat.size {
             let pat_item = pat[j];
             if pat_item.obj_type == ObjectType::ObjectTypeString {
-                let size = vim_snprintf!(
+                let size = format_to_buf!(
                     &mut *buf_slice,
                     c"%s/%s",
-                    item.path.as_ptr(),
+                    &item.path,
                     pat_item.data.string().data,
                 ) as usize;
                 if size < buf_len && os_file_is_readable(crate::memory::bytes_as_cstr(buf_slice)) {
@@ -1518,7 +1532,11 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
     let len = ffname_cstr.as_bytes().len() + 14;
     let mut pat_vec = vec![0u8; len + 1];
 
-    vim_snprintf!(&mut pat_vec[..len], c"%s/plugin/**/*", ffname);
+    format_to_buf!(
+        &mut pat_vec[..len],
+        c"%s/plugin/**/*",
+        crate::strings::ByteSlice::from_ptr(ffname)
+    );
     gen_expand_wildcards_and_cb(
         crate::memory::bytes_as_cstr(&pat_vec),
         EW_FILE,
@@ -1528,7 +1546,11 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
 
     if opt && eval_to_number(c"g:did_load_filetypes", false) > 0 {
         do_cmdline_cmd(c"augroup filetypedetect");
-        vim_snprintf!(&mut pat_vec[..len], c"%s/ftdetect/*", ffname);
+        format_to_buf!(
+            &mut pat_vec[..len],
+            c"%s/ftdetect/*",
+            crate::strings::ByteSlice::from_ptr(ffname)
+        );
         gen_expand_wildcards_and_cb(
             crate::memory::bytes_as_cstr(&pat_vec),
             EW_FILE,
@@ -1708,7 +1730,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
     };
 
     if !g_st().did_source_packages {
-        vim_snprintf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"start", eap.arg);
+        format_to_buf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"start", eap.arg);
         res = do_in_path(
             opt_vars().p_pp.as_cstr(),
             c"",
@@ -1718,7 +1740,7 @@ pub fn ex_packadd(eap: &mut Exarg) {
         );
     }
 
-    vim_snprintf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"opt", eap.arg);
+    format_to_buf!(&mut pat_vec[..len], c"pack/*/%s/%s", c"opt", eap.arg);
     do_in_path(
         opt_vars().p_pp.as_cstr(),
         c"",
@@ -1755,11 +1777,11 @@ fn expand_rtdir_int(
         } else {
             c"".as_ptr()
         };
-        vim_snprintf!(
+        format_to_buf!(
             &mut buf_vec,
             c"%s%s%s%s",
-            dir_str,
-            slash_str,
+            crate::strings::ByteSlice::from_ptr(dir_str),
+            crate::strings::ByteSlice::from_ptr(slash_str),
             pat,
             c"*.{vim,lua}",
         );
@@ -1782,13 +1804,13 @@ fn expand_rtdir_int(
             };
 
             if (flags & DIP_START) != 0 {
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buf_vec,
                     c"pack/*/start/*/%s%s%s%s",
-                    dir_str,
-                    slash_str,
+                    crate::strings::ByteSlice::from_ptr(dir_str),
+                    crate::strings::ByteSlice::from_ptr(slash_str),
                     pat,
-                    ext_str,
+                    crate::strings::ByteSlice::from_ptr(ext_str),
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
@@ -1798,13 +1820,13 @@ fn expand_rtdir_int(
                     expand_dirs,
                 );
 
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buf_vec,
                     c"start/*/%s%s%s%s",
-                    dir_str,
-                    slash_str,
+                    crate::strings::ByteSlice::from_ptr(dir_str),
+                    crate::strings::ByteSlice::from_ptr(slash_str),
                     pat,
-                    ext_str,
+                    crate::strings::ByteSlice::from_ptr(ext_str),
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
@@ -1816,13 +1838,13 @@ fn expand_rtdir_int(
             }
 
             if (flags & DIP_OPT) != 0 {
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buf_vec,
                     c"pack/*/opt/*/%s%s%s%s",
-                    dir_str,
-                    slash_str,
+                    crate::strings::ByteSlice::from_ptr(dir_str),
+                    crate::strings::ByteSlice::from_ptr(slash_str),
                     pat,
-                    ext_str,
+                    crate::strings::ByteSlice::from_ptr(ext_str),
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
@@ -1832,13 +1854,13 @@ fn expand_rtdir_int(
                     expand_dirs,
                 );
 
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buf_vec,
                     c"opt/*/%s%s%s%s",
-                    dir_str,
-                    slash_str,
+                    crate::strings::ByteSlice::from_ptr(dir_str),
+                    crate::strings::ByteSlice::from_ptr(slash_str),
                     pat,
-                    ext_str,
+                    crate::strings::ByteSlice::from_ptr(ext_str),
                 );
                 globpath(
                     opt_vars().p_pp.as_cstr(),
@@ -1850,7 +1872,7 @@ fn expand_rtdir_int(
             }
 
             if dir.is_empty() && !expand_dirs {
-                vim_snprintf!(&mut buf_vec, c"%s*", pat);
+                format_to_buf!(&mut buf_vec, c"%s*", pat);
                 glob_flags = WILD_ADD_SLASH;
                 expand_dirs = true;
                 continue;
@@ -1965,9 +1987,17 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     let buflen = pat_len + 26;
     let mut s_vec = vec![0u8; buflen];
     let s = crate::strings::ByteSlice::from_bytes(&s_vec);
-    vim_snprintf!(&mut s_vec, c"pack/*/opt/%s*", pat);
+    format_to_buf!(
+        &mut s_vec,
+        c"pack/*/opt/%s*",
+        crate::strings::ByteSlice::from_ptr(pat)
+    );
     globpath(opt_vars().p_pp.as_cstr(), s.as_cstr(), file, 0, true);
-    vim_snprintf!(&mut s_vec, c"opt/%s*", pat);
+    format_to_buf!(
+        &mut s_vec,
+        c"opt/%s*",
+        crate::strings::ByteSlice::from_ptr(pat)
+    );
     globpath(opt_vars().p_pp.as_cstr(), s.as_cstr(), file, 0, true);
     drop(s_vec);
 
@@ -2342,7 +2372,7 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
                 || eap.cstack_mut().cs_idx >= 0,
         );
     } else if !do_source(fname, false, DOSO_NONE, None) {
-        semsg!(gettext(E_NOTOPEN), fname.as_ptr());
+        semsg!(gettext(E_NOTOPEN), fname);
     }
 }
 
@@ -2455,13 +2485,13 @@ fn do_source_buffer_init(
         curbuf_mut().ffname_cstr().to_owned()
     } else {
         if ex_lua {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff,
                 c":{range}lua buffer=%d",
                 curbuf_mut().b_fnum,
             );
         } else {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff,
                 c":source buffer=%d",
                 curbuf_mut().b_fnum,
@@ -2506,10 +2536,10 @@ pub fn do_source_str(str_ptr: &std::ffi::CStr, traceback_name_in: &std::ffi::CSt
     let slnum = sourcing_lnum();
     let mut sname_buf = [0u8; 256];
     if let Some(sname) = sourcing_name() {
-        vim_snprintf!(
+        format_to_buf!(
             &mut sname_buf,
             c"%s called at %s:%d",
-            traceback_name.as_ptr(),
+            traceback_name,
             sname,
             slnum,
         );
@@ -2864,7 +2894,7 @@ fn do_source_ext(
 
         if l_has_time_fd {
             let iobuff = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
-            vim_snprintf!(&mut g_st().iobuff, c"sourcing %s", fname);
+            format_to_buf!(&mut g_st().iobuff, c"sourcing %s", fname);
             time_msg(iobuff.as_cstr(), Some(&start_time));
             time_pop(rel_time);
         }
@@ -2977,7 +3007,12 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 g_st().name_buff_bytes_mut(),
                 true,
             );
-            vim_snprintf!(&mut g_st().iobuff, c"%3d: %s", i, namebuff);
+            format_to_buf!(
+                &mut g_st().iobuff,
+                c"%3d: %s",
+                i,
+                crate::strings::ByteSlice::from_ptr(namebuff)
+            );
             if !message_filtered(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())) {
                 if g_st().msg_col > 0 {
                     msg_putchar(b'\n' as i32);
@@ -3008,7 +3043,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
             SID_WINLAYOUT => gettext(c"changed window size"),
             SID_LUA => gettext(c"Lua"),
             SID_API_CLIENT => {
-                vim_snprintf!(
+                format_to_buf!(
                     &mut g_st().iobuff,
                     gettext(c"API client (channel id %llu)"),
                     script_ctx.sc_chan,
@@ -3024,7 +3059,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
                         return Cow::Borrowed(sname);
                     }
                 } else {
-                    vim_snprintf!(
+                    format_to_buf!(
                         &mut g_st().iobuff,
                         gettext(c"anonymous :source (script id %d)"),
                         script_ctx.sc_sid,

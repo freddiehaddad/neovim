@@ -1149,7 +1149,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         if !doclear && !dolink && ends_excmd(i32::from(linep.first_byte())) != 0 {
             let id = syn_name2id_len(word_slice);
             if id == 0 {
-                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), line.as_ptr(),);
+                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), line,);
             } else {
                 msg_ext_set_kind(c"list_cmd");
                 highlight_list_one(id);
@@ -1168,7 +1168,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
             {
                 semsg!(
                     gettext(c"E412: Not enough arguments: \":highlight link %s\""),
-                    from_start.as_ptr(),
+                    from_start,
                 );
                 return;
             }
@@ -1176,7 +1176,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
             if ends_excmd(i32::from(to_end.skipwhite().first_byte())) == 0 {
                 semsg!(
                     gettext(c"E413: Too many arguments: \":highlight link %s\""),
-                    from_start.as_ptr(),
+                    from_start,
                 );
                 return;
             }
@@ -1281,7 +1281,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 let key_start = linep;
                 let linep_bytes = linep.as_bytes();
                 if linep_bytes.first() == Some(&b'=') {
-                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), key_start.as_ptr());
+                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), key_start);
                     error = true;
                     break;
                 }
@@ -1314,7 +1314,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 }
 
                 if linep.first_byte() != b'=' {
-                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start.as_ptr());
+                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
                     error = true;
                     break;
                 }
@@ -1329,7 +1329,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         .position(|&b| b == b'\'')
                         .map_or(crate::strings::BYTE_SLICE_NULL, |i| linep.wrapping_add(i));
                     if linep.is_null() {
-                        semsg!(gettext(E_INVARG2), key_start.as_ptr());
+                        semsg!(gettext(E_INVARG2), key_start);
                         error = true;
                         break;
                     }
@@ -1338,7 +1338,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     linep = linep.skiptowhite();
                 }
                 if linep.addr() == arg_start.addr() {
-                    semsg!(gettext(E_MISSING_ARGUMENT_STR), key_start.as_ptr());
+                    semsg!(gettext(E_MISSING_ARGUMENT_STR), key_start);
                     error = true;
                     break;
                 }
@@ -1379,7 +1379,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                             i -= 1;
                         }
                         if i < 0 {
-                            semsg!(gettext(c"E418: Illegal value: %s"), arg.as_ptr());
+                            semsg!(gettext(c"E418: Illegal value: %s"), &arg);
                             error = true;
                             break;
                         }
@@ -1465,7 +1465,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                             if i < 0 {
                                 semsg!(
                                     gettext(c"E421: Color name or number not recognized: %s",),
-                                    key_start.as_ptr(),
+                                    key_start,
                                 );
                                 error = true;
                                 break;

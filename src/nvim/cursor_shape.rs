@@ -467,7 +467,7 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
         284,
         true,
         c"Unknown mode %s",
-        mode.as_ptr(),
+        mode,
     );
     -1
 }

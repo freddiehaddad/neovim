@@ -99,7 +99,7 @@ use crate::regexp::{RE_MAGIC, Regmatch, Regprog, vim_regcomp, vim_regexec};
 use crate::sha256::ContextSha256;
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
-use crate::strings::{ngettext, tr, vim_snprintf};
+use crate::strings::{format_to_buf, ngettext, tr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::{
     buf_is_changed_fn, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
@@ -2761,7 +2761,7 @@ pub fn readfile(
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm as u64) {
-                            buflen += vim_snprintf!(
+                            buflen += format_to_buf!(
                                 &mut g_st().iobuff[buflen as usize..],
                                 c"%s",
                                 tr(c"[fifo]"),
@@ -2769,7 +2769,7 @@ pub fn readfile(
                             c = true;
                         }
                         if s_issock(perm as u64) {
-                            buflen += vim_snprintf!(
+                            buflen += format_to_buf!(
                                 &mut g_st().iobuff[buflen as usize..],
                                 c"%s",
                                 tr(c"[socket]"),
@@ -2784,7 +2784,7 @@ pub fn readfile(
                             target_os = "macos"
                         ))]
                         if s_ischr(perm as u64) {
-                            buflen += vim_snprintf!(
+                            buflen += format_to_buf!(
                                 &mut g_st().iobuff[buflen as usize..],
                                 c"%s",
                                 tr(c"[character special]"),
@@ -2793,7 +2793,7 @@ pub fn readfile(
                         }
                     }
                     if curbuf_mut().b_p_ro {
-                        buflen += vim_snprintf!(
+                        buflen += format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             if shortmess(K_SHM_RO) {
@@ -2805,7 +2805,7 @@ pub fn readfile(
                         c = true;
                     }
                     if read_no_eol_lnum != 0 {
-                        buflen += vim_snprintf!(
+                        buflen += format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[noeol]"),
@@ -2813,7 +2813,7 @@ pub fn readfile(
                         c = true;
                     }
                     if ff_error == EOL_DOS {
-                        buflen += vim_snprintf!(
+                        buflen += format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[CR missing]"),
@@ -2821,7 +2821,7 @@ pub fn readfile(
                         c = true;
                     }
                     if split != 0 {
-                        buflen += vim_snprintf!(
+                        buflen += format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[long lines split]"),
@@ -2829,14 +2829,14 @@ pub fn readfile(
                         c = true;
                     }
                     if notconverted {
-                        buflen += vim_snprintf!(
+                        buflen += format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[NOT converted]"),
                         );
                         c = true;
                     } else if converted {
-                        buflen += vim_snprintf!(
+                        buflen += format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[converted]"),
@@ -2844,21 +2844,21 @@ pub fn readfile(
                         c = true;
                     }
                     if conv_error != 0 {
-                        vim_snprintf!(
+                        format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             tr(c"[CONVERSION ERROR in line %lld]"),
                             i64::from(conv_error),
                         );
                         c = true;
                     } else if illegal_byte > 0 {
-                        vim_snprintf!(
+                        format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             tr(c"[ILLEGAL BYTE in line %lld]"),
                             i64::from(illegal_byte),
                         );
                         c = true;
                     } else if error {
-                        vim_snprintf!(
+                        format_to_buf!(
                             &mut g_st().iobuff[buflen as usize..],
                             c"%s",
                             tr(c"[READ ERRORS]"),
@@ -3282,21 +3282,21 @@ pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
     };
 
     if shortmess(K_SHM_LINES) {
-        vim_snprintf!(
+        format_to_buf!(
             &mut g_st().iobuff[len..],
             tr(c"%s%lldL, %lldB"),
-            space,
+            crate::strings::ByteSlice::from_ptr(space),
             i64::from(lnum),
             nchars,
         );
     } else {
-        len += vim_snprintf!(
+        len += format_to_buf!(
             &mut g_st().iobuff[len..],
             ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize),
-            space,
+            crate::strings::ByteSlice::from_ptr(space),
             i64::from(lnum),
         ) as usize;
-        vim_snprintf!(
+        format_to_buf!(
             &mut g_st().iobuff[len..],
             ngettext(c"%lld byte", c"%lld bytes", nchars as usize),
             nchars,
@@ -3696,7 +3696,7 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
         let tail_off = ((crate::strings::AsByteSlice::byte_addr(tail) as isize)
             - (crate::strings::AsByteSlice::byte_addr(tempname.as_ptr()) as isize))
             as usize;
-        vim_snprintf!(&mut tempname[tail_off..], c"%d", n);
+        format_to_buf!(&mut tempname[tail_off..], c"%d", n);
 
         let temp_cstr = crate::memory::bytes_as_cstr(&tempname);
         if !os_path_exists(temp_cstr) {
@@ -3712,8 +3712,8 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
                         0,
                         true,
                         c"failed to restore %s, file is at: %s",
-                        from_ptr,
-                        tempname.as_ptr(),
+                        crate::strings::ByteSlice::from_ptr(from_ptr),
+                        &tempname,
                     );
                 }
                 return -1;
@@ -4034,7 +4034,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         let tbufsize = path.as_bytes().len() + mesg.to_bytes().len() + mesg2.to_bytes().len() + 3;
         let mut tbuf_vec = vec![0u8; tbufsize];
         let tbuf = crate::strings::ByteSlice::from_bytes(&tbuf_vec);
-        let tbuflen = vim_snprintf!(&mut tbuf_vec, mesg, path.as_ptr());
+        let tbuflen = format_to_buf!(&mut tbuf_vec, mesg, &path);
         set_vim_var_string(
             VV_WARNINGMSG,
             Some(crate::memory::bytes_as_cstr(&tbuf_vec)),
@@ -4042,7 +4042,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         );
         if can_reload {
             if !mesg2.to_bytes().is_empty() {
-                vim_snprintf!(&mut tbuf_vec[tbuflen as usize..], c"\n%s", mesg2);
+                format_to_buf!(&mut tbuf_vec[tbuflen as usize..], c"\n%s", mesg2);
             }
             match do_dialog(
                 VIM_WARNING,
@@ -4062,7 +4062,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             || fio_st().already_warned
         {
             if !mesg2.to_bytes().is_empty() {
-                vim_snprintf!(&mut tbuf_vec[tbuflen as usize..], c"; %s", mesg2);
+                format_to_buf!(&mut tbuf_vec[tbuflen as usize..], c"; %s", mesg2);
             }
             emsg(tbuf.as_cstr());
             retval = 2;
@@ -4275,11 +4275,7 @@ fn vim_mktempdir() {
     for temp_dir in TEMP_DIRS {
         let mut tmplen = expand_env(temp_dir, &mut tmp[..TEMP_FILE_PATH_MAXLEN - 64]);
         if !os_isdir(crate::memory::bytes_as_cstr(&tmp)) {
-            if crate::strings::ByteSlice::from_ptr(temp_dir.as_ptr())
-                .as_opt_cstr()
-                .map(std::ffi::CStr::to_bytes)
-                == Some(b"$TMPDIR")
-            {
+            if temp_dir.to_bytes() == b"$TMPDIR" {
                 if !os_env_exists(c"TMPDIR", true) {
                     logmsg!(
                         LOG_DEBUG,
@@ -4297,7 +4293,7 @@ fn vim_mktempdir() {
                         0,
                         true,
                         c"$TMPDIR tempdir not a directory (or does not exist): \"%s\"",
-                        tmp.as_ptr(),
+                        &tmp,
                     );
                 }
             }
@@ -4305,10 +4301,10 @@ fn vim_mktempdir() {
         }
 
         if after_pathsep(&tmp[..tmplen]) == 0 {
-            tmplen += vim_snprintf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
+            tmplen += format_to_buf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
             debug_assert!(tmplen < tmp.len());
         }
-        tmplen += vim_snprintf!(&mut tmp[tmplen..], c"nvim.%s", user.as_ptr()) as usize;
+        tmplen += format_to_buf!(&mut tmp[tmplen..], c"nvim.%s", &user) as usize;
         debug_assert!(tmplen < tmp.len());
         os_mkdir(crate::memory::bytes_as_cstr(&tmp), 0o700);
         let owned = os_file_owned(crate::memory::bytes_as_cstr(&tmp));
@@ -4321,7 +4317,7 @@ fn vim_mktempdir() {
         let valid = isdir && owned;
         if valid {
             if after_pathsep(&tmp[..tmplen]) == 0 {
-                tmplen += vim_snprintf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
+                tmplen += format_to_buf!(&mut tmp[tmplen..], c"%s", PATHSEPSTR) as usize;
                 debug_assert!(tmplen < tmp.len());
             }
         } else {
@@ -4333,8 +4329,8 @@ fn vim_mktempdir() {
                     0,
                     true,
                     c"tempdir root not owned by current user (%s): %s",
-                    user.as_ptr(),
-                    tmp.as_ptr(),
+                    &user,
+                    &tmp,
                 );
             } else if !isdir {
                 logmsg!(
@@ -4344,7 +4340,7 @@ fn vim_mktempdir() {
                     0,
                     true,
                     c"tempdir root not a directory: %s",
-                    tmp.as_ptr(),
+                    &tmp,
                 );
             }
             #[cfg(unix)]
@@ -4357,14 +4353,14 @@ fn vim_mktempdir() {
                     true,
                     c"tempdir root has invalid permissions (%o): %s",
                     perm,
-                    tmp.as_ptr(),
+                    &tmp,
                 );
             }
             tmplen -= crate::memory::bytes_until_nul(&user).len();
             tmp[tmplen] = 0;
         }
 
-        tmplen += vim_snprintf!(&mut tmp[tmplen..], c"XXXXXX") as usize;
+        tmplen += format_to_buf!(&mut tmp[tmplen..], c"XXXXXX") as usize;
         debug_assert!(tmplen < tmp.len());
         let _ = tmplen;
         let r = os_mkdtemp(crate::memory::bytes_as_cstr(&tmp), &mut path);
@@ -4376,8 +4372,8 @@ fn vim_mktempdir() {
                 0,
                 true,
                 c"tempdir create failed: %s: %s",
-                unsafe { uv_strerror(r) },
-                tmp.as_ptr(),
+                uv_strerror(r),
+                &tmp,
             );
             continue;
         }
@@ -4439,10 +4435,10 @@ pub fn delete_recursive(name: &CStr) -> i32 {
         let exp = name.to_owned();
         let mut entries: Vec<std::ffi::CString> = Vec::new();
         if readdir_core(&mut entries, &exp, None) {
-            let len = vim_snprintf!(&mut g_st().name_buff, c"%s/", exp.as_ptr()) as usize;
+            let len = format_to_buf!(&mut g_st().name_buff, c"%s/", &exp) as usize;
 
             for entry in &entries {
-                vim_snprintf!(&mut g_st().name_buff[len..], c"%s", entry.as_ptr());
+                format_to_buf!(&mut g_st().name_buff[len..], c"%s", entry);
                 let sub_cstr = g_st().name_buff_cstr();
                 if delete_recursive(sub_cstr) != 0 {
                     result = -1;
@@ -4525,7 +4521,7 @@ pub fn vim_gettempdir() -> Option<&'static CStr> {
                     0,
                     true,
                     c"tempdir disappeared (antivirus or broken cleanup job?): %s",
-                    current_td.as_ptr(),
+                    &current_td,
                 );
             }
             if fio_st().notfound > 1 {
@@ -4567,7 +4563,7 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
 
     let mut templ: [u8; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
     let count = TEMP_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let _ = vim_snprintf!(&mut templ, c"%s%llu", tempdir.as_ptr(), count);
+    let _ = format_to_buf!(&mut templ, c"%s%llu", tempdir, count);
     Some(crate::memory::cstring_until_nul(&templ))
 }
 
@@ -4845,7 +4841,7 @@ pub fn vim_fprintf_fmt(
         };
     }
     let mut stack_buf = [0u8; 1024];
-    let needed = crate::strings::vim_snprintf_fmt(&mut stack_buf, Some(fmt), args);
+    let needed = crate::strings::format_to_buf_fmt(&mut stack_buf, Some(fmt), args);
     if needed < 0 {
         return -1;
     }
@@ -4858,7 +4854,7 @@ pub fn vim_fprintf_fmt(
         }
     } else {
         let mut heap_buf = vec![0u8; len + 1];
-        let actual = crate::strings::vim_snprintf_fmt(&mut heap_buf, Some(fmt), args);
+        let actual = crate::strings::format_to_buf_fmt(&mut heap_buf, Some(fmt), args);
         if actual < 0 {
             return -1;
         }

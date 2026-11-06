@@ -118,7 +118,7 @@ use crate::runtime::{
     estack_init, estack_pop, estack_push, load_plugins,
 };
 use crate::shada::{shada_read_everything, shada_write_file};
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::syntax::syn_maybe_enable;
 use crate::terminal::{terminal_init, terminal_teardown};
 use crate::ui::{
@@ -604,7 +604,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         if !has_scriptout() {
             let stderr = log_get_stderr();
             fprintf!(stderr, gettext(c"Cannot open for script output: \""),);
-            fprintf!(stderr, c"%s\"\n", scriptout_name.as_ptr());
+            fprintf!(stderr, c"%s\"\n", scriptout_name);
             os_exit(2);
         }
     }
@@ -1021,11 +1021,7 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
     {
         let bytes = errmsg.to_bytes();
         let has_eol = bytes.last() == Some(&b'\n');
-        fprintf!(
-            stderr,
-            if has_eol { c"%s" } else { c"%s\n" },
-            errmsg.as_ptr(),
-        );
+        fprintf!(stderr, if has_eol { c"%s" } else { c"%s\n" }, errmsg,);
     }
     if g_st().ui_client_channel_id != 0 {
         os_exit(1);
@@ -1116,7 +1112,9 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
             fprintf!(
                 stderr,
                 c"Remote ui failed to start: %s\n",
-                connect_error.map_or(ptr::null(), CStr::as_ptr),
+                crate::strings::ByteSlice::from_ptr(
+                    connect_error.map_or(ptr::null(), CStr::as_ptr)
+                ),
             );
             os_exit(1);
         } else {
@@ -1324,9 +1322,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                         let data = api_metadata_raw();
                         let written_bytes = os_write(STDOUT_FILENO, data.as_bytes(), false);
                         if written_bytes < 0 {
-                            semsg!(gettext(c"E5420: Failed to write to file: %s"), unsafe {
-                                uv_strerror(written_bytes as i32)
-                            },);
+                            semsg!(
+                                gettext(c"E5420: Failed to write to file: %s"),
+                                uv_strerror(written_bytes as i32),
+                            );
                         }
                         os_exit(0);
                     } else if sub.eq_ignore_ascii_case(b"headless") {
@@ -1608,13 +1607,15 @@ fn command_line_scan(parmp: &mut Mparm) {
                     }
                     b's' => {
                         if parmp.scriptin.is_some() {
-                            vim_snprintf!(
+                            format_to_buf!(
                                 &mut g_st().iobuff,
                                 gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                 prev_arg,
-                                cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                crate::strings::ByteSlice::from_ptr(
+                                    cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr())
+                                ),
                             );
-                            fprintf!(log_get_stderr(), c"%s", g_st().iobuff.as_ptr(),);
+                            fprintf!(log_get_stderr(), c"%s", &g_st().iobuff,);
                             os_exit(2);
                         }
                         parmp.scriptin = Some(crate::memory::bytes_to_cstring(cur_bytes));
@@ -1641,13 +1642,15 @@ fn command_line_scan(parmp: &mut Mparm) {
                             argv_idx = -1;
                         } else {
                             if parmp.scriptout.is_some() {
-                                vim_snprintf!(
+                                format_to_buf!(
                                     &mut g_st().iobuff,
                                     gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                     prev_arg,
-                                    cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                    crate::strings::ByteSlice::from_ptr(
+                                        cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr())
+                                    ),
                                 );
-                                fprintf!(log_get_stderr(), c"%s", g_st().iobuff.as_ptr(),);
+                                fprintf!(log_get_stderr(), c"%s", &g_st().iobuff,);
                                 os_exit(2);
                             }
                             parmp.scriptout = Some(crate::memory::bytes_to_cstring(cur_bytes));
@@ -1842,7 +1845,7 @@ fn handle_quickfix(paramp: &mut Mparm) {
         if let Some(ref use_ef) = paramp.use_ef {
             set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(Some(use_ef)), 0, SID_CARG);
         }
-        vim_snprintf!(&mut g_st().iobuff, c"cfile %s", &opt_vars().p_ef);
+        format_to_buf!(&mut g_st().iobuff, c"cfile %s", &opt_vars().p_ef);
         if qf_init(
             None,
             Some(opt_vars().p_ef.as_cstr()),
@@ -1862,7 +1865,7 @@ fn handle_quickfix(paramp: &mut Mparm) {
 fn handle_tag(tagname: Option<&CStr>) {
     if let Some(tagname) = tagname {
         g_st().swap_exists_did_quit = false;
-        vim_snprintf!(&mut g_st().iobuff, c"ta %s", tagname.as_ptr());
+        format_to_buf!(&mut g_st().iobuff, c"ta %s", tagname);
         do_cmdline_cmd(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
         time_msg_if_enabled(c"jumping to tag");
 
@@ -1893,11 +1896,11 @@ fn read_stdin() {
         let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
         let mut buf = [0u8; 100];
-        vim_snprintf!(&mut buf, c"silent! buffer %d", initial_buf_handle);
+        format_to_buf!(&mut buf, c"silent! buffer %d", initial_buf_handle);
         do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
 
         if stdin_buf_empty {
-            vim_snprintf!(&mut buf, c"silent! bwipeout! %d", stdin_buf_handle);
+            format_to_buf!(&mut buf, c"silent! bwipeout! %d", stdin_buf_handle);
             do_cmdline_cmd(crate::memory::bytes_as_cstr(&buf));
         }
     } else {
@@ -2045,7 +2048,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 if i == 1 {
                     let mut buf = [0u8; 100];
                     p_shm_save = Some(opt_vars().p_shm.to_owned());
-                    vim_snprintf!(&mut buf, c"F%s", &opt_vars().p_shm);
+                    format_to_buf!(&mut buf, c"F%s", &opt_vars().p_shm);
                     set_option_value_give_err(
                         K_OPT_SHORTMESS,
                         cstr_as_obj(Some(crate::memory::bytes_as_cstr(&buf))),
@@ -2280,7 +2283,7 @@ fn do_user_initialization() -> bool {
                 )
             {
                 if os_path_exists(crate::memory::bytes_as_cstr(&init_vim)) {
-                    semsg!(E_CONFLICTING_CONFIGS, init_lua.as_ptr(), init_vim.as_ptr(),);
+                    semsg!(E_CONFLICTING_CONFIGS, &init_lua, &init_vim);
                 }
                 do_exrc = opt_vars().p_exrc;
                 return do_exrc;
@@ -2323,9 +2326,13 @@ fn do_exrc_initialization() {
     lua_getfield(lstate, LUA_GLOBALSINDEX, c"require");
     lua_pushstring(lstate, c"vim._core.exrc");
     if nlua_pcall(lstate, 1, 0) != 0 {
-        fprintf!(log_get_stderr(), c"%s\n", unsafe {
-            lua_tolstring(lstate, -1, ptr::null_mut())
-        },);
+        fprintf!(
+            log_get_stderr(),
+            c"%s\n",
+            crate::strings::ByteSlice::from_ptr(unsafe {
+                lua_tolstring(lstate, -1, ptr::null_mut())
+            }),
+        );
     }
 }
 
@@ -2334,7 +2341,7 @@ fn source_startup_scripts(parmp: &Mparm) {
         if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
             // Do nothing.
         } else if !do_source(use_vimrc.as_c_str(), false, DOSO_NONE, None) {
-            semsg!(gettext(E_CANNOT_READ_FROM_STR_2), use_vimrc.as_ptr(),);
+            semsg!(gettext(E_CANNOT_READ_FROM_STR_2), use_vimrc,);
         }
     } else if !g_st().silent_mode {
         do_system_initialization();
@@ -2375,10 +2382,10 @@ fn print_mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) {
     let stderr = log_get_stderr();
     fprintf!(stderr, c"%s: %s", prgname, gettext(msg1));
     if let Some(msg2) = msg2 {
-        fprintf!(stderr, c": \"%s\"", msg2.as_ptr());
+        fprintf!(stderr, c": \"%s\"", msg2);
     }
     if let Some(msg3) = msg3 {
-        fprintf!(stderr, c": \"%s\"", msg3.as_ptr());
+        fprintf!(stderr, c": \"%s\"", msg3);
     }
     fprintf!(stderr, gettext(c"\nMore info with \""));
     fprintf!(stderr, c"%s -h\"\n", prgname);

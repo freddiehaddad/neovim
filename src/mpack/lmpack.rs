@@ -36,7 +36,7 @@ use crate::mpack::rpc::{
     MpackRpcSession, mpack_rpc_notify, mpack_rpc_receive, mpack_rpc_reply, mpack_rpc_request,
     mpack_rpc_session_grow,
 };
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 
 const LUA_REFNIL: i32 = -1;
 
@@ -689,7 +689,7 @@ fn lmpack_unparse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 }
                 _ => {
                     let mut errmsg = [0u8; 50];
-                    vim_snprintf!(&mut errmsg, c"can't serialize object of type %d", r#type);
+                    format_to_buf!(&mut errmsg, c"can't serialize object of type %d", r#type);
                     luaL_error(l, errmsg.as_ptr().cast());
                 }
             }

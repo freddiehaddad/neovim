@@ -224,10 +224,10 @@ macro_rules! api_set_error {
         let fmt_cstr: &::std::ffi::CStr = $fmt;
         let fmt_args = [$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+];
         {
-            let len = $crate::strings::vim_snprintf_fmt(&mut [], Some(fmt_cstr), &fmt_args);
+            let len = $crate::strings::format_to_buf_fmt(&mut [], Some(fmt_cstr), &fmt_args);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0u8; bufsize];
-            $crate::strings::vim_snprintf_fmt(&mut buf, Some(fmt_cstr), &fmt_args);
+            $crate::strings::format_to_buf_fmt(&mut buf, Some(fmt_cstr), &fmt_args);
             err_ref.msg = Some($crate::memory::cstring_until_nul(&buf));
             err_ref.err_type = et;
         }
@@ -418,7 +418,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         let throw_bytes = msgs[msgs[0].throw_idx].msg.as_bytes();
         let throw_slice = &throw_bytes[msgs[0].throw_off.min(throw_bytes.len())..];
         let msg = get_error_exception_string(throw_slice, None);
-        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", msg.as_ptr());
+        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &msg);
         free_global_msglist();
     } else if g_st().did_throw || g_st().need_rethrow {
         if let Some(ref excp) = *unsafe { &(*ce) } {
@@ -428,26 +428,21 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
                         err,
                         ErrorType::ErrorTypeException,
                         c"%s, line %d: %s",
-                        excp.throw_name.as_ptr(),
+                        &excp.throw_name,
                         excp.throw_lnum,
-                        excp.value.as_ptr(),
+                        &excp.value,
                     );
                 } else {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
                         c"%s: %s",
-                        excp.throw_name.as_ptr(),
-                        excp.value.as_ptr(),
+                        &excp.throw_name,
+                        &excp.value,
                     );
                 }
             } else {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"%s",
-                    excp.value.as_ptr(),
-                );
+                api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &excp.value,);
             }
         }
         discard_current_exception();
@@ -1106,7 +1101,7 @@ pub fn object_to_hl_id(obj: Object, what: &CStr, err: &mut Error) -> i32 {
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Invalid 'hl_group': '%s'",
-                what.as_ptr(),
+                what,
             );
             0
         }

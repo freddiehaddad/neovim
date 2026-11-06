@@ -1754,13 +1754,9 @@ pub fn augroup_del(name: &CStr, id_for_error: i32, stupid_legacy_mode: bool) {
     let group = augroup_find(name);
     if group == AUGROUP_ERROR {
         if id_for_error > 0 {
-            semsg!(
-                tr(c"E367: No such group id: %d \"%s\""),
-                id_for_error,
-                name.as_ptr(),
-            );
+            semsg!(tr(c"E367: No such group id: %d \"%s\""), id_for_error, name,);
         } else {
-            semsg!(tr(c"E367: No such group: \"%s\""), name.as_ptr());
+            semsg!(tr(c"E367: No such group: \"%s\""), name);
         }
         return;
     } else if group == au_st().current_augroup {
@@ -2407,7 +2403,7 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
     }
 
     if nothing_done && do_msg && !aborting() {
-        smsg!(0, tr(c"No matching autocommands: %s"), arg_start.as_ptr());
+        smsg!(0, tr(c"No matching autocommands: %s"), arg_start);
     }
     if let Some(ref mut p) = did_something {
         **p = !nothing_done;
@@ -3164,7 +3160,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
             let name_cstr = CString::new(formatted).unwrap_or_default();
             if opt_vars().p_verbose >= 8 {
                 verbose_enter();
-                smsg!(0, tr(c"Executing %s"), name_cstr.as_ptr());
+                smsg!(0, tr(c"Executing %s"), &name_cstr);
                 verbose_leave();
             }
 
@@ -3290,7 +3286,7 @@ pub fn getnextac(_c: i32, apc: &mut AutoPatCmd, _indent: i32, _do_concat: bool) 
     if opt_vars().p_verbose >= 9 {
         verbose_enter_scroll();
         let handler_str = aucmd_handler_to_string(ac);
-        smsg!(0, tr(c"autocommand %s"), handler_str.as_ptr());
+        smsg!(0, tr(c"autocommand %s"), &handler_str);
         msg_puts(c"\n");
         verbose_leave_scroll();
     }
@@ -3662,7 +3658,7 @@ fn arg_event_skip(arg: &CStr, have_group: bool) -> Option<&CStr> {
             .get(1)
             .is_some_and(|&b| !ascii_iswhite(i32::from(b)))
         {
-            semsg!(tr(c"E215: Illegal character after *: %s"), arg.as_ptr());
+            semsg!(tr(c"E215: Illegal character after *: %s"), arg);
             return None;
         }
         Some(crate::memory::CStrSubslice::advance(arg, 1))
@@ -3673,9 +3669,15 @@ fn arg_event_skip(arg: &CStr, have_group: bool) -> Option<&CStr> {
             if (event_name2nr(&mut rem) as usize) >= NUM_EVENTS {
                 let pat = arg.as_ptr().wrapping_add(pat_offset);
                 if have_group {
-                    semsg!(tr(c"E216: No such event: %s"), pat);
+                    semsg!(
+                        tr(c"E216: No such event: %s"),
+                        crate::strings::ByteSlice::from_ptr(pat)
+                    );
                 } else {
-                    semsg!(tr(c"E216: No such group or event: %s"), pat);
+                    semsg!(
+                        tr(c"E216: No such group or event: %s"),
+                        crate::strings::ByteSlice::from_ptr(pat)
+                    );
                 }
                 return None;
             }
@@ -3715,7 +3717,7 @@ fn arg_autocmd_flag_get(flag: &mut bool, cmd_ptr: &mut &CStr, pat_slice: &[u8]) 
     {
         if *flag {
             let pat_cstr = CString::new(pat_slice).unwrap_or_default();
-            semsg!(tr(E_DUPARG2), pat_cstr.as_ptr());
+            semsg!(tr(E_DUPARG2), &pat_cstr);
             return true;
         }
         *flag = true;

@@ -49,7 +49,7 @@ use crate::optionstr::{CStrOptionSlot, OptIndex, OptKeyDict_dip, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{CFile, FileInfo, os_fileinfo, os_fileinfo_size, os_remove};
 use crate::os::shell::call_shell;
-use crate::strings::{gettext, vim_snprintf, vim_strsave_shellescape};
+use crate::strings::{format_to_buf, gettext, vim_strsave_shellescape};
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
 use crate::window::{
@@ -1126,42 +1126,42 @@ fn diff_file(dio: &mut Diffio) -> bool {
     if os_env_exists(c"DIFF_OPTIONS", true) {
         let _ = os_unsetenv(c"DIFF_OPTIONS");
     }
-    vim_snprintf!(
+    format_to_buf!(
         &mut cmd_vec,
         c"diff %s%s%s%s%s%s%s%s %s",
-        if diff_st().diff_a_works == K_FALSE {
+        crate::strings::ByteSlice::from_ptr(if diff_st().diff_a_works == K_FALSE {
             c"".as_ptr()
         } else {
             c"-a ".as_ptr()
-        },
+        }),
         c"",
-        if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
+        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
             c"-b ".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
+        }),
+        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
             c"-w ".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
+        }),
+        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
             c"-Z ".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
+        }),
+        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
             c"-B ".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        if (diff_st().diff_flags & DIFF_ICASE) != 0 {
+        }),
+        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_ICASE) != 0 {
             c"-i ".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        tmp_orig,
-        tmp_new,
+        }),
+        crate::strings::ByteSlice::from_ptr(tmp_orig),
+        crate::strings::ByteSlice::from_ptr(tmp_new),
     );
     append_redir(
         &mut cmd_vec,
@@ -1250,12 +1250,12 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             #[cfg(not(unix))]
             eval_patch(tmp_orig.as_cstr(), eap.arg.as_cstr(), tmp_new.as_cstr());
         } else {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut buf_vec,
                 c"patch -o %s %s < %s",
                 tmp_new,
                 tmp_orig,
-                esc_ptr,
+                crate::strings::ByteSlice::from_ptr(esc_ptr),
             );
             crate::autocmd::block_autocmds();
             call_shell(buf.as_opt_cstr(), K_SHELL_OPT_FILTER, None);
@@ -3039,7 +3039,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
     if count == 0 {
         ea.arg = crate::strings::ByteSlice::from_cstr(c"");
     } else {
-        vim_snprintf!(&mut buf, c"%zu", count);
+        format_to_buf!(&mut buf, c"%zu", count);
         ea.arg = crate::strings::ByteSlice::from_bytes(&buf);
     }
     ea.cmdidx = if put {

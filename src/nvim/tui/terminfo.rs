@@ -1,7 +1,7 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
 use crate::charset::kv_transstr;
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use crate::tui::termkey::driver_ti::{
     K_TERM_COUNT, K_TERM_KEY_COUNT, K_TERMINFO_FUNC_KEY_MAX, TerminfoEntry,
 };
@@ -2890,7 +2890,7 @@ fn onum(out_buf: &mut [u8], out_pos: &mut usize, fmt: &[u8], num: i32, mut len: 
     if out_buf.len().saturating_sub(*out_pos) < len + 2 {
         return false;
     }
-    let l = vim_snprintf!(
+    let l = format_to_buf!(
         &mut out_buf[*out_pos..*out_pos + len + 2],
         crate::memory::bytes_as_cstr(fmt),
         num
@@ -3053,7 +3053,7 @@ pub fn terminfo_fmt(out_buf: &mut [u8], mut str_: &[u8], params: &mut [TPVAR; 9]
                         return 0;
                     }
                     let s_cstr = CStr::from_bytes_until_nul(s_arr).unwrap_or(c"");
-                    let r = vim_snprintf!(
+                    let r = format_to_buf!(
                         &mut out_buf[out_pos..out_pos + l + 1],
                         crate::memory::bytes_as_cstr(&fmt),
                         s_cstr

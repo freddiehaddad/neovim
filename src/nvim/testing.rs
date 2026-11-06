@@ -23,7 +23,7 @@ use crate::message::{emsg, msg_reset_scroll};
 use crate::os::fs::CFile;
 use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+use crate::strings::{format_to_buf, format_to_buf_safelen};
 use crate::viml::parser::expressions::{BS, CAR, ESC, NL, TAB};
 use std::ffi::CStr;
 
@@ -419,10 +419,10 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
             }
         } else {
             drop(fd1);
-            iobuflen = vim_snprintf_safelen!(&mut iobuf[..], E_CANT_READ_FILE_STR, fname2);
+            iobuflen = format_to_buf_safelen!(&mut iobuf[..], E_CANT_READ_FILE_STR, fname2);
         }
     } else {
-        iobuflen = vim_snprintf_safelen!(&mut iobuf[..], E_CANT_READ_FILE_STR, fname1);
+        iobuflen = format_to_buf_safelen!(&mut iobuf[..], E_CANT_READ_FILE_STR, fname1);
     }
 
     if iobuflen > 0 {
@@ -754,7 +754,7 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             let mut expected_str = [0u8; 200];
-            vim_snprintf!(&mut expected_str[..], c"range %g - %g,", flower, fupper,);
+            format_to_buf!(&mut expected_str[..], c"range %g - %g,", flower, fupper,);
             let (first, rest) = argvars.split_at_mut(3);
             fill_assert_error(
                 &mut ga,

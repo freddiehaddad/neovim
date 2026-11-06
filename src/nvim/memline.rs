@@ -917,7 +917,7 @@ pub fn ml_recover(checkext: bool) {
     buf.b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
     let mfp_opt = buf.b_ml.mfp_opt();
     if mfp_opt.as_ref().is_none_or(|m| m.mf_fd < 0) {
-        semsg!(tr(c"E306: Cannot open %s"), fname_used.as_ptr());
+        semsg!(tr(c"E306: Cannot open %s"), &fname_used);
 
         ml_recover_theend(
             buf.b_ml.mfp_opt(),
@@ -2120,7 +2120,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
                     buf.b_fnum,
-                    g_st().name_buff.as_ptr(),
+                    &g_st().name_buff,
                 );
                 ml_st().ml_get_recursive -= 1;
             }
@@ -3648,7 +3648,7 @@ fn findswapname(
             semsg!(
                 tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
                 failed_dir.as_deref().unwrap_or(c""),
-                unsafe { uv_strerror(ret) },
+                uv_strerror(ret),
             );
         }
     }

@@ -53,7 +53,7 @@ use crate::optionstr::{
 use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
 use crate::sign::describe_sign_text;
-use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen};
+use crate::strings::{format_to_buf, format_to_buf_safelen, tr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::buf_is_changed_fn;
 use crate::window::{WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height};
@@ -1070,7 +1070,7 @@ pub fn draw_tabline() {
 
             if modified || wincount > 1 {
                 if wincount > 1 {
-                    let len = vim_snprintf!(g_st().name_buff_bytes_mut(), c"%d", wincount);
+                    let len = format_to_buf!(g_st().name_buff_bytes_mut(), c"%d", wincount);
                     if col + len >= g_st().columns_global - 3 {
                         break;
                     }
@@ -2022,12 +2022,12 @@ pub extern "C" fn build_stl_str_hl(
 
                     out_p = t;
 
-                    vim_snprintf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum);
+                    format_to_buf!(&mut buf_tmp[..], c"%d", curbuf_mut().b_fnum);
                     set_internal_string_var(
                         c"g:actual_curbuf",
                         crate::memory::bytes_as_cstr(&buf_tmp),
                     );
-                    vim_snprintf!(&mut buf_tmp[..], c"%d", curwin_mut().handle);
+                    format_to_buf!(&mut buf_tmp[..], c"%d", curwin_mut().handle);
                     set_internal_string_var(
                         c"g:actual_curwin",
                         crate::memory::bytes_as_cstr(&buf_tmp),
@@ -2253,7 +2253,7 @@ pub extern "C" fn build_stl_str_hl(
             STL_FILETYPE => {
                 let ft = (*wp).buf_mut().b_p_ft.as_cstr();
                 if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 3 {
-                    vim_snprintf!(&mut buf_tmp[..], c"[%s]", ft);
+                    format_to_buf!(&mut buf_tmp[..], c"[%s]", ft);
                     str = buf_tmp.as_mut_ptr();
                 }
             }
@@ -2261,7 +2261,7 @@ pub extern "C" fn build_stl_str_hl(
                 itemisflag = true;
                 let ft = (*wp).buf_mut().b_p_ft.as_cstr();
                 if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 2 {
-                    vim_snprintf!(&mut buf_tmp[..], c",%s", ft);
+                    format_to_buf!(&mut buf_tmp[..], c",%s", ft);
                     for b in &mut buf_tmp {
                         if *b == 0 {
                             break;
@@ -2584,7 +2584,7 @@ pub extern "C" fn build_stl_str_hl(
                 nstr[t_idx + 2] = base_ch;
                 nstr[t_idx + 3] = 0;
 
-                let written = vim_snprintf_safelen!(
+                let written = format_to_buf_safelen!(
                     &mut out.as_mut_slice()[out_offset..out_offset + remaining_buf_len],
                     crate::memory::bytes_as_cstr(&nstr),
                     0_i32,
@@ -2593,7 +2593,7 @@ pub extern "C" fn build_stl_str_hl(
                 );
                 out_p = out_p.wrapping_add(written);
             } else {
-                let written = vim_snprintf_safelen!(
+                let written = format_to_buf_safelen!(
                     &mut out.as_mut_slice()[out_offset..out_offset + remaining_buf_len],
                     crate::memory::bytes_as_cstr(&nstr),
                     minwid,

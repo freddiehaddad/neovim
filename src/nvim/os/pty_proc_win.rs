@@ -321,8 +321,8 @@ mod win_impl {
                     line!() as i32,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",
-                    hdr.argv.as_slice()[0].as_ptr(),
-                    emsg.map_or(ptr::null(), CStr::as_ptr),
+                    crate::strings::ByteSlice::from_ptr(hdr.argv.as_slice()[0].as_ptr()),
+                    crate::strings::ByteSlice::from_ptr(emsg.map_or(ptr::null(), CStr::as_ptr)),
                     status,
                 );
                 status = uv_translate_sys_error(status);

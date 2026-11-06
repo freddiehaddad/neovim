@@ -373,7 +373,7 @@ pub fn rpc_send_call(
                 ErrorType::ErrorTypeException,
                 c"Request timed out after %d ms: %s",
                 timeout,
-                method_name.as_ptr(),
+                method_name,
             );
         }
 
@@ -694,7 +694,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     }
 
     if err != 0 {
-        let err_str = crate::strings::ByteSlice::from_ptr(unsafe { uv_strerror(err) })
+        let err_str = crate::strings::ByteSlice::from_ptr(uv_strerror(err))
             .as_cstr()
             .to_string_lossy();
         let msg = format!(

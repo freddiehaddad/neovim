@@ -39,7 +39,7 @@ use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
 use crate::search::{FORWARD, linewhite};
 use crate::statusline::Foldinfo;
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::WinInfoInfo;
@@ -1529,7 +1529,7 @@ pub fn get_foldtext(
     text.unwrap_or_else(|| {
         let mut buf = [0u8; FOLD_TEXT_LEN];
         let count = lnume - lnum + 1;
-        vim_snprintf!(
+        format_to_buf!(
             &mut buf,
             ngettext(c"+--%3d line folded", c"+--%3d lines folded ", count as u64),
             count,
@@ -2556,7 +2556,7 @@ fn put_folds_recurse(fd: &CFile, gap: &[FoldEntry], off: Linenr) -> bool {
             return false;
         }
         let mut buf = [0u8; 64];
-        vim_snprintf!(
+        format_to_buf!(
             &mut buf,
             c"sil! %lld,%lldfold",
             i64::from(fp.fd_top + off),
@@ -2574,7 +2574,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
         if fp.fd_flags != FD_LEVEL {
             if !fp.fd_nested.is_empty() {
                 let mut buf = [0u8; 32];
-                vim_snprintf!(&mut buf, c"%lld", i64::from(fp.fd_top + off));
+                format_to_buf!(&mut buf, c"%lld", i64::from(fp.fd_top + off));
                 if fd.puts(crate::memory::bytes_as_cstr(&buf)) < 0
                     || !put_eol(fd)
                     || !put_line(fd, c"sil! normal! zo")
@@ -2604,7 +2604,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
 
 fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     let mut buf = [0u8; 32];
-    vim_snprintf!(&mut buf, c"%d", fp.fd_top + off);
+    format_to_buf!(&mut buf, c"%d", fp.fd_top + off);
     if fd.puts(crate::memory::bytes_as_cstr(&buf)) < 0 || !put_eol(fd) {
         return false;
     }
@@ -2695,7 +2695,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let s_len = s_bytes.len() - 1;
         let len = txt.to_bytes().len() + dashes.to_bytes().len() + 20 + s_len;
         let mut r_vec = vec![0u8; len];
-        vim_snprintf!(&mut r_vec, txt, dashes, count);
+        format_to_buf!(&mut r_vec, txt, dashes, count);
         let r_len = crate::memory::bytes_until_nul(&r_vec).len();
         r_vec[r_len..r_len + s_bytes.len()].copy_from_slice(s_bytes);
         foldtext_cleanup(&mut r_vec[r_len..]);

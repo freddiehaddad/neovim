@@ -23,7 +23,7 @@ use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc};
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use std::ffi::c_void;
 use std::ptr;
 
@@ -769,7 +769,7 @@ fn load_language_from_object(
     }
 
     let mut symbol_buf = [0u8; 128];
-    vim_snprintf!(&mut symbol_buf, c"tree_sitter_%s", symbol.as_ptr());
+    format_to_buf!(&mut symbol_buf, c"tree_sitter_%s", symbol);
 
     let mut fn_ptr: *mut c_void = ptr::null_mut();
     if unsafe { uv_dlsym(&mut lib, symbol_buf.as_ptr().cast(), &mut fn_ptr) } != 0 {
@@ -900,7 +900,11 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(lstate: *mut lua_State) -> i32 {
                 lua_pushboolean(lstate, i32::from(named));
                 if !named {
                     let mut buf = [0u8; 256];
-                    vim_snprintf!(&mut buf, c"\"%s\"", name);
+                    format_to_buf!(
+                        &mut buf,
+                        c"\"%s\"",
+                        crate::strings::ByteSlice::from_ptr(name)
+                    );
                     lua_setfield(
                         lstate,
                         -2,

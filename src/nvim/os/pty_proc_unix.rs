@@ -357,7 +357,7 @@ mod unix_impl {
                             line!() as i32,
                             true,
                             c"chdir(%s) failed: %s",
-                            cwd.as_ptr(),
+                            cwd,
                             uv_strerror(err),
                         );
                         _exit(122);
@@ -374,7 +374,7 @@ mod unix_impl {
                     line!() as i32,
                     true,
                     c"execvp(%s) failed: %s",
-                    prog.as_ptr(),
+                    prog,
                     strerror(err),
                 );
                 _exit(122);

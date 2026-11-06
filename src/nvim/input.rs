@@ -73,7 +73,7 @@ use crate::state::{
     MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
     state_no_longer_safe,
 };
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
@@ -364,7 +364,7 @@ fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<u8>, replay: bool) {
     }
     if spec.count != 0 {
         let mut numbuf = [0u8; 32];
-        let n = vim_snprintf!(&mut numbuf, c"%d", spec.count as i32);
+        let n = format_to_buf!(&mut numbuf, c"%d", spec.count as i32);
         if n > 0 {
             buf.extend_from_slice(&numbuf[..n as usize]);
         }
@@ -429,7 +429,7 @@ fn add_buff(buf: &mut StuffBuf, slice: &[u8]) {
 
 fn add_num_buff(buf: &mut StuffBuf, n: i32) {
     let mut number = [0u8; 32];
-    let numberlen = vim_snprintf!(&mut number, c"%d", n) as usize;
+    let numberlen = format_to_buf!(&mut number, c"%d", n) as usize;
     add_buff(&mut *buf, &number[..numberlen]);
 }
 
@@ -1302,9 +1302,7 @@ pub fn openscript(name: &CStr, directly: bool) {
             0,
         );
         if error != 0 {
-            semsg!(gettext(E_NOTOPEN_2), name_ptr, unsafe {
-                uv_strerror(error)
-            },);
+            semsg!(gettext(E_NOTOPEN_2), name_ptr, uv_strerror(error),);
             inp_st().curscript -= 1;
             return;
         }
@@ -1375,11 +1373,11 @@ pub fn open_scriptin(scriptin_name: &CStr) -> bool {
     };
     if error != 0 {
         let mut errbuf = [0u8; 1024];
-        let n = vim_snprintf!(
+        let n = format_to_buf!(
             &mut errbuf,
             gettext(c"Cannot open for reading: \"%s\": %s\n"),
-            scriptin_name.as_ptr(),
-            unsafe { uv_strerror(error) },
+            scriptin_name,
+            uv_strerror(error),
         );
         if n > 0 {
             let slice = &errbuf[..(n as usize).min(errbuf.len() - 1)];

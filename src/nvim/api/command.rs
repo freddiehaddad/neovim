@@ -645,7 +645,7 @@ pub fn nvim_cmd(
         }
 
         let cmdname = arena_string(arena, cmd.cmd).data;
-        ea.cmd = crate::strings::ByteSlice::from_ptr(cmdname.as_ptr());
+        ea.cmd = cmdname;
 
         let mut p_opt = find_ex_command(&mut ea, None);
 

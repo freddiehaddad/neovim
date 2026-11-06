@@ -17,7 +17,7 @@ use crate::keycodes::get_special_key_name;
 use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use crate::ui::ui_flush;
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
@@ -340,12 +340,7 @@ pub fn may_trigger_modechanged() {
     tv_dict_add_str(&mut *v_event, c"old_mode", Some(old_cstr));
     tv_dict_set_keys_readonly(&mut *v_event);
 
-    vim_snprintf!(
-        &mut pattern_buf[..],
-        c"%s:%s",
-        old_cstr.as_ptr(),
-        curr_cstr.as_ptr(),
-    );
+    format_to_buf!(&mut pattern_buf[..], c"%s:%s", old_cstr, curr_cstr,);
 
     apply_autocmds(
         EVENT_MODECHANGED,
@@ -384,7 +379,7 @@ pub fn may_trigger_safestate(safe: bool) {
             307,
             true,
             c"%s",
-            msg.as_ptr(),
+            msg,
         );
     }
     if is_safe {
@@ -405,7 +400,7 @@ pub fn state_no_longer_safe(reason: Option<&CStr>) {
             320,
             true,
             c"SafeState reset: %s",
-            reason.as_ptr(),
+            reason,
         );
     }
     state_mod_st().was_safe = false;

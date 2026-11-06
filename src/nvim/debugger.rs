@@ -168,9 +168,9 @@ fn do_showbacktrace(cmd: &CStr) {
             }
             let cur_cstr = CStr::from_bytes_until_nul(&sname_vec[start..]).unwrap_or(c"");
             if i == max - g_st().debug_backtrace_level {
-                smsg!(0, c"->%d %s", max - i, cur_cstr.as_ptr());
+                smsg!(0, c"->%d %s", max - i, cur_cstr);
             } else {
-                smsg!(0, c"  %d %s", max - i, cur_cstr.as_ptr());
+                smsg!(0, c"  %d %s", max - i, cur_cstr);
             }
             i += 1;
             if let Some(off) = next_off {
@@ -184,9 +184,9 @@ fn do_showbacktrace(cmd: &CStr) {
 
     let slnum = sourcing_lnum();
     if slnum != 0 {
-        smsg!(0, c"line %ld: %s", i64::from(slnum), cmd.as_ptr());
+        smsg!(0, c"line %ld: %s", i64::from(slnum), cmd);
     } else {
-        smsg!(0, c"cmd: %s", cmd.as_ptr());
+        smsg!(0, c"cmd: %s", cmd);
     }
 }
 
@@ -220,19 +220,19 @@ pub fn do_debug(cmd: &CStr) {
             msg(c"Entering Debug mode.  Type \"cont\" to continue.", 0);
         }
         if let Some(oldval) = dbg_st().debug_oldval.take() {
-            smsg!(0, c"Oldval = \"%s\"", oldval.as_ptr());
+            smsg!(0, c"Oldval = \"%s\"", &oldval);
         }
         if let Some(newval) = dbg_st().debug_newval.take() {
-            smsg!(0, c"Newval = \"%s\"", newval.as_ptr());
+            smsg!(0, c"Newval = \"%s\"", &newval);
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {
             msg(&sname, 0);
         }
         let slnum = sourcing_lnum();
         if slnum != 0 {
-            smsg!(0, c"line %ld: %s", i64::from(slnum), cmd.as_ptr());
+            smsg!(0, c"line %ld: %s", i64::from(slnum), cmd);
         } else {
-            smsg!(0, c"cmd: %s", cmd.as_ptr());
+            smsg!(0, c"cmd: %s", cmd);
         }
 
         loop {
@@ -431,7 +431,7 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
                 0,
                 c"Breakpoint in \"%s%s\" line %ld",
                 prefix,
-                rest,
+                crate::strings::ByteSlice::from_ptr(rest),
                 i64::from(lnum)
             );
             do_debug(eap.cmd.as_cstr());
@@ -686,12 +686,12 @@ pub fn ex_breaklist(_eap: &mut Exarg) {
                 0,
                 c"%3d  %s %s  line %ld",
                 bp.dbg_nr,
-                kind,
-                name,
+                crate::strings::ByteSlice::from_ptr(kind),
+                crate::strings::ByteSlice::from_ptr(name),
                 i64::from(lnum)
             );
         } else {
-            smsg!(0, c"%3d  expr %s", bp.dbg_nr, bp.dbg_name.as_ptr());
+            smsg!(0, c"%3d  expr %s", bp.dbg_nr, &bp.dbg_name);
         }
     }
 }

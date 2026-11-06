@@ -499,7 +499,7 @@ pub fn os_set_errno(val: i32) {
 pub fn os_chdir(path: &CStr) -> i32 {
     if opt_vars().p_verbose >= 5 {
         verbose_enter();
-        let _ = smsg!(0, c"chdir(%s)", path.as_ptr());
+        let _ = smsg!(0, c"chdir(%s)", path);
         verbose_leave();
     }
     let err = unsafe { uv_chdir(path.as_ptr()) };
@@ -516,7 +516,7 @@ pub fn os_dirname(buf: &mut [u8]) -> bool {
     if error_number != 0 {
         crate::memory::copy_bytes_to_c_buf(
             buf,
-            crate::strings::ByteSlice::from_ptr(unsafe { uv_strerror(error_number) }).as_bytes(),
+            crate::strings::ByteSlice::from_ptr(uv_strerror(error_number)).as_bytes(),
         );
         return false;
     }
@@ -1722,8 +1722,10 @@ pub fn os_file_mkdir(fname_in: &CStr, mode: i32) -> i32 {
         if r < 0 {
             let _ = semsg!(
                 gettext(E_MKDIR),
-                failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                unsafe { uv_strerror(r) },
+                crate::strings::ByteSlice::from_ptr(
+                    failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr())
+                ),
+                uv_strerror(r),
             );
         }
         fname_vec[tail_off] = c;

@@ -38,7 +38,7 @@ use crate::event::r#loop::loop_queues;
 use crate::ex_docmd::{
     Exarg, check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, set_ref_in_findfunc,
 };
-use crate::strings::{concat_str, gettext, vim_snprintf, vim_strchr};
+use crate::strings::{concat_str, format_to_buf, gettext, vim_strchr};
 pub mod buffer;
 pub mod decode;
 pub mod deprecated;
@@ -495,7 +495,7 @@ fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> b
         && g_st().did_emsg == did_emsg_before
         && g_st().called_emsg == called_emsg_before
     {
-        semsg!(gettext(E_INVEXPR2), start.as_ptr());
+        semsg!(gettext(E_INVEXPR2), start);
     }
     ret
 }
@@ -1082,7 +1082,7 @@ fn get_lval_dict_item<'a>(
             || get_funccal_args_ht()
                 .is_some_and(|aht| ptr::eq(&raw mut lp.ll_dict.borrow_mut().dv_hashtab, aht))
         {
-            semsg!(gettext(E_ILLVAR), name.as_ptr());
+            semsg!(gettext(E_ILLVAR), name);
             return GLV_FAIL;
         }
 
@@ -1221,10 +1221,7 @@ fn get_lval_subscript<'a>(
         }
         if p0 == b'.' && lp.tv_mut().v_type != VarType::VarDict {
             if !quiet {
-                semsg!(
-                    gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR),
-                    name.as_ptr(),
-                );
+                semsg!(gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR), name,);
             }
             return None;
         }
@@ -1435,7 +1432,7 @@ pub fn get_lval<'a>(
             lp.ll_name = None;
             if !aborting() && !quiet {
                 g_st().emsg_severe = true;
-                semsg!(gettext(E_INVARG2), name_in.as_ptr());
+                semsg!(gettext(E_INVARG2), name_in);
                 return None;
             }
             lp.ll_name_len = 0;
@@ -1466,7 +1463,7 @@ pub fn get_lval<'a>(
         semsg!(
             gettext(c"E121: Undefined variable: %.*s"),
             lp.ll_name_len as i32,
-            ll_name.as_ptr(),
+            ll_name,
         );
     }
     let v = v?;
@@ -1615,7 +1612,7 @@ pub fn set_var_lval(
         if let Some(ref newkey) = lp.ll_newkey {
             let newkey_cstr = newkey.as_c_str();
             if !op.is_null() && op.first_byte() != b'=' {
-                semsg!(gettext(E_DICTKEY), newkey_cstr.as_ptr());
+                semsg!(gettext(E_DICTKEY), newkey_cstr);
                 return;
             }
             if tv_dict_wrong_func_name(lp.tv_mut().vval.v_dict().borrow_mut(), rettv, newkey_cstr)
@@ -2054,9 +2051,9 @@ pub fn eval0(
             && g_st().called_emsg == called_emsg_before
         {
             if end_error {
-                semsg!(gettext(E_TRAILING_ARG), p.as_ptr());
+                semsg!(gettext(E_TRAILING_ARG), p);
             } else {
-                semsg!(gettext(E_INVEXPR2), arg.as_ptr());
+                semsg!(gettext(E_INVEXPR2), arg);
             }
         }
 
@@ -2776,7 +2773,7 @@ fn eval7(
         unsafe { std::slice::from_raw_parts((start_leader).cast::<u8>(), leader_len) };
 
     if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
-        semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), arg.as_ptr());
+        semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), *arg);
         return false;
     }
     eval_st().eval7_recurse += 1;
@@ -2828,7 +2825,7 @@ fn eval7(
                 if arg.to_bytes().is_empty() {
                     emsg(gettext(E_MISSING_CLOSING_PAREN));
                 } else {
-                    semsg!(gettext(E_MISSING_CLOSING_PAREN_STR), arg.as_ptr());
+                    semsg!(gettext(E_MISSING_CLOSING_PAREN_STR), *arg);
                 }
                 tv_clear(rettv);
                 ok = false;
@@ -3130,7 +3127,7 @@ fn eval_method<'a>(
             if lua_funcname.is_none() {
                 emsg(gettext(c"E260: Missing name after ->"));
             } else {
-                semsg!(gettext(E_INVEXPR2), name.as_ptr());
+                semsg!(gettext(E_INVEXPR2), name);
             }
         }
         ret = false;
@@ -3158,7 +3155,7 @@ fn eval_method<'a>(
                 *arg = crate::memory::CStrSubslice::advance(*arg, consumed);
                 if !crate::charset::skipwhite_slice(expr_cursor.to_bytes()).is_empty() {
                     if verbose {
-                        semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());
+                        semsg!(gettext(E_TRAILING_ARG), *arg);
                     }
                     ret = false;
                 } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string().is_null() {
@@ -3182,7 +3179,7 @@ fn eval_method<'a>(
                     }
                 } else {
                     if verbose {
-                        semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), expr_cstr.as_ptr());
+                        semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), &expr_cstr);
                     }
                     ret = false;
                 }
@@ -3193,7 +3190,7 @@ fn eval_method<'a>(
         if ret {
             if arg.to_bytes_with_nul()[0] != b'(' {
                 if verbose {
-                    semsg!(gettext(E_MISSINGPAREN), name.as_ptr());
+                    semsg!(gettext(E_MISSINGPAREN), name);
                 }
                 ret = false;
             } else if ascii_iswhite(i32::from(unsafe { *arg.as_ptr().wrapping_sub(1) } as u8)) {
@@ -3543,7 +3540,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
 
     let Some(option_end) = option_end_opt else {
         if rettv.is_some() {
-            semsg!(gettext(c"E112: Option name missing: %s"), cur_arg.as_ptr());
+            semsg!(gettext(c"E112: Option name missing: %s"), cur_arg);
         }
         return false;
     };
@@ -3562,7 +3559,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
     if opt_idx == K_OPT_INVALID && !is_tty_opt {
         if rettv.is_some() {
             let opt_cstr = bytes_to_cstring(opt_bytes);
-            semsg!(gettext(c"E113: Unknown option: %s"), opt_cstr.as_ptr());
+            semsg!(gettext(c"E113: Unknown option: %s"), &opt_cstr);
         }
 
         ret = false;
@@ -3714,7 +3711,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
             }
             p = p.wrapping_add(1);
             if unsafe { *p.wrapping_sub(1) } == b'}' && unsafe { *p } != b'}' {
-                semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), arg.as_ptr());
+                semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                 return false;
             }
             extra -= 1;
@@ -3723,7 +3720,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
     }
 
     if unsafe { *p } != b'"' && !(interpolate && unsafe { *p } == b'{') {
-        semsg!(gettext(c"E114: Missing quote: %s"), arg.as_ptr());
+        semsg!(gettext(c"E114: Missing quote: %s"), *arg);
         return false;
     }
 
@@ -3869,7 +3866,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
             } else if unsafe { *p } == b'}' {
                 p = p.wrapping_add(1);
                 if unsafe { *p } != b'}' {
-                    semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), arg.as_ptr());
+                    semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;
                 }
                 reduce += 1;
@@ -3879,7 +3876,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
     }
 
     if unsafe { *p } != b'\'' && !(interpolate && unsafe { *p } == b'{') {
-        semsg!(gettext(c"E115: Missing quote: %s"), arg.as_ptr());
+        semsg!(gettext(c"E115: Missing quote: %s"), *arg);
         return false;
     }
 
@@ -4031,7 +4028,7 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
         }
 
         if !had_comma {
-            semsg!(gettext(c"E696: Missing comma in List: %s"), arg.as_ptr());
+            semsg!(gettext(c"E696: Missing comma in List: %s"), *arg);
             if evaluate {
                 tv_list_free(l.opt_mut());
             }
@@ -4040,7 +4037,7 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
     }
 
     if arg.to_bytes_with_nul()[0] != b']' {
-        semsg!(gettext(E_LIST_END), arg.as_ptr());
+        semsg!(gettext(E_LIST_END), *arg);
         if evaluate {
             tv_list_free(l.opt_mut());
         }
@@ -4534,10 +4531,7 @@ fn eval_dict(
             return Some(false);
         }
         if arg.to_bytes_with_nul()[0] != b':' {
-            semsg!(
-                gettext(c"E720: Missing colon in Dictionary: %s"),
-                arg.as_ptr(),
-            );
+            semsg!(gettext(c"E720: Missing colon in Dictionary: %s"), *arg,);
             tv_clear(&mut tvkey);
             if let Some(d_ref) = d.opt_mut() {
                 tv_dict_free(d_ref);
@@ -4566,7 +4560,10 @@ fn eval_dict(
         if evaluate {
             let key_cstr = crate::strings::ByteSlice::from_ptr(key).as_cstr();
             if tv_dict_find(d.opt(), key_cstr, -1).is_some() {
-                semsg!(gettext(c"E721: Duplicate key in Dictionary: \"%s\""), key,);
+                semsg!(
+                    gettext(c"E721: Duplicate key in Dictionary: \"%s\""),
+                    crate::strings::ByteSlice::from_ptr(key),
+                );
                 tv_clear(&mut tvkey);
                 tv_clear(&mut tv);
                 if let Some(d_ref) = d.opt_mut() {
@@ -4592,10 +4589,7 @@ fn eval_dict(
             break;
         }
         if !had_comma {
-            semsg!(
-                gettext(c"E722: Missing comma in Dictionary: %s"),
-                arg.as_ptr(),
-            );
+            semsg!(gettext(c"E722: Missing comma in Dictionary: %s"), *arg,);
             if let Some(d_ref) = d.opt_mut() {
                 tv_dict_free(d_ref);
             }
@@ -4604,7 +4598,7 @@ fn eval_dict(
     }
 
     if arg.to_bytes_with_nul()[0] != b'}' {
-        semsg!(gettext(E_723_END), arg.as_ptr(),);
+        semsg!(gettext(E_723_END), *arg,);
         if let Some(d_ref) = d.opt_mut() {
             tv_dict_free(d_ref);
         }
@@ -4725,8 +4719,8 @@ pub fn tv_to_argv(
     if !os_can_exe(arg0, Some(&mut exe_resolved), true) {
         if let Some(executable) = executable {
             let mut buf = [0u8; IOSIZE];
-            vim_snprintf!(&mut buf, c"'%s' is not executable", arg0);
-            semsg!(gettext(E_INVARG_NVAL), c"cmd", buf.as_ptr(),);
+            format_to_buf!(&mut buf, c"'%s' is not executable", arg0);
+            semsg!(gettext(E_INVARG_NVAL), c"cmd", &buf,);
             *executable = false;
         }
         return Vec::new();
@@ -4787,7 +4781,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
     if opt_vars().p_verbose > 3 {
         let cmdstr = shell_argv_to_str(&argv);
         verbose_enter_scroll();
-        smsg!(0, gettext(c"Executing command: \"%s\""), cmdstr.as_ptr());
+        smsg!(0, gettext(c"Executing command: \"%s\""), &cmdstr);
         msg_puts(c"\n\n");
         verbose_leave_scroll();
     }
@@ -5691,7 +5685,7 @@ pub fn get_name_len(
 
     len += get_id_len(arg);
     if len == 0 && verbose && !arg.to_bytes().is_empty() {
-        semsg!(gettext(E_INVEXPR2), arg.as_ptr());
+        semsg!(gettext(E_INVEXPR2), *arg);
     }
 
     len
@@ -6215,7 +6209,7 @@ pub fn ex_echo(eap: &mut Exarg) {
                     && g_st().did_emsg == did_emsg_before
                     && g_st().called_emsg == called_emsg_before
                 {
-                    semsg!(gettext(E_INVEXPR2), p.as_ptr());
+                    semsg!(gettext(E_INVEXPR2), p);
                 }
                 g_st().need_clr_eos = false;
                 break;
@@ -6603,7 +6597,7 @@ pub fn eval_call_provider(
     if !eval_has_provider(provider.to_bytes(), false) {
         semsg!(
             c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"",
-            provider.as_ptr(),
+            provider,
         );
         return TypVal {
             v_type: VarType::VarNumber,
@@ -6613,7 +6607,7 @@ pub fn eval_call_provider(
     }
 
     let mut func = [0u8; 256];
-    let name_len = vim_snprintf!(&mut func, c"provider#%s#Call", provider.as_ptr());
+    let name_len = format_to_buf!(&mut func, c"provider#%s#Call", provider);
 
     let new_scope = CallerScope {
         script_ctx: g_st().current_sctx,
@@ -6717,7 +6711,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
 
     let mut buf = [0u8; 256];
     let mut tv = tv_initial_value();
-    let mut len = vim_snprintf!(&mut buf, c"g:loaded_%s_provider", name.as_ptr());
+    let mut len = format_to_buf!(&mut buf, c"g:loaded_%s_provider", &name);
     if !eval_variable(
         crate::memory::bytes_as_cstr(&buf),
         len,
@@ -6726,10 +6720,10 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
         false,
         true,
     ) {
-        len = vim_snprintf!(&mut buf, c"provider#%s#bogus", name.as_ptr());
+        len = format_to_buf!(&mut buf, c"provider#%s#bogus", &name);
         script_autoload(&buf[..len as usize], false);
 
-        len = vim_snprintf!(&mut buf, c"g:loaded_%s_provider", name.as_ptr());
+        len = format_to_buf!(&mut buf, c"g:loaded_%s_provider", &name);
         if !eval_variable(
             crate::memory::bytes_as_cstr(&buf),
             len,
@@ -6738,12 +6732,12 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
             false,
             true,
         ) {
-            vim_snprintf!(&mut buf, c"provider#%s#Call", name.as_ptr());
+            format_to_buf!(&mut buf, c"provider#%s#Call", &name);
             if find_func(Some(crate::memory::bytes_as_cstr(&buf))).is_some() && opt_vars().p_lpl {
                 semsg!(
                     c"provider: %s: missing required variable g:loaded_%s_provider",
-                    name.as_ptr(),
-                    name.as_ptr(),
+                    &name,
+                    &name,
                 );
             }
             return false;
@@ -6753,13 +6747,13 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
     let mut ok = tv.v_type == VarType::VarNumber && tv.vval.v_number() == 2;
 
     if ok {
-        vim_snprintf!(&mut buf, c"provider#%s#Call", name.as_ptr());
+        format_to_buf!(&mut buf, c"provider#%s#Call", &name);
         if find_func(Some(crate::memory::bytes_as_cstr(&buf))).is_none() {
             semsg!(
                 c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",
-                name.as_ptr(),
-                name.as_ptr(),
-                buf.as_ptr(),
+                &name,
+                &name,
+                &buf,
             );
             ok = false;
         }

@@ -137,13 +137,9 @@ pub fn ex_help(eap: &mut Exarg) {
     }
     if i >= matches.len() || !found_tags {
         if let Some(ref lang_cstr) = lang {
-            semsg!(
-                gettext(c"E661: No '%s' help for %s"),
-                lang_cstr.as_ptr(),
-                arg_cstr.as_ptr()
-            );
+            semsg!(gettext(c"E661: No '%s' help for %s"), lang_cstr, arg_cstr);
         } else {
-            semsg!(gettext(c"E149: No help for %s"), arg_cstr.as_ptr());
+            semsg!(gettext(c"E149: No help for %s"), arg_cstr);
         }
         return;
     }

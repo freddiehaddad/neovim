@@ -96,7 +96,7 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    gettext, sort_strings, strcase_save, vim_snprintf, vim_strchr, vim_strsave_escaped,
+    format_to_buf, gettext, sort_strings, strcase_save, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{
     get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
@@ -2542,13 +2542,13 @@ fn expand_one_start(
         xp.xp_numfiles = 0;
         #[cfg(windows)]
         if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
-            semsg!(gettext(E_NOMATCH2), str_arg.as_ptr());
+            semsg!(gettext(E_NOMATCH2), str_arg);
         }
     } else {
         xp.xp_numfiles = xp.xp_files.len() as i32;
         if xp.xp_numfiles == 0 {
             if (options & WILD_SILENT) == 0 {
-                semsg!(gettext(E_NOMATCH2), str_arg.as_ptr());
+                semsg!(gettext(E_NOMATCH2), str_arg);
             }
         } else {
             let nfiles = xp.xp_numfiles as usize;
@@ -5018,10 +5018,10 @@ fn expand_from_context(
     if xp.xp_context == EXPAND_USER_FUNC && pat_cstr.to_bytes().starts_with(b"^s:") {
         let len = pat_cstr.to_bytes().len() + 20;
         let mut buf = vec![0u8; len];
-        vim_snprintf!(
+        format_to_buf!(
             &mut buf,
             c"^<SNR>\\d\\+_%s",
-            pat_cstr.as_ptr().wrapping_add(3)
+            crate::strings::ByteSlice::from_ptr(pat_cstr.as_ptr().wrapping_add(3))
         );
         tofree = Some(buf);
         pat_cstr = crate::memory::bytes_as_cstr(tofree.as_deref().unwrap());

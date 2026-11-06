@@ -57,7 +57,7 @@ use crate::regexp::{MAXCOL, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_re
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
-use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{format_to_buf, format_to_buf_safelen, gettext, vim_strchr};
 use crate::window::{
     WSP_VERT, WinInfoInfo, check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index,
     win_close, win_enter, win_split, win_valid,
@@ -728,7 +728,7 @@ pub fn do_tag(
                         let name_cstr = crate::strings::ByteSlice::from_ptr(name)
                             .as_opt_cstr()
                             .unwrap_or(c"");
-                        semsg!(gettext(E_TAG_NOT_FOUND_STR), name_cstr.as_ptr());
+                        semsg!(gettext(E_TAG_NOT_FOUND_STR), name_cstr);
                     }
                     g_st().g_do_tagpreview = 0;
                 } else {
@@ -793,7 +793,7 @@ pub fn do_tag(
                     if let Some(ref nf) = tag_st().nofile_fname
                         && error_cur_match != cur_match
                     {
-                        smsg!(0, gettext(c"File \"%s\" does not exist"), nf.as_ptr(),);
+                        smsg!(0, gettext(c"File \"%s\" does not exist"), nf,);
                     }
 
                     let cur_match_slice =
@@ -810,7 +810,7 @@ pub fn do_tag(
                         } else {
                             c""
                         };
-                        vim_snprintf!(
+                        format_to_buf!(
                             g_st().iobuff_bytes_mut(),
                             gettext(c"tag %d of %d%s"),
                             cur_match + 1,
@@ -841,11 +841,8 @@ pub fn do_tag(
                     let name_cstr = crate::strings::ByteSlice::from_ptr(name)
                         .as_opt_cstr()
                         .unwrap_or(c"");
-                    let iobufflen = vim_snprintf_safelen!(
-                        g_st().iobuff_bytes_mut(),
-                        c":ta %s\r",
-                        name_cstr.as_ptr(),
-                    );
+                    let iobufflen =
+                        format_to_buf_safelen!(g_st().iobuff_bytes_mut(), c":ta %s\r", name_cstr,);
                     set_vim_var_string(
                         VV_SWAPCOMMAND,
                         Some(crate::memory::bytes_as_cstr(g_st().iobuff_bytes())),
@@ -876,7 +873,9 @@ pub fn do_tag(
                         }
                         semsg!(
                             gettext(c"E429: File \"%s\" does not exist"),
-                            tag_st().nofile_fname.as_deref().unwrap_or(c"").as_ptr(),
+                            crate::strings::ByteSlice::from_ptr(
+                                tag_st().nofile_fname.as_deref().unwrap_or(c"").as_ptr()
+                            ),
                         );
                     } else if use_tagstack && tagstackidx > curwin_mut().w_tagstacklen {
                         tagstackidx = curwin_mut().w_tagstackidx;
@@ -1072,7 +1071,11 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             }
         }
 
-        vim_snprintf!(g_st().iobuff_bytes_mut(), c"ltag %s", tag);
+        format_to_buf!(
+            g_st().iobuff_bytes_mut(),
+            c"ltag %s",
+            crate::strings::ByteSlice::from_ptr(tag)
+        );
         set_errorlist(
             Some(curwin_mut()),
             Some(&*list),
@@ -1106,7 +1109,7 @@ pub fn do_tags(_eap: &mut Exarg) {
             };
 
             msg_putchar(b'\n' as i32);
-            vim_snprintf!(
+            format_to_buf!(
                 g_st().iobuff_bytes_mut(),
                 c"%c%2d %2d %-15s %5d  ",
                 if i == tagstackidx {
@@ -1116,7 +1119,7 @@ pub fn do_tags(_eap: &mut Exarg) {
                 },
                 i + 1,
                 entry.cur_match + 1,
-                tagname.as_ptr(),
+                tagname,
                 entry.fmark.mark.lnum,
             );
             msg_outtrans(
@@ -1279,24 +1282,24 @@ fn find_tagfunc_tags(
     args[2].vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(d));
     args[3].v_type = VarType::VarUnknown;
 
-    vim_snprintf!(
+    format_to_buf!(
         &mut flag_string[..],
         c"%s%s%s",
-        if g_st().g_tag_at_cursor {
+        crate::strings::ByteSlice::from_ptr(if g_st().g_tag_at_cursor {
             c"c".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        if (flags & TAG_INS_COMP) != 0 {
+        }),
+        crate::strings::ByteSlice::from_ptr(if (flags & TAG_INS_COMP) != 0 {
             c"i".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        if (flags & TAG_REGEXP) != 0 {
+        }),
+        crate::strings::ByteSlice::from_ptr(if (flags & TAG_REGEXP) != 0 {
             c"r".as_ptr()
         } else {
             c"".as_ptr()
-        },
+        }),
     );
 
     let save_pos = curwin_mut().w_cursor;
@@ -1990,7 +1993,7 @@ fn findtags_add_match(
                 if margs.match_re { margs.matchoff } else { 0 },
                 !margs.match_no_ic,
             ) + st.help_pri;
-            vim_snprintf!(&mut v[len + 1 + ML_EXTRA..mfp_size], c"%06d", heur,);
+            format_to_buf!(&mut v[len + 1 + ML_EXTRA..mfp_size], c"%06d", heur,);
             mfp_vec = Some(v);
         } else if name_only {
             if st.get_searchpat {
@@ -2115,9 +2118,11 @@ fn findtags_get_all_tags(
             if retval == TagmatchStatus::TagMatchFail {
                 semsg!(
                     gettext(c"E431: Format error in tags file \"%s\""),
-                    CStr::from_bytes_until_nul(&st.tag_fname)
-                        .unwrap_or_default()
-                        .as_ptr(),
+                    crate::strings::ByteSlice::from_ptr(
+                        CStr::from_bytes_until_nul(&st.tag_fname)
+                            .unwrap_or_default()
+                            .as_ptr()
+                    ),
                 );
                 semsg!(gettext(c"Before byte %lld"), st.tell());
                 st.stop_searching = true;
@@ -2153,11 +2158,7 @@ fn findtags_in_file(st: &mut FindtagsState, _flags: i32, buf_ffname: Option<&std
         if opt_vars().p_verbose >= 5 {
             verbose_enter();
             let tag_fname_cstr = CStr::from_bytes_until_nul(&st.tag_fname).unwrap_or_default();
-            smsg!(
-                0,
-                gettext(c"Searching tags file %s"),
-                tag_fname_cstr.as_ptr(),
-            );
+            smsg!(0, gettext(c"Searching tags file %s"), tag_fname_cstr,);
             verbose_leave();
         }
         st.did_open = true;
@@ -2172,10 +2173,7 @@ fn findtags_in_file(st: &mut FindtagsState, _flags: i32, buf_ffname: Option<&std
 
         if margs.sort_error {
             let tag_fname_cstr = CStr::from_bytes_until_nul(&st.tag_fname).unwrap_or_default();
-            semsg!(
-                gettext(c"E432: Tags file not sorted: %s"),
-                tag_fname_cstr.as_ptr(),
-            );
+            semsg!(gettext(c"E432: Tags file not sorted: %s"), tag_fname_cstr,);
         }
 
         if st.match_count >= st.mincount {
@@ -2844,10 +2842,10 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                         found = 2;
                         test_for_static(&tagp);
                         let tagname_cstr = std::ffi::CString::new(tagp.tagname).unwrap_or_default();
-                        pbuflen = vim_snprintf!(
+                        pbuflen = format_to_buf!(
                             &mut pbuf_vec[..LSIZE as usize],
                             c"^%s\\s\\*(",
-                            tagname_cstr.as_ptr(),
+                            &tagname_cstr,
                         ) as usize;
                         let pbuf = pbuf_vec.as_mut_ptr();
                         if do_search(
@@ -2862,10 +2860,10 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                             None,
                         ) == 0
                         {
-                            pbuflen = vim_snprintf!(
+                            pbuflen = format_to_buf!(
                                 &mut pbuf_vec[..LSIZE as usize],
                                 c"^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(",
-                                tagname_cstr.as_ptr(),
+                                &tagname_cstr,
                             ) as usize;
                             let pbuf = pbuf_vec.as_mut_ptr();
                             if do_search(
@@ -3138,7 +3136,7 @@ fn add_tag_field(
     if tv_dict_find(dict.as_deref(), field_name, -1).is_some() {
         if opt_vars().p_verbose > 0 {
             verbose_enter();
-            smsg!(0, gettext(c"Duplicate field name: %s"), field_name.as_ptr());
+            smsg!(0, gettext(c"Duplicate field name: %s"), field_name);
             verbose_leave();
         }
         return false;

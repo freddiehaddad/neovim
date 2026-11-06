@@ -70,7 +70,7 @@ use crate::runtime::{
     Sctx, cmd_source_buffer, find_script_by_name, new_script_item, runtime_get_named_thread,
     runtime_search_path_validate, script_is_lua,
 };
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::ui::K_UIGLOBAL_COUNT;
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
@@ -572,7 +572,12 @@ fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
 pub fn nlua_error(lstate: *mut lua_State, msg: &CStr) {
     let (str_, len) = nlua_get_error(lstate).map_or((ptr::null(), 0), |(s, l)| (s.as_ptr(), l));
     msg_ext_no_fast();
-    semsg_multiline!(c"lua_error", msg, len as i32, str_);
+    semsg_multiline!(
+        c"lua_error",
+        msg,
+        len as i32,
+        crate::strings::ByteSlice::from_ptr(str_)
+    );
     lua_pop(lstate, 1);
 }
 
@@ -620,13 +625,25 @@ pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
     match err_type {
         K_CALLBACK => {
             msg_ext_no_fast();
-            semsg_multiline!(c"lua_error", c"Lua callback:\n%s", error_ptr);
+            semsg_multiline!(
+                c"lua_error",
+                c"Lua callback:\n%s",
+                crate::strings::ByteSlice::from_ptr(error_ptr)
+            );
         }
         K_THREAD => {
-            semsg_multiline!(c"lua_error", c"Luv thread:\n%s", error_ptr);
+            semsg_multiline!(
+                c"lua_error",
+                c"Luv thread:\n%s",
+                crate::strings::ByteSlice::from_ptr(error_ptr)
+            );
         }
         K_THREAD_CALLBACK => {
-            semsg_multiline!(c"lua_error", c"Luv callback, thread:\n%s", error_ptr,);
+            semsg_multiline!(
+                c"lua_error",
+                c"Luv callback, thread:\n%s",
+                crate::strings::ByteSlice::from_ptr(error_ptr),
+            );
         }
         _ => {}
     }
@@ -713,7 +730,7 @@ fn nlua_luv_thread_common_cfpcall(
     let status = unsafe { lua_pcall(lstate, nargs, nresult, 0) };
     if status != 0 {
         if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-            fprintf!(log_get_stderr(), c"%s\n", E_OUTOFMEM.as_ptr(),);
+            fprintf!(log_get_stderr(), c"%s\n", E_OUTOFMEM,);
             unsafe { lua_close(lstate) };
             #[cfg(windows)]
             {
@@ -1078,7 +1095,9 @@ fn nlua_init_packages(lstate: *mut lua_State) -> bool {
         fprintf!(
             log_get_stderr(),
             c"%s\n",
-            lua_tostring(lstate, -1).map_or(ptr::null(), CStr::as_ptr),
+            crate::strings::ByteSlice::from_ptr(
+                lua_tostring(lstate, -1).map_or(ptr::null(), CStr::as_ptr)
+            ),
         );
         return false;
     }
@@ -1369,7 +1388,13 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
             drop(msg_vec);
             let mut buff = [0u8; IOSIZE];
             let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
-            let len = vim_snprintf!(&mut buff, fmt, curargidx, errmsg_len as i32, errmsg) as usize;
+            let len = format_to_buf!(
+                &mut buff,
+                fmt,
+                curargidx,
+                errmsg_len as i32,
+                crate::strings::ByteSlice::from_ptr(errmsg)
+            ) as usize;
             unsafe { lua_pushlstring(lstate, buff.as_ptr().cast(), len) };
             return unsafe { lua_error(lstate) };
         }
@@ -1446,7 +1471,11 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     time_push(&mut rel_time, &mut start_time);
     let status = unsafe { lua_pcall(lstate, 1, 1, 0) };
     if status == 0 {
-        vim_snprintf!(&mut g_st().iobuff, c"require('%s')", name);
+        format_to_buf!(
+            &mut g_st().iobuff,
+            c"require('%s')",
+            crate::strings::ByteSlice::from_ptr(name)
+        );
         time_msg(g_st().iobuff_cstr(), Some(&start_time));
     }
     time_pop(rel_time);
@@ -1478,7 +1507,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
             get_user_input(&input_args, &mut input, false, false);
 
             if ui_has(K_UICMDLINE) {
-                vim_snprintf!(&mut g_st().iobuff, c"lua_debug> %s", input.vval.v_string());
+                format_to_buf!(&mut g_st().iobuff, c"lua_debug> %s", input.vval.v_string());
                 ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
             } else {
                 msg_putchar(b'\n' as i32);
@@ -1525,10 +1554,10 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     let name_cstr = crate::strings::ByteSlice::from_ptr(name).as_cstr();
     if !nlua_is_deferred_safe() && !viml_func_is_fast(name_cstr) {
         let length = name_len.min(100) + 22;
-        vim_snprintf!(
+        format_to_buf!(
             &mut g_st().iobuff[..length],
             c"Vimscript function \"%s\"",
-            name,
+            crate::strings::ByteSlice::from_ptr(name),
         );
         return unsafe { luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), g_st().iobuff.as_ptr()) };
     }
@@ -1677,12 +1706,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
             let mut mbuf = [0u8; 64];
             let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
             let msg_cstr = CStr::from_bytes_until_nul(&mbuf).unwrap_or(c"");
-            api_set_error!(
-                &mut err,
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                msg_cstr.as_ptr(),
-            );
+            api_set_error!(&mut err, ErrorType::ErrorTypeValidation, c"%s", msg_cstr,);
         }
     }
 
@@ -1907,7 +1931,7 @@ pub fn nlua_exec(
             ErrorType::ErrorTypeValidation,
             c"Lua: %.*s",
             len as i32,
-            errstr,
+            crate::strings::ByteSlice::from_ptr(errstr),
         );
         return OBJECT_NIL;
     }
@@ -1924,7 +1948,7 @@ pub fn nlua_exec(
             ErrorType::ErrorTypeException,
             c"Lua: %.*s",
             len as i32,
-            errstr,
+            crate::strings::ByteSlice::from_ptr(errstr),
         );
         return OBJECT_NIL;
     }
@@ -2054,7 +2078,7 @@ pub fn nlua_call_ref_ctx(
                 ErrorType::ErrorTypeException,
                 c"Lua: %.*s",
                 len as i32,
-                errstr,
+                crate::strings::ByteSlice::from_ptr(errstr),
             );
         } else {
             nlua_error(lstate, gettext(c"Lua callback: %.*s"));
@@ -2651,7 +2675,9 @@ pub fn nlua_init_defaults() {
         fprintf!(
             log_get_stderr(),
             c"%s\n",
-            lua_tostring(lstate, -1).map_or(ptr::null(), CStr::as_ptr),
+            crate::strings::ByteSlice::from_ptr(
+                lua_tostring(lstate, -1).map_or(ptr::null(), CStr::as_ptr)
+            ),
         );
     }
 }

@@ -462,7 +462,7 @@ pub fn os_conpty_init(
         139,
         true,
         c"os_conpty_init:%s : error code: %d",
-        emsg.as_ptr(),
+        emsg,
         unsafe { uv_translate_sys_error(GetLastError() as i32) },
     );
     drop(conpty_object);

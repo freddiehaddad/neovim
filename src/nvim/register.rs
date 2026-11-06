@@ -73,7 +73,7 @@ use crate::regexp::{CTRL_V_CONST, MAXCOL, NUMBUFLEN};
 use crate::search::{BACKWARD, Direction, FORWARD, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, SaveVEvent};
 use crate::strings::{
-    gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr, vim_strsave_escaped_ext,
+    format_to_buf, format_to_buf_safelen, gettext, ngettext, vim_strchr, vim_strsave_escaped_ext,
 };
 use crate::terminal::terminal_paste;
 use crate::textformat::Oparg;
@@ -1168,7 +1168,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
             if oap.regname == 0 {
                 namebuf[0] = 0;
             } else {
-                vim_snprintf!(&mut namebuf, gettext(c" into \"%c"), oap.regname);
+                format_to_buf!(&mut namebuf, gettext(c" into \"%c"), oap.regname);
             }
 
             update_topline(curwin_mut());
@@ -1199,14 +1199,14 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
                     0,
                     ngettext(BLOCK_SINGLE, BLOCK_PLURAL, yanklines as u64,),
                     yanklines as i64,
-                    name_cstr.as_ptr(),
+                    name_cstr,
                 );
             } else {
                 smsg!(
                     0,
                     ngettext(LINE_SINGLE, LINE_PLURAL, yanklines as u64,),
                     yanklines as i64,
-                    name_cstr.as_ptr(),
+                    name_cstr,
                 );
             }
         }
@@ -1238,7 +1238,7 @@ pub fn format_reg_type(reg_type: MotionType, reg_width: Colnr, buf: &mut [u8]) -
             buf[1] = 0;
             1
         }
-        MotionType::MtBlockWise => vim_snprintf_safelen!(buf, c"\x16%d", reg_width + 1),
+        MotionType::MtBlockWise => format_to_buf_safelen!(buf, c"\x16%d", reg_width + 1),
         MotionType::MtUnknown => {
             buf[0] = 0;
             0

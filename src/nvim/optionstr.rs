@@ -59,7 +59,7 @@ use crate::spell::{
 };
 use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
-use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use crate::strings::{format_to_buf, gettext, vim_strchr};
 use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
 use crate::window::{FcsChars, LcsChars, WinInfoInfo, check_colorcolumn, global_stl_height};
@@ -2072,15 +2072,15 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw)?;
 
     let io_buff = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
-    vim_snprintf!(
+    format_to_buf!(
         &mut g_st().iobuff,
         c"%s%s",
-        if subtract {
+        crate::strings::ByteSlice::from_ptr(if subtract {
             c"-".as_ptr()
         } else {
             c"".as_ptr()
-        },
-        name.as_ptr(),
+        }),
+        name,
     );
     Some(io_buff.as_cstr())
 }
@@ -3005,20 +3005,20 @@ fn opt_values_err<'a>(
     let mut itembuf = [0u8; 64];
     let copy_len = item.len().min(itembuf.len() - 1);
     itembuf[..copy_len].copy_from_slice(&item[..copy_len]);
-    let mut n = vim_snprintf!(errbuf.as_mut_slice(), gettext(fmt), itembuf.as_ptr());
+    let mut n = format_to_buf!(errbuf.as_mut_slice(), gettext(fmt), &itembuf);
     for (j, &v) in values.iter().enumerate() {
         if n <= 0 || (n as usize) >= errbuf.len() {
             break;
         }
-        n += vim_snprintf!(
+        n += format_to_buf!(
             &mut errbuf.as_mut_slice()[n as usize..],
             c"%s%s",
-            if j == 0 {
+            crate::strings::ByteSlice::from_ptr(if j == 0 {
                 c" ".as_ptr()
             } else {
                 c", ".as_ptr()
-            },
-            v.as_ptr(),
+            }),
+            v,
         );
     }
     Some(errbuf.as_cstr())

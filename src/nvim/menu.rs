@@ -348,7 +348,10 @@ pub fn ex_menu(eap: &mut Exarg) {
         show_menus(menu_path, modes);
         return;
     } else if !map_to_empty && (unmenu || enable != K_NONE) {
-        semsg!(gettext(E_TRAILING_ARG), map_to);
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            crate::strings::ByteSlice::from_ptr(map_to)
+        );
         return;
     }
 
@@ -651,7 +654,7 @@ fn menu_enable_recurse(menus: &mut [Vimmenu], name: &CStr, modes: i32, enable: b
         }
     }
     if !cur_bytes.is_empty() && cur_bytes.first() != Some(&b'*') && !matched {
-        semsg!(gettext(E_NOMENU), cur_name.as_ptr());
+        semsg!(gettext(E_NOMENU), cur_name);
         return false;
     }
 
@@ -712,7 +715,7 @@ fn remove_menu(menup: &mut Vec<Vimmenu>, name: &CStr, modes: i32, silent: bool) 
     if !cur_bytes.is_empty() {
         if !found_menu {
             if !silent {
-                semsg!(gettext(E_NOMENU), cur_name.as_ptr());
+                semsg!(gettext(E_NOMENU), cur_name);
             }
             return false;
         }
@@ -874,7 +877,7 @@ fn find_menu<'a>(
         }
 
         let Some(idx) = found_idx else {
-            semsg!(gettext(E_NOMENU), cur_cstr.as_ptr());
+            semsg!(gettext(E_NOMENU), cur_cstr);
             return None;
         };
         if p_is_empty {
@@ -1599,10 +1602,7 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
             MENU_INDEX_CMDLINE => c"Cmdline",
             _ => c"Normal",
         };
-        semsg!(
-            gettext(c"E335: Menu not defined for %s mode"),
-            mode.as_ptr(),
-        );
+        semsg!(gettext(c"E335: Menu not defined for %s mode"), mode,);
     }
 }
 
@@ -1642,7 +1642,7 @@ fn menu_getbyname(name_arg: &CStr) -> Option<&'static mut Vimmenu> {
     }
     drop(saved_name_vec);
     if !gave_emsg {
-        semsg!(gettext(c"E334: Menu not found: %s"), name_arg.as_ptr());
+        semsg!(gettext(c"E334: Menu not found: %s"), name_arg);
     }
     None
 }

@@ -127,8 +127,8 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    concat_str, gettext, ngettext, strcoll, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
-    vim_strsave_escaped,
+    concat_str, format_to_buf, format_to_buf_add, format_to_buf_safelen, gettext, ngettext,
+    strcoll, vim_strsave_escaped,
 };
 use crate::terminal::{terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -364,31 +364,31 @@ pub fn do_ascii(_eap: &mut Exarg) {
         if vim_isprintc(c) && (c < b' ' as i32 || c > b'~' as i32) {
             let mut buf3: [u8; 7] = [0; 7];
             transchar_nonprint(Some(crate::globals::curbuf_mut()), &mut buf3, c);
-            vim_snprintf!(&mut buf1, c"  <%s>", buf3.as_ptr());
+            format_to_buf!(&mut buf1, c"  <%s>", &buf3);
         } else {
             buf1[0] = 0;
         }
         let buf2: [u8; 20] = [0; 20];
 
         if let Some(dig) = get_digraph_for_char(cval) {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff,
                 gettext(c"<%s>%s%s  %d,  Hex %02x,  Oct %03o, Digr %s"),
                 transchar(c),
-                buf1.as_ptr(),
-                buf2.as_ptr(),
+                &buf1,
+                &buf2,
                 cval,
                 cval,
                 cval,
-                dig.as_ptr(),
+                dig,
             );
         } else {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff,
                 gettext(c"<%s>%s%s  %d,  Hex %02x,  Octal %03o"),
                 transchar(c),
-                buf1.as_ptr(),
-                buf2.as_ptr(),
+                &buf1,
+                &buf2,
                 cval,
                 cval,
                 cval,
@@ -430,14 +430,14 @@ pub fn do_ascii(_eap: &mut Exarg) {
             } else {
                 gettext(c"> %d, Hex %08x, Oct %o, Digr %s")
             };
-            vim_snprintf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c, dig.as_ptr(),);
+            format_to_buf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c, dig,);
         } else {
             let fmt = if c < 0x10000 {
                 gettext(c"> %d, Hex %04x, Octal %o")
             } else {
                 gettext(c"> %d, Hex %08x, Octal %o")
             };
-            vim_snprintf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c);
+            format_to_buf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c);
         }
 
         msg_multiline(
@@ -759,7 +759,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                 p = s;
                 regmatch.rm_ic = opt_vars().p_ic;
             } else {
-                semsg!(gettext(E_INVARG2), p);
+                semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(p));
                 break 'sortend;
             }
             p = p.wrapping_add(1);
@@ -1040,7 +1040,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 p = s;
                 regmatch.rm_ic = opt_vars().p_ic;
             } else {
-                semsg!(gettext(E_INVARG2), p);
+                semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(p));
                 break 'uniqend;
             }
             p = p.wrapping_add(1);
@@ -1617,7 +1617,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
             }
             g_st().no_wait_return -= 1;
             if !aborting() {
-                semsg!(gettext(c"E482: Can't create file %s"), itmp_s.as_ptr());
+                semsg!(gettext(c"E482: Can't create file %s"), itmp_s);
             }
             break 'filterend;
         }
@@ -1669,7 +1669,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                     {
                         if !aborting() {
                             msg_putchar(b'\n' as i32);
-                            semsg!(gettext(E_CANT_READ_FILE_STR), otmp_s.as_ptr());
+                            semsg!(gettext(E_CANT_READ_FILE_STR), otmp_s);
                         }
                         break 'error;
                     }
@@ -1732,7 +1732,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
 
                 if (linecount as OptInt) > opt_vars().p_report {
                     if do_in {
-                        vim_snprintf!(
+                        format_to_buf!(
                             &mut g_st().msg_buf,
                             gettext(c"%lld lines filtered"),
                             linecount as i64,
@@ -1898,11 +1898,11 @@ pub fn make_filter_cmd(
         {
             if itmp.is_some() || otmp.is_some() {
                 let fmt = if is_fish_shell {
-                    c"begin; %s; end".as_ptr()
+                    c"begin; %s; end"
                 } else {
-                    c"(%s)".as_ptr()
+                    c"(%s)"
                 };
-                vim_snprintf!(&mut buf_vec, fmt, cmd.as_ptr());
+                format_to_buf!(&mut buf_vec, fmt, cmd);
             } else {
                 crate::memory::copy_bytes_to_c_buf(&mut buf_vec, cmd_bytes);
             }
@@ -1962,10 +1962,10 @@ pub fn append_redir(buf: &mut [u8], opt: &CStr, fname: &CStr) {
     if found_pct_s {
         buf[end_idx] = b' ';
         let rem = &mut buf[end_idx + 1..];
-        vim_snprintf!(rem, opt.as_ptr(), fname.as_ptr());
+        format_to_buf!(rem, opt, fname);
     } else {
         let rem = &mut buf[end_idx..];
-        vim_snprintf!(rem, c" %s %s", opt.as_ptr(), fname.as_ptr());
+        format_to_buf!(rem, c" %s %s", opt, fname);
     }
 }
 
@@ -1973,7 +1973,7 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
     let mut numbuf: [u8; 30] = [0; 30];
 
     if curwin_mut().w_onebuf_opt.wo_nu || use_number {
-        vim_snprintf!(&mut numbuf, c"%*d ", number_width(curwin_mut()), lnum);
+        format_to_buf!(&mut numbuf, c"%*d ", number_width(curwin_mut()), lnum);
         msg_puts_hl(crate::memory::bytes_as_cstr(&numbuf), HLF_N + 1, false);
     }
     msg_prt_line(crate::memline::ml_get_slice(lnum), list);
@@ -2095,7 +2095,7 @@ fn check_writable(fname: &CStr) -> bool {
     if os_nodetype(fname) == NODE_OTHER {
         semsg!(
             gettext(c"E503: \"%s\" is not a file or writable device"),
-            fname.as_ptr(),
+            fname
         );
         return false;
     }
@@ -2308,7 +2308,7 @@ pub fn check_overwrite(
             }
             if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buff,
                     gettext(c"Overwrite existing file \"%s\"?"),
                     fname,
@@ -2340,10 +2340,10 @@ pub fn check_overwrite(
             {
                 if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-                    vim_snprintf!(
+                    format_to_buf!(
                         &mut buff,
                         gettext(c"Swap file \"%s\" exists, overwrite anyway?"),
-                        swapname.as_ptr(),
+                        &swapname,
                     );
                     if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::bytes_as_cstr(&buff), 2)
                         != VIM_YES
@@ -2354,7 +2354,7 @@ pub fn check_overwrite(
                 } else {
                     semsg!(
                         gettext(c"E768: Swap file exists: %s (:silent! overrides)"),
-                        swapname.as_ptr(),
+                        &swapname,
                     );
                     return false;
                 }
@@ -2471,13 +2471,13 @@ fn check_readonly(forceit: &mut bool, buf: &mut FileBuf) -> bool {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
             let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
             if buf.b_p_ro {
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buff,
                     gettext(c"'readonly' option is set for \"%s\".\nDo you wish to write anyway?"),
                     fname,
                 );
             } else {
-                vim_snprintf!(
+                format_to_buf!(
                     &mut buff,
                     gettext(
                         c"File permissions of \"%s\" are read-only.\nIt may still be possible to write it.\nDo you wish to try?",
@@ -2605,9 +2605,9 @@ pub fn set_swapcommand(command: Option<&CStr>, newlnum: Linenr) -> bool {
     };
     let mut data_vec = vec![0u8; valsize];
     let size = if let Some(cmd) = command {
-        vim_snprintf_safelen!(&mut data_vec, c":%s\r", cmd.as_ptr())
+        format_to_buf_safelen!(&mut data_vec, c":%s\r", cmd)
     } else {
-        vim_snprintf_safelen!(&mut data_vec, c"%lldG", newlnum as i64)
+        format_to_buf_safelen!(&mut data_vec, c"%lldG", newlnum as i64)
     };
     set_vim_var_bytes(VV_SWAPCOMMAND, &data_vec[..size]);
     true
@@ -3933,7 +3933,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 ((crate::strings::AsByteSlice::byte_addr(cmd) as isize)
                     - (crate::strings::AsByteSlice::byte_addr(count_arg) as isize))
                     as i32,
-                count_arg,
+                crate::strings::ByteSlice::from_ptr(count_arg),
             );
             return 0;
         }
@@ -3948,7 +3948,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             crate::strings::ByteSlice::from_ptr(cmd).as_cstr(),
         ));
         if eap.nextcmd.is_null() {
-            semsg!(gettext(E_TRAILING_ARG), cmd);
+            semsg!(
+                gettext(E_TRAILING_ARG),
+                crate::strings::ByteSlice::from_ptr(cmd)
+            );
             return 0;
         }
     }
@@ -4200,7 +4203,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             let p_fmt = gettext(
                                 c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)",
                             );
-                            vim_snprintf!(&mut g_st().iobuff, p_fmt, sub);
+                            format_to_buf!(
+                                &mut g_st().iobuff,
+                                p_fmt,
+                                crate::strings::ByteSlice::from_ptr(sub)
+                            );
                             let p = crate::strings::ByteSlice::from_ptr(iobuff_ptr).to_cstring();
                             typed = prompt_for_input(Some(p.as_c_str()), HLF_R, true, None);
                             g_st().search_global.hl_match = false;
@@ -4821,7 +4828,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
                 g_st().sub_nsubs as u64,
             )
         };
-        vim_snprintf_add!(
+        format_to_buf_add!(
             &mut g_st().msg_buf,
             ngettext(msg_single, msg_plural, g_st().sub_nlines as u64),
             g_st().sub_nsubs as i64,
@@ -4977,13 +4984,9 @@ pub fn ex_global(eap: &mut Exarg) {
             msg(gettext(E_INTERR), 0);
         } else if ndone == 0 {
             if type_char == b'v' as i32 {
-                smsg!(
-                    0,
-                    gettext(c"Pattern found in every line: %s"),
-                    used_pat.as_ptr(),
-                );
+                smsg!(0, gettext(c"Pattern found in every line: %s"), &used_pat,);
             } else {
-                smsg!(0, gettext(c"Pattern not found: %s"), used_pat.as_ptr());
+                smsg!(0, gettext(c"Pattern not found: %s"), &used_pat);
             }
         } else {
             global_exe(cmd_cstr);
@@ -5186,12 +5189,12 @@ fn show_sub(
                     }
                 }
                 let str = crate::strings::ByteSlice::from_bytes(&str_buf);
-                vim_snprintf!(
+                format_to_buf!(
                     &mut str_buf[..line_size as usize],
                     c"|%*d| %s",
                     col_width - 3,
                     next_linenr,
-                    line,
+                    crate::strings::ByteSlice::from_ptr(line),
                 );
                 if linenr_preview == 0 {
                     ml_replace_buf(cp_buf, 1, str.as_bytes(), true, false);

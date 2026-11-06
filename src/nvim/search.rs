@@ -75,7 +75,7 @@ use crate::regexp::{
     skip_regexp_magic, vim_regcomp, vim_regexec, vim_regexec_multi,
 };
 use crate::state::MODE_SHOWMATCH;
-use crate::strings::{reverse_text, tr, vim_snprintf, vim_strchr};
+use crate::strings::{format_to_buf, reverse_text, tr, vim_strchr};
 use crate::textformat::Oparg;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::window::{WinInfoInfo, reset_binding, win_enter, win_split, win_valid};
@@ -1380,7 +1380,7 @@ pub fn do_search(
                 off_buf[off_len] = 0;
                 if srch().spats[0].off.off != 0 || srch().spats[0].off.line {
                     let n =
-                        vim_snprintf!(&mut off_buf[off_len..], c"%+lld", srch().spats[0].off.off,);
+                        format_to_buf!(&mut off_buf[off_len..], c"%+lld", srch().spats[0].off.off,);
                     if n > 0 {
                         off_len += n as usize;
                     }
@@ -2787,22 +2787,22 @@ fn cmdline_search_stat(
 
     if curwin_mut().w_onebuf_opt.wo_rl && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's' {
         if stat.incomplete == 1 {
-            len = vim_snprintf!(&mut t[..], c"[?/??]") as usize;
+            len = format_to_buf!(&mut t[..], c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
-            len = vim_snprintf!(&mut t[..], c"[>%d/>%d]", maxcount, maxcount,) as usize;
+            len = format_to_buf!(&mut t[..], c"[>%d/>%d]", maxcount, maxcount,) as usize;
         } else if stat.cnt > maxcount {
-            len = vim_snprintf!(&mut t[..], c"[>%d/%d]", maxcount, stat.cur,) as usize;
+            len = format_to_buf!(&mut t[..], c"[>%d/%d]", maxcount, stat.cur,) as usize;
         } else {
-            len = vim_snprintf!(&mut t[..], c"[%d/%d]", stat.cnt, stat.cur,) as usize;
+            len = format_to_buf!(&mut t[..], c"[%d/%d]", stat.cnt, stat.cur,) as usize;
         }
     } else if stat.incomplete == 1 {
-        len = vim_snprintf!(&mut t[..], c"[?/??]") as usize;
+        len = format_to_buf!(&mut t[..], c"[?/??]") as usize;
     } else if stat.cnt > maxcount && stat.cur > maxcount {
-        len = vim_snprintf!(&mut t[..], c"[>%d/>%d]", maxcount, maxcount,) as usize;
+        len = format_to_buf!(&mut t[..], c"[>%d/>%d]", maxcount, maxcount,) as usize;
     } else if stat.cnt > maxcount {
-        len = vim_snprintf!(&mut t[..], c"[%d/>%d]", stat.cur, maxcount,) as usize;
+        len = format_to_buf!(&mut t[..], c"[%d/>%d]", stat.cur, maxcount,) as usize;
     } else {
-        len = vim_snprintf!(&mut t[..], c"[%d/%d]", stat.cur, stat.cnt,) as usize;
+        len = format_to_buf!(&mut t[..], c"[%d/%d]", stat.cur, stat.cnt,) as usize;
     }
 
     if show_top_bot_msg && len + 2 < SEARCH_STAT_BUF_LEN {
@@ -3117,13 +3117,13 @@ pub fn find_pattern_in_path(
             let patsize = len + 5;
             let mut pat_vec: Vec<u8> = vec![0; patsize];
             debug_assert!(len <= i32::MAX as usize);
-            vim_snprintf!(
+            format_to_buf!(
                 &mut pat_vec[..patsize],
-                if whole {
+                crate::strings::ByteSlice::from_ptr(if whole {
                     c"\\<%.*s\\>".as_ptr()
                 } else {
                     c"%.*s".as_ptr()
-                },
+                }),
                 len as i32,
                 ptr_pat,
             );
@@ -3370,7 +3370,7 @@ pub fn find_pattern_in_path(
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
                             g_st().msg_hist_off = true;
-                            vim_snprintf!(
+                            format_to_buf!(
                                 g_st().iobuff_bytes_mut(),
                                 tr(c"Scanning included file: %s"),
                                 curr_fname.unwrap_or(c""),
@@ -3925,9 +3925,9 @@ fn show_pat_in_path(
         }
         let has_trailing_bsl = line.slice(linelen).last() == Some(&b'\\');
         if action == ACTION_SHOW_ALL {
-            vim_snprintf!(g_st().iobuff_bytes_mut(), c"%3d: ", count);
+            format_to_buf!(g_st().iobuff_bytes_mut(), c"%3d: ", count);
             msg_puts(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()));
-            vim_snprintf!(g_st().iobuff_bytes_mut(), c"%4d", *lnum);
+            format_to_buf!(g_st().iobuff_bytes_mut(), c"%4d", *lnum);
             msg_puts_hl(
                 crate::memory::bytes_as_cstr(g_st().iobuff_bytes()),
                 HLF_N,

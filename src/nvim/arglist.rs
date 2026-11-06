@@ -381,7 +381,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
 
         regmatch.free_prog();
         if !didone {
-            semsg!(gettext(E_NOMATCH2), orig_p.as_ptr());
+            semsg!(gettext(E_NOMATCH2), orig_p);
         }
     }
 }

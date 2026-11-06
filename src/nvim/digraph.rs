@@ -21,7 +21,7 @@ use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::runtime::source_runtime;
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::window::WinInfoInfo;
 use std::ffi::{CStr, CString};
 
@@ -1733,10 +1733,7 @@ pub fn check_digraph_chars_valid(char1: i32, char2: i32) -> bool {
         let len = utf_char2bytes(char1, &mut msg) as usize;
         msg[len] = 0;
         let msg_cstr = CStr::from_bytes_until_nul(&msg).unwrap_or(c"");
-        semsg!(
-            gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR),
-            msg_cstr.as_ptr(),
-        );
+        semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), msg_cstr,);
         return false;
     }
     if char1 == ESC || char2 == ESC {
@@ -1916,7 +1913,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         buf[pos] = b' ';
         pos += 1;
     }
-    vim_snprintf!(&mut buf[pos..], c" %3d", dp.result);
+    format_to_buf!(&mut buf[pos..], c" %3d", dp.result);
     msg_outtrans(crate::memory::bytes_as_cstr(&buf), 0, false);
 }
 
@@ -2132,12 +2129,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     }
 
     for kp in &curbuf_mut().b_kmap_ga {
-        vim_snprintf!(
-            &mut buf,
-            c"<buffer> %s %s",
-            kp.from.as_ptr(),
-            kp.to.as_ptr(),
-        );
+        format_to_buf!(&mut buf, c"<buffer> %s %s", &kp.from, &kp.to,);
         do_map(
             MAPTYPE_MAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2163,7 +2155,7 @@ fn keymap_unload() {
     let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
 
     for entry in &curbuf_mut().b_kmap_ga {
-        vim_snprintf!(&mut buf, c"<buffer> %s", entry.from.as_ptr());
+        format_to_buf!(&mut buf, c"<buffer> %s", &entry.from);
         do_map(
             MAPTYPE_UNMAP,
             std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -2204,7 +2196,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
         }
     }
     let len = buf.len() as i32;
-    let mut plen = vim_snprintf!(&mut *buf, fmt.as_ptr(), p_cstr.as_ptr());
+    let mut plen = format_to_buf!(&mut *buf, fmt, p_cstr);
     drop(s);
     if plen < 0 || plen > len - 1 {
         if !buf.is_empty() {

@@ -260,7 +260,7 @@ pub fn stream_may_close(stream: &mut Stream) {
             94,
             true,
             c"closing Stream: %p",
-            &raw const *stream,
+            std::ptr::from_ref(stream).addr(),
         );
     }
     stream.closed = true;
@@ -289,7 +289,7 @@ pub fn stream_close_handle(stream: &mut Stream) {
                 116,
                 true,
                 c"closed Stream (%p) with %zu unwritten bytes",
-                &raw const *stream,
+                std::ptr::from_ref(stream).addr(),
                 queued,
             );
         }

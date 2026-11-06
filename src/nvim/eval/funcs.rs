@@ -195,7 +195,7 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 #[cfg(windows)]
 use crate::strings::mb_strup_buf;
 use crate::strings::{
-    gettext, vim_snprintf, vim_snprintf_safelen, vim_snprintf_typval_only, vim_strsave_escaped,
+    format_to_buf, format_to_buf_safelen, format_typval_to_buf, gettext, vim_strsave_escaped,
     vim_strsave_shellescape,
 };
 use crate::syntax::{
@@ -1340,10 +1340,10 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         return;
     };
     let mut buf = [0u8; 256];
-    vim_snprintf!(
+    format_to_buf!(
         &mut buf,
         c"return require('vim._core.vimfn').%s(...)",
-        lua_name.as_ptr(),
+        lua_name,
     );
 
     let mut err = Error::new();
@@ -2086,13 +2086,19 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     s = s_cstr.as_ptr().cast_mut();
     if !ok {
         if !expr_start.is_null() && !aborting() {
-            semsg!(gettext(E_INVEXPR2), expr_start);
+            semsg!(
+                gettext(E_INVEXPR2),
+                crate::strings::ByteSlice::from_ptr(expr_start)
+            );
         }
         g_st().need_clr_eos = false;
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else if !s_cstr.is_empty() {
-        semsg!(gettext(E_TRAILING_ARG), s);
+        semsg!(
+            gettext(E_TRAILING_ARG),
+            crate::strings::ByteSlice::from_ptr(s)
+        );
     }
 }
 
@@ -2557,11 +2563,11 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         {
             semsg!(
                 gettext(E_INVARG2),
-                if use_string {
+                crate::strings::ByteSlice::from_ptr(if use_string {
                     tv_get_string(&argvars[0]).as_ptr()
                 } else {
                     s.cast_const()
-                },
+                }),
             );
         } else if !trans_name.is_null()
             && if is_funcref {
@@ -2575,7 +2581,10 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 )
             }
         {
-            semsg!(gettext(c"E700: Unknown function: %s"), s);
+            semsg!(
+                gettext(c"E700: Unknown function: %s"),
+                crate::strings::ByteSlice::from_ptr(s)
+            );
         } else {
             let mut dict_idx: usize = 0;
             let mut arg_idx: usize = 0;
@@ -3169,13 +3178,21 @@ fn getregionpos(
         if !rem.is_empty() {
             block_width = getdigits_int(&mut rem, false, 0);
             if block_width <= 0 || !rem.is_empty() {
-                semsg!(gettext(E_INVARG_NVAL), c"type", type_str);
+                semsg!(
+                    gettext(E_INVARG_NVAL),
+                    c"type",
+                    crate::strings::ByteSlice::from_ptr(type_str)
+                );
                 return false;
             }
         }
         *region_type = MT_BLOCK_WISE;
     } else {
-        semsg!(gettext(E_INVARG_NVAL), c"type", type_str);
+        semsg!(
+            gettext(E_INVARG_NVAL),
+            c"type",
+            crate::strings::ByteSlice::from_ptr(type_str)
+        );
         return false;
     }
 
@@ -4216,7 +4233,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 } else {
                     E_TRAILING_ARG
                 }),
-                end,
+                crate::strings::ByteSlice::from_ptr(end),
             );
         } else if lv.ll_tv.is_null() {
             if let Some(di) = crate::eval::vars::find_var_opt(ll_name, lv.ll_name_len, None, 1) {
@@ -4227,7 +4244,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         } else if lv.ll_range {
             emsg(gettext(c"E786: Range not allowed"));
         } else if let Some(ref newkey) = lv.ll_newkey {
-            semsg!(gettext(E_DICTKEY), newkey.as_ptr());
+            semsg!(gettext(E_DICTKEY), newkey);
         } else if !lv.ll_list.is_null() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_islocked(
                 &lv.li_mut().li_tv,
@@ -4260,9 +4277,9 @@ pub fn f_isnan(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
 /// "id()" function
 pub fn f_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let len = vim_snprintf_typval_only(&mut [], Some(c"%p"), argvars);
+    let len = format_typval_to_buf(&mut [], Some(c"%p"), argvars);
     let mut buf = vec![0u8; (len as usize) + 1];
-    vim_snprintf_typval_only(&mut buf, Some(c"%p"), argvars);
+    format_typval_to_buf(&mut buf, Some(c"%p"), argvars);
     crate::eval::typval::tv_set_string_len(rettv, Some(&buf[..len as usize]));
 }
 
@@ -4676,12 +4693,12 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 g_st().iobuff[2] = 0;
             }
 
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().name_buff,
                 c"term://%s//%d:%s",
                 iobuff,
                 pid,
-                cmd.as_ptr(),
+                &cmd,
             );
 
             setfname(&mut *buf, namebuff.as_opt_cstr(), None, true);
@@ -4899,7 +4916,7 @@ pub fn f_json_decode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
     if !json_decode_string(json_slice, rettv) {
         let cstr = crate::memory::bytes_to_cstring(json_slice);
-        semsg!(gettext(c"E474: Failed to parse %s"), cstr.as_ptr());
+        semsg!(gettext(c"E474: Failed to parse %s"), &cstr);
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
@@ -5608,11 +5625,11 @@ fn max_min(tv: &TypVal, rettv: &mut TypVal, domax: bool) {
     } else {
         semsg!(
             gettext(E_LISTDICTARG),
-            if domax {
+            crate::strings::ByteSlice::from_ptr(if domax {
                 c"max()".as_ptr()
             } else {
                 c"min()".as_ptr()
-            },
+            }),
         );
         return;
     }
@@ -5698,7 +5715,7 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(tv_list_first(
         list.as_deref(),
     ))) {
-        vim_snprintf!(&mut msgbuf, msg, idx);
+        format_to_buf!(&mut msgbuf, msg, idx);
         let msg_cstr = std::ffi::CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"");
         if !encode_vim_to_msgpack(&mut packer, &mut li.li_tv, msg_cstr) {
             break;
@@ -5917,10 +5934,10 @@ pub fn f_printf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let (arg0, rest_args) = argvars.split_first_mut().unwrap();
     let mut buf = [0u8; NUMBUFLEN];
     let fmt = tv_get_string_buf(arg0, &mut buf);
-    let len = vim_snprintf_typval_only(&mut [], Some(fmt), rest_args);
+    let len = format_typval_to_buf(&mut [], Some(fmt), rest_args);
     if g_st().did_emsg == 0 {
         let mut s = vec![0u8; (len as usize) + 1];
-        vim_snprintf_typval_only(&mut s, Some(fmt), rest_args);
+        format_typval_to_buf(&mut s, Some(fmt), rest_args);
         crate::eval::typval::tv_set_string_len(rettv, Some(&s[..len as usize]));
     }
     g_st().did_emsg |= saved_did_emsg;
@@ -6156,7 +6173,7 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             1
         }
         crate::register::MotionType::MtBlockWise => {
-            vim_snprintf_safelen!(&mut buf, c"%c%d", i32::from(CTRL_V_CONST), reglen + 1)
+            format_to_buf_safelen!(&mut buf, c"%c%d", i32::from(CTRL_V_CONST), reglen + 1)
         }
         crate::register::MotionType::MtUnknown => std::process::abort(),
     };
@@ -6964,17 +6981,22 @@ pub fn do_searchpair(
     let mut pat2_vec = vec![0u8; pat2size];
     let pat3size = spatlen + mpat_cstr.to_bytes().len() + epatlen + 25;
     let mut pat3_vec = vec![0u8; pat3size];
-    let pat2len = vim_snprintf!(&mut pat2_vec, c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)", spat, epat);
+    let pat2len = format_to_buf!(
+        &mut pat2_vec,
+        c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)",
+        crate::strings::ByteSlice::from_ptr(spat),
+        crate::strings::ByteSlice::from_ptr(epat)
+    );
     let pat3len = if mpat_cstr.to_bytes().is_empty() {
         pat3_vec[..(pat2len as usize) + 1].copy_from_slice(&pat2_vec[..(pat2len as usize) + 1]);
         pat2len
     } else {
-        vim_snprintf!(
+        format_to_buf!(
             &mut pat3_vec,
             c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)\\|\\(%s\\m\\)",
-            spat,
-            epat,
-            mpat,
+            crate::strings::ByteSlice::from_ptr(spat),
+            crate::strings::ByteSlice::from_ptr(epat),
+            crate::strings::ByteSlice::from_ptr(mpat),
         )
     };
     let pat2 = pat2_vec.as_mut_ptr();
@@ -7198,9 +7220,9 @@ pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         semsg!(
             c"Failed to start server: %s",
             if result > 0 {
-                c"Unknown system error".as_ptr()
+                c"Unknown system error"
             } else {
-                unsafe { uv_strerror(result) }
+                uv_strerror(result)
             },
         );
         return;
@@ -7661,7 +7683,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let mut error = None;
         let id = channel_connect(tcp, &address, rpc, trust, on_data, 50, &mut error);
         if let Some(err) = error {
-            semsg!(gettext(c"connection failed: %s"), err.as_ptr());
+            semsg!(gettext(c"connection failed: %s"), err);
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(id as Varnumber);
@@ -7703,7 +7725,10 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut error = None;
     let id = channel_from_stdio(rpc, on_stdin, &mut error);
     if id == 0 {
-        semsg!(E_STDIOCHAN2, error.map_or(ptr::null(), |s| s.as_ptr()));
+        semsg!(
+            E_STDIOCHAN2,
+            crate::strings::ByteSlice::from_ptr(error.map_or(ptr::null(), |s| s.as_ptr()))
+        );
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(id as Varnumber);

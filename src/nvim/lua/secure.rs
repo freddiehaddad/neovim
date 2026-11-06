@@ -46,14 +46,26 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
         if success {
             let action_bytes = action.to_bytes();
             if action_bytes == b"allow" {
-                smsg!(0, c"Allowed in trust database: \"%s\"", msg);
+                smsg!(
+                    0,
+                    c"Allowed in trust database: \"%s\"",
+                    crate::strings::ByteSlice::from_ptr(msg)
+                );
             } else if action_bytes == b"deny" {
-                smsg!(0, c"Denied in trust database: \"%s\"", msg);
+                smsg!(
+                    0,
+                    c"Denied in trust database: \"%s\"",
+                    crate::strings::ByteSlice::from_ptr(msg)
+                );
             } else if action_bytes == b"remove" {
-                smsg!(0, c"Removed from trust database: \"%s\"", msg);
+                smsg!(
+                    0,
+                    c"Removed from trust database: \"%s\"",
+                    crate::strings::ByteSlice::from_ptr(msg)
+                );
             }
         } else {
-            semsg!(E_TRUSTFILE, msg);
+            semsg!(E_TRUSTFILE, crate::strings::ByteSlice::from_ptr(msg));
         }
     }
 
@@ -76,7 +88,7 @@ pub fn ex_trust(eap: &mut Exarg) {
         action = c"remove";
     } else if !arg1_bytes.is_empty() {
         let arg1 = CString::new(arg1_bytes).unwrap();
-        semsg!(E_INVARG2, arg1.as_ptr());
+        semsg!(E_INVARG2, &arg1);
         return;
     }
 

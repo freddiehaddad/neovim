@@ -959,11 +959,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             if re_st().one_exactly {
                 semsg!(
                     tr(E_INVALID_ITEM_IN_STR_BRACKETS),
-                    if re_st().reg_magic == MAGIC_ALL {
+                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
                         c"\\".as_ptr()
-                    },
+                    }),
                 );
                 g_st().rc_did_emsg = true;
                 return None;
@@ -980,11 +980,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             if re_st().one_exactly {
                 semsg!(
                     tr(E_INVALID_ITEM_IN_STR_BRACKETS),
-                    if re_st().reg_magic == MAGIC_ALL {
+                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
                         c"\\".as_ptr()
-                    },
+                    }),
                 );
                 g_st().rc_did_emsg = true;
                 return None;
@@ -1007,11 +1007,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             };
             semsg!(
                 tr(c"E64: %s%c follows nothing"),
-                if magic_cond {
+                crate::strings::ByteSlice::from_ptr(if magic_cond {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
                 c,
             );
             g_st().rc_did_emsg = true;
@@ -1053,11 +1053,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     if re_st().one_exactly {
                         semsg!(
                             tr(E_INVALID_ITEM_IN_STR_BRACKETS),
-                            if re_st().reg_magic == MAGIC_ALL {
-                                c"".as_ptr()
-                            } else {
-                                c"\\".as_ptr()
-                            },
+                            crate::strings::ByteSlice::from_ptr(
+                                if re_st().reg_magic == MAGIC_ALL {
+                                    c"".as_ptr()
+                                } else {
+                                    c"\\".as_ptr()
+                                }
+                            ),
                         );
                         g_st().rc_did_emsg = true;
                         return None;
@@ -1105,11 +1107,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     if re_st().one_exactly {
                         semsg!(
                             tr(E_INVALID_ITEM_IN_STR_BRACKETS),
-                            if re_st().reg_magic == MAGIC_ALL {
-                                c"".as_ptr()
-                            } else {
-                                c"\\".as_ptr()
-                            },
+                            crate::strings::ByteSlice::from_ptr(
+                                if re_st().reg_magic == MAGIC_ALL {
+                                    c"".as_ptr()
+                                } else {
+                                    c"\\".as_ptr()
+                                }
+                            ),
                         );
                         g_st().rc_did_emsg = true;
                         return None;
@@ -1139,11 +1143,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     if re_st().one_exactly {
                         semsg!(
                             tr(E_INVALID_ITEM_IN_STR_BRACKETS),
-                            if re_st().reg_magic == MAGIC_ALL {
-                                c"".as_ptr()
-                            } else {
-                                c"\\".as_ptr()
-                            },
+                            crate::strings::ByteSlice::from_ptr(
+                                if re_st().reg_magic == MAGIC_ALL {
+                                    c"".as_ptr()
+                                } else {
+                                    c"\\".as_ptr()
+                                }
+                            ),
                         );
                         g_st().rc_did_emsg = true;
                         return None;
@@ -1158,11 +1164,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         if c == NUL as i32 {
                             semsg!(
                                 tr(E_MISSING_SB),
-                                if re_st().reg_magic == MAGIC_ALL {
-                                    c"".as_ptr()
-                                } else {
-                                    c"\\".as_ptr()
-                                },
+                                crate::strings::ByteSlice::from_ptr(
+                                    if re_st().reg_magic == MAGIC_ALL {
+                                        c"".as_ptr()
+                                    } else {
+                                        c"\\".as_ptr()
+                                    }
+                                ),
                             );
                             g_st().rc_did_emsg = true;
                             return None;
@@ -1185,11 +1193,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     if ret.is_none() {
                         semsg!(
                             tr(E_EMPTY_SB),
-                            if re_st().reg_magic == MAGIC_ALL {
-                                c"".as_ptr()
-                            } else {
-                                c"\\".as_ptr()
-                            },
+                            crate::strings::ByteSlice::from_ptr(
+                                if re_st().reg_magic == MAGIC_ALL {
+                                    c"".as_ptr()
+                                } else {
+                                    c"\\".as_ptr()
+                                }
+                            ),
                         );
                         g_st().rc_did_emsg = true;
                         return None;
@@ -1228,11 +1238,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     if i < 0 || i > i64::from(i32::MAX) {
                         semsg!(
                             tr(c"E678: Invalid character after %s%%[dxouU]"),
-                            if re_st().reg_magic == MAGIC_ALL {
-                                c"".as_ptr()
-                            } else {
-                                c"\\".as_ptr()
-                            },
+                            crate::strings::ByteSlice::from_ptr(
+                                if re_st().reg_magic == MAGIC_ALL {
+                                    c"".as_ptr()
+                                } else {
+                                    c"\\".as_ptr()
+                                }
+                            ),
                         );
                         g_st().rc_did_emsg = true;
                         return None;
@@ -1339,11 +1351,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     }
                     semsg!(
                         tr(c"E71: Invalid character after %s%%"),
-                        if re_st().reg_magic == MAGIC_ALL {
+                        crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                             c"".as_ptr()
                         } else {
                             c"\\".as_ptr()
-                        },
+                        }),
                     );
                     g_st().rc_did_emsg = true;
                     return None;
@@ -1628,11 +1640,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
         } else if re_st().reg_strict != 0 {
             semsg!(
                 tr(E_MISSINGBRACKET),
-                if re_st().reg_magic > MAGIC_OFF {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic > MAGIC_OFF {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
             g_st().rc_did_emsg = true;
             return None;
@@ -1730,11 +1742,11 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
         if lop == END {
             semsg!(
                 tr(E_INVALID_CHARACTER_AFTER_STR_AT),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
             g_st().rc_did_emsg = true;
             return None;
@@ -1774,11 +1786,11 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
             if re_st().num_complex_braces >= 10 {
                 semsg!(
                     tr(c"E60: Too many complex %s{...}s"),
-                    if re_st().reg_magic == MAGIC_ALL {
+                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
                         c"\\".as_ptr()
-                    },
+                    }),
                 );
                 g_st().rc_did_emsg = true;
                 return None;
@@ -1803,22 +1815,22 @@ fn regpiece(flagp: &mut i32) -> Option<usize> {
         if peekchr() == magic_fn(b'*' as i32) {
             semsg!(
                 tr(c"E61: Nested %s*"),
-                if re_st().reg_magic >= MAGIC_ON {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic >= MAGIC_ON {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
             g_st().rc_did_emsg = true;
             return None;
         }
         semsg!(
             tr(c"E62: Nested %s%c"),
-            if re_st().reg_magic == MAGIC_ALL {
+            crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                 c"".as_ptr()
             } else {
                 c"\\".as_ptr()
-            },
+            }),
             no_magic(peekchr()),
         );
         g_st().rc_did_emsg = true;
@@ -1940,11 +1952,11 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
         if re_st().regnpar >= NSUBEXP as i32 {
             semsg!(
                 tr(c"E51: Too many %s("),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
             g_st().rc_did_emsg = true;
             return None;
@@ -2016,20 +2028,20 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
         } else if paren == REG_NPAREN {
             semsg!(
                 tr(E_UNMATCHED_STR_PERCENT_OPEN),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
         } else {
             semsg!(
                 tr(E_UNMATCHED_STR_OPEN),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
         }
         g_st().rc_did_emsg = true;
@@ -2039,11 +2051,11 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
         if re_st().curchr == magic_fn(b')' as i32) {
             semsg!(
                 tr(E_UNMATCHED_STR_CLOSE),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
         } else {
             emsg(tr(E_TRAILING));

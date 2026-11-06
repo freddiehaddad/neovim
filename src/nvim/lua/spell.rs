@@ -97,7 +97,6 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
 }
 
 /// Open the `vim.spell` Lua library (`luaopen_spell`).
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn luaopen_spell(lstate: *mut lua_State) -> i32 {
     unsafe {
         const SPELL_FUNCTIONS: [luaL_Reg; 2] = [

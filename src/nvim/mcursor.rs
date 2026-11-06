@@ -77,7 +77,7 @@ use crate::register::{
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use crate::textformat::{InsState, Oparg};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
 use std::ffi::CStr;
@@ -280,7 +280,12 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
     } else {
         c"".as_ptr()
     };
-    vim_snprintf!(&mut *buf, c"%s%zu\xc3\x97 ", prefix, count) as usize
+    format_to_buf!(
+        &mut *buf,
+        c"%s%zu\xc3\x97 ",
+        crate::strings::ByteSlice::from_ptr(prefix),
+        count
+    ) as usize
 }
 
 pub fn mc_replaying() -> bool {

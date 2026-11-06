@@ -1572,7 +1572,6 @@ pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
 }
 
 #[allow(non_upper_case_globals)]
-#[unsafe(no_mangle)]
 pub static starting: GlobalState<i32> = GlobalState::new(NO_SCREEN);
 
 #[inline(always)]

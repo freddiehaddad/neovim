@@ -40,7 +40,7 @@ use crate::ops::{
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use crate::textformat::Oparg;
 use crate::viml::parser::expressions::ESC;
 use crate::window::win_valid;
@@ -556,7 +556,7 @@ fn atom_from_cmdline(
     let mut sb: Vec<u8> = Vec::new();
     if ca.cmdchar != b':' as i32 && ca.count0 != 0 {
         let mut num_buf = [0u8; 32];
-        let n = vim_snprintf!(&mut num_buf, c"%d", ca.count0);
+        let n = format_to_buf!(&mut num_buf, c"%d", ca.count0);
         if n > 0 {
             sb.extend_from_slice(&num_buf[..n as usize]);
         }
@@ -594,7 +594,7 @@ fn atom_from_frame(ca: &mut Cmdarg, frame: &mut CmdFrame) -> CmdAtom {
         atom = atom_from_cmdline(K_AEXCMD, ca, Some(cmdline), frame.visual.active);
     } else if ca.cmdchar == K_LUA {
         let mut lua_id = [0u8; NUMBUFLEN];
-        vim_snprintf!(&mut lua_id, c"%d", g_st().repeat_luamap);
+        format_to_buf!(&mut lua_id, c"%d", g_st().repeat_luamap);
         atom = atom_from_cmdline(
             K_ANORMAL,
             ca,
@@ -1497,7 +1497,7 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
             }
         } else if cap.cmdchar == K_LUA {
             let mut lua_id = [0u8; NUMBUFLEN];
-            let n = vim_snprintf!(&mut lua_id, c"%d", g_st().repeat_luamap);
+            let n = format_to_buf!(&mut lua_id, c"%d", g_st().repeat_luamap);
             redo_append_str(&lua_id[..n.max(0) as usize]);
             redo_append_str(b"\n");
         }

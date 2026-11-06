@@ -154,7 +154,7 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
                         115,
                         true,
                         c"closing Stream (%p): %s (%s)",
-                        stream,
+                        stream.addr(),
                         uv_err_name(err_code),
                         uv_strerror(err_code),
                     );

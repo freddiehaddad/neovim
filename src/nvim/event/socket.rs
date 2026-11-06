@@ -14,7 +14,7 @@ use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
-use crate::strings::{ByteSliceExt as _, gettext, vim_snprintf};
+use crate::strings::{ByteSliceExt as _, format_to_buf, gettext};
 
 use std::ffi::{CStr, c_void};
 use std::ptr;
@@ -193,7 +193,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
                 line!() as i32,
                 true,
                 c"Invalid port: %s",
-                port,
+                crate::strings::ByteSlice::from_ptr(port),
             );
             return UV_EINVAL;
         }
@@ -232,7 +232,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
                 line!() as i32,
                 true,
                 c"Host lookup failed: %s",
-                endpoint.as_ptr(),
+                endpoint,
             );
             return retval;
         }
@@ -306,7 +306,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                     let mut sas_len = size_of::<SockaddrStorage>() as i32;
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
-                    vim_snprintf!(
+                    format_to_buf!(
                         &mut watcher.addr[addr_len..ADDRESS_MAX_SIZE],
                         c":%u",
                         u32::from(port),
@@ -336,7 +336,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                             line!() as i32,
                             true,
                             c"Failed to remove stale socket %s: %s",
-                            addr,
+                            crate::strings::ByteSlice::from_ptr(addr),
                             uv_strerror(rm_result),
                         );
                     } else {
@@ -362,7 +362,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         line!() as i32,
                         true,
                         c"Socket already in use by another Nvim instance: %s",
-                        addr,
+                        crate::strings::ByteSlice::from_ptr(addr),
                     );
                 }
             }

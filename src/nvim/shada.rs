@@ -951,7 +951,7 @@ fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadRes
     if skip_bytes < 0 {
         semsg!(
             gettext(c"E886: System error while skipping in ShaDa file: %s"),
-            unsafe { uv_strerror(skip_bytes as i32) },
+            uv_strerror(skip_bytes as i32),
         );
         return ShaDaReadResult::SDReadStatusReadError;
     } else if skip_bytes != (offset as isize) {
@@ -979,7 +979,7 @@ fn close_file(cookie: &mut FileDescriptor) -> i32 {
     if error != 0 {
         semsg!(
             gettext(c"E886: System error while closing ShaDa file: %s"),
-            unsafe { uv_strerror(error) },
+            uv_strerror(error),
         );
     }
     error
@@ -1005,7 +1005,7 @@ fn shada_read_file(file: Option<&CStr>, flags: i32) -> bool {
         smsg!(
             0,
             gettext(c"Reading ShaDa file \"%s\"%s%s%s%s"),
-            fname,
+            crate::strings::ByteSlice::from_ptr(fname),
             if (flags & K_SHA_DA_WANT_INFO) != 0 {
                 gettext(c" info")
             } else {
@@ -1034,8 +1034,8 @@ fn shada_read_file(file: Option<&CStr>, flags: i32) -> bool {
         if of_ret != UV_ENOENT || (flags & K_SHA_DA_MISSING_ERROR) != 0 {
             semsg!(
                 gettext(c"E886: System error while opening ShaDa file %s for reading: %s",),
-                fname,
-                unsafe { uv_strerror(of_ret) },
+                crate::strings::ByteSlice::from_ptr(fname),
+                uv_strerror(of_ret),
             );
         }
         return false;
@@ -1802,7 +1802,10 @@ fn shada_pack_entry(
                 CStr::from_bytes_with_nul(&vardesc[..=prefix.len() + copy_len]).unwrap_or_default();
             if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc_cstr) {
                 ret = ShaDaWriteResult::SDWriteIgnError;
-                semsg!(gettext(c"E574: Failed to write variable %s"), gv_name_ptr);
+                semsg!(
+                    gettext(c"E574: Failed to write variable %s"),
+                    crate::strings::ByteSlice::from_ptr(gv_name_ptr)
+                );
                 return ret;
             }
             if is_blob {
@@ -3135,10 +3138,12 @@ fn shada_open_tmp(
                 gettext(
                     c"E886: System error while opening temporary ShaDa file %s for writing: %s",
                 ),
-                CStr::from_bytes_with_nul(&tempname_bytes)
-                    .unwrap_or_default()
-                    .as_ptr(),
-                unsafe { uv_strerror(error) },
+                crate::strings::ByteSlice::from_ptr(
+                    CStr::from_bytes_with_nul(&tempname_bytes)
+                        .unwrap_or_default()
+                        .as_ptr()
+                ),
+                uv_strerror(error),
             );
             return None;
         }
@@ -3165,9 +3170,11 @@ fn shada_open_tmp(
     }
     semsg!(
         gettext(c"E138: All %s.tmp.X files exist, cannot write ShaDa file!"),
-        CStr::from_bytes_with_nul(fname_bytes)
-            .unwrap_or_default()
-            .as_ptr(),
+        crate::strings::ByteSlice::from_ptr(
+            CStr::from_bytes_with_nul(fname_bytes)
+                .unwrap_or_default()
+                .as_ptr()
+        ),
     );
     None
 }
@@ -3193,10 +3200,10 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                 gettext(
                     c"E886: System error while opening ShaDa file %s for reading to merge before writing it: %s",
                 ),
-                CStr::from_bytes_with_nul(&fname_bytes)
+                crate::strings::ByteSlice::from_ptr(CStr::from_bytes_with_nul(&fname_bytes)
                     .unwrap_or_default()
-                    .as_ptr(),
-                 unsafe { uv_strerror(error) } ,
+                    .as_ptr()),
+                 uv_strerror(error) ,
             );
         }
     }
@@ -3222,11 +3229,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
     let fname_cstr = CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default();
     if opt_vars().p_verbose > 1 {
         verbose_enter();
-        smsg!(
-            0,
-            gettext(c"Writing ShaDa file \"%s\""),
-            fname_cstr.as_ptr()
-        );
+        smsg!(0, gettext(c"Writing ShaDa file \"%s\""), fname_cstr);
         verbose_leave();
     }
 
@@ -3276,7 +3279,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                             semsg!(
                                 gettext(c"E136: Failed setting uid and gid for file %s: %s",),
                                 tempname,
-                                unsafe { uv_strerror(fchown_ret) },
+                                uv_strerror(fchown_ret),
                             );
                             can_rename = false;
                         }
@@ -3389,7 +3392,7 @@ fn fread_len(sd_reader: &mut FileDescriptor, buffer: &mut [u8]) -> ShaDaReadResu
     if read_bytes < 0 {
         semsg!(
             gettext(c"E886: System error while reading ShaDa file: %s"),
-            unsafe { uv_strerror(read_bytes as i32) },
+            uv_strerror(read_bytes as i32),
         );
         return ShaDaReadResult::SDReadStatusReadError;
     }
@@ -3417,7 +3420,7 @@ fn msgpack_read_uint64(
     if read_bytes < 0 {
         semsg!(
             gettext(c"E886: System error while reading integer from ShaDa file: %s"),
-            unsafe { uv_strerror(read_bytes as i32) },
+            uv_strerror(read_bytes as i32),
         );
         return ShaDaReadResult::SDReadStatusReadError;
     } else if read_bytes == 0 {
@@ -3621,7 +3624,7 @@ fn shada_read_next_item(
                                     c"E575: Error while reading ShaDa file: search pattern entry at position %llu %s",
                                 ),
                                 initial_fpos,
-                                error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
                             );
                         it.pat = NvimString::new();
                         break 'parse_item false;
@@ -3656,7 +3659,7 @@ fn shada_read_next_item(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu %s",
                                 ),
                                 initial_fpos,
-                                error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
                             );
                         break 'parse_item false;
                     }
@@ -3741,7 +3744,7 @@ fn shada_read_next_item(
                                     c"E575: Error while reading ShaDa file: register entry at position %llu %s",
                                 ),
                                 initial_fpos,
-                                error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
                             );
                         break 'parse_item false;
                     }
@@ -3952,7 +3955,7 @@ fn shada_read_next_item(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that %s",
                                         ),
                                         initial_fpos,
-                                        error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                                        crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
                                     );
                                 break 'parse_item false;
                             }
@@ -4103,7 +4106,7 @@ fn shada_init_jumps(
             siemsg!(
                 c"ShaDa: mark lnum zero (ji:%zu, js:%p, len:%i)",
                 jump_iter.unwrap_or(0),
-                &raw const curwin_mut().w_jumplist,
+                curwin_mut().w_jumplist.as_ptr().addr(),
                 curwin_mut().w_jumplistlen,
             );
             if jump_iter.is_none() {

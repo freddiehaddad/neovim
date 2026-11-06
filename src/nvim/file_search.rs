@@ -35,7 +35,7 @@ use crate::path::{
 #[cfg(windows)]
 use crate::path::{path_to_slash, vim_full_name};
 use crate::state::SaveVEvent;
-use crate::strings::{tr, vim_snprintf, vim_strchr};
+use crate::strings::{format_to_buf, tr, vim_strchr};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -382,39 +382,39 @@ pub fn vim_findfile_init(
 
         let expand_ptr = expand_buf.as_mut_ptr();
         let mut add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
-        expand_size = vim_snprintf!(
+        expand_size = format_to_buf!(
             &mut expand_buf,
             c"%s%s",
             search_ctx.ffsc_start_dir.data,
-            if add_sep {
+            crate::strings::ByteSlice::from_ptr(if add_sep {
                 PATHSEPSTR_C.as_ptr()
             } else {
                 EMPTY_C.as_ptr()
-            },
+            }),
         ) as usize;
 
         {
             let bufsize = expand_size + search_ctx.ffsc_fix_path.size + 1;
             let mut buf_vec = vec![0u8; bufsize];
 
-            vim_snprintf!(
+            format_to_buf!(
                 &mut buf_vec,
                 c"%s%s",
-                expand_ptr,
+                crate::strings::ByteSlice::from_ptr(expand_ptr),
                 search_ctx.ffsc_fix_path.data,
             );
             if os_isdir(crate::memory::bytes_as_cstr(&buf_vec)) {
                 if search_ctx.ffsc_fix_path.size > 0 {
                     add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
-                    expand_size += vim_snprintf!(
+                    expand_size += format_to_buf!(
                         &mut expand_buf[expand_size..],
                         c"%s%s",
                         search_ctx.ffsc_fix_path.data,
-                        if add_sep {
+                        crate::strings::ByteSlice::from_ptr(if add_sep {
                             PATHSEPSTR_C.as_ptr()
                         } else {
                             EMPTY_C.as_ptr()
-                        },
+                        }),
                     ) as usize;
                 }
             } else {
@@ -435,16 +435,16 @@ pub fn vim_findfile_init(
                     }
 
                     add_sep = after_pathsep(search_ctx.ffsc_fix_path.cstr_bytes()) == 0;
-                    expand_size += vim_snprintf!(
+                    expand_size += format_to_buf!(
                         &mut expand_buf[expand_size..],
                         c"%.*s%s",
                         len,
                         search_ctx.ffsc_fix_path.data,
-                        if add_sep {
+                        crate::strings::ByteSlice::from_ptr(if add_sep {
                             PATHSEPSTR_C.as_ptr()
                         } else {
                             EMPTY_C.as_ptr()
-                        },
+                        }),
                     ) as usize;
                 }
 
@@ -453,7 +453,7 @@ pub fn vim_findfile_init(
                         + search_ctx.ffsc_wc_path.size
                         + 1;
                     let mut temp_vec: Vec<u8> = vec![0; tempsize];
-                    let temp_len = vim_snprintf!(
+                    let temp_len = format_to_buf!(
                         &mut temp_vec,
                         c"%s%s",
                         search_ctx.ffsc_fix_path.data.wrapping_add(len as usize),
@@ -584,15 +584,15 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         break 'upward;
                     }
                     let add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
-                    file_path.size = vim_snprintf!(
+                    file_path.size = format_to_buf!(
                         &mut file_path_vec,
                         c"%s%s",
                         search_ctx.ffsc_start_dir.data,
-                        if add_sep {
+                        crate::strings::ByteSlice::from_ptr(if add_sep {
                             PATHSEPSTR_C.as_ptr()
                         } else {
                             EMPTY_C.as_ptr()
-                        },
+                        }),
                     ) as usize;
                     if file_path.size >= MAXPATHL {
                         break 'upward;
@@ -603,15 +603,15 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     break 'upward;
                 }
                 let add_sep = after_pathsep(stackp.ffs_fix_path.cstr_bytes()) == 0;
-                file_path.size += vim_snprintf!(
+                file_path.size += format_to_buf!(
                     &mut file_path_vec[file_path.size..],
                     c"%s%s",
                     stackp.ffs_fix_path.data,
-                    if add_sep {
+                    crate::strings::ByteSlice::from_ptr(if add_sep {
                         PATHSEPSTR_C.as_ptr()
                     } else {
                         EMPTY_C.as_ptr()
-                    },
+                    }),
                 ) as usize;
                 if file_path.size >= MAXPATHL {
                     break 'upward;
@@ -713,15 +713,15 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         let add_sep = after_pathsep(unsafe {
                             std::slice::from_raw_parts((entry).cast::<u8>(), len)
                         }) == 0;
-                        file_path.size = vim_snprintf!(
+                        file_path.size = format_to_buf!(
                             &mut file_path_vec,
                             c"%s%s%s",
-                            entry,
-                            if add_sep {
+                            crate::strings::ByteSlice::from_ptr(entry),
+                            crate::strings::ByteSlice::from_ptr(if add_sep {
                                 PATHSEPSTR_C.as_ptr()
                             } else {
                                 EMPTY_C.as_ptr()
-                            },
+                            }),
                             search_ctx.ffsc_file_to_search.data,
                         ) as usize;
                         if file_path.size >= MAXPATHL {
@@ -879,15 +879,15 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 break;
             }
             let add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
-            file_path.size = vim_snprintf!(
+            file_path.size = format_to_buf!(
                 &mut file_path_vec,
                 c"%s%s%s",
                 search_ctx.ffsc_start_dir.data,
-                if add_sep {
+                crate::strings::ByteSlice::from_ptr(if add_sep {
                     PATHSEPSTR_C.as_ptr()
                 } else {
                     EMPTY_C.as_ptr()
-                },
+                }),
                 search_ctx.ffsc_fix_path.data,
             ) as usize;
             if file_path.size >= MAXPATHL {
@@ -1250,7 +1250,7 @@ pub fn find_file_in_path_option(
                         && !rel_fname.is_null()
                         && rel_fnamelen + l < MAXPATHL
                     {
-                        l = vim_snprintf!(
+                        l = format_to_buf!(
                             &mut g_st().name_buff,
                             c"%.*s%s",
                             ((crate::strings::AsByteSlice::byte_addr(
@@ -1259,7 +1259,7 @@ pub fn find_file_in_path_option(
                                 - (crate::strings::AsByteSlice::byte_addr(rel_fname) as isize))
                                 as i32,
                             rel_fname,
-                            ftf,
+                            crate::strings::ByteSlice::from_ptr(ftf),
                         ) as usize;
                     } else {
                         crate::memory::copy_bytes_to_c_buf(
@@ -1350,14 +1350,26 @@ pub fn find_file_in_path_option(
         if file_name.is_none() && (options & FNAME_MESS) != 0 {
             if first {
                 if find_what == FindFileWhat::Dir {
-                    semsg!(tr(E_CANT_FIND_DIRECTORY_STR_IN_CDPATH), ftf);
+                    semsg!(
+                        tr(E_CANT_FIND_DIRECTORY_STR_IN_CDPATH),
+                        crate::strings::ByteSlice::from_ptr(ftf)
+                    );
                 } else {
-                    semsg!(tr(E_CANT_FIND_FILE_STR_IN_PATH), ftf);
+                    semsg!(
+                        tr(E_CANT_FIND_FILE_STR_IN_PATH),
+                        crate::strings::ByteSlice::from_ptr(ftf)
+                    );
                 }
             } else if find_what == FindFileWhat::Dir {
-                semsg!(tr(E_NO_MORE_DIRECTORY_STR_FOUND_IN_CDPATH), ftf);
+                semsg!(
+                    tr(E_NO_MORE_DIRECTORY_STR_FOUND_IN_CDPATH),
+                    crate::strings::ByteSlice::from_ptr(ftf)
+                );
             } else {
-                semsg!(tr(E_NO_MORE_FILE_STR_FOUND_IN_PATH), ftf);
+                semsg!(
+                    tr(E_NO_MORE_FILE_STR_FOUND_IN_PATH),
+                    crate::strings::ByteSlice::from_ptr(ftf)
+                );
             }
         }
 
@@ -1609,10 +1621,7 @@ pub fn find_file_name_in_path(
             }
             if file_name.is_none() && (options & FNAME_MESS) != 0 {
                 let ptr_cstr = std::ffi::CString::new(ptr_slice).unwrap_or_default();
-                semsg!(
-                    tr(c"E447: Can't find file \"%s\" in path"),
-                    ptr_cstr.as_ptr()
-                );
+                semsg!(tr(c"E447: Can't find file \"%s\" in path"), &ptr_cstr);
             }
 
             while file_name.is_some() && {

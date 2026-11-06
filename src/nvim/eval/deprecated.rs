@@ -175,7 +175,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 c"Invoking '%s' on channel %llu (%s):\n%s",
                 method,
                 chan_id,
-                name.as_ptr(),
+                name,
                 err.msg_cstr(),
             );
         } else {

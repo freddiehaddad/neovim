@@ -14,7 +14,7 @@ use crate::main_init::preserve_exit;
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
 use crate::strings::ByteSliceExt;
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use std::ffi::CStr;
 #[cfg(unix)]
 use std::ffi::c_void;
@@ -231,10 +231,10 @@ fn deadly_signal(signum: i32) -> ! {
     g_st().v_dying = 1;
 
     let io_buf = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
-    vim_snprintf!(
+    format_to_buf!(
         &mut g_st().iobuff,
         c"Nvim: Caught deadly signal '%s'\n",
-        signal_name(signum).as_ptr(),
+        signal_name(signum),
     );
 
     if opt_vars().p_awa && signum != SIGTERM && signum != SIGINT {

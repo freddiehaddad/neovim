@@ -166,12 +166,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
 // DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
 pub fn ui_detach_channel(chan: u64, err: &mut Error) {
     let Some(c) = find_channel_opt(chan) else {
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeValidation,
-            c"%s",
-            E_INVCHAN.as_ptr()
-        );
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", E_INVCHAN);
         return;
     };
     #[cfg(windows)]

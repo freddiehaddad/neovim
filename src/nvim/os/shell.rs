@@ -658,7 +658,7 @@ pub fn call_shell(cmd: Option<&CStr>, opts: i32, extra_shell_arg: Option<&CStr>)
         smsg!(
             0,
             gettext(c"Executing command: \"%s\""),
-            cmd.map_or(opt_vars().p_sh.as_ptr(), CStr::as_ptr),
+            crate::strings::ByteSlice::from_ptr(cmd.map_or(opt_vars().p_sh.as_ptr(), CStr::as_ptr)),
         );
         if !ui_has(K_UIMESSAGES) {
             msg_putchar(b'\n' as i32);
@@ -819,7 +819,7 @@ fn do_os_system(
             if !silent {
                 msg_puts(gettext(c"\nshell failed to start: "));
                 msg_outtrans(
-                    crate::strings::ByteSlice::from_ptr(unsafe { uv_strerror(status) }).as_cstr(),
+                    crate::strings::ByteSlice::from_ptr(uv_strerror(status)).as_cstr(),
                     0,
                     false,
                 );
@@ -1145,7 +1145,7 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
     if status != 0 {
         msg_schedule_semsg!(
             gettext(c"E5677: Error writing input to shell-command: %s"),
-            unsafe { uv_err_name(status) },
+            uv_err_name(status),
         );
     }
     stream_may_close(stream);

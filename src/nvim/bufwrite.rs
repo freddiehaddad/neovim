@@ -53,7 +53,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::path::{K_PATH_CMP_LITERAL, after_pathsep, path_equal, path_tail};
 use crate::sha256::ContextSha256;
-use crate::strings::{gettext, vim_snprintf, vim_snprintf_add};
+use crate::strings::{format_to_buf, format_to_buf_add, gettext};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbuf_is_changed_fn, u_unchanged, u_update_save_nr, u_write_undo};
 use std::ffi::CStr;
@@ -648,25 +648,29 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
     let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
     if let Some(num) = e.num {
         if e.arg != 0 {
-            let _ = vim_snprintf!(
+            let _ = format_to_buf!(
                 &mut errmsg,
                 c"%s: %s%s: %s",
-                num.as_ptr(),
-                g_st().iobuff.as_ptr(),
-                msg_ptr,
-                unsafe { uv_strerror(e.arg) },
+                num,
+                &g_st().iobuff,
+                crate::strings::ByteSlice::from_ptr(msg_ptr),
+                uv_strerror(e.arg),
             );
         } else {
-            let _ = vim_snprintf!(
+            let _ = format_to_buf!(
                 &mut errmsg,
                 c"%s: %s%s",
-                num.as_ptr(),
-                g_st().iobuff.as_ptr(),
-                msg_ptr,
+                num,
+                &g_st().iobuff,
+                crate::strings::ByteSlice::from_ptr(msg_ptr),
             );
         }
     } else if e.arg != 0 {
-        let _ = vim_snprintf!(&mut errmsg, msg_ptr, unsafe { uv_strerror(e.arg) });
+        let _ = format_to_buf!(
+            &mut errmsg,
+            crate::strings::ByteSlice::from_ptr(msg_ptr),
+            uv_strerror(e.arg)
+        );
     } else {
         crate::memory::copy_bytes_to_c_buf(
             &mut errmsg,
@@ -832,8 +836,10 @@ pub fn buf_get_backup_name(
         if ret != 0 {
             let _ = semsg!(
                 gettext(c"E303: Unable to create directory \"%s\" for backup file: %s",),
-                failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                unsafe { uv_strerror(ret) },
+                crate::strings::ByteSlice::from_ptr(
+                    failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr())
+                ),
+                uv_strerror(ret),
             );
         }
     }
@@ -1823,7 +1829,7 @@ pub fn buf_write(
                                     )));
                             } else {
                                 let mut alloc_msg: Vec<u8> = vec![0; 300];
-                                let _ = vim_snprintf!(
+                                let _ = format_to_buf!(
                                     &mut alloc_msg,
                                     gettext(
                                         c"E513: Write error, conversion failed in line %d (make 'fenc' empty to override)",
@@ -1892,7 +1898,7 @@ pub fn buf_write(
                         iobuf_append(gettext(c" CONVERSION ERROR"));
                         insert_space = true;
                         if write_info.bw_conv_error_lnum != 0 {
-                            let _ = vim_snprintf_add!(
+                            let _ = format_to_buf_add!(
                                 &mut g_st().iobuff,
                                 gettext(c" in line %lld;"),
                                 i64::from(write_info.bw_conv_error_lnum),

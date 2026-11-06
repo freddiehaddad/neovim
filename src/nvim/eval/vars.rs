@@ -913,7 +913,7 @@ pub fn eval_one_expr_in_str<'a>(
     if block_start.is_empty() {
         semsg!(
             gettext(E_MISSING_CLOSE_CURLY_STR),
-            p.cast::<std::ffi::c_void>()
+            crate::strings::ByteSlice::from_ptr(p.cast::<std::ffi::c_void>())
         );
         return None;
     }
@@ -925,7 +925,7 @@ pub fn eval_one_expr_in_str<'a>(
     if block_end.first_byte() != b'}' {
         semsg!(
             gettext(E_MISSING_CLOSE_CURLY_STR),
-            p.cast::<std::ffi::c_void>()
+            crate::strings::ByteSlice::from_ptr(p.cast::<std::ffi::c_void>())
         );
         return None;
     }
@@ -960,7 +960,7 @@ fn eval_all_expr_in_str(str_arg_in: &CStr) -> Option<std::ffi::CString> {
         } else if after_lit.first() == Some(&b'}') {
             semsg!(
                 gettext(E_STRAY_CLOSING_CURLY_STR),
-                str_arg.cast::<std::ffi::c_void>()
+                crate::strings::ByteSlice::from_ptr(str_arg.cast::<std::ffi::c_void>())
             );
             return None;
         } else {
@@ -1055,7 +1055,7 @@ pub fn heredoc_get(
         {
             let p_off = cmd_line_len - after_marker.len();
             let trailing_cstr = bytes_to_cstring(&full_cmd_bytes[p_off..cmd_line_len]);
-            semsg!(gettext(E_TRAILING_ARG), trailing_cstr.as_ptr());
+            semsg!(gettext(E_TRAILING_ARG), &trailing_cstr);
             return None;
         }
         if !script_get && marker_start[0].is_ascii_lowercase() {
@@ -1080,7 +1080,7 @@ pub fn heredoc_get(
             let rem_bytes = crate::strings::ByteSlice::from_ptr(line_arg).as_bytes();
             if rem_bytes.is_empty() {
                 if !script_get {
-                    semsg!(gettext(E_MISSING_END_MARKER_STR), marker_cstr.as_ptr());
+                    semsg!(gettext(E_MISSING_END_MARKER_STR), &marker_cstr);
                 }
                 break;
             }
@@ -1099,7 +1099,7 @@ pub fn heredoc_get(
             theline_owned = eap.ea_getline.call(0, 0, false);
             let Some(ref tl) = theline_owned else {
                 if !script_get {
-                    semsg!(gettext(E_MISSING_END_MARKER_STR), marker_cstr.as_ptr());
+                    semsg!(gettext(E_MISSING_END_MARKER_STR), &marker_cstr);
                 }
                 break;
             };
@@ -1384,7 +1384,7 @@ pub fn skip_var_list<'a>(
             let s = skip_var_one(p_cstr).as_ptr().cast::<u8>();
             if s == p {
                 if !silent {
-                    semsg!(gettext(E_INVARG2), p);
+                    semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(p));
                 }
                 return None;
             }
@@ -1403,7 +1403,7 @@ pub fn skip_var_list<'a>(
                 *semicolon = 1;
             } else if unsafe { *p } != b',' {
                 if !silent {
-                    semsg!(gettext(E_INVARG2), p);
+                    semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(p));
                 }
                 return None;
             }
@@ -1508,7 +1508,10 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             .cast();
             if !ascii_iswhite(unsafe { *arg }) && ends_excmd(unsafe { *arg }) == 0 {
                 g_st().emsg_severe = true;
-                semsg!(gettext(E_TRAILING_ARG), arg);
+                semsg!(
+                    gettext(E_TRAILING_ARG),
+                    crate::strings::ByteSlice::from_ptr(arg)
+                );
                 break;
             }
         } else {
@@ -1521,7 +1524,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             if len <= 0 {
                 if len < 0 && !aborting() {
                     g_st().emsg_severe = true;
-                    semsg!(gettext(E_INVARG2), arg);
+                    semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(arg));
                     break;
                 }
                 error = true;
@@ -1565,7 +1568,10 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                                 b's' => list_script_vars(first),
                                 b'l' => list_func_vars(first),
                                 _ => {
-                                    semsg!(gettext(c"E738: Can't list variables for %s"), name,);
+                                    semsg!(
+                                        gettext(c"E738: Can't list variables for %s"),
+                                        crate::strings::ByteSlice::from_ptr(name),
+                                    );
                                 }
                             }
                         } else {
@@ -1630,7 +1636,7 @@ fn ex_let_env<'a>(
     if len == 0 {
         semsg!(gettext(E_INVARG2), arg_in);
     } else if op_b != 0 && crate::strings::vim_haschr(c"+-*/%", i32::from(op_b)) {
-        semsg!(gettext(E_LETWRONG), op.unwrap().as_ptr());
+        semsg!(gettext(E_LETWRONG), op.unwrap());
     } else if endchars
         .is_some_and(|ec| !crate::strings::vim_haschr(ec, arg.skipwhite().first_byte() as i32))
     {
@@ -1704,7 +1710,7 @@ fn ex_let_option<'a>(
     let mut newval = nil_obj();
 
     if curval.obj_type == ObjectType::ObjectTypeNil {
-        semsg!(gettext(E_UNKNOWN_OPTION2), opt_cstr.as_ptr());
+        semsg!(gettext(E_UNKNOWN_OPTION2), &opt_cstr);
         optval_free(curval);
         optval_free(newval);
         return None;
@@ -1715,7 +1721,7 @@ fn ex_let_option<'a>(
         && ((curval.obj_type != ObjectType::ObjectTypeString && op_b == b'.')
             || (curval.obj_type == ObjectType::ObjectTypeString && op_b != b'.'))
     {
-        semsg!(gettext(E_LETWRONG), op.unwrap().as_ptr());
+        semsg!(gettext(E_LETWRONG), op.unwrap());
         optval_free(curval);
         optval_free(newval);
         return None;
@@ -1803,7 +1809,7 @@ fn ex_let_register<'a>(
     arg = arg.wrapping_add(1);
     let op_b = op.and_then(|s| s.to_bytes().first().copied()).unwrap_or(0);
     if op_b != 0 && crate::strings::vim_haschr(c"+-*/%", i32::from(op_b)) {
-        semsg!(gettext(E_LETWRONG), op.unwrap().as_ptr());
+        semsg!(gettext(E_LETWRONG), op.unwrap());
     } else if endchars.is_some_and(|ec| {
         !crate::strings::vim_haschr(ec, arg.wrapping_add(1).skipwhite().first_byte() as i32)
     }) {
@@ -1874,7 +1880,7 @@ fn ex_let_one<'a>(
             }
         }
         _ => {
-            semsg!(gettext(E_INVARG2), arg);
+            semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(arg));
         }
     }
 
@@ -1932,7 +1938,7 @@ fn ex_unletlock(
             lv.ll_tv = crate::globals::GraphPtr::NULL;
             let mut arg_cstr = arg.wrapping_add(1).as_cstr();
             if get_env_len(&mut arg_cstr) == 0 {
-                semsg!(gettext(E_INVARG2), name_start.as_ptr());
+                semsg!(gettext(E_INVARG2), name_start);
                 return;
             }
             arg = crate::strings::ByteSlice::from_cstr(arg_cstr);
@@ -1959,7 +1965,7 @@ fn ex_unletlock(
             {
                 if !name_end.is_null() {
                     g_st().emsg_severe = true;
-                    semsg!(gettext(E_TRAILING_ARG), name_end.as_ptr());
+                    semsg!(gettext(E_TRAILING_ARG), name_end);
                 }
                 break;
             }
@@ -2570,11 +2576,7 @@ pub fn eval_variable(
         }
     } else {
         if rettv.is_some() && verbose {
-            semsg!(
-                gettext(c"E121: Undefined variable: %.*s"),
-                len,
-                name.as_ptr(),
-            );
+            semsg!(gettext(c"E121: Undefined variable: %.*s"), len, name,);
         }
         ret = false;
     }
@@ -3169,14 +3171,14 @@ pub fn var_wrong_func_name(name: &CStr, new_var: bool) -> bool {
     {
         semsg!(
             gettext(c"E704: Funcref variable name must start with a capital: %s"),
-            name.as_ptr(),
+            name,
         );
         return true;
     }
     if new_var && function_exists(name, false) {
         semsg!(
             gettext(c"E705: Variable name conflicts with existing function: %s"),
-            name.as_ptr(),
+            name,
         );
         return true;
     }
@@ -3187,7 +3189,7 @@ pub fn var_wrong_func_name(name: &CStr, new_var: bool) -> bool {
 pub fn valid_varname(varname: &CStr) -> bool {
     for (i, &b) in varname.to_bytes().iter().enumerate() {
         if !eval_isnamec1(i32::from(b)) && (i == 0 || !ascii_isdigit(b)) && b != AUTOLOAD_CHAR {
-            semsg!(gettext(E_ILLVAR), varname.as_ptr());
+            semsg!(gettext(E_ILLVAR), varname);
             return false;
         }
     }
@@ -3342,8 +3344,8 @@ fn opt_from_tv(tv: &mut TypVal, opt_idx: OptIndex, option: &CStr, error: &mut bo
                 err = true;
                 semsg!(
                     gettext(c"E521: Number required: &%s = '%s'"),
-                    option.as_ptr(),
-                    tv.vval.v_string_cstr_or_empty().as_ptr(),
+                    option,
+                    tv.vval.v_string_cstr_or_empty(),
                 );
             }
         }
@@ -3430,7 +3432,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
 fn set_option_from_tv(varname: &CStr, varp: &mut TypVal) {
     let opt_idx = find_option(varname.to_bytes());
     if opt_idx == K_OPT_INVALID {
-        semsg!(gettext(E_UNKNOWN_OPTION2), varname.as_ptr());
+        semsg!(gettext(E_UNKNOWN_OPTION2), varname);
         return;
     }
 
@@ -3586,7 +3588,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         if let Some(endp) = vars_st().redir_endp.filter(|s| !s.to_bytes().is_empty()) {
             semsg!(gettext(E_TRAILING_ARG), endp);
         } else {
-            semsg!(gettext(E_INVARG2), name.as_ptr());
+            semsg!(gettext(E_INVARG2), name);
         }
         vars_st().redir_endp = None;
         var_redir_stop();

@@ -32,7 +32,7 @@ use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_p
 use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
-use crate::strings::{RawCCharPtr, RawCCharPtrMut, strcoll, strtod, tr, vim_snprintf};
+use crate::strings::{RawCCharPtr, RawCCharPtrMut, format_to_buf, strcoll, strtod, tr};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -2428,11 +2428,11 @@ fn do_sort_uniq(argvars: &mut [TypVal], rettv: &mut TypVal, sort: bool) {
     if argvars[0].v_type != VarType::VarList {
         semsg!(
             tr(E_LISTARG),
-            if sort {
+            crate::strings::ByteSlice::from_ptr(if sort {
                 c"sort()".as_ptr()
             } else {
                 c"uniq()".as_ptr()
-            },
+            }),
         );
         return;
     }
@@ -3311,7 +3311,7 @@ pub fn tv_dict_extend(d1: &mut TvDict, d2: &mut TvDict, action: &[u8]) {
             }
             if let Some(di1) = di1_opt {
                 if first_action == b'e' {
-                    semsg!(tr(c"E737: Key already exists: %s"), key2.as_ptr());
+                    semsg!(tr(c"E737: Key already exists: %s"), key2);
                     break;
                 } else if first_action == b'f' && !ptr::eq(di2, di1) {
                     if value_check_lock(di1.di_tv.v_lock, Some(arg_errmsg), arg_errmsg_len)
@@ -4874,7 +4874,7 @@ pub fn tv_get_string_buf_chk<'a>(
             Some(crate::memory::bytes_as_cstr(buf))
         }
         VarType::VarFloat => {
-            vim_snprintf!(buf, c"%g", tv.vval.v_float());
+            format_to_buf!(buf, c"%g", tv.vval.v_float());
             Some(crate::memory::bytes_as_cstr(buf))
         }
         VarType::VarString => {
@@ -4953,8 +4953,11 @@ pub fn check_repeat_count(slen: Varnumber, n: Varnumber) -> bool {
     }
 
     let mut buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
-    vim_snprintf!(&mut buf, c"%lld", n);
-    semsg!(tr(E_VAL_TOO_LARGE), buf.as_ptr().cast::<()>());
+    format_to_buf!(&mut buf, c"%lld", n);
+    semsg!(
+        tr(E_VAL_TOO_LARGE),
+        crate::strings::ByteSlice::from_ptr(buf.as_ptr().cast::<()>())
+    );
     false
 }
 

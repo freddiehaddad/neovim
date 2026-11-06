@@ -1099,11 +1099,11 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
             if nr < 0 || nr > i64::from(i32::MAX) {
                 semsg!(
                     tr(c"E678: Invalid character after %s%%[dxouU]"),
-                    if re_st().reg_magic == MAGIC_ALL {
+                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
                         c"\\".as_ptr()
-                    },
+                    }),
                 );
                 g_st().rc_did_emsg = true;
                 return false;
@@ -1150,11 +1150,11 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 if c == NUL as i32 {
                     semsg!(
                         tr(E_MISSING_SB),
-                        if re_st().reg_magic == MAGIC_ALL {
+                        crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                             c"".as_ptr()
                         } else {
                             c"\\".as_ptr()
-                        },
+                        }),
                     );
                     g_st().rc_did_emsg = true;
                     return false;
@@ -1168,11 +1168,11 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
             if n == 0 {
                 semsg!(
                     tr(E_EMPTY_SB),
-                    if re_st().reg_magic == MAGIC_ALL {
+                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
                         c"\\".as_ptr()
-                    },
+                    }),
                 );
                 g_st().rc_did_emsg = true;
                 return false;
@@ -1791,20 +1791,20 @@ fn nfa_reg(paren: i32) -> bool {
         if paren == REG_NPAREN {
             semsg!(
                 tr(E_UNMATCHED_STR_PERCENT_OPEN),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
         } else {
             semsg!(
                 tr(E_UNMATCHED_STR_OPEN),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
         }
         g_st().rc_did_emsg = true;
@@ -1814,11 +1814,11 @@ fn nfa_reg(paren: i32) -> bool {
         if peekchr() == magic_fn(b')' as i32) {
             semsg!(
                 tr(E_UNMATCHED_STR_CLOSE),
-                if re_st().reg_magic == MAGIC_ALL {
+                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                     c"".as_ptr()
                 } else {
                     c"\\".as_ptr()
-                },
+                }),
             );
         } else {
             emsg(tr(c"E873: (NFA regexp) proper termination error"));

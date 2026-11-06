@@ -102,7 +102,7 @@ use crate::spell::{
     expand_spelling, spell_dump_compl, spell_expand_check_cap, spell_move_to, spell_word_start,
 };
 use crate::state::{MODE_INSERT, REPLACE_FLAG, SaveVEvent, may_trigger_modechanged};
-use crate::strings::{gettext, vim_snprintf, vim_strchr, vim_strsave_escaped};
+use crate::strings::{format_to_buf, gettext, vim_strchr, vim_strsave_escaped};
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
 use crate::ui::{ui_flush, ui_has, vim_beep};
@@ -2053,7 +2053,7 @@ fn ins_compl_dictionaries(
             vim_strsave_escaped(crate::strings::ByteSlice::from_ptr(pat).as_bytes(), b"\\");
         let len = pat_esc.as_bytes().len() + 10;
         let mut ptr_vec = vec![0u8; len];
-        vim_snprintf!(&mut ptr_vec, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
+        format_to_buf!(&mut ptr_vec, c"^\\s*\\zs\\V%s", &pat_esc);
         regmatch.set_prog(vim_regcomp(
             crate::memory::bytes_as_cstr(&ptr_vec),
             RE_MAGIC,
@@ -2209,7 +2209,7 @@ fn ins_compl_files(
         }
         let fp = CFile::open(file.as_cstr(), c"r");
         if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff,
                 gettext(c"Scanning dictionary: %s"),
                 file
@@ -3904,7 +3904,7 @@ fn process_next_cpt_value(
             } else {
                 ins_buf.sfname_opt()
             };
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff,
                 gettext(c"Scanning: %s"),
                 name.unwrap_or(c"")
@@ -3952,7 +3952,7 @@ fn process_next_cpt_value(
             } else if st.e_cpt_char() == b']' || st.e_cpt_char() == b't' {
                 compl_type = CTRL_X_TAGS;
                 if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
-                    vim_snprintf!(&mut g_st().iobuff, c"%s", gettext(c"Scanning tags."));
+                    format_to_buf!(&mut g_st().iobuff, c"%s", gettext(c"Scanning tags."));
                     msg_progress(
                         Some(g_st().iobuff_bytes_mut()),
                         c"nvim.completion",
@@ -5427,16 +5427,16 @@ fn ins_compl_show_filename() {
     }
     if !insexp().compl_autocomplete {
         g_st().msg_hist_off = true;
-        vim_snprintf!(
+        format_to_buf!(
             &mut g_st().iobuff,
             c"%s %s%s",
             lead,
-            if s.addr() > fname.addr() {
+            crate::strings::ByteSlice::from_ptr(if s.addr() > fname.addr() {
                 c"<".as_ptr()
             } else {
                 c"".as_ptr()
-            },
-            s.as_ptr(),
+            }),
+            s,
         );
         msg(crate::memory::bytes_as_cstr(g_st().iobuff_bytes()), 0);
         g_st().msg_hist_off = false;
@@ -6081,11 +6081,11 @@ fn get_userdefined_compl_info(
             if c.cb_type() == K_CALLBACK_NONE_CONST {
                 semsg!(
                     gettext(E_NOTSET),
-                    if ctrl_x_mode_function() {
+                    crate::strings::ByteSlice::from_ptr(if ctrl_x_mode_function() {
                         c"completefunc".as_ptr()
                     } else {
                         c"omnifunc".as_ptr()
-                    },
+                    }),
                 );
                 return false;
             }
@@ -6402,14 +6402,14 @@ fn ins_compl_show_statusmsg() {
             if curr.cp_number != -1 {
                 let match_ref_ptr = crate::strings::ByteSlice::from_bytes(&insexp().match_ref);
                 if insexp().compl_matches > 0 {
-                    vim_snprintf!(
+                    format_to_buf!(
                         &mut insexp().match_ref,
                         gettext(c"match %d of %d"),
                         curr.cp_number,
                         insexp().compl_matches,
                     );
                 } else {
-                    vim_snprintf!(
+                    format_to_buf!(
                         &mut insexp().match_ref,
                         gettext(c"match %d"),
                         curr.cp_number,

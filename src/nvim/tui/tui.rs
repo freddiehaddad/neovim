@@ -956,7 +956,7 @@ fn terminfo_start(tui: &mut TUIData) {
                 628,
                 true,
                 c"uv_tty_init failed: %s",
-                unsafe { uv_strerror(ret) },
+                uv_strerror(ret),
             );
         }
         #[cfg(not(windows))]
@@ -979,7 +979,7 @@ fn terminfo_start(tui: &mut TUIData) {
                     638,
                     true,
                     c"uv_tty_set_mode failed: %s",
-                    unsafe { uv_strerror(ret) },
+                    uv_strerror(ret),
                 );
             }
         }
@@ -993,7 +993,7 @@ fn terminfo_start(tui: &mut TUIData) {
                 644,
                 true,
                 c"uv_pipe_init failed: %s",
-                unsafe { uv_strerror(ret) },
+                uv_strerror(ret),
             );
         }
         let ret = unsafe { uv_pipe_open(output_handle, tui.out_fd) };
@@ -1005,7 +1005,7 @@ fn terminfo_start(tui: &mut TUIData) {
                 648,
                 true,
                 c"uv_pipe_open failed: %s",
-                unsafe { uv_strerror(ret) },
+                uv_strerror(ret),
             );
         }
     }
@@ -2016,7 +2016,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
             1569,
             true,
             c"uv_write failed: %s",
-            unsafe { uv_strerror(ret) },
+            uv_strerror(ret),
         );
     }
     unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
@@ -2280,7 +2280,7 @@ pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
             true,
             c"Failed to chdir to %s: %s",
             path.data,
-            unsafe { uv_strerror(err) },
+            uv_strerror(err),
         );
     }
 }
@@ -2953,7 +2953,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
                     2660,
                     true,
                     c"uv_write failed: %s",
-                    unsafe { uv_strerror(ret) },
+                    uv_strerror(ret),
                 );
             }
             unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
@@ -2979,7 +2979,7 @@ fn tui_init_stty_erase(input: &mut TermInput) {
                     2684,
                     true,
                     c"stty/termios:erase=%s",
-                    erase_cstr.as_ptr(),
+                    erase_cstr,
                 );
             }
         }

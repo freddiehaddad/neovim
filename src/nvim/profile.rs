@@ -485,12 +485,20 @@ fn prof_func_line(
         if prefer_self && profile_equal(*total, *self_time) {
             fprintf!(fd, c"           ");
         } else {
-            fprintf!(fd, c"%s ", profile_msg(*total).as_ptr());
+            fprintf!(
+                fd,
+                c"%s ",
+                crate::strings::ByteSlice::from_ptr(profile_msg(*total).as_ptr())
+            );
         }
         if !prefer_self && profile_equal(*total, *self_time) {
             fprintf!(fd, c"           ");
         } else {
-            fprintf!(fd, c"%s ", profile_msg(*self_time).as_ptr());
+            fprintf!(
+                fd,
+                c"%s ",
+                crate::strings::ByteSlice::from_ptr(profile_msg(*self_time).as_ptr())
+            );
         }
     } else {
         fprintf!(fd, c"                            ");
@@ -498,7 +506,7 @@ fn prof_func_line(
 }
 
 fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, prefer_self: bool) {
-    fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
+    fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title);
     fprintf!(fd, c"count  total (s)   self (s)  function\n");
     for &fp in sorttab.iter().take(20) {
         prof_func_line(
@@ -645,12 +653,7 @@ fn func_dump_profile(fd: &CFile) {
             if fp.uf_script_ctx.sc_sid != 0 {
                 let p = get_scriptname(fp.uf_script_ctx, true);
 
-                fprintf!(
-                    fd,
-                    c"    Defined: %s:%d\n",
-                    p.as_ptr(),
-                    fp.uf_script_ctx.sc_lnum,
-                );
+                fprintf!(fd, c"    Defined: %s:%d\n", &p, fp.uf_script_ctx.sc_lnum,);
             }
             if fp.uf_tm_count == 1 {
                 fprintf!(fd, c"Called 1 time\n");
@@ -658,13 +661,9 @@ fn func_dump_profile(fd: &CFile) {
                 fprintf!(fd, c"Called %d times\n", fp.uf_tm_count);
             }
 
-            fprintf!(
-                fd,
-                c"Total time: %s\n",
-                profile_msg(fp.uf_tm_total).as_ptr()
-            );
+            fprintf!(fd, c"Total time: %s\n", profile_msg(fp.uf_tm_total));
 
-            fprintf!(fd, c" Self time: %s\n", profile_msg(fp.uf_tm_self).as_ptr());
+            fprintf!(fd, c" Self time: %s\n", profile_msg(fp.uf_tm_self));
 
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
@@ -682,7 +681,7 @@ fn func_dump_profile(fd: &CFile) {
                     true,
                 );
 
-                fprintf!(fd, c"%s\n", line.as_ptr());
+                fprintf!(fd, c"%s\n", line);
             }
             fprintf!(fd, c"\n");
         }
@@ -757,12 +756,8 @@ fn script_dump_profile(fd: &CFile) {
             } else {
                 fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
             }
-            fprintf!(
-                fd,
-                c"Total time: %s\n",
-                profile_msg(si.sn_pr_total).as_ptr()
-            );
-            fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self).as_ptr());
+            fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total));
+            fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self));
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
@@ -787,9 +782,9 @@ fn script_dump_profile(fd: &CFile) {
                             if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
                                 fprintf!(fd, c"           ");
                             } else {
-                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total).as_ptr());
+                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total));
                             }
-                            fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self).as_ptr());
+                            fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self));
                         } else {
                             fprintf!(fd, c"                            ");
                         }
@@ -797,7 +792,7 @@ fn script_dump_profile(fd: &CFile) {
                         fprintf!(fd, c"                            ");
                     }
                     if let Ok(line_cstr) = CStr::from_bytes_until_nul(&iobuf) {
-                        fprintf!(fd, c"%s", line_cstr.as_ptr());
+                        fprintf!(fd, c"%s", line_cstr);
                     }
                     i += 1;
                 }
@@ -819,7 +814,7 @@ pub fn profile_dump() {
         script_dump_profile(&fd);
         func_dump_profile(&fd);
     } else {
-        semsg!(E_NOTOPEN, profile_fname.as_ptr());
+        semsg!(E_NOTOPEN, profile_fname);
     }
 }
 
@@ -899,7 +894,7 @@ fn time_diff(then: Proftime, now: Proftime) {
     let diff = profile_sub(now, then);
     let s = CString::new(format!("{:07.3}", (diff as f64) / 1.0e6)).unwrap();
     if let Some(ref tf) = g_st().time_fd {
-        fprintf!(tf, c"%s", s.as_ptr());
+        fprintf!(tf, c"%s", &s);
     }
 }
 
@@ -939,7 +934,7 @@ pub fn time_msg(mesg: &CStr, start: Option<&Proftime>) {
     prof_st().g_prev_time = now;
     time_diff(prev, now);
 
-    fprintf!(tf, c": %s\n", mesg.as_ptr());
+    fprintf!(tf, c": %s\n", mesg);
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
@@ -956,17 +951,13 @@ pub fn time_init(fname: &CStr, proc_name: &CStr) {
     if r != 0 {
         prof_st().startuptime_buf = Vec::new();
         g_st().time_fd = None;
-        let err_str = crate::strings::ByteSlice::from_ptr(unsafe { uv_err_name(r) })
+        let err_str = crate::strings::ByteSlice::from_ptr(uv_err_name(r))
             .as_cstr()
             .to_string_lossy();
         eprint!("time_init: setvbuf failed: {r} {err_str}");
         return;
     }
-    fprintf!(
-        tf,
-        c"--- Startup times for process: %s ---\n",
-        proc_name.as_ptr(),
-    );
+    fprintf!(tf, c"--- Startup times for process: %s ---\n", proc_name,);
 }
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).

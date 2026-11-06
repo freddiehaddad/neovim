@@ -26,7 +26,7 @@ use crate::regexp::{
     MAXCOL, NUMBUFLEN, RE_MAGIC, Regmmatch, Regprog, re_multiline, skip_regexp, vim_regcomp,
     vim_regexec_multi,
 };
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::window::WinInfoInfo;
 use std::ptr;
 
@@ -169,7 +169,7 @@ fn match_add(
     }
     if let Some(pat) = pat {
         let Some(prog_box) = vim_regcomp(pat, RE_MAGIC) else {
-            semsg!(gettext(E_INVARG2), pat.as_ptr());
+            semsg!(gettext(E_INVARG2), pat);
             return -1;
         };
         regprog = crate::globals::GraphPtr::<Regprog>::of(Box::into_raw(prog_box));
@@ -924,7 +924,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     tv_list_append_number(&mut *l, llpos.len as Varnumber);
                 }
                 let mut buf = [0u8; 30];
-                let len = vim_snprintf!(&mut buf, c"pos%d", (i + 1) as i32);
+                let len = format_to_buf!(&mut buf, c"pos%d", (i + 1) as i32);
                 let _ = len;
                 tv_dict_add_list(
                     &mut *dict,
@@ -1008,7 +1008,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             i = 1;
             while i < 9 {
                 let mut buf = [0u8; 30];
-                vim_snprintf!(&mut buf, c"pos%d", i);
+                format_to_buf!(&mut buf, c"pos%d", i);
                 if let Some(pos_di) = tv_dict_find_opt(
                     Some(d),
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
@@ -1222,7 +1222,7 @@ pub fn ex_match(eap: &mut Exarg) {
             }
             p = p.skipwhite();
             if p.is_empty() {
-                semsg!(gettext(E_INVARG2), arg.as_ptr());
+                semsg!(gettext(E_INVARG2), arg);
                 return;
             }
             end = crate::strings::ByteSlice::from_cstr(skip_regexp(
@@ -1237,7 +1237,7 @@ pub fn ex_match(eap: &mut Exarg) {
                     return;
                 }
                 if end.first_byte() != p.first_byte() {
-                    semsg!(gettext(E_INVARG2), p.as_ptr());
+                    semsg!(gettext(E_INVARG2), p);
                     return;
                 }
 

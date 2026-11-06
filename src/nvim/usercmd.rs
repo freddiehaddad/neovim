@@ -810,10 +810,7 @@ pub fn parse_addr_type_arg(val_slice: &[u8], addr_type_arg: &mut CmdAddr) -> boo
         .count();
     let err_cstr = CString::new(&val_slice[..i]).unwrap_or_default();
 
-    semsg!(
-        gettext(c"E180: Invalid address type value: %s"),
-        err_cstr.as_ptr()
-    );
+    semsg!(gettext(c"E180: Invalid address type value: %s"), &err_cstr);
     false
 }
 
@@ -851,10 +848,7 @@ pub fn parse_compl_arg(
 
     if !matched {
         let err_cstr = CString::new(val_slice).unwrap_or_default();
-        semsg!(
-            gettext(c"E180: Invalid complete value: %s"),
-            err_cstr.as_ptr()
-        );
+        semsg!(gettext(c"E180: Invalid complete value: %s"), &err_cstr);
         return false;
     }
 
@@ -1001,7 +995,7 @@ fn uc_scan_attr(
         } else {
             let attr_cstr =
                 CString::new(crate::memory::bytes_until_nul(attr_full)).unwrap_or_default();
-            semsg!(gettext(c"E181: Invalid attribute: %s"), attr_cstr.as_ptr());
+            semsg!(gettext(c"E181: Invalid attribute: %s"), &attr_cstr);
 
             return false;
         }
@@ -1078,7 +1072,7 @@ pub fn uc_add_command(
                 let name_cstr = CString::new(name_prefix).unwrap_or_default();
                 semsg!(
                     gettext(c"E174: Command already exists: add ! to replace it: %s"),
-                    name_cstr.as_ptr(),
+                    &name_cstr,
                 );
                 nlua_clear_ref(&mut luaref);
                 nlua_clear_ref(&mut compl_luaref);
@@ -1254,7 +1248,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
             } else {
                 E_NO_SUCH_USER_DEFINED_COMMAND_STR
             }),
-            arg,
+            crate::strings::ByteSlice::from_ptr(arg),
         );
         return;
     }

@@ -57,7 +57,7 @@ use crate::os::env::ExpandCtx;
 use crate::os::fs::CFile;
 use crate::regexp::{CTRL_V_CONST, NUMBUFLEN, Regmatch, vim_regexec};
 use crate::runtime::{Sctx, sourcing_lnum};
-use crate::strings::{gettext, sort_strings, vim_snprintf};
+use crate::strings::{format_to_buf, gettext, sort_strings};
 use crate::viml::parser::expressions::CTRL_H_CONST;
 use std::ffi::{CStr, CString};
 use std::ptr;
@@ -551,7 +551,7 @@ fn set_maparg_rhs(
         mapargs.orig_rhs = Some(CString::default());
         mapargs.orig_rhs_len = 0;
         map_st().map_luaid += 1;
-        mapargs.rhs_len = vim_snprintf!(
+        mapargs.rhs_len = format_to_buf!(
             &mut tmp_buf,
             c"%c%c%c%d\r",
             K_SPECIAL as i32,
@@ -2363,7 +2363,10 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         is_abbr != 0,
     );
     if mode == 0 {
-        semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR), which);
+        semsg!(
+            gettext(E_ILLEGAL_MAP_MODE_STRING_STR),
+            crate::strings::ByteSlice::from_ptr(which)
+        );
         return;
     }
 
@@ -2711,7 +2714,7 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
                     } else {
                         gettext(E_MAPPING_ALREADY_EXISTS_FOR_STR)
                     },
-                    parsed_args.lhs.as_ptr(),
+                    &parsed_args.lhs,
                 );
             }
             6 => {
@@ -2721,7 +2724,7 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
                     } else {
                         gettext(E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR)
                     },
-                    parsed_args.lhs.as_ptr(),
+                    &parsed_args.lhs,
                 );
             }
             _ => {}
@@ -2889,10 +2892,12 @@ pub fn modify_keymap(
                     err,
                     ErrorType::ErrorTypeValidation,
                     c"Gave nonempty RHS in unmap command: %s",
-                    parsed_args
-                        .rhs
-                        .as_ref()
-                        .map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    crate::strings::ByteSlice::from_ptr(
+                        parsed_args
+                            .rhs
+                            .as_ref()
+                            .map_or(c"".as_ptr(), |s| s.as_ptr())
+                    ),
                 );
             } else {
                 api_set_error!(

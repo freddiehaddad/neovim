@@ -91,7 +91,7 @@ use crate::state::{
     EditorState, MODE_TERMINAL, SaveVEvent, may_trigger_modechanged, state_enter,
     state_handle_k_event,
 };
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 use crate::textformat::Oparg;
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
@@ -604,7 +604,7 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: Option<&mut Terminal>) 
     if frag.initial() {
         term.termrequest_buffer.clear();
         let mut prefix = [0u8; 32];
-        let n = vim_snprintf!(&mut prefix[..], c"\x1b]%d;", command);
+        let n = format_to_buf!(&mut prefix[..], c"\x1b]%d;", command);
         if n > 0 {
             term.termrequest_buffer
                 .extend_from_slice(&prefix[..n as usize]);
@@ -873,7 +873,7 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
     let state = vterm_obtain_state(&mut term.vt);
     for i in 0..16 {
         let mut var = [0u8; 64];
-        let n = vim_snprintf!(&mut var[..], c"terminal_color_%d", i as i32) as usize;
+        let n = format_to_buf!(&mut var[..], c"terminal_color_%d", i as i32) as usize;
         if let Some(name) = get_config_string(buf, &var[..n]) {
             let mut dummy: i32 = 0;
             let color_val = name_to_color(&name, &mut dummy);

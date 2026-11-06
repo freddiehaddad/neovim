@@ -1705,10 +1705,7 @@ pub fn skip_regexp(start: &std::ffi::CStr, delim: i32, magic: i32) -> &std::ffi:
 pub fn skip_regexp_err(start: &std::ffi::CStr, delim: i32, magic: i32) -> Option<&std::ffi::CStr> {
     let p = skip_regexp(start, delim, magic);
     if p.to_bytes().first().copied().unwrap_or(0) as i32 != delim {
-        semsg!(
-            tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR),
-            start.as_ptr(),
-        );
+        semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), start,);
         return None;
     }
     Some(p)
@@ -2125,11 +2122,11 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     if re_st().regparse_byte() != b'}' {
         semsg!(
             tr(c"E554: Syntax error in %s{...}"),
-            if re_st().reg_magic == MAGIC_ALL {
+            crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
                 c"".as_ptr()
             } else {
                 c"\\".as_ptr()
-            },
+            }),
         );
         g_st().rc_did_emsg = true;
         return false;
@@ -2421,7 +2418,7 @@ pub(super) fn match_with_backref(
 
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
     if re_multi_type(peekchr()) == MULTI_MULT {
-        semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what.as_ptr());
+        semsg!(tr(c"E888: (NFA regexp) cannot repeat %s"), what);
         g_st().rc_did_emsg = true;
         return false;
     }
@@ -2480,12 +2477,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
             rem2 = &rem2[step..];
         }
         n2 = (s2_b.len() - rem2.len()) as i32;
-        let r = utf_strnicmp(
-            crate::strings::ByteSlice::from_ptr(s1_b.as_ptr()).as_bytes(),
-            crate::strings::ByteSlice::from_ptr(s2_b.as_ptr()).as_bytes(),
-            *n as usize,
-            n2 as usize,
-        );
+        let r = utf_strnicmp(s1_b, s2_b, *n as usize, n2 as usize);
         if r == 0 {
             *n = n2;
         }

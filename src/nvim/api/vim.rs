@@ -1219,7 +1219,7 @@ pub fn nvim_echo(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
-                kind,
+                crate::strings::ByteSlice::from_ptr(kind),
             );
             break 'validate false;
         }
@@ -1601,7 +1601,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         channel_send(chan_id, contents, &mut error);
 
         if let Some(err_str) = error {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str);
         }
     }
 
@@ -1631,7 +1631,7 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
     let buf = data.as_bytes().to_vec();
     channel_send(chan as u64, buf, &mut error);
     if let Some(err_str) = error {
-        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str);
     }
 }
 
@@ -2334,9 +2334,8 @@ pub fn nvim_id_dict(dct: Dict, arena: &mut Arena) -> Dict {
 /// @param[in]  flt  Value to return.
 ///
 /// @return its argument.
-// DLLEXPORT Float nvim__id_float(Float flt);
-#[unsafe(no_mangle)]
-pub extern "C" fn nvim__id_float(flt: Float) -> Float {
+#[allow(non_snake_case)]
+pub fn nvim__id_float(flt: Float) -> Float {
     flt
 }
 
@@ -2751,7 +2750,7 @@ pub fn nvim_eval_statusline(
         let mut raw_errbuf = [0u8; ERR_BUFLEN];
         let errbuf = CharBuf::from_slice(&mut raw_errbuf);
         if let Some(errmsg) = check_stl_option(str_bytes, Some(errbuf)) {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
             return result;
         }
     }

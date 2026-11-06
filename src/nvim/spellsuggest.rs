@@ -37,7 +37,7 @@ use crate::spell::{
     spell_priv_st, spell_soundfold, spell_tofold, spell_valid_case, valid_word_prefix,
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{format_to_buf, gettext};
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use crate::viml::parser::expressions::TAB;
@@ -745,12 +745,12 @@ pub fn spell_suggest(count: i32) {
                 )
                 .as_opt_cstr()
                 .unwrap_or(c"");
-                vim_snprintf!(
+                format_to_buf!(
                     g_st().iobuff_bytes_mut(),
                     c"%s%.*s",
-                    stp.st_word.as_ptr(),
+                    &stp.st_word,
                     sug.su_badlen - stp.st_orglen,
-                    tail_cstr.as_ptr(),
+                    tail_cstr,
                 );
                 spell_priv_st().repl_to = Some(g_st().iobuff_cstr().to_owned());
             } else {

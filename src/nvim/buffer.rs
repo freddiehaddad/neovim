@@ -107,7 +107,7 @@ use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
-use crate::strings::{RawCCharPtr, gettext, ngettext, vim_snprintf, vim_snprintf_safelen};
+use crate::strings::{RawCCharPtr, format_to_buf, format_to_buf_safelen, gettext, ngettext};
 use crate::syntax::{Synblock, reset_synblock, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
@@ -3272,15 +3272,9 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
     if match_fnum < 0 {
         let pat_cstr = crate::memory::bytes_to_cstring(pat_slice);
         if match_fnum == -2 {
-            semsg!(
-                gettext(c"E93: More than one match for %s"),
-                pat_cstr.as_ptr()
-            );
+            semsg!(gettext(c"E93: More than one match for %s"), &pat_cstr);
         } else {
-            semsg!(
-                gettext(c"E94: No matching buffer for %s"),
-                pat_cstr.as_ptr()
-            );
+            semsg!(gettext(c"E94: No matching buffer for %s"), &pat_cstr);
         }
     }
     match_fnum
@@ -3721,7 +3715,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         if !ui_has(K_UIMESSAGES) || g_st().msg_col > 0 {
             msg_putchar(b'\n' as i32);
         }
-        let mut len = vim_snprintf_safelen!(
+        let mut len = format_to_buf_safelen!(
             &mut g_st().iobuff[..IOSIZE - 20],
             c"%3d%c%c%c%c%c \"%s\"",
             buf.b_fnum,
@@ -3742,7 +3736,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             },
             ro_char,
             changed_char,
-            namebuff_ptr,
+            crate::strings::ByteSlice::from_ptr(namebuff_ptr),
         )
         .min(IOSIZE - 20);
 
@@ -3758,7 +3752,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buf.b_last_used != 0 {
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[len..IOSIZE], buf.b_last_used);
         } else {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().iobuff[len..IOSIZE],
                 gettext(c"line %lld"),
                 if g_st().curbuf == buf {
@@ -4003,14 +3997,14 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     let mut bufferlen = 0usize;
 
     if fullname > 1 {
-        bufferlen = vim_snprintf_safelen!(&mut buffer_vec, c"buf %d: ", curbuf_mut().b_fnum);
+        bufferlen = format_to_buf_safelen!(&mut buffer_vec, c"buf %d: ", curbuf_mut().b_fnum);
     }
 
     buffer_vec[bufferlen] = b'"';
     bufferlen += 1;
 
     if let Some(name) = buf_spname(curbuf_mut()) {
-        bufferlen += vim_snprintf_safelen!(&mut buffer_vec[bufferlen..], c"%s", name);
+        bufferlen += format_to_buf_safelen!(&mut buffer_vec[bufferlen..], c"%s", name);
     } else {
         let name = if fullname == 0 && curbuf_mut().fname_opt().is_some() {
             curbuf_mut().fname_opt()
@@ -4067,7 +4061,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             c"".as_ptr()
         };
 
-    bufferlen += vim_snprintf_safelen!(
+    bufferlen += format_to_buf_safelen!(
         &mut buffer_vec[bufferlen..],
         c"\"%s%s%s%s%s%s",
         mod_str,
@@ -4075,16 +4069,16 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         new_str,
         readerr_str,
         ro_str,
-        sep_str,
+        crate::strings::ByteSlice::from_ptr(sep_str),
     );
 
     let line_count = i64::from(curbuf_mut().b_ml.ml_line_count);
     let cur_lnum = i64::from(curwin_mut().w_cursor.lnum);
     if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
         bufferlen +=
-            vim_snprintf_safelen!(&mut buffer_vec[bufferlen..], c"%s", gettext(NO_LINES_MSG));
+            format_to_buf_safelen!(&mut buffer_vec[bufferlen..], c"%s", gettext(NO_LINES_MSG));
     } else if opt_vars().p_ru {
-        bufferlen += vim_snprintf_safelen!(
+        bufferlen += format_to_buf_safelen!(
             &mut buffer_vec[bufferlen..],
             ngettext(
                 c"%lld line --%d%%--",
@@ -4095,7 +4089,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             calc_percentage(cur_lnum, line_count),
         );
     } else {
-        bufferlen += vim_snprintf_safelen!(
+        bufferlen += format_to_buf_safelen!(
             &mut buffer_vec[bufferlen..],
             gettext(c"line %lld of %lld --%d%%-- col "),
             cur_lnum,
@@ -4128,9 +4122,9 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
 
 pub fn col_print(buf: &mut [u8], col: i32, vcol: i32) -> i32 {
     if col == vcol {
-        vim_snprintf_safelen!(buf, c"%d", col) as i32
+        format_to_buf_safelen!(buf, c"%d", col) as i32
     } else {
-        vim_snprintf_safelen!(buf, c"%d-%d", col, vcol) as i32
+        format_to_buf_safelen!(buf, c"%d-%d", col, vcol) as i32
     }
 }
 
@@ -4310,7 +4304,7 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     }
     let below = wp.buf_mut().b_ml.ml_line_count - wp.w_botline + 1;
     if below <= 0 {
-        return vim_snprintf_safelen!(
+        return format_to_buf_safelen!(
             buf,
             c"%s",
             if above == 0 {
@@ -4322,13 +4316,17 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     }
 
     if above <= 0 {
-        return vim_snprintf_safelen!(buf, c"%s", gettext(c"Top")) as i32;
+        return format_to_buf_safelen!(buf, c"%s", gettext(c"Top")) as i32;
     }
 
     let perc = calc_percentage(i64::from(above), i64::from(above + below));
     let mut tmp = [0u8; 8];
-    vim_snprintf!(&mut tmp, gettext(c"%d%%"), perc);
-    vim_snprintf_safelen!(buf, gettext(c"%3s"), tmp.as_ptr().cast::<()>()) as i32
+    format_to_buf!(&mut tmp, gettext(c"%d%%"), perc);
+    format_to_buf_safelen!(
+        buf,
+        gettext(c"%3s"),
+        crate::strings::ByteSlice::from_ptr(tmp.as_ptr().cast::<()>())
+    ) as i32
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
@@ -4344,7 +4342,7 @@ pub fn append_arg_number(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
         gettext(c" (%d of %d)")
     };
 
-    vim_snprintf_safelen!(buf, msg, wp.w_arg_idx + 1, argcount) as i32
+    format_to_buf_safelen!(buf, msg, wp.w_arg_idx + 1, argcount) as i32
 }
 
 /// Make `ffname` a full file name, defaulting `sfname` to `ffname` if `None`.

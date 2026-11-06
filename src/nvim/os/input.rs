@@ -618,7 +618,7 @@ fn inbuf_poll(ms: i32, events_opt: Option<&MultiQueue>) -> bool {
                 line!() as i32,
                 true,
                 c"Interrupted prompt (mode=%s): user input is unlikely",
-                mode_cstr.as_ptr(),
+                mode_cstr,
             );
         }
         input_enqueue_raw(b"\x03");

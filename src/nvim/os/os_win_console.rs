@@ -9,7 +9,7 @@ use crate::os::env::{os_getenv_buf, os_getenv_cstr};
 #[cfg(windows)]
 use crate::os::fs::os_path_exists;
 #[cfg(windows)]
-use crate::strings::vim_snprintf;
+use crate::strings::format_to_buf;
 #[cfg(windows)]
 use crate::ui::ui_active;
 #[cfg(windows)]
@@ -339,7 +339,7 @@ pub fn os_icon_init() {
 
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
         let namebuff = g_st().name_buff.as_ptr();
-        vim_snprintf!(&mut g_st().name_buff, c"%s/neovim.ico", vimruntime.as_ptr());
+        format_to_buf!(&mut g_st().name_buff, c"%s/neovim.ico", &vimruntime);
         if !os_path_exists(crate::strings::ByteSlice::from_ptr(namebuff).as_cstr()) {
             logmsg!(
                 LOGLVL_WRN,
@@ -348,7 +348,7 @@ pub fn os_icon_init() {
                 148,
                 true,
                 c"neovim.ico not found: %s",
-                namebuff,
+                crate::strings::ByteSlice::from_ptr(namebuff),
             );
         } else {
             let h_vim_icon = unsafe {

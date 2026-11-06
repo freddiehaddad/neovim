@@ -60,7 +60,18 @@ const E_INVALID_FORMAT_SPECIFIER: &CStr = c"E1505: Invalid format specifier: %s"
 
 unsafe extern "C" {
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> i32;
-    pub fn strerror(errnum: i32) -> *mut c_char;
+    #[link_name = "strerror"]
+    fn c_strerror(errnum: i32) -> *mut c_char;
+}
+
+#[inline]
+pub fn strerror(errnum: i32) -> &'static CStr {
+    let p = unsafe { c_strerror(errnum) };
+    if p.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(p) }
+    }
 }
 
 pub type RawCChar = c_char;
@@ -1299,7 +1310,6 @@ pub enum FmtVal<'a> {
     Unsigned(u64),
     Float(f64),
     CStr(Option<&'a CStr>),
-    Addr(usize),
 }
 
 impl<'a> FmtVal<'a> {
@@ -1310,7 +1320,6 @@ impl<'a> FmtVal<'a> {
             Self::Unsigned(v) => v as i64,
             Self::Float(v) => v as i64,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as i64),
-            Self::Addr(p) => p as i64,
         }
     }
 
@@ -1321,7 +1330,6 @@ impl<'a> FmtVal<'a> {
             Self::Unsigned(v) => v,
             Self::Float(v) => v as u64,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as u64),
-            Self::Addr(p) => p as u64,
         }
     }
 
@@ -1331,14 +1339,13 @@ impl<'a> FmtVal<'a> {
             Self::Float(v) => v,
             Self::Signed(v) => v as f64,
             Self::Unsigned(v) => v as f64,
-            Self::CStr(_) | Self::Addr(_) => 0.0,
+            Self::CStr(_) => 0.0,
         }
     }
 
     #[inline(always)]
     fn as_addr(self) -> usize {
         match self {
-            Self::Addr(p) => p,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize),
             Self::Signed(v) => v as usize,
             Self::Unsigned(v) => v as usize,
@@ -1350,16 +1357,7 @@ impl<'a> FmtVal<'a> {
     pub fn as_cstr(self) -> Option<&'a CStr> {
         match self {
             Self::CStr(s) => s,
-            Self::Addr(0) | Self::Signed(0) | Self::Unsigned(0) | Self::Float(_) => None,
-            Self::Addr(p) => {
-                Some(crate::strings::ByteSlice::from_ptr(p as *const c_char).as_cstr())
-            }
-            Self::Signed(v) => {
-                Some(crate::strings::ByteSlice::from_ptr(v as usize as *const c_char).as_cstr())
-            }
-            Self::Unsigned(v) => {
-                Some(crate::strings::ByteSlice::from_ptr(v as usize as *const c_char).as_cstr())
-            }
+            Self::Signed(_) | Self::Unsigned(_) | Self::Float(_) => None,
         }
     }
 }
@@ -1480,20 +1478,6 @@ impl IntoFmtVal<'_> for f64 {
     }
 }
 
-impl<T> IntoFmtVal<'_> for *const T {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Addr(self as usize)
-    }
-}
-
-impl<T> IntoFmtVal<'_> for *mut T {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Addr(self as usize)
-    }
-}
-
 impl<'a> IntoFmtVal<'a> for &'a CStr {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
@@ -1508,6 +1492,20 @@ impl<'a> IntoFmtVal<'a> for &&'a CStr {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &'a std::borrow::Cow<'a, CStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_ref()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a Vec<u8> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for Option<&'a CStr> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
@@ -1515,7 +1513,21 @@ impl<'a> IntoFmtVal<'a> for Option<&'a CStr> {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &'a Option<&'a CStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(*self)
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for &'a std::ffi::CString {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_c_str()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &&'a std::ffi::CString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self.as_c_str()))
@@ -1536,10 +1548,73 @@ impl<'a> IntoFmtVal<'a> for &'a [u8] {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &&'a [u8] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a mut [u8] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
+impl<'a, const N: usize> IntoFmtVal<'a> for &'a [u8; N] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
+impl<'a, const N: usize> IntoFmtVal<'a> for &&'a [u8; N] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self.as_slice())))
+    }
+}
+
+impl<'a, const N: usize> IntoFmtVal<'a> for &'a mut [u8; N] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a Option<&'a [u8]> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+    }
+}
+
+impl IntoFmtVal<'_> for crate::api::private::validate::NvimString {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'static> {
+        FmtVal::CStr(self.data.map(crate::memory::bytes_as_cstr))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a crate::api::private::validate::NvimString {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.data.map(crate::memory::bytes_as_cstr))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &&'a crate::api::private::validate::NvimString {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.data.map(crate::memory::bytes_as_cstr))
     }
 }
 
@@ -2336,19 +2411,19 @@ fn vim_vsnprintf_typval_inner(
     str_l as i32
 }
 
-pub fn vim_snprintf_fmt(str_out: &mut [u8], fmt: Option<&CStr>, args: &[FmtVal<'_>]) -> i32 {
+pub fn format_to_buf_fmt(str_out: &mut [u8], fmt: Option<&CStr>, args: &[FmtVal<'_>]) -> i32 {
     vim_vsnprintf_typval_inner(str_out, fmt, None, args)
 }
 
-pub fn vim_snprintf_add_fmt(str_out: &mut [u8], fmt: Option<&CStr>, args: &[FmtVal<'_>]) -> i32 {
+pub fn format_to_buf_add_fmt(str_out: &mut [u8], fmt: Option<&CStr>, args: &[FmtVal<'_>]) -> i32 {
     let len = crate::memory::bytes_until_nul(str_out).len();
     if len >= str_out.len() {
         return 0;
     }
-    vim_snprintf_fmt(&mut str_out[len..], fmt, args)
+    format_to_buf_fmt(&mut str_out[len..], fmt, args)
 }
 
-pub fn vim_snprintf_safelen_fmt(
+pub fn format_to_buf_safelen_fmt(
     str_out: &mut [u8],
     fmt: Option<&CStr>,
     args: &[FmtVal<'_>],
@@ -2356,7 +2431,7 @@ pub fn vim_snprintf_safelen_fmt(
     if str_out.is_empty() {
         return 0;
     }
-    let str_l = vim_snprintf_fmt(str_out, fmt, args);
+    let str_l = format_to_buf_fmt(str_out, fmt, args);
     if str_l < 0 {
         str_out[0] = 0;
         return 0;
@@ -2370,33 +2445,33 @@ pub fn vim_snprintf_safelen_fmt(
 }
 
 #[macro_export]
-macro_rules! vim_snprintf {
+macro_rules! format_to_buf {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::vim_snprintf_fmt(
+        $crate::strings::format_to_buf_fmt(
             $str_out,
             $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
 }
-pub use vim_snprintf;
+pub use format_to_buf;
 
 #[macro_export]
-macro_rules! vim_snprintf_add {
+macro_rules! format_to_buf_add {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::vim_snprintf_add_fmt(
+        $crate::strings::format_to_buf_add_fmt(
             $str_out,
             $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
 }
-pub use vim_snprintf_add;
+pub use format_to_buf_add;
 
 #[macro_export]
-macro_rules! vim_snprintf_safelen {
+macro_rules! format_to_buf_safelen {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
-        $crate::strings::vim_snprintf_safelen_fmt(
+        $crate::strings::format_to_buf_safelen_fmt(
             $str_out,
             $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
@@ -2406,9 +2481,9 @@ macro_rules! vim_snprintf_safelen {
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::eval::K_LIST_LEN_UNKNOWN_CONST;
 use crate::regexp::NUMBUFLEN;
-pub use vim_snprintf_safelen;
+pub use format_to_buf_safelen;
 
-pub fn vim_snprintf_typval_only(str_out: &mut [u8], fmt: Option<&CStr>, tvs: &mut [TypVal]) -> i32 {
+pub fn format_typval_to_buf(str_out: &mut [u8], fmt: Option<&CStr>, tvs: &mut [TypVal]) -> i32 {
     vim_vsnprintf_typval_inner(str_out, fmt, Some(tvs), &[])
 }
 
@@ -3105,7 +3180,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     tp = tp.wrapping_add(tolen);
                 }
                 if tp.is_empty() {
-                    semsg!(gettext(E_INVARG2), fromstr.as_ptr());
+                    semsg!(gettext(E_INVARG2), fromstr);
                     return;
                 }
                 break;
@@ -3123,7 +3198,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 tp = tp.wrapping_add(tolen);
             }
             if idx != 0 {
-                semsg!(gettext(E_INVARG2), fromstr.as_ptr());
+                semsg!(gettext(E_INVARG2), fromstr);
                 return;
             }
         }
@@ -3246,9 +3321,9 @@ mod tests {
     }
 
     #[test]
-    fn vim_snprintf_macros_format_correctly() {
+    fn format_to_buf_macros_format_correctly() {
         let mut buf = [0u8; 64];
-        let n = vim_snprintf!(
+        let n = format_to_buf!(
             &mut buf[..],
             c"%s %d %x %06b",
             c"val",
@@ -3262,7 +3337,7 @@ mod tests {
             "val -42 deadbeef 001100"
         );
 
-        let added = vim_snprintf_add!(&mut buf[..], c" %2$s %1$d", 7, c"ok");
+        let added = format_to_buf_add!(&mut buf[..], c" %2$s %1$d", 7, c"ok");
         assert_eq!(added, 5);
         assert_eq!(
             crate::memory::bytes_as_cstr(&buf).to_str().unwrap(),
@@ -3270,7 +3345,7 @@ mod tests {
         );
 
         let mut small = [0u8; 5];
-        let safelen = vim_snprintf_safelen!(&mut small[..], c"hello world",);
+        let safelen = format_to_buf_safelen!(&mut small[..], c"hello world",);
         assert_eq!(safelen, 4);
         assert_eq!(
             crate::memory::bytes_as_cstr(&small).to_str().unwrap(),

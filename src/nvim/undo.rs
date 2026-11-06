@@ -61,7 +61,7 @@ use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_is
 use crate::sha256::ContextSha256;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
-use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_add};
+use crate::strings::{format_to_buf, format_to_buf_add, gettext, ngettext};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -633,8 +633,10 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
                 if ret != 0 {
                     semsg!(
                         gettext(c"E5003: Unable to create directory \"%s\" for undo file: %s",),
-                        failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        unsafe { uv_strerror(ret) },
+                        crate::strings::ByteSlice::from_ptr(
+                            failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr())
+                        ),
+                        uv_strerror(ret),
                     );
                 } else {
                     has_directory = true;
@@ -671,8 +673,8 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
 fn corruption_error(mesg: &std::ffi::CStr, file_name: &CStr) {
     semsg!(
         gettext(c"E825: Corrupted undo file (%s): %s"),
-        mesg.as_ptr(),
-        file_name.as_ptr(),
+        mesg,
+        file_name,
     );
 }
 
@@ -1241,7 +1243,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                     smsg!(
                         0,
                         gettext(c"Not reading undo file, owner differs: %s"),
-                        f_cstr.as_ptr(),
+                        f_cstr,
                     );
                     verbose_leave();
                 }
@@ -1254,7 +1256,11 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
 
     if opt_vars().p_verbose > 0 {
         verbose_enter();
-        smsg!(0, gettext(c"Reading undo file: %s"), file_name);
+        smsg!(
+            0,
+            gettext(c"Reading undo file: %s"),
+            crate::strings::ByteSlice::from_ptr(file_name)
+        );
         verbose_leave();
     }
 
@@ -1265,7 +1271,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 if name.is_some() || opt_vars().p_verbose > 0 {
                     semsg!(
                         gettext(c"E822: Cannot open undo file for reading: %s"),
-                        file_name,
+                        crate::strings::ByteSlice::from_ptr(file_name),
                     );
                 }
                 break 'error;
@@ -1287,12 +1293,18 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             if !undo_read(&mut bi, &mut magic_buf)
                 || magic_buf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
             {
-                semsg!(gettext(c"E823: Not an undo file: %s"), file_name);
+                semsg!(
+                    gettext(c"E823: Not an undo file: %s"),
+                    crate::strings::ByteSlice::from_ptr(file_name)
+                );
                 break 'error;
             }
             let version = get2c(&bi.bi_fp);
             if version != UF_VERSION {
-                semsg!(gettext(c"E824: Incompatible undo file: %s"), file_name,);
+                semsg!(
+                    gettext(c"E824: Incompatible undo file: %s"),
+                    crate::strings::ByteSlice::from_ptr(file_name),
+                );
                 break 'error;
             }
 
@@ -1466,7 +1478,11 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             curbuf_mut().b_u_synced = true;
 
             if name.is_some() {
-                smsg!(0, gettext(c"Finished reading undo file %s"), file_name,);
+                smsg!(
+                    0,
+                    gettext(c"Finished reading undo file %s"),
+                    crate::strings::ByteSlice::from_ptr(file_name),
+                );
             }
             break 'theend;
         }
@@ -2301,7 +2317,9 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             gettext(c"after")
         },
         uhp.map_or(0i64, |uh| uhp_ref(curbuf_mut(), uh).uh_seq as i64),
-        CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"").as_ptr(),
+        crate::strings::ByteSlice::from_ptr(
+            CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"").as_ptr()
+        ),
     );
 }
 
@@ -2336,7 +2354,7 @@ pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
         }
     } else {
         let seconds = now - tt;
-        vim_snprintf!(
+        format_to_buf!(
             &mut buf[..buflen],
             ngettext(
                 c"%lld second ago",
@@ -2381,14 +2399,14 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let uh_time = uhp_ref(curbuf_mut(), uh).uh_time;
         let uh_save_nr = uhp_ref(curbuf_mut(), uh).uh_save_nr;
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
-            vim_snprintf!(g_st().iobuff_bytes_mut(), c"%6d %7d  ", uh_seq, changes);
+            format_to_buf!(g_st().iobuff_bytes_mut(), c"%6d %7d  ", uh_seq, changes);
             let cur_len = iobuf_ptr.len();
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
                 while iobuf_ptr.len() < 33 {
                     crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b" ");
                 }
-                vim_snprintf_add!(g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
+                format_to_buf_add!(g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
             }
             lines.push(iobuf_ptr.to_cstring());
         }

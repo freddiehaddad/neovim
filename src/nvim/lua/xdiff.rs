@@ -247,7 +247,12 @@ pub(crate) fn call_on_hunk_cb(
 
         if lua_pcall(lstate, 4, 1, 0) != 0 {
             let msg_ptr = lua_tolstring(lstate, -1, std::ptr::null_mut());
-            api_set_error!(err, ErrorType::ErrorTypeException, c"on_hunk: %s", msg_ptr,);
+            let msg = if msg_ptr.is_null() {
+                c""
+            } else {
+                std::ffi::CStr::from_ptr(msg_ptr)
+            };
+            api_set_error!(err, ErrorType::ErrorTypeException, c"on_hunk: %s", msg);
             return -1;
         }
 

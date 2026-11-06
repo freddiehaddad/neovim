@@ -69,7 +69,7 @@ use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
 use crate::runtime::{ESTACK_NONE, estack_sfile, rt_st, sourcing_lnum, sourcing_name};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
-use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen};
+use crate::strings::{format_to_buf, format_to_buf_safelen, gettext, ngettext};
 use crate::ui::{
     ui_active, ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll,
     ui_call_msg_history_show, ui_call_msg_set_pos, ui_call_msg_show, ui_call_msg_showmode,
@@ -230,7 +230,7 @@ macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         {
-            $crate::strings::vim_snprintf_fmt(
+            $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
                 $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
@@ -249,7 +249,7 @@ macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         {
-            $crate::strings::vim_snprintf_fmt(
+            $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
                 $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
@@ -271,7 +271,7 @@ pub fn semsg_fmt(fmt: &std::ffi::CStr, args: &[crate::strings::FmtVal]) -> bool 
         return true;
     }
     let mut errbuf = [0u8; 1025];
-    crate::strings::vim_snprintf_fmt(&mut errbuf, Some(fmt), args);
+    crate::strings::format_to_buf_fmt(&mut errbuf, Some(fmt), args);
     emsg(crate::memory::bytes_as_cstr(&errbuf))
 }
 
@@ -285,7 +285,7 @@ pub fn semsg_multiline_fmt(
         return true;
     }
     let mut errbuf = [0u8; 8192];
-    crate::strings::vim_snprintf_fmt(&mut errbuf, Some(fmt), args);
+    crate::strings::format_to_buf_fmt(&mut errbuf, Some(fmt), args);
     emsg_multiline(crate::memory::bytes_as_cstr(&errbuf), kind, 6, true)
 }
 
@@ -324,7 +324,7 @@ pub use siemsg;
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         {
-            $crate::strings::vim_snprintf_fmt(
+            $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
                 $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
@@ -341,7 +341,7 @@ pub use msg_schedule_semsg;
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         {
-            $crate::strings::vim_snprintf_fmt(
+            $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
                 $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
@@ -359,7 +359,7 @@ macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl_val: bool = $hl;
         {
-            $crate::strings::vim_snprintf_fmt(
+            $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
                 $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
                 &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
@@ -597,7 +597,7 @@ fn format_progress_message(
     }
     if msg_data.as_deref_mut().unwrap().percent >= 0 {
         let mut percent_buf = [0u8; 10];
-        vim_snprintf!(&mut percent_buf, c"%3ld%% ", msg_data.unwrap().percent);
+        format_to_buf!(&mut percent_buf, c"%3ld%% ", msg_data.unwrap().percent);
         let percent = cstr_to_string(Some(crate::memory::bytes_as_cstr(&percent_buf)));
         let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
@@ -991,7 +991,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         let p = gettext(c"Error in %s:");
         let buf_len = sname.to_bytes().len() + p.to_bytes().len() + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
-        vim_snprintf!(&mut buf_vec[..], p, sname);
+        format_to_buf!(&mut buf_vec[..], p, sname);
         return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
@@ -1008,7 +1008,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         let p = gettext(c"line %4d:");
         let buf_len = 20 + p.to_bytes().len();
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
-        vim_snprintf!(&mut buf_vec, p, slnum);
+        format_to_buf!(&mut buf_vec, p, slnum);
         return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
@@ -1132,8 +1132,8 @@ pub fn emsg_multiline(
                         line!() as i32,
                         true,
                         c"(:silent) %s (%s (line %d))",
-                        s.as_ptr(),
-                        sname.as_ptr(),
+                        s,
+                        sname,
                         slnum,
                     );
                 } else {
@@ -1144,7 +1144,7 @@ pub fn emsg_multiline(
                         line!() as i32,
                         true,
                         c"(:silent) %s",
-                        s.as_ptr(),
+                        s,
                     );
                 }
 
@@ -1162,8 +1162,8 @@ pub fn emsg_multiline(
                     line!() as i32,
                     true,
                     c"%s (%s (line %d))",
-                    s.as_ptr(),
-                    sname.as_ptr(),
+                    s,
+                    sname,
                     slnum,
                 );
             } else {
@@ -1174,7 +1174,7 @@ pub fn emsg_multiline(
                     line!() as i32,
                     true,
                     c"%s",
-                    s.as_ptr(),
+                    s,
                 );
             }
 
@@ -1241,7 +1241,7 @@ pub fn iemsg(s: &std::ffi::CStr) {
 
 /// Give an "Internal error" message.
 pub fn internal_error(where_: &std::ffi::CStr) {
-    siemsg!(gettext(E_INTERN2), where_.as_ptr());
+    siemsg!(gettext(E_INTERN2), where_);
 }
 
 pub fn msg_semsg_event(s: std::ffi::CString) {
@@ -1973,13 +1973,13 @@ pub fn msgmore(n: i32) {
 
     if i64::from(pn) > opt_vars().p_report {
         if n > 0 {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().msg_buf,
                 ngettext(c"%d more line", c"%d more lines", pn as u64),
                 pn,
             );
         } else {
-            vim_snprintf!(
+            format_to_buf!(
                 &mut g_st().msg_buf,
                 ngettext(c"%d line less", c"%d fewer lines", pn as u64),
                 pn,
@@ -2115,7 +2115,7 @@ pub fn msg_putchar_hl(c: i32, hl_id: i32) {
 
 pub fn msg_outnum(n: i32) {
     let mut buf = [0u8; 20];
-    vim_snprintf!(&mut buf, c"%d", n);
+    format_to_buf!(&mut buf, c"%d", n);
     msg_puts(crate::memory::bytes_as_cstr(&buf));
 }
 
@@ -3133,7 +3133,7 @@ fn inc_msg_scrolled() {
         let p = if let Some(sname) = sname {
             let tofreesize = sname.to_bytes().len() + 40;
             tofree_vec = vec![0; tofreesize];
-            let size = vim_snprintf_safelen!(
+            let size = format_to_buf_safelen!(
                 &mut tofree_vec,
                 gettext(c"%s line %lld"),
                 sname,
@@ -3357,9 +3357,9 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
                 buf[pos..pos + len].copy_from_slice(&rem[..len]);
                 buf[pos + len] = 0;
                 if g_st().info_message {
-                    printf!(c"%s", buf.as_ptr());
+                    printf!(c"%s", &buf);
                 } else {
-                    fprintf!(log_get_stderr(), c"%s", buf.as_ptr());
+                    fprintf!(log_get_stderr(), c"%s", &buf);
                 }
             }
 
@@ -4068,11 +4068,11 @@ pub fn msg_delay(mut ms: u64, ignoreinput: bool) {
         true,
         c"%llu ms%s",
         ms,
-        if g_st().nvim_testing {
+        crate::strings::ByteSlice::from_ptr(if g_st().nvim_testing {
             c" (skipped by NVIM_TEST)".as_ptr()
         } else {
             c"".as_ptr()
-        },
+        }),
     );
     ui_flush();
     os_delay(ms, ignoreinput);

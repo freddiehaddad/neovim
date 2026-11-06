@@ -158,7 +158,7 @@ fn validate_option_value_args(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Unknown option '%s'",
-                name.as_ptr(),
+                name,
             );
             return false;
         }
@@ -228,10 +228,10 @@ fn validate_option_value_args(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"'%s' cannot be passed for %s%soption '%s'",
-                tgt,
-                global,
-                req,
-                name.as_ptr(),
+                crate::strings::ByteSlice::from_ptr(tgt),
+                crate::strings::ByteSlice::from_ptr(global),
+                crate::strings::ByteSlice::from_ptr(req),
+                name,
             );
             return false;
         }
@@ -702,7 +702,7 @@ pub fn nvim_set_option_value(
             );
             optval_free(oldval);
             if let Some(errmsg) = errmsg {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
                 optval_free(merged_val);
                 return OBJECT_NIL;
             }
@@ -729,7 +729,7 @@ pub fn nvim_set_option_value(
         let errmsg = validate_and_prepare_option_value(&mut args);
         merged_val = args.os_newval;
         if let Some(errmsg) = errmsg {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg.as_ptr());
+            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
             optval_free(merged_val);
             return OBJECT_NIL;
         }

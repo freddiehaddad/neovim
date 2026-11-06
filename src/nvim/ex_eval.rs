@@ -19,7 +19,7 @@ use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter,
 use crate::option_vars::*;
 use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, skip_regexp_err, vim_regcomp, vim_regexec_nl};
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
-use crate::strings::{concat_str, gettext, vim_snprintf, vim_snprintf_safelen};
+use crate::strings::{concat_str, format_to_buf, format_to_buf_safelen, gettext};
 use std::ffi::{CStr, CString};
 use std::ptr;
 
@@ -468,7 +468,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().msg_scroll = 1;
         }
-        smsg!(0, gettext(c"Exception thrown: %s"), excp.value.as_ptr(),);
+        smsg!(0, gettext(c"Exception thrown: %s"), &excp.value,);
         msg_puts(c"\n");
 
         if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
@@ -516,7 +516,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         } else {
             gettext(c"Exception discarded: %s")
         };
-        smsg!(0, fmt, excp.value.as_ptr());
+        smsg!(0, fmt, &excp.value);
         msg_puts(c"\n");
         if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().cmdline_row = g_st().msg_row;
@@ -546,14 +546,14 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
     set_vim_var_list(VV_STACKTRACE, excp.stacktrace.opt_mut());
     if !excp.throw_name.as_bytes().is_empty() {
         let iobufflen = if excp.throw_lnum != 0 {
-            vim_snprintf_safelen!(
+            format_to_buf_safelen!(
                 &mut g_st().iobuff,
                 gettext(c"%s, line %lld"),
-                excp.throw_name.as_ptr(),
+                &excp.throw_name,
                 i64::from(excp.throw_lnum),
             )
         } else {
-            vim_snprintf_safelen!(&mut g_st().iobuff, c"%s", excp.throw_name.as_ptr())
+            format_to_buf_safelen!(&mut g_st().iobuff, c"%s", &excp.throw_name)
         };
         set_vim_var_string(
             VV_THROWPOINT,
@@ -576,7 +576,7 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().msg_scroll = 1;
         }
-        smsg!(0, gettext(c"Exception caught: %s"), excp.value.as_ptr(),);
+        smsg!(0, gettext(c"Exception caught: %s"), &excp.value,);
         msg_puts(c"\n");
 
         if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
@@ -604,14 +604,14 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
         set_vim_var_list(VV_STACKTRACE, top.stacktrace.opt_mut());
         if !top.throw_name.as_bytes().is_empty() {
             let iobufflen = if top.throw_lnum != 0 {
-                vim_snprintf_safelen!(
+                format_to_buf_safelen!(
                     &mut g_st().iobuff,
                     gettext(c"%s, line %lld"),
-                    top.throw_name.as_ptr(),
+                    &top.throw_name,
                     i64::from(top.throw_lnum),
                 )
             } else {
-                vim_snprintf_safelen!(&mut g_st().iobuff, c"%s", top.throw_name.as_ptr())
+                format_to_buf_safelen!(&mut g_st().iobuff, c"%s", &top.throw_name)
             };
             set_vim_var_string(
                 VV_THROWPOINT,
@@ -687,7 +687,7 @@ fn report_pending(action: i32, pending: i32, value: PendingVal) {
                     _ => None,
                 };
                 let excp = excp_hold.as_ref().unwrap();
-                vim_snprintf!(&mut g_st().iobuff, mesg, gettext(c"Exception"));
+                format_to_buf!(&mut g_st().iobuff, mesg, gettext(c"Exception"));
                 mesg_owned = Some(concat_str(g_st().iobuff_bytes(), b": %s"));
                 mesg = mesg_owned.as_deref().unwrap_or(c"");
                 excp.value.as_c_str()
@@ -1132,7 +1132,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                         .unwrap_or(0),
                 )) == 0
             {
-                semsg!(gettext(E_TRAILING_ARG), end_cstr.as_ptr());
+                semsg!(gettext(E_TRAILING_ARG), end_cstr);
                 return;
             }
 
@@ -1153,7 +1153,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 regmatch.rm_ic = false;
                 opt_vars().p_cpo = save_cpo;
                 if regmatch.regprog.is_null() {
-                    semsg!(gettext(E_INVARG2), pat_ref.as_ptr());
+                    semsg!(gettext(E_INVARG2), pat_ref);
                 } else {
                     let prev_got_int = g_st().got_int;
                     g_st().got_int = false;
