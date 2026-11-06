@@ -264,7 +264,7 @@ impl TypvalVval {
     pub fn from_cstring(s: std::ffi::CString) -> Self {
         let len = s.as_bytes_with_nul().len();
         let ptr = s.into_raw().cast::<u8>().cast_const();
-        Self::String(Some(unsafe { std::slice::from_raw_parts(ptr, len) }))
+        Self::String(Some(crate::globals::GraphPtr::raw_slice(ptr, len)))
     }
 
     #[inline]
@@ -870,7 +870,7 @@ pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
     if p.is_null() {
         None
     } else {
-        Some(unsafe { std::ffi::CString::from_raw(p.as_ptr()) })
+        Some(p.to_cstring())
     }
 }
 
@@ -1140,7 +1140,7 @@ pub fn tv_list_item_remove(
 
     tv_list_drop_items(l, item.borrow_mut(), item.borrow_mut());
 
-    drop(unsafe { Box::from_raw(item.as_ptr()) });
+    crate::globals::GraphPtr::of(item.as_ptr()).drop_box();
 
     next_item.opt_mut()
 }
@@ -1205,18 +1205,17 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
     tv_list_set_lock_inline(Some(&mut *l), VAR_FIXED);
     l.lv_len = 10;
 
-    unsafe {
-        (*items).li_prev = crate::globals::ListitemPtr::NULL;
-        (*items).li_next = crate::globals::ListitemPtr::new(items.wrapping_add(1));
-        (*items.wrapping_add(SL_SIZE - 1)).li_prev =
-            crate::globals::ListitemPtr::new(items.wrapping_add(SL_SIZE - 2));
-        (*items.wrapping_add(SL_SIZE - 1)).li_next = crate::globals::ListitemPtr::NULL;
+    let items_slice = crate::globals::GraphPtr::raw_slice_mut(items, SL_SIZE);
+    items_slice[0].li_prev = crate::globals::ListitemPtr::NULL;
+    items_slice[0].li_next = crate::globals::ListitemPtr::new(items.wrapping_add(1));
+    items_slice[SL_SIZE - 1].li_prev =
+        crate::globals::ListitemPtr::new(items.wrapping_add(SL_SIZE - 2));
+    items_slice[SL_SIZE - 1].li_next = crate::globals::ListitemPtr::NULL;
 
-        for i in 1..(SL_SIZE - 1) {
-            let li = items.wrapping_add(i);
-            (*li).li_prev = crate::globals::ListitemPtr::new(li.wrapping_sub(1));
-            (*li).li_next = crate::globals::ListitemPtr::new(li.wrapping_add(1));
-        }
+    for (i, li_ref) in items_slice.iter_mut().enumerate().take(SL_SIZE - 1).skip(1) {
+        let li = items.wrapping_add(i);
+        li_ref.li_prev = crate::globals::ListitemPtr::new(li.wrapping_sub(1));
+        li_ref.li_next = crate::globals::ListitemPtr::new(li.wrapping_add(1));
     }
 }
 
@@ -1231,7 +1230,7 @@ pub fn tv_list_free_contents(l: &mut TvList) {
     let mut item = l.lv_first;
     while !item.is_null() {
         l.lv_first = item.li_next;
-        drop(unsafe { Box::from_raw(item.as_ptr()) });
+        crate::globals::GraphPtr::of(item.as_ptr()).drop_box();
         item = l.lv_first;
     }
     l.lv_len = 0;
@@ -1253,7 +1252,7 @@ pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
 
     tv_list_free_contents(l_ptr.borrow_mut());
 
-    drop(unsafe { Box::from_raw(l_ptr.as_ptr()) });
+    crate::globals::GraphPtr::of(l_ptr.as_ptr()).drop_box();
 }
 
 /// Unreference a list.
@@ -1302,7 +1301,7 @@ pub fn tv_list_remove_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &m
     let mut li = item;
     loop {
         let nli = li.li_next;
-        drop(unsafe { Box::from_raw(li.as_ptr()) });
+        crate::globals::GraphPtr::of(li.as_ptr()).drop_box();
         if li == item2 {
             break;
         }
@@ -1440,9 +1439,9 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
 pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
     let v_string = match str_ {
         None => ptr::null_mut(),
-        Some(s) if len >= 0 => crate::memory::bytes_to_cstring(unsafe {
-            std::slice::from_raw_parts((s.as_ptr()).cast::<u8>(), len as usize)
-        })
+        Some(s) if len >= 0 => crate::memory::bytes_to_cstring(
+            crate::strings::AsByteSlice::slice_len(s.as_ptr(), len as usize),
+        )
         .into_raw(),
         Some(s) => s.to_owned().into_raw(),
     };
@@ -1490,7 +1489,7 @@ pub fn tv_list_copy(
         let ni = tv_list_item_alloc();
         if deep {
             if !var_item_copy(conv, &mut item.li_tv, &mut ni.li_tv, deep, copy_id) {
-                drop(unsafe { Box::from_raw(ni) });
+                crate::globals::GraphPtr::of(ni).drop_box();
                 tv_list_unref(Some(copy));
                 return None;
             }
@@ -1654,7 +1653,11 @@ pub fn tv_list_flatten(
             let itemlist = item.borrow().li_tv.vval.v_list();
             let item_ptr = item.as_ptr();
 
-            tv_list_drop_items(list, unsafe { &mut *item_ptr }, unsafe { &mut *item_ptr });
+            tv_list_drop_items(
+                list,
+                crate::globals::GraphPtr::of(item_ptr).borrow_mut(),
+                crate::globals::GraphPtr::of(item_ptr).borrow_mut(),
+            );
             tv_list_extend(list, itemlist.opt(), next.opt_mut());
 
             if maxdepth > 0 {
@@ -1667,7 +1670,7 @@ pub fn tv_list_flatten(
                 tv_list_flatten(list, sub_first.opt_mut(), sub_len, maxdepth - 1);
             }
 
-            drop(unsafe { Box::from_raw(item_ptr) });
+            crate::globals::GraphPtr::of(item_ptr).drop_box();
         }
 
         done += 1;
@@ -1754,7 +1757,7 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef_opt: Option<&mut
     let saved_next = if befbef.is_null() {
         crate::globals::ListitemPtr::NULL
     } else {
-        unsafe { (*befbef).li_next }
+        crate::globals::GraphPtr::of(befbef).borrow().li_next
     };
     let mut item = crate::globals::GraphPtr::from(tv_list_first_inline(l2));
     while let Some(item_ref) = item.opt_mut()
@@ -1996,7 +1999,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         let mut item_ptr = crate::globals::GraphPtr::from(item);
         tv_list_drop_items(l, item_ptr.borrow_mut(), item_ptr.borrow_mut());
         *rettv = std::mem::replace(&mut item_ptr.li_tv, tv_initial_value());
-        drop(unsafe { Box::from_raw(item_ptr.as_ptr()) });
+        crate::globals::GraphPtr::of(item_ptr.as_ptr()).drop_box();
     } else {
         let end = tv_get_number_chk(&argvars[2], Some(&mut error));
         if error {
@@ -2319,7 +2322,7 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
         .as_deref()
         .and_then(|l| l.first_opt())
         .map_or(ptr::null_mut(), |first| first.li_next.as_ptr());
-    while let Some(cur_li) = unsafe { li.as_mut() } {
+    while let Some(cur_li) = crate::globals::GraphPtr::of(li).opt_mut() {
         let prev_li = cur_li.li_prev;
         let prev_si = ListSortItem {
             item: prev_li,
@@ -2337,8 +2340,11 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
             item_compare2(&prev_si, &cur_si, true, info)
         };
         if cmp == 0 {
-            li = tv_list_item_remove(l.as_deref_mut().unwrap(), unsafe { &mut *li })
-                .map_or(ptr::null_mut(), ptr::from_mut);
+            li = tv_list_item_remove(
+                l.as_deref_mut().unwrap(),
+                crate::globals::GraphPtr::of(li).borrow_mut(),
+            )
+            .map_or(ptr::null_mut(), ptr::from_mut);
         } else {
             li = cur_li.li_next.as_ptr();
         }
@@ -2612,7 +2618,7 @@ pub fn tv_list_idx_of_item(l: Option<&TvList>, item: Option<&Listitem>) -> i32 {
     let (Some(l), Some(item_ref)) = (l, item) else {
         return -1;
     };
-    let item_ptr: *const Listitem = item_ref;
+    let item_ptr = crate::globals::GraphPtr::<Listitem>::of(item_ref).as_ptr();
     for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
         if ptr::eq(li, item_ptr) {
             return idx;
@@ -2902,7 +2908,7 @@ pub fn tv_dict_item_alloc(key: &CStr) -> &'static mut Dictitem {
 pub fn tv_dict_item_free(item_in: &mut Dictitem) {
     let mut item = crate::globals::GraphPtr::from(item_in);
     if (item.di_flags & DI_FLAGS_ALLOC) != 0 {
-        drop(unsafe { Box::from_raw(item.as_ptr()) });
+        crate::globals::GraphPtr::of(item.as_ptr()).drop_box();
     } else {
         tv_clear(&mut item.di_tv);
     }
@@ -2972,7 +2978,7 @@ pub fn tv_dict_free(d_in: &mut TvDict) {
 
     tv_list_dict_free_dict_inner(d.borrow_mut());
 
-    drop(unsafe { Box::from_raw(d.as_ptr()) });
+    crate::globals::GraphPtr::of(d.as_ptr()).drop_box();
 }
 
 #[inline]
@@ -2996,9 +3002,11 @@ pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'stat
     let hi = if len < 0 {
         d.dv_hashtab.find_hi_mut(key)
     } else {
-        d.dv_hashtab.find_hi_len_mut(unsafe {
-            std::slice::from_raw_parts((key.as_ptr()).cast::<u8>(), len as usize)
-        })
+        d.dv_hashtab
+            .find_hi_len_mut(crate::strings::AsByteSlice::slice_len(
+                key.as_ptr(),
+                len as usize,
+            ))
     };
     hi.and_then(|hi| hi.hi_di.opt_mut())
 }
@@ -3460,7 +3468,7 @@ pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
         b_ref.bv_refcount -= 1;
         if b_ref.bv_refcount <= 0 {
             let b_ptr = crate::globals::GraphPtr::from(b_ref);
-            drop(unsafe { Box::from_raw(b_ptr.as_ptr()) });
+            crate::globals::GraphPtr::of(b_ptr.as_ptr()).drop_box();
         }
     }
 }
@@ -3856,7 +3864,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
         let fun = tv.vval.v_string();
         func_unref(fun.as_opt_cstr());
         if !fun.is_null() && !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
-            drop(unsafe { std::ffi::CString::from_raw(fun.as_ptr()) });
+            crate::globals::GraphPtr::of(fun.as_ptr()).drop_cstring();
         }
         tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
@@ -4038,7 +4046,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
         let last_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[last_idx].saved_copy_id;
         let cur_tv = mpstack[last_idx].tv;
-        let tv: *mut TypVal = match mpstack[last_idx].data {
+        let tv = crate::globals::GraphPtr::<TypVal>::of(match mpstack[last_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 ref mut hi,
@@ -4172,9 +4180,14 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 cur_arg.as_ptr()
             }
             MPConvStackData::Pairs { .. } => unreachable!(),
-        };
+        })
+        .as_ptr();
         debug_assert!(!tv.is_null());
-        if !nothing_convert_one_value(&mut mpstack, unsafe { &mut *tv }, copy_id) {
+        if !nothing_convert_one_value(
+            &mut mpstack,
+            crate::globals::GraphPtr::of(tv).borrow_mut(),
+            copy_id,
+        ) {
             return false;
         }
     }
@@ -5066,9 +5079,11 @@ mod tests {
             // remove_items range
             let first_item = l2.lv_first;
             let second_item = first_item.li_next.as_ptr();
-            tv_list_remove_items(&mut *l2, first_item.borrow_mut(), unsafe {
-                &mut *second_item
-            });
+            tv_list_remove_items(
+                &mut *l2,
+                first_item.borrow_mut(),
+                crate::globals::GraphPtr::of(second_item).borrow_mut(),
+            );
             assert_eq!(tv_list_len_inline(Some(&*l2)), 4);
 
             tv_list_unref(l2_copy);

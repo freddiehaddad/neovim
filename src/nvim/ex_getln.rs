@@ -1080,7 +1080,7 @@ fn command_line_enter(
                 .ccline
                 .xp_arg
                 .as_deref()
-                .map(|a| unsafe { &*(a as *const std::ffi::CStr) });
+                .map(crate::globals::GraphPtr::<u8>::cstr);
         }
 
         g_st().msg_scroll = 0;
@@ -2326,17 +2326,19 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
     command_line_next_histidx(s, next_match);
 
     if s.hiscnt != s.save_hiscnt {
-        let p: *mut u8;
+        let p;
         let plen: i32;
         let old_firstc: i32;
         let mut sep: u8 = 0;
 
         dealloc_cmdbuff();
 
-        let lookfor_ptr: *mut u8 = s
-            .lookfor
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+        let lookfor_ptr = crate::globals::GraphPtr::<u8>::of(
+            s.lookfor
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
+        )
+        .as_ptr();
         s.xpc.xp_context = EXPAND_NOTHING;
         if s.hiscnt == get_hislen() {
             p = lookfor_ptr;
@@ -2901,7 +2903,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         &mut aco,
         None,
         None,
-        unsafe { cmdpreview_buf.as_mut() },
+        crate::globals::GraphPtr::of(cmdpreview_buf).opt_mut(),
         K_CTX_KEEP_DIRS,
     );
     let retv = rename_buffer(Some(c"[Preview]"));
@@ -2915,7 +2917,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         &mut aco,
         None,
         None,
-        unsafe { cmdpreview_buf.as_mut() },
+        crate::globals::GraphPtr::of(cmdpreview_buf).opt_mut(),
         K_CTX_KEEP_DIRS,
     );
     buf_clear();
@@ -2923,7 +2925,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
     curbuf_mut().b_p_ul = -1;
     curbuf_mut().b_p_tw = 0;
     ctx_restore(&mut aco);
-    let buf_ref = unsafe { cmdpreview_buf.as_mut() }?;
+    let buf_ref = crate::globals::GraphPtr::of(cmdpreview_buf).opt_mut()?;
     getln_st().cmdpreview_bufnr = buf_ref.b_fnum;
 
     Some(buf_ref)
@@ -2966,7 +2968,7 @@ fn cmdpreview_close_win() {
         ptr::null_mut()
     };
     if !buf.is_null() {
-        close_windows(unsafe { buf.as_mut() }, false);
+        close_windows(crate::globals::GraphPtr::of(buf).opt_mut(), false);
     }
 }
 
@@ -3011,7 +3013,8 @@ fn cmdpreview_prepare() -> CpInfo {
     }
 
     cpinfo.save_hls = opt_vars().p_hls;
-    cpinfo.save_cmdmod = unsafe { ptr::replace(&raw mut g_st().cmdmod, Cmdmod::new()) };
+    cpinfo.save_cmdmod =
+        crate::globals::GraphPtr::of(&raw mut g_st().cmdmod).replace_val(Cmdmod::new());
     win_size_save(&mut cpinfo.save_view);
     save_search_patterns();
 
@@ -3585,8 +3588,8 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     let mut printed_errmsg = false;
     let mut ret = true;
 
-    let ccline_colors: *mut _ = &raw mut colored_ccline.last_colors;
-    let ccline_colors = unsafe { &mut *ccline_colors };
+    let ccline_colors = &raw mut colored_ccline.last_colors;
+    let ccline_colors = crate::globals::GraphPtr::of(ccline_colors).borrow_mut();
 
     if ccline_colors.prompt_id == colored_ccline.prompt_id
         && ccline_colors
@@ -3900,14 +3903,14 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             len += 1;
         }
         let buf = arena_alloc(&mut arena, len, false).cast::<u8>();
-        unsafe { ptr::write_bytes(buf, b'*', len) };
+        crate::globals::GraphPtr::write_bytes(buf, b'*', len);
         let mut item = arena_array(&mut arena, 3);
         add_c(&mut item, integer_obj(0));
         add_c(
             &mut item,
-            string_obj(cstrn_as_string(unsafe {
-                std::slice::from_raw_parts((buf).cast::<u8>(), len)
-            })),
+            string_obj(cstrn_as_string(crate::strings::AsByteSlice::slice_len(
+                buf, len,
+            ))),
         );
         add_c(&mut item, integer_obj(0));
         add_c(&mut content, array_obj(item));
@@ -4336,7 +4339,7 @@ fn redrawcmdprompt() {
         msg_putchar(getln_st().ccline.cmdfirstc);
     }
     let cp = &raw const getln_st().ccline.cmdprompt;
-    if let Some(ref prompt) = *unsafe { &(*cp) } {
+    if let Some(ref prompt) = *crate::globals::GraphPtr::of(cp).borrow() {
         msg_puts_hl(prompt, getln_st().ccline.hl_id, false);
         getln_st().ccline.cmdindent =
             g_st().msg_col + (g_st().msg_row - g_st().cmdline_row) * g_st().columns_global;
@@ -4988,7 +4991,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         return;
     }
 
-    let prompt: *const u8;
+    let prompt;
     let mut defstr = crate::strings::ByteSlice::from_cstr(c"");
     let mut cancelreturn = crate::globals::GraphPtr::<TypVal>::NULL;
     let mut cancelreturn_strarg2 = TypVal {
@@ -5014,7 +5017,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         else {
             return;
         };
-        prompt = prompt_cstr.as_ptr().cast();
+        prompt = prompt_cstr.as_ptr().cast::<u8>();
         let Some(defstr_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"default", 7, &mut defstr_buf, Some(c""))
         else {
@@ -5088,7 +5091,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             let plen = (crate::strings::AsByteSlice::byte_addr(p) as isize)
                 - (crate::strings::AsByteSlice::byte_addr(prompt) as isize);
             msg_puts_len(
-                unsafe { std::slice::from_raw_parts((prompt).cast::<u8>(), plen.max(0) as usize) },
+                crate::strings::AsByteSlice::slice_len(prompt, plen.max(0) as usize),
                 plen,
                 get_echo_hl_id(),
                 false,

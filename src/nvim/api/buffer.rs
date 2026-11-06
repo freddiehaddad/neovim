@@ -1416,7 +1416,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         curwin_mut(),
         None,
         K_MARK_ALL_NO_RESOLVE,
-        i32::from(unsafe { *name.data.cast::<u8>() }),
+        i32::from(*crate::globals::GraphPtr::of(name.data.cast::<u8>()).borrow()),
     ) else {
         api_err_invalid(err, c"mark name", name.as_opt_cstr(), 0, true);
         return res;
@@ -1510,7 +1510,7 @@ pub fn nvim_buf_get_mark(
         return rv;
     }
 
-    let mark = i32::from(unsafe { *name.data.cast::<u8>() });
+    let mark = i32::from(*crate::globals::GraphPtr::of(name.data.cast::<u8>()).borrow());
     let Some(fm) = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark) else {
         api_err_invalid(err, c"mark name", name.as_opt_cstr(), 0, true);
         return rv;
@@ -1758,7 +1758,7 @@ fn push_linestr(
             str_val = arena_bytes(arena, s);
             if replace_nl {
                 let slice =
-                    unsafe { std::slice::from_raw_parts_mut(str_val.data.cast::<u8>(), s.len()) };
+                    crate::globals::GraphPtr::raw_slice_mut(str_val.data.cast::<u8>(), s.len());
                 for b in slice {
                     if *b == b'\n' {
                         *b = 0;

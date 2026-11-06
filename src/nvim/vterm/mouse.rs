@@ -153,7 +153,7 @@ impl VTerm {
     pub fn state_mut_opt(&mut self) -> Option<&'static mut VTermStateFull> {
         self.state
             .as_deref_mut()
-            .map(|s| unsafe { &mut *std::ptr::from_mut(s) })
+            .map(|s| crate::globals::GraphPtr::from(&*s).borrow_mut())
     }
 
     #[inline]
@@ -165,7 +165,7 @@ impl VTerm {
     pub fn screen_mut_opt(&mut self) -> Option<&'static mut crate::vterm::screen::VTermScreen> {
         self.screen
             .as_deref_mut()
-            .map(|s| unsafe { &mut *std::ptr::from_mut(s) })
+            .map(|s| crate::globals::GraphPtr::from(&*s).borrow_mut())
     }
 
     #[inline]

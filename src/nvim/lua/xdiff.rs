@@ -277,7 +277,7 @@ fn get_string_arg<'a>(lstate: *mut lua_State, idx: i32) -> Mmfile<'a> {
     let slice = if ptr.is_null() || size == 0 {
         &[]
     } else {
-        unsafe { std::slice::from_raw_parts(ptr, size) }
+        crate::globals::GraphPtr::raw_slice(ptr, size)
     };
     Mmfile { slice }
 }

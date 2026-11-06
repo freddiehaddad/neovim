@@ -799,9 +799,8 @@ fn buf_do_map(
                 if is_abbrev && maptype != MAPTYPE_UNMAP {
                     let mut same: i32 = -1;
                     let mut keys_unescaped = [0u8; MAXMAPLEN + 1];
-                    keys_unescaped[..len as usize].copy_from_slice(unsafe {
-                        std::slice::from_raw_parts((lhs).cast::<u8>(), len as usize)
-                    });
+                    keys_unescaped[..len as usize]
+                        .copy_from_slice(crate::strings::AsByteSlice::slice_len(lhs, len as usize));
                     let keys_unescaped_len = vim_unescape_ks(&mut keys_unescaped);
                     let mut p = keys_unescaped.as_ptr();
                     let end_p = p.wrapping_add(keys_unescaped_len);
@@ -823,9 +822,7 @@ fn buf_do_map(
                         break 'outer;
                     }
 
-                    for &b in
-                        unsafe { std::slice::from_raw_parts((lhs).cast::<u8>(), len as usize) }
-                    {
+                    for &b in crate::strings::AsByteSlice::slice_len(lhs, len as usize) {
                         if ascii_iswhite(i32::from(b)) {
                             retval = 1;
                             break 'outer;
@@ -843,8 +840,7 @@ fn buf_do_map(
             }
 
             if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
-                let lhs_slice =
-                    unsafe { std::slice::from_raw_parts((lhs).cast::<u8>(), len as usize) };
+                let lhs_slice = crate::strings::AsByteSlice::slice_len(lhs, len as usize);
                 for bucket in get_map_buckets(None, is_abbrev) {
                     if g_st().got_int {
                         break;
@@ -881,9 +877,8 @@ fn buf_do_map(
                                 let n = mp.m_keylen;
                                 let cmp_len = n.min(len) as usize;
                                 let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
-                                let lhs_slice = unsafe {
-                                    std::slice::from_raw_parts((lhs).cast::<u8>(), cmp_len)
-                                };
+                                let lhs_slice =
+                                    crate::strings::AsByteSlice::slice_len(lhs, cmp_len);
                                 if mp_slice == lhs_slice {
                                     showmap(mp, true);
                                     did_local = true;
@@ -907,7 +902,7 @@ fn buf_do_map(
                     let start = if is_abbrev {
                         0
                     } else {
-                        map_hash(mode, unsafe { *lhs })
+                        map_hash(mode, *crate::globals::GraphPtr::of(lhs).borrow())
                     };
                     (start, start + 1)
                 } else {
@@ -938,10 +933,8 @@ fn buf_do_map(
                                 (mp.m_keylen, mp.m_keys.as_ptr())
                             };
                             let cmp_len = n.min(len) as usize;
-                            let p_slice =
-                                unsafe { std::slice::from_raw_parts((p).cast::<u8>(), cmp_len) };
-                            let lhs_slice =
-                                unsafe { std::slice::from_raw_parts((lhs).cast::<u8>(), cmp_len) };
+                            let p_slice = crate::strings::AsByteSlice::slice_len(p, cmp_len);
+                            let lhs_slice = crate::strings::AsByteSlice::slice_len(lhs, cmp_len);
                             if p_slice == lhs_slice {
                                 if maptype == MAPTYPE_UNMAP {
                                     if n != len
@@ -1032,7 +1025,7 @@ fn buf_do_map(
                     if !keyround1_simplified {
                         retval = 2;
                     }
-                } else if unsafe { *lhs } == CTRL_C_CONST {
+                } else if *crate::globals::GraphPtr::of(lhs).borrow() == CTRL_C_CONST {
                     if local {
                         buf.b_mapped_ctrl_c &= !mode;
                     } else {
@@ -1508,7 +1501,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
     let mut scol: i32;
     {
         let mut is_id = true;
-        let mut p: *mut u8 = {
+        let mut p = crate::globals::GraphPtr::<u8>::of({
             let _l = ptr_arg;
             let _p = ptr_arg.wrapping_add(col as usize);
             if (_p as usize) > (_l as usize) {
@@ -1516,7 +1509,8 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             } else {
                 _p
             }
-        };
+        })
+        .as_ptr();
         let vim_abbr = if !vim_iswordp(crate::strings::ByteSlice::from_ptr(p).as_bytes()) {
             true
         } else {
@@ -1586,7 +1580,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
                 && q.slice(len as usize)
-                    == unsafe { std::slice::from_raw_parts((ptr_arg).cast::<u8>(), len as usize) };
+                    == crate::strings::AsByteSlice::slice_len(ptr_arg, len as usize);
             if match_found {
                 mp_opt = Some(cand);
                 break;
@@ -1610,9 +1604,13 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     if c >= ABBR_OFF {
                         c -= ABBR_OFF;
                     }
-                    let mut newlen = utf_char2bytes(c, unsafe {
-                        std::slice::from_raw_parts_mut(tb.as_mut_ptr().wrapping_add(j).cast(), 6)
-                    }) as usize;
+                    let mut newlen = utf_char2bytes(
+                        c,
+                        crate::globals::GraphPtr::raw_slice_mut(
+                            tb.as_mut_ptr().wrapping_add(j).cast(),
+                            6,
+                        ),
+                    ) as usize;
                     tb[j + newlen] = 0;
                     let escaped = vim_strsave_escape_ks(&tb[j..j + newlen]);
                     let escaped_bytes = escaped.to_bytes();
@@ -2005,7 +2003,8 @@ pub fn check_map(
         for bucket in get_map_buckets(b, abbr != 0) {
             for mp in bucket {
                 if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
-                    let mp: &'static Mapblock = unsafe { &*(std::ptr::from_ref(mp)) };
+                    let mp: &'static Mapblock =
+                        crate::globals::GraphPtr::of(std::ptr::from_ref(mp)).borrow();
                     let mut s = crate::strings::ByteSlice::from_cstr(mp.m_keys.as_c_str());
                     let mut keylen = mp.m_keylen;
                     if ign_mod != 0 && keylen >= 3 && s.slice(2) == [K_SPECIAL, KS_MODIFIER] {
@@ -2070,9 +2069,10 @@ fn mapblock_fill_dict(
         arena,
     );
     let mapmode = arena_alloc(arena, 7, false).cast::<u8>();
-    map_mode_to_chars(mp.m_mode, unsafe {
-        std::slice::from_raw_parts_mut(mapmode, 7)
-    });
+    map_mode_to_chars(
+        mp.m_mode,
+        crate::globals::GraphPtr::raw_slice_mut(mapmode, 7),
+    );
     let noremap_value = if compatible {
         i64::from(mp.m_noremap != 0)
     } else if mp.m_noremap == REMAP_SCRIPT {
@@ -2106,8 +2106,7 @@ fn mapblock_fill_dict(
     if let Some(lhsrawalt) = lhsrawalt {
         let alt_bytes = lhsrawalt.to_bytes_with_nul();
         let alt_arena = arena_alloc(arena, alt_bytes.len(), false);
-        let dst =
-            unsafe { std::slice::from_raw_parts_mut(alt_arena.cast::<u8>(), alt_bytes.len()) };
+        let dst = crate::globals::GraphPtr::raw_slice_mut(alt_arena.cast::<u8>(), alt_bytes.len());
         dst.copy_from_slice(alt_bytes);
         put_c(
             &mut dict,

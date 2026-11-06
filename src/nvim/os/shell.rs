@@ -400,7 +400,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         drop(f);
         os_remove(tempname_cstr.as_c_str());
         if readlen != len {
-            semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
+            semsg!(gettext(E_CANT_READ_FILE_STR), tempname_cstr.as_c_str());
             return false;
         }
         drop(tempname_cstr);
@@ -944,7 +944,7 @@ fn out_data_ring(output: Option<&[u8]>) {
         let ring_ptr = (&raw const sh_st().last_skipped).cast::<u8>();
         let mut count = len;
         out_data_append_to_screen(
-            unsafe { std::slice::from_raw_parts(ring_ptr, len) },
+            crate::globals::GraphPtr::raw_slice(ring_ptr, len),
             &mut count,
             STDOUT_FILENO,
             true,

@@ -65,7 +65,7 @@ impl Hashtab {
         } else {
             self.ht_array.as_ptr().cast_mut()
         };
-        unsafe { &mut *ptr }
+        crate::globals::GraphPtr::of(ptr).borrow_mut()
     }
 
     #[inline]
@@ -156,28 +156,28 @@ pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> &'static mut Hashitem {
 
 /// Find item for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
 pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hashitem {
-    let arr_ptr: *mut Hashitem = ht.array_ptr();
+    let arr_ptr = crate::globals::GraphPtr::<Hashitem>::of(ht.array_ptr()).as_ptr();
 
     let mut idx = hash & ht.ht_mask;
     let mut hi = arr_ptr.wrapping_add(idx);
-    let hi_ref = unsafe { &*hi };
+    let hi_ref = crate::globals::GraphPtr::of(hi).borrow();
 
     if hi_ref.is_null_slot() {
-        return unsafe { &mut *hi };
+        return crate::globals::GraphPtr::of(hi).borrow_mut();
     }
 
     let mut freeitem = crate::globals::GraphPtr::<Hashitem>::NULL;
     if hi_ref.hi_removed {
         freeitem = crate::globals::GraphPtr::<Hashitem>::of(hi);
     } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_cstr(), key) {
-        return unsafe { &mut *hi };
+        return crate::globals::GraphPtr::of(hi).borrow_mut();
     }
 
     let mut perturb = hash;
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
         hi = arr_ptr.wrapping_add(idx & ht.ht_mask);
-        let item = unsafe { &*hi };
+        let item = crate::globals::GraphPtr::of(hi).borrow();
 
         if item.is_null_slot() {
             return unsafe {
@@ -190,7 +190,7 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
         }
 
         if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key) {
-            return unsafe { &mut *hi };
+            return crate::globals::GraphPtr::of(hi).borrow_mut();
         }
 
         if item.hi_removed && freeitem.is_null() {
@@ -397,13 +397,16 @@ mod tests {
                 .collect();
 
             for &di in &items {
-                assert!(hash_add(ht, unsafe { &mut *di }));
+                assert!(hash_add(ht, crate::globals::GraphPtr::of(di).borrow_mut()));
             }
             assert_eq!(ht.ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
             let first_di = items[0];
-            assert!(!hash_add(ht, unsafe { &mut *first_di }));
+            assert!(!hash_add(
+                ht,
+                crate::globals::GraphPtr::of(first_di).borrow_mut()
+            ));
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
@@ -427,7 +430,9 @@ mod tests {
             ));
 
             for di in items {
-                crate::eval::typval::tv_dict_item_free(unsafe { &mut *di });
+                crate::eval::typval::tv_dict_item_free(
+                    crate::globals::GraphPtr::of(di).borrow_mut(),
+                );
             }
         }
     }

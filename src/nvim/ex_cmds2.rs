@@ -772,7 +772,7 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
         let mut buffer = [0u8; MAXPATHL];
         vim_full_name(
             eap.arg.as_opt_cstr(),
-            unsafe { std::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast(), MAXPATHL) },
+            crate::globals::GraphPtr::raw_slice_mut(buffer.as_mut_ptr().cast(), MAXPATHL),
             false,
         );
 
@@ -857,7 +857,7 @@ pub fn ex_drop(eap: &mut Exarg) {
     if split {
         eap.cmdidx = Cmdidx::CmdSfirst;
 
-        unsafe { *eap.cmd.cast::<u8>() = b's' };
+        *crate::globals::GraphPtr::of(eap.cmd.cast::<u8>()).borrow_mut() = b's';
     } else {
         eap.cmdidx = Cmdidx::CmdFirst;
     }

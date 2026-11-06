@@ -3588,7 +3588,7 @@ fn ins_tab() -> bool {
     {
         let mut cursor_pos = curwin_mut().w_cursor;
         let mut saved_line_vec: Vec<u8> = Vec::new();
-        let mut ptr: *mut u8;
+        let mut ptr;
         let mut vcol: Colnr = 0;
         let mut want_vcol: Colnr = 0;
         let mut change_col: i32 = -1;
@@ -3609,7 +3609,9 @@ fn ins_tab() -> bool {
         }
 
         let mut fpos = curwin_mut().w_cursor;
-        while fpos.col > 0 && ascii_iswhite(unsafe { *ptr.wrapping_offset(-1) }) {
+        while fpos.col > 0
+            && ascii_iswhite(*crate::globals::GraphPtr::of(ptr.wrapping_offset(-1)).borrow())
+        {
             fpos.col -= 1;
             ptr = ptr.wrapping_offset(-1);
         }
@@ -3640,13 +3642,13 @@ fn ins_tab() -> bool {
         let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
-        while ascii_iswhite(unsafe { *ptr }) {
+        while ascii_iswhite(*crate::globals::GraphPtr::of(ptr).borrow()) {
             let i = win_charsize(cstype, vcol, tab.to_bytes_with_nul(), tab_v, &mut csarg, 1).width;
             if vcol + i > want_vcol {
                 break;
             }
-            if unsafe { *ptr } != b'\t' {
-                unsafe { *ptr = b'\t' };
+            if *crate::globals::GraphPtr::of(ptr).borrow() != b'\t' {
+                *crate::globals::GraphPtr::of(ptr).borrow_mut() = b'\t';
 
                 if change_col < 0 {
                     change_col = fpos.col;
@@ -3670,11 +3672,11 @@ fn ins_tab() -> bool {
                 0,
                 crate::strings::ByteSlice::from_ptr(ptr).as_cstr(),
             );
-            while vcol < want_vcol && unsafe { *ptr } == b' ' {
+            while vcol < want_vcol && *crate::globals::GraphPtr::of(ptr).borrow() == b' ' {
                 vcol += win_charsize(
                     cstype,
                     vcol,
-                    unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), 1) },
+                    crate::strings::AsByteSlice::slice_len(ptr, 1),
                     b' ' as i32,
                     &mut csarg,
                     1,

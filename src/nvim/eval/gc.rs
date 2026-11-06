@@ -85,7 +85,7 @@ pub fn gc_dict_at(idx: usize) -> &'static mut TvDict {
 
 #[inline]
 pub fn gc_free_dict_at(idx: usize) {
-    drop(unsafe { Box::from_raw(gc_st().gc_dicts[idx].as_ptr()) });
+    crate::globals::GraphPtr::of(gc_st().gc_dicts[idx].as_ptr()).drop_box();
 }
 
 #[inline]
@@ -100,5 +100,5 @@ pub fn gc_list_at(idx: usize) -> &'static mut TvList {
 
 #[inline]
 pub fn gc_free_list_at(idx: usize) {
-    drop(unsafe { Box::from_raw(gc_st().gc_lists[idx].as_ptr()) });
+    crate::globals::GraphPtr::of(gc_st().gc_lists[idx].as_ptr()).drop_box();
 }

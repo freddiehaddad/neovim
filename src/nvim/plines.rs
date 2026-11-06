@@ -213,7 +213,7 @@ pub fn init_charsize_arg(
     line: &std::ffi::CStr,
 ) -> CSType {
     csarg.win = crate::globals::WinPtr::from(&mut *wp);
-    csarg.line = unsafe { &*(line as *const std::ffi::CStr) };
+    csarg.line = crate::globals::GraphPtr::<u8>::cstr(line);
     csarg.max_head_vcol = 0;
     csarg.extconceal_off = 0;
     csarg.cur_text_width_left = 0;
@@ -270,7 +270,7 @@ pub fn init_charsize_arg_extconceal(
     if spans.is_empty() {
         return cstype;
     }
-    csarg.extconceal = Some(unsafe { &*(spans as *const ConcealSpans) });
+    csarg.extconceal = Some(crate::globals::GraphPtr::of(spans as *const ConcealSpans).borrow());
     K_CHARSIZE_REGULAR
 }
 

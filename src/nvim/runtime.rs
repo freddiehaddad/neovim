@@ -591,7 +591,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
     let mut arg_slice = crate::strings::ByteSlice::from_cstr(arg);
     loop {
         let p = crate::charset::skiptowhite_esc_ptr(arg_slice.as_ptr());
-        if p.is_null() || unsafe { *p == 0 } {
+        if crate::strings::AsByteSlice::is_empty_val(p) {
             break;
         }
         if rt_st().runtime_expand_flags == 0 {
@@ -789,7 +789,7 @@ fn runtime_search_path_get_cached() -> &'static mut [SearchPathItem] {
     runtime_search_path_validate();
     rt_st().runtime_search_path_refcount += 1;
     let rsp = &mut rt_st().runtime_search_path;
-    unsafe { std::slice::from_raw_parts_mut(rsp.as_mut_ptr(), rsp.len()) }
+    crate::globals::GraphPtr::raw_slice_mut(rsp.as_mut_ptr(), rsp.len())
 }
 
 fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
@@ -1332,21 +1332,23 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             size: 0,
         };
 
-        let mut insp: *const u8 = ptr::null();
-        let mut after_insp: *const u8 = ptr::null();
+        let mut insp = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+        let mut after_insp = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut p_rtp_len: usize = 0;
         let rtp_bytes = opt_vars().p_rtp.as_bytes();
-        let rtp_base: *mut u8 = opt_vars().p_rtp.as_ptr().cast_mut().cast();
-        let mut entry: *mut u8 = rtp_base;
-        while unsafe { *entry != 0 } {
+        let rtp_base = opt_vars().p_rtp.as_ptr().cast_mut().cast::<u8>();
+        let mut entry = crate::globals::GraphPtr::<u8>::of(rtp_base).as_ptr();
+        while !crate::strings::AsByteSlice::is_empty_val(entry) {
             let cur_entry = entry;
             let mut entry_bytes = crate::strings::ByteSlice::from_ptr(entry).as_bytes();
             let old_len = entry_bytes.len();
-            let dst = unsafe { std::slice::from_raw_parts_mut(buf.data.cast::<u8>(), MAXPATHL) };
+            let dst = crate::globals::GraphPtr::raw_slice_mut(buf.data.cast::<u8>(), MAXPATHL);
             buf.size = copy_option_part(&mut entry_bytes, dst, c",");
             entry = entry.wrapping_add(old_len - entry_bytes.len());
 
-            p_rtp_len += if unsafe { *cur_entry.wrapping_add(buf.size) } == b',' {
+            p_rtp_len += if *crate::globals::GraphPtr::of(cur_entry.wrapping_add(buf.size)).borrow()
+                == b','
+            {
                 buf.size + 1
             } else {
                 buf.size
@@ -1373,9 +1375,10 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             }
 
             if insp.is_null() {
-                add_pathsep(unsafe {
-                    std::slice::from_raw_parts_mut(buf.data.cast::<u8>(), buf.data.len() + 3)
-                });
+                add_pathsep(crate::globals::GraphPtr::raw_slice_mut(
+                    buf.data.cast::<u8>(),
+                    buf.data.len() + 3,
+                ));
                 let Some(rtp_ffname) = fix_fname(buf.as_opt_cstr()) else {
                     break 'block;
                 };
@@ -1421,7 +1424,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut keep = (insp as usize) - (rtp_base as usize);
         let mut first_pos = keep;
         new_rtp_vec.extend_from_slice(&p_rtp_slice[..keep]);
-        let insp_empty = unsafe { *insp == 0 };
+        let insp_empty = crate::strings::AsByteSlice::is_empty_val(insp);
         if insp_empty {
             new_rtp_vec.push(b',');
             first_pos += 1;
@@ -1474,8 +1477,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             for item in &mut rsp[idx1..] {
                 item.pos_in_rtp += fname_len + 1;
             }
-            let fname_bytes =
-                unsafe { std::slice::from_raw_parts((fname).cast::<u8>(), fname_len) };
+            let fname_bytes = crate::strings::AsByteSlice::slice_len(fname, fname_len);
             let fname_end = fname_bytes
                 .iter()
                 .position(|&b| b == 0)
@@ -1890,7 +1892,7 @@ fn expand_rtdir_int(
 
     for slot in gap.iter_mut() {
         let bytes = slot.as_bytes();
-        let match_ptr: *mut u8 = slot.as_ptr().cast_mut().cast();
+        let match_ptr = slot.as_ptr().cast_mut().cast::<u8>();
         let mut end_idx = bytes.len();
         if end_idx > 4 && !keep_ext {
             let tail4 = &bytes[(end_idx - 4)..end_idx];
@@ -1906,7 +1908,7 @@ fn expand_rtdir_int(
         };
         let mut s = match_ptr.wrapping_add(end_idx);
         while (s as usize) > (match_ptr as usize) {
-            if vim_ispathsep(unsafe { *s } as i32) {
+            if vim_ispathsep(*crate::globals::GraphPtr::of(s).borrow() as i32) {
                 match_pathsep_cnt += 1;
                 if match_pathsep_cnt > pat_pathsep_cnt {
                     break;
@@ -2198,7 +2200,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         };
         if data_len != 0 {
             rtp_size += (data_len
-                + unsafe { std::slice::from_raw_parts((data_home).cast::<u8>(), data_len) }
+                + crate::strings::AsByteSlice::slice_len(data_home, data_len)
                     .iter()
                     .filter(|&&b| b == b',')
                     .count()
@@ -2207,9 +2209,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + SITE_SIZE
                 + 1
                 + usize::from(
-                    after_pathsep(unsafe {
-                        std::slice::from_raw_parts((data_home).cast::<u8>(), data_len)
-                    }) == 0,
+                    after_pathsep(crate::strings::AsByteSlice::slice_len(data_home, data_len)) == 0,
                 ))
                 * 2
                 + AFTER_SIZE
@@ -2224,9 +2224,10 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + appname_len
                 + 1
                 + usize::from(
-                    after_pathsep(unsafe {
-                        std::slice::from_raw_parts((config_home).cast::<u8>(), config_len)
-                    }) == 0,
+                    after_pathsep(crate::strings::AsByteSlice::slice_len(
+                        config_home,
+                        config_len,
+                    )) == 0,
                 ))
                 * 2
                 + AFTER_SIZE
@@ -3094,7 +3095,7 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
     let l = tv_list_alloc(functbl.len() as isize);
 
     for &fp in functbl.values() {
-        let fp_ref = unsafe { &*fp };
+        let fp_ref = crate::globals::GraphPtr::of(fp).borrow();
         if fp_ref.uf_script_ctx.sc_sid == sid {
             let name = if let Some(ref exp) = fp_ref.uf_name_exp {
                 exp.as_c_str()

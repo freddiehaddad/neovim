@@ -410,7 +410,7 @@ impl Exarg {
         }
         if let Some(b) = self.arg {
             let n = (len + 1).min(b.len());
-            return unsafe { std::slice::from_raw_parts_mut(b.as_ptr().cast_mut(), n) };
+            return crate::globals::GraphPtr::raw_slice_mut(b.as_ptr().cast_mut(), n);
         }
         &mut []
     }
@@ -5018,8 +5018,8 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut cstack = Cstack::default();
         let mut current_line: i32 = 0;
         let mut fname: RawCCharPtrMut = ptr::null_mut();
-        let mut breakpoint: *mut Linenr = ptr::null_mut();
-        let mut dbg_tick: *mut i32 = ptr::null_mut();
+        let mut breakpoint = crate::globals::GraphPtr::<Linenr>::NULL.as_ptr();
+        let mut dbg_tick = crate::globals::GraphPtr::<i32>::NULL.as_ptr();
         let mut debug_saved = DbgStuff::new();
 
         let mut cmd_getline: LineGetter;
@@ -5100,16 +5100,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
 
                 if !breakpoint.is_null()
                     && !dbg_tick.is_null()
-                    && unsafe { *dbg_tick } != g_st().debug_tick
+                    && *crate::globals::GraphPtr::of(dbg_tick).borrow() != g_st().debug_tick
                 {
-                    unsafe {
-                        *breakpoint = dbg_find_breakpoint(
-                            fgetline.is_source(),
-                            crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
-                            *sourcing_lnum_ptr(),
-                        );
-                        *dbg_tick = g_st().debug_tick;
-                    }
+                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() = dbg_find_breakpoint(
+                        fgetline.is_source(),
+                        crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
+                        *sourcing_lnum_ptr(),
+                    );
+                    *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
                 }
 
                 let wp = &cmd_loop_cookie.lines[current_line as usize];
@@ -5117,21 +5115,19 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 *sourcing_lnum_ptr() = wp.lnum;
 
                 if !breakpoint.is_null()
-                    && unsafe { *breakpoint } != 0
-                    && unsafe { *breakpoint } <= *sourcing_lnum_ptr()
+                    && *crate::globals::GraphPtr::of(breakpoint).borrow() != 0
+                    && *crate::globals::GraphPtr::of(breakpoint).borrow() <= *sourcing_lnum_ptr()
                 {
                     dbg_breakpoint(
                         crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
                         *sourcing_lnum_ptr(),
                     );
-                    unsafe {
-                        *breakpoint = dbg_find_breakpoint(
-                            fgetline.is_source(),
-                            crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
-                            *sourcing_lnum_ptr(),
-                        );
-                        *dbg_tick = g_st().debug_tick;
-                    }
+                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() = dbg_find_breakpoint(
+                        fgetline.is_source(),
+                        crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
+                        *sourcing_lnum_ptr(),
+                    );
+                    *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
                 }
                 if g_st().do_profiling == PROF_YES {
                     if let Some(fcp) = fgetline.as_func() {
@@ -5307,14 +5303,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                             && cmd_loop_cookie.lines.len() > current_line as usize
                         {
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
-                            unsafe {
-                                *breakpoint = dbg_find_breakpoint(
+                            *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
+                                dbg_find_breakpoint(
                                     fgetline.is_source(),
                                     crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                                     wp.lnum - 1,
                                 );
-                                *dbg_tick = g_st().debug_tick;
-                            }
+                            *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() =
+                                g_st().debug_tick;
                         }
                     } else if cstack.cs_idx >= 0 {
                         let prev_idx = cstack.cs_idx - 1;
@@ -7155,15 +7151,13 @@ pub fn parse_command_modifiers(
     if has_visual_range {
         if eap.cmd.cast::<std::ffi::c_char>() > cmd_start {
             let mod_len = (eap.cmd.as_ptr() as usize) - (cmd_start as usize);
-            unsafe { ptr::copy(cmd_start, cmd_start.wrapping_sub(5), mod_len) };
+            crate::globals::GraphPtr::copy_to(cmd_start, cmd_start.wrapping_sub(5), mod_len);
             eap.cmd = orig_cmd.wrapping_add(mod_len);
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    c":'<,'>".as_ptr(),
-                    eap.cmd.as_ptr().cast::<std::ffi::c_char>().wrapping_sub(1),
-                    6,
-                )
-            };
+            crate::globals::GraphPtr::copy_to(
+                c":'<,'>".as_ptr(),
+                eap.cmd.as_ptr().cast::<std::ffi::c_char>().wrapping_sub(1),
+                6,
+            );
         } else {
             eap.cmd = orig_cmd;
         }
@@ -8282,7 +8276,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
     let mut has_wildcards =
         path_has_wildcard(crate::strings::ByteSlice::from_ptr(p).as_bytes(), true);
 
-    while unsafe { *p != 0 } {
+    while !crate::strings::AsByteSlice::is_empty_val(p) {
         if crate::strings::ByteSlice::from_ptr(p)
             .as_cstr()
             .to_bytes()
@@ -8292,12 +8286,15 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
             skip_expr(&mut p_cstr, None);
             p = p_cstr.as_ptr().cast_mut();
-            if unsafe { *p as u8 } == b'`' {
+            if crate::strings::AsByteSlice::first_byte_val(p) == b'`' {
                 p = p.wrapping_add(1);
             }
             continue;
         }
-        if !crate::strings::vim_haschr(c"%#<", i32::from(unsafe { *p as u8 })) {
+        if !crate::strings::vim_haschr(
+            c"%#<",
+            i32::from(crate::strings::AsByteSlice::first_byte_val(p)),
+        ) {
             p = p.wrapping_add(1);
             continue;
         }
@@ -8400,16 +8397,18 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         #[cfg(unix)]
         if !has_wildcards {
             let arg_len = eap.arg.len();
-            backslash_halve(unsafe {
-                std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), arg_len + 1)
-            });
+            backslash_halve(crate::globals::GraphPtr::raw_slice_mut(
+                eap.arg.cast::<u8>(),
+                arg_len + 1,
+            ));
         }
         #[cfg(not(unix))]
         {
             let arg_len = eap.arg.len();
-            backslash_halve(unsafe {
-                std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), arg_len + 1)
-            });
+            backslash_halve(crate::globals::GraphPtr::raw_slice_mut(
+                eap.arg.cast::<u8>(),
+                arg_len + 1,
+            ));
         }
 
         if has_wildcards {
@@ -8496,8 +8495,8 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
         .as_ptr()
         .wrapping_add((grep_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
 
-    while unsafe { *p } != 0 {
-        let b0 = unsafe { *p } as u8;
+    while *crate::globals::GraphPtr::of(p).borrow() != 0 {
+        let b0 = *crate::globals::GraphPtr::of(p).borrow() as u8;
         if b0 == CTRL_V_CONST as u8 {
             if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                 p = p.wrapping_add(1);
@@ -8506,21 +8505,21 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                     .as_cstr()
                     .to_bytes()
                     .len();
-                let buf = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), tail_len + 2) };
+                let buf = crate::globals::GraphPtr::raw_slice_mut(p.cast::<u8>(), tail_len + 2);
                 buf.copy_within(1..=tail_len + 1, 0);
             }
-            if unsafe { *p } == 0 {
+            if *crate::globals::GraphPtr::of(p).borrow() == 0 {
                 break;
             }
         } else if b0 == b'`'
-            && (unsafe { *p.wrapping_add(1) } as u8) == b'='
+            && (*crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() as u8) == b'='
             && (eap.argt & EX_XFILE) != 0
         {
             p = p.wrapping_add(2);
             let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
             skip_expr(&mut p_cstr, None);
             p = p.wrapping_add((p_cstr.as_ptr() as usize) - (p as usize));
-            if unsafe { *p } == 0 {
+            if *crate::globals::GraphPtr::of(p).borrow() == 0 {
                 break;
             }
         } else if (b0 == b'"'
@@ -8528,7 +8527,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             && (eap.cmdidx != Cmdidx::CmdAt || p != eap.arg.as_ptr())
             && (eap.cmdidx != Cmdidx::CmdRedir
                 || p != eap.arg.as_ptr().wrapping_add(1)
-                || (unsafe { *p.wrapping_sub(1) } as u8) != b'@'))
+                || (*crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow() as u8) != b'@'))
             || (b0 == b'|'
                 && eap.cmdidx != Cmdidx::CmdAppend
                 && eap.cmdidx != Cmdidx::CmdChange
@@ -8537,12 +8536,13 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
         {
             if (!crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BAR)
                 || (eap.argt & EX_CTRLV) == 0)
-                && (unsafe { *p.wrapping_sub(1) } as u8) == b'\\'
+                && (*crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow() as u8) == b'\\'
             {
                 let tail_len = crate::strings::ByteSlice::from_ptr(p).as_bytes().len();
-                let buf = unsafe {
-                    std::slice::from_raw_parts_mut(p.wrapping_sub(1).cast::<u8>(), tail_len + 2)
-                };
+                let buf = crate::globals::GraphPtr::raw_slice_mut(
+                    p.wrapping_sub(1).cast::<u8>(),
+                    tail_len + 2,
+                );
                 buf.copy_within(1..=tail_len + 1, 0);
                 p = p.wrapping_sub(1);
             } else {
@@ -8550,9 +8550,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                     crate::strings::ByteSlice::from_ptr(p).as_cstr(),
                 ));
 
-                unsafe {
-                    *p = NUL;
-                }
+                *crate::globals::GraphPtr::of(p).borrow_mut() = NUL;
 
                 break;
             }
@@ -8562,7 +8560,10 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
 
     if (eap.argt & EX_NOTRLCOM) == 0 {
         let arg_len = eap.arg.len();
-        del_trailing_spaces(unsafe { std::slice::from_raw_parts_mut(eap.arg.cast(), arg_len + 1) });
+        del_trailing_spaces(crate::globals::GraphPtr::raw_slice_mut(
+            eap.arg.cast(),
+            arg_len + 1,
+        ));
     }
 }
 
@@ -8570,9 +8571,11 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
     let mut arg: RawCCharPtrMut = eap.arg.cast();
     let mut command: RawCCharPtrMut = ptr::null_mut();
 
-    if unsafe { *arg as u8 } == b'+' {
+    if crate::strings::AsByteSlice::first_byte_val(arg) == b'+' {
         arg = arg.wrapping_add(1);
-        if ascii_isspace(unsafe { *arg as u8 }) || unsafe { *arg == 0 } {
+        if ascii_isspace(crate::strings::AsByteSlice::first_byte_val(arg))
+            || crate::strings::AsByteSlice::is_empty_val(arg)
+        {
             command = (&raw mut docmd_st().dollar_command).cast();
         } else {
             command = arg;
@@ -8580,13 +8583,11 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
                 .as_bytes()
                 .len();
             let cmd_buf =
-                unsafe { std::slice::from_raw_parts_mut(command.cast::<u8>(), cmd_len + 1) };
+                crate::globals::GraphPtr::raw_slice_mut(command.cast::<u8>(), cmd_len + 1);
             let off = skip_cmd_arg_mut(cmd_buf);
             arg = command.wrapping_add(off);
-            if unsafe { *arg != 0 } {
-                unsafe {
-                    *arg = NUL;
-                }
+            if !crate::strings::AsByteSlice::is_empty_val(arg) {
+                *crate::globals::GraphPtr::of(arg).borrow_mut() = NUL;
 
                 arg = arg.wrapping_add(1);
             }
@@ -8616,7 +8617,7 @@ pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
     let p_ptr = p.as_ptr().cast_mut().cast::<u8>();
     let len = p.to_bytes().len();
     if rembs {
-        let buf = unsafe { std::slice::from_raw_parts_mut(p_ptr, len + 1) };
+        let buf = crate::globals::GraphPtr::raw_slice_mut(p_ptr, len + 1);
         let idx = skip_cmd_arg_mut(buf);
         return crate::strings::ByteSlice::from_ptr(p_ptr.wrapping_add(idx)).as_cstr();
     }
@@ -8656,7 +8657,7 @@ fn get_bad_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
 pub fn getargopt(eap: &mut Exarg) -> bool {
     let mut arg = eap.arg.wrapping_add(2);
-    let mut pp: *mut i32 = ptr::null_mut();
+    let mut pp = crate::globals::GraphPtr::<i32>::NULL.as_ptr();
     let mut bad_char_idx: i32 = 0;
     let arg_bytes = (arg).as_bytes();
 
@@ -8712,17 +8713,14 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
 
     arg = arg.wrapping_add(1);
 
-    unsafe {
-        *pp = ((arg.as_ptr() as usize) - (eap.cmd.as_ptr() as usize)) as i32;
-    }
+    *crate::globals::GraphPtr::of(pp).borrow_mut() =
+        ((arg.as_ptr() as usize) - (eap.cmd.as_ptr() as usize)) as i32;
 
     let after_cstr = skip_cmd_arg((arg).as_cstr(), false);
     arg = arg.wrapping_add((after_cstr.as_ptr() as usize) - (arg.as_ptr() as usize));
     eap.arg = arg.skipwhite();
 
-    unsafe {
-        *arg.as_ptr() = NUL;
-    }
+    *crate::globals::GraphPtr::of(arg.as_ptr()).borrow_mut() = NUL;
 
     if ptr::eq(pp, &raw mut eap.force_ff) {
         if !check_ff_value(eap.cmd.wrapping_add(eap.force_ff as usize).as_cstr()) {
@@ -8732,9 +8730,8 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
     } else if ptr::eq(pp, &raw mut eap.force_enc) {
         let mut p = eap.cmd.wrapping_add(eap.force_enc as usize);
         while !(p).is_empty() {
-            unsafe {
-                *p.cast::<u8>() = tolower_asc(i32::from((p).first_byte())) as u8;
-            }
+            *crate::globals::GraphPtr::of(p.cast::<u8>()).borrow_mut() =
+                tolower_asc(i32::from((p).first_byte())) as u8;
 
             p = p.wrapping_add(1);
         }
@@ -9301,35 +9298,50 @@ fn ex_restart(eap: &mut Exarg) {
 
     let mut li = l.map_or(ptr::null_mut(), |l| l.lv_first.as_ptr());
     while !li.is_null() {
-        let arg = tv_get_string(unsafe { &(*li).li_tv });
+        let arg = tv_get_string(&crate::globals::GraphPtr::of(li).borrow().li_tv);
         let i = argv_vec.len();
         if i > 0 && (Some(arg.to_bytes()) == Some(b"--")) {
             break;
         }
         if i > 0 && (Some(arg.to_bytes()) == Some(b"-S")) {
-            let next_li = unsafe { (*li).li_next.as_ptr() };
+            let next_li = crate::globals::GraphPtr::of(li)
+                .borrow_mut()
+                .li_next
+                .as_ptr();
             if !next_li.is_null() {
-                let next_arg = tv_get_string(unsafe { &(*next_li).li_tv });
+                let next_arg = tv_get_string(&crate::globals::GraphPtr::of(next_li).borrow().li_tv);
                 if next_arg.to_bytes().first().copied().unwrap_or(0) != b'-' {
                     li = next_li;
                 }
             }
 
-            li = unsafe { (*li).li_next.as_ptr() };
+            li = crate::globals::GraphPtr::of(li)
+                .borrow_mut()
+                .li_next
+                .as_ptr();
 
             continue;
         }
         if i > 0 && (Some(arg.to_bytes()) == Some(b"-s")) {
-            li = unsafe { (*li).li_next.as_ptr() };
+            li = crate::globals::GraphPtr::of(li)
+                .borrow_mut()
+                .li_next
+                .as_ptr();
 
             if !li.is_null() {
-                li = unsafe { (*li).li_next.as_ptr() };
+                li = crate::globals::GraphPtr::of(li)
+                    .borrow_mut()
+                    .li_next
+                    .as_ptr();
             }
             continue;
         }
         if i > 0 && (Some(arg.to_bytes()) == Some(b"--listen")) {
-            let next_li = unsafe { (*li).li_next.as_ptr() };
-            if let Some(next_li) = unsafe { next_li.as_mut() } {
+            let next_li = crate::globals::GraphPtr::of(li)
+                .borrow_mut()
+                .li_next
+                .as_ptr();
+            if let Some(next_li) = crate::globals::GraphPtr::of(next_li).opt_mut() {
                 let addr = tv_get_string(&next_li.li_tv);
                 if addr
                     .to_bytes()
@@ -9359,7 +9371,10 @@ fn ex_restart(eap: &mut Exarg) {
             }
         }
 
-        li = unsafe { (*li).li_next.as_ptr() };
+        li = crate::globals::GraphPtr::of(li)
+            .borrow_mut()
+            .li_next
+            .as_ptr();
     }
 
     #[cfg(windows)]
@@ -9487,7 +9502,7 @@ fn ex_restart(eap: &mut Exarg) {
         arena_mem_free(result_mem);
         result_mem = ArenaMem::NULL;
 
-        if !after_cmd.is_null() && unsafe { *after_cmd != 0 } {
+        if !crate::strings::AsByteSlice::is_empty_val(after_cmd) {
             let mut autocmd_kv = [
                 KeyValuePair {
                     key: cstr_as_string(Some(c"once")),
@@ -9662,8 +9677,13 @@ fn ex_restart(eap: &mut Exarg) {
     }
 
     let proc_ptr = &raw mut channel.uv.proc_;
-    proc_stop(unsafe { &mut *proc_ptr });
-    if proc_wait(unsafe { &mut *proc_ptr }, -1, None) < 0 {
+    proc_stop(crate::globals::GraphPtr::of(proc_ptr).borrow_mut());
+    if proc_wait(
+        crate::globals::GraphPtr::of(proc_ptr).borrow_mut(),
+        -1,
+        None,
+    ) < 0
+    {
         let _ = emsg(c"killing new nvim server failed");
     }
 
@@ -9904,17 +9924,24 @@ fn ex_hide(eap: &mut Exarg) {
         return;
     }
 
-    let win: *mut WinInfoInfo = if eap.addr_count == 0 {
+    let win = crate::globals::GraphPtr::<WinInfoInfo>::of(if eap.addr_count == 0 {
         curwin_ptr().as_ptr()
     } else {
         win_find_nr(eap.line2, Some(curtab_mut())).map_or(g_st().lastwin.as_ptr(), |w| w)
-    };
+    })
+    .as_ptr();
 
-    if unsafe { !(*win).w_floating } && window_layout_locked(Cmdidx::CmdHide) {
+    if (!crate::globals::GraphPtr::of(win).borrow().w_floating)
+        && window_layout_locked(Cmdidx::CmdHide)
+    {
         return;
     }
 
-    win_close(unsafe { &mut *win }, false, eap.forceit);
+    win_close(
+        crate::globals::GraphPtr::of(win).borrow_mut(),
+        false,
+        eap.forceit,
+    );
 }
 
 fn ex_stop(eap: &mut Exarg) {
@@ -11061,8 +11088,8 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     }
 
     ui_flush();
-    let main_loop_ptr: *mut crate::event::r#loop::Loop = (&raw mut g_st().main_loop).cast();
-    let events = loop_queues(unsafe { &mut *main_loop_ptr }).events;
+    let main_loop_ptr = (&raw mut g_st().main_loop).cast::<crate::event::r#loop::Loop>();
+    let events = loop_queues(crate::globals::GraphPtr::of(main_loop_ptr).borrow_mut()).events;
     let timeout_ms = msec;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
@@ -11071,7 +11098,10 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
-            loop_poll_events(unsafe { &mut *main_loop_ptr }, remaining);
+            loop_poll_events(
+                crate::globals::GraphPtr::of(main_loop_ptr).borrow_mut(),
+                remaining,
+            );
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -11884,14 +11914,12 @@ fn ex_findpat(eap: &mut Exarg) {
             .arg
             .as_ptr()
             .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
-        if unsafe { *p != 0 } {
-            unsafe {
-                *p = NUL;
-            }
+        if !crate::strings::AsByteSlice::is_empty_val(p) {
+            *crate::globals::GraphPtr::of(p).borrow_mut() = NUL;
 
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
 
-            if ends_excmd(i32::from(unsafe { *p })) == 0 {
+            if ends_excmd(i32::from(*crate::globals::GraphPtr::of(p).borrow())) == 0 {
                 eap.errmsg = Some(ex_errmsg(
                     E_TRAILING_ARG,
                     crate::strings::ByteSlice::from_ptr(p).as_cstr(),
@@ -12289,7 +12317,7 @@ pub fn eval_vars(
         }
 
         resultlen = crate::strings::ByteSlice::from_ptr(result).as_bytes().len();
-        if unsafe { *src.wrapping_add(*usedlen) as u8 } == b'<' {
+        if *crate::globals::GraphPtr::of(src.wrapping_add(*usedlen)).borrow() as u8 == b'<' {
             *usedlen += 1;
             let s = crate::strings::ByteSlice::from_ptr(result)
                 .as_cstr()
@@ -12326,7 +12354,7 @@ pub fn eval_vars(
                 return None;
             }
             valid |= mod_res;
-            result = unsafe { fbuf.as_mut_ptr().add(fname_off).cast() };
+            result = fbuf.as_mut_ptr().wrapping_add(fname_off).cast();
             resultbuf = Some(fbuf);
         }
     }
@@ -12343,9 +12371,10 @@ pub fn eval_vars(
         }
         None
     } else {
-        Some(bytes_to_cstring(unsafe {
-            std::slice::from_raw_parts(result.cast::<u8>(), resultlen)
-        }))
+        Some(bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
+            result.cast::<u8>(),
+            resultlen,
+        )))
     };
     drop(resultbuf);
     ret

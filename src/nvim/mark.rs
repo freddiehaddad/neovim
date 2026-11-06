@@ -525,13 +525,13 @@ pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<&'sta
     let wp = win.as_ptr();
     cleanup_jumplist(win, true);
 
-    if unsafe { (*wp).w_jumplistlen } == 0 {
+    if crate::globals::GraphPtr::of(wp).borrow().w_jumplistlen == 0 {
         return None;
     }
 
     loop {
-        let jl_idx = unsafe { (*wp).w_jumplistidx };
-        let jl_len = unsafe { (*wp).w_jumplistlen };
+        let jl_idx = crate::globals::GraphPtr::of(wp).borrow().w_jumplistidx;
+        let jl_len = crate::globals::GraphPtr::of(wp).borrow().w_jumplistlen;
         if jl_idx + count < 0 || jl_idx + count >= jl_len {
             return None;
         }
@@ -539,29 +539,31 @@ pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<&'sta
         if jl_idx == jl_len {
             setpcmark();
 
-            unsafe {
-                (*wp).w_jumplistidx -= 1;
-            }
+            crate::globals::GraphPtr::of(wp).borrow_mut().w_jumplistidx -= 1;
 
-            if unsafe { (*wp).w_jumplistidx } + count < 0 {
+            if crate::globals::GraphPtr::of(wp).borrow().w_jumplistidx + count < 0 {
                 return None;
             }
         }
 
-        unsafe {
-            (*wp).w_jumplistidx += count;
-        }
+        crate::globals::GraphPtr::of(wp).borrow_mut().w_jumplistidx += count;
 
-        let idx = unsafe { (*wp).w_jumplistidx } as usize;
-        if unsafe { (*wp).w_jumplist[idx].fmark.fnum } == 0 {
-            fname2fnum(unsafe { &(*wp).w_jumplist[idx] });
+        let idx = crate::globals::GraphPtr::of(wp).borrow().w_jumplistidx as usize;
+        if crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]
+            .fmark
+            .fnum
+            == 0
+        {
+            fname2fnum(&crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]);
         }
-        let fnum = unsafe { (*wp).w_jumplist[idx].fmark.fnum };
+        let fnum = crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]
+            .fmark
+            .fnum;
         if fnum != curbuf_mut().b_fnum && buflist_findnr(fnum).is_none() {
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        return Some(unsafe { &mut (*wp).w_jumplist[idx].fmark });
+        return Some(&mut crate::globals::GraphPtr::of(wp).borrow_mut().w_jumplist[idx].fmark);
     }
 }
 
@@ -658,7 +660,7 @@ pub fn mark_get_local(
     name: i32,
 ) -> Option<&'static mut Fmark> {
     let fnum = buf.b_fnum;
-    let mark: *mut Fmark = if ascii_islower(name) {
+    let mark = crate::globals::GraphPtr::<Fmark>::of(if ascii_islower(name) {
         &raw mut buf.b_namedm[(name - b'a' as i32) as usize]
     } else if name == b'[' as i32 {
         pos_to_mark(buf, None, buf.b_op_start)
@@ -678,9 +680,10 @@ pub fn mark_get_local(
         &raw mut buf.b_prompt_start
     } else {
         mark_get_motion(&mut *buf, win, name).map_or(ptr::null_mut(), ptr::from_mut)
-    };
+    })
+    .as_ptr();
 
-    if let Some(mark_ref) = unsafe { mark.as_mut() } {
+    if let Some(mark_ref) = crate::globals::GraphPtr::of(mark).opt_mut() {
         mark_ref.fnum = fnum;
         Some(mark_ref)
     } else {
@@ -1826,17 +1829,24 @@ pub fn mark_col_adjust(
 pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
     let wp_ptr = wp.as_ptr();
     if loadfiles {
-        let len = unsafe { (*wp_ptr).w_jumplistlen } as usize;
+        let len = crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplistlen as usize;
         for i in 0..len {
-            if unsafe { (*wp_ptr).w_jumplist[i].fmark.fnum } == 0
-                && unsafe { (*wp_ptr).w_jumplist[i].fmark.mark.lnum } != 0
+            if crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplist[i]
+                .fmark
+                .fnum
+                == 0
+                && crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplist[i]
+                    .fmark
+                    .mark
+                    .lnum
+                    != 0
             {
-                fname2fnum(unsafe { &(*wp_ptr).w_jumplist[i] });
+                fname2fnum(&crate::globals::GraphPtr::of(wp_ptr).borrow().w_jumplist[i]);
             }
         }
     }
 
-    let wp = unsafe { &mut *wp_ptr };
+    let wp = crate::globals::GraphPtr::of(wp_ptr).borrow_mut();
     let mut to: i32 = 0;
     for from in 0..wp.w_jumplistlen {
         let from_u = from as usize;

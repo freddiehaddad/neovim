@@ -181,10 +181,10 @@ fn buf_write_convert_with_iconv(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: 
     } else {
         ip.bw_buf.as_ptr()
     };
-    let mut from_rem = unsafe { std::slice::from_raw_parts(from, len as usize) };
+    let mut from_rem = crate::globals::GraphPtr::raw_slice(from, len as usize);
     let total_to = ip.bw_conv_buf.len();
     let mut to_rem: &mut [u8] =
-        unsafe { std::slice::from_raw_parts_mut(ip.bw_conv_buf.as_mut_ptr(), total_to) };
+        crate::globals::GraphPtr::raw_slice_mut(ip.bw_conv_buf.as_mut_ptr(), total_to);
 
     if ip.bw_first != 0 {
         let _ = call_iconv(ip.bw_iconv_fd, None, &mut to_rem);
@@ -1619,7 +1619,7 @@ pub fn buf_write(
                         }
                         loop {
                             ptr = ptr.wrapping_add(1);
-                            let c = unsafe { *ptr } as u8;
+                            let c = *crate::globals::GraphPtr::of(ptr).borrow() as u8;
                             if c == 0 {
                                 break;
                             }

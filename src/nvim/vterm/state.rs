@@ -1539,7 +1539,8 @@ fn on_csi(
             // DA - ECMA-48 8.3.24
             let val = csi_arg_or(first_arg, 0);
             if val == 0 {
-                let da_slice = unsafe { &*vterm_primary_device_attr.as_ptr() };
+                let da_slice =
+                    crate::globals::GraphPtr::of(vterm_primary_device_attr.as_ptr()).borrow();
                 let end = da_slice
                     .iter()
                     .position(|&b| b == 0)

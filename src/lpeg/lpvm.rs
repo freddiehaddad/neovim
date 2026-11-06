@@ -253,7 +253,7 @@ pub fn r#match(
         let mut capsize = INITCAPSIZE as i32;
         let mut captop: i32 = 0;
         let mut ndyncap: i32 = 0;
-        let mut p: *const Instruction = op;
+        let mut p = op.cast_const();
 
         (*stack).p = &raw const GIVEUP;
         (*stack).s = s;

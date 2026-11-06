@@ -288,7 +288,7 @@ pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
 #[inline]
 pub fn hl_attr(n: i32) -> i32 {
     let ha = &raw const g_st().hl_attr_active;
-    if let Some(ref tbl) = *unsafe { &(*ha) } {
+    if let Some(ref tbl) = *crate::globals::GraphPtr::of(ha).borrow() {
         tbl[n as usize].get()
     } else {
         g_st().highlight_attr[n as usize]

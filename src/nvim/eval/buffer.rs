@@ -542,12 +542,15 @@ pub fn f_bufloaded(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `bufname(expr)` function (`f_bufname`).
 pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_set_string(rettv, None);
-    let buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf.as_ptr()
-    } else {
-        tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b)
-    };
-    if let Some(buf) = unsafe { buf.as_ref() }
+    let buf =
+        crate::globals::GraphPtr::<FileBuf>::of(if argvars[0].v_type == VarType::VarUnknown {
+            g_st().curbuf.as_ptr()
+        } else {
+            tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b)
+        })
+        .as_ptr()
+        .cast_const();
+    if let Some(buf) = crate::globals::GraphPtr::of(buf).opt()
         && buf.fname_opt().is_some()
     {
         tv_set_string(rettv, buf.fname_opt());
@@ -560,17 +563,20 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let mut buf: *const FileBuf = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curbuf.as_ptr()
-    } else {
-        if !tv_check_str_or_nr(&argvars[0]) {
-            return;
-        }
-        g_st().emsg_off += 1;
-        let b = tv_get_buf(&mut argvars[0], 0).map_or(ptr::null(), |b| b);
-        g_st().emsg_off -= 1;
-        b
-    };
+    let mut buf =
+        crate::globals::GraphPtr::<FileBuf>::of(if argvars[0].v_type == VarType::VarUnknown {
+            g_st().curbuf.as_ptr()
+        } else {
+            if !tv_check_str_or_nr(&argvars[0]) {
+                return;
+            }
+            g_st().emsg_off += 1;
+            let b = tv_get_buf(&mut argvars[0], 0).map_or(ptr::null(), |b| b);
+            g_st().emsg_off -= 1;
+            b
+        })
+        .as_ptr()
+        .cast_const();
 
     if buf.is_null()
         && argvars[1].v_type != VarType::VarUnknown
@@ -582,12 +588,17 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     if !buf.is_null() {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(unsafe { (*buf).b_fnum } as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(
+            crate::globals::GraphPtr::of(buf).borrow().b_fnum as Varnumber,
+        );
     }
 }
 
 fn buf_win_common(argvars: &mut [TypVal], rettv: &mut TypVal, get_nr: bool) {
-    let buf: *const FileBuf = tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b);
+    let buf = crate::globals::GraphPtr::<FileBuf>::of(
+        tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b),
+    )
+    .as_ptr();
     if buf.is_null() {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         return;

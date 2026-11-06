@@ -412,7 +412,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         }
         api_set_error!(err, ErrorType::ErrorTypeException, c"Keyboard interrupt",);
         g_st().got_int = false;
-    } else if let Some(ref msgs) = *unsafe { &(*ml) }
+    } else if let Some(ref msgs) = *crate::globals::GraphPtr::of(ml).borrow()
         && !msgs.is_empty()
     {
         let throw_bytes = msgs[msgs[0].throw_idx].msg.as_bytes();
@@ -421,7 +421,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", &msg);
         free_global_msglist();
     } else if g_st().did_throw || g_st().need_rethrow {
-        if let Some(ref excp) = *unsafe { &(*ce) } {
+        if let Some(ref excp) = *crate::globals::GraphPtr::of(ce).borrow() {
             if !excp.throw_name.as_bytes().is_empty() {
                 if excp.throw_lnum != 0 {
                     api_set_error!(
@@ -772,8 +772,7 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
         }
         let s = arena_bytes(arena, &bytes[start..start + line_len]);
         if line_len > 0 {
-            let out_slice =
-                unsafe { std::slice::from_raw_parts_mut(s.data.cast::<u8>(), line_len) };
+            let out_slice = crate::globals::GraphPtr::raw_slice_mut(s.data.cast::<u8>(), line_len);
             for b in out_slice {
                 if *b == 0 {
                     *b = b'\n';
@@ -1187,7 +1186,9 @@ pub fn api_dict_to_keydict<T>(
         };
 
         if field.opt_index >= 0 {
-            unsafe { (*retval_ptr).is_set_ |= 1u64 << field.opt_index };
+            crate::globals::GraphPtr::of(retval_ptr)
+                .borrow_mut()
+                .is_set_ |= 1u64 << field.opt_index;
         }
 
         let field_name = field.str.unwrap_or(c"");
@@ -1197,7 +1198,9 @@ pub fn api_dict_to_keydict<T>(
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
         match field_type {
-            ObjectType::ObjectTypeNil => unsafe { *mem.cast::<Object>() = *value },
+            ObjectType::ObjectTypeNil => {
+                *crate::globals::GraphPtr::of(mem.cast::<Object>()).borrow_mut() = *value
+            }
             ObjectType::ObjectTypeInteger => {
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
@@ -1208,7 +1211,8 @@ pub fn api_dict_to_keydict<T>(
                         }
                     }
 
-                    unsafe { *mem.cast::<Integer>() = Integer::from(hl_id) };
+                    *crate::globals::GraphPtr::of(mem.cast::<Integer>()).borrow_mut() =
+                        Integer::from(hl_id);
                 } else {
                     if value.obj_type != ObjectType::ObjectTypeInteger {
                         api_err_exp(
@@ -1220,15 +1224,16 @@ pub fn api_dict_to_keydict<T>(
                         return false;
                     }
 
-                    unsafe { *mem.cast::<Integer>() = value.data.integer() };
+                    *crate::globals::GraphPtr::of(mem.cast::<Integer>()).borrow_mut() =
+                        value.data.integer();
                 }
             }
             ObjectType::ObjectTypeFloat => {
                 let val = mem.cast::<Float>();
                 if value.obj_type == ObjectType::ObjectTypeInteger {
-                    unsafe { *val = value.data.integer() as Float };
+                    *crate::globals::GraphPtr::of(val).borrow_mut() = value.data.integer() as Float;
                 } else if value.obj_type == ObjectType::ObjectTypeFloat {
-                    unsafe { *val = value.data.floating() };
+                    *crate::globals::GraphPtr::of(val).borrow_mut() = value.data.floating();
                 } else {
                     api_err_exp(
                         err,
@@ -1240,9 +1245,8 @@ pub fn api_dict_to_keydict<T>(
                 }
             }
             ObjectType::ObjectTypeBoolean => {
-                unsafe {
-                    *mem.cast::<Boolean>() = api_object_to_bool(*value, field_name, false, err)
-                };
+                *crate::globals::GraphPtr::of(mem.cast::<Boolean>()).borrow_mut() =
+                    api_object_to_bool(*value, field_name, false, err);
 
                 if error_set(err) {
                     return false;
@@ -1259,7 +1263,8 @@ pub fn api_dict_to_keydict<T>(
                     return false;
                 }
 
-                unsafe { *mem.cast::<NvimString>() = value.data.string() };
+                *crate::globals::GraphPtr::of(mem.cast::<NvimString>()).borrow_mut() =
+                    value.data.string();
             }
             ObjectType::ObjectTypeArray => {
                 if value.obj_type != ObjectType::ObjectTypeArray {
@@ -1272,20 +1277,19 @@ pub fn api_dict_to_keydict<T>(
                     return false;
                 }
 
-                unsafe { *mem.cast::<Array>() = value.data.array() };
+                *crate::globals::GraphPtr::of(mem.cast::<Array>()).borrow_mut() =
+                    value.data.array();
             }
             ObjectType::ObjectTypeDict => {
                 let val = mem.cast::<Dict>();
                 if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
-                    unsafe {
-                        *val = Dict {
-                            items: crate::globals::GraphPtr::NULL,
-                            size: 0,
-                            capacity: 0,
-                        }
+                    *crate::globals::GraphPtr::of(val).borrow_mut() = Dict {
+                        items: crate::globals::GraphPtr::NULL,
+                        size: 0,
+                        capacity: 0,
                     };
                 } else if value.obj_type == ObjectType::ObjectTypeDict {
-                    unsafe { *val = value.data.dict() };
+                    *crate::globals::GraphPtr::of(val).borrow_mut() = value.data.dict();
                 } else {
                     api_err_exp(
                         err,
@@ -1300,7 +1304,8 @@ pub fn api_dict_to_keydict<T>(
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => {
                 if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
-                    unsafe { *mem.cast::<ObjHandle>() = value.data.integer() as ObjHandle };
+                    *crate::globals::GraphPtr::of(mem.cast::<ObjHandle>()).borrow_mut() =
+                        value.data.integer() as ObjHandle;
                 } else {
                     api_err_exp(
                         err,
@@ -1341,7 +1346,9 @@ pub fn api_keydict_to_dict<T>(
         };
         let mut is_set = true;
         if field.opt_index >= 0 {
-            is_set = (unsafe { (*value_ptr).is_set_ } & (1u64 << field.opt_index)) != 0;
+            is_set = (crate::globals::GraphPtr::of(value_ptr).borrow().is_set_
+                & (1u64 << field.opt_index))
+                != 0;
         }
         if !is_set {
             continue;
@@ -1415,13 +1422,17 @@ pub fn api_luarefs_free_keydict<T>(dict: &T, table: &[KeySetLink]) {
         let mem = dict_ptr.wrapping_add(field.ptr_off);
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
-        unsafe {
-            match field_type {
-                ObjectType::ObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
-                ObjectType::ObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),
-                ObjectType::ObjectTypeDict => api_luarefs_free_dict(*mem.cast::<Dict>()),
-                _ => {}
+        match field_type {
+            ObjectType::ObjectTypeNil => api_luarefs_free_object(
+                *crate::globals::GraphPtr::of(mem.cast::<Object>()).borrow(),
+            ),
+            ObjectType::ObjectTypeLuaRef => {
+                api_free_luaref(*crate::globals::GraphPtr::of(mem.cast::<LuaRef>()).borrow())
             }
+            ObjectType::ObjectTypeDict => {
+                api_luarefs_free_dict(*crate::globals::GraphPtr::of(mem.cast::<Dict>()).borrow())
+            }
+            _ => {}
         }
     }
 }

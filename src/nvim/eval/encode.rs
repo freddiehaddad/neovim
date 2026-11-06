@@ -342,20 +342,37 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 } else {
                     tv_list_idx_of_item(list.opt(), li.li_prev.opt())
                 };
-                let prev_li: *const Listitem = if li.is_null() {
+                let prev_li = crate::globals::GraphPtr::<Listitem>::of(if li.is_null() {
                     tv_list_last(list.opt()).map_or(std::ptr::null(), |p| p)
                 } else {
                     li.li_prev.as_ptr()
-                };
+                })
+                .as_ptr()
+                .cast_const();
                 if is_list
                     || prev_li.is_null()
-                    || (unsafe { (*prev_li).li_tv.v_type } != VarType::VarList
-                        && tv_list_len(unsafe { (*prev_li).li_tv.vval.v_list() }.opt()) <= 0)
+                    || (crate::globals::GraphPtr::of(prev_li).borrow().li_tv.v_type
+                        != VarType::VarList
+                        && tv_list_len(
+                            crate::globals::GraphPtr::of(prev_li)
+                                .borrow_mut()
+                                .li_tv
+                                .vval
+                                .v_list()
+                                .opt(),
+                        ) <= 0)
                 {
                     let _ = write!(&mut msg_ga, "index {idx}");
                 } else {
-                    let first_item =
-                        tv_list_first(unsafe { (*prev_li).li_tv.vval.v_list() }.opt()).unwrap();
+                    let first_item = tv_list_first(
+                        crate::globals::GraphPtr::of(prev_li)
+                            .borrow_mut()
+                            .li_tv
+                            .vval
+                            .v_list()
+                            .opt(),
+                    )
+                    .unwrap();
                     let mut key_tv = first_item.li_tv;
                     let key = encode_tv2echo(&mut key_tv, None);
                     let mut item_buf: Vec<u8> = Vec::new();
@@ -1359,7 +1376,7 @@ fn encode_vim_with_backend(
     while !mpstack.is_empty() {
         let cur_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-        let next_tv: *mut TypVal = match mpstack[cur_idx].data {
+        let next_tv = crate::globals::GraphPtr::<TypVal>::of(match mpstack[cur_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 mut hi,
@@ -1551,12 +1568,13 @@ fn encode_vim_with_backend(
                 *todo -= 1;
                 cur_arg.as_ptr()
             }
-        };
+        })
+        .as_ptr();
 
         if !convert_one_value(
             backend,
             &mut mpstack,
-            unsafe { &mut *next_tv },
+            crate::globals::GraphPtr::of(next_tv).borrow_mut(),
             copy_id,
             objname,
         ) {

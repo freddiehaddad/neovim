@@ -1071,13 +1071,11 @@ unsafe extern "C" fn input_cb(
     bytes_read: *mut u32,
 ) -> *const u8 {
     let bp = payload.cast::<FileBuf>();
-    let bp = unsafe { &mut *bp };
+    let bp = crate::globals::GraphPtr::of(bp).borrow_mut();
     let buf = &mut ts_st().input_buf;
 
     if (position.row as Linenr) >= bp.b_ml.ml_line_count {
-        unsafe {
-            *bytes_read = 0;
-        }
+        *crate::globals::GraphPtr::of(bytes_read).borrow_mut() = 0;
         return c"".as_ptr().cast();
     }
     let lnum = (position.row as Linenr) + 1;
@@ -1085,33 +1083,26 @@ unsafe extern "C" fn input_cb(
     let len = ml_get_buf_len(&mut *bp, lnum) as usize;
     let col = position.column as usize;
     if col > len {
-        unsafe {
-            *bytes_read = 0;
-        }
+        *crate::globals::GraphPtr::of(bytes_read).borrow_mut() = 0;
         return c"".as_ptr().cast();
     }
     let tocopy = (len - col).min(BUFSIZE);
 
-    let line_bytes =
-        unsafe { std::slice::from_raw_parts((line.wrapping_add(col)).cast::<u8>(), tocopy) };
+    let line_bytes = crate::strings::AsByteSlice::slice_len(line.wrapping_add(col), tocopy);
     buf[..tocopy].copy_from_slice(line_bytes);
     for b in &mut buf[..tocopy] {
         if *b == b'\n' {
             *b = 0;
         }
     }
-    unsafe {
-        *bytes_read = tocopy as u32;
-    }
+    *crate::globals::GraphPtr::of(bytes_read).borrow_mut() = tocopy as u32;
     if tocopy < BUFSIZE
         && (lnum != bp.b_ml.ml_line_count
             || (!bp.b_p_bin && bp.b_p_fixeol)
             || (lnum != bp.b_no_eol_lnum && bp.b_p_eol))
     {
         buf[tocopy] = b'\n';
-        unsafe {
-            *bytes_read += 1;
-        }
+        *crate::globals::GraphPtr::of(bytes_read).borrow_mut() += 1;
     }
     buf.as_ptr()
 }
@@ -1610,7 +1601,7 @@ fn push_node(lstate: *mut lua_State, node: TSNode, uindex: i32) {
 fn node_check_opt(lstate: *mut lua_State, index: i32, res: &mut TSNode) -> bool {
     let ud = luaL_checkudata(lstate, index, TS_META_NODE).cast::<TSNode>();
     if !ud.is_null() {
-        *res = unsafe { *ud };
+        *res = *crate::globals::GraphPtr::of(ud).borrow();
         return true;
     }
     false

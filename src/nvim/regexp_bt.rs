@@ -2616,27 +2616,29 @@ fn regstack_push(state: Regstate, scan: Option<usize>) -> Option<&'static mut Re
         .regstack
         .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-    let rp = unsafe {
-        &mut *re_st()
+    let rp = crate::globals::GraphPtr::of(
+        re_st()
             .regstack
             .as_mut_ptr()
             .wrapping_add(old_len)
-            .cast::<Regitem>()
-    };
+            .cast::<Regitem>(),
+    )
+    .borrow_mut();
     rp.rs_state = state;
     rp.rs_scan = scan;
     Some(rp)
 }
 
 fn regstack_pop(scan: &mut Option<usize>) {
-    let rp = unsafe {
-        &*re_st()
+    let rp = crate::globals::GraphPtr::of(
+        re_st()
             .regstack
             .as_ptr()
             .wrapping_add(re_st().regstack.len())
             .cast::<Regitem>()
-            .wrapping_sub(1)
-    };
+            .wrapping_sub(1),
+    )
+    .borrow();
     *scan = rp.rs_scan;
     re_st()
         .regstack
@@ -3309,7 +3311,7 @@ fn regmatch(
                         cleanup_zsubexpr();
                         let no = (op - ZREF) as usize;
                         let ext_in = &raw const g_st().re_extmatch_in;
-                        if let Some(ref em) = *unsafe { &(*ext_in) }
+                        if let Some(ref em) = *crate::globals::GraphPtr::of(ext_in).borrow()
                             && let Some(ref m_cstr) = em.matches[no]
                         {
                             let mut len = m_cstr.as_bytes().len() as i32;
@@ -3435,8 +3437,11 @@ fn regmatch(
                                     },
                                     scan,
                                 ) {
-                                    unsafe {
-                                        *ptr::from_mut(rp).cast::<Regstar>().wrapping_sub(1) = rst;
+                                    {
+                                        *crate::globals::GraphPtr::of(
+                                            ptr::from_mut(rp).cast::<Regstar>().wrapping_sub(1),
+                                        )
+                                        .borrow_mut() = rst;
                                     }
                                     status = RegAction::Break;
                                 } else {
@@ -3467,9 +3472,10 @@ fn regmatch(
                                 .regstack
                                 .resize(re_st().regstack.len() + size_of::<Regbehind>() / 8, 0);
                             if let Some(rp) = regstack_push(RS_BEHIND1, scan) {
-                                let bp = unsafe {
-                                    &mut *ptr::from_mut(rp).cast::<Regbehind>().wrapping_sub(1)
-                                };
+                                let bp = crate::globals::GraphPtr::from(&*rp)
+                                    .cast_ptr::<Regbehind>()
+                                    .wrapping_sub(1)
+                                    .borrow_mut();
                                 save_subexpr(bp);
                                 rp.rs_no = op as i16;
                                 reg_save(rp.rs_un.regsave_mut());
@@ -3526,7 +3532,7 @@ fn regmatch(
                 .wrapping_add(re_st().regstack.len())
                 .cast::<Regitem>()
                 .wrapping_sub(1);
-            let rp = unsafe { &mut *rp_ptr };
+            let rp = crate::globals::GraphPtr::of(rp_ptr).borrow_mut();
             match rp.rs_state {
                 RS_NOPEN => {
                     regstack_pop(&mut scan);
@@ -3632,7 +3638,10 @@ fn regmatch(
                             .regstack
                             .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                     } else {
-                        let bp = unsafe { &mut *rp_ptr.cast::<Regbehind>().wrapping_sub(1) };
+                        let bp = crate::globals::GraphPtr::of(
+                            rp_ptr.cast::<Regbehind>().wrapping_sub(1),
+                        )
+                        .borrow_mut();
                         reg_save(&mut bp.save_after);
                         bp.save_behind = re_st().behind_pos;
 
@@ -3644,7 +3653,9 @@ fn regmatch(
                     }
                 }
                 RS_BEHIND2 => {
-                    let bp = unsafe { &mut *rp_ptr.cast::<Regbehind>().wrapping_sub(1) };
+                    let bp =
+                        crate::globals::GraphPtr::of(rp_ptr.cast::<Regbehind>().wrapping_sub(1))
+                            .borrow_mut();
                     if status == RegAction::Match && reg_save_equal(&re_st().behind_pos) {
                         re_st().behind_pos = bp.save_behind;
                         if rp.rs_no == BEHIND as i16 {
@@ -3741,7 +3752,9 @@ fn regmatch(
                     }
                 }
                 RS_STAR_LONG | RS_STAR_SHORT => {
-                    let rst = unsafe { &mut *rp_ptr.cast::<Regstar>().wrapping_sub(1) };
+                    let rst =
+                        crate::globals::GraphPtr::of(rp_ptr.cast::<Regstar>().wrapping_sub(1))
+                            .borrow_mut();
                     if status == RegAction::Match {
                         regstack_pop(&mut scan);
                         re_st()
@@ -3907,12 +3920,11 @@ fn regtry(
                     && ez.col >= sz.col
                     && let Some(line_cstr) = reg_getline(sz.lnum)
                 {
-                    extmatch.matches[i] = cstring_from_bytes(unsafe {
-                        std::slice::from_raw_parts(
-                            (line_cstr.as_ptr().wrapping_add(sz.col as usize)).cast::<u8>(),
+                    extmatch.matches[i] =
+                        cstring_from_bytes(crate::strings::AsByteSlice::slice_len(
+                            line_cstr.as_ptr().wrapping_add(sz.col as usize),
                             (ez.col - sz.col) as usize,
-                        )
-                    });
+                        ));
                 }
             } else {
                 let szp = re_st().reg_startzp[i];
@@ -3945,7 +3957,7 @@ fn bt_regexec_both(
         re_st().backpos.reserve(BACKPOS_INITIAL as usize);
     }
 
-    let prog: *mut BtRegprog = if reg_multi() {
+    let prog = crate::globals::GraphPtr::<BtRegprog>::of(if reg_multi() {
         let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
         line = reg_line_from_opt_cstr(reg_getline(0));
         re_st().rex.reg_startpos =
@@ -3955,12 +3967,13 @@ fn bt_regexec_both(
         p
     } else {
         re_st().rex.match_mut().prog_mut().bt_mut()
-    };
+    })
+    .as_ptr();
     if prog.is_null() || line.is_null() {
         iemsg(tr(E_NULL));
         return finish_bt_regexec(retval, col);
     }
-    let prog = unsafe { &mut *prog };
+    let prog = crate::globals::GraphPtr::of(prog).borrow_mut();
 
     if prog_magic_wrong() {
         return finish_bt_regexec(retval, col);

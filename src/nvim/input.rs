@@ -394,8 +394,9 @@ fn redo_chars(spec: &CmdSpec, buf: &mut Vec<u8>, arg_meta: bool) {
 
 /// Gets `spec` (or current pending change, if `spec` is `None`), composed into a "redo" keyseq.
 pub fn redo_keys(spec: Option<&CmdSpec>) -> Option<std::ffi::CString> {
-    let cur_ptr: *const CmdSpec = &raw const inp_st().redobuff.cur;
-    let spec = spec.unwrap_or(unsafe { &*cur_ptr });
+    let cur_ptr =
+        crate::globals::GraphPtr::<CmdSpec>::of(&raw const inp_st().redobuff.cur).as_ptr();
+    let spec = spec.unwrap_or(crate::globals::GraphPtr::of(cur_ptr).borrow());
 
     let mut buf: Vec<u8> = Vec::new();
 
@@ -1821,9 +1822,10 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             temp[i + 2] = k_third(ni);
             i += 3;
         } else {
-            i += utf_char2bytes(ni, unsafe {
-                std::slice::from_raw_parts_mut(temp[i..].as_mut_ptr().cast(), 6)
-            }) as usize;
+            i += utf_char2bytes(
+                ni,
+                crate::globals::GraphPtr::raw_slice_mut(temp[i..].as_mut_ptr().cast(), 6),
+            ) as usize;
         }
         assert!(i < 10);
         crate::eval::typval::tv_set_bytes(&mut *rettv, &temp[..i]);

@@ -2636,7 +2636,7 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
         len += mb_len;
     }
 
-    bytes_to_cstring(unsafe { std::slice::from_raw_parts((first_file).cast::<u8>(), len) })
+    bytes_to_cstring(crate::strings::AsByteSlice::slice_len(first_file, len))
 }
 
 pub fn free_xp_files_extra(xp: &mut ExpandCtx) {
@@ -2797,7 +2797,7 @@ fn showmatches_oneline(
             msg_putchar(b' ' as i32);
         }
         let isdir: bool;
-        let p: *mut u8;
+        let p;
         if xp.xp_context == EXPAND_FILES
             || xp.xp_context == EXPAND_SHELLCMD
             || xp.xp_context == EXPAND_BUFFERS
@@ -2814,7 +2814,7 @@ fn showmatches_oneline(
                 p = show_match(matches, j as usize, showtail)
                     .as_ptr()
                     .cast_mut()
-                    .cast();
+                    .cast::<u8>();
             } else {
                 let name_buff = g_st().name_buff.as_mut_ptr();
                 home_replace(
@@ -3024,7 +3024,7 @@ fn showmatches_gettail(s: &CStr, eager: bool) -> &CStr {
         }
         p += utfc_slice2len(&bytes[p..]).max(1);
     }
-    unsafe { CStr::from_bytes_with_nul_unchecked(&s.to_bytes_with_nul()[t..]) }
+    CStr::from_bytes_until_nul(&s.to_bytes_with_nul()[t..]).unwrap_or(c"")
 }
 
 /// Return true if we only need to show the tail of completion matches.
@@ -3311,7 +3311,7 @@ fn set_cmd_index<'a>(
         return None;
     }
 
-    Some(unsafe { CStr::from_bytes_with_nul_unchecked(&cmd_with_nul[p_idx..]) })
+    Some(CStr::from_bytes_until_nul(&cmd_with_nul[p_idx..]).unwrap_or(c""))
 }
 
 /// Set the completion context for a command argument with wild card characters.
@@ -3468,7 +3468,7 @@ fn find_cmd_after_global_cmd(arg: &CStr) -> Option<&CStr> {
     }
     if !rem.is_empty() {
         let off = bytes.len() - rem.len() + 1;
-        Some(unsafe { CStr::from_bytes_with_nul_unchecked(&with_nul[off..]) })
+        Some(CStr::from_bytes_until_nul(&with_nul[off..]).unwrap_or(c""))
     } else {
         None
     }
@@ -3527,7 +3527,7 @@ fn find_cmd_after_isearch_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&
             .is_some_and(|&b| matches!(b, b'|' | b'"' | b'\n'))
         {
             let off = bytes.len() - rem.len();
-            return Some(unsafe { CStr::from_bytes_with_nul_unchecked(&with_nul[off..]) });
+            return Some(CStr::from_bytes_until_nul(&with_nul[off..]).unwrap_or(c""));
         }
         xp.xp_context = EXPAND_NOTHING;
     }
@@ -3557,7 +3557,7 @@ fn set_context_in_unlet_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :language command.
 fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_ptr: *const u8 = arg.as_ptr().cast();
+    let arg_ptr = arg.as_ptr().cast::<u8>();
     let bytes = arg.to_bytes();
     let p_rem = crate::charset::skiptowhite_slice(bytes);
     if p_rem.is_empty() {
@@ -3583,7 +3583,7 @@ fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :breakadd command.
 fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
-    let arg_ptr: *const u8 = arg.as_ptr().cast();
+    let arg_ptr = arg.as_ptr().cast::<u8>();
     xp.xp_context = EXPAND_BREAKPOINT;
     xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_ptr);
 
@@ -4110,7 +4110,7 @@ fn set_context_by_cmdname<'a>(
 
 /// Parse one command from `buff` and set completion context in `xp`.
 fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'a CStr> {
-    let buff: *const u8 = buff_cstr.as_ptr().cast();
+    let buff = buff_cstr.as_ptr().cast::<u8>();
     let mut ea: Exarg = Exarg::new();
     let mut context: i32 = EXPAND_NOTHING;
     let mut forceit = false;
@@ -4305,7 +4305,7 @@ pub fn set_cmd_context(
         xp.xp_arg = ccline
             .xp_arg
             .as_deref()
-            .map(|a| unsafe { &*(a as *const std::ffi::CStr) });
+            .map(crate::globals::GraphPtr::<u8>::cstr);
         if xp.xp_context == EXPAND_SHELLCMDLINE {
             let mut context = xp.xp_context;
             let pat_cstr = xp.xp_pattern.as_cstr();
@@ -5218,22 +5218,25 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
     flags |= EW_FILE | EW_EXEC | EW_SHELLCMD;
 
     let mut path_owned: Option<std::ffi::CString> = None;
-    let path: *mut u8 = if pat_vec.first() == Some(&b'.')
-        && (pat_vec.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b)))
-            || (pat_vec.get(1) == Some(&b'.')
-                && pat_vec.get(2).is_some_and(|&b| vim_ispathsep(i32::from(b)))))
-    {
-        c".".as_ptr().cast_mut().cast()
-    } else {
-        if !path_is_absolute(pat.as_bytes()) {
-            path_owned = vim_getenv(c"PATH");
-        }
-        path_owned
-            .as_ref()
-            .map_or(c"".as_ptr().cast_mut().cast(), |c| {
-                c.as_ptr().cast_mut().cast()
-            })
-    };
+    let path = crate::globals::GraphPtr::<u8>::of(
+        if pat_vec.first() == Some(&b'.')
+            && (pat_vec.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b)))
+                || (pat_vec.get(1) == Some(&b'.')
+                    && pat_vec.get(2).is_some_and(|&b| vim_ispathsep(i32::from(b)))))
+        {
+            c".".as_ptr().cast_mut().cast()
+        } else {
+            if !path_is_absolute(pat.as_bytes()) {
+                path_owned = vim_getenv(c"PATH");
+            }
+            path_owned
+                .as_ref()
+                .map_or(c"".as_ptr().cast_mut().cast(), |c| {
+                    c.as_ptr().cast_mut().cast()
+                })
+        },
+    )
+    .as_ptr();
 
     let mut found_ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     let mut s = crate::strings::ByteSlice::from_ptr(path);
@@ -5482,8 +5485,8 @@ fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
         return false;
     }
 
-    expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
-    tv_list_unref(unsafe { retlist.as_mut() });
+    expand_process_user_list(crate::globals::GraphPtr::of(retlist).opt(), matches, xp);
+    tv_list_unref(crate::globals::GraphPtr::of(retlist).opt_mut());
     true
 }
 
@@ -5824,12 +5827,10 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let cmdline_len = pattern_cstr.to_bytes().len() as i32;
         set_cmd_context(
             &mut xpc,
-            unsafe {
-                std::slice::from_raw_parts_mut(
-                    pattern.cast_mut().cast::<u8>(),
-                    cmdline_len as usize + 1,
-                )
-            },
+            crate::globals::GraphPtr::raw_slice_mut(
+                pattern.cast_mut().cast::<u8>(),
+                cmdline_len as usize + 1,
+            ),
             cmdline_len,
             cmdline_len,
             false,
@@ -5853,14 +5854,14 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = Some(unsafe { &*(&type_str[7..] as *const std::ffi::CStr) });
+                xpc.xp_arg = Some(crate::globals::GraphPtr::<u8>::cstr(&type_str[7..]));
             }
             EXPAND_USER_LIST => {
                 if !type_str.to_bytes().starts_with(b"customlist,") {
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = Some(unsafe { &*(&type_str[11..] as *const std::ffi::CStr) });
+                xpc.xp_arg = Some(crate::globals::GraphPtr::<u8>::cstr(&type_str[11..]));
             }
             EXPAND_MENUS => {
                 let pat_p = xpc.xp_pattern;

@@ -354,7 +354,7 @@ pub fn profile_reset() {
 
     let functbl = func_tbl_get();
     for &fp in functbl.values() {
-        let uf = unsafe { &mut *fp };
+        let uf = crate::globals::GraphPtr::of(fp).borrow_mut();
         if uf.uf_prof_initialized {
             uf.uf_profiling = 0;
             uf.uf_tm_count = 0;
@@ -640,7 +640,7 @@ fn func_dump_profile(fd: &CFile) {
     let mut sorttab: Vec<&UserFunc> = Vec::with_capacity(todo);
 
     for &fp_ptr in functbl.values() {
-        let fp = unsafe { &*fp_ptr };
+        let fp = crate::globals::GraphPtr::of(fp_ptr).borrow();
         if fp.uf_prof_initialized {
             sorttab.push(fp);
 

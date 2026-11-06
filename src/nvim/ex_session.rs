@@ -71,7 +71,7 @@ fn exses_st() -> crate::globals::GraphPtr<ExSessionState> {
 
 #[inline]
 fn cstr_to_str(p: &CStr) -> &str {
-    unsafe { std::str::from_utf8_unchecked(p.to_bytes()) }
+    std::str::from_utf8(p.to_bytes()).unwrap_or("")
 }
 
 #[inline]
@@ -238,7 +238,7 @@ fn ses_arglist(
             let s = if fullname {
                 vim_full_name(
                     Some(s_cstr),
-                    unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), MAXPATHL) },
+                    crate::globals::GraphPtr::raw_slice_mut(buf.as_mut_ptr().cast(), MAXPATHL),
                     false,
                 );
                 crate::memory::bytes_as_cstr(&buf)
@@ -710,8 +710,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let mut tp = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp_iter);
             let mut need_tabnext = false;
             let mut cnr: i32 = 1;
-            let tab_firstwin: *mut WinInfoInfo;
-            let tab_topframe: *mut Frame;
+            let tab_firstwin;
+            let tab_topframe;
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0 {
                 if g_st().curtab == tp {
@@ -747,7 +747,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             }
 
             let mut wp = tab_firstwin;
-            while let Some(wp_ref) = unsafe { wp.as_mut() } {
+            while let Some(wp_ref) = crate::globals::GraphPtr::of(wp).opt_mut() {
                 if ses_do_win(wp_ref) != 0
                     && wp_ref.buf_mut().b_ffname.is_some()
                     && !bt_help(wp_ref.buf_opt())
@@ -775,11 +775,14 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
 
-            if unsafe { (*tab_topframe).fr_layout } != FR_LEAF
+            if crate::globals::GraphPtr::of(tab_topframe)
+                .borrow()
+                .fr_layout
+                != FR_LEAF
                 && (!put_line(fd, c"let s:save_splitbelow = &splitbelow")
                     || !put_line(fd, c"let s:save_splitright = &splitright")
                     || !put_line(fd, c"set splitbelow splitright")
-                    || !ses_win_rec(fd, unsafe { &mut *tab_topframe })
+                    || !ses_win_rec(fd, crate::globals::GraphPtr::of(tab_topframe).borrow_mut())
                     || !put_line(fd, c"let &splitbelow = s:save_splitbelow")
                     || !put_line(fd, c"let &splitright = s:save_splitright"))
             {
@@ -789,7 +792,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let mut nr: i32 = 0;
             let mut restore_size = true;
             wp = tab_firstwin;
-            while let Some(wp_ref) = unsafe { wp.as_mut() } {
+            while let Some(wp_ref) = crate::globals::GraphPtr::of(wp).opt_mut() {
                 if ses_do_win(wp_ref) != 0 {
                     nr += 1;
                 } else if !wp_ref.w_floating {
@@ -801,7 +804,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 wp = wp_ref.w_next.as_ptr();
             }
 
-            if let Some(tfw) = unsafe { tab_firstwin.as_ref() }
+            if let Some(tfw) = crate::globals::GraphPtr::of(tab_firstwin).opt()
                 && !tfw.w_next.is_null()
             {
                 if !put_line(fd, c"wincmd t") {
@@ -821,12 +824,18 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 }
                 restore_height_width = true;
             }
-            if nr > 1 && !ses_winsizes(fd, restore_size, unsafe { tab_firstwin.as_mut() }) {
+            if nr > 1
+                && !ses_winsizes(
+                    fd,
+                    restore_size,
+                    crate::globals::GraphPtr::of(tab_firstwin).opt_mut(),
+                )
+            {
                 return false;
             }
 
             wp = tab_firstwin;
-            while let Some(wp_ref) = unsafe { wp.as_mut() } {
+            while let Some(wp_ref) = crate::globals::GraphPtr::of(wp).opt_mut() {
                 if ses_do_win(wp_ref) == 0 {
                     wp = wp_ref.w_next.as_ptr();
                     continue;
@@ -854,7 +863,13 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
 
-            if nr > 1 && !ses_winsizes(fd, restore_size, unsafe { tab_firstwin.as_mut() }) {
+            if nr > 1
+                && !ses_winsizes(
+                    fd,
+                    restore_size,
+                    crate::globals::GraphPtr::of(tab_firstwin).opt_mut(),
+                )
+            {
                 return false;
             }
 
@@ -989,11 +1004,11 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
         if !view_session
             || (eap.cmdidx == Cmdidx::CmdMksession
-                && (unsafe { *flagp } & K_OPT_SSOP_FLAG_OPTIONS) != 0)
+                && (*crate::globals::GraphPtr::of(flagp).borrow() & K_OPT_SSOP_FLAG_OPTIONS) != 0)
         {
             let mut flags = OPT_GLOBAL;
             if eap.cmdidx == Cmdidx::CmdMksession
-                && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0
+                && (*crate::globals::GraphPtr::of(flagp).borrow() & K_OPT_SSOP_FLAG_SKIPRTP) != 0
             {
                 flags |= OPT_SKIPRTP;
             }
@@ -1047,7 +1062,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     curwin_mut(),
                     curtab_mut(),
                     !using_vdir,
-                    unsafe { &mut *flagp },
+                    crate::globals::GraphPtr::of(flagp).borrow_mut(),
                     -1,
                 );
             }
@@ -1078,7 +1093,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
             if vim_full_name(
                 Some(fname),
-                unsafe { std::slice::from_raw_parts_mut(tbuf.as_mut_ptr().cast(), MAXPATHL) },
+                crate::globals::GraphPtr::raw_slice_mut(tbuf.as_mut_ptr().cast(), MAXPATHL),
                 false,
             ) {
                 set_vim_var_string(

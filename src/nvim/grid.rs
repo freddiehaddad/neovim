@@ -200,7 +200,7 @@ pub fn schar_from_bytes(bytes: &[u8]) -> Schar {
     assert!(len < MAX_SCHAR_SIZE);
     if len <= 4 {
         let mut sc: Schar = 0;
-        unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), (&raw mut sc).cast::<u8>(), len) };
+        crate::globals::GraphPtr::copy_to(bytes.as_ptr(), (&raw mut sc).cast::<u8>(), len);
         sc
     } else {
         let idx = if let Some(&existing_idx) = grid_st().glyph_cache_offsets.get(bytes) {
@@ -310,7 +310,7 @@ fn schar_get_first_byte(sc: Schar) -> u8 {
     if schar_high(sc) {
         grid_st().glyph_cache_keys.as_slice()[schar_idx(sc) as usize]
     } else {
-        unsafe { *(&raw const sc).cast::<u8>() }
+        sc.to_ne_bytes()[0]
     }
 }
 
@@ -624,53 +624,51 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
     let scratch_ptr = grid_st().linebuf_scratch.as_mut_ptr();
     let scratch_char = scratch_ptr.cast::<Schar>();
 
-    unsafe {
-        ptr::copy_nonoverlapping(
-            &raw const g_st().linebuf_char[first as usize],
-            scratch_char.wrapping_add(first as usize),
-            n,
-        )
-    };
+    crate::globals::GraphPtr::copy_to(
+        &raw const g_st().linebuf_char[first as usize],
+        scratch_char.wrapping_add(first as usize),
+        n,
+    );
     let mut col = first;
     while col < last {
         let rev = mirror - col;
-        if col + 1 < last && unsafe { *scratch_char.wrapping_add((col + 1) as usize) } == 0 {
+        if col + 1 < last
+            && *crate::globals::GraphPtr::of(scratch_char.wrapping_add((col + 1) as usize)).borrow()
+                == 0
+        {
             g_st().linebuf_char[(rev - 1) as usize] =
-                unsafe { *scratch_char.wrapping_add(col as usize) };
+                *crate::globals::GraphPtr::of(scratch_char.wrapping_add(col as usize)).borrow();
             g_st().linebuf_char[rev as usize] = 0;
             col += 1;
         } else {
-            g_st().linebuf_char[rev as usize] = unsafe { *scratch_char.wrapping_add(col as usize) };
+            g_st().linebuf_char[rev as usize] =
+                *crate::globals::GraphPtr::of(scratch_char.wrapping_add(col as usize)).borrow();
         }
         col += 1;
     }
 
     let scratch_attr = scratch_ptr.cast::<Sattr>();
 
-    unsafe {
-        ptr::copy_nonoverlapping(
-            &raw const g_st().linebuf_attr[first as usize],
-            scratch_attr.wrapping_add(first as usize),
-            n,
-        )
-    };
+    crate::globals::GraphPtr::copy_to(
+        &raw const g_st().linebuf_attr[first as usize],
+        scratch_attr.wrapping_add(first as usize),
+        n,
+    );
     for c in first..last {
         g_st().linebuf_attr[(mirror - c) as usize] =
-            unsafe { *scratch_attr.wrapping_add(c as usize) };
+            *crate::globals::GraphPtr::of(scratch_attr.wrapping_add(c as usize)).borrow();
     }
 
     let scratch_vcol = scratch_ptr.cast::<Colnr>();
 
-    unsafe {
-        ptr::copy_nonoverlapping(
-            &raw const g_st().linebuf_vcol[first as usize],
-            scratch_vcol.wrapping_add(first as usize),
-            n,
-        )
-    };
+    crate::globals::GraphPtr::copy_to(
+        &raw const g_st().linebuf_vcol[first as usize],
+        scratch_vcol.wrapping_add(first as usize),
+        n,
+    );
     for c in first..last {
         g_st().linebuf_vcol[(mirror - c) as usize] =
-            unsafe { *scratch_vcol.wrapping_add(c as usize) };
+            *crate::globals::GraphPtr::of(scratch_vcol.wrapping_add(c as usize)).borrow();
     }
 
     *firstp = width - *clearp;
@@ -688,7 +686,7 @@ pub fn grid_line_flush() {
     }
 
     grid_put_linebuf(
-        unsafe { &mut *grid },
+        crate::globals::GraphPtr::of(grid).borrow_mut(),
         grid_st().grid_line_row,
         grid_st().grid_line_coloff,
         grid_st().grid_line_first,
@@ -1385,9 +1383,10 @@ pub fn schar_from_char(mut c: i32) -> Schar {
     if c >= 0x20_0000 {
         c = 0xFFFD;
     }
-    utf_char2bytes(c, unsafe {
-        std::slice::from_raw_parts_mut((&raw mut sc).cast(), 6)
-    });
+    utf_char2bytes(
+        c,
+        crate::globals::GraphPtr::raw_slice_mut((&raw mut sc).cast(), 6),
+    );
     sc
 }
 

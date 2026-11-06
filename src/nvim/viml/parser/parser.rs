@@ -16,7 +16,7 @@ impl ParserLine {
     #[inline]
     pub fn from_slice(data: &[u8]) -> Self {
         Self {
-            data: Some(unsafe { &*(data as *const [u8]) }),
+            data: Some(crate::globals::GraphPtr::extend_slice_lifetime(data)),
         }
     }
 

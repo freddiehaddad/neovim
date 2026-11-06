@@ -283,9 +283,9 @@ mod unix_impl {
                 init_termios(&mut *termios_default_ptr);
             }
 
-            let proc_: *mut Proc = ptyproc;
+            let proc_ = crate::globals::GraphPtr::<Proc>::of(&mut *ptyproc).as_ptr();
             let hdr = proc_;
-            let ptail: *mut PtyProc = ptyproc;
+            let ptail = crate::globals::GraphPtr::<PtyProc>::of(&mut *ptyproc).as_ptr();
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -498,7 +498,7 @@ mod unix_impl {
     pub fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
-            let proc_: *mut Proc = ptyproc;
+            let proc_ = crate::globals::GraphPtr::<Proc>::of(ptyproc).as_ptr();
             crate::event::proc::proc_decref(&mut *proc_);
         }
     }

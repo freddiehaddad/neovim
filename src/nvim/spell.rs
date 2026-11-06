@@ -292,7 +292,7 @@ pub fn spell_check(
         nrlen = ptr_bytes.len() - rem.len();
         mi.mi_end = nrlen;
     }
-    mi.mi_word = unsafe { &*(ptr_cstr as *const std::ffi::CStr) };
+    mi.mi_word = crate::globals::GraphPtr::<u8>::cstr(ptr_cstr);
     mi.mi_fend = 0;
     if spell_iswordp(ptr_bytes, wp) {
         if use_camel_case {
@@ -452,7 +452,7 @@ fn advance_camelcase_word(
 fn find_word(mip: &mut Matchinf, mode: i32) {
     let mut wlen: i32 = 0;
     let mut flen: i32;
-    let ptr: *mut u8;
+    let ptr;
     let slang = mip.mi_lp.slang_mut();
     let byts: &[u8];
     let idxs: &[Idx];
@@ -460,7 +460,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
         if slang.sl_kbyts.is_empty() {
             return;
         }
-        ptr = mip.mi_word.as_ptr().cast_mut().cast();
+        ptr = mip.mi_word.as_ptr().cast_mut().cast::<u8>();
         flen = 9999;
         byts = &slang.sl_kbyts;
         idxs = &slang.sl_kidxs;
@@ -511,7 +511,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        let cur_b = unsafe { *ptr.wrapping_add(wlen as usize) };
+        let cur_b = *crate::globals::GraphPtr::of(ptr.wrapping_add(wlen as usize)).borrow();
         if cur_b == 0 {
             break;
         }
@@ -544,7 +544,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 if flen <= 0 && mip.mi_fend < mip.mi_word.to_bytes().len() {
                     flen = fold_more(mip);
                 }
-                let ch = unsafe { *ptr.wrapping_add(wlen as usize) };
+                let ch = *crate::globals::GraphPtr::of(ptr.wrapping_add(wlen as usize)).borrow();
                 if ch != b' ' && ch != TAB {
                     break;
                 }
@@ -709,9 +709,8 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                             );
                         } else {
                             let elen = endlen[endidxcnt] as usize;
-                            fword[..elen].copy_from_slice(unsafe {
-                                std::slice::from_raw_parts((ptr).cast::<u8>(), elen)
-                            });
+                            fword[..elen]
+                                .copy_from_slice(crate::strings::AsByteSlice::slice_len(ptr, elen));
                             fword[elen] = 0;
                         }
                     }
@@ -866,9 +865,10 @@ pub fn can_compound(slang: &mut Slang, word: &[u8], flags: &[u8]) -> bool {
     let flags_bytes = crate::memory::bytes_until_nul(flags);
     let mut p = (&raw mut uflags).cast::<u8>();
     for &b in flags_bytes {
-        p = p.wrapping_add(utf_char2bytes(i32::from(b), unsafe {
-            std::slice::from_raw_parts_mut(p.cast(), 6)
-        }) as usize);
+        p = p.wrapping_add(utf_char2bytes(
+            i32::from(b),
+            crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6),
+        ) as usize);
     }
     p = (&raw mut uflags).cast();
     if !vim_regexec_prog(
@@ -990,7 +990,7 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        let cur_b = unsafe { *ptr.wrapping_add(wlen as usize) };
+        let cur_b = *crate::globals::GraphPtr::of(ptr.wrapping_add(wlen as usize)).borrow();
         if cur_b == 0 {
             break;
         }
@@ -1635,17 +1635,15 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 {
                     crate::memory::copy_bytes_to_c_buf(&mut region_cp, &p_bytes[1..]);
 
-                    unsafe {
-                        ptr::copy(
-                            p.wrapping_add(3),
-                            p,
-                            (len as usize)
-                                - (((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                                    - (crate::strings::AsByteSlice::byte_addr(lang_ptr) as isize))
-                                    as usize)
-                                - 2,
-                        )
-                    };
+                    crate::globals::GraphPtr::copy_to(
+                        p.wrapping_add(3),
+                        p,
+                        (len as usize)
+                            - (((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                                - (crate::strings::AsByteSlice::byte_addr(lang_ptr) as isize))
+                                as usize)
+                            - 2,
+                    );
 
                     region = crate::strings::ByteSlice::from_bytes(&region_cp);
                 } else {
@@ -1825,11 +1823,11 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 )
                 .map_or(ptr::null_mut(), ptr::from_mut);
                 if !slang.is_null() && nobreak {
-                    unsafe { (*slang).sl_nobreak = true };
+                    crate::globals::GraphPtr::of(slang).borrow_mut().sl_nobreak = true;
                 }
             }
             if !slang.is_null() {
-                let slang = unsafe { &mut *slang };
+                let slang = crate::globals::GraphPtr::of(slang).borrow_mut();
                 let mut region_mask = REGION_ALL;
                 if !use_region.is_null() && !dont_use_region {
                     let c = find_region(&slang.sl_regions, use_region.slice(2));
@@ -2165,9 +2163,10 @@ pub fn spell_casefold(wp: &WinInfoInfo, str_: &[u8], out: &mut [u8]) -> bool {
         } else {
             c = spell_tofold(c);
         }
-        outi += utf_char2bytes(c, unsafe {
-            std::slice::from_raw_parts_mut(out[outi..].as_mut_ptr().cast(), 6)
-        }) as usize;
+        outi += utf_char2bytes(
+            c,
+            crate::globals::GraphPtr::raw_slice_mut(out[outi..].as_mut_ptr().cast(), 6),
+        ) as usize;
     }
     out[outi] = 0;
     true
@@ -2178,11 +2177,12 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         return false;
     }
     let mut need_cap = false;
-    let mut line: *mut u8 = if col != 0 {
+    let mut line = crate::globals::GraphPtr::<u8>::of(if col != 0 {
         ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut().cast()
     } else {
         ptr::null_mut()
-    };
+    })
+    .as_ptr();
     let mut line_copy: Option<std::ffi::CString> = None;
     let mut endcol: Colnr = 0;
     if col == 0
@@ -2352,9 +2352,10 @@ pub fn allcap_copy(word: &[u8], out: &mut [u8]) {
         if pos + MB_MAXBYTES > max_len {
             break;
         }
-        pos += utf_char2bytes(c, unsafe {
-            std::slice::from_raw_parts_mut(out[pos..].as_mut_ptr().cast(), 6)
-        }) as usize;
+        pos += utf_char2bytes(
+            c,
+            crate::globals::GraphPtr::raw_slice_mut(out[pos..].as_mut_ptr().cast(), 6),
+        ) as usize;
     }
     out[pos] = 0;
 }
@@ -2429,9 +2430,10 @@ fn spell_soundfold_sofo(slang: &mut Slang, inword: &[u8], res: &mut [u8; MAXWLEN
                 .map_or(NUL as i32, |&(_, v)| v);
         }
         if c != NUL as i32 && c != prevc {
-            ri += utf_char2bytes(c, unsafe {
-                std::slice::from_raw_parts_mut(res[ri..].as_mut_ptr().cast(), 6)
-            }) as usize;
+            ri += utf_char2bytes(
+                c,
+                crate::globals::GraphPtr::raw_slice_mut(res[ri..].as_mut_ptr().cast(), 6),
+            ) as usize;
             if ri + MB_MAXBYTES > MAXWLEN {
                 break;
             }
@@ -2674,9 +2676,10 @@ fn spell_soundfold_wsal(slang: &mut Slang, inword: &[u8], res: &mut [u8; MAXWLEN
     }
     let mut l: usize = 0;
     for &wc in wres.iter().take(reslen) {
-        l += utf_char2bytes(wc, unsafe {
-            std::slice::from_raw_parts_mut(res[l..].as_mut_ptr().cast(), 6)
-        }) as usize;
+        l += utf_char2bytes(
+            wc,
+            crate::globals::GraphPtr::raw_slice_mut(res[l..].as_mut_ptr().cast(), 6),
+        ) as usize;
         if l + MB_MAXBYTES > MAXWLEN {
             break;
         }
@@ -2910,17 +2913,20 @@ fn dump_word(
         flags |= WF_ALLCAP;
     }
     let word_bytes = word_cstr.to_bytes();
-    let mut p: *mut u8 = if (dumpflags & DUMPFLAG_KEEPCASE) == 0 && (flags & WF_CAPMASK) != 0 {
-        make_case_word(word_bytes, &mut cword, flags);
-        (&raw mut cword).cast()
-    } else {
-        if (dumpflags & DUMPFLAG_KEEPCASE) != 0
-            && ((captype(word_bytes) & WF_KEEPCAP) == 0 || (flags & WF_FIXCAP) != 0)
-        {
-            keepcap = true;
-        }
-        word_cstr.as_ptr().cast_mut().cast()
-    };
+    let mut p = crate::globals::GraphPtr::<u8>::of(
+        if (dumpflags & DUMPFLAG_KEEPCASE) == 0 && (flags & WF_CAPMASK) != 0 {
+            make_case_word(word_bytes, &mut cword, flags);
+            (&raw mut cword).cast()
+        } else {
+            if (dumpflags & DUMPFLAG_KEEPCASE) != 0
+                && ((captype(word_bytes) & WF_KEEPCAP) == 0 || (flags & WF_FIXCAP) != 0)
+            {
+                keepcap = true;
+            }
+            word_cstr.as_ptr().cast_mut().cast()
+        },
+    )
+    .as_ptr();
     let tw = p;
     if let Some(pat_cstr) = pat {
         let pat_ptr = crate::strings::ByteSlice::from_cstr(pat_cstr);

@@ -179,8 +179,11 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
     if let Some(colon_idx) = host_end_idx {
         watcher.addr[colon_idx] = 0;
         let addr = watcher.addr.as_ptr().cast();
-        let mut port: *mut std::ffi::c_char =
-            watcher.addr.as_mut_ptr().wrapping_add(colon_idx + 1).cast();
+        let mut port = watcher
+            .addr
+            .as_mut_ptr()
+            .wrapping_add(colon_idx + 1)
+            .cast::<std::ffi::c_char>();
         let mut port_scan = crate::strings::ByteSlice::from_ptr(port).as_bytes();
         let mut iport: i64 = 0;
 
@@ -198,7 +201,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
             return UV_EINVAL;
         }
 
-        if !port.is_null() && unsafe { *port == 0 } {
+        if !port.is_null() && crate::strings::AsByteSlice::is_empty_val(port) {
             port = ptr::null_mut();
         }
 
@@ -269,7 +272,7 @@ pub fn socket_alive(
     }
 
     let mut closed = false;
-    let closed_ptr: *mut bool = &raw mut closed;
+    let closed_ptr = crate::globals::GraphPtr::<bool>::of(&raw mut closed).as_ptr();
     stream.s.internal_data = StreamInternalData::Closed(closed_ptr.into());
     stream_may_close(&mut stream.s);
     poll_main_loop_until(-1, || unsafe { ptr::read_volatile(closed_ptr) });
@@ -343,7 +346,8 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         // Close and reinit the pipe handle before retrying bind
                         let uv_loop = uv_handle_get_loop(uv_ptr.cast());
                         let mut closed = false;
-                        let closed_ptr: *mut bool = &raw mut closed;
+                        let closed_ptr =
+                            crate::globals::GraphPtr::<bool>::of(&raw mut closed).as_ptr();
                         *uv_ptr.cast::<*mut bool>() = closed_ptr;
                         uv_close(uv_ptr.cast(), Some(early_server_close_cb));
                         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
@@ -475,11 +479,11 @@ pub fn socket_connect(
         let mut status: i32 = 1;
         let mut req = UvConnectReq([0; 512]);
         let req_ptr = (&raw mut req).cast::<uv_connect_t>();
-        let status_ptr: *mut i32 = &raw mut status;
-        let closed_ptr: *mut bool = &raw mut closed;
+        let status_ptr = crate::globals::GraphPtr::<i32>::of(&raw mut status).as_ptr();
+        let closed_ptr = crate::globals::GraphPtr::<bool>::of(&raw mut closed).as_ptr();
         *req_ptr.cast::<*mut i32>() = status_ptr;
 
-        let s_ptr: *mut Stream = &raw mut stream.s;
+        let s_ptr = crate::globals::GraphPtr::<Stream>::of(&raw mut stream.s).as_ptr();
         let uv_ptr: *mut c_void = (&raw mut (*s_ptr).uv).cast();
         let fields = s_ptr;
 

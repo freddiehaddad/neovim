@@ -44,9 +44,10 @@ impl NvimString {
     #[inline]
     pub fn as_bytes_with_nul_mut(&mut self) -> &mut [u8] {
         if let Some(b) = self.data {
-            unsafe {
-                std::slice::from_raw_parts_mut(b.as_ptr().cast_mut(), (self.size + 1).min(b.len()))
-            }
+            crate::globals::GraphPtr::raw_slice_mut(
+                b.as_ptr().cast_mut(),
+                (self.size + 1).min(b.len()),
+            )
         } else {
             &mut []
         }
@@ -215,7 +216,7 @@ impl Array {
         if self.size == 0 || self.items.is_null() {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.items.as_ptr(), self.size) }
+            crate::globals::GraphPtr::raw_slice(self.items.as_ptr(), self.size)
         }
     }
 
@@ -224,7 +225,7 @@ impl Array {
         if self.size == 0 || self.items.is_null() {
             &mut []
         } else {
-            unsafe { std::slice::from_raw_parts_mut(self.items.as_ptr(), self.size) }
+            crate::globals::GraphPtr::raw_slice_mut(self.items.as_ptr(), self.size)
         }
     }
 
@@ -299,7 +300,7 @@ impl Dict {
         if self.size == 0 || self.items.is_null() {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.items.as_ptr(), self.size) }
+            crate::globals::GraphPtr::raw_slice(self.items.as_ptr(), self.size)
         }
     }
 
@@ -308,7 +309,7 @@ impl Dict {
         if self.size == 0 || self.items.is_null() {
             &mut []
         } else {
-            unsafe { std::slice::from_raw_parts_mut(self.items.as_ptr(), self.size) }
+            crate::globals::GraphPtr::raw_slice_mut(self.items.as_ptr(), self.size)
         }
     }
 

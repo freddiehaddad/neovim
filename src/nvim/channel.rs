@@ -204,7 +204,7 @@ pub fn channel_teardown() {
 
 pub fn channel_free_all_mem() {
     for (_, chan) in std::mem::take(&mut g_st().channels) {
-        drop(unsafe { Box::from_raw(chan.as_ptr()) });
+        crate::globals::GraphPtr::of(chan.as_ptr()).drop_box();
     }
 
     callback_free(&mut g_st().on_print);
@@ -371,7 +371,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
 
     g_st().channels.insert(id, chan.into());
 
-    unsafe { &mut *chan }
+    crate::globals::GraphPtr::of(chan).borrow_mut()
 }
 
 pub fn channel_create_event(chan: &mut Channel) {
@@ -403,7 +403,7 @@ pub fn free_channel_event(chan: Option<&mut Channel>) {
     let chan = chan.unwrap();
     let _ = g_st().channels.remove(&chan.id);
 
-    drop(unsafe { Box::from_raw(chan) });
+    crate::globals::GraphPtr::of(chan).drop_box();
 }
 
 fn channel_destroy_early(chan: &mut Channel) {
@@ -483,7 +483,7 @@ pub fn channel_job_start(
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
     }
 
-    let ph = unsafe { &mut *proc_ptr };
+    let ph = crate::globals::GraphPtr::of(proc_ptr).borrow_mut();
 
     ph.argv = argv;
     ph.exepath = exepath.map(CStr::to_owned);
@@ -524,11 +524,16 @@ pub fn channel_job_start(
 
     let has_in = stdin_mode == K_CHANNEL_STDIN_PIPE_CONST;
 
-    let status = proc_spawn(unsafe { &mut *proc_ptr }, has_in, has_out, has_err);
+    let status = proc_spawn(
+        crate::globals::GraphPtr::of(proc_ptr).borrow_mut(),
+        has_in,
+        has_out,
+        has_err,
+    );
     if status != 0 {
         semsg!(gettext(E_JOBSPAWN), uv_strerror(status), &cmd,);
 
-        let ph = unsafe { &mut *proc_ptr };
+        let ph = crate::globals::GraphPtr::of(proc_ptr).borrow_mut();
         if let Some(env_ref) = ph.env.opt_mut() {
             tv_dict_free(env_ref);
         }
@@ -541,7 +546,7 @@ pub fn channel_job_start(
     }
 
     drop(cmd);
-    let ph = unsafe { &mut *proc_ptr };
+    let ph = crate::globals::GraphPtr::of(proc_ptr).borrow_mut();
     if let Some(env_ref) = ph.env.opt_mut() {
         tv_dict_free(env_ref);
     }
@@ -559,7 +564,7 @@ pub fn channel_job_start(
         callback_reader_start(&mut chan.on_data, c"stdout");
 
         rstream_start(
-            unsafe { &mut (*proc_ptr).out },
+            &mut crate::globals::GraphPtr::of(proc_ptr).borrow_mut().out,
             StreamCbData::ChannelData(chan_ptr),
         );
     }
@@ -569,7 +574,7 @@ pub fn channel_job_start(
         rstream_init(&mut chan.uv.proc_.err);
 
         rstream_start(
-            unsafe { &mut (*proc_ptr).err },
+            &mut crate::globals::GraphPtr::of(proc_ptr).borrow_mut().err,
             StreamCbData::ChannelStderr(chan_ptr),
         );
     }
@@ -919,7 +924,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     argv[0].v_lock = VAR_UNLOCKED;
     argv[0].vval = TypvalVval::Number(chan.id as Varnumber);
 
-    let cb: *mut Callback = if let Some(is_stderr) = is_stderr {
+    let cb = crate::globals::GraphPtr::<Callback>::of(if let Some(is_stderr) = is_stderr {
         let reader = if is_stderr {
             &mut chan.on_stderr
         } else {
@@ -939,13 +944,19 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         argv[1].vval = TypvalVval::Number(Varnumber::from(chan.exit_status));
         argv[2].vval = TypvalVval::from_cstr(c"exit");
         &raw mut chan.on_exit
-    };
+    })
+    .as_ptr();
 
     argv[2].v_type = VarType::VarString;
     argv[2].v_lock = VAR_UNLOCKED;
 
     let mut rettv: TypVal = TypVal::new();
-    let _ = callback_call(unsafe { &mut *cb }, 3, &mut argv, &mut rettv);
+    let _ = callback_call(
+        crate::globals::GraphPtr::of(cb).borrow_mut(),
+        3,
+        &mut argv,
+        &mut rettv,
+    );
     tv_clear(&mut rettv);
 
     if is_stderr.is_some() {

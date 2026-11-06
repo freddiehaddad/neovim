@@ -1118,7 +1118,7 @@ pub fn set_init_3() {
 
     let mut len: usize = 0;
     let p = invocation_path_tail(opt_vars().p_sh.as_cstr(), Some(&mut len));
-    let name_slice = unsafe { std::slice::from_raw_parts(((p).as_ptr()).cast::<u8>(), len) };
+    let name_slice = crate::strings::AsByteSlice::slice_len((p).as_ptr(), len);
     for (i, rule) in SHELL_RULES.iter().enumerate() {
         let pat = rule.pat.to_bytes();
         if !pat.is_empty() && !name_slice.windows(pat.len()).any(|w| w == pat) {
@@ -2266,8 +2266,8 @@ pub fn insecure_flag(
     opt_flags: i32,
 ) -> &'static mut u32 {
     if (opt_flags & OPT_LOCAL) != 0 {
-        let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = unsafe { &mut *wp };
+        let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp.unwrap()).as_ptr();
+        let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
             K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
@@ -2281,8 +2281,8 @@ pub fn insecure_flag(
             _ => {}
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
-        let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = unsafe { &mut *wp };
+        let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp.unwrap()).as_ptr();
+        let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_allbuf_opt.wo_wrap_flags,
             K_OPT_FOLDEXPR => return &mut wp.w_allbuf_opt.wo_fde_flags,
@@ -2941,9 +2941,10 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     let tab = if win == curwin_ptr() {
         g_st().curtab.as_ptr()
     } else {
-        win_find_tabpage(unsafe { &*win }).map_or(ptr::null_mut(), ptr::from_mut)
+        win_find_tabpage(crate::globals::GraphPtr::of(win).borrow())
+            .map_or(ptr::null_mut(), ptr::from_mut)
     };
-    for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
+    for wp in for_all_windows_in_tab_ptr(crate::globals::GraphPtr::of(tab).borrow()) {
         if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw {
             return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
@@ -7744,7 +7745,7 @@ pub fn expand_setting_subtract(
             .cast::<u8>();
             while !comma.is_null()
                 && comma != next_val
-                && unsafe { *comma.wrapping_offset(-1) } == b'\\'
+                && *crate::globals::GraphPtr::of(comma.wrapping_offset(-1)).borrow() == b'\\'
             {
                 comma = vim_strchr(
                     crate::strings::ByteSlice::from_ptr(comma.wrapping_add(1)).as_cstr(),
@@ -7754,7 +7755,7 @@ pub fn expand_setting_subtract(
                 .cast::<u8>();
             }
             if !comma.is_null() {
-                unsafe { *comma = 0 };
+                *crate::globals::GraphPtr::of(comma).borrow_mut() = 0;
 
                 next_val = comma.wrapping_add(1);
             } else {

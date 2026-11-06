@@ -1009,7 +1009,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
     ];
 
     for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
-        let dest_ref = unsafe { &mut *dest };
+        let dest_ref = crate::globals::GraphPtr::of(dest).borrow_mut();
         if name.obj_type != ObjectType::ObjectTypeNil {
             if val < 0 {
                 *dest_ref = K_COLOR_IDX_NONE;

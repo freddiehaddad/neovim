@@ -1388,7 +1388,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
         while !mpstack.is_empty() {
             let cur_idx = mpstack.len() - 1;
             let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-            let next_tv: *mut TypVal = match mpstack[cur_idx].data {
+            let next_tv = crate::globals::GraphPtr::<TypVal>::of(match mpstack[cur_idx].data {
                 MPConvStackData::Dict {
                     mut dict,
                     ref mut hi,
@@ -1460,7 +1460,8 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 MPConvStackData::Partial { .. } | MPConvStackData::PartialList { .. } => {
                     unreachable!()
                 }
-            };
+            })
+            .as_ptr();
 
             if !lua_convert_one_value(lstate, &mut mpstack, &mut *next_tv, copy_id) {
                 return false;
@@ -1610,9 +1611,7 @@ pub fn nlua_pop_string_opt(
     let mut size = 0usize;
     let data = unsafe { lua_tolstring(lstate, -1, &mut size) };
     assert!(!data.is_null());
-    let dup = arena_memdupz_opt(arena, unsafe {
-        std::slice::from_raw_parts((data).cast::<u8>(), size)
-    });
+    let dup = arena_memdupz_opt(arena, crate::strings::AsByteSlice::slice_len(data, size));
     lua_pop(lstate, 1);
     NvimString { data: dup, size }
 }

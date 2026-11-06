@@ -81,7 +81,7 @@ pub fn log_get_stdout() -> CFile {
     let fp = unsafe { __acrt_iob_func(1) };
     #[cfg(not(windows))]
     let fp = unsafe { C_STDOUT };
-    CFile::from_std_stream(unsafe { std::ptr::NonNull::new_unchecked(fp) })
+    CFile::from_std_stream(std::ptr::NonNull::new(fp).unwrap())
 }
 
 pub fn log_get_stderr() -> CFile {
@@ -89,7 +89,7 @@ pub fn log_get_stderr() -> CFile {
     let fp = unsafe { __acrt_iob_func(2) };
     #[cfg(not(windows))]
     let fp = unsafe { C_STDERR };
-    CFile::from_std_stream(unsafe { std::ptr::NonNull::new_unchecked(fp) })
+    CFile::from_std_stream(std::ptr::NonNull::new(fp).unwrap())
 }
 
 #[macro_export]

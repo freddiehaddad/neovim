@@ -40,11 +40,7 @@ impl VTermStringFragment {
         terminator: VTermTerminator,
     ) -> Self {
         Self {
-            bytes: if bytes.is_empty() {
-                &[]
-            } else {
-                unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) }
-            },
+            bytes: crate::globals::GraphPtr::slice(bytes),
             initial,
             final_,
             terminator,

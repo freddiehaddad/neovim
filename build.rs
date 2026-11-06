@@ -219,7 +219,6 @@ fn main() {
         for sym in [
             "block_autocmds",
             "unblock_autocmds",
-            "nvim__id_float",
             "gc_first_list",
             "tv_list_alloc",
             "tv_list_free",
@@ -229,8 +228,6 @@ fn main() {
             "test_disable_char_avail",
             "find_window_by_handle",
             "win_col_off",
-            "luaopen_base64",
-            "luaopen_spell",
             "build_stl_str_hl",
             "ui_call_set_title",
             "ui_call_chdir",

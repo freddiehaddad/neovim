@@ -836,9 +836,12 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
                         }
 
                         let prev_current_col = syn_st().current_col;
-                        if unsafe {
-                            *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) != 0
-                        } {
+                        if *crate::globals::GraphPtr::of(
+                            syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                        )
+                        .borrow()
+                            != 0
+                        {
                             syn_st().current_col += 1;
                         }
                         check_state_ends();
@@ -1037,7 +1040,10 @@ fn syn_stack_alloc() {
 /// Check for changes in a buffer to affect stored syntax states.
 pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
     let buf_ptr = &raw mut *buf;
-    syn_stack_apply_changes_block(&mut buf.b_s, unsafe { &mut *buf_ptr });
+    syn_stack_apply_changes_block(
+        &mut buf.b_s,
+        crate::globals::GraphPtr::of(buf_ptr).borrow_mut(),
+    );
 
     if !g_st().curtab.is_null() {
         for wp in for_all_windows_mut() {
@@ -1382,7 +1388,12 @@ fn syn_finish_line(syncing: bool) -> bool {
             }
 
             let prev_current_col = syn_st().current_col;
-            if unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) != 0 } {
+            if *crate::globals::GraphPtr::of(
+                syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+            )
+            .borrow()
+                != 0
+            {
                 syn_st().current_col += 1;
             }
             check_state_ends();
@@ -1469,7 +1480,8 @@ fn syn_current_attr(
     let mut zero_width_next_ga: Vec<i32> = Vec::new();
 
     let mut line = syn_getcurline!();
-    if unsafe { *line.wrapping_offset(syn_st().current_col as isize) == 0 }
+    if *crate::globals::GraphPtr::of(line.wrapping_offset(syn_st().current_col as isize)).borrow()
+        == 0
         && syn_st().current_col != 0
     {
         if syn_st().next_match_idx >= 0
@@ -1484,10 +1496,12 @@ fn syn_current_attr(
         return 0;
     }
 
-    if unsafe {
-        *line.wrapping_offset(syn_st().current_col as isize) == 0
-            || *line.wrapping_offset((syn_st().current_col + 1) as isize) == 0
-    } {
+    if *crate::globals::GraphPtr::of(line.wrapping_offset(syn_st().current_col as isize)).borrow()
+        == 0
+        || *crate::globals::GraphPtr::of(line.wrapping_offset((syn_st().current_col + 1) as isize))
+            .borrow()
+            == 0
+    {
         syn_st().current_finished = true;
         syn_st().current_state_stored = false;
     }
@@ -1665,7 +1679,8 @@ fn syn_current_attr(
                             syn_add_end_off(&mut eos_pos, &mut regmatch, &mut *spp, SPO_RS_OFF, 0);
 
                             cur_extmatch =
-                                unsafe { (&raw mut g_st().re_extmatch_out).replace(None) };
+                                crate::globals::GraphPtr::of(&raw mut g_st().re_extmatch_out)
+                                    .replace_val(None);
 
                             flags = 0;
                             eoe_pos.lnum = 0;
@@ -1762,10 +1777,14 @@ fn syn_current_attr(
             if !found_match {
                 line = syn_getcurline!();
                 if ((syn_st().current_next_flags & HL_SKIPWHITE) != 0
-                    && ascii_iswhite(unsafe {
-                        *line.wrapping_offset(syn_st().current_col as isize)
-                    }))
-                    || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0 && unsafe { *line == 0 })
+                    && ascii_iswhite(
+                        *crate::globals::GraphPtr::of(
+                            line.wrapping_offset(syn_st().current_col as isize),
+                        )
+                        .borrow(),
+                    ))
+                    || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
+                        && crate::strings::AsByteSlice::is_empty_val(line))
                 {
                     break;
                 }
@@ -1849,7 +1868,10 @@ fn syn_current_attr(
         if !syncing && !keep_state {
             check_state_ends();
             if !cur_state_empty()
-                && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) }
+                && *crate::globals::GraphPtr::of(
+                    syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                )
+                .borrow()
                     != NUL
             {
                 syn_st().current_col += 1;
@@ -1867,8 +1889,14 @@ fn syn_current_attr(
 
     if syn_st().current_next_list.is_some() {
         line = syn_getcurline!();
-        if unsafe { *line.wrapping_offset(syn_st().current_col as isize) != 0 }
-            && unsafe { *line.wrapping_offset((syn_st().current_col + 1) as isize) } == NUL
+        if *crate::globals::GraphPtr::of(line.wrapping_offset(syn_st().current_col as isize))
+            .borrow()
+            != 0
+            && *crate::globals::GraphPtr::of(
+                line.wrapping_offset((syn_st().current_col + 1) as isize),
+            )
+            .borrow()
+                == NUL
             && (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
         {
             syn_st().current_next_list = None;
@@ -1996,7 +2024,11 @@ fn check_state_ends() {
             syn_st().current_next_list = cur_si.si_next_list.clone();
             syn_st().current_next_flags = cur_si.si_flags;
             if (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) == 0 }
+                && *crate::globals::GraphPtr::of(
+                    syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                )
+                .borrow()
+                    == 0
             {
                 syn_st().current_next_list = None;
             }
@@ -2026,9 +2058,11 @@ fn check_state_ends() {
                 check_keepend();
                 if (syn_st().current_next_flags & HL_HAS_EOL) != 0
                     && syn_st().keepend_level < 0
-                    && unsafe {
-                        *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) == 0
-                    }
+                    && *crate::globals::GraphPtr::of(
+                        syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                    )
+                    .borrow()
+                        == 0
                 {
                     break;
                 }
@@ -2260,7 +2294,7 @@ fn find_endpos(
         }
 
         if !spp_skip.is_null() {
-            let spp_skip = unsafe { &mut *spp_skip };
+            let spp_skip = crate::globals::GraphPtr::of(spp_skip).borrow_mut();
             let mut lc_col = matchcol - spp_skip.sp_offsets[SPO_LC_OFF];
             if lc_col < 0 {
                 lc_col = 0;
@@ -3441,7 +3475,7 @@ fn get_syn_options<'a>(
     conceal_char: &mut i32,
     skip: bool,
 ) -> Option<&'a CStr> {
-    let mut arg: *mut u8 = arg?.as_ptr().cast_mut().cast();
+    let mut arg = arg?.as_ptr().cast_mut().cast::<u8>();
     {
         const FLAGTAB: &[(&[u8], i32, i32)] = &[
             (b"cCoOnNtTaAiInNeEdD\0", 0, HL_CONTAINED),
@@ -3475,7 +3509,8 @@ fn get_syn_options<'a>(
         }
 
         loop {
-            if unsafe { *arg == 0 || !FIRST_LETTERS.contains(&*arg) } {
+            let arg_b = *crate::globals::GraphPtr::of(arg).borrow();
+            if arg_b == 0 || !FIRST_LETTERS.contains(&arg_b) {
                 break;
             }
 
@@ -3566,12 +3601,10 @@ fn get_syn_options<'a>(
                     if gname_start == arg {
                         return None;
                     }
-                    let gname_slice = unsafe {
-                        std::slice::from_raw_parts(
-                            (gname_start).cast::<u8>(),
-                            (arg as usize) - (gname_start as usize),
-                        )
-                    };
+                    let gname_slice = crate::strings::AsByteSlice::slice_len(
+                        gname_start,
+                        (arg as usize) - (gname_start as usize),
+                    );
                     let gname = std::ffi::CString::new(gname_slice).unwrap();
                     if gname.as_bytes() == b"NONE" {
                         opt.sync_idx = Some(NONE_IDX);
@@ -3717,21 +3750,26 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                     break;
                 };
                 let mut rest = rest_cstr.as_ptr().cast_mut();
-                if ends_excmd(unsafe { *rest as u8 }) != 0 {
+                if ends_excmd(crate::strings::AsByteSlice::first_byte_val(rest)) != 0 {
                     break;
                 }
-                while unsafe { *rest != 0 && !ascii_iswhite(*rest as u8) } {
-                    if unsafe { *rest as u8 == b'\\' && *rest.wrapping_add(1) != 0 } {
+                while *crate::globals::GraphPtr::of(rest).borrow() != 0
+                    && !ascii_iswhite(*crate::globals::GraphPtr::of(rest).borrow() as u8)
+                {
+                    if *crate::globals::GraphPtr::of(rest).borrow() as u8 == b'\\'
+                        && *crate::globals::GraphPtr::of(rest.wrapping_add(1)).borrow() != 0
+                    {
                         rest = rest.wrapping_add(1);
                     }
 
-                    unsafe { *p = (*rest) as u8 };
+                    *crate::globals::GraphPtr::of(p).borrow_mut() =
+                        crate::strings::AsByteSlice::first_byte_val(rest);
 
                     p = p.wrapping_add(1);
                     rest = rest.wrapping_add(1);
                 }
 
-                unsafe { *p = 0 };
+                *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
 
                 p = p.wrapping_add(1);
                 cnt += 1;
@@ -3756,14 +3794,14 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if p.is_null() {
                             kwlen = crate::strings::ByteSlice::from_ptr(kw).as_bytes().len();
                         } else {
-                            unsafe { *p = 0 };
+                            *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
 
                             kwlen = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
                                 - (crate::strings::AsByteSlice::byte_addr(kw) as isize))
                                 as usize;
                         }
                         add_keyword(
-                            unsafe { std::slice::from_raw_parts((kw).cast::<u8>(), kwlen) },
+                            crate::strings::AsByteSlice::slice_len(kw, kwlen),
                             syn_id,
                             syn_opt_arg.flags,
                             &syn_opt_arg.cont_in_list,
@@ -3800,7 +3838,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             break;
                         }
                         let l = utfc_ptr2len(p.wrapping_add(1)) as usize;
-                        unsafe { ptr::copy(p.wrapping_add(1), p, l) };
+                        crate::globals::GraphPtr::copy_to(p.wrapping_add(1), p, l);
                         p = p.wrapping_add(l);
                     }
                     kw = kw.wrapping_add(kwlen + 1);
@@ -4265,7 +4303,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             .as_ptr()
             .cast_mut()
             .cast::<u8>();
-        if unsafe { *end } != delim {
+        if *crate::globals::GraphPtr::of(end).borrow() != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
                 crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>()),
@@ -4329,7 +4367,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
                             end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
                         }
                     }
-                    if unsafe { *end } != b',' {
+                    if *crate::globals::GraphPtr::of(end).borrow() != b',' {
                         break;
                     }
                     end = end.wrapping_add(1);
@@ -4340,7 +4378,9 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             }
         }
 
-        if ends_excmd(unsafe { *end }) == 0 && !ascii_iswhite(unsafe { *end }) {
+        if ends_excmd(*crate::globals::GraphPtr::of(end).borrow()) == 0
+            && !ascii_iswhite(*crate::globals::GraphPtr::of(end).borrow())
+        {
             semsg!(
                 gettext(c"E402: Garbage after pattern: %s"),
                 crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>())
@@ -4498,9 +4538,9 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -> bool {
-    let arg_ptr: *mut u8 = arg.as_ptr().cast_mut().cast();
+    let arg_ptr = arg.as_ptr().cast_mut().cast::<u8>();
     {
-        let mut p: *mut u8 = ptr::null_mut();
+        let mut p = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut total_count: i32 = 0;
         let mut retval: Vec<i16> = Vec::new();
         let mut regmatch: Regmatch = Regmatch::new();
@@ -4514,7 +4554,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     .cast::<std::ffi::c_char>(),
             )
             .cast();
-            if unsafe { *p } != b'=' {
+            if *crate::globals::GraphPtr::of(p).borrow() != b'=' {
                 semsg!(
                     gettext(c"E405: Missing equal sign: %s"),
                     crate::strings::ByteSlice::from_ptr(arg_ptr.cast::<std::ffi::c_void>())
@@ -4522,7 +4562,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                 break;
             }
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
-            if ends_excmd(unsafe { *p }) != 0 {
+            if ends_excmd(*crate::globals::GraphPtr::of(p).borrow()) != 0 {
                 semsg!(
                     gettext(c"E406: Empty argument: %s"),
                     crate::strings::ByteSlice::from_ptr(arg_ptr.cast::<std::ffi::c_void>())
@@ -4533,16 +4573,18 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             let mut count: i32 = 0;
             loop {
                 let mut end = p;
-                while unsafe { *end != 0 && !ascii_iswhite(*end) && *end != b',' } {
+                while *crate::globals::GraphPtr::of(end).borrow() != 0
+                    && !ascii_iswhite(*crate::globals::GraphPtr::of(end).borrow())
+                    && *crate::globals::GraphPtr::of(end).borrow() != b','
+                {
                     end = end.wrapping_add(1);
                 }
                 let item_len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
                     - (crate::strings::AsByteSlice::byte_addr(p) as isize))
                     as usize;
                 let mut name_buf = vec![0u8; item_len + 3];
-                name_buf[1..=item_len].copy_from_slice(unsafe {
-                    std::slice::from_raw_parts((p).cast::<u8>(), item_len)
-                });
+                name_buf[1..=item_len]
+                    .copy_from_slice(crate::strings::AsByteSlice::slice_len(p, item_len));
                 let name = crate::strings::ByteSlice::from_bytes(&name_buf);
                 let mut id: i32;
                 if (name.wrapping_add(1).as_bytes() == b"ALLBUT")
@@ -4550,7 +4592,10 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     || (name.wrapping_add(1).as_bytes() == b"TOP")
                     || (name.wrapping_add(1).as_bytes() == b"CONTAINED")
                 {
-                    if !unsafe { *arg_ptr }.eq_ignore_ascii_case(&b'C') {
+                    if !crate::globals::GraphPtr::of(arg_ptr)
+                        .borrow()
+                        .eq_ignore_ascii_case(&b'C')
+                    {
                         semsg!(
                             gettext(c"E407: %s not allowed here"),
                             crate::strings::ByteSlice::from_ptr(
@@ -4647,12 +4692,12 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     count += 1;
                 }
                 p = crate::charset::skipwhite_ptr(end.cast::<std::ffi::c_char>()).cast();
-                if unsafe { *p } != b',' {
+                if *crate::globals::GraphPtr::of(p).borrow() != b',' {
                     break;
                 }
                 p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>())
                     .cast();
-                if ends_excmd(unsafe { *p }) != 0 {
+                if ends_excmd(*crate::globals::GraphPtr::of(p).borrow()) != 0 {
                     break;
                 }
             }
@@ -4768,12 +4813,14 @@ fn in_id_list(cur_si: Option<&Stateitem>, list: &SynIdList, ssp: &mut SpSyn, fla
         && ssp.cont_in_list.is_some()
         && (cur_si_ref.si_flags & HL_MATCH) == 0
     {
-        let mut cur_si_ptr: *const Stateitem = cur_si_ref;
-        let base_ptr: *const Stateitem = cur_state_at(0);
-        while (unsafe { (*cur_si_ptr).si_flags } & HL_TRANS_CONT) != 0 && cur_si_ptr > base_ptr {
+        let mut cur_si_ptr = crate::globals::GraphPtr::<Stateitem>::of(cur_si_ref).as_ptr();
+        let base_ptr = crate::globals::GraphPtr::<Stateitem>::of(cur_state_at(0)).as_ptr();
+        while (crate::globals::GraphPtr::of(cur_si_ptr).borrow().si_flags & HL_TRANS_CONT) != 0
+            && cur_si_ptr > base_ptr
+        {
             cur_si_ptr = cur_si_ptr.wrapping_sub(1);
         }
-        let si_idx = unsafe { (*cur_si_ptr).si_idx };
+        let si_idx = crate::globals::GraphPtr::of(cur_si_ptr).borrow().si_idx;
         if si_idx >= 0 {
             let c_spp = syn_items(syn_block_mut(), si_idx as isize);
             if in_id_list(None, &ssp.cont_in_list, &mut c_spp.sp_syn, c_spp.sp_flags) != 0 {

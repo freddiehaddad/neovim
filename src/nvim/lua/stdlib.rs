@@ -197,7 +197,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
     let regex = regex_check(lstate);
     if !regex.prog.is_null() {
-        drop(unsafe { Box::from_raw(regex.prog.as_ptr()) });
+        regex.prog.drop_box();
         regex.prog = crate::globals::GraphPtr::NULL;
     }
     0
@@ -231,7 +231,7 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> i32
     let s1_bytes = if s1_len == 0 || s1.is_null() {
         &[][..]
     } else {
-        unsafe { std::slice::from_raw_parts(s1.cast::<u8>(), s1_len) }
+        crate::globals::GraphPtr::raw_slice(s1.cast::<u8>(), s1_len)
     };
     mb_utflen(s1_bytes, idx as usize, &mut codepoints, &mut codeunits);
 
@@ -617,7 +617,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
 
     let ret = string_convert(
         &vimconv,
-        unsafe { std::slice::from_raw_parts((str_).cast::<u8>(), str_len) },
+        crate::strings::AsByteSlice::slice_len(str_, str_len),
         Some(&mut str_len),
     );
 

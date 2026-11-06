@@ -166,14 +166,13 @@ pub fn os_getenv_cstr(name: &CStr) -> Option<std::ffi::CString> {
         if r != 0 || size == 0 || vec_buf[0] == 0 {
             None
         } else {
-            let bytes =
-                unsafe { std::slice::from_raw_parts((vec_buf.as_ptr()).cast::<u8>(), size) };
+            let bytes = crate::strings::AsByteSlice::slice_len(vec_buf.as_ptr(), size);
             Some(bytes_to_cstring(bytes))
         }
     } else if r != 0 || size == 0 || buf[0] == 0 {
         None
     } else {
-        let bytes = unsafe { std::slice::from_raw_parts((buf.as_ptr()).cast::<u8>(), size) };
+        let bytes = crate::strings::AsByteSlice::slice_len(buf.as_ptr(), size);
         Some(bytes_to_cstring(bytes))
     };
     assert_ne!(r, UV_EINVAL);
@@ -277,7 +276,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         loop {
             let l = {
                 let mut n = 0usize;
-                while unsafe { *p.wrapping_add(n) } != 0 {
+                while *crate::globals::GraphPtr::of(p.wrapping_add(n)).borrow() != 0 {
                     n += 1;
                 }
                 n
@@ -286,7 +285,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
                 break;
             }
             if i == index {
-                let slice = unsafe { std::slice::from_raw_parts(p, l) };
+                let slice = crate::globals::GraphPtr::raw_slice(p, l);
                 let Ok(utf8_str) = String::from_utf16(slice) else {
                     semsg!(c"utf16_to_utf8 failed: %d", 1);
                     break;
@@ -308,7 +307,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
     }
     #[cfg(not(windows))]
     unsafe {
-        let env_arr: *const *mut u8 = (*os_environ_ptr()).cast_const();
+        let env_arr = (*os_environ_ptr()).cast_const();
 
         for i in 0..=index {
             if (*env_arr.add(i)).is_null() {
@@ -400,9 +399,12 @@ pub fn init_homedir() {
     env_st().homedir = None;
 
     let home_cstr = os_getenv_cstr(c"HOME");
-    let mut var: *mut u8 = home_cstr
-        .as_ref()
-        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
+    let mut var = crate::globals::GraphPtr::<u8>::of(
+        home_cstr
+            .as_ref()
+            .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast()),
+    )
+    .as_ptr();
 
     #[cfg(windows)]
     {
@@ -428,7 +430,7 @@ pub fn init_homedir() {
             var = os_uv_homedir().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         }
 
-        if !var.is_null() && unsafe { *var } == b'%' {
+        if !var.is_null() && *crate::globals::GraphPtr::of(var).borrow() == b'%' {
             let rest = crate::strings::ByteSlice::from_ptr(var.wrapping_add(1)).as_bytes();
             if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                 let p = var.wrapping_add(1 + pos);
@@ -454,7 +456,7 @@ pub fn init_homedir() {
             }
         }
 
-        if var.is_null() || unsafe { *var == 0 } {
+        if crate::strings::AsByteSlice::is_empty_val(var) {
             var = c"C:/".as_ptr().cast_mut().cast();
         }
     }
@@ -475,10 +477,11 @@ pub fn init_homedir() {
             var = g_st().iobuff.as_mut_ptr().cast();
         }
 
-        let os_buf_slice = unsafe {
-            std::slice::from_raw_parts_mut(g_st().os_buf.as_mut_ptr().cast::<u8>(), MAXPATHL)
-        };
-        if (var.is_null() || unsafe { *var == 0 }) && os_dirname(os_buf_slice) {
+        let os_buf_slice = crate::globals::GraphPtr::raw_slice_mut(
+            g_st().os_buf.as_mut_ptr().cast::<u8>(),
+            MAXPATHL,
+        );
+        if (crate::strings::AsByteSlice::is_empty_val(var)) && os_dirname(os_buf_slice) {
             var = (&raw mut g_st().os_buf).cast();
         }
     }
@@ -525,8 +528,8 @@ pub fn expand_env_esc(
     let mut at_start = true;
     let prefix_bytes = prefix.as_bytes();
 
-    let mut src: *mut u8 = srcp.skipwhite().cast();
-    while !src.is_null() && unsafe { *src != 0 } && dst_rem > 0 {
+    let mut src = srcp.skipwhite().cast::<u8>();
+    while !crate::strings::AsByteSlice::is_empty_val(src) && dst_rem > 0 {
         let src_bytes = crate::strings::ByteSlice::from_ptr(src).as_bytes();
         if src_bytes.starts_with(b"`=") {
             let var = src;
@@ -534,7 +537,7 @@ pub fn expand_env_esc(
             let mut src_cstr = crate::strings::ByteSlice::from_ptr(src).as_cstr();
             let _ = skip_expr(&mut src_cstr, None);
             src = src_cstr.as_ptr().cast_mut().cast();
-            if unsafe { *src } == b'`' {
+            if *crate::globals::GraphPtr::of(src).borrow() == b'`' {
                 src = src.wrapping_add(1);
             }
             let len = ((src as usize) - (var as usize)).min(dst_rem as usize);
@@ -548,8 +551,8 @@ pub fn expand_env_esc(
         let first_b = src_bytes[0];
         if first_b == b'$' || (first_b == b'~' && at_start) {
             let mut var_cstr: Option<std::ffi::CString> = None;
-            let mut tail: *mut u8;
-            let mut var: *mut u8;
+            let mut tail;
+            let mut var;
 
             if first_b != b'~' {
                 tail = src.wrapping_add(1);
@@ -590,7 +593,9 @@ pub fn expand_env_esc(
                 }
 
                 #[cfg(not(windows))]
-                if src_bytes.get(1) == Some(&b'{') && unsafe { *tail } != b'}' {
+                if src_bytes.get(1) == Some(&b'{')
+                    && *crate::globals::GraphPtr::of(tail).borrow() != b'}'
+                {
                     var = ptr::null_mut();
                 } else {
                     if src_bytes.get(1) == Some(&b'{') {
@@ -603,7 +608,7 @@ pub fn expand_env_esc(
                     }
                     var = var_cstr
                         .as_ref()
-                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast::<u8>());
                 }
 
                 #[cfg(windows)]
@@ -615,7 +620,7 @@ pub fn expand_env_esc(
                     }
                     var = var_cstr
                         .as_ref()
-                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast());
+                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut().cast::<u8>());
                 }
             } else if src_bytes.len() == 1
                 || vim_ispathsep(i32::from(src_bytes[1]))
@@ -714,19 +719,17 @@ pub fn expand_env_esc(
                 at_start = true;
             }
             if dst_rem > 0 {
-                dst_slice[dst_idx] = unsafe { *src };
+                dst_slice[dst_idx] = *crate::globals::GraphPtr::of(src).borrow();
                 dst_idx += 1;
                 src = src.wrapping_add(1);
                 dst_rem -= 1;
 
                 if !prefix_bytes.is_empty()
                     && (src as usize) >= (srcp.as_ptr() as usize) + prefix_bytes.len()
-                    && unsafe {
-                        std::slice::from_raw_parts(
-                            (src.wrapping_sub(prefix_bytes.len())).cast::<u8>(),
-                            prefix_bytes.len(),
-                        )
-                    } == prefix_bytes
+                    && crate::strings::AsByteSlice::slice_len(
+                        src.wrapping_sub(prefix_bytes.len()),
+                        prefix_bytes.len(),
+                    ) == prefix_bytes
                 {
                     at_start = true;
                 }
@@ -773,12 +776,10 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
             len,
         ) == 0
             && (new_tail == path
-                || after_pathsep(unsafe {
-                    std::slice::from_raw_parts(
-                        (path).cast::<u8>(),
-                        (new_tail as usize).saturating_sub(path as usize),
-                    )
-                }) != 0)
+                || after_pathsep(crate::strings::AsByteSlice::slice_len(
+                    path,
+                    (new_tail as usize).saturating_sub(path as usize),
+                )) != 0)
         {
             return pend_off - (len + 1);
         }
@@ -823,14 +824,13 @@ pub fn vim_env_iter_rev<'a>(
 pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
     crate::memory::copy_bytes_to_c_buf(exe_name, get_vim_var_str(VV_PROGPATH).to_bytes());
     let ptr = crate::strings::ByteSlice::from_bytes(exe_name);
-    let path_end: *mut u8 = path_tail_with_sep(ptr.as_cstr()).as_ptr().cast_mut().cast();
-    unsafe {
-        *path_end = 0;
-    }
-    let path_end2: *mut u8 = path_tail(ptr.as_cstr()).as_ptr().cast_mut().cast();
-    unsafe {
-        *path_end2 = 0;
-    }
+    let path_end = path_tail_with_sep(ptr.as_cstr())
+        .as_ptr()
+        .cast_mut()
+        .cast::<u8>();
+    *crate::globals::GraphPtr::of(path_end).borrow_mut() = 0;
+    let path_end2 = path_tail(ptr.as_cstr()).as_ptr().cast_mut().cast::<u8>();
+    *crate::globals::GraphPtr::of(path_end2).borrow_mut() = 0;
 }
 
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
@@ -896,8 +896,10 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                 }
 
                 if !vim_path.is_null() {
-                    let vim_path_end: *mut u8 =
-                        path_tail(vim_path.as_cstr()).as_ptr().cast_mut().cast();
+                    let vim_path_end = path_tail(vim_path.as_cstr())
+                        .as_ptr()
+                        .cast_mut()
+                        .cast::<u8>();
                     let mut end_off = (vim_path_end as usize) - (vim_path.as_ptr() as usize);
                     let vim_path_slice = vim_path.slice(end_off);
                     if vim_path.as_ptr().cast_const() == opt_vars().p_hf.as_ptr() {
@@ -967,10 +969,13 @@ pub fn home_replace(
         return dlen.min(dstlen - 1);
     }
 
-    let homedir_ptr: *mut u8 = env_st()
-        .homedir
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+    let homedir_ptr = crate::globals::GraphPtr::<u8>::of(
+        env_st()
+            .homedir
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
+    )
+    .as_ptr();
     let dirlen = if homedir_ptr.is_null() {
         0
     } else {
@@ -993,7 +998,8 @@ pub fn home_replace(
     let mut homedir_env_mod = homedir_env.cast::<u8>();
     let mut homedir_env_mod_vec: Vec<u8>;
 
-    if !homedir_env_mod.is_null() && unsafe { *homedir_env_mod } == b'~' {
+    if !homedir_env_mod.is_null() && *crate::globals::GraphPtr::of(homedir_env_mod).borrow() == b'~'
+    {
         let mut usedlen: usize = 0;
         let mut fbuf = crate::strings::ByteSlice::from_ptr(homedir_env_mod)
             .to_cstring()

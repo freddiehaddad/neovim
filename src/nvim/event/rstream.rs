@@ -175,8 +175,8 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
 unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     let mut req_buf = [0u64; 128];
     let req_ptr = req_buf.as_mut_ptr().cast::<uv_fs_t>();
-    let stream = unsafe { *handle.cast::<*mut RStream>() };
-    let stream = unsafe { &mut *stream };
+    let stream = *crate::globals::GraphPtr::of(handle.cast::<*mut RStream>()).borrow();
+    let stream = crate::globals::GraphPtr::of(stream).borrow_mut();
 
     let space = rstream_space(&mut *stream);
     let write_pos = stream.write_pos;
@@ -279,9 +279,7 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
 pub(crate) fn rstream_close_cb(s: &mut Stream) {
     let stream = (&raw mut *s).cast::<RStream>();
     assert!(!stream.is_null());
-    unsafe {
-        (*stream).buffer = Vec::new();
-    }
+    crate::globals::GraphPtr::of(stream).borrow_mut().buffer = Vec::new();
 }
 
 pub fn rstream_may_close(stream: &mut RStream) {

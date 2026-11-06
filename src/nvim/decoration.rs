@@ -39,7 +39,6 @@ use crate::sign::{buf_has_signs, describe_sign_text};
 use crate::window::WinInfoInfo;
 use std::cmp::Ordering;
 use std::ffi::CStr;
-use std::ptr;
 
 pub type NS = crate::msgpack_rpc::packer::ObjHandle;
 pub type HLGroupID = Integer;
@@ -186,7 +185,7 @@ impl Drop for DecorRange {
             && let DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) = self.data
             && !vt.is_null()
         {
-            drop(unsafe { Box::from_raw(vt.as_ptr()) });
+            crate::globals::GraphPtr::of(vt.as_ptr()).drop_box();
         }
     }
 }
@@ -382,7 +381,7 @@ impl DecorVirtText {
     pub fn next_opt(&mut self) -> Option<&'static mut DecorVirtText> {
         self.next
             .as_deref_mut()
-            .map(|n| unsafe { &mut *ptr::from_mut(n) })
+            .map(|n| crate::globals::GraphPtr::from(&*n).borrow_mut())
     }
 }
 
@@ -608,7 +607,7 @@ pub fn decor_put_vt(
     mut vt: DecorVirtText,
     next: Option<&'static mut DecorVirtText>,
 ) -> &'static mut DecorVirtText {
-    vt.next = next.map(|n| unsafe { Box::from_raw(n) });
+    vt.next = next.map(|n| crate::globals::GraphPtr::of(n).into_box());
     Box::leak(Box::new(vt))
 }
 
@@ -730,7 +729,7 @@ pub fn decor_free(decor: DecorInline) {
         }
     } else {
         if !vt.is_null() {
-            drop(unsafe { Box::from_raw(vt.as_ptr()) });
+            crate::globals::GraphPtr::of(vt.as_ptr()).drop_box();
         }
         decor_free_sh(idx);
     }
@@ -807,7 +806,7 @@ pub fn decor_extconceal_char(
 pub fn decor_check_to_be_deleted() {
     assert!(!g_st().decor_state.running_decor_provider);
     for vt in decor_st().to_free_virt.drain(..) {
-        drop(unsafe { Box::from_raw(vt.as_ptr()) });
+        crate::globals::GraphPtr::of(vt.as_ptr()).drop_box();
     }
     decor_free_sh(decor_st().to_free_sh);
     decor_st().to_free_sh = DECOR_ID_INVALID;
@@ -1304,8 +1303,11 @@ pub fn decor_redraw_col_impl(
 
     for i in 0..cur_end {
         let index = (&state.ranges_i)[i as usize];
-        let slot: *mut DecorRangeSlot = &raw mut (&mut state.slots)[index as usize];
-        let r = unsafe { (*slot).range_mut() };
+        let slot = crate::globals::GraphPtr::<DecorRangeSlot>::of(
+            &raw mut (&mut state.slots)[index as usize],
+        )
+        .as_ptr();
+        let r = crate::globals::GraphPtr::of(slot).borrow_mut().range_mut();
 
         let keep: bool;
         if r.end_row < row || (r.end_row == row && r.end_col <= col) {
@@ -1367,7 +1369,8 @@ pub fn decor_redraw_col_impl(
             (&mut state.ranges_i)[new_cur_end as usize] = index;
             new_cur_end += 1;
         } else {
-            unsafe { *slot = DecorRangeSlot::Free(state.free_slot_i) };
+            *crate::globals::GraphPtr::of(slot).borrow_mut() =
+                DecorRangeSlot::Free(state.free_slot_i);
             state.free_slot_i = index;
         }
     }

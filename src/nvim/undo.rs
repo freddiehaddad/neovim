@@ -852,12 +852,10 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
         ExtmarkUndoObject::Splice(splice) => {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
             undo_write_bytes(bi, K_EXTMARK_SPLICE as u64, 4);
-            let slice = unsafe {
-                std::slice::from_raw_parts(
-                    (&raw const splice).cast::<u8>(),
-                    size_of::<ExtmarkSplice>(),
-                )
-            };
+            let slice = crate::strings::AsByteSlice::slice_len(
+                &raw const splice,
+                size_of::<ExtmarkSplice>(),
+            );
             if !undo_write(bi, slice) {
                 return false;
             }
@@ -865,12 +863,8 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
         ExtmarkUndoObject::Move(move_) => {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
             undo_write_bytes(bi, K_EXTMARK_MOVE as u64, 4);
-            let slice = unsafe {
-                std::slice::from_raw_parts(
-                    (&raw const move_).cast::<u8>(),
-                    size_of::<ExtmarkMove>(),
-                )
-            };
+            let slice =
+                crate::strings::AsByteSlice::slice_len(&raw const move_, size_of::<ExtmarkMove>());
             if !undo_write(bi, slice) {
                 return false;
             }
@@ -884,21 +878,20 @@ fn unserialize_extmark(bi: &mut Bufinfo) -> Option<ExtmarkUndoObject> {
     let type_ = undo_read_4c(bi) as UndoObjectType;
     if type_ == K_EXTMARK_SPLICE {
         let mut splice = ExtmarkSplice::new();
-        let slice = unsafe {
-            std::slice::from_raw_parts_mut(
-                (&raw mut splice).cast::<u8>(),
-                size_of::<ExtmarkSplice>(),
-            )
-        };
+        let slice = crate::globals::GraphPtr::raw_slice_mut(
+            (&raw mut splice).cast::<u8>(),
+            size_of::<ExtmarkSplice>(),
+        );
         if !undo_read(bi, slice) {
             return None;
         }
         Some(ExtmarkUndoObject::Splice(splice))
     } else if type_ == K_EXTMARK_MOVE {
         let mut move_ = ExtmarkMove::new();
-        let slice = unsafe {
-            std::slice::from_raw_parts_mut((&raw mut move_).cast::<u8>(), size_of::<ExtmarkMove>())
-        };
+        let slice = crate::globals::GraphPtr::raw_slice_mut(
+            (&raw mut move_).cast::<u8>(),
+            size_of::<ExtmarkMove>(),
+        );
         if !undo_read(bi, slice) {
             return None;
         }
@@ -2986,7 +2979,7 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
             &mut cs,
             None,
             None,
-            Some(unsafe { &mut *ptr::from_mut(buf) }),
+            Some(crate::globals::GraphPtr::from(&*buf).borrow_mut()),
             0,
         );
         if !curbuf_mut().b_u_synced {

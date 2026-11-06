@@ -1184,7 +1184,7 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             else {
                 continue;
             };
-            wlv.p_extra = Some(unsafe { &*(text as *const std::ffi::CStr) });
+            wlv.p_extra = Some(crate::globals::GraphPtr::<u8>::cstr(text));
             wlv.n_extra = text.to_bytes().len() as i32;
             if wlv.n_extra == 0 {
                 continue;
@@ -1559,7 +1559,7 @@ pub fn win_line(
         wlv.color_cols = if !wp.buf_mut().terminal.is_null() || wp.w_p_cc_cols.is_empty() {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len()) }
+            crate::globals::GraphPtr::raw_slice(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len())
         };
         let hlc = vcol_hlc(&wlv);
         advance_color_col(&mut wlv, hlc);
@@ -1881,7 +1881,10 @@ pub fn win_line(
         if wp.w_p_lcs_chars.trail != 0 {
             trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
             while trailcol > 0
-                && ascii_iswhite(unsafe { *ptr.wrapping_add((trailcol - 1) as usize) })
+                && ascii_iswhite(
+                    *crate::globals::GraphPtr::of(ptr.wrapping_add((trailcol - 1) as usize))
+                        .borrow(),
+                )
             {
                 trailcol -= 1;
             }
@@ -2078,16 +2081,20 @@ pub fn win_line(
                     let target_row = total_virt_rows - virt_rows_todo;
                     while (virt_line_index as usize) < virt_lines.len() {
                         let vl_ptr = &raw const virt_lines[virt_line_index as usize];
-                        let line_rows =
-                            decor_virt_line_rows(&mut *wp, unsafe { &*vl_ptr }, 0, None);
+                        let line_rows = decor_virt_line_rows(
+                            &mut *wp,
+                            crate::globals::GraphPtr::of(vl_ptr).borrow(),
+                            0,
+                            None,
+                        );
                         if target_row < virt_line_start_row + line_rows {
                             has_virt_line = true;
 
-                            virt_line_flags = unsafe { (*vl_ptr).flags };
+                            virt_line_flags = crate::globals::GraphPtr::of(vl_ptr).borrow().flags;
 
                             decor_virt_line_rows(
                                 &mut *wp,
-                                unsafe { &*vl_ptr },
+                                crate::globals::GraphPtr::of(vl_ptr).borrow(),
                                 target_row - virt_line_start_row,
                                 Some(&mut virt_line_skip_cells),
                             );
@@ -2312,7 +2319,7 @@ pub fn win_line(
                     line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                     ptr = line.wrapping_add(v as usize);
 
-                    if unsafe { *ptr == 0 } {
+                    if crate::strings::AsByteSlice::is_empty_val(ptr) {
                         has_match_conc = 0;
                     }
 
@@ -2406,7 +2413,7 @@ pub fn win_line(
                 foldtext_free = Some(fdt);
                 wlv.p_extra = foldtext_free
                     .as_ref()
-                    .map(|s| unsafe { &*(s.as_c_str() as *const std::ffi::CStr) });
+                    .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()));
                 wlv.sc_extra = 0;
                 wlv.sc_final = 0;
 
@@ -2418,7 +2425,7 @@ pub fn win_line(
                 && wlv.n_extra == 0
                 && wlv.col < view_width
                 && (has_foldtext
-                    || (unsafe { *ptr == 0 }
+                    || (crate::strings::AsByteSlice::is_empty_val(ptr)
                         && (!wp.w_onebuf_opt.wo_list || !lcs_eol_todo || lcs_eol == 0)))
             {
                 wlv.sc_extra = wp.w_p_fcs_chars.fold;
@@ -2492,7 +2499,7 @@ pub fn win_line(
                             search_attr = saved_search_attr;
                             saved_search_attr = 0;
                         }
-                        if area_attr == 0 && unsafe { *ptr != 0 } {
+                        if area_attr == 0 && !crate::strings::AsByteSlice::is_empty_val(ptr) {
                             area_attr = saved_area_attr;
                             saved_area_attr = 0;
                         }
@@ -2524,7 +2531,7 @@ pub fn win_line(
             } else {
                 let mut prev_ptr = ptr;
 
-                if unsafe { *ptr == 0 } {
+                if crate::strings::AsByteSlice::is_empty_val(ptr) {
                     wlv.skip_cells = 0;
                 }
 
@@ -2538,7 +2545,7 @@ pub fn win_line(
                     transchar_hex(
                         &mut wlv.extra,
                         if mb_c < 0 {
-                            i32::from(unsafe { *ptr as u8 })
+                            i32::from(crate::strings::AsByteSlice::first_byte_val(ptr))
                         } else {
                             mb_c
                         },
@@ -2604,7 +2611,7 @@ pub fn win_line(
                     multi_attr = win_hl_attr(&mut *wp, HLF_AT);
                     ptr = ptr.wrapping_sub(1);
                     did_decrement_ptr = true;
-                } else if unsafe { *ptr != 0 } {
+                } else if !crate::strings::AsByteSlice::is_empty_val(ptr) {
                     ptr = ptr.wrapping_add((mb_l - 1) as usize);
                 }
 
@@ -2683,7 +2690,11 @@ pub fn win_line(
                     if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                         spell_attr = 0;
                         if mb_schar != 0
-                            && unsafe { *crate::charset::skipwhite_ptr(prev_ptr) } != NUL
+                            && *crate::globals::GraphPtr::of(crate::charset::skipwhite_ptr(
+                                prev_ptr,
+                            ))
+                            .borrow()
+                                != NUL
                             && can_spell
                         {
                             let mut spell_hlf: Hlf = HLF_COUNT;
@@ -2822,7 +2833,11 @@ pub fn win_line(
                         let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
                         let has_conceal = !conceal_spans.is_empty();
-                        if has_conceal || !vim_isbreak(i32::from(unsafe { *ptr as u8 })) {
+                        if has_conceal
+                            || !vim_isbreak(i32::from(crate::strings::AsByteSlice::first_byte_val(
+                                ptr,
+                            )))
+                        {
                             let mut csarg = CharsizeArg::new();
                             let mut cstype = init_charsize_arg_skip_cur_text(
                                 &mut csarg,
@@ -2831,7 +2846,8 @@ pub fn win_line(
                                 crate::strings::ByteSlice::from_ptr(line).as_cstr(),
                             );
                             if has_conceal {
-                                csarg.extconceal = Some(unsafe { &*ptr::from_ref(&conceal_spans) });
+                                csarg.extconceal =
+                                    Some(crate::globals::GraphPtr::from(&conceal_spans).borrow());
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }
@@ -2904,9 +2920,11 @@ pub fn win_line(
 
                     if wp.w_onebuf_opt.wo_list {
                         in_multispace = mb_c == b' ' as i32
-                            && (unsafe { *ptr as u8 } == b' '
+                            && (crate::strings::AsByteSlice::first_byte_val(ptr) == b' '
                                 || (prev_ptr > line.cast_const()
-                                    && unsafe { *prev_ptr.wrapping_sub(1) as u8 } == b' '));
+                                    && crate::strings::AsByteSlice::first_byte_val(
+                                        prev_ptr.wrapping_sub(1),
+                                    ) == b' '));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -3042,7 +3060,7 @@ pub fn win_line(
                                 let mut p = extra_slice.as_mut_ptr();
 
                                 for i in 0..tab_len {
-                                    if unsafe { *p } == 0 {
+                                    if *crate::globals::GraphPtr::of(p).borrow() == 0 {
                                         tab_len = i;
                                         break;
                                     }
@@ -3051,12 +3069,10 @@ pub fn win_line(
                                         lcs = lcs_tab3;
                                     }
                                     let slen = schar_get_adv(
-                                        unsafe {
-                                            std::slice::from_raw_parts_mut(
-                                                p,
-                                                crate::api::ui::MAX_SCHAR_SIZE,
-                                            )
-                                        },
+                                        crate::globals::GraphPtr::raw_slice_mut(
+                                            p,
+                                            crate::api::ui::MAX_SCHAR_SIZE,
+                                        ),
                                         lcs,
                                     );
                                     p = p.wrapping_add(slen);
@@ -3170,13 +3186,11 @@ pub fn win_line(
                                 .len()
                                 .saturating_sub(1);
 
-                            unsafe {
-                                ptr::copy_nonoverlapping(
-                                    wlv.extra.as_ptr().wrapping_add(1),
-                                    p,
-                                    rem_len,
-                                )
-                            };
+                            crate::globals::GraphPtr::copy_to(
+                                wlv.extra.as_ptr().wrapping_add(1),
+                                p,
+                                rem_len,
+                            );
 
                             extra_slice[wlv.n_extra as usize] = 0;
 
@@ -3541,7 +3555,11 @@ pub fn win_line(
 
             let lcs_ext = get_lcs_ext(wp);
             if lcs_ext != 0 && wlv.filler_todo <= 0 && wlv.col == view_width - 1 && !has_foldtext {
-                if has_decor && unsafe { *ptr == 0 } && lcs_eol == 0 && lcs_eol_todo {
+                if has_decor
+                    && crate::strings::AsByteSlice::is_empty_val(ptr)
+                    && lcs_eol == 0
+                    && lcs_eol_todo
+                {
                     decor_redraw_col(
                         &mut *wp,
                         ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
@@ -3553,7 +3571,7 @@ pub fn win_line(
                         decor_provider_end_col - 1,
                     );
                 }
-                if unsafe { *ptr != 0 }
+                if !crate::strings::AsByteSlice::is_empty_val(ptr)
                     || (lcs_eol > 0 && lcs_eol_todo)
                     || (wlv.n_extra > 0
                         && (wlv.sc_extra != 0
@@ -3774,7 +3792,7 @@ pub fn win_line(
         if wlv.col >= view_width
             && (!has_foldtext || wlv.filler_todo > 0)
             && (wlv.col <= leftcols_width
-                || unsafe { *ptr != 0 }
+                || !crate::strings::AsByteSlice::is_empty_val(ptr)
                 || wlv.filler_todo > 0
                 || (wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                 || (wlv.n_extra != 0

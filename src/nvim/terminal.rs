@@ -762,25 +762,35 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
         refcount: 0,
     }));
     buf.terminal = crate::globals::GraphPtr::new(term);
-    let term_ref = unsafe { &mut *term };
+    let term_ref = crate::globals::GraphPtr::of(term).borrow_mut();
     vterm_set_utf8(&mut term_ref.vt, 1);
 
     let state = vterm_obtain_state(&mut term_ref.vt);
     let vts = vterm_obtain_screen(&mut term_ref.vt);
     vterm_screen_enable_altscreen(vts, 1);
     vterm_screen_enable_reflow(vts, true);
-    vterm_screen_set_callbacks(vts, Some(&VTERM_SCREEN_CALLBACKS), unsafe { term.as_mut() });
-    vterm_screen_set_unrecognised_fallbacks(vts, Some(&VTERM_FALLBACKS), unsafe { term.as_mut() });
+    vterm_screen_set_callbacks(
+        vts,
+        Some(&VTERM_SCREEN_CALLBACKS),
+        crate::globals::GraphPtr::of(term).opt_mut(),
+    );
+    vterm_screen_set_unrecognised_fallbacks(
+        vts,
+        Some(&VTERM_FALLBACKS),
+        crate::globals::GraphPtr::of(term).opt_mut(),
+    );
     vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
     vterm_screen_reset(vts, 1);
-    vterm_output_set_callback(&mut term_ref.vt, Some(term_output_callback), unsafe {
-        term.as_mut()
-    });
+    vterm_output_set_callback(
+        &mut term_ref.vt,
+        Some(term_output_callback),
+        crate::globals::GraphPtr::of(term).opt_mut(),
+    );
 
     vterm_state_set_selection_callbacks(
         &mut *state,
         Some(&VTERM_SELECTION_CALLBACKS),
-        unsafe { term.as_mut() },
+        crate::globals::GraphPtr::of(term).opt_mut(),
         SELECTIONBUF_SIZE,
     );
 
@@ -1404,7 +1414,7 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
 
         chan.term = crate::globals::GraphPtr::NULL;
 
-        drop(unsafe { Box::from_raw(term.as_ptr()) });
+        crate::globals::GraphPtr::of(term.as_ptr()).drop_box();
     }
 }
 

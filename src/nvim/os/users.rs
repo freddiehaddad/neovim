@@ -177,14 +177,16 @@ fn collect_usernames() -> Vec<CString> {
         } == 0
         {
             for i in 0..nusers as usize {
-                let name_ptr = unsafe { (*uinfo.wrapping_add(i)).usri0_name };
+                let name_ptr = crate::globals::GraphPtr::of(uinfo.wrapping_add(i))
+                    .borrow()
+                    .usri0_name;
                 if !name_ptr.is_null() {
                     let mut len = 0usize;
-                    while unsafe { *name_ptr.wrapping_add(len) } != 0 {
+                    while *crate::globals::GraphPtr::of(name_ptr.wrapping_add(len)).borrow() != 0 {
                         len += 1;
                     }
                     if len > 0 {
-                        let slice = unsafe { std::slice::from_raw_parts(name_ptr, len) };
+                        let slice = crate::globals::GraphPtr::raw_slice(name_ptr, len);
                         if let Ok(s) = String::from_utf16(slice)
                             && let Ok(cstr) = CString::new(s)
                         {

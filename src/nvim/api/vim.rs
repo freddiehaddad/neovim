@@ -798,9 +798,10 @@ pub fn nvim_replace_termcodes(
         opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
-    cbuf_to_string(unsafe {
-        std::slice::from_raw_parts((out.as_ptr()).cast::<u8>(), out.as_bytes().len())
-    })
+    cbuf_to_string(crate::strings::AsByteSlice::slice_len(
+        out.as_ptr(),
+        out.as_bytes().len(),
+    ))
 }
 
 /// Executes Lua code. Arguments are available as `...` inside the chunk. The chunk can return
@@ -1827,7 +1828,7 @@ pub fn nvim_put(
             if _sz > 0 {
                 let _c = (NUL) as u8;
                 let _x = (NL) as u8;
-                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
+                for _b in crate::globals::GraphPtr::raw_slice_mut(_d, _sz) {
                     if *_b == _c {
                         *_b = _x;
                     }
@@ -2334,6 +2335,7 @@ pub fn nvim_id_dict(dct: Dict, arena: &mut Arena) -> Dict {
 /// @param[in]  flt  Value to return.
 ///
 /// @return its argument.
+// DLLEXPORT Float nvim__id_float(Float flt);
 #[allow(non_snake_case)]
 pub fn nvim__id_float(flt: Float) -> Float {
     flt
@@ -2559,7 +2561,7 @@ pub fn nvim_inspect_cell(
     let off = g.line_offset[row as usize] + (col as usize);
     let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
     schar_get(
-        unsafe { std::slice::from_raw_parts_mut(sc_buf, MAX_SCHAR_SIZE) },
+        crate::globals::GraphPtr::raw_slice_mut(sc_buf, MAX_SCHAR_SIZE),
         g.chars[off],
     );
     add_c(
@@ -2868,8 +2870,8 @@ pub fn nvim_eval_statusline(
 
     result = arena_dict(arena, 3);
     let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
-    let buf = CharBuf::from_slice(unsafe { std::slice::from_raw_parts_mut(buf_data, MAXPATHL) });
-    let mut hltab: *mut StlHlrec = ptr::null_mut();
+    let buf = CharBuf::from_slice(crate::globals::GraphPtr::raw_slice_mut(buf_data, MAXPATHL));
+    let mut hltab = crate::globals::GraphPtr::<StlHlrec>::NULL.as_ptr();
     let mut hltab_len: usize = 0;
 
     let p_crb_save = wp.w_onebuf_opt.wo_crb;
@@ -2908,11 +2910,15 @@ pub fn nvim_eval_statusline(
             opts.use_winbar,
             stc_hl_id,
         );
-        if unsafe { (*hltab).start }.is_none_or(|s| {
-            ((crate::strings::AsByteSlice::byte_addr(s.as_ptr()) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(buf_data) as isize))
-                != 0
-        }) {
+        if crate::globals::GraphPtr::of(hltab)
+            .borrow()
+            .start
+            .is_none_or(|s| {
+                ((crate::strings::AsByteSlice::byte_addr(s.as_ptr()) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(buf_data) as isize))
+                    != 0
+            })
+        {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
             put_c(&mut hl_info, c"group", cstr_as_obj(Some(dfltname)));
@@ -2923,12 +2929,12 @@ pub fn nvim_eval_statusline(
         }
 
         let mut sp = hltab;
-        while let Some(sp_start) = unsafe { (*sp).start } {
+        while let Some(sp_start) = crate::globals::GraphPtr::of(sp).borrow().start {
             const USER_HLS: [&CStr; 9] = [
                 c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
                 c"User9",
             ];
-            let sp_ref = unsafe { &*sp };
+            let sp_ref = crate::globals::GraphPtr::of(sp).borrow();
             let grpname: &'static CStr = if sp_ref.userhl == 0 {
                 get_default_stl_hl(
                     (!opts.use_tabline).then_some(&*wp),

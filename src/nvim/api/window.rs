@@ -30,7 +30,6 @@ use crate::window::{
     win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
     win_setheight_win, win_setwidth_win,
 };
-use std::ptr;
 
 use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 
@@ -161,7 +160,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut switchwin,
-        Some(unsafe { &mut *ptr::from_mut(w) }),
+        Some(crate::globals::GraphPtr::from(&*w).borrow_mut()),
         None,
         None,
         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,

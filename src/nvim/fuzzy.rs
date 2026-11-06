@@ -483,7 +483,7 @@ fn fuzzy_match_in_list(
                 {
                     itemstr = rettv.vval.v_string_cstr();
                 }
-                tv_dict_unref(unsafe { d_ptr.as_mut() });
+                tv_dict_unref(crate::globals::GraphPtr::of(d_ptr).opt_mut());
             }
         }
 

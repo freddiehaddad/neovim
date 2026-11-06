@@ -81,7 +81,7 @@ pub fn win_new_float(
         winframe_remove(wp, &mut dir, tp.opt_mut(), None);
 
         if !wp.w_frame.is_null() {
-            drop(unsafe { Box::from_raw(wp.w_frame.as_ptr()) });
+            crate::globals::GraphPtr::of(wp.w_frame.as_ptr()).drop_box();
         }
 
         wp.w_frame = crate::globals::FramePtr::NULL;
@@ -96,11 +96,12 @@ pub fn win_new_float(
         win_append(Some(prev), wp, tp.opt_mut());
         wp
     } else {
-        let mut tp_last: *mut WinInfoInfo = if last {
+        let mut tp_last = crate::globals::GraphPtr::<WinInfoInfo>::of(if last {
             g_st().lastwin.as_ptr()
         } else {
             lastwin_nofloating(None)
-        };
+        })
+        .as_ptr();
         if fconfig.window != 0 {
             debug_assert!(!last);
             let parent_wp = find_window_by_handle(fconfig.window, err);
@@ -115,7 +116,7 @@ pub fn win_new_float(
                 tp.opt()
             });
         }
-        let wp = win_alloc(unsafe { tp_last.as_mut() }, false);
+        let wp = win_alloc(crate::globals::GraphPtr::of(tp_last).opt_mut(), false);
         win_init(wp, curwin_mut(), 0);
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
             wp.w_onebuf_opt.wo_wbr.clear_option_str();
@@ -331,10 +332,14 @@ pub fn win_float_remove(bang: bool, mut count: i32) {
         }
     }
     if !float_win_arr.is_empty() {
-        float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(unsafe { (*w).w_config.zindex }));
+        float_win_arr.sort_unstable_by_key(|&w| {
+            std::cmp::Reverse(crate::globals::GraphPtr::of(w).borrow().w_config.zindex)
+        });
     }
     for w in float_win_arr {
-        if win_valid(unsafe { w.as_ref() }) && !win_close(unsafe { &mut *w }, false, false) {
+        if win_valid(crate::globals::GraphPtr::of(w).opt())
+            && !win_close(crate::globals::GraphPtr::of(w).borrow_mut(), false, false)
+        {
             break;
         }
         if !bang {
@@ -413,7 +418,7 @@ pub fn win_float_find_altwin(
     } else {
         tp.tp_firstwin.as_ptr()
     };
-    if let Some(wp_ref) = unsafe { wp.as_mut() }
+    if let Some(wp_ref) = crate::globals::GraphPtr::of(wp).opt_mut()
         && !ptr::eq(wp, win)
         && wp_ref.w_config.focusable
         && !wp_ref.w_config.hide

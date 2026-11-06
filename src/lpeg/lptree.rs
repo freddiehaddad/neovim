@@ -382,13 +382,13 @@ fn numtree(l: *mut lua_State, mut n: i32) -> &'static mut TTree {
         if n == 0 {
             newleaf(l, TTRUE)
         } else {
-            let tree: *mut TTree;
-            let nd: *mut TTree = if n > 0 {
-                tree = newtree(l, 2 * n - 1);
+            let tree;
+            let nd = if n > 0 {
+                tree = ptr::from_mut(newtree(l, 2 * n - 1));
                 tree
             } else {
                 n = -n;
-                tree = newtree(l, 2 * n);
+                tree = ptr::from_mut(newtree(l, 2 * n));
                 (*tree).tag = TNOT;
                 sib1(tree)
             };
@@ -533,7 +533,7 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> i32 {
             ptr::copy_nonoverlapping(tree1, sib1(tree), size1 as usize);
         } else {
             n = -n;
-            let mut tree: *mut TTree = newtree(l, n * (size1 + 3) - 1);
+            let mut tree = ptr::from_mut(newtree(l, n * (size1 + 3) - 1));
             while n > 1 {
                 (*tree).tag = TCHOICE;
                 (*tree).u.ps = n * (size1 + 3) - 2;
@@ -803,7 +803,7 @@ unsafe extern "C-unwind" fn lp_constcapture(l: *mut lua_State) -> i32 {
         } else if n == 1 {
             newemptycapkey(l, CCONST, 1);
         } else {
-            let mut tree: *mut TTree = newtree(l, 1 + 3 * (n - 1) + 2);
+            let mut tree = ptr::from_mut(newtree(l, 1 + 3 * (n - 1) + 2));
             newktable(l, n);
             (*tree).tag = TCAPTURE;
             (*tree).cap = CGROUP;

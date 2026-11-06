@@ -1084,6 +1084,20 @@ impl_sym_graph_eq!(WinInfoInfo, FileBuf, TabPageInfo, Frame);
 
 impl<T> Eq for GraphPtr<T> {}
 
+impl<T> PartialOrd for GraphPtr<T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for GraphPtr<T> {
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.0 as usize).cmp(&(other.0 as usize))
+    }
+}
+
 impl<T> std::fmt::Debug for GraphPtr<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Pointer::fmt(&self.as_ptr(), f)
@@ -1242,6 +1256,20 @@ impl<T> AsGraphPtr<T> for &*mut T {
     }
 }
 
+impl<T> AsGraphPtr<T> for *const T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::new(self.cast_mut())
+    }
+}
+
+impl<T> AsGraphPtr<T> for &*const T {
+    #[inline(always)]
+    fn into_graph_ptr(self) -> GraphPtr<T> {
+        GraphPtr::new((*self).cast_mut())
+    }
+}
+
 impl<T> GraphPtr<T> {
     pub const NULL: Self = Self(ptr::null_mut());
 
@@ -1330,6 +1358,11 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
+    pub const fn cstr<'a>(s: &std::ffi::CStr) -> &'a std::ffi::CStr {
+        unsafe { &*(s as *const std::ffi::CStr) }
+    }
+
+    #[inline(always)]
     pub const fn wrapping_add(self, count: usize) -> Self {
         Self::new(self.as_ptr().wrapping_add(count))
     }
@@ -1337,6 +1370,126 @@ impl<T> GraphPtr<T> {
     #[inline(always)]
     pub const fn wrapping_sub(self, count: usize) -> Self {
         Self::new(self.as_ptr().wrapping_sub(count))
+    }
+
+    #[inline(always)]
+    pub const fn wrapping_offset(self, count: isize) -> Self {
+        Self::new(self.as_ptr().wrapping_offset(count))
+    }
+
+    #[inline(always)]
+    pub const fn add(self, count: usize) -> Self {
+        self.wrapping_add(count)
+    }
+
+    #[inline(always)]
+    pub const fn sub(self, count: usize) -> Self {
+        self.wrapping_sub(count)
+    }
+
+    #[inline(always)]
+    pub const fn offset(self, count: isize) -> Self {
+        self.wrapping_offset(count)
+    }
+
+    #[inline(always)]
+    pub fn offset_from(self, origin: impl AsGraphPtr<T>) -> isize {
+        unsafe { self.0.offset_from(origin.into_graph_ptr().as_ptr()) }
+    }
+
+    #[inline(always)]
+    pub const fn cast_const(self) -> Self {
+        self
+    }
+
+    #[inline(always)]
+    pub const fn cast_mut(self) -> Self {
+        self
+    }
+
+    #[inline(always)]
+    pub fn addr(self) -> usize {
+        self.0 as usize
+    }
+
+    #[inline(always)]
+    pub fn copy_to(src: impl AsGraphPtr<T>, dst: impl AsGraphPtr<T>, count: usize) {
+        if count > 0 {
+            unsafe {
+                ptr::copy(
+                    src.into_graph_ptr().as_ptr().cast_const(),
+                    dst.into_graph_ptr().as_ptr(),
+                    count,
+                );
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn write_bytes(dst: impl AsGraphPtr<T>, val: u8, count: usize) {
+        if count > 0 {
+            unsafe {
+                ptr::write_bytes(dst.into_graph_ptr().as_ptr(), val, count);
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn raw_slice<'a>(ptr: impl AsGraphPtr<T>, len: usize) -> &'a [T] {
+        let p = ptr.into_graph_ptr().as_ptr().cast_const();
+        if p.is_null() || len == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(p, len) }
+        }
+    }
+
+    #[inline(always)]
+    pub fn raw_slice_mut<'a>(ptr: impl AsGraphPtr<T>, len: usize) -> &'a mut [T] {
+        let p = ptr.into_graph_ptr().as_ptr();
+        if p.is_null() || len == 0 {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(p, len) }
+        }
+    }
+
+    #[inline(always)]
+    pub fn into_box(self) -> Box<T> {
+        unsafe { Box::from_raw(self.0) }
+    }
+
+    #[inline(always)]
+    pub fn drop_box(self) {
+        if !self.0.is_null() {
+            unsafe {
+                drop(Box::from_raw(self.0));
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn into_cstring(self) -> std::ffi::CString {
+        unsafe { std::ffi::CString::from_raw(self.0.cast()) }
+    }
+
+    #[inline(always)]
+    pub fn drop_cstring(self) {
+        if !self.0.is_null() {
+            unsafe {
+                drop(std::ffi::CString::from_raw(self.0.cast()));
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn replace_val(self, src: T) -> T {
+        unsafe { ptr::replace(self.0, src) }
+    }
+
+    #[inline(always)]
+    pub fn extend_slice_lifetime<'a>(s: &[T]) -> &'a [T] {
+        unsafe { &*(s as *const [T]) }
     }
 }
 
@@ -1572,6 +1725,7 @@ pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
 }
 
 #[allow(non_upper_case_globals)]
+#[unsafe(no_mangle)]
 pub static starting: GlobalState<i32> = GlobalState::new(NO_SCREEN);
 
 #[inline(always)]

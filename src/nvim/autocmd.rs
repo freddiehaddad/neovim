@@ -1519,7 +1519,7 @@ fn au_show_for_all_events(group: i32, pat: &CStr) {
 
 fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
     let acs = &raw mut au_st().autocmds[event as usize];
-    if unsafe { (*acs).is_empty() } {
+    if crate::globals::GraphPtr::of(acs).borrow_mut().is_empty() {
         return;
     }
 
@@ -1551,7 +1551,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
             pat_opt = Some(norm);
         }
 
-        for ac in unsafe { &mut *acs } {
+        for ac in crate::globals::GraphPtr::of(acs).borrow_mut() {
             let Some(ref ap) = ac.pat else {
                 continue;
             };
@@ -2789,7 +2789,9 @@ pub fn apply_autocmds_group(
                     || event == EVENT_MARKSET
                 {
                     ptr::null_mut()
-                } else if !fname.is_null() && ends_excmd(unsafe { *fname as i32 }) == 0 {
+                } else if !fname.is_null()
+                    && ends_excmd(*crate::globals::GraphPtr::of(fname).borrow() as i32) == 0
+                {
                     fname
                 } else if !buf.is_null() {
                     buf.ffname_opt()
@@ -2813,7 +2815,7 @@ pub fn apply_autocmds_group(
             g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum };
 
             let mut sfname_owned: Option<CString> = None;
-            let fname_owned: Option<CString> = if fname.is_null() || unsafe { *fname == 0 } {
+            let fname_owned: Option<CString> = if crate::strings::AsByteSlice::is_empty_val(fname) {
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {
@@ -3410,7 +3412,10 @@ pub fn aucmd_set_expand_context<'a>(
 
     if arg.to_bytes().is_empty()
         && group != AUGROUP_ALL
-        && !ascii_iswhite(unsafe { *arg.as_ptr().cast::<u8>().wrapping_sub(1) } as i32)
+        && !ascii_iswhite(
+            *crate::globals::GraphPtr::of(arg.as_ptr().cast::<u8>().wrapping_sub(1)).borrow()
+                as i32,
+        )
     {
         arg = p;
         group = AUGROUP_ALL;

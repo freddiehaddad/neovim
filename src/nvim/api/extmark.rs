@@ -212,7 +212,7 @@ pub fn nvim_create_namespace(name: NvimString) -> Integer {
     g_st().next_namespace_id += 1;
     if !name_bytes.is_empty() {
         g_st().namespace_ids.push((
-            unsafe { std::ffi::CString::from_vec_unchecked(name_bytes.to_vec()) },
+            std::ffi::CString::new(name_bytes.to_vec()).unwrap_or_default(),
             id,
         ));
     }

@@ -78,7 +78,7 @@ pub fn ex_trust(eap: &mut Exarg) {
     let arg = crate::strings::ByteSliceExt::as_ptr(eap.arg);
     let p = crate::charset::skiptowhite_ptr(arg);
     let arg1_len = (p as usize) - (arg as usize);
-    let arg1_bytes = unsafe { std::slice::from_raw_parts((arg).cast::<u8>(), arg1_len) };
+    let arg1_bytes = crate::strings::AsByteSlice::slice_len(arg, arg1_len);
     let mut action = c"allow";
     let path_ptr = crate::charset::skipwhite_ptr(p);
 
@@ -92,7 +92,7 @@ pub fn ex_trust(eap: &mut Exarg) {
         return;
     }
 
-    let path = if unsafe { *path_ptr } == 0 {
+    let path = if *crate::globals::GraphPtr::of(path_ptr).borrow() == 0 {
         None
     } else {
         Some(crate::strings::ByteSlice::from_ptr(path_ptr).as_cstr())

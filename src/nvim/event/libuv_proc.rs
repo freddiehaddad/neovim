@@ -197,8 +197,8 @@ fn libuv_proc_stdio(
 
 /// @returns zero on success, or negative error code
 pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
-    let proc_: *mut Proc = &raw mut uvproc.proc_;
-    let proc_ = unsafe { &mut *proc_ };
+    let proc_ = crate::globals::GraphPtr::<Proc>::of(&raw mut uvproc.proc_).as_ptr();
+    let proc_ = crate::globals::GraphPtr::of(proc_).borrow_mut();
     let uv: *mut uv_handle_t = (&raw mut uvproc.uv).cast();
 
     #[cfg(windows)]

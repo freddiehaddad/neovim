@@ -650,7 +650,10 @@ pub fn evalvars_init() {
     vvlua_pt.pt_name = Some(std::ffi::CString::default());
     vvlua_pt.pt_refcount = 1;
     let vvlua_partial = Box::into_raw(Box::new(vvlua_pt));
-    set_vim_var_partial(VV_LUA, unsafe { vvlua_partial.as_mut() });
+    set_vim_var_partial(
+        VV_LUA,
+        crate::globals::GraphPtr::of(vvlua_partial).opt_mut(),
+    );
 
     set_reg_var(0);
 
@@ -944,7 +947,7 @@ pub fn eval_one_expr_in_str<'a>(
 
 /// Evaluate all the Vim expressions {expr} in "str" and return the resulting string as an owned `CString`.
 fn eval_all_expr_in_str(str_arg_in: &CStr) -> Option<std::ffi::CString> {
-    let str_arg: *const u8 = str_arg_in.as_ptr().cast();
+    let str_arg = str_arg_in.as_ptr().cast::<u8>();
     let full_bytes = str_arg_in.to_bytes();
     let mut rem = full_bytes;
     let mut buf: Vec<u8> = Vec::with_capacity(80);
@@ -1000,7 +1003,7 @@ pub fn heredoc_get(
     cmd_in: &CStr,
     script_get: bool,
 ) -> Option<&'static mut TvList> {
-    let cmd: *const u8 = cmd_in.as_ptr().cast();
+    let cmd = cmd_in.as_ptr().cast::<u8>();
     let mut marker_indent_len: i32 = 0;
     let mut text_indent_len: i32 = 0;
     let mut text_indent: Option<Vec<u8>> = None;
@@ -1010,7 +1013,7 @@ pub fn heredoc_get(
         .position(|&b| b == b'\n')
         .unwrap_or(full_cmd_bytes.len());
     let heredoc_in_string = cmd_line_len < full_cmd_bytes.len();
-    let mut line_arg: *const u8 = if heredoc_in_string {
+    let mut line_arg = crate::globals::GraphPtr::<u8>::of(if heredoc_in_string {
         cmd.wrapping_add(cmd_line_len + 1)
     } else {
         if eap.ea_getline.is_none() {
@@ -1018,7 +1021,9 @@ pub fn heredoc_get(
             return None;
         }
         ptr::null()
-    };
+    })
+    .as_ptr()
+    .cast_const();
 
     let mut cmd_rem = crate::charset::skipwhite_slice(&full_cmd_bytes[..cmd_line_len]);
     let mut evalstr = false;
@@ -1195,9 +1200,9 @@ pub fn ex_let(eap: &mut Exarg) {
             .is_some_and(|&b| matches!(b, b'+' | b'-' | b'*' | b'/' | b'%' | b'.'))
             && expr_bytes.get(1) == Some(&b'='));
     if !has_assign && !concat {
-        if unsafe { *arg as u8 } == b'[' {
+        if crate::strings::AsByteSlice::first_byte_val(arg) == b'[' {
             emsg(gettext(E_INVARG));
-        } else if ends_excmd(unsafe { *arg as u8 }) == 0 {
+        } else if ends_excmd(crate::strings::AsByteSlice::first_byte_val(arg)) == 0 {
             arg = list_arg_vars(
                 eap,
                 crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
@@ -1391,9 +1396,9 @@ pub fn skip_var_list<'a>(
             *var_count += 1;
 
             p = crate::charset::skipwhite_ptr(s.cast::<std::ffi::c_char>()).cast();
-            if unsafe { *p } == b']' {
+            if *crate::globals::GraphPtr::of(p).borrow() == b']' {
                 break;
-            } else if unsafe { *p } == b';' {
+            } else if *crate::globals::GraphPtr::of(p).borrow() == b';' {
                 if *semicolon == 1 {
                     if !silent {
                         emsg(gettext(E_DOUBLE_SEMICOLON_IN_LIST_OF_VARIABLES));
@@ -1401,7 +1406,7 @@ pub fn skip_var_list<'a>(
                     return None;
                 }
                 *semicolon = 1;
-            } else if unsafe { *p } != b',' {
+            } else if *crate::globals::GraphPtr::of(p).borrow() != b',' {
                 if !silent {
                     semsg!(gettext(E_INVARG2), crate::strings::ByteSlice::from_ptr(p));
                 }
@@ -1496,7 +1501,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
     let mut error = false;
     let mut tv: TypVal = TypVal::new();
 
-    while ends_excmd(unsafe { *arg }) == 0 && !g_st().got_int {
+    while ends_excmd(*crate::globals::GraphPtr::of(arg).borrow()) == 0 && !g_st().got_int {
         if error || eap.skip {
             arg = find_name_end(
                 crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
@@ -1506,7 +1511,9 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             .as_ptr()
             .cast_mut()
             .cast();
-            if !ascii_iswhite(unsafe { *arg }) && ends_excmd(unsafe { *arg }) == 0 {
+            if !ascii_iswhite(*crate::globals::GraphPtr::of(arg).borrow())
+                && ends_excmd(*crate::globals::GraphPtr::of(arg).borrow()) == 0
+            {
                 g_st().emsg_severe = true;
                 semsg!(
                     gettext(E_TRAILING_ARG),
@@ -1556,10 +1563,9 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                     } else {
                         if arg == arg_subsc
                             && len == 2
-                            && unsafe { std::slice::from_raw_parts((name).cast::<u8>(), 2) }.get(1)
-                                == Some(&b':')
+                            && crate::strings::AsByteSlice::slice_len(name, 2).get(1) == Some(&b':')
                         {
-                            match unsafe { *name } {
+                            match *crate::globals::GraphPtr::of(name).borrow() {
                                 b'g' => list_glob_vars(first),
                                 b'b' => list_buf_vars(first),
                                 b'w' => list_win_vars(first),
@@ -1681,15 +1687,21 @@ fn ex_let_option<'a>(
     let mut opt_flags: i32 = 0;
 
     let mut arg_cstr = arg_in;
-    let p: *mut u8 = find_option_var_end(&mut arg_cstr, &mut opt_idx, &mut opt_flags)
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-    let arg_name: *mut u8 = arg_cstr.as_ptr().cast_mut().cast();
+    let p = crate::globals::GraphPtr::<u8>::of(
+        find_option_var_end(&mut arg_cstr, &mut opt_idx, &mut opt_flags)
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
+    )
+    .as_ptr();
+    let arg_name = arg_cstr.as_ptr().cast_mut().cast::<u8>();
 
     if p.is_null()
         || endchars.is_some_and(|ec| {
-            !crate::strings::vim_haschr(ec, unsafe {
-                *crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()) as u8
-            } as i32)
+            !crate::strings::vim_haschr(
+                ec,
+                i32::from(crate::strings::AsByteSlice::first_byte_val(
+                    crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()),
+                )),
+            )
         })
     {
         emsg(gettext(E_LETUNEXP));
@@ -1697,7 +1709,7 @@ fn ex_let_option<'a>(
     }
 
     let opt_len = (p as usize).wrapping_sub(arg_name as usize);
-    let opt_bytes = unsafe { std::slice::from_raw_parts((arg_name).cast::<u8>(), opt_len) };
+    let opt_bytes = crate::strings::AsByteSlice::slice_len(arg_name, opt_len);
     let opt_cstr = bytes_to_cstring(opt_bytes);
 
     let is_tty_opt = is_tty_option(opt_bytes);
@@ -1990,8 +2002,7 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     let ll_name = lp.ll_name.unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
-        let name_slice =
-            unsafe { std::slice::from_raw_parts((ll_name.as_ptr()).cast::<u8>(), lp.ll_name_len) };
+        let name_slice = crate::strings::AsByteSlice::slice_len(ll_name.as_ptr(), lp.ll_name_len);
         if name_slice.first() == Some(&b'$') {
             let env_cstr = bytes_to_cstring(&name_slice[1..]);
             vim_unsetenv_ext(env_cstr.as_c_str());
@@ -2093,8 +2104,10 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             }
         }
 
-        let mut hi: *mut Hashitem = hash_find(ht.borrow(), varname.as_cstr());
-        if hashitem_empty(unsafe { &*hi }) {
+        let mut hi =
+            crate::globals::GraphPtr::<Hashitem>::of(hash_find(ht.borrow(), varname.as_cstr()))
+                .as_ptr();
+        if hashitem_empty(crate::globals::GraphPtr::of(hi).borrow()) {
             let mut ht_opt: Option<&'static mut Hashtab> = Some(ht.borrow_mut());
             hi = find_hi_in_scoped_ht(name.as_cstr(), &mut ht_opt)
                 .map_or(ptr::null_mut(), ptr::from_mut);
@@ -2102,8 +2115,8 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
                 ht = crate::globals::GraphPtr::<Hashtab>::of(h);
             }
         }
-        if !hi.is_null() && !hashitem_empty(unsafe { &*hi }) {
-            let di = tv_dict_hi2di(unsafe { &*hi });
+        if !hi.is_null() && !hashitem_empty(crate::globals::GraphPtr::of(hi).borrow()) {
+            let di = tv_dict_hi2di(crate::globals::GraphPtr::of(hi).borrow());
             let d_lock = d.dv_lock;
             if var_check_fixed(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
                 || var_check_ro(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
@@ -2123,7 +2136,10 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
                 tv_copy(&di.di_tv, &mut oldtv);
             }
 
-            delete_var(ht.borrow_mut(), unsafe { &mut *hi });
+            delete_var(
+                ht.borrow_mut(),
+                crate::globals::GraphPtr::of(hi).borrow_mut(),
+            );
 
             if watched {
                 tv_dict_watcher_notify(dict_opt.unwrap(), varname_cstr, None, Some(&oldtv));
@@ -2408,7 +2424,10 @@ pub fn set_vim_var_string(idx: VimVarIndex, val: Option<&CStr>, len: isize) {
     } else {
         crate::eval::typval::tv_set_string_len(
             tv,
-            Some(unsafe { std::slice::from_raw_parts((val.as_ptr()).cast::<u8>(), len as usize) }),
+            Some(crate::strings::AsByteSlice::slice_len(
+                val.as_ptr(),
+                len as usize,
+            )),
         );
     }
 }
@@ -2635,7 +2654,7 @@ pub fn find_var(
     }
 
     find_var_in_scoped_ht(
-        unsafe { std::slice::from_raw_parts((name.as_ptr()).cast::<u8>(), name_len) },
+        crate::strings::AsByteSlice::slice_len(name.as_ptr(), name_len),
         i32::from(no_autoload != 0 || has_htp),
     )
 }
@@ -2671,7 +2690,7 @@ pub fn find_var_in_ht(
             b'a' => get_funccal_args_var().map_or(ptr::null_mut(), ptr::from_mut),
             _ => ptr::null_mut(),
         };
-        return unsafe { ptr.as_mut() };
+        return crate::globals::GraphPtr::of(ptr).opt_mut();
     }
 
     let varname_slice = varname_ptr.slice(varname_len);
@@ -2827,7 +2846,7 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
             v.di_tv.v_type = VarType::VarUnknown;
         }
         if (v.di_flags & DI_FLAGS_ALLOC) != 0 {
-            drop(unsafe { Box::from_raw(v) });
+            crate::globals::GraphPtr::of(v).drop_box();
         } else if free_val {
             tv_clear(&mut v.di_tv);
         }
@@ -3255,14 +3274,17 @@ fn get_var_from(
 
                 g_st().curbuf = save_curbuf;
             } else if varname_cstr.to_bytes().is_empty() {
-                let v: *const ScopeDictDictItem = if htname == b'b' as i32 {
-                    &raw const buf.b_bufvar
-                } else if htname == b'w' as i32 {
-                    (&raw const win.w_winvar).cast()
-                } else {
-                    (&raw const tp.tp_winvar).cast()
-                };
-                tv_copy(unsafe { &(*v).di_tv }, rettv);
+                let v =
+                    crate::globals::GraphPtr::<ScopeDictDictItem>::of(if htname == b'b' as i32 {
+                        &raw const buf.b_bufvar
+                    } else if htname == b'w' as i32 {
+                        (&raw const win.w_winvar).cast()
+                    } else {
+                        (&raw const tp.tp_winvar).cast()
+                    })
+                    .as_ptr()
+                    .cast_const();
+                tv_copy(&crate::globals::GraphPtr::of(v).borrow().di_tv, rettv);
                 done = true;
             } else {
                 let ht = if htname == b'b' as i32 {
@@ -3303,9 +3325,13 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     } else {
         g_st().curtab.as_ptr()
     };
-    let win: *mut WinInfoInfo = unsafe { tp.as_mut() }
-        .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
-        .map_or(ptr::null_mut(), |w| w);
+    let win = crate::globals::GraphPtr::<WinInfoInfo>::of(
+        crate::globals::GraphPtr::of(tp)
+            .opt_mut()
+            .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
+            .map_or(ptr::null_mut(), |w| w),
+    )
+    .as_ptr();
     let varname = tv_get_string_chk(&head[off + 1]);
 
     get_var_from(
@@ -3313,8 +3339,8 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
         rettv,
         &mut tail[0],
         b'w' as i32,
-        unsafe { tp.as_mut() },
-        unsafe { win.as_mut() },
+        crate::globals::GraphPtr::of(tp).opt_mut(),
+        crate::globals::GraphPtr::of(win).opt_mut(),
         None,
     );
 }
@@ -3464,9 +3490,13 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     } else {
         g_st().curtab.as_ptr()
     };
-    let win: *mut WinInfoInfo = unsafe { tp.as_mut() }
-        .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
-        .map_or(ptr::null_mut(), |w| w);
+    let win = crate::globals::GraphPtr::<WinInfoInfo>::of(
+        crate::globals::GraphPtr::of(tp)
+            .opt_mut()
+            .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
+            .map_or(ptr::null_mut(), |w| w),
+    )
+    .as_ptr();
     let varname = tv_get_string_chk(&head[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     if win.is_null() || varname.is_null() {
@@ -3478,13 +3508,13 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     if !need_switch_win
         || ctx_switch(
             &mut switchwin,
-            unsafe { win.as_mut() },
-            unsafe { tp.as_mut() },
+            crate::globals::GraphPtr::of(win).opt_mut(),
+            crate::globals::GraphPtr::of(tp).opt_mut(),
             None,
             K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
         )
     {
-        if unsafe { *varname as u8 } == b'&' {
+        if crate::strings::AsByteSlice::first_byte_val(varname) == b'&' {
             set_option_from_tv(
                 crate::strings::ByteSlice::from_ptr(varname.wrapping_add(1)).as_cstr(),
                 varp,
@@ -3496,9 +3526,10 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
             let mut winvarname = Vec::with_capacity(varname_len + 3);
             winvarname.push(b'w');
             winvarname.push(b':');
-            winvarname.extend_from_slice(unsafe {
-                std::slice::from_raw_parts((varname).cast::<u8>(), varname_len + 1)
-            });
+            winvarname.extend_from_slice(crate::strings::AsByteSlice::slice_len(
+                varname,
+                varname_len + 1,
+            ));
             set_var(&winvarname[..varname_len + 2], varp, true);
         }
     }
@@ -3565,7 +3596,8 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
     let name_cstr = name.to_owned();
     vars_st().redir_varname = Some(name_cstr);
     vars_st().redir_lval = Some(Lval::new());
-    let lval_ptr: *mut Lval = vars_st().redir_lval.as_mut().unwrap();
+    let lval_ptr =
+        crate::globals::GraphPtr::<Lval>::of(vars_st().redir_lval.as_mut().unwrap()).as_ptr();
 
     vars_st().redir_buf.clear();
 
@@ -3573,17 +3605,20 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
     vars_st().borrow_mut().redir_endp = get_lval(
         vn_cstr,
         None,
-        unsafe { &mut *lval_ptr },
+        crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
         false,
         false,
         0,
         FNE_CHECK_START,
     )
-    .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
+    .map(crate::globals::GraphPtr::<u8>::cstr);
     if vars_st()
         .redir_endp
         .is_none_or(|s| !s.to_bytes().is_empty())
-        || unsafe { (*lval_ptr).ll_name.is_none() }
+        || crate::globals::GraphPtr::of(lval_ptr)
+            .borrow_mut()
+            .ll_name
+            .is_none()
     {
         if let Some(endp) = vars_st().redir_endp.filter(|s| !s.to_bytes().is_empty()) {
             semsg!(gettext(E_TRAILING_ARG), endp);
@@ -3605,7 +3640,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
     let endp_cstr = vars_st().redir_endp.unwrap_or(c"");
     if append {
         set_var_lval(
-            unsafe { &mut *lval_ptr },
+            crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
             endp_cstr,
             &mut tv,
             true,
@@ -3614,7 +3649,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         );
     } else {
         set_var_lval(
-            unsafe { &mut *lval_ptr },
+            crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
             endp_cstr,
             &mut tv,
             true,
@@ -3622,9 +3657,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
             Some(c"="),
         );
     }
-    unsafe {
-        *lval_ptr = Lval::new();
-    }
+    *crate::globals::GraphPtr::of(lval_ptr).borrow_mut() = Lval::new();
     if g_st().called_emsg > called_emsg_before {
         vars_st().redir_endp = None;
         var_redir_stop();
@@ -3648,7 +3681,7 @@ pub fn var_redir_str(value: &[u8]) {
 /// Stop redirecting command output to a variable.
 pub fn var_redir_stop() {
     let rl = &raw mut vars_st().redir_lval;
-    if let Some(ref mut lval) = *unsafe { &mut (*rl) } {
+    if let Some(ref mut lval) = *crate::globals::GraphPtr::of(rl).borrow_mut() {
         let lval_ptr = crate::globals::GraphPtr::<Lval>::from_ref(lval);
         if vars_st().redir_endp.is_some() {
             vars_st().redir_buf.push(0);
@@ -3672,7 +3705,7 @@ pub fn var_redir_stop() {
                 0,
                 FNE_CHECK_START,
             )
-            .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
+            .map(crate::globals::GraphPtr::<u8>::cstr);
 
             if let Some(endp) = vars_st().redir_endp
                 && lval_ptr.ll_name.is_some()
@@ -3690,9 +3723,7 @@ pub fn var_redir_stop() {
 
         vars_st().redir_buf = Vec::new();
 
-        unsafe {
-            *rl = None;
-        }
+        *crate::globals::GraphPtr::of(rl).borrow_mut() = None;
     }
     vars_st().redir_varname = None;
 }
@@ -3786,7 +3817,7 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
 
     if valid_tabpage(save_curtab.opt()) {
         goto_tabpage_tp(save_curtab.opt_mut(), false, false);
-        if valid_tabpage(unsafe { save_lu_tp.as_ref() }) {
+        if valid_tabpage(crate::globals::GraphPtr::of(save_lu_tp).opt()) {
             g_st().lastused_tabpage = crate::globals::TabpagePtr::new(save_lu_tp);
         }
     }

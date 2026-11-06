@@ -212,7 +212,7 @@ impl PopupmenuState {
         if self.array.is_null() || self.size <= 0 {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.array.as_ptr(), self.size as usize) }
+            crate::globals::GraphPtr::raw_slice(self.array.as_ptr(), self.size as usize)
         }
     }
 
@@ -427,7 +427,7 @@ fn pum_border_width() -> i32 {
 
 /// Show the popup menu with items `items` (`pum_display`).
 pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cmd_startcol: i32) {
-    let array: *mut Pumitem = items.as_mut_ptr();
+    let array = crate::globals::GraphPtr::<Pumitem>::of(items.as_mut_ptr()).as_ptr();
     let size = items.len() as i32;
     let mut redo_count: i32 = 0;
 
@@ -493,7 +493,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
             }
         }
 
-        if let Some(target_win) = unsafe { target_win.as_ref() } {
+        if let Some(target_win) = crate::globals::GraphPtr::of(target_win).opt() {
             pum().anchor_grid = target_win.w_grid.target.handle;
 
             pum_win_row += target_win.w_grid.row_offset;
@@ -592,7 +592,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
 
         pum_compute_vertical_placement(
             size,
-            unsafe { target_win.as_mut() },
+            crate::globals::GraphPtr::of(target_win).opt_mut(),
             pum_win_row,
             above_row,
             below_row,
@@ -614,7 +614,11 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
 
         pum().scrollbar = if pum().height < size { 1 } else { 0 };
 
-        pum_compute_horizontal_placement(unsafe { target_win.as_ref() }, cursor_col, border_width);
+        pum_compute_horizontal_placement(
+            crate::globals::GraphPtr::of(target_win).opt(),
+            cursor_col,
+            border_width,
+        );
 
         if !(pum_set_selected(selected, redo_count) && {
             redo_count += 1;

@@ -1086,9 +1086,10 @@ impl CAbiString {
             data: if self.data.is_null() {
                 None
             } else {
-                Some(unsafe {
-                    std::slice::from_raw_parts(self.data.as_ptr().cast::<u8>(), self.size + 1)
-                })
+                Some(crate::globals::GraphPtr::raw_slice(
+                    self.data.as_ptr().cast::<u8>(),
+                    self.size + 1,
+                ))
             },
             size: self.size,
         }

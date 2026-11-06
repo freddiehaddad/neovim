@@ -209,7 +209,9 @@ pub fn multiqueue_new_child(parent: &mut MultiQueue) -> &'static mut MultiQueue 
 
 impl Drop for MultiQueue {
     fn drop(&mut self) {
-        let self_ptr: *const MultiQueue = self;
+        let self_ptr = crate::globals::GraphPtr::<MultiQueue>::of(&self)
+            .as_ptr()
+            .cast_const();
         if !self.parent.is_null() && !self.items.is_empty() {
             self.parent
                 .items
@@ -220,9 +222,7 @@ impl Drop for MultiQueue {
 
 /// Free a `MultiQueue` and all queued items (`multiqueue_free`).
 pub fn multiqueue_free(this: &mut MultiQueue) {
-    unsafe {
-        drop(Box::from_raw(this));
-    }
+    crate::globals::GraphPtr::from(this).drop_box();
 }
 
 fn multiqueue_remove(this: &mut MultiQueue) -> Event {

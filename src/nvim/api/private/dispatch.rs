@@ -15993,7 +15993,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) -> i32 
                         arg3,
                         arg4,
                         &mut arena,
-                        unsafe { lstate.as_mut() },
+                        crate::globals::GraphPtr::of(lstate).opt_mut(),
                         &mut err,
                     );
                     debug_assert!(
@@ -16253,7 +16253,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                                 arg5,
                                 &mut arg6,
                                 &mut arena,
-                                unsafe { lstate.as_mut() },
+                                crate::globals::GraphPtr::of(lstate).opt_mut(),
                                 &mut err,
                             );
                             debug_assert!(

@@ -33,7 +33,6 @@ use crate::state::{
 use crate::strings::gettext;
 use crate::ui::ui_call_update_menu;
 use std::ffi::CStr;
-use std::ptr;
 
 const CTRL_BSL_CONST: u8 = 28;
 
@@ -253,7 +252,7 @@ pub fn ex_menu(eap: &mut Exarg) {
     if (arg).as_bytes().starts_with(b"icon=") {
         arg = arg.wrapping_add(5);
         let mut arg_len = (arg).len();
-        let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
+        let arg_slice = crate::globals::GraphPtr::raw_slice_mut(arg.cast::<u8>(), arg_len + 1);
         let mut idx = 0;
         while idx < arg_len && arg_slice[idx] != b' ' {
             if arg_slice[idx] == b'\\' {
@@ -338,10 +337,10 @@ pub fn ex_menu(eap: &mut Exarg) {
     }
 
     let arg_len = (arg).len();
-    let arg_buf = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
+    let arg_buf = crate::globals::GraphPtr::raw_slice_mut(arg.cast::<u8>(), arg_len + 1);
     let map_to_off = menu_translate_tab_and_shift(arg_buf);
     let mut map_to = arg.cast::<u8>().wrapping_add(map_to_off);
-    let map_to_empty = unsafe { *map_to == 0 };
+    let map_to_empty = crate::strings::AsByteSlice::is_empty_val(map_to);
     let mut menu_path = (menu_path_ptr).as_cstr();
 
     if map_to_empty && !unmenu && enable == K_NONE {
@@ -458,7 +457,7 @@ fn add_menu_path(
 
     let cleanup_erret = |ancestor_stack: &[(*mut Vec<Vimmenu>, usize)]| -> bool {
         for &(mp, idx) in ancestor_stack.iter().rev() {
-            let mp_ref = unsafe { &mut *mp };
+            let mp_ref = crate::globals::GraphPtr::of(mp).borrow_mut();
             if mp_ref[idx].children.is_empty() {
                 mp_ref.remove(idx);
             } else {
@@ -1054,7 +1053,10 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
             menu_st().expand_modes = MENU_ALL_MODES;
         }
 
-        let mut menu_list: *const Vec<Vimmenu> = &raw const g_st().root_menu;
+        let mut menu_list =
+            crate::globals::GraphPtr::<Vec<Vimmenu>>::of(&raw const g_st().root_menu)
+                .as_ptr()
+                .cast_const();
         if after_dot_idx > arg_start_idx {
             let path_len = after_dot_idx - arg_start_idx;
             let mut path_name_vec = vec![0; path_len];
@@ -1064,8 +1066,10 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
                 let next_off = name_off + menu_name_skip(&mut path_name_vec[name_off..]);
                 let cur_bytes = crate::memory::bytes_until_nul(&path_name_vec[name_off..]);
                 let next_non_empty = path_name_vec.get(next_off).is_some_and(|&b| b != 0);
-                let mut found: *const Vimmenu = ptr::null();
-                for menu in unsafe { &*menu_list } {
+                let mut found = crate::globals::GraphPtr::<Vimmenu>::NULL
+                    .as_ptr()
+                    .cast_const();
+                for menu in crate::globals::GraphPtr::of(menu_list).borrow() {
                     if menu_name_equal(cur_bytes, menu) {
                         if (next_non_empty && menu.children.is_empty())
                             || (menu.modes & menu_st().expand_modes) == 0
@@ -1080,7 +1084,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
                     return;
                 }
                 name_off = next_off;
-                menu_list = unsafe { &raw const (*found).children };
+                menu_list = &raw const crate::globals::GraphPtr::of(found).borrow().children;
             }
         }
 
@@ -1735,7 +1739,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         arg = from_arg.wrapping_add(part1_len);
         let to_arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast::<u8>();
 
-        unsafe { *arg = 0 };
+        *crate::globals::GraphPtr::of(arg).borrow_mut() = 0;
 
         let part2_len = menu_skip_part(crate::strings::ByteSlice::from_ptr(to_arg).as_bytes());
         arg = to_arg.wrapping_add(part2_len);
@@ -1751,9 +1755,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
                 - (crate::strings::AsByteSlice::byte_addr(to_arg) as isize))
                 as usize;
             let mut to_vec: Vec<u8> = Vec::with_capacity(to_len + 1);
-            to_vec.extend_from_slice(unsafe {
-                std::slice::from_raw_parts((to_arg).cast::<u8>(), to_len)
-            });
+            to_vec.extend_from_slice(crate::strings::AsByteSlice::slice_len(to_arg, to_len));
             to_vec.push(0);
             menu_translate_tab_and_shift(&mut from_vec);
             menu_translate_tab_and_shift(&mut to_vec);

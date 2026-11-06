@@ -133,7 +133,7 @@ mod win_impl {
 
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
         unsafe {
-            let proc_: *mut Proc = context.cast();
+            let proc_ = context.cast::<Proc>();
             loop_schedule_fast(
                 (*proc_).loop_.borrow_mut(),
                 Event::PtyProcFinish(proc_.into()),
@@ -144,7 +144,7 @@ mod win_impl {
     pub(crate) fn pty_proc_close_console(stream: &mut Stream) {
         unsafe {
             let ptyproc = stream.internal_data.as_proc();
-            let proc_: *mut Proc = ptyproc;
+            let proc_ = crate::globals::GraphPtr::<Proc>::of(&ptyproc).as_ptr();
             let hdr = proc_;
             let r_out = &raw mut (*proc_).out;
             let r_fields = r_out;
@@ -173,10 +173,10 @@ mod win_impl {
     /// @returns zero on success, or negative error code.
     pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
         unsafe {
-            let proc_: *mut Proc = ptyproc;
+            let proc_ = crate::globals::GraphPtr::<Proc>::of(&ptyproc).as_ptr();
             let hdr = proc_;
             let hdr = &mut *hdr;
-            let ptail: *mut PtyProc = ptyproc;
+            let ptail = crate::globals::GraphPtr::<PtyProc>::of(&ptyproc).as_ptr();
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -354,9 +354,9 @@ mod win_impl {
     pub fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
 
     pub fn pty_proc_close(ptyproc: &mut PtyProc) {
-        let proc_: *mut Proc = ptyproc;
+        let proc_ = crate::globals::GraphPtr::<Proc>::of(&ptyproc).as_ptr();
         let proc_t = proc_;
-        let ptail = unsafe { &mut *proc_ };
+        let ptail = crate::globals::GraphPtr::of(proc_).borrow_mut();
 
         pty_proc_close_master(ptyproc);
 
@@ -370,7 +370,7 @@ mod win_impl {
         }
 
         let _ = proc_t;
-        crate::event::proc::proc_decref(unsafe { &mut *proc_ });
+        crate::event::proc::proc_decref(crate::globals::GraphPtr::of(proc_).borrow_mut());
     }
 
     pub fn pty_proc_close_master(_ptyproc: &mut PtyProc) {}
@@ -391,10 +391,10 @@ mod win_impl {
 
     pub fn pty_proc_finish(ptyproc: &mut PtyProc) {
         unsafe {
-            let proc_: *mut Proc = ptyproc;
+            let proc_ = crate::globals::GraphPtr::<Proc>::of(&ptyproc).as_ptr();
             let hdr = proc_;
             let hdr = &mut *hdr;
-            let ptail: *mut PtyProc = ptyproc;
+            let ptail = crate::globals::GraphPtr::<PtyProc>::of(&ptyproc).as_ptr();
 
             let mut exit_code: DWORD = 0;
             GetExitCodeProcess((*ptail).proc_handle, &mut exit_code);

@@ -124,7 +124,7 @@ pub fn win_alist(wp: &WinInfoInfo) -> &'static mut Alist {
         .w_alist
         .as_ref()
         .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr());
-    unsafe { &mut *ptr }
+    crate::globals::GraphPtr::of(ptr).borrow_mut()
 }
 
 #[inline]
@@ -839,30 +839,35 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             g_st().firstwin.as_ptr()
         };
         while !wp.is_null() {
-            let mut wpnext = if unsafe { (*wp).w_floating } {
-                if !unsafe { (*wp).w_prev.as_ptr() }.is_null()
-                    && unsafe { (*wp).w_prev.borrow().w_floating }
+            let mut wpnext = if crate::globals::GraphPtr::of(wp).borrow().w_floating {
+                if !crate::globals::GraphPtr::of(wp).borrow().w_prev.is_null()
+                    && crate::globals::GraphPtr::of(wp).borrow().w_prev.w_floating
                 {
-                    unsafe { (*wp).w_prev.as_ptr() }
+                    crate::globals::GraphPtr::of(wp).borrow().w_prev.as_ptr()
                 } else {
                     g_st().firstwin.as_ptr()
                 }
-            } else if unsafe { (*wp).w_next.as_ptr() }.is_null()
-                || unsafe { (*wp).w_next.borrow().w_floating }
+            } else if crate::globals::GraphPtr::of(wp).borrow().w_next.is_null()
+                || crate::globals::GraphPtr::of(wp).borrow().w_next.w_floating
             {
                 ptr::null_mut()
             } else {
-                unsafe { (*wp).w_next.as_ptr() }
+                crate::globals::GraphPtr::of(wp).borrow().w_next.as_ptr()
             };
-            let buf = unsafe { &mut *(*wp).w_buffer };
+            let buf = crate::globals::GraphPtr::of(wp)
+                .borrow_mut()
+                .w_buffer
+                .borrow_mut();
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
             if buf.b_ffname.is_none()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows > 1
-                        || unsafe { (*wp).w_width } != g_st().columns_global
-                        || (unsafe { (*wp).w_floating } && !is_ctx_win(unsafe { &*wp }))))
+                        || crate::globals::GraphPtr::of(wp).borrow().w_width
+                            != g_st().columns_global
+                        || (crate::globals::GraphPtr::of(wp).borrow().w_floating
+                            && !is_ctx_win(crate::globals::GraphPtr::of(wp).borrow()))))
             {
                 i = opened_len;
             } else {
@@ -899,8 +904,12 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 i = opened_len;
                             }
 
-                            if !ptr::eq(win_alist(unsafe { &*wp }), al.as_ptr()) {
-                                unsafe { (*wp).w_alist = aall_ref.local_alist.clone() };
+                            if !ptr::eq(
+                                win_alist(crate::globals::GraphPtr::of(wp).borrow()),
+                                al.as_ptr(),
+                            ) {
+                                crate::globals::GraphPtr::of(wp).borrow_mut().w_alist =
+                                    aall_ref.local_alist.clone();
                             }
                             break;
                         }
@@ -909,7 +918,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 }
             }
 
-            unsafe { (*wp).w_arg_idx = i };
+            crate::globals::GraphPtr::of(wp).borrow_mut().w_arg_idx = i;
 
             if i == opened_len
                 && !aall_ref.keep_tabs
@@ -922,7 +931,9 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, Some(&mut *buf));
                     autowrite(&mut *buf, false);
-                    if !win_valid(unsafe { wp.as_ref() }) || !bufref_valid(Some(&bufref)) {
+                    if !win_valid(crate::globals::GraphPtr::of(wp).opt())
+                        || !bufref_valid(Some(&bufref))
+                    {
                         wp = if lastwin_mut().w_floating {
                             g_st().lastwin.as_ptr()
                         } else {
@@ -937,8 +948,12 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     aall.use_firstwin = true;
                 } else {
                     let close_b = !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf);
-                    win_close(unsafe { &mut *wp }, close_b, false);
-                    if !win_valid(unsafe { wpnext.as_ref() }) {
+                    win_close(
+                        crate::globals::GraphPtr::of(wp).borrow_mut(),
+                        close_b,
+                        false,
+                    );
+                    if !win_valid(crate::globals::GraphPtr::of(wpnext).opt()) {
                         wpnext = if lastwin_mut().w_floating {
                             g_st().lastwin.as_ptr()
                         } else {

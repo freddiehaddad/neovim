@@ -1402,7 +1402,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         let mut len: usize = 0;
         let s = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
         if !s.is_null() && len > 0 {
-            msg_vec.extend_from_slice(unsafe { std::slice::from_raw_parts((s).cast::<u8>(), len) });
+            msg_vec.extend_from_slice(crate::strings::AsByteSlice::slice_len(s, len));
         }
         if curargidx < nargs {
             msg_vec.push(b' ');
@@ -1410,9 +1410,9 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         lua_pop(lstate, 1);
         curargidx += 1;
     }
-    let msg_str = crate::api::private::helpers::cbuf_to_string(unsafe {
-        std::slice::from_raw_parts((msg_vec.as_ptr()).cast::<u8>(), msg_vec.len())
-    });
+    let msg_str = crate::api::private::helpers::cbuf_to_string(
+        crate::strings::AsByteSlice::slice_len(msg_vec.as_ptr(), msg_vec.len()),
+    );
     drop(msg_vec);
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
@@ -2239,9 +2239,9 @@ pub fn ex_luado(eap: &mut Exarg) {
             let new_line = unsafe { lua_tolstring(lstate, -1, &raw mut new_line_len) };
             let mut new_line_vec = vec![0u8; new_line_len + 1];
             if new_line_len > 0 {
-                new_line_vec[..new_line_len].copy_from_slice(unsafe {
-                    std::slice::from_raw_parts((new_line).cast::<u8>(), new_line_len)
-                });
+                new_line_vec[..new_line_len].copy_from_slice(
+                    crate::strings::AsByteSlice::slice_len(new_line, new_line_len),
+                );
             }
             for b in &mut new_line_vec[..new_line_len] {
                 if *b == 0 {
@@ -2250,12 +2250,7 @@ pub fn ex_luado(eap: &mut Exarg) {
             }
             crate::memline::ml_replace_len(
                 l,
-                unsafe {
-                    std::slice::from_raw_parts(
-                        (new_line_vec.as_mut_ptr()).cast::<u8>(),
-                        new_line_len,
-                    )
-                },
+                crate::strings::AsByteSlice::slice_len(new_line_vec.as_mut_ptr(), new_line_len),
                 new_line_len,
                 true,
             );
@@ -2513,9 +2508,9 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         if lua_getinfo(lstate, c"nSl", &mut info) == 0 {
             break;
         }
-        if (!info.what.is_null() && unsafe { *info.what as u8 == b'C' })
+        if (!info.what.is_null() && crate::strings::AsByteSlice::first_byte_val(info.what) == b'C')
             || info.source.is_null()
-            || unsafe { *info.source as u8 != b'@' }
+            || crate::strings::AsByteSlice::first_byte_val(info.source) != b'@'
         {
             level += 1;
             continue;
@@ -2639,7 +2634,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
             let mut ar = lua_Debug::new();
             if lua_getinfo(lstate, c">S", &mut ar) != 0
                 && !ar.source.is_null()
-                && unsafe { *ar.source as u8 == b'@' }
+                && crate::strings::AsByteSlice::first_byte_val(ar.source) == b'@'
                 && ar.linedefined >= 0
             {
                 let src = home_replace_save(

@@ -1969,15 +1969,16 @@ fn normal_get_additional_char(s: &mut NormalState) {
                 }
 
                 if ((s.ca.nchar_len + utf_char2len(s.c)) as usize) < s.ca.nchar_composing.len() {
-                    s.ca.nchar_len += utf_char2bytes(s.c, unsafe {
-                        std::slice::from_raw_parts_mut(
+                    s.ca.nchar_len += utf_char2bytes(
+                        s.c,
+                        crate::globals::GraphPtr::raw_slice_mut(
                             s.ca.nchar_composing
                                 .as_mut_ptr()
                                 .wrapping_add(s.ca.nchar_len as usize)
                                 .cast(),
                             6,
-                        )
-                    });
+                        ),
+                    );
                 }
                 prev_code = s.c;
             }
@@ -2677,7 +2678,7 @@ pub fn find_ident_at_pos(
     }
 
     assert!(col >= 0);
-    unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), col as usize) }
+    crate::strings::AsByteSlice::slice_len(ptr, col as usize)
 }
 
 fn prep_redo_cmd(cap: &mut Cmdarg) {
@@ -3638,7 +3639,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
     }
     assert!(len <= i32::MAX as usize);
     spell_add_word(
-        unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), len) },
+        crate::strings::AsByteSlice::slice_len(ptr, len),
         if nchar == b'w' as i32 || nchar == b'W' as i32 {
             SPELL_ADD_BAD
         } else {

@@ -628,9 +628,7 @@ pub fn init_locale() {
         .as_ptr()
         .cast_mut()
         .cast::<u8>();
-    unsafe {
-        *tail = 0;
-    }
+    *crate::globals::GraphPtr::of(tail).borrow_mut() = 0;
     tail = path_tail(crate::memory::bytes_as_cstr(&localepath))
         .as_ptr()
         .cast_mut()

@@ -283,7 +283,7 @@ fn mouse_tab_close(c1: i32) {
             tabpage_close(false);
         }
     } else if !tp.is_null() {
-        tabpage_close_other(unsafe { &mut *tp }, false);
+        tabpage_close_other(crate::globals::GraphPtr::of(tp).borrow_mut(), false);
     }
 }
 
@@ -395,7 +395,7 @@ fn get_fpos_of_mouse(
     let wpp_is_none = wpp.is_none();
     let wp_ptr = ptr::from_mut(wp);
     if let Some(wpp) = wpp {
-        *wpp = Some(unsafe { &mut *wp_ptr });
+        *wpp = Some(crate::globals::GraphPtr::of(wp_ptr).borrow_mut());
     }
     let winrow = row;
     let wincol = col;

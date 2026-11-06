@@ -233,9 +233,8 @@ fn coladvance2(
                     .checked_add(correct_usize)
                     .expect("STRICT_ADD overflow");
                 let mut newline = vec![0u8; newline_size + 1];
-                newline[..idx_usize].copy_from_slice(unsafe {
-                    std::slice::from_raw_parts((line).cast::<u8>(), idx_usize)
-                });
+                newline[..idx_usize]
+                    .copy_from_slice(crate::strings::AsByteSlice::slice_len(line, idx_usize));
                 newline[idx_usize..idx_usize + correct_usize].fill(b' ');
 
                 ml_replace(pos.lnum, crate::memory::bytes_until_nul(&newline), true);
@@ -254,8 +253,7 @@ fn coladvance2(
                     .checked_add(csize_usize)
                     .expect("STRICT_ADD overflow");
                 let mut newline = vec![0u8; alloc_n + 1];
-                let line_slice =
-                    unsafe { std::slice::from_raw_parts((line).cast::<u8>(), linelen as usize) };
+                let line_slice = crate::strings::AsByteSlice::slice_len(line, linelen as usize);
                 newline[..idx_usize].copy_from_slice(&line_slice[..idx_usize]);
                 newline[idx_usize..idx_usize + csize_usize].fill(b' ');
                 let rest_n = (linelen as usize)

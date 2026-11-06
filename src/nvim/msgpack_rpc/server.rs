@@ -143,7 +143,8 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     let r = {
         let dir = stdpaths_get_xdg_var(XDGVarType::XDGRuntimeDir);
         get_appname(true);
-        let app = name.unwrap_or_else(|| crate::memory::bytes_as_cstr(&g_st().name_buff));
+        let name_buff = &g_st().name_buff;
+        let app = name.unwrap_or_else(|| crate::memory::bytes_as_cstr(name_buff));
         format_to_buf!(
             &mut fmt,
             c"%s/%s.%llu.%u",
@@ -204,16 +205,22 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
     };
     let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
     let endpoint = addr_gen.as_deref().unwrap_or(addr);
-    let mut result = socket_watcher_init(&mut g_st().main_loop, unsafe { &mut *watcher }, endpoint);
+    let mut result = socket_watcher_init(
+        &mut g_st().main_loop,
+        crate::globals::GraphPtr::of(watcher).borrow_mut(),
+        endpoint,
+    );
     drop(addr_gen);
     if result < 0 {
-        let _ = unsafe { Box::from_raw(watcher) };
+        crate::globals::GraphPtr::of(watcher).drop_box();
         return result;
     }
 
     let w = &mut srv_st().watchers;
     for &existing in w.iter() {
-        if unsafe { (*watcher).addr_bytes() == (*existing).addr_bytes() } {
+        if crate::globals::GraphPtr::of(watcher).borrow().addr_bytes()
+            == crate::globals::GraphPtr::of(existing).borrow().addr_bytes()
+        {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -221,7 +228,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 184,
                 true,
                 c"Already listening on %s",
-                crate::strings::ByteSlice::from_ptr(unsafe { (*watcher).addr_cstr().as_ptr() }),
+                crate::globals::GraphPtr::of(watcher).borrow().addr_cstr(),
             );
 
             if unsafe { uv_handle_get_type(ptr::from_mut((*watcher).stream_mut()).cast()) }
@@ -230,13 +237,16 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 unsafe { uv_freeaddrinfo((*watcher).tcp_addrinfo.cast()) };
             }
 
-            socket_watcher_close(unsafe { &mut *watcher });
+            socket_watcher_close(crate::globals::GraphPtr::of(watcher).borrow_mut());
 
             return 2;
         }
     }
 
-    result = socket_watcher_start(unsafe { &mut *watcher }, MAX_CONNECTIONS);
+    result = socket_watcher_start(
+        crate::globals::GraphPtr::of(watcher).borrow_mut(),
+        MAX_CONNECTIONS,
+    );
 
     if result < 0 {
         logmsg!(
@@ -247,10 +257,10 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
             true,
             c"Failed to start server: %s: %s",
             uv_strerror(result),
-            crate::strings::ByteSlice::from_ptr(unsafe { (*watcher).addr_cstr().as_ptr() }),
+            crate::globals::GraphPtr::of(watcher).borrow().addr_cstr(),
         );
 
-        socket_watcher_close(unsafe { &mut *watcher });
+        socket_watcher_close(crate::globals::GraphPtr::of(watcher).borrow_mut());
 
         return result;
     }

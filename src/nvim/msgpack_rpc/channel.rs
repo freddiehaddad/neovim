@@ -211,24 +211,26 @@ use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
 pub fn channel_instream_mut(chan: &mut Channel) -> &'static mut Stream {
-    let ptr: *mut Stream = match chan.streamtype {
+    let ptr = crate::globals::GraphPtr::<Stream>::of(match chan.streamtype {
         K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.r#in,
         K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket.s,
         K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_out,
         _ => std::process::abort(),
-    };
-    unsafe { &mut *ptr }
+    })
+    .as_ptr();
+    crate::globals::GraphPtr::of(ptr).borrow_mut()
 }
 
 #[inline]
 pub fn channel_outstream_mut(chan: &mut Channel) -> &'static mut RStream {
-    let ptr: *mut RStream = match chan.streamtype {
+    let ptr = crate::globals::GraphPtr::<RStream>::of(match chan.streamtype {
         K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.out,
         K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket,
         K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_in,
         _ => std::process::abort(),
-    };
-    unsafe { &mut *ptr }
+    })
+    .as_ptr();
+    crate::globals::GraphPtr::of(ptr).borrow_mut()
 }
 
 #[inline]
@@ -432,7 +434,7 @@ pub(crate) fn receive_msgpack(rbuf: &[u8], channel: &mut Channel, eof: bool) -> 
 
     if c > 0 {
         let p = channel.unpacker_mut();
-        p.read_buf = unsafe { &*(rbuf as *const [u8]) };
+        p.read_buf = crate::globals::GraphPtr::extend_slice_lifetime(rbuf);
         parse_msgpack(channel);
 
         if !unpacker_closed(p) {
@@ -719,7 +721,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
 pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
     let p = channel.unpacker_mut();
 
-    p.read_buf = unsafe { &*(buffer.data.as_slice() as *const [u8]) };
+    p.read_buf = crate::globals::GraphPtr::extend_slice_lifetime(buffer.data.as_slice());
     if !unpacker_closed(p) {
         parse_msgpack(channel);
 

@@ -753,7 +753,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
                         if g_st().curtab != tp {
                             goto_tabpage_tp(Some(&mut *tp), true, true);
                         }
-                        win_goto(unsafe { &mut *cwp });
+                        win_goto(crate::globals::GraphPtr::of(cwp).borrow_mut());
                         break 'win_found;
                     }
                 }
@@ -772,7 +772,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
     }
 
     unblock_autocmds();
-    unsafe { &mut *cwp }
+    crate::globals::GraphPtr::of(cwp).borrow_mut()
 }
 
 pub fn ctx_saved_curwin() -> Option<&'static mut WinInfoInfo> {

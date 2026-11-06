@@ -48,7 +48,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
 
     unsafe { lua_createtable(lstate, 0, 0) };
 
-    while !str_.is_null() && unsafe { *str_ != 0 } {
+    while !crate::strings::AsByteSlice::is_empty_val(str_) {
         let mut attr: Hlf = HLF_COUNT;
         let len = spell_check(
             curwin_mut(),

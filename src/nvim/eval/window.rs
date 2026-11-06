@@ -331,7 +331,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                 }
                 if !rem.is_empty() {
                     let tail = rem;
-                    let twin_ref = unsafe { &mut *twin };
+                    let twin_ref = crate::globals::GraphPtr::of(twin).borrow_mut();
                     if tail == b"j" {
                         twin = win_vert_neighbor(tp, twin_ref, false, count)
                             .map_or(ptr::null_mut(), ptr::from_mut);
@@ -358,7 +358,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
         } else {
             nr = 0;
         }
-    } else if !win_has_winnr(unsafe { &mut *twin }, tp) {
+    } else if !win_has_winnr(crate::globals::GraphPtr::of(twin).borrow_mut(), tp) {
         nr = 0;
     }
 

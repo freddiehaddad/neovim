@@ -2001,7 +2001,7 @@ pub fn msgmore(n: i32) {
 
 pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_kind = Some(unsafe { &*(msg_kind as *const std::ffi::CStr) });
+    msg_st().msg_ext_kind = Some(crate::globals::GraphPtr::<u8>::cstr(msg_kind));
     msg_st().redir_col = if msg_st().msg_ext_append {
         msg_st().redir_col
     } else {
@@ -2020,7 +2020,7 @@ pub fn msg_ext_set_append(append: bool) {
 
 pub fn msg_ext_set_trigger(trigger: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_trigger = Some(unsafe { &*(trigger as *const std::ffi::CStr) });
+    msg_st().msg_ext_trigger = Some(crate::globals::GraphPtr::<u8>::cstr(trigger));
 }
 
 // Should be executed at all callsites emitting non-internal messages.
@@ -2325,7 +2325,7 @@ pub fn str2special_arena(
     }
 
     let buf = arena_alloc(arena, len + 1, false).cast::<u8>();
-    let out = unsafe { std::slice::from_raw_parts_mut(buf, len + 1) };
+    let out = crate::globals::GraphPtr::raw_slice_mut(buf, len + 1);
     let mut pos = 0usize;
     rem = str_bytes;
     while !rem.is_empty() {
@@ -2335,7 +2335,7 @@ pub fn str2special_arena(
         pos += s_bytes.len();
     }
     out[pos] = 0;
-    unsafe { CStr::from_bytes_with_nul_unchecked(out) }
+    CStr::from_bytes_until_nul(out).unwrap_or(c"")
 }
 
 /// Convert character, replacing key with printable representation.
@@ -2431,7 +2431,7 @@ pub fn str2special(
 
     msg_st().str2_special_buf[0] = c as u8;
     msg_st().str2_special_buf[1] = 0;
-    unsafe { CStr::from_bytes_with_nul_unchecked(&msg_st().borrow_mut().str2_special_buf[..2]) }
+    CStr::from_bytes_until_nul(&msg_st().borrow_mut().str2_special_buf[..2]).unwrap_or(c"")
 }
 
 /// print line for :print or :list command
@@ -2741,12 +2741,11 @@ fn msg_ext_emit_chunk() {
         data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
     });
     msg_st().msg_ext_last_attr = -1;
-    let text = crate::api::private::helpers::cbuf_to_string(unsafe {
-        std::slice::from_raw_parts(
-            (msg_st().msg_ext_last_chunk.as_ptr()).cast::<u8>(),
+    let text =
+        crate::api::private::helpers::cbuf_to_string(crate::strings::AsByteSlice::slice_len(
+            msg_st().msg_ext_last_chunk.as_ptr(),
             msg_st().msg_ext_last_chunk.len(),
-        )
-    });
+        ));
     msg_st().msg_ext_last_chunk = Vec::new();
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeString,

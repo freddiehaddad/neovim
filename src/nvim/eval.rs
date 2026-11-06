@@ -937,7 +937,10 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
     let mut argv = [tv_initial_value()];
     let retval: Varnumber;
     if !callback_call(
-        unsafe { &mut *(&raw mut wp.w_onebuf_opt.wo_fde).cast() },
+        crate::globals::GraphPtr::of(
+            (&raw mut wp.w_onebuf_opt.wo_fde).cast::<crate::eval::typval::Callback>(),
+        )
+        .borrow_mut(),
         0,
         &mut argv,
         &mut tv,
@@ -975,7 +978,10 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
     let mut tv = tv_initial_value();
     let retval: Object;
     if !eval_expr_option_tv(
-        unsafe { &mut *(&raw mut wp.w_onebuf_opt.wo_fdt).cast() },
+        crate::globals::GraphPtr::of(
+            (&raw mut wp.w_onebuf_opt.wo_fdt).cast::<crate::eval::typval::Callback>(),
+        )
+        .borrow_mut(),
         use_sandbox,
         &mut tv,
     ) {
@@ -1391,13 +1397,13 @@ pub fn get_lval<'a>(
     flags: i32,
     fne_flags: i32,
 ) -> Option<&'a CStr> {
-    let name: *const u8 = name_in.as_ptr().cast();
+    let name = name_in.as_ptr().cast::<u8>();
     let quiet = (flags & GLV_QUIET) != 0;
 
     *lp = Lval::new();
 
     if skip {
-        lp.ll_name = Some(unsafe { &*(name_in as *const CStr) });
+        lp.ll_name = Some(crate::globals::GraphPtr::<u8>::cstr(name_in));
         return Some(find_name_end(name_in, None, FNE_INCL_BR | fne_flags));
     }
 
@@ -1417,7 +1423,7 @@ pub fn get_lval<'a>(
 
         let in_len = (p.as_ptr() as usize).wrapping_sub(name as usize);
         if let Some(cstr) = make_expanded_name(
-            unsafe { std::slice::from_raw_parts((name).cast::<u8>(), in_len) },
+            crate::strings::AsByteSlice::slice_len(name, in_len),
             expr_start_off,
             expr_end_off,
         ) {
@@ -1426,7 +1432,7 @@ pub fn get_lval<'a>(
             lp.ll_name = lp
                 .ll_exp_name
                 .as_ref()
-                .map(|s| unsafe { &*(s.as_c_str() as *const CStr) });
+                .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()));
         } else {
             lp.ll_exp_name = None;
             lp.ll_name = None;
@@ -1438,7 +1444,7 @@ pub fn get_lval<'a>(
             lp.ll_name_len = 0;
         }
     } else {
-        lp.ll_name = Some(unsafe { &*(name_in as *const CStr) });
+        lp.ll_name = Some(crate::globals::GraphPtr::<u8>::cstr(name_in));
         lp.ll_name_len = (p.as_ptr() as usize).wrapping_sub(name as usize);
     }
 
@@ -1509,9 +1515,10 @@ pub fn set_var_lval(
             let full_len = ((crate::strings::AsByteSlice::byte_addr(endp) as isize)
                 - (crate::strings::AsByteSlice::byte_addr(ll_name.as_ptr()) as isize))
                 as usize;
-            bytes_to_cstring(unsafe {
-                std::slice::from_raw_parts((ll_name.as_ptr()).cast::<u8>(), full_len)
-            })
+            bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
+                ll_name.as_ptr(),
+                full_len,
+            ))
         };
         if let Some(blob) = lp.ll_blob.opt_mut() {
             if !op.is_null() && op.first_byte() != b'=' {
@@ -1975,9 +1982,10 @@ fn eval_func(
     let mut found_var = false;
 
     if !evaluate {
-        check_vars(unsafe {
-            std::slice::from_raw_parts((name.as_ptr()).cast::<u8>(), len as usize)
-        });
+        check_vars(crate::strings::AsByteSlice::slice_len(
+            name.as_ptr(),
+            len as usize,
+        ));
     }
 
     let mut partial_opt: Option<&'static mut TvPartial> = None;
@@ -2097,12 +2105,10 @@ pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool>
                     == parens
             {
                 r = call_simple_luafunc(
-                    unsafe {
-                        std::slice::from_raw_parts(
-                            (p).cast::<u8>(),
-                            (parens as usize).wrapping_sub(p as usize),
-                        )
-                    },
+                    crate::strings::AsByteSlice::slice_len(
+                        p,
+                        (parens as usize).wrapping_sub(p as usize),
+                    ),
                     rettv,
                 );
             }
@@ -2120,12 +2126,10 @@ pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool>
                 == parens
             {
                 r = call_simple_func(
-                    unsafe {
-                        std::slice::from_raw_parts(
-                            (arg).cast::<u8>(),
-                            (parens as usize).wrapping_sub(arg as usize),
-                        )
-                    },
+                    crate::strings::AsByteSlice::slice_len(
+                        arg,
+                        (parens as usize).wrapping_sub(arg as usize),
+                    ),
                     rettv,
                 );
             }
@@ -2764,13 +2768,12 @@ fn eval7(
 
     rettv.v_type = VarType::VarUnknown;
 
-    let start_leader: *const u8 = arg.as_ptr().cast();
+    let start_leader = arg.as_ptr().cast::<u8>();
     while matches!(arg.to_bytes_with_nul()[0], b'!' | b'-' | b'+') {
         *arg = crate::charset::skipwhite_at(arg, 1);
     }
     let mut leader_len = (arg.as_ptr() as usize).wrapping_sub(start_leader as usize);
-    let leader_slice =
-        unsafe { std::slice::from_raw_parts((start_leader).cast::<u8>(), leader_len) };
+    let leader_slice = crate::strings::AsByteSlice::slice_len(start_leader, leader_len);
 
     if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
         semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), *arg);
@@ -2868,9 +2871,10 @@ fn eval7(
             } else if evaluate {
                 eval_variable(s, len, Some(&mut *rettv), None, true, false)
             } else {
-                check_vars(unsafe {
-                    std::slice::from_raw_parts((s.as_ptr()).cast::<u8>(), len as usize)
-                });
+                check_vars(crate::strings::AsByteSlice::slice_len(
+                    s.as_ptr(),
+                    len as usize,
+                ));
                 if rettv.v_type == VarType::VarUnknown
                     && !evaluate
                     && s.to_bytes().starts_with(b"v:lua.")
@@ -3141,9 +3145,10 @@ fn eval_method<'a>(
             && let Some(paren_cstr) = paren
         {
             let expr_len = (paren_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize);
-            let expr_cstr = bytes_to_cstring(unsafe {
-                std::slice::from_raw_parts((name.as_ptr()).cast::<u8>(), expr_len)
-            });
+            let expr_cstr = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
+                name.as_ptr(),
+                expr_len,
+            ));
             let expr_base = expr_cstr.as_ptr();
             let mut expr_cursor: &CStr = &expr_cstr;
             let mut ref_tv = tv_initial_value();
@@ -3193,7 +3198,9 @@ fn eval_method<'a>(
                     semsg!(gettext(E_MISSINGPAREN), name);
                 }
                 ret = false;
-            } else if ascii_iswhite(i32::from(unsafe { *arg.as_ptr().wrapping_sub(1) } as u8)) {
+            } else if ascii_iswhite(i32::from(
+                *crate::globals::GraphPtr::of(arg.as_ptr().wrapping_sub(1)).borrow() as u8,
+            )) {
                 if verbose {
                     emsg(gettext(E_NOWHITESPACE));
                 }
@@ -3552,7 +3559,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
     }
 
     let opt_len = (option_end.as_ptr() as usize).wrapping_sub(cur_arg.as_ptr() as usize);
-    let opt_bytes = unsafe { std::slice::from_raw_parts((cur_arg.as_ptr()).cast::<u8>(), opt_len) };
+    let opt_bytes = crate::strings::AsByteSlice::slice_len(cur_arg.as_ptr(), opt_len);
     let is_tty_opt = is_tty_option(opt_bytes);
 
     let mut ret = true;
@@ -3681,36 +3688,47 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
 
 /// Evaluate a string constant and put the result in "rettv".
 fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
-    let arg_start: *const u8 = arg.as_ptr().cast();
+    let arg_start = arg.as_ptr().cast::<u8>();
     let arg_end = arg_start.wrapping_add(arg.to_bytes().len());
     let mut extra: isize = if interpolate { 1 } else { 0 };
     let off: usize = if interpolate { 0 } else { 1 };
 
     let mut p = arg_start.wrapping_add(off);
-    while unsafe { *p } != 0 && unsafe { *p } != b'"' {
-        if unsafe { *p } == b'\\' && unsafe { *p.wrapping_add(1) } != 0 {
+    while *crate::globals::GraphPtr::of(p).borrow() != 0
+        && *crate::globals::GraphPtr::of(p).borrow() != b'"'
+    {
+        if *crate::globals::GraphPtr::of(p).borrow() == b'\\'
+            && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != 0
+        {
             p = p.wrapping_add(1);
-            if unsafe { *p } == b'<' {
+            if *crate::globals::GraphPtr::of(p).borrow() == b'<' {
                 let mut modifiers: i32 = 0;
                 let mut flags = FSK_KEYCODE | FSK_IN_STRING;
 
                 extra += 5;
 
-                if unsafe { *p.wrapping_add(1) } != b'*' {
+                if *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'*' {
                     flags |= FSK_SIMPLIFY;
                 }
                 let rem_len = (arg_end as usize).wrapping_sub(p as usize);
-                let mut p_slice = unsafe { std::slice::from_raw_parts(p, rem_len) };
+                let mut p_slice = crate::globals::GraphPtr::raw_slice(p, rem_len);
                 if find_special_key(&mut p_slice, &mut modifiers, flags, None) != 0 {
                     p = p.wrapping_add(rem_len - p_slice.len()).wrapping_sub(1);
                 }
             }
-        } else if interpolate && (unsafe { *p } == b'{' || unsafe { *p } == b'}') {
-            if unsafe { *p } == b'{' && unsafe { *p.wrapping_add(1) } != b'{' {
+        } else if interpolate
+            && (*crate::globals::GraphPtr::of(p).borrow() == b'{'
+                || *crate::globals::GraphPtr::of(p).borrow() == b'}')
+        {
+            if *crate::globals::GraphPtr::of(p).borrow() == b'{'
+                && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'{'
+            {
                 break;
             }
             p = p.wrapping_add(1);
-            if unsafe { *p.wrapping_sub(1) } == b'}' && unsafe { *p } != b'}' {
+            if *crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow() == b'}'
+                && *crate::globals::GraphPtr::of(p).borrow() != b'}'
+            {
                 semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                 return false;
             }
@@ -3719,7 +3737,9 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
         p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
 
-    if unsafe { *p } != b'"' && !(interpolate && unsafe { *p } == b'{') {
+    if *crate::globals::GraphPtr::of(p).borrow() != b'"'
+        && !(interpolate && *crate::globals::GraphPtr::of(p).borrow() == b'{')
+    {
         semsg!(gettext(c"E114: Missing quote: %s"), *arg);
         return false;
     }
@@ -3733,7 +3753,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
     let mut buf_vec = Vec::with_capacity(len);
     let start_ptr = arg_start.wrapping_add(off);
     let mut rem =
-        unsafe { std::slice::from_raw_parts(start_ptr, (arg_end as usize) - (start_ptr as usize)) };
+        crate::globals::GraphPtr::raw_slice(start_ptr, (arg_end as usize) - (start_ptr as usize));
 
     while !rem.is_empty() && rem[0] != b'"' {
         if rem[0] == b'\\' {
@@ -3844,28 +3864,28 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
 
 /// Allocate a variable for a 'str''ing' constant.
 fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
-    let arg_start: *const u8 = arg.as_ptr().cast();
+    let arg_start = arg.as_ptr().cast::<u8>();
     let mut reduce: isize = if interpolate { -1 } else { 0 };
     let off: usize = if interpolate { 0 } else { 1 };
 
     let mut p = arg_start.wrapping_add(off);
-    while unsafe { *p } != 0 {
-        if unsafe { *p } == b'\'' {
-            if unsafe { *p.wrapping_add(1) } != b'\'' {
+    while *crate::globals::GraphPtr::of(p).borrow() != 0 {
+        if *crate::globals::GraphPtr::of(p).borrow() == b'\'' {
+            if *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'\'' {
                 break;
             }
             reduce += 1;
             p = p.wrapping_add(1);
         } else if interpolate {
-            if unsafe { *p } == b'{' {
-                if unsafe { *p.wrapping_add(1) } != b'{' {
+            if *crate::globals::GraphPtr::of(p).borrow() == b'{' {
+                if *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'{' {
                     break;
                 }
                 p = p.wrapping_add(1);
                 reduce += 1;
-            } else if unsafe { *p } == b'}' {
+            } else if *crate::globals::GraphPtr::of(p).borrow() == b'}' {
                 p = p.wrapping_add(1);
-                if unsafe { *p } != b'}' {
+                if *crate::globals::GraphPtr::of(p).borrow() != b'}' {
                     semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;
                 }
@@ -3875,7 +3895,9 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
         p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
 
-    if unsafe { *p } != b'\'' && !(interpolate && unsafe { *p } == b'{') {
+    if *crate::globals::GraphPtr::of(p).borrow() != b'\''
+        && !(interpolate && *crate::globals::GraphPtr::of(p).borrow() == b'{')
+    {
         semsg!(gettext(c"E115: Missing quote: %s"), *arg);
         return false;
     }
@@ -3938,9 +3960,10 @@ pub fn eval_interp_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool) -
             if !tv.vval.v_string().is_null() {
                 let len = tv.vval.v_string_bytes().len();
                 if len > 0 {
-                    buf.extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(tv.vval.v_string().cast::<u8>(), len)
-                    });
+                    buf.extend_from_slice(crate::globals::GraphPtr::raw_slice(
+                        tv.vval.v_string().cast::<u8>(),
+                        len,
+                    ));
                 }
             }
             tv_clear(&mut tv);
@@ -3974,7 +3997,7 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
         }
         if !pt.pt_func.is_null() {
             let uf = pt.pt_func.as_ptr();
-            return unsafe { &*uf }.uf_name.as_c_str();
+            return crate::globals::GraphPtr::of(uf).borrow().uf_name.as_c_str();
         }
     }
     c""
@@ -3989,7 +4012,7 @@ pub fn partial_unref(pt: Option<&mut TvPartial>) {
     let mut pt_ptr = crate::globals::GraphPtr::from(pt_ref);
     pt_ptr.pt_refcount -= 1;
     if pt_ptr.pt_refcount <= 0 {
-        drop(unsafe { Box::from_raw(pt_ptr.as_ptr()) });
+        crate::globals::GraphPtr::of(pt_ptr.as_ptr()).drop_box();
     }
 }
 
@@ -4089,7 +4112,11 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
         if d1 != d2 {
             return false;
         }
-    } else if !tv_dict_equal(unsafe { d1.as_ref() }, unsafe { d2.as_ref() }, ic) {
+    } else if !tv_dict_equal(
+        crate::globals::GraphPtr::of(d1).opt(),
+        crate::globals::GraphPtr::of(d2).opt(),
+        ic,
+    ) {
         return false;
     }
 
@@ -4659,12 +4686,12 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
         if len == 0 {
             return false;
         }
-        let env_with_dollar = bytes_to_cstring(unsafe {
-            std::slice::from_raw_parts((orig_arg.as_ptr()).cast::<u8>(), len as usize + 1)
-        });
-        let env_name = unsafe {
-            CStr::from_bytes_with_nul_unchecked(&env_with_dollar.to_bytes_with_nul()[1..])
-        };
+        let env_with_dollar = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
+            orig_arg.as_ptr(),
+            len as usize + 1,
+        ));
+        let env_name =
+            CStr::from_bytes_until_nul(&env_with_dollar.to_bytes_with_nul()[1..]).unwrap_or(c"");
         let mut string = vim_getenv(env_name).filter(|s| !s.as_bytes().is_empty());
         if string.is_none() {
             let exp = expand_env_save(&env_with_dollar);
@@ -5215,12 +5242,10 @@ pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
 
 fn timer_decref(timer_in: &mut VimTimer) {
     let mut timer = crate::globals::GraphPtr::from(timer_in);
-    unsafe {
-        timer.refcount -= 1;
+    timer.refcount -= 1;
 
-        if timer.refcount == 0 {
-            drop(Box::from_raw(timer.as_ptr()));
-        }
+    if timer.refcount == 0 {
+        timer.drop_box();
     }
 }
 
@@ -5671,7 +5696,7 @@ pub fn get_name_len(
         let full_start = arg.as_ptr().wrapping_sub(prefix_len);
         let full_len = (p.as_ptr() as usize).wrapping_sub(full_start as usize);
         let Some(temp_string) = make_expanded_name(
-            unsafe { std::slice::from_raw_parts((full_start).cast::<u8>(), full_len) },
+            crate::strings::AsByteSlice::slice_len(full_start, full_len),
             prefix_len + expr_start_off,
             prefix_len + expr_end_off,
         ) else {
@@ -6016,7 +6041,9 @@ pub fn handle_subscript<'a>(
         && (((arg.to_bytes_with_nul()[0] == b'['
             || (arg.to_bytes_with_nul()[0] == b'.' && rettv.v_type == VarType::VarDict)
             || (arg.to_bytes_with_nul()[0] == b'(' && (!evaluate || tv_is_func(rettv))))
-            && !ascii_iswhite(i32::from(unsafe { *arg.as_ptr().wrapping_sub(1) } as u8)))
+            && !ascii_iswhite(i32::from(
+                *crate::globals::GraphPtr::of(arg.as_ptr().wrapping_sub(1)).borrow() as u8,
+            )))
             || arg.to_bytes().starts_with(b"->"))
     {
         if arg.to_bytes_with_nul()[0] == b'(' {

@@ -96,11 +96,12 @@ pub fn modify_fname(
     fnamelen: &mut usize,
     use_shellslash: bool,
 ) -> i32 {
-    let mut fname: *mut u8 = unsafe { fbuf.as_mut_ptr().add(*fname_off) };
+    let mut fname =
+        crate::globals::GraphPtr::<u8>::of(fbuf.as_mut_ptr().wrapping_add(*fname_off)).as_ptr();
     {
         let mut valid: i32 = 0;
-        let mut s: *mut u8 = ptr::null_mut();
-        let mut p: *mut u8;
+        let mut s = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+        let mut p;
         let mut pbuf: Option<Vec<u8>>;
         let mut dirname = [0u8; MAXPATHL];
         let mut has_fullname = false;
@@ -173,9 +174,7 @@ pub fn modify_fname(
                     // Make room for one or two extra characters.
                     let cur_len = crate::strings::ByteSlice::from_ptr(fname).as_bytes().len();
                     let mut v = vec![0u8; cur_len + 3];
-                    unsafe {
-                        ptr::copy_nonoverlapping(fname, v.as_mut_ptr(), cur_len + 1);
-                    }
+                    crate::globals::GraphPtr::copy_to(fname, v.as_mut_ptr(), cur_len + 1);
                     add_pathsep(&mut v);
                     *fbuf = v;
                     fname = fbuf.as_mut_ptr();
@@ -198,7 +197,7 @@ pub fn modify_fname(
                 pbuf = None;
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
-                    if unsafe { *fname } == b'~' {
+                    if *crate::globals::GraphPtr::of(fname).borrow() == b'~' {
                         let exp =
                             expand_env_save(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
                                 .into_bytes_with_nul();
@@ -255,7 +254,7 @@ pub fn modify_fname(
                                     let off = (p.wrapping_add(skip_seps) as usize)
                                         - (pb.as_ptr() as usize);
                                     *fbuf = pb;
-                                    fname = unsafe { fbuf.as_mut_ptr().add(off) };
+                                    fname = fbuf.as_mut_ptr().wrapping_add(off);
                                 } else {
                                     fname = p.wrapping_add(skip_seps);
                                 }
@@ -271,13 +270,11 @@ pub fn modify_fname(
                         // Only replace it when it starts with '~'
                         if dirname[0] == b'~' {
                             let mut v = vec![0u8; dirnamelen + 1];
-                            unsafe {
-                                ptr::copy_nonoverlapping(
-                                    dirname.as_ptr(),
-                                    v.as_mut_ptr(),
-                                    dirnamelen,
-                                )
-                            };
+                            crate::globals::GraphPtr::copy_to(
+                                dirname.as_ptr(),
+                                v.as_mut_ptr(),
+                                dirnamelen,
+                            );
                             *fbuf = v;
                             fname = fbuf.as_mut_ptr();
                             has_homerelative = true;
@@ -316,12 +313,10 @@ pub fn modify_fname(
                 valid |= VALID_HEAD;
                 *usedlen += 2;
                 while (tail as usize) > (s as usize)
-                    && after_pathsep(unsafe {
-                        std::slice::from_raw_parts(
-                            (s).cast::<u8>(),
-                            (tail as usize).saturating_sub(s as usize),
-                        )
-                    }) != 0
+                    && after_pathsep(crate::strings::AsByteSlice::slice_len(
+                        s,
+                        (tail as usize).saturating_sub(s as usize),
+                    )) != 0
                 {
                     tail = tail.wrapping_sub(
                         crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize + 1,
@@ -341,12 +336,10 @@ pub fn modify_fname(
                     *fnamelen = 1;
                 } else {
                     while (tail as usize) > (s as usize)
-                        && after_pathsep(unsafe {
-                            std::slice::from_raw_parts(
-                                (s).cast::<u8>(),
-                                (tail as usize).saturating_sub(s as usize),
-                            )
-                        }) == 0
+                        && after_pathsep(crate::strings::AsByteSlice::slice_len(
+                            s,
+                            (tail as usize).saturating_sub(s as usize),
+                        )) == 0
                     {
                         tail = tail.wrapping_sub(
                             crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize
@@ -391,7 +384,7 @@ pub fn modify_fname(
                 }
 
                 while (s as usize) > (tail as usize) {
-                    if unsafe { *s } == b'.' {
+                    if *crate::globals::GraphPtr::of(s).borrow() == b'.' {
                         break;
                     }
                     s = s.wrapping_sub(1);
@@ -467,13 +460,11 @@ pub fn modify_fname(
                             let sub = bytes_to_cstring(&src_bytes[s_idx..s_idx + sub_len]);
                             let mut str_copy = vec![0u8; *fnamelen + 1];
                             if *fnamelen > 0 {
-                                unsafe {
-                                    ptr::copy_nonoverlapping(
-                                        fname,
-                                        str_copy.as_mut_ptr(),
-                                        *fnamelen,
-                                    )
-                                };
+                                crate::globals::GraphPtr::copy_to(
+                                    fname,
+                                    str_copy.as_mut_ptr(),
+                                    *fnamelen,
+                                );
                             }
                             *usedlen = s_idx + sub_len + 1;
                             let sub_res = do_string_sub(
@@ -505,7 +496,7 @@ pub fn modify_fname(
                 .is_some_and(|r| r.starts_with(b":S"))
             {
                 let esc = vim_strsave_shellescape(
-                    unsafe { std::slice::from_raw_parts((fname).cast::<u8>(), *fnamelen) },
+                    crate::strings::AsByteSlice::slice_len(fname, *fnamelen),
                     false,
                     false,
                 );
@@ -1314,7 +1305,8 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     if path_tail(dir.as_cstr()).is_empty() {
         // Remove trailing slashes.
-        unsafe { *path_tail_with_sep(dir.as_cstr()).as_ptr().cast_mut() = NUL };
+        *crate::globals::GraphPtr::of(path_tail_with_sep(dir.as_cstr()).as_ptr().cast_mut())
+            .borrow_mut() = NUL;
     }
 
     let mut defer = false;
@@ -1577,13 +1569,12 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         while (p as usize) < (buf_ptr.wrapping_offset(readlen) as usize)
             || (readlen <= 0 && (!prev.is_empty() || binary))
         {
-            if readlen <= 0 || unsafe { *p } == b'\n' {
+            if readlen <= 0 || *crate::globals::GraphPtr::of(p).borrow() == b'\n' {
                 let mut len = (p as usize).wrapping_sub(start as usize);
 
                 // Finished a line.  Remove CRs before NL.
                 if readlen > 0 && !binary {
-                    let line_bytes =
-                        unsafe { std::slice::from_raw_parts((start).cast::<u8>(), len) };
+                    let line_bytes = crate::strings::AsByteSlice::slice_len(start, len);
                     while len > 0 && line_bytes[len - 1] == b'\r' {
                         len -= 1;
                     }
@@ -1597,11 +1588,12 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if prev.is_empty() {
                     debug_assert!(len < i32::MAX as usize);
 
-                    crate::eval::typval::tv_list_append_bytes(l, unsafe {
-                        std::slice::from_raw_parts(start, len)
-                    });
+                    crate::eval::typval::tv_list_append_bytes(
+                        l,
+                        crate::globals::GraphPtr::raw_slice(start, len),
+                    );
                 } else {
-                    prev.extend_from_slice(unsafe { std::slice::from_raw_parts(start, len) });
+                    prev.extend_from_slice(crate::globals::GraphPtr::raw_slice(start, len));
 
                     crate::eval::typval::tv_list_append_bytes(l, &prev);
 
@@ -1624,18 +1616,18 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if readlen <= 0 {
                     break;
                 }
-            } else if unsafe { *p == 0 } {
-                unsafe { *p = b'\n' };
-            } else if unsafe { *p } == 0xbf && !binary {
+            } else if crate::strings::AsByteSlice::is_empty_val(p) {
+                *crate::globals::GraphPtr::of(p).borrow_mut() = b'\n';
+            } else if *crate::globals::GraphPtr::of(p).borrow() == 0xbf && !binary {
                 // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
                 // when finding the BF and check the previous two bytes.
                 let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
-                    unsafe { *p.wrapping_sub(1) }
+                    *crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow()
                 } else {
                     prev.last().copied().unwrap_or(0)
                 };
                 let back2 = if (p as usize) >= (buf_ptr.wrapping_add(2) as usize) {
-                    unsafe { *p.wrapping_sub(2) }
+                    *crate::globals::GraphPtr::of(p.wrapping_sub(2)).borrow()
                 } else if p == buf_ptr.wrapping_add(1) {
                     prev.last().copied().unwrap_or(0)
                 } else if prev.len() >= 2 {
@@ -1662,9 +1654,11 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                         }
                         let p_off = (p as usize).wrapping_sub(buf_ptr as usize) as isize;
                         if readlen > p_off + 1 {
-                            unsafe {
-                                ptr::copy(p.wrapping_add(1), dest, (readlen - p_off - 1) as usize)
-                            };
+                            crate::globals::GraphPtr::copy_to(
+                                p.wrapping_add(1),
+                                dest,
+                                (readlen - p_off - 1) as usize,
+                            );
                         }
                         readlen -= 3 - adjust_prevlen as isize;
                         prev.truncate(prev.len() - adjust_prevlen);
@@ -1681,7 +1675,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         if (start as usize) < (p as usize) {
             let part_len = (p as usize).wrapping_sub(start as usize);
 
-            prev.extend_from_slice(unsafe { std::slice::from_raw_parts(start, part_len) });
+            prev.extend_from_slice(crate::globals::GraphPtr::raw_slice(start, part_len));
         }
     }
 }
@@ -1762,7 +1756,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             .cast_mut()
             .cast::<u8>();
         let mut remain_vec: Option<Vec<u8>> = None;
-        if unsafe { *q } != 0 {
+        if *crate::globals::GraphPtr::of(q).borrow() != 0 {
             // Separate the first path component in "p", and keep the
             // remainder (beginning with the path separator).
             let q_off = (q as usize) - (p.as_ptr() as usize);
@@ -1804,7 +1798,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 // Separate the first path component in the link value and
                 // concatenate the remainders.
                 let start_comp = if vim_ispathsep(buf_vec[0] as i32) {
-                    unsafe { buf.add(1) }
+                    buf.wrapping_add(1)
                 } else {
                     buf
                 };
@@ -1812,7 +1806,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     .as_ptr()
                     .cast_mut()
                     .cast::<u8>();
-                if unsafe { *q } != 0 {
+                if *crate::globals::GraphPtr::of(q).borrow() != 0 {
                     let q_off = (q as usize) - (buf as usize);
                     let head_bytes = &buf_vec[q_off - 1..buf_len];
                     let rem_old_len = remain_vec
@@ -1830,9 +1824,11 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 }
 
                 q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
-                if (q as usize) > (p.as_ptr() as usize) && unsafe { *q } == 0 {
+                if (q as usize) > (p.as_ptr() as usize)
+                    && *crate::globals::GraphPtr::of(q).borrow() == 0
+                {
                     // Ignore trailing path separator.
-                    unsafe { *q.wrapping_sub(1) = 0 };
+                    *crate::globals::GraphPtr::of(q.wrapping_sub(1)).borrow_mut() = 0;
                     q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 }
                 if (q as usize) > (p.as_ptr() as usize)
@@ -1868,7 +1864,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 .cast_mut()
                 .cast::<u8>();
             let comp_len = (q as usize).wrapping_sub(remain.as_ptr() as usize)
-                - usize::from(unsafe { *q } != 0);
+                - usize::from(*crate::globals::GraphPtr::of(q).borrow() != 0);
             let mut new_p = vec![0u8; p_len + comp_len + 1];
             new_p[..p_len].copy_from_slice(&p_vec[..p_len]);
             new_p[p_len..p_len + comp_len].copy_from_slice(&rem_v[..comp_len]);
@@ -1877,7 +1873,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             p = crate::strings::ByteSlice::from_bytes(&p_vec);
 
             // Shorten "remain".
-            if unsafe { *q } != 0 {
+            if *crate::globals::GraphPtr::of(q).borrow() != 0 {
                 let rem_tail_off = ((q as usize) - 1) - (remain.as_ptr() as usize);
                 let rem_len = crate::memory::bytes_until_nul(&rem_v[rem_tail_off..]).len() + 1;
                 rem_v.copy_within(rem_tail_off..rem_tail_off + rem_len, 0);
@@ -1923,12 +1919,13 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         // Ensure that the result will have no trailing path separator
         // if the argument had none.  But keep "/" or "//".
         if !has_trailing_pathsep && after_pathsep(p.slice(p_len)) != 0 {
-            unsafe {
-                *path_tail_with_sep(p.as_cstr())
+            *crate::globals::GraphPtr::of(
+                path_tail_with_sep(p.as_cstr())
                     .as_ptr()
                     .cast_mut()
-                    .cast::<u8>() = 0
-            };
+                    .cast::<u8>(),
+            )
+            .borrow_mut() = 0;
         }
 
         crate::eval::typval::tv_set_string(
@@ -1977,21 +1974,21 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         let mut hunk_start = s_cstr.as_ptr();
         let mut p = hunk_start;
         loop {
-            if unsafe { *p == 0 || *p == NL } {
+            if *crate::globals::GraphPtr::of(p).borrow() == 0
+                || *crate::globals::GraphPtr::of(p).borrow() == NL
+            {
                 if p != hunk_start {
-                    let hunk = unsafe {
-                        std::slice::from_raw_parts(
-                            (hunk_start).cast::<u8>(),
-                            (p as usize).wrapping_sub(hunk_start as usize),
-                        )
-                    };
+                    let hunk = crate::strings::AsByteSlice::slice_len(
+                        hunk_start,
+                        (p as usize).wrapping_sub(hunk_start as usize),
+                    );
                     let written = file_write(fp, hunk);
                     if written < 0 {
                         error = written as i32;
                         break 'outer;
                     }
                 }
-                if unsafe { *p == 0 } {
+                if crate::strings::AsByteSlice::is_empty_val(p) {
                     break;
                 } else {
                     hunk_start = p.wrapping_add(1);

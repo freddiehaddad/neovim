@@ -88,6 +88,27 @@ pub trait AsByteSlice: Sized {
     fn byte_addr(self) -> usize {
         self.into_byte_slice().addr()
     }
+
+    #[inline(always)]
+    fn first_byte_val(self) -> u8 {
+        self.into_byte_slice().first_byte()
+    }
+
+    #[inline(always)]
+    fn byte_at_val(self, idx: usize) -> u8 {
+        self.into_byte_slice().byte_at(idx)
+    }
+
+    #[allow(clippy::wrong_self_convention)]
+    #[inline(always)]
+    fn is_empty_val(self) -> bool {
+        self.first_byte_val() == 0
+    }
+
+    #[inline(always)]
+    fn slice_len(self, len: usize) -> &'static [u8] {
+        self.into_byte_slice().slice(len)
+    }
 }
 
 impl AsByteSlice for ByteSlice {
@@ -106,6 +127,42 @@ impl AsByteSlice for &[u8] {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
         Some(crate::globals::GraphPtr::slice(self))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
+}
+
+impl AsByteSlice for &mut [u8] {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
+}
+
+impl AsByteSlice for &Vec<u8> {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self.as_slice()))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
+}
+
+impl AsByteSlice for &std::ffi::CString {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self.to_bytes_with_nul()))
     }
 
     #[inline(always)]
@@ -177,6 +234,32 @@ impl<T> AsByteSlice for *const T {
     fn byte_addr(self) -> usize {
         self as usize
     }
+
+    #[inline(always)]
+    fn first_byte_val(self) -> u8 {
+        let p = self.cast::<u8>();
+        if p.is_null() { 0 } else { unsafe { *p } }
+    }
+
+    #[inline(always)]
+    fn byte_at_val(self, idx: usize) -> u8 {
+        let p = self.cast::<u8>();
+        if p.is_null() {
+            0
+        } else {
+            unsafe { *p.wrapping_add(idx) }
+        }
+    }
+
+    #[inline(always)]
+    fn slice_len(self, len: usize) -> &'static [u8] {
+        let p = self.cast::<u8>();
+        if p.is_null() || len == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(p, len) }
+        }
+    }
 }
 
 impl<T> AsByteSlice for *mut T {
@@ -188,6 +271,48 @@ impl<T> AsByteSlice for *mut T {
     #[inline(always)]
     fn byte_addr(self) -> usize {
         self as usize
+    }
+
+    #[inline(always)]
+    fn first_byte_val(self) -> u8 {
+        self.cast_const().first_byte_val()
+    }
+
+    #[inline(always)]
+    fn byte_at_val(self, idx: usize) -> u8 {
+        self.cast_const().byte_at_val(idx)
+    }
+
+    #[inline(always)]
+    fn slice_len(self, len: usize) -> &'static [u8] {
+        self.cast_const().slice_len(len)
+    }
+}
+
+impl<T> AsByteSlice for crate::globals::GraphPtr<T> {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self.as_ptr().into_byte_slice()
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
+
+    #[inline(always)]
+    fn first_byte_val(self) -> u8 {
+        self.as_ptr().first_byte_val()
+    }
+
+    #[inline(always)]
+    fn byte_at_val(self, idx: usize) -> u8 {
+        self.as_ptr().byte_at_val(idx)
+    }
+
+    #[inline(always)]
+    fn slice_len(self, len: usize) -> &'static [u8] {
+        self.as_ptr().slice_len(len)
     }
 }
 

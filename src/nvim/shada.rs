@@ -1256,7 +1256,7 @@ fn find_buffer(
 ) -> Option<&'static mut FileBuf> {
     let key = fname.to_bytes();
     if let Some(&buf_addr) = fname_bufs.get(key) {
-        return unsafe { (buf_addr as *mut FileBuf).as_mut() };
+        return crate::globals::GraphPtr::<FileBuf>::of(buf_addr as *mut FileBuf).as_mut();
     }
 
     for buf in for_all_buffers_ptr() {
@@ -1415,9 +1415,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         off: sp.offset,
                     },
                     pat: (!sp.pat.data.is_null()).then(|| {
-                        let s = crate::memory::bytes_to_cstring(unsafe {
-                            std::slice::from_raw_parts(sp.pat.data.cast::<u8>(), sp.pat.size)
-                        });
+                        let s =
+                            crate::memory::bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
+                                sp.pat.data.cast::<u8>(),
+                                sp.pat.size,
+                            ));
                         api_free_string(sp.pat);
                         s
                     }),
@@ -3543,18 +3545,22 @@ fn shada_read_next_item(
 
         let parse_pos = sd_reader.bytes_read;
         let mut owned_buf: Vec<u8> = Vec::new();
-        let buf: *const u8 = if let Some(slice) = file_try_read_buffered(sd_reader, length) {
-            slice.as_ptr()
-        } else {
-            owned_buf = vec![0u8; length];
-            let fl_ret = fread_len(sd_reader, &mut owned_buf);
-            if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
-                return fl_ret;
-            }
-            owned_buf.as_ptr()
-        };
+        let buf = crate::globals::GraphPtr::<u8>::of(
+            if let Some(slice) = file_try_read_buffered(sd_reader, length) {
+                slice.as_ptr()
+            } else {
+                owned_buf = vec![0u8; length];
+                let fl_ret = fread_len(sd_reader, &mut owned_buf);
+                if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
+                    return fl_ret;
+                }
+                owned_buf.as_ptr()
+            },
+        )
+        .as_ptr()
+        .cast_const();
 
-        let mut read_buf: &[u8] = unsafe { std::slice::from_raw_parts(buf, length) };
+        let mut read_buf: &[u8] = crate::globals::GraphPtr::raw_slice(buf, length);
 
         if verify_but_ignore {
             let status = unpack_skip(&mut read_buf);
@@ -3578,7 +3584,7 @@ fn shada_read_next_item(
             let contents = if !owned_buf.is_empty() {
                 owned_buf
             } else {
-                unsafe { std::slice::from_raw_parts(buf, length) }.to_vec()
+                crate::globals::GraphPtr::raw_slice(buf, length).to_vec()
             };
             entry.data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
                 item_type: type_u64,

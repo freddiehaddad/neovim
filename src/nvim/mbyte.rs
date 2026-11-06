@@ -1111,6 +1111,28 @@ impl AsMbyteSlice for *mut u8 {
     }
 }
 
+impl AsMbyteSlice for crate::globals::GraphPtr<u8> {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        ptr_char_bytes(self.as_ptr())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        ptr_cluster_bytes(self.as_ptr())
+    }
+}
+
+impl AsMbyteSlice for crate::globals::GraphPtr<i8> {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        ptr_char_bytes(self.as_ptr().cast())
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        ptr_cluster_bytes(self.as_ptr().cast())
+    }
+}
+
 impl AsMbyteSlice for Option<&[u8]> {
     #[inline(always)]
     fn as_char_bytes(&self) -> &[u8] {

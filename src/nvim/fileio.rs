@@ -377,7 +377,6 @@ use crate::os::fs::{s_isdir, s_isfifo, s_isreg, s_issock};
 #[cfg(windows)]
 mod win_iconv {
     use super::*;
-    use crate::os::fs::errno_ptr;
 
     const E2BIG: i32 = 7;
     const EINVAL: i32 = 22;
@@ -513,7 +512,7 @@ mod win_iconv {
                 }
                 Err(e) => {
                     if e.valid_up_to() > 0 {
-                        let s = unsafe { std::str::from_utf8_unchecked(&src[..e.valid_up_to()]) };
+                        let s = std::str::from_utf8(&src[..e.valid_up_to()]).unwrap_or("");
                         let ch = s.chars().next().unwrap();
                         StepResult::Char(ch, ch.len_utf8())
                     } else if e.error_len().is_none() {
@@ -556,7 +555,7 @@ mod win_iconv {
                 } else if (0xDC00..=0xDFFF).contains(&u1) {
                     StepResult::Invalid
                 } else {
-                    StepResult::Char(unsafe { char::from_u32_unchecked(u32::from(u1)) }, 2)
+                    StepResult::Char(char::from_u32(u32::from(u1)).unwrap_or('\u{FFFD}'), 2)
                 }
             }
             WinEnc::Ucs4Le | WinEnc::Ucs4Be => {
@@ -752,15 +751,15 @@ mod win_iconv {
 
     pub fn open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
         let Ok(to_str) = tocode.to_str() else {
-            unsafe { *errno_ptr() = EINVAL };
+            crate::os::fs::os_set_errno(EINVAL);
             return -1;
         };
         let Ok(from_str) = fromcode.to_str() else {
-            unsafe { *errno_ptr() = EINVAL };
+            crate::os::fs::os_set_errno(EINVAL);
             return -1;
         };
         let (Some(to), Some(from)) = (parse_win_enc(to_str), parse_win_enc(from_str)) else {
-            unsafe { *errno_ptr() = EINVAL };
+            crate::os::fs::os_set_errno(EINVAL);
             return -1;
         };
         let boxed = Box::new(WinIconvDesc {
@@ -773,10 +772,10 @@ mod win_iconv {
 
     pub fn convert(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]) -> usize {
         if cd == -1 || cd == 0 {
-            unsafe { *errno_ptr() = EINVAL };
+            crate::os::fs::os_set_errno(EINVAL);
             return usize::MAX;
         }
-        let desc = unsafe { &mut *(cd as *mut WinIconvDesc) };
+        let desc = crate::globals::GraphPtr::of(cd as *mut WinIconvDesc).borrow_mut();
         let Some(inbuf) = inbuf else {
             desc.from_resolved = None;
             return 0;
@@ -790,11 +789,11 @@ mod win_iconv {
                 StepResult::Char(ch, consumed) => {
                     let mut encoded = [0u8; 8];
                     let Some(enc_len) = encode_one(desc.to, ch, &mut encoded) else {
-                        unsafe { *errno_ptr() = EILSEQ };
+                        crate::os::fs::os_set_errno(EILSEQ);
                         return usize::MAX;
                     };
                     if enc_len > outbuf.len() {
-                        unsafe { *errno_ptr() = E2BIG };
+                        crate::os::fs::os_set_errno(E2BIG);
                         return usize::MAX;
                     }
                     outbuf[..enc_len].copy_from_slice(&encoded[..enc_len]);
@@ -802,11 +801,11 @@ mod win_iconv {
                     *inbuf = &inbuf[consumed..];
                 }
                 StepResult::Incomplete => {
-                    unsafe { *errno_ptr() = EINVAL };
+                    crate::os::fs::os_set_errno(EINVAL);
                     return usize::MAX;
                 }
                 StepResult::Invalid => {
-                    unsafe { *errno_ptr() = EILSEQ };
+                    crate::os::fs::os_set_errno(EILSEQ);
                     return usize::MAX;
                 }
             }
@@ -817,7 +816,7 @@ mod win_iconv {
 
     pub fn close(cd: iconv_t) -> i32 {
         if cd != -1 && cd != 0 {
-            let _ = unsafe { Box::from_raw(cd as *mut WinIconvDesc) };
+            crate::globals::GraphPtr::of(cd as *mut WinIconvDesc).drop_box();
         }
         0
     }
@@ -837,11 +836,13 @@ pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]
     }
     #[cfg(not(windows))]
     unsafe {
-        let mut out_ptr: *mut u8 = outbuf.as_mut_ptr();
+        let mut out_ptr = crate::globals::GraphPtr::<u8>::of(outbuf.as_mut_ptr()).as_ptr();
         let mut out_left: usize = outbuf.len();
         let orig_out_len = out_left;
         let ret = if let Some(inbuf) = inbuf {
-            let mut in_ptr: *const u8 = inbuf.as_ptr();
+            let mut in_ptr = crate::globals::GraphPtr::<u8>::of(inbuf.as_ptr())
+                .as_ptr()
+                .cast_const();
             let mut in_left: usize = inbuf.len();
             let orig_in_len = in_left;
             let r = iconv(
@@ -1008,12 +1009,12 @@ pub fn readfile(
         let mut read_buf_lnum: Linenr = 1;
         let mut read_buf_col: Colnr = 0;
         let mut lnum = from;
-        let mut ptr: *mut u8 = ptr::null_mut();
+        let mut ptr = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut buffer_vec: Vec<u8> = Vec::new();
-        let mut buffer: *mut u8 = ptr::null_mut();
-        let mut line_start: *mut u8 = ptr::null_mut();
+        let mut buffer = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+        let mut line_start = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut size: isize = 0;
-        let mut p: *mut u8;
+        let mut p;
         let mut filesize: Off = 0;
         let mut skip_read = false;
         let mut sha_ctx = ContextSha256::new();
@@ -1039,7 +1040,7 @@ pub fn readfile(
         let mut bad_char_behavior: i32 = BAD_REPLACE;
         let mut tmpname: Option<std::ffi::CString> = None;
         let mut fio_flags: i32;
-        let mut fenc: *mut u8;
+        let mut fenc;
         let mut fenc_owned: Option<std::ffi::CString> = None;
         let mut advance_fenc = false;
         let mut real_size: i32 = 0;
@@ -1595,19 +1596,29 @@ pub fn readfile(
                 fenc_owned = Some(enc_canonize(
                     eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr(),
                 ));
-                fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut().cast();
+                fenc = fenc_owned
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr()
+                    .cast_mut()
+                    .cast::<u8>();
                 keep_dest_enc = true;
             } else if curbuf_mut().b_p_bin {
-                fenc = c"".as_ptr().cast_mut().cast();
+                fenc = c"".as_ptr().cast_mut().cast::<u8>();
             } else if curbuf_mut().b_help {
                 fenc_next = b"latin1";
-                fenc = c"utf-8".as_ptr().cast_mut().cast();
+                fenc = c"utf-8".as_ptr().cast_mut().cast::<u8>();
             } else if opt_vars().p_fencs.is_empty() {
-                fenc = curbuf_mut().b_p_fenc.as_ptr().cast_mut().cast();
+                fenc = curbuf_mut().b_p_fenc.as_ptr().cast_mut().cast::<u8>();
             } else {
                 fenc_next = opt_vars().p_fencs.as_bytes();
                 fenc_owned = Some(next_fenc(&mut fenc_next));
-                fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut().cast();
+                fenc = fenc_owned
+                    .as_ref()
+                    .unwrap()
+                    .as_ptr()
+                    .cast_mut()
+                    .cast::<u8>();
             }
 
             'retry: loop {
@@ -1754,20 +1765,18 @@ pub fn readfile(
 
                         if size < 0 || size + linerest + 1 < 0 || linerest >= MAXCOL - size {
                             split += 1;
-                            unsafe { *ptr = b'\n' };
+                            *crate::globals::GraphPtr::of(ptr).borrow_mut() = b'\n';
                             size = 1;
                         } else if !skip_read {
                             let mut new_buffer_vec: Vec<u8> =
                                 vec![0; (size as usize) + (linerest as usize) + 1];
                             let new_buffer = new_buffer_vec.as_mut_ptr();
                             if linerest != 0 {
-                                unsafe {
-                                    ptr::copy(
-                                        ptr.wrapping_offset(-linerest),
-                                        new_buffer,
-                                        linerest as usize,
-                                    )
-                                };
+                                crate::globals::GraphPtr::copy_to(
+                                    ptr.wrapping_offset(-linerest),
+                                    new_buffer,
+                                    linerest as usize,
+                                );
                             }
                             buffer_vec = new_buffer_vec;
                             buffer = buffer_vec.as_mut_ptr();
@@ -1788,9 +1797,11 @@ pub fn readfile(
                             }
 
                             if conv_restlen > 0 {
-                                unsafe {
-                                    ptr::copy(conv_rest.as_ptr(), ptr, conv_restlen as usize)
-                                };
+                                crate::globals::GraphPtr::copy_to(
+                                    conv_rest.as_ptr(),
+                                    ptr,
+                                    conv_restlen as usize,
+                                );
                                 ptr = ptr.wrapping_offset(conv_restlen as isize);
                                 size -= conv_restlen as isize;
                             }
@@ -1811,11 +1822,14 @@ pub fn readfile(
                                         if tlen + n + 1 > size {
                                             n = size - tlen;
                                             for ni in 0..n {
-                                                let ch = unsafe { *p.wrapping_offset(ni) };
-                                                unsafe {
-                                                    *ptr.wrapping_offset(tlen) =
-                                                        if ch == b'\n' { 0 } else { ch };
-                                                }
+                                                let ch = *crate::globals::GraphPtr::of(
+                                                    p.wrapping_offset(ni),
+                                                )
+                                                .borrow();
+                                                *crate::globals::GraphPtr::of(
+                                                    ptr.wrapping_offset(tlen),
+                                                )
+                                                .borrow_mut() = if ch == b'\n' { 0 } else { ch };
                                                 tlen += 1;
                                             }
                                             read_buf_col += n as Colnr;
@@ -1823,14 +1837,18 @@ pub fn readfile(
                                         }
 
                                         for ni in 0..n {
-                                            let ch = unsafe { *p.wrapping_offset(ni) };
-                                            unsafe {
-                                                *ptr.wrapping_offset(tlen) =
-                                                    if ch == b'\n' { 0 } else { ch };
-                                            }
+                                            let ch = *crate::globals::GraphPtr::of(
+                                                p.wrapping_offset(ni),
+                                            )
+                                            .borrow();
+                                            *crate::globals::GraphPtr::of(
+                                                ptr.wrapping_offset(tlen),
+                                            )
+                                            .borrow_mut() = if ch == b'\n' { 0 } else { ch };
                                             tlen += 1;
                                         }
-                                        unsafe { *ptr.wrapping_offset(tlen) = b'\n' };
+                                        *crate::globals::GraphPtr::of(ptr.wrapping_offset(tlen))
+                                            .borrow_mut() = b'\n';
                                         tlen += 1;
                                         read_buf_col = 0;
                                         read_buf_lnum += 1;
@@ -1846,7 +1864,7 @@ pub fn readfile(
                             } else {
                                 let read_size = size as usize;
                                 let read_slice =
-                                    unsafe { std::slice::from_raw_parts_mut(ptr, read_size) };
+                                    crate::globals::GraphPtr::raw_slice_mut(ptr, read_size);
                                 size = read_eintr(fd, read_slice);
                             }
 
@@ -1877,9 +1895,10 @@ pub fn readfile(
                                             curbuf_mut().b_ml.ml_line_count - linecnt + 1;
                                     }
                                     if bad_char_behavior == BAD_DROP {
-                                        unsafe {
-                                            *ptr.wrapping_offset(-(conv_restlen as isize)) = 0;
-                                        }
+                                        *crate::globals::GraphPtr::of(
+                                            ptr.wrapping_offset(-(conv_restlen as isize)),
+                                        )
+                                        .borrow_mut() = 0;
                                         conv_restlen = 0;
                                     } else {
                                         if bad_char_behavior != BAD_KEEP
@@ -1887,7 +1906,8 @@ pub fn readfile(
                                         {
                                             while conv_restlen > 0 {
                                                 ptr = ptr.wrapping_sub(1);
-                                                unsafe { *ptr = bad_char_behavior as u8 };
+                                                *crate::globals::GraphPtr::of(ptr).borrow_mut() =
+                                                    bad_char_behavior as u8;
                                                 conv_restlen -= 1;
                                             }
                                         }
@@ -1915,7 +1935,7 @@ pub fn readfile(
                                 None
                             } else {
                                 check_for_bom(
-                                    unsafe { std::slice::from_raw_parts(ptr, size as usize) },
+                                    crate::globals::GraphPtr::raw_slice(ptr, size as usize),
                                     &mut blen,
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
@@ -1929,13 +1949,11 @@ pub fn readfile(
                             if ccname.is_some() {
                                 filesize += i64::from(blen);
                                 size -= blen as isize;
-                                unsafe {
-                                    ptr::copy(
-                                        ptr.wrapping_offset(blen as isize),
-                                        ptr,
-                                        size as usize,
-                                    )
-                                };
+                                crate::globals::GraphPtr::copy_to(
+                                    ptr.wrapping_offset(blen as isize),
+                                    ptr,
+                                    size as usize,
+                                );
                                 if set_options {
                                     curbuf_mut().b_p_bomb = true;
                                     curbuf_mut().b_start_bomb = true;
@@ -1964,10 +1982,9 @@ pub fn readfile(
                         if iconv_fd != -1 {
                             let from_total = size as usize;
                             let to_total = (real_size as isize - size) as usize;
-                            let (from_part, to_part) = unsafe {
-                                std::slice::from_raw_parts_mut(ptr, from_total + to_total)
-                                    .split_at_mut(from_total)
-                            };
+                            let (from_part, to_part) =
+                                crate::globals::GraphPtr::raw_slice_mut(ptr, from_total + to_total)
+                                    .split_at_mut(from_total);
                             let mut from_rem: &[u8] = from_part;
                             let mut to_rem: &mut [u8] = to_part;
                             ptr = ptr.wrapping_offset(size);
@@ -1991,9 +2008,10 @@ pub fn readfile(
                                 }
                                 let out_written = to_total - to_rem.len();
                                 if conv_error == 0 {
-                                    conv_error = readfile_linenr(linecnt, unsafe {
-                                        std::slice::from_raw_parts(ptr, out_written)
-                                    });
+                                    conv_error = readfile_linenr(
+                                        linecnt,
+                                        crate::globals::GraphPtr::raw_slice(ptr, out_written),
+                                    );
                                 }
 
                                 let skipped_byte = from_rem[0];
@@ -2014,26 +2032,33 @@ pub fn readfile(
 
                             let out_written = to_total - to_rem.len();
                             line_start = ptr.wrapping_offset(-linerest);
-                            unsafe { ptr::copy(buffer, line_start, linerest as usize) };
+                            crate::globals::GraphPtr::copy_to(
+                                buffer,
+                                line_start,
+                                linerest as usize,
+                            );
                             size = out_written as isize;
                         }
 
                         if fio_flags != 0 {
                             let mut u8c: u32;
-                            let mut tail: *mut u8 = ptr::null_mut();
+                            let mut tail = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
 
                             let mut dest = ptr.wrapping_offset(real_size as isize);
                             if fio_flags == FIO_LATIN1 || fio_flags == FIO_UTF8 {
                                 p = ptr.wrapping_offset(size);
                                 if fio_flags == FIO_UTF8 {
                                     tail = ptr.wrapping_offset(size - 1);
-                                    while tail > ptr && (unsafe { *tail } & 0xc0) == 0x80 {
+                                    while tail > ptr
+                                        && (*crate::globals::GraphPtr::of(tail).borrow() & 0xc0)
+                                            == 0x80
+                                    {
                                         tail = tail.wrapping_sub(1);
                                     }
-                                    if tail
-                                        .wrapping_offset(
-                                            utf_byte2len(i32::from(unsafe { *tail })) as isize
-                                        )
+                                    if tail.wrapping_offset(utf_byte2len(i32::from(
+                                        *crate::globals::GraphPtr::of(tail).borrow(),
+                                    ))
+                                        as isize)
                                         <= ptr.wrapping_offset(size)
                                     {
                                         tail = ptr::null_mut();
@@ -2049,14 +2074,16 @@ pub fn readfile(
                                 if (fio_flags & FIO_UTF16) != 0 && p > ptr {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(unsafe { *p }) << 8;
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p });
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                     } else {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(unsafe { *p });
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 8;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 8;
                                     }
                                     if (0xd800..=0xdbff).contains(&u8c) {
                                         tail = p;
@@ -2077,27 +2104,31 @@ pub fn readfile(
                                 ) as isize)
                                     - (crate::strings::AsByteSlice::byte_addr(tail) as isize))
                                     as i32;
-                                unsafe {
-                                    ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize)
-                                };
+                                crate::globals::GraphPtr::copy_to(
+                                    tail,
+                                    conv_rest.as_mut_ptr(),
+                                    conv_restlen as usize,
+                                );
                                 size -= conv_restlen as isize;
                             }
 
                             while p > ptr {
                                 if (fio_flags & FIO_LATIN1) != 0 {
                                     p = p.wrapping_sub(1);
-                                    u8c = u32::from(unsafe { *p });
+                                    u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                 } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(unsafe { *p }) << 8;
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p });
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                     } else {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(unsafe { *p });
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 8;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 8;
                                     }
                                     if (fio_flags & FIO_UTF16) != 0
                                         && (0xdc00..=0xdfff).contains(&u8c)
@@ -2117,13 +2148,14 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error = readfile_linenr(linecnt, unsafe {
-                                                    std::slice::from_raw_parts(
+                                                conv_error = readfile_linenr(
+                                                    linecnt,
+                                                    crate::globals::GraphPtr::raw_slice(
                                                         ptr,
-                                                        ((p).offset_from(ptr) as isize).max(0)
+                                                        ((p as isize) - (ptr as isize)).max(0)
                                                             as usize,
-                                                    )
-                                                });
+                                                    ),
+                                                );
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2136,14 +2168,22 @@ pub fn readfile(
                                         let mut u16c: i32;
                                         if (fio_flags & FIO_ENDIAN_L) != 0 {
                                             p = p.wrapping_sub(1);
-                                            u16c = i32::from(unsafe { *p }) << 8;
+                                            u16c = i32::from(
+                                                *crate::globals::GraphPtr::of(p).borrow(),
+                                            ) << 8;
                                             p = p.wrapping_sub(1);
-                                            u16c += i32::from(unsafe { *p });
+                                            u16c += i32::from(
+                                                *crate::globals::GraphPtr::of(p).borrow(),
+                                            );
                                         } else {
                                             p = p.wrapping_sub(1);
-                                            u16c = i32::from(unsafe { *p });
+                                            u16c = i32::from(
+                                                *crate::globals::GraphPtr::of(p).borrow(),
+                                            );
                                             p = p.wrapping_sub(1);
-                                            u16c += i32::from(unsafe { *p }) << 8;
+                                            u16c += i32::from(
+                                                *crate::globals::GraphPtr::of(p).borrow(),
+                                            ) << 8;
                                         }
                                         u8c = 0x10000
                                             + (((u16c as u32) & 0x3ff) << 10)
@@ -2164,13 +2204,14 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error = readfile_linenr(linecnt, unsafe {
-                                                    std::slice::from_raw_parts(
+                                                conv_error = readfile_linenr(
+                                                    linecnt,
+                                                    crate::globals::GraphPtr::raw_slice(
                                                         ptr,
-                                                        ((p).offset_from(ptr) as isize).max(0)
+                                                        ((p as isize) - (ptr as isize)).max(0)
                                                             as usize,
-                                                    )
-                                                });
+                                                    ),
+                                                );
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2183,30 +2224,36 @@ pub fn readfile(
                                 } else if (fio_flags & FIO_UCS4) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(unsafe { *p }) << 24;
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 24;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 16;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 16;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 8;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p });
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                     } else {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(unsafe { *p });
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 8;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 16;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 16;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(unsafe { *p }) << 24;
+                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
+                                            << 24;
                                     }
                                     if u8c > i32::MAX as u32 {
                                         u8c = 0xfffd;
                                     }
                                 } else {
                                     p = p.wrapping_sub(1);
-                                    if unsafe { *p } < 0x80 {
-                                        u8c = u32::from(unsafe { *p });
+                                    if *crate::globals::GraphPtr::of(p).borrow() < 0x80 {
+                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                     } else {
                                         let len = crate::mbyte::utf_head_off_ptr(ptr, p);
                                         p = p.wrapping_offset(-(len as isize));
@@ -2226,13 +2273,14 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error = readfile_linenr(linecnt, unsafe {
-                                                    std::slice::from_raw_parts(
+                                                conv_error = readfile_linenr(
+                                                    linecnt,
+                                                    crate::globals::GraphPtr::raw_slice(
                                                         ptr,
-                                                        ((p).offset_from(ptr) as isize).max(0)
+                                                        ((p as isize) - (ptr as isize)).max(0)
                                                             as usize,
-                                                    )
-                                                });
+                                                    ),
+                                                );
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2245,13 +2293,18 @@ pub fn readfile(
                                 }
                                 debug_assert!(u8c <= i32::MAX as u32);
                                 dest = dest.wrapping_offset(-(utf_char2len(u8c as i32) as isize));
-                                utf_char2bytes(u8c as i32, unsafe {
-                                    std::slice::from_raw_parts_mut(dest.cast(), 6)
-                                });
+                                utf_char2bytes(
+                                    u8c as i32,
+                                    crate::globals::GraphPtr::raw_slice_mut(dest.cast(), 6),
+                                );
                             }
 
                             line_start = dest.wrapping_offset(-linerest);
-                            unsafe { ptr::copy(buffer, line_start, linerest as usize) };
+                            crate::globals::GraphPtr::copy_to(
+                                buffer,
+                                line_start,
+                                linerest as usize,
+                            );
                             size = (crate::strings::AsByteSlice::byte_addr(
                                 ptr.wrapping_offset(real_size as isize),
                             ) as isize)
@@ -2275,7 +2328,9 @@ pub fn readfile(
                                         }
                                         p = p.wrapping_add(size_of::<u64>());
                                     }
-                                    while p < ascii_end && unsafe { *p } < 0x80 {
+                                    while p < ascii_end
+                                        && *crate::globals::GraphPtr::of(p).borrow() < 0x80
+                                    {
                                         p = p.wrapping_add(1);
                                     }
                                 }
@@ -2288,7 +2343,7 @@ pub fn readfile(
                                 if todo <= 0 {
                                     break;
                                 }
-                                if unsafe { *p } >= 0x80 {
+                                if *crate::globals::GraphPtr::of(p).borrow() >= 0x80 {
                                     let l = utf_ptr2len_len(
                                         crate::strings::ByteSlice::from_ptr(p).as_bytes(),
                                         todo,
@@ -2299,13 +2354,11 @@ pub fn readfile(
                                         }
                                         if p > ptr {
                                             conv_restlen = todo;
-                                            unsafe {
-                                                ptr::copy(
-                                                    p,
-                                                    conv_rest.as_mut_ptr(),
-                                                    conv_restlen as usize,
-                                                )
-                                            };
+                                            crate::globals::GraphPtr::copy_to(
+                                                p,
+                                                conv_rest.as_mut_ptr(),
+                                                conv_restlen as usize,
+                                            );
                                             size -= conv_restlen as isize;
                                             break;
                                         }
@@ -2315,12 +2368,10 @@ pub fn readfile(
                                             break;
                                         }
 
-                                        let err_slice = unsafe {
-                                            std::slice::from_raw_parts(
-                                                ptr,
-                                                ((p).offset_from(ptr) as isize).max(0) as usize,
-                                            )
-                                        };
+                                        let err_slice = crate::globals::GraphPtr::raw_slice(
+                                            ptr,
+                                            ((p as isize) - (ptr as isize)).max(0) as usize,
+                                        );
                                         if iconv_fd != -1 && conv_error == 0 {
                                             conv_error = readfile_linenr(linecnt, err_slice);
                                         }
@@ -2330,13 +2381,16 @@ pub fn readfile(
                                         }
 
                                         if bad_char_behavior == BAD_DROP {
-                                            unsafe {
-                                                ptr::copy(p.wrapping_add(1), p, (todo - 1) as usize)
-                                            };
+                                            crate::globals::GraphPtr::copy_to(
+                                                p.wrapping_add(1),
+                                                p,
+                                                (todo - 1) as usize,
+                                            );
                                             size -= 1;
                                         } else {
                                             if bad_char_behavior != BAD_KEEP {
-                                                unsafe { *p = bad_char_behavior as u8 };
+                                                *crate::globals::GraphPtr::of(p).borrow_mut() =
+                                                    bad_char_behavior as u8;
                                             }
                                             p = p.wrapping_add(1);
                                         }
@@ -2370,18 +2424,22 @@ pub fn readfile(
                                 p = ptr;
                                 let end_p = ptr.wrapping_offset(size);
                                 while p < end_p {
-                                    if unsafe { *p } == b'\n' {
+                                    if *crate::globals::GraphPtr::of(p).borrow() == b'\n' {
                                         if try_unix == 0
                                             || (try_dos != 0
                                                 && p > ptr
-                                                && unsafe { *p.wrapping_sub(1) } == b'\r')
+                                                && *crate::globals::GraphPtr::of(p.wrapping_sub(1))
+                                                    .borrow()
+                                                    == b'\r')
                                         {
                                             fileformat = EOL_DOS;
                                         } else {
                                             fileformat = EOL_UNIX;
                                         }
                                         break;
-                                    } else if unsafe { *p } == b'\r' && try_mac != 0 {
+                                    } else if *crate::globals::GraphPtr::of(p).borrow() == b'\r'
+                                        && try_mac != 0
+                                    {
                                         try_mac += 1;
                                     }
                                     p = p.wrapping_add(1);
@@ -2390,15 +2448,19 @@ pub fn readfile(
                                 if fileformat == EOL_UNIX && try_mac != 0 {
                                     try_mac = 1;
                                     try_unix = 1;
-                                    while p >= ptr && unsafe { *p } != b'\r' {
+                                    while p >= ptr
+                                        && *crate::globals::GraphPtr::of(p).borrow() != b'\r'
+                                    {
                                         p = p.wrapping_sub(1);
                                     }
                                     if p >= ptr {
                                         p = ptr;
                                         while p < end_p {
-                                            if unsafe { *p } == b'\n' {
+                                            if *crate::globals::GraphPtr::of(p).borrow() == b'\n' {
                                                 try_unix += 1;
-                                            } else if unsafe { *p } == b'\r' {
+                                            } else if *crate::globals::GraphPtr::of(p).borrow()
+                                                == b'\r'
+                                            {
                                                 try_mac += 1;
                                             }
                                             p = p.wrapping_add(1);
@@ -2434,17 +2496,17 @@ pub fn readfile(
                             if size < 0 {
                                 break;
                             }
-                            let c = unsafe { *ptr };
+                            let c = *crate::globals::GraphPtr::of(ptr).borrow();
                             if c != 0 && c != CAR && c != b'\n' {
                                 continue;
                             }
                             if c == 0 {
-                                unsafe { *ptr = b'\n' };
+                                *crate::globals::GraphPtr::of(ptr).borrow_mut() = b'\n';
                             } else if c == b'\n' {
-                                unsafe { *ptr = CAR };
+                                *crate::globals::GraphPtr::of(ptr).borrow_mut() = CAR;
                             } else {
                                 if skip_count == 0 {
-                                    unsafe { *ptr = 0 };
+                                    *crate::globals::GraphPtr::of(ptr).borrow_mut() = 0;
                                     let len = (((crate::strings::AsByteSlice::byte_addr(ptr)
                                         as isize)
                                         - (crate::strings::AsByteSlice::byte_addr(line_start)
@@ -2452,12 +2514,10 @@ pub fn readfile(
                                         + 1) as Colnr;
                                     if !ml_append(
                                         lnum,
-                                        unsafe {
-                                            std::slice::from_raw_parts(
-                                                (line_start).cast::<u8>(),
-                                                (len as usize).saturating_sub(1),
-                                            )
-                                        },
+                                        crate::strings::AsByteSlice::slice_len(
+                                            line_start,
+                                            (len as usize).saturating_sub(1),
+                                        ),
                                         len,
                                         newfile,
                                     ) {
@@ -2465,9 +2525,10 @@ pub fn readfile(
                                         break;
                                     }
                                     if read_undo_file && len > 0 {
-                                        sha_ctx.update(unsafe {
-                                            std::slice::from_raw_parts(line_start, len as usize)
-                                        });
+                                        sha_ctx.update(crate::globals::GraphPtr::raw_slice(
+                                            line_start,
+                                            len as usize,
+                                        ));
                                     }
                                     lnum += 1;
                                     read_count -= 1;
@@ -2489,10 +2550,9 @@ pub fn readfile(
                             let rem = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
                                 - (crate::strings::AsByteSlice::byte_addr(ptr) as isize))
                                 as usize;
-                            let slice =
-                                unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), rem) };
+                            let slice = crate::strings::AsByteSlice::slice_len(ptr, rem);
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
-                                let rem_slice = unsafe { std::slice::from_raw_parts_mut(ptr, rem) };
+                                let rem_slice = crate::globals::GraphPtr::raw_slice_mut(ptr, rem);
                                 for b in rem_slice {
                                     if *b == 0 {
                                         *b = b'\n';
@@ -2505,7 +2565,7 @@ pub fn readfile(
                             let nl = ptr.wrapping_add(nl_pos);
                             if nl_pos > 0 {
                                 let scan_slice =
-                                    unsafe { std::slice::from_raw_parts_mut(ptr, nl_pos) };
+                                    crate::globals::GraphPtr::raw_slice_mut(ptr, nl_pos);
                                 for b in scan_slice {
                                     if *b == 0 {
                                         *b = b'\n';
@@ -2515,15 +2575,20 @@ pub fn readfile(
 
                             ptr = nl;
                             if skip_count == 0 {
-                                unsafe { *ptr = 0 };
+                                *crate::globals::GraphPtr::of(ptr).borrow_mut() = 0;
                                 let mut len = (((crate::strings::AsByteSlice::byte_addr(ptr)
                                     as isize)
                                     - (crate::strings::AsByteSlice::byte_addr(line_start)
                                         as isize))
                                     + 1) as Colnr;
                                 if fileformat == EOL_DOS {
-                                    if ptr > line_start && unsafe { *ptr.wrapping_sub(1) } == CAR {
-                                        unsafe { *ptr.wrapping_sub(1) = 0 };
+                                    if ptr > line_start
+                                        && *crate::globals::GraphPtr::of(ptr.wrapping_sub(1))
+                                            .borrow()
+                                            == CAR
+                                    {
+                                        *crate::globals::GraphPtr::of(ptr.wrapping_sub(1))
+                                            .borrow_mut() = 0;
                                         len -= 1;
                                     } else if ff_error != EOL_DOS {
                                         if try_unix != 0
@@ -2544,12 +2609,10 @@ pub fn readfile(
                                 }
                                 if !ml_append(
                                     lnum,
-                                    unsafe {
-                                        std::slice::from_raw_parts(
-                                            (line_start).cast::<u8>(),
-                                            (len as usize).saturating_sub(1),
-                                        )
-                                    },
+                                    crate::strings::AsByteSlice::slice_len(
+                                        line_start,
+                                        (len as usize).saturating_sub(1),
+                                    ),
                                     len,
                                     newfile,
                                 ) {
@@ -2557,9 +2620,10 @@ pub fn readfile(
                                     break;
                                 }
                                 if read_undo_file && len > 0 {
-                                    sha_ctx.update(unsafe {
-                                        std::slice::from_raw_parts(line_start, len as usize)
-                                    });
+                                    sha_ctx.update(crate::globals::GraphPtr::raw_slice(
+                                        line_start,
+                                        len as usize,
+                                    ));
                                 }
                                 lnum += 1;
                                 read_count -= 1;
@@ -2620,7 +2684,7 @@ pub fn readfile(
             if linerest != 0
                 && !curbuf_mut().b_p_bin
                 && fileformat == EOL_DOS
-                && unsafe { *ptr.wrapping_sub(1) } == CTRL_Z
+                && *crate::globals::GraphPtr::of(ptr.wrapping_sub(1)).borrow() == CTRL_Z
             {
                 ptr = ptr.wrapping_sub(1);
                 linerest -= 1;
@@ -2633,27 +2697,26 @@ pub fn readfile(
                 if set_options {
                     curbuf_mut().b_p_eol = false;
                 }
-                unsafe { *ptr = 0 };
+                *crate::globals::GraphPtr::of(ptr).borrow_mut() = 0;
                 let len = (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
                     - (crate::strings::AsByteSlice::byte_addr(line_start) as isize))
                     + 1) as Colnr;
                 if !ml_append(
                     lnum,
-                    unsafe {
-                        std::slice::from_raw_parts(
-                            (line_start).cast::<u8>(),
-                            (len as usize).saturating_sub(1),
-                        )
-                    },
+                    crate::strings::AsByteSlice::slice_len(
+                        line_start,
+                        (len as usize).saturating_sub(1),
+                    ),
                     len,
                     newfile,
                 ) {
                     error = true;
                 } else {
                     if read_undo_file && len > 0 {
-                        sha_ctx.update(unsafe {
-                            std::slice::from_raw_parts(line_start, len as usize)
-                        });
+                        sha_ctx.update(crate::globals::GraphPtr::raw_slice(
+                            line_start,
+                            len as usize,
+                        ));
                     }
                     lnum += 1;
                     read_no_eol_lnum = lnum;
@@ -4539,7 +4602,7 @@ fn vim_settempdir(tempdir: &CStr) -> bool {
 
     vim_full_name(
         Some(tempdir),
-        unsafe { std::slice::from_raw_parts_mut((buf_vec.as_mut_ptr()).cast(), MAXPATHL) },
+        crate::globals::GraphPtr::raw_slice_mut((buf_vec.as_mut_ptr()).cast(), MAXPATHL),
         cfg!(windows),
     );
 

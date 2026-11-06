@@ -113,7 +113,7 @@ impl CharBuf {
 
     #[inline]
     pub fn as_mut_slice(&self) -> &'static mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.addr as *mut u8, self.size) }
+        crate::globals::GraphPtr::raw_slice_mut(self.addr as *mut u8, self.size)
     }
 
     #[inline]

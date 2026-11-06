@@ -1186,7 +1186,7 @@ fn qf_list_has_valid_entries(qfl: &QfList) -> bool {
 
 #[inline]
 fn qf_get_list(qi: &mut QfInfo, idx: i32) -> &'static mut QfList {
-    unsafe { &mut *qi.qf_lists.as_mut_ptr().wrapping_add(idx as usize) }
+    crate::globals::GraphPtr::of(qi.qf_lists.as_mut_ptr().wrapping_add(idx as usize)).borrow_mut()
 }
 
 fn qf_parse_line(
@@ -1959,7 +1959,7 @@ fn ll_free_all(qi: Option<&mut QfInfo>) {
     if qi.qf_refcount < 1 {
         let qi_ptr = ptr::from_mut(qi);
         wipe_qf_buffer(qi);
-        drop(unsafe { Box::from_raw(qi_ptr) });
+        crate::globals::GraphPtr::of(qi_ptr).drop_box();
     }
 }
 
@@ -2316,9 +2316,10 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
     #[cfg(windows)]
     {
         let bufname_len = crate::strings::ByteSlice::from_ptr(bufname_ptr).len();
-        path_to_slash(unsafe {
-            std::slice::from_raw_parts_mut(bufname_ptr.cast::<u8>(), bufname_len + 1)
-        });
+        path_to_slash(crate::globals::GraphPtr::raw_slice_mut(
+            bufname_ptr.cast::<u8>(),
+            bufname_len + 1,
+        ));
     }
 
     let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
@@ -2751,7 +2752,7 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         curwin_mut().w_llist_ref.as_ptr()
     };
     if !ll_ref.is_null() {
-        usable_wp = qf_find_win_with_loclist(unsafe { &*ll_ref });
+        usable_wp = qf_find_win_with_loclist(crate::globals::GraphPtr::of(ll_ref).borrow());
         if usable_wp.is_some() {
             usable_win = true;
         }
@@ -2769,12 +2770,16 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         || !usable_win
         || newwin
     {
-        if !qf_open_new_file_win(unsafe { ll_ref.as_mut() }) {
+        if !qf_open_new_file_win(crate::globals::GraphPtr::of(ll_ref).opt_mut()) {
             return false;
         }
         *opened_window = true;
     } else if !curwin_mut().w_llist_ref.is_null() {
-        qf_goto_win_with_ll_file(usable_wp, qf_fnum, unsafe { ll_ref.as_mut() });
+        qf_goto_win_with_ll_file(
+            usable_wp,
+            qf_fnum,
+            crate::globals::GraphPtr::of(ll_ref).opt_mut(),
+        );
     } else {
         qf_goto_win_with_qfl_file(qf_fnum);
     }
@@ -3933,7 +3938,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
             &mut aco,
             None,
             None,
-            Some(unsafe { &mut *ptr::from_mut(buf) }),
+            Some(crate::globals::GraphPtr::from(&*buf).borrow_mut()),
             0,
         );
     }
@@ -4074,12 +4079,10 @@ fn qf_buf_add_line(
     if !ml_append_buf(
         &mut *buf,
         lnum,
-        unsafe {
-            std::slice::from_raw_parts(
-                (gap.as_mut_ptr()).cast::<u8>(),
-                (gap.len() as Colnr as usize).saturating_sub(1),
-            )
-        },
+        crate::strings::AsByteSlice::slice_len(
+            gap.as_mut_ptr(),
+            (gap.len() as Colnr as usize).saturating_sub(1),
+        ),
         gap.len() as Colnr,
         false,
     ) {
@@ -4218,7 +4221,7 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
             ml_delete(lnum + 1);
         }
 
-        tv_list_unref(unsafe { qftf_list_ptr.as_mut() });
+        tv_list_unref(crate::globals::GraphPtr::of(qftf_list_ptr).opt_mut());
         qfga_clear();
     }
 
@@ -4435,7 +4438,11 @@ pub fn ex_make(eap: &mut Exarg) {
             );
         }
         if res > 0 && !eap.forceit && qflist_valid(wp.opt(), save_qfid) {
-            qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, false);
+            qf_jump_first(
+                crate::globals::GraphPtr::of(qi_ptr).borrow_mut(),
+                save_qfid,
+                false,
+            );
         }
     }
 
@@ -4997,7 +5004,11 @@ pub fn ex_cfile(eap: &mut Exarg) {
         && (eap.cmdidx == Cmdidx::CmdCfile || eap.cmdidx == Cmdidx::CmdLfile)
         && qflist_valid(wp.opt(), save_qfid)
     {
-        qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, eap.forceit);
+        qf_jump_first(
+            crate::globals::GraphPtr::of(qi_ptr).borrow_mut(),
+            save_qfid,
+            eap.forceit,
+        );
     }
 
     decr_quickfix_busy();
@@ -5491,12 +5502,14 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
             }
 
             if qflist_valid(wp_ptr.opt(), save_qfid)
-                && qf_restore_list(unsafe { &mut *qi_ptr }, save_qfid)
+                && qf_restore_list(crate::globals::GraphPtr::of(qi_ptr).borrow_mut(), save_qfid)
             {
-                if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi_ptr })))) {
+                if !qf_list_empty(Some(
+                    &*(qf_get_curlist(crate::globals::GraphPtr::of(qi_ptr).borrow_mut())),
+                )) {
                     if (args.flags & VGR_NOJUMP) == 0 {
                         vgr_jump_to_match(
-                            unsafe { &mut *qi_ptr },
+                            crate::globals::GraphPtr::of(qi_ptr).borrow_mut(),
                             eap.forceit,
                             &mut redraw_for_dummy,
                             first_match_buf.as_deref(),
@@ -6589,14 +6602,15 @@ pub fn set_errorlist(
     title: Option<&CStr>,
     what: Option<&TvDict>,
 ) -> bool {
-    let qi: *mut QfInfo = if let Some(ref mut wp_ref) = wp {
+    let qi = crate::globals::GraphPtr::<QfInfo>::of(if let Some(ref mut wp_ref) = wp {
         ll_get_or_alloc_list(wp_ref)
     } else {
         ql_info_mut()
-    };
+    })
+    .as_ptr();
 
     if action == b'f' as i32 {
-        qf_free_stack(wp, unsafe { &mut *qi });
+        qf_free_stack(wp, crate::globals::GraphPtr::of(qi).borrow_mut());
         return true;
     }
 
@@ -6610,7 +6624,7 @@ pub fn set_errorlist(
 
     incr_quickfix_busy();
 
-    let qi_mut = unsafe { &mut *qi };
+    let qi_mut = crate::globals::GraphPtr::of(qi).borrow_mut();
     let retval = if let Some(what) = what {
         qf_set_properties(qi_mut, what, action, title)
     } else {
@@ -6831,7 +6845,11 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         && (eap.cmdidx == Cmdidx::CmdCbuffer || eap.cmdidx == Cmdidx::CmdLbuffer)
         && qflist_valid(wp_ptr.opt(), save_qfid)
     {
-        qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, eap.forceit);
+        qf_jump_first(
+            crate::globals::GraphPtr::of(qi_ptr).borrow_mut(),
+            save_qfid,
+            eap.forceit,
+        );
     }
 
     decr_quickfix_busy();
@@ -6912,7 +6930,11 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
             && (eap.cmdidx == Cmdidx::CmdCexpr || eap.cmdidx == Cmdidx::CmdLexpr)
             && qflist_valid(wp_ptr.opt(), save_qfid)
         {
-            qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, eap.forceit);
+            qf_jump_first(
+                crate::globals::GraphPtr::of(qi_ptr).borrow_mut(),
+                save_qfid,
+                eap.forceit,
+            );
         }
         decr_quickfix_busy();
         return true;
@@ -7085,7 +7107,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         None
     } else {
         let len = eap.arg.len();
-        let slice = unsafe { std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), len + 1) };
+        let slice = crate::globals::GraphPtr::raw_slice_mut(eap.arg.cast::<u8>(), len + 1);
         check_help_lang(slice)
     };
     let mut regmatch: Regmatch = Regmatch::new();

@@ -380,7 +380,10 @@ pub fn do_tag(
 ) {
     let tag = crate::strings::ByteSlice::from_cstr(tag);
     {
-        let tagstack: *mut Taggy = (&raw mut curwin_mut().w_tagstack).cast::<Taggy>();
+        let tagstack = crate::globals::GraphPtr::<Taggy>::of(
+            (&raw mut curwin_mut().w_tagstack).cast::<Taggy>(),
+        )
+        .as_ptr();
         let mut tagstackidx = curwin_mut().w_tagstackidx;
         let mut tagstacklen = curwin_mut().w_tagstacklen;
         let mut cur_match: i32 = 0;
@@ -629,7 +632,7 @@ pub fn do_tag(
             }
 
             loop {
-                let mut name: *mut u8 = if use_tagstack {
+                let mut name = crate::globals::GraphPtr::<u8>::of(if use_tagstack {
                     tofree = curwin_mut().w_tagstack[tagstackidx as usize]
                         .tagname
                         .clone();
@@ -644,7 +647,8 @@ pub fn do_tag(
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
                 } else {
                     tag.cast()
-                };
+                })
+                .as_ptr();
 
                 let other_name = tag_st().tagmatchname.as_ref().is_none_or(|m| {
                     m.to_bytes() != crate::strings::ByteSlice::from_ptr(name).as_bytes()
@@ -668,7 +672,10 @@ pub fn do_tag(
                         cur_match + 1
                     };
 
-                    if !no_regexp && unsafe { !name.is_null() && *name == b'/' } {
+                    if !no_regexp
+                        && !name.is_null()
+                        && *crate::globals::GraphPtr::of(name).borrow() == b'/'
+                    {
                         tag_st().do_tag_flags = TAG_REGEXP;
                         name = name.wrapping_add(1);
                     } else {
@@ -999,7 +1006,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
 
             let p = tag_full_fname(&mut tagp);
             crate::memory::copy_bytes_to_c_buf(
-                unsafe { std::slice::from_raw_parts_mut(fname, MAXPATHL) },
+                crate::globals::GraphPtr::raw_slice_mut(fname, MAXPATHL),
                 p.as_bytes(),
             );
 
@@ -1480,7 +1487,7 @@ fn findtags_state_init(st: &mut FindtagsState, pat: &std::ffi::CStr, flags: i32,
         st.tag_fname = vec![0u8; MAXPATHL + 1];
         st.fp = None;
         st.orgpat = Pat {
-            pat: unsafe { &*(pat as *const std::ffi::CStr) },
+            pat: crate::globals::GraphPtr::<u8>::cstr(pat),
             len: pat.to_bytes().len() as i32,
             head: c"",
             headlen: 0,
@@ -1759,8 +1766,9 @@ fn findtags_parse_line(
 
     if st.orgpat.headlen != 0 {
         *tagpp = Tagptrs::default();
-        let raw_line: &'static [u8] =
-            unsafe { &*(crate::memory::bytes_until_nul(&st.lbuf) as *const [u8]) };
+        let raw_line: &'static [u8] = crate::globals::GraphPtr::extend_slice_lifetime(
+            crate::memory::bytes_until_nul(&st.lbuf),
+        );
         tagpp.raw_line = raw_line;
         let Some(tab_pos) = raw_line.iter().position(|&b| b == TAB) else {
             return TagmatchStatus::TagMatchFail;
@@ -2273,7 +2281,7 @@ pub fn find_tags(
             saved_pat = Some(cstr);
             st.orgpat.pat = saved_pat
                 .as_ref()
-                .map(|s| unsafe { &*(s.as_c_str() as *const std::ffi::CStr) })
+                .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()))
                 .unwrap();
             st.orgpat.len -= 3;
         }
@@ -2503,7 +2511,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
 
 fn parse_tag_line(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
     let raw_line: &'static [u8] =
-        unsafe { &*(crate::memory::bytes_until_nul(lbuf_slice) as *const [u8]) };
+        crate::globals::GraphPtr::extend_slice_lifetime(crate::memory::bytes_until_nul(lbuf_slice));
     tagp.raw_line = raw_line;
     let Some(tab1) = raw_line.iter().position(|&b| b == TAB) else {
         return false;
@@ -2544,7 +2552,7 @@ fn matching_line_len(lbuf_slice: &[u8]) -> usize {
 
 fn parse_match(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
     let tag_fname = crate::memory::bytes_as_cstr(&lbuf_slice[1..]);
-    tagp.tag_fname = Some(unsafe { &*(tag_fname as *const std::ffi::CStr) });
+    tagp.tag_fname = Some(crate::globals::GraphPtr::<u8>::cstr(tag_fname));
     let tag_line_off = tag_fname.to_bytes().len() + 2;
 
     let retval = parse_tag_line(&lbuf_slice[tag_line_off.min(lbuf_slice.len())..], tagp);
@@ -2682,7 +2690,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         let fname_cstr = std::ffi::CString::new(tagp.fname).unwrap_or_default();
         let expanded = expand_tag_fname(&fname_cstr, tagp.tag_fname.unwrap_or(c""), true);
-        let mut fname: *mut u8 = expanded.as_ptr().cast_mut().cast();
+        let mut fname = expanded.as_ptr().cast_mut().cast::<u8>();
         tofree_fname = Some(expanded);
 
         if !os_path_exists(crate::strings::ByteSlice::from_ptr(fname).as_cstr())

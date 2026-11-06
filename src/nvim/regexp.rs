@@ -274,7 +274,7 @@ impl Regmmatch {
     #[inline(always)]
     pub fn free_prog(&mut self) {
         if !self.regprog.is_null() {
-            drop(unsafe { Box::from_raw(self.regprog.as_ptr()) });
+            crate::globals::GraphPtr::of(self.regprog.as_ptr()).drop_box();
             self.regprog = crate::globals::GraphPtr::NULL;
         }
     }
@@ -359,7 +359,7 @@ impl Regmatch {
     #[inline(always)]
     pub fn free_prog(&mut self) {
         if !self.regprog.is_null() {
-            drop(unsafe { Box::from_raw(self.regprog.as_ptr()) });
+            crate::globals::GraphPtr::of(self.regprog.as_ptr()).drop_box();
             self.regprog = crate::globals::GraphPtr::NULL;
         }
     }
@@ -1842,7 +1842,7 @@ pub fn skip_regexp_ex(
 }
 
 pub(super) fn initchr(str_: &CStr) {
-    re_st().regparse_base = unsafe { &*(str_ as *const CStr) };
+    re_st().regparse_base = crate::globals::GraphPtr::<u8>::cstr(str_);
     re_st().regparse_off = 0;
     re_st().prevchr_len = 0;
     re_st().nextchr = -1;
@@ -2198,7 +2198,7 @@ pub(super) fn reg_match_visual() -> bool {
     } else {
         re_st().rex.reg_win.as_ptr()
     };
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
     if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
     {
         return false;
@@ -2654,7 +2654,8 @@ pub(crate) fn fill_submatch_list(
     }
     let listarg = &mut argv[argskip as usize];
 
-    let static_list = unsafe { &mut *listarg.vval.v_list().cast::<StaticList10>() };
+    let static_list =
+        crate::globals::GraphPtr::of(listarg.vval.v_list().cast::<StaticList10>()).borrow_mut();
     tv_list_init_static10(static_list);
 
     let mut li = crate::globals::GraphPtr::from(tv_list_first(listarg.vval.v_list().opt()));
@@ -3136,7 +3137,7 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
         .as_ptr()
         .cast_mut();
     let len = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum) as usize;
-    Some(unsafe { std::slice::from_raw_parts((line).cast::<u8>(), len) })
+    Some(crate::strings::AsByteSlice::slice_len(line, len))
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {

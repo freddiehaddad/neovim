@@ -72,9 +72,10 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 pub fn get_appname(namelike: bool) -> &'static CStr {
-    let name_buff = unsafe {
-        std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast::<u8>(), MAXPATHL)
-    };
+    let name_buff = crate::globals::GraphPtr::raw_slice_mut(
+        g_st().name_buff.as_mut_ptr().cast::<u8>(),
+        MAXPATHL,
+    );
     let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff);
     if env_val.is_none() {
         name_buff[..5].copy_from_slice(b"nvim\0");

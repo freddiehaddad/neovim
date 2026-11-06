@@ -32,7 +32,7 @@ impl OptString {
     #[inline(always)]
     pub fn as_cstr(&self) -> &'static std::ffi::CStr {
         match self.0 {
-            Some(ref s) => unsafe { &*(s.as_c_str() as *const std::ffi::CStr) },
+            Some(ref s) => crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()),
             None => c"",
         }
     }
@@ -1439,12 +1439,13 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            assert_eq!({ opt_vars().dy_escape_width }, 2);
-            assert_eq!({ opt_vars().p_mousescroll_vert }, 3);
-            assert_eq!({ opt_vars().p_mousescroll_hor }, 6);
-            assert_eq!({ (*EMPTY_STRING_OPTION.as_ptr())[0] }, 0);
-            assert!(opt_vars().p_vfile.is_empty());
-        }
+        assert_eq!({ opt_vars().dy_escape_width }, 2);
+        assert_eq!({ opt_vars().p_mousescroll_vert }, 3);
+        assert_eq!({ opt_vars().p_mousescroll_hor }, 6);
+        assert_eq!(
+            { crate::globals::GraphPtr::of(EMPTY_STRING_OPTION.as_ptr()).borrow()[0] },
+            0
+        );
+        assert!(opt_vars().p_vfile.is_empty());
     }
 }

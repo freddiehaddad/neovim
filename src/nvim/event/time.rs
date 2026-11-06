@@ -80,7 +80,7 @@ pub fn time_watcher_close(watcher: &mut TimeWatcher) {
 }
 
 pub fn time_event(watcher_in: &mut TimeWatcher) {
-    let watcher: *mut TimeWatcher = watcher_in;
+    let watcher = crate::globals::GraphPtr::<TimeWatcher>::of(watcher_in).as_ptr();
     unsafe {
         match (*watcher).data {
             TimeWatcherData::None => {}
@@ -108,7 +108,7 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
 }
 
 pub fn close_event(watcher_in: &mut TimeWatcher) {
-    let watcher: *mut TimeWatcher = watcher_in;
+    let watcher = crate::globals::GraphPtr::<TimeWatcher>::of(watcher_in).as_ptr();
     unsafe {
         match (*watcher).data {
             TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}

@@ -1046,7 +1046,7 @@ pub fn buf_ensure_loaded(buf: &mut FileBuf) -> bool {
         &mut aco,
         None,
         None,
-        Some(unsafe { &mut *ptr::from_mut(buf) }),
+        Some(crate::globals::GraphPtr::from(&*buf).borrow_mut()),
         0,
     );
     let status = open_buffer(false, None, 0);
@@ -1709,7 +1709,7 @@ impl FileBuf {
     pub fn ffname_opt(&self) -> Option<&'static std::ffi::CStr> {
         self.b_ffname
             .as_ref()
-            .map(|s| unsafe { &*(s.as_c_str() as *const std::ffi::CStr) })
+            .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()))
     }
 
     #[inline]
@@ -1726,7 +1726,7 @@ impl FileBuf {
     pub fn sfname_opt(&self) -> Option<&'static std::ffi::CStr> {
         self.b_sfname
             .as_ref()
-            .map(|s| unsafe { &*(s.as_c_str() as *const std::ffi::CStr) })
+            .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()))
     }
 
     #[inline]
@@ -1858,9 +1858,9 @@ fn free_buffer(buf: &mut FileBuf) {
 
         g_st()
             .au_pending_free_buf
-            .push(unsafe { Box::from_raw(buf_ptr.as_ptr()) });
+            .push(crate::globals::GraphPtr::of(buf_ptr.as_ptr()).into_box());
     } else {
-        drop(unsafe { Box::from_raw(buf_ptr.as_ptr()) });
+        crate::globals::GraphPtr::of(buf_ptr.as_ptr()).drop_box();
 
         if g_st().curbuf == buf_ptr {
             g_st().curbuf = crate::globals::BufPtr::NULL;
@@ -2174,8 +2174,8 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
 }
 
 fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) -> bool {
-    let mut buf: *mut FileBuf;
-    let mut bp: *mut FileBuf;
+    let mut buf;
+    let mut bp;
     let mut update_jumplist = true;
     let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
 
@@ -2188,56 +2188,72 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         while count > 0 {
             count -= 1;
             loop {
-                buf = unsafe { (*buf).b_next.as_ptr() };
+                buf = crate::globals::GraphPtr::of(buf)
+                    .borrow_mut()
+                    .b_next
+                    .as_ptr();
 
                 if buf.is_null() {
                     buf = g_st().firstbuf.as_ptr();
                 }
-                if buf == g_st().curbuf.as_ptr() || buf_is_changed(unsafe { &mut *buf }) {
+                if buf == g_st().curbuf.as_ptr()
+                    || buf_is_changed(crate::globals::GraphPtr::of(buf).borrow_mut())
+                {
                     break;
                 }
             }
         }
-        if !buf_is_changed(unsafe { &mut *buf }) {
+        if !buf_is_changed(crate::globals::GraphPtr::of(buf).borrow_mut()) {
             emsg(gettext(c"E84: No modified buffer found"));
             return false;
         }
     } else if start == DOBUF_FIRST && count != 0 {
-        while !buf.is_null() && unsafe { (*buf).b_fnum } != count {
-            buf = unsafe { (*buf).b_next.as_ptr() };
+        while !buf.is_null() && crate::globals::GraphPtr::of(buf).borrow().b_fnum != count {
+            buf = crate::globals::GraphPtr::of(buf)
+                .borrow_mut()
+                .b_next
+                .as_ptr();
         }
     } else {
-        let help_only = (flags & DOBUF_SKIPHELP) != 0 && unsafe { (*buf).b_help };
+        let help_only =
+            (flags & DOBUF_SKIPHELP) != 0 && crate::globals::GraphPtr::of(buf).borrow().b_help;
 
         bp = ptr::null_mut();
         while count > 0
             || (bp != buf
                 && !unload
                 && !(if help_only {
-                    unsafe { (*buf).b_help }
+                    crate::globals::GraphPtr::of(buf).borrow().b_help
                 } else {
-                    unsafe { (*buf).b_p_bl }
+                    crate::globals::GraphPtr::of(buf).borrow().b_p_bl
                 }))
         {
             if bp.is_null() {
                 bp = buf;
             }
             buf = if dir == FORWARD {
-                if !unsafe { (*buf).b_next }.is_null() {
-                    unsafe { (*buf).b_next.as_ptr() }
+                if !crate::globals::GraphPtr::of(buf).borrow().b_next.is_null() {
+                    crate::globals::GraphPtr::of(buf)
+                        .borrow_mut()
+                        .b_next
+                        .as_ptr()
                 } else {
                     g_st().firstbuf.as_ptr()
                 }
-            } else if !unsafe { (*buf).b_prev }.is_null() {
-                unsafe { (*buf).b_prev.as_ptr() }
+            } else if !crate::globals::GraphPtr::of(buf).borrow().b_prev.is_null() {
+                crate::globals::GraphPtr::of(buf)
+                    .borrow_mut()
+                    .b_prev
+                    .as_ptr()
             } else {
                 g_st().lastbuf.as_ptr()
             };
             if unload
                 || (if help_only {
-                    unsafe { (*buf).b_help }
+                    crate::globals::GraphPtr::of(buf).borrow().b_help
                 } else {
-                    unsafe { (*buf).b_p_bl && ((flags & DOBUF_SKIPHELP) == 0 || !(*buf).b_help) }
+                    let b = crate::globals::GraphPtr::of(buf).borrow();
+                    b.b_p_bl && ((flags & DOBUF_SKIPHELP) == 0 || !b.b_help)
                 })
             {
                 count -= 1;
@@ -2271,7 +2287,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     }
 
     if (action == DOBUF_GOTO || action == DOBUF_SPLIT)
-        && (unsafe { (*buf).b_flags } & BF_DUMMY) != 0
+        && (crate::globals::GraphPtr::of(buf).borrow().b_flags & BF_DUMMY) != 0
     {
         semsg!(gettext(E_NOBUFNR), count);
         return false;
@@ -2279,34 +2295,40 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
     if unload {
         let mut bufref: Bufref = Bufref::new();
-        if !can_unload_buffer(unsafe { &mut *buf }) {
+        if !can_unload_buffer(crate::globals::GraphPtr::of(buf).borrow_mut()) {
             return false;
         }
-        set_bufref(&mut bufref, unsafe { buf.as_mut() });
+        set_bufref(&mut bufref, crate::globals::GraphPtr::of(buf).opt_mut());
 
         if action != DOBUF_WIPE
-            && unsafe { (*buf).b_ml.ml_mfp.is_none() }
-            && !unsafe { (*buf).b_p_bl }
+            && crate::globals::GraphPtr::of(buf)
+                .borrow_mut()
+                .b_ml
+                .ml_mfp
+                .is_none()
+            && !crate::globals::GraphPtr::of(buf).borrow().b_p_bl
         {
             return false;
         }
 
-        if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(unsafe { &mut *buf }) {
+        if (flags & DOBUF_FORCEIT) == 0
+            && buf_is_changed(crate::globals::GraphPtr::of(buf).borrow_mut())
+        {
             if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                 && opt_vars().p_write
             {
-                dialog_changed(unsafe { &mut *buf }, false);
+                dialog_changed(crate::globals::GraphPtr::of(buf).borrow_mut(), false);
 
                 if !bufref_valid(Some(&bufref)) {
                     return false;
                 }
-                if buf_is_changed(unsafe { &mut *buf }) {
+                if buf_is_changed(crate::globals::GraphPtr::of(buf).borrow_mut()) {
                     return false;
                 }
             } else {
                 semsg!(
                     gettext(E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE,),
-                    unsafe { (*buf).b_fnum },
+                    crate::globals::GraphPtr::of(buf).borrow().b_fnum,
                 );
 
                 return false;
@@ -2314,24 +2336,32 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
 
         if (flags & DOBUF_FORCEIT) == 0
-            && !unsafe { (*buf).terminal }.is_null()
-            && terminal_running(unsafe { (*buf).terminal.borrow() })
+            && !crate::globals::GraphPtr::of(buf)
+                .borrow()
+                .terminal
+                .is_null()
+            && terminal_running(
+                crate::globals::GraphPtr::of(buf)
+                    .borrow_mut()
+                    .terminal
+                    .borrow(),
+            )
         {
             if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
-                if !dialog_close_terminal(unsafe { &mut *buf }) {
+                if !dialog_close_terminal(crate::globals::GraphPtr::of(buf).borrow_mut()) {
                     return false;
                 }
             } else {
                 semsg!(
                     gettext(c"E89: %s will be killed (add ! to override)"),
-                    unsafe { (*buf).fname_cstr() },
+                    crate::globals::GraphPtr::of(buf).borrow_mut().fname_cstr(),
                 );
 
                 return false;
             }
         }
 
-        let buf_fnum = unsafe { (*buf).b_fnum };
+        let buf_fnum = crate::globals::GraphPtr::of(buf).borrow().b_fnum;
 
         if buf == g_st().curbuf.as_ptr() && g_st().visual_global.active {
             end_visual_mode();
@@ -2362,7 +2392,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 mark_jumplist_forget_file(curwin_mut(), buf_fnum);
             }
 
-            close_windows(unsafe { buf.as_mut() }, false);
+            close_windows(crate::globals::GraphPtr::of(buf).opt_mut(), false);
             if g_st().curbuf != buf
                 && bufref_valid(Some(&bufref))
                 && firstwin_mut().w_buffer == buf
@@ -2384,9 +2414,16 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
             if g_st().curbuf != buf
                 && bufref_valid(Some(&bufref))
-                && unsafe { (*buf).b_nwindows } <= 0
+                && crate::globals::GraphPtr::of(buf).borrow().b_nwindows <= 0
             {
-                close_buffer(None, unsafe { buf.as_mut() }, action, false, false, false);
+                close_buffer(
+                    None,
+                    crate::globals::GraphPtr::of(buf).opt_mut(),
+                    action,
+                    false,
+                    false,
+                    false,
+                );
             }
             return true;
         }
@@ -2427,12 +2464,17 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
                     if !buf.is_null() {
                         if buf == g_st().curbuf.as_ptr()
-                            || !unsafe { (*buf).b_p_bl }
-                            || bt_quickfix(unsafe { buf.as_ref() })
-                            || unsafe { (*buf).b_locked_split != 0 }
+                            || !crate::globals::GraphPtr::of(buf).borrow().b_p_bl
+                            || bt_quickfix(crate::globals::GraphPtr::of(buf).opt())
+                            || (crate::globals::GraphPtr::of(buf).borrow().b_locked_split != 0)
                         {
                             buf = ptr::null_mut();
-                        } else if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+                        } else if crate::globals::GraphPtr::of(buf)
+                            .borrow_mut()
+                            .b_ml
+                            .ml_mfp
+                            .is_none()
+                        {
                             if bp.is_null() {
                                 bp = buf;
                             }
@@ -2472,12 +2514,17 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     forward = false;
                     continue;
                 }
-                if unsafe { (*buf).b_help } == curbuf_mut().b_help
-                    && unsafe { (*buf).b_p_bl }
-                    && !bt_quickfix(unsafe { buf.as_ref() })
-                    && unsafe { (*buf).b_locked_split == 0 }
+                if crate::globals::GraphPtr::of(buf).borrow().b_help == curbuf_mut().b_help
+                    && crate::globals::GraphPtr::of(buf).borrow().b_p_bl
+                    && !bt_quickfix(crate::globals::GraphPtr::of(buf).opt())
+                    && (crate::globals::GraphPtr::of(buf).borrow().b_locked_split == 0)
                 {
-                    if unsafe { (*buf).b_ml.ml_mfp.is_some() } {
+                    if crate::globals::GraphPtr::of(buf)
+                        .borrow_mut()
+                        .b_ml
+                        .ml_mfp
+                        .is_some()
+                    {
                         break;
                     }
                     if bp.is_null() {
@@ -2485,9 +2532,15 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     }
                 }
                 buf = if forward {
-                    unsafe { (*buf).b_next.as_ptr() }
+                    crate::globals::GraphPtr::of(buf)
+                        .borrow_mut()
+                        .b_next
+                        .as_ptr()
                 } else {
-                    unsafe { (*buf).b_prev.as_ptr() }
+                    crate::globals::GraphPtr::of(buf)
+                        .borrow_mut()
+                        .b_prev
+                        .as_ptr()
                 };
             }
         }
@@ -2512,10 +2565,10 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             } else {
                 curbuf_mut().b_prev.as_ptr()
             };
-            if bt_quickfix(unsafe { buf.as_ref() })
+            if bt_quickfix(crate::globals::GraphPtr::of(buf).opt())
                 || !buf.is_null()
                     && buf != g_st().curbuf.as_ptr()
-                    && unsafe { (*buf).b_locked_split != 0 }
+                    && (crate::globals::GraphPtr::of(buf).borrow().b_locked_split != 0)
             {
                 buf = ptr::null_mut();
             }
@@ -2526,10 +2579,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         return empty_curbuf(false, flags & DOBUF_FORCEIT, action);
     }
 
-    if action == DOBUF_SPLIT && swbuf_goto_win_with_buf(unsafe { buf.as_mut() }).is_some() {
+    if action == DOBUF_SPLIT
+        && swbuf_goto_win_with_buf(crate::globals::GraphPtr::of(buf).opt_mut()).is_some()
+    {
         return true;
     }
-    if g_st().curbuf != buf && unsafe { (*buf).b_locked_split != 0 } {
+    if g_st().curbuf != buf && (crate::globals::GraphPtr::of(buf).borrow().b_locked_split != 0) {
         emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
         return false;
     }
@@ -2546,7 +2601,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             && opt_vars().p_write
         {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, unsafe { buf.as_mut() });
+            set_bufref(&mut bufref, crate::globals::GraphPtr::of(buf).opt_mut());
             dialog_changed(curbuf_mut(), false);
             if !bufref_valid(Some(&bufref)) {
                 return false;
@@ -2558,7 +2613,11 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
     }
 
-    set_curbuf(unsafe { &mut *buf }, action, update_jumplist);
+    set_curbuf(
+        crate::globals::GraphPtr::of(buf).borrow_mut(),
+        action,
+        update_jumplist,
+    );
 
     if action == DOBUF_SPLIT {
         reset_binding(curwin_mut());
@@ -2790,9 +2849,13 @@ fn buf_init_changedtick(buf: &mut FileBuf) {
         vval: TypvalVval::Number(buf_get_changedtick(buf)),
     };
     buf.changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-    tv_dict_add(&mut *buf.b_vars(), unsafe {
-        &mut *(&raw mut buf.changedtick_di).cast::<crate::eval::typval::Dictitem>()
-    });
+    tv_dict_add(
+        &mut *buf.b_vars(),
+        crate::globals::GraphPtr::of(
+            (&raw mut buf.changedtick_di).cast::<crate::eval::typval::Dictitem>(),
+        )
+        .borrow_mut(),
+    );
 }
 
 /// Add a file name to the buffer list.
@@ -2802,7 +2865,7 @@ pub fn buflist_new(
     lnum: Linenr,
     flags: i32,
 ) -> Option<&'static mut FileBuf> {
-    let mut buf: *mut FileBuf;
+    let mut buf;
 
     let expanded = fname_expand(g_st().curbuf.opt(), ffname_arg, sfname_arg);
 
@@ -2852,7 +2915,7 @@ pub fn buflist_new(
 
         debug_assert!(!g_st().curbuf.is_null());
         buf = g_st().curbuf.as_ptr();
-        set_bufref(&mut bufref, unsafe { buf.as_mut() });
+        set_bufref(&mut bufref, crate::globals::GraphPtr::of(buf).opt_mut());
         trigger_undo_ftplugin(curbuf_mut(), curwin_mut());
         buf_freeall(curbuf_mut(), BFA_WIPE | BFA_DEL);
         if aborting() {
@@ -2871,7 +2934,7 @@ pub fn buflist_new(
         buf_init_changedtick(buf_ref);
     }
 
-    let buf_ref = unsafe { &mut *buf };
+    let buf_ref = crate::globals::GraphPtr::of(buf).borrow_mut();
     if let Some((ff_cstr, sf_cstr)) = expanded {
         let mut sf_vec = sf_cstr.into_bytes_with_nul();
         to_slash(&mut sf_vec);
@@ -2937,14 +3000,25 @@ pub fn buflist_new(
     buf_ref.update_callbacks.clear();
     if (flags & BLN_DUMMY) == 0 {
         let mut bufref: Bufref = Bufref::new();
-        set_bufref(&mut bufref, unsafe { buf.as_mut() });
-        if apply_autocmds(EVENT_BUFNEW, None, None, false, unsafe { buf.as_mut() })
-            && !bufref_valid(Some(&bufref))
+        set_bufref(&mut bufref, crate::globals::GraphPtr::of(buf).opt_mut());
+        if apply_autocmds(
+            EVENT_BUFNEW,
+            None,
+            None,
+            false,
+            crate::globals::GraphPtr::of(buf).opt_mut(),
+        ) && !bufref_valid(Some(&bufref))
         {
             return None;
         }
         if (flags & BLN_LISTED) != 0
-            && apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { buf.as_mut() })
+            && apply_autocmds(
+                EVENT_BUFADD,
+                None,
+                None,
+                false,
+                crate::globals::GraphPtr::of(buf).opt_mut(),
+            )
             && !bufref_valid(Some(&bufref))
         {
             return None;
@@ -2954,7 +3028,7 @@ pub fn buflist_new(
         }
     }
 
-    let buf_ref = unsafe { &mut *buf };
+    let buf_ref = crate::globals::GraphPtr::of(buf).borrow_mut();
     buf_ref.b_prompt_callback = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_interrupt = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_text = None;
@@ -3638,14 +3712,19 @@ pub fn buflist_list(eap: &mut Exarg) {
 
     msg_ext_set_kind(c"list_cmd");
     if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buflist.len() > 1 {
-        buflist.sort_unstable_by(|&a, &b| buf_time_compare(unsafe { &*a }, unsafe { &*b }));
+        buflist.sort_unstable_by(|&a, &b| {
+            buf_time_compare(
+                crate::globals::GraphPtr::of(a).borrow(),
+                crate::globals::GraphPtr::of(b).borrow(),
+            )
+        });
     }
 
     for buf_ptr in buflist {
         if g_st().got_int {
             break;
         }
-        let buf = unsafe { &mut *buf_ptr };
+        let buf = crate::globals::GraphPtr::of(buf_ptr).borrow_mut();
         let is_terminal = !buf.terminal.is_null();
         let job_running = buf.terminal_opt().is_some_and(|t| terminal_running(t));
 
@@ -4367,9 +4446,8 @@ pub fn fname_expand(
             && (name.wrapping_add(name_len).as_ptr() as usize)
                 > (get_past_head(name.as_cstr()).as_ptr() as usize)
         {
-            unsafe {
-                *path_tail_with_sep(name.as_cstr()).as_ptr().cast_mut() = 0;
-            }
+            *crate::globals::GraphPtr::of(path_tail_with_sep(name.as_cstr()).as_ptr().cast_mut())
+                .borrow_mut() = 0;
         }
         let full = fix_fname(Some(crate::memory::bytes_as_cstr(&name_vec)));
         drop(name_vec);

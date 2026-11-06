@@ -679,12 +679,12 @@ fn is_executable_ext(
             .min(MAXPATHL - 1);
         let buf_end = buf.wrapping_add(copied_len);
         let mut pathext_buf = [0u8; MAXPATHL];
-        let pathext: *const u8 = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
+        let pathext = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
             .unwrap_or(c".com;.exe;.bat;.cmd")
             .as_ptr()
-            .cast();
+            .cast::<u8>();
         let mut ext = pathext;
-        while unsafe { *ext } != 0 {
+        while *crate::globals::GraphPtr::of(ext).borrow() != 0 {
             let ext_bytes = crate::strings::ByteSlice::from_ptr(ext).as_bytes();
             if ext_bytes.first() == Some(&b'.')
                 && ext_bytes.get(1).is_none_or(|&b| b == ENV_SEPCHAR)
@@ -693,7 +693,7 @@ fn is_executable_ext(
                     return true;
                 }
                 ext = ext.wrapping_add(1);
-                if unsafe { *ext } != 0 {
+                if *crate::globals::GraphPtr::of(ext).borrow() != 0 {
                     ext = ext.wrapping_add(1);
                 }
                 continue;
@@ -702,7 +702,7 @@ fn is_executable_ext(
             let mut ext_bytes = crate::strings::ByteSlice::from_ptr(ext).as_bytes();
             let old_len = ext_bytes.len();
             let rem = MAXPATHL - ((buf_end as usize) - (buf as usize));
-            let dst = unsafe { std::slice::from_raw_parts_mut(buf_end, rem) };
+            let dst = crate::globals::GraphPtr::raw_slice_mut(buf_end, rem);
             let ext_len = copy_option_part(&mut ext_bytes, dst, ENV_SEPSTR);
             let ext_end = ext.wrapping_add(old_len - ext_bytes.len()).cast_mut();
             if ext_len != 0 {
@@ -783,12 +783,14 @@ fn is_executable_in_path(
                 _s.wrapping_add(_off).cast_mut()
             };
             let seg_len = (e as usize) - (p as usize);
-            buf_vec[..seg_len]
-                .copy_from_slice(unsafe { std::slice::from_raw_parts((p).cast::<u8>(), seg_len) });
+            buf_vec[..seg_len].copy_from_slice(crate::globals::GraphPtr::raw_slice(
+                (p).cast::<u8>(),
+                seg_len,
+            ));
             buf_vec[seg_len] = 0;
             let buf = buf_vec.as_mut_ptr();
             let _ = append_path(
-                unsafe { std::slice::from_raw_parts_mut(buf.cast(), bufsize) },
+                crate::globals::GraphPtr::raw_slice_mut(buf.cast(), bufsize),
                 crate::strings::ByteSlice::from_ptr(name).as_cstr(),
             );
 
@@ -799,7 +801,7 @@ fn is_executable_in_path(
                 rv = true;
                 break;
             }
-            if unsafe { *e } != ENV_SEPCHAR {
+            if *crate::globals::GraphPtr::of(e).borrow() != ENV_SEPCHAR {
                 break;
             }
             p = e.wrapping_add(1);
@@ -1155,11 +1157,12 @@ pub fn os_read(fd: i32, ret_eof: &mut bool, ret_buf: &mut [u8], non_blocking: bo
             read_bytes += cur_read_bytes as usize;
         }
         if cur_read_bytes < 0 {
-            let ep = unsafe { errno_ptr() };
-            let error = unsafe { uv_translate_sys_error(*ep) };
-            unsafe {
+            let error = unsafe {
+                let ep = errno_ptr();
+                let err = uv_translate_sys_error(*ep);
                 *ep = 0;
-            }
+                err
+            };
             if non_blocking && error == UV_EAGAIN {
                 break;
             } else if error == UV_EINTR || error == UV_EAGAIN {
@@ -1267,11 +1270,12 @@ pub fn os_write(fd: i32, buf: &[u8], non_blocking: bool) -> isize {
             written_bytes += cur_written_bytes as usize;
         }
         if cur_written_bytes < 0 {
-            let ep = unsafe { errno_ptr() };
-            let error = unsafe { uv_translate_sys_error(*ep) };
-            unsafe {
+            let error = unsafe {
+                let ep = errno_ptr();
+                let err = uv_translate_sys_error(*ep);
                 *ep = 0;
-            }
+                err
+            };
             if non_blocking && error == UV_EAGAIN {
                 break;
             } else if error == UV_EINTR || error == UV_EAGAIN {
@@ -1637,13 +1641,13 @@ pub fn os_mkdir_recurse(
     let dirlen = dir.to_bytes().len();
     let mut curdir_vec: Vec<u8> = dir.to_bytes_with_nul().to_vec();
     let curdir = curdir_vec.as_mut_ptr();
-    let past_head: *mut u8 = get_past_head(crate::strings::ByteSlice::from_ptr(curdir).as_cstr())
+    let past_head = get_past_head(crate::strings::ByteSlice::from_ptr(curdir).as_cstr())
         .as_ptr()
         .cast_mut()
-        .cast();
+        .cast::<u8>();
     let mut e = curdir.wrapping_add(dirlen);
-    let real_end: *const u8 = e;
-    let past_head_save = unsafe { *past_head };
+    let real_end = crate::globals::GraphPtr::<u8>::of(e).as_ptr();
+    let past_head_save = *crate::globals::GraphPtr::of(past_head).borrow();
 
     while !os_isdir(crate::strings::ByteSlice::from_ptr(curdir).as_cstr()) {
         e = path_tail_with_sep(crate::strings::ByteSlice::from_ptr(curdir).as_cstr())
@@ -1651,34 +1655,26 @@ pub fn os_mkdir_recurse(
             .cast_mut()
             .cast();
         if (e as usize) <= (past_head as usize) {
-            unsafe {
-                *past_head = 0;
-            }
+            *crate::globals::GraphPtr::of(past_head).borrow_mut() = 0;
             break;
         }
-        unsafe {
-            *e = 0;
-        }
+        *crate::globals::GraphPtr::of(e).borrow_mut() = 0;
     }
     while !ptr::eq(e, real_end) {
         if (e as usize) > (past_head as usize) {
-            unsafe {
-                *e = PATHSEP;
-            }
+            *crate::globals::GraphPtr::of(e).borrow_mut() = PATHSEP;
         } else {
-            unsafe {
-                *past_head = past_head_save;
-            }
+            *crate::globals::GraphPtr::of(past_head).borrow_mut() = past_head_save;
         }
         let component_len = crate::strings::ByteSlice::from_ptr(e).as_bytes().len();
         e = e.wrapping_add(component_len);
         if ptr::eq(e, real_end) && {
-            let _d = unsafe { e.sub(component_len) };
+            let _d = e.wrapping_sub(component_len);
             let _sz = component_len;
             if _sz == 0 {
                 0
             } else {
-                unsafe { std::slice::from_raw_parts(_d, _sz) }
+                crate::globals::GraphPtr::raw_slice(_d, _sz)
                     .iter()
                     .filter(|&&_b| _b == PATHSEP)
                     .count()
@@ -1790,7 +1786,7 @@ pub fn os_scandir_next(dir_in: &mut Directory) -> Option<&'static CStr> {
         .cast::<uv_dirent_t>();
     let err = unsafe { uv_fs_scandir_next(req, ent) };
     if err != UV_EOF {
-        let name = unsafe { (*ent).name };
+        let name = crate::globals::GraphPtr::of(ent).borrow().name;
         (!name.is_null()).then(|| crate::strings::ByteSlice::from_ptr(name).as_cstr())
     } else {
         None
@@ -2114,25 +2110,29 @@ pub fn os_is_reparse_point_include(path: &CStr) -> bool {
 
         let is_sep = |c: u16| c == (b'\\' as u16) || c == (b'/' as u16);
         let mut p = utf16_path;
-        let p0 = (unsafe { *p } & 0xff) as u8;
+        let p0 = (*crate::globals::GraphPtr::of(p).borrow() & 0xff) as u8;
         if p0.is_ascii_alphabetic()
-            && unsafe { *p.wrapping_add(1) } == (b':' as u16)
-            && is_sep(unsafe { *p.wrapping_add(2) })
+            && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() == (b':' as u16)
+            && is_sep(*crate::globals::GraphPtr::of(p.wrapping_add(2)).borrow())
         {
             p = p.wrapping_add(3);
-        } else if is_sep(unsafe { *p }) && is_sep(unsafe { *p.wrapping_add(1) }) {
+        } else if is_sep(*crate::globals::GraphPtr::of(p).borrow())
+            && is_sep(*crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow())
+        {
             p = p.wrapping_add(2);
         }
 
         let mut buf = [0u16; 260];
         let mut result = false;
 
-        while unsafe { *p } != 0 {
+        while *crate::globals::GraphPtr::of(p).borrow() != 0 {
             let mut q = p;
-            while unsafe { *q } != 0 && !is_sep(unsafe { *q }) {
+            while *crate::globals::GraphPtr::of(q).borrow() != 0
+                && !is_sep(*crate::globals::GraphPtr::of(q).borrow())
+            {
                 q = q.wrapping_add(1);
             }
-            if unsafe { *q } == 0 {
+            if *crate::globals::GraphPtr::of(q).borrow() == 0 {
                 p = q;
             } else {
                 p = q.wrapping_add(1);
@@ -2141,7 +2141,7 @@ pub fn os_is_reparse_point_include(path: &CStr) -> bool {
             if len >= 260 {
                 break;
             }
-            unsafe { ptr::copy_nonoverlapping(utf16_path, buf.as_mut_ptr(), len) };
+            crate::globals::GraphPtr::copy_to(utf16_path, buf.as_mut_ptr(), len);
             buf[len] = 0;
             let attr = unsafe { GetFileAttributesW(buf.as_ptr()) };
             if attr != 0xffff_ffff && (attr & 0x0400) != 0 {

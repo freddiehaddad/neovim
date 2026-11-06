@@ -1750,9 +1750,10 @@ fn set_argf_var() {
         if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
             let _ = vim_full_name(
                 Some(fname),
-                unsafe {
-                    std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast(), MAXPATHL)
-                },
+                crate::globals::GraphPtr::raw_slice_mut(
+                    g_st().name_buff.as_mut_ptr().cast(),
+                    MAXPATHL,
+                ),
                 false,
             );
             tv_list_append_string(&mut *list, Some(g_st().name_buff_cstr()), -1);
@@ -2118,14 +2119,21 @@ fn edit_buffers(parmp: &mut Mparm) {
     } else {
         curwin_ptr().as_ptr()
     };
-    while unsafe { (*win).w_onebuf_opt.wo_pvw } {
-        win = unsafe { (*win).w_next.as_ptr() };
+    while crate::globals::GraphPtr::of(win)
+        .borrow()
+        .w_onebuf_opt
+        .wo_pvw
+    {
+        win = crate::globals::GraphPtr::of(win)
+            .borrow_mut()
+            .w_next
+            .as_ptr();
         if win.is_null() {
             win = g_st().firstwin.as_ptr();
             break;
         }
     }
-    win_enter(unsafe { &mut *win }, false);
+    win_enter(crate::globals::GraphPtr::of(win).borrow_mut(), false);
 
     g_st().autocmd_no_leave -= 1;
     time_msg_if_enabled(c"editing files in windows");

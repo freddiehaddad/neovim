@@ -15,8 +15,6 @@ use crate::os::input::{os_breakcheck, os_char_avail};
 use crate::path::FullName_save;
 use crate::strings::{gettext, strerror};
 
-use std::ptr;
-
 pub type Blocknr = i64;
 pub type Mfdirty = i32;
 
@@ -90,7 +88,7 @@ pub fn pmap_get_bhdr(
     key: i64,
 ) -> Option<&'static mut Bhdr> {
     map.get(&key)
-        .map(|b| unsafe { &mut *(&raw const **b).cast_mut() })
+        .map(|b| crate::globals::GraphPtr::of((&raw const **b).cast_mut()).borrow_mut())
 }
 
 /// Open a new or existing memory block file.
@@ -325,7 +323,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
         .collect();
 
     for hp_ptr in blocks {
-        let hp = unsafe { &mut *hp_ptr };
+        let hp = crate::globals::GraphPtr::of(hp_ptr).borrow_mut();
         if ((flags & MFS_ALL) != 0 || hp.bh_bnum >= 0)
             && (hp.bh_flags & BH_DIRTY) != 0
             && (status || (hp.bh_bnum >= 0 && hp.bh_bnum < mfp.mf_infile_count))
@@ -397,7 +395,7 @@ pub fn mf_release_all() -> bool {
                 .map(|b| (&raw const **b).cast_mut())
                 .collect();
             for hp in blocks {
-                let hp_ref = unsafe { &mut *hp };
+                let hp_ref = crate::globals::GraphPtr::of(hp).borrow_mut();
                 if (hp_ref.bh_flags & BH_LOCKED) == 0
                     && ((hp_ref.bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_ref))
                 {
@@ -461,7 +459,7 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
             nr = mfp.mf_infile_count;
             pmap_get_bhdr(&mfp.mf_hash, nr)
         } else {
-            Some(unsafe { &mut *ptr::from_mut(hp) })
+            Some(crate::globals::GraphPtr::from(&*hp).borrow_mut())
         };
 
         let offset = i64::from(page_size).wrapping_mul(nr);

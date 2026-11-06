@@ -1283,12 +1283,10 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(
                     cur_lnum,
-                    unsafe {
-                        std::slice::from_raw_parts(
-                            (after_p.as_mut_ptr()).cast::<u8>(),
-                            (after_p.len() as i32 as usize).saturating_sub(1),
-                        )
-                    },
+                    crate::strings::AsByteSlice::slice_len(
+                        after_p.as_mut_ptr(),
+                        (after_p.len() as i32 as usize).saturating_sub(1),
+                    ),
                     after_p.len() as i32,
                     false,
                 );
@@ -2090,7 +2088,7 @@ pub fn do_join(
 
         ml_replace_len(
             curwin_mut().w_cursor.lnum,
-            unsafe { std::slice::from_raw_parts((newp_vec.as_ptr()).cast::<u8>(), newp_len) },
+            crate::strings::AsByteSlice::slice_len(newp_vec.as_ptr(), newp_len),
             newp_len,
             true,
         );
@@ -2196,7 +2194,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         ci = cli.next;
     }
     bdp.start_vcol = vcol;
-    let mut pstart: *mut std::ffi::c_char = ci.ptr.as_ptr().cast_mut().cast();
+    let mut pstart = ci.ptr.as_ptr().cast_mut().cast::<std::ffi::c_char>();
 
     bdp.start_char_vcols = incr;
     if bdp.start_vcol < oap.start_vcol {
@@ -2631,7 +2629,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     let ptr_line = crate::strings::ByteSlice::from_cstr(ml_get(pos.lnum));
     let linelen = ml_get_len(pos.lnum);
     let line_bytes =
-        unsafe { std::slice::from_raw_parts(ptr_line.cast::<u8>(), linelen as usize + 1) };
+        crate::globals::GraphPtr::raw_slice(ptr_line.cast::<u8>(), linelen as usize + 1);
     let mut col = pos.col;
 
     if col + i32::from(save_coladd != 0) >= linelen {
@@ -3106,7 +3104,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             }
 
             if l_visual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
-                let mut s: *mut u8 = ptr::null_mut();
+                let mut s = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
                 let mut len: i32 = 0;
 
                 if l_visual_mode == CTRL_V_CONST {

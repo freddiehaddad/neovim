@@ -384,7 +384,7 @@ fn get_function_args(
     skip: bool,
 ) -> bool {
     let mut mustend = false;
-    let mut arg: *mut u8 = argp.as_ptr().cast_mut().cast();
+    let mut arg = argp.as_ptr().cast_mut().cast::<u8>();
     let mut p = arg;
 
     if let Some(ref mut p) = varargs {
@@ -392,7 +392,7 @@ fn get_function_args(
     }
 
     let mut any_default = false;
-    while unsafe { *p } != endchar {
+    while *crate::globals::GraphPtr::of(p).borrow() != endchar {
         if crate::strings::ByteSlice::from_ptr(p)
             .as_cstr()
             .to_bytes()
@@ -417,7 +417,9 @@ fn get_function_args(
                 break;
             }
 
-            if unsafe { *crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()) as u8 } == b'='
+            if crate::strings::AsByteSlice::first_byte_val(crate::charset::skipwhite_ptr(
+                p.cast::<std::ffi::c_char>(),
+            )) == b'='
                 && default_args.is_some()
             {
                 let mut rettv: TypVal = TypVal::new();
@@ -432,16 +434,16 @@ fn get_function_args(
                 let eval_ok = eval1(&mut p_cstr, &mut rettv, None);
                 p = p_cstr.as_ptr().cast_mut().cast();
                 if eval_ok {
-                    while p > expr && ascii_iswhite(unsafe { *p.wrapping_sub(1) }) {
+                    while p > expr
+                        && ascii_iswhite(*crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow())
+                    {
                         p = p.wrapping_sub(1);
                     }
                     if let Some(default_args) = default_args.as_deref_mut() {
-                        let expr_slice = unsafe {
-                            std::slice::from_raw_parts(
-                                (expr).cast::<u8>(),
-                                (p as usize) - (expr as usize),
-                            )
-                        };
+                        let expr_slice = crate::strings::AsByteSlice::slice_len(
+                            expr,
+                            (p as usize) - (expr as usize),
+                        );
                         default_args.push(std::ffi::CString::new(expr_slice).unwrap());
                     }
                 } else {
@@ -454,9 +456,10 @@ fn get_function_args(
                 mustend = true;
             }
 
-            if ascii_iswhite(unsafe { *p })
-                && unsafe { *crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()) as u8 }
-                    == b','
+            if ascii_iswhite(*crate::globals::GraphPtr::of(p).borrow())
+                && crate::strings::AsByteSlice::first_byte_val(crate::charset::skipwhite_ptr(
+                    p.cast::<std::ffi::c_char>(),
+                )) == b','
             {
                 if !skip {
                     semsg!(
@@ -474,21 +477,21 @@ fn get_function_args(
                 }
                 p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
             }
-            if unsafe { *p } == b',' {
+            if *crate::globals::GraphPtr::of(p).borrow() == b',' {
                 p = p.wrapping_add(1);
             } else {
                 mustend = true;
             }
         }
         p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
-        if mustend && unsafe { *p } != endchar {
+        if mustend && *crate::globals::GraphPtr::of(p).borrow() != endchar {
             if !skip {
                 semsg!(gettext(E_INVARG2), *argp);
             }
             break;
         }
     }
-    if unsafe { *p } != endchar {
+    if *crate::globals::GraphPtr::of(p).borrow() != endchar {
         if let Some(newargs) = newargs {
             newargs.clear();
         }
@@ -964,7 +967,7 @@ pub fn find_func(name: Option<&CStr>) -> Option<&'static mut UserFunc> {
         .func_hashtab
         .get(name.to_bytes())
         .copied()
-        .and_then(|p| unsafe { p.as_mut() })
+        .and_then(|p| crate::globals::GraphPtr::of(p).opt_mut())
 }
 
 #[inline]
@@ -1063,12 +1066,12 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     }
 
     if free_fc {
-        drop(unsafe { Box::from_raw(fc_ptr.as_ptr()) });
+        crate::globals::GraphPtr::of(fc_ptr.as_ptr()).drop_box();
     } else {
         fc.fc_caller = crate::globals::GraphPtr::NULL;
-        uf_st()
-            .previous_funccal
-            .push(RetainedFunccall(unsafe { Box::from_raw(fc_ptr.as_ptr()) }));
+        uf_st().previous_funccal.push(RetainedFunccall(
+            crate::globals::GraphPtr::of(fc_ptr.as_ptr()).into_box(),
+        ));
 
         if g_st().want_garbage_collect {
             uf_st().made_copy = 0;
@@ -1163,7 +1166,7 @@ fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
     let fp = crate::globals::GraphPtr::from(fp_in);
     func_clear(fp.borrow_mut(), force);
 
-    drop(unsafe { Box::from_raw(fp.as_ptr()) });
+    crate::globals::GraphPtr::of(fp.as_ptr()).drop_box();
 }
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
@@ -1192,7 +1195,7 @@ pub fn call_user_func(
     let mut using_sandbox = false;
     let mut islambda = false;
     let mut numbuf = [0u8; NUMBUFLEN];
-    let mut name: *const u8;
+    let mut name;
     let mut namelen: usize;
     let mut tv_to_free: [*mut TypVal; MAX_FUNC_ARGS] = [ptr::null_mut(); MAX_FUNC_ARGS];
     let mut tv_to_free_len = 0usize;
@@ -1231,7 +1234,7 @@ pub fn call_user_func(
 
     init_var_dict(
         &mut fc.fc_l_vars,
-        unsafe { &mut *(&raw mut fc.fc_l_vars_var).cast() },
+        crate::globals::GraphPtr::of((&raw mut fc.fc_l_vars_var).cast::<Dictitem>()).borrow_mut(),
         VAR_DEF_SCOPE,
     );
 
@@ -1252,7 +1255,7 @@ pub fn call_user_func(
 
     init_var_dict(
         &mut fc.fc_l_avars,
-        unsafe { &mut *(&raw mut fc.fc_l_avars_var).cast() },
+        crate::globals::GraphPtr::of((&raw mut fc.fc_l_avars_var).cast::<Dictitem>()).borrow_mut(),
         VAR_SCOPE,
     );
 
@@ -1330,9 +1333,7 @@ pub fn call_user_func(
             name = numbuf.as_ptr();
         }
 
-        let v = tv_dict_item_alloc_len(unsafe {
-            std::slice::from_raw_parts((name).cast::<u8>(), namelen)
-        });
+        let v = tv_dict_item_alloc_len(crate::strings::AsByteSlice::slice_len(name, namelen));
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
         v.di_tv = if isdefault {
@@ -1356,7 +1357,8 @@ pub fn call_user_func(
         }
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
-            let li = unsafe { &mut *listitems_ptr.wrapping_add(ai as usize) };
+            let li =
+                crate::globals::GraphPtr::of(listitems_ptr.wrapping_add(ai as usize)).borrow_mut();
             li.li_tv = argvars[i as usize];
             li.li_tv.v_lock = VAR_FIXED;
             tv_list_append(&mut fc.fc_l_varlist, li);
@@ -1534,7 +1536,7 @@ pub fn call_user_func(
     g_st().did_emsg |= save_did_emsg;
     uf_st().call_depth -= 1;
     for &tv in tv_to_free.iter().take(tv_to_free_len) {
-        tv_clear(unsafe { &mut *tv });
+        tv_clear(crate::globals::GraphPtr::of(tv).borrow_mut());
     }
     cleanup_function_call(fc);
 
@@ -1646,7 +1648,7 @@ pub fn free_all_functions() {
         let mut restarted = false;
         let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
         for fp in funcs {
-            let fp = unsafe { &mut *fp };
+            let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
             if !func_name_refcount(uf2hikey(fp)) {
                 let changed = uf_st().func_hashtab_changed;
                 func_clear(fp, true);
@@ -1668,10 +1670,10 @@ pub fn free_all_functions() {
         }
         let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
         for fp in funcs {
-            if func_name_refcount(uf2hikey(unsafe { &*fp })) {
+            if func_name_refcount(uf2hikey(crate::globals::GraphPtr::of(fp).borrow())) {
                 skipped += 1;
             } else {
-                drop(unsafe { Box::from_raw(fp) });
+                crate::globals::GraphPtr::of(fp).drop_box();
                 skipped = 0;
                 break;
             }
@@ -1805,7 +1807,7 @@ pub fn call_func(
     let mut fname: &CStr = c"";
     let mut name_owned: Option<std::ffi::CString> = None;
     let mut argcount = argcount_in;
-    let mut argvars_ptr: *mut TypVal = argvars_in.as_mut_ptr();
+    let mut argvars_ptr = crate::globals::GraphPtr::<TypVal>::of(argvars_in.as_mut_ptr()).as_ptr();
     let mut selfdict = funcexe.fe_selfdict;
     let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
     let mut argv_clear = 0;
@@ -1821,9 +1823,10 @@ pub fn call_func(
         fp = partial_ref.pt_func.opt_mut();
     }
     if fp.is_none() {
-        let nm = bytes_to_cstring(unsafe {
-            std::slice::from_raw_parts((funcname.as_ptr()).cast::<u8>(), len as usize)
-        });
+        let nm = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
+            funcname.as_ptr(),
+            len as usize,
+        ));
         name_owned = Some(nm);
         fname = fname_trans_sid(
             name_owned.as_deref().unwrap(),
@@ -1880,13 +1883,11 @@ pub fn call_func(
             if len > 0 {
                 error = FCERR_NONE;
                 if let Some(basetv) = funcexe.fe_basetv.opt() {
-                    unsafe {
-                        ptr::copy(
-                            argvars_ptr,
-                            argv.as_mut_ptr().wrapping_add(1),
-                            argcount as usize,
-                        );
-                    }
+                    crate::globals::GraphPtr::copy_to(
+                        argvars_ptr,
+                        argv.as_mut_ptr().wrapping_add(1),
+                        argcount as usize,
+                    );
                     argv[0] = *basetv;
                     argcount += 1;
                     argvars_ptr = argv.as_mut_ptr();
@@ -1895,12 +1896,10 @@ pub fn call_func(
                 let argslice = if argvars_ptr.is_null() || argcount <= 0 {
                     &mut []
                 } else {
-                    unsafe { std::slice::from_raw_parts_mut(argvars_ptr, argcount as usize) }
+                    crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, argcount as usize)
                 };
                 nlua_call_vlua(
-                    unsafe {
-                        std::slice::from_raw_parts((funcname.as_ptr()).cast::<u8>(), len as usize)
-                    },
+                    crate::strings::AsByteSlice::slice_len(funcname.as_ptr(), len as usize),
                     argslice,
                     rettv,
                 );
@@ -1929,9 +1928,8 @@ pub fn call_func(
                     error = FCERR_DELETED;
                 } else {
                     if funcexe.fe_fill_submatch {
-                        let argvars_slice = unsafe {
-                            std::slice::from_raw_parts_mut(argvars_ptr, MAX_FUNC_ARGS + 1)
-                        };
+                        let argvars_slice =
+                            crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, MAX_FUNC_ARGS + 1);
                         argcount = crate::regexp::fill_submatch_list(
                             argcount,
                             argvars_slice,
@@ -1941,13 +1939,11 @@ pub fn call_func(
                     }
 
                     if let Some(basetv) = funcexe.fe_basetv.opt() {
-                        unsafe {
-                            ptr::copy(
-                                argvars_ptr,
-                                argv.as_mut_ptr().wrapping_add(1),
-                                argcount as usize,
-                            );
-                        }
+                        crate::globals::GraphPtr::copy_to(
+                            argvars_ptr,
+                            argv.as_mut_ptr().wrapping_add(1),
+                            argcount as usize,
+                        );
                         argv[0] = *basetv;
                         argcount += 1;
                         argvars_ptr = argv.as_mut_ptr();
@@ -1957,7 +1953,7 @@ pub fn call_func(
                     let argvars_slice = if argvars_ptr.is_null() {
                         &mut []
                     } else {
-                        unsafe { std::slice::from_raw_parts_mut(argvars_ptr, MAX_FUNC_ARGS + 1) }
+                        crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, MAX_FUNC_ARGS + 1)
                     };
                     error = call_user_func_check(
                         fp_ref,
@@ -1973,14 +1969,14 @@ pub fn call_func(
             let argvars_slice = if argvars_ptr.is_null() || argcount <= 0 {
                 &[]
             } else {
-                unsafe { std::slice::from_raw_parts(argvars_ptr, argcount as usize) }
+                crate::globals::GraphPtr::raw_slice(argvars_ptr, argcount as usize)
             };
             error = call_internal_method(fname, argcount, argvars_slice, rettv, basetv);
         } else {
             let argvars_slice = if argvars_ptr.is_null() {
                 &mut []
             } else {
-                unsafe { std::slice::from_raw_parts_mut(argvars_ptr, MAX_FUNC_ARGS + 1) }
+                crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, MAX_FUNC_ARGS + 1)
             };
             error = call_internal_func(fname, argcount, argvars_slice, rettv);
         }
@@ -2153,15 +2149,16 @@ pub fn trans_function_name(
     if fdp.is_some() {
         *fdp.as_deref_mut().unwrap() = Funcdict::new();
     }
-    let mut start: *const u8 = pp.as_ptr().cast();
+    let mut start = pp.as_ptr().cast::<u8>();
 
     if pp.to_bytes().starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
         *pp = crate::memory::CStrSubslice::advance(*pp, 3);
 
         len = get_id_len(pp) + 3;
-        return Some(bytes_to_cstring(unsafe {
-            std::slice::from_raw_parts(start, len as usize)
-        }));
+        return Some(bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
+            start,
+            len as usize,
+        )));
     }
 
     let start_cstr = crate::strings::ByteSlice::from_ptr(start).as_cstr();
@@ -2170,16 +2167,20 @@ pub fn trans_function_name(
         start = start.wrapping_add(lead as usize);
     }
 
-    let end: *const u8 = get_lval(
-        crate::strings::ByteSlice::from_ptr(start).as_cstr(),
-        None,
-        &mut lv,
-        false,
-        skip,
-        flags | GLV_READ_ONLY,
-        if lead > 2 { 0 } else { FNE_CHECK_START },
+    let end = crate::globals::GraphPtr::<u8>::of(
+        get_lval(
+            crate::strings::ByteSlice::from_ptr(start).as_cstr(),
+            None,
+            &mut lv,
+            false,
+            skip,
+            flags | GLV_READ_ONLY,
+            if lead > 2 { 0 } else { FNE_CHECK_START },
+        )
+        .map_or(ptr::null(), |s| s.as_ptr().cast()),
     )
-    .map_or(ptr::null(), |s| s.as_ptr().cast());
+    .as_ptr()
+    .cast_const();
     if end == start {
         if !skip {
             emsg(gettext(c"E129: Function name required"));
@@ -2217,7 +2218,10 @@ pub fn trans_function_name(
             *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
         } else if ll_tv.v_type == VarType::VarPartial && !ll_tv.vval.v_partial().is_null() {
             let pt = ll_tv.vval.v_partial();
-            if is_luafunc(pt.opt()) && !end.is_null() && unsafe { *end } == b'.' {
+            if is_luafunc(pt.opt())
+                && !end.is_null()
+                && *crate::globals::GraphPtr::of(end).borrow() == b'.'
+            {
                 len = check_luafunc_name(
                     crate::strings::ByteSlice::from_ptr(end.wrapping_add(1)).as_cstr(),
                     true,
@@ -2227,9 +2231,10 @@ pub fn trans_function_name(
                     return None;
                 }
 
-                res = Some(bytes_to_cstring(unsafe {
-                    std::slice::from_raw_parts(end.wrapping_add(1), len as usize)
-                }));
+                res = Some(bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
+                    end.wrapping_add(1),
+                    len as usize,
+                )));
 
                 *pp = crate::strings::ByteSlice::from_ptr(end.wrapping_add(1 + len as usize))
                     .as_cstr();
@@ -2346,18 +2351,20 @@ pub fn trans_function_name(
     }
 
     if !skip && (flags & TFN_QUIET) == 0 && (flags & TFN_NO_DEREF) == 0 {
-        let cp: *const u8 = {
+        let cp = crate::globals::GraphPtr::<u8>::of({
             let _s = ll_name_ptr.cast::<u8>();
             let _sz = lv.ll_name_len;
             if _sz == 0 {
                 std::ptr::null()
             } else {
-                unsafe { std::slice::from_raw_parts(_s, _sz) }
+                crate::globals::GraphPtr::raw_slice(_s, _sz)
                     .iter()
                     .rposition(|&_b| _b == b':')
                     .map_or(std::ptr::null(), |_i| _s.wrapping_add(_i))
             }
-        };
+        })
+        .as_ptr()
+        .cast_const();
         if !cp.is_null() && cp < end {
             semsg!(
                 gettext(c"E884: Function name cannot contain a colon: %s"),
@@ -2375,9 +2382,10 @@ pub fn trans_function_name(
         }
     }
 
-    bytes.extend_from_slice(unsafe {
-        std::slice::from_raw_parts(ll_name_ptr.cast::<u8>(), len as usize)
-    });
+    bytes.extend_from_slice(crate::globals::GraphPtr::raw_slice(
+        ll_name_ptr.cast::<u8>(),
+        len as usize,
+    ));
 
     *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
 
@@ -2450,7 +2458,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
         if g_st().got_int {
             break;
         }
-        let fp = unsafe { &mut *fp };
+        let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
         let key = uf2hikey(fp);
         let matches = if let Some(ref mut regmatch) = regmatch {
             !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key, 0)
@@ -2482,9 +2490,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
         let pat_len = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
             - (crate::strings::AsByteSlice::byte_addr(pat_start) as isize))
             as usize;
-        let pat_cstr = bytes_to_cstring(unsafe {
-            std::slice::from_raw_parts((pat_start).cast::<u8>(), pat_len)
-        });
+        let pat_cstr = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(pat_start, pat_len));
         regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic;
@@ -2492,7 +2498,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
             regmatch.free_prog();
         }
     }
-    if unsafe { *p as u8 } == b'/' {
+    if crate::strings::AsByteSlice::first_byte_val(p) == b'/' {
         p = p.wrapping_add(1);
     }
 
@@ -2528,9 +2534,7 @@ fn list_one_function(
     });
 
     if !eap.nextcmd.is_null() {
-        unsafe {
-            *p = 0;
-        }
+        *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
     }
 
     if eap.skip || g_st().got_int {
@@ -2701,7 +2705,9 @@ fn get_function_body(
             }
         } else {
             p = theline;
-            while ascii_iswhite(unsafe { *p as u8 }) || unsafe { *p as u8 } == b':' {
+            while ascii_iswhite(crate::strings::AsByteSlice::first_byte_val(p))
+                || crate::strings::AsByteSlice::first_byte_val(p) == b':'
+            {
                 p = p.wrapping_add(1);
             }
 
@@ -2716,11 +2722,11 @@ fn get_function_body(
                 let prev_nesting = nesting;
                 nesting -= 1;
                 if prev_nesting == 0 {
-                    if unsafe { *p as u8 } == b'!' {
+                    if crate::strings::AsByteSlice::first_byte_val(p) == b'!' {
                         p = p.wrapping_add(1);
                     }
                     let mut nextcmd = ptr::null_mut();
-                    if unsafe { *p as u8 } == b'|' {
+                    if crate::strings::AsByteSlice::first_byte_val(p) == b'|' {
                         nextcmd = if !line_arg_base.is_null() {
                             let off = (p as usize) - (theline as usize) + 1;
                             line_arg_base.wrapping_add(off)
@@ -2734,7 +2740,10 @@ fn get_function_body(
                         .is_empty()
                     {
                         nextcmd = line_arg;
-                    } else if unsafe { *p != 0 && *p as u8 != b'"' } && opt_vars().p_verbose > 0 {
+                    } else if *crate::globals::GraphPtr::of(p).borrow() != 0
+                        && *crate::globals::GraphPtr::of(p).borrow() as u8 != b'"'
+                        && opt_vars().p_verbose > 0
+                    {
                         swmsg!(
                             true,
                             gettext(c"W22: Text found after :endfunction: %s"),
@@ -2774,7 +2783,7 @@ fn get_function_body(
             .inspect(|&n| p = p.wrapping_add(n))
             .is_some()
             {
-                if unsafe { *p as u8 } == b'!' {
+                if crate::strings::AsByteSlice::first_byte_val(p) == b'!' {
                     p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
                 }
                 p = p.wrapping_add(eval_fname_script(
@@ -2783,7 +2792,9 @@ fn get_function_body(
                 let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
                 let _ = trans_function_name(&mut p_cstr, true, 0, None, None);
                 p = p_cstr.as_ptr().cast_mut();
-                if unsafe { *crate::charset::skipwhite_ptr(p) as u8 } == b'(' {
+                if (*crate::globals::GraphPtr::of(crate::charset::skipwhite_ptr(p)).borrow() as u8)
+                    == b'('
+                {
                     if nesting == MAX_FUNC_NESTING - 1 {
                         emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP));
                     } else {
@@ -2818,8 +2829,11 @@ fn get_function_body(
                 )
                 .inspect(|&n| p = p.wrapping_add(n))
                 .is_some())
-                && (unsafe { *p as u8 == b'!' || *p as u8 == b'|' }
-                    || ascii_iswhite_nl_or_nul(i32::from(unsafe { *p as u8 })))
+                && (*crate::globals::GraphPtr::of(p).borrow() as u8 == b'!'
+                    || *crate::globals::GraphPtr::of(p).borrow() as u8 == b'|'
+                    || ascii_iswhite_nl_or_nul(i32::from(
+                        crate::strings::AsByteSlice::first_byte_val(p),
+                    )))
             {
                 skip_until = Some(c".".to_owned());
             } else {
@@ -2861,20 +2875,16 @@ fn get_function_body(
                     ) as isize)
                         - (crate::strings::AsByteSlice::byte_addr(theline) as isize))
                         as usize;
-                    let slice = unsafe {
-                        std::slice::from_raw_parts((theline).cast::<u8>(), heredoc_trimmedlen)
-                    };
+                    let slice = crate::strings::AsByteSlice::slice_len(theline, heredoc_trimmedlen);
                     heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                 }
-                if unsafe { *p == 0 } {
+                if crate::strings::AsByteSlice::is_empty_val(p) {
                     skip_until = Some(c".".to_owned());
                 } else {
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            (p).cast::<u8>(),
-                            (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
-                        )
-                    };
+                    let slice = crate::strings::AsByteSlice::slice_len(
+                        p,
+                        (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
+                    );
                     skip_until = Some(std::ffi::CString::new(slice).unwrap());
                 }
                 do_concat = false;
@@ -2941,17 +2951,16 @@ fn get_function_body(
                             ) as isize)
                                 - (crate::strings::AsByteSlice::byte_addr(theline) as isize))
                                 as usize;
-                            let slice = unsafe {
-                                std::slice::from_raw_parts(theline.cast::<u8>(), heredoc_trimmedlen)
-                            };
+                            let slice = crate::globals::GraphPtr::raw_slice(
+                                theline.cast::<u8>(),
+                                heredoc_trimmedlen,
+                            );
                             heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                         }
-                        let slice = unsafe {
-                            std::slice::from_raw_parts(
-                                (p).cast::<u8>(),
-                                (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
-                            )
-                        };
+                        let slice = crate::strings::AsByteSlice::slice_len(
+                            p,
+                            (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
+                        );
                         skip_until = Some(std::ffi::CString::new(slice).unwrap());
                         do_concat = false;
                         is_heredoc = true;
@@ -2969,7 +2978,7 @@ fn get_function_body(
             newlines.push(None);
         }
 
-        if !line_arg.is_null() && unsafe { *line_arg == 0 } {
+        if !line_arg.is_null() && crate::strings::AsByteSlice::is_empty_val(line_arg) {
             line_arg = ptr::null_mut();
         }
     }
@@ -2990,7 +2999,7 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut newlines: Vec<Option<std::ffi::CString>> = Vec::new();
     let mut varargs: i32 = 0;
     let mut flags: i32 = 0;
-    let mut fp: *mut UserFunc = ptr::null_mut();
+    let mut fp = crate::globals::GraphPtr::<UserFunc>::NULL.as_ptr();
     let mut free_fp = false;
     let mut overwrite = false;
     let mut fudi = Funcdict::new();
@@ -3055,11 +3064,9 @@ pub fn ex_function(eap: &mut Exarg) {
     macro_rules! errret_2 {
         () => {{
             if free_fp && !fp.is_null() {
-                func_clear_free(unsafe { &mut *fp }, false);
+                func_clear_free(crate::globals::GraphPtr::of(fp).borrow_mut(), false);
             } else if !fp.is_null() {
-                unsafe {
-                    (*fp).uf_name_exp = None;
-                }
+                crate::globals::GraphPtr::of(fp).borrow_mut().uf_name_exp = None;
             }
             errret_keep!();
         }};
@@ -3081,7 +3088,7 @@ pub fn ex_function(eap: &mut Exarg) {
     }
 
     p = crate::charset::skipwhite_ptr(p);
-    if unsafe { *p as u8 } != b'(' {
+    if crate::strings::AsByteSlice::first_byte_val(p) != b'(' {
         if !eap.skip {
             semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
             ret_free!();
@@ -3108,7 +3115,7 @@ pub fn ex_function(eap: &mut Exarg) {
         if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func(&fudi.fd_di.di_tv)) {
             let mut name_base = arg;
             if arg != fudi_newkey_ptr {
-                if unsafe { *arg as u8 } == K_SPECIAL {
+                if crate::strings::AsByteSlice::first_byte_val(arg) == K_SPECIAL {
                     if let Some(underscore) = vim_strchr(
                         crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
                         b'_' as i32,
@@ -3190,9 +3197,13 @@ pub fn ex_function(eap: &mut Exarg) {
         }
     }
 
-    if unsafe { *p as u8 } == b'\n' {
+    if crate::strings::AsByteSlice::first_byte_val(p) == b'\n' {
         line_arg = Some(crate::strings::ByteSlice::from_ptr(p.wrapping_add(1)).as_cstr());
-    } else if unsafe { *p != 0 && *p as u8 != b'"' } && !eap.skip && g_st().did_emsg == 0 {
+    } else if *crate::globals::GraphPtr::of(p).borrow() != 0
+        && *crate::globals::GraphPtr::of(p).borrow() as u8 != b'"'
+        && !eap.skip
+        && g_st().did_emsg == 0
+    {
         semsg!(
             gettext(E_TRAILING_ARG),
             crate::strings::ByteSlice::from_ptr(p)
@@ -3245,7 +3256,7 @@ pub fn ex_function(eap: &mut Exarg) {
         fp = find_func(Some(crate::strings::ByteSlice::from_ptr(name).as_cstr()))
             .map_or(ptr::null_mut(), ptr::from_mut);
         if !fp.is_null() {
-            let fp_ref = unsafe { &mut *fp };
+            let fp_ref = crate::globals::GraphPtr::of(fp).borrow_mut();
             if !eap.forceit
                 && (fp_ref.uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
                     || fp_ref.uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
@@ -3348,7 +3359,7 @@ pub fn ex_function(eap: &mut Exarg) {
         if namelen == 0 {
             namelen = crate::strings::ByteSlice::from_ptr(name).as_bytes().len();
         }
-        fp = alloc_ufunc(unsafe { std::slice::from_raw_parts((name).cast::<u8>(), namelen) });
+        fp = alloc_ufunc(crate::strings::AsByteSlice::slice_len(name, namelen));
 
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
@@ -3364,7 +3375,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
             crate::eval::typval::tv_set_string_len(
                 &mut fudi.fd_di.borrow_mut().di_tv,
-                Some(unsafe { std::slice::from_raw_parts((name).cast::<u8>(), namelen) }),
+                Some(crate::strings::AsByteSlice::slice_len(name, namelen)),
             );
 
             fudi.fd_di.borrow_mut().di_tv.v_type = VarType::VarFunc;
@@ -3379,16 +3390,14 @@ pub fn ex_function(eap: &mut Exarg) {
                     .to_vec(),
                 fp,
             );
-        } else if !func_hashtab_add(unsafe { &mut *fp }) {
+        } else if !func_hashtab_add(crate::globals::GraphPtr::of(fp).borrow_mut()) {
             free_fp = true;
             erret!();
         }
 
-        unsafe {
-            (*fp).uf_refcount = 1;
-        }
+        crate::globals::GraphPtr::of(fp).borrow_mut().uf_refcount = 1;
     }
-    let fp = unsafe { &mut *fp };
+    let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
     fp.uf_args = newargs;
     fp.uf_def_args = default_args;
     fp.uf_lines = newlines;
@@ -3471,7 +3480,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
         && uf_st().get_uf_done < uf_st().get_uf_items.len()
     {
         let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done].as_ptr();
-        let fp = unsafe { &mut *fp };
+        let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
         uf_st().get_uf_done += 1;
 
         if (fp.uf_flags & FC_DICT) != 0 || uf2hikey(&*fp).to_bytes().starts_with(b"<lambda>") {
@@ -3531,9 +3540,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
             .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
     });
     if !eap.nextcmd.is_null() {
-        unsafe {
-            *p = NUL;
-        }
+        *crate::globals::GraphPtr::of(p).borrow_mut() = NUL;
     }
 
     if (name.first_byte()).is_ascii_digit() && fudi.fd_dict.is_null() {
@@ -4064,9 +4071,10 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
 
     let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
-    crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[8..], unsafe {
-        std::slice::from_raw_parts((s).cast::<u8>(), slen)
-    });
+    crate::memory::copy_bytes_to_c_buf(
+        &mut g_st().iobuff_bytes_mut()[8..],
+        crate::strings::AsByteSlice::slice_len(s, slen),
+    );
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {
         crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[IOSIZE - 4..], b"...");
@@ -4153,14 +4161,17 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     {
         fp = pt_ref.pt_func.opt_mut();
     } else {
-        let fname_ptr: *const std::ffi::c_char =
+        let fname_ptr = crate::globals::GraphPtr::<std::ffi::c_char>::of(
             if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
                 rettv.vval.v_string().as_ptr()
             } else if let Some(pt_ref) = rettv.vval.v_partial().opt() {
                 pt_ref.pt_name.as_ref().map_or(ptr::null(), |n| n.as_ptr())
             } else {
                 ptr::null()
-            };
+            },
+        )
+        .as_ptr()
+        .cast_const();
         if fname_ptr.is_null() {
             rettv.v_type = VarType::VarFunc;
             rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
@@ -4255,7 +4266,10 @@ pub fn get_funccal() -> Option<&'static mut Funccall> {
     let mut funccal = uf_st().current_funccal.as_ptr();
     if g_st().debug_backtrace_level > 0 {
         for i in 0..g_st().debug_backtrace_level {
-            if let Some(temp_funccal) = unsafe { funccal.as_ref() }.and_then(|fc| fc.caller_opt()) {
+            if let Some(temp_funccal) = crate::globals::GraphPtr::of(funccal)
+                .opt()
+                .and_then(|fc| fc.caller_opt())
+            {
                 funccal = temp_funccal;
             } else {
                 g_st().debug_backtrace_level = i;
@@ -4263,7 +4277,7 @@ pub fn get_funccal() -> Option<&'static mut Funccall> {
             }
         }
     }
-    unsafe { funccal.as_mut() }
+    crate::globals::GraphPtr::of(funccal).opt_mut()
 }
 
 #[inline]
@@ -4284,7 +4298,9 @@ pub fn get_funccal_local_ht() -> Option<&'static mut Hashtab> {
 }
 
 pub fn get_funccal_local_var() -> Option<&'static mut Dictitem> {
-    get_funccal_for_vars_opt().map(|fc| unsafe { &mut *(&raw mut fc.fc_l_vars_var).cast() })
+    get_funccal_for_vars_opt().map(|fc| {
+        crate::globals::GraphPtr::of((&raw mut fc.fc_l_vars_var).cast::<Dictitem>()).borrow_mut()
+    })
 }
 
 pub fn get_funccal_args_dict() -> Option<&'static mut TvDict> {
@@ -4296,7 +4312,9 @@ pub fn get_funccal_args_ht() -> Option<&'static mut Hashtab> {
 }
 
 pub fn get_funccal_args_var() -> Option<&'static mut Dictitem> {
-    get_funccal_for_vars_opt().map(|fc| unsafe { &mut *(&raw mut fc.fc_l_avars_var).cast() })
+    get_funccal_for_vars_opt().map(|fc| {
+        crate::globals::GraphPtr::of((&raw mut fc.fc_l_avars_var).cast::<Dictitem>()).borrow_mut()
+    })
 }
 
 pub fn list_func_vars(first: &mut i32) {
@@ -4343,9 +4361,10 @@ pub fn find_hi_in_scoped_ht(
                 - ((crate::strings::AsByteSlice::byte_addr(varname.as_ptr()) as isize)
                     - (crate::strings::AsByteSlice::byte_addr(name.as_ptr()) as isize))
                     as usize;
-            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(ht_ptr.borrow(), unsafe {
-                std::slice::from_raw_parts((varname.as_ptr()).cast::<u8>(), len)
-            }));
+            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(
+                ht_ptr.borrow(),
+                crate::strings::AsByteSlice::slice_len(varname.as_ptr(), len),
+            ));
             if !hashitem_empty(hi.borrow()) {
                 *pht = Some(ht_ptr.borrow_mut());
                 break;
@@ -4470,8 +4489,8 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
         if g_st().got_int {
             break;
         }
-        if !func_name_refcount(uf2hikey(unsafe { &*fp }))
-            && set_ref_in_func(None, unsafe { fp.as_mut() }, copy_id)
+        if !func_name_refcount(uf2hikey(crate::globals::GraphPtr::of(fp).borrow()))
+            && set_ref_in_func(None, crate::globals::GraphPtr::of(fp).opt_mut(), copy_id)
         {
             return true;
         }

@@ -869,13 +869,11 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
     } else {
         ml_add_deleted_len(&curbuf_mut().b_ml.ml_line_slice[..oldlen as usize]);
 
-        unsafe {
-            ptr::copy(
-                oldp.wrapping_add((col + count) as usize).cast::<u8>(),
-                oldp.wrapping_add(col as usize).cast::<u8>(),
-                movelen as usize,
-            )
-        };
+        crate::globals::GraphPtr::copy_to(
+            oldp.wrapping_add((col + count) as usize).cast::<u8>(),
+            oldp.wrapping_add(col as usize).cast::<u8>(),
+            movelen as usize,
+        );
 
         curbuf_mut().b_ml.ml_line_textlen = newlen + 1;
         curbuf_mut().b_ml.ml_line_slice = &curbuf_mut().b_ml.ml_line_slice[..(newlen + 1) as usize];
@@ -894,7 +892,7 @@ pub fn open_line(
     mut did_do_comment: Option<&mut bool>,
 ) -> bool {
     let mut next_line_vec: Vec<u8> = Vec::new();
-    let mut p_extra: *mut u8 = ptr::null_mut();
+    let mut p_extra = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
     let mut less_cols: Colnr = 0;
     let mut less_cols_off: Colnr = 0;
     let mut newcol: Colnr = 0;
@@ -905,7 +903,7 @@ pub fn open_line(
     let mut lead_len: i32;
     let mut comment_start: i32 = 0;
     let mut lead_flags: Option<&'static CStr> = None;
-    let mut leader: *mut u8 = ptr::null_mut();
+    let mut leader = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
     let mut allocated_vec: Vec<u8> = Vec::new();
     let mut saved_char: u8 = 0;
     let do_si = may_do_si();
@@ -942,7 +940,7 @@ pub fn open_line(
         p_extra = saved_line.wrapping_add(col_u);
         if do_si {
             let p = crate::charset::skipwhite_ptr(p_extra.cast::<std::ffi::c_char>());
-            first_char = i32::from(unsafe { *p as u8 });
+            first_char = i32::from(crate::strings::AsByteSlice::first_byte_val(p));
         }
         extra_len = crate::strings::ByteSlice::from_ptr(p_extra)
             .as_bytes()
@@ -1131,18 +1129,21 @@ pub fn open_line(
     }
 
     if lead_len > 0 {
-        let mut lead_repl: *mut u8 = ptr::null_mut();
+        let mut lead_repl = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut lead_repl_len: i32 = 0;
         let mut lead_middle: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
         let lead_middle_len: i32;
         let mut lead_end: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-        let mut comment_end: *mut u8 = ptr::null_mut();
+        let mut comment_end = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut extra_space = false;
         let mut require_blank = false;
 
         let mut p = lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
-        while !p.is_null() && unsafe { *p != 0 && *p != b':' } {
-            let p_byte = unsafe { *p };
+        while !p.is_null()
+            && *crate::globals::GraphPtr::of(p).borrow() != 0
+            && *crate::globals::GraphPtr::of(p).borrow() != b':'
+        {
+            let p_byte = *crate::globals::GraphPtr::of(p).borrow();
             if p_byte == COM_BLANK {
                 require_blank = true;
                 p = p.wrapping_add(1);
@@ -1188,7 +1189,7 @@ pub fn open_line(
                 if dir == FORWARD {
                     let mut q = saved_line.wrapping_add(lead_len as usize);
                     let end_bytes = &lead_end[..n];
-                    while unsafe { *q != 0 } {
+                    while !crate::strings::AsByteSlice::is_empty_val(q) {
                         let q_bytes = crate::strings::ByteSlice::from_ptr(q).as_bytes();
                         if q_bytes.len() >= n && &q_bytes[..n] == end_bytes {
                             comment_end = q;
@@ -1223,12 +1224,14 @@ pub fn open_line(
                     break;
                 }
 
-                while p > curbuf_mut().b_p_com.as_ptr().cast_mut().cast() && unsafe { *p != b',' } {
+                while p > curbuf_mut().b_p_com.as_ptr().cast_mut().cast()
+                    && (*crate::globals::GraphPtr::of(p).borrow() != b',')
+                {
                     p = p.wrapping_sub(1);
                 }
                 lead_repl = p;
                 while lead_repl > curbuf_mut().b_p_com.as_ptr().cast_mut().cast()
-                    && unsafe { *lead_repl.wrapping_sub(1) != b':' }
+                    && (*crate::globals::GraphPtr::of(lead_repl.wrapping_sub(1)).borrow() != b':')
                 {
                     lead_repl = lead_repl.wrapping_sub(1);
                 }
@@ -1239,19 +1242,23 @@ pub fn open_line(
                 extra_space = true;
 
                 let mut p2 = p;
-                while unsafe { *p2 != 0 && *p2 != b':' } {
-                    if unsafe { *p2 } == COM_AUTO_END {
+                while *crate::globals::GraphPtr::of(p2).borrow() != 0
+                    && *crate::globals::GraphPtr::of(p2).borrow() != b':'
+                {
+                    if *crate::globals::GraphPtr::of(p2).borrow() == COM_AUTO_END {
                         g_st().ins_global.end_comment_pending = -1;
                     }
                     p2 = p2.wrapping_add(1);
                 }
                 if g_st().ins_global.end_comment_pending == -1 {
-                    while unsafe { *p2 != 0 && *p2 != b',' } {
+                    while *crate::globals::GraphPtr::of(p2).borrow() != 0
+                        && *crate::globals::GraphPtr::of(p2).borrow() != b','
+                    {
                         p2 = p2.wrapping_add(1);
                     }
 
                     g_st().ins_global.end_comment_pending =
-                        i32::from(unsafe { *p2.wrapping_sub(1) });
+                        i32::from(*crate::globals::GraphPtr::of(p2.wrapping_sub(1)).borrow());
                 }
                 break;
             }
@@ -1276,9 +1283,9 @@ pub fn open_line(
                 + 1;
             debug_assert!(bytes >= 0);
             allocated_vec = vec![0u8; bytes as usize];
-            allocated_vec[..lead_len as usize].copy_from_slice(unsafe {
-                std::slice::from_raw_parts((saved_line).cast::<u8>(), lead_len as usize)
-            });
+            allocated_vec[..lead_len as usize].copy_from_slice(
+                crate::strings::AsByteSlice::slice_len(saved_line, lead_len as usize),
+            );
             allocated_vec[lead_len as usize] = 0;
             for b in &mut allocated_vec[..comment_start as usize] {
                 if !ascii_iswhite(*b) {
@@ -1293,8 +1300,11 @@ pub fn open_line(
 
                 let mut p =
                     lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
-                while !p.is_null() && unsafe { *p != 0 && *p != b':' } {
-                    let pb = unsafe { *p };
+                while !p.is_null()
+                    && *crate::globals::GraphPtr::of(p).borrow() != 0
+                    && *crate::globals::GraphPtr::of(p).borrow() != b':'
+                {
+                    let pb = *crate::globals::GraphPtr::of(p).borrow();
                     if pb == COM_RIGHT || pb == COM_LEFT {
                         c = pb;
 
@@ -1310,19 +1320,17 @@ pub fn open_line(
                 }
                 if c == COM_RIGHT {
                     let mut p = leader.wrapping_add((lead_len - 1) as usize);
-                    while p > leader && ascii_iswhite(unsafe { *p }) {
+                    while p > leader && ascii_iswhite(*crate::globals::GraphPtr::of(p).borrow()) {
                         p = p.wrapping_sub(1);
                     }
                     p = p.wrapping_add(1);
 
                     {
                         let repl_size = vim_strnsize(
-                            unsafe {
-                                std::slice::from_raw_parts(
-                                    (lead_repl).cast::<u8>(),
-                                    lead_repl_len.max(0) as usize,
-                                )
-                            },
+                            crate::strings::AsByteSlice::slice_len(
+                                lead_repl,
+                                lead_repl_len.max(0) as usize,
+                            ),
                             lead_repl_len,
                         );
                         let mut old_size: i32 = 0;
@@ -1340,24 +1348,23 @@ pub fn open_line(
                                 - (crate::strings::AsByteSlice::byte_addr(p) as isize))
                                 as i32;
                         if l != 0 {
-                            unsafe {
-                                ptr::copy(
-                                    endp,
-                                    endp.wrapping_offset(l as isize),
-                                    ((leader.wrapping_add(lead_len as usize)).offset_from(endp)
-                                        as isize) as usize,
-                                )
-                            };
+                            crate::globals::GraphPtr::copy_to(
+                                endp,
+                                endp.wrapping_offset(l as isize),
+                                (leader.wrapping_add(lead_len as usize) as usize)
+                                    .saturating_sub(endp as usize),
+                            );
                         }
                         lead_len += l;
                     }
 
-                    unsafe { ptr::copy(lead_repl, p, lead_repl_len as usize) };
+                    crate::globals::GraphPtr::copy_to(lead_repl, p, lead_repl_len as usize);
 
                     if p.wrapping_add(lead_repl_len as usize)
                         > leader.wrapping_add(lead_len as usize)
                     {
-                        unsafe { *p.wrapping_add(lead_repl_len as usize) = 0 };
+                        *crate::globals::GraphPtr::of(p.wrapping_add(lead_repl_len as usize))
+                            .borrow_mut() = 0;
                     }
 
                     while {
@@ -1368,26 +1375,24 @@ pub fn open_line(
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
                             if ptr2cells(p) > 1 {
-                                unsafe { *p.wrapping_add(1) = b' ' };
+                                *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow_mut() =
+                                    b' ';
 
                                 l -= 1;
                             }
 
-                            unsafe {
-                                ptr::copy(
-                                    p.wrapping_add(l as usize + 1),
-                                    p.wrapping_add(1),
-                                    ((leader.wrapping_add(lead_len as usize))
-                                        .offset_from(p.wrapping_add(l as usize + 1))
-                                        as isize) as usize,
-                                )
-                            };
+                            crate::globals::GraphPtr::copy_to(
+                                p.wrapping_add(l as usize + 1),
+                                p.wrapping_add(1),
+                                (leader.wrapping_add(lead_len as usize) as usize)
+                                    .saturating_sub(p.wrapping_add(l as usize + 1) as usize),
+                            );
 
                             lead_len -= l;
 
-                            unsafe { *p = b' ' };
-                        } else if !ascii_iswhite(unsafe { *p }) {
-                            unsafe { *p = b' ' };
+                            *crate::globals::GraphPtr::of(p).borrow_mut() = b' ';
+                        } else if !ascii_iswhite(*crate::globals::GraphPtr::of(p).borrow()) {
+                            *crate::globals::GraphPtr::of(p).borrow_mut() = b' ';
                         }
                     }
                 } else {
@@ -1395,24 +1400,19 @@ pub fn open_line(
                         .cast::<u8>();
                     {
                         let repl_size = vim_strnsize(
-                            unsafe {
-                                std::slice::from_raw_parts(
-                                    (lead_repl).cast::<u8>(),
-                                    lead_repl_len.max(0) as usize,
-                                )
-                            },
+                            crate::strings::AsByteSlice::slice_len(
+                                lead_repl,
+                                lead_repl_len.max(0) as usize,
+                            ),
                             lead_repl_len,
                         );
                         let mut i: i32 = 0;
-                        while i < lead_len && unsafe { *p.wrapping_add(i as usize) != 0 } {
+                        while i < lead_len
+                            && crate::strings::AsByteSlice::byte_at_val(p, i as usize) != 0
+                        {
                             let l = utfc_ptr2len(p.wrapping_add(i as usize));
                             if vim_strnsize(
-                                unsafe {
-                                    std::slice::from_raw_parts(
-                                        (p).cast::<u8>(),
-                                        (i + l).max(0) as usize,
-                                    )
-                                },
+                                crate::strings::AsByteSlice::slice_len(p, (i + l).max(0) as usize),
                                 i + l,
                             ) > repl_size
                             {
@@ -1421,69 +1421,60 @@ pub fn open_line(
                             i += l;
                         }
                         if i != lead_repl_len {
-                            unsafe {
-                                ptr::copy(
-                                    p.wrapping_add(i as usize),
-                                    p.wrapping_add(lead_repl_len as usize),
-                                    (lead_len - i - ((p).offset_from(leader) as isize) as i32)
-                                        as usize,
-                                )
-                            };
+                            crate::globals::GraphPtr::copy_to(
+                                p.wrapping_add(i as usize),
+                                p.wrapping_add(lead_repl_len as usize),
+                                (lead_len - i - ((p as usize) - (leader as usize)) as i32) as usize,
+                            );
 
                             lead_len += lead_repl_len - i;
                         }
                     }
 
-                    unsafe { ptr::copy(lead_repl, p, lead_repl_len as usize) };
+                    crate::globals::GraphPtr::copy_to(lead_repl, p, lead_repl_len as usize);
 
                     p = p.wrapping_add(lead_repl_len as usize);
                     while p < leader.wrapping_add(lead_len as usize) {
-                        if !ascii_iswhite(unsafe { *p }) {
+                        if !ascii_iswhite(*crate::globals::GraphPtr::of(p).borrow()) {
                             if p.wrapping_add(1) < leader.wrapping_add(lead_len as usize)
-                                && unsafe { *p.wrapping_add(1) } == TAB
+                                && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() == TAB
                             {
                                 lead_len -= 1;
 
-                                unsafe {
-                                    ptr::copy(
-                                        p.wrapping_add(1),
-                                        p,
-                                        ((leader.wrapping_add(lead_len as usize)).offset_from(p)
-                                            as isize)
-                                            as usize,
-                                    )
-                                };
+                                crate::globals::GraphPtr::copy_to(
+                                    p.wrapping_add(1),
+                                    p,
+                                    (leader.wrapping_add(lead_len as usize) as usize)
+                                        .saturating_sub(p as usize),
+                                );
                             } else {
                                 let mut l = utfc_ptr2len(p);
                                 if l > 1 {
                                     if ptr2cells(p) > 1 {
                                         l -= 1;
 
-                                        unsafe { *p = b' ' };
+                                        *crate::globals::GraphPtr::of(p).borrow_mut() = b' ';
 
                                         p = p.wrapping_add(1);
                                     }
 
-                                    unsafe {
-                                        ptr::copy(
-                                            p.wrapping_add(l as usize),
-                                            p.wrapping_add(1),
-                                            ((leader.wrapping_add(lead_len as usize)).offset_from(p)
-                                                as isize)
-                                                as usize,
-                                        )
-                                    };
+                                    crate::globals::GraphPtr::copy_to(
+                                        p.wrapping_add(l as usize),
+                                        p.wrapping_add(1),
+                                        (leader.wrapping_add(lead_len as usize) as usize)
+                                            .saturating_sub(p as usize),
+                                    );
 
                                     lead_len -= l - 1;
                                 }
 
-                                unsafe { *p = b' ' };
+                                *crate::globals::GraphPtr::of(p).borrow_mut() = b' ';
                             }
                         }
                         p = p.wrapping_add(1);
                     }
 
-                    unsafe { *p = 0 };
+                    *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
                 }
 
                 if curbuf_mut().b_p_ai || do_si {
@@ -1531,7 +1522,8 @@ pub fn open_line(
             newcol = lead_len;
 
             if newindent != 0 || g_st().ins_global.did_si {
-                while lead_len != 0 && ascii_iswhite(unsafe { *leader }) {
+                while lead_len != 0 && ascii_iswhite(*crate::globals::GraphPtr::of(leader).borrow())
+                {
                     lead_len -= 1;
                     newcol -= 1;
                     leader = leader.wrapping_add(1);
@@ -1561,17 +1553,18 @@ pub fn open_line(
     }
 
     if !p_extra.is_null() {
-        unsafe { *p_extra = saved_char };
+        *crate::globals::GraphPtr::of(p_extra).borrow_mut() = saved_char;
 
         if replace_normal(g_st().state_global) {
             replace_push_nul();
         }
         if curbuf_mut().b_p_ai || (flags & OPENLINE_DELSPACES) != 0 {
-            while unsafe { *p_extra == b' ' || *p_extra == b'\t' }
+            while (*crate::globals::GraphPtr::of(p_extra).borrow() == b' '
+                || *crate::globals::GraphPtr::of(p_extra).borrow() == b'\t')
                 && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1)))
             {
                 if replace_normal(g_st().state_global) {
-                    replace_push(unsafe { std::slice::from_raw_parts((p_extra).cast::<u8>(), 1) });
+                    replace_push(crate::strings::AsByteSlice::slice_len(p_extra, 1));
                 }
                 p_extra = p_extra.wrapping_add(1);
                 less_cols_off += 1;
@@ -1640,7 +1633,11 @@ pub fn open_line(
                         .len()
                         + 1;
 
-                unsafe { ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len) };
+                crate::globals::GraphPtr::copy_to(
+                    prompt_line.wrapping_add(prompt_len),
+                    prompt_line,
+                    rem_len,
+                );
 
                 g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                 ml_replace(
@@ -2079,7 +2076,7 @@ pub fn get_last_leader_offset(
     let mut result: i32 = -1;
     let mut lower_check_bound: i32 = 0;
     let mut com_leader_range: std::ops::Range<usize> = 0..0;
-    let mut com_flags: *mut u8 = ptr::null_mut();
+    let mut com_flags = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
 
     let mut i = line_bytes.len() as i32;

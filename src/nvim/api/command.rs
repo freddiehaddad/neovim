@@ -340,14 +340,14 @@ pub fn nvim_parse_cmd(
         args = arena_array(arena, uc_nargs_upper_bound(arg_slice));
 
         while !done {
-            let buf_slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), buf_rem) };
+            let buf_slice = crate::globals::GraphPtr::raw_slice_mut(buf.cast::<u8>(), buf_rem);
             done = uc_split_args_iter(arg_slice, &mut end, buf_slice, &mut len);
             if len > 0 {
                 add_c(
                     &mut args,
-                    string_obj(cstrn_as_string(unsafe {
-                        std::slice::from_raw_parts((buf).cast::<u8>(), len)
-                    })),
+                    string_obj(cstrn_as_string(crate::strings::AsByteSlice::slice_len(
+                        buf, len,
+                    ))),
                 );
                 buf = buf.wrapping_add(len + 1);
                 buf_rem = buf_rem.saturating_sub(len + 1);
@@ -920,7 +920,7 @@ pub fn nvim_cmd(
                 api_err_exp(err, c"reg", c"single character", cmd.reg.as_opt_cstr());
                 break 'end;
             }
-            let regname = unsafe { *cmd.reg.data.cast::<u8>() };
+            let regname = *crate::globals::GraphPtr::of(cmd.reg.data.cast::<u8>()).borrow();
             if regname == b'=' {
                 api_set_error!(
                     err,

@@ -112,7 +112,7 @@ impl Memline {
     pub fn mfp_opt(&mut self) -> Option<&'static mut crate::memfile::Memfile> {
         self.ml_mfp
             .as_deref_mut()
-            .map(|m| unsafe { &mut *(m as *mut crate::memfile::Memfile) })
+            .map(|m| crate::globals::GraphPtr::of(m as *mut crate::memfile::Memfile).borrow_mut())
     }
 
     #[inline(always)]
@@ -383,7 +383,11 @@ impl DataBlock {
     #[inline(always)]
     fn copy_within(&mut self, src_off: usize, dst_off: usize, len: usize) {
         let base = (&raw mut *self).cast::<u8>();
-        unsafe { ptr::copy(base.wrapping_add(src_off), base.wrapping_add(dst_off), len) };
+        crate::globals::GraphPtr::copy_to(
+            base.wrapping_add(src_off),
+            base.wrapping_add(dst_off),
+            len,
+        );
     }
 
     #[inline(always)]
@@ -405,37 +409,40 @@ impl DataBlock {
 impl PointerBlock {
     #[inline(always)]
     fn copy_entries(&mut self, src_idx: usize, dst_idx: usize, count: usize) {
-        unsafe { ptr::copy(pb_ptr(self, src_idx), pb_ptr(self, dst_idx), count) };
+        crate::globals::GraphPtr::copy_to(pb_ptr(self, src_idx), pb_ptr(self, dst_idx), count);
     }
 }
 
 #[inline(always)]
 fn hp_zero_block(hp: &mut Bhdr) -> &'static mut ZeroBlock {
-    unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<ZeroBlock>() }
+    crate::globals::GraphPtr::of(hp.data_slice_mut().as_mut_ptr().cast::<ZeroBlock>()).borrow_mut()
 }
 
 #[inline(always)]
 fn hp_data_block(hp: &mut Bhdr) -> &'static mut DataBlock {
-    unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<DataBlock>() }
+    crate::globals::GraphPtr::of(hp.data_slice_mut().as_mut_ptr().cast::<DataBlock>()).borrow_mut()
 }
 
 #[inline(always)]
 fn hp_ptr_block(hp: &mut Bhdr) -> &'static mut PointerBlock {
-    unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<PointerBlock>() }
+    crate::globals::GraphPtr::of(hp.data_slice_mut().as_mut_ptr().cast::<PointerBlock>())
+        .borrow_mut()
 }
 
 #[inline(always)]
 fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
-    unsafe {
-        &mut *(&raw mut pp.pb_pointer)
+    crate::globals::GraphPtr::of(
+        (&raw mut pp.pb_pointer)
             .cast::<PointerEntry>()
-            .wrapping_add(idx)
-    }
+            .wrapping_add(idx),
+    )
+    .borrow_mut()
 }
 
 #[inline(always)]
 fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> &'static mut u32 {
-    unsafe { &mut *(&raw mut dp.db_index).cast::<u32>().wrapping_add(idx) }
+    crate::globals::GraphPtr::of((&raw mut dp.db_index).cast::<u32>().wrapping_add(idx))
+        .borrow_mut()
 }
 
 #[inline(always)]
@@ -558,7 +565,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
             .mfp_mut()
             .mf_fname
             .as_deref()
-            .map(|s| unsafe { &*(s as *const CStr) });
+            .map(crate::globals::GraphPtr::<u8>::cstr);
         let fname = findswapname(buf, &mut dirp, mf_fname, &mut found_existing_dir);
         if crate::globals::GraphPtr::from(buf.b_ml.mfp_opt()) != mfp_ptr {
             return;
@@ -842,7 +849,7 @@ fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: &CStr) -> i32 {
 pub fn ml_recover(checkext: bool) {
     let mut buf_box: Option<Box<FileBuf>> = None;
     let fname_used: Option<std::ffi::CString>;
-    let mut hp: *mut Bhdr;
+    let mut hp;
     let mut b0_fenc: Option<std::ffi::CString> = None;
     let directly: bool;
     let mut serious_error = true;
@@ -954,7 +961,7 @@ pub fn ml_recover(checkext: bool) {
         );
         return;
     }
-    let mut b0p = hp_zero_block(unsafe { &mut *hp });
+    let mut b0p = hp_zero_block(crate::globals::GraphPtr::of(hp).borrow_mut());
     if b0p.b0_version[..7] == *b"VIM 3.0" {
         msg_start();
         msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), 0, true);
@@ -963,7 +970,7 @@ pub fn ml_recover(checkext: bool) {
         msg_end();
         ml_recover_theend(
             Some(&mut *mfp),
-            unsafe { hp.as_mut() },
+            crate::globals::GraphPtr::of(hp).opt_mut(),
             buf_box,
             serious_error,
             called_from_main,
@@ -977,7 +984,7 @@ pub fn ml_recover(checkext: bool) {
         );
         ml_recover_theend(
             Some(&mut *mfp),
-            unsafe { hp.as_mut() },
+            crate::globals::GraphPtr::of(hp).opt_mut(),
             buf_box,
             serious_error,
             called_from_main,
@@ -998,7 +1005,7 @@ pub fn ml_recover(checkext: bool) {
         msg_end();
         ml_recover_theend(
             Some(&mut *mfp),
-            unsafe { hp.as_mut() },
+            crate::globals::GraphPtr::of(hp).opt_mut(),
             buf_box,
             serious_error,
             called_from_main,
@@ -1021,7 +1028,7 @@ pub fn ml_recover(checkext: bool) {
             msg_end();
             ml_recover_theend(
                 Some(&mut *mfp),
-                unsafe { hp.as_mut() },
+                crate::globals::GraphPtr::of(hp).opt_mut(),
                 buf_box,
                 serious_error,
                 called_from_main,
@@ -1036,11 +1043,12 @@ pub fn ml_recover(checkext: bool) {
         };
         mfp.mf_infile_count = mfp.mf_blocknr_max;
 
-        unsafe { &mut *hp }
+        crate::globals::GraphPtr::of(hp)
+            .borrow_mut()
             .bh_data
             .resize(mfp.mf_page_size as usize, 0);
 
-        b0p = hp_zero_block(unsafe { &mut *hp });
+        b0p = hp_zero_block(crate::globals::GraphPtr::of(hp).borrow_mut());
     }
 
     let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
@@ -1056,7 +1064,7 @@ pub fn ml_recover(checkext: bool) {
         if !setfname(curbuf_mut(), namebuff_ptr.as_opt_cstr(), None, true) {
             ml_recover_theend(
                 Some(&mut *mfp),
-                unsafe { hp.as_mut() },
+                crate::globals::GraphPtr::of(hp).opt_mut(),
                 buf_box,
                 serious_error,
                 called_from_main,
@@ -1125,7 +1133,12 @@ pub fn ml_recover(checkext: bool) {
         b0_fenc = Some(std::ffi::CString::new(&fenc_bytes[..end]).unwrap_or_default());
     }
 
-    mf_put(&mut *mfp, unsafe { &mut *hp }, false, false);
+    mf_put(
+        &mut *mfp,
+        crate::globals::GraphPtr::of(hp).borrow_mut(),
+        false,
+        false,
+    );
     hp = ptr::null_mut();
 
     while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
@@ -1170,7 +1183,7 @@ pub fn ml_recover(checkext: bool) {
 
     serious_error = false;
     while !g_st().got_int {
-        if let Some(hp_ref) = unsafe { hp.as_mut() } {
+        if let Some(hp_ref) = crate::globals::GraphPtr::of(hp).opt_mut() {
             mf_put(&mut *mfp, hp_ref, false, false);
         }
         hp = mf_get(&mut *mfp, bnum, page_count).map_or(ptr::null_mut(), ptr::from_mut);
@@ -1193,7 +1206,7 @@ pub fn ml_recover(checkext: bool) {
             ml_append(lnum, tr(c"???MANY LINES MISSING").to_bytes(), 0, true);
             lnum += 1;
         } else {
-            let pp = hp_ptr_block(unsafe { &mut *hp });
+            let pp = hp_ptr_block(crate::globals::GraphPtr::of(hp).borrow_mut());
             if pp.pb_id == PTR_ID {
                 let mut ptr_block_error = false;
                 let max_cnt = pb_count_max(&*mfp);
@@ -1285,7 +1298,7 @@ pub fn ml_recover(checkext: bool) {
                     continue;
                 }
             } else {
-                let dp = hp_data_block(unsafe { &mut *hp });
+                let dp = hp_data_block(crate::globals::GraphPtr::of(hp).borrow_mut());
                 if dp.db_id != DATA_ID {
                     if bnum == 1 {
                         semsg!(
@@ -1294,7 +1307,7 @@ pub fn ml_recover(checkext: bool) {
                         );
                         ml_recover_theend(
                             Some(&mut *mfp),
-                            unsafe { hp.as_mut() },
+                            crate::globals::GraphPtr::of(hp).opt_mut(),
                             buf_box,
                             serious_error,
                             called_from_main,
@@ -1306,7 +1319,7 @@ pub fn ml_recover(checkext: bool) {
                     lnum += 1;
                 } else {
                     let mut has_error = false;
-                    let hp_page_count = unsafe { (*hp).bh_page_count };
+                    let hp_page_count = crate::globals::GraphPtr::of(hp).borrow().bh_page_count;
                     if hp_page_count != page_count {
                         error += 1;
                         ml_append(
@@ -1342,9 +1355,10 @@ pub fn ml_recover(checkext: bool) {
                     }
 
                     let dp_ptr = (&raw mut *dp).cast::<std::ffi::c_char>();
-                    unsafe {
-                        *dp_ptr.wrapping_add(dp.db_txt_end as usize - 1) = NUL;
-                    }
+                    *crate::globals::GraphPtr::of(
+                        dp_ptr.wrapping_add(dp.db_txt_end as usize - 1),
+                    )
+                    .borrow_mut() = NUL;
 
                     if i64::from(line_count) != dp.db_line_count {
                         ml_append(
@@ -1485,7 +1499,7 @@ pub fn ml_recover(checkext: bool) {
 
     ml_recover_theend(
         Some(&mut *mfp),
-        unsafe { hp.as_mut() },
+        crate::globals::GraphPtr::of(hp).opt_mut(),
         buf_box,
         serious_error,
         called_from_main,
@@ -1667,9 +1681,10 @@ pub fn swapfile_dict(fname: &CStr, d: &mut TvDict) {
     let mut b0 = ZeroBlock::new();
     let fd = os_open(fname, O_RDONLY, 0);
     if fd >= 0 {
-        let b0_slice = unsafe {
-            std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
-        };
+        let b0_slice = crate::globals::GraphPtr::raw_slice_mut(
+            (&raw mut b0).cast::<u8>(),
+            size_of::<ZeroBlock>(),
+        );
         if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
             if !ml_check_b0_id(&b0) {
                 tv_dict_add_str_len(d, c"error", Some(b"Not a swap file"));
@@ -1746,9 +1761,10 @@ fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
 
     let fd = os_open(fname, O_RDONLY, 0);
     if fd >= 0 {
-        let b0_slice = unsafe {
-            std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
-        };
+        let b0_slice = crate::globals::GraphPtr::raw_slice_mut(
+            (&raw mut b0).cast::<u8>(),
+            size_of::<ZeroBlock>(),
+        );
         if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
             if b0.b0_version[..7] == *b"VIM 3.0" {
                 sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
@@ -1823,9 +1839,8 @@ fn swapfile_unchanged(fname: &CStr) -> bool {
         return false;
     }
     let mut b0 = ZeroBlock::new();
-    let b0_slice = unsafe {
-        std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
-    };
+    let b0_slice =
+        crate::globals::GraphPtr::raw_slice_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>());
     if read_eintr(fd, b0_slice) != size_of::<ZeroBlock>() as isize {
         os_close(fd);
         return false;
@@ -2007,12 +2022,7 @@ pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
         return c"".to_bytes();
     }
     assert!(buf.b_ml.ml_line_textlen > 0);
-    unsafe {
-        std::slice::from_raw_parts(
-            (cstr.as_ptr()).cast::<u8>(),
-            (buf.b_ml.ml_line_textlen - 1) as usize,
-        )
-    }
+    crate::strings::AsByteSlice::slice_len(cstr.as_ptr(), (buf.b_ml.ml_line_textlen - 1) as usize)
 }
 
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
@@ -2032,9 +2042,10 @@ pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8
     }
     let ptr = cstr.as_ptr().cast_mut();
     assert!(buf.b_ml.ml_line_textlen > 0);
-    unsafe {
-        std::slice::from_raw_parts_mut(ptr.cast::<u8>(), (buf.b_ml.ml_line_textlen - 1) as usize)
-    }
+    crate::globals::GraphPtr::raw_slice_mut(
+        ptr.cast::<u8>(),
+        (buf.b_ml.ml_line_textlen - 1) as usize,
+    )
 }
 
 /// Return reference to CStr starting at position `pos`.
@@ -2137,7 +2148,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
 
         let len = (end - start) as usize;
         let line_ptr = (&raw mut *dp).cast::<u8>().wrapping_add(start as usize);
-        buf.b_ml.ml_line_slice = unsafe { std::slice::from_raw_parts(line_ptr, len) };
+        buf.b_ml.ml_line_slice = crate::globals::GraphPtr::raw_slice(line_ptr, len);
         buf.b_ml.ml_line_textlen = len as Colnr;
         buf.b_ml.ml_line_lnum = lnum;
         buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
@@ -2151,7 +2162,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
     } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
         && buf.b_ml.ml_line_slice.last() == Some(&0)
     {
-        return unsafe { CStr::from_bytes_with_nul_unchecked(buf.b_ml.ml_line_slice) };
+        return CStr::from_bytes_until_nul(buf.b_ml.ml_line_slice).unwrap_or(c"");
     }
 
     crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_cstr()
@@ -2289,28 +2300,36 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
         }
 
         let new_page_count = ((space_needed + HEADER_SIZE as i64) + page_size - 1) / page_size;
-        let hp_new = ml_new_data(&mut *mfp, (flags & ML_APPEND_NEW) != 0, new_page_count);
-        let hp_left: *mut Bhdr;
-        let hp_right: *mut Bhdr;
+        let hp_new = crate::globals::GraphPtr::from(ml_new_data(
+            &mut *mfp,
+            (flags & ML_APPEND_NEW) != 0,
+            new_page_count,
+        ))
+        .as_ptr();
+        let hp_left;
+        let hp_right;
         let mut line_count_left: i32;
         let mut line_count_right: i32;
         if db_idx < 0 {
             hp_left = hp_new;
-            hp_right = hp;
+            hp_right = ptr::from_mut(hp);
             line_count_left = 0;
             line_count_right = line_count;
         } else {
-            hp_left = hp;
+            hp_left = ptr::from_mut(hp);
             hp_right = hp_new;
             line_count_left = line_count;
             line_count_right = 0;
         }
-        let dp_right = hp_data_block(unsafe { &mut *hp_right });
-        let dp_left = hp_data_block(unsafe { &mut *hp_left });
-        let mut bnum_left = unsafe { (*hp_left).bh_bnum };
-        let mut bnum_right = unsafe { (*hp_right).bh_bnum };
-        let mut page_count_left = unsafe { (*hp_left).bh_page_count } as i32;
-        let mut page_count_right = unsafe { (*hp_right).bh_page_count } as i32;
+        let dp_right = hp_data_block(crate::globals::GraphPtr::of(hp_right).borrow_mut());
+        let dp_left = hp_data_block(crate::globals::GraphPtr::of(hp_left).borrow_mut());
+        let mut bnum_left = crate::globals::GraphPtr::of(hp_left).borrow().bh_bnum;
+        let mut bnum_right = crate::globals::GraphPtr::of(hp_right).borrow().bh_bnum;
+        let mut page_count_left =
+            crate::globals::GraphPtr::of(hp_left).borrow().bh_page_count as i32;
+        let mut page_count_right = crate::globals::GraphPtr::of(hp_right)
+            .borrow()
+            .bh_page_count as i32;
 
         if !in_left {
             dp_right.db_txt_start -= len as u32;
@@ -2327,17 +2346,15 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
         if lines_moved != 0 {
             dp_right.db_txt_start -= data_moved as u32;
             dp_right.db_free -= total_moved as u32;
-            unsafe {
-                ptr::copy(
-                    (&raw mut *dp_left)
-                        .cast::<u8>()
-                        .wrapping_add(dp_left.db_txt_start as usize),
-                    (&raw mut *dp_right)
-                        .cast::<u8>()
-                        .wrapping_add(dp_right.db_txt_start as usize),
-                    data_moved as usize,
-                )
-            };
+            crate::globals::GraphPtr::copy_to(
+                (&raw mut *dp_left)
+                    .cast::<u8>()
+                    .wrapping_add(dp_left.db_txt_start as usize),
+                (&raw mut *dp_right)
+                    .cast::<u8>()
+                    .wrapping_add(dp_right.db_txt_start as usize),
+                data_moved as usize,
+            );
             let offset = (dp_right.db_txt_start as i32).wrapping_sub(dp_left.db_txt_start as i32);
             dp_left.db_txt_start += data_moved as u32;
             dp_left.db_free += total_moved as u32;
@@ -2388,7 +2405,12 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
         if (flags & ML_APPEND_NEW) == 0 && db_idx >= 0 && in_left {
             buf.b_ml.ml_flags |= ML_LOCKED_POS;
         }
-        mf_put(&mut *mfp, hp_new, true, false);
+        mf_put(
+            &mut *mfp,
+            crate::globals::GraphPtr::of(hp_new).borrow_mut(),
+            true,
+            false,
+        );
 
         let lineadd = buf.b_ml.ml_locked_lineadd;
         buf.b_ml.ml_locked_lineadd = 0;
@@ -2410,13 +2432,11 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             }
             if pp.pb_count < pp.pb_count_max {
                 if pb_idx + 1 < pp.pb_count as usize {
-                    unsafe {
-                        ptr::copy(
-                            pb_ptr(&mut *pp, pb_idx + 1),
-                            pb_ptr(&mut *pp, pb_idx + 2),
-                            pp.pb_count as usize - pb_idx - 1,
-                        )
-                    };
+                    crate::globals::GraphPtr::copy_to(
+                        pb_ptr(&mut *pp, pb_idx + 1),
+                        pb_ptr(&mut *pp, pb_idx + 2),
+                        pp.pb_count as usize - pb_idx - 1,
+                    );
                 }
                 pp.pb_count += 1;
                 let pe_cur = pb_ptr(&mut *pp, pb_idx);
@@ -2448,26 +2468,24 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 break;
             }
 
-            let mut hp_new_ptr: *mut Bhdr;
+            let mut hp_new_ptr;
             let mut pp_new: &'static mut PointerBlock;
             loop {
-                hp_new_ptr = ml_new_ptr(&mut *mfp);
-                pp_new = hp_ptr_block(unsafe { &mut *hp_new_ptr });
+                hp_new_ptr = ptr::from_mut(ml_new_ptr(&mut *mfp));
+                pp_new = hp_ptr_block(crate::globals::GraphPtr::of(hp_new_ptr).borrow_mut());
 
                 if hp_ptr.bh_bnum != 1 {
                     break;
                 }
 
-                unsafe {
-                    ptr::copy(
-                        (pp as *mut PointerBlock).cast::<u8>(),
-                        (pp_new as *mut PointerBlock).cast::<u8>(),
-                        page_size as usize,
-                    )
-                };
+                crate::globals::GraphPtr::copy_to(
+                    (pp as *mut PointerBlock).cast::<u8>(),
+                    (pp_new as *mut PointerBlock).cast::<u8>(),
+                    page_size as usize,
+                );
                 pp.pb_count = 1;
                 let pe0 = pb_ptr(&mut *pp, 0);
-                pe0.pe_bnum = unsafe { (*hp_new_ptr).bh_bnum };
+                pe0.pe_bnum = crate::globals::GraphPtr::of(hp_new_ptr).borrow().bh_bnum;
                 pe0.pe_line_count = buf.b_ml.ml_line_count;
                 pe0.pe_old_lnum = 1;
                 pe0.pe_page_count = 1;
@@ -2480,13 +2498,11 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
 
             total_moved = i32::from(pp.pb_count) - (pb_idx as i32) - 1;
             if total_moved != 0 {
-                unsafe {
-                    ptr::copy(
-                        pb_ptr(&mut *pp, pb_idx + 1),
-                        pb_ptr(&mut *pp_new, 0),
-                        total_moved as usize,
-                    )
-                };
+                crate::globals::GraphPtr::copy_to(
+                    pb_ptr(&mut *pp, pb_idx + 1),
+                    pb_ptr(&mut *pp_new, 0),
+                    total_moved as usize,
+                );
                 pp_new.pb_count = total_moved as u16;
                 pp.pb_count = (i32::from(pp.pb_count) - (total_moved - 1)) as u16;
                 let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
@@ -2524,11 +2540,16 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             }
 
             bnum_left = hp_ptr.bh_bnum;
-            bnum_right = unsafe { (*hp_new_ptr).bh_bnum };
+            bnum_right = crate::globals::GraphPtr::of(hp_new_ptr).borrow().bh_bnum;
             page_count_left = 1;
             page_count_right = 1;
             mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
-            mf_put(&mut *mfp, unsafe { &mut *hp_new_ptr }, true, false);
+            mf_put(
+                &mut *mfp,
+                crate::globals::GraphPtr::of(hp_new_ptr).borrow_mut(),
+                true,
+                false,
+            );
 
             stack_idx -= 1;
         }
@@ -2670,12 +2691,12 @@ pub fn ml_replace_buf_len(
     }
 
     let line_slice: &'static [u8] = if let Some(v) = new_buf {
-        let s = unsafe { std::slice::from_raw_parts(v.as_ptr(), v.len()) };
+        let s = crate::globals::GraphPtr::raw_slice(v.as_ptr(), v.len());
         buf.b_ml.ml_line_buf = v;
         s
     } else {
         buf.b_ml.ml_line_buf.clear();
-        unsafe { std::slice::from_raw_parts(line_arg.as_ptr(), len_arg) }
+        crate::globals::GraphPtr::raw_slice(line_arg.as_ptr(), len_arg)
     };
 
     buf.b_ml.ml_line_slice = line_slice;
@@ -2694,7 +2715,7 @@ pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[u8], clear_empty: bool)
     let mut new_buf = Vec::with_capacity(bytes.len() + 1);
     new_buf.extend_from_slice(bytes);
     new_buf.push(0);
-    buf.b_ml.ml_line_slice = unsafe { std::slice::from_raw_parts(new_buf.as_ptr(), new_buf.len()) };
+    buf.b_ml.ml_line_slice = crate::globals::GraphPtr::raw_slice(new_buf.as_ptr(), new_buf.len());
     buf.b_ml.ml_line_buf = new_buf;
     buf.b_ml.ml_line_textlen = (bytes.len() as Colnr) + 1;
     buf.b_ml.ml_flags |= ML_LINE_DIRTY;
@@ -2748,15 +2769,15 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     };
 
     assert!(line_size >= 1);
-    ml_add_deleted_len_buf(buf, unsafe {
-        std::slice::from_raw_parts(
-            ((&raw mut *dp)
+    ml_add_deleted_len_buf(
+        buf,
+        crate::strings::AsByteSlice::slice_len(
+            (&raw mut *dp)
                 .cast::<std::ffi::c_char>()
-                .wrapping_add(line_start as usize))
-            .cast::<u8>(),
+                .wrapping_add(line_start as usize),
             (line_size - 1) as usize,
-        )
-    });
+        ),
+    );
 
     if count == 1 {
         mf_free(mfp, hp);
@@ -3470,12 +3491,10 @@ fn findswapname(
 
             let fd = os_open(fname_cstr, O_RDONLY, 0);
             if fd >= 0 {
-                let b0_slice = unsafe {
-                    std::slice::from_raw_parts_mut(
-                        (&raw mut b0).cast::<u8>(),
-                        size_of::<ZeroBlock>(),
-                    )
-                };
+                let b0_slice = crate::globals::GraphPtr::raw_slice_mut(
+                    (&raw mut b0).cast::<u8>(),
+                    size_of::<ZeroBlock>(),
+                );
                 if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
                     #[cfg(windows)]
                     path_to_slash(&mut b0.b0_fname);

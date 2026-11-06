@@ -997,7 +997,7 @@ mod tests {
         vtt_st().want_state_scrollback = false;
         vtt_st().want_screen_scrollback = false;
         let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
-        let vt = unsafe { &mut *cell.get() };
+        let vt = crate::globals::GraphPtr::of(cell.get()).borrow_mut();
         vtt_st().test_vt = Some(cell);
         vterm_output_set_callback(vt, Some(term_output), None);
         vterm_set_utf8(vt, 1);

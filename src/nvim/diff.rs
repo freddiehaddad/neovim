@@ -2176,15 +2176,15 @@ fn parse_diffanchors(
                 break;
             }
         }
-        if found_bw.is_null() && unsafe { *dia != 0 } {
+        if found_bw.is_null() && !crate::strings::AsByteSlice::is_empty_val(dia) {
             emsg(gettext(E_DIFF_ANCHORS_WITH_HIDDEN_WINDOWS));
             return false;
         }
         found_bw
     };
     let mut i: usize = 0;
-    while i < MAX_DIFF_ANCHORS && !dia.is_null() && unsafe { *dia != 0 } {
-        if unsafe { *dia as u8 } == b',' {
+    while i < MAX_DIFF_ANCHORS && !crate::strings::AsByteSlice::is_empty_val(dia) {
+        if crate::strings::AsByteSlice::first_byte_val(dia) == b',' {
             return false;
         }
         g_st().curbuf = (buf).into();
@@ -2210,7 +2210,9 @@ fn parse_diffanchors(
         if dia.is_null() {
             return false;
         }
-        if unsafe { *dia as u8 } != b',' && unsafe { *dia != 0 } {
+        if crate::strings::AsByteSlice::first_byte_val(dia) != b','
+            && !crate::strings::AsByteSlice::is_empty_val(dia)
+        {
             return false;
         }
         if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > buf.b_ml.ml_line_count + 1) {
@@ -2220,12 +2222,12 @@ fn parse_diffanchors(
         if let Some(ref mut a) = anchors {
             a[i] = lnum;
         }
-        if unsafe { *dia as u8 } == b',' {
+        if crate::strings::AsByteSlice::first_byte_val(dia) == b',' {
             dia = dia.wrapping_add(1);
         }
         i += 1;
     }
-    if i == MAX_DIFF_ANCHORS && !dia.is_null() && unsafe { *dia != 0 } {
+    if i == MAX_DIFF_ANCHORS && !crate::strings::AsByteSlice::is_empty_val(dia) {
         semsg!(
             gettext(E_CANNOT_HAVE_MORE_THAN_NR_DIFF_ANCHORS),
             MAX_DIFF_ANCHORS as i32,
@@ -2623,7 +2625,9 @@ fn diff_refine_inline_word_highlight(
             let mut only_non_word = true;
             let mut has_content = false;
             let mut i: i32 = 0;
-            while i < gap_size && unsafe { *gap_text.wrapping_add(i as usize) != 0 } {
+            while i < gap_size
+                && *crate::globals::GraphPtr::of(gap_text.wrapping_add(i as usize)).borrow() != 0
+            {
                 has_content = true;
                 let char_class = mb_get_class_tab(
                     crate::strings::ByteSlice::from_ptr(gap_text.wrapping_add(i as usize))
