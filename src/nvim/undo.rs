@@ -603,7 +603,9 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
             let tail_off =
-                crate::memory::ptr_offset_from(path_tail(ffname.as_cstr()).as_ptr(), ffname)
+                ((crate::strings::AsByteSlice::byte_addr(path_tail(ffname.as_cstr()).as_ptr())
+                    as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(ffname) as isize))
                     as usize;
             let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
             ufn_vec.extend_from_slice(&ffname_slice[..tail_off]);

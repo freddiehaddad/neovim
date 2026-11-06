@@ -915,23 +915,23 @@ impl CStrPtrSkip for Option<&'static [u8]> {
 
 #[inline]
 pub fn skipwhite_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skipwhite_len(crate::memory::cstr_as_bytes(
-        p.as_c_char_ptr(),
-    )))
+    p.advance_bytes(skipwhite_len(
+        crate::memory::cstr_from_ptr(p.as_c_char_ptr()).to_bytes(),
+    ))
 }
 
 #[inline]
 pub fn skiptowhite_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skiptowhite_len(crate::memory::cstr_as_bytes(
-        p.as_c_char_ptr(),
-    )))
+    p.advance_bytes(skiptowhite_len(
+        crate::memory::cstr_from_ptr(p.as_c_char_ptr()).to_bytes(),
+    ))
 }
 
 #[inline]
 pub fn skiptowhite_esc_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skiptowhite_esc_len(crate::memory::cstr_as_bytes(
-        p.as_c_char_ptr(),
-    )))
+    p.advance_bytes(skiptowhite_esc_len(
+        crate::memory::cstr_from_ptr(p.as_c_char_ptr()).to_bytes(),
+    ))
 }
 
 #[inline]

@@ -1440,10 +1440,10 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
 pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
     let v_string = match str_ {
         None => ptr::null_mut(),
-        Some(s) if len >= 0 => {
-            crate::memory::cstr_from_bytes(crate::memory::cstr_slice(s.as_ptr(), len as usize))
-                .into_raw()
-        }
+        Some(s) if len >= 0 => crate::memory::cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts((s.as_ptr()).cast::<u8>(), len as usize)
+        })
+        .into_raw(),
         Some(s) => s.to_owned().into_raw(),
     };
     tv_list_append_owned_tv(
@@ -2142,16 +2142,20 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
         if info.item_compare_lc {
             res = unsafe { strcoll(p1, p2) };
         } else if info.item_compare_ic {
-            res = crate::memory::cstr_as_bytes(p1)
+            res = crate::memory::cstr_from_ptr(p1)
+                .to_bytes()
                 .iter()
                 .map(u8::to_ascii_lowercase)
                 .cmp(
-                    crate::memory::cstr_as_bytes(p2)
+                    crate::memory::cstr_from_ptr(p2)
+                        .to_bytes()
                         .iter()
                         .map(u8::to_ascii_lowercase),
                 ) as i32;
         } else {
-            res = crate::memory::cstr_as_bytes(p1).cmp(crate::memory::cstr_as_bytes(p2)) as i32;
+            res = crate::memory::cstr_from_ptr(p1)
+                .to_bytes()
+                .cmp(crate::memory::cstr_from_ptr(p2).to_bytes()) as i32;
         }
     } else {
         let (n1, _) = strtod(crate::memory::cstr_from_ptr(p1));
@@ -2989,8 +2993,9 @@ pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'stat
     let hi = if len < 0 {
         d.dv_hashtab.find_hi_mut(key)
     } else {
-        d.dv_hashtab
-            .find_hi_len_mut(crate::memory::cstr_slice(key.as_ptr(), len as usize))
+        d.dv_hashtab.find_hi_len_mut(unsafe {
+            std::slice::from_raw_parts((key.as_ptr()).cast::<u8>(), len as usize)
+        })
     };
     hi.and_then(|hi| hi.hi_di.opt_mut())
 }

@@ -585,7 +585,7 @@ fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
                     let mut len = 0usize;
                     let s = lua_tolstring(lstate, -2, &mut len);
                     if len > 0 {
-                        let slice = crate::memory::cstr_slice(s, len);
+                        let slice = std::slice::from_raw_parts((s).cast::<u8>(), len);
                         if slice.contains(&0) {
                             ret.has_string_with_nul = true;
                         }
@@ -758,7 +758,10 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                 idx: 0,
                             };
                         } else {
-                            let di = tv_dict_item_alloc_len(crate::memory::cstr_slice(s, len));
+                            let di = tv_dict_item_alloc_len(std::slice::from_raw_parts(
+                                (s).cast::<u8>(),
+                                len,
+                            ));
                             if !tv_dict_add(cur.tv_mut().vval.v_dict().borrow_mut(), di) {
                                 std::process::abort();
                             }
@@ -1603,7 +1606,9 @@ pub fn nlua_pop_string_opt(
     let mut size = 0usize;
     let data = unsafe { lua_tolstring(lstate, -1, &mut size) };
     assert!(!data.is_null());
-    let dup = arena_memdupz_opt(arena, crate::memory::cstr_slice(data, size));
+    let dup = arena_memdupz_opt(arena, unsafe {
+        std::slice::from_raw_parts((data).cast::<u8>(), size)
+    });
     lua_pop(lstate, 1);
     NvimString { data: dup, size }
 }
@@ -1894,7 +1899,7 @@ pub fn nlua_pop_object_opt(
                         let item = &mut cur.obj.data.dict_mut()[idx];
                         item.key = cbuf_to_arena_str_opt(
                             arena.as_deref_mut(),
-                            crate::memory::cstr_slice(s, len),
+                            std::slice::from_raw_parts((s).cast::<u8>(), len),
                         );
                         let item_val_ptr = &raw mut item.value;
                         stack.push(cur);
@@ -1939,7 +1944,7 @@ pub fn nlua_pop_object_opt(
                         obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(cbuf_to_arena_str_opt(
                             arena.as_deref_mut(),
-                            crate::memory::cstr_slice(s, len),
+                            std::slice::from_raw_parts((s).cast::<u8>(), len),
                         )),
                     };
                 }
@@ -2158,7 +2163,7 @@ pub fn nlua_pop_keydict_opt<T>(
             let key_bytes = if s.is_null() || len == 0 {
                 &[][..]
             } else {
-                crate::memory::cstr_slice(s, len)
+                std::slice::from_raw_parts((s).cast::<u8>(), len)
             };
             let Some(field) = hashy_fn(key_bytes) else {
                 api_set_error!(
@@ -2185,7 +2190,8 @@ pub fn nlua_pop_keydict_opt<T>(
                     let name = lua_tolstring(lstate, -1, &mut name_len);
                     lua_pop(lstate, 1);
                     *mem.cast::<Integer>() = if name_len > 0 {
-                        syn_check_group(crate::memory::cstr_slice(name, name_len)) as Integer
+                        syn_check_group(std::slice::from_raw_parts((name).cast::<u8>(), name_len))
+                            as Integer
                     } else {
                         0
                     };

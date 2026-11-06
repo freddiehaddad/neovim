@@ -548,7 +548,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut valid_args = true;
         if arg1.v_type == VarType::VarString {
             if let Some(expected) = tv_get_string_buf_chk(arg1, &mut buf) {
-                let act_bytes = crate::memory::cstr_as_bytes(actual);
+                let act_bytes = crate::memory::cstr_from_ptr(actual).to_bytes();
                 let exp_bytes = expected.to_bytes();
                 let contains = if exp_bytes.is_empty() {
                     true

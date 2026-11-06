@@ -232,10 +232,8 @@ pub fn hash_add_item(
 ) {
     let mut hi = crate::globals::GraphPtr::from(hi_in);
     if ht.ht_array.is_empty() {
-        let offset = crate::memory::ptr_offset_from(
-            hi.as_ptr(),
-            EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>(),
-        ) as usize;
+        let offset = (hi.as_ptr() as usize - EMPTY_HASHARRAY.as_ptr() as usize)
+            / std::mem::size_of::<Hashitem>();
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
         hi = crate::globals::GraphPtr::new(ht.ht_array.as_mut_ptr().wrapping_add(offset));
     }

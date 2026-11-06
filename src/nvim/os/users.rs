@@ -208,7 +208,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            crate::memory::copy_bytes_to_c_buf(s, crate::memory::cstr_as_bytes((*pw).pw_name));
+            crate::memory::copy_bytes_to_c_buf(s, ((*pw).pw_name).as_bytes());
             return true;
         }
     }

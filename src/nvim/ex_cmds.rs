@@ -1825,9 +1825,10 @@ pub fn make_filter_cmd(
     otmp: Option<&CStr>,
     do_in: bool,
 ) -> std::ffi::CString {
-    let sh_tail = crate::memory::cstr_as_bytes(
+    let sh_tail = crate::memory::cstr_from_ptr(
         (invocation_path_tail(opt_vars().p_sh.as_cstr(), None)).as_ptr(),
-    );
+    )
+    .to_bytes();
     #[cfg(unix)]
     let is_fish_shell = sh_tail.starts_with(b"fish");
     #[cfg(not(unix))]
@@ -3287,7 +3288,7 @@ pub fn ex_append(eap: &mut Exarg) {
             }
             p = p.wrapping_add(1);
         }
-        if crate::memory::cstr_as_bytes(p) == b"."
+        if crate::memory::cstr_from_ptr(p).to_bytes() == b"."
             || (!did_undo && !u_save(lnum, lnum + 1 + if empty { 1 } else { 0 }))
         {
             break;
@@ -3821,7 +3822,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             delimiter = i32::from(unsafe { *cmd as u8 });
             cmd = cmd.wrapping_add(1);
             pat.data = crate::strings::ByteSlice::from_ptr(cmd);
-            let cmd_len = crate::memory::cstr_as_bytes(cmd).len();
+            let cmd_len = crate::memory::cstr_from_ptr(cmd).to_bytes().len();
             let cmd_slice =
                 unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), cmd_len + 1) };
             let off = skip_regexp_ex(
@@ -3845,7 +3846,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
 
         let p = cmd;
-        let sub_len = crate::memory::cstr_as_bytes(cmd).len();
+        let sub_len = crate::memory::cstr_from_ptr(cmd).to_bytes().len();
         let sub_slice = unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), sub_len + 1) };
         let sub_off = skip_substitute(sub_slice, delimiter);
         cmd = cmd.wrapping_add(sub_off);
@@ -3899,7 +3900,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     cmd = crate::charset::skipwhite_ptr(cmd);
     if ascii_isdigit(unsafe { *cmd as u8 }) {
         let count_arg = cmd;
-        let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+        let cmd_bytes = crate::memory::cstr_from_ptr(cmd).to_bytes();
         let mut rem = cmd_bytes;
         i = getdigits_int(&mut rem, false, i32::MAX);
         cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
@@ -3909,7 +3910,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         } else if i == i32::MAX {
             semsg!(
                 gettext(E_VAL_TOO_LARGE_LEN),
-                crate::memory::ptr_offset_from(cmd, count_arg) as i32,
+                ((crate::strings::AsByteSlice::byte_addr(cmd) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(count_arg) as isize))
+                    as i32,
                 count_arg,
             );
             return 0;
@@ -3972,8 +3975,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     debug_assert!(!sub.is_null());
 
-    if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=") {
-        let sub_len = crate::memory::cstr_as_bytes(sub).len();
+    if !crate::memory::cstr_from_ptr(sub)
+        .to_bytes()
+        .starts_with(b"\\=")
+    {
+        let sub_len = crate::memory::cstr_from_ptr(sub).to_bytes().len();
         let sub_slice = unsafe { std::slice::from_raw_parts_mut(sub.cast::<u8>(), sub_len + 1) };
         if let Some(new_sub) = regtilde(sub_slice, i32::from(opt_vars().p_magic), cmdpreview_ns > 0)
         {
@@ -4084,7 +4090,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         g_st().sub_nsubs += 1;
                         did_sub = true;
-                        if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=") {
+                        if !crate::memory::cstr_from_ptr(sub)
+                            .to_bytes()
+                            .starts_with(b"\\=")
+                        {
                             break 'skip;
                         }
                     }
@@ -4119,12 +4128,13 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 orig_line = SubBuf::from_cbuf(lnum_slice);
                                 let new_line = concat_str(
                                     crate::memory::bytes_until_nul(new_start.as_slice()),
-                                    crate::memory::cstr_as_bytes(
+                                    crate::memory::cstr_from_ptr(
                                         sub_firstline
                                             .as_slice()
                                             .as_ptr()
                                             .wrapping_add(copycol as usize),
-                                    ),
+                                    )
+                                    .to_bytes(),
                                 );
                                 let new_line_size =
                                     new_start.size + (sub_firstline.size - copycol as usize);
@@ -4133,10 +4143,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 curwin_mut().w_cursor.col += len_change;
                                 crate::memline::ml_replace_len(
                                     lnum,
-                                    crate::memory::cstr_slice(
-                                        new_line.as_ptr().cast_mut(),
-                                        new_line_size,
-                                    ),
+                                    unsafe {
+                                        std::slice::from_raw_parts(
+                                            (new_line.as_ptr().cast_mut()).cast::<u8>(),
+                                            new_line_size,
+                                        )
+                                    },
                                     new_line_size,
                                     true,
                                 );
@@ -4179,7 +4191,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             if let Some(ref orig_vec) = orig_line.vec {
                                 crate::memline::ml_replace_len(
                                     lnum,
-                                    crate::memory::cstr_slice(orig_vec.as_ptr(), orig_line.size),
+                                    unsafe {
+                                        std::slice::from_raw_parts(
+                                            (orig_vec.as_ptr()).cast::<u8>(),
+                                            orig_line.size,
+                                        )
+                                    },
                                     orig_line.size,
                                     true,
                                 );
@@ -4394,19 +4411,22 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             if unsafe { *p1 == b'\\' && *p1.wrapping_add(1) != 0 } {
                                 sublen -= 1;
                                 n = new_start.size
-                                    - crate::memory::ptr_offset_from(
-                                        p1,
-                                        new_start.as_slice().as_ptr(),
-                                    ) as usize;
+                                    - ((crate::strings::AsByteSlice::byte_addr(p1) as isize)
+                                        - (crate::strings::AsByteSlice::byte_addr(
+                                            new_start.as_slice().as_ptr(),
+                                        ) as isize)) as usize;
                                 unsafe { ptr::copy(p1.wrapping_add(1), p1, n + 1) };
                                 new_start.size -= 1;
                                 p1 = p1.wrapping_add(1);
                             } else if unsafe { *p1 } == CAR as u8 {
                                 if u_inssub(lnum) {
-                                    let plen = (crate::memory::ptr_offset_from(
-                                        p1,
-                                        new_start.as_slice().as_ptr(),
-                                    ) + 1) as Colnr;
+                                    let plen = (((crate::strings::AsByteSlice::byte_addr(p1)
+                                        as isize)
+                                        - (crate::strings::AsByteSlice::byte_addr(
+                                            new_start.as_slice().as_ptr(),
+                                        ) as isize))
+                                        + 1)
+                                        as Colnr;
 
                                     unsafe {
                                         *p1 = 0;
@@ -4414,10 +4434,13 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                                     ml_append(
                                         lnum - 1,
-                                        crate::memory::cstr_slice(
-                                            new_start.as_slice().as_ptr().cast_mut(),
-                                            (plen as usize).saturating_sub(1),
-                                        ),
+                                        unsafe {
+                                            std::slice::from_raw_parts(
+                                                (new_start.as_slice().as_ptr().cast_mut())
+                                                    .cast::<u8>(),
+                                                (plen as usize).saturating_sub(1),
+                                            )
+                                        },
                                         plen,
                                         false,
                                     );
@@ -4535,7 +4558,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         ml_replace(
                             lnum,
-                            crate::memory::cstr_as_bytes(new_start.as_slice().as_ptr().cast_mut()),
+                            crate::memory::cstr_from_ptr(new_start.as_slice().as_ptr().cast_mut())
+                                .to_bytes(),
                             true,
                         );
 
@@ -4845,7 +4869,7 @@ pub fn ex_global(eap: &mut Exarg) {
         delim = unsafe { *cmd };
         cmd = cmd.wrapping_add(1);
         pat = cmd;
-        let cmd_len = crate::memory::cstr_as_bytes(cmd).len();
+        let cmd_len = crate::memory::cstr_from_ptr(cmd).to_bytes().len();
         let cmd_slice = unsafe { std::slice::from_raw_parts_mut(cmd, cmd_len + 1) };
         let off = skip_regexp_ex(
             cmd_slice,
@@ -4862,7 +4886,7 @@ pub fn ex_global(eap: &mut Exarg) {
             }
             cmd = cmd.wrapping_add(1);
         }
-        patlen = crate::memory::cstr_as_bytes(pat).len();
+        patlen = crate::memory::cstr_from_ptr(pat).to_bytes().len();
     }
 
     let mut used_pat = std::ffi::CString::default();
@@ -5148,7 +5172,7 @@ fn show_sub(
                     ml_append_buf(
                         cp_buf,
                         linenr_preview,
-                        crate::memory::cstr_slice(str, (line_size as usize).saturating_sub(1)),
+                        (str).slice((line_size as usize).saturating_sub(1)),
                         line_size,
                         false,
                     );

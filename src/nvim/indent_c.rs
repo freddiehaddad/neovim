@@ -2863,12 +2863,14 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         } else {
                             s
                         };
-                        if !vim_iswordp(crate::memory::cstr_as_bytes(n)) {
+                        if !vim_iswordp(crate::memory::cstr_from_ptr(n).to_bytes()) {
                             break;
                         }
                         s = n;
                     }
-                    let s_off = crate::memory::ptr_offset_from(s, line) as usize;
+                    let s_off = ((crate::strings::AsByteSlice::byte_addr(s) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
+                        as usize;
                     let col_usize = curwin_mut().w_cursor.col as usize;
                     if s_off + word_len <= col_usize {
                         let line_slice = crate::cursor::get_cursor_line_slice();

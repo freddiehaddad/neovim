@@ -2041,7 +2041,7 @@ pub fn do_bufdel(
                 }
                 if !ascii_isdigit(arg.first_byte()) {
                     let p = crate::charset::skiptowhite_esc_ptr(arg);
-                    let pat_len = crate::memory::ptr_offset_from(p, arg).max(0) as usize;
+                    let pat_len = ((p).offset_from(arg) as isize).max(0) as usize;
                     bnr = buflist_findpat(arg.slice(pat_len), command == DOBUF_WIPE, false, false);
                     if bnr < 0 {
                         break;

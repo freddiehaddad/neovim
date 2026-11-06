@@ -121,7 +121,7 @@ pub fn modify_fname(
                 *usedlen += 2;
 
                 // Expand "~/path" for all systems and "~user/path" for Unix
-                let fname_bytes = crate::memory::cstr_as_bytes(fname);
+                let fname_bytes = crate::memory::cstr_from_ptr(fname).to_bytes();
                 let tilde_cond = fname_bytes.first() == Some(&b'~')
                     && (cfg!(unix)
                         || fname_bytes.get(1) == Some(&b'/')
@@ -135,7 +135,7 @@ pub fn modify_fname(
                 }
 
                 // When "/." or "/.." is used: force expansion to get rid of it.
-                let fname_bytes = crate::memory::cstr_as_bytes(fname);
+                let fname_bytes = crate::memory::cstr_from_ptr(fname).to_bytes();
                 let mut p_idx = 0usize;
                 while p_idx < fname_bytes.len() {
                     let rem = &fname_bytes[p_idx..];
@@ -153,7 +153,7 @@ pub fn modify_fname(
 
                 // FullName_save() is slow, don't use it when not needed.
                 if has_dot_comp
-                    || !vim_isAbsName(crate::memory::cstr_as_bytes(fname.cast_const()))
+                    || !vim_isAbsName(crate::memory::cstr_from_ptr(fname.cast_const()).to_bytes())
                     || (cfg!(windows) && matches!(fname_bytes.first(), Some(b'/' | b'\\')))
                 {
                     let Some(full) = FullName_save(
@@ -171,7 +171,7 @@ pub fn modify_fname(
                 // Append a path separator to a directory.
                 if os_isdir(crate::memory::cstr_from_ptr(fname)) {
                     // Make room for one or two extra characters.
-                    let cur_len = crate::memory::cstr_as_bytes(fname).len();
+                    let cur_len = crate::memory::cstr_from_ptr(fname).to_bytes().len();
                     let mut v = vec![0u8; cur_len + 3];
                     unsafe {
                         ptr::copy_nonoverlapping(fname, v.as_mut_ptr(), cur_len + 1);
@@ -243,7 +243,7 @@ pub fn modify_fname(
                         ) == 0
                         {
                             p = p.wrapping_add(dirnamelen);
-                            let p_rem = crate::memory::cstr_as_bytes(p);
+                            let p_rem = crate::memory::cstr_from_ptr(p).to_bytes();
                             if p_rem.first().is_some_and(|&b| vim_ispathsep(b as i32)) {
                                 let skip_seps = p_rem
                                     .iter()
@@ -299,7 +299,7 @@ pub fn modify_fname(
                 .as_ptr()
                 .cast_mut()
                 .cast::<u8>();
-            *fnamelen = crate::memory::cstr_as_bytes(fname).len();
+            *fnamelen = crate::memory::cstr_from_ptr(fname).to_bytes().len();
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -310,10 +310,12 @@ pub fn modify_fname(
                 valid |= VALID_HEAD;
                 *usedlen += 2;
                 while (tail as usize) > (s as usize)
-                    && after_pathsep(crate::memory::cstr_slice(
-                        s,
-                        (tail as usize).saturating_sub(s as usize),
-                    )) != 0
+                    && after_pathsep(unsafe {
+                        std::slice::from_raw_parts(
+                            (s).cast::<u8>(),
+                            (tail as usize).saturating_sub(s as usize),
+                        )
+                    }) != 0
                 {
                     tail = tail.wrapping_sub(
                         crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize + 1,
@@ -333,10 +335,12 @@ pub fn modify_fname(
                     *fnamelen = 1;
                 } else {
                     while (tail as usize) > (s as usize)
-                        && after_pathsep(crate::memory::cstr_slice(
-                            s,
-                            (tail as usize).saturating_sub(s as usize),
-                        )) == 0
+                        && after_pathsep(unsafe {
+                            std::slice::from_raw_parts(
+                                (s).cast::<u8>(),
+                                (tail as usize).saturating_sub(s as usize),
+                            )
+                        }) == 0
                     {
                         tail = tail.wrapping_sub(
                             crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize
@@ -493,7 +497,7 @@ pub fn modify_fname(
                 .is_some_and(|r| r.starts_with(b":S"))
             {
                 let esc = vim_strsave_shellescape(
-                    crate::memory::cstr_slice(fname, *fnamelen),
+                    unsafe { std::slice::from_raw_parts((fname).cast::<u8>(), *fnamelen) },
                     false,
                     false,
                 );
@@ -1568,7 +1572,8 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
 
                 // Finished a line.  Remove CRs before NL.
                 if readlen > 0 && !binary {
-                    let line_bytes = crate::memory::cstr_slice(start, len);
+                    let line_bytes =
+                        unsafe { std::slice::from_raw_parts((start).cast::<u8>(), len) };
                     while len > 0 && line_bytes[len - 1] == b'\r' {
                         len -= 1;
                     }
@@ -1820,9 +1825,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     unsafe { *q.wrapping_sub(1) = 0 };
                     q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
                 }
-                if (q as usize) > (p.as_ptr() as usize)
-                    && !path_is_absolute(crate::memory::cstr_as_bytes(buf))
-                {
+                if (q as usize) > (p.as_ptr() as usize) && !path_is_absolute((buf).as_bytes()) {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p.as_ptr() as usize);
@@ -1964,10 +1967,12 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         loop {
             if unsafe { *p == 0 || *p == NL } {
                 if p != hunk_start {
-                    let hunk = crate::memory::cstr_slice(
-                        hunk_start,
-                        (p as usize).wrapping_sub(hunk_start as usize),
-                    );
+                    let hunk = unsafe {
+                        std::slice::from_raw_parts(
+                            (hunk_start).cast::<u8>(),
+                            (p as usize).wrapping_sub(hunk_start as usize),
+                        )
+                    };
                     let written = file_write(fp, hunk);
                     if written < 0 {
                         error = written as i32;

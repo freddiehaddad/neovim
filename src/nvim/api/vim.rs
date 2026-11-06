@@ -797,10 +797,9 @@ pub fn nvim_replace_termcodes(
         opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
-    cbuf_to_string(crate::memory::cstr_slice(
-        out.as_ptr(),
-        out.as_bytes().len(),
-    ))
+    cbuf_to_string(unsafe {
+        std::slice::from_raw_parts((out.as_ptr()).cast::<u8>(), out.as_bytes().len())
+    })
 }
 
 /// Executes Lua code. Arguments are available as `...` inside the chunk. The chunk can return
@@ -2906,9 +2905,11 @@ pub fn nvim_eval_statusline(
             opts.use_winbar,
             stc_hl_id,
         );
-        if unsafe { (*hltab).start }
-            .is_none_or(|s| crate::memory::ptr_offset_from(s.as_ptr(), buf_data.cast()) != 0)
-        {
+        if unsafe { (*hltab).start }.is_none_or(|s| {
+            ((crate::strings::AsByteSlice::byte_addr(s.as_ptr()) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(buf_data) as isize))
+                != 0
+        }) {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
             put_c(&mut hl_info, c"group", cstr_as_obj(Some(dfltname)));
@@ -2950,7 +2951,9 @@ pub fn nvim_eval_statusline(
                 &mut hl_info,
                 c"start",
                 integer_obj(
-                    crate::memory::ptr_offset_from(sp_start.as_ptr(), buf_data.cast()) as Integer,
+                    ((crate::strings::AsByteSlice::byte_addr(sp_start.as_ptr()) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(buf_data) as isize))
+                        as Integer,
                 ),
             );
 

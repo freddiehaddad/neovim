@@ -1389,9 +1389,10 @@ pub fn ml_recover(checkext: bool) {
                             line_bytes = b"???";
                         } else {
                             did_questions = false;
-                            line_bytes = crate::memory::cstr_as_bytes(
+                            line_bytes = crate::memory::cstr_from_ptr(
                                 dp_ptr.wrapping_add(txt_start as usize),
-                            );
+                            )
+                            .to_bytes();
                         }
                         ml_append(lnum, line_bytes, 0, true);
                         lnum += 1;
@@ -2011,7 +2012,12 @@ pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
         return c"".to_bytes();
     }
     assert!(buf.b_ml.ml_line_textlen > 0);
-    crate::memory::cstr_slice(cstr.as_ptr(), (buf.b_ml.ml_line_textlen - 1) as usize)
+    unsafe {
+        std::slice::from_raw_parts(
+            (cstr.as_ptr()).cast::<u8>(),
+            (buf.b_ml.ml_line_textlen - 1) as usize,
+        )
+    }
 }
 
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
@@ -2145,7 +2151,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
         ml_add_deleted_len_buf(
             buf,
-            crate::memory::cstr_as_bytes(buf.b_ml.ml_line_slice.as_ptr()),
+            crate::memory::cstr_from_ptr(buf.b_ml.ml_line_slice.as_ptr()).to_bytes(),
         );
     } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
         && buf.b_ml.ml_line_slice.last() == Some(&0)
@@ -2747,15 +2753,15 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     };
 
     assert!(line_size >= 1);
-    ml_add_deleted_len_buf(
-        buf,
-        crate::memory::cstr_slice(
-            (&raw mut *dp)
+    ml_add_deleted_len_buf(buf, unsafe {
+        std::slice::from_raw_parts(
+            ((&raw mut *dp)
                 .cast::<std::ffi::c_char>()
-                .wrapping_add(line_start as usize),
+                .wrapping_add(line_start as usize))
+            .cast::<u8>(),
             (line_size - 1) as usize,
-        ),
-    );
+        )
+    });
 
     if count == 1 {
         mf_free(mfp, hp);

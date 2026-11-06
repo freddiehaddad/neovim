@@ -364,7 +364,7 @@ pub fn search_regcomp(
             magic = srch().spats[i as usize].magic;
             g_st().search_global.no_smartcase = srch().spats[i as usize].no_scs;
         } else if (options & SEARCH_HIS) != 0 {
-            let pat_bytes = crate::memory::cstr_as_bytes(pat);
+            let pat_bytes = crate::memory::cstr_from_ptr(pat).to_bytes();
             add_to_history(
                 HIST_SEARCH,
                 &pat_bytes[..patlen.min(pat_bytes.len())],
@@ -380,9 +380,12 @@ pub fn search_regcomp(
         srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl
             && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
         {
-            Some(reverse_text(crate::memory::cstr_as_bytes(pat)))
+            Some(reverse_text(crate::memory::cstr_from_ptr(pat).to_bytes()))
         } else {
-            Some(CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default())
+            Some(
+                CString::new(unsafe { std::slice::from_raw_parts((pat).cast::<u8>(), patlen) })
+                    .unwrap_or_default(),
+            )
         };
 
         let pat_ref = crate::memory::cstr_from_ptr(pat);
@@ -420,7 +423,8 @@ pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
         return;
     }
 
-    let new_pat = CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default();
+    let new_pat = CString::new(unsafe { std::slice::from_raw_parts((pat).cast::<u8>(), patlen) })
+        .unwrap_or_default();
     free_spat(&mut srch().spats[i]);
     srch().spats[i].pat = Some(new_pat);
     srch().spats[i].magic = magic != 0;
@@ -1418,7 +1422,8 @@ pub fn do_search(
             if !g_st().cmd_silent {
                 ui_busy_start();
                 msgbuf_vec[0] = dirc as u8;
-                let p_bytes = crate::memory::cstr_slice(p, plen).to_vec();
+                let p_bytes =
+                    unsafe { std::slice::from_raw_parts((p).cast::<u8>(), plen) }.to_vec();
                 if utf_iscomposing_first(utf_ptr2char(p)) {
                     msgbuf_vec[1] = b' ';
                     msgbuf_vec[2..2 + plen].copy_from_slice(&p_bytes);
@@ -3279,7 +3284,7 @@ pub fn find_pattern_in_path(
                                 i = incl_regmatch.span_len(0) as i32;
                             } else {
                                 p = line.wrapping_add(incl_regmatch.end_offset(0, line_cstr));
-                                let p_bytes = crate::memory::cstr_as_bytes(p);
+                                let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
                                 let skip_n = p_bytes
                                     .iter()
                                     .take_while(|&&b| !vim_isfilec(i32::from(b)))
@@ -3307,7 +3312,9 @@ pub fn find_pattern_in_path(
                                 }
                             }
                             msg_outtrans_len(
-                                crate::memory::cstr_slice(p, i.max(0) as usize),
+                                unsafe {
+                                    std::slice::from_raw_parts((p).cast::<u8>(), i.max(0) as usize)
+                                },
                                 i,
                                 HLF_D,
                                 false,
@@ -3384,7 +3391,7 @@ pub fn find_pattern_in_path(
                         && vim_regexec(&mut def_regmatch, line_cstr, 0)
                     {
                         p = line.wrapping_add(def_regmatch.end_offset(0, line_cstr));
-                        let p_bytes = crate::memory::cstr_as_bytes(p);
+                        let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
                         let skip_n = p_bytes
                             .iter()
                             .take_while(|&&b| !vim_iswordc(i32::from(b)))
@@ -3396,10 +3403,10 @@ pub fn find_pattern_in_path(
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
                             startp = crate::charset::skipwhite_ptr(p);
-                            let start_bytes = crate::memory::cstr_as_bytes(startp);
+                            let start_bytes = crate::memory::cstr_from_ptr(startp).to_bytes();
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(
-                                    crate::memory::cstr_as_bytes(startp),
+                                    crate::memory::cstr_from_ptr(startp).to_bytes(),
                                     ptr_pat.as_bytes(),
                                     len,
                                 ) == 0;
@@ -3419,13 +3426,15 @@ pub fn find_pattern_in_path(
                             && vim_regexec(
                                 &mut regmatch,
                                 line_cstr,
-                                crate::memory::ptr_offset_from(p, line) as Colnr,
+                                ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                                    - (crate::strings::AsByteSlice::byte_addr(line) as isize))
+                                    as Colnr,
                             )
                         {
                             matched = true;
                             startp = line.wrapping_add(regmatch.start_offset(0, line_cstr));
                             if skip_comments {
-                                let line_bytes = crate::memory::cstr_as_bytes(line);
+                                let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes();
                                 if (line_bytes.first() != Some(&b'#')
                                     || !crate::charset::skipwhite_slice(&line_bytes[1..])
                                         .starts_with(b"define"))
@@ -3439,8 +3448,10 @@ pub fn find_pattern_in_path(
                                     || trim_line.starts_with(b"/*")
                                     || trim_line.first() == Some(&b'*')
                                 {
-                                    let start_off =
-                                        crate::memory::ptr_offset_from(startp, line) as usize;
+                                    let start_off = ((crate::strings::AsByteSlice::byte_addr(startp)
+                                        as isize)
+                                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
+                                        as usize;
                                     let prefix = &line_bytes[..start_off.min(line_bytes.len())];
                                     let mut idx = 0usize;
                                     while idx < prefix.len() {
@@ -3483,29 +3494,34 @@ pub fn find_pattern_in_path(
                             p = startp;
                             let mut skip_add = false;
                             if compl_status_adding()
-                                && (crate::memory::cstr_as_bytes(p).len() as i32) >= ins_compl_len()
+                                && (crate::memory::cstr_from_ptr(p).to_bytes().len() as i32)
+                                    >= ins_compl_len()
                             {
                                 p = p.wrapping_add(ins_compl_len() as usize);
-                                if vim_iswordp(crate::memory::cstr_as_bytes(p)) {
+                                if vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes()) {
                                     skip_add = true;
                                 } else {
-                                    p = find_word_start(crate::memory::cstr_as_bytes(p))
+                                    p = find_word_start(crate::memory::cstr_from_ptr(p).to_bytes())
                                         .as_ptr()
                                         .cast_mut()
                                         .cast();
                                 }
                             }
                             if !skip_add {
-                                p = find_word_end(crate::memory::cstr_as_bytes(p))
+                                p = find_word_end(crate::memory::cstr_from_ptr(p).to_bytes())
                                     .as_ptr()
                                     .cast_mut()
                                     .cast();
-                                i = crate::memory::ptr_offset_from(p, aux) as i32;
+                                i = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                                    - (crate::strings::AsByteSlice::byte_addr(aux) as isize))
+                                    as i32;
 
                                 if compl_status_adding() && i == ins_compl_len() {
-                                    for (idx, &b) in crate::memory::cstr_slice(aux, i as usize)
-                                        .iter()
-                                        .enumerate()
+                                    for (idx, &b) in unsafe {
+                                        std::slice::from_raw_parts((aux).cast::<u8>(), i as usize)
+                                    }
+                                    .iter()
+                                    .enumerate()
                                     {
                                         g_st().iobuff[idx] = b;
                                     }
@@ -3533,14 +3549,18 @@ pub fn find_pattern_in_path(
                                         p = crate::charset::skipwhite_ptr(line);
                                         aux = p;
                                         already = p;
-                                        p = find_word_start(crate::memory::cstr_as_bytes(p))
-                                            .as_ptr()
-                                            .cast_mut()
-                                            .cast();
-                                        p = find_word_end(crate::memory::cstr_as_bytes(p))
-                                            .as_ptr()
-                                            .cast_mut()
-                                            .cast();
+                                        p = find_word_start(
+                                            crate::memory::cstr_from_ptr(p).to_bytes(),
+                                        )
+                                        .as_ptr()
+                                        .cast_mut()
+                                        .cast();
+                                        p = find_word_end(
+                                            crate::memory::cstr_from_ptr(p).to_bytes(),
+                                        )
+                                        .as_ptr()
+                                        .cast_mut()
+                                        .cast();
                                         if p > aux {
                                             if unsafe { *aux as u8 } != b')'
                                                 && g_st().iobuff[(i - 1) as usize] != TAB
@@ -3560,14 +3580,22 @@ pub fn find_pattern_in_path(
                                                 }
                                             }
                                             let mut copy_len =
-                                                crate::memory::ptr_offset_from(p, aux) as usize;
+                                                ((crate::strings::AsByteSlice::byte_addr(p)
+                                                    as isize)
+                                                    - (crate::strings::AsByteSlice::byte_addr(aux)
+                                                        as isize))
+                                                    as usize;
                                             if copy_len >= IOSIZE - (i as usize) {
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
-                                            for (idx, &b) in
-                                                crate::memory::cstr_slice(aux, copy_len)
-                                                    .iter()
-                                                    .enumerate()
+                                            for (idx, &b) in unsafe {
+                                                std::slice::from_raw_parts(
+                                                    (aux).cast::<u8>(),
+                                                    copy_len,
+                                                )
+                                            }
+                                            .iter()
+                                            .enumerate()
                                             {
                                                 g_st().iobuff[i as usize + idx] = b;
                                             }
@@ -3585,7 +3613,12 @@ pub fn find_pattern_in_path(
 
                                 if !skip_add {
                                     let add_r = ins_compl_add_infercase(
-                                        crate::memory::cstr_slice(aux, i.max(0) as usize),
+                                        unsafe {
+                                            std::slice::from_raw_parts(
+                                                (aux).cast::<u8>(),
+                                                i.max(0) as usize,
+                                            )
+                                        },
                                         i,
                                         opt_vars().p_ic,
                                         if curr_fname == curbuf_mut().fname_opt() {
@@ -3723,7 +3756,10 @@ pub fn find_pattern_in_path(
                             if !stop_fpip_loop {
                                 if action != ACTION_SHOW {
                                     curwin_mut().w_cursor.col =
-                                        crate::memory::ptr_offset_from(startp, line) as Colnr;
+                                        ((crate::strings::AsByteSlice::byte_addr(startp) as isize)
+                                            - (crate::strings::AsByteSlice::byte_addr(line)
+                                                as isize))
+                                            as Colnr;
                                     curwin_mut().w_set_curswant = true;
                                 }
 

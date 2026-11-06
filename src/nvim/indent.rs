@@ -575,7 +575,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         p = oldline;
     } else {
         p = crate::charset::skipwhite_ptr(p);
-        line_len -= crate::memory::ptr_offset_from(p, oldline) as i32;
+        line_len -= ((p).offset_from(oldline) as isize) as i32;
     }
 
     let mut skipcols: i32 = 0;
@@ -666,7 +666,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     newline_vec[s_idx..s_idx + line_usize].copy_from_slice(p.slice(line_usize));
 
     if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.lnum) {
-        let old_offset = crate::memory::ptr_offset_from(p, oldline) as Colnr;
+        let old_offset = ((p).offset_from(oldline) as isize) as Colnr;
         let new_offset = s_idx as Colnr;
 
         ml_replace(
@@ -1351,13 +1351,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         new_vts_array = curbuf_mut().b_p_vts_array.clone();
         None
     } else {
-        Some(
-            std::ffi::CString::new(crate::memory::cstr_slice(
-                ts_start,
-                crate::memory::ptr_offset_from(ptr, ts_start) as usize,
-            ))
-            .unwrap_or_default(),
-        )
+        Some(std::ffi::CString::new(ts_start.slice(ptr.offset_from(ts_start))).unwrap_or_default())
     };
 
     let save_list = curwin_mut().w_onebuf_opt.wo_list;

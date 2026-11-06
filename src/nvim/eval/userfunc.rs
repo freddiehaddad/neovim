@@ -396,7 +396,10 @@ fn get_function_args(
 
     let mut any_default = false;
     while unsafe { *p } != endchar {
-        if crate::memory::cstr_as_bytes(p).starts_with(b"...") {
+        if crate::memory::cstr_from_ptr(p)
+            .to_bytes()
+            .starts_with(b"...")
+        {
             if let Some(ref mut p) = varargs {
                 **p = 1;
             }
@@ -435,10 +438,12 @@ fn get_function_args(
                         p = p.wrapping_sub(1);
                     }
                     if let Some(default_args) = default_args.as_deref_mut() {
-                        let expr_slice = crate::memory::cstr_slice(
-                            expr,
-                            crate::memory::ptr_offset_from(p, expr) as usize,
-                        );
+                        let expr_slice = unsafe {
+                            std::slice::from_raw_parts(
+                                (expr).cast::<u8>(),
+                                (p as usize) - (expr as usize),
+                            )
+                        };
                         default_args.push(std::ffi::CString::new(expr_slice).unwrap());
                     }
                 } else {
@@ -642,7 +647,7 @@ pub fn get_lambda_tv(
         let fp = alloc_ufunc(name.as_bytes());
         let pt = Box::leak(Box::new(TvPartial::default()));
 
-        let expr_len = crate::memory::ptr_offset_from(end, start) as usize;
+        let expr_len = ((end).offset_from(start) as isize) as usize;
         let mut line_bytes = Vec::with_capacity(7 + expr_len);
         line_bytes.extend_from_slice(b"return ");
         line_bytes.extend_from_slice(start.slice(expr_len));
@@ -1323,7 +1328,9 @@ pub fn call_user_func(
             name = numbuf.as_ptr();
         }
 
-        let v = tv_dict_item_alloc_len(crate::memory::cstr_slice(name, namelen));
+        let v = tv_dict_item_alloc_len(unsafe {
+            std::slice::from_raw_parts((name).cast::<u8>(), namelen)
+        });
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
         v.di_tv = if isdefault {
@@ -1811,7 +1818,9 @@ pub fn call_func(
         fp = partial_ref.pt_func.opt_mut();
     }
     if fp.is_none() {
-        let nm = cstr_from_bytes(crate::memory::cstr_slice(funcname.as_ptr(), len as usize));
+        let nm = cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts((funcname.as_ptr()).cast::<u8>(), len as usize)
+        });
         name_owned = Some(nm);
         fname = fname_trans_sid(
             name_owned.as_deref().unwrap(),
@@ -1886,7 +1895,9 @@ pub fn call_func(
                     unsafe { std::slice::from_raw_parts_mut(argvars_ptr, argcount as usize) }
                 };
                 nlua_call_vlua(
-                    crate::memory::cstr_slice(funcname.as_ptr(), len as usize),
+                    unsafe {
+                        std::slice::from_raw_parts((funcname.as_ptr()).cast::<u8>(), len as usize)
+                    },
                     argslice,
                     rettv,
                 );
@@ -2247,7 +2258,8 @@ pub fn trans_function_name(
             name = Some(deref);
         }
     } else if (flags & TFN_NO_DEREF) == 0 {
-        len = crate::memory::ptr_offset_from(end, pp.as_ptr().cast()) as i32;
+        len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(pp.as_ptr()) as isize)) as i32;
 
         let deref = deref_func_name(pp, &mut len, partial, (flags & TFN_NO_AUTOLOAD) != 0, None);
 
@@ -2285,10 +2297,9 @@ pub fn trans_function_name(
             lv.ll_name = lv.ll_name.map(|s| &s[2..]);
             lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
         }
-        len = crate::memory::ptr_offset_from(
-            end.cast(),
-            lv.ll_name.map_or(ptr::null(), CStr::as_ptr),
-        ) as i32;
+        len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(lv.ll_name.map_or(ptr::null(), CStr::as_ptr))
+                as isize)) as i32;
     }
 
     let mut sid_buflen = 0usize;
@@ -2450,8 +2461,12 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
         .cast_mut();
     if !eap.skip {
         let mut regmatch: Regmatch = Regmatch::new();
-        let pat_len = crate::memory::ptr_offset_from(p, pat_start) as usize;
-        let pat_cstr = cstr_from_bytes(crate::memory::cstr_slice(pat_start, pat_len));
+        let pat_len = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(pat_start) as isize))
+            as usize;
+        let pat_cstr = cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts((pat_start).cast::<u8>(), pat_len)
+        });
         regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic;
@@ -2584,7 +2599,7 @@ fn get_function_body(
 
         if !line_arg.is_null() {
             line_arg_base = line_arg;
-            let rem_bytes = crate::memory::cstr_as_bytes(line_arg);
+            let rem_bytes = crate::memory::cstr_from_ptr(line_arg).to_bytes();
             let line_len = rem_bytes
                 .iter()
                 .position(|&b| b == b'\n')
@@ -2620,7 +2635,10 @@ fn get_function_body(
         }
         if show_block {
             debug_assert!(indent >= 0);
-            ui_ext_cmdline_block_append(indent as usize, crate::memory::cstr_as_bytes(theline));
+            ui_ext_cmdline_block_append(
+                indent as usize,
+                crate::memory::cstr_from_ptr(theline).to_bytes(),
+            );
         }
 
         let mut sourcing_lnum_off = get_sourced_lnum(eap.ea_getline);
@@ -2635,7 +2653,8 @@ fn get_function_body(
             if heredoc_trimmed.is_none()
                 || (is_heredoc && crate::charset::skipwhite_ptr(theline) == theline)
                 || heredoc_trimmed.as_ref().is_some_and(|ht| {
-                    crate::memory::cstr_as_bytes(theline)
+                    crate::memory::cstr_from_ptr(theline)
+                        .to_bytes()
                         .starts_with(&ht.as_bytes()[..heredoc_trimmedlen.min(ht.as_bytes().len())])
                 })
             {
@@ -2650,7 +2669,7 @@ fn get_function_body(
                 } else {
                     theline.wrapping_add(heredoc_trimmedlen)
                 };
-                if crate::memory::cstr_as_bytes(p) == marker.to_bytes() {
+                if crate::memory::cstr_from_ptr(p).to_bytes() == marker.to_bytes() {
                     skip_until = None;
                     heredoc_trimmed = None;
                     heredoc_trimmedlen = 0;
@@ -2664,9 +2683,13 @@ fn get_function_body(
                 p = p.wrapping_add(1);
             }
 
-            if checkforcmd(crate::memory::cstr_as_bytes(p), b"endfunction", 4)
-                .inspect(|&n| p = p.wrapping_add(n))
-                .is_some()
+            if checkforcmd(
+                crate::memory::cstr_from_ptr(p).to_bytes(),
+                b"endfunction",
+                4,
+            )
+            .inspect(|&n| p = p.wrapping_add(n))
+            .is_some()
             {
                 let prev_nesting = nesting;
                 nesting -= 1;
@@ -2683,8 +2706,10 @@ fn get_function_body(
                             p.wrapping_add(1)
                         };
                     } else if !line_arg.is_null()
-                        && !crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(line_arg))
-                            .is_empty()
+                        && !crate::charset::skipwhite_slice(
+                            crate::memory::cstr_from_ptr(line_arg).to_bytes(),
+                        )
+                        .is_empty()
                     {
                         nextcmd = line_arg;
                     } else if unsafe { *p != 0 && *p as u8 != b'"' } && opt_vars().p_verbose > 0 {
@@ -2704,7 +2729,7 @@ fn get_function_body(
                 }
             }
 
-            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
             if indent > 2 && p_bytes.starts_with(b"end") {
                 indent -= 2;
             } else if p_bytes.starts_with(b"if")
@@ -2715,14 +2740,16 @@ fn get_function_body(
                 indent += 2;
             }
 
-            if checkforcmd(crate::memory::cstr_as_bytes(p), b"function", 2)
+            if checkforcmd(crate::memory::cstr_from_ptr(p).to_bytes(), b"function", 2)
                 .inspect(|&n| p = p.wrapping_add(n))
                 .is_some()
             {
                 if unsafe { *p as u8 } == b'!' {
                     p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
                 }
-                p = p.wrapping_add(eval_fname_script(crate::memory::cstr_as_bytes(p)));
+                p = p.wrapping_add(eval_fname_script(
+                    crate::memory::cstr_from_ptr(p).to_bytes(),
+                ));
                 let mut p_cstr = crate::memory::cstr_from_ptr(p);
                 let _ = trans_function_name(&mut p_cstr, true, 0, None, None);
                 p = p_cstr.as_ptr().cast_mut();
@@ -2740,13 +2767,13 @@ fn get_function_body(
                 .as_ptr()
                 .cast_mut();
             let tp = p;
-            if (checkforcmd(crate::memory::cstr_as_bytes(p), b"append", 1)
+            if (checkforcmd(crate::memory::cstr_from_ptr(p).to_bytes(), b"append", 1)
                 .inspect(|&n| p = p.wrapping_add(n))
                 .is_some()
-                || checkforcmd(crate::memory::cstr_as_bytes(p), b"change", 1)
+                || checkforcmd(crate::memory::cstr_from_ptr(p).to_bytes(), b"change", 1)
                     .inspect(|&n| p = p.wrapping_add(n))
                     .is_some()
-                || checkforcmd(crate::memory::cstr_as_bytes(p), b"insert", 1)
+                || checkforcmd(crate::memory::cstr_from_ptr(p).to_bytes(), b"insert", 1)
                     .inspect(|&n| p = p.wrapping_add(n))
                     .is_some())
                 && (unsafe { *p as u8 == b'!' || *p as u8 == b'|' }
@@ -2758,12 +2785,14 @@ fn get_function_body(
             }
 
             arg = crate::charset::skipwhite_ptr(crate::charset::skiptowhite_ptr(p));
-            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
             let p0 = p_bytes.first().copied().unwrap_or(0);
             let p1 = p_bytes.get(1).copied().unwrap_or(0);
             let p2 = p_bytes.get(2).copied().unwrap_or(0);
             let p3 = p_bytes.get(3).copied().unwrap_or(0);
-            let is_script_heredoc = crate::memory::cstr_as_bytes(arg).starts_with(b"<<")
+            let is_script_heredoc = crate::memory::cstr_from_ptr(arg)
+                .to_bytes()
+                .starts_with(b"<<")
                 && ((p0 == b'p'
                     && p1 == b'y'
                     && (!ascii_isalnum(p2 as i32)
@@ -2779,26 +2808,30 @@ fn get_function_body(
                     || (p0 == b'm' && p1 == b'z' && (!p2.is_ascii_alphabetic() || p2 == b's')));
             if is_script_heredoc {
                 p = crate::charset::skipwhite_ptr(arg.wrapping_add(2));
-                let p_bytes = crate::memory::cstr_as_bytes(p);
+                let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
                 if p_bytes.starts_with(b"trim")
                     && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                 {
                     p = crate::charset::skipwhite_ptr(p.wrapping_add(4));
-                    heredoc_trimmedlen = crate::memory::ptr_offset_from(
+                    heredoc_trimmedlen = ((crate::strings::AsByteSlice::byte_addr(
                         crate::charset::skipwhite_ptr(theline),
-                        theline,
-                    ) as usize;
-                    let slice = crate::memory::cstr_slice(theline, heredoc_trimmedlen);
+                    ) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(theline) as isize))
+                        as usize;
+                    let slice = unsafe {
+                        std::slice::from_raw_parts((theline).cast::<u8>(), heredoc_trimmedlen)
+                    };
                     heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                 }
                 if unsafe { *p == 0 } {
                     skip_until = Some(c".".to_owned());
                 } else {
-                    let slice = crate::memory::cstr_slice(
-                        p,
-                        crate::memory::ptr_offset_from(crate::charset::skiptowhite_ptr(p), p)
-                            as usize,
-                    );
+                    let slice = unsafe {
+                        std::slice::from_raw_parts(
+                            (p).cast::<u8>(),
+                            (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
+                        )
+                    };
                     skip_until = Some(std::ffi::CString::new(slice).unwrap());
                 }
                 do_concat = false;
@@ -2807,10 +2840,10 @@ fn get_function_body(
 
             if !is_heredoc {
                 arg = p;
-                if checkforcmd(crate::memory::cstr_as_bytes(arg), b"let", 2)
+                if checkforcmd(crate::memory::cstr_from_ptr(arg).to_bytes(), b"let", 2)
                     .inspect(|&n| arg = arg.wrapping_add(n))
                     .is_some()
-                    || checkforcmd(crate::memory::cstr_as_bytes(p), b"const", 5)
+                    || checkforcmd(crate::memory::cstr_from_ptr(p).to_bytes(), b"const", 5)
                         .inspect(|&n| p = p.wrapping_add(n))
                         .is_some()
                 {
@@ -2826,11 +2859,15 @@ fn get_function_body(
                     if !arg.is_null() {
                         arg = crate::charset::skipwhite_ptr(arg);
                     }
-                    if !arg.is_null() && crate::memory::cstr_as_bytes(arg).starts_with(b"=<<") {
+                    if !arg.is_null()
+                        && crate::memory::cstr_from_ptr(arg)
+                            .to_bytes()
+                            .starts_with(b"=<<")
+                    {
                         p = crate::charset::skipwhite_ptr(arg.wrapping_add(3));
                         let mut has_trim = false;
                         loop {
-                            let p_bytes = crate::memory::cstr_as_bytes(p);
+                            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
                             if p_bytes.starts_with(b"trim")
                                 && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                             {
@@ -2847,20 +2884,22 @@ fn get_function_body(
                             break;
                         }
                         if has_trim {
-                            heredoc_trimmedlen = crate::memory::ptr_offset_from(
+                            heredoc_trimmedlen = ((crate::strings::AsByteSlice::byte_addr(
                                 crate::charset::skipwhite_ptr(theline),
-                                theline,
-                            ) as usize;
+                            ) as isize)
+                                - (crate::strings::AsByteSlice::byte_addr(theline) as isize))
+                                as usize;
                             let slice = unsafe {
                                 std::slice::from_raw_parts(theline.cast::<u8>(), heredoc_trimmedlen)
                             };
                             heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                         }
-                        let slice = crate::memory::cstr_slice(
-                            p,
-                            crate::memory::ptr_offset_from(crate::charset::skiptowhite_ptr(p), p)
-                                as usize,
-                        );
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                (p).cast::<u8>(),
+                                (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
+                            )
+                        };
                         skip_until = Some(std::ffi::CString::new(slice).unwrap());
                         do_concat = false;
                         is_heredoc = true;
@@ -3013,7 +3052,7 @@ pub fn ex_function(eap: &mut Exarg) {
                         name_base = arg.wrapping_add(3);
                     }
                 }
-                let name_bytes = crate::memory::cstr_as_bytes(name_base);
+                let name_bytes = crate::memory::cstr_from_ptr(name_base).to_bytes();
                 let valid = name_bytes.iter().enumerate().all(|(i, &b)| {
                     if i == 0 {
                         eval_isnamec1(b)
@@ -3053,7 +3092,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
     loop {
         p = crate::charset::skipwhite_ptr(p);
-        let p_bytes = crate::memory::cstr_as_bytes(p);
+        let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
         if p_bytes.starts_with(b"range") {
             flags |= FC_RANGE;
             p = p.wrapping_add(5);
@@ -3198,10 +3237,10 @@ pub fn ex_function(eap: &mut Exarg) {
         {
             let mut j = false;
             if let Some(sname) = sourcing_name() {
-                let sn = autoload_name(crate::memory::cstr_as_bytes(name));
+                let sn = autoload_name(crate::memory::cstr_from_ptr(name).to_bytes());
                 p = vim_strchr(&(sn), b'/' as i32)
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                let plen = crate::memory::cstr_as_bytes(p).len() as i32;
+                let plen = crate::memory::cstr_from_ptr(p).to_bytes().len() as i32;
                 let slen = sname.to_bytes().len() as i32;
                 if slen > plen
                     && path_equal(
@@ -3225,9 +3264,9 @@ pub fn ex_function(eap: &mut Exarg) {
         }
 
         if namelen == 0 {
-            namelen = crate::memory::cstr_as_bytes(name).len();
+            namelen = crate::memory::cstr_from_ptr(name).to_bytes().len();
         }
-        fp = alloc_ufunc(crate::memory::cstr_slice(name, namelen));
+        fp = alloc_ufunc(unsafe { std::slice::from_raw_parts((name).cast::<u8>(), namelen) });
 
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
@@ -3243,7 +3282,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
             crate::eval::typval::tv_set_string_len(
                 &mut fudi.fd_di.borrow_mut().di_tv,
-                Some(crate::memory::cstr_slice(name, namelen)),
+                Some(unsafe { std::slice::from_raw_parts((name).cast::<u8>(), namelen) }),
             );
 
             fudi.fd_di.borrow_mut().di_tv.v_type = VarType::VarFunc;
@@ -3254,7 +3293,7 @@ pub fn ex_function(eap: &mut Exarg) {
         if overwrite {
             uf_st()
                 .func_hashtab
-                .insert(crate::memory::cstr_as_bytes(name).to_vec(), fp);
+                .insert(crate::memory::cstr_from_ptr(name).to_bytes().to_vec(), fp);
         } else if !func_hashtab_add(unsafe { &mut *fp }) {
             free_fp = true;
             erret!();
@@ -3937,10 +3976,9 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
 
     let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
-    crate::memory::copy_bytes_to_c_buf(
-        &mut g_st().iobuff_bytes_mut()[8..],
-        crate::memory::cstr_slice(s, slen),
-    );
+    crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[8..], unsafe {
+        std::slice::from_raw_parts((s).cast::<u8>(), slen)
+    });
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {
         crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[IOSIZE - 4..], b"...");
@@ -4213,12 +4251,13 @@ pub fn find_hi_in_scoped_ht(
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
         {
             let ht_ptr = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
-            let len =
-                namelen - crate::memory::ptr_offset_from(varname.as_ptr(), name.as_ptr()) as usize;
-            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(
-                ht_ptr.borrow(),
-                crate::memory::cstr_slice(varname.as_ptr(), len),
-            ));
+            let len = namelen
+                - ((crate::strings::AsByteSlice::byte_addr(varname.as_ptr()) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(name.as_ptr()) as isize))
+                    as usize;
+            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(ht_ptr.borrow(), unsafe {
+                std::slice::from_raw_parts((varname.as_ptr()).cast::<u8>(), len)
+            }));
             if !hashitem_empty(hi.borrow()) {
                 *pht = Some(ht_ptr.borrow_mut());
                 break;
@@ -4257,7 +4296,9 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
                 i32::from(name_slice.first().copied().unwrap_or(0)),
                 varname,
                 namelen
-                    - crate::memory::ptr_offset_from(varname.as_ptr(), name_cstr.as_ptr()) as usize,
+                    - ((crate::strings::AsByteSlice::byte_addr(varname.as_ptr()) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(name_cstr.as_ptr()) as isize))
+                        as usize,
                 no_autoload,
             );
             if v.is_some() {

@@ -181,7 +181,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
         let addr = watcher.addr.as_ptr().cast();
         let mut port: *mut std::ffi::c_char =
             watcher.addr.as_mut_ptr().wrapping_add(colon_idx + 1).cast();
-        let mut port_scan = crate::memory::cstr_as_bytes(port);
+        let mut port_scan = crate::memory::cstr_from_ptr(port).to_bytes();
         let mut iport: i64 = 0;
 
         let ok = try_getdigits(&mut port_scan, &mut iport);

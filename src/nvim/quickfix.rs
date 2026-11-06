@@ -2316,10 +2316,9 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
     #[cfg(windows)]
     path_to_slash(crate::memory::cstr_as_mut_bytes(bufname_ptr.cast()));
 
-    let same_as_last = qf_st()
-        .qf_last_bufname
-        .as_ref()
-        .is_some_and(|last| crate::memory::cstr_as_bytes(bufname_ptr) == last.to_bytes());
+    let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
+        crate::memory::cstr_from_ptr(bufname_ptr).to_bytes() == last.to_bytes()
+    });
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
         drop(ptr_cstr);
         qf_st().qf_last_bufref.br_buf
@@ -4065,10 +4064,12 @@ fn qf_buf_add_line(
     if !ml_append_buf(
         &mut *buf,
         lnum,
-        crate::memory::cstr_slice(
-            gap.as_mut_ptr(),
-            (gap.len() as Colnr as usize).saturating_sub(1),
-        ),
+        unsafe {
+            std::slice::from_raw_parts(
+                (gap.as_mut_ptr()).cast::<u8>(),
+                (gap.len() as Colnr as usize).saturating_sub(1),
+            )
+        },
         gap.len() as Colnr,
         false,
     ) {
@@ -5148,7 +5149,7 @@ fn vgr_match_buflines(
             let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
             while fuzzy_match(
-                crate::memory::cstr_as_bytes(str_.wrapping_add(col as usize)),
+                crate::memory::cstr_from_ptr(str_.wrapping_add(col as usize)).to_bytes(),
                 spat_bytes,
                 false,
                 &mut score,
@@ -5265,7 +5266,7 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         return false;
     }
 
-    let p_rem = crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(p));
+    let p_rem = crate::charset::skipwhite_slice(crate::memory::cstr_from_ptr(p).to_bytes());
     if p_rem.is_empty() {
         emsg(gettext(c"E683: File name missing or invalid pattern"));
         return false;

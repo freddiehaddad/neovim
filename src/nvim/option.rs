@@ -696,7 +696,8 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
 
 #[inline]
 fn get_opt_idx(opt: &Vimoption) -> OptIndex {
-    crate::memory::ptr_offset_from(ptr::from_ref(opt), get_option(0)) as OptIndex
+    ((ptr::from_ref(opt) as usize - ptr::from_ref(get_option(0)) as usize)
+        / std::mem::size_of::<Vimoption>()) as OptIndex
 }
 
 #[inline]
@@ -1113,7 +1114,7 @@ pub fn set_init_3() {
 
     let mut len: usize = 0;
     let p = invocation_path_tail(opt_vars().p_sh.as_cstr(), Some(&mut len));
-    let name_slice = crate::memory::cstr_slice((p).as_ptr(), len);
+    let name_slice = unsafe { std::slice::from_raw_parts(((p).as_ptr()).cast::<u8>(), len) };
     for (i, rule) in SHELL_RULES.iter().enumerate() {
         let pat = rule.pat.to_bytes();
         if !pat.is_empty() && !name_slice.windows(pat.len()).any(|w| w == pat) {
@@ -7372,7 +7373,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
 
     xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p.wrapping_add(1));
     opt_st().expand_option_start_col =
-        crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line) as i32;
+        ((p.wrapping_add(1)).offset_from(xp.xp_line) as isize) as i32;
 
     let opt_var = get_option(opt_idx).var;
     if opt_var.ptr_eq(&opt_vars().p_syn) {
@@ -7750,7 +7751,7 @@ pub fn expand_setting_subtract(
 
         if num_flags > 1 {
             let flag = option_val;
-            for &flag_byte in crate::memory::cstr_as_bytes(flag) {
+            for &flag_byte in crate::memory::cstr_from_ptr(flag).to_bytes() {
                 matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
             }
         }

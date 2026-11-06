@@ -375,7 +375,9 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 }
             },
             MPConvStackData::PartialList { arg, argv, .. } => {
-                let idx = (crate::memory::ptr_offset_from(arg.as_ptr(), argv.as_ptr()) as i32) - 1;
+                let idx = (((arg.as_ptr() as usize - argv.as_ptr() as usize)
+                    / std::mem::size_of::<TypVal>()) as i32)
+                    - 1;
                 let _ = write!(&mut msg_ga, "argument {idx}");
             }
         }

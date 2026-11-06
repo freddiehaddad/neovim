@@ -1420,7 +1420,7 @@ pub fn get_lval<'a>(
 
         let in_len = (p.as_ptr() as usize).wrapping_sub(name as usize);
         if let Some(cstr) = make_expanded_name(
-            crate::memory::cstr_slice(name, in_len),
+            unsafe { std::slice::from_raw_parts((name).cast::<u8>(), in_len) },
             expr_start_off,
             expr_end_off,
         ) {
@@ -1509,8 +1509,12 @@ pub fn set_var_lval(
         let name_cstr = if lp.ll_exp_name.is_some() {
             ll_name.to_owned()
         } else {
-            let full_len = crate::memory::ptr_offset_from(endp, ll_name.as_ptr()) as usize;
-            cstr_from_bytes(crate::memory::cstr_slice(ll_name.as_ptr(), full_len))
+            let full_len = ((crate::strings::AsByteSlice::byte_addr(endp) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(ll_name.as_ptr()) as isize))
+                as usize;
+            cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts((ll_name.as_ptr()).cast::<u8>(), full_len)
+            })
         };
         if let Some(blob) = lp.ll_blob.opt_mut() {
             if !op.is_null() && op.first_byte() != b'=' {
@@ -1974,7 +1978,9 @@ fn eval_func(
     let mut found_var = false;
 
     if !evaluate {
-        check_vars(crate::memory::cstr_slice(name.as_ptr(), len as usize));
+        check_vars(unsafe {
+            std::slice::from_raw_parts((name.as_ptr()).cast::<u8>(), len as usize)
+        });
     }
 
     let mut partial_opt: Option<&'static mut TvPartial> = None;
@@ -2082,29 +2088,43 @@ pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool>
     let mut r = None;
 
     if !parens.is_null()
-        && crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(parens.wrapping_add(2)))
-            .is_empty()
+        && crate::charset::skipwhite_slice(
+            crate::memory::cstr_from_ptr(parens.wrapping_add(2)).to_bytes(),
+        )
+        .is_empty()
     {
         if arg_cstr.to_bytes().starts_with(b"v:lua.") {
             let p = arg.wrapping_add(6);
             if p != parens && skip_luafunc_name(crate::memory::cstr_from_ptr(p)).as_ptr() == parens
             {
                 r = call_simple_luafunc(
-                    crate::memory::cstr_slice(p, (parens as usize).wrapping_sub(p as usize)),
+                    unsafe {
+                        std::slice::from_raw_parts(
+                            (p).cast::<u8>(),
+                            (parens as usize).wrapping_sub(p as usize),
+                        )
+                    },
                     rettv,
                 );
             }
         } else {
             let p = if arg_cstr.to_bytes().starts_with(b"<SNR>") {
                 arg.wrapping_add(
-                    5 + skipdigits_len(crate::memory::cstr_as_bytes(arg.wrapping_add(5))),
+                    5 + skipdigits_len(
+                        crate::memory::cstr_from_ptr(arg.wrapping_add(5)).to_bytes(),
+                    ),
                 )
             } else {
                 arg
             };
             if to_name_end(crate::memory::cstr_from_ptr(p), true).as_ptr() == parens {
                 r = call_simple_func(
-                    crate::memory::cstr_slice(arg, (parens as usize).wrapping_sub(arg as usize)),
+                    unsafe {
+                        std::slice::from_raw_parts(
+                            (arg).cast::<u8>(),
+                            (parens as usize).wrapping_sub(arg as usize),
+                        )
+                    },
                     rettv,
                 );
             }
@@ -2748,7 +2768,8 @@ fn eval7(
         *arg = crate::charset::skipwhite_at(arg, 1);
     }
     let mut leader_len = (arg.as_ptr() as usize).wrapping_sub(start_leader as usize);
-    let leader_slice = crate::memory::cstr_slice(start_leader, leader_len);
+    let leader_slice =
+        unsafe { std::slice::from_raw_parts((start_leader).cast::<u8>(), leader_len) };
 
     if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
         semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), arg.as_ptr());
@@ -2846,7 +2867,9 @@ fn eval7(
             } else if evaluate {
                 eval_variable(s, len, Some(&mut *rettv), None, true, false)
             } else {
-                check_vars(crate::memory::cstr_slice(s.as_ptr(), len as usize));
+                check_vars(unsafe {
+                    std::slice::from_raw_parts((s.as_ptr()).cast::<u8>(), len as usize)
+                });
                 if rettv.v_type == VarType::VarUnknown
                     && !evaluate
                     && s.to_bytes().starts_with(b"v:lua.")
@@ -3117,7 +3140,9 @@ fn eval_method<'a>(
             && let Some(paren_cstr) = paren
         {
             let expr_len = (paren_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize);
-            let expr_cstr = cstr_from_bytes(crate::memory::cstr_slice(name.as_ptr(), expr_len));
+            let expr_cstr = cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts((name.as_ptr()).cast::<u8>(), expr_len)
+            });
             let expr_base = expr_cstr.as_ptr();
             let mut expr_cursor: &CStr = &expr_cstr;
             let mut ref_tv = tv_initial_value();
@@ -3526,7 +3551,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
     }
 
     let opt_len = (option_end.as_ptr() as usize).wrapping_sub(cur_arg.as_ptr() as usize);
-    let opt_bytes = crate::memory::cstr_slice(cur_arg.as_ptr(), opt_len);
+    let opt_bytes = unsafe { std::slice::from_raw_parts((cur_arg.as_ptr()).cast::<u8>(), opt_len) };
     let is_tty_opt = is_tty_option(opt_bytes);
 
     let mut ret = true;
@@ -3862,7 +3887,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
     let alloc_len = ((p as isize) - (arg_start as isize) - reduce) as usize;
     let mut buf_vec = Vec::with_capacity(alloc_len);
     let start_ptr = arg_start.wrapping_add(off);
-    let mut rem = crate::memory::cstr_as_bytes(start_ptr);
+    let mut rem = crate::memory::cstr_from_ptr(start_ptr).to_bytes();
 
     while !rem.is_empty() {
         if rem[0] == b'\'' {
@@ -4454,10 +4479,7 @@ fn get_literal_key(arg: &mut &CStr, tv: &mut TypVal) -> bool {
     }
     crate::eval::typval::tv_set_string_len(
         &mut *tv,
-        Some(crate::memory::cstr_slice(
-            start,
-            (p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize),
-        )),
+        Some((start).slice((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize))),
     );
 
     *arg = p.skipwhite().as_cstr();
@@ -4639,10 +4661,9 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
         if len == 0 {
             return false;
         }
-        let env_with_dollar = cstr_from_bytes(crate::memory::cstr_slice(
-            orig_arg.as_ptr(),
-            len as usize + 1,
-        ));
+        let env_with_dollar = cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts((orig_arg.as_ptr()).cast::<u8>(), len as usize + 1)
+        });
         let env_name = unsafe {
             CStr::from_bytes_with_nul_unchecked(&env_with_dollar.to_bytes_with_nul()[1..])
         };
@@ -5650,7 +5671,7 @@ pub fn get_name_len(
         let full_start = arg.as_ptr().wrapping_sub(prefix_len);
         let full_len = (p.as_ptr() as usize).wrapping_sub(full_start as usize);
         let Some(temp_string) = make_expanded_name(
-            crate::memory::cstr_slice(full_start, full_len),
+            unsafe { std::slice::from_raw_parts((full_start).cast::<u8>(), full_len) },
             prefix_len + expr_start_off,
             prefix_len + expr_end_off,
         ) else {
@@ -6335,7 +6356,7 @@ pub fn find_option_var_end<'a>(
     opt_flags: &mut i32,
 ) -> Option<&'a CStr> {
     let mut p = arg.as_ptr().wrapping_add(1);
-    let p_bytes = crate::memory::cstr_as_bytes(p);
+    let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
     if p_bytes.starts_with(b"g:") {
         *opt_flags = OPT_GLOBAL;
         p = p.wrapping_add(2);
@@ -6346,7 +6367,7 @@ pub fn find_option_var_end<'a>(
         *opt_flags = 0;
     }
 
-    if let Some(end_off) = find_option_end(crate::memory::cstr_as_bytes(p), opt_idxp) {
+    if let Some(end_off) = find_option_end(crate::memory::cstr_from_ptr(p).to_bytes(), opt_idxp) {
         *arg = crate::memory::cstr_from_ptr(p);
         Some(crate::memory::cstr_from_ptr(p.wrapping_add(end_off)))
     } else {

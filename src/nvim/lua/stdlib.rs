@@ -247,12 +247,13 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
         let s1 = luaL_checklstring(lstate, 1, &raw mut s1_len);
         lua_newtable(lstate);
 
-        let s1_bytes = crate::memory::cstr_slice(s1, crate::memory::xstrnlen(s1, s1_len));
+        let s1_bytes =
+            std::slice::from_raw_parts((s1).cast::<u8>(), crate::memory::xstrnlen(s1, s1_len));
         let mut idx: i32 = 1;
         let mut i: usize = 0;
         while i < s1_bytes.len() {
             let clen = utf_ptr2len_len(
-                crate::memory::cstr_as_bytes(s1.wrapping_add(i)),
+                crate::memory::cstr_from_ptr(s1.wrapping_add(i)).to_bytes(),
                 (s1_len - i) as i32,
             ) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
@@ -514,7 +515,9 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
 
         let mut di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
         if di.is_none() && ptr::eq(dict, get_globvar_dict()) {
-            if !script_autoload(crate::memory::cstr_slice(name, len), false) || aborting() {
+            if !script_autoload(std::slice::from_raw_parts((name).cast::<u8>(), len), false)
+                || aborting()
+            {
                 return 0;
             }
             di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
@@ -538,8 +541,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
         assert_eq!({ *s2.wrapping_add(s2_len) }, NUL);
 
         loop {
-            let slice1 = crate::memory::cstr_slice(s1, s1_len);
-            let slice2 = crate::memory::cstr_slice(s2, s2_len);
+            let slice1 = std::slice::from_raw_parts((s1).cast::<u8>(), s1_len);
+            let slice2 = std::slice::from_raw_parts((s2).cast::<u8>(), s2_len);
             let nul1 = slice1.iter().position(|&b| b == 0);
             let nul2 = slice2.iter().position(|&b| b == 0);
             ret = mb_stricmp(
@@ -608,7 +611,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
 
     let ret = string_convert(
         &vimconv,
-        crate::memory::cstr_slice(str_, str_len),
+        unsafe { std::slice::from_raw_parts((str_).cast::<u8>(), str_len) },
         Some(&mut str_len),
     );
 

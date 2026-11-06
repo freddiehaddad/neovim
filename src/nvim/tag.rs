@@ -649,7 +649,7 @@ pub fn do_tag(
                 let other_name = tag_st()
                     .tagmatchname
                     .as_ref()
-                    .is_none_or(|m| m.to_bytes() != crate::memory::cstr_as_bytes(name));
+                    .is_none_or(|m| m.to_bytes() != crate::memory::cstr_from_ptr(name).to_bytes());
                 if new_tag
                     || (cur_match >= tag_st().do_tag_matches.len() as i32
                         && tag_st().do_tag_max_num_matches != MAXCOL)
@@ -1337,19 +1337,25 @@ fn find_tagfunc_tags(
 
                 if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
                     len += tv.vval.v_string_bytes().len() + 1;
-                    if crate::memory::cstr_as_bytes(
+                    if crate::memory::cstr_from_ptr(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    ) == b"name"
+                    )
+                    .to_bytes()
+                        == b"name"
                     {
                         res_name = tv.vval.v_string();
-                    } else if crate::memory::cstr_as_bytes(
+                    } else if crate::memory::cstr_from_ptr(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    ) == b"filename"
+                    )
+                    .to_bytes()
+                        == b"filename"
                     {
                         res_fname = tv.vval.v_string();
-                    } else if crate::memory::cstr_as_bytes(
+                    } else if crate::memory::cstr_from_ptr(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    ) == b"cmd"
+                    )
+                    .to_bytes()
+                        == b"cmd"
                     {
                         res_cmd = tv.vval.v_string();
                     } else {
@@ -1407,9 +1413,10 @@ fn find_tagfunc_tags(
                     for (hi, di) in item_dict.dv_hashtab.iter_items() {
                         let dict_key = hi.key_cstr();
                         let tv = &di.di_tv;
-                        let key_bytes = crate::memory::cstr_as_bytes(
+                        let key_bytes = crate::memory::cstr_from_ptr(
                             (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        );
+                        )
+                        .to_bytes();
                         if tv.v_type == VarType::VarString
                             && !tv.vval.v_string().is_null()
                             && key_bytes != b"name"
@@ -1914,7 +1921,7 @@ fn findtags_match_tag(
 fn findtags_string_convert(st: &mut FindtagsState) {
     let Some(conv_line) = string_convert(
         &st.vimconv,
-        crate::memory::cstr_as_bytes(st.lbuf.as_mut_ptr()),
+        crate::memory::cstr_from_ptr(st.lbuf.as_mut_ptr()).to_bytes(),
         None,
     ) else {
         return;
@@ -2241,7 +2248,7 @@ pub fn find_tags(
             curbuf_mut().b_help = true;
         }
 
-        let pat_slice = crate::memory::cstr_slice(pat, st.orgpat.len.max(0) as usize);
+        let pat_slice = (pat).slice(st.orgpat.len.max(0) as usize);
         if curbuf_mut().b_help
             && pat_slice.len() > 3
             && pat_slice[pat_slice.len() - 3] == b'@'
@@ -2397,10 +2404,11 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 &mut buf[..MAXPATHL - 4],
                 opt_vars().p_hf.as_bytes(),
             );
-            let tail_off = crate::memory::ptr_offset_from(
-                path_tail(buf_ptr.as_cstr()).as_ptr(),
-                buf_ptr.cast(),
-            ) as usize;
+            let tail_off =
+                ((crate::strings::AsByteSlice::byte_addr(path_tail(buf_ptr.as_cstr()).as_ptr())
+                    as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(buf_ptr) as isize))
+                    as usize;
             buf[tail_off..tail_off + 5].copy_from_slice(b"tags\0");
             simplify_filename(buf);
 
@@ -2455,10 +2463,11 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             let stop_off = vim_findfile_stopdir(buf);
             let stopdirs_cstr =
                 stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]).to_owned());
-            let tail_off = crate::memory::ptr_offset_from(
+            let tail_off = ((crate::strings::AsByteSlice::byte_addr(
                 path_tail(crate::memory::cstr_until_nul(buf)).as_ptr(),
-                buf.as_ptr().cast(),
-            ) as usize;
+            ) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(buf.as_ptr()) as isize))
+                as usize;
             let filename_cstr = crate::memory::cstring_until_nul(&buf[tail_off..]);
             buf[tail_off] = 0;
 
@@ -2521,7 +2530,7 @@ fn matching_line_len(lbuf_slice: &[u8]) -> usize {
     {
         let mut p = lbuf.wrapping_add(1);
         p = p.wrapping_add(p.len() + 1);
-        crate::memory::ptr_offset_from(p, lbuf) as usize + p.len()
+        ((p).offset_from(lbuf) as isize) as usize + p.len()
     }
 }
 
@@ -2970,7 +2979,9 @@ fn expand_tag_fname(
             let p = path_tail(tag_fname.as_cstr()).as_ptr();
             if p != tag_fname.cast_const() {
                 let mut retval = [0u8; MAXPATHL];
-                let off = crate::memory::ptr_offset_from(p, tag_fname) as usize;
+                let off = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(tag_fname) as isize))
+                    as usize;
                 retval[..off].copy_from_slice(tag_fname.slice(off));
                 crate::memory::copy_bytes_to_c_buf(&mut retval[off..], fname.as_bytes());
                 simplify_filename(&mut retval);

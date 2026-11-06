@@ -2516,7 +2516,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     ptr.as_cstr(),
                                 );
                                 let ptr_cstr = ptr.as_cstr();
-                                let end_off = crate::memory::ptr_offset_from(endptr, ptr) as usize;
+                                let end_off = ((endptr).offset_from(ptr) as isize) as usize;
                                 let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr_cstr);
                                 let mut vcol: i32 = 0;
                                 while ci.offset_from(ptr_cstr) < end_off {

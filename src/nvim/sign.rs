@@ -758,7 +758,7 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
             break;
         }
         cmdline = crate::charset::skiptowhite_esc_ptr(arg);
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
         if arg_bytes.starts_with(b"icon=") {
             icon = arg.wrapping_add(5);
         } else if arg_bytes.starts_with(b"text=") {
@@ -888,7 +888,7 @@ fn parse_sign_cmd_args<'a>(
     let mut lnum_arg = false;
 
     if ascii_isdigit(unsafe { *arg as u8 }) {
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
         let mut rem = arg_bytes;
         *id = getdigits_int(&mut rem, true, 0);
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
@@ -901,7 +901,7 @@ fn parse_sign_cmd_args<'a>(
     }
 
     while unsafe { *arg != 0 } {
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
         if arg_bytes.starts_with(b"line=") {
             arg = arg.wrapping_add(5);
             *lnum = crate::charset::parse_i64_prefix(&arg_bytes[5..]) as i32;
@@ -947,7 +947,7 @@ fn parse_sign_cmd_args<'a>(
         } else if arg_bytes.starts_with(b"buffer=") {
             arg = arg.wrapping_add(7);
             filename = arg;
-            let arg_bytes = crate::memory::cstr_as_bytes(arg);
+            let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
             let mut rem = arg_bytes;
             *buf = buflist_findnr(getdigits_int(&mut rem, true, 0));
             arg = arg.wrapping_add(arg_bytes.len() - rem.len());
@@ -977,10 +977,12 @@ pub fn ex_sign(eap: &mut Exarg) {
     let mut arg = eap.arg.as_ptr();
 
     let mut p = crate::charset::skiptowhite_ptr(arg);
-    let idx = sign_cmd_idx(crate::memory::cstr_slice(
-        arg,
-        crate::memory::ptr_offset_from(p, arg).max(0) as usize,
-    ));
+    let idx = sign_cmd_idx(unsafe {
+        std::slice::from_raw_parts(
+            (arg).cast::<u8>(),
+            (p as usize).saturating_sub(arg as usize),
+        )
+    });
     if idx == SIGNCMD_LAST {
         semsg!(gettext(c"E160: Unknown sign command: %s"), arg);
         return;
@@ -1007,7 +1009,7 @@ pub fn ex_sign(eap: &mut Exarg) {
             let arg_cstr = crate::memory::cstr_from_ptr(arg);
 
             if idx == SIGNCMD_DEFINE {
-                let p_len = crate::memory::cstr_as_bytes(p).len();
+                let p_len = crate::memory::cstr_from_ptr(p).to_bytes().len();
                 let p_slice = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), p_len + 1) };
                 sign_define_cmd(arg_cstr, p_slice);
             } else if idx == SIGNCMD_LIST {
@@ -1024,7 +1026,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut prio: i32 = -1;
         let mut buf: Option<&mut FileBuf> = None;
 
-        let arg_len = crate::memory::cstr_as_bytes(arg).len();
+        let arg_len = crate::memory::cstr_from_ptr(arg).to_bytes().len();
         let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
         if !parse_sign_cmd_args(
             idx, arg_slice, &mut name, &mut id, &mut group, &mut prio, &mut buf, &mut lnum,

@@ -1286,7 +1286,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
     let mut p2 = p1;
     let mut p3 = p1;
     let mut p4 = p1;
-    let rem_bytes = crate::memory::cstr_as_bytes(past_head);
+    let rem_bytes = crate::memory::cstr_from_ptr(past_head).to_bytes();
     let mut idx = 0usize;
     while idx < rem_bytes.len() {
         if vim_ispathsep_nocolon(rem_bytes[idx] as i32) {
@@ -1326,7 +1326,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut entry: *mut u8 = rtp_base;
         while unsafe { *entry != 0 } {
             let cur_entry = entry;
-            let mut entry_bytes = crate::memory::cstr_as_bytes(entry);
+            let mut entry_bytes = crate::memory::cstr_from_ptr(entry).to_bytes();
             let old_len = entry_bytes.len();
             let dst = unsafe { std::slice::from_raw_parts_mut(buf.data.cast::<u8>(), MAXPATHL) };
             buf.size = copy_option_part(&mut entry_bytes, dst, c",");
@@ -1458,7 +1458,8 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             for item in &mut rsp[idx1..] {
                 item.pos_in_rtp += fname_len + 1;
             }
-            let fname_bytes = crate::memory::cstr_slice(fname, fname_len);
+            let fname_bytes =
+                unsafe { std::slice::from_raw_parts((fname).cast::<u8>(), fname_len) };
             let fname_end = fname_bytes
                 .iter()
                 .position(|&b| b == 0)
@@ -2165,7 +2166,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         };
         if data_len != 0 {
             rtp_size += (data_len
-                + crate::memory::cstr_slice(data_home, data_len)
+                + unsafe { std::slice::from_raw_parts((data_home).cast::<u8>(), data_len) }
                     .iter()
                     .filter(|&&b| b == b',')
                     .count()
@@ -2173,7 +2174,11 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + 1
                 + SITE_SIZE
                 + 1
-                + usize::from(after_pathsep(crate::memory::cstr_slice(data_home, data_len)) == 0))
+                + usize::from(
+                    after_pathsep(unsafe {
+                        std::slice::from_raw_parts((data_home).cast::<u8>(), data_len)
+                    }) == 0,
+                ))
                 * 2
                 + AFTER_SIZE
                 + 1;
@@ -2187,7 +2192,9 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + appname_len
                 + 1
                 + usize::from(
-                    after_pathsep(crate::memory::cstr_slice(config_home, config_len)) == 0,
+                    after_pathsep(unsafe {
+                        std::slice::from_raw_parts((config_home).cast::<u8>(), config_len)
+                    }) == 0,
                 ))
                 * 2
                 + AFTER_SIZE
@@ -2810,11 +2817,15 @@ fn do_source_ext(
                 );
                 let after_bom = fl.as_ptr().wrapping_add(3).cast_mut();
                 firstline = Some(
-                    string_convert(&cookie.conv, crate::memory::cstr_as_bytes(after_bom), None)
-                        .map_or_else(
-                            || cstr_to_cstring(after_bom),
-                            |v| crate::memory::cstring_until_nul(&v),
-                        ),
+                    string_convert(
+                        &cookie.conv,
+                        crate::memory::cstr_from_ptr(after_bom).to_bytes(),
+                        None,
+                    )
+                    .map_or_else(
+                        || cstr_to_cstring(after_bom),
+                        |v| crate::memory::cstring_until_nul(&v),
+                    ),
                 );
             }
             do_cmdline(
@@ -3169,9 +3180,10 @@ pub fn getsourceline(
 
         sp.nextline = get_one_sourceline(sp);
         if let Some(ref next) = sp.nextline {
-            let p_bytes = crate::memory::cstr_as_bytes(crate::charset::skipwhite_ptr(
+            let p_bytes = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
                 next.as_ptr().cast::<std::ffi::c_char>(),
-            ));
+            ))
+            .to_bytes();
             if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                 if buf.last() == Some(&0) {
                     buf.pop();

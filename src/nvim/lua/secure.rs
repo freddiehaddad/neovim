@@ -65,7 +65,7 @@ pub fn ex_trust(eap: &mut Exarg) {
     let arg = crate::strings::ByteSliceExt::as_ptr(eap.arg);
     let p = crate::charset::skiptowhite_ptr(arg);
     let arg1_len = (p as usize) - (arg as usize);
-    let arg1_bytes = crate::memory::cstr_slice(arg, arg1_len);
+    let arg1_bytes = unsafe { std::slice::from_raw_parts((arg).cast::<u8>(), arg1_len) };
     let mut action = c"allow";
     let path_ptr = crate::charset::skipwhite_ptr(p);
 

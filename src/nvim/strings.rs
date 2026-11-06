@@ -70,14 +70,24 @@ pub type RawCCharPtrMut = *mut c_char;
 pub type ByteSlice = Option<&'static [u8]>;
 pub const BYTE_SLICE_NULL: ByteSlice = None;
 
-pub trait AsByteSlice {
+pub trait AsByteSlice: Sized {
     fn into_byte_slice(self) -> ByteSlice;
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.into_byte_slice().addr()
+    }
 }
 
 impl AsByteSlice for ByteSlice {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
         self
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.map_or(0, |b| b.as_ptr() as usize)
     }
 }
 
@@ -86,12 +96,22 @@ impl AsByteSlice for &[u8] {
     fn into_byte_slice(self) -> ByteSlice {
         Some(crate::globals::GraphPtr::slice(self))
     }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
 }
 
 impl<const N: usize> AsByteSlice for &[u8; N] {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
         Some(crate::globals::GraphPtr::slice(self))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
     }
 }
 
@@ -100,6 +120,11 @@ impl<const N: usize> AsByteSlice for &mut [u8; N] {
     fn into_byte_slice(self) -> ByteSlice {
         Some(crate::globals::GraphPtr::slice(self))
     }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
 }
 
 impl AsByteSlice for &CStr {
@@ -107,12 +132,22 @@ impl AsByteSlice for &CStr {
     fn into_byte_slice(self) -> ByteSlice {
         Some(crate::globals::GraphPtr::slice(self.to_bytes_with_nul()))
     }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
 }
 
 impl AsByteSlice for Option<&CStr> {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
         self.map(|s| crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.map_or(0, |s| s.as_ptr() as usize)
     }
 }
 
@@ -126,12 +161,22 @@ impl<T> AsByteSlice for *const T {
             crate::memory::cstr_from_ptr(p).into_byte_slice()
         }
     }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self as usize
+    }
 }
 
 impl<T> AsByteSlice for *mut T {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
         self.cast_const().into_byte_slice()
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self as usize
     }
 }
 
@@ -158,7 +203,7 @@ pub trait ByteSliceExt: Copy {
     fn skipwhite(self) -> Self;
     fn skiptowhite(self) -> Self;
     fn offset_in(self, base: Self, d: isize) -> Self;
-    fn offset_from(self, base: Self) -> usize;
+    fn offset_from(self, base: impl AsByteSlice) -> usize;
     fn span_to(self, end: Self) -> &'static [u8];
     fn before(self, other: Self) -> bool;
 }
@@ -292,8 +337,8 @@ impl ByteSliceExt for ByteSlice {
     }
 
     #[inline(always)]
-    fn offset_from(self, base: Self) -> usize {
-        self.addr().saturating_sub(base.addr())
+    fn offset_from(self, base: impl AsByteSlice) -> usize {
+        self.addr().saturating_sub(base.byte_addr())
     }
 
     #[inline(always)]
@@ -2621,36 +2666,28 @@ pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let Some(needle) = needle else {
         return;
     };
-    let mut haystack = haystack_cstr.as_ptr();
-    let haystack_start = haystack;
-
-    let hay_len = haystack_cstr.to_bytes().len();
+    let hay_full = haystack_cstr.to_bytes();
+    let mut start_off = 0usize;
     if argvars[2].v_type != VarType::VarUnknown {
         let mut error = false;
         let start_idx = tv_get_number_chk(&argvars[2], Some(&mut error)) as isize;
-        if error || start_idx >= hay_len as isize {
+        if error || start_idx >= hay_full.len() as isize {
             return;
         }
         if start_idx >= 0 {
-            haystack = haystack.wrapping_add(start_idx as usize);
+            start_off = start_idx as usize;
         }
     }
 
-    let hay_bytes = crate::memory::cstr_as_bytes(haystack);
+    let hay_bytes = &hay_full[start_off..];
     let needle_bytes = needle.to_bytes();
     if needle_bytes.is_empty() {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::ptr_offset_from(
-            haystack,
-            haystack_start,
-        ) as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(start_off as Varnumber);
     } else if let Some(pos) = hay_bytes
         .windows(needle_bytes.len())
         .position(|w| w == needle_bytes)
     {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::ptr_offset_from(
-            haystack.wrapping_add(pos),
-            haystack_start,
-        ) as Varnumber);
+        rettv.vval = crate::eval::typval::TypvalVval::Number((start_off + pos) as Varnumber);
     }
 }
 
@@ -2811,10 +2848,9 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     crate::eval::typval::tv_set_string_len(
         rettv,
-        Some(crate::memory::cstr_slice(
-            p.wrapping_add(nbyte as usize),
-            len as usize,
-        )),
+        Some(unsafe {
+            std::slice::from_raw_parts((p.wrapping_add(nbyte as usize)).cast::<u8>(), len as usize)
+        }),
     );
 }
 
@@ -2856,10 +2892,9 @@ pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     crate::eval::typval::tv_set_string_len(
         rettv,
-        Some(crate::memory::cstr_slice(
-            p.wrapping_add(n as usize),
-            len as usize,
-        )),
+        Some(unsafe {
+            std::slice::from_raw_parts((p.wrapping_add(n as usize)).cast::<u8>(), len as usize)
+        }),
     );
 }
 

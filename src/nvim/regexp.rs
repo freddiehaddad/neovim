@@ -2386,7 +2386,8 @@ pub(super) fn match_with_backref(
         if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
-                    crate::memory::cstr_as_bytes(p_cstr.as_ptr().wrapping_add(ccol as usize)),
+                    crate::memory::cstr_from_ptr(p_cstr.as_ptr().wrapping_add(ccol as usize))
+                        .to_bytes(),
                     re_st().rex.input.as_bytes(),
                     len as usize,
                 ) != 0)
@@ -2474,8 +2475,8 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         }
         n2 = (s2_b.len() - rem2.len()) as i32;
         let r = utf_strnicmp(
-            crate::memory::cstr_as_bytes(s1_b.as_ptr()),
-            crate::memory::cstr_as_bytes(s2_b.as_ptr()),
+            crate::memory::cstr_from_ptr(s1_b.as_ptr()).to_bytes(),
+            crate::memory::cstr_from_ptr(s2_b.as_ptr()).to_bytes(),
             *n as usize,
             n2 as usize,
         );
@@ -2524,7 +2525,10 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     if !re_st().rex.reg_ic {
         let p = vim_strchr(crate::memory::cstr_from_ptr(s_ptr), c)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
+        return (!p.is_null()).then(|| {
+            ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(s_ptr) as isize)) as usize
+        });
     }
 
     let (cc, lc) = if c > 0x80 {
@@ -2539,7 +2543,10 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     } else {
         let p = vim_strchr(crate::memory::cstr_from_ptr(s_ptr), c)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
+        return (!p.is_null()).then(|| {
+            ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(s_ptr) as isize)) as usize
+        });
     };
 
     let s_bytes = s.to_bytes();
@@ -3135,7 +3142,7 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
         .as_ptr()
         .cast_mut();
     let len = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum) as usize;
-    Some(crate::memory::cstr_slice(line, len))
+    Some(unsafe { std::slice::from_raw_parts((line).cast::<u8>(), len) })
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {

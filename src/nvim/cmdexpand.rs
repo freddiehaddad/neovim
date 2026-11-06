@@ -1993,7 +1993,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         return false;
     }
 
-    let i = crate::memory::ptr_offset_from(xp.xp_pattern, ccline.cmdbuff()) as i32;
+    let i = ((xp.xp_pattern).offset_from(ccline.cmdbuff()) as isize) as i32;
     debug_assert!(ccline.cmdpos >= i);
     xp.xp_pattern_len = (ccline.cmdpos as usize) - (i as usize);
 
@@ -2026,10 +2026,8 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             | WILD_SILENT
             | if escape { WILD_ESCAPE } else { 0 }
             | if opt_vars().p_wic { WILD_ICASE } else { 0 };
-        let orig = cstr_from_bytes(crate::memory::cstr_slice(
-            ccline.cmdbuff().wrapping_add(i as usize),
-            xp.xp_pattern_len,
-        ));
+        let orig =
+            cstr_from_bytes((ccline.cmdbuff().wrapping_add(i as usize)).slice(xp.xp_pattern_len));
         p = expand_one(xp, Some(tmp.as_c_str()), Some(orig), use_options, type_arg);
         if let Some(ref p_str) = p
             && type_arg == WILD_LONGEST
@@ -2148,10 +2146,15 @@ fn cmdline_pum_create(
         xp.xp_pattern.as_ptr()
     };
     if ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null() {
-        cmdexp().compl_startcol = crate::memory::ptr_offset_from(endpos, ccline.cmdbuff()) as i32;
+        cmdexp().compl_startcol = ((crate::strings::AsByteSlice::byte_addr(endpos) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(ccline.cmdbuff()) as isize))
+            as i32;
     } else {
-        cmdexp().compl_startcol =
-            cmd_screencol(crate::memory::ptr_offset_from(endpos, ccline.cmdbuff()) as i32);
+        cmdexp().compl_startcol = cmd_screencol(
+            ((crate::strings::AsByteSlice::byte_addr(endpos) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(ccline.cmdbuff()) as isize))
+                as i32,
+        );
     }
 }
 
@@ -2630,7 +2633,7 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
         len += mb_len;
     }
 
-    cstr_from_bytes(crate::memory::cstr_slice(first_file, len))
+    cstr_from_bytes(unsafe { std::slice::from_raw_parts((first_file).cast::<u8>(), len) })
 }
 
 pub fn free_xp_files_extra(xp: &mut ExpandCtx) {
@@ -3487,7 +3490,7 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
             p = p.wrapping_add(bytes.len() - rem.len());
         }
     }
-    let bytes = crate::memory::cstr_as_bytes(p);
+    let bytes = (p).as_bytes();
     bytes
         .iter()
         .position(|&b| matches!(b, b'|' | b'"' | b'#'))
@@ -5591,7 +5594,7 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
     } else if key == K_UP {
         let mut found = false;
 
-        let mut j = crate::memory::ptr_offset_from(xp.xp_pattern, cclp.cmdbuff()) as i32;
+        let mut j = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
         let mut i: i32 = 0;
         while {
             j -= 1;
@@ -5639,7 +5642,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
         let mut found = false;
 
         let mut j = cclp.cmdpos;
-        let i = crate::memory::ptr_offset_from(xp.xp_pattern, cclp.cmdbuff()) as i32;
+        let i = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
         while {
             j -= 1;
             j > i
@@ -5666,7 +5669,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
         let mut found = false;
 
         let mut j = cclp.cmdpos - 1;
-        let mut i = crate::memory::ptr_offset_from(xp.xp_pattern, cclp.cmdbuff()) as i32;
+        let mut i = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
         while {
             j -= 1;
             j > i
@@ -5849,19 +5852,19 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 let pat_p = xpc.xp_pattern;
                 set_context_in_menu_cmd(&mut xpc, c"menu", (pat_p).as_cstr(), false);
                 xpc.xp_pattern_len -=
-                    crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
+                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_SIGN => {
                 let pat_p = xpc.xp_pattern;
                 set_context_in_sign_cmd(&mut xpc, (pat_p).as_cstr());
                 xpc.xp_pattern_len -=
-                    crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
+                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_RUNTIME => {
                 let pat_p = xpc.xp_pattern;
                 set_context_in_runtime_cmd(&mut xpc, (pat_p).as_cstr());
                 xpc.xp_pattern_len -=
-                    crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
+                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_SHELLCMDLINE => {
                 let mut context = EXPAND_SHELLCMDLINE;
@@ -5874,7 +5877,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     &mut context,
                 );
                 xpc.xp_pattern_len -=
-                    crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
+                    ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_FILETYPECMD => {
                 cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
@@ -5889,8 +5892,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     if xpc.xp_context == EXPAND_LUA {
         xpc.xp_col = (xpc.xp_line).len() as i32;
         nlua_expand_pat(&mut xpc);
-        xpc.xp_pattern_len -=
-            crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
+        xpc.xp_pattern_len -= ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
     }
     let pat = if cmdline_fuzzy_completion_supported(&xpc) {
         cstr_from_bytes(xpc.xp_pattern.slice(xpc.xp_pattern_len))

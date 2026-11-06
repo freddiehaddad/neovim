@@ -1884,7 +1884,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             let end_len = copy_option_part(&mut p, &mut lead_end[..COM_MAX_LEN], c",") as i32;
 
             i = curwin_mut().w_cursor.col;
-            let line_slice = crate::memory::cstr_slice(line, i.max(0) as usize);
+            let line_slice = (line).slice(i.max(0) as usize);
             while {
                 i -= 1;
                 i >= 0 && ascii_iswhite(i32::from(line_slice[i as usize]))
@@ -3666,7 +3666,7 @@ fn ins_tab() -> bool {
                 vcol += win_charsize(
                     cstype,
                     vcol,
-                    crate::memory::cstr_slice(ptr, 1),
+                    unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), 1) },
                     b' ' as i32,
                     &mut csarg,
                     1,
@@ -3687,7 +3687,8 @@ fn ins_tab() -> bool {
                 if (g_st().state_global & VREPLACE_FLAG) == 0 {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
                     let line_slice = curbuf_mut().b_ml.ml_line_slice;
-                    let col = crate::memory::ptr_offset_from(ptr.cast::<u8>(), line_slice.as_ptr())
+                    let col = ((crate::strings::AsByteSlice::byte_addr(ptr.cast::<u8>()) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(line_slice.as_ptr()) as isize))
                         as usize;
                     let tail_len = newp_len.saturating_sub(col + 1);
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));

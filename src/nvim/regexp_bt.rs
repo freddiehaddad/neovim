@@ -884,8 +884,9 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx =
-                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
+                let idx = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(CLASSCHARS.as_ptr().cast::<u8>())
+                        as isize)) as usize;
                 ret = regnode(CLASSCODES[idx] + extra);
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;
@@ -936,8 +937,9 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx =
-                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
+                let idx = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(CLASSCHARS.as_ptr().cast::<u8>())
+                        as isize)) as usize;
                 ret = regnode(CLASSCODES[idx] + extra);
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;
@@ -3893,10 +3895,12 @@ fn regtry(
                     && ez.col >= sz.col
                     && let Some(line_cstr) = reg_getline(sz.lnum)
                 {
-                    extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
-                        line_cstr.as_ptr().wrapping_add(sz.col as usize),
-                        (ez.col - sz.col) as usize,
-                    ));
+                    extmatch.matches[i] = cstring_from_bytes(unsafe {
+                        std::slice::from_raw_parts(
+                            (line_cstr.as_ptr().wrapping_add(sz.col as usize)).cast::<u8>(),
+                            (ez.col - sz.col) as usize,
+                        )
+                    });
                 }
             } else {
                 let szp = re_st().reg_startzp[i];
@@ -3982,7 +3986,12 @@ fn bt_regexec_both(
                     break;
                 }
                 let mut len = prog.regmlen;
-                if cstrncmp(crate::memory::cstr_as_bytes(s), regmust_slice, &mut len) == 0 {
+                if cstrncmp(
+                    crate::memory::cstr_from_ptr(s).to_bytes(),
+                    regmust_slice,
+                    &mut len,
+                ) == 0
+                {
                     break;
                 }
                 let step = utfc_ptr2len(s) as usize;
@@ -3997,7 +4006,12 @@ fn bt_regexec_both(
                 };
                 s = s.wrapping_add(found_off);
                 let mut len = prog.regmlen;
-                if cstrncmp(crate::memory::cstr_as_bytes(s), regmust_slice, &mut len) == 0 {
+                if cstrncmp(
+                    crate::memory::cstr_from_ptr(s).to_bytes(),
+                    regmust_slice,
+                    &mut len,
+                ) == 0
+                {
                     break;
                 }
                 let step = utfc_ptr2len(s) as usize;

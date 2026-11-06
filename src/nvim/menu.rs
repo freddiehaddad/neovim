@@ -390,12 +390,15 @@ pub fn ex_menu(eap: &mut Exarg) {
             return;
         }
 
-        let map_buf_owned = if crate::memory::cstr_as_bytes(map_to).eq_ignore_ascii_case(b"<nop>") {
+        let map_buf_owned = if crate::memory::cstr_from_ptr(map_to)
+            .to_bytes()
+            .eq_ignore_ascii_case(b"<nop>")
+        {
             map_to = c"".as_ptr().cast_mut().cast();
             None
         } else if (modes & MENU_TIP_MODE) == 0 {
             replace_termcodes(
-                crate::memory::cstr_as_bytes(map_to),
+                crate::memory::cstr_from_ptr(map_to).to_bytes(),
                 false,
                 0,
                 REPTERM_DO_LT,
@@ -1724,23 +1727,27 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         del_menutrans_vars();
     } else {
         let from_arg = arg;
-        let part1_len = menu_skip_part(crate::memory::cstr_as_bytes(from_arg));
+        let part1_len = menu_skip_part(crate::memory::cstr_from_ptr(from_arg).to_bytes());
         arg = from_arg.wrapping_add(part1_len);
         let to_arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast::<u8>();
 
         unsafe { *arg = 0 };
 
-        let part2_len = menu_skip_part(crate::memory::cstr_as_bytes(to_arg));
+        let part2_len = menu_skip_part(crate::memory::cstr_from_ptr(to_arg).to_bytes());
         arg = to_arg.wrapping_add(part2_len);
         if arg == to_arg {
             emsg(gettext(E_INVARG));
         } else {
-            let mut from_vec: Vec<u8> = crate::memory::cstr_as_bytes(from_arg).to_vec();
+            let mut from_vec: Vec<u8> = crate::memory::cstr_from_ptr(from_arg).to_bytes().to_vec();
             from_vec.push(0);
             let from_noamp_cstr = menu_text(&from_vec[..from_vec.len() - 1], None, None);
-            let to_len = crate::memory::ptr_offset_from(arg, to_arg) as usize;
+            let to_len = ((crate::strings::AsByteSlice::byte_addr(arg) as isize)
+                - (crate::strings::AsByteSlice::byte_addr(to_arg) as isize))
+                as usize;
             let mut to_vec: Vec<u8> = Vec::with_capacity(to_len + 1);
-            to_vec.extend_from_slice(crate::memory::cstr_slice(to_arg, to_len));
+            to_vec.extend_from_slice(unsafe {
+                std::slice::from_raw_parts((to_arg).cast::<u8>(), to_len)
+            });
             to_vec.push(0);
             menu_translate_tab_and_shift(&mut from_vec);
             menu_translate_tab_and_shift(&mut to_vec);

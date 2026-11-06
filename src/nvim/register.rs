@@ -302,10 +302,10 @@ pub fn get_unname_register() -> i32 {
     if reg_st().y_previous.is_null() {
         -1
     } else {
-        crate::memory::ptr_offset_from(
-            reg_st().y_previous.as_ptr(),
-            (&raw const reg_st().y_regs).cast::<Yankreg>(),
-        ) as i32
+        ((crate::strings::AsByteSlice::byte_addr(reg_st().y_previous.as_ptr()) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(
+                (&raw const reg_st().y_regs).cast::<Yankreg>(),
+            ) as isize)) as i32
     }
 }
 
@@ -1017,7 +1017,9 @@ fn yank_copy_line(
         }
     }
     buf_vec[out_size] = 0;
-    reg.y_array[y_idx] = cbuf_to_string(crate::memory::cstr_slice(buf_vec.as_ptr(), out_size));
+    reg.y_array[y_idx] = cbuf_to_string(unsafe {
+        std::slice::from_raw_parts((buf_vec.as_ptr()).cast::<u8>(), out_size)
+    });
 }
 
 pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append: bool) {
@@ -1083,10 +1085,9 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
             MotionType::MtLineWise => {
                 let line_slice = crate::memline::ml_get_slice(lnum);
 
-                reg_mut.y_array[y_idx] = cbuf_to_string(crate::memory::cstr_slice(
-                    line_slice.as_ptr(),
-                    line_slice.len(),
-                ));
+                reg_mut.y_array[y_idx] = cbuf_to_string(unsafe {
+                    std::slice::from_raw_parts((line_slice.as_ptr()).cast::<u8>(), line_slice.len())
+                });
             }
             MotionType::MtCharWise => {
                 charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
@@ -1137,10 +1138,12 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
 
             let last_slot = curr_reg.y_array.last_mut().unwrap();
             api_clear_string(last_slot);
-            *last_slot = cbuf_to_string(crate::memory::cstr_slice(
-                pnew.as_ptr(),
-                last_old.size + first_new.size,
-            ));
+            *last_slot = cbuf_to_string(unsafe {
+                std::slice::from_raw_parts(
+                    (pnew.as_ptr()).cast::<u8>(),
+                    last_old.size + first_new.size,
+                )
+            });
             api_clear_string(&mut new_reg.y_array[0]);
             y_idx = 1;
         } else {
@@ -1659,10 +1662,12 @@ pub fn do_put(
 
                 crate::memline::ml_replace_len(
                     curwin_mut().w_cursor.lnum,
-                    crate::memory::cstr_slice(
-                        get_cursor_line_ptr().as_ptr().cast_mut(),
-                        split_pos as usize,
-                    ),
+                    unsafe {
+                        std::slice::from_raw_parts(
+                            (get_cursor_line_ptr().as_ptr().cast_mut()).cast::<u8>(),
+                            split_pos as usize,
+                        )
+                    },
                     split_pos as usize,
                     true,
                 );
@@ -1944,7 +1949,7 @@ pub fn do_put(
 
                 ml_replace(
                     curwin_mut().w_cursor.lnum,
-                    crate::memory::cstr_as_bytes(newp),
+                    crate::memory::cstr_from_ptr(newp).to_bytes(),
                     true,
                 );
                 drop(newp_vec);
@@ -2076,7 +2081,7 @@ pub fn do_put(
                             )
                         };
 
-                        ml_replace(lnum, crate::memory::cstr_as_bytes(newp), true);
+                        ml_replace(lnum, crate::memory::cstr_from_ptr(newp).to_bytes(), true);
 
                         first_byte_off = crate::mbyte::utf_head_off_ptr(newp, ptr_.wrapping_sub(1));
                         drop(newp_vec);

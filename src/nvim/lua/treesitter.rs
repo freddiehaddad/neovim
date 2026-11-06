@@ -755,7 +755,7 @@ fn load_language_from_object(
     if unsafe { uv_dlopen(path.as_ptr(), &mut lib) } != 0 {
         crate::memory::copy_bytes_to_c_buf(
             g_st().iobuff_bytes_mut(),
-            crate::memory::cstr_as_bytes(unsafe { uv_dlerror(&lib) }),
+            crate::memory::cstr_from_ptr(unsafe { uv_dlerror(&lib) }).to_bytes(),
         );
         unsafe { uv_dlclose(&mut lib) };
         unsafe {
@@ -775,7 +775,7 @@ fn load_language_from_object(
     if unsafe { uv_dlsym(&mut lib, symbol_buf.as_ptr().cast(), &mut fn_ptr) } != 0 {
         crate::memory::copy_bytes_to_c_buf(
             g_st().iobuff_bytes_mut(),
-            crate::memory::cstr_as_bytes(unsafe { uv_dlerror(&lib) }),
+            crate::memory::cstr_from_ptr(unsafe { uv_dlerror(&lib) }).to_bytes(),
         );
         unsafe { uv_dlclose(&mut lib) };
         unsafe {
@@ -1081,7 +1081,8 @@ unsafe extern "C" fn input_cb(
     }
     let tocopy = (len - col).min(BUFSIZE);
 
-    let line_bytes = crate::memory::cstr_slice(line.wrapping_add(col), tocopy);
+    let line_bytes =
+        unsafe { std::slice::from_raw_parts((line.wrapping_add(col)).cast::<u8>(), tocopy) };
     buf[..tocopy].copy_from_slice(line_bytes);
     for b in &mut buf[..tocopy] {
         if *b == b'\n' {
@@ -1918,14 +1919,15 @@ unsafe extern "C-unwind" fn __has_ancestor(lstate: *mut lua_State) -> i32 {
         let mut node = ts_tree_root_node(descendant.tree);
         while node.id != descendant.id && !ts_node_is_null(node) {
             let node_type = ts_node_type(node);
-            let node_type_bytes = crate::memory::cstr_as_bytes(node_type);
+            let node_type_bytes = crate::memory::cstr_from_ptr(node_type).to_bytes();
 
             for i in 3..=pred_len {
                 lua_rawgeti(lstate, 2, i);
                 if lua_type(lstate, -1) == LUA_TSTRING {
                     let mut check_len: usize = 0;
                     let check_str = lua_tolstring(lstate, -1, &mut check_len);
-                    let check_bytes = crate::memory::cstr_slice(check_str, check_len);
+                    let check_bytes =
+                        std::slice::from_raw_parts((check_str).cast::<u8>(), check_len);
                     if node_type_bytes == check_bytes {
                         lua_pushboolean(lstate, 1);
                         return 1;
@@ -2244,7 +2246,7 @@ unsafe extern "C-unwind" fn tslua_parse_query(lstate: *mut lua_State) -> i32 {
         );
 
         if query.is_null() {
-            let src_bytes = crate::memory::cstr_slice(src, len);
+            let src_bytes = std::slice::from_raw_parts((src).cast::<u8>(), len);
             let err_cstr = query_err_string(src_bytes, error_offset as usize, error_type);
             return luaL_error(lstate, c"%s".as_ptr(), err_cstr.as_ptr());
         }

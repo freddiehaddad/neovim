@@ -328,9 +328,9 @@ fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: i32) -> Option<&Mapblock> {
     for bucket in mappings {
         for mp in bucket {
             if mp.m_luaref != LUA_NOREF
-                && crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                    mp.m_str.as_ptr().wrapping_add(3),
-                )) as i32
+                && crate::charset::parse_i64_prefix(
+                    crate::memory::cstr_from_ptr(mp.m_str.as_ptr().wrapping_add(3)).to_bytes(),
+                ) as i32
                     == id
             {
                 return Some(mp);
@@ -570,7 +570,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
         mapargs.rhs_lua = 0;
 
         loop {
-            let bytes = crate::memory::cstr_as_bytes(to_parse);
+            let bytes = crate::memory::cstr_from_ptr(to_parse).to_bytes();
             if bytes.starts_with(b"<buffer>") {
                 to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.buffer = true;
@@ -608,7 +608,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
             break;
         }
 
-        let to_parse_bytes = crate::memory::cstr_as_bytes(to_parse);
+        let to_parse_bytes = crate::memory::cstr_from_ptr(to_parse).to_bytes();
         let do_backslash =
             !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BSLASH_CONST);
         let mut orig_lhs_len = 0usize;
@@ -633,7 +633,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
 
         if !set_maparg_lhs_rhs(
             &to_parse_bytes[..orig_lhs_len],
-            crate::memory::cstr_as_bytes(rhs_start),
+            crate::memory::cstr_from_ptr(rhs_start).to_bytes(),
             LUA_NOREF,
             opt_vars().p_cpo.as_bytes(),
             mapargs,
@@ -798,19 +798,20 @@ fn buf_do_map(
                 if is_abbrev && maptype != MAPTYPE_UNMAP {
                     let mut same: i32 = -1;
                     let mut keys_unescaped = [0u8; MAXMAPLEN + 1];
-                    keys_unescaped[..len as usize]
-                        .copy_from_slice(crate::memory::cstr_slice(lhs, len as usize));
+                    keys_unescaped[..len as usize].copy_from_slice(unsafe {
+                        std::slice::from_raw_parts((lhs).cast::<u8>(), len as usize)
+                    });
                     let keys_unescaped_len = vim_unescape_ks(&mut keys_unescaped);
                     let mut p = keys_unescaped.as_ptr();
                     let end_p = p.wrapping_add(keys_unescaped_len);
 
-                    let first = vim_iswordp(crate::memory::cstr_as_bytes(p));
+                    let first = vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes());
                     let mut last = first;
                     p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     let mut n: i32 = 1;
                     while (p as usize) < (end_p as usize) {
                         n += 1;
-                        last = vim_iswordp(crate::memory::cstr_as_bytes(p));
+                        last = vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes());
                         if same == -1 && last != first {
                             same = n - 1;
                         }
@@ -821,7 +822,9 @@ fn buf_do_map(
                         break 'outer;
                     }
 
-                    for &b in crate::memory::cstr_slice(lhs, len as usize) {
+                    for &b in
+                        unsafe { std::slice::from_raw_parts((lhs).cast::<u8>(), len as usize) }
+                    {
                         if ascii_iswhite(i32::from(b)) {
                             retval = 1;
                             break 'outer;
@@ -839,7 +842,8 @@ fn buf_do_map(
             }
 
             if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
-                let lhs_slice = crate::memory::cstr_slice(lhs, len as usize);
+                let lhs_slice =
+                    unsafe { std::slice::from_raw_parts((lhs).cast::<u8>(), len as usize) };
                 for bucket in get_map_buckets(None, is_abbrev) {
                     if g_st().got_int {
                         break;
@@ -876,7 +880,9 @@ fn buf_do_map(
                                 let n = mp.m_keylen;
                                 let cmp_len = n.min(len) as usize;
                                 let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
-                                let lhs_slice = crate::memory::cstr_slice(lhs, cmp_len);
+                                let lhs_slice = unsafe {
+                                    std::slice::from_raw_parts((lhs).cast::<u8>(), cmp_len)
+                                };
                                 if mp_slice == lhs_slice {
                                     showmap(mp, true);
                                     did_local = true;
@@ -931,8 +937,10 @@ fn buf_do_map(
                                 (mp.m_keylen, mp.m_keys.as_ptr())
                             };
                             let cmp_len = n.min(len) as usize;
-                            let p_slice = crate::memory::cstr_slice(p, cmp_len);
-                            let lhs_slice = crate::memory::cstr_slice(lhs, cmp_len);
+                            let p_slice =
+                                unsafe { std::slice::from_raw_parts((p).cast::<u8>(), cmp_len) };
+                            let lhs_slice =
+                                unsafe { std::slice::from_raw_parts((lhs).cast::<u8>(), cmp_len) };
                             if p_slice == lhs_slice {
                                 if maptype == MAPTYPE_UNMAP {
                                     if n != len
@@ -940,9 +948,10 @@ fn buf_do_map(
                                             || round != 0
                                             || n > len
                                             || !crate::charset::skipwhite_slice(
-                                                crate::memory::cstr_as_bytes(
+                                                crate::memory::cstr_from_ptr(
                                                     lhs.wrapping_add(n as usize),
-                                                ),
+                                                )
+                                                .to_bytes(),
                                             )
                                             .is_empty())
                                     {
@@ -1325,7 +1334,7 @@ pub fn set_context_in_map_cmd(
         xp.xp_context = EXPAND_MAPPINGS;
         map_st().expand_buffer = false;
         loop {
-            let bytes = crate::memory::cstr_as_bytes(arg);
+            let bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
             if bytes.starts_with(b"<buffer>") {
                 map_st().expand_buffer = true;
                 arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
@@ -1506,21 +1515,24 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 _p
             }
         };
-        let vim_abbr = if !vim_iswordp(crate::memory::cstr_as_bytes(p)) {
+        let vim_abbr = if !vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes()) {
             true
         } else {
             if (p as usize) > (ptr_arg as usize) {
-                is_id = vim_iswordp(crate::memory::cstr_as_bytes({
-                    let _l = ptr_arg;
-                    let _p = p;
-                    if (_p as usize) > (_l as usize) {
-                        _p.wrapping_sub(
-                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                        )
-                    } else {
-                        _p
-                    }
-                }));
+                is_id = vim_iswordp(
+                    crate::memory::cstr_from_ptr({
+                        let _l = ptr_arg;
+                        let _p = p;
+                        if (_p as usize) > (_l as usize) {
+                            _p.wrapping_sub(
+                                1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                            )
+                        } else {
+                            _p
+                        }
+                    })
+                    .to_bytes(),
+                );
             }
             false
         };
@@ -1538,7 +1550,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     _p
                 }
             };
-            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
             if ascii_isspace(p_bytes.first().copied().unwrap_or(0) as i32)
                 || (!vim_abbr && is_id != vim_iswordp(p_bytes))
             {
@@ -1570,7 +1582,8 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             }
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
-                && q.slice(len as usize) == crate::memory::cstr_slice(ptr_arg, len as usize);
+                && q.slice(len as usize)
+                    == unsafe { std::slice::from_raw_parts((ptr_arg).cast::<u8>(), len as usize) };
             if match_found {
                 mp_opt = Some(cand);
                 break;
@@ -2176,7 +2189,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
 
     let mut did_simplify = false;
     let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-    let mut which_bytes = crate::memory::cstr_as_bytes(which);
+    let mut which_bytes = crate::memory::cstr_from_ptr(which).to_bytes();
     let mode = get_map_mode(&mut which_bytes, false);
 
     let keys_bytes = keys.to_bytes();
@@ -2339,7 +2352,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         let d = argvars[2].vval.v_dict();
         (which.as_ptr(), is_abbr, d)
     };
-    let mode = get_map_mode_string(crate::memory::cstr_as_bytes(which), is_abbr != 0);
+    let mode = get_map_mode_string(crate::memory::cstr_from_ptr(which).to_bytes(), is_abbr != 0);
     if mode == 0 {
         semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR), which);
         return;

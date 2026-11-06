@@ -628,8 +628,8 @@ pub fn delete_fold(
             lnum = unsafe { (*found_fp).fd_top + (*found_fp).fd_len } + found_off;
 
             if foldmethod_is_manual(&mut *wp) {
-                let idx =
-                    crate::memory::ptr_offset_from(found_fp, unsafe { &*found_ga }.as_ptr()) as i32;
+                let idx = ((found_fp as usize - unsafe { &*found_ga }.as_ptr() as usize)
+                    / std::mem::size_of::<FoldEntry>()) as i32;
 
                 delete_fold_entry(unsafe { &mut *found_ga }, idx, recursive != 0);
             } else {

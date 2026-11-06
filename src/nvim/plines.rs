@@ -548,8 +548,7 @@ pub fn charsize_regular(
                         head_prev += vim_strsize(sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
-                        head_prev +=
-                            get_breakindent_win(&mut *wp, crate::memory::cstr_as_bytes(line));
+                        head_prev += get_breakindent_win(&mut *wp, (line).as_bytes());
                     }
                     csarg.indent_width = head_prev;
                 }
@@ -574,8 +573,7 @@ pub fn charsize_regular(
                         head_mid += vim_strsize(sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
-                        head_mid +=
-                            get_breakindent_win(&mut *wp, crate::memory::cstr_as_bytes(line));
+                        head_mid += get_breakindent_win(&mut *wp, (line).as_bytes());
                     }
                     csarg.indent_width = head_mid;
                 }

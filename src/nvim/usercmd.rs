@@ -1142,7 +1142,7 @@ pub fn ex_command(eap: &mut Exarg) {
     while (p).first_byte() == b'-' {
         p = p.wrapping_add(1);
         let end = p.skiptowhite();
-        let attr_len = crate::memory::ptr_offset_from(end, p) as usize;
+        let attr_len = ((end).offset_from(p) as isize) as usize;
         if !uc_scan_attr(
             (p).slice(attr_len),
             &mut argt,
@@ -1212,7 +1212,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     let mut arg = eap.arg.cast_const();
     let mut buffer_only = false;
 
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
     if arg_bytes.starts_with(b"-buffer")
         && arg_bytes
             .get(7)
@@ -1227,9 +1227,10 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     loop {
         i = 0;
         while (i as usize) < gap.len() {
-            res = crate::memory::cstr_as_bytes(arg).cmp(crate::memory::cstr_as_bytes(
-                gap[i as usize].uc_name.as_ptr(),
-            )) as i32;
+            res = crate::memory::cstr_from_ptr(arg)
+                .to_bytes()
+                .cmp(crate::memory::cstr_from_ptr(gap[i as usize].uc_name.as_ptr()).to_bytes())
+                as i32;
             if res <= 0 {
                 break;
             }

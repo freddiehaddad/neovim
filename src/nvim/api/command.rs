@@ -345,7 +345,9 @@ pub fn nvim_parse_cmd(
             if len > 0 {
                 add_c(
                     &mut args,
-                    string_obj(cstrn_as_string(crate::memory::cstr_slice(buf, len))),
+                    string_obj(cstrn_as_string(unsafe {
+                        std::slice::from_raw_parts((buf).cast::<u8>(), len)
+                    })),
                 );
                 buf = buf.wrapping_add(len + 1);
                 buf_rem = buf_rem.saturating_sub(len + 1);
@@ -703,7 +705,7 @@ pub fn nvim_cmd(
                     .map_or(ptr::null(), |s| s.as_ptr())
             };
             let cmdname_bytes = cmdname.as_bytes();
-            let fullname_bytes = crate::memory::cstr_as_bytes(fullname);
+            let fullname_bytes = crate::memory::cstr_from_ptr(fullname).to_bytes();
             if !fullname_bytes.starts_with(cmdname_bytes) {
                 api_set_error!(
                     err,

@@ -166,13 +166,14 @@ pub fn os_getenv_cstr(name: &CStr) -> Option<std::ffi::CString> {
         if r != 0 || size == 0 || vec_buf[0] == 0 {
             None
         } else {
-            let bytes = crate::memory::cstr_slice(vec_buf.as_ptr(), size);
+            let bytes =
+                unsafe { std::slice::from_raw_parts((vec_buf.as_ptr()).cast::<u8>(), size) };
             Some(cstr_from_bytes(bytes))
         }
     } else if r != 0 || size == 0 || buf[0] == 0 {
         None
     } else {
-        let bytes = crate::memory::cstr_slice(buf.as_ptr(), size);
+        let bytes = unsafe { std::slice::from_raw_parts((buf.as_ptr()).cast::<u8>(), size) };
         Some(cstr_from_bytes(bytes))
     };
     assert_ne!(r, UV_EINVAL);
@@ -316,7 +317,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
         }
         let str_ptr = *env_arr.add(index);
         assert!(!str_ptr.is_null());
-        let bytes = crate::memory::cstr_as_bytes(str_ptr);
+        let bytes = (str_ptr).as_bytes();
         let pos = bytes.iter().position(|&b| b == b'=')?;
         assert!(pos > 0);
         std::ffi::CString::new(&bytes[..pos]).ok()
@@ -411,7 +412,7 @@ pub fn init_homedir() {
             let homepath_ptr = homepath
                 .as_ref()
                 .map_or(PATHSEPSTR.as_ptr(), |c| c.as_ptr());
-            let homepath_bytes = crate::memory::cstr_as_bytes(homepath_ptr);
+            let homepath_bytes = crate::memory::cstr_from_ptr(homepath_ptr).to_bytes();
             if let Some(ref hd) = homedrive
                 && hd.as_bytes().len() + homepath_bytes.len() < MAXPATHL
             {
@@ -428,7 +429,7 @@ pub fn init_homedir() {
         }
 
         if !var.is_null() && unsafe { *var } == b'%' {
-            let rest = crate::memory::cstr_as_bytes(var.wrapping_add(1));
+            let rest = crate::memory::cstr_from_ptr(var.wrapping_add(1)).to_bytes();
             if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                 let p = var.wrapping_add(1 + pos);
                 let p_len = rest.len() - pos;
@@ -445,7 +446,7 @@ pub fn init_homedir() {
                     crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), exp.as_bytes());
                     crate::memory::append_bytes_to_c_buf(
                         g_st().os_buf_bytes_mut(),
-                        crate::memory::cstr_as_bytes(p.wrapping_add(1)),
+                        crate::memory::cstr_from_ptr(p.wrapping_add(1)).to_bytes(),
                     );
                     var = buf;
                 }
@@ -521,7 +522,7 @@ pub fn expand_env_esc(
 
     let mut src: *mut u8 = srcp.skipwhite().cast();
     while !src.is_null() && unsafe { *src != 0 } && dst_rem > 0 {
-        let src_bytes = crate::memory::cstr_as_bytes(src);
+        let src_bytes = crate::memory::cstr_from_ptr(src).to_bytes();
         if src_bytes.starts_with(b"`=") {
             let var = src;
             src = src.wrapping_add(2);
@@ -656,7 +657,7 @@ pub fn expand_env_esc(
             }
 
             if !esc_chars.is_null() && !var.is_null() {
-                let var_bytes = crate::memory::cstr_as_bytes(var);
+                let var_bytes = crate::memory::cstr_from_ptr(var).to_bytes();
                 let esc_bytes = esc_chars.as_bytes();
                 if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
                     var_cstr = Some(vim_strsave_escaped(var_bytes, esc_bytes));
@@ -669,7 +670,7 @@ pub fn expand_env_esc(
             let var_bytes_with_nul = crate::memory::cstr_from_ptr(var).to_bytes_with_nul();
             if var_bytes_with_nul.len() > 1 {
                 let c = var_bytes_with_nul.len() - 1;
-                let tail_bytes = crate::memory::cstr_as_bytes(tail);
+                let tail_bytes = crate::memory::cstr_from_ptr(tail).to_bytes();
                 if c + tail_bytes.len() + 1 < (dst_rem as usize) {
                     dst_slice[dst_idx..dst_idx + c + 1].copy_from_slice(var_bytes_with_nul);
                     dst_rem -= c as i32;
@@ -712,10 +713,12 @@ pub fn expand_env_esc(
 
                 if !prefix_bytes.is_empty()
                     && (src as usize) >= (srcp.as_ptr() as usize) + prefix_bytes.len()
-                    && crate::memory::cstr_slice(
-                        src.wrapping_sub(prefix_bytes.len()),
-                        prefix_bytes.len(),
-                    ) == prefix_bytes
+                    && unsafe {
+                        std::slice::from_raw_parts(
+                            (src.wrapping_sub(prefix_bytes.len())).cast::<u8>(),
+                            prefix_bytes.len(),
+                        )
+                    } == prefix_bytes
                 {
                     at_start = true;
                 }
@@ -762,10 +765,12 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
             len,
         ) == 0
             && (new_tail == path
-                || after_pathsep(crate::memory::cstr_slice(
-                    path,
-                    (new_tail as usize).saturating_sub(path as usize),
-                )) != 0)
+                || after_pathsep(unsafe {
+                    std::slice::from_raw_parts(
+                        (path).cast::<u8>(),
+                        (new_tail as usize).saturating_sub(path as usize),
+                    )
+                }) != 0)
         {
             return pend_off - (len + 1);
         }
@@ -961,7 +966,7 @@ pub fn home_replace(
     let dirlen = if homedir_ptr.is_null() {
         0
     } else {
-        crate::memory::cstr_as_bytes(homedir_ptr).len()
+        crate::memory::cstr_from_ptr(homedir_ptr).to_bytes().len()
     };
 
     let mut homedir_env_cstr = os_getenv_cstr(c"HOME");
@@ -1010,7 +1015,9 @@ pub fn home_replace(
     let envlen = if homedir_env_mod.is_null() {
         0
     } else {
-        crate::memory::cstr_as_bytes(homedir_env_mod).len()
+        crate::memory::cstr_from_ptr(homedir_env_mod)
+            .to_bytes()
+            .len()
     };
 
     if !one {

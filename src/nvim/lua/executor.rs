@@ -1368,7 +1368,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         let mut len: usize = 0;
         let s = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
         if !s.is_null() && len > 0 {
-            msg_vec.extend_from_slice(crate::memory::cstr_slice(s, len));
+            msg_vec.extend_from_slice(unsafe { std::slice::from_raw_parts((s).cast::<u8>(), len) });
         }
         if curargidx < nargs {
             msg_vec.push(b' ');
@@ -1376,10 +1376,9 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         lua_pop(lstate, 1);
         curargidx += 1;
     }
-    let msg_str = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
-        msg_vec.as_ptr(),
-        msg_vec.len(),
-    ));
+    let msg_str = crate::api::private::helpers::cbuf_to_string(unsafe {
+        std::slice::from_raw_parts((msg_vec.as_ptr()).cast::<u8>(), msg_vec.len())
+    });
     drop(msg_vec);
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
@@ -2200,8 +2199,9 @@ pub fn ex_luado(eap: &mut Exarg) {
             let new_line = unsafe { lua_tolstring(lstate, -1, &raw mut new_line_len) };
             let mut new_line_vec = vec![0u8; new_line_len + 1];
             if new_line_len > 0 {
-                new_line_vec[..new_line_len]
-                    .copy_from_slice(crate::memory::cstr_slice(new_line, new_line_len));
+                new_line_vec[..new_line_len].copy_from_slice(unsafe {
+                    std::slice::from_raw_parts((new_line).cast::<u8>(), new_line_len)
+                });
             }
             for b in &mut new_line_vec[..new_line_len] {
                 if *b == 0 {
@@ -2210,7 +2210,12 @@ pub fn ex_luado(eap: &mut Exarg) {
             }
             crate::memline::ml_replace_len(
                 l,
-                crate::memory::cstr_slice(new_line_vec.as_mut_ptr(), new_line_len),
+                unsafe {
+                    std::slice::from_raw_parts(
+                        (new_line_vec.as_mut_ptr()).cast::<u8>(),
+                        new_line_len,
+                    )
+                },
                 new_line_len,
                 true,
             );

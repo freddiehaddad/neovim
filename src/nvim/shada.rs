@@ -812,14 +812,14 @@ impl std::hash::Hash for PathKey {
         let mut p = self.0;
         let mut h: u32 = 0;
         if cfg!(target_os = "windows") {
-            let p_bytes = crate::memory::cstr_as_bytes(p);
+            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
             if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
             {
                 p = p.wrapping_add(2);
             }
         }
         let ic = CASE_INSENSITIVE_FILENAME;
-        let bytes = crate::memory::cstr_as_bytes(p);
+        let bytes = crate::memory::cstr_from_ptr(p).to_bytes();
         let mut idx = 0usize;
         let mut len: i32 = 0;
         while idx < bytes.len() {
@@ -1212,9 +1212,12 @@ fn var_shada_iter(
         let mut i = 0;
         while i < hinum
             && (hashitem_empty(&harray[i])
-                || (var_flavour(crate::memory::cstr_as_bytes(
-                    (harray[i].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                )) & flavour)
+                || (var_flavour(
+                    crate::memory::cstr_from_ptr(
+                        (harray[i].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                    )
+                    .to_bytes(),
+                ) & flavour)
                     == 0)
         {
             i += 1;
@@ -1230,9 +1233,12 @@ fn var_shada_iter(
     idx += 1;
     while idx < hinum {
         if !hashitem_empty(&harray[idx])
-            && (var_flavour(crate::memory::cstr_as_bytes(
-                (harray[idx].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            )) & flavour)
+            && (var_flavour(
+                crate::memory::cstr_from_ptr(
+                    (harray[idx].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                )
+                .to_bytes(),
+            ) & flavour)
                 != 0
         {
             return Some(idx);

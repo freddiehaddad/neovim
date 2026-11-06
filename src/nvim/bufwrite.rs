@@ -668,7 +668,10 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
     } else if e.arg != 0 {
         let _ = vim_snprintf!(&mut errmsg, msg_ptr, unsafe { uv_strerror(e.arg) });
     } else {
-        crate::memory::copy_bytes_to_c_buf(&mut errmsg, crate::memory::cstr_as_bytes(msg_ptr));
+        crate::memory::copy_bytes_to_c_buf(
+            &mut errmsg,
+            crate::memory::cstr_from_ptr(msg_ptr).to_bytes(),
+        );
     }
 
     if let Some(id) = msg_id {

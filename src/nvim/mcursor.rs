@@ -386,7 +386,11 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     if ctx.mark != 0 && !extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, &mut ctx.pos) {
         return;
     }
-    if ctx.visual.vi_start.lnum == 0 && crate::memory::cstr_as_bytes(atom_keys).starts_with(b"gv") {
+    if ctx.visual.vi_start.lnum == 0
+        && crate::memory::cstr_from_ptr(atom_keys)
+            .to_bytes()
+            .starts_with(b"gv")
+    {
         return;
     }
 

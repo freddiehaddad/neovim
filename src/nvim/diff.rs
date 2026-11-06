@@ -1111,9 +1111,9 @@ fn diff_file(dio: &mut Diffio) -> bool {
     if dio.dio_internal != 0 {
         return diff_file_internal(dio);
     }
-    let len = crate::memory::cstr_as_bytes(tmp_orig).len()
-        + crate::memory::cstr_as_bytes(tmp_new).len()
-        + crate::memory::cstr_as_bytes(tmp_diff).len()
+    let len = crate::memory::cstr_from_ptr(tmp_orig).to_bytes().len()
+        + crate::memory::cstr_from_ptr(tmp_new).to_bytes().len()
+        + crate::memory::cstr_from_ptr(tmp_diff).to_bytes().len()
         + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
@@ -2430,14 +2430,16 @@ fn diff_find_change_simple(
                     || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
                         && (ascii_iswhite(c_org) || ascii_iswhite(c_new)))
                 {
-                    si_org = crate::memory::ptr_offset_from(
+                    si_org = ((crate::strings::AsByteSlice::byte_addr(
                         crate::charset::skipwhite_ptr(line_org.wrapping_add(si_org as usize)),
-                        line_org,
-                    ) as i32;
-                    si_new = crate::memory::ptr_offset_from(
+                    ) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(line_org) as isize))
+                        as i32;
+                    si_new = ((crate::strings::AsByteSlice::byte_addr(
                         crate::charset::skipwhite_ptr(line_new.wrapping_add(si_new as usize)),
-                        line_new,
-                    ) as i32;
+                    ) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(line_new) as isize))
+                        as i32;
                 } else {
                     let mut l: i32 = 0;
                     if !diff_equal_char(
@@ -2614,7 +2616,7 @@ fn diff_refine_inline_word_highlight(
             while i < gap_size && unsafe { *gap_text.wrapping_add(i as usize) != 0 } {
                 has_content = true;
                 let char_class = mb_get_class_tab(
-                    crate::memory::cstr_as_bytes(gap_text.wrapping_add(i as usize)),
+                    crate::memory::cstr_from_ptr(gap_text.wrapping_add(i as usize)).to_bytes(),
                     &curtab_mut().diffbuf_mut(idx1).b_chartab,
                 );
                 if char_class == 2 {
@@ -2774,14 +2776,13 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             let c_fold_len = utf_char2bytes(c, &mut cbuf);
                             curstr.extend_from_slice(&cbuf[..c_fold_len as usize]);
                             if char_len > c_len {
-                                curstr.extend_from_slice(crate::memory::cstr_slice(
-                                    s.wrapping_add(c_len as usize),
-                                    (char_len - c_len) as usize,
-                                ));
+                                curstr.extend_from_slice(
+                                    (s.wrapping_add(c_len as usize))
+                                        .slice((char_len - c_len) as usize),
+                                );
                             }
                         } else {
-                            curstr
-                                .extend_from_slice(crate::memory::cstr_slice(s, char_len as usize));
+                            curstr.extend_from_slice((s).slice(char_len as usize));
                         }
                     }
                     if !new_in_keyword {
@@ -2790,7 +2791,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     }
                     if !new_in_keyword || (new_in_keyword && !in_keyword) {
                         lm.push(LinemapEntry {
-                            byte_start: crate::memory::ptr_offset_from(s, curline) as Colnr,
+                            byte_start: ((s).offset_from(curline) as isize) as Colnr,
                             num_bytes: char_len,
                             lineoff: off,
                         });
@@ -2816,7 +2817,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     curstr.push(NL as u8);
                     let _ = numlines;
                     lm.push(LinemapEntry {
-                        byte_start: crate::memory::ptr_offset_from(s, curline) as Colnr,
+                        byte_start: ((s).offset_from(curline) as isize) as Colnr,
                         num_bytes: size_of::<i32>() as Colnr,
                         lineoff: off,
                     });

@@ -1706,7 +1706,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                 if wp_ref.w_cursor.coladd
                     >= win_chartabsize(
                         wp_ref,
-                        crate::memory::cstr_as_bytes(p),
+                        crate::memory::cstr_from_ptr(p).to_bytes(),
                         wp_ref.w_virtcol - wp_ref.w_cursor.coladd,
                     )
                     && unsafe { *p != 0 }
@@ -2260,7 +2260,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
         let mut len: usize = 0;
         let mut errormsg = None;
-        let mut s_buf = crate::memory::cstr_as_bytes(s).to_vec();
+        let mut s_buf = crate::memory::cstr_from_ptr(s).to_bytes().to_vec();
         s_buf.push(0);
         let result = eval_vars(&mut s_buf, 0, &mut len, None, &mut errormsg, None, false);
         if opt_vars().p_verbose == 0 {
@@ -2569,7 +2569,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             let mut dict_idx: usize = 0;
             let mut arg_idx: usize = 0;
             let mut list = crate::globals::GraphPtr::<TvList>::NULL;
-            let s_bytes = crate::memory::cstr_as_bytes(s);
+            let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes();
             let name_cstr = if s_bytes.starts_with(b"s:") || s_bytes.starts_with(b"<SID>") {
                 get_scriptlocal_funcname(Some(crate::memory::cstr_from_ptr(s))).unwrap_or_default()
             } else {
@@ -3088,8 +3088,9 @@ fn block_def2str(bd: &BlockDef) -> Vec<u8> {
     let size = startspaces + endspaces + textlen;
     let mut data = vec![b' '; size];
 
-    data[startspaces..startspaces + textlen]
-        .copy_from_slice(crate::memory::cstr_slice(bd.textstart.as_ptr(), textlen));
+    data[startspaces..startspaces + textlen].copy_from_slice(unsafe {
+        std::slice::from_raw_parts((bd.textstart.as_ptr()).cast::<u8>(), textlen)
+    });
     data
 }
 
@@ -3143,13 +3144,13 @@ fn getregionpos(
     }
 
     let mut block_width: i32 = 0;
-    let type_bytes = crate::memory::cstr_as_bytes(type_str);
+    let type_bytes = crate::memory::cstr_from_ptr(type_str).to_bytes();
     if type_bytes == b"v" {
         *region_type = MT_CHAR_WISE;
     } else if type_bytes == b"V" {
         *region_type = MT_LINE_WISE;
     } else if unsafe { *type_str } == CTRL_V_CONST {
-        let mut rem = crate::memory::cstr_as_bytes(type_str.wrapping_add(1));
+        let mut rem = crate::memory::cstr_from_ptr(type_str.wrapping_add(1)).to_bytes();
         if !rem.is_empty() {
             block_width = getdigits_int(&mut rem, false, 0);
             if block_width <= 0 || !rem.is_empty() {
@@ -4329,7 +4330,7 @@ pub fn create_environment(
                 let name: *const _ = item.name;
                 #[cfg(windows)]
                 {
-                    let name_b = crate::memory::cstr_as_bytes(name);
+                    let name_b = crate::memory::cstr_from_ptr(name).to_bytes();
                     if name_b.len() < MAXPATHL / MB_MAXBYTES {
                         mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
                         name = g_st().name_buff.as_ptr().cast();
@@ -5292,7 +5293,9 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                                 );
                             }
                             *rettv.vval.v_number_mut() +=
-                                crate::memory::ptr_offset_from(str_, expr) as Varnumber;
+                                ((crate::strings::AsByteSlice::byte_addr(str_) as isize)
+                                    - (crate::strings::AsByteSlice::byte_addr(expr) as isize))
+                                    as Varnumber;
                         }
                     }
                 }
@@ -6388,7 +6391,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             };
             crate::eval::typval::tv_set_string_len(
                 &mut *rettv,
-                Some(crate::memory::cstr_slice(p, len as usize)),
+                Some(unsafe { std::slice::from_raw_parts((p).cast::<u8>(), len as usize) }),
             );
             p = p.wrapping_add(len as usize);
         } else if !tv_check_for_string_arg(argvars, 2) {
@@ -6404,7 +6407,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             len = utfc_ptr2len(p);
             crate::eval::typval::tv_set_string_len(
                 &mut argv[1],
-                Some(crate::memory::cstr_slice(p, len as usize)),
+                Some(unsafe { std::slice::from_raw_parts((p).cast::<u8>(), len as usize) }),
             );
 
             let r = eval_expr_typval(expr, true, &mut argv, 2, &mut *rettv);
@@ -7560,7 +7563,7 @@ pub fn f_sha256(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let p = tv_get_string(&argvars[0]);
         let len = p.to_bytes().len();
         let slice = if len > 0 {
-            crate::memory::cstr_slice((p).as_ptr(), len)
+            unsafe { std::slice::from_raw_parts(((p).as_ptr()).cast::<u8>(), len) }
         } else {
             &[]
         };
@@ -8023,7 +8026,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     );
     let p_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        p_owned = string_convert(&conv, crate::memory::cstr_as_bytes(p), None);
+        p_owned = string_convert(&conv, crate::memory::cstr_from_ptr(p).to_bytes(), None);
         p = p_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -8091,7 +8094,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     );
     let fmt_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        fmt_owned = string_convert(&conv, crate::memory::cstr_as_bytes(fmt), None);
+        fmt_owned = string_convert(&conv, crate::memory::cstr_from_ptr(fmt).to_bytes(), None);
         fmt = fmt_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());

@@ -867,8 +867,9 @@ fn nfa_regatom() -> bool {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx =
-                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
+                let idx = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(CLASSCHARS.as_ptr().cast::<u8>())
+                        as isize)) as usize;
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -927,8 +928,9 @@ fn nfa_regatom() -> bool {
                 old_regparse_off = re_st().regparse_off;
                 c = getchr();
             } else {
-                let idx =
-                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
+                let idx = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(CLASSCHARS.as_ptr().cast::<u8>())
+                        as isize)) as usize;
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -4705,10 +4707,12 @@ fn nfa_regtry(
                     && mpos.end_col >= mpos.start_col
                     && let Some(line_cstr) = reg_getline(mpos.start_lnum)
                 {
-                    extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
-                        line_cstr.as_ptr().wrapping_add(mpos.start_col as usize),
-                        (mpos.end_col - mpos.start_col) as usize,
-                    ));
+                    extmatch.matches[i] = cstring_from_bytes(unsafe {
+                        std::slice::from_raw_parts(
+                            (line_cstr.as_ptr().wrapping_add(mpos.start_col as usize)).cast::<u8>(),
+                            (mpos.end_col - mpos.start_col) as usize,
+                        )
+                    });
                 }
             } else {
                 let lpos = subs.synt.list.line()[i];

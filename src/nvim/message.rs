@@ -2741,10 +2741,12 @@ fn msg_ext_emit_chunk() {
         data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
     });
     msg_st().msg_ext_last_attr = -1;
-    let text = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
-        msg_st().msg_ext_last_chunk.as_ptr(),
-        msg_st().msg_ext_last_chunk.len(),
-    ));
+    let text = crate::api::private::helpers::cbuf_to_string(unsafe {
+        std::slice::from_raw_parts(
+            (msg_st().msg_ext_last_chunk.as_ptr()).cast::<u8>(),
+            msg_st().msg_ext_last_chunk.len(),
+        )
+    });
     msg_st().msg_ext_last_chunk = Vec::new();
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeString,

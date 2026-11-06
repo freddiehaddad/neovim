@@ -348,17 +348,6 @@ impl AsCStrPtr for Option<&[u8]> {
     }
 }
 
-/// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
-#[inline(always)]
-pub fn cstr_slice<'a>(s: impl AsCStrPtr, len: usize) -> &'a [u8] {
-    let s = s.into_cstr_ptr();
-    if s.is_null() {
-        c"".to_bytes()
-    } else {
-        unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
-    }
-}
-
 pub trait IntoMutPtr {
     type Target;
     fn into_mut_ptr(self) -> *mut Self::Target;
@@ -432,16 +421,6 @@ impl IntoConstPtr for Option<&[u8]> {
     fn into_const_ptr(self) -> *const std::ffi::c_char {
         self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
     }
-}
-
-#[inline(always)]
-pub fn ptr_offset_from<P: IntoConstPtr>(
-    p: P,
-    origin: impl IntoConstPtr<Target = P::Target>,
-) -> isize {
-    let elem_size = std::mem::size_of::<P::Target>().max(1) as isize;
-    ((p.into_const_ptr() as usize as isize) - (origin.into_const_ptr() as usize as isize))
-        / elem_size
 }
 
 /// Safe O(1) sub-slicing of a `&CStr`.
@@ -521,17 +500,6 @@ pub fn cstr_as_opt_cstr<'a>(s: impl AsCStrPtr) -> Option<&'a CStr> {
         None
     } else {
         Some(unsafe { CStr::from_ptr(s) })
-    }
-}
-
-/// View a NUL-terminated C string as a byte slice, returning `b""` if null.
-#[inline(always)]
-pub fn cstr_as_bytes<'a>(s: impl AsCStrPtr) -> &'a [u8] {
-    let s = s.into_cstr_ptr();
-    if s.is_null() {
-        c"".to_bytes()
-    } else {
-        unsafe { CStr::from_ptr(s).to_bytes() }
     }
 }
 

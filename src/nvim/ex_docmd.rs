@@ -5183,7 +5183,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 if ui_has(K_UICMDLINE) && count > 0 && fgetline.is_exline() {
                     ui_ext_cmdline_block_append(
                         indent as usize,
-                        crate::memory::cstr_as_bytes(next_cmdline),
+                        crate::memory::cstr_from_ptr(next_cmdline).to_bytes(),
                     );
                 }
 
@@ -5203,8 +5203,8 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             cmdline_copy = next_cmdline;
 
             let mut current_line_before: i32 = 0;
-            let using_loop_cookie =
-                cstack.cs_looplevel > 0 || has_loop_cmd(crate::memory::cstr_as_bytes(next_cmdline));
+            let using_loop_cookie = cstack.cs_looplevel > 0
+                || has_loop_cmd(crate::memory::cstr_from_ptr(next_cmdline).to_bytes());
             if using_loop_cookie {
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
@@ -6401,7 +6401,10 @@ fn do_one_cmd(
 
     'doend: {
         let init_cmd = cmdline_copy;
-        if crate::memory::cstr_as_bytes(init_cmd).starts_with(b"#!") {
+        if crate::memory::cstr_from_ptr(init_cmd)
+            .to_bytes()
+            .starts_with(b"#!")
+        {
             break 'doend;
         }
 
@@ -6769,7 +6772,7 @@ fn do_one_cmd(
     if ea.nextcmd.is_null() {
         false
     } else {
-        let off = crate::memory::ptr_offset_from(ea.nextcmd, cmdline_buf.as_ptr().cast()) as usize;
+        let off = ((ea.nextcmd).offset_from(cmdline_buf.as_ptr()) as isize) as usize;
         let tail_len = ea.nextcmd.len();
         cmdline_buf.copy_within(off..=off + tail_len, 0);
         true
@@ -7059,7 +7062,7 @@ pub fn parse_command_modifiers(
                 continue;
             }
             b't' => {
-                if checkforcmd(crate::memory::cstr_as_bytes(p), b"tab", 3)
+                if checkforcmd((p).as_bytes(), b"tab", 3)
                     .inspect(|&n| p = p.wrapping_add(n))
                     .is_some()
                 {
@@ -7124,7 +7127,7 @@ pub fn parse_command_modifiers(
                     cmod.cmod_split |= WSP_VERT;
                     continue;
                 }
-                if !checkforcmd(crate::memory::cstr_as_bytes(p), b"verbose", 4)
+                if !checkforcmd((p).as_bytes(), b"verbose", 4)
                     .inspect(|&n| p = p.wrapping_add(n))
                     .is_some()
                 {
@@ -8271,10 +8274,13 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         .arg
         .as_ptr()
         .wrapping_add((grep_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
-    let mut has_wildcards = path_has_wildcard(crate::memory::cstr_as_bytes(p), true);
+    let mut has_wildcards = path_has_wildcard(crate::memory::cstr_from_ptr(p).to_bytes(), true);
 
     while unsafe { *p != 0 } {
-        if crate::memory::cstr_as_bytes(p).starts_with(b"`=") {
+        if crate::memory::cstr_from_ptr(p)
+            .to_bytes()
+            .starts_with(b"`=")
+        {
             p = p.wrapping_add(2);
             let mut p_cstr = crate::memory::cstr_from_ptr(p);
             skip_expr(&mut p_cstr, None);
@@ -8484,7 +8490,9 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                 p = p.wrapping_add(1);
             } else {
-                let tail_len = crate::memory::cstr_as_bytes(p.wrapping_add(1)).len();
+                let tail_len = crate::memory::cstr_from_ptr(p.wrapping_add(1))
+                    .to_bytes()
+                    .len();
                 let buf = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), tail_len + 2) };
                 buf.copy_within(1..=tail_len + 1, 0);
             }
@@ -8518,7 +8526,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 || (eap.argt & EX_CTRLV) == 0)
                 && (unsafe { *p.wrapping_sub(1) } as u8) == b'\\'
             {
-                let tail_len = crate::memory::cstr_as_bytes(p).len();
+                let tail_len = crate::memory::cstr_from_ptr(p).to_bytes().len();
                 let buf = unsafe {
                     std::slice::from_raw_parts_mut(p.wrapping_sub(1).cast::<u8>(), tail_len + 2)
                 };
@@ -8555,7 +8563,7 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
             command = (&raw mut docmd_st().dollar_command).cast();
         } else {
             command = arg;
-            let cmd_len = crate::memory::cstr_as_bytes(command).len();
+            let cmd_len = crate::memory::cstr_from_ptr(command).to_bytes().len();
             let cmd_buf =
                 unsafe { std::slice::from_raw_parts_mut(command.cast::<u8>(), cmd_len + 1) };
             let off = skip_cmd_arg_mut(cmd_buf);
@@ -9576,7 +9584,7 @@ fn ex_restart(eap: &mut Exarg) {
         let mut quit_cmd_copy: Option<std::ffi::CString> = None;
         if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
             let mut bytes = Vec::from(&b"confirm "[..]);
-            bytes.extend_from_slice(crate::memory::cstr_as_bytes(quit_cmd));
+            bytes.extend_from_slice(crate::memory::cstr_from_ptr(quit_cmd).to_bytes());
             let cstr = cstr_from_bytes(&bytes);
             quit_cmd = cstr.as_ptr().cast_mut();
             quit_cmd_copy = Some(cstr);
@@ -12073,7 +12081,7 @@ pub fn eval_vars(
                 use_shellslash = true;
             }
             SPEC_HASH => {
-                let src_bytes = crate::memory::cstr_as_bytes(src);
+                let src_bytes = crate::memory::cstr_from_ptr(src).to_bytes();
                 if src_bytes.get(1) == Some(&b'#') {
                     arg_all_cstr = Some(arg_all());
                     result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
@@ -12240,10 +12248,11 @@ pub fn eval_vars(
             }
         }
 
-        resultlen = crate::memory::cstr_as_bytes(result).len();
+        resultlen = crate::memory::cstr_from_ptr(result).to_bytes().len();
         if unsafe { *src.wrapping_add(*usedlen) as u8 } == b'<' {
             *usedlen += 1;
-            let s = crate::memory::cstr_as_bytes(result)
+            let s = crate::memory::cstr_from_ptr(result)
+                .to_bytes()
                 .iter()
                 .rposition(|&b| b == b'.')
                 .map_or(ptr::null_mut(), |i| result.wrapping_add(i));
@@ -12260,7 +12269,7 @@ pub fn eval_vars(
             };
             let mut fname_off = 0usize;
             let mod_res = modify_fname(
-                crate::memory::cstr_as_bytes(src),
+                crate::memory::cstr_from_ptr(src).to_bytes(),
                 tilde_file,
                 usedlen,
                 &mut fbuf,

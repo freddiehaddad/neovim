@@ -741,22 +741,21 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     }
 
     let mut start_pos = curwin_mut().w_cursor;
-    start_pos.col = crate::memory::ptr_offset_from(start, line) as Colnr;
+    start_pos.col = ((crate::strings::AsByteSlice::byte_addr(start) as isize)
+        - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
     start_pos.coladd = 0;
 
     let mut end_pos = curwin_mut().w_cursor;
-    end_pos.col = crate::memory::ptr_offset_from(
-        {
-            let _l = line;
-            let _p = end;
-            if (_p as usize) > (_l as usize) {
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
-            } else {
-                _p
-            }
-        },
-        line,
-    ) as Colnr;
+    end_pos.col = ((crate::strings::AsByteSlice::byte_addr({
+        let _l = line;
+        let _p = end;
+        if (_p as usize) > (_l as usize) {
+            _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
+        } else {
+            _p
+        }
+    }) as isize)
+        - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
     end_pos.coladd = 0;
 
     if g_st().visual_global.active {

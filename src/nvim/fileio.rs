@@ -2067,9 +2067,11 @@ pub fn readfile(
                             }
 
                             if !tail.is_null() {
-                                conv_restlen =
-                                    crate::memory::ptr_offset_from(ptr.wrapping_offset(size), tail)
-                                        as i32;
+                                conv_restlen = ((crate::strings::AsByteSlice::byte_addr(
+                                    ptr.wrapping_offset(size),
+                                ) as isize)
+                                    - (crate::strings::AsByteSlice::byte_addr(tail) as isize))
+                                    as i32;
                                 unsafe {
                                     ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize)
                                 };
@@ -2113,8 +2115,7 @@ pub fn readfile(
                                                 conv_error = readfile_linenr(linecnt, unsafe {
                                                     std::slice::from_raw_parts(
                                                         ptr,
-                                                        crate::memory::ptr_offset_from(p, ptr)
-                                                            .max(0)
+                                                        ((p).offset_from(ptr) as isize).max(0)
                                                             as usize,
                                                     )
                                                 });
@@ -2161,8 +2162,7 @@ pub fn readfile(
                                                 conv_error = readfile_linenr(linecnt, unsafe {
                                                     std::slice::from_raw_parts(
                                                         ptr,
-                                                        crate::memory::ptr_offset_from(p, ptr)
-                                                            .max(0)
+                                                        ((p).offset_from(ptr) as isize).max(0)
                                                             as usize,
                                                     )
                                                 });
@@ -2224,8 +2224,7 @@ pub fn readfile(
                                                 conv_error = readfile_linenr(linecnt, unsafe {
                                                     std::slice::from_raw_parts(
                                                         ptr,
-                                                        crate::memory::ptr_offset_from(p, ptr)
-                                                            .max(0)
+                                                        ((p).offset_from(ptr) as isize).max(0)
                                                             as usize,
                                                     )
                                                 });
@@ -2248,10 +2247,10 @@ pub fn readfile(
 
                             line_start = dest.wrapping_offset(-linerest);
                             unsafe { ptr::copy(buffer, line_start, linerest as usize) };
-                            size = crate::memory::ptr_offset_from(
+                            size = (crate::strings::AsByteSlice::byte_addr(
                                 ptr.wrapping_offset(real_size as isize),
-                                dest,
-                            );
+                            ) as isize)
+                                - (crate::strings::AsByteSlice::byte_addr(dest) as isize);
                             ptr = dest;
                         } else if !curbuf_mut().b_p_bin {
                             let mut incomplete_tail = false;
@@ -2260,7 +2259,9 @@ pub fn readfile(
                             loop {
                                 {
                                     let ascii_end = ptr.wrapping_offset(size);
-                                    while crate::memory::ptr_offset_from(ascii_end, p)
+                                    while ((crate::strings::AsByteSlice::byte_addr(ascii_end)
+                                        as isize)
+                                        - (crate::strings::AsByteSlice::byte_addr(p) as isize))
                                         >= size_of::<u64>() as isize
                                     {
                                         let word = unsafe { ptr::read_unaligned(p.cast::<u64>()) };
@@ -2274,14 +2275,19 @@ pub fn readfile(
                                     }
                                 }
 
-                                let todo =
-                                    crate::memory::ptr_offset_from(ptr.wrapping_offset(size), p)
-                                        as i32;
+                                let todo = ((crate::strings::AsByteSlice::byte_addr(
+                                    ptr.wrapping_offset(size),
+                                ) as isize)
+                                    - (crate::strings::AsByteSlice::byte_addr(p) as isize))
+                                    as i32;
                                 if todo <= 0 {
                                     break;
                                 }
                                 if unsafe { *p } >= 0x80 {
-                                    let l = utf_ptr2len_len(crate::memory::cstr_as_bytes(p), todo);
+                                    let l = utf_ptr2len_len(
+                                        crate::memory::cstr_from_ptr(p).to_bytes(),
+                                        todo,
+                                    );
                                     if l > todo && !incomplete_tail {
                                         if p > ptr || filesize > 0 {
                                             incomplete_tail = true;
@@ -2307,8 +2313,7 @@ pub fn readfile(
                                         let err_slice = unsafe {
                                             std::slice::from_raw_parts(
                                                 ptr,
-                                                crate::memory::ptr_offset_from(p, ptr).max(0)
-                                                    as usize,
+                                                ((p).offset_from(ptr) as isize).max(0) as usize,
                                             )
                                         };
                                         if iconv_fd != -1 && conv_error == 0 {
@@ -2435,14 +2440,19 @@ pub fn readfile(
                             } else {
                                 if skip_count == 0 {
                                     unsafe { *ptr = 0 };
-                                    let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1)
-                                        as Colnr;
+                                    let len = (((crate::strings::AsByteSlice::byte_addr(ptr)
+                                        as isize)
+                                        - (crate::strings::AsByteSlice::byte_addr(line_start)
+                                            as isize))
+                                        + 1) as Colnr;
                                     if !ml_append(
                                         lnum,
-                                        crate::memory::cstr_slice(
-                                            line_start,
-                                            (len as usize).saturating_sub(1),
-                                        ),
+                                        unsafe {
+                                            std::slice::from_raw_parts(
+                                                (line_start).cast::<u8>(),
+                                                (len as usize).saturating_sub(1),
+                                            )
+                                        },
                                         len,
                                         newfile,
                                     ) {
@@ -2471,8 +2481,11 @@ pub fn readfile(
                         let end = ptr.wrapping_offset(size);
 
                         while ptr < end {
-                            let rem = crate::memory::ptr_offset_from(end, ptr) as usize;
-                            let slice = crate::memory::cstr_slice(ptr, rem);
+                            let rem = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
+                                - (crate::strings::AsByteSlice::byte_addr(ptr) as isize))
+                                as usize;
+                            let slice =
+                                unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), rem) };
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
                                 let rem_slice = unsafe { std::slice::from_raw_parts_mut(ptr, rem) };
                                 for b in rem_slice {
@@ -2498,8 +2511,11 @@ pub fn readfile(
                             ptr = nl;
                             if skip_count == 0 {
                                 unsafe { *ptr = 0 };
-                                let mut len =
-                                    (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
+                                let mut len = (((crate::strings::AsByteSlice::byte_addr(ptr)
+                                    as isize)
+                                    - (crate::strings::AsByteSlice::byte_addr(line_start)
+                                        as isize))
+                                    + 1) as Colnr;
                                 if fileformat == EOL_DOS {
                                     if ptr > line_start && unsafe { *ptr.wrapping_sub(1) } == CAR {
                                         unsafe { *ptr.wrapping_sub(1) = 0 };
@@ -2523,10 +2539,12 @@ pub fn readfile(
                                 }
                                 if !ml_append(
                                     lnum,
-                                    crate::memory::cstr_slice(
-                                        line_start,
-                                        (len as usize).saturating_sub(1),
-                                    ),
+                                    unsafe {
+                                        std::slice::from_raw_parts(
+                                            (line_start).cast::<u8>(),
+                                            (len as usize).saturating_sub(1),
+                                        )
+                                    },
                                     len,
                                     newfile,
                                 ) {
@@ -2553,7 +2571,8 @@ pub fn readfile(
                         }
                         size = -1;
                     }
-                    linerest = crate::memory::ptr_offset_from(ptr, line_start);
+                    linerest = (crate::strings::AsByteSlice::byte_addr(ptr) as isize)
+                        - (crate::strings::AsByteSlice::byte_addr(line_start) as isize);
 
                     if show_msg && (progress || os_hrtime() - read_start > slow_io_ns()) {
                         let mut info: FileInfo = FileInfo::new();
@@ -2610,10 +2629,17 @@ pub fn readfile(
                     curbuf_mut().b_p_eol = false;
                 }
                 unsafe { *ptr = 0 };
-                let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
+                let len = (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(line_start) as isize))
+                    + 1) as Colnr;
                 if !ml_append(
                     lnum,
-                    crate::memory::cstr_slice(line_start, (len as usize).saturating_sub(1)),
+                    unsafe {
+                        std::slice::from_raw_parts(
+                            (line_start).cast::<u8>(),
+                            (len as usize).saturating_sub(1),
+                        )
+                    },
                     len,
                     newfile,
                 ) {
@@ -3482,7 +3508,9 @@ pub fn modname(
     retval_vec[s_idx + extlen] = 0;
 
     let e_ptr = path_tail(crate::memory::cstr_until_nul(&retval_vec)).as_ptr();
-    let e_idx = crate::memory::ptr_offset_from(e_ptr, retval_vec.as_ptr().cast()) as usize;
+    let e_idx = ((crate::strings::AsByteSlice::byte_addr(e_ptr) as isize)
+        - (crate::strings::AsByteSlice::byte_addr(retval_vec.as_ptr()) as isize))
+        as usize;
     if prepend_dot && retval_vec[e_idx] != b'.' {
         let end_idx = fnamelen + extlen;
         retval_vec.copy_within(e_idx..=end_idx, e_idx + 1);
@@ -3660,7 +3688,9 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
     crate::memory::copy_bytes_to_c_buf(&mut tempname, from_bytes);
     for n in 123..99999 {
         let tail = path_tail(crate::memory::cstr_until_nul(&tempname)).as_ptr();
-        let tail_off = crate::memory::ptr_offset_from(tail, tempname.as_ptr().cast()) as usize;
+        let tail_off = ((crate::strings::AsByteSlice::byte_addr(tail) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(tempname.as_ptr()) as isize))
+            as usize;
         vim_snprintf!(&mut tempname[tail_off..], c"%d", n);
 
         let temp_cstr = crate::memory::cstr_until_nul(&tempname);
@@ -4464,7 +4494,9 @@ pub fn vim_deltempdir() {
 
     let mut td_vec: Vec<u8> = td.into_bytes_with_nul();
     let tail_ptr = path_tail(crate::memory::cstr_until_nul(&td_vec)).as_ptr();
-    let tail_off = crate::memory::ptr_offset_from(tail_ptr, td_vec.as_ptr().cast()) as usize;
+    let tail_off = ((crate::strings::AsByteSlice::byte_addr(tail_ptr) as isize)
+        - (crate::strings::AsByteSlice::byte_addr(td_vec.as_ptr()) as isize))
+        as usize;
     if tail_off > 0 {
         td_vec[tail_off - 1] = 0;
     }

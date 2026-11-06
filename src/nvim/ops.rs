@@ -552,7 +552,10 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         let new_line_len = bd.textcol
             + tabs
             + spaces
-            + (old_line_len - (crate::memory::ptr_offset_from(bd.textstart.as_ptr(), oldp) as i32));
+            + (old_line_len
+                - (((crate::strings::AsByteSlice::byte_addr(bd.textstart.as_ptr()) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(oldp) as isize))
+                    as i32));
         let textcol = bd.textcol as usize;
         let tabs_len = tabs as usize;
         let spaces_len = spaces as usize;
@@ -560,8 +563,10 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         newp_vec = vec![0u8; (new_line_len as usize) + 1];
         newp_vec[..textcol].copy_from_slice(oldp.slice(textcol));
         startcol = bd.textcol;
-        oldlen =
-            (crate::memory::ptr_offset_from(bd.textstart.as_ptr(), old_textstart) as i32) + col_pre;
+        oldlen = (((crate::strings::AsByteSlice::byte_addr(bd.textstart.as_ptr()) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(old_textstart) as isize))
+            as i32)
+            + col_pre;
         newlen = tabs + spaces;
         newp_vec[textcol..textcol + tabs_len].fill(b'\t');
         newp_vec[textcol + tabs_len..prefix_len].fill(b' ');
@@ -632,19 +637,17 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         debug_assert!(destination_col - verbatim_copy_width >= 0);
         let fill = destination_col - verbatim_copy_width;
 
-        debug_assert!(crate::memory::ptr_offset_from(verbatim_copy_end, oldp) >= 0);
-        let fixedlen = crate::memory::ptr_offset_from(verbatim_copy_end, oldp) as i32;
-        let new_line_len = fixedlen
-            + fill
-            + (old_line_len - (crate::memory::ptr_offset_from(non_white.cast(), oldp) as i32));
+        debug_assert!(((verbatim_copy_end).offset_from(oldp) as isize) >= 0);
+        let fixedlen = ((verbatim_copy_end).offset_from(oldp) as isize) as i32;
+        let new_line_len =
+            fixedlen + fill + (old_line_len - (((non_white).offset_from(oldp) as isize) as i32));
 
         let fixed_usize = fixedlen as usize;
         let fill_usize = fill as usize;
         let prefix_len = fixed_usize + fill_usize;
         newp_vec = vec![0u8; (new_line_len as usize) + 1];
         startcol = fixedlen;
-        oldlen = bd.textcol
-            + (crate::memory::ptr_offset_from(non_white.cast(), bd.textstart.as_ptr()) as i32)
+        oldlen = bd.textcol + (((non_white).offset_from(bd.textstart.as_ptr()) as isize) as i32)
             - fixedlen;
         newlen = fill;
         newp_vec[..fixed_usize].copy_from_slice(oldp.slice(fixed_usize));
@@ -1125,7 +1128,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
         let head_off = crate::mbyte::utf_head_off_ptr(line, ptr_line) as usize;
         ptr_line = line.wrapping_add((oap.end.col as usize) - head_off);
         ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
-        oap.end.col = crate::memory::ptr_offset_from(ptr_line, line) as Colnr;
+        oap.end.col = ((ptr_line).offset_from(line) as isize) as Colnr;
     }
 }
 
@@ -1280,10 +1283,12 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(
                     cur_lnum,
-                    crate::memory::cstr_slice(
-                        after_p.as_mut_ptr(),
-                        (after_p.len() as i32 as usize).saturating_sub(1),
-                    ),
+                    unsafe {
+                        std::slice::from_raw_parts(
+                            (after_p.as_mut_ptr()).cast::<u8>(),
+                            (after_p.len() as i32 as usize).saturating_sub(1),
+                        )
+                    },
                     after_p.len() as i32,
                     false,
                 );
@@ -2085,7 +2090,7 @@ pub fn do_join(
 
         ml_replace_len(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_slice(newp_vec.as_ptr(), newp_len),
+            unsafe { std::slice::from_raw_parts((newp_vec.as_ptr()).cast::<u8>(), newp_len) },
             newp_len,
             true,
         );
@@ -2263,9 +2268,12 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         if is_del && bdp.startspaces != 0 {
             pstart = prev_pstart;
         }
-        bdp.textlen = crate::memory::ptr_offset_from(pend, pstart) as i32;
+        bdp.textlen = ((crate::strings::AsByteSlice::byte_addr(pend) as isize)
+            - (crate::strings::AsByteSlice::byte_addr(pstart) as isize))
+            as i32;
     }
-    bdp.textcol = crate::memory::ptr_offset_from(pstart, line) as Colnr;
+    bdp.textcol = ((crate::strings::AsByteSlice::byte_addr(pstart) as isize)
+        - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
     bdp.textstart = crate::memory::cstr_from_ptr(pstart);
     restore_lbr(lbr_saved);
 }
@@ -3126,7 +3134,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     len = end_col;
                 }
                 if !s.is_null() {
-                    let s_bytes = crate::memory::cstr_as_bytes(s);
+                    let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes();
                     byte_count_cursor += line_count_info(
                         s_bytes,
                         &mut word_count_cursor,
@@ -3232,7 +3240,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 col_print(
                     &mut buf2,
                     get_cursor_line_len(),
-                    linetabsize_str(crate::memory::cstr_as_bytes(p)),
+                    linetabsize_str(crate::memory::cstr_from_ptr(p).to_bytes()),
                 );
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 let buf2_cstr = std::ffi::CStr::from_bytes_until_nul(&buf2).unwrap_or_default();

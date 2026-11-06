@@ -2675,7 +2675,7 @@ pub fn find_ident_at_pos(
     }
 
     assert!(col >= 0);
-    crate::memory::cstr_slice(ptr, col as usize)
+    unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), col as usize) }
 }
 
 fn prep_redo_cmd(cap: &mut Cmdarg) {
@@ -3634,7 +3634,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
     }
     assert!(len <= i32::MAX as usize);
     spell_add_word(
-        crate::memory::cstr_slice(ptr, len),
+        unsafe { std::slice::from_raw_parts((ptr).cast::<u8>(), len) },
         if nchar == b'w' as i32 || nchar == b'W' as i32 {
             SPELL_ADD_BAD
         } else {
@@ -4284,10 +4284,11 @@ fn nv_ident(cap: &mut Cmdarg) {
     match cmdchar {
         c if c == b'*' as i32 || c == b'#' as i32 => {
             setpcmark();
-            curwin_mut().w_cursor.col = crate::memory::ptr_offset_from(
-                ident_slice.as_ptr().cast(),
-                get_cursor_line_ptr().as_ptr().cast_mut(),
-            ) as Colnr;
+            curwin_mut().w_cursor.col =
+                ((crate::strings::AsByteSlice::byte_addr(ident_slice.as_ptr()) as isize)
+                    - (crate::strings::AsByteSlice::byte_addr(
+                        get_cursor_line_ptr().as_ptr().cast_mut(),
+                    ) as isize)) as Colnr;
 
             if !g_cmd && vim_iswordp(ident_slice) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
@@ -5844,7 +5845,8 @@ fn nv_optrans(cap: &mut Cmdarg) {
         if cap.count0 != 0 {
             stuffnum_readbuff(cap.count0);
         }
-        let idx = crate::memory::cstr_as_bytes(str_p)
+        let idx = crate::memory::cstr_from_ptr(str_p)
+            .to_bytes()
             .iter()
             .position(|&b| b == cap.cmdchar as u8)
             .unwrap();

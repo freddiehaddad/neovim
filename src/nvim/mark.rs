@@ -1025,7 +1025,7 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
         }
         p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
-    let keep = (crate::memory::ptr_offset_from(p, line) as usize).min(max_bytes);
+    let keep = (((p).offset_from(line) as isize) as usize).min(max_bytes);
     std::ffi::CString::new(line.slice(keep)).unwrap_or_default()
 }
 
