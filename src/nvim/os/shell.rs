@@ -494,7 +494,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         for entry in raw_entries {
-            let entry_cstr = crate::memory::cstr_from_ptr(entry);
+            let entry_cstr = (entry).as_cstr();
             if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry_cstr) {
                 continue;
             }
@@ -813,7 +813,7 @@ fn do_os_system(
             if !silent {
                 msg_puts(gettext(c"\nshell failed to start: "));
                 msg_outtrans(
-                    crate::memory::cstr_from_ptr(unsafe { uv_strerror(status) }),
+                    crate::strings::ByteSlice::from_ptr(unsafe { uv_strerror(status) }).as_cstr(),
                     0,
                     false,
                 );

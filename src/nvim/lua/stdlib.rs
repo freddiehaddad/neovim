@@ -179,7 +179,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
         let nret = regex_match(
             lstate,
             regex,
-            crate::memory::cstr_from_ptr(line.wrapping_add(start as usize)),
+            crate::strings::ByteSlice::from_ptr(line.wrapping_add(start as usize)).as_cstr(),
         );
 
         if end >= 0 {
@@ -253,7 +253,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
         let mut i: usize = 0;
         while i < s1_bytes.len() {
             let clen = utf_ptr2len_len(
-                crate::memory::cstr_from_ptr(s1.wrapping_add(i)).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(s1.wrapping_add(i)).as_bytes(),
                 (s1_len - i) as i32,
             ) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
@@ -511,7 +511,7 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
         };
         let mut len: usize = 0;
         let name = luaL_checklstring(lstate, 3, &raw mut len);
-        let name_cstr = crate::memory::cstr_from_ptr(name);
+        let name_cstr = crate::strings::ByteSlice::from_ptr(name).as_cstr();
 
         let mut di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
         if di.is_none() && ptr::eq(dict, get_globvar_dict()) {
@@ -546,8 +546,8 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
             let nul1 = slice1.iter().position(|&b| b == 0);
             let nul2 = slice2.iter().position(|&b| b == 0);
             ret = mb_stricmp(
-                crate::memory::cstr_from_ptr(s1),
-                crate::memory::cstr_from_ptr(s2),
+                crate::strings::ByteSlice::from_ptr(s1).as_cstr(),
+                crate::strings::ByteSlice::from_ptr(s2).as_cstr(),
             );
             if ret == 0 {
                 if nul1.is_some() != nul2.is_some() {
@@ -588,12 +588,18 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     let mut str_len: usize = 0;
     let str_ = unsafe { lua_tolstring(lstate, 1, &raw mut str_len) };
 
-    let from = enc_canonize(enc_skip(crate::memory::cstr_from_ptr(
-        unsafe { lua_tolstring(lstate, 2, ptr::null_mut()) }.cast_mut(),
-    )));
-    let to = enc_canonize(enc_skip(crate::memory::cstr_from_ptr(
-        unsafe { lua_tolstring(lstate, 3, ptr::null_mut()) }.cast_mut(),
-    )));
+    let from = enc_canonize(enc_skip(
+        crate::strings::ByteSlice::from_ptr(
+            unsafe { lua_tolstring(lstate, 2, ptr::null_mut()) }.cast_mut(),
+        )
+        .as_cstr(),
+    ));
+    let to = enc_canonize(enc_skip(
+        crate::strings::ByteSlice::from_ptr(
+            unsafe { lua_tolstring(lstate, 3, ptr::null_mut()) }.cast_mut(),
+        )
+        .as_cstr(),
+    ));
 
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
@@ -603,9 +609,9 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     };
     let _ = convert_setup_ext(
         &mut vimconv,
-        crate::memory::cstr_as_opt_cstr(from.as_ptr().cast_mut()),
+        crate::strings::ByteSlice::from_ptr(from.as_ptr().cast_mut()).as_opt_cstr(),
         false,
-        crate::memory::cstr_as_opt_cstr(to.as_ptr().cast_mut()),
+        crate::strings::ByteSlice::from_ptr(to.as_ptr().cast_mut()).as_opt_cstr(),
         false,
     );
 

@@ -2168,9 +2168,12 @@ pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
     if lnum > maxline {
         return Some(c"");
     }
-    Some(crate::memory::cstr_from_ptr(
-        (ml_get_buf(re_st().rex.buf_mut(), firstlnum)).as_ptr(),
-    ))
+    Some(
+        crate::strings::ByteSlice::from_ptr(
+            (ml_get_buf(re_st().rex.buf_mut(), firstlnum)).as_ptr(),
+        )
+        .as_cstr(),
+    )
 }
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
@@ -2386,8 +2389,11 @@ pub(super) fn match_with_backref(
         if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
-                    crate::memory::cstr_from_ptr(p_cstr.as_ptr().wrapping_add(ccol as usize))
-                        .to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(
+                        p_cstr.as_ptr().wrapping_add(ccol as usize),
+                    )
+                    .as_cstr()
+                    .to_bytes(),
                     re_st().rex.input.as_bytes(),
                     len as usize,
                 ) != 0)
@@ -2475,8 +2481,8 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         }
         n2 = (s2_b.len() - rem2.len()) as i32;
         let r = utf_strnicmp(
-            crate::memory::cstr_from_ptr(s1_b.as_ptr()).to_bytes(),
-            crate::memory::cstr_from_ptr(s2_b.as_ptr()).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(s1_b.as_ptr()).as_bytes(),
+            crate::strings::ByteSlice::from_ptr(s2_b.as_ptr()).as_bytes(),
             *n as usize,
             n2 as usize,
         );
@@ -2523,7 +2529,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_ptr = s.as_ptr();
     if !re_st().rex.reg_ic {
-        let p = vim_strchr(crate::memory::cstr_from_ptr(s_ptr), c)
+        let p = vim_strchr(crate::strings::ByteSlice::from_ptr(s_ptr).as_cstr(), c)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return (!p.is_null()).then(|| {
             ((crate::strings::AsByteSlice::byte_addr(p) as isize)
@@ -2541,7 +2547,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         let u = (c as u8).to_ascii_uppercase() as i32;
         (u, c)
     } else {
-        let p = vim_strchr(crate::memory::cstr_from_ptr(s_ptr), c)
+        let p = vim_strchr(crate::strings::ByteSlice::from_ptr(s_ptr).as_cstr(), c)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return (!p.is_null()).then(|| {
             ((crate::strings::AsByteSlice::byte_addr(p) as isize)
@@ -2823,11 +2829,7 @@ fn vim_regsub_both(
                 };
                 if expr.v_type == VarType::VarFunc {
                     let s = expr.vval.v_string();
-                    let s_cstr = if s.is_null() {
-                        c""
-                    } else {
-                        crate::memory::cstr_from_ptr(s)
-                    };
+                    let s_cstr = if s.is_null() { c"" } else { (s).as_cstr() };
                     call_func(s_cstr, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();

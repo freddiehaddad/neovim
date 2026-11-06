@@ -2863,7 +2863,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         } else {
                             s
                         };
-                        if !vim_iswordp(crate::memory::cstr_from_ptr(n).to_bytes()) {
+                        if !vim_iswordp(crate::strings::ByteSlice::from_ptr(n).as_bytes()) {
                             break;
                         }
                         s = n;

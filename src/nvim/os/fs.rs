@@ -516,7 +516,7 @@ pub fn os_dirname(buf: &mut [u8]) -> bool {
     if error_number != 0 {
         crate::memory::copy_bytes_to_c_buf(
             buf,
-            crate::memory::cstr_from_ptr(unsafe { uv_strerror(error_number) }).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(unsafe { uv_strerror(error_number) }).as_bytes(),
         );
         return false;
     }
@@ -685,7 +685,7 @@ fn is_executable_ext(
             .cast();
         let mut ext = pathext;
         while unsafe { *ext } != 0 {
-            let ext_bytes = crate::memory::cstr_from_ptr(ext).to_bytes();
+            let ext_bytes = crate::strings::ByteSlice::from_ptr(ext).as_bytes();
             if ext_bytes.first() == Some(&b'.')
                 && ext_bytes.get(1).is_none_or(|&b| b == ENV_SEPCHAR)
             {
@@ -699,7 +699,7 @@ fn is_executable_ext(
                 continue;
             }
 
-            let mut ext_bytes = crate::memory::cstr_from_ptr(ext).to_bytes();
+            let mut ext_bytes = crate::strings::ByteSlice::from_ptr(ext).as_bytes();
             let old_len = ext_bytes.len();
             let rem = MAXPATHL - ((buf_end as usize) - (buf as usize));
             let dst = unsafe { std::slice::from_raw_parts_mut(buf_end, rem) };
@@ -708,13 +708,16 @@ fn is_executable_ext(
             if ext_len != 0 {
                 let in_pathext = nameext_len == ext_len
                     && mb_strnicmp(
-                        crate::memory::cstr_from_ptr(nameext).to_bytes(),
-                        crate::memory::cstr_from_ptr(ext).to_bytes(),
+                        crate::strings::ByteSlice::from_ptr(nameext).as_bytes(),
+                        crate::strings::ByteSlice::from_ptr(ext).as_bytes(),
                         ext_len,
                     ) == 0;
                 if ((in_pathext || is_unix_shell)
                     && is_executable(name_cstr, abspath.as_deref_mut()))
-                    || is_executable(crate::memory::cstr_from_ptr(buf), abspath.as_deref_mut())
+                    || is_executable(
+                        crate::strings::ByteSlice::from_ptr(buf).as_cstr(),
+                        abspath.as_deref_mut(),
+                    )
                 {
                     return true;
                 }
@@ -762,8 +765,9 @@ fn is_executable_in_path(
         #[cfg(not(windows))]
         let path = path_env.as_ptr().cast::<u8>();
 
-        let bufsize =
-            name_cstr.to_bytes().len() + crate::memory::cstr_from_ptr(path).to_bytes().len() + 2;
+        let bufsize = name_cstr.to_bytes().len()
+            + crate::strings::ByteSlice::from_ptr(path).as_bytes().len()
+            + 2;
         let mut buf_vec = vec![0u8; bufsize];
 
         let mut p = path;
@@ -771,7 +775,7 @@ fn is_executable_in_path(
         loop {
             let e = {
                 let _s = p;
-                let _b = crate::memory::cstr_from_ptr(_s).to_bytes();
+                let _b = crate::strings::ByteSlice::from_ptr(_s).as_bytes();
                 let _off = _b
                     .iter()
                     .position(|&_x| _x == ENV_SEPCHAR)
@@ -785,7 +789,7 @@ fn is_executable_in_path(
             let buf = buf_vec.as_mut_ptr();
             let _ = append_path(
                 unsafe { std::slice::from_raw_parts_mut(buf.cast(), bufsize) },
-                crate::memory::cstr_from_ptr(name),
+                crate::strings::ByteSlice::from_ptr(name).as_cstr(),
             );
 
             if is_executable_ext(
@@ -1632,7 +1636,7 @@ pub fn os_mkdir_recurse(
     let dirlen = dir.to_bytes().len();
     let mut curdir_vec: Vec<u8> = dir.to_bytes_with_nul().to_vec();
     let curdir = curdir_vec.as_mut_ptr();
-    let past_head: *mut u8 = get_past_head(crate::memory::cstr_from_ptr(curdir))
+    let past_head: *mut u8 = get_past_head(crate::strings::ByteSlice::from_ptr(curdir).as_cstr())
         .as_ptr()
         .cast_mut()
         .cast();
@@ -1640,8 +1644,8 @@ pub fn os_mkdir_recurse(
     let real_end: *const u8 = e;
     let past_head_save = unsafe { *past_head };
 
-    while !os_isdir(crate::memory::cstr_from_ptr(curdir)) {
-        e = path_tail_with_sep(crate::memory::cstr_from_ptr(curdir))
+    while !os_isdir(crate::strings::ByteSlice::from_ptr(curdir).as_cstr()) {
+        e = path_tail_with_sep(crate::strings::ByteSlice::from_ptr(curdir).as_cstr())
             .as_ptr()
             .cast_mut()
             .cast();
@@ -1665,7 +1669,7 @@ pub fn os_mkdir_recurse(
                 *past_head = past_head_save;
             }
         }
-        let component_len = crate::memory::cstr_from_ptr(e).to_bytes().len();
+        let component_len = crate::strings::ByteSlice::from_ptr(e).as_bytes().len();
         e = e.wrapping_add(component_len);
         if ptr::eq(e, real_end) && {
             let _d = unsafe { e.sub(component_len) };
@@ -1682,7 +1686,7 @@ pub fn os_mkdir_recurse(
         {
             break;
         }
-        let curdir_cstr = crate::memory::cstr_from_ptr(curdir);
+        let curdir_cstr = crate::strings::ByteSlice::from_ptr(curdir).as_cstr();
         let ret = os_mkdir(curdir_cstr, mode);
         if ret != 0 {
             *failed_dir = Some(curdir_cstr.to_owned());
@@ -1690,7 +1694,10 @@ pub fn os_mkdir_recurse(
         } else if let Some(ref mut c_out) = created
             && c_out.is_none()
         {
-            **c_out = FullName_save(crate::memory::cstr_as_opt_cstr(curdir), false);
+            **c_out = FullName_save(
+                crate::strings::ByteSlice::from_ptr(curdir).as_opt_cstr(),
+                false,
+            );
         }
     }
     0
@@ -1738,7 +1745,8 @@ pub fn os_mkdtemp(templ: &CStr, path: &mut [u8]) -> i32 {
     if result == 0 {
         crate::memory::copy_bytes_to_c_buf(
             path,
-            crate::memory::cstr_from_ptr(unsafe { uv_fs_get_path(&raw const request) }).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(unsafe { uv_fs_get_path(&raw const request) })
+                .as_bytes(),
         );
         to_slash(path);
     }
@@ -1780,7 +1788,7 @@ pub fn os_scandir_next(dir_in: &mut Directory) -> Option<&'static CStr> {
     let err = unsafe { uv_fs_scandir_next(req, ent) };
     if err != UV_EOF {
         let name = unsafe { (*ent).name };
-        (!name.is_null()).then(|| crate::memory::cstr_from_ptr(name))
+        (!name.is_null()).then(|| crate::strings::ByteSlice::from_ptr(name).as_cstr())
     } else {
         None
     }
@@ -1991,7 +1999,7 @@ pub fn os_realpath<'a>(name: &CStr, buf: &'a mut [u8]) -> Option<&'a CStr> {
         if result == 0 {
             crate::memory::copy_bytes_to_c_buf(
                 buf,
-                crate::memory::cstr_from_ptr(uv_fs_get_ptr(&raw const request)).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(uv_fs_get_ptr(&raw const request)).as_bytes(),
             );
             to_slash(buf);
         }
@@ -2011,7 +2019,7 @@ pub fn os_resolve_shortcut(fname_opt: Option<&CStr>) -> Option<std::ffi::CString
     let fname = fname_opt?.as_ptr();
     #[cfg(windows)]
     unsafe {
-        let bytes = crate::memory::cstr_from_ptr(fname).to_bytes();
+        let bytes = crate::strings::ByteSlice::from_ptr(fname).as_bytes();
         if bytes.len() <= 4 || !bytes[bytes.len() - 4..].eq_ignore_ascii_case(b".lnk") {
             return None;
         }
@@ -2031,7 +2039,11 @@ pub fn os_resolve_shortcut(fname_opt: Option<&CStr>) -> Option<std::ffi::CString
         );
         if hr == 0 {
             let mut p: Vec<u16> = Vec::new();
-            let r = utf8_to_utf16(crate::memory::cstr_from_ptr(fname).to_bytes(), -1, &mut p);
+            let r = utf8_to_utf16(
+                crate::strings::ByteSlice::from_ptr(fname).as_bytes(),
+                -1,
+                &mut p,
+            );
             if r != 0 {
                 semsg!(c"utf8_to_utf16 failed: %d", r);
             } else if !p.is_empty() {

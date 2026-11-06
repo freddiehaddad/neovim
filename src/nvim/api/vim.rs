@@ -312,7 +312,8 @@ fn validate_s(
         api_err_invalid(
             err,
             name,
-            crate::memory::cstr_as_opt_cstr(val.map_or(ptr::null(), std::ffi::CStr::as_ptr)),
+            crate::strings::ByteSlice::from_ptr(val.map_or(ptr::null(), std::ffi::CStr::as_ptr))
+                .as_opt_cstr(),
             0,
             true,
         );
@@ -1294,7 +1295,7 @@ pub fn nvim_echo(
     id = msg_multihl(
         opts.id,
         &mut hl_msg,
-        crate::memory::cstr_as_opt_cstr(kind),
+        crate::strings::ByteSlice::from_ptr(kind).as_opt_cstr(),
         history,
         opts.err,
         Some(&mut msg_data),
@@ -2561,7 +2562,7 @@ pub fn nvim_inspect_cell(
     );
     add_c(
         &mut ret,
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(sc_buf)),
+        cstr_as_obj(crate::strings::ByteSlice::from_ptr(sc_buf).as_opt_cstr()),
     );
     let attr = g.attrs[off];
     add_c(
@@ -2974,7 +2975,7 @@ pub fn nvim_eval_statusline(
     put_c(
         &mut result,
         c"str",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf_data)),
+        cstr_as_obj(crate::strings::ByteSlice::from_ptr(buf_data).as_opt_cstr()),
     );
 
     result

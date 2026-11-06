@@ -369,9 +369,7 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
     }
 
     let rest = crate::charset::skipwhite_slice(p_rem);
-    Some(crate::memory::cstr_from_ptr(
-        arg_base.wrapping_add(full_bytes.len() - rest.len()),
-    ))
+    Some((arg_base.wrapping_add(full_bytes.len() - rest.len())).as_cstr())
 }
 
 /// Set the completion context for the argument of a user defined command (`set_context_in_user_cmdarg`).
@@ -619,9 +617,10 @@ fn uc_list(name_prefix: &[u8]) {
                     len -= 1;
                 }
                 if len != 0 {
-                    msg_puts(crate::memory::cstr_from_ptr(
-                        c"    ".as_ptr().wrapping_add(4 - len),
-                    ));
+                    msg_puts(
+                        crate::strings::ByteSlice::from_ptr(c"    ".as_ptr().wrapping_add(4 - len))
+                            .as_cstr(),
+                    );
                 }
 
                 msg_outtrans(&cmd.uc_name, HLF_D, false);
@@ -1212,7 +1211,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     let mut arg = eap.arg.cast_const();
     let mut buffer_only = false;
 
-    let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+    let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
     if arg_bytes.starts_with(b"-buffer")
         && arg_bytes
             .get(7)
@@ -1227,10 +1226,13 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     loop {
         i = 0;
         while (i as usize) < gap.len() {
-            res = crate::memory::cstr_from_ptr(arg)
+            res = crate::strings::ByteSlice::from_ptr(arg)
+                .as_cstr()
                 .to_bytes()
-                .cmp(crate::memory::cstr_from_ptr(gap[i as usize].uc_name.as_ptr()).to_bytes())
-                as i32;
+                .cmp(
+                    crate::strings::ByteSlice::from_ptr(gap[i as usize].uc_name.as_ptr())
+                        .as_bytes(),
+                ) as i32;
             if res <= 0 {
                 break;
             }

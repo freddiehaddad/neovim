@@ -670,7 +670,7 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
     } else {
         crate::memory::copy_bytes_to_c_buf(
             &mut errmsg,
-            crate::memory::cstr_from_ptr(msg_ptr).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(msg_ptr).as_bytes(),
         );
     }
 
@@ -876,7 +876,7 @@ fn buf_write_make_backup(
         *backup_copyp = true;
     } else if (bkc & K_OPT_BKC_FLAG_AUTO) != 0 {
         if os_fileinfo_hardlinks(file_info_old) > 1
-            || !os_fileinfo_link(crate::memory::cstr_from_ptr(fname), &mut file_info)
+            || !os_fileinfo_link((fname).as_cstr(), &mut file_info)
             || !os_fileinfo_id_equal(&file_info, file_info_old)
         {
             *backup_copyp = true;
@@ -926,8 +926,7 @@ fn buf_write_make_backup(
 
     #[cfg(not(windows))]
     if (bkc & (K_OPT_BKC_FLAG_BREAKSYMLINK | K_OPT_BKC_FLAG_BREAKHARDLINK)) != 0 {
-        let file_info_link_ok =
-            os_fileinfo_link(crate::memory::cstr_from_ptr(fname), &mut file_info);
+        let file_info_link_ok = os_fileinfo_link((fname).as_cstr(), &mut file_info);
         if (bkc & K_OPT_BKC_FLAG_BREAKSYMLINK) != 0
             && file_info_link_ok
             && !os_fileinfo_id_equal(&file_info, file_info_old)
@@ -1151,8 +1150,8 @@ pub fn buf_write(
         && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEW)
     {
         if !set_rw_fname(
-            crate::memory::cstr_as_opt_cstr(fname),
-            crate::memory::cstr_as_opt_cstr(sfname),
+            crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
+            crate::strings::ByteSlice::from_ptr(sfname).as_opt_cstr(),
         ) {
             return false;
         }
@@ -1168,9 +1167,13 @@ pub fn buf_write(
         fname = sfname;
     }
 
-    let overwriting = buf
-        .ffname_opt()
-        .is_some_and(|bf| path_equal(crate::memory::cstr_from_ptr(ffname), bf, K_PATH_CMP_LITERAL));
+    let overwriting = buf.ffname_opt().is_some_and(|bf| {
+        path_equal(
+            crate::strings::ByteSlice::from_ptr(ffname).as_cstr(),
+            bf,
+            K_PATH_CMP_LITERAL,
+        )
+    });
 
     g_st().no_wait_return += 1;
 
@@ -1247,7 +1250,7 @@ pub fn buf_write(
     #[cfg(not(windows))]
     let msgname = fname;
 
-    let msgname_opt = crate::memory::cstr_as_opt_cstr(msgname);
+    let msgname_opt = crate::strings::ByteSlice::from_ptr(msgname).as_opt_cstr();
     fname_msg_id(&mut msg_id, c"nvim.bufwrite", Some(&*buf), msgname_opt);
 
     let show_msg = !filtering && g_st().msg_silent == 0;
@@ -1285,7 +1288,7 @@ pub fn buf_write(
         'fail: {
             if !get_fileinfo(
                 &mut *buf,
-                crate::memory::cstr_as_opt_cstr(fname),
+                crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
                 overwriting,
                 forceit,
                 &mut file_info_old,
@@ -1299,7 +1302,7 @@ pub fn buf_write(
             }
 
             if !newfile {
-                acl = os_get_acl(crate::memory::cstr_from_ptr(fname));
+                acl = os_get_acl(crate::strings::ByteSlice::from_ptr(fname).as_cstr());
             }
 
             let mut dobackup = opt_vars().p_wb || opt_vars().p_bk || !opt_vars().p_pm.is_empty();
@@ -1307,8 +1310,8 @@ pub fn buf_write(
                 && !opt_vars().p_bsk.is_empty()
                 && match_file_list(
                     opt_vars().p_bsk.as_cstr(),
-                    crate::memory::cstr_as_opt_cstr(sfname),
-                    crate::memory::cstr_from_ptr(ffname),
+                    crate::strings::ByteSlice::from_ptr(sfname).as_opt_cstr(),
+                    crate::strings::ByteSlice::from_ptr(ffname).as_cstr(),
                 )
             {
                 dobackup = false;
@@ -1324,7 +1327,7 @@ pub fn buf_write(
                 && perm >= 0
                 && dobackup
                 && !buf_write_make_backup(
-                    crate::memory::cstr_from_ptr(fname),
+                    crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                     append,
                     &mut file_info_old,
                     acl,
@@ -1351,7 +1354,7 @@ pub fn buf_write(
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE)
             {
                 perm |= 0o200;
-                let _ = os_setperm(crate::memory::cstr_from_ptr(fname), perm);
+                let _ = os_setperm((fname).as_cstr(), perm);
                 made_writable = true;
             }
 
@@ -1394,7 +1397,7 @@ pub fn buf_write(
                     buf.b_p_fenc.as_ptr().cast_mut()
                 };
 
-                let fenc_opt = crate::memory::cstr_as_opt_cstr(fenc);
+                let fenc_opt = crate::strings::ByteSlice::from_ptr(fenc).as_opt_cstr();
                 let converted = need_conversion(fenc_opt);
                 let mut wb_flags: i32 = 0;
 
@@ -1411,9 +1414,11 @@ pub fn buf_write(
                 }
 
                 if converted && wb_flags == 0 {
-                    write_info.bw_iconv_fd =
-                        my_iconv_open(crate::memory::cstr_from_ptr(fenc), c"utf-8")
-                            .map_or(-1, |fd| fd as iconv_t);
+                    write_info.bw_iconv_fd = my_iconv_open(
+                        crate::strings::ByteSlice::from_ptr(fenc).as_cstr(),
+                        c"utf-8",
+                    )
+                    .map_or(-1, |fd| fd as iconv_t);
                     if write_info.bw_iconv_fd != -1 {
                         write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                         write_info.bw_first = 1;
@@ -1473,7 +1478,11 @@ pub fn buf_write(
                         let mode = if perm < 0 { 0o666 } else { perm & 0o777 };
 
                         loop {
-                            fd = os_open(crate::memory::cstr_from_ptr(wfname), fflags, mode);
+                            fd = os_open(
+                                crate::strings::ByteSlice::from_ptr(wfname).as_cstr(),
+                                fflags,
+                                mode,
+                            );
                             if fd >= 0 {
                                 break;
                             }
@@ -1482,10 +1491,8 @@ pub fn buf_write(
                                 {
                                     let mut file_info = FileInfo::new();
                                     if (!newfile && os_fileinfo_hardlinks(&file_info_old) > 1)
-                                        || (os_fileinfo_link(
-                                            crate::memory::cstr_from_ptr(fname),
-                                            &mut file_info,
-                                        ) && !os_fileinfo_id_equal(&file_info, &file_info_old))
+                                        || (os_fileinfo_link((fname).as_cstr(), &mut file_info)
+                                            && !os_fileinfo_id_equal(&file_info, &file_info_old))
                                     {
                                         err = set_err(Some(gettext(
                                             c"E166: Can't open linked file for writing",
@@ -1514,8 +1521,7 @@ pub fn buf_write(
                                                 perm &= 0o777;
                                             }
                                             if !append {
-                                                let _ =
-                                                    os_remove(crate::memory::cstr_from_ptr(wfname));
+                                                let _ = os_remove((wfname).as_cstr());
                                             }
                                             continue;
                                         }
@@ -1535,7 +1541,10 @@ pub fn buf_write(
                                         && perm >= 0
                                     {
                                         if !append {
-                                            let _ = os_remove(crate::memory::cstr_from_ptr(wfname));
+                                            let _ = os_remove(
+                                                crate::strings::ByteSlice::from_ptr(wfname)
+                                                    .as_cstr(),
+                                            );
                                         }
                                         continue;
                                     }
@@ -1559,8 +1568,10 @@ pub fn buf_write(
                     };
 
                     if buf.b_p_bomb && !write_bin && (!append || perm < 0) {
-                        write_info.bw_len =
-                            make_bom(&mut write_info.bw_buf, crate::memory::cstr_from_ptr(fenc));
+                        write_info.bw_len = make_bom(
+                            &mut write_info.bw_buf,
+                            crate::strings::ByteSlice::from_ptr(fenc).as_cstr(),
+                        );
                         if write_info.bw_len > 0 {
                             write_info.bw_flags = FIO_NOCONVERT | wb_flags;
                             if !buf_write_bytes(&mut write_info) {
@@ -1676,7 +1687,7 @@ pub fn buf_write(
                                 add_quoted_fname(
                                     g_st().iobuff_bytes_mut(),
                                     Some(&*buf),
-                                    crate::memory::cstr_as_opt_cstr(msgname),
+                                    crate::strings::ByteSlice::from_ptr(msgname).as_opt_cstr(),
                                 );
                                 let _ = msg_progress(
                                     Some(g_st().iobuff_bytes_mut()),
@@ -1733,13 +1744,16 @@ pub fn buf_write(
                     }
 
                     if !backup_copy {
-                        os_copy_xattr(backup.as_deref(), crate::memory::cstr_as_opt_cstr(wfname));
+                        os_copy_xattr(
+                            backup.as_deref(),
+                            crate::strings::ByteSlice::from_ptr(wfname).as_opt_cstr(),
+                        );
                     }
 
                     #[cfg(not(windows))]
                     if backup.is_some() && !backup_copy {
                         let mut file_info = FileInfo::new();
-                        if !os_fileinfo(crate::memory::cstr_from_ptr(wfname), &mut file_info)
+                        if !os_fileinfo((wfname).as_cstr(), &mut file_info)
                             || file_info.stat.st_uid != file_info_old.stat.st_uid
                             || file_info.stat.st_gid != file_info_old.stat.st_gid
                         {
@@ -1749,7 +1763,7 @@ pub fn buf_write(
                                 file_info_old.stat.st_gid as uv_gid_t,
                             );
                             if perm >= 0 {
-                                let _ = os_setperm(crate::memory::cstr_from_ptr(wfname), perm);
+                                let _ = os_setperm((wfname).as_cstr(), perm);
                             }
                         }
                         buf_set_file_id(&mut *buf);
@@ -1768,25 +1782,26 @@ pub fn buf_write(
                         perm &= !0o200;
                     }
                     if perm >= 0 {
-                        let _ = os_setperm(crate::memory::cstr_from_ptr(wfname), perm);
+                        let _ =
+                            os_setperm(crate::strings::ByteSlice::from_ptr(wfname).as_cstr(), perm);
                     }
                     if !backup_copy {
-                        os_set_acl(crate::memory::cstr_from_ptr(wfname), acl);
+                        os_set_acl(crate::strings::ByteSlice::from_ptr(wfname).as_cstr(), acl);
                     }
 
                     if wfname != fname {
                         if end != 0
                             && !eval_charconvert(
                                 c"utf-8",
-                                crate::memory::cstr_from_ptr(fenc),
-                                crate::memory::cstr_from_ptr(wfname),
-                                crate::memory::cstr_from_ptr(fname),
+                                crate::strings::ByteSlice::from_ptr(fenc).as_cstr(),
+                                crate::strings::ByteSlice::from_ptr(wfname).as_cstr(),
+                                crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                             )
                         {
                             write_info.bw_conv_error = 1;
                             end = 0;
                         }
-                        let _ = os_remove(crate::memory::cstr_from_ptr(wfname));
+                        let _ = os_remove(crate::strings::ByteSlice::from_ptr(wfname).as_cstr());
                         drop(wfname_owned.take());
                     }
                 }
@@ -1828,13 +1843,17 @@ pub fn buf_write(
                             }
                             if os_copy(
                                 bk,
-                                crate::memory::cstr_from_ptr(fname),
+                                crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                                 UV_FS_COPYFILE_FICLONE,
                             ) == 0
                             {
                                 end = 1;
                             }
-                        } else if vim_rename(bk, crate::memory::cstr_from_ptr(fname)) == 0 {
+                        } else if vim_rename(
+                            bk,
+                            crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
+                        ) == 0
+                        {
                             end = 1;
                         }
                     }
@@ -1858,7 +1877,7 @@ pub fn buf_write(
                     add_quoted_fname(
                         g_st().iobuff_bytes_mut(),
                         Some(&*buf),
-                        crate::memory::cstr_as_opt_cstr(fname),
+                        crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
                     );
                     let mut insert_space = false;
                     if write_info.bw_conv_error != 0 {
@@ -1962,7 +1981,7 @@ pub fn buf_write(
 
                 if !opt_vars().p_pm.is_empty() && dobackup {
                     let org = modname(
-                        crate::memory::cstr_as_opt_cstr(fname),
+                        crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
                         opt_vars().p_pm.as_cstr(),
                         false,
                     );
@@ -2003,7 +2022,8 @@ pub fn buf_write(
                     if let Some(ref org) = org {
                         let _ = os_setperm(
                             org,
-                            os_getperm(crate::memory::cstr_from_ptr(fname)) & 0o777,
+                            os_getperm(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
+                                & 0o777,
                         );
                     }
                 }
@@ -2022,19 +2042,19 @@ pub fn buf_write(
             if let Some(ref bk) = backup
                 && wfname == fname
             {
-                let fname_cstr = crate::memory::cstr_from_ptr(fname);
+                let fname_cstr = crate::strings::ByteSlice::from_ptr(fname).as_cstr();
                 if backup_copy {
-                    if !os_path_exists(crate::memory::cstr_from_ptr(fname)) {
+                    if !os_path_exists(crate::strings::ByteSlice::from_ptr(fname).as_cstr()) {
                         let _ = vim_rename(bk, fname_cstr);
                     }
-                    if os_path_exists(crate::memory::cstr_from_ptr(fname)) {
+                    if os_path_exists(crate::strings::ByteSlice::from_ptr(fname).as_cstr()) {
                         let _ = os_remove(bk);
                     }
                 } else {
                     let _ = vim_rename(bk, fname_cstr);
                 }
             }
-            if !newfile && !os_path_exists(crate::memory::cstr_from_ptr(fname)) {
+            if !newfile && !os_path_exists(crate::strings::ByteSlice::from_ptr(fname).as_cstr()) {
                 end = 0;
             }
             drop(wfname_owned);
@@ -2058,7 +2078,7 @@ pub fn buf_write(
         add_quoted_fname(
             &mut g_st().iobuff_bytes_mut()[..IOSIZE - 100],
             Some(&*buf),
-            crate::memory::cstr_as_opt_cstr(msgname),
+            crate::strings::ByteSlice::from_ptr(msgname).as_opt_cstr(),
         );
         emit_err(
             &mut err,
@@ -2078,7 +2098,10 @@ pub fn buf_write(
                 true,
             );
 
-            if os_fileinfo(crate::memory::cstr_from_ptr(fname), &mut file_info_old) {
+            if os_fileinfo(
+                crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
+                &mut file_info_old,
+            ) {
                 buf_store_file_info(&mut *buf, &mut file_info_old);
                 buf.b_mtime_read = buf.b_mtime;
                 buf.b_mtime_read_ns = buf.b_mtime_ns;
@@ -2098,7 +2121,7 @@ pub fn buf_write(
     if !should_abort(retval) {
         buf_write_do_post_autocmds(
             buf,
-            crate::memory::cstr_as_opt_cstr(fname),
+            crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
             eap,
             append,
             filtering,

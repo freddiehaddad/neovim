@@ -276,7 +276,7 @@ pub fn do_debug(cmd: &CStr) {
             msg_starthere();
             if !cmdline.is_null() {
                 let mut p = crate::charset::skipwhite_ptr(cmdline);
-                let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+                let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
                 if let Some(&b0) = p_bytes.first() {
                     let b1 = p_bytes.get(1).copied().unwrap_or(0);
                     let (mut lcmd, mut tail): (i32, &[u8]) = match b0 {
@@ -307,7 +307,7 @@ pub fn do_debug(cmd: &CStr) {
 
                     if lcmd != 0 {
                         p = p.wrapping_add(1);
-                        let mut p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+                        let mut p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
                         while !p_bytes.is_empty() && !tail.is_empty() && p_bytes[0] == tail[0] {
                             p = p.wrapping_add(1);
                             p_bytes = &p_bytes[1..];
@@ -351,7 +351,7 @@ pub fn do_debug(cmd: &CStr) {
                         }
                         CMD_FRAME => {
                             let p_rem = crate::charset::skipwhite_slice(
-                                crate::memory::cstr_from_ptr(p).to_bytes(),
+                                crate::strings::ByteSlice::from_ptr(p).as_bytes(),
                             );
                             if p_rem.is_empty() {
                                 do_showbacktrace(cmd);
@@ -379,7 +379,7 @@ pub fn do_debug(cmd: &CStr) {
                 let n2 = g_st().debug_break_level;
                 g_st().debug_break_level = -1;
                 do_cmdline(
-                    crate::memory::cstr_as_opt_cstr(cmdline),
+                    crate::strings::ByteSlice::from_ptr(cmdline).as_opt_cstr(),
                     crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );

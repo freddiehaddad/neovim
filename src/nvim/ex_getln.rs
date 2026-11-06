@@ -762,9 +762,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
                 firstc
             },
             search_delim,
-            crate::memory::cstr_as_opt_cstr(
-                getln_st().ccline.cmdbuff().wrapping_add(skiplen as usize),
-            ),
+            (getln_st().ccline.cmdbuff().wrapping_add(skiplen as usize)).as_opt_cstr(),
             patlen as usize,
             count,
             search_flags,
@@ -897,9 +895,9 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
             // the character to lowercase
             if opt_vars().p_ic
                 && opt_vars().p_scs
-                && !pat_has_uppercase(crate::memory::cstr_from_ptr(
-                    getln_st().ccline.cmdbuff().wrapping_add(skiplen as usize),
-                ))
+                && !pat_has_uppercase(
+                    (getln_st().ccline.cmdbuff().wrapping_add(skiplen as usize)).as_cstr(),
+                )
             {
                 *c = mb_tolower(*c);
             }
@@ -909,7 +907,10 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
                 c"\\^$".as_ptr()
             };
             if *c == search_delim
-                || crate::strings::vim_haschr(crate::memory::cstr_from_ptr(special_chars), *c)
+                || crate::strings::vim_haschr(
+                    crate::strings::ByteSlice::from_ptr(special_chars).as_cstr(),
+                    *c,
+                )
             {
                 // put a backslash before special characters
                 stuffchar_readbuff(*c);
@@ -1302,9 +1303,12 @@ fn command_line_enter(
 
         set_option_direct(
             K_OPT_INCCOMMAND,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                (s.save_p_icm.as_deref().unwrap_or(c"")).as_ptr(),
-            )),
+            cstr_as_obj(
+                crate::strings::ByteSlice::from_ptr(
+                    (s.save_p_icm.as_deref().unwrap_or(c"")).as_ptr(),
+                )
+                .as_opt_cstr(),
+            ),
             0,
             SID_NONE,
         );
@@ -2353,7 +2357,7 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             let mut len: i32 = 0;
             for i in 0..=1 {
                 len = 0;
-                let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+                let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
                 for (j, &pj) in p_bytes.iter().enumerate() {
                     if i32::from(pj) == old_firstc && (j == 0 || p_bytes[j - 1] != b'\\') {
                         if i > 0 {
@@ -2382,7 +2386,9 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             getln_st().ccline.cmdpos = len;
         } else {
             alloc_cmdbuff(plen);
-            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes_with_nul();
+            let p_bytes = crate::strings::ByteSlice::from_ptr(p)
+                .as_cstr()
+                .to_bytes_with_nul();
             getln_st().ccline.cmdbuff_vec[..p_bytes.len()].copy_from_slice(p_bytes);
             getln_st().ccline.cmdlen = plen;
             getln_st().ccline.cmdpos = plen;
@@ -4524,7 +4530,10 @@ pub fn tilde_replace(orig_pat: &[u8], files: &mut [std::ffi::CString]) {
             .is_some_and(|&b| vim_ispathsep(i32::from(b)))
     {
         for f in files {
-            *f = home_replace_save(None, crate::memory::cstr_as_opt_cstr(f.as_ptr().cast_mut()));
+            *f = home_replace_save(
+                None,
+                crate::strings::ByteSlice::from_ptr(f.as_ptr().cast_mut()).as_opt_cstr(),
+            );
         }
     }
 }
@@ -5066,7 +5075,8 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
 
     let mut p = prompt;
     if !ui_has(K_UICMDLINE) {
-        let lastnl = crate::memory::cstr_from_ptr(prompt)
+        let lastnl = crate::strings::ByteSlice::from_ptr(prompt)
+            .as_cstr()
             .to_bytes()
             .iter()
             .rposition(|&b| b == b'\n')
@@ -5096,7 +5106,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     atom_payload_start();
     let res = getcmdline_prompt(
         if secret { NUL as i32 } else { b'@' as i32 },
-        crate::memory::cstr_as_opt_cstr(p),
+        crate::strings::ByteSlice::from_ptr(p).as_opt_cstr(),
         get_echo_hl_id(),
         xp_type,
         xp_arg.as_deref(),

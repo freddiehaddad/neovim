@@ -798,8 +798,8 @@ impl PartialEq for PathKey {
         }
         path_cmp(
             CASE_INSENSITIVE_FILENAME,
-            crate::memory::cstr_from_ptr(self.0),
-            crate::memory::cstr_from_ptr(other.0),
+            crate::strings::ByteSlice::from_ptr(self.0).as_cstr(),
+            crate::strings::ByteSlice::from_ptr(other.0).as_cstr(),
             MAXPATHL,
         ) == 0
     }
@@ -812,14 +812,14 @@ impl std::hash::Hash for PathKey {
         let mut p = self.0;
         let mut h: u32 = 0;
         if cfg!(target_os = "windows") {
-            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
             if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
             {
                 p = p.wrapping_add(2);
             }
         }
         let ic = CASE_INSENSITIVE_FILENAME;
-        let bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+        let bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
         let mut idx = 0usize;
         let mut len: i32 = 0;
         while idx < bytes.len() {
@@ -1213,9 +1213,10 @@ fn var_shada_iter(
         while i < hinum
             && (hashitem_empty(&harray[i])
                 || (var_flavour(
-                    crate::memory::cstr_from_ptr(
+                    crate::strings::ByteSlice::from_ptr(
                         (harray[i].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                     )
+                    .as_cstr()
                     .to_bytes(),
                 ) & flavour)
                     == 0)
@@ -1234,9 +1235,10 @@ fn var_shada_iter(
     while idx < hinum {
         if !hashitem_empty(&harray[idx])
             && (var_flavour(
-                crate::memory::cstr_from_ptr(
+                crate::strings::ByteSlice::from_ptr(
                     (harray[idx].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                 )
+                .as_cstr()
                 .to_bytes(),
             ) & flavour)
                 != 0
@@ -1588,9 +1590,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         .fname
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let sfname = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(fname_ptr));
+                    let sfname = path_try_shorten_fname(
+                        crate::strings::ByteSlice::from_ptr(fname_ptr).as_opt_cstr(),
+                    );
                     if let Some(buf) = buflist_new(
-                        crate::memory::cstr_as_opt_cstr(fname_ptr),
+                        crate::strings::ByteSlice::from_ptr(fname_ptr).as_opt_cstr(),
                         sfname,
                         0,
                         BLN_LISTED,
@@ -1784,7 +1788,8 @@ fn shada_pack_entry(
             let is_blob = gv_val.v_type == VarType::VarBlob;
             let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
-            let varname = cstr_as_string(crate::memory::cstr_as_opt_cstr(gv_name_ptr));
+            let varname =
+                cstr_as_string(crate::strings::ByteSlice::from_ptr(gv_name_ptr).as_opt_cstr());
             mpack_bin(varname, &mut sbuf);
             let mut vardesc = [0u8; 256];
             let prefix = b"variable g:";
@@ -1810,14 +1815,17 @@ fn shada_pack_entry(
             let arr_size = 1 + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
             mpack_bin(
-                cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    entry
-                        .data
-                        .sub_string()
-                        .sub
-                        .as_ref()
-                        .map_or(ptr::null(), |s| s.as_ptr()),
-                )),
+                cstr_as_string(
+                    crate::strings::ByteSlice::from_ptr(
+                        entry
+                            .data
+                            .sub_string()
+                            .sub
+                            .as_ref()
+                            .map_or(ptr::null(), |s| s.as_ptr()),
+                    )
+                    .as_opt_cstr(),
+                ),
                 &mut sbuf,
             );
             dump_additional_data(&entry.additional_data, &mut sbuf);
@@ -2280,7 +2288,7 @@ fn shada_read_when_writing(
                             for buf in for_all_buffers_mut() {
                                 if buf.b_ffname.is_some()
                                     && path_equal(
-                                        crate::memory::cstr_from_ptr(fname_ptr),
+                                        crate::strings::ByteSlice::from_ptr(fname_ptr).as_cstr(),
                                         buf.ffname_cstr(),
                                         K_PATH_CMP_LITERAL,
                                     )
@@ -2441,10 +2449,13 @@ fn add_search_pattern(
                 is_last_used,
                 is_substitute_pattern,
                 highlighted: is_last_used && search_highlighted,
-                pat: cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    (get_search_pattern_ptr(is_substitute_pattern))
-                        .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                )),
+                pat: cstr_as_string(
+                    crate::strings::ByteSlice::from_ptr(
+                        (get_search_pattern_ptr(is_substitute_pattern))
+                            .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                    )
+                    .as_opt_cstr(),
+                ),
                 search_backward: !is_substitute_pattern && pat.off.dir == b'?',
             }),
             additional_data: pat.additional_data,

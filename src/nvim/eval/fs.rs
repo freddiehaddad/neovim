@@ -121,7 +121,7 @@ pub fn modify_fname(
                 *usedlen += 2;
 
                 // Expand "~/path" for all systems and "~user/path" for Unix
-                let fname_bytes = crate::memory::cstr_from_ptr(fname).to_bytes();
+                let fname_bytes = crate::strings::ByteSlice::from_ptr(fname).as_bytes();
                 let tilde_cond = fname_bytes.first() == Some(&b'~')
                     && (cfg!(unix)
                         || fname_bytes.get(1) == Some(&b'/')
@@ -129,13 +129,13 @@ pub fn modify_fname(
                         || fname_bytes.len() == 1)
                     && !(tilde_file && fname_bytes.len() == 1);
                 if tilde_cond {
-                    let exp = expand_env_save(crate::memory::cstr_from_ptr(fname));
+                    let exp = expand_env_save(crate::strings::ByteSlice::from_ptr(fname).as_cstr());
                     *fbuf = exp.into_bytes_with_nul();
                     fname = fbuf.as_mut_ptr();
                 }
 
                 // When "/." or "/.." is used: force expansion to get rid of it.
-                let fname_bytes = crate::memory::cstr_from_ptr(fname).to_bytes();
+                let fname_bytes = crate::strings::ByteSlice::from_ptr(fname).as_bytes();
                 let mut p_idx = 0usize;
                 while p_idx < fname_bytes.len() {
                     let rem = &fname_bytes[p_idx..];
@@ -153,11 +153,13 @@ pub fn modify_fname(
 
                 // FullName_save() is slow, don't use it when not needed.
                 if has_dot_comp
-                    || !vim_isAbsName(crate::memory::cstr_from_ptr(fname.cast_const()).to_bytes())
+                    || !vim_isAbsName(
+                        crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_bytes(),
+                    )
                     || (cfg!(windows) && matches!(fname_bytes.first(), Some(b'/' | b'\\')))
                 {
                     let Some(full) = FullName_save(
-                        crate::memory::cstr_as_opt_cstr(fname.cast_const()),
+                        crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_opt_cstr(),
                         has_dot_comp,
                     ) else {
                         fbuf.clear();
@@ -169,9 +171,9 @@ pub fn modify_fname(
                 }
 
                 // Append a path separator to a directory.
-                if os_isdir(crate::memory::cstr_from_ptr(fname)) {
+                if os_isdir(crate::strings::ByteSlice::from_ptr(fname).as_cstr()) {
                     // Make room for one or two extra characters.
-                    let cur_len = crate::memory::cstr_from_ptr(fname).to_bytes().len();
+                    let cur_len = crate::strings::ByteSlice::from_ptr(fname).as_bytes().len();
                     let mut v = vec![0u8; cur_len + 3];
                     unsafe {
                         ptr::copy_nonoverlapping(fname, v.as_mut_ptr(), cur_len + 1);
@@ -199,13 +201,15 @@ pub fn modify_fname(
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
                     if unsafe { *fname } == b'~' {
-                        let exp = expand_env_save(crate::memory::cstr_from_ptr(fname))
-                            .into_bytes_with_nul();
+                        let exp =
+                            expand_env_save(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
+                                .into_bytes_with_nul();
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
-                    } else if let Some(full) =
-                        FullName_save(crate::memory::cstr_as_opt_cstr(fname.cast_const()), false)
-                    {
+                    } else if let Some(full) = FullName_save(
+                        crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_opt_cstr(),
+                        false,
+                    ) {
                         let full_vec = full.into_bytes_with_nul();
                         p = full_vec.as_ptr().cast_mut();
                         pbuf = Some(full_vec);
@@ -237,13 +241,13 @@ pub fn modify_fname(
                         // even though the path does not have a prefix.
                         if path_cmp(
                             opt_vars().p_fic,
-                            crate::memory::cstr_from_ptr(p.cast_const()),
+                            crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr(),
                             crate::memory::cstr_until_nul(&dirname),
                             dirnamelen,
                         ) == 0
                         {
                             p = p.wrapping_add(dirnamelen);
-                            let p_rem = crate::memory::cstr_from_ptr(p).to_bytes();
+                            let p_rem = crate::strings::ByteSlice::from_ptr(p).as_bytes();
                             if p_rem.first().is_some_and(|&b| vim_ispathsep(b as i32)) {
                                 let skip_seps = p_rem
                                     .iter()
@@ -262,7 +266,7 @@ pub fn modify_fname(
                     } else {
                         dirnamelen = home_replace(
                             None,
-                            crate::memory::cstr_as_opt_cstr(p),
+                            crate::strings::ByteSlice::from_ptr(p).as_opt_cstr(),
                             &mut dirname,
                             true,
                         );
@@ -286,7 +290,10 @@ pub fn modify_fname(
             }
 
             let mut file_info = FileInfo::new();
-            os_fileinfo2(crate::memory::cstr_from_ptr(fname), &mut file_info);
+            os_fileinfo2(
+                crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
+                &mut file_info,
+            );
             if src_bytes
                 .get(*usedlen..)
                 .is_some_and(|r| r.starts_with(b":h"))
@@ -295,11 +302,12 @@ pub fn modify_fname(
                 fname = fname.wrapping_add(file_info.prefix_off);
             }
 
-            let mut tail = path_tail(crate::memory::cstr_from_ptr(fname.cast_const()))
-                .as_ptr()
-                .cast_mut()
-                .cast::<u8>();
-            *fnamelen = crate::memory::cstr_from_ptr(fname).to_bytes().len();
+            let mut tail =
+                path_tail(crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_cstr())
+                    .as_ptr()
+                    .cast_mut()
+                    .cast::<u8>();
+            *fnamelen = crate::strings::ByteSlice::from_ptr(fname).as_bytes().len();
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -474,7 +482,7 @@ pub fn modify_fname(
                                 &pat,
                                 &sub,
                                 None,
-                                crate::memory::cstr_from_ptr(flags),
+                                crate::strings::ByteSlice::from_ptr(flags).as_cstr(),
                             );
                             *fnamelen = sub_res.as_bytes().len();
                             *fbuf = sub_res.into_bytes_with_nul();
@@ -1798,7 +1806,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 } else {
                     buf
                 };
-                q = path_next_component(crate::memory::cstr_from_ptr(start_comp))
+                q = path_next_component((start_comp).as_cstr())
                     .as_ptr()
                     .cast_mut()
                     .cast::<u8>();

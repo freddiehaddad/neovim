@@ -276,7 +276,7 @@ pub fn prompt_for_input(
     g_st().allow_keys += 1;
     let resp = getcmdline_prompt(
         -1,
-        crate::memory::cstr_as_opt_cstr(prompt_ptr),
+        crate::strings::ByteSlice::from_ptr(prompt_ptr).as_opt_cstr(),
         hl_id,
         EXPAND_NOTHING,
         None,

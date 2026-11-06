@@ -1661,9 +1661,12 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 ui_comp_compose_grid(&mut wp.w_grid_alloc);
             }
             if ui_has(K_UIMULTIGRID) {
-                let anchor = cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    FLOAT_ANCHOR_STR[c.anchor as usize].as_ptr(),
-                ));
+                let anchor = cstr_as_string(
+                    crate::strings::ByteSlice::from_ptr(
+                        FLOAT_ANCHOR_STR[c.anchor as usize].as_ptr(),
+                    )
+                    .as_opt_cstr(),
+                );
                 ui_call_win_float_pos(
                     Integer::from(wp.w_grid_alloc.handle),
                     wp.handle,

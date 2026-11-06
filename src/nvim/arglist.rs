@@ -688,8 +688,8 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let dup = path_equal(
-                crate::memory::cstr_from_ptr(first_ptr),
-                crate::memory::cstr_from_ptr(second_ptr),
+                crate::strings::ByteSlice::from_ptr(first_ptr).as_cstr(),
+                crate::strings::ByteSlice::from_ptr(second_ptr).as_cstr(),
                 K_PATH_CMP_LITERAL,
             );
 

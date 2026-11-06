@@ -970,7 +970,7 @@ fn readfile_progress(
 
     let trunc = s.is_some();
     let rv = msg_progress(s, msg_id, status, percent, 0, hist, trunc, false)
-        .map(|cs| crate::memory::cstr_from_ptr(cs.as_ptr()));
+        .map(|cs| crate::strings::ByteSlice::from_ptr(cs.as_ptr()).as_cstr());
 
     buf.b_locked -= 1;
 
@@ -1674,7 +1674,7 @@ pub fn readfile(
                 }
 
                 fio_flags = 0;
-                let fenc_opt = crate::memory::cstr_as_opt_cstr(fenc);
+                let fenc_opt = crate::strings::ByteSlice::from_ptr(fenc).as_opt_cstr();
                 converted = need_conversion(fenc_opt);
                 if converted {
                     if fenc_opt == Some(c"ucs-bom") {
@@ -1684,8 +1684,11 @@ pub fn readfile(
                     }
 
                     if fio_flags == 0 && !did_iconv {
-                        iconv_fd = my_iconv_open(c"utf-8", crate::memory::cstr_from_ptr(fenc))
-                            .map_or(-1, |fd| fd as iconv_t);
+                        iconv_fd = my_iconv_open(
+                            c"utf-8",
+                            crate::strings::ByteSlice::from_ptr(fenc).as_cstr(),
+                        )
+                        .map_or(-1, |fd| fd as iconv_t);
                     }
 
                     if fio_flags == 0
@@ -1700,7 +1703,7 @@ pub fn readfile(
                         if tmpname.is_none() {
                             tmpname = readfile_charconvert(
                                 fname.as_cstr(),
-                                crate::memory::cstr_from_ptr(fenc),
+                                crate::strings::ByteSlice::from_ptr(fenc).as_cstr(),
                                 &mut fd,
                             );
                             if tmpname.is_none() {
@@ -1917,7 +1920,9 @@ pub fn readfile(
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
                                     } else {
-                                        get_fio_flags(crate::memory::cstr_as_opt_cstr(fenc))
+                                        get_fio_flags(
+                                            crate::strings::ByteSlice::from_ptr(fenc).as_opt_cstr(),
+                                        )
                                     },
                                 )
                             };
@@ -2285,7 +2290,7 @@ pub fn readfile(
                                 }
                                 if unsafe { *p } >= 0x80 {
                                     let l = utf_ptr2len_len(
-                                        crate::memory::cstr_from_ptr(p).to_bytes(),
+                                        crate::strings::ByteSlice::from_ptr(p).as_bytes(),
                                         todo,
                                     );
                                     if l > todo && !incomplete_tail {
@@ -2659,7 +2664,7 @@ pub fn readfile(
                 save_file_ff(curbuf_mut());
                 set_option_direct(
                     K_OPT_FILEENCODING,
-                    cstr_as_obj(crate::memory::cstr_as_opt_cstr(fenc)),
+                    cstr_as_obj(crate::strings::ByteSlice::from_ptr(fenc).as_opt_cstr()),
                     OPT_LOCAL,
                     0,
                 );
@@ -2894,7 +2899,7 @@ pub fn readfile(
                         || g_st().restart_edit != 0
                         || (g_st().msg_scrolled != 0 && !g_st().need_wait_return)
                     {
-                        set_keep_msg(crate::memory::cstr_as_opt_cstr(p), 0);
+                        set_keep_msg(crate::strings::ByteSlice::from_ptr(p).as_opt_cstr(), 0);
                     }
                     g_st().msg_scrolled_ign = false;
                 } else if progress {

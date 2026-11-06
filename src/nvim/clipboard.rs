@@ -203,14 +203,14 @@ pub fn get_clipboard(
             return fail_cleanup(reg, errmsg, target);
         }
         let s = li.li_tv.vval.v_string();
-        reg.y_array
-            .push(cstr_to_string(crate::memory::cstr_as_opt_cstr(
-                if s.is_null() {
-                    c"".as_ptr()
-                } else {
-                    s.as_ptr()
-                },
-            )));
+        reg.y_array.push(cstr_to_string(
+            crate::strings::ByteSlice::from_ptr(if s.is_null() {
+                c"".as_ptr()
+            } else {
+                s.as_ptr()
+            })
+            .as_opt_cstr(),
+        ));
     }
 
     if reg.y_array.last().is_some_and(|last| last.size == 0) {

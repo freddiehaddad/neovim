@@ -1519,7 +1519,7 @@ fn syn_current_attr(
         {
             if do_keywords {
                 line = syn_getcurline!();
-                let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes();
+                let line_bytes = crate::strings::ByteSlice::from_ptr(line).as_bytes();
                 let cur_col = (syn_st().current_col as usize).min(line_bytes.len());
                 if vim_iswordp_buf(&line_bytes[cur_col..], syn_st().syn_buf_mut())
                     && (cur_col == 0
@@ -3484,7 +3484,7 @@ fn get_syn_options<'a>(
             while fidx >= 0 {
                 let (p, argtype, flags) = FLAGTAB[fidx as usize];
                 let mut i: usize = 0;
-                let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+                let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
                 len = 0;
                 while p[i] != 0 {
                     let ch = arg_bytes.get(len).copied().unwrap_or(0);
@@ -3522,25 +3522,25 @@ fn get_syn_options<'a>(
                     emsg(gettext(E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE));
                     return None;
                 }
-                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
+                let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
                 if !get_id_list(&mut arg_cstr, 8, &mut opt.cont_list, skip) {
                     return None;
                 }
                 arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 2 {
-                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
+                let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
                 if !get_id_list(&mut arg_cstr, 11, &mut opt.cont_in_list, skip) {
                     return None;
                 }
                 arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 3 {
-                let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
+                let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
                 if !get_id_list(&mut arg_cstr, 9, &mut opt.next_list, skip) {
                     return None;
                 }
                 arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 11
-                && crate::memory::cstr_from_ptr(arg).to_bytes().get(5) == Some(&b'=')
+                && crate::strings::ByteSlice::from_ptr(arg).as_bytes().get(5) == Some(&b'=')
             {
                 *conceal_char = utf_ptr2char(arg.wrapping_add(6));
                 arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6)) - 1) as isize);
@@ -3602,7 +3602,7 @@ fn get_syn_options<'a>(
             }
         }
 
-        Some(crate::memory::cstr_from_ptr(arg))
+        Some(crate::strings::ByteSlice::from_ptr(arg).as_cstr())
     }
 }
 
@@ -3739,7 +3739,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 p = p.wrapping_add(1);
                 cnt += 1;
                 let next_rest = crate::charset::skipwhite_ptr(rest);
-                rest_opt = Some(crate::memory::cstr_from_ptr(next_rest));
+                rest_opt = Some(crate::strings::ByteSlice::from_ptr(next_rest).as_cstr());
             }
 
             if !eap.skip {
@@ -3749,12 +3749,15 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 let mut kwlen: usize;
                 'kw_loop: while cnt > 0 {
                     cnt -= 1;
-                    p = vim_strchr(crate::memory::cstr_from_ptr(kw), b'[' as i32)
-                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                        .cast();
+                    p = vim_strchr(
+                        crate::strings::ByteSlice::from_ptr(kw).as_cstr(),
+                        b'[' as i32,
+                    )
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                    .cast();
                     loop {
                         if p.is_null() {
-                            kwlen = crate::memory::cstr_from_ptr(kw).to_bytes().len();
+                            kwlen = crate::strings::ByteSlice::from_ptr(kw).as_bytes().len();
                         } else {
                             unsafe { *p = 0 };
 
@@ -3773,7 +3776,8 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if p.is_null() {
                             break;
                         }
-                        let after_p = crate::memory::cstr_from_ptr(p.wrapping_add(1)).to_bytes();
+                        let after_p =
+                            crate::strings::ByteSlice::from_ptr(p.wrapping_add(1)).as_bytes();
                         if after_p.is_empty() {
                             semsg!(
                                 gettext(c"E789: Missing ']': %s"),
@@ -4281,7 +4285,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
 
         end = end.wrapping_add(1);
         loop {
-            let end_bytes = crate::memory::cstr_from_ptr(end).to_bytes();
+            let end_bytes = crate::strings::ByteSlice::from_ptr(end).as_bytes();
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
                 if end_bytes.starts_with(SPO_NAME_TAB[idx as usize].to_bytes()) {
@@ -4342,9 +4346,12 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             );
             return None;
         }
-        Some(crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
-            end.cast::<std::ffi::c_char>(),
-        )))
+        Some(
+            crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(
+                end.cast::<std::ffi::c_char>(),
+            ))
+            .as_cstr(),
+        )
     }
 }
 
@@ -4654,7 +4661,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             round += 1;
         }
 
-        *arg = crate::memory::cstr_from_ptr(p);
+        *arg = crate::strings::ByteSlice::from_ptr(p).as_cstr();
         if failed || retval.is_empty() {
             return false;
         }

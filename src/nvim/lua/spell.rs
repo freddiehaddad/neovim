@@ -52,7 +52,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
         let mut attr: Hlf = HLF_COUNT;
         let len = spell_check(
             curwin_mut(),
-            crate::memory::cstr_from_ptr(str_),
+            crate::strings::ByteSlice::from_ptr(str_).as_cstr(),
             &mut attr,
             Some(&mut capcol),
             false,
@@ -74,7 +74,10 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
             };
             assert!(!result.is_null());
 
-            lua_pushstring(lstate, crate::memory::cstr_from_ptr(result));
+            lua_pushstring(
+                lstate,
+                crate::strings::ByteSlice::from_ptr(result).as_cstr(),
+            );
             unsafe { lua_rawseti(lstate, -2, 2) };
 
             unsafe { lua_pushinteger(lstate, (pos as lua_Integer) + 1) };

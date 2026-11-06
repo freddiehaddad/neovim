@@ -2089,13 +2089,15 @@ pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool>
 
     if !parens.is_null()
         && crate::charset::skipwhite_slice(
-            crate::memory::cstr_from_ptr(parens.wrapping_add(2)).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(parens.wrapping_add(2)).as_bytes(),
         )
         .is_empty()
     {
         if arg_cstr.to_bytes().starts_with(b"v:lua.") {
             let p = arg.wrapping_add(6);
-            if p != parens && skip_luafunc_name(crate::memory::cstr_from_ptr(p)).as_ptr() == parens
+            if p != parens
+                && skip_luafunc_name(crate::strings::ByteSlice::from_ptr(p).as_cstr()).as_ptr()
+                    == parens
             {
                 r = call_simple_luafunc(
                     unsafe {
@@ -2111,13 +2113,15 @@ pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool>
             let p = if arg_cstr.to_bytes().starts_with(b"<SNR>") {
                 arg.wrapping_add(
                     5 + skipdigits_len(
-                        crate::memory::cstr_from_ptr(arg.wrapping_add(5)).to_bytes(),
+                        crate::strings::ByteSlice::from_ptr(arg.wrapping_add(5)).as_bytes(),
                     ),
                 )
             } else {
                 arg
             };
-            if to_name_end(crate::memory::cstr_from_ptr(p), true).as_ptr() == parens {
+            if to_name_end(crate::strings::ByteSlice::from_ptr(p).as_cstr(), true).as_ptr()
+                == parens
+            {
                 r = call_simple_func(
                     unsafe {
                         std::slice::from_raw_parts(
@@ -3724,7 +3728,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
     }
 
     if !evaluate {
-        *arg = crate::memory::cstr_from_ptr(p.wrapping_add(off));
+        *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
         return true;
     }
 
@@ -3836,7 +3840,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
     if rem.first() == Some(&b'"') && !interpolate {
         rem = &rem[1..];
     }
-    *arg = crate::memory::cstr_from_ptr(arg_end.wrapping_sub(rem.len()));
+    *arg = crate::strings::ByteSlice::from_ptr(arg_end.wrapping_sub(rem.len())).as_cstr();
 
     true
 }
@@ -3880,14 +3884,14 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
     }
 
     if !evaluate {
-        *arg = crate::memory::cstr_from_ptr(p.wrapping_add(off));
+        *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
         return true;
     }
 
     let alloc_len = ((p as isize) - (arg_start as isize) - reduce) as usize;
     let mut buf_vec = Vec::with_capacity(alloc_len);
     let start_ptr = arg_start.wrapping_add(off);
-    let mut rem = crate::memory::cstr_from_ptr(start_ptr).to_bytes();
+    let mut rem = crate::strings::ByteSlice::from_ptr(start_ptr).as_bytes();
 
     while !rem.is_empty() {
         if rem[0] == b'\'' {
@@ -3905,7 +3909,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
     }
     buf_vec.push(0);
     crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&buf_vec)));
-    *arg = crate::memory::cstr_from_ptr(p.wrapping_add(off));
+    *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
 
     true
 }
@@ -4560,7 +4564,7 @@ fn eval_dict(
             return Some(false);
         }
         if evaluate {
-            let key_cstr = crate::memory::cstr_from_ptr(key);
+            let key_cstr = crate::strings::ByteSlice::from_ptr(key).as_cstr();
             if tv_dict_find(d.opt(), key_cstr, -1).is_some() {
                 semsg!(gettext(c"E721: Duplicate key in Dictionary: \"%s\""), key,);
                 tv_clear(&mut tvkey);
@@ -4934,7 +4938,9 @@ pub fn callback_call(
             name = funcref.as_ptr().cast_mut();
             if funcref.to_bytes().starts_with(b"v:lua.") {
                 name = name.wrapping_add(6);
-                if check_luafunc_name(crate::memory::cstr_from_ptr(name), false) == 0 {
+                if check_luafunc_name(crate::strings::ByteSlice::from_ptr(name).as_cstr(), false)
+                    == 0
+                {
                     return false;
                 }
                 partial = crate::globals::GraphPtr::from(get_vim_var_partial(VV_LUA));
@@ -4989,7 +4995,7 @@ pub fn callback_call(
                     .cast_mut(),
             );
             let r = eval0_simple_funccal(
-                crate::memory::cstr_from_ptr(expr_ptr),
+                crate::strings::ByteSlice::from_ptr(expr_ptr).as_cstr(),
                 rettv,
                 None,
                 &mut g_st().evalarg_evaluate,
@@ -5017,7 +5023,7 @@ pub fn callback_call(
 
     eval_st().callback_depth += 1;
     let ret = call_func(
-        crate::memory::cstr_from_ptr(name),
+        crate::strings::ByteSlice::from_ptr(name).as_cstr(),
         -1,
         rettv,
         argcount_in,
@@ -6356,7 +6362,7 @@ pub fn find_option_var_end<'a>(
     opt_flags: &mut i32,
 ) -> Option<&'a CStr> {
     let mut p = arg.as_ptr().wrapping_add(1);
-    let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+    let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
     if p_bytes.starts_with(b"g:") {
         *opt_flags = OPT_GLOBAL;
         p = p.wrapping_add(2);
@@ -6367,9 +6373,11 @@ pub fn find_option_var_end<'a>(
         *opt_flags = 0;
     }
 
-    if let Some(end_off) = find_option_end(crate::memory::cstr_from_ptr(p).to_bytes(), opt_idxp) {
-        *arg = crate::memory::cstr_from_ptr(p);
-        Some(crate::memory::cstr_from_ptr(p.wrapping_add(end_off)))
+    if let Some(end_off) =
+        find_option_end(crate::strings::ByteSlice::from_ptr(p).as_bytes(), opt_idxp)
+    {
+        *arg = crate::strings::ByteSlice::from_ptr(p).as_cstr();
+        Some(crate::strings::ByteSlice::from_ptr(p.wrapping_add(end_off)).as_cstr())
     } else {
         None
     }

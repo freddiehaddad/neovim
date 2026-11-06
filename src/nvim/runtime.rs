@@ -1286,7 +1286,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
     let mut p2 = p1;
     let mut p3 = p1;
     let mut p4 = p1;
-    let rem_bytes = crate::memory::cstr_from_ptr(past_head).to_bytes();
+    let rem_bytes = crate::strings::ByteSlice::from_ptr(past_head).as_bytes();
     let mut idx = 0usize;
     while idx < rem_bytes.len() {
         if vim_ispathsep_nocolon(rem_bytes[idx] as i32) {
@@ -1326,7 +1326,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut entry: *mut u8 = rtp_base;
         while unsafe { *entry != 0 } {
             let cur_entry = entry;
-            let mut entry_bytes = crate::memory::cstr_from_ptr(entry).to_bytes();
+            let mut entry_bytes = crate::strings::ByteSlice::from_ptr(entry).as_bytes();
             let old_len = entry_bytes.len();
             let dst = unsafe { std::slice::from_raw_parts_mut(buf.data.cast::<u8>(), MAXPATHL) };
             buf.size = copy_option_part(&mut entry_bytes, dst, c",");
@@ -1366,7 +1366,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
                 if path_cmp(
                     opt_vars().p_fic,
                     &rtp_ffname,
-                    crate::memory::cstr_from_ptr(ffname),
+                    crate::strings::ByteSlice::from_ptr(ffname).as_cstr(),
                     fname_len,
                 ) == 0
                 {
@@ -1380,7 +1380,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             insp = rtp_base.wrapping_add(p_rtp_len);
         }
 
-        let fname_cstr = crate::memory::cstr_from_ptr(fname);
+        let fname_cstr = crate::strings::ByteSlice::from_ptr(fname).as_cstr();
         fname_len = fname_cstr.to_bytes().len();
         let ad = crate::path::concat_fnames_cstr(fname_cstr, c"after", true);
         let mut afterdir = NvimString {
@@ -2819,7 +2819,7 @@ fn do_source_ext(
                 firstline = Some(
                     string_convert(
                         &cookie.conv,
-                        crate::memory::cstr_from_ptr(after_bom).to_bytes(),
+                        crate::strings::ByteSlice::from_ptr(after_bom).as_bytes(),
                         None,
                     )
                     .map_or_else(
@@ -3180,9 +3180,10 @@ pub fn getsourceline(
 
         sp.nextline = get_one_sourceline(sp);
         if let Some(ref next) = sp.nextline {
-            let p_bytes = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
+            let p_bytes = crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(
                 next.as_ptr().cast::<std::ffi::c_char>(),
             ))
+            .as_cstr()
             .to_bytes();
             if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                 if buf.last() == Some(&0) {
@@ -3362,7 +3363,7 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
 
     convert_setup(
         &mut sp.conv,
-        crate::memory::cstr_as_opt_cstr(name),
+        crate::strings::ByteSlice::from_ptr(name).as_opt_cstr(),
         Some(opt_vars().p_enc.as_cstr()),
     );
 }

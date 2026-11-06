@@ -13,6 +13,8 @@ use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
 #[cfg(windows)]
+use crate::strings::ByteSliceExt as _;
+#[cfg(windows)]
 use std::ffi::{CStr, c_void};
 #[cfg(windows)]
 use std::ptr;
@@ -238,10 +240,15 @@ mod win_impl {
                 }
 
                 let arg0 = hdr.argv.as_slice()[0].as_ptr();
-                let is_cmdexe = os_shell_is_cmdexe(crate::memory::cstr_from_ptr(arg0));
+                let is_cmdexe =
+                    os_shell_is_cmdexe(crate::strings::ByteSlice::from_ptr(arg0).as_cstr());
                 if is_cmdexe {
                     let mut path: Option<std::ffi::CString> = None;
-                    if !os_can_exe(crate::memory::cstr_from_ptr(arg0), Some(&mut path), true) {
+                    if !os_can_exe(
+                        crate::strings::ByteSlice::from_ptr(arg0).as_cstr(),
+                        Some(&mut path),
+                        true,
+                    ) {
                         status = UV_ENOENT;
                         emsg = Some(c"executable not found");
                         break 'cleanup;

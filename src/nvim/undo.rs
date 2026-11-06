@@ -2294,7 +2294,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         } else {
             undo_st().u_oldcount as i64
         },
-        gettext(crate::memory::cstr_from_ptr(msgstr)),
+        gettext(crate::strings::ByteSlice::from_ptr(msgstr).as_cstr()),
         if did_undo {
             gettext(c"before")
         } else {

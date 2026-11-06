@@ -463,7 +463,7 @@ pub fn lua_getglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
 #[inline]
 pub fn lua_tostring(lstate: *mut lua_State, i: i32) -> Option<&'static CStr> {
     let ptr = unsafe { lua_tolstring(lstate, i, std::ptr::null_mut()) };
-    crate::memory::cstr_as_opt_cstr(ptr)
+    crate::strings::ByteSlice::from_ptr(ptr).as_opt_cstr()
 }
 
 #[inline]
@@ -494,7 +494,8 @@ pub fn lua_isnoneornil(lstate: *mut lua_State, n: i32) -> bool {
 #[inline]
 #[allow(non_snake_case)]
 pub fn luaL_typename(lstate: *mut lua_State, i: i32) -> &'static CStr {
-    crate::memory::cstr_from_ptr(unsafe { lua_typename(lstate, lua_type(lstate, i)) })
+    crate::strings::ByteSlice::from_ptr(unsafe { lua_typename(lstate, lua_type(lstate, i)) })
+        .as_cstr()
 }
 
 #[inline]
@@ -514,7 +515,10 @@ pub fn luaL_argcheck(lstate: *mut lua_State, cond: bool, numarg: i32, extramsg: 
 #[inline]
 #[allow(non_snake_case)]
 pub fn luaL_checkstring(lstate: *mut lua_State, n: i32) -> &'static CStr {
-    crate::memory::cstr_from_ptr(unsafe { luaL_checklstring(lstate, n, std::ptr::null_mut()) })
+    crate::strings::ByteSlice::from_ptr(unsafe {
+        luaL_checklstring(lstate, n, std::ptr::null_mut())
+    })
+    .as_cstr()
 }
 
 #[inline]

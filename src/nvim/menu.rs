@@ -390,7 +390,8 @@ pub fn ex_menu(eap: &mut Exarg) {
             return;
         }
 
-        let map_buf_owned = if crate::memory::cstr_from_ptr(map_to)
+        let map_buf_owned = if crate::strings::ByteSlice::from_ptr(map_to)
+            .as_cstr()
             .to_bytes()
             .eq_ignore_ascii_case(b"<nop>")
         {
@@ -398,7 +399,7 @@ pub fn ex_menu(eap: &mut Exarg) {
             None
         } else if (modes & MENU_TIP_MODE) == 0 {
             replace_termcodes(
-                crate::memory::cstr_from_ptr(map_to).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(map_to).as_bytes(),
                 false,
                 0,
                 REPTERM_DO_LT,
@@ -411,7 +412,7 @@ pub fn ex_menu(eap: &mut Exarg) {
         if let Some(ref mb) = map_buf_owned {
             map_to = mb.as_ptr().cast_mut().cast();
         }
-        let map_to_cstr = crate::memory::cstr_as_opt_cstr(map_to);
+        let map_to_cstr = crate::strings::ByteSlice::from_ptr(map_to).as_opt_cstr();
 
         let mut menuarg = Vimmenu::new();
         menuarg.modes = modes;
@@ -1192,9 +1193,12 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                 menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
             }
 
-            Some(crate::memory::cstr_from_ptr(
-                (&raw const menu_st().get_menu_names_tbuffer[0]),
-            ))
+            Some(
+                crate::strings::ByteSlice::from_ptr(
+                    (&raw const menu_st().get_menu_names_tbuffer[0]),
+                )
+                .as_cstr(),
+            )
         } else if menu_st().get_menu_names_advance {
             menu.en_dname.as_deref()
         } else {
@@ -1727,18 +1731,20 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         del_menutrans_vars();
     } else {
         let from_arg = arg;
-        let part1_len = menu_skip_part(crate::memory::cstr_from_ptr(from_arg).to_bytes());
+        let part1_len = menu_skip_part(crate::strings::ByteSlice::from_ptr(from_arg).as_bytes());
         arg = from_arg.wrapping_add(part1_len);
         let to_arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast::<u8>();
 
         unsafe { *arg = 0 };
 
-        let part2_len = menu_skip_part(crate::memory::cstr_from_ptr(to_arg).to_bytes());
+        let part2_len = menu_skip_part(crate::strings::ByteSlice::from_ptr(to_arg).as_bytes());
         arg = to_arg.wrapping_add(part2_len);
         if arg == to_arg {
             emsg(gettext(E_INVARG));
         } else {
-            let mut from_vec: Vec<u8> = crate::memory::cstr_from_ptr(from_arg).to_bytes().to_vec();
+            let mut from_vec: Vec<u8> = crate::strings::ByteSlice::from_ptr(from_arg)
+                .as_bytes()
+                .to_vec();
             from_vec.push(0);
             let from_noamp_cstr = menu_text(&from_vec[..from_vec.len() - 1], None, None);
             let to_len = ((crate::strings::AsByteSlice::byte_addr(arg) as isize)

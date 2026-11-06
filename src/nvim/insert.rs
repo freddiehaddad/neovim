@@ -379,7 +379,11 @@ fn insert_enter(s: &mut InsertState) {
         } else {
             c"i".as_ptr()
         };
-        set_vim_var_string(VV_INSERTMODE, crate::memory::cstr_as_opt_cstr(ptr), 1);
+        set_vim_var_string(
+            VV_INSERTMODE,
+            crate::strings::ByteSlice::from_ptr(ptr).as_opt_cstr(),
+            1,
+        );
         set_vim_var_string(VV_CHAR, None, -1);
         ins_apply_autocmds(EVENT_INSERTENTER);
 
@@ -2880,7 +2884,11 @@ fn ins_insert(replace_state: i32) {
     } else {
         c"r".as_ptr()
     };
-    set_vim_var_string(VV_INSERTMODE, crate::memory::cstr_as_opt_cstr(mode_str), 1);
+    set_vim_var_string(
+        VV_INSERTMODE,
+        crate::strings::ByteSlice::from_ptr(mode_str).as_opt_cstr(),
+        1,
+    );
     ins_apply_autocmds(EVENT_INSERTCHANGE);
     if (g_st().state_global & REPLACE_FLAG) != 0 {
         g_st().state_global = MODE_INSERT | (g_st().state_global & MODE_LANGMAP);
@@ -3660,7 +3668,7 @@ fn ins_tab() -> bool {
                 &mut csarg,
                 curwin_mut(),
                 0,
-                crate::memory::cstr_from_ptr(ptr),
+                crate::strings::ByteSlice::from_ptr(ptr).as_cstr(),
             );
             while vcol < want_vcol && unsafe { *ptr } == b' ' {
                 vcol += win_charsize(

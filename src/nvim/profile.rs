@@ -956,7 +956,9 @@ pub fn time_init(fname: &CStr, proc_name: &CStr) {
     if r != 0 {
         prof_st().startuptime_buf = Vec::new();
         g_st().time_fd = None;
-        let err_str = crate::memory::cstr_from_ptr(unsafe { uv_err_name(r) }).to_string_lossy();
+        let err_str = crate::strings::ByteSlice::from_ptr(unsafe { uv_err_name(r) })
+            .as_cstr()
+            .to_string_lossy();
         eprint!("time_init: setvbuf failed: {r} {err_str}");
         return;
     }

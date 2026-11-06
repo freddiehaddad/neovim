@@ -329,7 +329,8 @@ fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: i32) -> Option<&Mapblock> {
         for mp in bucket {
             if mp.m_luaref != LUA_NOREF
                 && crate::charset::parse_i64_prefix(
-                    crate::memory::cstr_from_ptr(mp.m_str.as_ptr().wrapping_add(3)).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(mp.m_str.as_ptr().wrapping_add(3))
+                        .as_bytes(),
                 ) as i32
                     == id
             {
@@ -570,7 +571,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
         mapargs.rhs_lua = 0;
 
         loop {
-            let bytes = crate::memory::cstr_from_ptr(to_parse).to_bytes();
+            let bytes = crate::strings::ByteSlice::from_ptr(to_parse).as_bytes();
             if bytes.starts_with(b"<buffer>") {
                 to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.buffer = true;
@@ -608,7 +609,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
             break;
         }
 
-        let to_parse_bytes = crate::memory::cstr_from_ptr(to_parse).to_bytes();
+        let to_parse_bytes = crate::strings::ByteSlice::from_ptr(to_parse).as_bytes();
         let do_backslash =
             !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BSLASH_CONST);
         let mut orig_lhs_len = 0usize;
@@ -633,7 +634,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
 
         if !set_maparg_lhs_rhs(
             &to_parse_bytes[..orig_lhs_len],
-            crate::memory::cstr_from_ptr(rhs_start).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(rhs_start).as_bytes(),
             LUA_NOREF,
             opt_vars().p_cpo.as_bytes(),
             mapargs,
@@ -805,13 +806,13 @@ fn buf_do_map(
                     let mut p = keys_unescaped.as_ptr();
                     let end_p = p.wrapping_add(keys_unescaped_len);
 
-                    let first = vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes());
+                    let first = vim_iswordp(crate::strings::ByteSlice::from_ptr(p).as_bytes());
                     let mut last = first;
                     p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     let mut n: i32 = 1;
                     while (p as usize) < (end_p as usize) {
                         n += 1;
-                        last = vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes());
+                        last = vim_iswordp(crate::strings::ByteSlice::from_ptr(p).as_bytes());
                         if same == -1 && last != first {
                             same = n - 1;
                         }
@@ -948,9 +949,10 @@ fn buf_do_map(
                                             || round != 0
                                             || n > len
                                             || !crate::charset::skipwhite_slice(
-                                                crate::memory::cstr_from_ptr(
+                                                crate::strings::ByteSlice::from_ptr(
                                                     lhs.wrapping_add(n as usize),
                                                 )
+                                                .as_cstr()
                                                 .to_bytes(),
                                             )
                                             .is_empty())
@@ -1058,7 +1060,7 @@ fn buf_do_map(
             map_add(
                 buf,
                 local,
-                crate::memory::cstr_from_ptr(lhs),
+                crate::strings::ByteSlice::from_ptr(lhs).as_cstr(),
                 args,
                 noremap,
                 mode,
@@ -1334,7 +1336,7 @@ pub fn set_context_in_map_cmd(
         xp.xp_context = EXPAND_MAPPINGS;
         map_st().expand_buffer = false;
         loop {
-            let bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+            let bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
             if bytes.starts_with(b"<buffer>") {
                 map_st().expand_buffer = true;
                 arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
@@ -1515,12 +1517,12 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 _p
             }
         };
-        let vim_abbr = if !vim_iswordp(crate::memory::cstr_from_ptr(p).to_bytes()) {
+        let vim_abbr = if !vim_iswordp(crate::strings::ByteSlice::from_ptr(p).as_bytes()) {
             true
         } else {
             if (p as usize) > (ptr_arg as usize) {
                 is_id = vim_iswordp(
-                    crate::memory::cstr_from_ptr({
+                    crate::strings::ByteSlice::from_ptr({
                         let _l = ptr_arg;
                         let _p = p;
                         if (_p as usize) > (_l as usize) {
@@ -1531,6 +1533,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                             _p
                         }
                     })
+                    .as_cstr()
                     .to_bytes(),
                 );
             }
@@ -1550,7 +1553,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     _p
                 }
             };
-            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
             if ascii_isspace(p_bytes.first().copied().unwrap_or(0) as i32)
                 || (!vim_abbr && is_id != vim_iswordp(p_bytes))
             {
@@ -2085,11 +2088,14 @@ fn mapblock_fill_dict(
             luaref_obj(api_new_luaref(mp.m_luaref)),
         );
     } else {
-        let rhs = cstr_as_string(crate::memory::cstr_as_opt_cstr(if compatible {
-            (mp.m_orig_str.as_c_str()).as_ptr()
-        } else {
-            (str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)).as_ptr()
-        }));
+        let rhs = cstr_as_string(
+            crate::strings::ByteSlice::from_ptr(if compatible {
+                (mp.m_orig_str.as_c_str()).as_ptr()
+            } else {
+                (str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)).as_ptr()
+            })
+            .as_opt_cstr(),
+        );
         put_c(&mut dict, c"rhs", string_obj(rhs));
     }
     if let Some(ref desc) = mp.m_desc {
@@ -2106,7 +2112,7 @@ fn mapblock_fill_dict(
         put_c(
             &mut dict,
             c"lhsrawalt",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(alt_arena)),
+            cstr_as_obj(crate::strings::ByteSlice::from_ptr(alt_arena).as_opt_cstr()),
         );
     }
     put_c(&mut dict, c"noremap", integer_obj(noremap_value));
@@ -2149,7 +2155,7 @@ fn mapblock_fill_dict(
     put_c(
         &mut dict,
         c"mode",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(mapmode)),
+        cstr_as_obj(crate::strings::ByteSlice::from_ptr(mapmode).as_opt_cstr()),
     );
     put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
     put_c(&mut dict, c"mode_bits", integer_obj(i64::from(mp.m_mode)));
@@ -2189,7 +2195,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
 
     let mut did_simplify = false;
     let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-    let mut which_bytes = crate::memory::cstr_from_ptr(which).to_bytes();
+    let mut which_bytes = crate::strings::ByteSlice::from_ptr(which).as_bytes();
     let mode = get_map_mode(&mut which_bytes, false);
 
     let keys_bytes = keys.to_bytes();
@@ -2352,7 +2358,10 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         let d = argvars[2].vval.v_dict();
         (which.as_ptr(), is_abbr, d)
     };
-    let mode = get_map_mode_string(crate::memory::cstr_from_ptr(which).to_bytes(), is_abbr != 0);
+    let mode = get_map_mode_string(
+        crate::strings::ByteSlice::from_ptr(which).as_bytes(),
+        is_abbr != 0,
+    );
     if mode == 0 {
         semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR), which);
         return;

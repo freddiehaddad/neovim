@@ -824,9 +824,10 @@ fn set_init_default_cdpath() {
     buf_vec[j] = 0;
     change_option_default(
         K_OPT_CDPATH,
-        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-            (crate::memory::cstr_until_nul(&buf_vec)).as_ptr(),
-        )),
+        cstr_to_obj(
+            crate::strings::ByteSlice::from_ptr((crate::memory::cstr_until_nul(&buf_vec)).as_ptr())
+                .as_opt_cstr(),
+        ),
     );
 }
 
@@ -3502,24 +3503,33 @@ pub fn get_tty_option(name: &[u8]) -> Object {
         } else {
             let mut value = [0u8; NUMBUFLEN];
             vim_snprintf!(&mut value, c"%d", g_st().t_colors);
-            cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-                (crate::memory::cstr_until_nul(&value)).as_ptr(),
-            ))
+            cstr_to_obj(
+                crate::strings::ByteSlice::from_ptr(
+                    (crate::memory::cstr_until_nul(&value)).as_ptr(),
+                )
+                .as_opt_cstr(),
+            )
         }
     } else if name == b"term" {
-        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-            opt_st()
-                .p_term
-                .as_ref()
-                .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
-        ))
+        cstr_to_obj(
+            crate::strings::ByteSlice::from_ptr(
+                opt_st()
+                    .p_term
+                    .as_ref()
+                    .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
+            )
+            .as_opt_cstr(),
+        )
     } else if name == b"ttytype" {
-        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-            opt_st()
-                .p_ttytype
-                .as_ref()
-                .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
-        ))
+        cstr_to_obj(
+            crate::strings::ByteSlice::from_ptr(
+                opt_st()
+                    .p_ttytype
+                    .as_ref()
+                    .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
+            )
+            .as_opt_cstr(),
+        )
     } else if is_tty_option(name) {
         cstr_to_obj(Some(c""))
     } else {
@@ -4872,9 +4882,12 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             return luaref_obj(api_new_luaref(luaref));
         }
         K_CALLBACK_EXPR | K_CALLBACK_FUNCREF => {
-            return cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-                (cb.data.as_funcref()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            ));
+            return cstr_to_obj(
+                crate::strings::ByteSlice::from_ptr(
+                    (cb.data.as_funcref()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                )
+                .as_opt_cstr(),
+            );
         }
         K_CALLBACK_PARTIAL => {
             let mut tv = TypVal::new();
@@ -5251,7 +5264,7 @@ fn did_set_option<'a>(
     {
         errmsg = Some(E_INVARG);
     } else if let Some(cb) = opt.opt_did_set_cb {
-        errmsg = cb(args).map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
+        errmsg = cb(args).map(|s| crate::strings::ByteSlice::from_ptr(s.as_ptr()).as_cstr());
     }
 
     if errmsg.is_some() {
@@ -5438,7 +5451,8 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         };
         args.os_varp = varp;
         args.os_oldval = opt_from_varp(opt_idx, varp);
-        let validate_err = validate_cb(args).map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
+        let validate_err =
+            validate_cb(args).map(|s| crate::strings::ByteSlice::from_ptr(s.as_ptr()).as_cstr());
         optval_free_read(opt_idx, args.os_oldval);
         args.os_oldval = nil_obj();
         return validate_err;
@@ -5482,7 +5496,7 @@ fn set_option<'a>(
         }
 
         errmsg = validate_and_prepare_option_value(&mut args)
-            .map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
+            .map(|s| crate::strings::ByteSlice::from_ptr(s.as_ptr()).as_cstr());
         value = args.os_newval;
 
         if errmsg.is_none()
@@ -5600,7 +5614,7 @@ fn set_option<'a>(
     args.os_buf = g_st().curbuf;
     args.os_win = crate::globals::curwin_ptr();
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted)
-        .map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
+        .map(|s| crate::strings::ByteSlice::from_ptr(s.as_ptr()).as_cstr());
     args.os_prep = crate::optionstr::OptSetPrep::None;
 
     g_st().secure = secure_saved;
@@ -7702,15 +7716,18 @@ pub fn expand_setting_subtract(
 
         loop {
             let item = next_val;
-            let mut comma = vim_strchr(crate::memory::cstr_from_ptr(next_val), b',' as i32)
-                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                .cast::<u8>();
+            let mut comma = vim_strchr(
+                crate::strings::ByteSlice::from_ptr(next_val).as_cstr(),
+                b',' as i32,
+            )
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast::<u8>();
             while !comma.is_null()
                 && comma != next_val
                 && unsafe { *comma.wrapping_offset(-1) } == b'\\'
             {
                 comma = vim_strchr(
-                    crate::memory::cstr_from_ptr(comma.wrapping_add(1)),
+                    crate::strings::ByteSlice::from_ptr(comma.wrapping_add(1)).as_cstr(),
                     b',' as i32,
                 )
                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
@@ -7724,7 +7741,7 @@ pub fn expand_setting_subtract(
                 next_val = ptr::null_mut();
             }
 
-            let item_cstr = crate::memory::cstr_from_ptr(item);
+            let item_cstr = crate::strings::ByteSlice::from_ptr(item).as_cstr();
             if !item_cstr.to_bytes().is_empty() && vim_regexec(regmatch, item_cstr, 0) {
                 matches.push(escape_option_str_cmdline(item_cstr.to_bytes()));
             }
@@ -7751,7 +7768,7 @@ pub fn expand_setting_subtract(
 
         if num_flags > 1 {
             let flag = option_val;
-            for &flag_byte in crate::memory::cstr_from_ptr(flag).to_bytes() {
+            for &flag_byte in crate::strings::ByteSlice::from_ptr(flag).as_bytes() {
                 matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
             }
         }
@@ -8244,9 +8261,10 @@ fn option_info_dict(
     put_c(
         &mut dict,
         c"shortname",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-            opt.shortname.map_or(ptr::null(), |s| s.as_ptr()),
-        )),
+        cstr_as_obj(
+            crate::strings::ByteSlice::from_ptr(opt.shortname.map_or(ptr::null(), |s| s.as_ptr()))
+                .as_opt_cstr(),
+        ),
     );
 
     let scope = if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
@@ -8262,7 +8280,7 @@ fn option_info_dict(
     put_c(
         &mut dict,
         c"scope",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(scope)),
+        cstr_as_obj(crate::strings::ByteSlice::from_ptr(scope).as_opt_cstr()),
     );
 
     put_c(

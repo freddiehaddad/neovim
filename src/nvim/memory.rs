@@ -451,17 +451,6 @@ impl<'a> CStrSubslice<'a> for &mut &'a CStr {
     }
 }
 
-/// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
-#[inline(always)]
-pub fn cstr_from_ptr<'a>(s: impl AsCStrPtr) -> &'a CStr {
-    let s = s.into_cstr_ptr();
-    if s.is_null() {
-        c""
-    } else {
-        unsafe { CStr::from_ptr(s) }
-    }
-}
-
 /// View a byte slice up to the first NUL byte (or the whole slice if no NUL is present).
 #[inline(always)]
 pub fn bytes_until_nul(bytes: &[u8]) -> &[u8] {
@@ -490,17 +479,6 @@ pub fn cstring_modify<R>(s: &mut CString, f: impl FnOnce(&mut [u8]) -> R) -> R {
     let r = f(&mut v);
     *s = cstring_until_nul(&v);
     r
-}
-
-/// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
-#[inline(always)]
-pub fn cstr_as_opt_cstr<'a>(s: impl AsCStrPtr) -> Option<&'a CStr> {
-    let s = s.into_cstr_ptr();
-    if s.is_null() {
-        None
-    } else {
-        Some(unsafe { CStr::from_ptr(s) })
-    }
 }
 
 /// View up to 1 UTF-8 codepoint (at most 6 bytes before NUL) starting at `p`.

@@ -2039,9 +2039,10 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 pat_len += 1;
             }
             if pat_len < pat_bytes.len() {
-                cmd = crate::memory::cstr_from_ptr(pat.as_ptr().wrapping_add(pat_len + 1));
+                cmd = crate::strings::ByteSlice::from_ptr(pat.as_ptr().wrapping_add(pat_len + 1))
+                    .as_cstr();
                 let p_cstr = CString::new(&pat_bytes[..pat_len]).unwrap_or_default();
-                pat = crate::memory::cstr_from_ptr(p_cstr.as_ptr());
+                pat = crate::strings::ByteSlice::from_ptr(p_cstr.as_ptr()).as_cstr();
                 pat_owned = Some(p_cstr);
             } else {
                 cmd = c"";
@@ -2051,7 +2052,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 || crate::strings::vim_haschr(pat, b'~' as i32)
             {
                 let ep = expand_env_save(pat);
-                pat = crate::memory::cstr_from_ptr(ep.as_ptr());
+                pat = crate::strings::ByteSlice::from_ptr(ep.as_ptr()).as_cstr();
                 envpat = Some(ep);
             }
 
@@ -2834,7 +2835,8 @@ pub fn apply_autocmds_group(
                 }
                 Some(crate::memory::cstr_to_cstring(fname))
             } else {
-                sfname_owned = to_slash_save(crate::memory::cstr_as_opt_cstr(fname));
+                sfname_owned =
+                    to_slash_save(crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr());
                 if event == EVENT_CMDATOM
                     || event == EVENT_CMDLINECHANGED
                     || event == EVENT_CMDLINEENTER
@@ -2869,9 +2871,12 @@ pub fn apply_autocmds_group(
                     || event == EVENT_WINSCROLLED
                 {
                     g_st().autocmd_fname_full = true;
-                    to_slash_save(crate::memory::cstr_as_opt_cstr(fname))
+                    to_slash_save(crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr())
                 } else {
-                    FullName_save(crate::memory::cstr_as_opt_cstr(fname), false)
+                    FullName_save(
+                        crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
+                        false,
+                    )
                 }
             };
             fname = fname_owned
@@ -3206,12 +3211,15 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"match"),
-            value: cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                g_st()
-                    .autocmd_match
-                    .as_ref()
-                    .map_or(ptr::null(), |s| s.as_ptr()),
-            )),
+            value: cstr_as_obj(
+                crate::strings::ByteSlice::from_ptr(
+                    g_st()
+                        .autocmd_match
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr()),
+                )
+                .as_opt_cstr(),
+            ),
         };
         size += 1;
         data_items[size] = KeyValuePair {

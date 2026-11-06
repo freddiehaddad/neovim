@@ -2317,14 +2317,14 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
     path_to_slash(crate::memory::cstr_as_mut_bytes(bufname_ptr.cast()));
 
     let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
-        crate::memory::cstr_from_ptr(bufname_ptr).to_bytes() == last.to_bytes()
+        crate::strings::ByteSlice::from_ptr(bufname_ptr).as_bytes() == last.to_bytes()
     });
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
         drop(ptr_cstr);
         qf_st().qf_last_bufref.br_buf
     } else {
         let b = crate::globals::GraphPtr::from(buflist_new(
-            crate::memory::cstr_as_opt_cstr(bufname_ptr),
+            crate::strings::ByteSlice::from_ptr(bufname_ptr).as_opt_cstr(),
             None,
             0,
             BLN_NOOPT,
@@ -3195,7 +3195,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
                 |s| s.as_ptr().cast_mut(),
             );
             if qfp.qf_type == 1 {
-                fname = path_tail(crate::memory::cstr_from_ptr(fname))
+                fname = path_tail(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
                     .as_ptr()
                     .cast_mut();
             }
@@ -3214,7 +3214,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         filter_entry &= message_filtered(module);
     }
     if filter_entry && !fname.is_null() {
-        filter_entry &= message_filtered(crate::memory::cstr_from_ptr(fname));
+        filter_entry &= message_filtered(crate::strings::ByteSlice::from_ptr(fname).as_cstr());
     }
     if filter_entry && let Some(ref pat) = qfp.qf_pattern {
         filter_entry &= message_filtered(pat);
@@ -5104,9 +5104,10 @@ fn vgr_match_buflines(
                 None,
             ) > 0
             {
-                let mesg_cstr = crate::memory::cstr_from_ptr(
+                let mesg_cstr = crate::strings::ByteSlice::from_ptr(
                     (ml_get_buf(buf, regmatch.startpos[0].lnum + lnum)).as_ptr(),
-                );
+                )
+                .as_cstr();
                 if qf_add_entry(
                     qfl,
                     None,
@@ -5149,7 +5150,7 @@ fn vgr_match_buflines(
             let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
             while fuzzy_match(
-                crate::memory::cstr_from_ptr(str_.wrapping_add(col as usize)).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(str_.wrapping_add(col as usize)).as_bytes(),
                 spat_bytes,
                 false,
                 &mut score,
@@ -5161,7 +5162,7 @@ fn vgr_match_buflines(
                     fname,
                     None,
                     if duplicate_name != 0 { 0 } else { buf.b_fnum },
-                    crate::memory::cstr_from_ptr(str_),
+                    crate::strings::ByteSlice::from_ptr(str_).as_cstr(),
                     lnum,
                     0,
                     matches[0] as Colnr + col + 1,
@@ -5266,7 +5267,7 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         return false;
     }
 
-    let p_rem = crate::charset::skipwhite_slice(crate::memory::cstr_from_ptr(p).to_bytes());
+    let p_rem = crate::charset::skipwhite_slice(crate::strings::ByteSlice::from_ptr(p).as_bytes());
     if p_rem.is_empty() {
         emsg(gettext(c"E683: File name missing or invalid pattern"));
         return false;
@@ -5305,7 +5306,8 @@ fn vgr_process_files(
     let mut aborted = false;
     while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
         let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
-        let fname = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(fname_exp));
+        let fname =
+            path_try_shorten_fname(crate::strings::ByteSlice::from_ptr(fname_exp).as_opt_cstr());
         let fname_cstr = fname.unwrap_or(c"");
         let now = os_time() as time_t;
         if now > seconds {
@@ -5314,7 +5316,7 @@ fn vgr_process_files(
         }
 
         let mut buf = crate::globals::GraphPtr::from(buflist_findname_exp(
-            crate::memory::cstr_as_opt_cstr(fname_exp),
+            crate::strings::ByteSlice::from_ptr(fname_exp).as_opt_cstr(),
         ));
         let using_dummy: bool;
         if buf.is_null() || buf.b_ml.ml_mfp.is_none() {
@@ -6962,11 +6964,15 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
                 Some(fname),
                 None,
                 0,
-                crate::memory::cstr_from_ptr(line),
+                crate::strings::ByteSlice::from_ptr(line).as_cstr(),
                 lnum,
                 0,
-                (p_regmatch.start_offset(0, crate::memory::cstr_from_ptr(line)) as i32) + 1,
-                (p_regmatch.end_offset(0, crate::memory::cstr_from_ptr(line)) as i32) + 1,
+                (p_regmatch.start_offset(0, crate::strings::ByteSlice::from_ptr(line).as_cstr())
+                    as i32)
+                    + 1,
+                (p_regmatch.end_offset(0, crate::strings::ByteSlice::from_ptr(line).as_cstr())
+                    as i32)
+                    + 1,
                 false,
                 None,
                 0,

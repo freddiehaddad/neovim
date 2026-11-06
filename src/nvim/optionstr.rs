@@ -128,7 +128,7 @@ impl CharBuf {
 
     #[inline]
     pub fn as_cstr(&self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.as_mut_ptr())
+        crate::strings::ByteSlice::from_ptr(self.as_mut_ptr()).as_cstr()
     }
 }
 
@@ -1589,7 +1589,7 @@ fn expand_set_opt_generic(
 ) -> bool {
     optstr_st().set_opt_callback_orig_option = args
         .oe_include_orig_val
-        .then(|| crate::memory::cstr_from_ptr(args.oe_opt_value.as_ptr()));
+        .then(|| crate::strings::ByteSlice::from_ptr(args.oe_opt_value.as_ptr()).as_cstr());
     optstr_st().set_opt_callback_func = func;
 
     expand_generic(
@@ -2885,7 +2885,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
     if err.err_type != ErrorType::ErrorTypeNone {
         let msg_cstr = err.msg_cstr().unwrap_or(c"");
         let msg = if msg_cstr.to_bytes().starts_with(b"Vim:") {
-            crate::memory::cstr_from_ptr(msg_cstr.as_ptr().wrapping_add(4))
+            crate::strings::ByteSlice::from_ptr(msg_cstr.as_ptr().wrapping_add(4)).as_cstr()
         } else {
             msg_cstr
         };

@@ -475,10 +475,11 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < Cmdidx::CmdSize {
         crate::lua::converter::lua_pushstring_opt(
             lstate,
-            crate::memory::cstr_as_opt_cstr(
+            crate::strings::ByteSlice::from_ptr(
                 (get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx as i32))
                     .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            ),
+            )
+            .as_opt_cstr(),
         );
         lua_setfield(lstate, -2, c"name");
     }
@@ -564,7 +565,7 @@ fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
         }
         let mut len: usize = 0;
         let ptr = lua_tolstring(lstate, -1, &mut len);
-        (!ptr.is_null()).then(|| (crate::memory::cstr_from_ptr(ptr), len))
+        (!ptr.is_null()).then(|| (crate::strings::ByteSlice::from_ptr(ptr).as_cstr(), len))
     }
 }
 
@@ -1401,7 +1402,11 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     unsafe { lua_settop(lstate, 1) };
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"_LOADED");
-    lua_getfield(lstate, 2, crate::memory::cstr_from_ptr(name));
+    lua_getfield(
+        lstate,
+        2,
+        crate::strings::ByteSlice::from_ptr(name).as_cstr(),
+    );
     if unsafe { lua_toboolean(lstate, -1) } != 0 {
         return 1;
     }
@@ -1509,7 +1514,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
     let mut name_len: usize = 0;
     let name = unsafe { luaL_checklstring(lstate, 1, &raw mut name_len) };
-    let name_cstr = crate::memory::cstr_from_ptr(name);
+    let name_cstr = crate::strings::ByteSlice::from_ptr(name).as_cstr();
     if !nlua_is_deferred_safe() && !viml_func_is_fast(name_cstr) {
         let length = name_len.min(100) + 22;
         vim_snprintf!(
@@ -1577,7 +1582,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let _ = call_func(
-            crate::memory::cstr_from_ptr(name),
+            crate::strings::ByteSlice::from_ptr(name).as_cstr(),
             name_len as i32,
             &mut rettv,
             nargs,
@@ -1702,7 +1707,7 @@ unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> 
 unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
     unsafe {
         let name = luaL_checklstring(lstate, 1, ptr::null_mut());
-        let val = os_getenv_cstr(crate::memory::cstr_from_ptr(name));
+        let val = os_getenv_cstr(crate::strings::ByteSlice::from_ptr(name).as_cstr());
         crate::lua::converter::lua_pushstring_opt(lstate, val.as_deref());
         1
     }
@@ -2183,7 +2188,10 @@ pub fn ex_luado(eap: &mut Exarg) {
             .as_ptr()
             .cast_mut();
         let old_line_len: Colnr = ml_get_buf_len(crate::globals::curbuf_mut(), l);
-        lua_pushstring(lstate, crate::memory::cstr_from_ptr(old_line));
+        lua_pushstring(
+            lstate,
+            crate::strings::ByteSlice::from_ptr(old_line).as_cstr(),
+        );
         unsafe { lua_pushnumber(lstate, f64::from(l)) };
         if nlua_pcall(lstate, 2, 1) != 0 {
             nlua_error(lstate, gettext(c"E5111: Lua: %.*s"));
@@ -2484,8 +2492,9 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         break;
     }
     if found
-        && let Some(source_path) =
-            fix_fname(crate::memory::cstr_as_opt_cstr(info.source.wrapping_add(1)))
+        && let Some(source_path) = fix_fname(
+            crate::strings::ByteSlice::from_ptr(info.source.wrapping_add(1)).as_opt_cstr(),
+        )
     {
         let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
@@ -2603,7 +2612,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
             {
                 let src = home_replace_save(
                     None,
-                    crate::memory::cstr_as_opt_cstr(ar.source.wrapping_add(1)),
+                    crate::strings::ByteSlice::from_ptr(ar.source.wrapping_add(1)).as_opt_cstr(),
                 );
                 let src_s = src.to_string_lossy();
                 let formatted = if show_ref {

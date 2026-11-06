@@ -1027,18 +1027,20 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
 
         let mut group_buf = [0u8; NUMBUFLEN];
-        let group = crate::memory::cstr_as_opt_cstr(
+        let group = crate::strings::ByteSlice::from_ptr(
             (tv_dict_get_string_buf(Some(d), c"group", &mut group_buf))
                 .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-        );
+        )
+        .as_opt_cstr();
         let priority = tv_dict_get_number(Some(d), c"priority") as i32;
         let id = tv_dict_get_number(Some(d), c"id") as i32;
         let conceal = tv_dict_find_opt(Some(d), c"conceal", 7).map(|di| tv_get_string(&di.di_tv));
         if i == 0 {
-            let pat = crate::memory::cstr_as_opt_cstr(
+            let pat = crate::strings::ByteSlice::from_ptr(
                 (tv_dict_get_string(Some(d), c"pattern"))
                     .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            );
+            )
+            .as_opt_cstr();
             if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
                 match_add_failed = true;
             }

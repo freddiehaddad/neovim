@@ -803,7 +803,7 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if same_directory(
-        crate::memory::cstr_as_opt_cstr(mf_fname_ptr),
+        crate::strings::ByteSlice::from_ptr(mf_fname_ptr).as_opt_cstr(),
         buf.ffname_opt(),
     ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
@@ -1079,7 +1079,7 @@ pub fn ml_recover(checkext: bool) {
         .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
     home_replace(
         None,
-        crate::memory::cstr_as_opt_cstr(mf_fname_ptr),
+        crate::strings::ByteSlice::from_ptr(mf_fname_ptr).as_opt_cstr(),
         g_st().name_buff_bytes_mut(),
         true,
     );
@@ -1106,7 +1106,7 @@ pub fn ml_recover(checkext: bool) {
     if curbuf_mut().b_ffname.is_some()
         && os_fileinfo(curbuf_mut().ffname_cstr(), &mut org_file_info)
         && ((os_fileinfo(
-            crate::memory::cstr_from_ptr(mf_fname_ptr),
+            crate::strings::ByteSlice::from_ptr(mf_fname_ptr).as_cstr(),
             &mut swp_file_info,
         ) && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
             || mtime != org_file_info.stat.st_mtim.tv_sec as _)
@@ -1389,9 +1389,10 @@ pub fn ml_recover(checkext: bool) {
                             line_bytes = b"???";
                         } else {
                             did_questions = false;
-                            line_bytes = crate::memory::cstr_from_ptr(
+                            line_bytes = crate::strings::ByteSlice::from_ptr(
                                 dp_ptr.wrapping_add(txt_start as usize),
                             )
+                            .as_cstr()
                             .to_bytes();
                         }
                         ml_append(lnum, line_bytes, 0, true);
@@ -2151,7 +2152,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
         ml_add_deleted_len_buf(
             buf,
-            crate::memory::cstr_from_ptr(buf.b_ml.ml_line_slice.as_ptr()).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_bytes(),
         );
     } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
         && buf.b_ml.ml_line_slice.last() == Some(&0)
@@ -2159,7 +2160,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
         return unsafe { CStr::from_bytes_with_nul_unchecked(buf.b_ml.ml_line_slice) };
     }
 
-    crate::memory::cstr_from_ptr(buf.b_ml.ml_line_slice.as_ptr())
+    crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_cstr()
 }
 
 fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {

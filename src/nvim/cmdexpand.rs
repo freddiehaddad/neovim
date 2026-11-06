@@ -2572,9 +2572,12 @@ fn expand_one_start(
                 {
                     non_suf_match = 0;
                     for i in 0..2 {
-                        if match_suffix(crate::memory::cstr_from_ptr(
-                            xp.xp_files.as_slice()[i].as_ptr().cast_mut(),
-                        )) {
+                        if match_suffix(
+                            crate::strings::ByteSlice::from_ptr(
+                                xp.xp_files.as_slice()[i].as_ptr().cast_mut(),
+                            )
+                            .as_cstr(),
+                        ) {
                             non_suf_match += 1;
                         }
                     }
@@ -2805,7 +2808,7 @@ fn showmatches_oneline(
                 let halved_slash = backslash_halve_save(exp_path.as_bytes());
                 isdir = os_isdir(&halved_slash);
             } else {
-                isdir = os_isdir(crate::memory::cstr_from_ptr(match_j));
+                isdir = os_isdir(crate::strings::ByteSlice::from_ptr(match_j).as_cstr());
             }
             if showtail {
                 p = show_match(matches, j as usize, showtail)
@@ -2816,7 +2819,7 @@ fn showmatches_oneline(
                 let name_buff = g_st().name_buff.as_mut_ptr();
                 home_replace(
                     None,
-                    crate::memory::cstr_as_opt_cstr(match_j),
+                    crate::strings::ByteSlice::from_ptr(match_j).as_opt_cstr(),
                     g_st().name_buff_bytes_mut(),
                     true,
                 );
@@ -2830,7 +2833,7 @@ fn showmatches_oneline(
                 .cast();
         }
         lastlen = msg_outtrans(
-            crate::memory::cstr_from_ptr(p),
+            crate::strings::ByteSlice::from_ptr(p).as_cstr(),
             if isdir { HLF_D } else { 0 },
             false,
         );
@@ -3148,7 +3151,7 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
             retval_vec[..len].copy_from_slice(fname_slice);
             let retval = retval_vec.as_mut_ptr();
 
-            let tail = path_tail(crate::memory::cstr_from_ptr(retval))
+            let tail = path_tail(crate::strings::ByteSlice::from_ptr(retval).as_cstr())
                 .as_ptr()
                 .cast_mut()
                 .cast::<u8>();
@@ -3169,8 +3172,14 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
             }
             if (retval_vec[0] != b'~' || tail != retval)
                 && !ends_in_star
-                && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr(tail), b'$' as i32)
-                && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr(retval), b'`' as i32)
+                && !crate::strings::vim_haschr(
+                    crate::strings::ByteSlice::from_ptr(tail).as_cstr(),
+                    b'$' as i32,
+                )
+                && !crate::strings::vim_haschr(
+                    crate::strings::ByteSlice::from_ptr(retval).as_cstr(),
+                    b'`' as i32,
+                )
             {
                 retval_vec[len] = b'*';
                 len += 1;
@@ -3494,7 +3503,7 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
     bytes
         .iter()
         .position(|&b| matches!(b, b'|' | b'"' | b'#'))
-        .map(|pos| crate::memory::cstr_from_ptr(p.wrapping_add(pos)))
+        .map(|pos| (p.wrapping_add(pos)).as_cstr())
 }
 
 /// Returns a slice to the next command after an :isearch/:dsearch/etc. command.
@@ -4261,7 +4270,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         }
     }
 
-    let arg_cstr = crate::memory::cstr_from_ptr(arg);
+    let arg_cstr = (arg).as_cstr();
     if (ea.argt & EX_XFILE) != 0 {
         set_context_for_wildcard_arg(Some(&ea), arg_cstr, usefilter, xp, &mut context);
     }

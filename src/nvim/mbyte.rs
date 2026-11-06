@@ -75,7 +75,7 @@ impl StrCharInfo {
 
     #[inline]
     pub fn as_cstr(&self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.ptr.as_ptr())
+        crate::strings::ByteSlice::from_ptr(self.ptr.as_ptr()).as_cstr()
     }
 
     #[inline]

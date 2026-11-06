@@ -195,7 +195,7 @@ fn coladvance2(
         let line = ml_get_buf(wp.buf_mut(), pos.lnum).as_ptr().cast_mut();
         let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
-        let line_cstr = crate::memory::cstr_from_ptr(line);
+        let line_cstr = crate::strings::ByteSlice::from_ptr(line).as_cstr();
         let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_cstr);
         let mut ci = utf_ptr2_str_char_info(line_cstr);
         col = 0;
@@ -523,12 +523,13 @@ pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
 /// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
     let cursor = curwin_mut().w_cursor;
-    crate::memory::cstr_from_ptr(
+    crate::strings::ByteSlice::from_ptr(
         ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum)
             .as_ptr()
             .cast_mut()
             .wrapping_add(cursor.col as usize),
     )
+    .as_cstr()
 }
 
 /// Return the bytes (excluding the NUL) of the cursor line.

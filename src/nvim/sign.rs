@@ -758,7 +758,7 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
             break;
         }
         cmdline = crate::charset::skiptowhite_esc_ptr(arg);
-        let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+        let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
         if arg_bytes.starts_with(b"icon=") {
             icon = arg.wrapping_add(5);
         } else if arg_bytes.starts_with(b"text=") {
@@ -788,12 +788,12 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
 
     sign_define_by_name(
         name,
-        crate::memory::cstr_as_opt_cstr(icon),
-        crate::memory::cstr_as_opt_cstr(text),
-        crate::memory::cstr_as_opt_cstr(linehl),
-        crate::memory::cstr_as_opt_cstr(texthl),
-        crate::memory::cstr_as_opt_cstr(culhl),
-        crate::memory::cstr_as_opt_cstr(numhl),
+        crate::strings::ByteSlice::from_ptr(icon).as_opt_cstr(),
+        crate::strings::ByteSlice::from_ptr(text).as_opt_cstr(),
+        crate::strings::ByteSlice::from_ptr(linehl).as_opt_cstr(),
+        crate::strings::ByteSlice::from_ptr(texthl).as_opt_cstr(),
+        crate::strings::ByteSlice::from_ptr(culhl).as_opt_cstr(),
+        crate::strings::ByteSlice::from_ptr(numhl).as_opt_cstr(),
         prio,
     );
 }
@@ -888,7 +888,7 @@ fn parse_sign_cmd_args<'a>(
     let mut lnum_arg = false;
 
     if ascii_isdigit(unsafe { *arg as u8 }) {
-        let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+        let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
         let mut rem = arg_bytes;
         *id = getdigits_int(&mut rem, true, 0);
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
@@ -901,7 +901,7 @@ fn parse_sign_cmd_args<'a>(
     }
 
     while unsafe { *arg != 0 } {
-        let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+        let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
         if arg_bytes.starts_with(b"line=") {
             arg = arg.wrapping_add(5);
             *lnum = crate::charset::parse_i64_prefix(&arg_bytes[5..]) as i32;
@@ -925,7 +925,7 @@ fn parse_sign_cmd_args<'a>(
             while unsafe { *namep as u8 == b'0' && *namep.wrapping_add(1) != 0 } {
                 namep = namep.wrapping_add(1);
             }
-            *name = Some(crate::memory::cstr_from_ptr(namep));
+            *name = Some(crate::strings::ByteSlice::from_ptr(namep).as_cstr());
         } else if arg_bytes.starts_with(b"group=") {
             arg = arg.wrapping_add(6);
             let groupp = arg;
@@ -934,7 +934,7 @@ fn parse_sign_cmd_args<'a>(
                 unsafe { *arg = NUL as _ };
                 arg = arg.wrapping_add(1);
             }
-            *group = Some(crate::memory::cstr_from_ptr(groupp));
+            *group = Some(crate::strings::ByteSlice::from_ptr(groupp).as_cstr());
         } else if arg_bytes.starts_with(b"priority=") {
             arg = arg.wrapping_add(9);
             *prio = crate::charset::parse_i64_prefix(&arg_bytes[9..]) as i32;
@@ -942,12 +942,12 @@ fn parse_sign_cmd_args<'a>(
         } else if arg_bytes.starts_with(b"file=") {
             arg = arg.wrapping_add(5);
             filename = arg;
-            *buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(arg));
+            *buf = buflist_findname_exp(crate::strings::ByteSlice::from_ptr(arg).as_opt_cstr());
             break;
         } else if arg_bytes.starts_with(b"buffer=") {
             arg = arg.wrapping_add(7);
             filename = arg;
-            let arg_bytes = crate::memory::cstr_from_ptr(arg).to_bytes();
+            let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
             let mut rem = arg_bytes;
             *buf = buflist_findnr(getdigits_int(&mut rem, true, 0));
             arg = arg.wrapping_add(arg_bytes.len() - rem.len());
@@ -1006,10 +1006,10 @@ pub fn ex_sign(eap: &mut Exarg) {
             while unsafe { *arg as u8 == b'0' && *arg.wrapping_add(1) != 0 } {
                 arg = arg.wrapping_add(1);
             }
-            let arg_cstr = crate::memory::cstr_from_ptr(arg);
+            let arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
 
             if idx == SIGNCMD_DEFINE {
-                let p_len = crate::memory::cstr_from_ptr(p).to_bytes().len();
+                let p_len = crate::strings::ByteSlice::from_ptr(p).as_bytes().len();
                 let p_slice = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), p_len + 1) };
                 sign_define_cmd(arg_cstr, p_slice);
             } else if idx == SIGNCMD_LIST {
@@ -1026,7 +1026,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut prio: i32 = -1;
         let mut buf: Option<&mut FileBuf> = None;
 
-        let arg_len = crate::memory::cstr_from_ptr(arg).to_bytes().len();
+        let arg_len = crate::strings::ByteSlice::from_ptr(arg).as_bytes().len();
         let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
         if !parse_sign_cmd_args(
             idx, arg_slice, &mut name, &mut id, &mut group, &mut prio, &mut buf, &mut lnum,

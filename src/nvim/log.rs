@@ -209,7 +209,10 @@ fn log_path_init() {
             let err_s = if err_str.is_null() {
                 ""
             } else {
-                crate::memory::cstr_from_ptr(err_str).to_str().unwrap_or("")
+                crate::strings::ByteSlice::from_ptr(err_str)
+                    .as_cstr()
+                    .to_str()
+                    .unwrap_or("")
             };
             let mut msg = Vec::with_capacity(128);
             let _ = write!(
@@ -331,7 +334,10 @@ pub fn open_log_file() -> CFile {
     let err_s = if err_ptr.is_null() {
         ""
     } else {
-        crate::memory::cstr_from_ptr(err_ptr).to_str().unwrap_or("")
+        crate::strings::ByteSlice::from_ptr(err_ptr)
+            .as_cstr()
+            .to_str()
+            .unwrap_or("")
     };
     let path_s = path_cstr.to_str().unwrap_or("");
     let mut msg = Vec::with_capacity(128);

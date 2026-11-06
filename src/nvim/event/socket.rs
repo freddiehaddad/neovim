@@ -14,7 +14,7 @@ use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
-use crate::strings::{gettext, vim_snprintf};
+use crate::strings::{ByteSliceExt as _, gettext, vim_snprintf};
 
 use std::ffi::{CStr, c_void};
 use std::ptr;
@@ -181,7 +181,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
         let addr = watcher.addr.as_ptr().cast();
         let mut port: *mut std::ffi::c_char =
             watcher.addr.as_mut_ptr().wrapping_add(colon_idx + 1).cast();
-        let mut port_scan = crate::memory::cstr_from_ptr(port).to_bytes();
+        let mut port_scan = crate::strings::ByteSlice::from_ptr(port).as_bytes();
         let mut iport: i64 = 0;
 
         let ok = try_getdigits(&mut port_scan, &mut iport);
@@ -326,7 +326,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                 let mut error = None;
 
                 if !socket_alive(&mut *loop_, false, watcher.addr_cstr(), &mut error) {
-                    let rm_result = os_remove(crate::memory::cstr_from_ptr(addr));
+                    let rm_result = os_remove(crate::strings::ByteSlice::from_ptr(addr).as_cstr());
 
                     if rm_result != 0 {
                         logmsg!(
@@ -375,10 +375,10 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
         debug_assert!(result <= 0);
         if result < 0 {
             if result == UV_EACCES {
-                *path_tail(crate::memory::cstr_from_ptr(addr))
+                *path_tail(crate::strings::ByteSlice::from_ptr(addr).as_cstr())
                     .as_ptr()
                     .cast_mut() = NUL;
-                if !os_path_exists(crate::memory::cstr_from_ptr(addr)) {
+                if !os_path_exists(crate::strings::ByteSlice::from_ptr(addr).as_cstr()) {
                     result = UV_ENOENT;
                 }
             }

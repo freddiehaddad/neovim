@@ -1505,13 +1505,14 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                     {
                                         set_option_value_give_err(
                                             K_OPT_BACKGROUND,
-                                            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                                                if dark != 0 {
+                                            cstr_as_obj(
+                                                crate::strings::ByteSlice::from_ptr(if dark != 0 {
                                                     c"dark".as_ptr()
                                                 } else {
                                                     c"light".as_ptr()
-                                                },
-                                            )),
+                                                })
+                                                .as_opt_cstr(),
+                                            ),
                                             0,
                                         );
                                         reset_option_was_set(K_OPT_BACKGROUND);
@@ -1749,9 +1750,12 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool
         put_c(
             hl,
             c"link",
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                hl_table_at((link - 1) as usize).sg_name.as_ptr(),
-            )),
+            cstr_as_obj(
+                crate::strings::ByteSlice::from_ptr(
+                    hl_table_at((link - 1) as usize).sg_name.as_ptr(),
+                )
+                .as_opt_cstr(),
+            ),
         );
     }
     let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);

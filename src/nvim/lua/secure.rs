@@ -7,6 +7,7 @@ use crate::lua::converter::{
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
+use crate::strings::ByteSliceExt as _;
 use std::ffi::CString;
 
 use crate::ex_docmd::Exarg;
@@ -82,7 +83,7 @@ pub fn ex_trust(eap: &mut Exarg) {
     let path = if unsafe { *path_ptr } == 0 {
         None
     } else {
-        Some(crate::memory::cstr_from_ptr(path_ptr))
+        Some(crate::strings::ByteSlice::from_ptr(path_ptr).as_cstr())
     };
 
     nlua_trust(action, path);

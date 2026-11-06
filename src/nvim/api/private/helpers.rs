@@ -148,9 +148,10 @@ pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
 
 #[inline]
 pub fn cstr_as_obj(s: Option<&CStr>) -> Object {
-    string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-        (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-    )))
+    string_obj(cstr_as_string(
+        crate::strings::ByteSlice::from_ptr((s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr))
+            .as_opt_cstr(),
+    ))
 }
 
 #[inline]
@@ -246,18 +247,22 @@ pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
 
 #[inline]
 pub fn cstr_to_obj(s: Option<&CStr>) -> Object {
-    string_obj(cstr_to_string(crate::memory::cstr_as_opt_cstr(
-        (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-    )))
+    string_obj(cstr_to_string(
+        crate::strings::ByteSlice::from_ptr((s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr))
+            .as_opt_cstr(),
+    ))
 }
 
 #[inline]
 pub fn cstr_to_arena_obj(arena: &mut Arena, s: Option<&CStr>) -> Object {
     string_obj(arena_string(
         arena,
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(
-            (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-        )),
+        cstr_as_string(
+            crate::strings::ByteSlice::from_ptr(
+                (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+            )
+            .as_opt_cstr(),
+        ),
     ))
 }
 
@@ -308,14 +313,14 @@ pub trait IntoDictKey {
 impl IntoDictKey for RawCCharPtr {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
+        cstr_as_string(crate::strings::ByteSlice::from_ptr(self).as_opt_cstr())
     }
 }
 
 impl IntoDictKey for RawCCharPtrMut {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
+        cstr_as_string(crate::strings::ByteSlice::from_ptr(self).as_opt_cstr())
     }
 }
 

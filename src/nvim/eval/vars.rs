@@ -982,7 +982,11 @@ fn eval_all_expr_in_str(str_arg_in: &CStr) -> Option<std::ffi::CString> {
         }
 
         let p = str_arg.wrapping_add(full_bytes.len() - rem.len());
-        let next_p = eval_one_expr_in_str(crate::memory::cstr_from_ptr(p), &mut buf, true)?;
+        let next_p = eval_one_expr_in_str(
+            crate::strings::ByteSlice::from_ptr(p).as_cstr(),
+            &mut buf,
+            true,
+        )?;
         let consumed = (next_p.as_ptr() as usize).wrapping_sub(str_arg as usize);
         rem = &full_bytes[consumed.min(full_bytes.len())..];
     }
@@ -1073,7 +1077,7 @@ pub fn heredoc_get(
         let mut ti: i32 = 0;
 
         let theline: &std::ffi::CStr = if heredoc_in_string {
-            let rem_bytes = crate::memory::cstr_from_ptr(line_arg).to_bytes();
+            let rem_bytes = crate::strings::ByteSlice::from_ptr(line_arg).as_bytes();
             if rem_bytes.is_empty() {
                 if !script_get {
                     semsg!(gettext(E_MISSING_END_MARKER_STR), marker_cstr.as_ptr());
@@ -1136,14 +1140,19 @@ pub fn heredoc_get(
 
         let str_line = theline.as_ptr().wrapping_add(ti as usize);
         if evalstr && !eap.skip {
-            let Some(evaluated) = eval_all_expr_in_str(crate::memory::cstr_from_ptr(str_line))
+            let Some(evaluated) =
+                eval_all_expr_in_str(crate::strings::ByteSlice::from_ptr(str_line).as_cstr())
             else {
                 eval_failed = true;
                 continue;
             };
             tv_list_append_string(&mut *l, Some(evaluated.as_c_str()), -1);
         } else {
-            tv_list_append_string(&mut *l, Some(crate::memory::cstr_from_ptr(str_line)), -1);
+            tv_list_append_string(
+                &mut *l,
+                Some(crate::strings::ByteSlice::from_ptr(str_line).as_cstr()),
+                -1,
+            );
         }
     }
     if heredoc_in_string {
@@ -1170,7 +1179,7 @@ pub fn ex_let(eap: &mut Exarg) {
     let mut first: i32 = 1;
 
     let Some(argend_cstr) = skip_var_list(
-        crate::memory::cstr_from_ptr(arg),
+        crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
         &mut var_count,
         &mut semicolon,
         false,
@@ -1189,9 +1198,13 @@ pub fn ex_let(eap: &mut Exarg) {
         if unsafe { *arg as u8 } == b'[' {
             emsg(gettext(E_INVARG));
         } else if ends_excmd(unsafe { *arg as u8 }) == 0 {
-            arg = list_arg_vars(eap, crate::memory::cstr_from_ptr(arg), &mut first)
-                .as_ptr()
-                .cast_mut();
+            arg = list_arg_vars(
+                eap,
+                crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
+                &mut first,
+            )
+            .as_ptr()
+            .cast_mut();
         } else if !eap.skip {
             list_glob_vars(&mut first);
             list_buf_vars(&mut first);
@@ -1202,7 +1215,7 @@ pub fn ex_let(eap: &mut Exarg) {
             list_vim_vars(&mut first);
         }
         eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
-            crate::memory::cstr_from_ptr(arg),
+            crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
         ));
         return;
     }
@@ -1367,7 +1380,7 @@ pub fn skip_var_list<'a>(
         let mut p = arg_in.as_ptr().cast::<u8>();
         loop {
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
-            let p_cstr = crate::memory::cstr_from_ptr(p);
+            let p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
             let s = skip_var_one(p_cstr).as_ptr().cast::<u8>();
             if s == p {
                 if !silent {
@@ -1395,7 +1408,7 @@ pub fn skip_var_list<'a>(
                 return None;
             }
         }
-        return Some(crate::memory::cstr_from_ptr(p.wrapping_add(1)));
+        return Some(crate::strings::ByteSlice::from_ptr(p.wrapping_add(1)).as_cstr());
     }
     Some(skip_var_one(arg_in))
 }
@@ -1486,7 +1499,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
     while ends_excmd(unsafe { *arg }) == 0 && !g_st().got_int {
         if error || eap.skip {
             arg = find_name_end(
-                crate::memory::cstr_from_ptr(arg),
+                crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
                 None,
                 FNE_INCL_BR | FNE_CHECK_START,
             )
@@ -1502,7 +1515,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             let name_start = arg;
             let mut name = arg;
             let mut tofree: Option<std::ffi::CString> = None;
-            let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
+            let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
             let len = get_name_len(&mut arg_cstr, &mut tofree, true, true);
             arg = arg_cstr.as_ptr().cast_mut().cast();
             if len <= 0 {
@@ -1517,7 +1530,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                     name = tf.as_ptr().cast();
                 }
                 if !eval_variable(
-                    crate::memory::cstr_from_ptr(name),
+                    crate::strings::ByteSlice::from_ptr(name).as_cstr(),
                     len,
                     Some(&mut tv),
                     None,
@@ -1527,7 +1540,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                     error = true;
                 } else {
                     let arg_subsc = arg;
-                    let mut arg_cstr = crate::memory::cstr_from_ptr(arg);
+                    let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
                     let subsc_ok = handle_subscript(
                         &mut arg_cstr,
                         &mut tv,
@@ -1563,14 +1576,16 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
                                 .as_ref()
                                 .is_some_and(|tf| ptr::eq(used_name, tf.as_ptr().cast()))
                             {
-                                crate::memory::cstr_from_ptr(used_name).to_bytes().len() as isize
+                                crate::strings::ByteSlice::from_ptr(used_name)
+                                    .as_bytes()
+                                    .len() as isize
                             } else {
                                 (crate::strings::AsByteSlice::byte_addr(arg) as isize)
                                     - (crate::strings::AsByteSlice::byte_addr(used_name) as isize)
                             };
                             list_one_var_a(
                                 c"",
-                                crate::memory::cstr_as_opt_cstr(used_name),
+                                crate::strings::ByteSlice::from_ptr(used_name).as_opt_cstr(),
                                 name_size,
                                 tv.v_type,
                                 &s,
@@ -1588,7 +1603,7 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
         arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
     }
 
-    crate::memory::cstr_from_ptr(arg)
+    crate::strings::ByteSlice::from_ptr(arg).as_cstr()
 }
 
 /// Set an environment variable, part of ex_let_one().
@@ -1629,13 +1644,13 @@ fn ex_let_env<'a>(
             && let Some(s) = vim_getenv(&name_cstr)
         {
             let mut bytes = Vec::from(s.as_bytes());
-            bytes.extend_from_slice(crate::memory::cstr_from_ptr(p).to_bytes());
+            bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(p).as_bytes());
             let joined = crate::memory::cstr_from_bytes(&bytes);
             p = joined.as_ptr();
             tofree = Some(joined);
         }
         if !p.is_null() {
-            vim_setenv_ext(&name_cstr, crate::memory::cstr_from_ptr(p));
+            vim_setenv_ext(&name_cstr, crate::strings::ByteSlice::from_ptr(p).as_cstr());
             arg_end = arg;
         }
         drop(tofree);
@@ -1767,7 +1782,7 @@ fn ex_let_option<'a>(
 
     optval_free(curval);
     optval_free(newval);
-    Some(crate::memory::cstr_from_ptr(p))
+    Some(crate::strings::ByteSlice::from_ptr(p).as_cstr())
 }
 
 /// Set a register, part of ex_let_one().
@@ -1804,7 +1819,7 @@ fn ex_let_register<'a>(
             };
             if let Some(s) = get_reg_contents_str(reg_c, K_GREG_EXPR_SRC) {
                 let mut bytes = Vec::from(s.as_bytes());
-                bytes.extend_from_slice(crate::memory::cstr_from_ptr(p).to_bytes());
+                bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(p).as_bytes());
                 let joined = cstr_from_bytes(&bytes);
                 p = joined.as_ptr();
                 ptofree = Some(joined);
@@ -1816,7 +1831,7 @@ fn ex_let_register<'a>(
             } else {
                 arg.first_byte() as i32
             };
-            let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
             write_reg_contents(reg_c, p_bytes, p_bytes.len() as isize, false);
             arg_end = arg.wrapping_add(1);
         }
@@ -3090,7 +3105,7 @@ pub fn var_check_ro(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
     }
 
     semsg!(
-        gettext(crate::memory::cstr_from_ptr(error_message)),
+        gettext(crate::strings::ByteSlice::from_ptr(error_message).as_cstr()),
         name_len as i32,
         name
     );
@@ -3468,9 +3483,14 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
         )
     {
         if unsafe { *varname as u8 } == b'&' {
-            set_option_from_tv(crate::memory::cstr_from_ptr(varname.wrapping_add(1)), varp);
+            set_option_from_tv(
+                crate::strings::ByteSlice::from_ptr(varname.wrapping_add(1)).as_cstr(),
+                varp,
+            );
         } else {
-            let varname_len = crate::memory::cstr_from_ptr(varname).to_bytes().len();
+            let varname_len = crate::strings::ByteSlice::from_ptr(varname)
+                .as_bytes()
+                .len();
             let mut winvarname = Vec::with_capacity(varname_len + 3);
             winvarname.push(b'w');
             winvarname.push(b':');

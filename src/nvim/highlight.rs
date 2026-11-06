@@ -379,9 +379,12 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     for hlf in 0..HLF_COUNT {
         remote_ui_hl_group_set(
             ui,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                (hlf_name_ptr(hlf)).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            )),
+            cstr_as_string(
+                crate::strings::ByteSlice::from_ptr(
+                    (hlf_name_ptr(hlf)).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                )
+                .as_opt_cstr(),
+            ),
             Integer::from(g_st().highlight_attr[hlf]),
         );
     }

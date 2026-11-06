@@ -463,10 +463,10 @@ pub fn nvim_option_to_object(
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
         string_obj(arena_string(
             arena,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(str_ptr)),
+            cstr_as_string(crate::strings::ByteSlice::from_ptr(str_ptr).as_opt_cstr()),
         ))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
-        let bytes = crate::memory::cstr_from_ptr(str_ptr).to_bytes();
+        let bytes = crate::strings::ByteSlice::from_ptr(str_ptr).as_bytes();
         let mut d = arena_dict(arena, bytes.len());
         for &b in bytes {
             put_c(&mut d, arena_memdupz(arena, &[b]), boolean_obj(true));
@@ -475,7 +475,7 @@ pub fn nvim_option_to_object(
     } else {
         let mut nparts: usize = 1;
         let p = str_ptr;
-        for &p_byte in crate::memory::cstr_from_ptr(p).to_bytes() {
+        for &p_byte in crate::strings::ByteSlice::from_ptr(p).as_bytes() {
             if p_byte == b',' {
                 nparts += 1;
             }
@@ -493,7 +493,7 @@ pub fn nvim_option_to_object(
         } else {
             arena_array(arena, nparts)
         };
-        let mut p_bytes = crate::memory::cstr_from_ptr(str_ptr).to_bytes();
+        let mut p_bytes = crate::strings::ByteSlice::from_ptr(str_ptr).as_bytes();
         let str_len = p_bytes.len();
         let mut item_buf = vec![0u8; str_len + 1];
         while !p_bytes.is_empty() {

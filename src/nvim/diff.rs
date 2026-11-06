@@ -1102,18 +1102,24 @@ fn diff_file(dio: &mut Diffio) -> bool {
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
         eval_diff(
-            crate::memory::cstr_from_ptr(tmp_orig),
-            crate::memory::cstr_from_ptr(tmp_new),
-            crate::memory::cstr_from_ptr(tmp_diff),
+            crate::strings::ByteSlice::from_ptr(tmp_orig).as_cstr(),
+            crate::strings::ByteSlice::from_ptr(tmp_new).as_cstr(),
+            crate::strings::ByteSlice::from_ptr(tmp_diff).as_cstr(),
         );
         return true;
     }
     if dio.dio_internal != 0 {
         return diff_file_internal(dio);
     }
-    let len = crate::memory::cstr_from_ptr(tmp_orig).to_bytes().len()
-        + crate::memory::cstr_from_ptr(tmp_new).to_bytes().len()
-        + crate::memory::cstr_from_ptr(tmp_diff).to_bytes().len()
+    let len = crate::strings::ByteSlice::from_ptr(tmp_orig)
+        .as_bytes()
+        .len()
+        + crate::strings::ByteSlice::from_ptr(tmp_new)
+            .as_bytes()
+            .len()
+        + crate::strings::ByteSlice::from_ptr(tmp_diff)
+            .as_bytes()
+            .len()
         + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
@@ -1160,7 +1166,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     append_redir(
         &mut cmd_vec,
         opt_vars().p_srr.as_cstr(),
-        crate::memory::cstr_from_ptr(tmp_diff),
+        crate::strings::ByteSlice::from_ptr(tmp_diff).as_cstr(),
     );
     crate::autocmd::block_autocmds();
     call_shell(
@@ -2184,7 +2190,7 @@ fn parse_diffanchors(
         g_st().curbuf = (buf).into();
         set_curwin(bufwin);
         let mut errormsg = None;
-        let mut dia_opt = crate::memory::cstr_as_opt_cstr(dia);
+        let mut dia_opt = crate::strings::ByteSlice::from_ptr(dia).as_opt_cstr();
         let lnum = get_address(
             None,
             &mut dia_opt,
@@ -2415,10 +2421,14 @@ fn diff_find_change_simple(
             let line_new = ml_get_buf(curtab_mut().diffbuf_mut(i), dp.df_lnum[i] + off)
                 .as_ptr()
                 .cast_mut();
-            let org_slice = crate::memory::cstr_from_ptr(line_org).to_bytes();
-            let new_slice = crate::memory::cstr_from_ptr(line_new).to_bytes();
-            let org_bytes = crate::memory::cstr_from_ptr(line_org).to_bytes_with_nul();
-            let new_bytes = crate::memory::cstr_from_ptr(line_new).to_bytes_with_nul();
+            let org_slice = crate::strings::ByteSlice::from_ptr(line_org).as_bytes();
+            let new_slice = crate::strings::ByteSlice::from_ptr(line_new).as_bytes();
+            let org_bytes = crate::strings::ByteSlice::from_ptr(line_org)
+                .as_cstr()
+                .to_bytes_with_nul();
+            let new_bytes = crate::strings::ByteSlice::from_ptr(line_new)
+                .as_cstr()
+                .to_bytes_with_nul();
             let mut si_org: i32 = 0;
             let mut si_new: i32 = 0;
             while org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0 {
@@ -2616,7 +2626,8 @@ fn diff_refine_inline_word_highlight(
             while i < gap_size && unsafe { *gap_text.wrapping_add(i as usize) != 0 } {
                 has_content = true;
                 let char_class = mb_get_class_tab(
-                    crate::memory::cstr_from_ptr(gap_text.wrapping_add(i as usize)).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(gap_text.wrapping_add(i as usize))
+                        .as_bytes(),
                     &curtab_mut().diffbuf_mut(idx1).b_chartab,
                 );
                 if char_class == 2 {

@@ -149,7 +149,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     let env = XDG_ENV_VARS[i].as_ptr();
     let fallback = XDG_DEFAULTS[i];
 
-    let mut env_val = os_getenv_cstr(crate::memory::cstr_from_ptr(env));
+    let mut env_val = os_getenv_cstr(crate::strings::ByteSlice::from_ptr(env).as_cstr());
 
     #[cfg(target_os = "windows")]
     {
@@ -168,7 +168,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        if env_val.is_none() && os_env_exists(crate::memory::cstr_from_ptr(env), false) {
+        if env_val.is_none() && os_env_exists((env).as_cstr(), false) {
             env_val = Some(CString::default());
         }
     }

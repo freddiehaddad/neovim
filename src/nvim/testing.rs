@@ -321,7 +321,7 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
     let beeps = g_st().did_beep;
     g_st().suppress_errthrow = true;
     g_st().emsg_silent = 0;
-    do_cmdline_cmd(crate::memory::cstr_from_ptr(cmd));
+    do_cmdline_cmd(crate::strings::ByteSlice::from_ptr(cmd).as_cstr());
     let beeped = g_st().did_beep != beeps;
     if if no_beep { beeped } else { !beeped } {
         let mut ga = Vec::new();
@@ -331,7 +331,10 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
         } else {
             ga_concat_literal(&mut ga, b"command did not beep: ");
         }
-        buf_concat_cstr(&mut ga, crate::memory::cstr_as_opt_cstr(cmd));
+        buf_concat_cstr(
+            &mut ga,
+            crate::strings::ByteSlice::from_ptr(cmd).as_opt_cstr(),
+        );
         assert_error(&ga);
         ret = 1;
     }
@@ -521,7 +524,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().no_wait_return += 1;
 
     let cmd = tv_get_string_chk(&argvars[0]).map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
-    do_cmdline_cmd(crate::memory::cstr_from_ptr(cmd));
+    do_cmdline_cmd(crate::strings::ByteSlice::from_ptr(cmd).as_cstr());
 
     g_st().trylevel = save_trylevel;
     g_st().suppress_errthrow = false;
@@ -530,7 +533,11 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
         ga_concat_literal(&mut ga, b"command did not fail: ");
-        assert_append_cmd_or_arg(&mut ga, argvars, crate::memory::cstr_as_opt_cstr(cmd));
+        assert_append_cmd_or_arg(
+            &mut ga,
+            argvars,
+            crate::strings::ByteSlice::from_ptr(cmd).as_opt_cstr(),
+        );
         assert_error(&ga);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     } else if argvars[1].v_type != VarType::VarUnknown {
@@ -548,7 +555,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut valid_args = true;
         if arg1.v_type == VarType::VarString {
             if let Some(expected) = tv_get_string_buf_chk(arg1, &mut buf) {
-                let act_bytes = crate::memory::cstr_from_ptr(actual).to_bytes();
+                let act_bytes = crate::strings::ByteSlice::from_ptr(actual).as_bytes();
                 let exp_bytes = expected.to_bytes();
                 let contains = if exp_bytes.is_empty() {
                     true
@@ -572,7 +579,11 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let first_tv = &list_ref.first_opt().unwrap().li_tv;
                 let expected = tv_get_string_buf_chk(first_tv, &mut buf);
                 if let Some(expected) = expected {
-                    if pattern_match(expected, crate::memory::cstr_as_opt_cstr(actual), false) == 0
+                    if pattern_match(
+                        expected,
+                        crate::strings::ByteSlice::from_ptr(actual).as_opt_cstr(),
+                        false,
+                    ) == 0
                     {
                         error_found = true;
                         expected_str = Some(expected);
@@ -585,7 +596,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         if let Some(expected2) = expected2 {
                             if pattern_match(
                                 expected2,
-                                crate::memory::cstr_as_opt_cstr(actual),
+                                crate::strings::ByteSlice::from_ptr(actual).as_opt_cstr(),
                                 false,
                             ) == 0
                             {
@@ -691,7 +702,11 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 );
             }
             ga_concat_literal(&mut ga, b": ");
-            assert_append_cmd_or_arg(&mut ga, argvars, crate::memory::cstr_as_opt_cstr(cmd));
+            assert_append_cmd_or_arg(
+                &mut ga,
+                argvars,
+                crate::strings::ByteSlice::from_ptr(cmd).as_opt_cstr(),
+            );
             assert_error(&ga);
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }

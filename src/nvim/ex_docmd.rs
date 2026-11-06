@@ -5105,7 +5105,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     unsafe {
                         *breakpoint = dbg_find_breakpoint(
                             fgetline.is_source(),
-                            crate::memory::cstr_from_ptr(fname),
+                            crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                             *sourcing_lnum_ptr(),
                         );
                         *dbg_tick = g_st().debug_tick;
@@ -5120,11 +5120,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     && unsafe { *breakpoint } != 0
                     && unsafe { *breakpoint } <= *sourcing_lnum_ptr()
                 {
-                    dbg_breakpoint(crate::memory::cstr_as_opt_cstr(fname), *sourcing_lnum_ptr());
+                    dbg_breakpoint(
+                        crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
+                        *sourcing_lnum_ptr(),
+                    );
                     unsafe {
                         *breakpoint = dbg_find_breakpoint(
                             fgetline.is_source(),
-                            crate::memory::cstr_from_ptr(fname),
+                            crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                             *sourcing_lnum_ptr(),
                         );
                         *dbg_tick = g_st().debug_tick;
@@ -5183,7 +5186,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 if ui_has(K_UICMDLINE) && count > 0 && fgetline.is_exline() {
                     ui_ext_cmdline_block_append(
                         indent as usize,
-                        crate::memory::cstr_from_ptr(next_cmdline).to_bytes(),
+                        crate::strings::ByteSlice::from_ptr(next_cmdline).as_bytes(),
                     );
                 }
 
@@ -5195,7 +5198,8 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     }
                 }
             } else if cmdline_copy.is_null() {
-                cmdline_buf = crate::memory::cstr_from_ptr(next_cmdline)
+                cmdline_buf = crate::strings::ByteSlice::from_ptr(next_cmdline)
+                    .as_cstr()
                     .to_bytes_with_nul()
                     .to_vec();
                 next_cmdline = cmdline_buf.as_mut_ptr().cast();
@@ -5204,7 +5208,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
 
             let mut current_line_before: i32 = 0;
             let using_loop_cookie = cstack.cs_looplevel > 0
-                || has_loop_cmd(crate::memory::cstr_from_ptr(next_cmdline).to_bytes());
+                || has_loop_cmd(crate::strings::ByteSlice::from_ptr(next_cmdline).as_bytes());
             if using_loop_cookie {
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
@@ -5215,7 +5219,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 if (current_line as usize) == cmd_loop_cookie.lines.len() {
                     store_loop_line(
                         &mut cmd_loop_cookie.lines,
-                        crate::memory::cstr_from_ptr(next_cmdline),
+                        crate::strings::ByteSlice::from_ptr(next_cmdline).as_cstr(),
                     );
                 }
                 current_line_before = current_line;
@@ -5245,7 +5249,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             {
                 msg_verbose_cmd(
                     *sourcing_lnum_ptr(),
-                    crate::memory::cstr_from_ptr(cmdline_copy),
+                    crate::strings::ByteSlice::from_ptr(cmdline_copy).as_cstr(),
                 );
             }
 
@@ -5306,7 +5310,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                             unsafe {
                                 *breakpoint = dbg_find_breakpoint(
                                     fgetline.is_source(),
-                                    crate::memory::cstr_from_ptr(fname),
+                                    crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
                                     wp.lnum - 1,
                                 );
                                 *dbg_tick = g_st().debug_tick;
@@ -6401,7 +6405,8 @@ fn do_one_cmd(
 
     'doend: {
         let init_cmd = cmdline_copy;
-        if crate::memory::cstr_from_ptr(init_cmd)
+        if crate::strings::ByteSlice::from_ptr(init_cmd)
+            .as_cstr()
             .to_bytes()
             .starts_with(b"#!")
         {
@@ -6598,7 +6603,7 @@ fn do_one_cmd(
             has_folding(curwin_mut(), ea.line2, None, Some(&mut ea.line2));
         }
 
-        let p_cstr = replace_makeprg(&mut ea, crate::memory::cstr_from_ptr(p));
+        let p_cstr = replace_makeprg(&mut ea, crate::strings::ByteSlice::from_ptr(p).as_cstr());
         p = ea
             .cmdline_ptr()
             .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr().as_ptr() as usize))
@@ -6748,7 +6753,7 @@ fn do_one_cmd(
                 crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
             }
             append_command(ea.cmdline_cstr());
-            msg = crate::memory::cstr_from_ptr(iobuf_ptr);
+            msg = crate::strings::ByteSlice::from_ptr(iobuf_ptr).as_cstr();
         }
         let _ = emsg(msg);
     }
@@ -8274,15 +8279,17 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         .arg
         .as_ptr()
         .wrapping_add((grep_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
-    let mut has_wildcards = path_has_wildcard(crate::memory::cstr_from_ptr(p).to_bytes(), true);
+    let mut has_wildcards =
+        path_has_wildcard(crate::strings::ByteSlice::from_ptr(p).as_bytes(), true);
 
     while unsafe { *p != 0 } {
-        if crate::memory::cstr_from_ptr(p)
+        if crate::strings::ByteSlice::from_ptr(p)
+            .as_cstr()
             .to_bytes()
             .starts_with(b"`=")
         {
             p = p.wrapping_add(2);
-            let mut p_cstr = crate::memory::cstr_from_ptr(p);
+            let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
             skip_expr(&mut p_cstr, None);
             p = p_cstr.as_ptr().cast_mut();
             if unsafe { *p as u8 } == b'`' {
@@ -8381,7 +8388,12 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
                 p = ptr::null_mut();
             }
             if !p.is_null() {
-                repl_cmdline(eap, 0, eap.arg.len(), crate::memory::cstr_from_ptr(p));
+                repl_cmdline(
+                    eap,
+                    0,
+                    eap.arg.len(),
+                    crate::strings::ByteSlice::from_ptr(p).as_cstr(),
+                );
             }
         }
 
@@ -8490,7 +8502,8 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                 p = p.wrapping_add(1);
             } else {
-                let tail_len = crate::memory::cstr_from_ptr(p.wrapping_add(1))
+                let tail_len = crate::strings::ByteSlice::from_ptr(p.wrapping_add(1))
+                    .as_cstr()
                     .to_bytes()
                     .len();
                 let buf = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), tail_len + 2) };
@@ -8504,7 +8517,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             && (eap.argt & EX_XFILE) != 0
         {
             p = p.wrapping_add(2);
-            let mut p_cstr = crate::memory::cstr_from_ptr(p);
+            let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
             skip_expr(&mut p_cstr, None);
             p = p.wrapping_add((p_cstr.as_ptr() as usize) - (p as usize));
             if unsafe { *p } == 0 {
@@ -8526,7 +8539,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 || (eap.argt & EX_CTRLV) == 0)
                 && (unsafe { *p.wrapping_sub(1) } as u8) == b'\\'
             {
-                let tail_len = crate::memory::cstr_from_ptr(p).to_bytes().len();
+                let tail_len = crate::strings::ByteSlice::from_ptr(p).as_bytes().len();
                 let buf = unsafe {
                     std::slice::from_raw_parts_mut(p.wrapping_sub(1).cast::<u8>(), tail_len + 2)
                 };
@@ -8534,7 +8547,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 p = p.wrapping_sub(1);
             } else {
                 eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
-                    crate::memory::cstr_from_ptr(p),
+                    crate::strings::ByteSlice::from_ptr(p).as_cstr(),
                 ));
 
                 unsafe {
@@ -8563,7 +8576,9 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
             command = (&raw mut docmd_st().dollar_command).cast();
         } else {
             command = arg;
-            let cmd_len = crate::memory::cstr_from_ptr(command).to_bytes().len();
+            let cmd_len = crate::strings::ByteSlice::from_ptr(command)
+                .as_bytes()
+                .len();
             let cmd_buf =
                 unsafe { std::slice::from_raw_parts_mut(command.cast::<u8>(), cmd_len + 1) };
             let off = skip_cmd_arg_mut(cmd_buf);
@@ -8579,7 +8594,7 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
         arg = crate::charset::skipwhite_ptr(arg);
         eap.arg = crate::strings::ByteSlice::from_ptr(arg);
     }
-    crate::memory::cstr_as_opt_cstr(command)
+    crate::strings::ByteSlice::from_ptr(command).as_opt_cstr()
 }
 
 fn skip_cmd_arg_mut(buf: &mut [u8]) -> usize {
@@ -8603,7 +8618,7 @@ pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
     if rembs {
         let buf = unsafe { std::slice::from_raw_parts_mut(p_ptr, len + 1) };
         let idx = skip_cmd_arg_mut(buf);
-        return crate::memory::cstr_from_ptr(p_ptr.wrapping_add(idx));
+        return crate::strings::ByteSlice::from_ptr(p_ptr.wrapping_add(idx)).as_cstr();
     }
     let bytes = p.to_bytes();
     let mut idx = 0;
@@ -9380,7 +9395,7 @@ fn ex_restart(eap: &mut Exarg) {
     tv_dict_add_str(
         &mut *env,
         ENV_STARTREASON,
-        crate::memory::cstr_as_opt_cstr(startreason),
+        crate::strings::ByteSlice::from_ptr(startreason).as_opt_cstr(),
     );
 
     let on_stdout = CallbackReader::none();
@@ -9474,7 +9489,9 @@ fn ex_restart(eap: &mut Exarg) {
                 },
                 KeyValuePair {
                     key: cstr_as_string(Some(c"command")),
-                    value: cstr_as_obj(crate::memory::cstr_as_opt_cstr(after_cmd)),
+                    value: cstr_as_obj(
+                        crate::strings::ByteSlice::from_ptr(after_cmd).as_opt_cstr(),
+                    ),
                 },
             ];
             let autocmd_opts = Dict {
@@ -9577,20 +9594,20 @@ fn ex_restart(eap: &mut Exarg) {
 
         set_vim_var_string(
             VV_EXITREASON,
-            crate::memory::cstr_as_opt_cstr(startreason),
+            crate::strings::ByteSlice::from_ptr(startreason).as_opt_cstr(),
             -1,
         );
 
         let mut quit_cmd_copy: Option<std::ffi::CString> = None;
         if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
             let mut bytes = Vec::from(&b"confirm "[..]);
-            bytes.extend_from_slice(crate::memory::cstr_from_ptr(quit_cmd).to_bytes());
+            bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(quit_cmd).as_bytes());
             let cstr = cstr_from_bytes(&bytes);
             quit_cmd = cstr.as_ptr().cast_mut();
             quit_cmd_copy = Some(cstr);
         }
         nvim_command(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(quit_cmd)),
+            cstr_as_string(crate::strings::ByteSlice::from_ptr(quit_cmd).as_opt_cstr()),
             &mut err,
         );
 
@@ -11857,10 +11874,13 @@ fn ex_findpat(eap: &mut Exarg) {
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
 
             if ends_excmd(i32::from(unsafe { *p })) == 0 {
-                eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, crate::memory::cstr_from_ptr(p)));
+                eap.errmsg = Some(ex_errmsg(
+                    E_TRAILING_ARG,
+                    crate::strings::ByteSlice::from_ptr(p).as_cstr(),
+                ));
             } else {
                 eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
-                    crate::memory::cstr_from_ptr(p),
+                    crate::strings::ByteSlice::from_ptr(p).as_cstr(),
                 ));
             }
         }
@@ -12081,7 +12101,7 @@ pub fn eval_vars(
                 use_shellslash = true;
             }
             SPEC_HASH => {
-                let src_bytes = crate::memory::cstr_from_ptr(src).to_bytes();
+                let src_bytes = crate::strings::ByteSlice::from_ptr(src).as_bytes();
                 if src_bytes.get(1) == Some(&b'#') {
                     arg_all_cstr = Some(arg_all());
                     result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
@@ -12163,8 +12183,10 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE));
                     return None;
                 }
-                result = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(result))
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                result = path_try_shorten_fname(
+                    crate::strings::ByteSlice::from_ptr(result).as_opt_cstr(),
+                )
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr <= 0 {
@@ -12248,17 +12270,19 @@ pub fn eval_vars(
             }
         }
 
-        resultlen = crate::memory::cstr_from_ptr(result).to_bytes().len();
+        resultlen = crate::strings::ByteSlice::from_ptr(result).as_bytes().len();
         if unsafe { *src.wrapping_add(*usedlen) as u8 } == b'<' {
             *usedlen += 1;
-            let s = crate::memory::cstr_from_ptr(result)
+            let s = crate::strings::ByteSlice::from_ptr(result)
+                .as_cstr()
                 .to_bytes()
                 .iter()
                 .rposition(|&b| b == b'.')
                 .map_or(ptr::null_mut(), |i| result.wrapping_add(i));
             if !s.is_null()
                 && (s as usize)
-                    >= (path_tail(crate::memory::cstr_from_ptr(result)).as_ptr() as usize)
+                    >= (path_tail(crate::strings::ByteSlice::from_ptr(result).as_cstr()).as_ptr()
+                        as usize)
             {
                 resultlen = (s as usize) - (result as usize);
             }
@@ -12269,7 +12293,7 @@ pub fn eval_vars(
             };
             let mut fname_off = 0usize;
             let mod_res = modify_fname(
-                crate::memory::cstr_from_ptr(src).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(src).as_bytes(),
                 tilde_file,
                 usedlen,
                 &mut fbuf,

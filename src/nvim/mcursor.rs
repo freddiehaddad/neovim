@@ -387,7 +387,8 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         return;
     }
     if ctx.visual.vi_start.lnum == 0
-        && crate::memory::cstr_from_ptr(atom_keys)
+        && crate::strings::ByteSlice::from_ptr(atom_keys)
+            .as_cstr()
             .to_bytes()
             .starts_with(b"gv")
     {
@@ -443,7 +444,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     let tick = buf_get_changedtick(curbuf_mut());
     let mode_str = if atom_remap { c"ix" } else { c"nix" };
     nvim_feedkeys(
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(atom_keys)),
+        cstr_as_string(crate::strings::ByteSlice::from_ptr(atom_keys).as_opt_cstr()),
         cstr_as_string(Some(mode_str)),
         false,
     );

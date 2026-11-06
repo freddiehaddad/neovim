@@ -154,11 +154,11 @@ impl AsByteSlice for Option<&CStr> {
 impl<T> AsByteSlice for *const T {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        let p = self.cast::<u8>();
+        let p = self.cast::<c_char>();
         if p.is_null() {
             None
         } else {
-            crate::memory::cstr_from_ptr(p).into_byte_slice()
+            unsafe { CStr::from_ptr(p) }.into_byte_slice()
         }
     }
 
@@ -282,7 +282,8 @@ impl ByteSliceExt for ByteSlice {
     #[inline(always)]
     fn as_cstr(self) -> &'static CStr {
         match self {
-            Some(b) if !b.is_empty() => crate::memory::cstr_from_ptr(b.as_ptr()),
+            Some(b) if !b.is_empty() => CStr::from_bytes_until_nul(b)
+                .unwrap_or_else(|_| unsafe { CStr::from_ptr(b.as_ptr().cast()) }),
             _ => c"",
         }
     }
@@ -293,7 +294,8 @@ impl ByteSliceExt for ByteSlice {
             if b.is_empty() {
                 c""
             } else {
-                crate::memory::cstr_from_ptr(b.as_ptr())
+                CStr::from_bytes_until_nul(b)
+                    .unwrap_or_else(|_| unsafe { CStr::from_ptr(b.as_ptr().cast()) })
             }
         })
     }
@@ -364,7 +366,7 @@ pub fn gettext(msgid: &CStr) -> &'static CStr {
     {
         return tr;
     }
-    crate::memory::cstr_from_ptr(msgid.as_ptr())
+    crate::strings::ByteSlice::from_ptr(msgid.as_ptr()).as_cstr()
 }
 
 pub trait IntoNgettextCount {
@@ -422,9 +424,9 @@ pub fn ngettext<N: IntoNgettextCount>(msgid1: &CStr, msgid2: &CStr, n: N) -> &'s
         return tr;
     }
     if count == 1 {
-        crate::memory::cstr_from_ptr(msgid1.as_ptr())
+        crate::strings::ByteSlice::from_ptr(msgid1.as_ptr()).as_cstr()
     } else {
-        crate::memory::cstr_from_ptr(msgid2.as_ptr())
+        crate::strings::ByteSlice::from_ptr(msgid2.as_ptr()).as_cstr()
     }
 }
 
@@ -1339,9 +1341,15 @@ impl<'a> FmtVal<'a> {
         match self {
             Self::CStr(s) => s,
             Self::Addr(0) | Self::Signed(0) | Self::Unsigned(0) | Self::Float(_) => None,
-            Self::Addr(p) => Some(crate::memory::cstr_from_ptr(p as *const c_char)),
-            Self::Signed(v) => Some(crate::memory::cstr_from_ptr(v as usize as *const c_char)),
-            Self::Unsigned(v) => Some(crate::memory::cstr_from_ptr(v as usize as *const c_char)),
+            Self::Addr(p) => {
+                Some(crate::strings::ByteSlice::from_ptr(p as *const c_char).as_cstr())
+            }
+            Self::Signed(v) => {
+                Some(crate::strings::ByteSlice::from_ptr(v as usize as *const c_char).as_cstr())
+            }
+            Self::Unsigned(v) => {
+                Some(crate::strings::ByteSlice::from_ptr(v as usize as *const c_char).as_cstr())
+            }
         }
     }
 }

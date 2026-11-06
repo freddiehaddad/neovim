@@ -3979,7 +3979,7 @@ fn bt_regexec_both(
             .wrapping_add(col as usize);
         if !re_st().rex.reg_ic {
             loop {
-                s = vim_strchr(crate::memory::cstr_from_ptr(s), c)
+                s = vim_strchr(crate::strings::ByteSlice::from_ptr(s).as_cstr(), c)
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
                     .cast();
                 if s.is_null() {
@@ -3987,7 +3987,7 @@ fn bt_regexec_both(
                 }
                 let mut len = prog.regmlen;
                 if cstrncmp(
-                    crate::memory::cstr_from_ptr(s).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(s).as_bytes(),
                     regmust_slice,
                     &mut len,
                 ) == 0
@@ -3999,7 +3999,7 @@ fn bt_regexec_both(
             }
         } else {
             loop {
-                let s_cstr = crate::memory::cstr_from_ptr(s);
+                let s_cstr = crate::strings::ByteSlice::from_ptr(s).as_cstr();
                 let Some(found_off) = cstrchr(s_cstr, c) else {
                     s = ptr::null_mut();
                     break;
@@ -4007,7 +4007,7 @@ fn bt_regexec_both(
                 s = s.wrapping_add(found_off);
                 let mut len = prog.regmlen;
                 if cstrncmp(
-                    crate::memory::cstr_from_ptr(s).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(s).as_bytes(),
                     regmust_slice,
                     &mut len,
                 ) == 0

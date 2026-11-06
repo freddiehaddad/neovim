@@ -944,7 +944,9 @@ pub fn open_line(
             let p = crate::charset::skipwhite_ptr(p_extra.cast::<std::ffi::c_char>());
             first_char = i32::from(unsafe { *p as u8 });
         }
-        extra_len = crate::memory::cstr_from_ptr(p_extra).to_bytes().len() as i32;
+        extra_len = crate::strings::ByteSlice::from_ptr(p_extra)
+            .as_bytes()
+            .len() as i32;
 
         saved_char = saved_line_vec[col_u];
 
@@ -963,7 +965,7 @@ pub fn open_line(
         newindent = second_line_indent;
     } else if curbuf_mut().b_p_ai || do_si {
         newindent = indent_size_ts(
-            crate::memory::cstr_from_ptr(saved_line).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(saved_line).as_bytes(),
             curbuf_mut().b_p_ts,
             &curbuf_mut().b_p_vts_array,
         );
@@ -977,7 +979,7 @@ pub fn open_line(
             && (p_extra.is_null() || first_char != b'{' as i32)
         {
             let old_cursor = curwin_mut().w_cursor;
-            let mut ptr_bytes = crate::memory::cstr_from_ptr(saved_line).to_bytes();
+            let mut ptr_bytes = crate::strings::ByteSlice::from_ptr(saved_line).as_bytes();
             if (flags & OPENLINE_DO_COM) != 0 {
                 lead_len = get_leader_len(ptr_bytes, None, false, true);
             } else {
@@ -1095,7 +1097,7 @@ pub fn open_line(
 
     g_st().ins_global.end_comment_pending = 0;
     if (flags & OPENLINE_DO_COM) != 0 {
-        let saved_line_bytes = crate::memory::cstr_from_ptr(saved_line).to_bytes();
+        let saved_line_bytes = crate::strings::ByteSlice::from_ptr(saved_line).as_bytes();
         lead_len = get_leader_len(
             saved_line_bytes,
             Some(&mut lead_flags),
@@ -1148,7 +1150,7 @@ pub fn open_line(
             }
             if p_byte == COM_START || p_byte == COM_MIDDLE {
                 let current_flag = p_byte;
-                let mut p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+                let mut p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
                 if p_byte == COM_START {
                     if dir == BACKWARD {
                         lead_len = 0;
@@ -1187,7 +1189,7 @@ pub fn open_line(
                     let mut q = saved_line.wrapping_add(lead_len as usize);
                     let end_bytes = &lead_end[..n];
                     while unsafe { *q != 0 } {
-                        let q_bytes = crate::memory::cstr_from_ptr(q).to_bytes();
+                        let q_bytes = crate::strings::ByteSlice::from_ptr(q).as_bytes();
                         if q_bytes.len() >= n && &q_bytes[..n] == end_bytes {
                             comment_end = q;
                             lead_len = 0;
@@ -1298,7 +1300,7 @@ pub fn open_line(
 
                         p = p.wrapping_add(1);
                     } else if ascii_isdigit(pb) || pb == b'-' {
-                        let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+                        let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
                         let mut rem = p_bytes;
                         off = getdigits_int(&mut rem, true, 0);
                         p = p.wrapping_add(p_bytes.len() - rem.len());
@@ -1486,7 +1488,7 @@ pub fn open_line(
 
                 if curbuf_mut().b_p_ai || do_si {
                     newindent = indent_size_ts(
-                        crate::memory::cstr_from_ptr(leader).to_bytes(),
+                        crate::strings::ByteSlice::from_ptr(leader).as_bytes(),
                         curbuf_mut().b_p_ts,
                         &curbuf_mut().b_p_vts_array,
                     );
@@ -1501,7 +1503,8 @@ pub fn open_line(
 
                 while off > 0 && lead_len > 0 && allocated_vec[(lead_len - 1) as usize] == b' ' {
                     if crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(leader)),
+                        crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(leader))
+                            .as_cstr(),
                         b'\t' as i32,
                     ) {
                         break;
@@ -1537,7 +1540,8 @@ pub fn open_line(
             g_st().ins_global.did_si = false;
             g_st().ins_global.can_si = false;
         } else if !comment_end.is_null()
-            && crate::memory::cstr_from_ptr(comment_end)
+            && crate::strings::ByteSlice::from_ptr(comment_end)
+                .as_cstr()
                 .to_bytes()
                 .starts_with(b"*/")
             && (curbuf_mut().b_p_ai || do_si)
@@ -1599,7 +1603,9 @@ pub fn open_line(
                 newcol += 1;
             }
         }
-        let extra_bytes = crate::memory::cstr_from_ptr(p_extra).to_bytes_with_nul();
+        let extra_bytes = crate::strings::ByteSlice::from_ptr(p_extra)
+            .as_cstr()
+            .to_bytes_with_nul();
         allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
             .copy_from_slice(extra_bytes);
         p_extra = allocated_vec[lead_off..].as_mut_ptr();
@@ -1622,26 +1628,29 @@ pub fn open_line(
             let prompt = prompt_text();
             let prompt_len = prompt.to_bytes().len();
 
-            if crate::memory::cstr_from_ptr(prompt_line)
+            if crate::strings::ByteSlice::from_ptr(prompt_line)
+                .as_cstr()
                 .to_bytes()
                 .starts_with(prompt.to_bytes())
             {
-                let rem_len = crate::memory::cstr_from_ptr(prompt_line.wrapping_add(prompt_len))
-                    .to_bytes()
-                    .len()
-                    + 1;
+                let rem_len =
+                    crate::strings::ByteSlice::from_ptr(prompt_line.wrapping_add(prompt_len))
+                        .as_cstr()
+                        .to_bytes()
+                        .len()
+                        + 1;
 
                 unsafe { ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len) };
 
                 g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                 ml_replace(
                     curwin_mut().w_cursor.lnum,
-                    crate::memory::cstr_from_ptr(prompt_line).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(prompt_line).as_bytes(),
                     true,
                 );
                 prompt_moved = Some(concat_str(
                     prompt.to_bytes(),
-                    crate::memory::cstr_from_ptr(p_extra).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(p_extra).as_bytes(),
                 ));
                 p_extra = prompt_moved
                     .as_ref()
@@ -1657,7 +1666,7 @@ pub fn open_line(
     {
         if !ml_append(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_from_ptr(p_extra).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(p_extra).as_bytes(),
             0,
             false,
         ) {
@@ -1682,7 +1691,7 @@ pub fn open_line(
         }
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            crate::memory::cstr_from_ptr(p_extra).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(p_extra).as_bytes(),
             true,
         );
         changed_bytes(curwin_mut().w_cursor.lnum, 0);
@@ -1705,7 +1714,7 @@ pub fn open_line(
             if curbuf_mut().b_p_ci {
                 copy_indent(
                     newindent,
-                    crate::memory::cstr_from_ptr(saved_line).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(saved_line).as_bytes(),
                 );
                 curbuf_mut().b_p_pi = true;
             } else {

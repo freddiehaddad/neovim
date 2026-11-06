@@ -1139,9 +1139,10 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     let count = (argc - remote_args).max(0) as usize;
     let mut args_vec: Vec<Object> = (remote_args..argc)
         .map(|t_argc| {
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                params.argv[t_argc as usize].as_ptr(),
-            ))
+            cstr_as_obj(
+                crate::strings::ByteSlice::from_ptr(params.argv[t_argc as usize].as_ptr())
+                    .as_opt_cstr(),
+            )
         })
         .collect();
     let args = Array {
@@ -1476,9 +1477,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if (argv_idx as usize) < arg0.len() {
                         set_option_value_give_err(
                             K_OPT_VERBOSEFILE,
-                            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                                arg0_ptr.wrapping_add(argv_idx as usize),
-                            )),
+                            cstr_as_obj((arg0_ptr.wrapping_add(argv_idx as usize)).as_opt_cstr()),
                             0,
                         );
                         argv_idx = arg0.len() as i32;

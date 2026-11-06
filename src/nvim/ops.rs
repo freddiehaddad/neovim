@@ -2177,9 +2177,9 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         &mut csarg,
         curwin_mut(),
         lnum,
-        crate::memory::cstr_from_ptr(line),
+        crate::strings::ByteSlice::from_ptr(line).as_cstr(),
     );
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
+    let mut ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(line).as_cstr());
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
@@ -2231,9 +2231,9 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 &mut csarg,
                 curwin_mut(),
                 lnum,
-                crate::memory::cstr_from_ptr(line),
+                crate::strings::ByteSlice::from_ptr(line).as_cstr(),
             );
-            ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(pend));
+            ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(pend).as_cstr());
             vcol = bdp.end_vcol;
             let mut prev_pend = pend;
             while vcol <= oap.end_vcol && !ci.ptr.is_empty() {
@@ -2274,7 +2274,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     }
     bdp.textcol = ((crate::strings::AsByteSlice::byte_addr(pstart) as isize)
         - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
-    bdp.textstart = crate::memory::cstr_from_ptr(pstart);
+    bdp.textstart = crate::strings::ByteSlice::from_ptr(pstart).as_cstr();
     restore_lbr(lbr_saved);
 }
 
@@ -3134,7 +3134,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     len = end_col;
                 }
                 if !s.is_null() {
-                    let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes();
+                    let s_bytes = crate::strings::ByteSlice::from_ptr(s).as_bytes();
                     byte_count_cursor += line_count_info(
                         s_bytes,
                         &mut word_count_cursor,
@@ -3240,7 +3240,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 col_print(
                     &mut buf2,
                     get_cursor_line_len(),
-                    linetabsize_str(crate::memory::cstr_from_ptr(p).to_bytes()),
+                    linetabsize_str(crate::strings::ByteSlice::from_ptr(p).as_bytes()),
                 );
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 let buf2_cstr = std::ffi::CStr::from_bytes_until_nul(&buf2).unwrap_or_default();

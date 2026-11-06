@@ -2593,7 +2593,9 @@ pub fn find_ident_at_pos(
     let mut bn: i32;
 
     let mut ptr = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
-    let line_bytes = crate::memory::cstr_from_ptr(ptr).to_bytes_with_nul();
+    let line_bytes = crate::strings::ByteSlice::from_ptr(ptr)
+        .as_cstr()
+        .to_bytes_with_nul();
     let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
     while i < 2 {
         col = startcol;
@@ -2906,7 +2908,9 @@ pub fn add_to_showcmd(c: i32) -> bool {
     };
 
     let old_len = sc_buf.len();
-    let p_bytes = crate::memory::cstr_from_ptr(p).to_bytes_with_nul();
+    let p_bytes = crate::strings::ByteSlice::from_ptr(p)
+        .as_cstr()
+        .to_bytes_with_nul();
     let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
         SHOWCMD_BUFLEN - 1
@@ -4375,7 +4379,10 @@ fn nv_ident(cap: &mut Cmdarg) {
         while n > 0 {
             n -= 1;
             let first = ptr.first_byte();
-            if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(aux_ptr), i32::from(first)) {
+            if crate::strings::vim_haschr(
+                crate::strings::ByteSlice::from_ptr(aux_ptr).as_cstr(),
+                i32::from(first),
+            ) {
                 buf_vec[p_idx] = b'\\';
                 p_idx += 1;
             }
@@ -5845,7 +5852,8 @@ fn nv_optrans(cap: &mut Cmdarg) {
         if cap.count0 != 0 {
             stuffnum_readbuff(cap.count0);
         }
-        let idx = crate::memory::cstr_from_ptr(str_p)
+        let idx = crate::strings::ByteSlice::from_ptr(str_p)
+            .as_cstr()
             .to_bytes()
             .iter()
             .position(|&b| b == cap.cmdchar as u8)

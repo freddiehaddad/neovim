@@ -908,7 +908,7 @@ impl EditorState {
 
     #[inline(always)]
     pub fn iobuff_cstr(&self) -> &'static std::ffi::CStr {
-        crate::memory::cstr_from_ptr(self.iobuff.as_ptr())
+        crate::strings::ByteSlice::from_ptr(self.iobuff.as_ptr()).as_cstr()
     }
 
     #[inline(always)]
@@ -918,7 +918,7 @@ impl EditorState {
 
     #[inline(always)]
     pub fn name_buff_cstr(&self) -> &'static std::ffi::CStr {
-        crate::memory::cstr_from_ptr(self.name_buff.as_ptr())
+        crate::strings::ByteSlice::from_ptr(self.name_buff.as_ptr()).as_cstr()
     }
 
     #[cfg(windows)]

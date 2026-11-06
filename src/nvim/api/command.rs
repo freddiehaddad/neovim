@@ -705,7 +705,7 @@ pub fn nvim_cmd(
                     .map_or(ptr::null(), |s| s.as_ptr())
             };
             let cmdname_bytes = cmdname.as_bytes();
-            let fullname_bytes = crate::memory::cstr_from_ptr(fullname).to_bytes();
+            let fullname_bytes = crate::strings::ByteSlice::from_ptr(fullname).as_bytes();
             if !fullname_bytes.starts_with(cmdname_bytes) {
                 api_set_error!(
                     err,

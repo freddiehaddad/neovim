@@ -1893,7 +1893,7 @@ pub fn win_line(
             || !wp.w_p_lcs_chars.leadmultispace.is_empty()
             || wp.w_p_lcs_chars.leadtab1 != 0
         {
-            let ptr_bytes = crate::memory::cstr_from_ptr(ptr).to_bytes();
+            let ptr_bytes = crate::strings::ByteSlice::from_ptr(ptr).as_bytes();
             let rem = crate::charset::skipwhite_slice(ptr_bytes);
             leadcol = if rem.is_empty() {
                 0
@@ -1945,7 +1945,8 @@ pub fn win_line(
 
             if len == 0 || wp.w_cursor.col > linecol {
                 word_end = linecol
-                    + spell_to_word_end(crate::memory::cstr_from_ptr(ptr).to_bytes(), wp) as i32
+                    + spell_to_word_end(crate::strings::ByteSlice::from_ptr(ptr).as_bytes(), wp)
+                        as i32
                     + 1;
             } else {
                 debug_assert!(len <= i32::MAX as usize);
@@ -2527,7 +2528,7 @@ pub fn win_line(
                     wlv.skip_cells = 0;
                 }
 
-                let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(ptr));
+                let ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(ptr).as_cstr());
                 let cli = utf_cluster_info(ci);
                 let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                 let mb_c = ci.chr.value;
@@ -2547,7 +2548,8 @@ pub fn win_line(
                     }
                     let extra_ptr = wlv.extra.as_ptr();
 
-                    let p_extra_cstr = crate::memory::cstr_from_ptr(extra_ptr.wrapping_add(1));
+                    let p_extra_cstr =
+                        crate::strings::ByteSlice::from_ptr(extra_ptr.wrapping_add(1)).as_cstr();
                     wlv.p_extra = Some(p_extra_cstr);
                     mb_schar = schar_from_ascii(wlv.extra[0]);
                     mb_schar_width = 1;
@@ -2709,7 +2711,7 @@ pub fn win_line(
                                 as i32;
                             let tmplen = spell_check(
                                 wp,
-                                crate::memory::cstr_from_ptr(p),
+                                crate::strings::ByteSlice::from_ptr(p).as_cstr(),
                                 &mut spell_hlf,
                                 Some(&mut spv.spv_cap_col),
                                 spv.spv_unchanged,
@@ -2826,14 +2828,16 @@ pub fn win_line(
                                 &mut csarg,
                                 wp,
                                 lnum,
-                                crate::memory::cstr_from_ptr(line),
+                                crate::strings::ByteSlice::from_ptr(line).as_cstr(),
                             );
                             if has_conceal {
                                 csarg.extconceal = Some(unsafe { &*ptr::from_ref(&conceal_spans) });
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }
-                            let lbr_ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(p));
+                            let lbr_ci = utf_ptr2_str_char_info(
+                                crate::strings::ByteSlice::from_ptr(p).as_cstr(),
+                            );
                             let lbr_cli = utf_cluster_info(lbr_ci);
                             let lbr_size = win_charsize(
                                 cstype,
@@ -3059,7 +3063,8 @@ pub fn win_line(
                                     wlv.n_extra +=
                                         slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                 }
-                                wlv.p_extra = Some(crate::memory::cstr_from_ptr(extra_base));
+                                wlv.p_extra =
+                                    Some(crate::strings::ByteSlice::from_ptr(extra_base).as_cstr());
 
                                 if wlv.vcol_off_co + wlv.extconceal_off > 0 {
                                     wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
@@ -3136,9 +3141,10 @@ pub fn win_line(
                     } else if mb_schar != 0 {
                         crate::memory::copy_bytes_to_c_buf(
                             &mut wlv.extra,
-                            crate::memory::cstr_from_ptr(
+                            crate::strings::ByteSlice::from_ptr(
                                 (transchar_buf(wp.buf_opt(), mb_c)).as_ptr(),
                             )
+                            .as_cstr()
                             .to_bytes(),
                         );
 
@@ -3174,12 +3180,16 @@ pub fn win_line(
 
                             extra_slice[wlv.n_extra as usize] = 0;
 
-                            wlv.p_extra = Some(crate::memory::cstr_from_ptr(p.cast_const()));
+                            wlv.p_extra =
+                                Some(crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr());
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
-                            wlv.p_extra = Some(crate::memory::cstr_from_ptr(
-                                wlv.extra.as_ptr().wrapping_add(1),
-                            ));
+                            wlv.p_extra = Some(
+                                crate::strings::ByteSlice::from_ptr(
+                                    wlv.extra.as_ptr().wrapping_add(1),
+                                )
+                                .as_cstr(),
+                            );
                         }
                         wlv.n_attr = wlv.n_extra + 1;
                         wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
@@ -3741,8 +3751,9 @@ pub fn win_line(
                             ptr = line.wrapping_offset(col);
                         }
                         if wlv.vcol >= disp_len {
-                            ptr = ptr
-                                .wrapping_add(crate::memory::cstr_from_ptr(ptr).to_bytes().len());
+                            ptr = ptr.wrapping_add(
+                                crate::strings::ByteSlice::from_ptr(ptr).as_bytes().len(),
+                            );
                         }
                     }
                 } else if !is_wrapped {

@@ -523,27 +523,40 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
                     let mut item = arena_array(&mut arena, 4);
                     add_c(
                         &mut item,
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                            (elem.text_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        )),
+                        cstr_as_obj(
+                            crate::strings::ByteSlice::from_ptr(
+                                (elem.text_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                            )
+                            .as_opt_cstr(),
+                        ),
                     );
                     add_c(
                         &mut item,
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                            (elem.kind_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        )),
+                        cstr_as_obj(
+                            crate::strings::ByteSlice::from_ptr(
+                                (elem.kind_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                            )
+                            .as_opt_cstr(),
+                        ),
                     );
                     add_c(
                         &mut item,
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                            (elem.extra_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        )),
+                        cstr_as_obj(
+                            crate::strings::ByteSlice::from_ptr(
+                                (elem.extra_cstr())
+                                    .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                            )
+                            .as_opt_cstr(),
+                        ),
                     );
                     add_c(
                         &mut item,
-                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                            (elem.info_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        )),
+                        cstr_as_obj(
+                            crate::strings::ByteSlice::from_ptr(
+                                (elem.info_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                            )
+                            .as_opt_cstr(),
+                        ),
                     );
                     add_c(&mut arr, array_obj(item));
                 }
@@ -1921,7 +1934,7 @@ pub fn pum_pos_ui_flush(force: bool) {
         ui_call_win_float_pos(
             i64::from(g_st().pum_grid.handle),
             -1,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(anchor)),
+            cstr_as_string(crate::strings::ByteSlice::from_ptr(anchor).as_opt_cstr()),
             i64::from(pum().anchor_grid),
             f64::from(pum().row - row_off - pum().win_row_offset),
             f64::from(pum().left_col - pum().win_col_offset),

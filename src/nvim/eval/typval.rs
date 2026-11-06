@@ -2142,24 +2142,27 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
         if info.item_compare_lc {
             res = unsafe { strcoll(p1, p2) };
         } else if info.item_compare_ic {
-            res = crate::memory::cstr_from_ptr(p1)
+            res = crate::strings::ByteSlice::from_ptr(p1)
+                .as_cstr()
                 .to_bytes()
                 .iter()
                 .map(u8::to_ascii_lowercase)
                 .cmp(
-                    crate::memory::cstr_from_ptr(p2)
+                    crate::strings::ByteSlice::from_ptr(p2)
+                        .as_cstr()
                         .to_bytes()
                         .iter()
                         .map(u8::to_ascii_lowercase),
                 ) as i32;
         } else {
-            res = crate::memory::cstr_from_ptr(p1)
+            res = crate::strings::ByteSlice::from_ptr(p1)
+                .as_cstr()
                 .to_bytes()
-                .cmp(crate::memory::cstr_from_ptr(p2).to_bytes()) as i32;
+                .cmp(crate::strings::ByteSlice::from_ptr(p2).as_bytes()) as i32;
         }
     } else {
-        let (n1, _) = strtod(crate::memory::cstr_from_ptr(p1));
-        let (n2, _) = strtod(crate::memory::cstr_from_ptr(p2));
+        let (n1, _) = strtod(crate::strings::ByteSlice::from_ptr(p1).as_cstr());
+        let (n2, _) = strtod(crate::strings::ByteSlice::from_ptr(p2).as_cstr());
         res = if n1 == n2 {
             0
         } else if n1 > n2 {
@@ -2207,7 +2210,7 @@ fn item_compare2(
     funcexe.fe_partial = partial;
     funcexe.fe_selfdict = info.item_compare_selfdict;
     let ok = call_func(
-        crate::memory::cstr_from_ptr(func_name),
+        crate::strings::ByteSlice::from_ptr(func_name).as_cstr(),
         -1,
         &mut rettv,
         2,

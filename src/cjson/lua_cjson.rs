@@ -409,7 +409,7 @@ fn json_append_string_contents(
             let ch = *str_ptr.wrapping_add(i) as u8;
             let escstr = *escape_table.wrapping_add(ch as usize);
             if !escstr.is_null() {
-                strbuf_append_string(json, crate::memory::cstr_from_ptr(escstr));
+                strbuf_append_string(json, CStr::from_ptr(escstr));
             } else {
                 strbuf_append_char_unsafe(json, ch);
             }
@@ -476,8 +476,14 @@ fn json_check_encode_depth(l: *mut lua_State, ctx: &mut JsonEncode, current_dept
 
 fn json_append_newline_and_indent(json: &mut Strbuf, ctx: &JsonEncode, depth: i32) {
     strbuf_append_char(json, b'\n');
+    let indent_ptr = ctx.opts_mut().indent;
+    let indent_cstr = if indent_ptr.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(indent_ptr) }
+    };
     for _ in 0..depth {
-        strbuf_append_string(json, crate::memory::cstr_from_ptr(ctx.opts_mut().indent));
+        strbuf_append_string(json, indent_cstr);
     }
 }
 
@@ -635,7 +641,7 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
 
                 match current_key.raw {
                     KeyEntryRaw::String(s) => {
-                        lua_pushstring(l, crate::memory::cstr_from_ptr(s));
+                        lua_pushstring(l, CStr::from_ptr(s));
                     }
                     KeyEntryRaw::Number(n) => lua_pushnumber(l, n),
                 }
@@ -1133,7 +1139,7 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
             || end_ch == b'x'
         {
             token.r#type = TNumber;
-            let (val, rest) = fpconv_strtod(crate::memory::cstr_from_ptr(json.ptr));
+            let (val, rest) = fpconv_strtod(CStr::from_ptr(json.ptr));
             endptr = rest.as_ptr().cast_mut();
             token.value = JsonTokenValue::Number(val);
             if json.ptr == endptr.cast_const() {
@@ -1492,7 +1498,7 @@ fn compat_lua_l_setfuncs(l: *mut lua_State, reg: &[luaL_Reg], nup: i32) {
                 lua_pushvalue(l, -nup);
             }
             lua_pushcclosure(l, entry.func, nup);
-            lua_setfield(l, -(nup + 2), crate::memory::cstr_from_ptr(entry.name));
+            lua_setfield(l, -(nup + 2), CStr::from_ptr(entry.name));
         }
         lua_pop(l, nup);
     }

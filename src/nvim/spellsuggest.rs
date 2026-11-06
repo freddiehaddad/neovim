@@ -740,9 +740,10 @@ pub fn spell_suggest(count: i32) {
                         sug.su_badlen as usize,
                     )
                 }));
-                let tail_cstr = crate::memory::cstr_as_opt_cstr(
+                let tail_cstr = crate::strings::ByteSlice::from_ptr(
                     sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
                 )
+                .as_opt_cstr()
                 .unwrap_or(c"");
                 vim_snprintf!(
                     g_st().iobuff_bytes_mut(),
@@ -770,9 +771,10 @@ pub fn spell_suggest(count: i32) {
             p_vec.extend_from_slice(&line_vec[..c as usize]);
             p_vec.extend_from_slice(stp.st_word.to_bytes());
             p_vec.extend_from_slice(
-                crate::memory::cstr_from_ptr(
+                crate::strings::ByteSlice::from_ptr(
                     sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
                 )
+                .as_cstr()
                 .to_bytes_with_nul(),
             );
             let p = crate::strings::ByteSlice::from_bytes(&p_vec);
@@ -810,9 +812,10 @@ pub fn spell_suggest_list(
     let mut res = Vec::with_capacity(sug.su_ga.len());
     for stp in &sug.su_ga {
         let word_bytes = &stp.st_word.as_bytes()[..stp.st_wordlen as usize];
-        let tail_bytes = crate::memory::cstr_from_ptr(
+        let tail_bytes = crate::strings::ByteSlice::from_ptr(
             sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
         )
+        .as_cstr()
         .to_bytes();
         let mut bytes = Vec::with_capacity(word_bytes.len() + tail_bytes.len());
         bytes.extend_from_slice(word_bytes);
@@ -1048,7 +1051,7 @@ fn suggest_try_special(su: &mut Suginfo) {
     let len = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
         - (crate::strings::AsByteSlice::byte_addr(fbadword_ptr) as isize)) as usize;
     p = crate::charset::skipwhite_ptr(p);
-    if crate::memory::cstr_from_ptr(p).to_bytes() == &su.su_fbadword[..len] {
+    if crate::strings::ByteSlice::from_ptr(p).as_bytes() == &su.su_fbadword[..len] {
         make_case_word(&su.su_fbadword[..len], &mut word, su.su_badflags);
         add_suggestion(
             su,
@@ -1069,7 +1072,7 @@ fn suggest_try_change(su: &mut Suginfo) {
     let p = su.su_badptr.as_ptr().wrapping_add(su.su_badlen as usize);
     spell_casefold(
         curwin_mut(),
-        crate::memory::cstr_from_ptr(p).to_bytes(),
+        crate::strings::ByteSlice::from_ptr(p).as_bytes(),
         &mut fword[n as usize..],
     );
     n = su.su_badptr.to_bytes().len() as i32;
@@ -1375,7 +1378,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         c |= flags;
                         if !p.is_null()
                             && spell_iswordp_nmw(
-                                crate::memory::cstr_from_ptr(p).to_bytes(),
+                                crate::strings::ByteSlice::from_ptr(p).as_bytes(),
                                 curwin_mut(),
                             )
                         {
@@ -2091,7 +2094,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
-                            if crate::memory::cstr_from_ptr(p)
+                            if crate::strings::ByteSlice::from_ptr(p)
+                                .as_cstr()
                                 .to_bytes()
                                 .starts_with(ftp.ft_from.as_bytes())
                                 && try_deeper(su, &stack, udepth, SCORE_REP)

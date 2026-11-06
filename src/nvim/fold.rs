@@ -2613,7 +2613,7 @@ fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     } else {
         c"sil! normal! zo".as_ptr()
     };
-    if fd.puts(crate::memory::cstr_from_ptr(cmd)) < 0 || !put_eol(fd) {
+    if fd.puts(crate::strings::ByteSlice::from_ptr(cmd).as_cstr()) < 0 || !put_eol(fd) {
         return false;
     }
     true

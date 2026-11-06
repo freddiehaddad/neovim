@@ -433,7 +433,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 let li = tv_list_first(l.opt()).unwrap();
                 let str_ = tv_get_string(&li.li_tv);
                 let new_str = concat_str(
-                    crate::memory::cstr_from_ptr(text).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(text).as_bytes(),
                     str_.to_bytes(),
                 );
                 crate::eval::typval::tv_set_string(&mut li.li_tv, Some(new_str.as_c_str()));
@@ -442,7 +442,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         } else if lines.v_type == VarType::VarString {
             let str_ = tv_get_string(&*lines);
             let new_str = concat_str(
-                crate::memory::cstr_from_ptr(text).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(text).as_bytes(),
                 str_.to_bytes(),
             );
             crate::eval::typval::tv_set_string(&mut *lines, Some(new_str.as_c_str()));

@@ -1729,7 +1729,9 @@ fn set_fuzzy_score() {
 
         comp.cp_score = fuzzy_match_str(
             comp.cp_str.as_opt_cstr().map(CStr::to_bytes),
-            crate::memory::cstr_as_opt_cstr(pattern).map(CStr::to_bytes),
+            crate::strings::ByteSlice::from_ptr(pattern)
+                .as_opt_cstr()
+                .map(CStr::to_bytes),
         );
     }
 }
@@ -2047,7 +2049,8 @@ fn ins_compl_dictionaries(
     }
 
     if ctrl_x_mode_line_or_eval() {
-        let pat_esc = vim_strsave_escaped(crate::memory::cstr_from_ptr(pat).to_bytes(), b"\\");
+        let pat_esc =
+            vim_strsave_escaped(crate::strings::ByteSlice::from_ptr(pat).as_bytes(), b"\\");
         let len = pat_esc.as_bytes().len() + 10;
         let mut ptr_vec = vec![0u8; len];
         vim_snprintf!(&mut ptr_vec, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
@@ -2057,7 +2060,7 @@ fn ins_compl_dictionaries(
         ));
     } else {
         regmatch.set_prog(vim_regcomp(
-            crate::memory::cstr_from_ptr(pat),
+            crate::strings::ByteSlice::from_ptr(pat).as_cstr(),
             if opt_vars().p_magic { RE_MAGIC } else { 0 },
         ));
         if regmatch.regprog.is_null() {
@@ -2067,7 +2070,7 @@ fn ins_compl_dictionaries(
         }
     }
 
-    regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat));
+    regmatch.rm_ic = ignorecase(crate::strings::ByteSlice::from_ptr(pat).as_cstr());
     while !dict.is_empty() && !g_st().got_int && !insexp().compl_interrupted {
         if flags == DICT_EXACT {
             count = 1;
@@ -2076,15 +2079,16 @@ fn ins_compl_dictionaries(
             let old_len = dict_bytes.len();
             copy_option_part(&mut dict_bytes, &mut buf_vec, c",");
             dict = dict.wrapping_add(old_len - dict_bytes.len());
-            if !thesaurus && crate::memory::cstr_from_ptr(buf).to_bytes() == b"spell" {
+            if !thesaurus && crate::strings::ByteSlice::from_ptr(buf).as_bytes() == b"spell" {
                 count = -1;
-            } else if crate::strings::vim_haschr(crate::memory::cstr_from_ptr(buf), b'`' as i32)
-                || !expand_wildcards_vec(
-                    &[crate::memory::cstr_until_nul(&buf_vec)],
-                    &mut files,
-                    EW_FILE | EW_SILENT,
-                )
-            {
+            } else if crate::strings::vim_haschr(
+                crate::strings::ByteSlice::from_ptr(buf).as_cstr(),
+                b'`' as i32,
+            ) || !expand_wildcards_vec(
+                &[crate::memory::cstr_until_nul(&buf_vec)],
+                &mut files,
+                EW_FILE | EW_SILENT,
+            ) {
                 count = 0;
             } else {
                 count = files.len() as i32;
@@ -2092,7 +2096,8 @@ fn ins_compl_dictionaries(
         }
 
         if count == -1 {
-            let ptr = if crate::memory::cstr_from_ptr(pat)
+            let ptr = if crate::strings::ByteSlice::from_ptr(pat)
+                .as_cstr()
                 .to_bytes()
                 .starts_with(b"\\<")
             {
@@ -2101,7 +2106,7 @@ fn ins_compl_dictionaries(
                 pat
             };
             spell_dump_compl(
-                crate::memory::cstr_as_opt_cstr(ptr),
+                crate::strings::ByteSlice::from_ptr(ptr).as_opt_cstr(),
                 i32::from(regmatch.rm_ic),
                 Some(&mut dir),
                 0,
@@ -3352,7 +3357,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool>
         return Some(false);
     }
     let status = ins_compl_add(
-        crate::memory::cstr_from_ptr(word).to_bytes(),
+        crate::strings::ByteSlice::from_ptr(word).as_bytes(),
         -1,
         None,
         cptext,
@@ -3969,7 +3974,8 @@ fn process_next_cpt_value(
         let consumed = old_len - cpt_bytes.len();
         let cpt_ptr = cpt_cstr.as_ptr().wrapping_add(consumed);
         st.e_cpt_idx += consumed;
-        *advance_cpt_idx = may_advance_cpt_index(crate::memory::cstr_from_ptr(cpt_ptr));
+        *advance_cpt_idx =
+            may_advance_cpt_index(crate::strings::ByteSlice::from_ptr(cpt_ptr).as_cstr());
 
         st.found_all = true;
         if compl_type == -1 {
@@ -4854,7 +4860,9 @@ fn prepare_cpt_compl_funcs() {
             break;
         }
 
-        if let Some(cb) = get_callback_if_cpt_func(crate::memory::cstr_from_ptr(p), idx).as_mut() {
+        if let Some(cb) =
+            get_callback_if_cpt_func(crate::strings::ByteSlice::from_ptr(p).as_cstr(), idx).as_mut()
+        {
             let mut startcol: i32 = 0;
             if !get_userdefined_compl_info(curwin_mut().w_cursor.col, Some(cb), Some(&mut startcol))
             {
@@ -4871,7 +4879,7 @@ fn prepare_cpt_compl_funcs() {
             insexp().cpt_sources_array[idx as usize].cs_startcol = -3;
         }
 
-        let mut p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+        let mut p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
         let old_len = p_bytes.len();
         let _ = copy_option_part(&mut p_bytes, g_st().iobuff_bytes_mut(), c",");
         p = p.wrapping_add(old_len - p_bytes.len());
@@ -5299,7 +5307,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
 
     if len > ins_compl_leader_len() as i32 {
         debug_assert!(!first.is_null());
-        if len == crate::memory::cstr_from_ptr(first).to_bytes().len() as i32 {
+        if len == crate::strings::ByteSlice::from_ptr(first).as_bytes().len() as i32 {
             let line = get_cursor_line_slice();
             let col_u = (curwin_mut().w_cursor.col.max(0) as usize).min(line.len());
             let p_slice = &line[col_u..];
@@ -5814,10 +5822,11 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         let mut prefixlen: usize = 2;
 
         if !vim_iswordp(
-            crate::memory::cstr_from_ptr(line.wrapping_add(insexp().compl_col as usize)).to_bytes(),
+            crate::strings::ByteSlice::from_ptr(line.wrapping_add(insexp().compl_col as usize))
+                .as_bytes(),
         ) || (insexp().compl_col > 0
             && vim_iswordp(
-                crate::memory::cstr_from_ptr({
+                crate::strings::ByteSlice::from_ptr({
                     let _l = line;
                     let _p = line.wrapping_add(insexp().compl_col as usize);
                     if (_p as usize) > (_l as usize) {
@@ -5828,6 +5837,7 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                         _p
                     }
                 })
+                .as_cstr()
                 .to_bytes(),
             ))
         {
@@ -5852,7 +5862,7 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         startcol -= 1;
         if startcol < 0
             || !vim_iswordp(
-                crate::memory::cstr_from_ptr({
+                crate::strings::ByteSlice::from_ptr({
                     let _l = line;
                     let _p = line.wrapping_add((startcol + 1) as usize);
                     if (_p as usize) > (_l as usize) {
@@ -5863,6 +5873,7 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                         _p
                     }
                 })
+                .as_cstr()
                 .to_bytes(),
             )
         {
@@ -5873,7 +5884,8 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         } else {
             startcol -= crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(startcol as usize));
             let base_class = mb_get_class(
-                crate::memory::cstr_from_ptr(line.wrapping_add(startcol as usize)).to_bytes(),
+                crate::strings::ByteSlice::from_ptr(line.wrapping_add(startcol as usize))
+                    .as_bytes(),
             );
             while {
                 startcol -= 1;
@@ -5883,9 +5895,10 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                     crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(startcol as usize));
                 if base_class
                     != mb_get_class(
-                        crate::memory::cstr_from_ptr(
+                        crate::strings::ByteSlice::from_ptr(
                             line.wrapping_add((startcol - head_off) as usize),
                         )
+                        .as_cstr()
                         .to_bytes(),
                     )
                 {
@@ -6666,7 +6679,7 @@ fn setup_cpt_sources() {
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if !caret.is_null() {
                     sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(
-                        crate::memory::cstr_from_ptr(caret.wrapping_add(1)).to_bytes(),
+                        crate::strings::ByteSlice::from_ptr(caret.wrapping_add(1)).as_bytes(),
                     ) as i32;
                 }
             }
@@ -6785,7 +6798,7 @@ fn cpt_compl_refresh() {
 
         if insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_refresh_always {
             let src = get_callback_if_cpt_func(
-                crate::memory::cstr_from_ptr(p),
+                crate::strings::ByteSlice::from_ptr(p).as_cstr(),
                 insexp().cpt_sources_index,
             );
             if src != CptFuncSource::None {
@@ -6815,11 +6828,11 @@ fn cpt_compl_refresh() {
             }
         }
 
-        let mut p_bytes = crate::memory::cstr_from_ptr(p).to_bytes();
+        let mut p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
         let old_len = p_bytes.len();
         let _ = copy_option_part(&mut p_bytes, g_st().iobuff_bytes_mut(), c",");
         p = p.wrapping_add(old_len - p_bytes.len());
-        if may_advance_cpt_index(crate::memory::cstr_from_ptr(p)) {
+        if may_advance_cpt_index(crate::strings::ByteSlice::from_ptr(p).as_cstr()) {
             let _ = advance_cpt_sources_index_safe();
         }
     }

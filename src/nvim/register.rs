@@ -727,7 +727,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
         );
         if g_st().visual_global.active && p.as_bytes().starts_with(b"'<,'>") {
             retval = put_in_typebuf(
-                crate::memory::cstr_from_ptr(p.as_ptr().wrapping_add(5)),
+                crate::strings::ByteSlice::from_ptr(p.as_ptr().wrapping_add(5)).as_cstr(),
                 true,
                 true,
                 silent,
@@ -866,7 +866,12 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
     let cstr_to_vec =
         |cstr: Option<std::ffi::CString>| cstr.map(std::ffi::CString::into_bytes_with_nul);
     let ptr_to_vec = |p: *const std::ffi::c_char| {
-        (!p.is_null()).then(|| crate::memory::cstr_from_ptr(p).to_bytes_with_nul().to_vec())
+        (!p.is_null()).then(|| {
+            crate::strings::ByteSlice::from_ptr(p)
+                .as_cstr()
+                .to_bytes_with_nul()
+                .to_vec()
+        })
     };
     match regname {
         x if x == i32::from(b'%') => {
@@ -1557,8 +1562,11 @@ pub fn do_put(
             let mut ptr_ = insert_string.data.as_ptr();
             let mut ptrlen = insert_string.size;
             while !ptr_.is_null() {
-                let mut tmp = vim_strchr(crate::memory::cstr_from_ptr(ptr_), i32::from(b'\n'))
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                let mut tmp = vim_strchr(
+                    crate::strings::ByteSlice::from_ptr(ptr_).as_cstr(),
+                    i32::from(b'\n'),
+                )
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if tmp.is_null() {
                     expr_y_array.push(NvimString {
                         data: crate::strings::ByteSlice::from_ptr(ptr_),
@@ -1838,9 +1846,9 @@ pub fn do_put(
                     &mut csarg,
                     curwin_mut(),
                     curwin_mut().w_cursor.lnum,
-                    crate::memory::cstr_from_ptr(oldp),
+                    crate::strings::ByteSlice::from_ptr(oldp).as_cstr(),
                 );
-                let oldp_cstr = crate::memory::cstr_from_ptr(oldp);
+                let oldp_cstr = crate::strings::ByteSlice::from_ptr(oldp).as_cstr();
                 let mut ci = utf_ptr2_str_char_info(oldp_cstr);
                 vcol = 0;
                 while vcol < col && !ci.ptr.is_empty() {
@@ -1949,7 +1957,7 @@ pub fn do_put(
 
                 ml_replace(
                     curwin_mut().w_cursor.lnum,
-                    crate::memory::cstr_from_ptr(newp).to_bytes(),
+                    crate::strings::ByteSlice::from_ptr(newp).as_bytes(),
                     true,
                 );
                 drop(newp_vec);
@@ -2081,7 +2089,11 @@ pub fn do_put(
                             )
                         };
 
-                        ml_replace(lnum, crate::memory::cstr_from_ptr(newp).to_bytes(), true);
+                        ml_replace(
+                            lnum,
+                            crate::strings::ByteSlice::from_ptr(newp).as_bytes(),
+                            true,
+                        );
 
                         first_byte_off = crate::mbyte::utf_head_off_ptr(newp, ptr_.wrapping_sub(1));
                         drop(newp_vec);

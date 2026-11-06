@@ -3322,7 +3322,10 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
             } else {
                 pat
             };
-            regmatch.set_prog(vim_regcomp(crate::memory::cstr_from_ptr(patc), RE_MAGIC));
+            regmatch.set_prog(vim_regcomp(
+                crate::strings::ByteSlice::from_ptr(patc).as_cstr(),
+                RE_MAGIC,
+            ));
             if regmatch.regprog.is_null() {
                 return false;
             }
@@ -4281,8 +4284,12 @@ pub fn resettitle() {
     let state = buf_st();
     let icon_ptr = state.lasticon.as_ref().map_or(ptr::null(), |s| s.as_ptr());
     let title_ptr = state.lasttitle.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-    ui_call_set_icon(cstr_as_string(crate::memory::cstr_as_opt_cstr(icon_ptr)));
-    ui_call_set_title(cstr_as_string(crate::memory::cstr_as_opt_cstr(title_ptr)));
+    ui_call_set_icon(cstr_as_string(
+        crate::strings::ByteSlice::from_ptr(icon_ptr).as_opt_cstr(),
+    ));
+    ui_call_set_title(cstr_as_string(
+        crate::strings::ByteSlice::from_ptr(title_ptr).as_opt_cstr(),
+    ));
 }
 
 pub fn free_titles() {
