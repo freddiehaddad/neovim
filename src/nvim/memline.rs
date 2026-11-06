@@ -159,6 +159,7 @@ const STACK_INCR: i32 = 5;
 
 const ML_LOCKED_DIRTY: i32 = 0x04;
 const ML_LOCKED_POS: i32 = 0x08;
+const ML_LINE_INPLACE: i32 = 0x10;
 
 const ML_APPEND_NEW: i32 = 1;
 const ML_APPEND_MARK: i32 = 2;
@@ -2017,12 +2018,7 @@ pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
 /// Return the bytes (excluding NUL) of a line in `buf`.
 #[inline(always)]
 pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
-    let cstr = ml_get_buf(buf, lnum);
-    if cstr.to_bytes().is_empty() {
-        return c"".to_bytes();
-    }
-    assert!(buf.b_ml.ml_line_textlen > 0);
-    crate::strings::AsByteSlice::slice_len(cstr.as_ptr(), (buf.b_ml.ml_line_textlen - 1) as usize)
+    ml_get_buf(buf, lnum).to_bytes()
 }
 
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
@@ -2151,18 +2147,18 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
         buf.b_ml.ml_line_slice = crate::globals::GraphPtr::raw_slice(line_ptr, len);
         buf.b_ml.ml_line_textlen = len as Colnr;
         buf.b_ml.ml_line_lnum = lnum;
-        buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
+        buf.b_ml.ml_flags &= !(ML_LINE_DIRTY | ML_LINE_INPLACE);
     }
     if will_change {
-        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
+        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS | ML_LINE_INPLACE;
         ml_add_deleted_len_buf(
             buf,
             crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_bytes(),
         );
-    } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
+    } else if (buf.b_ml.ml_flags & ML_LINE_INPLACE) == 0
         && buf.b_ml.ml_line_slice.last() == Some(&0)
     {
-        return CStr::from_bytes_until_nul(buf.b_ml.ml_line_slice).unwrap_or(c"");
+        return crate::memory::cstr_from_bytes_with_nul(buf.b_ml.ml_line_slice);
     }
 
     crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_cstr()

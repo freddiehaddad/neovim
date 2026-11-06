@@ -3370,7 +3370,7 @@ fn recursive_regmatch(
             if re_st().rex.input_col() >= st.val {
                 let line = re_st().rex.line;
                 let mut off = re_st().rex.input_off().saturating_sub(st.val as usize);
-                off -= crate::mbyte::utf_head_off_slice(line.as_bytes(), off) as usize;
+                off -= crate::mbyte::utf_head_off_slice(line.unwrap_or(&[]), off) as usize;
                 re_st().rex.input = line.wrapping_add(off);
             } else {
                 re_st().rex.input = re_st().rex.line;
@@ -3931,7 +3931,7 @@ fn nfa_regmatch(
                 NFA_BOW => {
                     if curc != NUL as i32 {
                         let this_class = mb_get_class_tab(
-                            re_st().rex.input.as_bytes(),
+                            re_st().rex.input.unwrap_or(&[]),
                             &re_st().rex.buf_mut().b_chartab,
                         );
                         if this_class > 1 && reg_prev_class() != this_class {
@@ -3943,7 +3943,7 @@ fn nfa_regmatch(
                 NFA_EOW => {
                     if re_st().rex.input.addr() != re_st().rex.line.addr() {
                         let this_class = mb_get_class_tab(
-                            re_st().rex.input.as_bytes(),
+                            re_st().rex.input.unwrap_or(&[]),
                             &re_st().rex.buf_mut().b_chartab,
                         );
                         let prev_class = reg_prev_class();

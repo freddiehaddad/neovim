@@ -323,6 +323,12 @@ impl<'a> CStrSubslice<'a> for &mut &'a CStr {
     }
 }
 
+/// Construct a `&CStr` in O(1) from a single-line byte slice whose trailing byte is NUL.
+#[inline(always)]
+pub fn cstr_from_bytes_with_nul(bytes: &[u8]) -> &CStr {
+    unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
+}
+
 /// View a byte slice up to the first NUL byte (or the whole slice if no NUL is present).
 #[inline(always)]
 pub fn bytes_until_nul(bytes: &[u8]) -> &[u8] {

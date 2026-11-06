@@ -2879,7 +2879,7 @@ fn regmatch(
                             status = RegAction::NoMatch;
                         } else {
                             let this_class = mb_get_class_tab(
-                                re_st().rex.input.as_bytes(),
+                                re_st().rex.input.unwrap_or(&[]),
                                 &re_st().rex.buf_mut().b_chartab,
                             );
                             if this_class <= 1 || reg_prev_class() == this_class {
@@ -2892,7 +2892,7 @@ fn regmatch(
                             status = RegAction::NoMatch;
                         } else {
                             let this_class = mb_get_class_tab(
-                                re_st().rex.input.as_bytes(),
+                                re_st().rex.input.unwrap_or(&[]),
                                 &re_st().rex.buf_mut().b_chartab,
                             );
                             let prev_class = reg_prev_class();

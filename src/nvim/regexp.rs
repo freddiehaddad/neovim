@@ -2165,12 +2165,7 @@ pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
     if lnum > maxline {
         return Some(c"");
     }
-    Some(
-        crate::strings::ByteSlice::from_ptr(
-            (ml_get_buf(re_st().rex.buf_mut(), firstlnum)).as_ptr(),
-        )
-        .as_cstr(),
-    )
+    Some(ml_get_buf(re_st().rex.buf_mut(), firstlnum))
 }
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
@@ -2184,7 +2179,7 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
 pub(super) fn reg_prev_class() -> i32 {
     let off = re_st().rex.input_off();
     if off > 0 {
-        let line_bytes = re_st().rex.line.as_bytes();
+        let line_bytes = re_st().rex.line.unwrap_or(&[]);
         let prev_off = off - 1;
         let head_off = prev_off - crate::mbyte::utf_head_off_slice(line_bytes, prev_off) as usize;
         return mb_get_class_tab(&line_bytes[head_off..], &re_st().rex.buf_mut().b_chartab);
