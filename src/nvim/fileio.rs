@@ -1719,7 +1719,7 @@ pub fn readfile(
                     }
                 }
 
-                let can_retry = !crate::memory::cstr_is_empty(fenc)
+                let can_retry = fenc_opt.is_some_and(|s| !s.is_empty())
                     && !read_stdin
                     && !keep_dest_enc
                     && !read_fifo;
@@ -1904,8 +1904,8 @@ pub fn readfile(
                             && (fio_flags == FIO_UCSBOM
                                 || (!curbuf_mut().b_p_bomb
                                     && tmpname.is_none()
-                                    && (crate::memory::cstr_first_byte(fenc) == b'u'
-                                        || crate::memory::cstr_is_empty(fenc))))
+                                    && fenc_opt
+                                        .is_none_or(|s| s.is_empty() || s.to_bytes()[0] == b'u')))
                         {
                             let mut blen: i32 = 0;
                             let ccname = if size < 2 || curbuf_mut().b_p_bin {

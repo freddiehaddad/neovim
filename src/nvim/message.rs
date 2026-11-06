@@ -531,24 +531,16 @@ pub fn msg_multiline(
     hist: bool,
     need_clear: &mut bool,
 ) {
-    let mut s = str_.data.cast_const();
-    let mut chunk = s;
-    let end = str_.data.cast_const().wrapping_add(str_.size);
-    while (crate::memory::ptr_offset_from(s, str_.data) as usize) < str_.size {
+    let bytes = str_.as_bytes();
+    let mut chunk_start = 0usize;
+    for (idx, &b) in bytes.iter().enumerate() {
         if check_int && g_st().got_int {
             return;
         }
-        let b = crate::memory::cstr_first_byte(s);
         if b == b'\n' || i32::from(b) == TAB || b == b'\r' || b == BELL as u8 {
             // Print all chars before the delimiter
-            let chunk_len = crate::memory::ptr_offset_from(s, chunk) as usize;
-            let chunk_avail = crate::memory::ptr_offset_from(end, chunk) as usize;
-            msg_outtrans_len(
-                crate::memory::cstr_slice(chunk, chunk_avail),
-                chunk_len as i32,
-                hl_id,
-                hist,
-            );
+            let chunk_len = idx - chunk_start;
+            msg_outtrans_len(&bytes[chunk_start..], chunk_len as i32, hl_id, hist);
 
             if i32::from(b) != TAB && *need_clear {
                 msg_clr_eos();
@@ -559,20 +551,14 @@ pub fn msg_multiline(
             } else {
                 msg_putchar_hl(i32::from(b), hl_id);
             }
-            chunk = s.wrapping_add(1);
+            chunk_start = idx + 1;
         }
-        s = s.wrapping_add(1);
     }
 
     // Print the remainder or emit empty event if entire message is empty.
-    let rem = str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize);
-    if rem > 0 || chunk == str_.data.cast_const() {
-        msg_outtrans_len(
-            crate::memory::cstr_slice(chunk, rem),
-            rem as i32,
-            hl_id,
-            hist,
-        );
+    let rem = bytes.len() - chunk_start;
+    if rem > 0 || chunk_start == 0 {
+        msg_outtrans_len(&bytes[chunk_start..], rem as i32, hl_id, hist);
     }
 }
 
@@ -2282,22 +2268,21 @@ pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
     while !rem.is_empty() {
         let mut text = if (rem.len() == strstart.len() || rem.len() == 1) && rem[0] == b' ' {
             rem = &rem[1..];
-            c"<Space>".as_ptr()
+            c"<Space>"
         } else {
-            str2special(&mut rem, from, K_FALSE, None).as_ptr()
+            str2special(&mut rem, from, K_FALSE, None)
         };
-        if crate::memory::cstr_len(text) == 1 {
-            text =
-                transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text))).as_ptr();
+        if text.to_bytes().len() == 1 {
+            text = transchar_byte_buf(None, i32::from(text.to_bytes()[0]));
         }
-        let len = vim_strsize(crate::memory::cstr_from_ptr(text));
+        let len = vim_strsize(text);
         if maxlen > 0 && retval + len >= maxlen {
             break;
         }
         // Highlight special keys
         msg_puts_hl(
-            crate::memory::cstr_from_ptr(text),
-            if len > 1 && utfc_ptr2len(text) <= 1 {
+            text,
+            if len > 1 && crate::mbyte::utfc_slice2len(text.to_bytes()) <= 1 {
                 hl_id
             } else {
                 0

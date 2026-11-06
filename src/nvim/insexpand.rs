@@ -3337,7 +3337,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool>
     } else {
         word = tv_get_string_chk(&*tv).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
     }
-    if word.is_null() || (!empty && crate::memory::cstr_is_empty(word)) {
+    if word.is_null() || (!empty && unsafe { *word == 0 }) {
         tv_clear(&mut user_data);
         return Some(false);
     }
@@ -4837,12 +4837,11 @@ fn prepare_cpt_compl_funcs() {
 
     let mut idx: i32 = 0;
     let mut p = cpt;
-    while !crate::memory::cstr_is_empty(p) {
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
-        {
+    while unsafe { *p != 0 } {
+        while unsafe { *p == b',' || *p == b' ' } {
             p = p.wrapping_add(1);
         }
-        if crate::memory::cstr_is_empty(p) {
+        if unsafe { *p == 0 } {
             break;
         }
 
@@ -5291,7 +5290,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
 
     if len > ins_compl_leader_len() as i32 {
         debug_assert!(!first.is_null());
-        if len == crate::memory::cstr_len(first) as i32 {
+        if len == crate::memory::cstr_as_bytes(first).len() as i32 {
             let line = get_cursor_line_slice();
             let col_u = (curwin_mut().w_cursor.col.max(0) as usize).min(line.len());
             let p_slice = &line[col_u..];
@@ -5390,24 +5389,22 @@ fn ins_compl_show_filename() {
         return;
     }
 
-    let fname_ptr = compl_opt(insexp().compl_shown_idx)
-        .and_then(|shown| shown.cp_fname.as_ref())
-        .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
-    let mut s = fname_ptr;
+    let fname = crate::strings::ByteSlice::from_cstr(
+        compl_opt(insexp().compl_shown_idx)
+            .and_then(|shown| shown.cp_fname.as_deref())
+            .unwrap_or(c""),
+    );
+    let mut s = fname;
     let mut e = s;
-    while !crate::memory::cstr_is_empty(e) {
+    while !e.is_empty() {
         space -= ptr2cells(e);
         while space < 0 {
             space += ptr2cells(s);
-            {
-                let _adv = crate::mbyte::utfc_ptr2len(s) as usize;
-                s = (s).wrapping_add(_adv);
-            };
+            let adv = crate::mbyte::utfc_ptr2len(s) as usize;
+            s = s.wrapping_add(adv);
         }
-        {
-            let _adv = crate::mbyte::utfc_ptr2len(e) as usize;
-            e = (e).wrapping_add(_adv);
-        };
+        let adv = crate::mbyte::utfc_ptr2len(e) as usize;
+        e = e.wrapping_add(adv);
     }
     if !insexp().compl_autocomplete {
         g_st().msg_hist_off = true;
@@ -5415,12 +5412,12 @@ fn ins_compl_show_filename() {
             &mut g_st().iobuff,
             c"%s %s%s",
             lead,
-            if s > fname_ptr {
+            if s.addr() > fname.addr() {
                 c"<".as_ptr()
             } else {
                 c"".as_ptr()
             },
-            s,
+            s.as_ptr(),
         );
         msg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()), 0);
         g_st().msg_hist_off = false;
@@ -5776,14 +5773,15 @@ fn ins_compl_use_match(c: i32) -> bool {
 
 fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -> bool {
     let line = line_cstr.as_ptr().cast_mut();
+    let line_bytes = line_cstr.to_bytes();
     if (insexp().compl_cont_status & CONT_SOL) != 0 || ctrl_x_mode_path_defines() {
         if !compl_status_adding() {
             while {
                 startcol -= 1;
                 startcol >= 0
-                    && vim_is_idc(i32::from(crate::memory::cstr_first_byte(
-                        line.wrapping_add(startcol as usize),
-                    )))
+                    && vim_is_idc(i32::from(
+                        line_bytes.get(startcol as usize).copied().unwrap_or(0),
+                    ))
             } {}
             startcol += 1;
             insexp().compl_col += startcol;
@@ -6747,12 +6745,11 @@ fn cpt_compl_refresh() {
 
     insexp().cpt_sources_index = 0;
     let mut p = cpt;
-    while !crate::memory::cstr_is_empty(p) {
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
-        {
+    while unsafe { *p != 0 } {
+        while unsafe { *p == b',' || *p == b' ' } {
             p = p.wrapping_add(1);
         }
-        if crate::memory::cstr_is_empty(p) {
+        if unsafe { *p == 0 } {
             break;
         }
 

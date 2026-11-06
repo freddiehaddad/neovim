@@ -2801,9 +2801,12 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     spin.si_msg_count = 999999;
 
     if vim_fgets(&mut line, &fd)
-        || !ascii_isdigit(crate::memory::cstr_first_byte(
-            crate::charset::skipwhite_ptr(line.as_ptr().cast::<std::ffi::c_char>()),
-        ))
+        || !ascii_isdigit(
+            crate::charset::skipwhite_slice(crate::memory::bytes_until_nul(&line))
+                .first()
+                .copied()
+                .unwrap_or(0),
+        )
     {
         semsg!(gettext(c"E760: No word count in %s"), fname);
     }
@@ -3430,7 +3433,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                 rline.as_mut_ptr()
             };
 
-            if crate::memory::cstr_first_byte(line) == b'/' {
+            if unsafe { *line } == b'/' {
                 line = line.wrapping_add(1);
                 let line_bytes = crate::memory::cstr_as_bytes(line);
                 if line_bytes.starts_with(b"encoding=") {
@@ -3484,7 +3487,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                         );
                     } else {
                         line = line.wrapping_add(8);
-                        if crate::memory::cstr_len(line) > MAXREGIONS * 2 {
+                        if line_bytes.len() - 8 > MAXREGIONS * 2 {
                             smsg!(
                                 0,
                                 gettext(c"Too many regions in %s line %d: %s"),

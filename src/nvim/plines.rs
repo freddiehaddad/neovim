@@ -401,12 +401,10 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
 }
 
 fn conceal_next_byte(csarg: &CharsizeArg, col: i32) -> i32 {
-    let mut p = csarg.line.as_ptr().wrapping_add(col as usize);
-    while !crate::memory::cstr_is_empty(p) {
-        let c = conceal_disp_byte(
-            csarg,
-            crate::memory::ptr_offset_from(p, csarg.line.as_ptr()) as i32,
-        );
+    let line = crate::strings::ByteSlice::from_cstr(csarg.line);
+    let mut p = line.wrapping_add(col as usize);
+    while !p.is_empty() {
+        let c = conceal_disp_byte(csarg, p.offset_from(line) as i32);
         if c != i32::from(NUL) {
             return c;
         }
@@ -422,13 +420,11 @@ pub fn charsize_regular(
     cur_char: i32,
     mb_width: i32,
 ) -> CharSize {
-    let cur: *const std::ffi::c_char = if cur.is_empty() {
-        csarg
-            .line
-            .as_ptr()
-            .wrapping_add(csarg.line.to_bytes().len())
+    let line = crate::strings::ByteSlice::from_cstr(csarg.line);
+    let cur = if cur.is_empty() {
+        line.wrapping_add(csarg.line.to_bytes().len())
     } else {
-        cur.as_ptr().cast()
+        crate::strings::ByteSlice::from_bytes(cur)
     };
     {
         csarg.cur_text_width_left = 0;
@@ -436,7 +432,6 @@ pub fn charsize_regular(
 
         let wp = csarg.win_mut();
         let buf = wp.buf_mut();
-        let line = csarg.line.as_ptr();
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
 
@@ -448,7 +443,7 @@ pub fn charsize_regular(
         let mut is_doublewidth = false;
         if use_tabstop {
             size = tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array);
-        } else if crate::memory::cstr_is_empty(cur) {
+        } else if cur.is_empty() {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
             size = K_INVALID_BYTE_CELLS;
@@ -459,7 +454,7 @@ pub fn charsize_regular(
 
         if csarg.virt_row >= 0 && !csarg.skip_cur_text {
             let mut tab_size = size;
-            let col = crate::memory::ptr_offset_from(cur, line) as i32;
+            let col = cur.offset_from(line) as i32;
             loop {
                 let mark = marktree_itr_current(&buf.b_marktree, &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
@@ -497,10 +492,10 @@ pub fn charsize_regular(
 
         let body = size;
         let mut hidden = 0;
-        let mut lbr_char = i32::from(crate::memory::cstr_first_byte(cur));
+        let mut lbr_char = i32::from(cur.first_byte());
         let spans = csarg.extconceal_opt();
         if let Some(spans) = spans {
-            let col = crate::memory::ptr_offset_from(cur, line) as i32;
+            let col = cur.offset_from(line) as i32;
             let own = body - csarg.cur_text_width_left - csarg.cur_text_width_right;
             let span = conceal_span_at(spans, col);
             if let Some(span_ref) = span {
@@ -600,8 +595,7 @@ pub fn charsize_regular(
                             / width2
                             * head_mid;
                     } else if max_head_vcol < 0 {
-                        let off = mb_added
-                            + virt_text_cursor_off(&*csarg, crate::memory::cstr_is_empty(cur));
+                        let off = mb_added + virt_text_cursor_off(&*csarg, cur.is_empty());
                         if off >= prev_rem {
                             if size > off {
                                 head += (1 + (off - prev_rem) / width) * head_mid;
@@ -625,14 +619,14 @@ pub fn charsize_regular(
             && lbr_char < 256
             && vim_isbreak(lbr_char)
         {
-            let next_col = crate::memory::ptr_offset_from(cur, line) as i32 + utfc_ptr2len(cur);
+            let next_col = cur.offset_from(line) as i32 + utfc_ptr2len(cur);
             let next_c = conceal_next_byte(csarg, next_col);
             if !vim_isbreak(i32::from(next_c as u8)) {
-                let mut t = csarg.line.as_ptr();
-                while vim_isbreak(i32::from(crate::memory::cstr_first_byte(t))) {
+                let mut t = line;
+                while vim_isbreak(i32::from(t.first_byte())) {
                     t = t.wrapping_add(1);
                 }
-                need_lbr = cur >= t;
+                need_lbr = cur.addr() >= t.addr();
             }
         }
         if need_lbr {
@@ -657,12 +651,12 @@ pub fn charsize_regular(
             let mut prev_break = true;
             loop {
                 s = s.wrapping_add(utfc_ptr2len(s) as usize);
-                let mut c = i32::from(crate::memory::cstr_first_byte(s));
+                let mut c = i32::from(s.first_byte());
                 if c == 0 {
                     break;
                 }
 
-                let col = crate::memory::ptr_offset_from(s, line) as i32;
+                let col = s.offset_from(line) as i32;
                 if has_virt < 0 {
                     has_virt = i32::from(marktree_itr_get_filter(
                         &buf.b_marktree,
@@ -680,10 +674,10 @@ pub fn charsize_regular(
                     0
                 };
 
-                let s_bytes = crate::memory::cstr_as_bytes(s);
+                let s_bytes = s.as_bytes();
                 let raw_w = if spans.is_none() {
                     0
-                } else if i32::from(crate::memory::cstr_first_byte(s)) == TAB && csarg.use_tabstop {
+                } else if i32::from(s.first_byte()) == TAB && csarg.use_tabstop {
                     tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts, &buf.b_p_vts_array)
                 } else {
                     win_chartabsize(&mut *wp, s_bytes, raw_vcol2)
@@ -698,13 +692,13 @@ pub fn charsize_regular(
                 let mut lookahead_hidden = conceal_span_hidden(span, col, w);
                 if !use_raw_width && lookahead_hidden != 0 {
                     use_raw_width = true;
-                    if i32::from(crate::memory::cstr_first_byte(s)) == TAB && csarg.use_tabstop {
+                    if i32::from(s.first_byte()) == TAB && csarg.use_tabstop {
                         lookahead_hidden += raw_w - w;
                         w = raw_w;
                     }
                 }
                 if use_raw_width
-                    && i32::from(crate::memory::cstr_first_byte(s)) == TAB
+                    && i32::from(s.first_byte()) == TAB
                     && csarg.use_tabstop
                     && span.is_none()
                 {

@@ -986,7 +986,7 @@ fn json_set_token_error(token: &mut JsonToken, json: &JsonParse, errtype: &std::
 
 fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
     unsafe {
-        debug_assert_eq!(crate::memory::cstr_first_byte(json.ptr), b'"');
+        debug_assert_eq!(*json.ptr as u8, b'"');
 
         json.ptr = json.ptr.wrapping_add(1);
         strbuf_reset(&mut *json.tmp);
@@ -1050,19 +1050,19 @@ fn starts_with_ignore_ascii_case_3(p: RawCCharPtr, target: &[u8; 3]) -> bool {
 fn json_is_invalid_number(json: &JsonParse) -> bool {
     unsafe {
         let mut p = json.ptr;
-        if crate::memory::cstr_first_byte(p) == b'+' {
+        if *p as u8 == b'+' {
             return true;
         }
-        if crate::memory::cstr_first_byte(p) == b'-' {
+        if *p as u8 == b'-' {
             p = p.wrapping_add(1);
         }
-        if crate::memory::cstr_first_byte(p) == b'0' {
+        if *p as u8 == b'0' {
             let ch2 = *p.wrapping_add(1) as u8;
             if (ch2 | 0x20) == b'x' || ch2.is_ascii_digit() {
                 return true;
             }
             return false;
-        } else if crate::memory::cstr_first_byte(p) <= b'9' {
+        } else if *p as u8 <= b'9' {
             return false;
         }
 
@@ -1080,11 +1080,11 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
             s = s.wrapping_add(1);
         }
-        let neg = if crate::memory::cstr_first_byte(s) == b'-' {
+        let neg = if *s as u8 == b'-' {
             s = s.wrapping_add(1);
             true
         } else {
-            if crate::memory::cstr_first_byte(s) == b'+' {
+            if *s as u8 == b'+' {
                 s = s.wrapping_add(1);
             }
             false
@@ -1178,7 +1178,7 @@ fn json_next_token(json: &mut JsonParse, token: &mut JsonToken) {
 
             if c1 == b'/' {
                 json.ptr = json.ptr.wrapping_add(2);
-                while *json.ptr != 0 && crate::memory::cstr_first_byte(json.ptr) != b'\n' {
+                while *json.ptr != 0 && *json.ptr as u8 != b'\n' {
                     json.ptr = json.ptr.wrapping_add(1);
                 }
             } else {

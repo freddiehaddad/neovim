@@ -648,7 +648,7 @@ pub fn prepare_search_hl_line(
 
             if shl.startcol == shl.endcol {
                 let p = line.wrapping_add(shl.endcol as usize);
-                if !crate::memory::cstr_is_empty(p) {
+                if unsafe { *p != 0 } {
                     shl.endcol += utfc_ptr2len(p);
                 } else {
                     shl.endcol += 1;
@@ -753,7 +753,7 @@ pub fn update_search_hl(
 
                     if shl.startcol == shl.endcol {
                         let p = line.wrapping_add(shl.endcol as usize);
-                        if crate::memory::cstr_is_empty(p) {
+                        if unsafe { *p == 0 } {
                             shl.endcol += 1;
                         } else {
                             shl.endcol += utfc_ptr2len(p);
@@ -796,7 +796,7 @@ pub fn update_search_hl(
             idx += 1;
         }
     }
-    if crate::memory::cstr_is_empty(line.wrapping_add(col as usize))
+    if unsafe { *line.wrapping_add(col as usize) == 0 }
         && (wp.w_onebuf_opt.wo_list && !lcs_eol_todo)
     {
         search_attr = 0;
@@ -1203,58 +1203,45 @@ pub fn ex_match(eap: &mut Exarg) {
         match_delete(curwin_mut(), id, false);
     }
 
-    let arg = eap.arg.as_ptr();
-    if ends_excmd(crate::memory::cstr_first_byte(arg)) != 0 {
+    let arg = eap.arg;
+    if ends_excmd(arg.first_byte()) != 0 {
         end = arg;
     } else {
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        let arg_bytes = arg.as_bytes();
         if arg_bytes.len() >= 4 && arg_bytes[..4].eq_ignore_ascii_case(b"none") && {
             let b4 = arg_bytes.get(4).copied().unwrap_or(0);
             ascii_iswhite(b4) || ends_excmd(i32::from(b4)) != 0
         } {
             end = arg.wrapping_add(4);
         } else {
-            let mut p = crate::charset::skiptowhite_ptr(arg);
+            let mut p = arg.skiptowhite();
             if !eap.skip {
-                g = Some(
-                    std::ffi::CString::new(crate::memory::cstr_slice(
-                        arg,
-                        crate::memory::ptr_offset_from(p, arg) as usize,
-                    ))
-                    .unwrap_or_default(),
-                );
+                g = Some(std::ffi::CString::new(arg.slice(p.offset_from(arg))).unwrap_or_default());
             }
-            p = crate::charset::skipwhite_ptr(p);
-            if crate::memory::cstr_is_empty(p) {
-                semsg!(gettext(E_INVARG2), arg);
+            p = p.skipwhite();
+            if p.is_empty() {
+                semsg!(gettext(E_INVARG2), arg.as_ptr());
                 return;
             }
-            end = skip_regexp(
-                crate::memory::cstr_from_ptr(p.wrapping_add(1)),
-                i32::from(crate::memory::cstr_first_byte(p)),
+            end = crate::strings::ByteSlice::from_cstr(skip_regexp(
+                p.wrapping_add(1).as_cstr(),
+                i32::from(p.first_byte()),
                 1,
-            )
-            .as_ptr()
-            .cast_mut();
+            ));
             if !eap.skip {
-                if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(crate::memory::cstr_first_byte(
-                        crate::charset::skipwhite_ptr(end.wrapping_add(1)),
-                    )) == 0
+                if !end.is_empty() && ends_excmd(end.wrapping_add(1).skipwhite().first_byte()) == 0
                 {
-                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, crate::memory::cstr_from_ptr(end)));
+                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, end.as_cstr()));
                     return;
                 }
-                if crate::memory::cstr_first_byte(end) != crate::memory::cstr_first_byte(p) {
-                    semsg!(gettext(E_INVARG2), p);
+                if end.first_byte() != p.first_byte() {
+                    semsg!(gettext(E_INVARG2), p.as_ptr());
                     return;
                 }
 
-                let pat_len = crate::memory::ptr_offset_from(end, p.wrapping_add(1)) as usize;
-                let pat_cstr = crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-                    p.wrapping_add(1),
-                    pat_len,
-                ));
+                let p_next = p.wrapping_add(1);
+                let pat_len = end.offset_from(p_next);
+                let pat_cstr = crate::memory::cstr_from_bytes(p_next.slice(pat_len));
                 match_add(
                     curwin_mut(),
                     g.as_deref(),
@@ -1267,6 +1254,5 @@ pub fn ex_match(eap: &mut Exarg) {
             }
         }
     }
-    eap.nextcmd =
-        crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(crate::memory::cstr_from_ptr(end)));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(end.as_cstr()));
 }

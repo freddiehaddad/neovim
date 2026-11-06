@@ -967,14 +967,14 @@ fn nfa_regatom() -> bool {
                 emsg(tr(E_NOPRESUB));
                 return false;
             };
-            let start_ptr = prev_sub.as_ptr().cast::<u8>();
-            let mut lp = start_ptr;
-            while crate::memory::cstr_first_byte(lp) != NUL {
-                emit_fn(utf_ptr2char(lp));
-                if lp != start_ptr {
+            let prev_bytes = prev_sub.to_bytes();
+            let mut off = 0usize;
+            while off < prev_bytes.len() {
+                emit_fn(crate::mbyte::utf_slice2char(&prev_bytes[off..]));
+                if off != 0 {
                     emit_fn(NFA_CONCAT);
                 }
-                lp = lp.wrapping_add(utf_ptr2len(lp) as usize);
+                off += crate::mbyte::utf_slice2len(&prev_bytes[off..]).max(1);
             }
             emit_fn(NFA_NOPEN);
             return true;

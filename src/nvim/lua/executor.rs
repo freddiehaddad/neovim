@@ -2468,8 +2468,9 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         if lua_getinfo(lstate, c"nSl", &mut info) == 0 {
             break;
         }
-        if crate::memory::cstr_first_byte(info.what) == b'C'
-            || crate::memory::cstr_first_byte(info.source) != b'@'
+        if (!info.what.is_null() && unsafe { *info.what as u8 == b'C' })
+            || info.source.is_null()
+            || unsafe { *info.source as u8 != b'@' }
         {
             level += 1;
             continue;
@@ -2591,7 +2592,8 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
         } else {
             let mut ar = lua_Debug::new();
             if lua_getinfo(lstate, c">S", &mut ar) != 0
-                && crate::memory::cstr_first_byte(ar.source) == b'@'
+                && !ar.source.is_null()
+                && unsafe { *ar.source as u8 == b'@' }
                 && ar.linedefined >= 0
             {
                 let src = home_replace_save(

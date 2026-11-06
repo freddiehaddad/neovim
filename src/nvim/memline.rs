@@ -2025,10 +2025,11 @@ pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
 /// Return a mutable byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.
 #[inline(always)]
 pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8] {
-    let ptr = ml_get_buf_impl(buf, lnum, true).as_ptr().cast_mut();
-    if crate::memory::cstr_is_empty(ptr) {
+    let cstr = ml_get_buf_impl(buf, lnum, true);
+    if cstr.is_empty() {
         return &mut [];
     }
+    let ptr = cstr.as_ptr().cast_mut();
     assert!(buf.b_ml.ml_line_textlen > 0);
     unsafe {
         std::slice::from_raw_parts_mut(ptr.cast::<u8>(), (buf.b_ml.ml_line_textlen - 1) as usize)

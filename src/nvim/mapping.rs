@@ -900,7 +900,7 @@ fn buf_do_map(
                     let start = if is_abbrev {
                         0
                     } else {
-                        map_hash(mode, crate::memory::cstr_first_byte(lhs))
+                        map_hash(mode, unsafe { *lhs })
                     };
                     (start, start + 1)
                 } else {
@@ -939,12 +939,12 @@ fn buf_do_map(
                                         && (!is_abbrev
                                             || round != 0
                                             || n > len
-                                            || !crate::memory::cstr_is_empty(
-                                                crate::charset::skipwhite_ptr(
-                                                    lhs.wrapping_add(n as usize)
-                                                        .cast::<std::ffi::c_char>(),
+                                            || !crate::charset::skipwhite_slice(
+                                                crate::memory::cstr_as_bytes(
+                                                    lhs.wrapping_add(n as usize),
                                                 ),
-                                            ))
+                                            )
+                                            .is_empty())
                                     {
                                         idx += 1;
                                         continue;
@@ -1021,7 +1021,7 @@ fn buf_do_map(
                     if !keyround1_simplified {
                         retval = 2;
                     }
-                } else if crate::memory::cstr_first_byte(lhs) == CTRL_C_CONST {
+                } else if unsafe { *lhs } == CTRL_C_CONST {
                     if local {
                         buf.b_mapped_ctrl_c &= !mode;
                     } else {
@@ -1538,8 +1538,9 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     _p
                 }
             };
-            if ascii_isspace(crate::memory::cstr_first_byte(p) as i32)
-                || (!vim_abbr && is_id != vim_iswordp(crate::memory::cstr_as_bytes(p)))
+            let p_bytes = crate::memory::cstr_as_bytes(p);
+            if ascii_isspace(p_bytes.first().copied().unwrap_or(0) as i32)
+                || (!vim_abbr && is_id != vim_iswordp(p_bytes))
             {
                 p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 break;

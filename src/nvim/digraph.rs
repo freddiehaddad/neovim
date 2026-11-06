@@ -24,7 +24,6 @@ use crate::runtime::source_runtime;
 use crate::strings::{gettext, vim_snprintf};
 use crate::window::WinInfoInfo;
 use std::ffi::{CStr, CString};
-use std::ptr;
 
 pub type DigrResult = i32;
 use crate::autocmd::HLF_8;
@@ -2109,16 +2108,15 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
 
     while let Some(line_cstr) = fgetline.call(0, 0, true) {
-        let line = line_cstr.as_ptr();
-        let mut p = crate::charset::skipwhite_ptr(line);
-        if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
-            let mut s = crate::charset::skiptowhite_ptr(p);
-            let from_len = crate::memory::ptr_offset_from(s, p) as usize;
-            let from_slice = crate::memory::cstr_slice(p, from_len);
-            p = crate::charset::skipwhite_ptr(s);
-            s = crate::charset::skiptowhite_ptr(p);
-            let to_len = crate::memory::ptr_offset_from(s, p) as usize;
-            let to_slice = crate::memory::cstr_slice(p, to_len);
+        let mut p = crate::charset::skipwhite_slice(line_cstr.to_bytes());
+        if p.first() != Some(&b'"') && !p.is_empty() {
+            let mut s = crate::charset::skiptowhite_slice(p);
+            let from_len = p.len() - s.len();
+            let from_slice = &p[..from_len];
+            p = crate::charset::skipwhite_slice(s);
+            s = crate::charset::skiptowhite_slice(p);
+            let to_len = p.len() - s.len();
+            let to_slice = &p[..to_len];
 
             if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {
                 if to_len == 0 {
@@ -2194,19 +2192,19 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     set_curwin(&raw mut *wp);
     g_st().emsg_skip += 1;
     let s = eval_to_string(c"b:keymap_name", false, false);
-    let mut p = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+    let mut p_cstr = s.as_deref().unwrap_or(c"");
     g_st().emsg_skip -= 1;
     g_st().curbuf = old_curbuf;
     set_curwin(old_curwin);
-    if crate::memory::cstr_is_empty(p) {
+    if p_cstr.is_empty() {
         if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
-            p = wp.buf_mut().b_p_keymap.as_ptr();
+            p_cstr = wp.buf_mut().b_p_keymap.as_cstr();
         } else {
-            p = c"lang".as_ptr();
+            p_cstr = c"lang";
         }
     }
     let len = buf.len() as i32;
-    let mut plen = vim_snprintf!(&mut *buf, fmt.as_ptr(), p);
+    let mut plen = vim_snprintf!(&mut *buf, fmt.as_ptr(), p_cstr.as_ptr());
     drop(s);
     if plen < 0 || plen > len - 1 {
         if !buf.is_empty() {

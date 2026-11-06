@@ -2420,12 +2420,10 @@ pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    let p = vim_strchr(value.as_cstr(), b',' as i32)
-        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if p.is_null() {
+    let Some(p) = vim_strchr(value.as_cstr(), b',' as i32) else {
         return Some(E_COMMA_REQUIRED);
-    }
-    if value.as_ptr() == p || crate::memory::cstr_len(p) <= 1 {
+    };
+    if ptr::eq(value.as_ptr(), p.as_ptr()) || p.to_bytes().len() <= 1 {
         Some(E_INVARG)
     } else {
         None
@@ -3853,9 +3851,9 @@ pub fn set_chars_option<'a>(
             }
         }
 
-        let mut p = value.as_ptr();
-        while !crate::memory::cstr_is_empty(p) {
-            let p_bytes = crate::memory::cstr_as_bytes(p);
+        let mut p = value;
+        while !p.is_empty() {
+            let p_bytes = p.to_bytes();
             let mut i: usize = 0;
             while i < entries {
                 let name_cstr = tab[i].name;
@@ -3866,11 +3864,11 @@ pub fn set_chars_option<'a>(
                     continue;
                 }
 
-                let mut s_cstr = crate::memory::cstr_from_ptr(p.wrapping_add(name_len + 1));
+                let mut s_cstr = crate::memory::CStrSubslice::advance(p, name_len + 1);
 
                 if tab[i].target == CharsTarget::LcsMultispace {
                     if round == 0 {
-                        last_multispace = p;
+                        last_multispace = p.as_ptr();
                         multispace_len = 0;
                         while !s_cstr.to_bytes().is_empty()
                             && s_cstr.to_bytes().first() != Some(&b',')
@@ -3898,19 +3896,19 @@ pub fn set_chars_option<'a>(
                             && s_cstr.to_bytes().first() != Some(&b',')
                         {
                             let c1 = get_encoded_char_adv(&mut s_cstr);
-                            if p == last_multispace {
+                            if p.as_ptr() == last_multispace {
                                 lcs_chars.multispace[multispace_pos] = c1;
                                 multispace_pos += 1;
                             }
                         }
                     }
-                    p = s_cstr.as_ptr();
+                    p = s_cstr;
                     break;
                 }
 
                 if tab[i].target == CharsTarget::LcsLeadmultispace {
                     if round == 0 {
-                        last_lmultispace = p;
+                        last_lmultispace = p.as_ptr();
                         lead_multispace_len = 0;
                         while !s_cstr.to_bytes().is_empty()
                             && s_cstr.to_bytes().first() != Some(&b',')
@@ -3938,13 +3936,13 @@ pub fn set_chars_option<'a>(
                             && s_cstr.to_bytes().first() != Some(&b',')
                         {
                             let c1 = get_encoded_char_adv(&mut s_cstr);
-                            if p == last_lmultispace {
+                            if p.as_ptr() == last_lmultispace {
                                 lcs_chars.leadmultispace[multispace_pos] = c1;
                                 multispace_pos += 1;
                             }
                         }
                     }
-                    p = s_cstr.as_ptr();
+                    p = s_cstr;
                     break;
                 }
 
@@ -4006,7 +4004,7 @@ pub fn set_chars_option<'a>(
                             *slot = c1;
                         }
                     }
-                    p = s_cstr.as_ptr();
+                    p = s_cstr;
                     break;
                 } else {
                     return opt_error(
@@ -4021,8 +4019,8 @@ pub fn set_chars_option<'a>(
                 return Some(E_INVARG);
             }
 
-            if crate::memory::cstr_first_byte(p) == b',' {
-                p = p.wrapping_add(1);
+            if p.to_bytes().first() == Some(&b',') {
+                p = crate::memory::CStrSubslice::advance(p, 1);
             }
         }
 

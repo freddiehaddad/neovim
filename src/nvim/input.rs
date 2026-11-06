@@ -2498,12 +2498,10 @@ fn vgetorpeek(advance: bool) -> i32 {
                         let mut col: Colnr = 0;
                         if curwin_mut().w_wcol > 0 {
                             if g_st().ins_global.did_ai
-                                && crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
-                                    get_cursor_line_ptr()
-                                        .as_ptr()
-                                        .cast_mut()
-                                        .wrapping_add(curwin_mut().w_cursor.col as usize),
-                                ))
+                                && crate::charset::skipwhite_slice(
+                                    crate::cursor::get_cursor_pos_slice(),
+                                )
+                                .is_empty()
                             {
                                 curwin_mut().w_wcol = 0;
                                 let ptr =

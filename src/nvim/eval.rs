@@ -542,13 +542,13 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
 fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut TypVal) -> bool {
     let mut buf = [0u8; NUMBUFLEN];
     let s = if expr.v_type == VarType::VarFunc {
-        expr.vval.v_string().cast_const()
+        expr.vval.v_string().as_opt_cstr()
     } else {
-        tv_get_string_buf_chk(expr, &mut buf).map_or(ptr::null(), std::ffi::CStr::as_ptr)
+        tv_get_string_buf_chk(expr, &mut buf)
     };
-    if crate::memory::cstr_is_empty(s) {
+    let Some(s) = s.filter(|cs| !cs.is_empty()) else {
         return false;
-    }
+    };
 
     let mut funcexe = Funcexe {
         fe_fill_submatch: false,
@@ -561,14 +561,7 @@ fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut Typ
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
-    if !call_func(
-        crate::memory::cstr_from_ptr(s),
-        -1,
-        rettv,
-        argc,
-        argv,
-        &mut funcexe,
-    ) {
+    if !call_func(s, -1, rettv, argc, argv, &mut funcexe) {
         return false;
     }
 
@@ -1819,24 +1812,25 @@ impl Drop for Forinfo {
 }
 
 pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmdidx) {
-    let mut arg: *mut u8 = arg_in.as_ptr().cast_mut().cast();
+    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
     let mut got_eq = false;
 
     if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
         xp.xp_context = EXPAND_USER_VARS;
-        if !crate::memory::cstr_as_bytes(arg)
+        let arg_bytes = arg.as_bytes();
+        if !arg_bytes
             .iter()
             .any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
         {
-            let mut p = arg.wrapping_add(crate::memory::cstr_len(arg));
-            while (p as usize) >= (arg as usize) {
-                xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p);
-                p = p.wrapping_offset(
-                    -((crate::mbyte::utf_head_off_ptr(arg, p.wrapping_sub(1)) + 1) as isize),
-                );
-                if (p as usize) >= (arg as usize)
-                    && ascii_iswhite(crate::memory::cstr_first_byte(p))
-                {
+            let mut p_idx = arg_bytes.len();
+            loop {
+                xp.xp_pattern = arg.wrapping_add(p_idx);
+                if p_idx == 0 {
+                    break;
+                }
+                p_idx -= (crate::mbyte::utf_head_off_slice(arg_bytes, p_idx - 1) as usize + 1)
+                    .min(p_idx);
+                if ascii_iswhite(arg_bytes[p_idx]) {
                     break;
                 }
             }
@@ -1850,12 +1844,11 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         };
     }
     while {
-        xp.xp_pattern = crate::memory::cstr_as_bytes(arg)
+        xp.xp_pattern = arg
+            .as_bytes()
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-            .map_or(crate::strings::BYTE_SLICE_NULL, |i| {
-                crate::strings::ByteSlice::from_ptr(arg.wrapping_add(i))
-            });
+            .map_or(crate::strings::BYTE_SLICE_NULL, |i| arg.wrapping_add(i));
         !xp.xp_pattern.is_null()
     } {
         let pat_bytes = xp.xp_pattern.as_bytes();
@@ -1922,11 +1915,11 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else {
             xp.xp_context = EXPAND_EXPRESSION;
         }
-        arg = xp.xp_pattern.cast();
-        if !crate::memory::cstr_is_empty(arg) {
+        arg = xp.xp_pattern;
+        if !arg.is_empty() {
             loop {
                 arg = arg.wrapping_add(1);
-                c = i32::from(crate::memory::cstr_first_byte(arg));
+                c = i32::from(arg.first_byte());
                 if c == NUL as i32 || (c != b' ' as i32 && c != b'\t' as i32) {
                     break;
                 }
@@ -1936,19 +1929,17 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
 
     if cmd_has_expr_args(cmdidx) && xp.xp_context == EXPAND_EXPRESSION {
         loop {
-            let n: *mut u8 = crate::charset::skiptowhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
-            if n == arg
-                || ascii_iswhite_or_nul(crate::memory::cstr_first_byte(
-                    crate::charset::skipwhite_ptr(n.cast::<std::ffi::c_char>()),
-                ) as std::ffi::c_char)
+            let n = arg.skiptowhite();
+            if n.addr() == arg.addr()
+                || ascii_iswhite_or_nul(n.skipwhite().first_byte() as std::ffi::c_char)
             {
                 break;
             }
-            arg = crate::charset::skipwhite_ptr(n.cast::<std::ffi::c_char>()).cast();
+            arg = n.skipwhite();
         }
     }
 
-    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg);
+    xp.xp_pattern = arg;
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
@@ -2091,7 +2082,8 @@ pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool>
     let mut r = None;
 
     if !parens.is_null()
-        && crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(parens.wrapping_add(2)))
+        && crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(parens.wrapping_add(2)))
+            .is_empty()
     {
         if arg_cstr.to_bytes().starts_with(b"v:lua.") {
             let p = arg.wrapping_add(6);
@@ -3043,10 +3035,7 @@ fn eval_lambda(
         return false;
     } else if arg.to_bytes_with_nul()[0] != b'(' {
         if verbose {
-            if crate::memory::cstr_first_byte(crate::charset::skipwhite_ptr(
-                arg.as_ptr().cast_mut(),
-            )) == b'('
-            {
+            if crate::charset::skipwhite_slice(arg.to_bytes()).first() == Some(&b'(') {
                 emsg(gettext(E_NOWHITESPACE));
             } else {
                 semsg!(gettext(E_MISSINGPAREN), c"lambda",);
@@ -3138,9 +3127,7 @@ fn eval_method<'a>(
             } else {
                 let consumed = (expr_cursor.as_ptr() as usize).wrapping_sub(expr_base as usize);
                 *arg = crate::memory::CStrSubslice::advance(*arg, consumed);
-                if !crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
-                    expr_cursor.as_ptr().cast_mut(),
-                )) {
+                if !crate::charset::skipwhite_slice(expr_cursor.to_bytes()).is_empty() {
                     if verbose {
                         semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());
                     }
@@ -4040,27 +4027,25 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
 }
 
 pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
+    let pt1 = tv_partial(tv1);
     let mut s1 = if tv1.v_type == VarType::VarFunc {
-        tv1.vval.v_string().cast_const()
+        tv1.vval.v_string().as_opt_cstr()
     } else {
-        partial_name(tv_partial(tv1).as_deref()).as_ptr()
+        Some(partial_name(pt1.as_deref()))
     };
-    if !s1.is_null() && crate::memory::cstr_is_empty(s1) {
-        s1 = ptr::null();
+    if s1.is_some_and(CStr::is_empty) {
+        s1 = None;
     }
+    let pt2 = tv_partial(tv2);
     let mut s2 = if tv2.v_type == VarType::VarFunc {
-        tv2.vval.v_string().cast_const()
+        tv2.vval.v_string().as_opt_cstr()
     } else {
-        partial_name(tv_partial(tv2).as_deref()).as_ptr()
+        Some(partial_name(pt2.as_deref()))
     };
-    if !s2.is_null() && crate::memory::cstr_is_empty(s2) {
-        s2 = ptr::null();
+    if s2.is_some_and(CStr::is_empty) {
+        s2 = None;
     }
-    if s1.is_null() || s2.is_null() {
-        if s1 != s2 {
-            return false;
-        }
-    } else if crate::memory::cstr_as_bytes(s1) != crate::memory::cstr_as_bytes(s2) {
+    if s1 != s2 {
         return false;
     }
 
@@ -4497,9 +4482,7 @@ fn eval_dict(
     if curly_expr.to_bytes_with_nul()[0] != b'}'
         && !literal
         && eval1(&mut curly_expr, &mut tv, None)
-        && crate::memory::cstr_first_byte(crate::charset::skipwhite_ptr(
-            curly_expr.as_ptr().cast_mut(),
-        )) == b'}'
+        && crate::charset::skipwhite_slice(curly_expr.to_bytes()).first() == Some(&b'}')
     {
         return None;
     }

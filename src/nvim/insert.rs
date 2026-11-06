@@ -3104,13 +3104,16 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
             && ((opt_vars().p_sta && in_indent)
                 || ((get_sts_value() != 0 || tabstop_count(&curbuf_mut().b_p_vsts_array) != 0)
                     && curwin_mut().w_cursor.col > 0
-                    && (crate::memory::cstr_first_byte(
-                        get_cursor_pos_ptr().as_ptr().cast_mut().wrapping_offset(-1),
-                    ) == TAB as u8
-                        || (crate::memory::cstr_first_byte(
-                            get_cursor_pos_ptr().as_ptr().cast_mut().wrapping_offset(-1),
-                        ) == b' '
-                            && (*inserted_space_p == 0 || g_st().ins_global.moved != K_INS_NONE)))))
+                    && {
+                        let prev_b = crate::cursor::get_cursor_line_slice()
+                            .get((curwin_mut().w_cursor.col - 1) as usize)
+                            .copied()
+                            .unwrap_or(0);
+                        prev_b == TAB as u8
+                            || (prev_b == b' '
+                                && (*inserted_space_p == 0
+                                    || g_st().ins_global.moved != K_INS_NONE))
+                    }))
         {
             *inserted_space_p = 0;
 
@@ -3598,8 +3601,7 @@ fn ins_tab() -> bool {
         }
 
         let mut fpos = curwin_mut().w_cursor;
-        while fpos.col > 0 && ascii_iswhite(crate::memory::cstr_first_byte(ptr.wrapping_offset(-1)))
-        {
+        while fpos.col > 0 && ascii_iswhite(unsafe { *ptr.wrapping_offset(-1) }) {
             fpos.col -= 1;
             ptr = ptr.wrapping_offset(-1);
         }
@@ -3630,12 +3632,12 @@ fn ins_tab() -> bool {
         let mut csarg = CharsizeArg::new();
         let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, tab);
 
-        while ascii_iswhite(crate::memory::cstr_first_byte(ptr)) {
+        while ascii_iswhite(unsafe { *ptr }) {
             let i = win_charsize(cstype, vcol, tab.to_bytes_with_nul(), tab_v, &mut csarg, 1).width;
             if vcol + i > want_vcol {
                 break;
             }
-            if crate::memory::cstr_first_byte(ptr) != b'\t' {
+            if unsafe { *ptr } != b'\t' {
                 unsafe { *ptr = b'\t' };
 
                 if change_col < 0 {
@@ -3660,7 +3662,7 @@ fn ins_tab() -> bool {
                 0,
                 crate::memory::cstr_from_ptr(ptr),
             );
-            while vcol < want_vcol && crate::memory::cstr_first_byte(ptr) == b' ' {
+            while vcol < want_vcol && unsafe { *ptr } == b' ' {
                 vcol += win_charsize(
                     cstype,
                     vcol,

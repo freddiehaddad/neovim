@@ -221,7 +221,11 @@ fn coladvance2(
             && wcol >= 0
             && ((col != wcol && col != wcol + 1) || csize > 1)
         {
-            if crate::memory::cstr_is_empty(line.wrapping_add(idx as usize)) {
+            if line_cstr
+                .to_bytes()
+                .get(idx as usize..)
+                .is_none_or(<[u8]>::is_empty)
+            {
                 let correct = wcol - col;
                 let idx_usize = idx as usize;
                 let correct_usize = correct as usize;

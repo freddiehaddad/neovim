@@ -276,10 +276,10 @@ pub fn schar_get_adv(buf_out: &mut [u8], sc: Schar) -> usize {
     if schar_high(sc) {
         let idx = schar_idx(sc) as usize;
         assert!(idx < grid_st().glyph_cache_keys.len());
-        let key_ptr = grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx);
-        len = crate::memory::cstr_len(key_ptr);
-
-        unsafe { ptr::copy_nonoverlapping(key_ptr, buf_out.as_mut_ptr(), len) };
+        let key_bytes =
+            crate::memory::bytes_until_nul(&grid_st().borrow_mut().glyph_cache_keys[idx..]);
+        len = key_bytes.len();
+        buf_out[..len].copy_from_slice(key_bytes);
     } else {
         let sc_bytes = sc.to_ne_bytes();
         len = strnlen_4(&sc_bytes);
@@ -298,7 +298,7 @@ pub fn schar_len(sc: Schar) -> usize {
     if schar_high(sc) {
         let idx = schar_idx(sc) as usize;
         assert!(idx < grid_st().glyph_cache_keys.len());
-        crate::memory::cstr_len(grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx))
+        crate::memory::bytes_until_nul(&grid_st().glyph_cache_keys[idx..]).len()
     } else {
         strnlen_4(&sc.to_ne_bytes())
     }

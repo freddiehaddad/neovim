@@ -2792,8 +2792,7 @@ pub fn apply_autocmds_group(
                     || event == EVENT_MARKSET
                 {
                     ptr::null_mut()
-                } else if !fname.is_null() && ends_excmd(crate::memory::cstr_first_byte(fname)) == 0
-                {
+                } else if !fname.is_null() && ends_excmd(unsafe { *fname as i32 }) == 0 {
                     fname
                 } else if !buf.is_null() {
                     buf.ffname_opt()
@@ -2817,7 +2816,7 @@ pub fn apply_autocmds_group(
             g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum };
 
             let mut sfname_owned: Option<CString> = None;
-            let fname_owned: Option<CString> = if crate::memory::cstr_is_empty(fname) {
+            let fname_owned: Option<CString> = if fname.is_null() || unsafe { *fname == 0 } {
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {

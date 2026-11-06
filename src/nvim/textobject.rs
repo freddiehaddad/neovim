@@ -717,8 +717,9 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     }
 
     let line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
+    let line_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
     let start = crate::charset::skipwhite_ptr(line);
-    let mut end = line.wrapping_add(crate::memory::cstr_len(line));
+    let mut end = line.wrapping_add(line_bytes.len());
     while end > start {
         let prev = {
             let _l = line;
@@ -729,7 +730,8 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
                 _p
             }
         };
-        if !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(prev))) {
+        let prev_idx = (prev as usize) - (line as usize);
+        if !ascii_iswhite(i32::from(line_bytes.get(prev_idx).copied().unwrap_or(0))) {
             break;
         }
         end = prev;

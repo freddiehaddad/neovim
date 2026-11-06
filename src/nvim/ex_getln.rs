@@ -518,8 +518,8 @@ pub fn parse_pattern_and_range(
     parse_command_modifiers(&mut ea, &mut dummy, &mut dummy_cmdmod, true);
 
     // Skip over the range to find the command.
-    let cmd = skip_range(ea.cmd.as_cstr(), None).as_ptr().cast_mut();
-    let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
+    let cmd = crate::strings::ByteSlice::from_cstr(skip_range(ea.cmd.as_cstr(), None));
+    let cmd_bytes = cmd.as_bytes();
     let Some(&first_b) = cmd_bytes.first() else {
         return false;
     };
@@ -533,7 +533,7 @@ pub fn parse_pattern_and_range(
         .take_while(|b| b.is_ascii_alphabetic())
         .count();
     let mut p = cmd.wrapping_add(cmd_len);
-    if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(p)) {
+    if p.skipwhite().is_empty() {
         return false;
     }
 
@@ -550,17 +550,17 @@ pub fn parse_pattern_and_range(
         }
     } else if cmd_len >= 3 && (b"sort".starts_with(cmd_name) || b"uniq".starts_with(cmd_name)) {
         // skip over ! and flags
-        if crate::memory::cstr_first_byte(p) == b'!' {
-            p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
+        if p.first_byte() == b'!' {
+            p = p.wrapping_add(1).skipwhite();
         }
         loop {
-            p = crate::charset::skipwhite_ptr(p);
-            if !ascii_isalpha(crate::memory::cstr_first_byte(p)) {
+            p = p.skipwhite();
+            if !ascii_isalpha(p.first_byte()) {
                 break;
             }
             p = p.wrapping_add(1);
         }
-        if crate::memory::cstr_is_empty(p) {
+        if p.is_empty() {
             return false;
         }
     } else if (cmd_len >= 3 && b"vimgrep".starts_with(cmd_name))
@@ -570,9 +570,9 @@ pub fn parse_pattern_and_range(
         || b"global".starts_with(cmd_name)
     {
         // skip optional "!"
-        if crate::memory::cstr_first_byte(p) == b'!' {
+        if p.first_byte() == b'!' {
             p = p.wrapping_add(1);
-            if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(p)) {
+            if p.skipwhite().is_empty() {
                 return false;
             }
         }
@@ -583,40 +583,35 @@ pub fn parse_pattern_and_range(
         return false;
     }
 
-    p = crate::charset::skipwhite_ptr(p);
-    let delim = if delim_optional && vim_is_idc((crate::memory::cstr_first_byte(p)) as i32) {
+    p = p.skipwhite();
+    let delim = if delim_optional && vim_is_idc(i32::from(p.first_byte())) {
         b' ' as i32
     } else {
-        let d = i32::from(crate::memory::cstr_first_byte(p));
+        let d = i32::from(p.first_byte());
         p = p.wrapping_add(1);
         d
     };
     *search_delim = delim;
 
-    let end_off = skip_regexp_magic(
-        crate::memory::cstr_as_bytes(p),
-        delim,
-        i32::from(*is_magic),
-        Some(&mut magic),
-    );
+    let end_off = skip_regexp_magic(p.as_bytes(), delim, i32::from(*is_magic), Some(&mut magic));
     let end = p.wrapping_add(end_off);
-    let use_last_pat = end == p && i32::from(crate::memory::cstr_first_byte(end)) == delim;
+    let use_last_pat = end.addr() == p.addr() && i32::from(end.first_byte()) == delim;
 
-    if end == p && !use_last_pat {
+    if end.addr() == p.addr() && !use_last_pat {
         return false;
     }
 
     // Skip if the pattern matches everything (e.g., for 'hlsearch')
     if !use_last_pat {
-        let pat_len = crate::memory::ptr_offset_from(end, p) as usize;
-        if empty_pattern_magic(crate::memory::cstr_slice(p, pat_len), magic) {
+        let pat_len = end.offset_from(p);
+        if empty_pattern_magic(p.slice(pat_len), magic) {
             return false;
         }
     }
 
     // Found a non-empty pattern or //
-    *skiplen = crate::memory::ptr_offset_from(p, getln_st().ccline.cmdbuff().cast()) as i32;
-    *patlen = crate::memory::ptr_offset_from(end, p) as i32;
+    *skiplen = p.offset_from(getln_st().ccline.cmdbuff()) as i32;
+    *patlen = end.offset_from(p) as i32;
 
     // Parse the address range
     let save_cursor = curwin_mut().w_cursor;
@@ -628,9 +623,7 @@ pub fn parse_pattern_and_range(
         // Allow for reverse match.
         g_st().search_global.first_line = ea.line2.min(ea.line1);
         g_st().search_global.last_line = ea.line2.max(ea.line1);
-    } else if crate::memory::cstr_first_byte(cmd) == b's'
-        && crate::memory::cstr_as_bytes(cmd).get(1) != Some(&b'o')
-    {
+    } else if cmd.first_byte() == b's' && cmd_bytes.get(1) != Some(&b'o') {
         // :s defaults to the current line
         g_st().search_global.first_line = curwin_mut().w_cursor.lnum;
         g_st().search_global.last_line = curwin_mut().w_cursor.lnum;
@@ -848,12 +841,12 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     // Leave it at the end to make CTRL-R CTRL-W work.  But not when beyond the
     // end of the pattern, e.g. for ":s/pat/".
-    if !crate::memory::cstr_is_empty(
-        getln_st()
-            .ccline
-            .cmdbuff()
-            .wrapping_add((skiplen + patlen) as usize),
-    ) {
+    if !getln_st()
+        .ccline
+        .cmdbuff()
+        .wrapping_add((skiplen + patlen) as usize)
+        .is_empty()
+    {
         curwin_mut().w_cursor = s.search_start;
     } else if found != 0 {
         curwin_mut().w_cursor = end_pos;

@@ -171,7 +171,7 @@ pub fn modify_fname(
                 // Append a path separator to a directory.
                 if os_isdir(crate::memory::cstr_from_ptr(fname)) {
                     // Make room for one or two extra characters.
-                    let cur_len = crate::memory::cstr_len(fname);
+                    let cur_len = crate::memory::cstr_as_bytes(fname).len();
                     let mut v = vec![0u8; cur_len + 3];
                     unsafe {
                         ptr::copy_nonoverlapping(fname, v.as_mut_ptr(), cur_len + 1);
@@ -198,7 +198,7 @@ pub fn modify_fname(
                 pbuf = None;
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
-                    if crate::memory::cstr_first_byte(fname) == b'~' {
+                    if unsafe { *fname } == b'~' {
                         let exp = expand_env_save(crate::memory::cstr_from_ptr(fname))
                             .into_bytes_with_nul();
                         p = exp.as_ptr().cast_mut();
@@ -299,7 +299,7 @@ pub fn modify_fname(
                 .as_ptr()
                 .cast_mut()
                 .cast::<u8>();
-            *fnamelen = crate::memory::cstr_len(fname);
+            *fnamelen = crate::memory::cstr_as_bytes(fname).len();
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -1563,7 +1563,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         while (p as usize) < (buf_ptr.wrapping_offset(readlen) as usize)
             || (readlen <= 0 && (!prev.is_empty() || binary))
         {
-            if readlen <= 0 || crate::memory::cstr_first_byte(p) == b'\n' {
+            if readlen <= 0 || unsafe { *p } == b'\n' {
                 let mut len = (p as usize).wrapping_sub(start as usize);
 
                 // Finished a line.  Remove CRs before NL.
@@ -1609,9 +1609,9 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if readlen <= 0 {
                     break;
                 }
-            } else if crate::memory::cstr_is_empty(p) {
+            } else if unsafe { *p == 0 } {
                 unsafe { *p = b'\n' };
-            } else if crate::memory::cstr_first_byte(p) == 0xbf && !binary {
+            } else if unsafe { *p } == 0xbf && !binary {
                 // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
                 // when finding the BF and check the previous two bytes.
                 let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
@@ -1962,7 +1962,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         let mut hunk_start = s_cstr.as_ptr();
         let mut p = hunk_start;
         loop {
-            if crate::memory::cstr_is_empty(p) || unsafe { *p } == NL {
+            if unsafe { *p == 0 || *p == NL } {
                 if p != hunk_start {
                     let hunk = crate::memory::cstr_slice(
                         hunk_start,
@@ -1974,7 +1974,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                         break 'outer;
                     }
                 }
-                if crate::memory::cstr_is_empty(p) {
+                if unsafe { *p == 0 } {
                     break;
                 } else {
                     hunk_start = p.wrapping_add(1);

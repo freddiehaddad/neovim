@@ -261,7 +261,7 @@ pub fn vim_findfile_init(
 
         if !stopdirs.is_null() {
             let mut walker = stopdirs;
-            while crate::memory::cstr_first_byte(walker) == b';' {
+            while unsafe { *walker as u8 } == b';' {
                 walker = walker.wrapping_add(1);
             }
 
@@ -631,9 +631,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     }
 
                     while !rest_of_wildcards.cstr_bytes().is_empty()
-                        && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(
-                            rest_of_wildcards.data,
-                        )))
+                        && !vim_ispathsep(i32::from(rest_of_wildcards.data.first_byte()))
                     {
                         if file_path.size + 1 >= MAXPATHL {
                             break 'upward;
@@ -645,9 +643,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     }
 
                     file_path_vec[file_path.size] = NUL as u8;
-                    if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(
-                        rest_of_wildcards.data,
-                    ))) {
+                    if vim_ispathsep(i32::from(rest_of_wildcards.data.first_byte())) {
                         rest_of_wildcards.data = rest_of_wildcards.data.wrapping_add(1);
                         rest_of_wildcards.size -= 1;
                     }
@@ -827,7 +823,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
             && !g_st().got_int
         {
             let plen = crate::memory::ptr_offset_from(path_end, search_ctx.ffsc_start_dir.data)
-                + isize::from(!crate::memory::cstr_is_empty(path_end));
+                + isize::from(unsafe { *path_end != 0 });
 
             if ff_path_in_stoplist(
                 search_ctx.ffsc_start_dir.data.slice(plen as usize),
@@ -837,14 +833,12 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
             }
 
             while path_end > search_ctx.ffsc_start_dir.data.as_ptr()
-                && vim_ispathsep(i32::from(crate::memory::cstr_first_byte(path_end)))
+                && vim_ispathsep(i32::from(unsafe { *path_end as u8 }))
             {
                 path_end = path_end.wrapping_sub(1);
             }
             while path_end > search_ctx.ffsc_start_dir.data.as_ptr()
-                && !vim_ispathsep(i32::from(crate::memory::cstr_first_byte(
-                    path_end.wrapping_sub(1),
-                )))
+                && !vim_ispathsep(i32::from(unsafe { *path_end.wrapping_sub(1) as u8 }))
             {
                 path_end = path_end.wrapping_sub(1);
             }

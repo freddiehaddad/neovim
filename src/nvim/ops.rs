@@ -836,15 +836,13 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         && oap.motion_force == i32::from(NUL)
         && oap.op_type == OP_DELETE
     {
-        let mut ptr_line = ml_get(oap.end.lnum)
-            .as_ptr()
-            .cast_mut()
-            .wrapping_add(oap.end.col as usize);
-        if !crate::memory::cstr_is_empty(ptr_line) {
-            ptr_line = ptr_line.wrapping_add(usize::from(oap.inclusive));
+        let line_bytes = crate::memline::ml_get_slice(oap.end.lnum);
+        let mut ptr_line = line_bytes.get(oap.end.col as usize..).unwrap_or(&[]);
+        if !ptr_line.is_empty() && oap.inclusive {
+            ptr_line = &ptr_line[1..];
         }
-        ptr_line = crate::charset::skipwhite_ptr(ptr_line);
-        if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
+        ptr_line = crate::charset::skipwhite_slice(ptr_line);
+        if ptr_line.is_empty() && inindent(0) {
             oap.motion_type = MT_LINE_WISE;
         }
     }
@@ -3169,7 +3167,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             byte_count -= Varnumber::from(eol_size);
         }
 
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+        let _iobuff_ptr = g_st().iobuff.as_mut_ptr();
         if dict.is_none() {
             if l_visual_active {
                 if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant < MAXCOL {
@@ -3277,7 +3275,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
 
         bom_count = Varnumber::from(bomb_size());
         if dict.is_none() && bom_count > 0 {
-            let len = crate::memory::cstr_len(iobuff_ptr);
+            let len = g_st().iobuff_cstr().to_bytes().len();
             vim_snprintf!(
                 &mut g_st().iobuff[len..],
                 tr(c"(+%lld for BOM)"),

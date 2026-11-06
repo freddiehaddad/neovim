@@ -511,7 +511,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        let cur_b = crate::memory::cstr_first_byte(ptr.wrapping_add(wlen as usize));
+        let cur_b = unsafe { *ptr.wrapping_add(wlen as usize) };
         if cur_b == 0 {
             break;
         }
@@ -544,7 +544,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 if flen <= 0 && mip.mi_fend < mip.mi_word.to_bytes().len() {
                     flen = fold_more(mip);
                 }
-                let ch = crate::memory::cstr_first_byte(ptr.wrapping_add(wlen as usize));
+                let ch = unsafe { *ptr.wrapping_add(wlen as usize) };
                 if ch != b' ' && ch != TAB {
                     break;
                 }
@@ -988,7 +988,7 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
                 break;
             }
         }
-        let cur_b = crate::memory::cstr_first_byte(ptr.wrapping_add(wlen as usize));
+        let cur_b = unsafe { *ptr.wrapping_add(wlen as usize) };
         if cur_b == 0 {
             break;
         }
@@ -1133,10 +1133,9 @@ pub fn spell_move_to(
                 }
                 line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
             }
-            let empty_line = crate::memory::cstr_is_empty(line.wrapping_add(
-                crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(line)),
-            ));
             let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes_with_nul();
+            let empty_line =
+                crate::charset::skipwhite_slice(&line_bytes[..line_bytes.len() - 1]).is_empty();
             buf_vec[..line_bytes.len()].copy_from_slice(line_bytes);
             if lnum < wp.buf_mut().b_ml.ml_line_count {
                 let cur_len = line_bytes.len() - 1;
@@ -2170,17 +2169,13 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         if lnum == 1 {
             need_cap = true;
         } else {
-            line = ml_get_buf(wp.buf_mut(), lnum - 1)
-                .as_ptr()
-                .cast_mut()
-                .cast();
-            if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
-                line.cast::<std::ffi::c_char>(),
-            )) {
+            let prev_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum - 1);
+            line = prev_slice.as_ptr().cast_mut();
+            if crate::charset::skipwhite_slice(prev_slice).is_empty() {
                 need_cap = true;
             } else {
-                let len = ml_get_buf_len(wp.buf_mut(), lnum - 1);
-                line_copy = Some(concat_str(crate::memory::cstr_as_bytes(line), b" "));
+                let len = prev_slice.len() as Colnr;
+                line_copy = Some(concat_str(prev_slice, b" "));
                 line = line_copy
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());

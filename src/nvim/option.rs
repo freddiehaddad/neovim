@@ -752,22 +752,14 @@ fn set_init_default_backupskip() {
                 (env, ptr, 0)
             };
         #[cfg(not(unix))]
-        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const _, usize) = {
-            let env = vim_getenv(name);
-            let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-            (env, ptr, 0)
-        };
-        let _ = &p_owned;
-
-        if !crate::memory::cstr_is_empty(p) {
-            let mut has_trailing_path_sep = false;
-
-            if plen == 0 {
-                plen = crate::memory::cstr_len(p);
-                if after_pathsep(crate::memory::cstr_slice(p, plen)) != 0 {
-                    has_trailing_path_sep = true;
-                }
-            }
+        let env = vim_getenv(name);
+        if let Some(ref env_cstr) = env
+            && !env_cstr.is_empty()
+        {
+            let p_bytes = env_cstr.to_bytes();
+            let plen = p_bytes.len();
+            let p = env_cstr.as_ptr();
+            let has_trailing_path_sep = after_pathsep(p_bytes) != 0;
 
             let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
             let mut item = vec![0u8; itemsize];
@@ -7686,23 +7678,23 @@ pub fn expand_setting_subtract(
         return expand_old_setting(matches);
     }
 
-    let option_val = get_option_varp_scope_from(
+    let option_val_cstr = get_option_varp_scope_from(
         opt_st().expand_option_idx,
         opt_st().expand_option_flags,
         curbuf_mut(),
         Some(curwin_mut()),
     )
-    .as_cstr()
-    .as_ptr();
+    .as_cstr();
+    let option_val = option_val_cstr.as_ptr();
 
     let option_flags = get_option(opt_st().expand_option_idx).flags;
 
     if (option_flags & K_OPT_FLAG_COMMA) != 0 {
-        if crate::memory::cstr_is_empty(option_val) {
+        if option_val_cstr.is_empty() {
             return false;
         }
 
-        let mut option_copy = crate::memory::cstr_to_cstring(option_val).into_bytes_with_nul();
+        let mut option_copy = option_val_cstr.to_owned().into_bytes_with_nul();
         let mut next_val = option_copy.as_mut_ptr();
 
         matches.clear();
@@ -7714,7 +7706,7 @@ pub fn expand_setting_subtract(
                 .cast::<u8>();
             while !comma.is_null()
                 && comma != next_val
-                && crate::memory::cstr_first_byte(comma.wrapping_offset(-1)) == b'\\'
+                && unsafe { *comma.wrapping_offset(-1) } == b'\\'
             {
                 comma = vim_strchr(
                     crate::memory::cstr_from_ptr(comma.wrapping_add(1)),
@@ -7747,16 +7739,14 @@ pub fn expand_setting_subtract(
             return false;
         }
 
-        let num_flags = crate::memory::cstr_len(option_val);
+        let num_flags = option_val_cstr.to_bytes().len();
         if num_flags == 0 {
             return false;
         }
 
         matches.clear();
         matches.reserve_exact(num_flags + 1);
-        matches.push(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-            option_val, num_flags,
-        )));
+        matches.push(option_val_cstr.to_owned());
 
         if num_flags > 1 {
             let flag = option_val;

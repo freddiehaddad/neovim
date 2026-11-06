@@ -754,7 +754,7 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
 
     loop {
         let arg = crate::charset::skipwhite_ptr(cmdline);
-        if crate::memory::cstr_is_empty(arg) {
+        if unsafe { *arg == 0 } {
             break;
         }
         cmdline = crate::charset::skiptowhite_esc_ptr(arg);
@@ -777,7 +777,7 @@ fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
             semsg!(gettext(E_INVARG2), arg);
             return;
         }
-        if crate::memory::cstr_is_empty(cmdline) {
+        if unsafe { *cmdline == 0 } {
             break;
         }
 
@@ -887,13 +887,12 @@ fn parse_sign_cmd_args<'a>(
     let mut filename = ptr::null_mut();
     let mut lnum_arg = false;
 
-    if ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
+    if ascii_isdigit(unsafe { *arg as u8 }) {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         let mut rem = arg_bytes;
         *id = getdigits_int(&mut rem, true, 0);
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-        if !ascii_iswhite(crate::memory::cstr_first_byte(arg)) && !crate::memory::cstr_is_empty(arg)
-        {
+        if !ascii_iswhite(unsafe { *arg as u8 }) && unsafe { *arg != 0 } {
             *id = -1;
             arg = arg1;
         } else {
@@ -901,7 +900,7 @@ fn parse_sign_cmd_args<'a>(
         }
     }
 
-    while !crate::memory::cstr_is_empty(arg) {
+    while unsafe { *arg != 0 } {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         if arg_bytes.starts_with(b"line=") {
             arg = arg.wrapping_add(5);
@@ -919,13 +918,11 @@ fn parse_sign_cmd_args<'a>(
             arg = arg.wrapping_add(5);
             let mut namep = arg;
             arg = crate::charset::skiptowhite_ptr(arg);
-            if !crate::memory::cstr_is_empty(arg) {
+            if unsafe { *arg != 0 } {
                 unsafe { *arg = NUL as _ };
                 arg = arg.wrapping_add(1);
             }
-            while crate::memory::cstr_first_byte(namep) == b'0'
-                && crate::memory::cstr_len(namep) > 1
-            {
+            while unsafe { *namep as u8 == b'0' && *namep.wrapping_add(1) != 0 } {
                 namep = namep.wrapping_add(1);
             }
             *name = Some(crate::memory::cstr_from_ptr(namep));
@@ -933,7 +930,7 @@ fn parse_sign_cmd_args<'a>(
             arg = arg.wrapping_add(6);
             let groupp = arg;
             arg = crate::charset::skiptowhite_ptr(arg);
-            if !crate::memory::cstr_is_empty(arg) {
+            if unsafe { *arg != 0 } {
                 unsafe { *arg = NUL as _ };
                 arg = arg.wrapping_add(1);
             }
@@ -954,7 +951,7 @@ fn parse_sign_cmd_args<'a>(
             let mut rem = arg_bytes;
             *buf = buflist_findnr(getdigits_int(&mut rem, true, 0));
             arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-            if !crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(arg)) {
+            if unsafe { *crate::charset::skipwhite_ptr(arg) != 0 } {
                 semsg!(gettext(E_TRAILING_ARG), arg);
             }
             break;
@@ -991,26 +988,26 @@ pub fn ex_sign(eap: &mut Exarg) {
     arg = crate::charset::skipwhite_ptr(p);
 
     if idx <= SIGNCMD_LIST {
-        if idx == SIGNCMD_LIST && crate::memory::cstr_is_empty(arg) {
+        if idx == SIGNCMD_LIST && unsafe { *arg == 0 } {
             for sp in &mut sign_st().sign_map {
                 sign_list_defined(sp);
             }
-        } else if crate::memory::cstr_is_empty(arg) {
+        } else if unsafe { *arg == 0 } {
             emsg(gettext(c"E156: Missing sign name"));
         } else {
             p = crate::charset::skiptowhite_ptr(arg);
-            if !crate::memory::cstr_is_empty(p) {
+            if unsafe { *p != 0 } {
                 unsafe { *p = NUL as _ };
 
                 p = p.wrapping_add(1);
             }
-            while crate::memory::cstr_first_byte(arg) == b'0' && crate::memory::cstr_len(arg) > 1 {
+            while unsafe { *arg as u8 == b'0' && *arg.wrapping_add(1) != 0 } {
                 arg = arg.wrapping_add(1);
             }
             let arg_cstr = crate::memory::cstr_from_ptr(arg);
 
             if idx == SIGNCMD_DEFINE {
-                let p_len = crate::memory::cstr_len(p);
+                let p_len = crate::memory::cstr_as_bytes(p).len();
                 let p_slice = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), p_len + 1) };
                 sign_define_cmd(arg_cstr, p_slice);
             } else if idx == SIGNCMD_LIST {
@@ -1027,7 +1024,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut prio: i32 = -1;
         let mut buf: Option<&mut FileBuf> = None;
 
-        let arg_len = crate::memory::cstr_len(arg);
+        let arg_len = crate::memory::cstr_as_bytes(arg).len();
         let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
         if !parse_sign_cmd_args(
             idx, arg_slice, &mut name, &mut id, &mut group, &mut prio, &mut buf, &mut lnum,
@@ -1239,41 +1236,36 @@ pub fn get_sign_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 }
 
 pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
-    let arg = arg_cstr.as_ptr().cast_mut();
+    let arg = crate::strings::ByteSlice::from_cstr(arg_cstr);
     xp.xp_context = EXPAND_SIGN;
     sign_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg);
+    xp.xp_pattern = arg;
 
-    let end_subcmd = crate::charset::skiptowhite_ptr(arg);
-    if crate::memory::cstr_is_empty(end_subcmd) {
+    let end_subcmd = arg.skiptowhite();
+    if end_subcmd.is_empty() {
         return;
     }
 
-    let cmd_idx = sign_cmd_idx(crate::memory::cstr_slice(
-        arg,
-        crate::memory::ptr_offset_from(end_subcmd, arg).max(0) as usize,
-    ));
-    let begin_subcmd_args = crate::charset::skipwhite_ptr(end_subcmd);
+    let cmd_idx = sign_cmd_idx(arg.slice(end_subcmd.offset_from(arg)));
+    let begin_subcmd_args = end_subcmd.skipwhite();
 
     let mut last;
     let mut p = begin_subcmd_args;
     loop {
-        p = crate::charset::skipwhite_ptr(p);
+        p = p.skipwhite();
         last = p;
-        p = crate::charset::skiptowhite_ptr(p);
-        if crate::memory::cstr_is_empty(p) {
+        p = p.skiptowhite();
+        if p.is_empty() {
             break;
         }
     }
 
-    p = vim_strchr(crate::memory::cstr_from_ptr(last), b'=' as i32)
-        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if p.is_null() {
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(last);
+    let Some(eq_cstr) = vim_strchr(last.as_cstr(), b'=' as i32) else {
+        xp.xp_pattern = last;
         match cmd_idx {
             SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
             SIGNCMD_PLACE => {
-                if ascii_isdigit(crate::memory::cstr_first_byte(begin_subcmd_args)) {
+                if ascii_isdigit(begin_subcmd_args.first_byte()) {
                     sign_st().expand_what = EXP_PLACE;
                 } else {
                     sign_st().expand_what = EXP_LIST;
@@ -1283,9 +1275,11 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
             SIGNCMD_JUMP | SIGNCMD_UNPLACE => sign_st().expand_what = EXP_UNPLACE,
             _ => xp.xp_context = EXPAND_NOTHING,
         }
-    } else {
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p.wrapping_add(1));
-        let last_bytes = crate::memory::cstr_as_bytes(last);
+        return;
+    };
+    {
+        xp.xp_pattern = crate::strings::ByteSlice::from_cstr(eq_cstr).wrapping_add(1);
+        let last_bytes = last.as_bytes();
         match cmd_idx {
             SIGNCMD_DEFINE => {
                 if last_bytes.starts_with(b"texthl")

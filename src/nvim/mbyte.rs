@@ -28,7 +28,6 @@ use crate::os::fs::os_errno;
 #[cfg(unix)]
 use crate::os::lang::nl_langinfo;
 use crate::os::lang::{LC_CTYPE, setlocale};
-use crate::strings::vim_strchr;
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
     UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
@@ -3097,19 +3096,25 @@ pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
     #[cfg(unix)]
-    let mut s: crate::strings::RawCCharPtr = unsafe { nl_langinfo(CODESET) }.cast();
+    let mut s = crate::strings::ByteSlice::from_ptr(unsafe { nl_langinfo(CODESET) });
     #[cfg(not(unix))]
-    let mut s: crate::strings::RawCCharPtr = ptr::null();
+    let mut s = crate::strings::BYTE_SLICE_NULL;
 
     let mut env_buf = [0u8; 64];
-    if crate::memory::cstr_is_empty(s) {
-        s = unsafe { setlocale(LC_CTYPE, ptr::null()) }.cast();
-        if crate::memory::cstr_is_empty(s) {
-            s = os_getenv_buf(c"LC_ALL", &mut env_buf).map_or(ptr::null(), CStr::as_ptr);
+    if s.is_empty() {
+        s = crate::strings::ByteSlice::from_ptr(unsafe { setlocale(LC_CTYPE, ptr::null()) });
+        if s.is_empty() {
+            s = crate::strings::ByteSlice::from_opt_cstr(os_getenv_buf(c"LC_ALL", &mut env_buf));
             if s.is_null() {
-                s = os_getenv_buf(c"LC_CTYPE", &mut env_buf).map_or(ptr::null(), CStr::as_ptr);
+                s = crate::strings::ByteSlice::from_opt_cstr(os_getenv_buf(
+                    c"LC_CTYPE",
+                    &mut env_buf,
+                ));
                 if s.is_null() {
-                    s = os_getenv_buf(c"LANG", &mut env_buf).map_or(ptr::null(), CStr::as_ptr);
+                    s = crate::strings::ByteSlice::from_opt_cstr(os_getenv_buf(
+                        c"LANG",
+                        &mut env_buf,
+                    ));
                 }
             }
         }
@@ -3120,20 +3125,19 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
 
     let mut buf = [0u8; 50];
-    let p = vim_strchr(crate::memory::cstr_from_ptr(s), b'.' as i32)
-        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if !p.is_null() {
-        let p_bytes = crate::memory::cstr_as_bytes(p);
-        if p.cast_const() > s.wrapping_add(2)
+    let mut s_full = s.as_bytes();
+    if let Some(dot_idx) = s_full.iter().position(|&b| b == b'.') {
+        let p_bytes = &s_full[dot_idx..];
+        if dot_idx > 2
             && p_bytes.len() >= 4
             && p_bytes[1..4].eq_ignore_ascii_case(b"EUC")
             && !p_bytes.get(4).is_some_and(u8::is_ascii_alphanumeric)
             && p_bytes.get(4) != Some(&b'-')
-            && unsafe { (*p.wrapping_sub(3)) as u8 } == b'_'
+            && s_full[dot_idx - 3] == b'_'
         {
             buf[..4].copy_from_slice(b"euc-");
-            let c2 = unsafe { (*p.wrapping_sub(2)) as u8 };
-            let c1 = unsafe { (*p.wrapping_sub(1)) as u8 };
+            let c2 = s_full[dot_idx - 2];
+            let c1 = s_full[dot_idx - 1];
             buf[4] = if c2.is_ascii_alphanumeric() {
                 tolower_asc(i32::from(c2)) as u8
             } else {
@@ -3147,10 +3151,9 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
             buf[6] = 0;
             return Some(enc_canonize(crate::memory::cstr_until_nul(&buf)));
         }
-        s = p.wrapping_add(1);
+        s_full = &s_full[dot_idx + 1..];
     }
 
-    let s_full = crate::memory::cstr_as_bytes(s);
     let s_bytes = &s_full[..(buf.len() - 1).min(s_full.len())];
     let mut i = 0usize;
     while i < s_bytes.len() {

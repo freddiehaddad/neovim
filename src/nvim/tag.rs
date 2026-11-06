@@ -668,7 +668,7 @@ pub fn do_tag(
                         cur_match + 1
                     };
 
-                    if !no_regexp && crate::memory::cstr_first_byte(name) == b'/' {
+                    if !no_regexp && unsafe { !name.is_null() && *name == b'/' } {
                         tag_st().do_tag_flags = TAG_REGEXP;
                         name = name.wrapping_add(1);
                     } else {
@@ -1354,15 +1354,11 @@ fn find_tagfunc_tags(
                         res_cmd = tv.vval.v_string();
                     } else {
                         has_extra = true;
-                        if crate::memory::cstr_as_bytes(
-                            (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        ) == b"kind"
-                        {
+                        let dk_bytes = dict_key.map_or(&[][..], std::ffi::CStr::to_bytes);
+                        if dk_bytes == b"kind" {
                             res_kind = tv.vval.v_string();
                         } else {
-                            len += crate::memory::cstr_len(
-                                (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                            ) + 1;
+                            len += dk_bytes.len() + 1;
                         }
                     }
                 }

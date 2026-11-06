@@ -675,8 +675,9 @@ fn is_executable_ext(
         };
 
         let buf = (&raw mut g_st().os_buf).cast::<u8>();
-        crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), name_bytes);
-        let buf_end = buf.wrapping_add(crate::memory::cstr_len(buf));
+        let copied_len = crate::memory::copy_bytes_to_c_buf(g_st().os_buf_bytes_mut(), name_bytes)
+            .min(MAXPATHL - 1);
+        let buf_end = buf.wrapping_add(copied_len);
         let mut pathext_buf = [0u8; MAXPATHL];
         let pathext: *const u8 = os_getenv_buf(c"PATHEXT", &mut pathext_buf)
             .unwrap_or(c".com;.exe;.bat;.cmd")
@@ -761,7 +762,7 @@ fn is_executable_in_path(
         #[cfg(not(windows))]
         let path = path_env.as_ptr().cast::<u8>();
 
-        let bufsize = name_cstr.to_bytes().len() + crate::memory::cstr_len(path) + 2;
+        let bufsize = name_cstr.to_bytes().len() + crate::memory::cstr_as_bytes(path).len() + 2;
         let mut buf_vec = vec![0u8; bufsize];
 
         let mut p = path;
@@ -792,7 +793,7 @@ fn is_executable_in_path(
                 rv = true;
                 break;
             }
-            if (crate::memory::cstr_first_byte(e)) != ENV_SEPCHAR {
+            if unsafe { *e } != ENV_SEPCHAR {
                 break;
             }
             p = e.wrapping_add(1);
@@ -1438,7 +1439,7 @@ pub fn os_copy_xattr(from_file_opt: Option<&CStr>, to_file_opt: Option<&CStr>) {
                     max_vallen = vallen;
                 }
 
-                let keylen = (crate::memory::cstr_len(key) + 1) as isize;
+                let keylen = (crate::memory::cstr_as_bytes(key).len() + 1) as isize;
                 size -= keylen;
                 key = key.add(keylen as usize);
             }
@@ -1662,7 +1663,7 @@ pub fn os_mkdir_recurse(
                 *past_head = past_head_save;
             }
         }
-        let component_len = crate::memory::cstr_len(e);
+        let component_len = crate::memory::cstr_as_bytes(e).len();
         e = e.wrapping_add(component_len);
         if ptr::eq(e, real_end) && {
             let _d = unsafe { e.sub(component_len) };

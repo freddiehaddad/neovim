@@ -198,7 +198,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
             return UV_EINVAL;
         }
 
-        if crate::memory::cstr_is_empty(port) {
+        if !port.is_null() && unsafe { *port == 0 } {
             port = ptr::null_mut();
         }
 

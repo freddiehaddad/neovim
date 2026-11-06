@@ -2662,7 +2662,7 @@ pub fn find_ident_at_pos(
     startcol -= col;
     col = 0;
     this_class = mb_get_class(ptr_bytes);
-    while !crate::memory::cstr_is_empty(ptr.wrapping_add(col as usize))
+    while (col as usize) < ptr_bytes.len()
         && ((if i == 0 {
             mb_get_class(&ptr_bytes[col as usize..]) == this_class
         } else {
@@ -2671,7 +2671,7 @@ pub fn find_ident_at_pos(
             && col <= startcol
             && find_is_eval_item(ptr_bytes, col as usize, &mut col, &mut bn, FORWARD)))
     {
-        col += utfc_ptr2len(ptr.wrapping_add(col as usize));
+        col += crate::mbyte::utfc_slice2len(&ptr_bytes[col as usize..]) as Colnr;
     }
 
     assert!(col >= 0);
@@ -4444,32 +4444,31 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize
         return None;
     }
     let (p, len) = if g_st().visual_global.mode == b'V' as i32 {
-        (
-            get_cursor_line_ptr().as_ptr().cast_mut(),
-            get_cursor_line_len() as usize,
-        )
+        (get_cursor_line_ptr(), get_cursor_line_len() as usize)
     } else {
         let (p, mut len) = if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
             (
-                ml_get_pos(&curwin_mut().w_cursor).as_ptr().cast_mut(),
+                ml_get_pos(&curwin_mut().w_cursor),
                 (g_st().visual_global.start.col - curwin_mut().w_cursor.col + 1) as usize,
             )
         } else {
             (
-                ml_get_pos(&g_st().visual_global.start).as_ptr().cast_mut(),
+                ml_get_pos(&g_st().visual_global.start),
                 (curwin_mut().w_cursor.col - g_st().visual_global.start.col + 1) as usize,
             )
         };
-        if crate::memory::cstr_is_empty(p) {
+        if p.is_empty() {
             len = 0;
         }
         if len > 0 {
-            len = len.wrapping_add_signed((utfc_ptr2len(p.wrapping_add(len - 1)) - 1) as isize);
+            let p_bytes = p.to_bytes();
+            let tail = p_bytes.get(len - 1..).unwrap_or(&[]);
+            len = len.wrapping_add_signed(crate::mbyte::utfc_slice2len(tail) as isize - 1);
         }
         (p, len)
     };
     reset_visual_and_resel();
-    Some((crate::memory::cstr_from_ptr(p), len))
+    Some((p, len))
 }
 
 fn nv_tagpop(cap: &mut Cmdarg) {

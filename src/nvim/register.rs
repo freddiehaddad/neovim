@@ -1571,7 +1571,7 @@ pub fn do_put(
                     });
                     ptrlen -= item_size + 1;
                     tmp = tmp.wrapping_add(1);
-                    if crate::memory::cstr_is_empty(tmp) {
+                    if unsafe { *tmp == 0 } {
                         y_type = MotionType::MtLineWise;
                         break;
                     }
@@ -1637,7 +1637,7 @@ pub fn do_put(
                 let mut p = get_cursor_pos_ptr().as_ptr().cast_mut();
                 let p_orig = p;
                 let plen = get_cursor_pos_len() as usize;
-                if dir == FORWARD && !crate::memory::cstr_is_empty(p) {
+                if dir == FORWARD && plen > 0 {
                     p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
                 split_pos = ((p as usize) - (curline as usize)) as Colnr;
@@ -1849,7 +1849,7 @@ pub fn do_put(
                 let mut ptr_ = oldp.wrapping_add(ci.offset_from(oldp_cstr));
                 bd.textcol = ci.offset_from(oldp_cstr) as Colnr;
 
-                let shortline = (vcol < col) || (vcol == col && crate::memory::cstr_is_empty(ptr_));
+                let shortline = (vcol < col) || (vcol == col && unsafe { *ptr_ == 0 });
 
                 if vcol < col {
                     bd.startspaces = col - vcol;
@@ -1862,9 +1862,7 @@ pub fn do_put(
                         oldp,
                         oldp.wrapping_add(bd.textcol as usize),
                     );
-                    if crate::memory::cstr_first_byte(oldp.wrapping_add(bd.textcol as usize))
-                        != TAB as u8
-                    {
+                    if unsafe { *oldp.wrapping_add(bd.textcol as usize) as u8 } != TAB as u8 {
                         delcount = 0;
                         bd.endspaces = 0;
                     }
@@ -2173,13 +2171,13 @@ pub fn do_put(
                             if (flags & PUT_FIXINDENT) != 0 {
                                 let old_pos = curwin_mut().w_cursor;
                                 curwin_mut().w_cursor.lnum = lnum;
-                                let ptr_ = ml_get(lnum).as_ptr().cast_mut();
+                                let ptr_slice = crate::memline::ml_get_slice(lnum);
                                 if cnt == count && i == y_size - 1 {
-                                    lendiff = ml_get_len(lnum);
+                                    lendiff = ptr_slice.len() as Colnr;
                                 }
-                                let indent = if (crate::memory::cstr_first_byte(ptr_) == b'#'
+                                let indent = if (ptr_slice.first() == Some(&b'#')
                                     && preprocs_left())
-                                    || crate::memory::cstr_is_empty(ptr_)
+                                    || ptr_slice.is_empty()
                                 {
                                     0
                                 } else if first_indent {
@@ -2464,19 +2462,14 @@ pub fn ex_display(eap: &mut Exarg) {
                         msg_puts_hl(c"^J", hl_id, false);
                         n -= 2;
                     }
-                    let mut p = yb_ref.y_array[j].data.cast_const();
-                    while !crate::memory::cstr_is_empty(p) {
+                    let mut p = yb_ref.y_array[j].data;
+                    while !p.is_empty() {
                         n -= ptr2cells(p);
                         if n < 0 {
                             break;
                         }
                         let clen = utfc_ptr2len(p);
-                        msg_outtrans_len(
-                            crate::memory::cstr_slice(p, clen.max(0) as usize),
-                            clen,
-                            0,
-                            false,
-                        );
+                        msg_outtrans_len(p.slice(clen.max(0) as usize), clen, 0, false);
                         p = p.wrapping_add(clen as usize);
                     }
                     j += 1;

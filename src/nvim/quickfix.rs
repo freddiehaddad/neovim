@@ -2877,12 +2877,12 @@ fn qf_jump_edit_buffer(
     retval
 }
 fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
-    let line = get_cursor_line_ptr().as_ptr();
+    let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
     let mut p = line;
     let mut col: Colnr = 0;
 
-    while !crate::memory::cstr_is_empty(p) && col < vcol {
-        if crate::memory::cstr_first_byte(p) == TAB {
+    while !p.is_empty() && col < vcol {
+        if p.first_byte() == TAB {
             col += 8 - (col % 8);
         } else {
             col += ptr2cells(p);
@@ -2892,7 +2892,7 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
         }
         p = p.wrapping_add(utfc_ptr2len(p) as usize);
     }
-    crate::memory::ptr_offset_from(p, line) as i32
+    p.offset_from(line) as i32
 }
 
 fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: Option<&CStr>) {
@@ -5255,7 +5255,7 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         emsg(gettext(E_INVALPAT));
         return false;
     };
-    let mut p = eap
+    let p = eap
         .arg
         .as_ptr()
         .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
@@ -5265,15 +5265,13 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         return false;
     }
 
-    p = crate::charset::skipwhite_ptr(p);
-    if crate::memory::cstr_is_empty(p) {
+    let p_rem = crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(p));
+    if p_rem.is_empty() {
         emsg(gettext(c"E683: File name missing or invalid pattern"));
         return false;
     }
 
-    if !get_arglist_exp(crate::memory::cstr_as_bytes(p), &mut args.fnames, true)
-        || args.fnames.is_empty()
-    {
+    if !get_arglist_exp(p_rem, &mut args.fnames, true) || args.fnames.is_empty() {
         emsg(gettext(E_NOMATCH));
         return false;
     }
@@ -6950,8 +6948,8 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
     while !vim_fgets(g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int {
         let line = iobuff_ptr;
 
-        if vim_regexec(p_regmatch, crate::memory::cstr_from_ptr(line), 0) {
-            let mut l = crate::memory::cstr_len(line);
+        if vim_regexec(p_regmatch, g_st().iobuff_cstr(), 0) {
+            let mut l = g_st().iobuff_cstr().to_bytes().len();
             while l > 0 && g_st().iobuff[l - 1] <= b' ' {
                 l -= 1;
                 g_st().iobuff[l] = 0;

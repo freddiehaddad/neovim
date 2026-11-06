@@ -493,9 +493,9 @@ pub fn nvim_option_to_object(
         } else {
             arena_array(arena, nparts)
         };
-        let str_len = crate::memory::cstr_len(str_ptr);
-        let mut item_buf = vec![0u8; str_len + 1];
         let mut p_bytes = crate::memory::cstr_as_bytes(str_ptr);
+        let str_len = p_bytes.len();
+        let mut item_buf = vec![0u8; str_len + 1];
         while !p_bytes.is_empty() {
             copy_option_part(&mut p_bytes, &mut item_buf, c",");
             let item_bytes = CStr::from_bytes_until_nul(&item_buf)

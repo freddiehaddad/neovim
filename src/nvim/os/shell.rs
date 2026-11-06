@@ -219,7 +219,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        let mut len = crate::memory::cstr_len(tempname) + 29;
+        let mut len = crate::memory::cstr_as_bytes(tempname).len() + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -433,7 +433,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = 0;
-                if len != 0 && (crate::memory::cstr_len(buffer) as i32) < (len as i32) {
+                if len != 0 && (crate::memory::cstr_as_bytes(buffer).len() as i32) < (len as i32) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;

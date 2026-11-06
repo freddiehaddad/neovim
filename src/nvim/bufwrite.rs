@@ -1110,7 +1110,7 @@ pub fn buf_write(
     let mut sha_ctx = ContextSha256::new();
     let bkc = get_bkc_flags(buf.borrow_mut());
 
-    if crate::memory::cstr_is_empty(fname) {
+    if fname_arg.is_none_or(CStr::is_empty) {
         return false;
     }
     if buf.b_ml.ml_mfp.is_none() {
@@ -1120,7 +1120,7 @@ pub fn buf_write(
     if check_secure() {
         return false;
     }
-    if crate::memory::cstr_len(fname) >= MAXPATHL {
+    if fname_arg.is_some_and(|s| s.to_bytes().len() >= MAXPATHL) {
         emsg(gettext(E_LONGNAME));
         return false;
     }
@@ -1585,16 +1585,10 @@ pub fn buf_write(
                     let mut s_idx = 0usize;
                     lnum = start;
                     while lnum <= end {
-                        let mut ptr = ml_get_buf(&mut *buf, lnum)
-                            .as_ptr()
-                            .cast_mut()
-                            .wrapping_sub(1);
+                        let line_cstr = ml_get_buf(&mut *buf, lnum);
+                        let mut ptr = line_cstr.as_ptr().cast_mut().wrapping_sub(1);
                         if write_undo_file {
-                            let line_ptr = ptr.wrapping_add(1);
-                            sha_ctx.update(crate::memory::cstr_slice(
-                                line_ptr,
-                                crate::memory::cstr_len(line_ptr) + 1,
-                            ));
+                            sha_ctx.update(line_cstr.to_bytes_with_nul());
                         }
                         loop {
                             ptr = ptr.wrapping_add(1);

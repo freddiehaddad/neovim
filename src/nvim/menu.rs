@@ -341,12 +341,13 @@ pub fn ex_menu(eap: &mut Exarg) {
     let arg_buf = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
     let map_to_off = menu_translate_tab_and_shift(arg_buf);
     let mut map_to = arg.cast::<u8>().wrapping_add(map_to_off);
+    let map_to_empty = unsafe { *map_to == 0 };
     let mut menu_path = (menu_path_ptr).as_cstr();
 
-    if crate::memory::cstr_is_empty(map_to) && !unmenu && enable == K_NONE {
+    if map_to_empty && !unmenu && enable == K_NONE {
         show_menus(menu_path, modes);
         return;
-    } else if !crate::memory::cstr_is_empty(map_to) && (unmenu || enable != K_NONE) {
+    } else if !map_to_empty && (unmenu || enable != K_NONE) {
         semsg!(gettext(E_TRAILING_ARG), map_to);
         return;
     }
@@ -1716,10 +1717,8 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
     let mut arg = eap.arg.cast::<u8>();
     let menutrans = &mut menu_st().menutrans_ga;
 
-    if crate::memory::cstr_as_bytes(arg).starts_with(b"clear")
-        && ends_excmd(i32::from(crate::memory::cstr_first_byte(
-            crate::charset::skipwhite_ptr(arg.wrapping_add(5).cast::<std::ffi::c_char>()),
-        ))) != 0
+    if eap.arg.as_bytes().starts_with(b"clear")
+        && ends_excmd(i32::from(eap.arg.wrapping_add(5).skipwhite().first_byte())) != 0
     {
         menutrans.clear();
         del_menutrans_vars();

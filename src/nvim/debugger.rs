@@ -307,15 +307,13 @@ pub fn do_debug(cmd: &CStr) {
 
                     if lcmd != 0 {
                         p = p.wrapping_add(1);
-                        while !crate::memory::cstr_is_empty(p)
-                            && !tail.is_empty()
-                            && (crate::memory::cstr_first_byte(p)) == tail[0]
-                        {
+                        let mut p_bytes = crate::memory::cstr_as_bytes(p);
+                        while !p_bytes.is_empty() && !tail.is_empty() && p_bytes[0] == tail[0] {
                             p = p.wrapping_add(1);
+                            p_bytes = &p_bytes[1..];
                             tail = &tail[1..];
                         }
-                        if (crate::memory::cstr_first_byte(p)).is_ascii_alphabetic()
-                            && lcmd != CMD_FRAME
+                        if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && lcmd != CMD_FRAME
                         {
                             lcmd = 0;
                         }
@@ -352,11 +350,12 @@ pub fn do_debug(cmd: &CStr) {
                             continue;
                         }
                         CMD_FRAME => {
-                            if crate::memory::cstr_is_empty(p) {
+                            let p_rem =
+                                crate::charset::skipwhite_slice(crate::memory::cstr_as_bytes(p));
+                            if p_rem.is_empty() {
                                 do_showbacktrace(cmd);
                             } else {
-                                p = crate::charset::skipwhite_ptr(p);
-                                do_setdebugtracelevel(crate::memory::cstr_as_bytes(p));
+                                do_setdebugtracelevel(p_rem);
                             }
                             continue;
                         }

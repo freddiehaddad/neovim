@@ -1518,7 +1518,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         tv_get_string(&argvars[0]).as_ptr().cast_mut()
     };
 
-    if crate::memory::cstr_is_empty(func) {
+    if func.is_null() || unsafe { *func == 0 } {
         return;
     }
     let mut tofree: Option<std::ffi::CString> = None;
@@ -1709,10 +1709,10 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                         crate::memory::cstr_as_bytes(p),
                         wp_ref.w_virtcol - wp_ref.w_cursor.coladd,
                     )
-                    && !crate::memory::cstr_is_empty(p)
+                    && unsafe { *p != 0 }
                 {
                     let l = utfc_ptr2len(p);
-                    if crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
+                    if unsafe { *p.wrapping_add(l as usize) == 0 } {
                         col += l;
                     }
                 }
@@ -2090,7 +2090,7 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         g_st().need_clr_eos = false;
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    } else if !crate::memory::cstr_is_empty(s) {
+    } else if !s_cstr.is_empty() {
         semsg!(gettext(E_TRAILING_ARG), s);
     }
 }
@@ -2252,11 +2252,9 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         tv_list_set_ret(rettv, None);
     }
 
-    let s = tv_get_string(&argvars[0]).as_ptr();
-    if crate::memory::cstr_first_byte(s) == b'%'
-        || crate::memory::cstr_first_byte(s) == b'#'
-        || crate::memory::cstr_first_byte(s) == b'<'
-    {
+    let s_cstr = tv_get_string(&argvars[0]);
+    let s = s_cstr.as_ptr();
+    if matches!(s_cstr.to_bytes().first(), Some(b'%' | b'#' | b'<')) {
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off += 1;
         }
@@ -2514,7 +2512,6 @@ pub fn f_foreground(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 
 /// "function()" and "funcref()" common implementation
 fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool) {
-    let name;
     let mut use_string = false;
     let mut arg_pt = crate::globals::GraphPtr::<TvPartial>::NULL;
     let mut trans_name_owned: Option<std::ffi::CString> = None;
@@ -2539,8 +2536,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             TFN_INT | TFN_QUIET | TFN_NO_AUTOLOAD | TFN_NO_DEREF,
             None,
         );
-        name = name_cstr.as_ptr().cast_mut();
-        if !crate::memory::cstr_is_empty(name) {
+        if !name_cstr.is_empty() {
             s = ptr::null_mut();
         }
     }
@@ -2548,8 +2544,9 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         .as_ref()
         .map_or(ptr::null_mut(), |tn| tn.as_ptr().cast_mut());
     'theend: {
-        if crate::memory::cstr_is_empty(s)
-            || (use_string && ascii_isdigit(crate::memory::cstr_first_byte(s)))
+        if s.is_null()
+            || unsafe { *s == 0 }
+            || (use_string && ascii_isdigit(unsafe { *s as u8 }))
             || (is_funcref && trans_name.is_null())
         {
             semsg!(
@@ -6376,7 +6373,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
         let called_emsg_start = g_st().called_emsg;
 
         if argvars[2].v_type == VarType::VarUnknown {
-            if crate::memory::cstr_is_empty(p) {
+            if p.is_null() || unsafe { *p == 0 } {
                 semsg!(
                     gettext(E_REDUCE_OF_AN_EMPTY_STR_WITH_NO_INITIAL_VALUE),
                     c"String",
@@ -6400,7 +6397,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             tv_copy(&argvars[2], &mut *rettv);
         }
 
-        while !crate::memory::cstr_is_empty(p) {
+        while !p.is_null() && unsafe { *p != 0 } {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
             rettv.v_type = VarType::VarUnknown;
@@ -6479,14 +6476,14 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         return;
     }
 
-    let func_name = if argvars[1].v_type == VarType::VarFunc {
-        argvars[1].vval.v_string().cast_const()
+    let func_name_empty = if argvars[1].v_type == VarType::VarFunc {
+        argvars[1].vval.v_string().is_empty()
     } else if argvars[1].v_type == VarType::VarPartial {
-        partial_name(argvars[1].vval.v_partial_opt().as_deref()).as_ptr()
+        partial_name(argvars[1].vval.v_partial_opt().as_deref()).is_empty()
     } else {
-        tv_get_string(&argvars[1]).as_ptr()
+        tv_get_string(&argvars[1]).is_empty()
     };
-    if crate::memory::cstr_is_empty(func_name) {
+    if func_name_empty {
         emsg(gettext(E_MISSING_FUNCTION_ARGUMENT));
         return;
     }
@@ -7746,7 +7743,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut capcol: i32 = -1;
         if let Some(str_cstr) = tv_get_string_chk(&argvars[0]) {
             let mut str_ = str_cstr.as_ptr();
-            while !crate::memory::cstr_is_empty(str_) {
+            while unsafe { *str_ != 0 } {
                 len = spell_check(
                     curwin_mut(),
                     crate::memory::cstr_from_ptr(str_),
@@ -7853,7 +7850,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             keepempty = tv_get_bool_chk(&argvars[2], Some(&mut typeerr)) != 0;
         }
     }
-    if crate::memory::cstr_is_empty(pat) {
+    if pat.is_null() || unsafe { *pat == 0 } {
         pat = c"[\\x01- ]\\+".as_ptr();
     }
 
@@ -7866,9 +7863,9 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             RE_MAGIC + RE_STRING,
         ));
         if !regmatch.regprog.is_null() {
-            while !crate::memory::cstr_is_empty(str_) || keepempty {
+            while (!str_.is_null() && unsafe { *str_ != 0 }) || keepempty {
                 let str_cstr = crate::memory::cstr_from_ptr(str_);
-                let match_found = if crate::memory::cstr_is_empty(str_) {
+                let match_found = if str_cstr.is_empty() {
                     false
                 } else {
                     vim_regexec_nl(&mut regmatch, crate::memory::cstr_as_opt_cstr(str_), col)
@@ -7881,7 +7878,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 if keepempty
                     || end_off > 0
                     || (tv_list_len(rettv.vval.v_list_opt().as_deref()) > 0
-                        && !crate::memory::cstr_is_empty(str_)
+                        && !str_cstr.is_empty()
                         && match_found
                         && end_off < regmatch.end_offset(0, str_cstr))
                 {
@@ -7984,12 +7981,12 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "str2float()" function
 pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0])).as_ptr();
-    let isneg = crate::memory::cstr_first_byte(p) == b'-';
-    if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-        p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
+    let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0]));
+    let isneg = p.to_bytes().first() == Some(&b'-');
+    if matches!(p.to_bytes().first(), Some(b'+' | b'-')) {
+        p = crate::charset::skipwhite_at(p, 1);
     }
-    string2float(crate::memory::cstr_from_ptr(p), rettv.vval.v_float_mut());
+    string2float(p, rettv.vval.v_float_mut());
     if isneg {
         *rettv.vval.v_float_mut() *= -1.0;
     }

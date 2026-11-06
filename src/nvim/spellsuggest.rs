@@ -1308,18 +1308,16 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 compound_ok = false;
                             }
                             if compound_ok {
-                                p = preword.as_mut_ptr();
-                                while !crate::memory::cstr_is_empty(
-                                    crate::charset::skiptowhite_ptr(p.cast::<std::ffi::c_char>()),
-                                ) {
-                                    p = crate::charset::skipwhite_ptr(
-                                        crate::charset::skiptowhite_ptr(p),
+                                let mut p_slice = crate::memory::bytes_until_nul(&preword);
+                                while !crate::charset::skiptowhite_slice(p_slice).is_empty() {
+                                    p_slice = crate::charset::skipwhite_slice(
+                                        crate::charset::skiptowhite_slice(p_slice),
                                     );
                                 }
                                 if fword_ends
                                     && !can_compound(
                                         slang,
-                                        crate::memory::cstr_as_bytes(p),
+                                        p_slice,
                                         &compflags[stack[udepth].ts_compsplit as usize..],
                                     )
                                 {
@@ -1510,18 +1508,16 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 {
                                     continue;
                                 }
-                                p = preword.as_mut_ptr();
-                                while !crate::memory::cstr_is_empty(
-                                    crate::charset::skiptowhite_ptr(p.cast::<std::ffi::c_char>()),
-                                ) {
-                                    p = crate::charset::skipwhite_ptr(
-                                        crate::charset::skiptowhite_ptr(p),
+                                let mut p_slice = crate::memory::bytes_until_nul(&preword);
+                                while !crate::charset::skiptowhite_slice(p_slice).is_empty() {
+                                    p_slice = crate::charset::skipwhite_slice(
+                                        crate::charset::skiptowhite_slice(p_slice),
                                     );
                                 }
                                 if stack[udepth].ts_complen > stack[udepth].ts_compsplit
                                     && !can_compound(
                                         slang,
-                                        crate::memory::cstr_as_bytes(p),
+                                        p_slice,
                                         &compflags[stack[udepth].ts_compsplit as usize..],
                                     )
                                 {
@@ -2350,9 +2346,13 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]
             crate::memory::cstr_slice(su.su_badptr.as_ptr(), stp.st_orglen.max(0) as usize),
             &mut fword,
         );
-        if ascii_iswhite(crate::memory::cstr_first_byte(
-            su.su_badptr.as_ptr().wrapping_add(su.su_badlen as usize),
-        )) && crate::memory::cstr_is_empty(crate::charset::skiptowhite_ptr(stp.st_word.as_ptr()))
+        if ascii_iswhite(
+            su.su_badptr
+                .to_bytes()
+                .get(su.su_badlen as usize)
+                .copied()
+                .unwrap_or(0),
+        ) && crate::charset::skiptowhite_slice(stp.st_word.as_bytes()).is_empty()
         {
             let mut fword_len = crate::memory::bytes_until_nul(&fword).len();
             let mut idx = 0;

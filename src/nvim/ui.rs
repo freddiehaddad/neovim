@@ -468,13 +468,9 @@ pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
         ui_refresh();
         return;
     }
-    let name = UI_EXT_NAMES[idx].as_ptr();
-    if crate::memory::cstr_first_byte(name) != b'_' || active {
-        remote_ui_option_set(
-            ui,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(name)),
-            boolean_obj(active),
-        );
+    let name = UI_EXT_NAMES[idx];
+    if name.to_bytes().first() != Some(&b'_') || active {
+        remote_ui_option_set(ui, cstr_as_string(Some(name)), boolean_obj(active));
     }
     if idx == K_UITERM_COLORS {
         ui_default_colors_set();

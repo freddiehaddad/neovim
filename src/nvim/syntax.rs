@@ -836,9 +836,9 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
                         }
 
                         let prev_current_col = syn_st().current_col;
-                        if !crate::memory::cstr_is_empty(
-                            syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
-                        ) {
+                        if unsafe {
+                            *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) != 0
+                        } {
                             syn_st().current_col += 1;
                         }
                         check_state_ends();
@@ -1382,9 +1382,7 @@ fn syn_finish_line(syncing: bool) -> bool {
             }
 
             let prev_current_col = syn_st().current_col;
-            if !crate::memory::cstr_is_empty(
-                syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
-            ) {
+            if unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) != 0 } {
                 syn_st().current_col += 1;
             }
             check_state_ends();
@@ -1471,7 +1469,7 @@ fn syn_current_attr(
     let mut zero_width_next_ga: Vec<i32> = Vec::new();
 
     let mut line = syn_getcurline!();
-    if crate::memory::cstr_is_empty(line.wrapping_offset(syn_st().current_col as isize))
+    if unsafe { *line.wrapping_offset(syn_st().current_col as isize) == 0 }
         && syn_st().current_col != 0
     {
         if syn_st().next_match_idx >= 0
@@ -1486,9 +1484,10 @@ fn syn_current_attr(
         return 0;
     }
 
-    if crate::memory::cstr_is_empty(line.wrapping_offset(syn_st().current_col as isize))
-        || crate::memory::cstr_is_empty(line.wrapping_offset((syn_st().current_col + 1) as isize))
-    {
+    if unsafe {
+        *line.wrapping_offset(syn_st().current_col as isize) == 0
+            || *line.wrapping_offset((syn_st().current_col + 1) as isize) == 0
+    } {
         syn_st().current_finished = true;
         syn_st().current_state_stored = false;
     }
@@ -1766,8 +1765,7 @@ fn syn_current_attr(
                     && ascii_iswhite(unsafe {
                         *line.wrapping_offset(syn_st().current_col as isize)
                     }))
-                    || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
-                        && crate::memory::cstr_is_empty(line))
+                    || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0 && unsafe { *line == 0 })
                 {
                     break;
                 }
@@ -1869,7 +1867,7 @@ fn syn_current_attr(
 
     if syn_st().current_next_list.is_some() {
         line = syn_getcurline!();
-        if !crate::memory::cstr_is_empty(line.wrapping_offset(syn_st().current_col as isize))
+        if unsafe { *line.wrapping_offset(syn_st().current_col as isize) != 0 }
             && unsafe { *line.wrapping_offset((syn_st().current_col + 1) as isize) } == NUL
             && (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
         {
@@ -1998,9 +1996,7 @@ fn check_state_ends() {
             syn_st().current_next_list = cur_si.si_next_list.clone();
             syn_st().current_next_flags = cur_si.si_flags;
             if (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
-                && crate::memory::cstr_is_empty(
-                    syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
-                )
+                && unsafe { *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) == 0 }
             {
                 syn_st().current_next_list = None;
             }
@@ -2030,9 +2026,9 @@ fn check_state_ends() {
                 check_keepend();
                 if (syn_st().current_next_flags & HL_HAS_EOL) != 0
                     && syn_st().keepend_level < 0
-                    && crate::memory::cstr_is_empty(
-                        syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
-                    )
+                    && unsafe {
+                        *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) == 0
+                    }
                 {
                     break;
                 }
@@ -3438,13 +3434,13 @@ fn add_keyword(
 
 fn get_group_name<'a>(arg: &'a CStr, name_len: &mut usize) -> Option<&'a CStr> {
     let arg_ptr = crate::strings::ByteSlice::from_cstr(arg);
-    let name_end = crate::charset::skiptowhite_ptr(arg_ptr);
-    *name_len = crate::memory::ptr_offset_from(name_end, arg_ptr).max(0) as usize;
-    let rest = crate::charset::skipwhite_ptr(name_end);
-    if ends_excmd(arg_ptr.first_byte()) != 0 || crate::memory::cstr_is_empty(rest) {
+    let name_end = arg_ptr.skiptowhite();
+    *name_len = name_end.offset_from(arg_ptr);
+    let rest = name_end.skipwhite();
+    if ends_excmd(arg_ptr.first_byte()) != 0 || rest.is_empty() {
         return None;
     }
-    Some(crate::memory::cstr_from_ptr(rest))
+    Some(rest.as_cstr())
 }
 
 fn get_syn_options<'a>(
@@ -3487,9 +3483,7 @@ fn get_syn_options<'a>(
         }
 
         loop {
-            if crate::memory::cstr_is_empty(arg)
-                || !FIRST_LETTERS.contains(&(crate::memory::cstr_first_byte(arg)))
-            {
+            if unsafe { *arg == 0 || !FIRST_LETTERS.contains(&*arg) } {
                 break;
             }
 
@@ -3730,15 +3724,11 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                     break;
                 };
                 let mut rest = rest_cstr.as_ptr().cast_mut();
-                if ends_excmd(crate::memory::cstr_first_byte(rest)) != 0 {
+                if ends_excmd(unsafe { *rest as u8 }) != 0 {
                     break;
                 }
-                while !crate::memory::cstr_is_empty(rest)
-                    && !ascii_iswhite(crate::memory::cstr_first_byte(rest))
-                {
-                    if crate::memory::cstr_first_byte(rest) == b'\\'
-                        && crate::memory::cstr_len(rest) > 1
-                    {
+                while unsafe { *rest != 0 && !ascii_iswhite(*rest as u8) } {
+                    if unsafe { *rest as u8 == b'\\' && *rest.wrapping_add(1) != 0 } {
                         rest = rest.wrapping_add(1);
                     }
 
@@ -3768,7 +3758,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         .cast();
                     loop {
                         if p.is_null() {
-                            kwlen = crate::memory::cstr_len(kw);
+                            kwlen = crate::memory::cstr_as_bytes(kw).len();
                         } else {
                             unsafe { *p = 0 };
 
@@ -4276,7 +4266,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             .as_ptr()
             .cast_mut()
             .cast::<u8>();
-        if crate::memory::cstr_first_byte(end) != delim {
+        if unsafe { *end } != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
                 arg.cast::<std::ffi::c_void>(),
@@ -4343,7 +4333,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
                             end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
                         }
                     }
-                    if crate::memory::cstr_first_byte(end) != b',' {
+                    if unsafe { *end } != b',' {
                         break;
                     }
                     end = end.wrapping_add(1);
@@ -4354,9 +4344,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             }
         }
 
-        if ends_excmd(crate::memory::cstr_first_byte(end)) == 0
-            && !ascii_iswhite(crate::memory::cstr_first_byte(end))
-        {
+        if ends_excmd(unsafe { *end }) == 0 && !ascii_iswhite(unsafe { *end }) {
             semsg!(
                 gettext(c"E402: Garbage after pattern: %s"),
                 arg.cast::<std::ffi::c_void>()
@@ -4527,7 +4515,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     .cast::<std::ffi::c_char>(),
             )
             .cast();
-            if crate::memory::cstr_first_byte(p) != b'=' {
+            if unsafe { *p } != b'=' {
                 semsg!(
                     gettext(c"E405: Missing equal sign: %s"),
                     arg_ptr.cast::<std::ffi::c_void>()
@@ -4535,7 +4523,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                 break;
             }
             p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
-            if ends_excmd(crate::memory::cstr_first_byte(p)) != 0 {
+            if ends_excmd(unsafe { *p }) != 0 {
                 semsg!(
                     gettext(c"E406: Empty argument: %s"),
                     arg_ptr.cast::<std::ffi::c_void>()
@@ -4546,10 +4534,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             let mut count: i32 = 0;
             loop {
                 let mut end = p;
-                while !crate::memory::cstr_is_empty(end)
-                    && !ascii_iswhite(crate::memory::cstr_first_byte(end))
-                    && crate::memory::cstr_first_byte(end) != b','
-                {
+                while unsafe { *end != 0 && !ascii_iswhite(*end) && *end != b',' } {
                     end = end.wrapping_add(1);
                 }
                 let item_len = crate::memory::ptr_offset_from(end, p) as usize;
@@ -4656,12 +4641,12 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     count += 1;
                 }
                 p = crate::charset::skipwhite_ptr(end.cast::<std::ffi::c_char>()).cast();
-                if crate::memory::cstr_first_byte(p) != b',' {
+                if unsafe { *p } != b',' {
                     break;
                 }
                 p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>())
                     .cast();
-                if ends_excmd(crate::memory::cstr_first_byte(p)) != 0 {
+                if ends_excmd(unsafe { *p }) != 0 {
                     break;
                 }
             }

@@ -1295,20 +1295,20 @@ fn win_line_skip_columns(
     in_multispace: &mut bool,
     multispace_pos: &mut usize,
 ) -> usize {
-    let mut line = if draw_text {
-        ml_get_buf(wp.buf_mut(), wlv.lnum).as_ptr().cast_mut()
+    let init_line = if draw_text {
+        ml_get_buf(wp.buf_mut(), wlv.lnum)
     } else {
-        c"".as_ptr().cast_mut()
+        c""
     };
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
-    let cstype = if wp.w_onebuf_opt.wo_wrap && !crate::memory::cstr_is_empty(line) {
+    let cstype = if wp.w_onebuf_opt.wo_wrap && !init_line.is_empty() {
         init_charsize_arg_extconceal(&mut csarg, wp, wlv.lnum, &mut spans)
     } else {
-        init_charsize_arg(&mut csarg, wp, wlv.lnum, crate::memory::cstr_from_ptr(line))
+        init_charsize_arg(&mut csarg, wp, wlv.lnum, init_line)
     };
     csarg.max_head_vcol = start_vcol;
-    line = csarg.line.as_ptr().cast_mut();
+    let line = csarg.line.as_ptr().cast_mut();
     let mut ptr = line.cast_const();
     let mut prev_ptr = ptr;
     let mut cs = CharSize::default();
@@ -1320,16 +1320,17 @@ fn win_line_skip_columns(
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
         vcol += cs.width;
         prev_ptr = ci.ptr.as_ptr().cast();
+        let prev_idx = ci.offset_from(csarg.line);
         if ci.is_empty() {
             break;
         }
         ci = cli.next;
         if wp.w_onebuf_opt.wo_list {
             let ci_off = ci.offset_from(csarg.line);
-            *in_multispace = crate::memory::cstr_first_byte(prev_ptr) == b' '
+            let line_bytes = csarg.line.to_bytes();
+            *in_multispace = line_bytes.get(prev_idx) == Some(&b' ')
                 && (ci.first_byte() == b' '
-                    || (prev_ptr > line.cast_const()
-                        && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1)) == b' '));
+                    || (prev_idx > 0 && line_bytes.get(prev_idx - 1) == Some(&b' ')));
             if !*in_multispace {
                 *multispace_pos = 0;
             } else if ci_off >= leadcol as usize && !wp.w_p_lcs_chars.multispace.is_empty() {
@@ -2287,7 +2288,7 @@ pub fn win_line(
                     line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                     ptr = line.wrapping_add(v as usize);
 
-                    if crate::memory::cstr_is_empty(ptr) {
+                    if unsafe { *ptr == 0 } {
                         has_match_conc = 0;
                     }
 
@@ -2381,7 +2382,7 @@ pub fn win_line(
                 && wlv.n_extra == 0
                 && wlv.col < view_width
                 && (has_foldtext
-                    || (crate::memory::cstr_is_empty(ptr)
+                    || (unsafe { *ptr == 0 }
                         && (!wp.w_onebuf_opt.wo_list || !lcs_eol_todo || lcs_eol == 0)))
             {
                 wlv.sc_extra = wp.w_p_fcs_chars.fold;
@@ -2455,7 +2456,7 @@ pub fn win_line(
                             search_attr = saved_search_attr;
                             saved_search_attr = 0;
                         }
-                        if area_attr == 0 && !crate::memory::cstr_is_empty(ptr) {
+                        if area_attr == 0 && unsafe { *ptr != 0 } {
                             area_attr = saved_area_attr;
                             saved_area_attr = 0;
                         }
@@ -2487,7 +2488,7 @@ pub fn win_line(
             } else {
                 let mut prev_ptr = ptr;
 
-                if crate::memory::cstr_is_empty(ptr) {
+                if unsafe { *ptr == 0 } {
                     wlv.skip_cells = 0;
                 }
 
@@ -2501,7 +2502,7 @@ pub fn win_line(
                     transchar_hex(
                         &mut wlv.extra,
                         if mb_c < 0 {
-                            i32::from(crate::memory::cstr_first_byte(ptr))
+                            i32::from(unsafe { *ptr as u8 })
                         } else {
                             mb_c
                         },
@@ -2564,7 +2565,7 @@ pub fn win_line(
                     multi_attr = win_hl_attr(&mut *wp, HLF_AT);
                     ptr = ptr.wrapping_sub(1);
                     did_decrement_ptr = true;
-                } else if !crate::memory::cstr_is_empty(ptr) {
+                } else if unsafe { *ptr != 0 } {
                     ptr = ptr.wrapping_add((mb_l - 1) as usize);
                 }
 
@@ -2751,9 +2752,7 @@ pub fn win_line(
                         let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
                         let has_conceal = !conceal_spans.is_empty();
-                        if has_conceal
-                            || !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
-                        {
+                        if has_conceal || !vim_isbreak(i32::from(unsafe { *ptr as u8 })) {
                             let mut csarg = CharsizeArg::new();
                             let mut cstype = init_charsize_arg_skip_cur_text(
                                 &mut csarg,
@@ -2833,10 +2832,9 @@ pub fn win_line(
 
                     if wp.w_onebuf_opt.wo_list {
                         in_multispace = mb_c == b' ' as i32
-                            && (crate::memory::cstr_first_byte(ptr) == b' '
+                            && (unsafe { *ptr as u8 } == b' '
                                 || (prev_ptr > line.cast_const()
-                                    && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1))
-                                        == b' '));
+                                    && unsafe { *prev_ptr.wrapping_sub(1) as u8 } == b' '));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -3454,7 +3452,7 @@ pub fn win_line(
 
             let lcs_ext = get_lcs_ext(wp);
             if lcs_ext != 0 && wlv.filler_todo <= 0 && wlv.col == view_width - 1 && !has_foldtext {
-                if has_decor && crate::memory::cstr_is_empty(ptr) && lcs_eol == 0 && lcs_eol_todo {
+                if has_decor && unsafe { *ptr == 0 } && lcs_eol == 0 && lcs_eol_todo {
                     decor_redraw_col(
                         &mut *wp,
                         crate::memory::ptr_offset_from(ptr, line) as Colnr,
@@ -3464,7 +3462,7 @@ pub fn win_line(
                         decor_provider_end_col - 1,
                     );
                 }
-                if !crate::memory::cstr_is_empty(ptr)
+                if unsafe { *ptr != 0 }
                     || (lcs_eol > 0 && lcs_eol_todo)
                     || (wlv.n_extra > 0
                         && (wlv.sc_extra != 0
@@ -3655,7 +3653,7 @@ pub fn win_line(
                             ptr = line.wrapping_offset(col);
                         }
                         if wlv.vcol >= disp_len {
-                            ptr = ptr.wrapping_add(crate::memory::cstr_len(ptr));
+                            ptr = ptr.wrapping_add(crate::memory::cstr_as_bytes(ptr).len());
                         }
                     }
                 } else if !is_wrapped {
@@ -3676,7 +3674,7 @@ pub fn win_line(
         if wlv.col >= view_width
             && (!has_foldtext || wlv.filler_todo > 0)
             && (wlv.col <= leftcols_width
-                || !crate::memory::cstr_is_empty(ptr)
+                || unsafe { *ptr != 0 }
                 || wlv.filler_todo > 0
                 || (wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                 || (wlv.n_extra != 0

@@ -581,26 +581,26 @@ pub fn ex_runtime(eap: &mut Exarg) {
 
 /// Set the completion context for the :runtime command.
 pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
-    let mut p = crate::charset::skiptowhite_ptr(arg.as_ptr());
-    rt_st().runtime_expand_flags = if !crate::memory::cstr_is_empty(p) {
-        let len = (p as usize) - (arg.as_ptr() as usize);
+    let p_rem = crate::charset::skiptowhite_slice(arg.to_bytes());
+    rt_st().runtime_expand_flags = if !p_rem.is_empty() {
+        let len = arg.to_bytes().len() - p_rem.len();
         get_runtime_cmd_flags(&mut arg, len)
     } else {
         0
     };
-    let mut arg_ptr = arg.as_ptr();
+    let mut arg_slice = crate::strings::ByteSlice::from_cstr(arg);
     loop {
-        p = crate::charset::skiptowhite_esc_ptr(arg_ptr);
-        if crate::memory::cstr_is_empty(p) {
+        let p = crate::charset::skiptowhite_esc_ptr(arg_slice.as_ptr());
+        if p.is_null() || unsafe { *p == 0 } {
             break;
         }
         if rt_st().runtime_expand_flags == 0 {
             rt_st().runtime_expand_flags = DIP_ALL;
         }
-        arg_ptr = crate::charset::skipwhite_ptr(p);
+        arg_slice = crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(p));
     }
     xp.xp_context = EXPAND_RUNTIME;
-    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_ptr);
+    xp.xp_pattern = arg_slice;
 }
 
 fn source_callback_vim_lua(
@@ -1321,9 +1321,10 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut insp: *const u8 = ptr::null();
         let mut after_insp: *const u8 = ptr::null();
         let mut p_rtp_len: usize = 0;
+        let rtp_bytes = opt_vars().p_rtp.as_bytes();
         let rtp_base: *mut u8 = opt_vars().p_rtp.as_ptr().cast_mut().cast();
         let mut entry: *mut u8 = rtp_base;
-        while !crate::memory::cstr_is_empty(entry) {
+        while unsafe { *entry != 0 } {
             let cur_entry = entry;
             let mut entry_bytes = crate::memory::cstr_as_bytes(entry);
             let old_len = entry_bytes.len();
@@ -1331,8 +1332,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             buf.size = copy_option_part(&mut entry_bytes, dst, c",");
             entry = entry.wrapping_add(old_len - entry_bytes.len());
 
-            p_rtp_len += if crate::memory::cstr_first_byte(cur_entry.wrapping_add(buf.size)) == b','
-            {
+            p_rtp_len += if unsafe { *cur_entry.wrapping_add(buf.size) } == b',' {
                 buf.size + 1
             } else {
                 buf.size
@@ -1375,14 +1375,14 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             }
         }
 
-        p_rtp_len += crate::memory::cstr_len(rtp_base.wrapping_add(p_rtp_len));
+        p_rtp_len += rtp_bytes[p_rtp_len..].len();
         if insp.is_null() {
             insp = rtp_base.wrapping_add(p_rtp_len);
         }
 
-        fname_len = crate::memory::cstr_len(fname);
-        let ad =
-            crate::path::concat_fnames_cstr(crate::memory::cstr_from_ptr(fname), c"after", true);
+        let fname_cstr = crate::memory::cstr_from_ptr(fname);
+        fname_len = fname_cstr.to_bytes().len();
+        let ad = crate::path::concat_fnames_cstr(fname_cstr, c"after", true);
         let mut afterdir = NvimString {
             data: crate::strings::ByteSlice::from_cstr(&ad),
             size: ad.as_bytes().len(),
@@ -1400,17 +1400,18 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let new_rtp_capacity = p_rtp_len + fname_len + afterdir.size + 3;
         let mut new_rtp_vec = Vec::with_capacity(new_rtp_capacity);
         let p_rtp_slice = &opt_vars().p_rtp.as_bytes()[..p_rtp_len];
-        let fname_slice = crate::memory::cstr_slice(fname, fname_len);
+        let fname_slice = fname_cstr.to_bytes();
 
         let mut keep = (insp as usize) - (rtp_base as usize);
         let mut first_pos = keep;
         new_rtp_vec.extend_from_slice(&p_rtp_slice[..keep]);
-        if crate::memory::cstr_is_empty(insp) {
+        let insp_empty = unsafe { *insp == 0 };
+        if insp_empty {
             new_rtp_vec.push(b',');
             first_pos += 1;
         }
         new_rtp_vec.extend_from_slice(fname_slice);
-        if !crate::memory::cstr_is_empty(insp) {
+        if !insp_empty {
             new_rtp_vec.push(b',');
         }
 
@@ -1880,7 +1881,7 @@ fn expand_rtdir_int(
         };
         let mut s = match_ptr.wrapping_add(end_idx);
         while (s as usize) > (match_ptr as usize) {
-            if vim_ispathsep(crate::memory::cstr_first_byte(s) as i32) {
+            if vim_ispathsep(unsafe { *s } as i32) {
                 match_pathsep_cnt += 1;
                 if match_pathsep_cnt > pat_pathsep_cnt {
                     break;

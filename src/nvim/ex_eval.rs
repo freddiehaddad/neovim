@@ -1102,21 +1102,14 @@ pub fn ex_catch(eap: &mut Exarg) {
 
     let (pat, end) = if ends_excmd(i32::from(eap.arg.first_byte())) != 0 {
         eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(eap.arg.as_cstr()));
-        (c".*".as_ptr().cast_mut(), ptr::null_mut())
+        (crate::strings::ByteSlice::from_cstr(c".*"), None)
     } else {
-        let pat: *mut std::ffi::c_char = eap.arg.wrapping_add(1).cast();
-        let end_opt = skip_regexp_err(
-            crate::memory::cstr_from_ptr(pat),
-            i32::from(eap.arg.first_byte()),
-            1,
-        );
+        let pat = eap.arg.wrapping_add(1);
+        let end_opt = skip_regexp_err(pat.as_cstr(), i32::from(eap.arg.first_byte()), 1);
         if end_opt.is_none() {
             give_up = true;
         }
-        (
-            pat,
-            end_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-        )
+        (pat, end_opt)
     };
 
     if !give_up {
@@ -1130,27 +1123,28 @@ pub fn ex_catch(eap: &mut Exarg) {
             && (cstack.cs_flags[u_idx] & CSF_THROWN) != 0
             && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
         {
-            if !crate::memory::cstr_is_empty(end)
-                && ends_excmd(i32::from(crate::memory::cstr_first_byte(
-                    crate::charset::skipwhite_ptr(end.wrapping_add(1)),
-                ))) == 0
+            if let Some(end_cstr) = end
+                && !end_cstr.is_empty()
+                && ends_excmd(i32::from(
+                    crate::charset::skipwhite_slice(&end_cstr.to_bytes()[1..])
+                        .first()
+                        .copied()
+                        .unwrap_or(0),
+                )) == 0
             {
-                semsg!(gettext(E_TRAILING_ARG), end);
+                semsg!(gettext(E_TRAILING_ARG), end_cstr.as_ptr());
                 return;
             }
 
             if !dbg_check_skipped(eap) || !do_intthrow(cstack) {
-                let pat_cstr = if !end.is_null() {
-                    let pat_len = crate::memory::ptr_offset_from(end, pat) as usize;
-                    Some(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-                        pat, pat_len,
-                    )))
+                let pat_cstr = if let Some(end_cstr) = end {
+                    let end_slice = crate::strings::ByteSlice::from_cstr(end_cstr);
+                    let pat_len = end_slice.offset_from(pat);
+                    Some(crate::memory::cstr_from_bytes(pat.slice(pat_len)))
                 } else {
                     None
                 };
-                let pat_ref: &CStr = pat_cstr
-                    .as_deref()
-                    .unwrap_or_else(|| crate::memory::cstr_from_ptr(pat));
+                let pat_ref: &CStr = pat_cstr.as_deref().unwrap_or_else(|| pat.as_cstr());
                 let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
                 g_st().emsg_off += 1;
                 let mut regmatch: Regmatch = Regmatch::new();
@@ -1202,10 +1196,8 @@ pub fn ex_catch(eap: &mut Exarg) {
         }
     }
 
-    if !end.is_null() {
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(
-            crate::memory::cstr_from_ptr(end),
-        ));
+    if let Some(end_cstr) = end {
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(end_cstr));
     }
 }
 

@@ -585,13 +585,13 @@ fn win_redr_stl_expr(
     } else if draw_ruler {
         stl = opt_vars().p_ruf.as_ptr().cast_mut().cast();
         opt_idx = K_OPT_RULERFORMAT;
-        if crate::memory::cstr_first_byte(stl) == b'%' {
+        if unsafe { *stl } == b'%' {
             stl = stl.wrapping_add(1);
-            if crate::memory::cstr_first_byte(stl) == b'-' {
+            if unsafe { *stl } == b'-' {
                 stl = stl.wrapping_add(1);
             }
             if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(stl)) as i32 != 0 {
-                while ascii_isdigit(crate::memory::cstr_first_byte(stl)) {
+                while ascii_isdigit(unsafe { *stl }) {
                     stl = stl.wrapping_add(1);
                 }
             }
@@ -1385,7 +1385,7 @@ fn stl_expand(
 
                 let start = base_ptr.wrapping_add(item.start_off);
                 let seploc = start.wrapping_add(dislocation as usize);
-                let len = crate::memory::cstr_len(start) + 1;
+                let len = crate::memory::cstr_as_bytes(start).len() + 1;
 
                 unsafe { ptr::copy(start, seploc, len) };
 
@@ -1836,7 +1836,7 @@ pub extern "C" fn build_stl_str_hl(
             minwid = -minwid;
         }
 
-        if crate::memory::cstr_first_byte(fmt_p) == b'(' {
+        if unsafe { *fmt_p } == b'(' {
             stl_groupitems!()[groupdepth] = stl_st().curitem;
             groupdepth += 1;
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Group;
@@ -1848,7 +1848,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if crate::memory::cstr_first_byte(fmt_p) == b'}' && evaldepth > 0 {
+        if unsafe { *fmt_p } == b'}' && evaldepth > 0 {
             fmt_p = fmt_p.wrapping_add(1);
             evaldepth -= 1;
             if groupdepth > 0 {
@@ -1872,7 +1872,7 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         if unsafe { *fmt_p } == STL_HIGHLIGHT {
-            let next_b = crate::memory::cstr_first_byte(fmt_p.wrapping_add(1));
+            let next_b = unsafe { *fmt_p.wrapping_add(1) };
             if next_b == b'(' {
                 fmt_p = fmt_p.wrapping_add(2);
                 stl_groupitems!()[groupdepth] = stl_st().curitem;
@@ -1918,8 +1918,8 @@ pub extern "C" fn build_stl_str_hl(
             }
         }
 
-        if !crate::strings::vim_haschr(STL_ALL, i32::from(crate::memory::cstr_first_byte(fmt_p))) {
-            if crate::memory::cstr_is_empty(fmt_p) {
+        if !crate::strings::vim_haschr(STL_ALL, i32::from(unsafe { *fmt_p })) {
+            if unsafe { *fmt_p == 0 } {
                 break;
             }
             fmt_p = fmt_p.wrapping_add(1);
@@ -1966,16 +1966,16 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_VIM_EXPR => {
                 let block_start = fmt_p.wrapping_sub(1);
-                let reevaluate = crate::memory::cstr_first_byte(fmt_p) == b'%';
+                let reevaluate = unsafe { *fmt_p } == b'%';
                 if reevaluate {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 itemisflag = !zeropad;
 
                 let t = out_p;
-                while (crate::memory::cstr_first_byte(fmt_p) != b'}'
+                while (unsafe { *fmt_p } != b'}'
                     || (reevaluate && unsafe { *fmt_p.wrapping_sub(1) } != b'%'))
-                    && !crate::memory::cstr_is_empty(fmt_p)
+                    && unsafe { *fmt_p != 0 }
                     && out_p < out_end_p
                 {
                     unsafe {
@@ -1984,7 +1984,7 @@ pub extern "C" fn build_stl_str_hl(
                     out_p = out_p.wrapping_add(1);
                     fmt_p = fmt_p.wrapping_add(1);
                 }
-                if crate::memory::cstr_first_byte(fmt_p) == b'}' {
+                if unsafe { *fmt_p } == b'}' {
                     fmt_p = fmt_p.wrapping_add(1);
                     if reevaluate && out_p > out_data {
                         unsafe {
@@ -2036,7 +2036,8 @@ pub extern "C" fn build_stl_str_hl(
                     do_unlet(b"g:actual_curwin", true);
 
                     if !zeropad
-                        && !crate::memory::cstr_is_empty(str)
+                        && !str.is_null()
+                        && unsafe { *str != 0 }
                         && skipdigits_slice(crate::memory::cstr_as_bytes(str)).is_empty()
                     {
                         num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(str))
@@ -2047,7 +2048,8 @@ pub extern "C" fn build_stl_str_hl(
                     }
 
                     if reevaluate
-                        && !crate::memory::cstr_is_empty(str)
+                        && !str.is_null()
+                        && unsafe { *str != 0 }
                         && crate::strings::vim_haschr(
                             crate::memory::cstr_from_ptr(str),
                             b'%' as i32,
@@ -2277,7 +2279,7 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_HIGHLIGHT_COMB | STL_HIGHLIGHT => {
                 let t = fmt_p;
-                while unsafe { *fmt_p } != opt && !crate::memory::cstr_is_empty(fmt_p) {
+                while unsafe { *fmt_p != opt && *fmt_p != 0 } {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 if unsafe { *fmt_p } == opt {
@@ -2387,12 +2389,12 @@ pub extern "C" fn build_stl_str_hl(
         stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
         stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Normal;
 
-        if !crate::memory::cstr_is_empty(str) {
+        if !str.is_null() && unsafe { *str != 0 } {
             let mut t = str;
             if itemisflag {
-                if crate::memory::cstr_len(t) > 1
-                    && ((!prevchar_isitem && crate::memory::cstr_first_byte(t) == b',')
-                        || (prevchar_isflag && crate::memory::cstr_first_byte(t) == b' '))
+                if unsafe { *t.wrapping_add(1) != 0 }
+                    && ((!prevchar_isitem && unsafe { *t == b',' })
+                        || (prevchar_isflag && unsafe { *t == b' ' }))
                 {
                     t = t.wrapping_add(1);
                 }
@@ -2424,7 +2426,7 @@ pub extern "C" fn build_stl_str_hl(
                 while l < minwid && out_p < out_end_p {
                     if l + 1 == minwid
                         && fillchar == schar_from_ascii(b'-')
-                        && ascii_isdigit(crate::memory::cstr_first_byte(t))
+                        && ascii_isdigit(unsafe { *t })
                     {
                         unsafe {
                             *out_p = b' ';
@@ -2456,10 +2458,10 @@ pub extern "C" fn build_stl_str_hl(
                 minwid = -minwid;
             }
 
-            while !crate::memory::cstr_is_empty(t) && out_p < out_end_p {
+            while unsafe { *t != 0 } && out_p < out_end_p {
                 if fillable
-                    && crate::memory::cstr_first_byte(t) == b' '
-                    && (!ascii_isdigit(crate::memory::cstr_first_byte(t.wrapping_add(1)))
+                    && unsafe { *t == b' ' }
+                    && (!ascii_isdigit(unsafe { *t.wrapping_add(1) })
                         || fillchar != schar_from_ascii(b'-'))
                 {
                     let adv = schar_get_adv(
@@ -2569,7 +2571,7 @@ pub extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::NormalEmpty;
         }
 
-        if num >= 0 || (!itemisflag && !crate::memory::cstr_is_empty(str)) {
+        if num >= 0 || (!itemisflag && !str.is_null() && unsafe { *str != 0 }) {
             prevchar_isflag = false;
         }
 

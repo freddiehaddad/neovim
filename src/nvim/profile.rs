@@ -379,18 +379,14 @@ pub fn profile_reset() {
 
 /// `":profile cmd args"` (`ex_profile`).
 pub fn ex_profile(eap: &mut Exarg) {
-    let arg = eap.arg.as_ptr();
-    let mut e = crate::charset::skiptowhite_ptr(arg);
-    let len = (e as usize) - (arg as usize);
-    e = crate::charset::skipwhite_ptr(e);
+    let arg = eap.arg;
+    let mut e = arg.skiptowhite();
+    let len = e.offset_from(arg);
+    e = e.skipwhite();
 
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
-    if len == 5 && &arg_bytes[..5] == b"start" && !crate::memory::cstr_is_empty(e) {
-        prof_st().profile_fname = Some(expand_env_save_opt(
-            crate::memory::cstr_from_ptr(e),
-            true,
-            None,
-        ));
+    let arg_bytes = arg.as_bytes();
+    if len == 5 && &arg_bytes[..5] == b"start" && !e.is_empty() {
+        prof_st().profile_fname = Some(expand_env_save_opt(e.as_cstr(), true, None));
         g_st().do_profiling = PROF_YES;
         profile_set_wait(profile_zero());
         set_vim_var_nr(VV_PROFILING, 1);
@@ -433,28 +429,24 @@ pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
 pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
-    let arg: *const std::ffi::c_char = arg_slice.as_ptr().cast();
+    let arg = crate::strings::ByteSlice::from_bytes(arg_slice);
     xp.xp_context = EXPAND_PROFILE;
     prof_st().pexpand_what = PEXP_SUBCMD;
-    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_slice.as_ptr());
+    xp.xp_pattern = arg;
 
-    let end_subcmd = crate::charset::skiptowhite_ptr(arg);
-    if crate::memory::cstr_is_empty(end_subcmd) {
+    let end_subcmd = arg.skiptowhite();
+    if end_subcmd.is_empty() {
         return;
     }
 
-    let len = (end_subcmd as usize) - (arg as usize);
+    let len = end_subcmd.offset_from(arg);
     let sub_bytes = &arg_slice[..len.min(arg_slice.len())];
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(end_subcmd.wrapping_add(
-            crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(end_subcmd)),
-        ));
+        xp.xp_pattern = end_subcmd.skipwhite();
     } else if sub_bytes == b"func" {
         xp.xp_context = EXPAND_USER_FUNC;
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(end_subcmd.wrapping_add(
-            crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(end_subcmd)),
-        ));
+        xp.xp_pattern = end_subcmd.skipwhite();
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }

@@ -348,31 +348,6 @@ impl AsCStrPtr for Option<&[u8]> {
     }
 }
 
-/// Length in bytes of a NUL-terminated C string (0 if null).
-#[inline(always)]
-pub fn cstr_len(s: impl AsCStrPtr) -> usize {
-    let s = s.into_cstr_ptr();
-    if s.is_null() {
-        0
-    } else {
-        unsafe { CStr::from_ptr(s).to_bytes().len() }
-    }
-}
-
-/// Return true if `s` is null or starts with a NUL byte (`*s == NUL`).
-#[inline(always)]
-pub fn cstr_is_empty(s: impl AsCStrPtr) -> bool {
-    let s = s.into_cstr_ptr();
-    s.is_null() || unsafe { *s == 0 }
-}
-
-/// Return the first byte of `s` (or `0` if `s` is null).
-#[inline(always)]
-pub fn cstr_first_byte(s: impl AsCStrPtr) -> u8 {
-    let s = s.into_cstr_ptr();
-    if s.is_null() { 0 } else { unsafe { *s as u8 } }
-}
-
 /// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
 #[inline(always)]
 pub fn cstr_slice<'a>(s: impl AsCStrPtr, len: usize) -> &'a [u8] {

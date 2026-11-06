@@ -3013,14 +3013,13 @@ fn vim_regsub_both(
                 idx += totlen - 1;
                 dst_off = dst_off.wrapping_add(1);
             } else {
-                let mut s: *mut u8;
+                let mut s: RegLineSlice;
                 if reg_multi() {
                     clnum = re_st().rex.mmatch_mut().startpos[no as usize].lnum;
                     if clnum < 0 || re_st().rex.mmatch_mut().endpos[no as usize].lnum < 0 {
-                        s = ptr::null_mut();
+                        s = REG_LINE_NULL;
                     } else {
-                        let line_ptr = reg_getline(clnum)
-                            .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut().cast::<u8>());
+                        let line_ptr = crate::strings::ByteSlice::from_opt_cstr(reg_getline(clnum));
                         s = line_ptr.wrapping_add(
                             re_st().rex.mmatch_mut().startpos[no as usize].col as usize,
                         );
@@ -3036,9 +3035,9 @@ fn vim_regsub_both(
                     let start_no = re_st().rex.match_mut().startp[no as usize];
                     let end_no = re_st().rex.match_mut().endp[no as usize];
                     if start_no.is_null() || end_no.is_null() {
-                        s = ptr::null_mut();
+                        s = REG_LINE_NULL;
                     } else {
-                        s = start_no.unwrap().as_ptr().cast_mut();
+                        s = start_no;
                         len = end_no.offset_from(start_no) as i32;
                     }
                 }
@@ -3058,8 +3057,7 @@ fn vim_regsub_both(
                                 }
                                 dst_off += 1;
                                 clnum += 1;
-                                s = reg_getline(clnum)
-                                    .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut().cast());
+                                s = crate::strings::ByteSlice::from_opt_cstr(reg_getline(clnum));
                                 if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
                                     len = re_st().rex.mmatch_mut().endpos[no as usize].col;
                                 } else {
@@ -3068,13 +3066,13 @@ fn vim_regsub_both(
                             } else {
                                 break;
                             }
-                        } else if crate::memory::cstr_is_empty(s) {
+                        } else if s.is_empty() {
                             if copy {
                                 iemsg(tr(E_RE_DAMG));
                             }
                             return (dst_off + 1) as i32;
                         } else {
-                            let s_b0 = crate::memory::cstr_first_byte(s);
+                            let s_b0 = s.first_byte();
                             if (flags & REGSUB_BACKSLASH) != 0
                                 && (s_b0 == CAR as u8 || s_b0 == b'\\')
                             {

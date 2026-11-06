@@ -2545,8 +2545,8 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
-    let mut p = tv_get_string(&argvars[0]).as_ptr();
-    while !crate::memory::cstr_is_empty(p) {
+    let mut p = ByteSlice::from_cstr(tv_get_string(&argvars[0]));
+    while !p.is_empty() {
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(utf_ptr2char(p)));
         p = p.wrapping_add(utf_ptr2len(p) as usize);
     }
@@ -2567,10 +2567,10 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
 
-    let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0])).as_ptr();
-    let isneg = crate::memory::cstr_first_byte(p) == b'-';
-    if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-        p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
+    let mut p = crate::charset::skipwhite_slice(tv_get_string(&argvars[0]).to_bytes());
+    let isneg = p.first() == Some(&b'-');
+    if matches!(p.first(), Some(b'+' | b'-')) {
+        p = crate::charset::skipwhite_slice(&p[1..]);
     }
     match base {
         2 => what |= STR2NR_BIN | STR2NR_FORCE,
@@ -2579,17 +2579,7 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         _ => {}
     }
     let mut n: Varnumber = 0;
-    vim_str2nr(
-        crate::memory::cstr_as_bytes(p),
-        None,
-        None,
-        what,
-        Some(&mut n),
-        None,
-        0,
-        false,
-        None,
-    );
+    vim_str2nr(p, None, None, what, Some(&mut n), None, 0, false, None);
     rettv.vval = crate::eval::typval::TypvalVval::Number(if isneg { -n } else { n });
 }
 
@@ -3024,7 +3014,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
 
-    let mut in_str = tv_get_string(&argvars[0]).as_ptr();
+    let mut in_str = ByteSlice::from_cstr(tv_get_string(&argvars[0]));
     let fromstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
     let tostr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
 
@@ -3033,24 +3023,24 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let (Some(fromstr), Some(tostr)) = (fromstr, tostr) else {
         return;
     };
-    let fromstr = fromstr.as_ptr();
-    let tostr = tostr.as_ptr();
+    let fromstr = ByteSlice::from_cstr(fromstr);
+    let tostr = ByteSlice::from_cstr(tostr);
     let mut out: Vec<u8> = Vec::with_capacity(80);
 
     let mut first = true;
-    while !crate::memory::cstr_is_empty(in_str) {
+    while !in_str.is_empty() {
         let mut cpstr = in_str;
         let inlen = utfc_ptr2len(in_str) as usize;
         let mut cplen = inlen;
         let mut idx: i32 = 0;
         let mut p = fromstr;
-        while !crate::memory::cstr_is_empty(p) {
+        while !p.is_empty() {
             let fromlen = utfc_ptr2len(p) as usize;
-            let in_slice = crate::memory::cstr_slice(in_str, inlen);
-            let p_slice = crate::memory::cstr_slice(p, fromlen);
+            let in_slice = in_str.slice(inlen);
+            let p_slice = p.slice(fromlen);
             if fromlen == inlen && in_slice == p_slice {
                 let mut tp = tostr;
-                while !crate::memory::cstr_is_empty(tp) {
+                while !tp.is_empty() {
                     let tolen = utfc_ptr2len(tp) as usize;
                     if idx == 0 {
                         idx -= 1;
@@ -3061,8 +3051,8 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     idx -= 1;
                     tp = tp.wrapping_add(tolen);
                 }
-                if crate::memory::cstr_is_empty(tp) {
-                    semsg!(gettext(E_INVARG2), fromstr);
+                if tp.is_empty() {
+                    semsg!(gettext(E_INVARG2), fromstr.as_ptr());
                     return;
                 }
                 break;
@@ -3071,21 +3061,21 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             p = p.wrapping_add(fromlen);
         }
 
-        if first && ptr::eq(cpstr, in_str) {
+        if first && cpstr.addr() == in_str.addr() {
             first = false;
             let mut tp = tostr;
-            while !crate::memory::cstr_is_empty(tp) {
+            while !tp.is_empty() {
                 let tolen = utfc_ptr2len(tp) as usize;
                 idx -= 1;
                 tp = tp.wrapping_add(tolen);
             }
             if idx != 0 {
-                semsg!(gettext(E_INVARG2), fromstr);
+                semsg!(gettext(E_INVARG2), fromstr.as_ptr());
                 return;
             }
         }
 
-        out.extend_from_slice(crate::memory::cstr_slice(cpstr, cplen));
+        out.extend_from_slice(cpstr.slice(cplen));
 
         in_str = in_str.wrapping_add(inlen);
     }

@@ -24,7 +24,6 @@ use crate::input::beep_flush;
 use crate::input_cmdatom::Cmdarg;
 use crate::insert::{beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner};
 use crate::mbyte::mb_adjust_cursor;
-use crate::memline::ml_get_buf;
 use crate::message::semsg;
 use crate::mouse::vcol2col;
 use crate::normal::{nv_g_home_m_cmd, nv_screengo};
@@ -1207,16 +1206,16 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// Convert a virtual (screen) column to a character column (1-based).
 fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
     let offset = vcol2col(wp, lnum, vcol - 1, None);
-    let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
-    let mut p = line.wrapping_add(offset as usize);
+    let line = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
+    let mut idx = (offset.max(0) as usize).min(line.len());
 
-    if crate::memory::cstr_is_empty(p) {
-        if p == line {
+    if idx >= line.len() {
+        if idx == 0 {
             return 0;
         }
-        p = p.wrapping_sub(crate::mbyte::utf_head_off_ptr(line, p.wrapping_sub(1)) as usize + 1);
+        idx -= crate::mbyte::utf_head_off_slice(line, idx - 1) as usize + 1;
     }
-    crate::memory::ptr_offset_from(p, line) as i32 + 1
+    idx as i32 + 1
 }
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
