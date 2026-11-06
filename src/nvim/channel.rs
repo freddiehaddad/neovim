@@ -358,6 +358,8 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
         },
         is_rpc: false,
         detach: r#type != K_CHANNEL_STREAM_STDIO,
+        addr: None,
+        trust: true,
         rpc: RpcState::new(),
         term: crate::globals::GraphPtr::NULL,
         on_data: CallbackReader::none(),
@@ -597,7 +599,7 @@ pub fn channel_connect(
         let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
         channel.internal.cb = LUA_NOREF;
         rpc_start(&mut *channel);
-        channel.rpc.trust = trust;
+        channel.trust = trust;
         channel_create_event(&mut *channel);
         return channel.id;
     }
@@ -630,7 +632,7 @@ pub fn channel_connect(
         rstream_start(&mut channel.socket, StreamCbData::ChannelData(channel_ptr));
     }
 
-    channel.rpc.trust = trust;
+    channel.trust = trust;
     channel_create_event(&mut *channel);
     channel.id
 }
@@ -1138,7 +1140,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
         };
     };
 
-    let mut info = arena_dict(arena, 9);
+    let mut info = arena_dict(arena, 10);
 
     put_c(
         &mut info,
@@ -1220,6 +1222,16 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             data: ObjectData::String(cstr_as_string(Some(stream_desc))),
         },
     );
+    if let Some(ref addr) = chan.addr {
+        put_c(
+            &mut info,
+            c"addr",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(Some(addr.as_c_str()))),
+            },
+        );
+    }
 
     let mode_desc: &'static CStr = if chan.is_rpc {
         put_c(
@@ -1245,7 +1257,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             c"trust",
             Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(chan.rpc.trust),
+                data: ObjectData::Boolean(chan.trust),
             },
         );
 

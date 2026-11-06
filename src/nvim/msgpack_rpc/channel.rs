@@ -115,7 +115,6 @@ impl Drop for RequestEvent {
 #[repr(C)]
 pub struct RpcState {
     pub closed: bool,
-    pub trust: bool,
     pub unpacker: Option<Box<Unpacker>>,
     pub has_ui: bool,
     pub next_request_id: u32,
@@ -128,7 +127,6 @@ impl RpcState {
     pub const fn new() -> Self {
         Self {
             closed: false,
-            trust: true,
             unpacker: None,
             has_ui: false,
             next_request_id: 0,
@@ -163,6 +161,8 @@ pub struct Channel {
     pub internal: InternalState,
     pub is_rpc: bool,
     pub detach: bool,
+    pub addr: Option<std::ffi::CString>,
+    pub trust: bool,
     pub rpc: RpcState,
     pub term: crate::globals::GraphPtr<crate::terminal::Terminal>,
     pub on_data: CallbackReader,
@@ -557,7 +557,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
 
     // SECURITY: reject API calls from an untrusted peer. Else a malicious (remote) server could run
     // arbitrary code in the local process.
-    if !channel.rpc.trust
+    if !channel.trust
         && p.handler
             .r#fn
             .is_some_and(|f| f as *const () != handle_nvim_error_event as *const ())
@@ -1033,7 +1033,6 @@ mod tests {
     fn find_call_frame_searches_stack_from_top() {
         let mut rpc = RpcState {
             closed: false,
-            trust: true,
             unpacker: None,
             has_ui: false,
             next_request_id: 1,

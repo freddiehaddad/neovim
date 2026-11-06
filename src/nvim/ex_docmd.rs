@@ -9227,10 +9227,6 @@ fn ex_exmode(_eap: &mut Exarg) {
 }
 
 fn ex_restart(eap: &mut Exarg) {
-    if get_vim_var_str(crate::eval::vars::VV_STARTREASON).to_bytes() == b"remote-ssh" {
-        let _ = emsg(gettext(c"E6103: :restart is not supported with remote-ssh"));
-        return;
-    }
     if !eap.forceit {
         let extra_d = tv_dict_alloc();
         tv_dict_add_str(
@@ -9613,7 +9609,10 @@ fn ex_restart(eap: &mut Exarg) {
             result_mem = ArenaMem::NULL;
         }
 
-        remote_ui_restart(cstr_as_string(Some(&*listen_addr)));
+        let reuse_addr = listen_arg
+            .as_deref()
+            .is_some_and(|la| la.to_bytes() == listen_addr.to_bytes());
+        remote_ui_restart(cstr_as_string(Some(&*listen_addr)), reuse_addr);
         ui_flush();
         drop(listen_addr);
 

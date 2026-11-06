@@ -503,7 +503,11 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
 
     if g_st().ui_client_channel_id != 0 {
-        ui_client_run();
+        ui_client_run(if remote_ui {
+            params.server_addr.as_deref()
+        } else {
+            None
+        });
     }
     assert!(g_st().ui_client_channel_id == 0 && !use_builtin_ui);
 

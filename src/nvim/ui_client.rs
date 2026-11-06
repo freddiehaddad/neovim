@@ -120,7 +120,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
     let Some(channel) = channel else {
         return 0;
     };
-    channel.rpc.trust = false;
+    channel.trust = false;
 
     if g_st().ui_client_forward_stdin {
         unsafe { close(0) };
@@ -258,7 +258,38 @@ pub fn ui_client_detach() {
     g_st().ui_client_attached = false;
 }
 
-pub fn ui_client_run() -> ! {
+/// Sets `addr` (nvim_chan_set) on the server: the address this client connected to, e.g. a tunnel
+/// to the server. :restart sends it back, so the UI reconnects through it.
+fn set_chan_addr(addr: &CStr) {
+    let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
+        key: cstr_as_string(Some(c"addr")),
+        value: cstr_as_obj(Some(addr)),
+    }];
+    let config = Dict {
+        items: crate::globals::GraphPtr::new(cfg_items.as_mut_ptr()),
+        size: 1,
+        capacity: 1,
+    };
+    let mut args_items: [Object; 2] = [
+        integer_obj(0),
+        Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(config),
+        },
+    ];
+    let args = Array {
+        items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
+        size: 2,
+        capacity: 2,
+    };
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_chan_set", args);
+}
+
+/// @param server_addr Address of the server (`--server`), or NULL if the client started it (stdio).
+pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
+    if let Some(addr) = server_addr {
+        set_chan_addr(addr);
+    }
     uic_st().tui = Some(Box::new(TUIData::new()));
     let mut tui_width = uic_st().tui_width;
     let mut tui_height = uic_st().tui_height;
@@ -466,6 +497,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
     }
 
     g_st().ui_client_channel_id = chan;
+    set_chan_addr(&server_addr);
     ui_client_attach(
         uic_st().tui_width,
         uic_st().tui_height,

@@ -89,6 +89,7 @@ pub mod window;
 
 // typedef struct {
 //   OptionalKeys is_set__chan_set_;
+//   String addr;
 //   Boolean detach;
 //   Boolean trust;
 // } Dict(chan_set);
