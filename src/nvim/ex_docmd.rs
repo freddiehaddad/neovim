@@ -10460,7 +10460,7 @@ fn ex_connect(eap: &mut Exarg) {
         );
 
         if ssh_rettv.v_type == VarType::VarSpecial {
-            return;
+            return; // User declined the prompt, or interrupted (CTRL-C).
         }
         if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string().is_null() {
             let _ = emsg(gettext(c"E6101: SSH connection failed"));
