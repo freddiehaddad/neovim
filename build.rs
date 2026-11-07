@@ -200,6 +200,7 @@ fn main() {
             "ntdll",
             "iphlpapi",
             "psapi",
+            "synchronization",
             "ws2_32",
             "userenv",
             "dbghelp",

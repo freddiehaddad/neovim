@@ -230,6 +230,7 @@ mod platform {
     #[link(name = "ole32")]
     #[link(name = "psapi")]
     #[link(name = "shell32")]
+    #[link(name = "synchronization")]
     #[link(name = "user32")]
     #[link(name = "userenv")]
     #[link(name = "ws2_32")]
