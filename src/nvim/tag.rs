@@ -169,16 +169,16 @@ use crate::os::fs::MAXPATHL;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[derive(Clone, Copy, Default)]
-struct Tagptrs {
-    raw_line: &'static [u8],
-    tagname: &'static [u8],
-    fname: &'static [u8],
-    command: &'static [u8],
+struct Tagptrs<'a> {
+    raw_line: &'a [u8],
+    tagname: &'a [u8],
+    fname: &'a [u8],
+    command: &'a [u8],
     command_end: Option<usize>,
-    tag_fname: Option<&'static std::ffi::CStr>,
-    tagkind: Option<&'static [u8]>,
+    tag_fname: Option<&'a std::ffi::CStr>,
+    tagkind: Option<&'a [u8]>,
     tagkind_range: Option<(usize, usize)>,
-    user_data: Option<&'static [u8]>,
+    user_data: Option<&'a [u8]>,
     tagline: Linenr,
 }
 
@@ -710,14 +710,17 @@ pub fn do_tag(
 
                     if !new_tag && !other_name {
                         let mut idx: usize = 0;
-                        let mut tagp = Tagptrs::default();
-                        let mut tagp2 = Tagptrs::default();
 
                         for old_match in &tag_st().do_tag_matches {
+                            let mut tagp = Tagptrs::default();
                             parse_match(old_match, &mut tagp);
                             for i in idx..new_matches.len() {
-                                parse_match(&new_matches[i], &mut tagp2);
-                                if tagp.raw_line == tagp2.raw_line {
+                                let matched = {
+                                    let mut tagp2 = Tagptrs::default();
+                                    parse_match(&new_matches[i], &mut tagp2);
+                                    tagp.raw_line == tagp2.raw_line
+                                };
+                                if matched {
                                     let p = new_matches.remove(i);
                                     new_matches.insert(idx, p);
                                     idx += 1;
@@ -780,11 +783,9 @@ pub fn do_tag(
                         curwin_mut().w_tagstack[tagstackidx as usize].cur_match = cur_match;
                         curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum = cur_fnum;
 
+                        let do_tag_matches = &tag_st().do_tag_matches;
                         if use_tfu
-                            && parse_match(
-                                &tag_st().do_tag_matches.as_slice()[cur_match as usize],
-                                &mut tagp2,
-                            )
+                            && parse_match(&do_tag_matches[cur_match as usize], &mut tagp2)
                             && let Some(ud_slice) = tagp2.user_data
                         {
                             curwin_mut().w_tagstack[tagstackidx as usize].user_data =
@@ -990,7 +991,6 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
     let tag = tag.as_ptr();
     {
         let mut tag_name = [0u8; 128 + 1];
-        let mut tagp = Tagptrs::default();
 
         let mut fname_vec = vec![0u8; MAXPATHL + 1];
         let fname = fname_vec.as_mut_ptr();
@@ -998,6 +998,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
         let list = tv_list_alloc(0);
 
         for m_vec in matches {
+            let mut tagp = Tagptrs::default();
             parse_match(m_vec, &mut tagp);
 
             let len = tagp.tagname.len().min(128);
@@ -1756,9 +1757,10 @@ fn findtags_start_state_handler(
     true
 }
 
-fn findtags_parse_line(
+fn findtags_parse_line<'a>(
     st: &mut FindtagsState,
-    tagpp: &mut Tagptrs,
+    lbuf: &'a [u8],
+    tagpp: &mut Tagptrs<'a>,
     margs: &mut FindtagsMatchArgs,
     sinfo_p: &mut TagsearchInfo,
 ) -> TagmatchStatus {
@@ -1766,9 +1768,7 @@ fn findtags_parse_line(
 
     if st.orgpat.headlen != 0 {
         *tagpp = Tagptrs::default();
-        let raw_line: &'static [u8] = crate::globals::GraphPtr::extend_slice_lifetime(
-            crate::memory::bytes_until_nul(&st.lbuf),
-        );
+        let raw_line = crate::memory::bytes_until_nul(lbuf);
         tagpp.raw_line = raw_line;
         let Some(tab_pos) = raw_line.iter().position(|&b| b == TAB) else {
             return TagmatchStatus::TagMatchFail;
@@ -1873,7 +1873,7 @@ fn findtags_parse_line(
             status = false;
         }
     } else {
-        status = parse_tag_line(&st.lbuf, tagpp);
+        status = parse_tag_line(lbuf, tagpp);
     }
 
     if !status {
@@ -1958,14 +1958,14 @@ fn findtags_string_convert(st: &mut FindtagsState) {
 
 fn findtags_add_match(
     st: &mut FindtagsState,
-    tagpp: &mut Tagptrs,
+    tagpp: &mut Tagptrs<'_>,
     margs: &FindtagsMatchArgs,
     buf_ffname: Option<&std::ffi::CStr>,
 ) {
     {
         let name_only = (st.flags & TAG_NAMES) != 0;
         let tag_fname_ptr = crate::strings::ByteSlice::from_bytes(&st.tag_fname);
-        let lbuf_ptr = crate::strings::ByteSlice::from_bytes(&st.lbuf);
+        let lbuf_bytes = tagpp.raw_line;
 
         let is_current = test_for_current(tagpp.fname, tag_fname_ptr.as_cstr(), buf_ffname) != 0;
         let is_static = test_for_static(tagpp);
@@ -2034,7 +2034,6 @@ fn findtags_add_match(
             }
         } else {
             let tag_fname_bytes = tag_fname_ptr.as_bytes();
-            let lbuf_bytes = lbuf_ptr.as_bytes();
             let tag_fname_len = tag_fname_bytes.len();
             let len = tag_fname_len + lbuf_bytes.len() + 3;
             let mut v = vec![0u8; 1 + len + 1];
@@ -2062,7 +2061,6 @@ fn findtags_get_all_tags(
     buf_ffname: Option<&std::ffi::CStr>,
 ) {
     {
-        let mut tagp = Tagptrs::default();
         let mut search_info = TagsearchInfo::default();
 
         loop {
@@ -2116,14 +2114,19 @@ fn findtags_get_all_tags(
                 continue;
             }
 
-            let retval = findtags_parse_line(st, &mut tagp, margs, &mut search_info);
+            let lbuf = std::mem::take(&mut st.lbuf);
+            let mut tagp = Tagptrs::default();
+            let retval = findtags_parse_line(st, &lbuf, &mut tagp, margs, &mut search_info);
             if retval == TagmatchStatus::TagMatchNext {
+                st.lbuf = lbuf;
                 continue;
             }
             if retval == TagmatchStatus::TagMatchStop {
+                st.lbuf = lbuf;
                 break;
             }
             if retval == TagmatchStatus::TagMatchFail {
+                st.lbuf = lbuf;
                 semsg!(
                     gettext(c"E431: Format error in tags file \"%s\""),
                     crate::strings::ByteSlice::from_ptr(
@@ -2140,6 +2143,7 @@ fn findtags_get_all_tags(
             if findtags_match_tag(st, &mut tagp, margs) {
                 findtags_add_match(st, &mut tagp, margs, buf_ffname);
             }
+            st.lbuf = lbuf;
         }
     }
 }
@@ -2509,9 +2513,8 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
     true
 }
 
-fn parse_tag_line(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
-    let raw_line: &'static [u8] =
-        crate::globals::GraphPtr::extend_slice_lifetime(crate::memory::bytes_until_nul(lbuf_slice));
+fn parse_tag_line<'a>(lbuf_slice: &'a [u8], tagp: &mut Tagptrs<'a>) -> bool {
+    let raw_line = crate::memory::bytes_until_nul(lbuf_slice);
     tagp.raw_line = raw_line;
     let Some(tab1) = raw_line.iter().position(|&b| b == TAB) else {
         return false;
@@ -2530,7 +2533,7 @@ fn parse_tag_line(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
     true
 }
 
-fn test_for_static(tagp: &Tagptrs) -> bool {
+fn test_for_static(tagp: &Tagptrs<'_>) -> bool {
     let mut p = tagp.command;
     while let Some(pos) = p.iter().position(|&b| b == b'\t') {
         p = &p[pos + 1..];
@@ -2550,9 +2553,9 @@ fn matching_line_len(lbuf_slice: &[u8]) -> usize {
     }
 }
 
-fn parse_match(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
+fn parse_match<'a>(lbuf_slice: &'a [u8], tagp: &mut Tagptrs<'a>) -> bool {
     let tag_fname = crate::memory::bytes_as_cstr(&lbuf_slice[1..]);
-    tagp.tag_fname = Some(crate::globals::GraphPtr::<u8>::cstr(tag_fname));
+    tagp.tag_fname = Some(tag_fname);
     let tag_line_off = tag_fname.to_bytes().len() + 2;
 
     let retval = parse_tag_line(&lbuf_slice[tag_line_off.min(lbuf_slice.len())..], tagp);
@@ -3179,7 +3182,6 @@ pub fn get_tags(
 ) -> bool {
     {
         let mut matches: Vec<Vec<u8>> = Vec::new();
-        let mut tp = Tagptrs::default();
 
         let mut ret = find_tags(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname);
         if !ret || matches.is_empty() {
@@ -3187,6 +3189,7 @@ pub fn get_tags(
         }
 
         for match_vec in matches {
+            let mut tp = Tagptrs::default();
             if !parse_match(&match_vec, &mut tp) {
                 continue;
             }

@@ -71,7 +71,6 @@ pub struct GridLineEvent {
 pub struct Unpacker {
     pub parser: MpackParser,
     pub reader: MpackTokbuf,
-    pub read_buf: &'static [u8],
     pub ext_buf: [u8; MAX_EXT_LEN],
     pub state: i32,
     pub msg_type: MessageType,
@@ -320,7 +319,6 @@ impl Unpacker {
         Self {
             parser: MpackParser::new(0),
             reader: MpackTokbuf::new(),
-            read_buf: &[],
             ext_buf: [0; MAX_EXT_LEN],
             state: 0,
             msg_type: MessageType::MessageTypeRequest,
@@ -374,9 +372,9 @@ pub fn unpacker_init(p: &mut Unpacker) {
 }
 
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
-pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
+pub fn unpacker_parse_header(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
     let mut tok = MpackToken::new();
-    let mut buf = p.read_buf;
+    let mut buf: &[u8] = read_buf;
 
     assert_eq!(p.unpack_error.err_type, ErrorType::ErrorTypeNone);
 
@@ -457,7 +455,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
             }
 
             if result == 0 {
-                p.read_buf = buf;
+                *read_buf = buf;
                 return true;
             }
         }
@@ -477,12 +475,12 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
 }
 
 /// Advance the unpacker state machine (`unpacker_advance`).
-pub fn unpacker_advance(p: &mut Unpacker) -> bool {
+pub fn unpacker_advance(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
     p.parser.data = crate::mpack::object::MpackData::Unpacker(GraphPtr::from(&mut *p));
     assert!(p.state >= 0);
     p.has_grid_line_event = false;
     if p.state == 0 {
-        if !unpacker_parse_header(p) {
+        if !unpacker_parse_header(p, read_buf) {
             return false;
         }
         if p.msg_type == MessageType::MessageTypeNotification
@@ -507,7 +505,7 @@ pub fn unpacker_advance(p: &mut Unpacker) -> bool {
 
     let mut need_parse = true;
     if p.state >= 10 && p.state != 13 {
-        if !unpacker_parse_redraw(p) {
+        if !unpacker_parse_redraw(p, read_buf) {
             if p.state < 0 {
                 api_set_error!(
                     &mut p.unpack_error,
@@ -532,7 +530,7 @@ pub fn unpacker_advance(p: &mut Unpacker) -> bool {
         if need_parse {
             let result = mpack_parse(
                 &mut p.parser,
-                &mut p.read_buf,
+                read_buf,
                 Some(api_parse_enter),
                 Some(api_parse_exit),
             );
@@ -599,9 +597,9 @@ fn next_type(
 }
 
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
-pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
+pub fn unpacker_parse_redraw(p: &mut Unpacker, read_buf: &mut &[u8]) -> bool {
     let mut tok = MpackToken::new();
-    let mut buf: &'static [u8] = p.read_buf;
+    let mut buf: &[u8] = read_buf;
 
     if p.state == 10 || p.state == 11 {
         if p.state == 10 {
@@ -633,7 +631,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
         buf = &buf[str_len..];
 
         p.nevents -= 1;
-        p.read_buf = buf;
+        *read_buf = buf;
         if p.ui_handler
             .r#fn
             .is_none_or(|f| !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as fn(Array)))
@@ -671,7 +669,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
         p.grid_line_event.coloff = 0;
         p.grid_line_event.cur_attr = -1;
 
-        p.read_buf = buf;
+        *read_buf = buf;
         p.state = 15;
     }
 
@@ -734,7 +732,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 }
             }
 
-            p.read_buf = buf;
+            *read_buf = buf;
             p.grid_line_event.icell += 1;
         }
         p.state = 16;
@@ -745,7 +743,7 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             return false;
         }
         p.grid_line_event.wrap = mpack_unpack_boolean(tok);
-        p.read_buf = buf;
+        *read_buf = buf;
         return true;
     }
 
@@ -954,19 +952,19 @@ mod tests {
 
     #[test]
     fn unpacker_handles_paused_and_empty_grid_line() {
-        let payload1: &'static [u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
+        let payload1: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
         let mut unpacker = Unpacker::new();
         unpacker_init(&mut unpacker);
-        unpacker.read_buf = &payload1[..payload1.len() - 1];
-        assert!(!unpacker_advance(&mut unpacker));
-        let consumed = (payload1.len() - 1) - unpacker.read_buf.len();
-        unpacker.read_buf = &payload1[consumed..];
-        assert!(unpacker_advance(&mut unpacker));
+        let mut read_buf = &payload1[..payload1.len() - 1];
+        assert!(!unpacker_advance(&mut unpacker, &mut read_buf));
+        let consumed = (payload1.len() - 1) - read_buf.len();
+        read_buf = &payload1[consumed..];
+        assert!(unpacker_advance(&mut unpacker, &mut read_buf));
 
-        let payload2: &'static [u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
+        let payload2: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x90\xc2";
         unpacker = Unpacker::new();
         unpacker_init(&mut unpacker);
-        unpacker.read_buf = payload2;
-        assert!(unpacker_advance(&mut unpacker));
+        let mut read_buf2 = payload2;
+        assert!(unpacker_advance(&mut unpacker, &mut read_buf2));
     }
 }

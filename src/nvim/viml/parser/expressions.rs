@@ -203,14 +203,16 @@ impl LexExprTokenStr {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LexExprTokenOpt {
-    pub name: &'static [u8],
+    pub name_off: usize,
+    pub name_len: usize,
     pub scope: ExprOptScope,
 }
 
 impl LexExprTokenOpt {
     pub const fn new() -> Self {
         Self {
-            name: &[],
+            name_off: 0,
+            name_len: 0,
             scope: 0,
         }
     }
@@ -605,23 +607,23 @@ impl ExprASTNodeFig {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct ExprASTNodeVar {
     pub scope: ExprVarScope,
-    pub ident: &'static [u8],
+    pub ident: Vec<u8>,
 }
 
 impl ExprASTNodeVar {
     pub const fn new() -> Self {
         Self {
             scope: K_EXPR_VAR_SCOPE_MISSING,
-            ident: &[],
+            ident: Vec::new(),
         }
     }
 
     #[inline]
     pub fn ident_bytes(&self) -> &[u8] {
-        self.ident
+        &self.ident
     }
 }
 
@@ -701,40 +703,40 @@ impl ExprASTNodeStr {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct ExprASTNodeOpt {
-    pub ident: &'static [u8],
+    pub ident: Vec<u8>,
     pub scope: ExprOptScope,
 }
 
 impl ExprASTNodeOpt {
     pub const fn new() -> Self {
         Self {
-            ident: &[],
+            ident: Vec::new(),
             scope: K_EXPR_OPT_SCOPE_UNSPECIFIED,
         }
     }
 
     #[inline]
     pub fn ident_bytes(&self) -> &[u8] {
-        self.ident
+        &self.ident
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct ExprASTNodeEnv {
-    pub ident: &'static [u8],
+    pub ident: Vec<u8>,
 }
 
 impl ExprASTNodeEnv {
     pub const fn new() -> Self {
-        Self { ident: &[] }
+        Self { ident: Vec::new() }
     }
 
     #[inline]
     pub fn ident_bytes(&self) -> &[u8] {
-        self.ident
+        &self.ident
     }
 }
 
@@ -812,9 +814,10 @@ impl ExprASTNodeData {
 
     #[inline]
     pub fn var(&self) -> &ExprASTNodeVar {
+        static EMPTY: ExprASTNodeVar = ExprASTNodeVar::new();
         match self {
             Self::Var(v) => v,
-            _ => &const { ExprASTNodeVar::new() },
+            _ => &EMPTY,
         }
     }
 
@@ -931,9 +934,10 @@ impl ExprASTNodeData {
 
     #[inline]
     pub fn opt(&self) -> &ExprASTNodeOpt {
+        static EMPTY: ExprASTNodeOpt = ExprASTNodeOpt::new();
         match self {
             Self::Opt(v) => v,
-            _ => &const { ExprASTNodeOpt::new() },
+            _ => &EMPTY,
         }
     }
 
@@ -950,9 +954,10 @@ impl ExprASTNodeData {
 
     #[inline]
     pub fn env(&self) -> &ExprASTNodeEnv {
+        static EMPTY: ExprASTNodeEnv = ExprASTNodeEnv::new();
         match self {
             Self::Env(v) => v,
-            _ => &const { ExprASTNodeEnv::new() },
+            _ => &EMPTY,
         }
     }
 
@@ -1012,16 +1017,16 @@ impl ExprASTNode {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Default)]
 pub struct ExprASTError {
     pub msg: Option<&'static std::ffi::CStr>,
-    pub arg: &'static [u8],
+    pub arg: Vec<u8>,
 }
 
 impl ExprASTError {
     #[inline]
     pub fn arg_bytes(&self) -> &[u8] {
-        self.arg
+        &self.arg
     }
 }
 
@@ -1213,7 +1218,7 @@ fn is_opt_scope(b: u8) -> bool {
 #[inline]
 fn viml_parser_advance(pstate: &mut ParserState<'_>, len: usize) {
     debug_assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
-    let pline = *pstate.reader.lines.last().unwrap();
+    let pline = pstate.reader.lines.last().unwrap();
     if pstate.pos.col + len >= pline.size() {
         pstate.pos.line += 1;
         pstate.pos.col = 0;
@@ -1537,7 +1542,8 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
                     && bytes[p_offset] == b't'
                     && bytes[p_offset + 1] == b'_'
                 {
-                    ret.data.opt_mut().name = &pline.as_bytes()[p_offset..p_offset + 4];
+                    ret.data.opt_mut().name_off = p_offset;
+                    ret.data.opt_mut().name_len = 4;
                     ret.len += 4;
                 } else {
                     let mut p_idx = p_offset;
@@ -1545,7 +1551,8 @@ pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExp
                         p_idx += 1;
                     }
                     let opt_len = p_idx - p_offset;
-                    ret.data.opt_mut().name = &pline.as_bytes()[p_offset..p_idx];
+                    ret.data.opt_mut().name_off = p_offset;
+                    ret.data.opt_mut().name_len = opt_len;
                     if opt_len == 0 {
                         ret.r#type = K_EXPR_LEX_INVALID;
                         ret.data.err_mut().r#type = K_EXPR_LEX_OPTION;
@@ -1755,9 +1762,9 @@ fn east_set_error(
     if ret_ast_err.msg.is_some() {
         return;
     }
-    let pline = pstate.reader.lines.as_slice()[start.line];
+    let pline = &pstate.reader.lines.as_slice()[start.line];
     ret_ast_err.msg = Some(msg);
-    ret_ast_err.arg = pline.as_bytes().get(start.col..).unwrap_or(&[]);
+    ret_ast_err.arg = pline.as_bytes().get(start.col..).unwrap_or(&[]).to_vec();
 }
 
 fn viml_pexpr_handle_bop(
@@ -1886,7 +1893,7 @@ fn parse_quoted_string(
     _ast_stack: &ExprASTStack,
     is_invalid: bool,
 ) {
-    let pline = pstate.reader.lines.as_slice()[token.start.line];
+    let pline = pstate.reader.lines.as_slice()[token.start.line].clone();
     let closed_len = usize::from(token.data.str().closed);
     let body = &pline.as_bytes()[token.start.col + 1..token.start.col + token.len - closed_len];
     let is_double = token.r#type == K_EXPR_LEX_DOUBLE_QUOTED_STRING;
@@ -2249,7 +2256,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
     let mut ast = ExprAST {
         err: ExprASTError {
             msg: None,
-            arg: &[],
+            arg: Vec::new(),
         },
         root: None,
     };
@@ -2332,7 +2339,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                 is_invalid = false;
                 highlighted_prev_spacing = true;
             }
-            let pline = pstate.reader.lines.as_slice()[cur_token.start.line];
+            let pline = pstate.reader.lines.as_slice()[cur_token.start.line].clone();
             let top_node_p = crate::globals::GraphPtr::of(*ast_stack.last().unwrap()).borrow_mut();
             debug_assert!(!ast_stack.is_empty());
 
@@ -2666,15 +2673,18 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     let mut cur_node =
                         new_node_with_cur_pos(K_EXPR_NODE_OPTION, cur_token, prev_token);
                     if cur_token.r#type == K_EXPR_LEX_INVALID {
-                        cur_node.data.opt_mut().ident = &[];
+                        cur_node.data.opt_mut().ident = Vec::new();
                         cur_node.data.opt_mut().scope = if cur_token.len == 3 {
                             i32::from(pline.as_bytes()[cur_token.start.col + 1])
                         } else {
                             K_EXPR_OPT_SCOPE_UNSPECIFIED
                         };
                     } else {
-                        cur_node.data.opt_mut().ident = cur_token.data.opt().name;
-                        cur_node.data.opt_mut().scope = cur_token.data.opt().scope;
+                        let opt = cur_token.data.opt();
+                        let off = cur_token.start.col + opt.name_off;
+                        cur_node.data.opt_mut().ident =
+                            pline.as_bytes()[off..off + opt.name_len].to_vec();
+                        cur_node.data.opt_mut().scope = opt.scope;
                     }
                     *top_node_p = Some(cur_node);
                     want_node = ExprASTWantedNode::Operator;
@@ -2721,8 +2731,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     }
                     let mut cur_node =
                         new_node_with_cur_pos(K_EXPR_NODE_ENVIRONMENT, cur_token, prev_token);
-                    cur_node.data.env_mut().ident = &pline.as_bytes()
-                        [cur_token.start.col + 1..cur_token.start.col + cur_token.len];
+                    cur_node.data.env_mut().ident = pline.as_bytes()
+                        [cur_token.start.col + 1..cur_token.start.col + cur_token.len]
+                        .to_vec();
                     if cur_node.data.env().ident.is_empty() {
                         is_invalid = true;
                         east_set_error(
@@ -3635,9 +3646,10 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                         } else {
                             2
                         };
-                        cur_node.data.var_mut().ident = &pline.as_bytes()[cur_token.start.col
+                        cur_node.data.var_mut().ident = pline.as_bytes()[cur_token.start.col
                             + scope_shift
-                            ..cur_token.start.col + cur_token.len];
+                            ..cur_token.start.col + cur_token.len]
+                            .to_vec();
                         *top_node_p = Some(cur_node);
                         if scope_shift != 0 {
                             viml_parser_highlight(
@@ -3706,8 +3718,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 prev_token,
                             );
                             cur_node.data.var_mut().scope = scope;
-                            cur_node.data.var_mut().ident = &pline.as_bytes()
-                                [cur_token.start.col..cur_token.start.col + cur_token.len];
+                            cur_node.data.var_mut().ident = pline.as_bytes()
+                                [cur_token.start.col..cur_token.start.col + cur_token.len]
+                                .to_vec();
                             want_node = ExprASTWantedNode::Operator;
 
                             *crate::globals::GraphPtr::of(new_top_node_p).borrow_mut() =
@@ -3737,8 +3750,9 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     let cur_node = if node_is_key {
                         let mut n =
                             new_node_with_cur_pos(K_EXPR_NODE_PLAIN_KEY, cur_token, prev_token);
-                        n.data.var_mut().ident = &pline.as_bytes()
-                            [cur_token.start.col..cur_token.start.col + cur_token.len];
+                        n.data.var_mut().ident = pline.as_bytes()
+                            [cur_token.start.col..cur_token.start.col + cur_token.len]
+                            .to_vec();
                         viml_parser_highlight(
                             pstate,
                             cur_token.start,
@@ -4325,7 +4339,7 @@ mod tests {
         let t = lex_one(b"&l:opt", 0);
         assert_eq!(t.r#type, K_EXPR_LEX_OPTION);
         assert_eq!(t.data.opt().scope, b'l' as i32);
-        assert_eq!(t.data.opt().name.len(), 3);
+        assert_eq!(t.data.opt().name_len, 3);
 
         let t = lex_one(b"&g:", 0);
         assert_eq!(t.r#type, K_EXPR_LEX_INVALID);

@@ -2631,8 +2631,7 @@ fn addstate_idx(
         return None;
     }
 
-    let st_ptr = &mut crate::globals::GraphPtr::slice_mut(states_slice)[state_idx];
-    let st_c = st_ptr.c;
+    let st_c = states_slice[state_idx].c;
     match st_c {
         NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => addstate_eps(
             states_slice,
@@ -2670,7 +2669,7 @@ fn addstate_idx(
             }
 
             let ll_idx = re_st().nfa_ll_index;
-            if st_ptr.lastlist[ll_idx] == l.id && st_c != NFA_SKIP {
+            if states_slice[state_idx].lastlist[ll_idx] == l.id && st_c != NFA_SKIP {
                 if !re_st().rex.nfa_has_backref && pim.is_null() && !l.has_pim && st_c != NFA_MATCH
                 {
                     if off_arg <= -ADDSTATE_HERE_OFFSET {
@@ -2718,7 +2717,7 @@ fn addstate_idx(
                 l.t.reserve(newlen - l.t.len());
             }
 
-            st_ptr.lastlist[ll_idx] = l.id;
+            states_slice[state_idx].lastlist[ll_idx] = l.id;
             let thread_idx = l.n as usize;
             l.n += 1;
             if thread_idx == l.t.len() {

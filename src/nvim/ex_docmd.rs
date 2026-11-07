@@ -397,17 +397,8 @@ impl Exarg {
         *self.cmdline_buf.borrow_mut() = new_buf;
     }
 
-    pub fn arg_cstr_buf_mut(&mut self) -> &'static mut [u8] {
+    pub fn arg_cstr_buf_mut(&mut self) -> &mut [u8] {
         let len = self.arg.len();
-        if let Some(cmdbuf) = self.cmdline_buf.opt_mut() {
-            let base = cmdbuf.as_ptr() as usize;
-            let addr = self.arg.addr();
-            if addr >= base && addr + len < base + cmdbuf.len() {
-                let off = addr - base;
-                self.arg = Some(crate::globals::GraphPtr::slice(&cmdbuf[off..=off + len]));
-                return crate::globals::GraphPtr::slice_mut(&mut cmdbuf[off..=off + len]);
-            }
-        }
         if let Some(b) = self.arg {
             let n = (len + 1).min(b.len());
             return crate::globals::GraphPtr::raw_slice_mut(b.as_ptr().cast_mut(), n);
@@ -415,7 +406,7 @@ impl Exarg {
         &mut []
     }
 
-    pub fn arg_mut_bytes(&mut self) -> &'static mut [u8] {
+    pub fn arg_mut_bytes(&mut self) -> &mut [u8] {
         let buf = self.arg_cstr_buf_mut();
         let n = buf.len().saturating_sub(1);
         &mut buf[..n]
@@ -6677,8 +6668,8 @@ fn do_one_cmd(
                     arg_slice.copy_within(idx + 1..=arg_len, idx);
                     arg_len -= 1;
                 } else if arg_slice[idx] == b'\n' {
-                    ea.nextcmd = ea.arg.wrapping_add(idx + 1);
                     arg_slice[idx] = 0;
+                    ea.nextcmd = ea.arg.wrapping_add(idx + 1);
                     break;
                 }
                 idx += 1;
@@ -8302,16 +8293,18 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         let mut srclen: usize = 0;
         let mut escaped = false;
         let arg_off = (p as usize) - (eap.arg.as_ptr() as usize);
+        let mut do_ecmd_lnum = eap.do_ecmd_lnum;
         let arg_mut = eap.arg_cstr_buf_mut();
         let repl_owned = eval_vars(
             arg_mut,
             arg_off,
             &mut srclen,
-            Some(&mut eap.do_ecmd_lnum),
+            Some(&mut do_ecmd_lnum),
             errormsgp,
             Some(&mut escaped),
             true,
         );
+        eap.do_ecmd_lnum = do_ecmd_lnum;
         if errormsgp.is_some() {
             return false;
         }

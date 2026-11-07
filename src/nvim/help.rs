@@ -47,18 +47,23 @@ pub fn ex_help(eap: &mut Exarg) {
     let old_key_typed = g_st().key_typed;
 
     let mut lang: Option<std::ffi::CString> = None;
+    let arg_owned: Option<std::ffi::CString>;
     let mut arg_cstr: &CStr = c"";
     if !eap.arg.is_null() {
         let full_len = eap.arg.len();
+        let mut nextcmd_off = None;
         let slice = eap.arg_cstr_buf_mut();
         for i in 0..full_len {
             let b = slice[i];
             if b == b'\n' || b == b'\r' || (b == b'|' && slice[i + 1] != 0 && slice[i + 1] != b'|')
             {
                 slice[i] = 0;
-                eap.nextcmd = eap.arg.wrapping_add(i + 1);
+                nextcmd_off = Some(i + 1);
                 break;
             }
+        }
+        if let Some(off) = nextcmd_off {
+            eap.nextcmd = eap.arg.wrapping_add(off);
         }
 
         if eap.skip {
@@ -66,6 +71,7 @@ pub fn ex_help(eap: &mut Exarg) {
         }
 
         // remove trailing blanks
+        let slice = eap.arg_cstr_buf_mut();
         let mut end = slice.iter().position(|&b| b == 0).unwrap_or(full_len);
         while end > 1 && ascii_iswhite(i32::from(slice[end - 1])) && slice[end - 2] != b'\\' {
             end -= 1;
@@ -74,7 +80,8 @@ pub fn ex_help(eap: &mut Exarg) {
 
         // Check for a specified language
         lang = check_help_lang(slice).map(CStr::to_owned);
-        arg_cstr = CStr::from_bytes_until_nul(slice).unwrap_or(c"");
+        arg_owned = Some(CStr::from_bytes_until_nul(slice).unwrap_or(c"").to_owned());
+        arg_cstr = arg_owned.as_deref().unwrap();
     }
 
     // ":help!" (bang, no args).

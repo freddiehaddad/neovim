@@ -434,11 +434,11 @@ pub(crate) fn receive_msgpack(rbuf: &[u8], channel: &mut Channel, eof: bool) -> 
 
     if c > 0 {
         let p = channel.unpacker_mut();
-        p.read_buf = crate::globals::GraphPtr::extend_slice_lifetime(rbuf);
-        parse_msgpack(channel);
+        let mut read_buf = rbuf;
+        parse_msgpack(channel, &mut read_buf);
 
         if !unpacker_closed(p) {
-            consumed = c - p.read_buf.len();
+            consumed = c - read_buf.len();
         }
     }
 
@@ -462,11 +462,11 @@ fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<Channe
     None
 }
 
-fn parse_msgpack(channel: &mut Channel) {
+fn parse_msgpack(channel: &mut Channel, read_buf: &mut &[u8]) {
     let p_ptr =
         crate::globals::GraphPtr::<Unpacker>::of(channel.rpc.unpacker.as_deref_mut().unwrap());
 
-    while unpacker_advance(p_ptr.borrow_mut()) {
+    while unpacker_advance(p_ptr.borrow_mut(), read_buf) {
         let p = p_ptr.borrow_mut();
         if p.msg_type == MessageType::MessageTypeRedrawEvent {
             if g_st().ui_client_attached {
@@ -720,12 +720,12 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
 
 pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
     let p = channel.unpacker_mut();
+    let mut read_buf = buffer.data.as_slice();
 
-    p.read_buf = crate::globals::GraphPtr::extend_slice_lifetime(buffer.data.as_slice());
     if !unpacker_closed(p) {
-        parse_msgpack(channel);
+        parse_msgpack(channel, &mut read_buf);
 
-        if !p.read_buf.is_empty() && !channel.rpc.closed {
+        if !read_buf.is_empty() && !channel.rpc.closed {
             chan_close_on_err(channel, c"internal channel: internal error", LOGLVL_ERR);
         }
     }

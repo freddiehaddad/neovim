@@ -1353,11 +1353,6 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub const fn slice_mut<'a>(s: &mut [T]) -> &'a mut [T] {
-        unsafe { &mut *(s as *mut [T]) }
-    }
-
-    #[inline(always)]
     pub const fn cstr<'a>(s: &std::ffi::CStr) -> &'a std::ffi::CStr {
         unsafe { &*(s as *const std::ffi::CStr) }
     }
@@ -1485,11 +1480,6 @@ impl<T> GraphPtr<T> {
     #[inline(always)]
     pub fn replace_val(self, src: T) -> T {
         unsafe { ptr::replace(self.0, src) }
-    }
-
-    #[inline(always)]
-    pub fn extend_slice_lifetime<'a>(s: &[T]) -> &'a [T] {
-        unsafe { &*(s as *const [T]) }
     }
 }
 
