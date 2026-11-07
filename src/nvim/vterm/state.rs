@@ -124,7 +124,7 @@ pub struct VTermStateFallbacks {
 }
 
 pub type VTermSelectionSetFn =
-    fn(mask: VTermSelectionMask, frag: VTermStringFragment, user: Option<&mut Terminal>) -> i32;
+    fn(mask: VTermSelectionMask, frag: VTermStringFragment<'_>, user: Option<&mut Terminal>) -> i32;
 
 #[repr(C)]
 pub struct VTermSelectionCallbacks {

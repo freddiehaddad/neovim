@@ -1348,11 +1348,6 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub const fn slice<'a>(s: &[T]) -> &'a [T] {
-        unsafe { &*(s as *const [T]) }
-    }
-
-    #[inline(always)]
     pub const fn wrapping_add(self, count: usize) -> Self {
         Self::new(self.as_ptr().wrapping_add(count))
     }

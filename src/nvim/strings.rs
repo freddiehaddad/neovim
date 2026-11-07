@@ -81,6 +81,11 @@ pub type RawCCharPtrMut = *mut c_char;
 pub type ByteSlice = Option<&'static [u8]>;
 pub const BYTE_SLICE_NULL: ByteSlice = None;
 
+#[inline(always)]
+pub const fn byte_slice_from_bytes(b: &[u8]) -> ByteSlice {
+    Some(unsafe { &*(b as *const [u8]) })
+}
+
 pub trait AsByteSlice: Sized {
     fn into_byte_slice(self) -> ByteSlice;
 
@@ -126,7 +131,7 @@ impl AsByteSlice for ByteSlice {
 impl AsByteSlice for &[u8] {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self))
+        byte_slice_from_bytes(self)
     }
 
     #[inline(always)]
@@ -138,7 +143,7 @@ impl AsByteSlice for &[u8] {
 impl AsByteSlice for &mut [u8] {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self))
+        byte_slice_from_bytes(self)
     }
 
     #[inline(always)]
@@ -150,7 +155,7 @@ impl AsByteSlice for &mut [u8] {
 impl AsByteSlice for &Vec<u8> {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self.as_slice()))
+        byte_slice_from_bytes(self.as_slice())
     }
 
     #[inline(always)]
@@ -162,7 +167,7 @@ impl AsByteSlice for &Vec<u8> {
 impl AsByteSlice for &std::ffi::CString {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self.to_bytes_with_nul()))
+        byte_slice_from_bytes(self.to_bytes_with_nul())
     }
 
     #[inline(always)]
@@ -174,7 +179,7 @@ impl AsByteSlice for &std::ffi::CString {
 impl<const N: usize> AsByteSlice for &[u8; N] {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self))
+        byte_slice_from_bytes(self)
     }
 
     #[inline(always)]
@@ -186,7 +191,7 @@ impl<const N: usize> AsByteSlice for &[u8; N] {
 impl<const N: usize> AsByteSlice for &mut [u8; N] {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self))
+        byte_slice_from_bytes(self)
     }
 
     #[inline(always)]
@@ -198,7 +203,7 @@ impl<const N: usize> AsByteSlice for &mut [u8; N] {
 impl AsByteSlice for &CStr {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        Some(crate::globals::GraphPtr::slice(self.to_bytes_with_nul()))
+        byte_slice_from_bytes(self.to_bytes_with_nul())
     }
 
     #[inline(always)]
@@ -210,7 +215,7 @@ impl AsByteSlice for &CStr {
 impl AsByteSlice for Option<&CStr> {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        self.map(|s| crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
+        self.and_then(|s| byte_slice_from_bytes(s.to_bytes_with_nul()))
     }
 
     #[inline(always)]
@@ -347,7 +352,7 @@ pub trait ByteSliceExt: Copy {
 impl ByteSliceExt for ByteSlice {
     #[inline(always)]
     fn from_cstr(s: &CStr) -> Self {
-        Some(crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
+        byte_slice_from_bytes(s.to_bytes_with_nul())
     }
 
     #[inline(always)]
@@ -357,7 +362,7 @@ impl ByteSliceExt for ByteSlice {
 
     #[inline(always)]
     fn from_bytes(b: &[u8]) -> Self {
-        Some(crate::globals::GraphPtr::slice(b))
+        byte_slice_from_bytes(b)
     }
 
     #[inline(always)]

@@ -48,14 +48,14 @@ pub(crate) const CSI_ARG_FLAG_MORE_U32: u32 = 1u32 << 31;
 pub(crate) const CSI_ARG_MASK_U32: u32 = !(1u32 << 31);
 
 #[derive(Clone, Copy)]
-pub enum VTermValue {
+pub enum VTermValue<'a> {
     Boolean(i32),
     Number(i32),
-    String(VTermStringFragment),
+    String(VTermStringFragment<'a>),
     Color(VTermColor),
 }
 
-impl VTermValue {
+impl<'a> VTermValue<'a> {
     #[inline]
     pub const fn boolean(self) -> i32 {
         match self {
@@ -73,7 +73,7 @@ impl VTermValue {
     }
 
     #[inline]
-    pub const fn string(self) -> VTermStringFragment {
+    pub const fn string(self) -> VTermStringFragment<'a> {
         match self {
             Self::String(s) => s,
             _ => unreachable!(),
@@ -108,9 +108,9 @@ pub type VTermMoveRectFn<T = VTermScreen> =
     fn(dest: VTermRect, src: VTermRect, user: Option<&mut T>) -> i32;
 pub type VTermEraseFn = fn(rect: VTermRect, selective: i32, user: Option<&mut VTermScreen>) -> i32;
 pub type VTermSetPenAttrFn =
-    fn(attr: VTermAttr, val: &mut VTermValue, user: Option<&mut VTermScreen>) -> i32;
+    fn(attr: VTermAttr, val: &mut VTermValue<'_>, user: Option<&mut VTermScreen>) -> i32;
 pub type VTermSetTermPropFn<T = VTermScreen> =
-    fn(prop: VTermProp, val: &mut VTermValue, user: Option<&mut T>) -> i32;
+    fn(prop: VTermProp, val: &mut VTermValue<'_>, user: Option<&mut T>) -> i32;
 pub type VTermStateResizeFn =
     fn(rows: i32, cols: i32, fields: &mut VTermStateFields, user: Option<&mut VTermScreen>) -> i32;
 pub type VTermSetLineInfoFn = fn(

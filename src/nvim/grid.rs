@@ -1421,7 +1421,7 @@ pub fn schar_from_cluster_impl(buf: &[u8], first_compose: bool) -> Schar {
 }
 
 #[inline]
-pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
+pub fn schar_from_cluster(ci: StrCharInfo<'_>, cli: ClusterInfo<'_>) -> Schar {
     assert!(ci.chr.value >= 0);
     let len = ci.ptr.len() - cli.next.ptr.len();
     if len == 1 {

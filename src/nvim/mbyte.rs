@@ -49,14 +49,14 @@ pub struct CharInfo {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StrCharInfo {
-    pub ptr: &'static [u8],
+pub struct StrCharInfo<'a> {
+    pub ptr: &'a [u8],
     pub chr: CharInfo,
 }
 
-impl StrCharInfo {
+impl<'a> StrCharInfo<'a> {
     #[inline]
-    pub const fn cstr(&self) -> &'static [u8] {
+    pub const fn cstr(&self) -> &'a [u8] {
         self.ptr
     }
 
@@ -86,8 +86,8 @@ impl StrCharInfo {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct ClusterInfo {
-    pub next: StrCharInfo,
+pub struct ClusterInfo<'a> {
+    pub next: StrCharInfo<'a>,
     pub cells: i32,
     pub first_compose: bool,
 }
@@ -1173,8 +1173,8 @@ pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
 }
 
 #[inline]
-pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo {
-    let ptr = crate::globals::GraphPtr::slice(s.to_bytes());
+pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo<'_> {
+    let ptr = s.to_bytes();
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info(ptr),
@@ -1305,9 +1305,9 @@ pub fn utf_slice2len(bytes: &[u8]) -> usize {
 }
 
 #[inline]
-pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
+pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo<'_> {
     let n = (size.max(0) as usize).min(bytes.len());
-    let ptr = crate::globals::GraphPtr::slice(&bytes[..n]);
+    let ptr = &bytes[..n];
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info_len(bytes, size),
@@ -1315,7 +1315,7 @@ pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
 }
 
 #[inline]
-pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
+pub fn utf_cluster_info(cur: StrCharInfo<'_>) -> ClusterInfo<'_> {
     if cur.is_empty() {
         return ClusterInfo {
             next: cur,
@@ -1344,7 +1344,7 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
 }
 
 #[inline]
-pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
+pub fn utf_cluster_info_len<'a>(cur: StrCharInfo<'a>, size: &mut i32) -> ClusterInfo<'a> {
     *size -= cur.chr.len;
     let adv = (cur.chr.len.max(0) as usize).min(cur.ptr.len());
     let nextptr = &cur.ptr[adv..];
@@ -2697,7 +2697,7 @@ pub fn mb_off_next_ptr(
     mb_off_next(b, i)
 }
 
-pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInfo {
+pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> ClusterInfo<'a> {
     let mut cells = basechar_cells_impl(base.chr);
     let first_compose = utf_iscomposing_first(base.chr.value);
     let mut prev_code = base.chr.value;

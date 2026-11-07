@@ -21,11 +21,11 @@ impl NvimString {
     #[inline]
     pub const fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            data: Some(crate::globals::GraphPtr::slice(if bytes.is_empty() {
+            data: crate::strings::byte_slice_from_bytes(if bytes.is_empty() {
                 b"\0"
             } else {
                 bytes
-            })),
+            }),
             size: bytes.len(),
         }
     }

@@ -4325,7 +4325,7 @@ pub fn set_cmd_context(
         let base = str_buf.as_ptr() as usize;
         let addr = xp.xp_pattern.addr();
         if addr >= base && addr < base + str_buf.len() {
-            xp.xp_pattern = Some(crate::globals::GraphPtr::slice(&str_buf[addr - base..]));
+            xp.xp_pattern = crate::strings::ByteSlice::from_bytes(&str_buf[addr - base..]);
         }
     }
 }

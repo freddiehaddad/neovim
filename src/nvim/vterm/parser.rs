@@ -24,23 +24,23 @@ const PM: i32 = 9;
 const SOS: i32 = 10;
 
 #[derive(Clone, Copy)]
-pub struct VTermStringFragment {
-    bytes: &'static [u8],
+pub struct VTermStringFragment<'a> {
+    bytes: &'a [u8],
     initial: bool,
     final_: bool,
     pub terminator: VTermTerminator,
 }
 
-impl VTermStringFragment {
+impl<'a> VTermStringFragment<'a> {
     #[inline]
     pub const fn new(
-        bytes: &[u8],
+        bytes: &'a [u8],
         initial: bool,
         final_: bool,
         terminator: VTermTerminator,
     ) -> Self {
         Self {
-            bytes: crate::globals::GraphPtr::slice(bytes),
+            bytes,
             initial,
             final_,
             terminator,
@@ -58,7 +58,7 @@ impl VTermStringFragment {
     }
 
     #[inline]
-    pub const fn as_bytes(&self) -> &[u8] {
+    pub const fn as_bytes(&self) -> &'a [u8] {
         self.bytes
     }
 
@@ -76,9 +76,11 @@ impl VTermStringFragment {
 pub type VTermBytesFn<T> = fn(bytes: &[u8], user: Option<&mut T>) -> i32;
 pub type VTermCsiFn<T> =
     fn(leader: &[u8], args: &[i64], intermed: &[u8], command: u8, user: Option<&mut T>) -> i32;
-pub type VTermOscFn<T> = fn(command: i32, frag: VTermStringFragment, user: Option<&mut T>) -> i32;
-pub type VTermDcsFn<T> = fn(command: &[u8], frag: VTermStringFragment, user: Option<&mut T>) -> i32;
-pub type VTermFragFn<T> = fn(frag: VTermStringFragment, user: Option<&mut T>) -> i32;
+pub type VTermOscFn<T> =
+    fn(command: i32, frag: VTermStringFragment<'_>, user: Option<&mut T>) -> i32;
+pub type VTermDcsFn<T> =
+    fn(command: &[u8], frag: VTermStringFragment<'_>, user: Option<&mut T>) -> i32;
+pub type VTermFragFn<T> = fn(frag: VTermStringFragment<'_>, user: Option<&mut T>) -> i32;
 pub type VTermResizeFn<T> = fn(rows: i32, cols: i32, user: Option<&mut T>) -> i32;
 
 #[repr(C)]
