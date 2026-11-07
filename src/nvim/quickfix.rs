@@ -76,8 +76,8 @@ use crate::regexp::{
 use crate::window::{
     TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HELP, WSP_NEWLOC, WSP_QUICKFIX, WSP_TOP,
     WSP_VERT, WinInfoInfo, check_can_set_curbuf_forceit, check_lnums, goto_tabpage_win,
-    reset_binding, tabline_height, win_close, win_enter, win_goto, win_setheight, win_setwidth,
-    win_split, win_valid,
+    reset_binding, tabline_height, win_close, win_enter, win_goto, win_is_focusable, win_setheight,
+    win_setwidth, win_split, win_valid,
 };
 
 use crate::mbyte::{Vimconv, convert_setup, ptr2cells, remove_bom, string_convert, utfc_ptr2len};
@@ -2558,7 +2558,7 @@ fn qf_get_entry<'a>(
 
 fn qf_find_help_win() -> Option<&'static mut WinInfoInfo> {
     for wp in win_iter_ptr(tab_firstwin(curtab_mut())) {
-        if bt_help(wp.buf_opt()) && !wp.w_config.hide && wp.w_config.focusable {
+        if bt_help(wp.buf_opt()) && win_is_focusable(wp) {
             return Some(&mut *wp);
         }
     }

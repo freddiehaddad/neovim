@@ -56,7 +56,9 @@ use crate::sign::describe_sign_text;
 use crate::strings::{format_to_buf, format_to_buf_safelen, tr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::buf_is_changed_fn;
-use crate::window::{WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height};
+use crate::window::{
+    WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height, win_is_focusable,
+};
 use std::ptr;
 
 use crate::ex_getln::Hlf;
@@ -1065,7 +1067,7 @@ pub fn draw_tabline() {
             let mut wincount: i32 = 0;
             while !wp.is_null() {
                 let wp_ref = crate::globals::GraphPtr::of(wp).borrow_mut();
-                if !wp_ref.w_config.focusable || wp_ref.w_config.hide {
+                if !win_is_focusable(wp_ref) {
                     wincount -= 1;
                 } else if buf_is_changed_fn(wp_ref.buf_mut()) {
                     modified = true;

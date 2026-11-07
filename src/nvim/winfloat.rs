@@ -33,8 +33,8 @@ use crate::ui::ui_has;
 use crate::window::{
     STATUS_HEIGHT, TabPageInfo, WinConfig, WinInfoInfo, WinKind, last_status, lastwin_nofloating,
     merge_win_config, tabpage_win_valid, win_alloc, win_append, win_close, win_comp_pos, win_enter,
-    win_find_tabpage, win_free, win_init, win_remove, win_remove_status_line, win_set_buf,
-    win_set_inner_size, win_valid, winframe_remove,
+    win_find_tabpage, win_free, win_init, win_is_focusable, win_remove, win_remove_status_line,
+    win_set_buf, win_set_inner_size, win_valid, winframe_remove,
 };
 use std::ptr;
 
@@ -403,8 +403,7 @@ pub fn win_float_find_altwin(
         return if win_valid(g_st().prevwin.opt())
             && let Some(wp) = prevwin_opt()
             && !ptr::eq(wp, win)
-            && wp.w_config.focusable
-            && !wp.w_config.hide
+            && win_is_focusable(wp)
         {
             wp
         } else {
@@ -420,8 +419,7 @@ pub fn win_float_find_altwin(
     };
     if let Some(wp_ref) = crate::globals::GraphPtr::of(wp).opt_mut()
         && !ptr::eq(wp, win)
-        && wp_ref.w_config.focusable
-        && !wp_ref.w_config.hide
+        && win_is_focusable(wp_ref)
     {
         wp_ref
     } else {

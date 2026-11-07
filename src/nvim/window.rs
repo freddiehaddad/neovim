@@ -1180,7 +1180,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                         prenum -= 1;
                         prenum > 0
                     } {
-                        if !cur.w_floating || (!cur.w_config.hide && cur.w_config.focusable) {
+                        if !cur.w_floating || win_is_focusable(cur) {
                             last_focusable = crate::globals::GraphPtr::from_ref(cur);
                         }
                         let Some(next) = cur.next_opt() else {
@@ -1191,7 +1191,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     let mut opt = Some(cur);
                     while let Some(ref w) = opt
                         && w.w_floating
-                        && (w.w_config.hide || !w.w_config.focusable)
+                        && !win_is_focusable(w)
                     {
                         opt = w.next_opt();
                     }
@@ -1200,7 +1200,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     let mut opt = curwin_mut().prev_opt().or_else(|| Some(lastwin_mut()));
                     while let Some(ref w) = opt
                         && w.w_floating
-                        && (w.w_config.hide || !w.w_config.focusable)
+                        && !win_is_focusable(w)
                     {
                         opt = w.prev_opt();
                     }
@@ -1209,7 +1209,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     let mut opt = curwin_mut().next_opt();
                     while let Some(ref w) = opt
                         && w.w_floating
-                        && (w.w_config.hide || !w.w_config.focusable)
+                        && !win_is_focusable(w)
                     {
                         opt = w.next_opt();
                     }
@@ -1259,9 +1259,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
             win_goto(lastwin_nofloating(None));
         }
         c if c == b'p' as i32 || c == CTRL_P => {
-            if !win_valid(g_st().prevwin.opt())
-                || crate::globals::prevwin_mut().w_config.hide
-                || !crate::globals::prevwin_mut().w_config.focusable
+            if !win_valid(g_st().prevwin.opt()) || !win_is_focusable(crate::globals::prevwin_mut())
             {
                 beep_flush();
             } else {
@@ -3696,9 +3694,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
                 }
                 if !(wp.borrow_mut()).w_onebuf_opt.wo_pvw
                     && !bt_quickfix(wp.w_buffer.opt())
-                    && !((wp.borrow_mut()).w_floating
-                        && ((wp.borrow_mut()).w_config.hide
-                            || !(wp.borrow_mut()).w_config.focusable))
+                    && !((wp.borrow_mut()).w_floating && !win_is_focusable(wp.borrow()))
                 {
                     set_curwin(wp);
                     break;
@@ -8130,6 +8126,10 @@ pub fn lastwin_nofloating(tp: Option<&TabPageInfo>) -> &'static mut WinInfoInfo 
         res = res.prev_mut();
     }
     res
+}
+
+pub fn win_is_focusable(wp: &WinInfoInfo) -> bool {
+    wp.w_config.focusable && !wp.w_config.hide
 }
 
 impl Frame {

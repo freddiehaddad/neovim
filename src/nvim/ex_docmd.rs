@@ -243,8 +243,8 @@ use crate::window::{
     TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, WinInfoInfo,
     check_can_set_curbuf_forceit, close_others, do_window, find_tabpage, goto_tabpage,
     only_one_window, tabpage_index, tabpage_move, trigger_tabclosedpre, update_cwd, valid_tabpage,
-    win_close, win_close_othertab, win_enter, win_goto, win_new_tabpage, win_setheight_win,
-    win_setwidth_win, win_split, win_valid, window_layout_locked,
+    win_close, win_close_othertab, win_enter, win_goto, win_is_focusable, win_new_tabpage,
+    win_setheight_win, win_setwidth_win, win_split, win_valid, window_layout_locked,
 };
 use crate::winfloat::{win_float_close, win_float_remove};
 use std::ffi::CStr;
@@ -10315,7 +10315,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             if g_st().got_int {
                 break;
             }
-            if !wp.w_config.focusable || wp.w_config.hide {
+            if !win_is_focusable(wp) {
                 continue;
             }
 
