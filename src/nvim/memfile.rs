@@ -596,7 +596,7 @@ pub fn mf_fullname(mut mfp: Option<&mut Memfile>) {
 }
 
 /// Return true if there are any translations pending for memfile.
-pub fn mf_need_trans(mfp: &mut Memfile) -> bool {
+pub fn mf_need_trans(mfp: &Memfile) -> bool {
     mfp.mf_fname.is_some() && mfp.mf_neg_count > 0
 }
 

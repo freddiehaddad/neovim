@@ -109,14 +109,17 @@ impl Memline {
     }
 
     #[inline(always)]
-    pub fn mfp_opt(&mut self) -> Option<&'static mut crate::memfile::Memfile> {
-        self.ml_mfp
-            .as_deref_mut()
-            .map(|m| crate::globals::GraphPtr::of(m as *mut crate::memfile::Memfile).borrow_mut())
+    pub fn mfp_ref(&self) -> Option<&crate::memfile::Memfile> {
+        self.ml_mfp.as_deref()
     }
 
     #[inline(always)]
-    pub fn mfp_mut(&mut self) -> &'static mut crate::memfile::Memfile {
+    pub fn mfp_opt(&mut self) -> Option<&mut crate::memfile::Memfile> {
+        self.ml_mfp.as_deref_mut()
+    }
+
+    #[inline(always)]
+    pub fn mfp_mut(&mut self) -> &mut crate::memfile::Memfile {
         self.mfp_opt().expect("ml_mfp is None")
     }
 }
@@ -468,16 +471,16 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc != 0 && buf.b_p_swf;
 
     buf.b_ml.ml_mfp = mf_open(None, 0);
-    let Some(mfp) = buf.b_ml.mfp_opt() else {
+    if buf.b_ml.mfp_ref().is_none() {
         return false;
-    };
+    }
     buf.b_ml.ml_flags = ML_EMPTY;
     buf.b_ml.ml_line_count = 1;
 
-    let mut hp = mf_new(mfp, false, 1);
+    let mut hp = mf_new(buf.b_ml.mfp_mut(), false, 1);
     if hp.bh_bnum != 0 {
         iemsg(tr(c"E298: Didn't get block nr 0?"));
-        return ml_open_error(buf, Some(mfp), Some(hp));
+        return ml_open_error(buf, Some(hp));
     }
     let b0p = hp_zero_block(hp);
 
@@ -489,7 +492,8 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     b0p.b0_magic_char = B0_MAGIC_CHAR;
     b0p.b0_version[..4].copy_from_slice(b"VIM ");
     crate::memory::copy_bytes_to_c_buf(&mut b0p.b0_version[4..], VERSIONS[0].to_bytes());
-    long_to_char(mfp.mf_page_size as i64, &mut b0p.b0_page_size);
+    let page_size = buf.b_ml.mfp_ref().unwrap().mf_page_size;
+    long_to_char(page_size as i64, &mut b0p.b0_page_size);
 
     if !buf.b_spell {
         b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
@@ -502,15 +506,15 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         long_to_char(os_get_pid(), &mut b0p.b0_pid);
     }
 
-    mf_put(mfp, hp, true, false);
+    mf_put(buf.b_ml.mfp_mut(), hp, true, false);
     if !buf.b_help && !buf.b_spell {
-        mf_sync(mfp, 0);
+        mf_sync(buf.b_ml.mfp_mut(), 0);
     }
 
-    hp = ml_new_ptr(mfp);
+    hp = ml_new_ptr(buf.b_ml.mfp_mut());
     if hp.bh_bnum != 1 {
         iemsg(tr(c"E298: Didn't get block nr 1?"));
-        return ml_open_error(buf, Some(mfp), Some(hp));
+        return ml_open_error(buf, Some(hp));
     }
     let pp = hp_ptr_block(hp);
     pp.pb_count = 1;
@@ -519,12 +523,12 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     pe0.pe_page_count = 1;
     pe0.pe_old_lnum = 1;
     pe0.pe_line_count = 1;
-    mf_put(mfp, hp, true, false);
+    mf_put(buf.b_ml.mfp_mut(), hp, true, false);
 
-    hp = ml_new_data(mfp, false, 1);
+    hp = ml_new_data(buf.b_ml.mfp_mut(), false, 1);
     if hp.bh_bnum != 2 {
         iemsg(tr(c"E298: Didn't get block nr 2?"));
-        return ml_open_error(buf, Some(mfp), Some(hp));
+        return ml_open_error(buf, Some(hp));
     }
 
     let dp = hp_data_block(hp);
@@ -537,8 +541,8 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     true
 }
 
-fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: Option<&mut Bhdr>) -> bool {
-    if let Some(mfp) = mfp {
+fn ml_open_error(buf: &mut FileBuf, hp: Option<&mut Bhdr>) -> bool {
+    if let Some(mfp) = buf.b_ml.mfp_opt() {
         if let Some(hp) = hp {
             mf_put(mfp, hp, false, false);
         }
@@ -550,7 +554,7 @@ fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: Option<&mut B
 /// Called when the file name of `buf` has been changed.
 pub fn ml_setname(buf: &mut FileBuf) {
     let mut success = false;
-    let mfp_ptr = crate::globals::GraphPtr::from(buf.b_ml.mfp_opt());
+    let mfp_addr = buf.b_ml.mfp_ref().map_or(0, |m| ptr::from_ref(m) as usize);
     if buf.b_ml.mfp_mut().mf_fd < 0 {
         if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
             ml_open_file(buf);
@@ -561,14 +565,9 @@ pub fn ml_setname(buf: &mut FileBuf) {
     let mut dirp = opt_vars().p_dir.as_bytes();
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
-        let mf_fname = buf
-            .b_ml
-            .mfp_mut()
-            .mf_fname
-            .as_deref()
-            .map(crate::globals::GraphPtr::<u8>::cstr);
-        let fname = findswapname(buf, &mut dirp, mf_fname, &mut found_existing_dir);
-        if crate::globals::GraphPtr::from(buf.b_ml.mfp_opt()) != mfp_ptr {
+        let mf_fname = buf.b_ml.mfp_ref().and_then(|m| m.mf_fname.clone());
+        let fname = findswapname(buf, &mut dirp, mf_fname.as_deref(), &mut found_existing_dir);
+        if buf.b_ml.mfp_ref().map_or(0, |m| ptr::from_ref(m) as usize) != mfp_addr {
             return;
         }
         let Some(fname) = fname else {
@@ -620,11 +619,11 @@ pub fn ml_open_files() {
 
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
 pub fn ml_open_file(buf: &mut FileBuf) {
-    let mfp_ptr = crate::globals::GraphPtr::from(buf.b_ml.mfp_opt());
-    let Some(mfp) = buf.b_ml.mfp_opt() else {
+    let mfp_addr = buf.b_ml.mfp_ref().map_or(0, |m| ptr::from_ref(m) as usize);
+    let Some(mfp_fd) = buf.b_ml.mfp_ref().map(|m| m.mf_fd) else {
         return;
     };
-    if mfp.mf_fd >= 0
+    if mfp_fd >= 0
         || !buf.b_p_swf
         || (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0
         || !buf.terminal.is_null()
@@ -634,7 +633,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
 
     if buf.b_spell {
         if let Some(fname) = vim_tempname() {
-            mf_open_file(mfp, fname);
+            mf_open_file(buf.b_ml.mfp_mut(), fname);
         }
         buf.b_may_swap = false;
         return;
@@ -644,19 +643,27 @@ pub fn ml_open_file(buf: &mut FileBuf) {
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
         let fname = findswapname(buf, &mut dirp, None, &mut found_existing_dir);
-        if crate::globals::GraphPtr::from(buf.b_ml.mfp_opt()) != mfp_ptr {
+        if buf.b_ml.mfp_ref().map_or(0, |m| ptr::from_ref(m) as usize) != mfp_addr {
             return;
         }
         let Some(fname) = fname else {
             continue;
         };
-        let mfp = buf.b_ml.mfp_mut();
-        if mf_open_file(mfp, fname) {
-            mfp.mf_dirty = MF_DIRTY_YES_NOSYNC;
+        let opened = {
+            let mfp = buf.b_ml.mfp_mut();
+            if mf_open_file(mfp, fname) {
+                mfp.mf_dirty = MF_DIRTY_YES_NOSYNC;
+                true
+            } else {
+                false
+            }
+        };
+        if opened {
             ml_upd_block0(buf, UpdBlock0::UbSameDir);
 
-            if mf_sync(mfp, MFS_ZERO) {
-                mf_set_dirty(mfp);
+            let synced = mf_sync(buf.b_ml.mfp_mut(), MFS_ZERO);
+            if synced {
+                mf_set_dirty(buf.b_ml.mfp_mut());
                 break;
             }
             mf_close_file(buf, false);
@@ -740,10 +747,7 @@ fn ml_check_b0_strings(b0p: &ZeroBlock) -> bool {
 }
 
 fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
-    let Some(mfp) = buf.b_ml.mfp_opt() else {
-        return;
-    };
-    let Some(hp) = mf_get(mfp, 0, 1) else {
+    let Some(hp) = buf.b_ml.mfp_opt().and_then(|mfp| mf_get(mfp, 0, 1)) else {
         return;
     };
     let b0p = hp_zero_block(hp);
@@ -754,7 +758,7 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
     } else {
         set_b0_dir_flag(b0p, buf);
     }
-    mf_put(mfp, hp, true, false);
+    mf_put(buf.b_ml.mfp_mut(), hp, true, false);
 }
 
 fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
@@ -804,14 +808,8 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
 }
 
 fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
-    let mf_fname_ptr = buf
-        .b_ml
-        .mfp_mut()
-        .mf_fname
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if same_directory(
-        crate::strings::ByteSlice::from_ptr(mf_fname_ptr).as_opt_cstr(),
+        buf.b_ml.mfp_ref().and_then(|m| m.mf_fname.as_deref()),
         buf.ffname_opt(),
     ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
@@ -848,7 +846,6 @@ fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: &CStr) -> i32 {
 
 /// Try to recover `curbuf` from the `.swp` file.
 pub fn ml_recover(checkext: bool) {
-    let mut buf_box: Option<Box<FileBuf>> = None;
     let fname_used: Option<std::ffi::CString>;
     let mut hp;
     let mut b0_fenc: Option<std::ffi::CString> = None;
@@ -887,7 +884,7 @@ pub fn ml_recover(checkext: bool) {
             tv_clear(&mut items_tv);
             semsg!(tr(c"E305: No swap file found for %s"), fname_cstr);
 
-            ml_recover_theend(None, None, buf_box, serious_error, called_from_main);
+            ml_recover_theend(None, None, serious_error, called_from_main);
 
             return;
         }
@@ -896,7 +893,7 @@ pub fn ml_recover(checkext: bool) {
             nlua_call_typval(c"vim._core.swapfile", c"select_swap", &mut lua_args, None);
             tv_clear(&mut items_tv);
 
-            ml_recover_theend(None, None, buf_box, serious_error, called_from_main);
+            ml_recover_theend(None, None, serious_error, called_from_main);
 
             return;
         }
@@ -909,7 +906,7 @@ pub fn ml_recover(checkext: bool) {
         tv_clear(&mut items_tv);
     }
     let Some(fname_used) = fname_used else {
-        ml_recover_theend(None, None, buf_box, serious_error, called_from_main);
+        ml_recover_theend(None, None, serious_error, called_from_main);
 
         return;
     };
@@ -917,62 +914,58 @@ pub fn ml_recover(checkext: bool) {
         getout(1);
     }
 
-    let allocated_buf = Box::new(FileBuf::new());
-    let buf_ptr = crate::globals::GraphPtr::<FileBuf>::from_ref(&*allocated_buf);
-    let buf: &'static mut FileBuf = buf_ptr.borrow_mut();
-    buf_box = Some(allocated_buf);
+    let mut buf = Box::new(FileBuf::new());
 
     buf.b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
-    let mfp_opt = buf.b_ml.mfp_opt();
-    if mfp_opt.as_ref().is_none_or(|m| m.mf_fd < 0) {
+    if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fd < 0) {
         semsg!(tr(c"E306: Cannot open %s"), &fname_used);
 
-        ml_recover_theend(
-            buf.b_ml.mfp_opt(),
-            None,
-            buf_box,
-            serious_error,
-            called_from_main,
-        );
+        ml_recover_theend(None, Some(buf), serious_error, called_from_main);
 
         return;
     }
-    let mfp = mfp_opt.unwrap();
-    mfp.mf_page_size = MIN_SWAP_PAGE_SIZE;
+    buf.b_ml.mfp_mut().mf_page_size = MIN_SWAP_PAGE_SIZE;
 
     let hl_id = HLF_E;
     msg_ext_set_kind(c"emsg");
-    hp = mf_get(&mut *mfp, 0, 1).map_or(ptr::null_mut(), ptr::from_mut);
+    hp = mf_get(buf.b_ml.mfp_mut(), 0, 1).map_or(ptr::null_mut(), ptr::from_mut);
     if hp.is_null() {
         msg_start();
         msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
-        msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
+        msg_outtrans(
+            buf.b_ml
+                .mfp_ref()
+                .and_then(|m| m.mf_fname.as_deref())
+                .unwrap_or(c""),
+            hl_id,
+            true,
+        );
         msg_puts_hl(
             tr(c"\nMaybe no changes were made or Nvim did not update the swap file."),
             hl_id,
             true,
         );
         msg_end();
-        ml_recover_theend(
-            Some(&mut *mfp),
-            None,
-            buf_box,
-            serious_error,
-            called_from_main,
-        );
+        ml_recover_theend(None, Some(buf), serious_error, called_from_main);
         return;
     }
     let mut b0p = hp_zero_block(crate::globals::GraphPtr::of(hp).borrow_mut());
     if b0p.b0_version[..7] == *b"VIM 3.0" {
         msg_start();
-        msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), 0, true);
+        msg_outtrans(
+            buf.b_ml
+                .mfp_ref()
+                .and_then(|m| m.mf_fname.as_deref())
+                .unwrap_or(c""),
+            0,
+            true,
+        );
         msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
         msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
         msg_end();
         ml_recover_theend(
-            Some(&mut *mfp),
             crate::globals::GraphPtr::of(hp).opt_mut(),
-            buf_box,
+            Some(buf),
             serious_error,
             called_from_main,
         );
@@ -981,12 +974,14 @@ pub fn ml_recover(checkext: bool) {
     if !ml_check_b0_id(b0p) {
         semsg!(
             tr(c"E307: %s does not look like a Nvim swap file"),
-            mfp.mf_fname.as_deref().unwrap_or(c""),
+            buf.b_ml
+                .mfp_ref()
+                .and_then(|m| m.mf_fname.as_deref())
+                .unwrap_or(c""),
         );
         ml_recover_theend(
-            Some(&mut *mfp),
             crate::globals::GraphPtr::of(hp).opt_mut(),
-            buf_box,
+            Some(buf),
             serious_error,
             called_from_main,
         );
@@ -994,7 +989,14 @@ pub fn ml_recover(checkext: bool) {
     }
     if b0_magic_wrong(b0p) {
         msg_start();
-        msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
+        msg_outtrans(
+            buf.b_ml
+                .mfp_ref()
+                .and_then(|m| m.mf_fname.as_deref())
+                .unwrap_or(c""),
+            hl_id,
+            true,
+        );
         msg_puts_hl(tr(c" cannot be used on this computer.\n"), hl_id, true);
         msg_puts_hl(tr(c"The file was created on "), hl_id, true);
 
@@ -1005,9 +1007,8 @@ pub fn ml_recover(checkext: bool) {
         msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
         msg_end();
         ml_recover_theend(
-            Some(&mut *mfp),
             crate::globals::GraphPtr::of(hp).opt_mut(),
-            buf_box,
+            Some(buf),
             serious_error,
             called_from_main,
         );
@@ -1015,12 +1016,21 @@ pub fn ml_recover(checkext: bool) {
     }
 
     let b0_page_size = char_to_long(&b0p.b0_page_size) as u32;
-    if mfp.mf_page_size != b0_page_size {
-        let previous_page_size = mfp.mf_page_size;
-        mf_new_page_size(&mut *mfp, b0_page_size);
-        if mfp.mf_page_size < previous_page_size {
+    let cur_page_size = buf.b_ml.mfp_ref().unwrap().mf_page_size;
+    if cur_page_size != b0_page_size {
+        let previous_page_size = cur_page_size;
+        mf_new_page_size(buf.b_ml.mfp_mut(), b0_page_size);
+        let new_page_size = buf.b_ml.mfp_ref().unwrap().mf_page_size;
+        if new_page_size < previous_page_size {
             msg_start();
-            msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
+            msg_outtrans(
+                buf.b_ml
+                    .mfp_ref()
+                    .and_then(|m| m.mf_fname.as_deref())
+                    .unwrap_or(c""),
+                hl_id,
+                true,
+            );
             msg_puts_hl(
                 tr(c" has been damaged (page size is smaller than minimum value).\n"),
                 hl_id,
@@ -1028,26 +1038,28 @@ pub fn ml_recover(checkext: bool) {
             );
             msg_end();
             ml_recover_theend(
-                Some(&mut *mfp),
                 crate::globals::GraphPtr::of(hp).opt_mut(),
-                buf_box,
+                Some(buf),
                 serious_error,
                 called_from_main,
             );
             return;
         }
-        let size: Off = unsafe { vim_lseek(mfp.mf_fd, 0, SEEK_END) };
-        mfp.mf_blocknr_max = if size <= 0 {
-            0
-        } else {
-            size / i64::from(mfp.mf_page_size)
-        };
-        mfp.mf_infile_count = mfp.mf_blocknr_max;
+        {
+            let mfp = buf.b_ml.mfp_mut();
+            let size: Off = unsafe { vim_lseek(mfp.mf_fd, 0, SEEK_END) };
+            mfp.mf_blocknr_max = if size <= 0 {
+                0
+            } else {
+                size / i64::from(mfp.mf_page_size)
+            };
+            mfp.mf_infile_count = mfp.mf_blocknr_max;
+        }
 
         crate::globals::GraphPtr::of(hp)
             .borrow_mut()
             .bh_data
-            .resize(mfp.mf_page_size as usize, 0);
+            .resize(new_page_size as usize, 0);
 
         b0p = hp_zero_block(crate::globals::GraphPtr::of(hp).borrow_mut());
     }
@@ -1064,9 +1076,8 @@ pub fn ml_recover(checkext: bool) {
 
         if !setfname(curbuf_mut(), namebuff_ptr.as_opt_cstr(), None, true) {
             ml_recover_theend(
-                Some(&mut *mfp),
                 crate::globals::GraphPtr::of(hp).opt_mut(),
-                buf_box,
+                Some(buf),
                 serious_error,
                 called_from_main,
             );
@@ -1076,13 +1087,14 @@ pub fn ml_recover(checkext: bool) {
 
     msg_ext_set_kind(c"wmsg");
     g_st().msg_ext_skip_flush = true;
-    let mf_fname_ptr = mfp
-        .mf_fname
-        .as_ref()
-        .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
+    let mf_fname_cstr = buf
+        .b_ml
+        .mfp_ref()
+        .and_then(|m| m.mf_fname.as_deref())
+        .unwrap_or(c"");
     home_replace(
         None,
-        crate::strings::ByteSlice::from_ptr(mf_fname_ptr).as_opt_cstr(),
+        Some(mf_fname_cstr),
         g_st().name_buff_bytes_mut(),
         true,
     );
@@ -1109,7 +1121,10 @@ pub fn ml_recover(checkext: bool) {
     if curbuf_mut().b_ffname.is_some()
         && os_fileinfo(curbuf_mut().ffname_cstr(), &mut org_file_info)
         && ((os_fileinfo(
-            crate::strings::ByteSlice::from_ptr(mf_fname_ptr).as_cstr(),
+            buf.b_ml
+                .mfp_ref()
+                .and_then(|m| m.mf_fname.as_deref())
+                .unwrap_or(c""),
             &mut swp_file_info,
         ) && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
             || mtime != org_file_info.stat.st_mtim.tv_sec as _)
@@ -1135,7 +1150,7 @@ pub fn ml_recover(checkext: bool) {
     }
 
     mf_put(
-        &mut *mfp,
+        buf.b_ml.mfp_mut(),
         crate::globals::GraphPtr::of(hp).borrow_mut(),
         false,
         false,
@@ -1185,22 +1200,19 @@ pub fn ml_recover(checkext: bool) {
     serious_error = false;
     while !g_st().got_int {
         if let Some(hp_ref) = crate::globals::GraphPtr::of(hp).opt_mut() {
-            mf_put(&mut *mfp, hp_ref, false, false);
+            mf_put(buf.b_ml.mfp_mut(), hp_ref, false, false);
         }
-        hp = mf_get(&mut *mfp, bnum, page_count).map_or(ptr::null_mut(), ptr::from_mut);
+        hp = mf_get(buf.b_ml.mfp_mut(), bnum, page_count).map_or(ptr::null_mut(), ptr::from_mut);
         if hp.is_null() {
             if bnum == 1 {
                 semsg!(
                     tr(c"E309: Unable to read block 1 from %s"),
-                    mfp.mf_fname.as_deref().unwrap_or(c""),
+                    buf.b_ml
+                        .mfp_ref()
+                        .and_then(|m| m.mf_fname.as_deref())
+                        .unwrap_or(c""),
                 );
-                ml_recover_theend(
-                    Some(&mut *mfp),
-                    None,
-                    buf_box,
-                    serious_error,
-                    called_from_main,
-                );
+                ml_recover_theend(None, Some(buf), serious_error, called_from_main);
                 return;
             }
             error += 1;
@@ -1210,7 +1222,7 @@ pub fn ml_recover(checkext: bool) {
             let pp = hp_ptr_block(crate::globals::GraphPtr::of(hp).borrow_mut());
             if pp.pb_id == PTR_ID {
                 let mut ptr_block_error = false;
-                let max_cnt = pb_count_max(&*mfp);
+                let max_cnt = pb_count_max(buf.b_ml.mfp_ref().unwrap());
                 if pp.pb_count_max != max_cnt {
                     ptr_block_error = true;
                     pp.pb_count_max = max_cnt;
@@ -1272,7 +1284,8 @@ pub fn ml_recover(checkext: bool) {
                         continue;
                     }
 
-                    let top = ml_add_stack(&mut *buf);
+                    let top = ml_add_stack(&mut buf);
+                    let max_blocknr = buf.b_ml.mfp_ref().unwrap().mf_blocknr_max;
                     let ip = &mut (&mut buf.b_ml.ml_stack)[top as usize];
                     ip.ip_bnum = bnum;
                     ip.ip_index = idx;
@@ -1282,7 +1295,7 @@ pub fn ml_recover(checkext: bool) {
                     page_count = pe.pe_page_count as u32;
                     if page_count < 1
                         || bnum.saturating_add(i64::from(page_count))
-                            > mfp.mf_blocknr_max.saturating_add(1)
+                            > max_blocknr.saturating_add(1)
                     {
                         error += 1;
                         ml_append(lnum, tr(c"???ILLEGAL BLOCK NUMBER").to_bytes(), 0, true);
@@ -1304,12 +1317,14 @@ pub fn ml_recover(checkext: bool) {
                     if bnum == 1 {
                         semsg!(
                             tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
-                            mfp.mf_fname.as_deref().unwrap_or(c""),
+                            buf.b_ml
+                                .mfp_ref()
+                                .and_then(|m| m.mf_fname.as_deref())
+                                .unwrap_or(c""),
                         );
                         ml_recover_theend(
-                            Some(&mut *mfp),
                             crate::globals::GraphPtr::of(hp).opt_mut(),
-                            buf_box,
+                            Some(buf),
                             serious_error,
                             called_from_main,
                         );
@@ -1334,7 +1349,8 @@ pub fn ml_recover(checkext: bool) {
                         page_count = hp_page_count;
                     }
 
-                    if page_count.wrapping_mul(mfp.mf_page_size) != dp.db_txt_end {
+                    let mf_page_size = buf.b_ml.mfp_ref().unwrap().mf_page_size;
+                    if page_count.wrapping_mul(mf_page_size) != dp.db_txt_end {
                         ml_append(
                             lnum,
                             tr(c"??? from here until ???END lines may be messed up").to_bytes(),
@@ -1344,7 +1360,7 @@ pub fn ml_recover(checkext: bool) {
                         lnum += 1;
                         error += 1;
                         has_error = true;
-                        dp.db_txt_end = page_count.wrapping_mul(mfp.mf_page_size);
+                        dp.db_txt_end = page_count.wrapping_mul(mf_page_size);
                     }
 
                     if (dp.db_txt_start as usize) < HEADER_SIZE || dp.db_txt_start > dp.db_txt_end {
@@ -1499,16 +1515,14 @@ pub fn ml_recover(checkext: bool) {
     redraw_curbuf_later(UPD_NOT_VALID);
 
     ml_recover_theend(
-        Some(&mut *mfp),
         crate::globals::GraphPtr::of(hp).opt_mut(),
-        buf_box,
+        Some(buf),
         serious_error,
         called_from_main,
     );
 }
 
 fn ml_recover_theend(
-    mfp: Option<&mut Memfile>,
     hp: Option<&mut Bhdr>,
     mut buf: Option<Box<FileBuf>>,
     serious_error: bool,
@@ -1516,11 +1530,13 @@ fn ml_recover_theend(
 ) {
     g_st().msg_ext_skip_flush = false;
     g_st().recoverymode = false;
-    if let Some(mfp) = mfp {
+    if let Some(ref mut b) = buf
+        && let Some(mfp) = b.b_ml.mfp_opt()
+    {
         if let Some(hp) = hp {
             mf_put(mfp, hp, false, false);
         }
-        mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp.take()), false);
+        mf_close(b.b_ml.ml_mfp.take(), false);
     }
     drop(buf);
     if serious_error && called_from_main {
@@ -1910,17 +1926,14 @@ fn recov_file_names(names: &mut Vec<std::ffi::CString>, path: &CStr, prepend_dot
 /// Sync all memlines.
 pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
     for buf in for_all_buffers_ptr() {
-        let Some(mfp) = buf.b_ml.mfp_opt() else {
-            continue;
-        };
-        if mfp.mf_fname.is_none() {
+        if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fname.is_none()) {
             continue;
         }
         ml_flush_line(&mut *buf, false);
         ml_find_line(&mut *buf, 0, ML_FLUSH);
         if buf_is_changed_fn(&mut *buf)
             && check_file != 0
-            && mf_need_trans(mfp)
+            && buf.b_ml.mfp_ref().is_some_and(mf_need_trans)
             && buf.b_ffname.is_some()
         {
             let mut file_info = FileInfo::new();
@@ -1934,16 +1947,18 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
                 g_st().need_check_timestamps = true;
             }
         }
-        if mfp.mf_dirty == MF_DIRTY_YES {
-            mf_sync(
-                mfp,
-                (if check_char != 0 { MFS_STOP } else { 0 })
-                    | (if do_fsync && buf_is_changed_fn(&mut *buf) {
-                        MFS_FLUSH
-                    } else {
-                        0
-                    }),
-            );
+        if buf
+            .b_ml
+            .mfp_ref()
+            .is_some_and(|m| m.mf_dirty == MF_DIRTY_YES)
+        {
+            let sync_flags = (if check_char != 0 { MFS_STOP } else { 0 })
+                | (if do_fsync && buf_is_changed_fn(&mut *buf) {
+                    MFS_FLUSH
+                } else {
+                    0
+                });
+            mf_sync(buf.b_ml.mfp_mut(), sync_flags);
             if check_char != 0 && os_char_avail() {
                 break;
             }
@@ -1955,7 +1970,7 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
 pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
     let got_int_save = g_st().got_int;
 
-    let Some(mfp) = buf.b_ml.mfp_opt().filter(|m| m.mf_fname.is_some()) else {
+    if buf.b_ml.mfp_ref().is_none_or(|m| m.mf_fname.is_none()) {
         if message {
             emsg(tr(c"E313: Cannot preserve, there is no swap file"));
         }
@@ -1966,13 +1981,16 @@ pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
 
     ml_flush_line(&mut *buf, false);
     ml_find_line(buf, 0, ML_FLUSH);
-    let mut status = mf_sync(mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 });
+    let mut status = mf_sync(
+        buf.b_ml.mfp_mut(),
+        MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 },
+    );
 
     buf.b_ml.ml_stack_top = 0;
 
-    if mf_need_trans(mfp) && !g_st().got_int {
+    if buf.b_ml.mfp_ref().is_some_and(mf_need_trans) && !g_st().got_int {
         let mut lnum: Linenr = 1;
-        while mf_need_trans(mfp) && lnum <= buf.b_ml.ml_line_count {
+        while buf.b_ml.mfp_ref().is_some_and(mf_need_trans) && lnum <= buf.b_ml.ml_line_count {
             if ml_find_line(buf, lnum, ML_FIND).is_none() {
                 status = false;
                 break;
@@ -1981,7 +1999,10 @@ pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
         }
         if status {
             ml_find_line(buf, 0, ML_FLUSH);
-            if !mf_sync(mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 }) {
+            if !mf_sync(
+                buf.b_ml.mfp_mut(),
+                MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 },
+            ) {
                 status = false;
             }
             buf.b_ml.ml_stack_top = 0;
@@ -2192,8 +2213,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
     }
     let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
 
-    let mfp = buf.b_ml.mfp_mut();
-    let page_size = i64::from(mfp.mf_page_size);
+    let page_size = i64::from(buf.b_ml.mfp_ref().expect("ml_mfp is None").mf_page_size);
 
     let Some(mut hp) = ml_find_line(buf, if lnum == 0 { 1 } else { lnum }, ML_INSERT) else {
         return false;
@@ -2297,7 +2317,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
 
         let new_page_count = ((space_needed + HEADER_SIZE as i64) + page_size - 1) / page_size;
         let hp_new = crate::globals::GraphPtr::from(ml_new_data(
-            &mut *mfp,
+            buf.b_ml.mfp_mut(),
             (flags & ML_APPEND_NEW) != 0,
             new_page_count,
         ))
@@ -2402,7 +2422,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             buf.b_ml.ml_flags |= ML_LOCKED_POS;
         }
         mf_put(
-            &mut *mfp,
+            buf.b_ml.mfp_mut(),
             crate::globals::GraphPtr::of(hp_new).borrow_mut(),
             true,
             false,
@@ -2414,16 +2434,16 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
 
         let mut stack_idx = buf.b_ml.ml_stack_top - 1;
         while stack_idx >= 0 {
-            let ip = &mut buf.b_ml.ml_stack[stack_idx as usize];
+            let ip = buf.b_ml.ml_stack[stack_idx as usize];
             let pb_idx = ip.ip_index as usize;
-            let Some(hp_cur) = mf_get(&mut *mfp, ip.ip_bnum, 1) else {
+            let Some(hp_cur) = mf_get(buf.b_ml.mfp_mut(), ip.ip_bnum, 1) else {
                 return false;
             };
             let mut hp_ptr = crate::globals::GraphPtr::<Bhdr>::from_ref(hp_cur);
             let mut pp = hp_ptr_block(hp_ptr.borrow_mut());
             if pp.pb_id != PTR_ID {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
-                mf_put(&mut *mfp, hp_ptr.borrow_mut(), false, false);
+                mf_put(buf.b_ml.mfp_mut(), hp_ptr.borrow_mut(), false, false);
                 return false;
             }
             if pp.pb_count < pp.pb_count_max {
@@ -2451,7 +2471,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                     pe_next.pe_old_lnum = lnum_right;
                 }
 
-                mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
+                mf_put(buf.b_ml.mfp_mut(), hp_ptr.borrow_mut(), true, false);
                 buf.b_ml.ml_stack_top = stack_idx + 1;
 
                 if lineadd != 0 {
@@ -2467,7 +2487,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             let mut hp_new_ptr;
             let mut pp_new: &'static mut PointerBlock;
             loop {
-                hp_new_ptr = ptr::from_mut(ml_new_ptr(&mut *mfp));
+                hp_new_ptr = ptr::from_mut(ml_new_ptr(buf.b_ml.mfp_mut()));
                 pp_new = hp_ptr_block(crate::globals::GraphPtr::of(hp_new_ptr).borrow_mut());
 
                 if hp_ptr.bh_bnum != 1 {
@@ -2485,7 +2505,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 pe0.pe_line_count = buf.b_ml.ml_line_count;
                 pe0.pe_old_lnum = 1;
                 pe0.pe_page_count = 1;
-                mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
+                mf_put(buf.b_ml.mfp_mut(), hp_ptr.borrow_mut(), true, false);
                 hp_ptr = crate::globals::GraphPtr::<Bhdr>::of(hp_new_ptr);
                 pp = pp_new;
                 buf.b_ml.ml_stack[stack_idx as usize].ip_index = 0;
@@ -2539,9 +2559,9 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             bnum_right = crate::globals::GraphPtr::of(hp_new_ptr).borrow().bh_bnum;
             page_count_left = 1;
             page_count_right = 1;
-            mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
+            mf_put(buf.b_ml.mfp_mut(), hp_ptr.borrow_mut(), true, false);
             mf_put(
-                &mut *mfp,
+                buf.b_ml.mfp_mut(),
                 crate::globals::GraphPtr::of(hp_new_ptr).borrow_mut(),
                 true,
                 false,
@@ -2740,9 +2760,9 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
         return i;
     }
 
-    let Some(mfp) = buf.b_ml.mfp_opt() else {
+    if buf.b_ml.mfp_ref().is_none() {
         return false;
-    };
+    }
 
     let Some(hp) = ml_find_line(buf, lnum, ML_DELETE) else {
         return false;
@@ -2776,7 +2796,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     );
 
     if count == 1 {
-        mf_free(mfp, hp);
+        mf_free(buf.b_ml.mfp_mut(), hp);
         buf.b_ml.ml_locked = crate::globals::GraphPtr::NULL;
 
         let mut stack_idx = buf.b_ml.ml_stack_top - 1;
@@ -2784,24 +2804,24 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
             buf.b_ml.ml_stack_top = 0;
             let ip = buf.b_ml.ml_stack[stack_idx as usize];
             idx = ip.ip_index;
-            let Some(hp_cur) = mf_get(mfp, ip.ip_bnum, 1) else {
+            let Some(hp_cur) = mf_get(buf.b_ml.mfp_mut(), ip.ip_bnum, 1) else {
                 return false;
             };
             let pp = hp_ptr_block(hp_cur);
             if pp.pb_id != PTR_ID {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
-                mf_put(mfp, hp_cur, false, false);
+                mf_put(buf.b_ml.mfp_mut(), hp_cur, false, false);
                 return false;
             }
             pp.pb_count -= 1;
             count = i32::from(pp.pb_count);
             if count == 0 {
-                mf_free(mfp, hp_cur);
+                mf_free(buf.b_ml.mfp_mut(), hp_cur);
             } else {
                 if count != idx {
                     pp.copy_entries((idx + 1) as usize, idx as usize, (count - idx) as usize);
                 }
-                mf_put(mfp, hp_cur, true, false);
+                mf_put(buf.b_ml.mfp_mut(), hp_cur, true, false);
 
                 buf.b_ml.ml_stack_top = stack_idx;
                 if buf.b_ml.ml_locked_lineadd != 0 {
@@ -3048,7 +3068,7 @@ fn ml_new_ptr(mfp: &mut Memfile) -> &'static mut Bhdr {
 }
 
 fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static mut Bhdr> {
-    let mfp = buf.b_ml.mfp_mut();
+    assert!(buf.b_ml.mfp_ref().is_some(), "ml_mfp is None");
 
     if !buf.b_ml.ml_locked.is_null() {
         if ml_simple(action) && buf.b_ml.ml_locked_low <= lnum && buf.b_ml.ml_locked_high >= lnum {
@@ -3062,12 +3082,10 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
             return buf.b_ml.ml_locked.opt_mut();
         }
 
-        mf_put(
-            mfp,
-            buf.b_ml.ml_locked.borrow_mut(),
-            (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0,
-            (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0,
-        );
+        let locked = buf.b_ml.ml_locked.borrow_mut();
+        let dirty = (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0;
+        let pos = (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0;
+        mf_put(buf.b_ml.mfp_mut(), locked, dirty, pos);
         buf.b_ml.ml_locked = crate::globals::GraphPtr::NULL;
 
         if buf.b_ml.ml_locked_lineadd != 0 {
@@ -3105,7 +3123,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
     }
 
     loop {
-        let Some(hp_ref) = mf_get(mfp, bnum, page_count as u32) else {
+        let Some(hp_ref) = mf_get(buf.b_ml.mfp_mut(), bnum, page_count as u32) else {
             return ml_find_line_error_noblock(buf, action);
         };
         let hp = crate::globals::GraphPtr::<Bhdr>::from_ref(hp_ref);
@@ -3129,7 +3147,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
         let pp = hp_ptr_block(hp.borrow_mut());
         if pp.pb_id != PTR_ID {
             iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
-            mf_put(mfp, hp.borrow_mut(), false, false);
+            mf_put(buf.b_ml.mfp_mut(), hp.borrow_mut(), false, false);
             return ml_find_line_error_noblock(buf, action);
         }
 
@@ -3154,7 +3172,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
                 low -= t;
 
                 if bnum < 0 {
-                    let bnum2 = mf_trans_del(mfp, bnum);
+                    let bnum2 = mf_trans_del(buf.b_ml.mfp_mut(), bnum);
                     if bnum != bnum2 {
                         bnum = bnum2;
                         pe.pe_bnum = bnum;
@@ -3174,7 +3192,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
             } else {
                 siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
             }
-            mf_put(mfp, hp.borrow_mut(), false, false);
+            mf_put(buf.b_ml.mfp_mut(), hp.borrow_mut(), false, false);
             return ml_find_line_error_noblock(buf, action);
         }
         if action == ML_DELETE {
@@ -3184,7 +3202,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
             pb_ptr(pp, idx as usize).pe_line_count += 1;
             dirty = true;
         }
-        mf_put(mfp, hp.borrow_mut(), dirty, false);
+        mf_put(buf.b_ml.mfp_mut(), hp.borrow_mut(), dirty, false);
     }
 }
 
@@ -3211,10 +3229,16 @@ fn ml_add_stack(buf: &mut FileBuf) -> i32 {
 }
 
 fn ml_lineadd(buf: &mut FileBuf, count: i32) {
-    let mfp = buf.b_ml.mfp_mut();
-    let mut idx = buf.b_ml.ml_stack_top - 1;
+    let Memline {
+        ml_mfp,
+        ml_stack,
+        ml_stack_top,
+        ..
+    } = &mut buf.b_ml;
+    let mfp = ml_mfp.as_deref_mut().expect("ml_mfp is None");
+    let mut idx = *ml_stack_top - 1;
     while idx >= 0 {
-        let ip = &mut (&mut buf.b_ml.ml_stack)[idx as usize];
+        let ip = &mut ml_stack[idx as usize];
         let Some(hp_ref) = mf_get(mfp, ip.ip_bnum, 1) else {
             break;
         };
@@ -3727,18 +3751,20 @@ fn char_to_long(s: &[u8; 4]) -> i64 {
 
 /// Set the flags in the first block of the swapfile.
 pub fn ml_setflags(buf: &mut FileBuf) {
-    let Some(mfp) = buf.b_ml.mfp_opt() else {
+    let Some(hp_ref) = buf
+        .b_ml
+        .mfp_ref()
+        .and_then(|mfp| pmap_get_bhdr(&mfp.mf_hash, 0))
+    else {
         return;
     };
-    if let Some(hp_ref) = pmap_get_bhdr(&mfp.mf_hash, 0) {
-        let b0p = hp_zero_block(hp_ref);
-        b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
-        let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
-        b0p.set_flags((b0p.flags() & !B0_FF_MASK) | ff_bits);
-        add_b0_fenc(b0p, buf);
-        hp_ref.bh_flags |= BH_DIRTY;
-        mf_sync(mfp, MFS_ZERO);
-    }
+    let b0p = hp_zero_block(hp_ref);
+    b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
+    let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
+    b0p.set_flags((b0p.flags() & !B0_FF_MASK) | ff_bits);
+    add_b0_fenc(b0p, buf);
+    hp_ref.bh_flags |= BH_DIRTY;
+    mf_sync(buf.b_ml.mfp_mut(), MFS_ZERO);
 }
 
 fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
