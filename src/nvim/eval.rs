@@ -9,9 +9,9 @@ use crate::charset::{
 };
 use crate::eval::typval::{
     Callback, Dictitem, EvalFuncData, K_CALLBACK_EXPR, K_CALLBACK_FUNCREF, K_CALLBACK_LUA,
-    K_CALLBACK_NONE_CONST, K_CALLBACK_PARTIAL, Listitem, Listwatch, TV_CSTRING, TV_EMPTY_STRING,
-    TvBlob, TvDict, TvFloat, TvList, TvPartial, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
-    Varnumber, callback_copy, callback_free, callback_put, tv_blob_alloc, tv_blob_alloc_ret,
+    K_CALLBACK_NONE_CONST, K_CALLBACK_PARTIAL, Listitem, Listwatch, TV_CSTRING, TvBlob, TvDict,
+    TvFloat, TvList, TvPartial, TypVal, TypvalVval, VAR_UNLOCKED, VarType, Varnumber,
+    callback_copy, callback_free, callback_put, tv_blob_alloc, tv_blob_alloc_ret,
     tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_len,
     tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_check_lock, tv_check_num,
     tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy,
@@ -2015,7 +2015,7 @@ fn eval_func(
     let mut ret = get_func_tv(&s_cstr, len, &mut *rettv, arg, evalarg, &mut funcexe);
 
     if rettv.v_type == VarType::VarUnknown && !evaluate && arg.to_bytes().first() == Some(&b'(') {
-        rettv.vval = crate::eval::typval::TypvalVval::from_raw_str(TV_EMPTY_STRING.cast_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::from_cstr(c"");
         rettv.v_type = VarType::VarFunc;
     }
 

@@ -1239,13 +1239,12 @@ fn tagfunc_cmd_kind(cmd: &std::ffi::CStr) -> Tagcmd {
 }
 
 fn find_tagfunc_tags(
-    pat: &std::ffi::CStr,
+    pat_cstr: &std::ffi::CStr,
     ga: &mut Vec<Vec<u8>>,
     match_count: &mut i32,
     flags: i32,
     buf_ffname: Option<&std::ffi::CStr>,
 ) -> Option<bool> {
-    let pat = pat.as_ptr().cast_mut();
     let buf_ffname = crate::strings::ByteSlice::from_opt_cstr(buf_ffname);
     let mut ntags: i32 = 0;
     let mut args = [TypVal {
@@ -1276,10 +1275,23 @@ fn find_tagfunc_tags(
         return Some(false);
     }
 
+    format_to_buf!(
+        &mut flag_string[..],
+        c"%s%s%s",
+        if g_st().g_tag_at_cursor { c"c" } else { c"" },
+        if (flags & TAG_INS_COMP) != 0 {
+            c"i"
+        } else {
+            c""
+        },
+        if (flags & TAG_REGEXP) != 0 { c"r" } else { c"" },
+    );
+
     args[0].v_type = VarType::VarString;
-    args[0].vval = crate::eval::typval::TypvalVval::from_raw_str(pat);
+    args[0].vval = crate::eval::typval::TypvalVval::from_cstr(pat_cstr);
     args[1].v_type = VarType::VarString;
-    args[1].vval = crate::eval::typval::TypvalVval::from_raw_str(flag_string.as_mut_ptr());
+    args[1].vval =
+        crate::eval::typval::TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&flag_string));
 
     let d = tv_dict_alloc_lock(VAR_FIXED);
     if (flags & TAG_INS_COMP) == 0
@@ -1296,26 +1308,6 @@ fn find_tagfunc_tags(
     args[2].v_type = VarType::VarDict;
     args[2].vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(d));
     args[3].v_type = VarType::VarUnknown;
-
-    format_to_buf!(
-        &mut flag_string[..],
-        c"%s%s%s",
-        crate::strings::ByteSlice::from_ptr(if g_st().g_tag_at_cursor {
-            c"c".as_ptr()
-        } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(if (flags & TAG_INS_COMP) != 0 {
-            c"i".as_ptr()
-        } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(if (flags & TAG_REGEXP) != 0 {
-            c"r".as_ptr()
-        } else {
-            c"".as_ptr()
-        }),
-    );
 
     let save_pos = curwin_mut().w_cursor;
     let mut result = callback_call(&mut curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv);

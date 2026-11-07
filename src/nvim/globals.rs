@@ -1454,20 +1454,6 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub fn into_cstring(self) -> std::ffi::CString {
-        unsafe { std::ffi::CString::from_raw(self.0.cast()) }
-    }
-
-    #[inline(always)]
-    pub fn drop_cstring(self) {
-        if !self.0.is_null() {
-            unsafe {
-                drop(std::ffi::CString::from_raw(self.0.cast()));
-            }
-        }
-    }
-
-    #[inline(always)]
     pub fn replace_val(self, src: T) -> T {
         unsafe { ptr::replace(self.0, src) }
     }

@@ -7163,12 +7163,12 @@ fn nv_q(cap: &mut Cmdarg) {
             return;
         }
         let insert_range = g_st().visual_global.active && cap.nchar == b':' as i32;
-        let mut fc: [u8; 2] = [cap.nchar as u8, 0];
+        let fc: [u8; 2] = [cap.nchar as u8, 0];
         let mut tv_args: [TypVal; 4] = [
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_raw_str(fc.as_mut_ptr()),
+                vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&fc)),
             },
             TypVal {
                 v_type: VarType::VarString,

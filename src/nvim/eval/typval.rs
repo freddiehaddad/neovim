@@ -32,7 +32,7 @@ use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_p
 use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
-use crate::strings::{RawCCharPtr, RawCCharPtrMut, format_to_buf, strcoll, strtod, tr};
+use crate::strings::{RawCCharPtrMut, format_to_buf, strcoll, strtod, tr};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -265,11 +265,6 @@ impl TypvalVval {
         let len = s.as_bytes_with_nul().len();
         let ptr = s.into_raw().cast::<u8>().cast_const();
         Self::String(Some(crate::globals::GraphPtr::raw_slice(ptr, len)))
-    }
-
-    #[inline]
-    pub fn from_raw_str(p: impl crate::strings::AsByteSlice) -> Self {
-        Self::String(crate::strings::ByteSlice::from_ptr(p))
     }
 
     #[inline]
@@ -786,9 +781,6 @@ impl ListSortItem {
     }
 }
 
-static TV_EMPTY_STRING_BYTE: u8 = 0;
-pub const TV_EMPTY_STRING: RawCCharPtr = (&raw const TV_EMPTY_STRING_BYTE).cast();
-
 pub(crate) struct TypvalModuleState {
     pub(crate) tv_in_free_unref_items: bool,
     tv_equal_recurse_limit: i32,
@@ -889,9 +881,8 @@ pub fn tv_set_bytes(tv: &mut TypVal, bytes: &[u8]) {
 #[inline]
 pub fn tv_set_string_len(tv: &mut TypVal, s: Option<&[u8]>) {
     tv.v_type = VarType::VarString;
-    tv.vval = crate::eval::typval::TypvalVval::from_raw_str(s.map_or(ptr::null_mut(), |bytes| {
-        crate::memory::bytes_to_cstring(bytes).into_raw()
-    }));
+    tv.vval =
+        crate::eval::typval::TypvalVval::from_opt_cstring(s.map(crate::memory::bytes_to_cstring));
 }
 
 #[inline]
@@ -1438,19 +1429,18 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
 
 pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
     let v_string = match str_ {
-        None => ptr::null_mut(),
-        Some(s) if len >= 0 => crate::memory::bytes_to_cstring(
+        None => None,
+        Some(s) if len >= 0 => Some(crate::memory::bytes_to_cstring(
             crate::strings::AsByteSlice::slice_len(s.as_ptr(), len as usize),
-        )
-        .into_raw(),
-        Some(s) => s.to_owned().into_raw(),
+        )),
+        Some(s) => Some(s.to_owned()),
     };
     tv_list_append_owned_tv(
         l,
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::from_raw_str(v_string),
+            vval: TypvalVval::from_opt_cstring(v_string),
         },
     );
 }
@@ -3245,12 +3235,10 @@ pub fn tv_dict_add_str(d: &mut TvDict, key: &CStr, val: Option<&CStr>) -> bool {
 
 /// Add a string entry to dictionary.
 pub fn tv_dict_add_str_len(d: &mut TvDict, key: &CStr, val: Option<&[u8]>) -> bool {
-    let s = val.map_or(ptr::null_mut(), |bytes| {
-        crate::memory::bytes_to_cstring(bytes).into_raw()
-    });
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarString;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::from_raw_str(s);
+    item.di_tv.vval =
+        crate::eval::typval::TypvalVval::from_opt_cstring(val.map(crate::memory::bytes_to_cstring));
     if !tv_dict_add(d, item) {
         tv_dict_item_free(item);
         return false;
@@ -3861,12 +3849,8 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
             return true;
         }
     } else {
-        let fun = tv.vval.v_string();
-        func_unref(fun.as_opt_cstr());
-        if !fun.is_null() && !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
-            crate::globals::GraphPtr::of(fun.as_ptr()).drop_cstring();
-        }
-        tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+        let fun = tv_take_string(tv);
+        func_unref(fun.as_deref());
     }
     false
 }

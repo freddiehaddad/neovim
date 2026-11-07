@@ -674,7 +674,9 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 );
             } else {
                 actual_tv.v_type = VarType::VarString;
-                actual_tv.vval = crate::eval::typval::TypvalVval::from_raw_str(actual);
+                actual_tv.vval = crate::eval::typval::TypvalVval::from_opt_cstr(
+                    crate::strings::ByteSlice::from_ptr(actual).as_opt_cstr(),
+                );
             }
             let (first, rest) = argvars.split_at_mut(3);
             let exp_ref = if error_found_index < 3 {

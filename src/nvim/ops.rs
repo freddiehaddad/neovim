@@ -3416,15 +3416,15 @@ fn op_function(oap: &Oparg) {
         }
 
         let mode_str = match oap.motion_type {
-            MT_BLOCK_WISE => c"block".as_ptr(),
-            MT_LINE_WISE => c"line".as_ptr(),
-            _ => c"char".as_ptr(),
+            MT_BLOCK_WISE => c"block",
+            MT_LINE_WISE => c"line",
+            _ => c"char",
         };
         let mut argv = [
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_raw_str(mode_str.cast_mut()),
+                vval: TypvalVval::from_cstr(mode_str),
             },
             TypVal {
                 v_type: VarType::VarUnknown,

@@ -3607,7 +3607,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     let mut arg = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
-        vval: TypvalVval::from_raw_str(colored_ccline.cmdbuff()),
+        vval: TypvalVval::from_opt_cstr(colored_ccline.cmdbuff().as_opt_cstr()),
     };
     let mut tv = TypVal {
         v_type: VarType::VarUnknown,
@@ -4854,12 +4854,12 @@ pub fn did_set_cedit(_args: &mut Optset) -> Option<&'static CStr> {
 
 /// Synchronously calls `vim._core.cmdwin.<action>(...)`.
 fn cmdwin_invoke(action: &CStr, firstc: i32, content: Option<&CStr>, pos: i32) {
-    let mut fc: [u8; 2] = [firstc as u8, 0];
+    let fc: [u8; 2] = [firstc as u8, 0];
     let mut tv_args = [
         TypVal {
             v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::from_raw_str(fc.as_mut_ptr()),
+            vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&fc)),
         },
         TypVal {
             v_type: VarType::VarString,

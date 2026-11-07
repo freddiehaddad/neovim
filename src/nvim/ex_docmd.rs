@@ -10436,7 +10436,7 @@ fn ex_connect(eap: &mut Exarg) {
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_raw_str(addr),
+                vval: TypvalVval::from_opt_cstr(addr.as_opt_cstr()),
             },
             TypVal {
                 v_type: VarType::VarNumber,

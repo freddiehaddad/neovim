@@ -5329,7 +5329,7 @@ where
     args[2].v_type = VarType::VarNumber;
     args[3].v_type = VarType::VarUnknown;
     args[0].vval = crate::eval::typval::TypvalVval::from_cstr(&pat);
-    args[1].vval = crate::eval::typval::TypvalVval::from_raw_str(xp.xp_line);
+    args[1].vval = crate::eval::typval::TypvalVval::from_opt_cstr(xp.xp_line.as_opt_cstr());
     args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from(xp.xp_col));
 
     g_st().current_sctx = xp.xp_script_ctx;

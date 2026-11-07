@@ -2967,8 +2967,8 @@ pub fn before_set_vvar(
             crate::eval::typval::tv_set_string(&mut di.di_tv, Some(val));
         } else {
             di.di_tv.v_type = VarType::VarString;
-            di.di_tv.vval = crate::eval::typval::TypvalVval::from_raw_str(tv.vval.v_string());
-            tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+            di.di_tv.vval =
+                std::mem::replace(&mut tv.vval, crate::eval::typval::TypvalVval::NULL_STRING);
         }
         if watched {
             tv_dict_watcher_notify(
@@ -3715,7 +3715,7 @@ pub fn var_redir_stop() {
             let mut tv = TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_raw_str(vars_st().redir_buf.as_mut_ptr()),
+                vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&vars_st().redir_buf)),
             };
             let vn_cstr = vars_st()
                 .borrow_mut()

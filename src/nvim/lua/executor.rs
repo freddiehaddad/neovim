@@ -1493,7 +1493,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_FIXED,
-                vval: TypvalVval::from_raw_str(c"lua_debug> ".as_ptr().cast_mut()),
+                vval: TypvalVval::from_cstr(c"lua_debug> "),
             },
             TypVal {
                 v_type: VarType::VarUnknown,

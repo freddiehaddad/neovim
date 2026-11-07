@@ -301,20 +301,20 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     };
 
     let btn_str = if which_button == MOUSE_LEFT {
-        c"l".as_ptr()
+        c"l"
     } else if which_button == MOUSE_RIGHT {
-        c"r".as_ptr()
+        c"r"
     } else if which_button == MOUSE_MIDDLE {
-        c"m".as_ptr()
+        c"m"
     } else if which_button == MOUSE_X1 {
-        c"x1".as_ptr()
+        c"x1"
     } else if which_button == MOUSE_X2 {
-        c"x2".as_ptr()
+        c"x2"
     } else {
-        c"?".as_ptr()
+        c"?"
     };
 
-    let mut mod_str: [u8; 5] = [
+    let mod_str: [u8; 5] = [
         if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
             b's'
         } else {
@@ -353,12 +353,12 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::from_raw_str(btn_str.cast_mut()),
+            vval: TypvalVval::from_cstr(btn_str),
         },
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_FIXED,
-            vval: TypvalVval::from_raw_str(mod_str.as_mut_ptr()),
+            vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&mod_str)),
         },
     ];
 
