@@ -1367,21 +1367,28 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
     }
 
     if goto_collection {
-        let start_bytes = re_st().regparse_bytes();
-        let rem_bytes = skip_anyof_slice(start_bytes);
-        let len = start_bytes.len() - rem_bytes.len();
+        let (len, is_closing, char_class) = {
+            let re_ref = re_st().borrow();
+            let start_bytes = re_ref.regparse_bytes();
+            let rem_bytes = skip_anyof_slice(start_bytes);
+            let len = start_bytes.len() - rem_bytes.len();
+            let is_closing = rem_bytes.first() == Some(&b']');
+            let char_class = if is_closing && extra == 0 {
+                bt_recognize_char_class(&start_bytes[..len + 1])
+            } else {
+                0
+            };
+            (len, is_closing, char_class)
+        };
         let lp_off = re_st().regparse_off + len;
-        if rem_bytes.first() == Some(&b']') {
+        if is_closing {
             let mut startc: i32 = -1;
-            if extra == 0 {
-                let cl = bt_recognize_char_class(&start_bytes[..len + 1]);
-                if cl != 0 {
-                    ret = regnode(cl);
-                    re_st().regparse_off = lp_off;
-                    skipchr();
-                    *flagp |= HASWIDTH | SIMPLE;
-                    return ret;
-                }
+            if extra == 0 && char_class != 0 {
+                ret = regnode(char_class);
+                re_st().regparse_off = lp_off;
+                skipchr();
+                *flagp |= HASWIDTH | SIMPLE;
+                return ret;
             }
 
             if re_st().regparse_byte() == b'^' {
@@ -1413,10 +1420,14 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             endc = re_st().regparse_get_coll_element();
                         }
                         if endc == 0 {
-                            let start_bytes = re_st().regparse_bytes();
-                            let mut rem = start_bytes;
-                            endc = mb_ptr2char_adv(&mut rem);
-                            re_st().regparse_off += start_bytes.len() - rem.len();
+                            let adv = {
+                                let re_ref = re_st().borrow();
+                                let start_bytes = re_ref.regparse_bytes();
+                                let mut rem = start_bytes;
+                                endc = mb_ptr2char_adv(&mut rem);
+                                start_bytes.len() - rem.len()
+                            };
+                            re_st().regparse_off += adv;
                         }
                         if endc == b'\\' as i32 && re_st().reg_cpo_lit == 0 {
                             endc = coll_get_char();
@@ -1668,12 +1679,20 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
         regmbc(c);
         let mut state: GraphemeState = GRAPHEME_STATE_INIT;
         loop {
-            let p_bytes = re_st().regparse_bytes();
-            let l = utf_ptr2len(p_bytes) as usize;
-            if !utf_composinglike(p_bytes, p_bytes.get(l..).unwrap_or(&[]), Some(&mut state)) {
+            let next_ch = {
+                let re_ref = re_st().borrow();
+                let p_bytes = re_ref.regparse_bytes();
+                let l = utf_ptr2len(p_bytes) as usize;
+                if !utf_composinglike(p_bytes, p_bytes.get(l..).unwrap_or(&[]), Some(&mut state)) {
+                    None
+                } else {
+                    Some(utf_ptr2char(p_bytes))
+                }
+            };
+            let Some(ch) = next_ch else {
                 break;
-            }
-            regmbc(utf_ptr2char(p_bytes));
+            };
+            regmbc(ch);
             skipchr();
         }
         c = getchr();

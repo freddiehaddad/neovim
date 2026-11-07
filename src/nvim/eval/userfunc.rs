@@ -2302,28 +2302,36 @@ pub fn trans_function_name(
     if let Some(ref exp_name) = lv.ll_exp_name {
         len = exp_name.as_bytes().len() as i32;
         if lead <= 2
-            && lv.ll_name.map(CStr::as_ptr) == Some(exp_name.as_ptr())
+            && lv.ll_name_off == 0
             && lv.ll_name_len >= 2
             && exp_name.as_bytes().starts_with(b"s:")
         {
-            lv.ll_name = lv.ll_name.map(|s| &s[2..]);
+            lv.advance_ll_name(2);
             lv.ll_name_len -= 2;
             len -= 2;
             lead = 2;
         }
     } else {
-        if lead == 2 || lv.ll_name.is_some_and(|s| s.to_bytes().starts_with(b"g:")) {
-            lv.ll_name = lv.ll_name.map(|s| &s[2..]);
+        if lead == 2
+            || lv
+                .ll_name_cstr()
+                .is_some_and(|s| s.to_bytes().starts_with(b"g:"))
+        {
+            lv.advance_ll_name(2);
             lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
         }
-        len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(lv.ll_name.map_or(ptr::null(), CStr::as_ptr))
-                as isize)) as i32;
+        let end_len = crate::strings::ByteSlice::from_ptr(end).as_bytes().len();
+        len = lv
+            .ll_name_cstr()
+            .unwrap_or(c"")
+            .to_bytes()
+            .len()
+            .saturating_sub(end_len) as i32;
     }
 
     let mut sid_buflen = 0usize;
     let mut sid_buf = [0u8; 20];
-    let ll_name_ptr = crate::strings::ByteSlice::from_opt_cstr(lv.ll_name);
+    let ll_name_bytes = lv.ll_name_cstr().map_or(&[][..], CStr::to_bytes);
 
     if skip {
         lead = 0;
@@ -2342,7 +2350,9 @@ pub fn trans_function_name(
             sid_buflen = format_to_buf!(&mut sid_buf, c"%d_", g_st().current_sctx.sc_sid) as usize;
             lead += sid_buflen as i32;
         }
-    } else if (flags & TFN_INT) == 0 && builtin_function(ll_name_ptr.slice(lv.ll_name_len)) {
+    } else if (flags & TFN_INT) == 0
+        && builtin_function(&ll_name_bytes[..lv.ll_name_len.min(ll_name_bytes.len())])
+    {
         semsg!(
             gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
             crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>()),
@@ -2351,21 +2361,11 @@ pub fn trans_function_name(
     }
 
     if !skip && (flags & TFN_QUIET) == 0 && (flags & TFN_NO_DEREF) == 0 {
-        let cp = crate::globals::GraphPtr::<u8>::of({
-            let _s = ll_name_ptr.cast::<u8>();
-            let _sz = lv.ll_name_len;
-            if _sz == 0 {
-                std::ptr::null()
-            } else {
-                crate::globals::GraphPtr::raw_slice(_s, _sz)
-                    .iter()
-                    .rposition(|&_b| _b == b':')
-                    .map_or(std::ptr::null(), |_i| _s.wrapping_add(_i))
-            }
-        })
-        .as_ptr()
-        .cast_const();
-        if !cp.is_null() && cp < end {
+        let check_len = lv
+            .ll_name_len
+            .min(len.max(0) as usize)
+            .min(ll_name_bytes.len());
+        if ll_name_bytes[..check_len].contains(&b':') {
             semsg!(
                 gettext(c"E884: Function name cannot contain a colon: %s"),
                 crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>()),
@@ -2382,10 +2382,7 @@ pub fn trans_function_name(
         }
     }
 
-    bytes.extend_from_slice(crate::globals::GraphPtr::raw_slice(
-        ll_name_ptr.cast::<u8>(),
-        len as usize,
-    ));
+    bytes.extend_from_slice(&ll_name_bytes[..(len.max(0) as usize).min(ll_name_bytes.len())]);
 
     *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
 

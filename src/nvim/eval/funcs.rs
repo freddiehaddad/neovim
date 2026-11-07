@@ -4233,7 +4233,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         FNE_CHECK_START,
     );
     if let Some(end_cstr) = end
-        && let Some(ll_name) = lv.ll_name
+        && let Some(ll_name) = lv.ll_name_cstr()
     {
         let end = end_cstr.as_ptr();
         if !end_cstr.to_bytes().is_empty() {

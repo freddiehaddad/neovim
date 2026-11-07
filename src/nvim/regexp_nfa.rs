@@ -1057,8 +1057,8 @@ fn nfa_regatom() -> bool {
     }
 
     let old_slice = re_st()
+        .borrow()
         .regparse_base
-        .to_bytes()
         .get(old_regparse_off..)
         .unwrap_or(&[]);
     let plen = utfc_ptr2len(old_slice);
@@ -1289,14 +1289,22 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
 
 #[inline(never)]
 fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> Option<bool> {
-    let p_bytes = re_st().regparse_bytes();
-    let rem_bytes = skip_anyof_slice(p_bytes);
-    let len = p_bytes.len() - rem_bytes.len();
-    let end_off = re_st().regparse_off + len;
-    if rem_bytes.first() == Some(&b']') {
-        if let Some(result) =
+    let (len, is_closing, class_res) = {
+        let re_ref = re_st().borrow();
+        let p_bytes = re_ref.regparse_bytes();
+        let rem_bytes = skip_anyof_slice(p_bytes);
+        let len = p_bytes.len() - rem_bytes.len();
+        let is_closing = rem_bytes.first() == Some(&b']');
+        let class_res = if is_closing {
             nfa_recognize_char_class(&p_bytes[..len + 1], i32::from(*extra == NFA_ADD_NL))
-        {
+        } else {
+            None
+        };
+        (len, is_closing, class_res)
+    };
+    let end_off = re_st().regparse_off + len;
+    if is_closing {
+        if let Some(result) = class_res {
             if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
                 emit_fn(result - NFA_ADD_NL);
                 emit_fn(NFA_NEWL);
@@ -1464,13 +1472,17 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> Opt
                 emit_fn(NFA_CONCAT);
             } else {
                 emit_fn(*startc);
-                let cur_bytes = re_st().regparse_bytes();
-                if utf_ptr2len(cur_bytes) == utfc_ptr2len(cur_bytes) {
+                let same_len = {
+                    let re_ref = re_st().borrow();
+                    let cur_bytes = re_ref.regparse_bytes();
+                    utf_ptr2len(cur_bytes) == utfc_ptr2len(cur_bytes)
+                };
+                if same_len {
                     emit_fn(NFA_CONCAT);
                 }
             }
 
-            let cur_bytes = re_st().regparse_bytes();
+            let cur_bytes = re_st().borrow().regparse_bytes();
             let plen = utfc_ptr2len(cur_bytes);
             if !range_endpoint && utf_ptr2len(cur_bytes) != plen {
                 let mut i = utf_ptr2len(cur_bytes);

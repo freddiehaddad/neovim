@@ -286,10 +286,7 @@ pub fn find_ucmd(
                     }
                     if xp.is_some() {
                         xp.as_deref_mut().unwrap().xp_luaref = uc.uc_compl_luaref;
-                        xp.as_deref_mut().unwrap().xp_arg = uc
-                            .uc_compl_arg
-                            .as_deref()
-                            .map(crate::globals::GraphPtr::<u8>::cstr);
+                        xp.as_deref_mut().unwrap().xp_arg = uc.uc_compl_arg.clone();
                         xp.as_deref_mut().unwrap().xp_script_ctx = uc.uc_script_ctx;
                         xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
                     }

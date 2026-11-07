@@ -1247,7 +1247,7 @@ pub(super) struct RegexpState {
     pub(super) reg_prev_sub: Option<std::ffi::CString>,
     pub(super) class_tab: [i16; 256],
     pub(super) init_class_tab_done: bool,
-    pub(super) regparse_base: &'static std::ffi::CStr,
+    pub(super) regparse_base: Vec<u8>,
     pub(super) regparse_off: usize,
     pub(super) regnpar: i32,
     pub(super) wants_nfa: bool,
@@ -1306,7 +1306,7 @@ impl RegexpState {
             reg_prev_sub: None,
             class_tab: [0; 256],
             init_class_tab_done: false,
-            regparse_base: c"",
+            regparse_base: Vec::new(),
             regparse_off: 0,
             regnpar: 0,
             wants_nfa: false,
@@ -1842,7 +1842,8 @@ pub fn skip_regexp_ex(
 }
 
 pub(super) fn initchr(str_: &CStr) {
-    re_st().regparse_base = crate::globals::GraphPtr::<u8>::cstr(str_);
+    re_st().regparse_base.clear();
+    re_st().regparse_base.extend_from_slice(str_.to_bytes());
     re_st().regparse_off = 0;
     re_st().prevchr_len = 0;
     re_st().nextchr = -1;
@@ -1925,8 +1926,9 @@ pub(super) fn peekchr() -> i32 {
         }
         b'$' => {
             if re_st().reg_magic >= MAGIC_OFF {
-                let mut p_bytes = &re_st().regparse_bytes()[1..];
-                let mut is_magic_all = re_st().reg_magic == MAGIC_ALL;
+                let re_ref = re_st().borrow();
+                let mut p_bytes = &re_ref.regparse_bytes()[1..];
+                let mut is_magic_all = re_ref.reg_magic == MAGIC_ALL;
 
                 while let Some(&next_b) = p_bytes.get(1) {
                     if p_bytes[0] != b'\\'
@@ -2096,18 +2098,26 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     }
     let first_char_b = re_st().regparse_byte();
     {
-        let start_bytes = re_st().regparse_bytes();
-        let mut rem = start_bytes;
-        *minval = getdigits_int(&mut rem, false, 0);
-        re_st().regparse_off += start_bytes.len() - rem.len();
+        let adv = {
+            let re_ref = re_st().borrow();
+            let start_bytes = re_ref.regparse_bytes();
+            let mut rem = start_bytes;
+            *minval = getdigits_int(&mut rem, false, 0);
+            start_bytes.len() - rem.len()
+        };
+        re_st().regparse_off += adv;
     }
     if re_st().regparse_byte() == b',' {
         re_st().regparse_off += 1;
         if ascii_isdigit(re_st().regparse_byte() as i32) {
-            let start_bytes = re_st().regparse_bytes();
-            let mut rem = start_bytes;
-            *maxval = getdigits_int(&mut rem, false, MAX_LIMIT);
-            re_st().regparse_off += start_bytes.len() - rem.len();
+            let adv = {
+                let re_ref = re_st().borrow();
+                let start_bytes = re_ref.regparse_bytes();
+                let mut rem = start_bytes;
+                *maxval = getdigits_int(&mut rem, false, MAX_LIMIT);
+                start_bytes.len() - rem.len()
+            };
+            re_st().regparse_off += adv;
         } else {
             *maxval = MAX_LIMIT;
         }
@@ -3345,8 +3355,8 @@ pub(super) fn regcomp_start(expr: &CStr, re_flags: i32) {
 
 pub(super) fn seen_endbrace(refnum: i32) -> bool {
     if re_st().had_endbrace[refnum as usize] == 0 {
-        let bytes = re_st().regparse_bytes();
-        let has_lookbehind = bytes
+        let has_lookbehind = re_st()
+            .regparse_bytes()
             .windows(3)
             .any(|w| w[0] == b'@' && w[1] == b'<' && (w[2] == b'!' || w[2] == b'='));
         if !has_lookbehind {
@@ -3686,11 +3696,8 @@ impl Regexec {
 
 impl RegexpState {
     #[inline(always)]
-    pub fn regparse_bytes(&self) -> &'static [u8] {
-        self.regparse_base
-            .to_bytes()
-            .get(self.regparse_off..)
-            .unwrap_or(&[])
+    pub fn regparse_bytes(&self) -> &[u8] {
+        self.regparse_base.get(self.regparse_off..).unwrap_or(&[])
     }
     #[inline(always)]
     pub fn regparse_byte(&self) -> u8 {
@@ -3707,32 +3714,38 @@ impl RegexpState {
     }
     #[inline(always)]
     pub fn regparse_prev_char(&mut self) {
-        let base = self.regparse_base.to_bytes();
+        let base = &self.regparse_base;
         self.regparse_off -=
             1 + crate::mbyte::utf_head_off_slice(base, self.regparse_off - 1) as usize;
     }
     #[inline(always)]
     pub fn regparse_get_char_class(&mut self) -> i32 {
         let bytes = self.regparse_bytes();
+        let bytes_len = bytes.len();
         let mut rem = bytes;
         let res = get_char_class(&mut rem);
-        self.regparse_off += bytes.len() - rem.len();
+        let rem_len = rem.len();
+        self.regparse_off += bytes_len - rem_len;
         res
     }
     #[inline(always)]
     pub fn regparse_get_equi_class(&mut self) -> i32 {
         let bytes = self.regparse_bytes();
+        let bytes_len = bytes.len();
         let mut rem = bytes;
         let res = get_equi_class(&mut rem);
-        self.regparse_off += bytes.len() - rem.len();
+        let rem_len = rem.len();
+        self.regparse_off += bytes_len - rem_len;
         res
     }
     #[inline(always)]
     pub fn regparse_get_coll_element(&mut self) -> i32 {
         let bytes = self.regparse_bytes();
+        let bytes_len = bytes.len();
         let mut rem = bytes;
         let res = get_coll_element(&mut rem);
-        self.regparse_off += bytes.len() - rem.len();
+        let rem_len = rem.len();
+        self.regparse_off += bytes_len - rem_len;
         res
     }
 }

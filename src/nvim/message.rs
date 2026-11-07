@@ -145,8 +145,8 @@ struct MessageState {
     verbose_fd: Option<crate::os::fs::CFile>,
     verbose_did_open: bool,
     keep_msg_more: bool,
-    msg_ext_kind: Option<&'static std::ffi::CStr>,
-    msg_ext_trigger: Option<&'static std::ffi::CStr>,
+    msg_ext_kind: Option<std::ffi::CString>,
+    msg_ext_trigger: Option<std::ffi::CString>,
     msg_ext_id: MsgID,
     msg_ext_chunks: Array,
     msg_ext_last_chunk: Vec<u8>,
@@ -169,7 +169,7 @@ struct MessageState {
     do_clear_sb_text: SbClear,
     do_more_prompt_entered: bool,
     showmode_clear: bool,
-    pre_verbose_kind: Option<&'static std::ffi::CStr>,
+    pre_verbose_kind: Option<std::ffi::CString>,
 }
 
 impl MessageState {
@@ -683,7 +683,7 @@ pub fn msg_multihl(
         }
         assert!(
             !ui_has(K_UIMESSAGES)
-                || kind.is_none_or(|k| msg_st().msg_ext_kind.map(CStr::as_ptr) == Some(k.as_ptr()))
+                || kind.is_none_or(|k| msg_st().msg_ext_kind.as_deref() == Some(k))
         );
     }
 
@@ -1535,7 +1535,7 @@ fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
     }
     msg_st().msg_hist.push_back(MessageHistoryEntry {
         msg,
-        kind: msg_st().msg_ext_kind.map(CStr::to_owned),
+        kind: msg_st().msg_ext_kind.clone(),
         temp,
         append: msg_st().msg_ext_append,
     });
@@ -2001,7 +2001,7 @@ pub fn msgmore(n: i32) {
 
 pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_kind = Some(crate::globals::GraphPtr::<u8>::cstr(msg_kind));
+    msg_st().msg_ext_kind = Some(msg_kind.to_owned());
     msg_st().redir_col = if msg_st().msg_ext_append {
         msg_st().redir_col
     } else {
@@ -2020,7 +2020,7 @@ pub fn msg_ext_set_append(append: bool) {
 
 pub fn msg_ext_set_trigger(trigger: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_trigger = Some(crate::globals::GraphPtr::<u8>::cstr(trigger));
+    msg_st().msg_ext_trigger = Some(trigger.to_owned());
 }
 
 // Should be executed at all callsites emitting non-internal messages.
@@ -3769,15 +3769,17 @@ pub fn msg_ext_ui_flush() {
     msg_ext_emit_chunk();
     if msg_st().msg_ext_chunks.size > 0 {
         let tofree = msg_ext_init_chunks();
+        let kind_str = cstr_as_string(msg_st().msg_ext_kind.as_deref());
+        let trigger_str = cstr_as_string(msg_st().msg_ext_trigger.as_deref());
 
         ui_call_msg_show(
-            cstr_as_string(msg_st().msg_ext_kind),
+            kind_str,
             tofree,
             g_st().msg_ext_overwrite,
             msg_st().msg_ext_history,
             msg_st().msg_ext_append,
             msg_st().msg_ext_id,
-            cstr_as_string(msg_st().msg_ext_trigger),
+            trigger_str,
         );
         if msg_st().msg_ext_history {
             api_free_array(tofree);
@@ -3932,8 +3934,8 @@ pub fn verbose_enter() {
         g_st().msg_silent += 1;
     }
     if !g_st().msg_ext_skip_verbose {
-        if msg_st().msg_ext_kind != Some(VERBOSE_KIND) {
-            msg_st().pre_verbose_kind = msg_st().msg_ext_kind;
+        if msg_st().msg_ext_kind.as_deref() != Some(VERBOSE_KIND) {
+            msg_st().pre_verbose_kind = msg_st().msg_ext_kind.clone();
         }
         msg_ext_set_kind(VERBOSE_KIND);
     }
@@ -3950,7 +3952,7 @@ pub fn verbose_leave() {
         }
     }
     if let Some(prev_kind) = msg_st().pre_verbose_kind.take() {
-        msg_ext_set_kind(prev_kind);
+        msg_ext_set_kind(&prev_kind);
     }
 }
 

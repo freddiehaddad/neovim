@@ -236,7 +236,7 @@ struct Suginfo {
     su_maxscore: i32,
     su_sfmaxscore: i32,
     su_sga: Vec<Suggest>,
-    su_badptr: &'static std::ffi::CStr,
+    su_badptr: std::ffi::CString,
     su_badlen: i32,
     su_badflags: i32,
     su_badword: [u8; MAXWLEN],
@@ -254,7 +254,7 @@ impl Default for Suginfo {
             su_maxscore: 0,
             su_sfmaxscore: 0,
             su_sga: Vec::new(),
-            su_badptr: c"",
+            su_badptr: std::ffi::CString::default(),
             su_badlen: 0,
             su_badflags: 0,
             su_badword: [0; MAXWLEN],
@@ -756,9 +756,7 @@ pub fn spell_suggest(count: i32) {
                 ));
                 spell_priv_st().repl_to = Some((*stp.st_word).to_owned());
             }
-            let c = ((crate::strings::AsByteSlice::byte_addr(sug.su_badptr.as_ptr()) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                as i32;
+            let c = (line.len() - sug.su_badptr.to_bytes().len()) as i32;
             let mut p_vec: Vec<u8> = Vec::with_capacity(
                 line.len() - stp.st_orglen as usize + stp.st_wordlen as usize + 1,
             );
@@ -835,11 +833,11 @@ fn spell_find_suggest(
     if bad_cstr.to_bytes().is_empty() {
         return;
     }
-    su.su_badptr = crate::globals::GraphPtr::<u8>::cstr(bad_cstr);
+    su.su_badptr = bad_cstr.to_owned();
     if badlen != 0 {
         su.su_badlen = badlen;
     } else {
-        let tmplen = spell_check(curwin_mut(), su.su_badptr, &mut attr, None, false);
+        let tmplen = spell_check(curwin_mut(), &su.su_badptr, &mut attr, None, false);
         su.su_badlen = tmplen as i32;
     }
     su.su_maxcount = maxcount;
@@ -2845,7 +2843,7 @@ fn add_suggestion(
     }
 }
 fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
-    let badptr = crate::strings::ByteSlice::from_cstr(su.su_badptr);
+    let badptr = crate::strings::ByteSlice::from_cstr(&su.su_badptr);
     let gap = if use_sga {
         &mut su.su_sga
     } else {

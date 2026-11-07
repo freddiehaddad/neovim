@@ -100,9 +100,9 @@ const DUMPFLAG_COUNT: i32 = 2;
 const DUMPFLAG_ICASE: i32 = 4;
 const DUMPFLAG_ONECAP: i32 = 8;
 const DUMPFLAG_ALLCAP: i32 = 16;
-struct Matchinf {
+struct Matchinf<'a> {
     mi_lp: Langp,
-    mi_word: &'static std::ffi::CStr,
+    mi_word: &'a std::ffi::CStr,
     mi_end: usize,
     mi_fend: usize,
     mi_cend: Option<usize>,
@@ -123,7 +123,7 @@ struct Matchinf {
     mi_end2: usize,
 }
 
-impl Matchinf {
+impl Matchinf<'_> {
     const fn new() -> Self {
         Self {
             mi_lp: Langp::new(),
@@ -156,7 +156,7 @@ impl Matchinf {
     }
 }
 
-impl Default for Matchinf {
+impl Default for Matchinf<'_> {
     fn default() -> Self {
         Self::new()
     }
@@ -292,7 +292,7 @@ pub fn spell_check(
         nrlen = ptr_bytes.len() - rem.len();
         mi.mi_end = nrlen;
     }
-    mi.mi_word = crate::globals::GraphPtr::<u8>::cstr(ptr_cstr);
+    mi.mi_word = ptr_cstr;
     mi.mi_fend = 0;
     if spell_iswordp(ptr_bytes, wp) {
         if use_camel_case {
@@ -449,7 +449,7 @@ fn advance_camelcase_word(
     }
     end
 }
-fn find_word(mip: &mut Matchinf, mode: i32) {
+fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
     let mut wlen: i32 = 0;
     let mut flen: i32;
     let ptr;
@@ -951,7 +951,7 @@ pub fn valid_word_prefix(
     }
     0
 }
-fn find_prefix(mip: &mut Matchinf, mode: i32) {
+fn find_prefix(mip: &mut Matchinf<'_>, mode: i32) {
     let mut arridx: Idx = 0;
     let mut wlen: i32 = 0;
     let slang = mip.mi_lp.slang_mut();
@@ -1017,7 +1017,7 @@ fn find_prefix(mip: &mut Matchinf, mode: i32) {
         flen -= 1;
     }
 }
-fn fold_more(mip: &mut Matchinf) -> i32 {
+fn fold_more(mip: &mut Matchinf<'_>) -> i32 {
     let p_off = mip.mi_fend;
     let win = mip.win_mut();
     let word_bytes = mip.mi_word.to_bytes();

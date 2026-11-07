@@ -184,11 +184,18 @@ struct Tagptrs<'a> {
 
 #[repr(C)]
 struct Pat {
-    pat: &'static std::ffi::CStr,
+    pat: std::ffi::CString,
     len: i32,
-    head: &'static std::ffi::CStr,
+    head_off: usize,
     headlen: i32,
     regmatch: Regmatch,
+}
+
+impl Pat {
+    #[inline]
+    fn head_bytes(&self) -> &[u8] {
+        self.pat.to_bytes().get(self.head_off..).unwrap_or(&[])
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -275,9 +282,9 @@ impl FindtagsState {
             state: TagsearchState::TsStart,
             stop_searching: false,
             orgpat: Pat {
-                pat: c"",
+                pat: std::ffi::CString::default(),
                 len: 0,
-                head: c"",
+                head_off: 0,
                 headlen: 0,
                 regmatch: Regmatch::new(),
             },
@@ -1167,19 +1174,19 @@ fn tag_strnicmp(b1: &[u8], b2: &[u8], len: usize) -> i32 {
 }
 
 fn prepare_pats(pats: &mut Pat, has_re: bool) {
-    pats.head = pats.pat;
+    pats.head_off = 0;
     pats.headlen = pats.len;
     if has_re {
         let pat_bytes = pats.pat.to_bytes();
         if pat_bytes.first() == Some(&b'^') {
-            pats.head = &pats.pat[1..];
+            pats.head_off = 1;
         } else if pat_bytes.starts_with(b"\\<") {
-            pats.head = &pats.pat[2..];
+            pats.head_off = 2;
         }
-        if std::ptr::eq(pats.head.as_ptr(), pats.pat.as_ptr()) {
+        if pats.head_off == 0 {
             pats.headlen = 0;
         } else {
-            let head_bytes = pats.head.to_bytes();
+            let head_bytes = pats.head_bytes();
             let magic_chars: &[u8] = if opt_vars().p_magic {
                 b".[~*\\$"
             } else {
@@ -1197,7 +1204,7 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
 
     if has_re {
         pats.regmatch.set_prog(vim_regcomp(
-            pats.pat,
+            &pats.pat,
             if opt_vars().p_magic { RE_MAGIC } else { 0 },
         ));
     } else {
@@ -1488,9 +1495,9 @@ fn findtags_state_init(st: &mut FindtagsState, pat: &std::ffi::CStr, flags: i32,
         st.tag_fname = vec![0u8; MAXPATHL + 1];
         st.fp = None;
         st.orgpat = Pat {
-            pat: crate::globals::GraphPtr::<u8>::cstr(pat),
+            pat: pat.to_owned(),
             len: pat.to_bytes().len() as i32,
-            head: c"",
+            head_off: 0,
             headlen: 0,
             regmatch: Regmatch::new(),
         };
@@ -1796,10 +1803,10 @@ fn findtags_parse_line<'a>(
             }
 
             let mut tagcmp = if margs.sortic {
-                tag_strnicmp(tagpp.tagname, st.orgpat.head.to_bytes(), cmplen as usize)
+                tag_strnicmp(tagpp.tagname, st.orgpat.head_bytes(), cmplen as usize)
             } else {
                 let tn_b = tagpp.tagname;
-                let hd_b = st.orgpat.head.to_bytes();
+                let hd_b = st.orgpat.head_bytes();
                 tn_b[..(cmplen as usize).min(tn_b.len())]
                     .cmp(&hd_b[..(cmplen as usize).min(hd_b.len())]) as i32
             };
@@ -1842,7 +1849,7 @@ fn findtags_parse_line<'a>(
             return TagmatchStatus::TagMatchStop;
         } else if st.state == TagsearchState::TsSkipBack {
             assert!(cmplen >= 0);
-            if mb_strnicmp(tagpp.tagname, st.orgpat.head.to_bytes(), cmplen as usize) != 0 {
+            if mb_strnicmp(tagpp.tagname, st.orgpat.head_bytes(), cmplen as usize) != 0 {
                 st.state = TagsearchState::TsStepForward;
             } else {
                 sinfo_p.curr_offset = sinfo_p.curr_offset_used;
@@ -1850,7 +1857,7 @@ fn findtags_parse_line<'a>(
             return TagmatchStatus::TagMatchNext;
         } else if st.state == TagsearchState::TsStepForward {
             assert!(cmplen >= 0);
-            if mb_strnicmp(tagpp.tagname, st.orgpat.head.to_bytes(), cmplen as usize) != 0 {
+            if mb_strnicmp(tagpp.tagname, st.orgpat.head_bytes(), cmplen as usize) != 0 {
                 return if st.tell() > sinfo_p.match_offset {
                     TagmatchStatus::TagMatchStop
                 } else {
@@ -1859,7 +1866,7 @@ fn findtags_parse_line<'a>(
             }
         } else {
             assert!(cmplen >= 0);
-            if mb_strnicmp(tagpp.tagname, st.orgpat.head.to_bytes(), cmplen as usize) != 0 {
+            if mb_strnicmp(tagpp.tagname, st.orgpat.head_bytes(), cmplen as usize) != 0 {
                 return TagmatchStatus::TagMatchNext;
             }
         }
@@ -2239,7 +2246,6 @@ pub fn find_tags(
     {
         let mut st = FindtagsState::new();
         let mut retval: bool;
-        let mut saved_pat: Option<std::ffi::CString> = None;
 
         let findall = mincount == MAXCOL || mincount == TAG_MANY;
         let has_re = (flags & TAG_REGEXP) != 0;
@@ -2282,11 +2288,7 @@ pub fn find_tags(
                 pat_slice[pat_slice.len() - 1],
                 0,
             ]);
-            saved_pat = Some(cstr);
-            st.orgpat.pat = saved_pat
-                .as_ref()
-                .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()))
-                .unwrap();
+            st.orgpat.pat = cstr;
             st.orgpat.len -= 3;
         }
         if opt_vars().p_tl != 0 && (st.orgpat.len as OptInt) > opt_vars().p_tl {
@@ -2362,7 +2364,6 @@ pub fn find_tags(
         findtags_copy_matches(&mut st, matches);
 
         curbuf_mut().b_help = help_save;
-        drop(saved_pat);
 
         opt_vars().p_ic = save_p_ic;
 

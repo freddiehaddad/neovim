@@ -107,7 +107,8 @@ impl Default for Evalarg {
 
 #[repr(C)]
 pub struct Lval {
-    pub ll_name: Option<&'static std::ffi::CStr>,
+    pub ll_name: Option<std::ffi::CString>,
+    pub ll_name_off: usize,
     pub ll_name_len: usize,
     pub ll_exp_name: Option<std::ffi::CString>,
     pub ll_tv: crate::globals::GraphPtr<TypVal>,
@@ -127,6 +128,7 @@ impl Lval {
     pub const fn new() -> Self {
         Self {
             ll_name: None,
+            ll_name_off: 0,
             ll_name_len: 0,
             ll_exp_name: None,
             ll_tv: crate::globals::GraphPtr::NULL,
@@ -141,6 +143,24 @@ impl Lval {
             ll_newkey: None,
             ll_blob: crate::globals::GraphPtr::NULL,
         }
+    }
+
+    #[inline]
+    pub fn ll_name_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.ll_name
+            .as_deref()
+            .map(|s| crate::memory::CStrSubslice::advance(s, self.ll_name_off))
+    }
+
+    #[inline]
+    pub fn set_ll_name(&mut self, s: &std::ffi::CStr) {
+        self.ll_name = Some(s.to_owned());
+        self.ll_name_off = 0;
+    }
+
+    #[inline]
+    pub fn advance_ll_name(&mut self, n: usize) {
+        self.ll_name_off += n;
     }
 }
 
@@ -351,7 +371,7 @@ struct VarsModuleState {
     varnamebuf: Vec<u8>,
     redir_lval: Option<Lval>,
     redir_buf: Vec<u8>,
-    redir_endp: Option<&'static std::ffi::CStr>,
+    redir_endp: Option<std::ffi::CString>,
     redir_varname: Option<std::ffi::CString>,
     gdone: usize,
     bdone: usize,
@@ -1946,7 +1966,7 @@ fn ex_unletlock(
     loop {
         if arg.first_byte() == b'$' {
             let name_start = arg;
-            lv.ll_name = Some(arg.as_cstr());
+            lv.set_ll_name(arg.as_cstr());
             lv.ll_tv = crate::globals::GraphPtr::NULL;
             let mut arg_cstr = arg.wrapping_add(1).as_cstr();
             if get_env_len(&mut arg_cstr) == 0 {
@@ -1999,7 +2019,7 @@ fn ex_unletlock(
 fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     let forceit = eap.forceit;
     let mut ret = true;
-    let ll_name = lp.ll_name.unwrap_or(c"");
+    let ll_name = lp.ll_name_cstr().unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
         let name_slice = crate::strings::AsByteSlice::slice_len(ll_name.as_ptr(), lp.ll_name_len);
@@ -2012,12 +2032,12 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     } else if (!lp.ll_list.is_null()
         && value_check_lock(
             tv_list_locked(lp.list_opt().as_deref()),
-            lp.ll_name,
+            lp.ll_name_cstr(),
             lp.ll_name_len,
         ))
         || (lp
             .dict_opt()
-            .is_some_and(|d| value_check_lock(d.dv_lock, lp.ll_name, lp.ll_name_len)))
+            .is_some_and(|d| value_check_lock(d.dv_lock, lp.ll_name_cstr(), lp.ll_name_len)))
     {
         return false;
     } else if lp.ll_range {
@@ -2159,7 +2179,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
 fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
     let lock = eap.cmdidx == Cmdidx::CmdLockvar;
     let mut ret = true;
-    let ll_name = lp.ll_name.unwrap_or(c"");
+    let ll_name = lp.ll_name_cstr().unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
         if ll_name.to_bytes().first() == Some(&b'$') {
@@ -3611,16 +3631,22 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         0,
         FNE_CHECK_START,
     )
-    .map(crate::globals::GraphPtr::<u8>::cstr);
+    .map(CStr::to_owned);
     if vars_st()
         .redir_endp
+        .as_deref()
         .is_none_or(|s| !s.to_bytes().is_empty())
         || crate::globals::GraphPtr::of(lval_ptr)
             .borrow_mut()
             .ll_name
             .is_none()
     {
-        if let Some(endp) = vars_st().redir_endp.filter(|s| !s.to_bytes().is_empty()) {
+        if let Some(endp) = vars_st()
+            .borrow()
+            .redir_endp
+            .as_deref()
+            .filter(|s| !s.to_bytes().is_empty())
+        {
             semsg!(gettext(E_TRAILING_ARG), endp);
         } else {
             semsg!(gettext(E_INVARG2), name);
@@ -3637,7 +3663,8 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         v_lock: 0,
         vval: TypvalVval::from_cstr(c""),
     };
-    let endp_cstr = vars_st().redir_endp.unwrap_or(c"");
+    let endp_owned = vars_st().redir_endp.clone();
+    let endp_cstr = endp_owned.as_deref().unwrap_or(c"");
     if append {
         set_var_lval(
             crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
@@ -3705,9 +3732,10 @@ pub fn var_redir_stop() {
                 0,
                 FNE_CHECK_START,
             )
-            .map(crate::globals::GraphPtr::<u8>::cstr);
+            .map(CStr::to_owned);
 
-            if let Some(endp) = vars_st().redir_endp
+            let endp_owned = vars_st().redir_endp.clone();
+            if let Some(ref endp) = endp_owned
                 && lval_ptr.ll_name.is_some()
             {
                 set_var_lval(

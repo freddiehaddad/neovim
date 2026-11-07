@@ -1403,7 +1403,7 @@ pub fn get_lval<'a>(
     *lp = Lval::new();
 
     if skip {
-        lp.ll_name = Some(crate::globals::GraphPtr::<u8>::cstr(name_in));
+        lp.set_ll_name(name_in);
         return Some(find_name_end(name_in, None, FNE_INCL_BR | fne_flags));
     }
 
@@ -1428,14 +1428,12 @@ pub fn get_lval<'a>(
             expr_end_off,
         ) {
             lp.ll_name_len = cstr.as_bytes().len();
+            lp.set_ll_name(&cstr);
             lp.ll_exp_name = Some(cstr);
-            lp.ll_name = lp
-                .ll_exp_name
-                .as_ref()
-                .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()));
         } else {
             lp.ll_exp_name = None;
             lp.ll_name = None;
+            lp.ll_name_off = 0;
             if !aborting() && !quiet {
                 g_st().emsg_severe = true;
                 semsg!(gettext(E_INVARG2), name_in);
@@ -1444,7 +1442,7 @@ pub fn get_lval<'a>(
             lp.ll_name_len = 0;
         }
     } else {
-        lp.ll_name = Some(crate::globals::GraphPtr::<u8>::cstr(name_in));
+        lp.set_ll_name(name_in);
         lp.ll_name_len = (p.as_ptr() as usize).wrapping_sub(name as usize);
     }
 
@@ -1453,7 +1451,7 @@ pub fn get_lval<'a>(
     }
 
     let mut ht: Option<&'static mut Hashtab> = None;
-    let ll_name = lp.ll_name.unwrap_or(c"");
+    let ll_name = lp.ll_name_cstr().unwrap_or(c"");
 
     let v = find_var(
         ll_name,
@@ -1490,7 +1488,7 @@ pub fn get_lval<'a>(
     )?;
 
     if lp.ll_exp_name.is_none() {
-        lp.ll_name_len = (p_cstr.as_ptr() as usize).wrapping_sub(ll_name.as_ptr() as usize);
+        lp.ll_name_len = (p_cstr.as_ptr() as usize).wrapping_sub(name as usize);
     }
     Some(p_cstr)
 }
@@ -1504,21 +1502,19 @@ pub fn set_var_lval(
     is_const: bool,
     op_opt: Option<&CStr>,
 ) {
-    let endp = crate::strings::ByteSlice::from_cstr(endp_cstr);
     let op = crate::strings::ByteSlice::from_opt_cstr(op_opt);
-    let ll_name = lp.ll_name.unwrap_or(c"");
+    let ll_name_owned = lp.ll_name_cstr().map(CStr::to_owned);
+    let ll_name = ll_name_owned.as_deref().unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
         let name_cstr = if lp.ll_exp_name.is_some() {
             ll_name.to_owned()
         } else {
-            let full_len = ((crate::strings::AsByteSlice::byte_addr(endp) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(ll_name.as_ptr()) as isize))
-                as usize;
-            bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
-                ll_name.as_ptr(),
-                full_len,
-            ))
+            let full_len = ll_name
+                .to_bytes()
+                .len()
+                .saturating_sub(endp_cstr.to_bytes().len());
+            bytes_to_cstring(&ll_name.to_bytes()[..full_len])
         };
         if let Some(blob) = lp.ll_blob.opt_mut() {
             if !op.is_null() && op.first_byte() != b'=' {
@@ -1586,7 +1582,7 @@ pub fn set_var_lval(
         } else {
             lp.tv_mut().vval.v_dict().dv_lock
         },
-        lp.ll_name,
+        lp.ll_name_cstr(),
         TV_CSTRING,
     ) {
         // Skip

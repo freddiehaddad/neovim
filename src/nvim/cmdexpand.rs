@@ -125,7 +125,7 @@ pub struct ExpandCtx {
     pub xp_context: i32,
     pub xp_pattern_len: usize,
     pub xp_prefix: i32,
-    pub xp_arg: Option<&'static std::ffi::CStr>,
+    pub xp_arg: Option<std::ffi::CString>,
     pub xp_luaref: LuaRef,
     pub xp_script_ctx: Sctx,
     pub xp_backslash: i32,
@@ -4302,10 +4302,7 @@ pub fn set_cmd_context(
     } else if use_ccline && ccline.input_fn != 0 {
         xp.xp_context = ccline.xp_context;
         xp.xp_pattern = ccline.cmdbuff();
-        xp.xp_arg = ccline
-            .xp_arg
-            .as_deref()
-            .map(crate::globals::GraphPtr::<u8>::cstr);
+        xp.xp_arg = ccline.xp_arg.clone();
         if xp.xp_context == EXPAND_SHELLCMDLINE {
             let mut context = xp.xp_context;
             let pat_cstr = xp.xp_pattern.as_cstr();
@@ -5314,7 +5311,7 @@ where
     let mut args: [TypVal; 4] = [TypVal::new(); 4];
     let save_current_sctx = g_st().current_sctx;
 
-    let Some(arg_cstr) = xp.xp_arg.filter(|s| !s.to_bytes().is_empty()) else {
+    let Some(arg_cstr) = xp.xp_arg.as_deref().filter(|s| !s.to_bytes().is_empty()) else {
         return default;
     };
     if xp.xp_line.is_null() {
@@ -5854,14 +5851,14 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = Some(crate::globals::GraphPtr::<u8>::cstr(&type_str[7..]));
+                xpc.xp_arg = Some(type_str[7..].to_owned());
             }
             EXPAND_USER_LIST => {
                 if !type_str.to_bytes().starts_with(b"customlist,") {
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = Some(crate::globals::GraphPtr::<u8>::cstr(&type_str[11..]));
+                xpc.xp_arg = Some(type_str[11..].to_owned());
             }
             EXPAND_MENUS => {
                 let pat_p = xpc.xp_pattern;
@@ -5944,7 +5941,8 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     set_cmd_context(&mut xpc, &mut pat_bytes, cmdline_len, cmdline_len, false);
     crate::eval::typval::tv_set_string(
         rettv,
-        cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg.map(CStr::to_bytes)).as_deref(),
+        cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg.as_deref().map(CStr::to_bytes))
+            .as_deref(),
     );
 }
 

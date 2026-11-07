@@ -3132,8 +3132,9 @@ pub fn find_pattern_in_path(
         let mut max_path_depth: i32 = 50;
         let mut match_count: i32 = 1;
 
-        let mut curr_fname = curbuf_mut().fname_opt();
-        let mut prev_fname: Option<&'static std::ffi::CStr> = None;
+        let mut curr_fname: Option<std::ffi::CString> =
+            curbuf_mut().fname_opt().map(CStr::to_owned);
+        let mut prev_fname: Option<std::ffi::CString> = None;
         let mut p;
         let mut define_matched: bool;
         let mut regmatch: Regmatch = Regmatch::new();
@@ -3228,10 +3229,10 @@ pub fn find_pattern_in_path(
                     0,
                 )
             {
-                let p_fname_opt = if curr_fname == curbuf_mut().fname_opt() {
+                let p_fname_opt = if curr_fname.as_deref() == curbuf_mut().fname_opt() {
                     curbuf_mut().ffname_opt()
                 } else {
-                    curr_fname
+                    curr_fname.as_deref()
                 };
 
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
@@ -3402,10 +3403,8 @@ pub fn find_pattern_in_path(
                             files[old_files as usize].name = None;
                             old_files += 1;
                         }
-                        files[depth as usize].name = Some(nf_cstr);
-                        curr_fname = files[depth as usize]
-                            .name_ptr()
-                            .map(crate::globals::GraphPtr::<u8>::cstr);
+                        files[depth as usize].name = Some(nf_cstr.clone());
+                        curr_fname = Some(nf_cstr);
                         files[depth as usize].lnum = 0;
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
@@ -3413,7 +3412,7 @@ pub fn find_pattern_in_path(
                             format_to_buf!(
                                 g_st().iobuff_bytes_mut(),
                                 tr(c"Scanning included file: %s"),
-                                curr_fname.unwrap_or(c""),
+                                curr_fname.as_deref().unwrap_or(c""),
                             );
                             msg_trunc(g_st().iobuff_bytes_mut(), true, HLF_R);
                         } else if opt_vars().p_verbose >= 5 {
@@ -3421,7 +3420,7 @@ pub fn find_pattern_in_path(
                             smsg!(
                                 0,
                                 tr(c"Searching included file %s"),
-                                curr_fname.unwrap_or(c""),
+                                curr_fname.as_deref().unwrap_or(c""),
                             );
                             verbose_leave();
                         }
@@ -3668,10 +3667,10 @@ pub fn find_pattern_in_path(
                                         ),
                                         i,
                                         opt_vars().p_ic,
-                                        if curr_fname == curbuf_mut().fname_opt() {
+                                        if curr_fname.as_deref() == curbuf_mut().fname_opt() {
                                             None
                                         } else {
-                                            path_try_shorten_fname(curr_fname)
+                                            path_try_shorten_fname(curr_fname.as_deref())
                                         },
                                         dir,
                                         cont_s_ipos,
@@ -3695,9 +3694,9 @@ pub fn find_pattern_in_path(
                                 msg_putchar(b'\n' as i32);
                             }
                             if !g_st().got_int {
-                                msg_home_replace(curr_fname);
+                                msg_home_replace(curr_fname.as_deref());
                             }
-                            prev_fname = curr_fname;
+                            prev_fname = curr_fname.clone();
                         }
                         did_show = true;
                         if !g_st().got_int {
@@ -3872,11 +3871,9 @@ pub fn find_pattern_in_path(
                 files[old_files as usize].matched = files[depth as usize].matched;
                 depth -= 1;
                 curr_fname = if depth == -1 {
-                    curbuf_mut().fname_opt()
+                    curbuf_mut().fname_opt().map(CStr::to_owned)
                 } else {
-                    files[depth as usize]
-                        .name_ptr()
-                        .map(crate::globals::GraphPtr::<u8>::cstr)
+                    files[depth as usize].name.clone()
                 };
                 depth_displayed = depth_displayed.min(depth);
             }

@@ -55,9 +55,9 @@ pub struct ConcealSpan {
 pub type ConcealSpans = Vec<ConcealSpan>;
 
 #[repr(C)]
-pub struct CharsizeArg {
+pub struct CharsizeArg<'a> {
     pub win: crate::globals::WinPtr,
-    pub line: &'static std::ffi::CStr,
+    pub line: &'a std::ffi::CStr,
     pub use_tabstop: bool,
     pub indent_width: i32,
     pub virt_row: i32,
@@ -70,7 +70,7 @@ pub struct CharsizeArg {
     pub extconceal: Option<&'static ConcealSpans>,
 }
 
-impl CharsizeArg {
+impl CharsizeArg<'_> {
     pub const fn new() -> Self {
         Self {
             win: crate::globals::WinPtr::NULL,
@@ -99,7 +99,7 @@ impl CharsizeArg {
     }
 }
 
-impl Default for CharsizeArg {
+impl Default for CharsizeArg<'_> {
     fn default() -> Self {
         Self::new()
     }
@@ -127,7 +127,7 @@ pub(crate) fn win_charsize(
     vcol: Colnr,
     ptr_val: &[u8],
     chr: i32,
-    csarg: &mut CharsizeArg,
+    csarg: &mut CharsizeArg<'_>,
     mb_width: i32,
 ) -> CharSize {
     if cstype == K_CHARSIZE_FAST {
@@ -206,14 +206,14 @@ pub fn has_extconceal(wp: &mut WinInfoInfo) -> bool {
             || wp.buf_mut().b_conceal_providers > 0)
 }
 
-pub fn init_charsize_arg(
-    csarg: &mut CharsizeArg,
+pub fn init_charsize_arg<'a>(
+    csarg: &mut CharsizeArg<'a>,
     wp: &mut WinInfoInfo,
     lnum: Linenr,
-    line: &std::ffi::CStr,
+    line: &'a std::ffi::CStr,
 ) -> CSType {
     csarg.win = crate::globals::WinPtr::from(&mut *wp);
-    csarg.line = crate::globals::GraphPtr::<u8>::cstr(line);
+    csarg.line = line;
     csarg.max_head_vcol = 0;
     csarg.extconceal_off = 0;
     csarg.cur_text_width_left = 0;
@@ -254,7 +254,7 @@ pub fn init_charsize_arg(
 /// Collects the conceal of line `lnum` into `spans`, after running its
 /// `_on_conceal` provider, which may free the line buffer: read the line from `csarg.line`.
 pub fn init_charsize_arg_extconceal(
-    csarg: &mut CharsizeArg,
+    csarg: &mut CharsizeArg<'_>,
     wp: &mut WinInfoInfo,
     lnum: Linenr,
     spans: &mut ConcealSpans,
@@ -274,11 +274,11 @@ pub fn init_charsize_arg_extconceal(
     K_CHARSIZE_REGULAR
 }
 
-pub fn init_charsize_arg_skip_cur_text(
-    csarg: &mut CharsizeArg,
+pub fn init_charsize_arg_skip_cur_text<'a>(
+    csarg: &mut CharsizeArg<'a>,
     wp: &mut WinInfoInfo,
     lnum: Linenr,
-    line: &std::ffi::CStr,
+    line: &'a std::ffi::CStr,
 ) -> CSType {
     let mut cstype = init_charsize_arg(csarg, wp, 0, line);
     csarg.skip_cur_text = true;
@@ -382,7 +382,7 @@ fn conceal_span_hidden(span: Option<&ConcealSpan>, col: i32, width: i32) -> i32 
     width - schar_cells(replacement)
 }
 
-pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
+pub fn conceal_disp_byte(csarg: &CharsizeArg<'_>, col: i32) -> i32 {
     let span = csarg
         .extconceal_opt()
         .and_then(|spans| conceal_span_at(spans, col));
@@ -405,7 +405,7 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
     i32::from(buf[0])
 }
 
-fn conceal_next_byte(csarg: &CharsizeArg, col: i32) -> i32 {
+fn conceal_next_byte(csarg: &CharsizeArg<'_>, col: i32) -> i32 {
     let line = crate::strings::ByteSlice::from_cstr(csarg.line);
     let mut p = line.wrapping_add(col as usize);
     while !p.is_empty() {
@@ -419,7 +419,7 @@ fn conceal_next_byte(csarg: &CharsizeArg, col: i32) -> i32 {
 }
 
 pub fn charsize_regular(
-    csarg: &mut CharsizeArg,
+    csarg: &mut CharsizeArg<'_>,
     cur: &[u8],
     vcol: Colnr,
     cur_char: i32,
@@ -793,7 +793,7 @@ fn charsize_fast_impl(
 }
 
 pub fn charsize_fast(
-    csarg: &mut CharsizeArg,
+    csarg: &mut CharsizeArg<'_>,
     vcol: Colnr,
     cur_char: i32,
     mb_width: i32,
@@ -980,7 +980,7 @@ fn extconceal_vcol_map(
     to + target - from
 }
 
-pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
+pub fn linesize_regular(csarg: &mut CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> i32 {
     let mut vcol = i64::from(vcol_arg);
     let mut raw_vcol = i64::from(vcol_arg);
 
@@ -1021,7 +1021,7 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
     vcol_arg
 }
 
-pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
+pub fn linesize_fast(csarg: &CharsizeArg<'_>, mut vcol_arg: i32, len: Colnr) -> i32 {
     let use_tabstop = csarg.use_tabstop;
     let line_cstr = csarg.line;
     let mut vcol = i64::from(vcol_arg);
@@ -1051,7 +1051,7 @@ pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 
     vcol_arg
 }
 
-fn virt_text_cursor_off(csarg: &CharsizeArg, on_nul: bool) -> i32 {
+fn virt_text_cursor_off(csarg: &CharsizeArg<'_>, on_nul: bool) -> i32 {
     let mut off = 0;
     if !on_nul || (g_st().state_global & MODE_NORMAL) == 0 {
         off += csarg.cur_text_width_left;

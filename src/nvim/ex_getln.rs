@@ -1076,11 +1076,7 @@ fn command_line_enter(
         if getln_st().ccline.input_fn != 0 {
             s.xpc.xp_context = getln_st().ccline.xp_context;
             s.xpc.xp_pattern = getln_st().ccline.cmdbuff();
-            s.xpc.xp_arg = getln_st()
-                .ccline
-                .xp_arg
-                .as_deref()
-                .map(crate::globals::GraphPtr::<u8>::cstr);
+            s.xpc.xp_arg = getln_st().ccline.xp_arg.clone();
         }
 
         g_st().msg_scroll = 0;
@@ -4637,7 +4633,7 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
         return None;
     }
 
-    cmdcomplete_type_to_str(xp_context, xpc.xp_arg.map(CStr::to_bytes))
+    cmdcomplete_type_to_str(xp_context, xpc.xp_arg.as_deref().map(CStr::to_bytes))
 }
 
 /// `"getcmdcomplpat()"` function.

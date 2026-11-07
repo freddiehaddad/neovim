@@ -159,7 +159,8 @@ struct Winlinevars<'a> {
     char_attr: i32,
     n_extra: i32,
     n_attr: i32,
-    p_extra: Option<&'static std::ffi::CStr>,
+    p_extra_buf: Option<std::ffi::CString>,
+    p_extra_off: usize,
     extra_attr: i32,
     sc_extra: Schar,
     sc_final: Schar,
@@ -180,6 +181,32 @@ struct Winlinevars<'a> {
     skip_cells: i32,
     skipped_cells: i32,
     color_cols: &'a [i32],
+}
+
+impl Winlinevars<'_> {
+    #[inline]
+    fn p_extra(&self) -> Option<&std::ffi::CStr> {
+        self.p_extra_buf
+            .as_deref()
+            .map(|s| crate::memory::CStrSubslice::advance(s, self.p_extra_off))
+    }
+
+    #[inline]
+    fn set_p_extra(&mut self, s: &std::ffi::CStr) {
+        self.p_extra_buf = Some(s.to_owned());
+        self.p_extra_off = 0;
+    }
+
+    #[inline]
+    fn set_p_extra_owned(&mut self, s: std::ffi::CString) {
+        self.p_extra_buf = Some(s);
+        self.p_extra_off = 0;
+    }
+
+    #[inline]
+    fn advance_p_extra(&mut self, n: usize) {
+        self.p_extra_off += n;
+    }
 }
 
 struct DrawlineState {
@@ -1184,7 +1211,7 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             else {
                 continue;
             };
-            wlv.p_extra = Some(crate::globals::GraphPtr::<u8>::cstr(text));
+            wlv.set_p_extra(text);
             wlv.n_extra = text.to_bytes().len() as i32;
             if wlv.n_extra == 0 {
                 continue;
@@ -1195,18 +1222,18 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             wlv.n_attr = mb_charlen(text.to_bytes());
             if wlv.skip_cells > 0 {
                 let virt_text_width =
-                    mb_string2cells(wlv.p_extra.map_or(&[][..], std::ffi::CStr::to_bytes)) as i32;
+                    mb_string2cells(wlv.p_extra().map_or(&[][..], std::ffi::CStr::to_bytes)) as i32;
                 if virt_text_width > wlv.skip_cells {
                     let mut skip_cells_remaining = wlv.skip_cells;
                     while skip_cells_remaining > 0 {
-                        let p_bytes = wlv.p_extra.map_or(&[][..], std::ffi::CStr::to_bytes);
+                        let p_bytes = wlv.p_extra().map_or(&[][..], std::ffi::CStr::to_bytes);
                         let cells = utf_ptr2cells(p_bytes);
                         if cells > skip_cells_remaining {
                             break;
                         }
                         let c_len = utfc_ptr2len(p_bytes);
                         skip_cells_remaining -= cells;
-                        wlv.p_extra = wlv.p_extra.map(|s| &s[c_len as usize..]);
+                        wlv.advance_p_extra(c_len as usize);
                         wlv.n_extra -= c_len;
                         wlv.n_attr -= 1;
                     }
@@ -1462,7 +1489,6 @@ pub fn win_line(
     let mut decor_need_recheck = false;
 
     let mut fold_vt: VirtText = Vec::new();
-    let mut foldtext_free: Option<std::ffi::CString> = None;
 
     let mut cul_screenline = false;
     let mut left_curline_col: i32 = 0;
@@ -1504,7 +1530,8 @@ pub fn win_line(
         char_attr: 0,
         n_extra: 0,
         n_attr: 0,
-        p_extra: None,
+        p_extra_buf: None,
+        p_extra_off: 0,
         extra_attr: 0,
         sc_extra: 0,
         sc_final: 0,
@@ -2290,7 +2317,9 @@ pub fn win_line(
                     || (wlv.vcol + 1 == wlv.fromcol
                         && ((wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1)
                             || (wlv.n_extra > 0
-                                && wlv.p_extra.is_some_and(|s| utf_ptr2cells(s.to_bytes()) > 1))))
+                                && wlv
+                                    .p_extra()
+                                    .is_some_and(|s| utf_ptr2cells(s.to_bytes()) > 1))))
                 {
                     *area_attr_p = vi_attr;
 
@@ -2407,13 +2436,9 @@ pub fn win_line(
                     - (crate::strings::AsByteSlice::byte_addr(line) as isize))
                     as i32;
                 let lnume = lnum + foldinfo.fi_lines - 1;
-                debug_assert!(foldtext_free.is_none());
                 let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
                 wlv.n_extra = fdt.to_bytes().len() as i32;
-                foldtext_free = Some(fdt);
-                wlv.p_extra = foldtext_free
-                    .as_ref()
-                    .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()));
+                wlv.set_p_extra_owned(fdt);
                 wlv.sc_extra = 0;
                 wlv.sc_final = 0;
 
@@ -2448,8 +2473,8 @@ pub fn win_line(
                     mb_schar_width = schar_get_single_width(mb_schar);
                     wlv.n_extra -= 1;
                 } else {
-                    debug_assert!(wlv.p_extra.is_some());
-                    let ci = utf_ptr2_str_char_info(wlv.p_extra.unwrap_or(c""));
+                    debug_assert!(wlv.p_extra().is_some());
+                    let ci = utf_ptr2_str_char_info(wlv.p_extra().unwrap_or(c""));
                     let cli = utf_cluster_info(ci);
                     let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                     mb_schar = schar_from_cluster(ci, cli);
@@ -2473,9 +2498,7 @@ pub fn win_line(
                         }
                     } else {
                         wlv.n_extra -= mb_l;
-                        wlv.p_extra = wlv
-                            .p_extra
-                            .map(|s| &s[(mb_l as usize).min(s.to_bytes().len())..]);
+                        wlv.advance_p_extra(mb_l as usize);
                     }
 
                     if wlv.filler_todo <= 0 && wlv.skip_cells > 0 && mb_l > 1 {
@@ -2514,7 +2537,7 @@ pub fn win_line(
                         wlv.extra_for_extmark = false;
                     } else {
                         debug_assert!(wlv.sc_extra != 0 || wlv.sc_final != 0);
-                        debug_assert!(wlv.p_extra.is_some());
+                        debug_assert!(wlv.p_extra().is_some());
                         wlv.sc_extra = 0;
                         wlv.sc_final = 0;
                         wlv.n_extra = n_extra_next;
@@ -2557,7 +2580,7 @@ pub fn win_line(
 
                     let p_extra_cstr =
                         crate::strings::ByteSlice::from_ptr(extra_ptr.wrapping_add(1)).as_cstr();
-                    wlv.p_extra = Some(p_extra_cstr);
+                    wlv.set_p_extra(p_extra_cstr);
                     mb_schar = schar_from_ascii(wlv.extra[0]);
                     mb_schar_width = 1;
                     wlv.n_extra = p_extra_cstr.to_bytes().len() as i32;
@@ -3079,8 +3102,9 @@ pub fn win_line(
                                     wlv.n_extra +=
                                         slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                 }
-                                wlv.p_extra =
-                                    Some(crate::strings::ByteSlice::from_ptr(extra_base).as_cstr());
+                                wlv.set_p_extra(
+                                    crate::strings::ByteSlice::from_ptr(extra_base).as_cstr(),
+                                );
 
                                 if wlv.vcol_off_co + wlv.extconceal_off > 0 {
                                     wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
@@ -3109,7 +3133,7 @@ pub fn win_line(
                                 lcs_tab1
                             };
                             if wp.w_onebuf_opt.wo_lbr
-                                && wlv.p_extra.is_some_and(|s| !s.to_bytes().is_empty())
+                                && wlv.p_extra().is_some_and(|s| !s.to_bytes().is_empty())
                             {
                                 wlv.sc_extra = 0;
                             } else {
@@ -3140,7 +3164,7 @@ pub fn win_line(
                                 && wlv.tocol != MAXCOL
                                 && wlv.vcol < wlv.tocol)
                             {
-                                wlv.p_extra = Some(c"");
+                                wlv.set_p_extra(c"");
                             }
                             wlv.n_extra = 0;
                         }
@@ -3194,11 +3218,12 @@ pub fn win_line(
 
                             extra_slice[wlv.n_extra as usize] = 0;
 
-                            wlv.p_extra =
-                                Some(crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr());
+                            wlv.set_p_extra(
+                                crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr(),
+                            );
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
-                            wlv.p_extra = Some(
+                            wlv.set_p_extra(
                                 crate::strings::ByteSlice::from_ptr(
                                     wlv.extra.as_ptr().wrapping_add(1),
                                 )
@@ -3355,7 +3380,7 @@ pub fn win_line(
                     wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
                     wlv.sc_final = 0;
                     if wlv.n_extra > 0 {
-                        debug_assert!(wlv.p_extra.is_some());
+                        debug_assert!(wlv.p_extra().is_some());
                         n_extra_next = wlv.n_extra;
                         extra_attr_next = wlv.extra_attr;
                         wlv.n_attr = (wlv.n_attr + 1).max(2);
@@ -3575,7 +3600,7 @@ pub fn win_line(
                     || (lcs_eol > 0 && lcs_eol_todo)
                     || (wlv.n_extra > 0
                         && (wlv.sc_extra != 0
-                            || wlv.p_extra.is_some_and(|s| !s.to_bytes().is_empty())))
+                            || wlv.p_extra().is_some_and(|s| !s.to_bytes().is_empty())))
                     || (may_have_inline_virt
                         && has_more_inline_virt(
                             &wlv,
@@ -3797,7 +3822,7 @@ pub fn win_line(
                 || (wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                 || (wlv.n_extra != 0
                     && (wlv.sc_extra != 0
-                        || wlv.p_extra.is_some_and(|s| !s.to_bytes().is_empty())))
+                        || wlv.p_extra().is_some_and(|s| !s.to_bytes().is_empty())))
                 || (may_have_inline_virt
                     && has_more_inline_virt(
                         &wlv,
@@ -3923,7 +3948,6 @@ pub fn win_line(
 
     drop(fold_vt);
     drop(virt_lines);
-    drop(foldtext_free);
     wlv.row
 }
 
