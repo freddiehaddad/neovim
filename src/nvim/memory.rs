@@ -255,34 +255,6 @@ pub fn free_items<T>(items: crate::globals::GraphPtr<T>) {
     raw_dealloc(items.as_ptr().cast::<c_void>());
 }
 
-/// Allocate `data.len() + 1` bytes, copy `data`, and NUL-terminate.
-pub fn alloc_cstring_len(data: &[u8]) -> crate::strings::ByteSlice {
-    let len = data.len();
-    let Some(total_size) = len.checked_add(1) else {
-        preserve_exit(Some(
-            c"Nvim: Data too large to fit into virtual memory space\n",
-        ));
-    };
-    let ret = raw_alloc(total_size).cast::<u8>();
-    let slice = unsafe { std::slice::from_raw_parts_mut(ret, total_size) };
-    slice[..len].copy_from_slice(data);
-    slice[len] = 0;
-    Some(slice)
-}
-
-/// Duplicate a NUL-terminated C string.
-#[inline(always)]
-pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> crate::strings::ByteSlice {
-    alloc_cstring_len(str_ptr.to_bytes())
-}
-
-/// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
-#[inline(always)]
-pub fn free_cstring(p: crate::strings::ByteSlice) {
-    use crate::strings::ByteSliceExt as _;
-    raw_dealloc(p.as_ptr().cast::<c_void>());
-}
-
 /// Portable `strnlen` (`xstrnlen`).
 pub fn xstrnlen(s: *const std::ffi::c_char, n: usize) -> usize {
     if s.is_null() {

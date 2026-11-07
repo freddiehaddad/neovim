@@ -25,8 +25,8 @@ use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_alloc_opt, arena_finish,
-    arena_memdupz, arena_memdupz_opt, free_cstring, free_items,
+    Arena, ArenaMem, arena_alloc, arena_alloc_opt, arena_finish, arena_memdupz, arena_memdupz_opt,
+    free_items, raw_dealloc,
 };
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
@@ -702,7 +702,7 @@ pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
     };
     let len = str_.to_bytes().len();
     NvimString {
-        data: alloc_cstring_len(str_.to_bytes()),
+        data: arena_memdupz_opt(None, str_.to_bytes()),
         size: len,
     }
 }
@@ -713,14 +713,14 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 
 pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(bytes),
+        data: arena_memdupz_opt(None, bytes),
         size: bytes.len(),
     }
 }
 
 pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(buf),
+        data: arena_memdupz_opt(None, buf),
         size: buf.len(),
     }
 }
@@ -863,7 +863,9 @@ pub fn buf_get_text(
 }
 
 pub fn api_free_string(value: NvimString) {
-    free_cstring(value.data);
+    if let Some(b) = value.data {
+        raw_dealloc(b.as_ptr().cast_mut().cast());
+    }
 }
 
 pub fn arena_array(arena: &mut Arena, max_size: usize) -> Array {
@@ -930,19 +932,10 @@ pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
 pub fn arena_bytes_opt(arena: Option<&mut Arena>, bytes: &[u8]) -> NvimString {
     match arena {
         Some(a) => arena_bytes(a, bytes),
-        None => {
-            if !bytes.is_empty() {
-                NvimString {
-                    data: arena_memdupz_opt(None, bytes),
-                    size: bytes.len(),
-                }
-            } else {
-                NvimString {
-                    data: alloc_cstring(c""),
-                    size: 0,
-                }
-            }
-        }
+        None => NvimString {
+            data: arena_memdupz_opt(None, bytes),
+            size: bytes.len(),
+        },
     }
 }
 
