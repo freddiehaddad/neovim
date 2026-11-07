@@ -312,7 +312,7 @@ struct TagModuleState {
     do_tag_max_num_matches: i32,
     do_tag_matches: Vec<Vec<u8>>,
     do_tag_flags: i32,
-    tag_listfiles_extra: Vec<([u8; 2], std::ffi::CString)>,
+    tag_listfiles_extra: Vec<(std::ffi::CString, std::ffi::CString)>,
 }
 
 impl TagModuleState {
@@ -3077,12 +3077,7 @@ pub fn tag_listfiles_extra(idx: usize) -> Option<(&'static CStr, &'static CStr)>
         .tag_listfiles_extra
         .as_slice()
         .get(idx)
-        .map(|(k, f)| {
-            (
-                CStr::from_bytes_with_nul(k).unwrap_or_default(),
-                f.as_c_str(),
-            )
-        })
+        .map(|(k, f)| (k.as_c_str(), f.as_c_str()))
 }
 
 pub fn expand_tags(
@@ -3127,9 +3122,18 @@ pub fn expand_tags(
                 let mut t_p = Tagptrs::default();
                 parse_match(&m, &mut t_p);
                 file.push(crate::memory::bytes_to_cstring(t_p.tagname));
-                let kind_c = t_p.tagkind.and_then(|k| k.first().copied()).unwrap_or(b'f');
+                // The kind may be a multi-byte character, copy all of its bytes.
+                let kind_bytes: &[u8] = if let Some(k) = t_p.tagkind
+                    && !k.is_empty()
+                {
+                    let kind_len = (utfc_ptr2len(k) as usize).min(k.len());
+                    &k[..kind_len]
+                } else {
+                    b"f"
+                };
+                let kind_cstr = crate::memory::bytes_to_cstring(kind_bytes);
                 let fname_cstr = crate::memory::bytes_to_cstring(t_p.fname);
-                tag_st().tag_listfiles_extra.push(([kind_c, 0], fname_cstr));
+                tag_st().tag_listfiles_extra.push((kind_cstr, fname_cstr));
             }
         }
     }
