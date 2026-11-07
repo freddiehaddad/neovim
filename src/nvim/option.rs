@@ -1117,7 +1117,8 @@ pub fn set_init_3() {
     parse_shape_opt(SHAPE_CURSOR);
 
     let mut len: usize = 0;
-    let p = invocation_path_tail(opt_vars().p_sh.as_cstr(), Some(&mut len));
+    let p_sh = opt_vars().p_sh.to_owned();
+    let p = invocation_path_tail(&p_sh, Some(&mut len));
     let name_slice = crate::strings::AsByteSlice::slice_len((p).as_ptr(), len);
     for (i, rule) in SHELL_RULES.iter().enumerate() {
         let pat = rule.pat.to_bytes();
@@ -2316,13 +2317,14 @@ pub fn check_blending(wp: &mut WinInfoInfo) {
 
 /// Handle setting 'winhighlight' in window "wp".
 pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -> bool {
-    let p_cstr = if let Some(s) = winhl {
-        s
-    } else if let Some(ref mut w) = wp {
-        w.w_onebuf_opt.wo_winhl.as_cstr()
+    let winhl_owned = if winhl.is_none()
+        && let Some(ref w) = wp
+    {
+        Some(w.w_onebuf_opt.wo_winhl.to_owned())
     } else {
-        c""
+        None
     };
+    let p_cstr = winhl.or(winhl_owned.as_deref()).unwrap_or(c"");
 
     if p_cstr.to_bytes().is_empty() {
         if let Some(ref mut w) = wp
@@ -6818,11 +6820,11 @@ pub fn get_varp_from(
 }
 
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
-pub fn get_equalprg() -> &'static CStr {
+pub fn get_equalprg() -> std::ffi::CString {
     if curbuf_mut().b_p_ep.is_empty() {
-        opt_vars().p_ep.as_cstr()
+        opt_vars().p_ep.to_owned()
     } else {
-        curbuf_mut().b_p_ep.as_cstr()
+        curbuf_mut().b_p_ep.to_owned()
     }
 }
 
@@ -6987,20 +6989,10 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt.as_bytes(), &mut culopt_flags) {
         wp.w_p_culopt_flags = culopt_flags as u8;
     }
-    set_chars_option(
-        wp,
-        wp.w_onebuf_opt.wo_fcs.as_cstr(),
-        CharsOption::Fillchars,
-        true,
-        None,
-    );
-    set_chars_option(
-        wp,
-        wp.w_onebuf_opt.wo_lcs.as_cstr(),
-        CharsOption::Listchars,
-        true,
-        None,
-    );
+    let wo_fcs = wp.w_onebuf_opt.wo_fcs.to_owned();
+    set_chars_option(wp, &wo_fcs, CharsOption::Fillchars, true, None);
+    let wo_lcs = wp.w_onebuf_opt.wo_lcs.to_owned();
+    set_chars_option(wp, &wo_lcs, CharsOption::Listchars, true, None);
     parse_winhl_opt(None, Some(&mut *wp));
     check_blending(wp);
     set_winbar_win(wp, false, valid_cursor);
@@ -7982,11 +7974,11 @@ pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
 }
 
 /// Get the local or global value of 'formatlistpat'.
-pub fn get_flp_value<'a>(buf: &FileBuf) -> &'a CStr {
+pub fn get_flp_value(buf: &FileBuf) -> std::ffi::CString {
     if buf.b_p_flp.is_empty() {
-        opt_vars().p_flp.as_cstr()
+        opt_vars().p_flp.to_owned()
     } else {
-        buf.b_p_flp.as_cstr()
+        buf.b_p_flp.to_owned()
     }
 }
 
@@ -8001,15 +7993,15 @@ pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
 }
 
 /// Get the local or global value of 'showbreak'.
-pub fn get_showbreak_value<'a>(win: &WinInfoInfo) -> &'a CStr {
+pub fn get_showbreak_value(win: &WinInfoInfo) -> std::ffi::CString {
     let sbr = &win.w_onebuf_opt.wo_sbr;
     if sbr.is_empty() {
-        return opt_vars().p_sbr.as_cstr();
+        return opt_vars().p_sbr.to_owned();
     }
     if sbr.as_bytes() == b"NONE" {
-        return c"";
+        return std::ffi::CString::default();
     }
-    sbr.as_cstr()
+    sbr.to_owned()
 }
 
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.

@@ -165,7 +165,8 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
 
         #[cfg(unix)]
         let is_fish_shell = {
-            let tail = invocation_path_tail(opt_vars().p_sh.as_cstr(), None);
+            let p_sh = opt_vars().p_sh.to_owned();
+            let tail = invocation_path_tail(&p_sh, None);
             tail.to_bytes().starts_with(b"fish")
         };
         #[cfg(not(unix))]
@@ -203,7 +204,8 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
         if shell_style != STYLE_BT {
-            let sh_bytes = opt_vars().p_sh.as_bytes();
+            let p_sh = opt_vars().p_sh.to_owned();
+            let sh_bytes = p_sh.as_bytes();
             if sh_bytes.ends_with(b"csh") {
                 shell_style = STYLE_GLOB;
             } else if sh_bytes.ends_with(b"zsh") {
@@ -211,7 +213,8 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
         if shell_style == STYLE_ECHO {
-            let sh_tail = path_tail(opt_vars().p_sh.as_cstr()).to_bytes();
+            let p_sh = opt_vars().p_sh.to_owned();
+            let sh_tail = path_tail(&p_sh).to_bytes();
             if sh_tail.windows(4).any(|w| w == b"bash") {
                 shell_style = STYLE_GLOBSTAR;
             } else if sh_tail.windows(2).any(|w| w == b"sh") {
@@ -1157,7 +1160,8 @@ fn shell_xescape_xquote(cmd: &CStr) -> std::ffi::CString {
     }
 
     let cmd_bytes = cmd.to_bytes();
-    let sxq_bytes = opt_vars().p_sxq.as_bytes();
+    let p_sxq = opt_vars().p_sxq.to_owned();
+    let sxq_bytes = p_sxq.as_bytes();
     let owned_ecmd = if !opt_vars().p_sxe.is_empty() && sxq_bytes == b"(" {
         Some(vim_strsave_escaped_ext(
             cmd_bytes,

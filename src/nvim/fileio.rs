@@ -1611,7 +1611,7 @@ pub fn readfile(
             } else if opt_vars().p_fencs.is_empty() {
                 fenc = curbuf_mut().b_p_fenc.as_ptr().cast_mut().cast::<u8>();
             } else {
-                fenc_next = opt_vars().p_fencs.as_bytes();
+                fenc_next = opt_vars().borrow().p_fencs.as_bytes();
                 fenc_owned = Some(next_fenc(&mut fenc_next));
                 fenc = fenc_owned
                     .as_ref()
@@ -3385,7 +3385,8 @@ pub fn need_conversion(fenc: Option<&CStr>) -> bool {
     let same_encoding: bool;
     let fenc_flags: i32;
 
-    let p_enc_opt = Some(opt_vars().p_enc.as_cstr());
+    let p_enc = opt_vars().p_enc.to_owned();
+    let p_enc_opt = Some(p_enc.as_c_str());
     if fenc.is_none_or(|s| s.to_bytes().is_empty()) || p_enc_opt == fenc {
         same_encoding = true;
         fenc_flags = 0;
@@ -3404,13 +3405,14 @@ pub fn need_conversion(fenc: Option<&CStr>) -> bool {
 /// Return the FIO_ flags needed for the internal conversion if 'name' was
 /// unicode or latin1, otherwise 0.
 pub fn get_fio_flags(name: Option<&CStr>) -> i32 {
+    let p_enc = opt_vars().p_enc.to_owned();
     let name_cstr = match name.filter(|s| !s.to_bytes().is_empty()) {
         Some(s) => s,
         None => {
             if opt_vars().p_enc.is_null() {
                 c"utf-8"
             } else {
-                opt_vars().p_enc.as_cstr()
+                p_enc.as_c_str()
             }
         }
     };

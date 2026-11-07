@@ -30,15 +30,15 @@ impl OptString {
     }
 
     #[inline(always)]
-    pub fn as_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn as_cstr(&self) -> &std::ffi::CStr {
         match self.0 {
-            Some(ref s) => crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()),
+            Some(ref s) => s.as_c_str(),
             None => c"",
         }
     }
 
     #[inline(always)]
-    pub fn as_bytes(&self) -> &'static [u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         self.as_cstr().to_bytes()
     }
 

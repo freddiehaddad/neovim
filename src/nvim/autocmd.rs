@@ -1968,9 +1968,9 @@ pub fn check_ei(ei: &CStr, win: bool) -> bool {
 }
 
 pub fn au_event_disable(what: &std::ffi::CStr) -> std::ffi::CString {
-    let p_ei_bytes = opt_vars().p_ei.as_bytes();
-    let what_bytes = what.to_bytes();
     let save_ei = opt_vars().p_ei.to_owned();
+    let p_ei_bytes = save_ei.as_bytes();
+    let what_bytes = what.to_bytes();
     let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
     if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
         new_ei_vec.extend_from_slice(&what_bytes[1..]);

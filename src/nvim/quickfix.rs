@@ -4298,8 +4298,9 @@ fn qf_jump_first(qi: &mut QfInfo, save_qfid: u32, forceit: bool) {
 }
 
 pub fn grep_internal(cmdidx: Cmdidx) -> i32 {
+    let ov = opt_vars();
     let gp = if curbuf_mut().b_p_gp.is_empty() {
-        opt_vars().p_gp.as_bytes()
+        ov.p_gp.as_bytes()
     } else {
         curbuf_mut().b_p_gp.as_bytes()
     };
@@ -4354,9 +4355,9 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
 
 pub fn ex_make(eap: &mut Exarg) {
     let enc = if !curbuf_mut().b_p_menc.is_empty() {
-        curbuf_mut().b_p_menc.as_cstr()
+        curbuf_mut().b_p_menc.to_owned()
     } else {
-        opt_vars().p_menc.as_cstr()
+        opt_vars().p_menc.to_owned()
     };
 
     if grep_internal(eap.cmdidx) != 0 {
@@ -4396,14 +4397,16 @@ pub fn ex_make(eap: &mut Exarg) {
 
     incr_quickfix_busy();
 
-    let errorformat = if eap.cmdidx != Cmdidx::CmdMake && eap.cmdidx != Cmdidx::CmdLmake {
+    let gefm_owned;
+    let errorformat: &CStr = if eap.cmdidx != Cmdidx::CmdMake && eap.cmdidx != Cmdidx::CmdLmake {
         if !curbuf_mut().b_p_gefm.is_empty() {
-            curbuf_mut().b_p_gefm.as_cstr()
+            gefm_owned = curbuf_mut().b_p_gefm.to_owned();
+            &gefm_owned
         } else {
-            opt_vars().p_gefm.as_cstr()
+            opt_vars().borrow().p_gefm.as_cstr()
         }
     } else {
-        opt_vars().p_efm.as_cstr()
+        opt_vars().borrow().p_efm.as_cstr()
     };
 
     let newlist = eap.cmdidx != Cmdidx::CmdGrepadd && eap.cmdidx != Cmdidx::CmdLgrepadd;
@@ -4414,7 +4417,7 @@ pub fn ex_make(eap: &mut Exarg) {
         errorformat,
         i32::from(newlist),
         Some(&qf_cmdtitle(eap.cmdline_cstr())),
-        Some(enc),
+        Some(&enc),
     );
 
     let qi = if !wp.is_null() {
@@ -4451,7 +4454,8 @@ pub fn ex_make(eap: &mut Exarg) {
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
-    let mef_bytes = opt_vars().p_mef.as_bytes();
+    let p_mef = opt_vars().p_mef.to_owned();
+    let mef_bytes = p_mef.as_bytes();
     if mef_bytes.is_empty() {
         let name = vim_tempname();
         if name.is_none() {
@@ -4958,9 +4962,9 @@ pub fn ex_cfile(eap: &mut Exarg) {
     }
 
     let enc = if !curbuf_mut().b_p_menc.is_empty() {
-        curbuf_mut().b_p_menc.as_cstr()
+        curbuf_mut().b_p_menc.to_owned()
     } else {
-        opt_vars().p_menc.as_cstr()
+        opt_vars().p_menc.to_owned()
     };
 
     if is_loclist_cmd(eap.cmdidx) {
@@ -4969,13 +4973,14 @@ pub fn ex_cfile(eap: &mut Exarg) {
 
     incr_quickfix_busy();
 
+    let p_ef = opt_vars().p_ef.to_owned();
     let res = qf_init(
         wp.opt_mut(),
-        Some(opt_vars().p_ef.as_cstr()),
-        opt_vars().p_efm.as_cstr(),
+        Some(&p_ef),
+        opt_vars().borrow().p_efm.as_cstr(),
         i32::from(eap.cmdidx != Cmdidx::CmdCaddfile && eap.cmdidx != Cmdidx::CmdLaddfile),
         Some(&qf_cmdtitle(eap.cmdline_cstr())),
-        Some(enc),
+        Some(&enc),
     );
     let qi = if !wp.is_null() {
         let Some(ll) = get_loc_list_opt(wp.borrow()) else {
@@ -5778,7 +5783,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         return false;
     }
 
-    let mut errorformat = opt_vars().p_efm.as_cstr();
+    let mut errorformat = opt_vars().borrow().p_efm.as_cstr();
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
@@ -6434,7 +6439,7 @@ fn qf_setprop_items_from_lines(
     di: &mut Dictitem,
     action: i32,
 ) -> bool {
-    let mut errorformat = opt_vars().p_efm.as_cstr();
+    let mut errorformat = opt_vars().borrow().p_efm.as_cstr();
     let mut retval = false;
 
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
@@ -7071,7 +7076,8 @@ fn hgr_search_files_in_dir(
 }
 
 fn hgr_search_in_rtp(qfl: &mut QfList, p_regmatch: &mut Regmatch, lang: Option<&CStr>) {
-    let mut p = opt_vars().p_rtp.as_bytes();
+    let p_rtp = opt_vars().p_rtp.to_owned();
+    let mut p = p_rtp.as_bytes();
     while !p.is_empty() && !g_st().got_int {
         copy_option_part(&mut p, g_st().name_buff_bytes_mut(), c",");
         hgr_search_files_in_dir(qfl, g_st().name_buff_bytes_mut(), p_regmatch, lang);

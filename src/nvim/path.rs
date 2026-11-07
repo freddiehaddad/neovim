@@ -1015,9 +1015,9 @@ pub fn gettail_dir(fname: &CStr) -> &CStr {
 fn expand_in_path(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, flags: i32) -> i32 {
     let mut path_ga: Vec<std::ffi::CString> = Vec::new();
     let path_option = if curbuf_mut().b_p_path.is_empty() {
-        opt_vars().p_path.as_cstr()
+        opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.as_cstr()
+        curbuf_mut().b_p_path.to_owned()
     };
 
     let mut curdir_arr = [0u8; MAXPATHL];
@@ -1025,9 +1025,10 @@ fn expand_in_path(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, flags: i32) 
     let curdir_cstr = crate::memory::bytes_as_cstr(&curdir_arr);
 
     if (flags & EW_CDPATH) != 0 {
-        expand_path_option(curdir_cstr, opt_vars().p_cdpath.as_cstr(), &mut path_ga);
+        let p_cdpath = opt_vars().p_cdpath.to_owned();
+        expand_path_option(curdir_cstr, &p_cdpath, &mut path_ga);
     } else {
-        expand_path_option(curdir_cstr, path_option, &mut path_ga);
+        expand_path_option(curdir_cstr, &path_option, &mut path_ga);
     }
     if path_ga.is_empty() {
         return 0;
@@ -1115,11 +1116,12 @@ pub fn gen_expand_wildcards_vec(
 ) -> bool {
     file.clear();
     let mut did_expand_in_path = false;
-    let path_option = if curbuf_mut().b_p_path.is_empty() {
-        opt_vars().p_path.as_cstr()
+    let path_option_owned = if curbuf_mut().b_p_path.is_empty() {
+        opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.as_cstr()
+        curbuf_mut().b_p_path.to_owned()
     };
+    let path_option = path_option_owned.as_c_str();
 
     if path_st().expand_recursive {
         #[cfg(unix)]
@@ -1943,7 +1945,8 @@ pub fn match_suffix(fname: &CStr) -> bool {
     let fname_bytes = fname.to_bytes();
     let fnamelen = fname_bytes.len();
     let mut setsuflen: usize = 0;
-    let mut setsuf = opt_vars().p_su.as_bytes();
+    let p_su = opt_vars().p_su.to_owned();
+    let mut setsuf = p_su.as_bytes();
     while !setsuf.is_empty() {
         setsuflen = copy_option_part(&mut setsuf, &mut suf_buf[..MAXSUFLEN], c".,");
         if setsuflen == 0 {

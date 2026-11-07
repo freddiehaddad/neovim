@@ -697,11 +697,12 @@ pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
 fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileWhat) {
     let mut fresult: Option<std::ffi::CString> = None;
-    let mut path = if curbuf_mut().b_p_path.is_empty() {
-        opt_vars().p_path.as_cstr()
+    let path_owned = if curbuf_mut().b_p_path.is_empty() {
+        opt_vars().p_path.to_owned()
     } else {
-        curbuf_mut().b_p_path.as_cstr()
+        curbuf_mut().b_p_path.to_owned()
     };
+    let mut path = path_owned.as_c_str();
     let mut count: i32 = 1;
     let mut first = true;
     let mut error = false;

@@ -2070,7 +2070,8 @@ pub fn keymap_init() -> Option<&'static CStr> {
         do_cmdline_cmd(c"unlet! b:keymap_name");
     } else {
         let kmap = curbuf_mut().b_p_keymap.as_cstr().to_string_lossy();
-        let enc = opt_vars().p_enc.as_cstr().to_string_lossy();
+        let p_enc = opt_vars().p_enc.to_owned();
+        let enc = p_enc.to_string_lossy();
         let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
         if !source_runtime(primary.as_c_str(), 0) {
             let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();

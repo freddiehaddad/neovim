@@ -794,7 +794,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
         || ind_st().prev_listopt != wp.w_briopt_list
         || ind_st().prev_no_ts != no_ts
         || ind_st().prev_dy_uhex != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
-        || ind_st().prev_flp.as_deref() != Some(flp_val)
+        || ind_st().prev_flp.as_deref() != Some(&flp_val)
         || ind_st()
             .prev_line
             .as_deref()
@@ -862,7 +862,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     }
 
     if wp.w_briopt_sbr {
-        bri -= vim_strsize(get_showbreak_value(&*wp));
+        bri -= vim_strsize(&get_showbreak_value(&*wp));
     }
 
     if bri < 0 {
@@ -1774,11 +1774,12 @@ pub fn get_lisp_indent() -> i32 {
 
 fn lisp_match(p_bytes: &[u8]) -> bool {
     let mut buf = [0u8; 512];
-    let mut word = if !curbuf_mut().b_p_lw.is_empty() {
-        curbuf_mut().b_p_lw.as_bytes()
+    let lw_owned = if !curbuf_mut().b_p_lw.is_empty() {
+        curbuf_mut().b_p_lw.to_owned()
     } else {
-        opt_vars().p_lispwords.as_bytes()
+        opt_vars().p_lispwords.to_owned()
     };
+    let mut word = lw_owned.as_bytes();
 
     while !word.is_empty() {
         let len = copy_option_part(&mut word, &mut buf, c",");

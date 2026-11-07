@@ -947,15 +947,17 @@ fn buf_write_make_backup(
         }
     }
 
-    let backup_ext_cstr = if opt_vars().p_bex.is_empty() {
+    let p_bex = opt_vars().p_bex.to_owned();
+    let backup_ext_cstr = if p_bex.is_empty() {
         c".bak"
     } else {
-        opt_vars().p_bex.as_cstr()
+        p_bex.as_c_str()
     };
 
     if *backup_copyp {
         let mut some_error = false;
-        let mut dirp = opt_vars().p_bdir.as_cstr();
+        let p_bdir = opt_vars().p_bdir.to_owned();
+        let mut dirp = p_bdir.as_c_str();
         'nobackup: {
             while !dirp.to_bytes().is_empty() {
                 *backupp =
@@ -1052,7 +1054,8 @@ fn buf_write_make_backup(
             return false;
         }
 
-        let mut dirp = opt_vars().p_bdir.as_cstr();
+        let p_bdir = opt_vars().p_bdir.to_owned();
+        let mut dirp = p_bdir.as_c_str();
         while !dirp.to_bytes().is_empty() {
             *backupp = buf_get_backup_name(fname_cstr, &mut dirp, no_prepend_dot, backup_ext_cstr);
             if let Some(bk_cstr) = backupp.take() {

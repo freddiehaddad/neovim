@@ -4831,20 +4831,22 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             format_to_buf!(&mut wfname_buf[..], c"%s.spl", f0);
         } else if fcount == 1 {
             incount = 1;
+            let sp_enc = spell_enc();
             format_to_buf!(
                 &mut wfname_buf[..],
                 SPL_FNAME_TMPL,
                 f0,
-                if spin.si_ascii { c"ascii" } else { spell_enc() },
+                if spin.si_ascii { c"ascii" } else { &sp_enc },
             );
         } else if len > 4 && (f0.wrapping_add(len - 4).as_bytes() == b".spl") {
             crate::memory::copy_bytes_to_c_buf(&mut wfname_buf, f0.as_bytes());
         } else {
+            let sp_enc = spell_enc();
             format_to_buf!(
                 &mut wfname_buf[..],
                 SPL_FNAME_TMPL,
                 f0,
-                if spin.si_ascii { c"ascii" } else { spell_enc() },
+                if spin.si_ascii { c"ascii" } else { &sp_enc },
             );
         }
 
@@ -5302,6 +5304,7 @@ fn init_spellfile() {
         .sl_fname
         .as_ref()
         .map_or(ptr::null(), |s| s.as_ptr());
+    let sp_enc = spell_enc();
     let enc_suffix = if !fname.is_null()
         && path_tail(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
             .to_bytes()
@@ -5310,7 +5313,7 @@ fn init_spellfile() {
     {
         c"ascii"
     } else {
-        spell_enc()
+        &sp_enc
     };
     let cur_len2 = crate::memory::bytes_as_cstr(&buf_arr).to_bytes().len();
     format_to_buf!(&mut buf_arr[cur_len2..], c".%s.add", enc_suffix);

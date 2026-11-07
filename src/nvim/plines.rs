@@ -550,7 +550,7 @@ pub fn charsize_regular(
                 if head_prev == i32::MIN {
                     head_prev = 0;
                     if !sbr.to_bytes().is_empty() {
-                        head_prev += vim_strsize(sbr);
+                        head_prev += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
                         head_prev += get_breakindent_win(&mut *wp, (line).as_bytes());
@@ -575,7 +575,7 @@ pub fn charsize_regular(
                 if head_mid == i32::MIN {
                     head_mid = 0;
                     if !sbr.to_bytes().is_empty() {
-                        head_mid += vim_strsize(sbr);
+                        head_mid += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
                         head_mid += get_breakindent_win(&mut *wp, (line).as_bytes());

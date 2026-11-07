@@ -7998,12 +7998,14 @@ pub fn check_colorcolumn(
         return None;
     }
 
-    let mut rem: &[u8] = &[];
-    if let Some(cc_cstr) = cc {
-        rem = cc_cstr.to_bytes();
-    } else if wp.is_some() {
-        rem = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_cc.as_bytes();
-    }
+    let cc_owned = if cc.is_none()
+        && let Some(ref w) = wp
+    {
+        Some(w.w_onebuf_opt.wo_cc.to_owned())
+    } else {
+        None
+    };
+    let mut rem: &[u8] = cc.or(cc_owned.as_deref()).map_or(&[], CStr::to_bytes);
 
     let tw: OptInt = if wp.is_some() {
         wp.as_deref_mut().unwrap().buf_mut().b_p_tw

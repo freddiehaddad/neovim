@@ -627,10 +627,11 @@ pub fn win_previewpopup_config(value: &std::ffi::CStr, config: &mut WinConfig) -
         };
 
         // Use 'previewpopup' border if set, else fallback to 'winborder'.
+        let p_winborder = opt_vars().p_winborder.to_owned();
         let border = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
             Some(crate::memory::bytes_until_nul(&v.border))
         } else {
-            Some(opt_vars().p_winborder.as_bytes()).filter(|b| !b.is_empty())
+            Some(p_winborder.as_bytes()).filter(|b| !b.is_empty())
         };
         if let Some(border) = border {
             let mut err = error_init();

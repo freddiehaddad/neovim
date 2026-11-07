@@ -1566,7 +1566,8 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         st.help_pri = 0;
     } else {
         st.help_pri = 1;
-        let mut s = opt_vars().p_hlg.as_cstr();
+        let p_hlg = opt_vars().p_hlg.to_owned();
+        let mut s = p_hlg.as_c_str();
         while !s.to_bytes().is_empty() {
             if mb_strnicmp(
                 s.to_bytes(),

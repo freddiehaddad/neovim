@@ -3375,7 +3375,7 @@ fn op_colon(oap: &mut Oparg) {
         stuff_readbuff(c"!");
     }
     if oap.op_type == OP_INDENT {
-        stuff_readbuff(get_equalprg());
+        stuff_readbuff(&get_equalprg());
         stuff_readbuff(c"\n");
     } else if oap.op_type == OP_FORMAT {
         if !curbuf_mut().b_p_fp.is_empty() {

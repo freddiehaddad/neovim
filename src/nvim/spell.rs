@@ -1307,7 +1307,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
             &mut fname_enc[..max_len],
             c"spell/%s.%s.spl",
             lang,
-            spell_enc(),
+            &spell_enc(),
         );
         let ok = do_in_runtimepath(
             crate::memory::bytes_as_cstr(&fname_enc),
@@ -1354,7 +1354,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 0,
                 gettext(c"Warning: Cannot find word list \"%s.%s.spl\" or \"%s.ascii.spl\"",),
                 lang,
-                spell_enc(),
+                &spell_enc(),
                 lang,
             );
         }
@@ -1369,11 +1369,11 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
     }
     curbuf_mut().b_locked -= 1;
 }
-pub fn spell_enc() -> &'static std::ffi::CStr {
+pub fn spell_enc() -> std::ffi::CString {
     if opt_vars().p_enc.as_bytes().len() < 60 && (opt_vars().p_enc.as_bytes() != b"iso-8859-15") {
-        return opt_vars().p_enc.as_cstr();
+        return opt_vars().p_enc.to_owned();
     }
-    c"latin1"
+    c"latin1".to_owned()
 }
 fn int_wordlist_spl(fname: &mut [u8; MAXPATHL]) {
     format_to_buf!(
@@ -1385,7 +1385,7 @@ fn int_wordlist_spl(fname: &mut [u8; MAXPATHL]) {
                 .as_ref()
                 .map_or(std::ptr::null(), |s| s.as_ptr())
         ),
-        spell_enc(),
+        &spell_enc(),
     );
 }
 pub fn slang_alloc(lang: Option<&std::ffi::CStr>) -> Box<Slang> {

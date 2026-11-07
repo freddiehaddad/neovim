@@ -272,7 +272,8 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
     let mut idx: usize = 0;
     let mut found_ve = false;
     let tbl = shape_table_mut();
-    let guicursor = opt_vars().p_guicursor.as_bytes();
+    let guicursor_owned = opt_vars().p_guicursor.to_owned();
+    let guicursor = guicursor_owned.as_bytes();
 
     for round in 1..=2 {
         if round == 2 || guicursor.is_empty() {

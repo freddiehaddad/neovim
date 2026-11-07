@@ -227,7 +227,7 @@ impl OptVar {
     #[inline]
     pub fn as_cstr(self) -> &'static CStr {
         match self {
-            Self::Str(s) => s.as_cstr(),
+            Self::Str(s) => s.borrow().as_cstr(),
             _ => c"",
         }
     }
@@ -235,7 +235,7 @@ impl OptVar {
     #[inline]
     pub fn opt_cstr(self) -> Option<&'static CStr> {
         match self {
-            Self::Str(s) => Some(s.as_cstr()),
+            Self::Str(s) => Some(s.borrow().as_cstr()),
             _ => None,
         }
     }
@@ -1012,14 +1012,15 @@ fn valid_filetype(val: &[u8]) -> bool {
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
-pub fn check_signcolumn(scl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -> bool {
-    let val_cstr = if let Some(s) = scl {
-        s
-    } else if let Some(ref mut w) = wp {
-        w.w_onebuf_opt.wo_scl.as_cstr()
+pub fn check_signcolumn(scl: Option<&CStr>, wp: Option<&mut WinInfoInfo>) -> bool {
+    let scl_owned = if scl.is_none()
+        && let Some(ref w) = wp
+    {
+        Some(w.w_onebuf_opt.wo_scl.to_owned())
     } else {
-        c""
+        None
     };
+    let val_cstr = scl.or(scl_owned.as_deref()).unwrap_or(c"");
 
     let val_bytes = val_cstr.to_bytes();
     if val_bytes.is_empty() {
@@ -1461,7 +1462,8 @@ pub fn validate_backupcopy(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_backupcopy(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
-    let mut bkc = opt_vars().p_bkc.as_cstr();
+    let p_bkc = opt_vars().p_bkc.to_owned();
+    let mut bkc = p_bkc.as_c_str();
     let mut flags: &mut u32 = &mut opt_vars().bkc_flags;
 
     if (opt_flags & OPT_LOCAL) != 0 {
@@ -1486,15 +1488,16 @@ pub fn did_set_backupcopy(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'backupext' or 'patchmode' option.
 pub fn validate_backupext_or_patchmode(args: &mut Optset) -> Option<&CStr> {
     let newval_str = args.os_newval.data.string();
+    let ov = opt_vars();
     let bex_bytes = if args.os_idx == K_OPT_BACKUPEXT {
         newval_str.as_bytes()
     } else {
-        opt_vars().p_bex.as_bytes()
+        ov.p_bex.as_bytes()
     };
     let pm_bytes = if args.os_idx == K_OPT_PATCHMODE {
         newval_str.as_bytes()
     } else {
-        opt_vars().p_pm.as_bytes()
+        ov.p_pm.as_bytes()
     };
     let bex_s = bex_bytes.strip_prefix(b".").unwrap_or(bex_bytes);
     let pm_s = pm_bytes.strip_prefix(b".").unwrap_or(pm_bytes);
@@ -1611,17 +1614,17 @@ fn did_set_global_chars_option<'a>(
     opt_flags: i32,
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
-    let local_str = if what == CharsOption::Listchars {
-        win.w_onebuf_opt.wo_lcs.as_cstr()
+    let local_empty = if what == CharsOption::Listchars {
+        win.w_onebuf_opt.wo_lcs.is_empty()
     } else {
-        win.w_onebuf_opt.wo_fcs.as_cstr()
+        win.w_onebuf_opt.wo_fcs.is_empty()
     };
 
     let errmsg = set_chars_option(
         &mut *win,
         val,
         what,
-        local_str.to_bytes().is_empty() || (opt_flags & OPT_GLOBAL) == 0,
+        local_empty || (opt_flags & OPT_GLOBAL) == 0,
         errbuf,
     );
     if errmsg.is_some() {
@@ -1639,12 +1642,12 @@ fn did_set_global_chars_option<'a>(
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&*tp) {
             let opt = if what == CharsOption::Listchars {
-                wp.w_onebuf_opt.wo_lcs.as_cstr()
+                wp.w_onebuf_opt.wo_lcs.to_owned()
             } else {
-                wp.w_onebuf_opt.wo_fcs.as_cstr()
+                wp.w_onebuf_opt.wo_fcs.to_owned()
             };
             if opt.to_bytes().is_empty() {
-                set_chars_option(&mut *wp, opt, what, true, errbuf);
+                set_chars_option(&mut *wp, &opt, what, true, errbuf);
             }
         }
     }
@@ -1874,7 +1877,8 @@ pub fn did_set_completeitemalign(args: &mut Optset) -> Option<&CStr> {
 /// The 'completeopt' option is changed.
 pub fn did_set_completeopt(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
-    let mut cot = opt_vars().p_cot.as_cstr();
+    let p_cot = opt_vars().p_cot.to_owned();
+    let mut cot = p_cot.as_c_str();
     let mut flags: &mut u32 = &mut opt_vars().cot_flags;
 
     if (args.os_flags & OPT_LOCAL) != 0 {
@@ -2807,11 +2811,12 @@ pub fn did_set_tabline(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_tagcase(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
+    let p_tc = opt_vars().p_tc.to_owned();
 
     let (p, flags): (&CStr, &mut u32) = if (opt_flags & OPT_LOCAL) != 0 {
         (buf.b_p_tc.as_cstr(), &mut buf.b_tc_flags)
     } else {
-        (opt_vars().p_tc.as_cstr(), &mut opt_vars().tc_flags)
+        (p_tc.as_c_str(), &mut opt_vars().tc_flags)
     };
 
     if (opt_flags & OPT_LOCAL) != 0 && p.to_bytes().is_empty() {
@@ -2907,7 +2912,8 @@ pub fn did_set_verbosefile(_args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_virtualedit(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
 
-    let mut ve = opt_vars().p_ve.as_cstr();
+    let p_ve = opt_vars().p_ve.to_owned();
+    let mut ve = p_ve.as_c_str();
     let mut flags: &mut u32 = &mut opt_vars().ve_flags;
 
     if (args.os_flags & OPT_LOCAL) != 0 {
@@ -3515,14 +3521,16 @@ pub fn set_chars_option<'a>(
     let mut fcs_chars = FcsChars::default();
     let mut lcs_chars = LcsChars::new();
 
+    let p_lcs = opt_vars().p_lcs.to_owned();
+    let p_fcs = opt_vars().p_fcs.to_owned();
     let tab: &[CharsTabEntry] = if what == CharsOption::Listchars {
         if apply && wp.w_onebuf_opt.wo_lcs.is_empty() {
-            value = opt_vars().p_lcs.as_cstr();
+            value = p_lcs.as_c_str();
         }
         &LCS_TAB
     } else {
         if apply && wp.w_onebuf_opt.wo_fcs.is_empty() {
-            value = opt_vars().p_fcs.as_cstr();
+            value = p_fcs.as_c_str();
         }
         &FCS_TAB
     };
@@ -3783,26 +3791,12 @@ pub fn check_chars_options() -> Option<&'static CStr> {
     }
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&*tp) {
-            if set_chars_option(
-                wp,
-                wp.w_onebuf_opt.wo_lcs.as_cstr(),
-                CharsOption::Listchars,
-                true,
-                None,
-            )
-            .is_some()
-            {
+            let wo_lcs = wp.w_onebuf_opt.wo_lcs.to_owned();
+            if set_chars_option(wp, &wo_lcs, CharsOption::Listchars, true, None).is_some() {
                 return Some(E_CONFLICTS_WITH_VALUE_OF_LISTCHARS);
             }
-            if set_chars_option(
-                wp,
-                wp.w_onebuf_opt.wo_fcs.as_cstr(),
-                CharsOption::Fillchars,
-                true,
-                None,
-            )
-            .is_some()
-            {
+            let wo_fcs = wp.w_onebuf_opt.wo_fcs.to_owned();
+            if set_chars_option(wp, &wo_fcs, CharsOption::Fillchars, true, None).is_some() {
                 return Some(E_CONFLICTS_WITH_VALUE_OF_FILLCHARS);
             }
         }

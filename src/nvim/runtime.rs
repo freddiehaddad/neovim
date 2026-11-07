@@ -993,7 +993,8 @@ pub fn do_in_path_and_pp(
         done |= do_in_path(path, c"", name_arg, flags, callback);
     }
 
-    let p_pp = opt_vars().p_pp.as_cstr();
+    let p_pp_owned = opt_vars().p_pp.to_owned();
+    let p_pp = p_pp_owned.as_c_str();
     if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
         let mut prefix = if (flags & DIP_AFTER) != 0 {
             c"pack/*/start/*/after/"
@@ -1108,7 +1109,8 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     let mut after_path: Vec<std::ffi::CString> = Vec::new();
 
     let buf = crate::strings::ByteSlice::from_bytes(&rt_st().build_rtp_buf);
-    let mut entry = opt_vars().p_pp.as_bytes();
+    let p_pp = opt_vars().p_pp.to_owned();
+    let mut entry = p_pp.as_bytes();
     while !entry.is_empty() {
         let cur_entry_slice = entry;
         let buflen = copy_option_part(&mut entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
@@ -1122,7 +1124,8 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         pack_used.insert(cur_entry_slice[..buflen].to_vec(), 0);
     }
 
-    let mut rtp_entry = opt_vars().p_rtp.as_bytes();
+    let p_rtp = opt_vars().p_rtp.to_owned();
+    let mut rtp_entry = p_rtp.as_bytes();
     while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
         let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
@@ -1133,7 +1136,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
             break;
         }
 
-        let pos_in_rtp = (cur_entry.as_ptr() as usize) - (opt_vars().p_rtp.as_ptr() as usize);
+        let pos_in_rtp = p_rtp.as_bytes().len() - cur_entry.len();
 
         expand_rtp_entry(
             &mut search_path,
@@ -1156,8 +1159,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         }
     }
 
-    let sentinel_pos_in_rtp =
-        ((rtp_entry.as_ptr() as usize) - (opt_vars().p_rtp.as_ptr() as usize)).saturating_sub(1);
+    let sentinel_pos_in_rtp = (p_rtp.as_bytes().len() - rtp_entry.len()).saturating_sub(1);
 
     for item in pack_entries {
         let item_bytes = item.as_bytes();
@@ -1186,7 +1188,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
         let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
-        let pos_in_rtp = (cur_entry.as_ptr() as usize) - (opt_vars().p_rtp.as_ptr() as usize);
+        let pos_in_rtp = p_rtp.as_bytes().len() - cur_entry.len();
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
@@ -1335,8 +1337,9 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut insp = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut after_insp = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut p_rtp_len: usize = 0;
-        let rtp_bytes = opt_vars().p_rtp.as_bytes();
-        let rtp_base = opt_vars().p_rtp.as_ptr().cast_mut().cast::<u8>();
+        let p_rtp = opt_vars().p_rtp.to_owned();
+        let rtp_bytes = p_rtp.as_bytes();
+        let rtp_base = p_rtp.as_ptr().cast_mut().cast::<u8>();
         let mut entry = crate::globals::GraphPtr::<u8>::of(rtp_base).as_ptr();
         while !crate::strings::AsByteSlice::is_empty_val(entry) {
             let cur_entry = entry;
@@ -1418,7 +1421,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 
         let new_rtp_capacity = p_rtp_len + fname_len + afterdir.size + 3;
         let mut new_rtp_vec = Vec::with_capacity(new_rtp_capacity);
-        let p_rtp_slice = &opt_vars().p_rtp.as_bytes()[..p_rtp_len];
+        let p_rtp_slice = &rtp_bytes[..p_rtp_len];
         let fname_slice = fname_cstr.to_bytes();
 
         let mut keep = (insp as usize) - (rtp_base as usize);
@@ -1570,10 +1573,11 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
 
     if action != PackAddAction::Load {
         let mut buf = [0u8; MAXPATHL];
+        let p_rtp = opt_vars().p_rtp.to_owned();
         for fname_cstr in fnames {
             let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
             let mut found = false;
-            let mut p = opt_vars().p_rtp.as_bytes();
+            let mut p = p_rtp.as_bytes();
             while !p.is_empty() {
                 copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
                 if path_equal(
@@ -1652,9 +1656,9 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 /// Load plugins from all packages in the "start" directory.
 pub fn load_start_packages() {
     g_st().did_source_packages = true;
-    let p_pp = opt_vars().p_pp.as_cstr();
+    let p_pp = opt_vars().p_pp.to_owned();
     do_in_path(
-        p_pp,
+        &p_pp,
         c"",
         Some(c"pack/*/start/*"),
         DIP_ALL + DIP_DIR,
@@ -1664,7 +1668,7 @@ pub fn load_start_packages() {
         },
     );
     do_in_path(
-        p_pp,
+        &p_pp,
         c"",
         Some(c"start/*"),
         DIP_ALL + DIP_DIR,
@@ -1699,7 +1703,7 @@ pub fn load_plugins() {
 
         let rtp_cstr: &CStr = rtp_copy_owned
             .as_deref()
-            .unwrap_or_else(|| opt_vars().p_rtp.as_cstr());
+            .unwrap_or_else(|| opt_vars().borrow().p_rtp.as_cstr());
         source_in_path_vim_lua(rtp_cstr, plugin_pattern, DIP_ALL | DIP_NOAFTER);
         if has_time_fd() {
             time_msg(c"loading rtp plugins", None);

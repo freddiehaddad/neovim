@@ -1707,18 +1707,21 @@ fn shada_get_default_file() -> &'static CStr {
         .unwrap_or(c"")
 }
 
-fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {
+fn shada_filename(file_arg: Option<&CStr>) -> Option<std::ffi::CString> {
+    let shadafile_owned;
+    let param_owned;
+    let mut file = file_arg;
     if file.is_none_or(|s| s.is_empty()) {
-        if let Some(shadafile) = Some(opt_vars().p_shadafile.as_cstr())
-            && !shadafile.is_empty()
-        {
-            if shadafile.to_bytes() != b"NONE" {
-                file = Some(shadafile);
+        shadafile_owned = opt_vars().p_shadafile.to_owned();
+        if !shadafile_owned.is_empty() {
+            if shadafile_owned.to_bytes() != b"NONE" {
+                file = Some(&shadafile_owned);
             } else {
                 return None;
             }
         } else {
-            file = find_shada_parameter(b'n' as i32);
+            param_owned = find_shada_parameter(b'n' as i32);
+            file = param_owned.as_deref();
             if file.is_none_or(|s| s.is_empty()) {
                 file = Some(shada_get_default_file());
             }
@@ -4076,7 +4079,8 @@ fn shada_removable(name: &CStr) -> bool {
     let mut part = [0u8; MAXPATHL + 1];
     let mut retval = false;
     let new_name = home_replace_save(None, Some(name));
-    let mut p = opt_vars().p_shada.as_bytes();
+    let p_shada = opt_vars().p_shada.to_owned();
+    let mut p = p_shada.as_bytes();
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
         if part[0] == b'r' {
@@ -4292,11 +4296,12 @@ pub fn get_shada_parameter(param_type: i32) -> i32 {
 }
 
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
-pub fn find_shada_parameter(param_type: i32) -> Option<&'static CStr> {
-    let mut p = opt_vars().p_shada.as_cstr();
+pub fn find_shada_parameter(param_type: i32) -> Option<std::ffi::CString> {
+    let p_shada = opt_vars().p_shada.to_owned();
+    let mut p = p_shada.as_c_str();
     while !p.to_bytes().is_empty() {
         if i32::from(p.to_bytes()[0]) == param_type {
-            return Some(&p[1..]);
+            return Some(p[1..].to_owned());
         }
         if p.to_bytes()[0] == b'n' {
             break;

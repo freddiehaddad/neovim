@@ -1500,7 +1500,8 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 .prevcmd
                 .as_ref()
                 .map_or(&[][..], |s| s.to_bytes());
-            let shq_bytes = opt_vars().p_shq.as_bytes();
+            let shq_owned = opt_vars().p_shq.to_owned();
+            let shq_bytes = shq_owned.as_bytes();
             newcmd = Vec::with_capacity(prev_bytes.len() + 2 * shq_bytes.len() + 1);
             newcmd.extend_from_slice(shq_bytes);
             newcmd.extend_from_slice(prev_bytes);
@@ -2327,7 +2328,8 @@ pub fn check_overwrite(
                 dir[0] = b'.';
                 dir[1] = 0;
             } else {
-                let mut p = opt_vars().p_dir.as_bytes();
+                let p_dir = opt_vars().p_dir.to_owned();
+                let mut p = p_dir.as_bytes();
                 copy_option_part(&mut p, &mut dir, c",");
             }
             if let Some(swapname) =

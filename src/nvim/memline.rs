@@ -562,7 +562,8 @@ pub fn ml_setname(buf: &mut FileBuf) {
         return;
     }
 
-    let mut dirp = opt_vars().p_dir.as_bytes();
+    let p_dir = opt_vars().p_dir.to_owned();
+    let mut dirp = p_dir.as_bytes();
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
         let mf_fname = buf.b_ml.mfp_ref().and_then(|m| m.mf_fname.clone());
@@ -639,7 +640,8 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         return;
     }
 
-    let mut dirp = opt_vars().p_dir.as_bytes();
+    let p_dir = opt_vars().p_dir.to_owned();
+    let mut dirp = p_dir.as_bytes();
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
         let fname = findswapname(buf, &mut dirp, None, &mut found_existing_dir);
@@ -1580,7 +1582,8 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvL
         data: crate::strings::ByteSlice::from_bytes(&dir_name_vec),
         size: 0,
     };
-    let mut dirp = opt_vars().p_dir.as_bytes();
+    let p_dir = opt_vars().p_dir.to_owned();
+    let mut dirp = p_dir.as_bytes();
     while !dirp.is_empty() {
         dir_name.size = copy_option_part(&mut dirp, &mut dir_name_vec, c",");
         dir_name.data = crate::strings::ByteSlice::from_bytes(&dir_name_vec);

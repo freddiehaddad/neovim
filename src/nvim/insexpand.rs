@@ -4009,19 +4009,20 @@ fn get_next_dict_tsr_completion(compl_type: i32, dict: Option<&CStr>, dict_f: i3
     if thesaurus_func_complete(compl_type) {
         expand_by_function(compl_type, compl_pattern_cstr(), None);
     } else {
-        let dict_arg = if dict.is_some() {
-            dict
+        let dict_owned = if dict.is_some() {
+            None
         } else if compl_type == CTRL_X_THESAURUS {
             if curbuf_mut().b_p_tsr.is_empty() {
-                Some(opt_vars().p_tsr.as_cstr())
+                Some(opt_vars().p_tsr.to_owned())
             } else {
-                Some(curbuf_mut().b_p_tsr.as_cstr())
+                Some(curbuf_mut().b_p_tsr.to_owned())
             }
         } else if curbuf_mut().b_p_dict.is_empty() {
-            Some(opt_vars().p_dict.as_cstr())
+            Some(opt_vars().p_dict.to_owned())
         } else {
-            Some(curbuf_mut().b_p_dict.as_cstr())
+            Some(curbuf_mut().b_p_dict.to_owned())
         };
+        let dict_arg = dict.or(dict_owned.as_deref());
         ins_compl_dictionaries(
             dict_arg,
             compl_pattern_cstr(),

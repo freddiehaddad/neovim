@@ -1312,7 +1312,8 @@ fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
 
 fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
     let markerlen = marker.len();
-    let cms_bytes = buf.b_p_cms.as_bytes();
+    let cms_owned = buf.b_p_cms.to_owned();
+    let cms_bytes = cms_owned.as_bytes();
     let p_off_opt = cms_bytes.windows(2).position(|w| w == b"%s");
     let mut line_is_comment = false;
     let lnum = pos.lnum;
@@ -1390,7 +1391,8 @@ fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
         return;
     }
 
-    let cms_bytes = buf.b_p_cms.as_bytes();
+    let cms_owned = buf.b_p_cms.to_owned();
+    let cms_bytes = cms_owned.as_bytes();
     let line_slice = crate::memline::ml_get_buf_slice(buf, lnum);
     let mut idx = 0;
     while idx < line_slice.len() {

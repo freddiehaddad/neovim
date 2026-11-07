@@ -659,7 +659,8 @@ fn is_executable_ext(
 ) -> bool {
     let name = name_cstr.as_ptr();
     {
-        let sh_tail = path_tail(opt_vars().p_sh.as_cstr()).to_bytes();
+        let p_sh = opt_vars().p_sh.to_owned();
+        let sh_tail = path_tail(&p_sh).to_bytes();
         let has_sub =
             |haystack: &[u8], needle: &[u8]| haystack.windows(needle.len()).any(|w| w == needle);
         let is_unix_shell = !has_sub(sh_tail, b"powershell")
@@ -746,7 +747,8 @@ fn is_executable_in_path(
 
         #[cfg(windows)]
         let path_vec: Vec<u8> = {
-            let sh_tail = path_tail(opt_vars().p_sh.as_cstr()).to_bytes();
+            let p_sh = opt_vars().p_sh.to_owned();
+            let sh_tail = path_tail(&p_sh).to_bytes();
             let env_bytes = path_env.as_bytes_with_nul();
             if !os_env_exists(c"NoDefaultCurrentDirectoryInExePath", false)
                 && sh_tail.windows(7).any(|w| w == b"cmd.exe")

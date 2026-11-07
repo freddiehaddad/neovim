@@ -8224,17 +8224,18 @@ pub fn replace_makeprg(eap: &mut Exarg, arg_in: &CStr) -> &'static CStr {
     if (eap.cmdidx == Cmdidx::CmdMake || eap.cmdidx == Cmdidx::CmdLmake || isgrep)
         && !(!eap.cmdidx.is_user() && grep_internal(eap.cmdidx) != 0)
     {
-        let prog_b = if isgrep {
+        let prog_owned = if isgrep {
             if curbuf_mut().b_p_gp.is_empty() {
-                opt_vars().p_gp.as_bytes()
+                opt_vars().p_gp.to_owned()
             } else {
-                curbuf_mut().b_p_gp.as_bytes()
+                curbuf_mut().b_p_gp.to_owned()
             }
         } else if curbuf_mut().b_p_mp.is_empty() {
-            opt_vars().p_mp.as_bytes()
+            opt_vars().p_mp.to_owned()
         } else {
-            curbuf_mut().b_p_mp.as_bytes()
+            curbuf_mut().b_p_mp.to_owned()
         };
+        let prog_b = prog_owned.as_bytes();
 
         arg = arg.skipwhite();
 

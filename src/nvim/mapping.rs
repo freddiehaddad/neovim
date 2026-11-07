@@ -2198,7 +2198,8 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mode = get_map_mode(&mut which_bytes, false);
 
     let keys_bytes = keys.to_bytes();
-    let cpo_bytes = opt_vars().p_cpo.as_bytes();
+    let p_cpo = opt_vars().p_cpo.to_owned();
+    let cpo_bytes = p_cpo.as_bytes();
     let keys_simplified = replace_termcodes(
         keys_bytes,
         false,
@@ -2419,7 +2420,8 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     let lnum = tv_dict_get_number(d_opt, c"lnum") as Linenr;
     let buffer = tv_dict_get_number(d_opt, c"buffer") != 0;
 
-    let cpo_bytes = opt_vars().p_cpo.as_bytes();
+    let p_cpo = opt_vars().p_cpo.to_owned();
+    let cpo_bytes = p_cpo.as_bytes();
     set_maparg_rhs(orig_rhs.as_bytes(), rhs_lua, sid, cpo_bytes, &mut args);
 
     let mut unmap_args = MapArguments::new();
@@ -2582,7 +2584,8 @@ pub fn langmap_init() {
 pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
     langmap_init();
 
-    let base_cstr = opt_vars().p_langmap.as_cstr();
+    let p_langmap = opt_vars().p_langmap.to_owned();
+    let base_cstr = p_langmap.as_c_str();
     let bytes = base_cstr.to_bytes();
     let mut p_idx = 0usize;
     while p_idx < bytes.len() {

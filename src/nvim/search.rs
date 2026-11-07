@@ -3175,11 +3175,12 @@ pub fn find_pattern_in_path(
                 return;
             }
         }
-        let inc_opt_cstr = if curbuf_mut().b_p_inc.is_empty() {
-            opt_vars().p_inc.as_cstr()
+        let inc_opt_owned = if curbuf_mut().b_p_inc.is_empty() {
+            opt_vars().p_inc.to_owned()
         } else {
-            curbuf_mut().b_p_inc.as_cstr()
+            curbuf_mut().b_p_inc.to_owned()
         };
+        let inc_opt_cstr = inc_opt_owned.as_c_str();
         if !inc_opt_cstr.to_bytes().is_empty() {
             incl_regmatch.set_prog(vim_regcomp(
                 inc_opt_cstr,
@@ -3194,12 +3195,13 @@ pub fn find_pattern_in_path(
         if type_ == FIND_DEFINE
             && (!curbuf_mut().b_p_def.is_empty() || !opt_vars().p_def.is_empty())
         {
+            let def_opt_owned = if curbuf_mut().b_p_def.is_empty() {
+                opt_vars().p_def.to_owned()
+            } else {
+                curbuf_mut().b_p_def.to_owned()
+            };
             def_regmatch.set_prog(vim_regcomp(
-                if curbuf_mut().b_p_def.is_empty() {
-                    opt_vars().p_def.as_cstr()
-                } else {
-                    curbuf_mut().b_p_def.as_cstr()
-                },
+                &def_opt_owned,
                 if opt_vars().p_magic { RE_MAGIC } else { 0 },
             ));
             if def_regmatch.regprog.is_null() {

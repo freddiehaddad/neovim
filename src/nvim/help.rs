@@ -364,7 +364,8 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
 /// Cleanup matches for help tags (`cleanup_help_tags`).
 pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     let mut buf = [0u8; 3];
-    let hlg_bytes = opt_vars().p_hlg.as_bytes();
+    let p_hlg = opt_vars().p_hlg.to_owned();
+    let hlg_bytes = p_hlg.as_bytes();
     let has_default_lang = !hlg_bytes.is_empty() && !hlg_bytes.starts_with(b"en");
     if has_default_lang {
         buf[0] = b'@';

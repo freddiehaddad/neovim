@@ -1104,18 +1104,20 @@ pub fn find_file_in_path(
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<FfSearchCtx>,
 ) -> Option<std::ffi::CString> {
+    let path_opt = if curbuf_mut().b_p_path.is_empty() {
+        opt_vars().p_path.to_owned()
+    } else {
+        curbuf_mut().b_p_path.to_owned()
+    };
+    let sua_opt = curbuf_mut().b_p_sua.to_owned();
     find_file_in_path_option(
         ptr,
         options,
         first,
-        if curbuf_mut().b_p_path.is_empty() {
-            opt_vars().p_path.as_cstr()
-        } else {
-            curbuf_mut().b_p_path.as_cstr()
-        },
+        &path_opt,
         FindFileWhat::Both,
         rel_fname,
-        curbuf_mut().b_p_sua.as_cstr(),
+        &sua_opt,
         file_to_find,
         search_ctx,
     )

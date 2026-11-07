@@ -598,7 +598,8 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
 
     let ffname_len = ffname.len();
     let ffname_slice = ffname.slice(ffname_len);
-    let mut dirp = opt_vars().p_udir.as_bytes();
+    let p_udir = opt_vars().p_udir.to_owned();
+    let mut dirp = p_udir.as_bytes();
     while !dirp.is_empty() {
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {

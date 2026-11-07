@@ -3508,7 +3508,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
         validate_virtcol(curwin_mut());
         let mut virtcol = cursor_disp_vcol(curwin_mut());
         if virtcol > width1 && !get_showbreak_value(curwin_mut()).is_empty() {
-            virtcol -= vim_strsize(get_showbreak_value(curwin_mut()));
+            virtcol -= vim_strsize(&get_showbreak_value(curwin_mut()));
         }
 
         let c = crate::mbyte::utf_slice2char(crate::cursor::get_cursor_pos_slice());
@@ -4277,11 +4277,12 @@ fn nv_ident(cap: &mut Cmdarg) {
         ident_slice = ident;
     }
 
-    let kp_cstr = if curbuf_mut().b_p_kp.is_empty() {
-        opt_vars().p_kp.as_cstr()
+    let kp_owned = if curbuf_mut().b_p_kp.is_empty() {
+        opt_vars().p_kp.to_owned()
     } else {
-        curbuf_mut().b_p_kp.as_cstr()
+        curbuf_mut().b_p_kp.to_owned()
     };
+    let kp_cstr = kp_owned.as_c_str();
     let kp_bytes = kp_cstr.to_bytes();
     let kp_helpbang = kp_bytes == b":help!";
     let kp_help = kp_helpbang || kp_bytes.is_empty() || kp_bytes == b":he" || kp_bytes == b":help";
