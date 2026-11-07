@@ -43,7 +43,8 @@ use crate::strings::{format_to_buf, gettext};
 use crate::ui::ui_has;
 use crate::undo::buf_is_changed_fn;
 use crate::window::{
-    goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
+    goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_is_focusable, win_split,
+    win_valid,
 };
 use std::ffi::CStr;
 
@@ -563,8 +564,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 debug_assert!(!wp.is_null());
 
                 let wp_ref = wp.borrow();
-                execute =
-                    !wp_ref.w_floating || (!wp_ref.w_config.hide && wp_ref.w_config.focusable);
+                execute = !wp_ref.w_floating || win_is_focusable(wp_ref);
 
                 if execute {
                     win_goto(wp.borrow_mut());

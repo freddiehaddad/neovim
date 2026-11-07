@@ -346,7 +346,7 @@ const fn rgb(r: RgbValue, g: RgbValue, b: RgbValue) -> RgbValue {
     (r << 16) | (g << 8) | b
 }
 
-const HIGHLIGHT_INIT_BOTH: [&CStr; 181] = [
+const HIGHLIGHT_INIT_BOTH: [&CStr; 182] = [
     c"Cursor            guifg=bg      guibg=fg                cterm=reverse",
     c"CursorLineNr      gui=bold      cterm=bold",
     c"Ignore            guifg=bg      ctermfg=0",
@@ -394,6 +394,7 @@ const HIGHLIGHT_INIT_BOTH: [&CStr; 181] = [
     c"default link Substitute       Search",
     c"default link StatusLineTerm   StatusLine",
     c"default link StatusLineTermNC StatusLineNC",
+    c"default link StatusLineRemote DiffAdd",
     c"default link StderrMsg        ErrorMsg",
     c"default link StdoutMsg        NONE",
     c"default link TabLine          TabLineFill",

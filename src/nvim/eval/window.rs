@@ -27,7 +27,7 @@ use crate::window::{
     Frame, LOWEST_WIN_ID, TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_VERT, WinInfoInfo,
     check_split_disallowed, find_tabpage, goto_tabpage_win, tabpage_index, valid_tabpage,
     win_drag_status_line, win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor,
-    win_splitmove, win_valid, win_vert_neighbor,
+    win_is_focusable, win_splitmove, win_valid, win_vert_neighbor,
 };
 use std::ffi::CStr;
 use std::fmt::Write as _;
@@ -75,7 +75,7 @@ pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &mut TabPageInfo) -> bool {
     } else {
         tp.tp_curwin.as_ptr()
     };
-    ptr::eq(wp, cur) || (!wp.w_config.hide && wp.w_config.focusable)
+    ptr::eq(wp, cur) || win_is_focusable(wp)
 }
 
 pub fn win_find_nr(mut nr: i32, tp: Option<&mut TabPageInfo>) -> Option<&'static mut WinInfoInfo> {

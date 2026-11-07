@@ -19,7 +19,8 @@ use crate::os::fs::CFile;
 use crate::strings::gettext;
 use crate::tag::{do_tag, find_tags};
 use crate::window::{
-    WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_setheight, win_split,
+    WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_is_focusable, win_setheight,
+    win_split,
 };
 use std::ffi::CStr;
 
@@ -156,7 +157,7 @@ pub fn ex_help(eap: &mut Exarg) {
         } else {
             wp = None;
             for wp2 in for_all_windows_ptr() {
-                if bt_help(wp2.buf_opt()) && !wp2.w_config.hide && wp2.w_config.focusable {
+                if bt_help(wp2.buf_opt()) && win_is_focusable(wp2) {
                     wp = Some(wp2);
                     break;
                 }

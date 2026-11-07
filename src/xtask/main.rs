@@ -711,6 +711,7 @@ fn run_lua_tests(
             .env_remove("XDG_DATA_DIRS")
             .env_remove("NVIM")
             .env_remove("TMUX")
+            .env_remove("SSH_CONNECTION")
             .env_remove("NoDefaultCurrentDirectoryInExePath");
         if !cfg!(target_os = "windows") {
             cmd.env("SHELL", "sh");
@@ -1771,6 +1772,7 @@ fn main() -> ExitCode {
                 .env("BUILD_DIR", norm_slashes(&build_dir))
                 .env("XDG_CONFIG_HOME", norm_slashes(&root))
                 .env("NVIM_TEST_ARG0", norm_slashes(&nvim_bin))
+                .env_remove("SSH_CONNECTION")
                 .env_remove("NoDefaultCurrentDirectoryInExePath")
                 .args(["--clean", "-l"])
                 .arg(root.join("test").join("old").join("runner.lua"));

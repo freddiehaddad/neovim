@@ -667,7 +667,8 @@ fn handle_primary_device_attr(input: &mut TermInput, params: &[TermKeyCsiParam],
         tui_handle_primary_device_attr(input.tui_mut(), action);
     }
 
-    if nparams == 0 {
+    if nparams == 0 || g_st().exiting {
+        // when DA1 is sent by tui_stop(), the RPC channel is already closing
         return;
     }
 
