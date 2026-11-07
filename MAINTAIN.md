@@ -17,7 +17,7 @@ Syncing with Upstream (`neovim/neovim`)
 
 This repository tracks upstream [`neovim/neovim`](https://github.com/neovim/neovim) to stay 100% feature-, runtime-, and bugfix-compatible.
 
-* **Last synced upstream commit**: `254bec339c` (`master`)
+* **Last synced upstream commit**: `864f788364` (`master`)
 
 ### 1. Inspecting new upstream commits
 
