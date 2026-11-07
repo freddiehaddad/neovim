@@ -631,8 +631,8 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         },
     ];
     nlua_call_typval(c"vim._core.spell", c"select_suggest", &mut lua_args, None);
-    tv_clear(&mut items_tv);
-    tv_clear(&mut bad_tv);
+    tv_clear(&mut lua_args[0]);
+    tv_clear(&mut lua_args[1]);
 }
 /// "z=": Find badly spelled word under or after the cursor.
 pub fn spell_suggest(count: i32) {

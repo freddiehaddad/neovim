@@ -785,23 +785,12 @@ const fn mark_local_index(name: u8) -> i32 {
     }
 }
 
-#[derive(Clone, Copy)]
-struct PathKey(*const u8);
+#[derive(Clone)]
+struct PathKey(std::ffi::CString);
 
 impl PartialEq for PathKey {
     fn eq(&self, other: &Self) -> bool {
-        if ptr::eq(self.0, other.0) {
-            return true;
-        }
-        if self.0.is_null() || other.0.is_null() {
-            return false;
-        }
-        path_cmp(
-            CASE_INSENSITIVE_FILENAME,
-            crate::strings::ByteSlice::from_ptr(self.0).as_cstr(),
-            crate::strings::ByteSlice::from_ptr(other.0).as_cstr(),
-            MAXPATHL,
-        ) == 0
+        path_cmp(CASE_INSENSITIVE_FILENAME, &self.0, &other.0, MAXPATHL) == 0
     }
 }
 
@@ -809,17 +798,15 @@ impl Eq for PathKey {}
 
 impl std::hash::Hash for PathKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let mut p = self.0;
+        let mut bytes = self.0.to_bytes();
         let mut h: u32 = 0;
-        if cfg!(target_os = "windows") {
-            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
-            if p_bytes.first().is_some_and(u8::is_ascii_alphabetic) && p_bytes.get(1) == Some(&b':')
-            {
-                p = p.wrapping_add(2);
-            }
+        if cfg!(target_os = "windows")
+            && bytes.first().is_some_and(u8::is_ascii_alphabetic)
+            && bytes.get(1) == Some(&b':')
+        {
+            bytes = &bytes[2..];
         }
         let ic = CASE_INSENSITIVE_FILENAME;
-        let bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
         let mut idx = 0usize;
         let mut len: i32 = 0;
         while idx < bytes.len() {
@@ -1514,9 +1501,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 }
             }
             ShadaEntryType::SDItemVariable => {
-                let gv = cur_entry.data.global_var();
-                var_set_global(gv.name.as_ref().map_or(&[], |s| s.as_bytes()), gv.value);
-                cur_entry.data.global_var_mut().value.v_type = VarType::VarUnknown;
+                let gv = cur_entry.data.global_var_mut();
+                let gv_val = std::mem::take(&mut gv.value);
+                var_set_global(gv.name.as_ref().map_or(&[], |s| s.as_bytes()), gv_val);
                 shada_free_shada_entry(&mut cur_entry);
             }
             ShadaEntryType::SDItemJump | ShadaEntryType::SDItemGlobalMark => {
@@ -1618,12 +1605,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
             }
             ShadaEntryType::SDItemChange | ShadaEntryType::SDItemLocalMark => {
                 let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
-                let fname_ptr = fname_cstr.as_ptr();
-                if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr.cast())) {
+                if get_old_files && oldfiles_set.insert(PathKey(fname_cstr.to_owned())) {
                     let ol = oldfiles_list.as_deref_mut().unwrap();
                     crate::eval::typval::tv_list_append_string(ol, Some(fname_cstr), -1);
-
-                    oldfiles_set.insert(PathKey(ol.lv_last.li_tv.vval.v_string().cast()));
                 }
                 if !want_marks {
                     shada_free_shada_entry(&mut cur_entry);
@@ -1789,7 +1773,7 @@ fn shada_pack_entry(
                 .name
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr());
-            let mut gv_val = entry.data.global_var().value;
+            let mut gv_val = entry.data.global_var().value.clone();
             let is_blob = gv_val.v_type == VarType::VarBlob;
             let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
@@ -2765,27 +2749,23 @@ fn shada_write(
                 if !skip {
                     let mut tgttv = TypVal::new();
                     tv_copy(&vartv, &mut tgttv);
-                    let spe_ret = shada_pack_entry(
-                        &mut packer,
-                        &ShadaEntry {
-                            entry_type: ShadaEntryType::SDItemVariable,
-                            can_free_entry: false,
-                            timestamp: cur_timestamp,
-                            data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
-                                name: Some(name.to_owned()),
-                                value: tgttv,
-                            }),
-                            additional_data: None,
-                        },
-                        max_kbyte,
-                    );
+                    let mut entry = ShadaEntry {
+                        entry_type: ShadaEntryType::SDItemVariable,
+                        can_free_entry: false,
+                        timestamp: cur_timestamp,
+                        data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
+                            name: Some(name.to_owned()),
+                            value: tgttv,
+                        }),
+                        additional_data: None,
+                    };
+                    let spe_ret = shada_pack_entry(&mut packer, &entry, max_kbyte);
+                    tv_clear(&mut entry.data.global_var_mut().value);
                     if spe_ret == ShaDaWriteResult::SDWriteFailed {
                         tv_clear(&mut vartv);
-                        tv_clear(&mut tgttv);
                         break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
                     }
                     tv_clear(&mut vartv);
-                    tv_clear(&mut tgttv);
                     if spe_ret == ShaDaWriteResult::SDWriteSuccessful {
                         wms.dumped_variables.insert(name.to_bytes().to_vec());
                     }
@@ -4239,24 +4219,21 @@ pub fn shada_encode_gvars() -> Vec<u8> {
         if vartv.v_type != VarType::VarFunc && vartv.v_type != VarType::VarPartial {
             let mut tgttv = TypVal::new();
             tv_copy(&vartv, &mut tgttv);
-            let r = shada_pack_entry(
-                &mut packer,
-                &ShadaEntry {
-                    entry_type: ShadaEntryType::SDItemVariable,
-                    can_free_entry: false,
-                    timestamp: cur_timestamp,
-                    data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
-                        name: Some(name.to_owned()),
-                        value: tgttv,
-                    }),
-                    additional_data: None,
-                },
-                0,
-            );
+            let mut entry = ShadaEntry {
+                entry_type: ShadaEntryType::SDItemVariable,
+                can_free_entry: false,
+                timestamp: cur_timestamp,
+                data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
+                    name: Some(name.to_owned()),
+                    value: tgttv,
+                }),
+                additional_data: None,
+            };
+            let r = shada_pack_entry(&mut packer, &entry, 0);
             if r == ShaDaWriteResult::SDWriteFailed {
                 std::process::abort();
             }
-            tv_clear(&mut tgttv);
+            tv_clear(&mut entry.data.global_var_mut().value);
         }
         tv_clear(&mut vartv);
         if var_iter.is_none() {

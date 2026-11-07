@@ -5308,7 +5308,7 @@ where
 {
     let ccline = get_cmdline_info();
     let mut keep: u8 = 0;
-    let mut args: [TypVal; 4] = [TypVal::new(); 4];
+    let mut args: [TypVal; 4] = [const { TypVal::new() }; 4];
     let save_current_sctx = g_st().current_sctx;
 
     let Some(arg_cstr) = xp.xp_arg.as_deref().filter(|s| !s.to_bytes().is_empty()) else {
@@ -5431,7 +5431,7 @@ pub fn expand_process_user_list(
             let mut info: Option<std::ffi::CString> = None;
 
             if tv.v_type == VarType::VarString {
-                if tv.vval.v_string().is_null() {
+                if tv.vval.v_string_is_null() {
                     continue;
                 }
                 p = tv.vval.v_string_owned();

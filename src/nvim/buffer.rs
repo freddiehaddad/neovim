@@ -5012,7 +5012,7 @@ pub fn buf_inc_changedtick(buf: &mut FileBuf) {
 
 /// Set `b:changedtick`, also checking `b:` for consistency in debug build.
 pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
-    let old_val = buf.changedtick_di.di_tv;
+    let old_val = buf.changedtick_di.di_tv.clone();
 
     let changedtick_di = tv_dict_find(Some(&*buf.b_vars()), c"changedtick", 11);
     debug_assert!(changedtick_di.is_some());

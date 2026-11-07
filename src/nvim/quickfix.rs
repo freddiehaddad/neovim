@@ -323,7 +323,7 @@ struct Efm {
 enum QfInputSource {
     None,
     File(crate::os::fs::CFile),
-    Str(crate::strings::ByteSlice),
+    Str(std::ffi::CString, usize),
     List(crate::globals::GraphPtr<Listitem>),
     Buf {
         buf: crate::globals::GraphPtr<FileBuf>,
@@ -953,9 +953,11 @@ fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) {
     state.use_growbuf = true;
 }
 
-fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
-    let p_str = crate::strings::ByteSlice::from_cstr(p_str_in);
-    let p_bytes = p_str_in.to_bytes();
+fn qf_get_next_str_line(state: &mut Qfstate) -> QfStatus {
+    let QfInputSource::Str(ref s, ref mut off) = state.source else {
+        return QfStatus::Fail;
+    };
+    let p_bytes = &s.to_bytes()[*off..];
     if p_bytes.is_empty() {
         return QfStatus::EndOfInput;
     }
@@ -964,6 +966,8 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
         .iter()
         .position(|&b| b == b'\n')
         .map_or(p_bytes.len(), |idx| idx + 1);
+    let line_bytes = p_bytes[..len].to_vec();
+    *off += len;
 
     if len > IOSIZE - 2 {
         qf_grow_linebuf(state, len);
@@ -973,17 +977,15 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
     }
     let copy_len = state.linelen;
     let dst = state.linebuf_slice_mut();
-    dst[..copy_len].copy_from_slice(&p_bytes[..copy_len]);
+    dst[..copy_len].copy_from_slice(&line_bytes[..copy_len]);
     dst[copy_len] = 0;
-
-    state.source = QfInputSource::Str(p_str.wrapping_add(len));
 
     QfStatus::Ok
 }
 
 fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> QfStatus {
     while let Some(li) = p_li {
-        if li.li_tv.v_type == VarType::VarString && !li.li_tv.vval.v_string().is_null() {
+        if li.li_tv.v_type == VarType::VarString && !li.li_tv.vval.v_string_is_null() {
             break;
         }
         p_li = li.li_next.opt();
@@ -994,7 +996,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
         return QfStatus::EndOfInput;
     };
 
-    let s = li.li_tv.vval.v_string();
+    let s = li.li_tv.vval.v_string_bytes();
     let len = s.len();
     if len > IOSIZE - 2 {
         qf_grow_linebuf(state, len);
@@ -1003,7 +1005,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
         state.linelen = len;
     }
 
-    crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), s.as_bytes());
+    crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), s);
 
     state.source = QfInputSource::List(li.li_next);
 
@@ -1141,7 +1143,7 @@ fn qf_get_nextline(state: &mut Qfstate) -> QfStatus {
     let status = match state.source {
         QfInputSource::None => QfStatus::Fail,
         QfInputSource::File(_) => qf_get_next_file_line(state),
-        QfInputSource::Str(p_str) => qf_get_next_str_line(state, p_str.as_cstr()),
+        QfInputSource::Str(..) => qf_get_next_str_line(state),
         QfInputSource::List(p_li) => qf_get_next_list_line(state, p_li.opt()),
         QfInputSource::Buf {
             buf,
@@ -1314,7 +1316,7 @@ fn qf_setup_state(
         pstate.source = QfInputSource::File(fd);
     } else if let Some(tv) = tv {
         if tv.v_type == VarType::VarString {
-            pstate.source = QfInputSource::Str(tv.vval.v_string());
+            pstate.source = QfInputSource::Str(tv.vval.v_string_owned(), 0);
         } else if tv.v_type == VarType::VarList {
             pstate.source =
                 QfInputSource::List(tv_list_first(tv.vval.v_list_opt().as_deref()).into());
@@ -5785,7 +5787,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
 
     let mut errorformat = opt_vars().borrow().p_efm.as_cstr();
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
-        if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
+        if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string_is_null() {
             return false;
         }
         errorformat = efm_di.di_tv.vval.v_string_cstr_or_empty();
@@ -6439,14 +6441,16 @@ fn qf_setprop_items_from_lines(
     di: &mut Dictitem,
     action: i32,
 ) -> bool {
+    let efm_owned: std::ffi::CString;
     let mut errorformat = opt_vars().borrow().p_efm.as_cstr();
     let mut retval = false;
 
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
-        if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
+        if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string_is_null() {
             return false;
         }
-        errorformat = efm_di.di_tv.vval.v_string_cstr_or_empty();
+        efm_owned = efm_di.di_tv.vval.v_string_owned();
+        errorformat = efm_owned.as_c_str();
     }
 
     if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
@@ -6491,7 +6495,7 @@ fn qf_setprop_curidx(qi: &mut QfInfo, qfl: &mut QfList, di: &Dictitem) -> bool {
     let mut newidx: i32;
 
     if di.di_tv.v_type == VarType::VarString
-        && !di.di_tv.vval.v_string().is_null()
+        && !di.di_tv.vval.v_string_is_null()
         && (di.di_tv.vval.v_string_bytes() == b"$")
     {
         newidx = qfl.count();
@@ -6900,7 +6904,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
     let qi = qf_cmd_get_or_alloc_stack(eap, &mut wp);
     let wp_ptr = crate::globals::GraphPtr::from(wp.as_deref());
 
-    if (tv.v_type == VarType::VarString && !tv.vval.v_string().is_null())
+    if (tv.v_type == VarType::VarString && !tv.vval.v_string_is_null())
         || tv.v_type == VarType::VarList
     {
         let au_name = cexpr_get_auname(eap.cmdidx);

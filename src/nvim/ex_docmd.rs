@@ -10101,7 +10101,7 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
         crate::eval::typval::tv_list_find_opt(fname_list.as_deref_mut(), count - 1)
     {
         let tv = &li.li_tv;
-        if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
+        if tv.v_type == VarType::VarString && !tv.vval.v_string_is_null() {
             ret_fname = Some(tv.vval.v_string_owned());
         } else if tv.v_type == VarType::VarDict
             && let Some(dict) = tv.vval.v_dict_opt()
@@ -10456,13 +10456,13 @@ fn ex_connect(eap: &mut Exarg) {
         if ssh_rettv.v_type == VarType::VarSpecial {
             return; // User declined the prompt, or interrupted (CTRL-C).
         }
-        if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string().is_null() {
+        if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string_is_null() {
             let _ = emsg(gettext(c"E6101: SSH connection failed"));
             tv_clear(&mut ssh_rettv);
             return;
         }
 
-        addr = ssh_rettv.vval.v_string();
+        addr = crate::strings::ByteSlice::from_cstr(ssh_rettv.vval.v_string_cstr_or_empty());
     } else if (is_tcp || crate::path::path_is_absolute(addr_bytes))
         && !crate::event::socket::socket_alive(
             &mut g_st().main_loop,

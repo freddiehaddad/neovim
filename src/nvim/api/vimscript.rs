@@ -243,7 +243,7 @@ fn call_function_impl(
         return rv;
     }
 
-    let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
+    let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut i = 0usize;
     while i < args.size {
         object_to_vim(args[i], &mut vim_args[i], err);
@@ -380,6 +380,7 @@ pub fn nvim_call_dict_function(
         }
     }
 
+    let fn_name_owned;
     'body: {
         let Some(self_dict_ref) = rettv.vval.v_dict_opt() else {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
@@ -424,11 +425,8 @@ pub fn nvim_call_dict_function(
                 );
                 break 'body;
             }
-            let s = di.di_tv.vval.v_string();
-            fn_name = NvimString {
-                data: s,
-                size: s.len(),
-            };
+            fn_name_owned = di.di_tv.vval.v_string_cstr().map(std::ffi::CStr::to_owned);
+            fn_name = cstr_as_string(fn_name_owned.as_deref());
         }
 
         if fn_name.data.is_null() || fn_name.size == 0 {

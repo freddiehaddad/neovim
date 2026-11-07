@@ -1507,14 +1507,17 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
             get_user_input(&input_args, &mut input, false, false);
 
             if ui_has(K_UICMDLINE) {
-                format_to_buf!(&mut g_st().iobuff, c"lua_debug> %s", input.vval.v_string());
+                format_to_buf!(
+                    &mut g_st().iobuff,
+                    c"lua_debug> %s",
+                    input.vval.v_string_cstr_or_empty(),
+                );
                 ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
             } else {
                 msg_putchar(b'\n' as i32);
             }
 
             if input.v_type != VarType::VarString
-                || input.vval.v_string().is_null()
                 || input.vval.v_string_is_empty()
                 || input.vval.v_string_bytes() == b"cont"
             {
@@ -1585,7 +1588,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     }
 
     let mut vim_args: [TypVal; (MAX_FUNC_ARGS + 1) as usize] =
-        [TypVal::new(); (MAX_FUNC_ARGS + 1) as usize];
+        [const { TypVal::new() }; (MAX_FUNC_ARGS + 1) as usize];
     let mut i: usize = 0;
     let mut conv_failed = false;
     while (i as i32) < nargs {

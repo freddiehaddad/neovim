@@ -2378,17 +2378,16 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     let mut rhs_lua: LuaRef = LUA_NOREF;
     if let Some(callback_di) = tv_dict_find(d_opt, c"callback", 8)
         && callback_di.di_tv.v_type == VarType::VarFunc
-    {
-        let cb_str = callback_di.di_tv.vval.v_string();
-        if let Some(fp) = (!cb_str.is_null())
-            .then(|| cb_str.as_cstr())
+        && let Some(fp) = callback_di
+            .di_tv
+            .vval
+            .v_string_cstr()
             .and_then(|s| find_func(Some(s)))
-            && (fp.uf_flags & FC_LUAREF) != 0
-        {
-            rhs_lua = api_new_luaref(fp.uf_luaref);
+        && (fp.uf_flags & FC_LUAREF) != 0
+    {
+        rhs_lua = api_new_luaref(fp.uf_luaref);
 
-            orig_rhs = Some(std::ffi::CString::default());
-        }
+        orig_rhs = Some(std::ffi::CString::default());
     }
     let (Some(lhs), Some(lhsraw), Some(orig_rhs)) = (lhs, lhsraw, orig_rhs) else {
         emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));

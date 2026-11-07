@@ -715,7 +715,7 @@ pub fn deref_func_name<'a>(
     }
 
     if tv.v_type == VarType::VarFunc {
-        if tv.vval.v_string().is_null() {
+        if tv.vval.v_string_is_null() {
             *lenp = 0;
             return c"";
         }
@@ -814,7 +814,7 @@ pub fn get_func_tv(
     evalarg: Option<&mut Evalarg>,
     funcexe: &mut Funcexe,
 ) -> bool {
-    let mut argvars: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
+    let mut argvars: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut argcount: i32 = 0;
     let evaluate = evalarg
         .as_ref()
@@ -1044,14 +1044,14 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
         free_fc = false;
 
         for (_, di) in fc.fc_l_avars.dv_hashtab.iter_items_mut() {
-            let tv_val = di.di_tv;
+            let tv_val = di.di_tv.clone();
             tv_copy(&tv_val, &mut di.di_tv);
         }
     }
 
     if may_free_fc && fc.fc_l_varlist.lv_refcount == DO_NOT_FREE_CNT {
         for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.first_opt()) {
-            li.li_tv.v_type = VarType::VarUnknown;
+            li.li_tv = TypVal::new();
         }
         fc.fc_l_varlist.lv_first = crate::globals::ListitemPtr::NULL;
     } else {
@@ -1059,7 +1059,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
 
         {
             for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.first_opt()) {
-                let src_tv = li.li_tv;
+                let src_tv = li.li_tv.clone();
                 tv_copy(&src_tv, &mut li.li_tv);
             }
         }
@@ -1197,7 +1197,7 @@ pub fn call_user_func(
     let mut numbuf = [0u8; NUMBUFLEN];
     let mut name;
     let mut namelen: usize;
-    let mut tv_to_free: [*mut TypVal; MAX_FUNC_ARGS] = [ptr::null_mut(); MAX_FUNC_ARGS];
+    let mut tv_to_free: [TypVal; MAX_FUNC_ARGS] = [const { TypVal::new() }; MAX_FUNC_ARGS];
     let mut tv_to_free_len = 0usize;
     let mut wait_start: Proftime = 0;
     let mut call_start: Proftime = 0;
@@ -1337,19 +1337,19 @@ pub fn call_user_func(
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
         v.di_tv = if isdefault {
-            def_rettv
+            def_rettv.clone()
         } else {
-            argvars[i as usize]
+            argvars[i as usize].clone()
         };
         v.di_tv.v_lock = VAR_FIXED;
 
         if isdefault {
-            tv_to_free[tv_to_free_len] = &raw mut v.di_tv;
+            tv_to_free[tv_to_free_len] = def_rettv;
             tv_to_free_len += 1;
         }
 
         if addlocal {
-            let tv_val = v.di_tv;
+            let tv_val = v.di_tv.clone();
             tv_copy(&tv_val, &mut v.di_tv);
             hash_add(&mut fc.fc_l_vars.dv_hashtab, &mut *v);
         } else {
@@ -1359,7 +1359,7 @@ pub fn call_user_func(
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
             let li =
                 crate::globals::GraphPtr::of(listitems_ptr.wrapping_add(ai as usize)).borrow_mut();
-            li.li_tv = argvars[i as usize];
+            li.li_tv = argvars[i as usize].clone();
             li.li_tv.v_lock = VAR_FIXED;
             tv_list_append(&mut fc.fc_l_varlist, li);
         }
@@ -1535,10 +1535,10 @@ pub fn call_user_func(
 
     g_st().did_emsg |= save_did_emsg;
     uf_st().call_depth -= 1;
-    for &tv in tv_to_free.iter().take(tv_to_free_len) {
-        tv_clear(crate::globals::GraphPtr::of(tv).borrow_mut());
-    }
     cleanup_function_call(fc);
+    for tv in tv_to_free.iter_mut().take(tv_to_free_len) {
+        tv_clear(tv);
+    }
 
     fp.uf_calls -= 1;
     if fp.uf_calls <= 0 && fp.uf_refcount <= 0 {
@@ -1701,7 +1701,7 @@ pub fn func_call(
     selfdict: Option<&mut TvDict>,
     rettv: &mut TypVal,
 ) -> bool {
-    let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
+    let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut argc = 0;
     let mut r = false;
 
@@ -1807,9 +1807,9 @@ pub fn call_func(
     let mut fname: &CStr = c"";
     let mut name_owned: Option<std::ffi::CString> = None;
     let mut argcount = argcount_in;
-    let mut argvars_ptr = crate::globals::GraphPtr::<TypVal>::of(argvars_in.as_mut_ptr()).as_ptr();
+    let mut use_argv = false;
     let mut selfdict = funcexe.fe_selfdict;
-    let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
+    let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut argv_clear = 0;
     let mut argv_base = 0;
     let partial = funcexe.fe_partial;
@@ -1859,9 +1859,9 @@ pub fn call_func(
             }
             if !skip_eval {
                 for i in 0..argcount_in {
-                    argv[(i + argv_clear) as usize] = argvars_in[i as usize];
+                    argv[(i + argv_clear) as usize] = argvars_in[i as usize].clone();
                 }
-                argvars_ptr = argv.as_mut_ptr();
+                use_argv = true;
                 argcount = pt_argc + argcount_in;
             }
         }
@@ -1883,20 +1883,24 @@ pub fn call_func(
             if len > 0 {
                 error = FCERR_NONE;
                 if let Some(basetv) = funcexe.fe_basetv.opt() {
-                    crate::globals::GraphPtr::copy_to(
-                        argvars_ptr,
-                        argv.as_mut_ptr().wrapping_add(1),
-                        argcount as usize,
-                    );
-                    argv[0] = *basetv;
+                    if use_argv {
+                        for i in (0..argcount as usize).rev() {
+                            argv[i + 1] = std::mem::take(&mut argv[i]);
+                        }
+                    } else {
+                        argv[1..1 + argcount as usize]
+                            .clone_from_slice(&argvars_in[..argcount as usize]);
+                        use_argv = true;
+                    }
+                    argv[0] = basetv.clone();
                     argcount += 1;
-                    argvars_ptr = argv.as_mut_ptr();
                     argv_base = 1;
                 }
-                let argslice = if argvars_ptr.is_null() || argcount <= 0 {
+                let active_argv: &mut [TypVal] = if use_argv { &mut argv } else { argvars_in };
+                let argslice = if argcount <= 0 {
                     &mut []
                 } else {
-                    crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, argcount as usize)
+                    &mut active_argv[..argcount as usize]
                 };
                 nlua_call_vlua(
                     crate::strings::AsByteSlice::slice_len(funcname.as_ptr(), len as usize),
@@ -1928,37 +1932,36 @@ pub fn call_func(
                     error = FCERR_DELETED;
                 } else {
                     if funcexe.fe_fill_submatch {
-                        let argvars_slice =
-                            crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, MAX_FUNC_ARGS + 1);
+                        let active_argv: &mut [TypVal] =
+                            if use_argv { &mut argv } else { argvars_in };
                         argcount = crate::regexp::fill_submatch_list(
                             argcount,
-                            argvars_slice,
+                            active_argv,
                             argv_clear,
                             fp_ref,
                         );
                     }
 
                     if let Some(basetv) = funcexe.fe_basetv.opt() {
-                        crate::globals::GraphPtr::copy_to(
-                            argvars_ptr,
-                            argv.as_mut_ptr().wrapping_add(1),
-                            argcount as usize,
-                        );
-                        argv[0] = *basetv;
+                        if use_argv {
+                            for i in (0..argcount as usize).rev() {
+                                argv[i + 1] = std::mem::take(&mut argv[i]);
+                            }
+                        } else {
+                            argv[1..1 + argcount as usize]
+                                .clone_from_slice(&argvars_in[..argcount as usize]);
+                            use_argv = true;
+                        }
+                        argv[0] = basetv.clone();
                         argcount += 1;
-                        argvars_ptr = argv.as_mut_ptr();
                         argv_base = 1;
                     }
 
-                    let argvars_slice = if argvars_ptr.is_null() {
-                        &mut []
-                    } else {
-                        crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, MAX_FUNC_ARGS + 1)
-                    };
+                    let active_argv: &mut [TypVal] = if use_argv { &mut argv } else { argvars_in };
                     error = call_user_func_check(
                         fp_ref,
                         argcount,
-                        argvars_slice,
+                        active_argv,
                         rettv,
                         &mut *funcexe,
                         selfdict.opt_mut(),
@@ -1966,19 +1969,16 @@ pub fn call_func(
                 }
             }
         } else if let Some(basetv) = funcexe.fe_basetv.opt() {
-            let argvars_slice = if argvars_ptr.is_null() || argcount <= 0 {
+            let active_argv: &[TypVal] = if use_argv { &argv } else { argvars_in };
+            let argvars_slice = if argcount <= 0 {
                 &[]
             } else {
-                crate::globals::GraphPtr::raw_slice(argvars_ptr, argcount as usize)
+                &active_argv[..argcount as usize]
             };
             error = call_internal_method(fname, argcount, argvars_slice, rettv, basetv);
         } else {
-            let argvars_slice = if argvars_ptr.is_null() {
-                &mut []
-            } else {
-                crate::globals::GraphPtr::raw_slice_mut(argvars_ptr, MAX_FUNC_ARGS + 1)
-            };
-            error = call_internal_func(fname, argcount, argvars_slice, rettv);
+            let active_argv: &mut [TypVal] = if use_argv { &mut argv } else { argvars_in };
+            error = call_internal_func(fname, argcount, active_argv, rettv);
         }
         update_force_abort();
     }
@@ -2212,7 +2212,7 @@ pub fn trans_function_name(
             fdp.as_deref_mut().unwrap().fd_di = lv.ll_di;
         }
         let mut res: Option<std::ffi::CString> = None;
-        if ll_tv.v_type == VarType::VarFunc && !ll_tv.vval.v_string().is_null() {
+        if ll_tv.v_type == VarType::VarFunc && !ll_tv.vval.v_string_is_null() {
             res = Some(ll_tv.vval.v_string_owned());
 
             *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
@@ -3761,7 +3761,7 @@ fn ex_defer_inner(
     partial: Option<&TvPartial>,
     evalarg: &mut Evalarg,
 ) -> bool {
-    let mut argvars: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
+    let mut argvars: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut partial_argc = 0;
     let mut argcount = 0;
 
@@ -3832,7 +3832,7 @@ pub fn add_defer(name: &CStr, argvars: &[TypVal]) {
     let dr_name_cstr = name.to_owned();
     let argcount = argvars.len();
     let mut dr_argvars = vec![TypVal::new(); argcount + 1];
-    dr_argvars[..argcount].copy_from_slice(argvars);
+    dr_argvars[..argcount].clone_from_slice(argvars);
     cur_funccal_mut().fc_defer.push(DeferCall {
         dr_name: Some(dr_name_cstr),
         dr_argvars,
@@ -4034,12 +4034,17 @@ pub fn do_return(
 
         if reanimate {
             let fc_rettv = cur_funccal_mut().rettv_mut();
-            rettv = Some(*fc_rettv);
-            fc_rettv.v_type = VarType::VarNumber;
-            fc_rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+            rettv = Some(std::mem::replace(
+                fc_rettv,
+                TypVal {
+                    v_type: VarType::VarNumber,
+                    v_lock: VAR_UNLOCKED,
+                    vval: crate::eval::typval::TypvalVval::Number(0),
+                },
+            ));
         }
 
-        cstack.cs_rettv[idx as usize] = rettv;
+        cstack.cs_rettv[idx as usize] = rettv.clone();
         report_make_pending(CSTP_RETURN, PendingVal::Return(rettv));
     } else {
         cur_funccal_mut().fc_returned = 1;
@@ -4158,29 +4163,20 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     {
         fp = pt_ref.pt_func.opt_mut();
     } else {
-        let fname_ptr = crate::globals::GraphPtr::<std::ffi::c_char>::of(
-            if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
-                rettv.vval.v_string().as_ptr()
-            } else if let Some(pt_ref) = rettv.vval.v_partial().opt() {
-                pt_ref.pt_name.as_ref().map_or(ptr::null(), |n| n.as_ptr())
-            } else {
-                ptr::null()
-            },
-        )
-        .as_ptr()
-        .cast_const();
-        if fname_ptr.is_null() {
+        let fname_opt = if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
+            rettv.vval.v_string_cstr()
+        } else if let Some(pt_ref) = rettv.vval.v_partial().opt() {
+            pt_ref.pt_name.as_deref()
+        } else {
+            None
+        };
+        if let Some(fname_cstr) = fname_opt {
+            let mut tofree: Option<std::ffi::CString> = None;
+            let fname = fname_trans_sid(fname_cstr, &mut fname_buf, &mut tofree, &mut error);
+            fp = find_func(Some(fname));
+        } else {
             rettv.v_type = VarType::VarFunc;
             rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
-        } else {
-            let mut tofree: Option<std::ffi::CString> = None;
-            let fname = fname_trans_sid(
-                crate::strings::ByteSlice::from_ptr(fname_ptr).as_cstr(),
-                &mut fname_buf,
-                &mut tofree,
-                &mut error,
-            );
-            fp = find_func(Some(fname));
         }
     }
 

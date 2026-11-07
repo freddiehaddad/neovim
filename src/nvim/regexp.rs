@@ -2805,7 +2805,7 @@ fn vim_regsub_both(
             re_st().regsub_nesting += 1;
 
             if let Some(expr) = expr {
-                let mut argv: [TypVal; 2] = [TypVal::new(); 2];
+                let mut argv: [TypVal; 2] = [const { TypVal::new() }; 2];
                 let mut rettv: TypVal = TypVal::new();
                 let mut match_list = StaticList10::new();
                 rettv.v_type = VarType::VarString;
@@ -2826,8 +2826,7 @@ fn vim_regsub_both(
                     fe_found_var: false,
                 };
                 if expr.v_type == VarType::VarFunc {
-                    let s = expr.vval.v_string();
-                    let s_cstr = if s.is_null() { c"" } else { (s).as_cstr() };
+                    let s_cstr = expr.vval.v_string_cstr_or_empty();
                     call_func(s_cstr, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();

@@ -111,10 +111,7 @@ pub fn ex_help(eap: &mut Exarg) {
             &mut no_args,
             Some(&mut rettv),
         );
-        if rettv.v_type == VarType::VarString
-            && !rettv.vval.v_string().is_null()
-            && !rettv.vval.v_string_is_empty()
-        {
+        if rettv.v_type == VarType::VarString && !rettv.vval.v_string_is_empty() {
             allocated_arg = crate::eval::typval::tv_take_string(&mut rettv);
             arg_cstr = allocated_arg.as_deref().unwrap();
         } else {
@@ -330,7 +327,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         &mut tv_args,
         Some(&mut rettv),
     );
-    if rettv.v_type != VarType::VarString || rettv.vval.v_string().is_null() {
+    if rettv.v_type != VarType::VarString || rettv.vval.v_string_is_null() {
         tv_clear(&mut rettv);
         return false;
     }

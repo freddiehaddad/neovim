@@ -1202,7 +1202,7 @@ fn ins_compl_add(
     }
     let cp_commit_chars = commit_chars;
     let cp_user_data = if let Some(user_data) = user_data {
-        *user_data
+        std::mem::take(user_data)
     } else {
         crate::eval::typval::tv_initial_value()
     };
@@ -3245,7 +3245,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
         }
     };
 
-    let mut args: [TypVal; 3] = [TypVal::new(); 3];
+    let mut args: [TypVal; 3] = [const { TypVal::new() }; 3];
     args[0].v_type = VAR_NUMBER;
     args[1].v_type = VAR_STRING;
     args[2].v_type = VAR_UNKNOWN;
@@ -6081,7 +6081,7 @@ fn get_userdefined_compl_info(
         }
     };
 
-    let mut args: [TypVal; 3] = [TypVal::new(); 3];
+    let mut args: [TypVal; 3] = [const { TypVal::new() }; 3];
     args[0].v_type = VAR_NUMBER;
     args[1].v_type = VAR_STRING;
     args[2].v_type = VAR_UNKNOWN;

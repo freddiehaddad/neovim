@@ -12,7 +12,6 @@ use crate::eval::vars::eval_msgpack_type_list;
 use crate::mbyte::{utf_char2len, utf_char2slice, utf_slice2char, utf_slice2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::MpackData;
-use crate::strings::ByteSliceExt;
 
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
@@ -36,7 +35,7 @@ use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct JsonContainerStackItem {
     stack_index: usize,
     special_val: crate::globals::TvListPtr,
@@ -51,7 +50,7 @@ impl JsonContainerStackItem {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ValuesStackItem {
     is_special_string: bool,
     didcomma: bool,
@@ -143,7 +142,7 @@ fn json_decoder_pop(
         stack.push(obj);
         return true;
     }
-    let mut last_container = *container_stack.last().unwrap();
+    let mut last_container = container_stack.last().unwrap().clone();
     let mut val_location = *pos;
     if obj.val.v_type == last_container.container.v_type
         && std::ptr::eq(
@@ -153,7 +152,7 @@ fn json_decoder_pop(
     {
         container_stack.pop();
         val_location = last_container.s;
-        last_container = *container_stack.last().unwrap();
+        last_container = container_stack.last().unwrap().clone();
     }
 
     if last_container.container.v_type == VarType::VarList {
@@ -186,7 +185,7 @@ fn json_decoder_pop(
             tv_list_append_owned_tv(&mut *kv_pair, key.val);
             tv_list_append_owned_tv(&mut *kv_pair, obj.val);
         } else {
-            assert!(!(key.is_special_string || key.val.vval.v_string().is_null()));
+            assert!(!(key.is_special_string || key.val.vval.v_string_is_null()));
             let obj_di = tv_dict_item_alloc(key.val.vval.v_string_cstr_or_empty());
             tv_clear(&mut key.val);
             let dict = last_container.container.vval.v_dict_ref();
@@ -216,21 +215,22 @@ fn json_decoder_pop(
         let dict = last_container.container.vval.v_dict_opt();
         if last_container.special_val.is_null()
             && (obj.is_special_string
-                || obj.val.vval.v_string().is_null()
+                || obj.val.vval.v_string_is_null()
                 || tv_dict_find(dict.as_deref(), obj.val.vval.v_string_cstr_or_empty(), -1)
                     .is_some())
         {
             let mut v = obj.val;
             tv_clear(&mut v);
             container_stack.pop();
-            let last_container_val = stack[last_container.stack_index];
+            let last_didcomma = stack[last_container.stack_index].didcomma;
+            let last_didcolon = stack[last_container.stack_index].didcolon;
             while stack.len() > last_container.stack_index {
                 let mut popped = stack.pop().unwrap();
                 tv_clear(&mut popped.val);
             }
             *pos = last_container.s;
-            *didcomma = last_container_val.didcomma;
-            *didcolon = last_container_val.didcolon;
+            *didcomma = last_didcomma;
+            *didcolon = last_didcolon;
             *next_map_special = true;
             return true;
         }
@@ -608,7 +608,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         json_err(c"E474: No container to close: %s", &buf[p..]);
                         return fail_cleanup(stack);
                     }
-                    let last_container = *container_stack.last().unwrap();
+                    let last_container = container_stack.last().unwrap();
                     if buf[p] == b'}' && last_container.container.v_type != VarType::VarDict {
                         json_err(c"E474: Closing list with curly bracket: %s", &buf[p..]);
                         return fail_cleanup(stack);
@@ -655,7 +655,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         json_err(c"E474: Comma not inside container: %s", &buf[p..]);
                         return fail_cleanup(stack);
                     }
-                    let last_container = *container_stack.last().unwrap();
+                    let last_container = container_stack.last().unwrap();
                     let is_empty_cont = if let Some(special_val) = last_container.special_val_opt()
                     {
                         tv_list_len(Some(special_val)) == 0
@@ -694,7 +694,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         json_err(c"E474: Colon not inside container: %s", &buf[p..]);
                         return fail_cleanup(stack);
                     }
-                    let last_container = *container_stack.last().unwrap();
+                    let last_container = container_stack.last().unwrap();
                     if last_container.container.v_type != VarType::VarDict {
                         json_err(c"E474: Using colon not in dictionary: %s", &buf[p..]);
                         return fail_cleanup(stack);
@@ -855,7 +855,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     container_stack.push(JsonContainerStackItem {
                         stack_index: stack.len(),
                         s: p,
-                        container: tv,
+                        container: tv.clone(),
                         special_val: crate::globals::TvListPtr::NULL,
                     });
                     stack.push(ValuesStackItem {
@@ -889,7 +889,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     container_stack.push(JsonContainerStackItem {
                         stack_index: stack.len(),
                         s: p,
-                        container: tv,
+                        container: tv.clone(),
                         special_val: val_list,
                     });
                     stack.push(ValuesStackItem {
@@ -1056,7 +1056,8 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             node.data[1] = MpackData::List(crate::globals::GraphPtr::new(list));
         }
         MpackTokenType::MpackTokenMap => {
-            node.data[1] = MpackData::MapPairs(vec![[TypVal::new(); 2]; node.tok.length as usize]);
+            node.data[1] =
+                MpackData::MapPairs(vec![[const { TypVal::new() }; 2]; node.tok.length as usize]);
         }
         MpackTokenType::MpackTokenNone => std::process::abort(),
     }
@@ -1123,20 +1124,22 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                     vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
                 };
                 for pair in &items[..len] {
-                    let key = pair[0].vval.v_string();
-                    let di = crate::eval::typval::tv_dict_item_alloc_len(key.as_bytes());
+                    let di =
+                        crate::eval::typval::tv_dict_item_alloc_len(pair[0].vval.v_string_bytes());
                     if !tv_dict_add(&mut *dict, di) {
                         for (_, d) in dict.dv_hashtab.iter_items_mut() {
-                            d.di_tv.v_type = VarType::VarSpecial;
-                            d.di_tv.vval =
-                                crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
+                            d.di_tv = TypVal {
+                                v_type: VarType::VarSpecial,
+                                v_lock: VAR_UNLOCKED,
+                                vval: crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL),
+                            };
                         }
                         tv_clear(&mut *result);
                         crate::eval::typval::tv_dict_item_free(di);
                         can_be_dict = false;
                         break;
                     }
-                    di.di_tv = pair[1];
+                    di.di_tv = pair[1].clone();
                 }
             }
 
@@ -1146,11 +1149,11 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 }
             } else {
                 let list = decode_create_map_special_dict(&mut *result, len as isize);
-                for pair in &items[..len] {
+                for pair in &mut items[..len] {
                     let kv_pair = tv_list_alloc(2);
                     tv_list_append_list(&mut *list, Some(kv_pair));
-                    tv_list_append_owned_tv(&mut *kv_pair, pair[0]);
-                    tv_list_append_owned_tv(&mut *kv_pair, pair[1]);
+                    tv_list_append_owned_tv(&mut *kv_pair, std::mem::take(&mut pair[0]));
+                    tv_list_append_owned_tv(&mut *kv_pair, std::mem::take(&mut pair[1]));
                 }
             }
         }

@@ -1247,10 +1247,12 @@ fn find_tagfunc_tags(
 ) -> Option<bool> {
     let buf_ffname = crate::strings::ByteSlice::from_opt_cstr(buf_ffname);
     let mut ntags: i32 = 0;
-    let mut args = [TypVal {
-        v_type: VarType::VarUnknown,
-        v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::Number(0),
+    let mut args = [const {
+        TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::Number(0),
+        }
     }; 4];
     let mut rettv = TypVal {
         v_type: VarType::VarUnknown,
@@ -1330,10 +1332,10 @@ fn find_tagfunc_tags(
     let taglist = rettv.vval.v_list_opt();
 
     for li in tv_list_iter(taglist.as_deref()) {
-        let mut res_name = crate::strings::BYTE_SLICE_NULL;
-        let mut res_fname = crate::strings::BYTE_SLICE_NULL;
-        let mut res_cmd = crate::strings::BYTE_SLICE_NULL;
-        let mut res_kind = crate::strings::BYTE_SLICE_NULL;
+        let mut res_name: Option<&std::ffi::CStr> = None;
+        let mut res_fname: Option<&std::ffi::CStr> = None;
+        let mut res_cmd: Option<&std::ffi::CStr> = None;
+        let mut res_kind: Option<&std::ffi::CStr> = None;
         let mut has_extra = false;
         let name_only = (flags & TAG_NAMES) != 0;
 
@@ -1349,37 +1351,19 @@ fn find_tagfunc_tags(
                 let dict_key = hi.key_cstr();
                 let tv = &di.di_tv;
 
-                if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
+                if tv.v_type == VarType::VarString && !tv.vval.v_string_is_null() {
                     len += tv.vval.v_string_bytes().len() + 1;
-                    if crate::strings::ByteSlice::from_ptr(
-                        (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    )
-                    .as_cstr()
-                    .to_bytes()
-                        == b"name"
-                    {
-                        res_name = tv.vval.v_string();
-                    } else if crate::strings::ByteSlice::from_ptr(
-                        (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    )
-                    .as_cstr()
-                    .to_bytes()
-                        == b"filename"
-                    {
-                        res_fname = tv.vval.v_string();
-                    } else if crate::strings::ByteSlice::from_ptr(
-                        (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    )
-                    .as_cstr()
-                    .to_bytes()
-                        == b"cmd"
-                    {
-                        res_cmd = tv.vval.v_string();
+                    let dk_bytes = dict_key.map_or(&[][..], std::ffi::CStr::to_bytes);
+                    if dk_bytes == b"name" {
+                        res_name = tv.vval.v_string_cstr();
+                    } else if dk_bytes == b"filename" {
+                        res_fname = tv.vval.v_string_cstr();
+                    } else if dk_bytes == b"cmd" {
+                        res_cmd = tv.vval.v_string_cstr();
                     } else {
                         has_extra = true;
-                        let dk_bytes = dict_key.map_or(&[][..], std::ffi::CStr::to_bytes);
                         if dk_bytes == b"kind" {
-                            res_kind = tv.vval.v_string();
+                            res_kind = tv.vval.v_string_cstr();
                         } else {
                             len += dk_bytes.len() + 1;
                         }
@@ -1392,12 +1376,13 @@ fn find_tagfunc_tags(
             len += 2;
         }
 
-        if res_name.is_null() || res_fname.is_null() || res_cmd.is_null() {
+        let (Some(res_name), Some(res_fname), Some(res_cmd)) = (res_name, res_fname, res_cmd)
+        else {
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             break;
-        }
+        };
 
-        let cmdkind = tagfunc_cmd_kind(res_cmd.as_cstr());
+        let cmdkind = tagfunc_cmd_kind(res_cmd);
         if cmdkind == Tagcmd::TagcmdInvalid {
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             break;
@@ -1406,39 +1391,33 @@ fn find_tagfunc_tags(
             len += 3;
         }
         let mfp_vec: Vec<u8> = if name_only {
-            crate::strings::ByteSlice::from_ptr(res_name)
-                .to_cstring()
-                .into_bytes_with_nul()
+            res_name.to_owned().into_bytes_with_nul()
         } else {
             let mut v = Vec::with_capacity(len + 2);
             v.push((MT_GL_OTH + 1) as u8);
             v.push(TAG_SEP);
-            v.extend_from_slice(res_name.as_bytes());
+            v.extend_from_slice(res_name.to_bytes());
             v.push(TAB);
-            v.extend_from_slice(res_fname.as_bytes());
+            v.extend_from_slice(res_fname.to_bytes());
             v.push(TAB);
-            v.extend_from_slice(res_cmd.as_bytes());
+            v.extend_from_slice(res_cmd.to_bytes());
 
             if cmdkind == Tagcmd::TagcmdGeneric {
                 v.push(b'|');
             }
             if cmdkind == Tagcmd::TagcmdGeneric || has_extra {
                 v.extend_from_slice(b";\"");
-                if !res_kind.is_null() {
+                if let Some(res_kind) = res_kind {
                     v.push(TAB);
-                    v.extend_from_slice(res_kind.as_bytes());
+                    v.extend_from_slice(res_kind.to_bytes());
                 }
                 if let Some(ref item_dict) = item_dict {
                     for (hi, di) in item_dict.dv_hashtab.iter_items() {
                         let dict_key = hi.key_cstr();
                         let tv = &di.di_tv;
-                        let key_bytes = crate::strings::ByteSlice::from_ptr(
-                            (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                        )
-                        .as_cstr()
-                        .to_bytes();
+                        let key_bytes = dict_key.map_or(&[][..], std::ffi::CStr::to_bytes);
                         if tv.v_type == VarType::VarString
-                            && !tv.vval.v_string().is_null()
+                            && !tv.vval.v_string_is_null()
                             && key_bytes != b"name"
                             && key_bytes != b"filename"
                             && key_bytes != b"cmd"

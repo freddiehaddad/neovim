@@ -32,7 +32,7 @@ use crate::eval::vars::{
     eval_variable, evalvars_clear, evalvars_init, ex_let_vars, find_var, garbage_collect_globvars,
     garbage_collect_scriptvars, garbage_collect_vimvars, get_vim_var_dict, get_vim_var_partial,
     get_vimvar_dict, opt_to_tv, set_var, set_var_const, set_vim_var_list, set_vim_var_nr,
-    skip_var_list, tv_init, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
+    skip_var_list, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
 };
 use crate::event::r#loop::loop_queues;
 use crate::ex_docmd::{
@@ -504,8 +504,7 @@ fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> b
 ///          or eval_expr_to_bool(). An empty string returns false.
 pub fn eval_expr_valid_arg(tv: &TypVal) -> bool {
     tv.v_type != VarType::VarUnknown
-        && (tv.v_type != VarType::VarString
-            || (!tv.vval.v_string().is_null() && !tv.vval.v_string_is_empty()))
+        && (tv.v_type != VarType::VarString || !tv.vval.v_string_is_empty())
 }
 
 /// Evaluate a partial.
@@ -542,7 +541,7 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
 fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut TypVal) -> bool {
     let mut buf = [0u8; NUMBUFLEN];
     let s = if expr.v_type == VarType::VarFunc {
-        expr.vval.v_string().as_opt_cstr()
+        expr.vval.v_string_cstr()
     } else {
         tv_get_string_buf_chk(expr, &mut buf)
     };
@@ -949,15 +948,18 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
     } else {
         if tv.v_type == VarType::VarNumber {
             retval = tv.vval.v_number();
-        } else if tv.v_type != VarType::VarString || tv.vval.v_string().is_null() {
+        } else if tv.v_type != VarType::VarString || tv.vval.v_string_is_null() {
             retval = 0;
         } else {
-            let mut s = tv.vval.v_string();
-            if !s.is_empty() && !ascii_isdigit(s.first_byte()) && s.first_byte() != b'-' {
-                *cp = i32::from(s.first_byte());
-                s = s.wrapping_add(1);
+            let mut s = tv.vval.v_string_bytes();
+            if let Some(&b0) = s.first()
+                && !ascii_isdigit(b0)
+                && b0 != b'-'
+            {
+                *cp = i32::from(b0);
+                s = &s[1..];
             }
-            retval = Varnumber::from(crate::charset::parse_i64_prefix(s.as_bytes()));
+            retval = Varnumber::from(crate::charset::parse_i64_prefix(s));
         }
         tv_clear(&mut tv);
     }
@@ -1647,9 +1649,8 @@ pub fn set_var_lval(
             if copy {
                 tv_copy(&*rettv, lp.ll_tv.borrow_mut());
             } else {
-                *lp.ll_tv = *rettv;
+                *lp.ll_tv = std::mem::take(rettv);
                 lp.tv_mut().v_lock = VAR_UNLOCKED;
-                tv_init(Some(rettv));
             }
         }
 
@@ -1733,11 +1734,7 @@ pub fn eval_for_line(
                 fi.fi_source = ForSource::Blob { bytes, idx: 0 };
                 tv_clear(&mut tv);
             } else if tv.v_type == VarType::VarString {
-                let text = if tv.vval.v_string().is_null() {
-                    std::ffi::CString::default()
-                } else {
-                    tv.vval.v_string_owned()
-                };
+                let text = tv.vval.v_string_owned();
                 fi.fi_source = ForSource::Str { text, byte_idx: 0 };
                 tv_clear(&mut tv);
             } else {
@@ -2192,7 +2189,7 @@ pub fn eval1(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
             return false;
         }
         if !op_falsy || !result {
-            *rettv = var2;
+            *rettv = std::mem::take(&mut var2);
         }
 
         if !op_falsy {
@@ -2486,7 +2483,7 @@ fn eval_addlist(tv1: &mut TypVal, tv2: &mut TypVal) -> bool {
 
 /// Append string "s2" to the string in "tv1".
 pub fn grow_string_tv(tv1: &mut TypVal, s2: &[u8]) -> bool {
-    if tv1.v_type != VarType::VarString || tv1.vval.v_string().is_null() {
+    if tv1.v_type != VarType::VarString || tv1.vval.v_string_is_null() {
         return false;
     }
 
@@ -2978,8 +2975,7 @@ fn call_func_rettv(
     let mut is_lua = false;
 
     if evaluate {
-        functv = *rettv;
-        rettv.v_type = VarType::VarUnknown;
+        functv = std::mem::take(rettv);
 
         if functv.v_type == VarType::VarPartial {
             pt = crate::globals::GraphPtr::from(tv_partial(&functv));
@@ -2990,13 +2986,12 @@ fn call_func_rettv(
                 partial_name(pt.opt())
             };
         } else {
-            let s = functv.vval.v_string();
-            if s.is_empty() {
+            if functv.vval.v_string_is_empty() {
                 emsg(gettext(E_EMPTY_FUNCTION_NAME));
                 tv_clear(&mut functv);
                 return false;
             }
-            funcname = s.as_cstr();
+            funcname = functv.vval.v_string_cstr_or_empty();
         }
     } else {
         funcname = c"";
@@ -3051,8 +3046,7 @@ fn eval_lambda(
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
     *arg = crate::memory::CStrSubslice::advance(*arg, 2);
-    let mut base = *rettv;
-    rettv.v_type = VarType::VarUnknown;
+    let mut base = std::mem::take(rettv);
 
     let lambda_rc = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
     let ret = if lambda_rc != Some(true) {
@@ -3098,8 +3092,7 @@ fn eval_method<'a>(
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
     *arg = crate::memory::CStrSubslice::advance(*arg, 2);
-    let mut base = *rettv;
-    rettv.v_type = VarType::VarUnknown;
+    let mut base = std::mem::take(rettv);
 
     let mut len: i32;
     let mut name = *arg;
@@ -3159,7 +3152,7 @@ fn eval_method<'a>(
                         semsg!(gettext(E_TRAILING_ARG), *arg);
                     }
                     ret = false;
-                } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string().is_null() {
+                } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string_is_null() {
                     let tf = crate::eval::typval::tv_take_string(&mut ref_tv).unwrap_or_default();
                     len = tf.as_bytes().len() as i32;
                     tofree = Some(tf);
@@ -3953,14 +3946,9 @@ pub fn eval_interp_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool) -
             break;
         }
         if evaluate {
-            if !tv.vval.v_string().is_null() {
-                let len = tv.vval.v_string_bytes().len();
-                if len > 0 {
-                    buf.extend_from_slice(crate::globals::GraphPtr::raw_slice(
-                        tv.vval.v_string().cast::<u8>(),
-                        len,
-                    ));
-                }
+            let s_bytes = tv.vval.v_string_bytes();
+            if !s_bytes.is_empty() {
+                buf.extend_from_slice(s_bytes);
             }
             tv_clear(&mut tv);
         }
@@ -4074,7 +4062,7 @@ fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
 pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let pt1 = tv_partial(tv1);
     let mut s1 = if tv1.v_type == VarType::VarFunc {
-        tv1.vval.v_string().as_opt_cstr()
+        tv1.vval.v_string_cstr()
     } else {
         Some(partial_name(pt1.as_deref()))
     };
@@ -4083,7 +4071,7 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     }
     let pt2 = tv_partial(tv2);
     let mut s2 = if tv2.v_type == VarType::VarFunc {
-        tv2.vval.v_string().as_opt_cstr()
+        tv2.vval.v_string_cstr()
     } else {
         Some(partial_name(pt2.as_deref()))
     };
@@ -4473,10 +4461,7 @@ pub fn set_ref_in_item(
         VarType::VarList => {
             set_ref_in_item_list(tv.vval.v_list_opt(), copy_id, ht_stack, list_stack)
         }
-        VarType::VarFunc => {
-            let s = tv.vval.v_string();
-            set_ref_in_func(s.as_opt_cstr(), None, copy_id)
-        }
+        VarType::VarFunc => set_ref_in_func(tv.vval.v_string_cstr(), None, copy_id),
         VarType::VarPartial => {
             set_ref_in_item_partial(tv_partial(&*tv), copy_id, ht_stack, list_stack)
         }
@@ -4595,7 +4580,7 @@ fn eval_dict(
                 return Some(false);
             }
             let item = tv_dict_item_alloc(key_cstr);
-            item.di_tv = tv;
+            item.di_tv = std::mem::take(&mut tv);
             item.di_tv.v_lock = VAR_UNLOCKED;
             if !tv_dict_add(d.borrow_mut(), item) {
                 tv_dict_item_free(item);
@@ -4889,26 +4874,27 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         callback.data = crate::eval::typval::CallbackData::partial(&mut *pt);
         pt.pt_refcount += 1;
     } else if arg.v_type == VarType::VarString
-        && !arg.vval.v_string().is_null()
+        && !arg.vval.v_string_is_null()
         && ascii_isdigit(arg.vval.v_string_first_byte())
     {
         r = false;
     } else if arg.v_type == VarType::VarFunc || arg.v_type == VarType::VarString {
-        let name = arg.vval.v_string();
-        if name.is_null() {
-            r = false;
-        } else if name.is_empty() {
-            *callback = Callback::NONE;
-        } else {
-            let funcref = if arg.v_type == VarType::VarString
-                && let Some(sl) = get_scriptlocal_funcname(Some(name.as_cstr()))
-            {
-                sl
+        if let Some(name) = arg.vval.v_string_cstr() {
+            if name.is_empty() {
+                *callback = Callback::NONE;
             } else {
-                name.to_cstring()
-            };
-            func_ref(Some(funcref.as_c_str()));
-            callback.data = crate::eval::typval::CallbackData::funcref(funcref);
+                let funcref = if arg.v_type == VarType::VarString
+                    && let Some(sl) = get_scriptlocal_funcname(Some(name))
+                {
+                    sl
+                } else {
+                    name.to_owned()
+                };
+                func_ref(Some(funcref.as_c_str()));
+                callback.data = crate::eval::typval::CallbackData::funcref(funcref);
+            }
+        } else {
+            r = false;
         }
     } else if is_lua_tbl {
         if let Some(name) = nlua_register_table_as_callable(arg) {
@@ -5428,7 +5414,7 @@ pub fn var2fpos(
 
         if let Some(li) = tv_list_find(l.opt_mut(), 1)
             && tv_list_item_tv(li).v_type == VarType::VarString
-            && !tv_list_item_tv(li).vval.v_string().is_null()
+            && !tv_list_item_tv(li).vval.v_string_is_null()
             && tv_list_item_tv(li).vval.v_string_bytes() == b"$"
         {
             eval_st().var2_fpos_pos.col = len + 1;
@@ -6136,7 +6122,7 @@ pub fn var_item_copy(
                 eval_st().var_item_copy_recurse -= 1;
                 return ret;
             };
-            if from.vval.v_string().is_null() {
+            if from.vval.v_string_is_null() {
                 tv_copy(&*from, &mut *to);
             } else {
                 if let Some(conv_bytes) = string_convert(conv, from.vval.v_string_bytes(), None) {
@@ -7106,7 +7092,7 @@ mod tests {
             &mut evalarg
         ));
         assert_eq!(rettv.v_type, VarType::VarString);
-        assert!(rettv.vval.v_string().is_null());
+        assert!(rettv.vval.v_string_is_null());
         tv_clear(&mut rettv);
 
         assert!(eval0(c"v:_null_list", &mut rettv, None, &mut evalarg));

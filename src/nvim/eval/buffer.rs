@@ -73,7 +73,7 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
 
     if avar.v_type == VarType::VarNumber {
         buf = crate::globals::GraphPtr::from(buflist_findnr(avar.vval.v_number() as i32));
-    } else if avar.v_type == VarType::VarString && !avar.vval.v_string().is_null() {
+    } else if avar.v_type == VarType::VarString && !avar.vval.v_string_is_null() {
         buf = crate::globals::GraphPtr::from(buflist_findname_exp(avar.vval.v_string_cstr()));
         if buf.is_null() {
             let target = avar.vval.v_string_bytes();

@@ -535,13 +535,6 @@ pub(crate) fn eval_msgpack_type_list(idx: usize) -> Option<&'static mut TvList> 
 }
 
 #[inline]
-pub fn tv_init(tv: Option<&mut TypVal>) {
-    if let Some(tv) = tv {
-        *tv = TypVal::new();
-    }
-}
-
-#[inline]
 pub fn tv_list_locked(l: Option<&TvList>) -> VarLockStatus {
     l.map_or(VAR_FIXED, |l| l.lv_lock)
 }
@@ -876,7 +869,7 @@ pub fn get_spellword<'a>(list: &'a mut TvList, ret_word: &mut Option<&'a CStr>) 
 /// Prepare v: variable "idx" to be used.
 pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
     let p = &mut vars_st().vimvars[idx as usize];
-    *save_tv = p.vv_di.di_tv;
+    *save_tv = p.vv_di.di_tv.clone();
     p.vv_di.di_tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if p.vv_di.di_tv.v_type == VarType::VarUnknown {
         hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
@@ -886,7 +879,7 @@ pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
 /// Restore v: variable "idx" to typeval "save_tv".
 pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
     let p = &mut vars_st().vimvars[idx as usize];
-    p.vv_di.di_tv = *save_tv;
+    p.vv_di.di_tv = std::mem::take(save_tv);
     if p.vv_di.di_tv.v_type != VarType::VarUnknown {
         return;
     }
@@ -1470,9 +1463,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
             continue;
         }
 
-        if empty != 0
-            || di.di_tv.v_type != VarType::VarString
-            || !di.di_tv.vval.v_string().is_null()
+        if empty != 0 || di.di_tv.v_type != VarType::VarString || !di.di_tv.vval.v_string_is_null()
         {
             list_one_var(&mut *di, prefix, first);
         }
@@ -2486,7 +2477,7 @@ pub fn set_reg_var(c: i32) {
         regname[0] = c as u8;
     }
     let tv = get_vim_var_tv(VV_REG);
-    if tv.vval.v_string().is_null() || i32::from(tv.vval.v_string_first_byte()) != c {
+    if tv.vval.v_string_is_null() || i32::from(tv.vval.v_string_first_byte()) != c {
         set_vim_var_bytes(VV_REG, &regname[..1]);
     }
 }
@@ -2494,12 +2485,7 @@ pub fn set_reg_var(c: i32) {
 pub fn v_exception(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
     let tv = get_vim_var_tv(VV_EXCEPTION);
     let Some(oldval) = oldval else {
-        let s = tv.vval.v_string();
-        return if s.is_null() {
-            None
-        } else {
-            Some(s.to_cstring())
-        };
+        return tv.vval.v_string_cstr().map(CStr::to_owned);
     };
 
     set_vim_var_string(VV_EXCEPTION, Some(&oldval), -1);
@@ -2568,12 +2554,7 @@ pub fn set_cmdarg(
 pub fn v_throwpoint(oldval: Option<std::ffi::CString>) -> Option<std::ffi::CString> {
     let tv = get_vim_var_tv(VV_THROWPOINT);
     let Some(oldval) = oldval else {
-        let s = tv.vval.v_string();
-        return if s.is_null() {
-            None
-        } else {
-            Some(s.to_cstring())
-        };
+        return tv.vval.v_string_cstr().map(CStr::to_owned);
     };
 
     set_vim_var_string(VV_THROWPOINT, Some(&oldval), -1);
@@ -3106,9 +3087,8 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
     if copy || tv.v_type == VarType::VarNumber || tv.v_type == VarType::VarFloat {
         tv_copy(&*tv, &mut di.di_tv);
     } else {
-        di.di_tv = *tv;
+        di.di_tv = std::mem::take(tv);
         di.di_tv.v_lock = VAR_UNLOCKED;
-        tv_init(Some(tv));
     }
 
     if watched {

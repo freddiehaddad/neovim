@@ -1073,9 +1073,12 @@ fn lua_convert_one_value(
         let tv_ref = tv;
         match tv_ref.v_type {
             VarType::VarString => {
-                let s = tv_ref.vval.v_string();
-                let len = if s.is_null() { 0 } else { s.len() };
-                lua_pushlstring(lstate, s.as_ptr(), len);
+                let s_bytes = tv_ref.vval.v_string_bytes();
+                lua_pushlstring(
+                    lstate,
+                    tv_ref.vval.v_string_cstr_or_empty().as_ptr(),
+                    s_bytes.len(),
+                );
             }
             VarType::VarNumber => {
                 lua_pushnumber(lstate, tv_ref.vval.v_number() as lua_Number);
@@ -1094,9 +1097,8 @@ fn lua_convert_one_value(
                 lua_pushlstring(lstate, data, len);
             }
             VarType::VarFunc => {
-                let fun = tv_ref.vval.v_string();
-                if !fun.is_null() {
-                    if let Some(fp) = find_func(Some(fun.as_cstr()))
+                if let Some(fun) = tv_ref.vval.v_string_cstr() {
+                    if let Some(fp) = find_func(Some(fun))
                         && (fp.uf_flags & FC_LUAREF) != 0
                     {
                         nlua_pushref(lstate, fp.uf_luaref);

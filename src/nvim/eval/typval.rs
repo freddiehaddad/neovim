@@ -32,7 +32,7 @@ use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_p
 use crate::memory::bytes_to_cstring;
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
-use crate::strings::{RawCCharPtrMut, format_to_buf, strcoll, strtod, tr};
+use crate::strings::{format_to_buf, strcoll, strtod, tr};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -224,7 +224,7 @@ pub enum VarType {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub enum TypvalVval {
     #[default]
     None,
@@ -232,7 +232,7 @@ pub enum TypvalVval {
     Bool(i32),
     Special(i32),
     Float(f64),
-    String(crate::strings::ByteSlice),
+    String(Option<std::ffi::CString>),
     List(crate::globals::TvListPtr),
     Dict(crate::globals::GraphPtr<TvDict>),
     Blob(crate::globals::GraphPtr<TvBlob>),
@@ -240,36 +240,31 @@ pub enum TypvalVval {
 }
 
 impl TypvalVval {
-    pub const NULL_STRING: Self = Self::String(crate::strings::BYTE_SLICE_NULL);
+    pub const NULL_STRING: Self = Self::String(None);
 
     #[inline]
     pub fn from_cstr(s: &CStr) -> Self {
-        Self::String(crate::strings::ByteSlice::from_cstr(s))
+        Self::String(Some(s.to_owned()))
     }
 
     #[inline]
     pub fn from_opt_cstring(s: Option<std::ffi::CString>) -> Self {
-        match s {
-            Some(cs) => Self::from_cstring(cs),
-            None => Self::NULL_STRING,
-        }
+        Self::String(s)
     }
 
     #[inline]
     pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
-        Self::String(crate::strings::ByteSlice::from_opt_cstr(s))
+        Self::String(s.map(CStr::to_owned))
     }
 
     #[inline]
     pub fn from_cstring(s: std::ffi::CString) -> Self {
-        let len = s.as_bytes_with_nul().len();
-        let ptr = s.into_raw().cast::<u8>().cast_const();
-        Self::String(Some(crate::globals::GraphPtr::raw_slice(ptr, len)))
+        Self::String(Some(s))
     }
 
     #[inline]
-    pub const fn v_number(self) -> i64 {
-        match self {
+    pub const fn v_number(&self) -> i64 {
+        match *self {
             Self::Number(n) => n,
             Self::Bool(b) | Self::Special(b) => b as i64,
             _ => 0,
@@ -288,8 +283,8 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub const fn v_bool(self) -> i32 {
-        match self {
+    pub const fn v_bool(&self) -> i32 {
+        match *self {
             Self::Bool(b) | Self::Special(b) => b,
             Self::Number(n) => n as i32,
             _ => 0,
@@ -297,8 +292,8 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub const fn v_special(self) -> i32 {
-        match self {
+    pub const fn v_special(&self) -> i32 {
+        match *self {
             Self::Special(s) | Self::Bool(s) => s,
             Self::Number(n) => n as i32,
             _ => 0,
@@ -306,8 +301,8 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub const fn v_float(self) -> f64 {
-        match self {
+    pub const fn v_float(&self) -> f64 {
+        match *self {
             Self::Float(f) => f,
             Self::Number(n) => n as f64,
             _ => 0.0,
@@ -325,141 +320,141 @@ impl TypvalVval {
         }
     }
 
-    #[inline(always)]
-    pub const fn v_string(self) -> crate::strings::ByteSlice {
+    #[inline]
+    pub const fn v_string_is_null(&self) -> bool {
+        !matches!(self, Self::String(Some(_)))
+    }
+
+    #[inline]
+    pub fn v_string_cstr(&self) -> Option<&CStr> {
         match self {
-            Self::String(p) => p,
-            _ => crate::strings::BYTE_SLICE_NULL,
+            Self::String(Some(s)) => Some(s.as_c_str()),
+            _ => None,
         }
     }
 
     #[inline]
-    pub fn v_string_cstr(self) -> Option<&'static CStr> {
-        self.v_string().as_opt_cstr()
+    pub fn v_string_cstr_or_empty(&self) -> &CStr {
+        self.v_string_cstr().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn v_string_cstr_or_empty(self) -> &'static CStr {
-        self.v_string().as_cstr()
+    pub fn v_string_bytes(&self) -> &[u8] {
+        self.v_string_cstr_or_empty().to_bytes()
     }
 
     #[inline]
-    pub fn v_string_bytes(self) -> &'static [u8] {
-        self.v_string().as_bytes()
+    pub fn v_string_opt_bytes(&self) -> Option<&[u8]> {
+        self.v_string_cstr().map(CStr::to_bytes)
     }
 
     #[inline]
-    pub fn v_string_opt_bytes(self) -> Option<&'static [u8]> {
-        self.v_string().map(crate::memory::bytes_until_nul)
-    }
-
-    #[inline]
-    pub fn v_string_is_empty(self) -> bool {
+    pub fn v_string_is_empty(&self) -> bool {
         self.v_string_bytes().is_empty()
     }
 
     #[inline]
-    pub fn v_string_first_byte(self) -> u8 {
+    pub fn v_string_first_byte(&self) -> u8 {
         self.v_string_bytes().first().copied().unwrap_or(0)
     }
 
     #[inline]
-    pub fn v_string_owned(self) -> std::ffi::CString {
+    pub fn v_string_owned(&self) -> std::ffi::CString {
         self.v_string_cstr_or_empty().to_owned()
     }
 
     #[inline(always)]
-    pub const fn v_list(self) -> crate::globals::GraphPtr<TvList> {
-        match self {
+    pub const fn v_list(&self) -> crate::globals::GraphPtr<TvList> {
+        match *self {
             Self::List(p) => p,
             _ => crate::globals::GraphPtr::NULL,
         }
     }
 
     #[inline]
-    pub fn v_list_ref(self) -> &'static mut TvList {
-        match self {
+    pub fn v_list_ref(&self) -> &'static mut TvList {
+        match *self {
             Self::List(p) => p.borrow_mut(),
             _ => panic!("null list"),
         }
     }
 
     #[inline]
-    pub fn v_list_opt(self) -> Option<&'static mut TvList> {
-        match self {
+    pub fn v_list_opt(&self) -> Option<&'static mut TvList> {
+        match *self {
             Self::List(p) => p.opt_mut(),
             _ => None,
         }
     }
 
     #[inline(always)]
-    pub const fn v_dict(self) -> crate::globals::GraphPtr<TvDict> {
-        match self {
+    pub const fn v_dict(&self) -> crate::globals::GraphPtr<TvDict> {
+        match *self {
             Self::Dict(p) => p,
             _ => crate::globals::GraphPtr::NULL,
         }
     }
 
     #[inline]
-    pub fn v_dict_ref(self) -> &'static mut TvDict {
-        match self {
+    pub fn v_dict_ref(&self) -> &'static mut TvDict {
+        match *self {
             Self::Dict(p) => p.borrow_mut(),
             _ => panic!("null dict"),
         }
     }
 
     #[inline]
-    pub fn v_dict_opt(self) -> Option<&'static mut TvDict> {
-        match self {
+    pub fn v_dict_opt(&self) -> Option<&'static mut TvDict> {
+        match *self {
             Self::Dict(p) => p.opt_mut(),
             _ => None,
         }
     }
 
     #[inline(always)]
-    pub const fn v_blob(self) -> crate::globals::GraphPtr<TvBlob> {
-        match self {
+    pub const fn v_blob(&self) -> crate::globals::GraphPtr<TvBlob> {
+        match *self {
             Self::Blob(p) => p,
             _ => crate::globals::GraphPtr::NULL,
         }
     }
 
     #[inline]
-    pub fn v_blob_ref(self) -> &'static mut TvBlob {
-        match self {
+    pub fn v_blob_ref(&self) -> &'static mut TvBlob {
+        match *self {
             Self::Blob(p) => p.borrow_mut(),
             _ => panic!("null blob"),
         }
     }
 
     #[inline]
-    pub fn v_blob_opt(self) -> Option<&'static mut TvBlob> {
-        match self {
+    pub fn v_blob_opt(&self) -> Option<&'static mut TvBlob> {
+        match *self {
             Self::Blob(p) => p.opt_mut(),
             _ => None,
         }
     }
 
     #[inline(always)]
-    pub const fn v_partial(self) -> crate::globals::GraphPtr<TvPartial> {
-        match self {
+    pub const fn v_partial(&self) -> crate::globals::GraphPtr<TvPartial> {
+        match *self {
             Self::Partial(p) => p,
             _ => crate::globals::GraphPtr::NULL,
         }
     }
 
     #[inline]
-    pub fn v_partial_opt(self) -> Option<&'static mut TvPartial> {
-        match self {
+    pub fn v_partial_opt(&self) -> Option<&'static mut TvPartial> {
+        match *self {
             Self::Partial(p) => p.opt_mut(),
             _ => None,
         }
     }
 
     #[inline]
-    pub fn v_any_addr(self) -> usize {
+    pub fn v_any_addr(&self) -> usize {
         match self {
-            Self::String(p) => p.as_ptr() as usize,
+            Self::String(Some(s)) => s.as_ptr() as usize,
             Self::List(p) => p.as_ptr() as usize,
             Self::Dict(p) => p.as_ptr() as usize,
             Self::Blob(p) => p.as_ptr() as usize,
@@ -470,7 +465,7 @@ impl TypvalVval {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct TypVal {
     pub v_type: VarType,
     pub v_lock: i32,
@@ -857,12 +852,12 @@ pub fn tv_list_set_ret(tv: &mut TypVal, l: Option<&mut TvList>) {
 
 #[inline]
 pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
-    let p = tv.vval.v_string();
-    tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
-    if p.is_null() {
-        None
-    } else {
-        Some(p.to_cstring())
+    match std::mem::replace(&mut tv.vval, crate::eval::typval::TypvalVval::NULL_STRING) {
+        crate::eval::typval::TypvalVval::String(s) => s,
+        other => {
+            tv.vval = other;
+            None
+        }
     }
 }
 
@@ -1709,24 +1704,22 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
-    let mut p = argvars[0].vval.v_string();
-
     tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    if p.is_null() {
+    let Some(mut p) = argvars[0].vval.v_string_cstr() else {
         return;
-    }
+    };
 
     let mut idx: Varnumber = 0;
     while !p.is_empty() {
-        let len = utfc_ptr2len(p);
+        let len = utfc_ptr2len(p.to_bytes_with_nul());
         if len == 0 {
             break;
         }
         let l2 = tv_list_alloc(2);
         tv_list_append_list(rettv.vval.v_list_ref(), Some(&mut *l2));
         tv_list_append_number(&mut *l2, idx);
-        tv_list_append_string(&mut *l2, Some(p.as_cstr()), len as isize);
-        p = p.wrapping_add(len as usize);
+        tv_list_append_string(&mut *l2, Some(p), len as isize);
+        p = crate::memory::CStrSubslice::advance(p, len as usize);
         idx += 1;
     }
 }
@@ -2098,64 +2091,43 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
         return res;
     }
 
-    let mut tofree1: Option<std::ffi::CString> = None;
-    let mut tofree2: Option<std::ffi::CString> = None;
-    let mut p1: RawCCharPtrMut;
-    let mut p2: RawCCharPtrMut;
-
-    if tv1.v_type == VarType::VarString {
+    let s1;
+    let s2;
+    let p1: &CStr = if tv1.v_type == VarType::VarString {
         if tv2.v_type != VarType::VarString || info.item_compare_numeric {
-            p1 = c"'".as_ptr().cast_mut();
+            c"'"
         } else {
-            p1 = tv1.vval.v_string().as_ptr();
+            tv1.vval.v_string_cstr_or_empty()
         }
     } else {
-        let s1 = encode_tv2string(tv1, None);
-        p1 = s1.as_ptr().cast_mut();
-        tofree1 = Some(s1);
-    }
-    if tv2.v_type == VarType::VarString {
+        s1 = encode_tv2string(tv1, None);
+        s1.as_c_str()
+    };
+    let p2: &CStr = if tv2.v_type == VarType::VarString {
         if tv1.v_type != VarType::VarString || info.item_compare_numeric {
-            p2 = c"'".as_ptr().cast_mut();
+            c"'"
         } else {
-            p2 = tv2.vval.v_string().as_ptr();
+            tv2.vval.v_string_cstr_or_empty()
         }
     } else {
-        let s2 = encode_tv2string(tv2, None);
-        p2 = s2.as_ptr().cast_mut();
-        tofree2 = Some(s2);
-    }
-    if p1.is_null() {
-        p1 = c"".as_ptr().cast_mut();
-    }
-    if p2.is_null() {
-        p2 = c"".as_ptr().cast_mut();
-    }
+        s2 = encode_tv2string(tv2, None);
+        s2.as_c_str()
+    };
     if !info.item_compare_numeric {
         if info.item_compare_lc {
-            res = unsafe { strcoll(p1, p2) };
+            res = unsafe { strcoll(p1.as_ptr(), p2.as_ptr()) };
         } else if info.item_compare_ic {
-            res = crate::strings::ByteSlice::from_ptr(p1)
-                .as_cstr()
+            res = p1
                 .to_bytes()
                 .iter()
                 .map(u8::to_ascii_lowercase)
-                .cmp(
-                    crate::strings::ByteSlice::from_ptr(p2)
-                        .as_cstr()
-                        .to_bytes()
-                        .iter()
-                        .map(u8::to_ascii_lowercase),
-                ) as i32;
+                .cmp(p2.to_bytes().iter().map(u8::to_ascii_lowercase)) as i32;
         } else {
-            res = crate::strings::ByteSlice::from_ptr(p1)
-                .as_cstr()
-                .to_bytes()
-                .cmp(crate::strings::ByteSlice::from_ptr(p2).as_bytes()) as i32;
+            res = p1.to_bytes().cmp(p2.to_bytes()) as i32;
         }
     } else {
-        let (n1, _) = strtod(crate::strings::ByteSlice::from_ptr(p1).as_cstr());
-        let (n2, _) = strtod(crate::strings::ByteSlice::from_ptr(p2).as_cstr());
+        let (n1, _) = strtod(p1);
+        let (n2, _) = strtod(p2);
         res = if n1 == n2 {
             0
         } else if n1 > n2 {
@@ -2164,9 +2136,6 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
             -1
         };
     }
-
-    drop(tofree1);
-    drop(tofree2);
 
     if res == 0 && !keep_zero {
         res = if si1.idx > si2.idx { 1 } else { -1 };
@@ -2193,7 +2162,7 @@ fn item_compare2(
         partial_name(partial.opt()).as_ptr()
     };
 
-    let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
+    let mut argv: [TypVal; 3] = [const { tv_initial_value() }; 3];
     tv_copy(&si1.item_mut().li_tv, &mut argv[0]);
     tv_copy(&si2.item_mut().li_tv, &mut argv[1]);
 
@@ -2361,9 +2330,8 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
     }
 
     if argvars[1].v_type == VarType::VarFunc {
-        let s = argvars[1].vval.v_string();
-        if !s.is_null() {
-            info.item_compare_func = Some(s.to_cstring());
+        if let Some(s) = argvars[1].vval.v_string_cstr() {
+            info.item_compare_func = Some(s.to_owned());
         }
     } else if argvars[1].v_type == VarType::VarPartial {
         info.item_compare_partial = argvars[1].vval.v_partial();
@@ -2678,8 +2646,7 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
             let funcref = cb.data.as_funcref();
             tv_set_string(&mut *tv, funcref);
             tv.v_type = VarType::VarFunc;
-            let s = tv.vval.v_string();
-            func_ref(s.as_opt_cstr());
+            func_ref(tv.vval.v_string_cstr());
         }
         _ => {
             tv.v_type = VarType::VarSpecial;
@@ -2812,7 +2779,7 @@ pub fn tv_dict_watcher_notify(
     oldtv: Option<&TypVal>,
 ) {
     let mut dict = crate::globals::GraphPtr::from(dict_in);
-    let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
+    let mut argv: [TypVal; 3] = [const { tv_initial_value() }; 3];
 
     argv[0].v_type = VarType::VarDict;
     argv[0].v_lock = VAR_UNLOCKED;
@@ -3254,8 +3221,7 @@ pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &mut UserFunc)
         Some(&fp.uf_name.as_bytes()[..fp.uf_namelen]),
     );
     item.di_tv.v_type = VarType::VarFunc;
-    let s = item.di_tv.vval.v_string();
-    func_ref(s.as_opt_cstr());
+    func_ref(item.di_tv.vval.v_string_cstr());
     if !tv_dict_add(d, item) {
         tv_dict_item_free(item);
         return false;
@@ -3808,8 +3774,7 @@ pub fn tv_dict_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         if !var_check_fixed(i32::from(di.di_flags), arg_errmsg, TV_TRANSLATE)
             && !var_check_ro(i32::from(di.di_flags), arg_errmsg, TV_TRANSLATE)
         {
-            *rettv = di.di_tv;
-            di.di_tv = tv_initial_value();
+            *rettv = std::mem::replace(&mut di.di_tv, tv_initial_value());
             tv_dict_item_remove(d, di);
             if tv_dict_is_watched_inline(Some(d)) {
                 tv_dict_watcher_notify(d, key, None, Some(&*rettv));
@@ -4191,16 +4156,12 @@ pub fn tv_clear(tv: &mut TypVal) {
 pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
     to.v_type = from.v_type;
     to.v_lock = VAR_UNLOCKED;
-    to.vval = from.vval;
+    to.vval = from.vval.clone();
     match from.v_type {
         VarType::VarNumber | VarType::VarFloat | VarType::VarBool | VarType::VarSpecial => {}
         VarType::VarString | VarType::VarFunc => {
-            if !from.vval.v_string().is_null() {
-                to.vval = crate::eval::typval::TypvalVval::from_cstring(from.vval.v_string_owned());
-                if from.v_type == VarType::VarFunc {
-                    let s = to.vval.v_string();
-                    func_ref(s.as_opt_cstr());
-                }
+            if !from.vval.v_string_is_null() && from.v_type == VarType::VarFunc {
+                func_ref(to.vval.v_string_cstr());
             }
         }
         VarType::VarPartial => {
@@ -4576,7 +4537,7 @@ pub fn tv_get_number_chk(tv: &TypVal, mut ret_error: Option<&mut bool>) -> Varnu
         VarType::VarNumber => return tv.vval.v_number(),
         VarType::VarString => {
             let mut n: Varnumber = 0;
-            if !tv.vval.v_string().is_null() {
+            if !tv.vval.v_string_is_null() {
                 vim_str2nr(
                     tv.vval.v_string_bytes(),
                     None,
@@ -4628,7 +4589,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
 /// Get the line number from Vimscript object.
 pub fn tv_get_lnum_buf(tv: &TypVal, buf: Option<&FileBuf>) -> Linenr {
     if tv.v_type == VarType::VarString
-        && !tv.vval.v_string().is_null()
+        && !tv.vval.v_string_is_null()
         && tv.vval.v_string_bytes() == b"$"
         && let Some(buf) = buf
     {
@@ -4691,8 +4652,7 @@ pub fn tv_check_for_nonempty_string_arg(args: &[TypVal], idx: i32) -> bool {
     if !tv_check_for_string_arg(args, idx) {
         return false;
     }
-    let s = args[idx as usize].vval.v_string();
-    if s.is_null() || { s.is_empty() } {
+    if args[idx as usize].vval.v_string_is_empty() {
         semsg!(tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR), idx + 1,);
         return false;
     }
@@ -4874,13 +4834,7 @@ pub fn tv_get_string_buf_chk<'a>(
             format_to_buf!(buf, c"%g", tv.vval.v_float());
             Some(crate::memory::bytes_as_cstr(buf))
         }
-        VarType::VarString => {
-            if !tv.vval.v_string().is_null() {
-                Some(tv.vval.v_string_cstr_or_empty())
-            } else {
-                Some(c"")
-            }
-        }
+        VarType::VarString => Some(tv.vval.v_string_cstr_or_empty()),
         VarType::VarBool => {
             crate::memory::copy_bytes_to_c_buf(
                 buf,
@@ -4928,9 +4882,7 @@ pub fn tv2bool(tv: &TypVal) -> bool {
         VarType::VarNumber => tv.vval.v_number() != 0,
         VarType::VarFloat => tv.vval.v_float() != 0.0,
         VarType::VarPartial => !tv.vval.v_partial().is_null(),
-        VarType::VarFunc | VarType::VarString => {
-            !tv.vval.v_string().is_null() && !tv.vval.v_string_is_empty()
-        }
+        VarType::VarFunc | VarType::VarString => !tv.vval.v_string_is_empty(),
         VarType::VarList => tv.vval.v_list_opt().is_some_and(|l| l.lv_len > 0),
         VarType::VarDict => tv
             .vval

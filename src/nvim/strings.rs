@@ -506,18 +506,18 @@ impl ByteSliceExt for ByteSlice {
 }
 
 #[inline(always)]
-pub fn tr(s: &CStr) -> &'static CStr {
+pub fn tr(s: &CStr) -> &CStr {
     gettext(s)
 }
 
 #[inline(always)]
-pub fn gettext(msgid: &CStr) -> &'static CStr {
+pub fn gettext(msgid: &CStr) -> &CStr {
     if crate::os::lang::HAVE_LIBINTL
         && let Some(tr) = crate::os::lang::c_gettext(Some(msgid))
     {
         return tr;
     }
-    crate::strings::ByteSlice::from_ptr(msgid.as_ptr()).as_cstr()
+    msgid
 }
 
 pub trait IntoNgettextCount {
@@ -567,18 +567,14 @@ impl IntoNgettextCount for isize {
 }
 
 #[inline(always)]
-pub fn ngettext<N: IntoNgettextCount>(msgid1: &CStr, msgid2: &CStr, n: N) -> &'static CStr {
+pub fn ngettext<'a, N: IntoNgettextCount>(msgid1: &'a CStr, msgid2: &'a CStr, n: N) -> &'a CStr {
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL
         && let Some(tr) = crate::os::lang::c_ngettext(Some(msgid1), count)
     {
         return tr;
     }
-    if count == 1 {
-        crate::strings::ByteSlice::from_ptr(msgid1.as_ptr()).as_cstr()
-    } else {
-        crate::strings::ByteSlice::from_ptr(msgid2.as_ptr()).as_cstr()
-    }
+    if count == 1 { msgid1 } else { msgid2 }
 }
 
 pub fn strtod_slice(bytes: &[u8]) -> (f64, usize) {

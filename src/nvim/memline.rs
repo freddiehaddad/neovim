@@ -893,18 +893,18 @@ pub fn ml_recover(checkext: bool) {
         if n_swaps > 1 {
             let mut lua_args = [items_tv, TypVal::new()];
             nlua_call_typval(c"vim._core.swapfile", c"select_swap", &mut lua_args, None);
-            tv_clear(&mut items_tv);
+            tv_clear(&mut lua_args[0]);
 
             ml_recover_theend(None, None, serious_error, called_from_main);
 
             return;
         }
-        let first_str = tv_list_first(items_tv.vval.v_list().opt())
+        fname_used = tv_list_first(items_tv.vval.v_list().opt())
             .unwrap()
             .li_tv
             .vval
-            .v_string();
-        fname_used = (!first_str.is_null()).then(|| first_str.to_cstring());
+            .v_string_cstr()
+            .map(CStr::to_owned);
         tv_clear(&mut items_tv);
     }
     let Some(fname_used) = fname_used else {

@@ -67,8 +67,7 @@ fn convert_one_value(
 ) {
     match tv.v_type {
         VarType::VarString => {
-            let s = tv.vval.v_string();
-            let bytes = s.as_bytes();
+            let bytes = tv.vval.v_string_bytes();
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
         }
         VarType::VarNumber => {
@@ -91,9 +90,8 @@ fn convert_one_value(
             stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
         }
         VarType::VarFunc => {
-            let fun = tv.vval.v_string();
-            let obj = if !fun.is_null()
-                && let Some(fp) = find_func(Some(fun.as_cstr()))
+            let obj = if let Some(fun) = tv.vval.v_string_cstr()
+                && let Some(fp) = find_func(Some(fun))
                 && (fp.uf_flags & FC_LUAREF) != 0
             {
                 Object {
@@ -478,7 +476,7 @@ mod tests {
                 v_lock: 0,
                 vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
             };
-            tv_list_append_owned_tv(&mut *list, list_tv);
+            tv_list_append_owned_tv(&mut *list, list_tv.clone());
             let cyc_obj = vim_to_object(&mut list_tv, None, false);
             assert_eq!(cyc_obj.obj_type, ObjectType::ObjectTypeArray);
             assert_eq!(cyc_obj.data.array().size, 1);

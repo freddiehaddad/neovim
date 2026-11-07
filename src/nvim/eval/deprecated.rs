@@ -231,14 +231,13 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
     }
 
-    let prog = arg0.vval.v_string();
-    if prog.is_empty() {
+    if arg0.vval.v_string_is_empty() {
         emsg(E_API_SPAWN_FAILED);
         return;
     }
 
     let mut argv = Vec::with_capacity((argsl as usize) + 1);
-    argv.push(prog.to_cstring());
+    argv.push(arg0.vval.v_string_owned());
 
     if argsl > 0
         && let Some(args) = args

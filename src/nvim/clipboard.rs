@@ -13,7 +13,7 @@ use crate::register::{
     EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, Yankreg, get_y_previous,
     get_y_register, update_yankreg_width,
 };
-use crate::strings::ByteSliceExt;
+
 use std::ffi::CStr;
 
 const K_OPT_CB_FLAG_UNNAMED: u32 = 0x01;
@@ -202,15 +202,8 @@ pub fn get_clipboard(
         if li.li_tv.v_type != VarType::VarString {
             return fail_cleanup(reg, errmsg, target);
         }
-        let s = li.li_tv.vval.v_string();
-        reg.y_array.push(cstr_to_string(
-            crate::strings::ByteSlice::from_ptr(if s.is_null() {
-                c"".as_ptr()
-            } else {
-                s.as_ptr()
-            })
-            .as_opt_cstr(),
-        ));
+        reg.y_array
+            .push(cstr_to_string(Some(li.li_tv.vval.v_string_cstr_or_empty())));
     }
 
     if reg.y_array.last().is_some_and(|last| last.size == 0) {

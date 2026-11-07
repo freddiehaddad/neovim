@@ -640,7 +640,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                     wrong_arg_msg =
                         Some(c"E1116: \"assert_fails()\" fifth argument must be a string");
                     valid_args = false;
-                } else if !arg4.vval.v_string().is_null()
+                } else if !arg4.vval.v_string_is_null()
                     && pattern_match(
                         arg4.vval.v_string_cstr_or_empty(),
                         g_st().emsg_assert_fails_context.as_deref(),

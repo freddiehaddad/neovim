@@ -88,7 +88,7 @@ impl Default for Cstack {
         Self {
             cs_flags: [0; CSTACK_LEN],
             cs_pending: [0; CSTACK_LEN],
-            cs_rettv: [None; CSTACK_LEN],
+            cs_rettv: [const { None }; CSTACK_LEN],
             cs_exception: [const { None }; CSTACK_LEN],
             cs_forinfo: [const { None }; CSTACK_LEN],
             cs_line: [0; CSTACK_LEN],
@@ -1243,7 +1243,10 @@ pub fn ex_finally(eap: &mut Exarg) {
         let cur_idx = cstack.cs_idx as usize;
         if pending == CSTP_ERROR || g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw {
             if i32::from(cstack.cs_pending[cur_idx]) == CSTP_RETURN {
-                report_discard_pending(CSTP_RETURN, PendingVal::Return(cstack.cs_rettv[cur_idx]));
+                report_discard_pending(
+                    CSTP_RETURN,
+                    PendingVal::Return(cstack.cs_rettv[cur_idx].clone()),
+                );
                 discard_pending_return(&mut (&mut cstack.cs_rettv)[cur_idx]);
             }
             if (pending == CSTP_ERROR && g_st().did_emsg == 0) || g_st().did_throw {
@@ -1350,7 +1353,7 @@ pub fn ex_endtry(eap: &mut Exarg) {
 
     if !skip {
         let report_val = if pending == CSTP_RETURN {
-            PendingVal::Return(rettv)
+            PendingVal::Return(rettv.clone())
         } else if (pending & CSTP_THROW) != 0 {
             PendingVal::Throw(g_st().current_exception.clone())
         } else {
@@ -1481,7 +1484,7 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
                     CSTP_RETURN => {
                         report_discard_pending(
                             CSTP_RETURN,
-                            PendingVal::Return(cstack.cs_rettv[u_idx]),
+                            PendingVal::Return(cstack.cs_rettv[u_idx].clone()),
                         );
                         discard_pending_return(&mut (&mut cstack.cs_rettv)[u_idx]);
                         cstack.cs_pending[u_idx] = CSTP_NONE as u8;

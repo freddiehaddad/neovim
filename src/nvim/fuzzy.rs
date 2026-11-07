@@ -578,7 +578,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
         );
         return;
     }
-    if arg1.v_type != VarType::VarString || arg1.vval.v_string().is_null() {
+    if arg1.v_type != VarType::VarString || arg1.vval.v_string_is_null() {
         semsg!(E_INVARG2, tv_get_string(arg1));
         return;
     }

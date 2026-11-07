@@ -921,7 +921,7 @@ pub(crate) fn channel_proc_state_cb(
 }
 
 fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
-    let mut argv: [TypVal; 4] = [TypVal::new(); 4];
+    let mut argv: [TypVal; 4] = [const { TypVal::new() }; 4];
     argv[0].v_type = VarType::VarNumber;
     argv[0].v_lock = VAR_UNLOCKED;
     argv[0].vval = TypvalVval::Number(chan.id as Varnumber);

@@ -647,7 +647,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         recover_names(None, false, items_tv.vval.v_list().borrow_mut());
         let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
         nlua_call_typval(c"vim._core.swapfile", c"list_swaps", &mut lua_args, None);
-        tv_clear(&mut items_tv);
+        tv_clear(&mut lua_args[0]);
         os_exit(0);
     }
 

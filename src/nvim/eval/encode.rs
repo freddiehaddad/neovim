@@ -184,10 +184,7 @@ pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
         li_length: 0,
     };
     if let Some(first_li) = state.li_opt() {
-        let s = first_li.li_tv.vval.v_string();
-        if !s.is_null() {
-            state.li_length = s.len();
-        }
+        state.li_length = first_li.li_tv.vval.v_string_bytes().len();
     }
     state
 }
@@ -204,7 +201,8 @@ pub fn encode_read_from_list(
         if state.offset < state.li_length
             && let Some(cur_li) = state.li_opt()
         {
-            let s = cur_li.li_tv.vval.v_string().slice(state.li_length);
+            let s_bytes = cur_li.li_tv.vval.v_string_bytes();
+            let s = &s_bytes[..state.li_length.min(s_bytes.len())];
             while state.offset < state.li_length && p < nbuf {
                 let ch = s[state.offset];
                 state.offset += 1;
@@ -229,8 +227,7 @@ pub fn encode_read_from_list(
                 return Some(false);
             }
             state.offset = 0;
-            let s = next_li.li_tv.vval.v_string();
-            state.li_length = if s.is_null() { 0 } else { s.len() };
+            state.li_length = next_li.li_tv.vval.v_string_bytes().len();
         }
     }
     *read_bytes = nbuf;
@@ -249,11 +246,7 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
         if tv.v_type != VarType::VarString {
             return None;
         }
-        len += 1;
-        let s = tv.vval.v_string();
-        if !s.is_null() {
-            len += s.len();
-        }
+        len += 1 + tv.vval.v_string_bytes().len();
     }
     len = len.saturating_sub(1);
     if len == 0 {
@@ -373,7 +366,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                             .opt(),
                     )
                     .unwrap();
-                    let mut key_tv = first_item.li_tv;
+                    let mut key_tv = first_item.li_tv.clone();
                     let key = encode_tv2echo(&mut key_tv, None);
                     let mut item_buf: Vec<u8> = Vec::new();
                     item_buf.extend_from_slice(b"key ");
@@ -1620,7 +1613,7 @@ pub fn encode_tv2string(tv: &mut TypVal, mut len: Option<&mut usize>) -> std::ff
 pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CString {
     let mut ga: Vec<u8> = Vec::with_capacity(80);
     if tv.v_type == VarType::VarString || tv.v_type == VarType::VarFunc {
-        if !tv.vval.v_string().is_null() {
+        if !tv.vval.v_string_is_null() {
             ga.extend_from_slice(tv.vval.v_string_bytes());
         }
     } else {
@@ -1718,14 +1711,7 @@ mod tests {
                     assert!(!li.is_null());
                     let li_ref = li.borrow();
                     assert_eq!(li_ref.li_tv.v_type, VarType::VarString);
-                    let ptr = li_ref.li_tv.vval.v_string();
-                    match exp {
-                        None => assert!(ptr.is_null()),
-                        Some(bytes) => {
-                            assert!(!ptr.is_null());
-                            assert_eq!(ptr.as_bytes(), bytes);
-                        }
-                    }
+                    assert_eq!(li_ref.li_tv.vval.v_string_opt_bytes(), exp);
                     li = li_ref.li_next;
                 }
                 tv_list_free(Some(l));

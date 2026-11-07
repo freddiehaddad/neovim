@@ -9,11 +9,11 @@ use crate::cmdexpand::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, TvBlob, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, Varnumber,
-    tv_blob_alloc_ret, tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg,
-    tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string,
-    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret,
-    tv_list_append_string, tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret,
+    EvalFuncData, TvBlob, TvList, TypVal, VarType, Varnumber, tv_blob_alloc_ret, tv_blob_len,
+    tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_clear,
+    tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret, tv_list_append_string,
+    tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret,
 };
 use crate::eval::userfunc::{add_defer, can_add_defer};
 use crate::eval::vars::{VV_VAL, prepare_vimvar, restore_vimvar, set_vim_var_string};
@@ -1397,13 +1397,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// Evaluate "expr" (= "context") for readdir().
 pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
-    let name = crate::strings::ByteSlice::from_cstr(name);
-    let tv_init = TypVal {
-        v_type: VarType::VarUnknown,
-        v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::Number(0),
-    };
-    let mut argv = [tv_init; 2];
+    let mut argv = [const { TypVal::new() }; 2];
     let mut retval: Varnumber = 0;
     let mut error = false;
 
@@ -1411,13 +1405,13 @@ pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
         return 1;
     }
 
-    let mut save_val = tv_init;
+    let mut save_val = TypVal::new();
     prepare_vimvar(VV_VAL, &mut save_val);
-    set_vim_var_string(VV_VAL, name.as_opt_cstr(), -1);
+    set_vim_var_string(VV_VAL, Some(name), -1);
     argv[0].v_type = VarType::VarString;
-    argv[0].vval = crate::eval::typval::TypvalVval::String(name);
+    argv[0].vval = crate::eval::typval::TypvalVval::from_cstr(name);
 
-    let mut rettv = tv_init;
+    let mut rettv = TypVal::new();
     if eval_expr_typval(&*expr, false, &mut argv, 1, &mut rettv) {
         retval = tv_get_number_chk(&rettv, Some(&mut error));
         if error {

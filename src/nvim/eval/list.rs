@@ -61,8 +61,8 @@ fn filter_map_one(
     }
 
     let mut argv = [
-        *get_vim_var_tv(VV_KEY),
-        *get_vim_var_tv(VV_VAL),
+        get_vim_var_tv(VV_KEY).clone(),
+        get_vim_var_tv(VV_VAL).clone(),
         TypVal {
             v_type: VarType::VarUnknown,
             v_lock: VAR_UNLOCKED,
@@ -292,10 +292,10 @@ fn filter_map_string(
                 tv_clear(&mut tv);
                 emsg(E_STRING_REQUIRED);
                 break;
-            } else if !newtv.vval.v_string().is_null() {
+            } else if !newtv.vval.v_string_is_null() {
                 out.extend_from_slice(newtv.vval.v_string_bytes());
             }
-        } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string().is_null() {
+        } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string_is_null() {
             out.extend_from_slice(tv.vval.v_string_bytes());
         }
 
@@ -874,7 +874,7 @@ pub fn f_reverse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
     } else if arg0.v_type == VarType::VarString {
         rettv.v_type = VarType::VarString;
-        if !arg0.vval.v_string().is_null() {
+        if !arg0.vval.v_string_is_null() {
             let s_bytes = arg0.vval.v_string_bytes();
             let rev = reverse_text(s_bytes);
             crate::eval::typval::tv_set_string(rettv, Some(rev.as_c_str()));
