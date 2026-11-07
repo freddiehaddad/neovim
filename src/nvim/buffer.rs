@@ -1706,41 +1706,37 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
 impl FileBuf {
     #[inline]
-    pub fn ffname_opt(&self) -> Option<&'static std::ffi::CStr> {
-        self.b_ffname
-            .as_ref()
-            .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()))
+    pub fn ffname_opt(&self) -> Option<&std::ffi::CStr> {
+        self.b_ffname.as_deref()
     }
 
     #[inline]
-    pub fn ffname_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn ffname_cstr(&self) -> &std::ffi::CStr {
         self.ffname_opt().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn ffname_bytes(&self) -> &'static [u8] {
+    pub fn ffname_bytes(&self) -> &[u8] {
         self.ffname_cstr().to_bytes()
     }
 
     #[inline]
-    pub fn sfname_opt(&self) -> Option<&'static std::ffi::CStr> {
-        self.b_sfname
-            .as_ref()
-            .map(|s| crate::globals::GraphPtr::<u8>::cstr(s.as_c_str()))
+    pub fn sfname_opt(&self) -> Option<&std::ffi::CStr> {
+        self.b_sfname.as_deref()
     }
 
     #[inline]
-    pub fn sfname_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn sfname_cstr(&self) -> &std::ffi::CStr {
         self.sfname_opt().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn sfname_bytes(&self) -> &'static [u8] {
+    pub fn sfname_bytes(&self) -> &[u8] {
         self.sfname_cstr().to_bytes()
     }
 
     #[inline]
-    pub fn fname_opt(&self) -> Option<&'static std::ffi::CStr> {
+    pub fn fname_opt(&self) -> Option<&std::ffi::CStr> {
         match self.b_fname {
             BufFname::None => None,
             BufFname::Short => self.sfname_opt(),
@@ -1749,12 +1745,12 @@ impl FileBuf {
     }
 
     #[inline]
-    pub fn fname_cstr(&self) -> &'static std::ffi::CStr {
+    pub fn fname_cstr(&self) -> &std::ffi::CStr {
         self.fname_opt().unwrap_or(c"")
     }
 
     #[inline]
-    pub fn fname_bytes(&self) -> &'static [u8] {
+    pub fn fname_bytes(&self) -> &[u8] {
         self.fname_cstr().to_bytes()
     }
 
@@ -3308,7 +3304,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                     }
                     if i32::from(buf.b_p_bl) == find_listed
                         && (!diffmode || diff_mode_buf(buf))
-                        && buflist_match(&mut regmatch, &mut *buf, false).is_some()
+                        && buflist_match(&mut regmatch, buf, false).is_some()
                     {
                         if curtab_only {
                             let mut found_window = false;
@@ -3410,7 +3406,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
             let mut p = None;
             if !fuzzy {
-                p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic);
+                p = buflist_match(&mut regmatch, buf, opt_vars().p_wic);
             } else {
                 let pat_opt = Some(pat_bytes);
                 score = fuzzy_match_str(buf.sfname_opt().map(CStr::to_bytes), pat_opt);
@@ -3488,11 +3484,11 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
     }
 }
 
-fn buflist_match(
+fn buflist_match<'a>(
     rmp: &mut Regmatch,
-    buf: &mut FileBuf,
+    buf: &'a FileBuf,
     ignore_case: bool,
-) -> Option<&'static std::ffi::CStr> {
+) -> Option<&'a std::ffi::CStr> {
     let mut match_ = fname_match(rmp, buf.sfname_opt(), ignore_case);
     if match_.is_none() && !rmp.regprog.is_null() {
         match_ = fname_match(rmp, buf.ffname_opt(), ignore_case);
@@ -3500,11 +3496,11 @@ fn buflist_match(
     match_
 }
 
-fn fname_match(
+fn fname_match<'a>(
     rmp: &mut Regmatch,
-    name: Option<&'static std::ffi::CStr>,
+    name: Option<&'a std::ffi::CStr>,
     ignore_case: bool,
-) -> Option<&'static std::ffi::CStr> {
+) -> Option<&'a std::ffi::CStr> {
     let name_cstr = name?;
     let mut match_ = None;
 
@@ -3854,13 +3850,13 @@ pub fn buflist_list(eap: &mut Exarg) {
 /// Get file name and line number for file `fnum`.
 pub fn buflist_name_nr(
     fnum: i32,
-    fname: &mut Option<&'static std::ffi::CStr>,
+    fname: &mut Option<std::ffi::CString>,
     lnum: &mut Linenr,
 ) -> bool {
     let Some(buf) = buflist_findnr_opt(fnum) else {
         return false;
     };
-    let Some(f) = buf.fname_opt() else {
+    let Some(f) = buf.fname_opt().map(CStr::to_owned) else {
         return false;
     };
 
@@ -3984,7 +3980,7 @@ pub fn setaltfname(
 }
 
 /// Get alternate file name for current window.
-pub fn getaltfname(errmsg: bool) -> Option<&'static std::ffi::CStr> {
+pub fn getaltfname(errmsg: bool) -> Option<std::ffi::CString> {
     let mut fname = None;
     let mut dummy: Linenr = 0;
 

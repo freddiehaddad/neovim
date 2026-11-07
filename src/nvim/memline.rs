@@ -3470,14 +3470,14 @@ fn findswapname(
     old_fname: Option<&CStr>,
     found_existing_dir: &mut bool,
 ) -> Option<std::ffi::CString> {
-    let buf_fname = buf.fname_opt();
+    let buf_fname = buf.fname_opt().map(CStr::to_owned);
     let dir_len = dirp.len() + 1;
     let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
     copy_option_part(dirp, &mut dir_name_vec, c",");
     let dir_name = crate::memory::bytes_as_cstr(&dir_name_vec);
 
     let mut fname_vec: Option<Vec<u8>> =
-        makeswapname(buf_fname, dir_name).map(std::ffi::CString::into_bytes_with_nul);
+        makeswapname(buf_fname.as_deref(), dir_name).map(std::ffi::CString::into_bytes_with_nul);
 
     while let Some(ref mut fvec) = fname_vec {
         let fname_cstr = crate::memory::bytes_as_cstr(fvec);
@@ -3567,7 +3567,7 @@ fn findswapname(
 
                 if choice == SEA_CHOICE_NONE
                     && g_st().swap_exists_action != SEA_NONE
-                    && has_autocmd(EVENT_SWAPEXISTS, buf_fname, Some(&mut *buf))
+                    && has_autocmd(EVENT_SWAPEXISTS, buf_fname.as_deref(), Some(&mut *buf))
                 {
                     choice = do_swapexists(buf, fname_cstr);
                 }

@@ -883,7 +883,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
             )
         }
         x if x == i32::from(b'#') => {
-            Some(getaltfname(errmsg).map(|s| s.to_bytes_with_nul().to_vec()))
+            Some(getaltfname(errmsg).map(std::ffi::CString::into_bytes_with_nul))
         }
         x if x == i32::from(b'=') => Some(cstr_to_vec(get_expr_line())),
         x if x == i32::from(b':') => {
@@ -2567,9 +2567,11 @@ pub fn ex_display(eap: &mut Exarg) {
     {
         let mut fname = None;
         let mut dummy: Linenr = 0;
-        if buflist_name_nr(0, &mut fname, &mut dummy) && !message_filtered(fname.unwrap_or(c"")) {
+        if buflist_name_nr(0, &mut fname, &mut dummy)
+            && !message_filtered(fname.as_deref().unwrap_or(c""))
+        {
             msg_puts(c"\n  c  \"#   ");
-            dis_msg(fname, false);
+            dis_msg(fname.as_deref(), false);
         }
     }
 

@@ -3225,10 +3225,12 @@ pub fn did_set_xhistory(args: &mut Optset) -> Option<&CStr> {
 fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
     opt_st().syn_recursive += 1;
     buf.b_flags |= BF_SYN_SET;
+    let syn_name = buf.b_p_syn.to_owned();
+    let buf_fname = buf.fname_opt().map(CStr::to_owned);
     apply_autocmds(
         EVENT_SYNTAX,
-        Some(buf.b_p_syn.as_cstr()),
-        buf.fname_opt(),
+        Some(&syn_name),
+        buf_fname.as_deref(),
         value_changed || opt_st().syn_recursive == 1,
         Some(buf),
     );

@@ -4020,11 +4020,11 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             set_vim_var_string(VV_FCS_REASON, Some(reason), reasonlen);
             set_vim_var_string(VV_FCS_CHOICE, Some(c""), 0);
             g_st().allbuf_lock += 1;
-            let b_fname = buf.fname_opt();
+            let b_fname = buf.fname_opt().map(CStr::to_owned);
             let mut n = apply_autocmds(
                 EVENT_FILECHANGEDSHELL,
-                b_fname,
-                b_fname,
+                b_fname.as_deref(),
+                b_fname.as_deref(),
                 false,
                 Some(&mut *buf),
             );
@@ -4160,11 +4160,11 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     }
 
     if bufref_valid(Some(&bufref)) && retval != 0 {
-        let b_fname = buf.fname_opt();
+        let b_fname = buf.fname_opt().map(CStr::to_owned);
         apply_autocmds(
             EVENT_FILECHANGEDSHELLPOST,
-            b_fname,
-            b_fname,
+            b_fname.as_deref(),
+            b_fname.as_deref(),
             false,
             Some(&mut *buf),
         );

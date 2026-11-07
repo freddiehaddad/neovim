@@ -935,8 +935,14 @@ pub fn getout(mut exitval: i32) -> ! {
             if buf.b_ml.ml_mfp.is_some() {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf));
-                let b_fname = buf.fname_opt();
-                apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, Some(&mut *buf));
+                let b_fname = buf.fname_opt().map(CStr::to_owned);
+                apply_autocmds(
+                    EVENT_BUFUNLOAD,
+                    b_fname.as_deref(),
+                    b_fname.as_deref(),
+                    false,
+                    Some(&mut *buf),
+                );
                 if !bufref_valid(Some(&bufref)) {
                     break;
                 }

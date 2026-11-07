@@ -213,7 +213,9 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
             buf_set_name(buf.b_fnum, c"Untitled");
         }
 
-        if check_overwrite(&mut ea, buf, buf.fname_opt(), buf.ffname_opt(), false)
+        let b_fname = buf.fname_opt().map(CStr::to_owned);
+        let b_ffname = buf.ffname_opt().map(CStr::to_owned);
+        if check_overwrite(&mut ea, buf, b_fname.as_deref(), b_ffname.as_deref(), false)
             && buf_write_all(buf, false)
         {
             return;
@@ -231,9 +233,16 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf2_ref));
 
-                let b_fname = buf2_ref.fname_opt();
-                let b_ffname = buf2_ref.ffname_opt();
-                if b_fname.is_some() && check_overwrite(&mut ea, buf2_ref, b_fname, b_ffname, false)
+                let b_fname = buf2_ref.fname_opt().map(CStr::to_owned);
+                let b_ffname = buf2_ref.ffname_opt().map(CStr::to_owned);
+                if b_fname.is_some()
+                    && check_overwrite(
+                        &mut ea,
+                        buf2_ref,
+                        b_fname.as_deref(),
+                        b_ffname.as_deref(),
+                        false,
+                    )
                 {
                     buf_write_all(buf2.borrow_mut(), false);
                 }
@@ -413,12 +422,15 @@ pub fn check_fname() -> bool {
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
     let old_curbuf = g_st().curbuf;
+    let ffname = buf.ffname_opt().map(CStr::to_owned);
+    let fname = buf.fname_opt().map(CStr::to_owned);
+    let line_count = buf.b_ml.ml_line_count;
     let retval = buf_write(
         buf,
-        buf.ffname_opt(),
-        buf.fname_opt(),
+        ffname.as_deref(),
+        fname.as_deref(),
         1,
-        buf.b_ml.ml_line_count,
+        line_count,
         None,
         false,
         forceit,
@@ -672,19 +684,27 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 buf_ref.b_flags &= !BF_SYN_SET;
 
                 if buf == g_st().curbuf.as_ptr() {
+                    let b_p_syn = curbuf_mut().b_p_syn.to_owned();
+                    let b_fname = curbuf_mut().fname_opt().map(CStr::to_owned);
                     apply_autocmds(
                         EVENT_SYNTAX,
-                        Some(curbuf_mut().b_p_syn.as_cstr()),
-                        curbuf_mut().fname_opt(),
+                        Some(&b_p_syn),
+                        b_fname.as_deref(),
                         true,
                         curbuf_opt_mut(),
                     );
                 } else {
-                    let b_p_syn = Some(buf_ref.b_p_syn.as_cstr());
-                    let b_fname = buf_ref.fname_opt();
+                    let b_p_syn = buf_ref.b_p_syn.to_owned();
+                    let b_fname = buf_ref.fname_opt().map(CStr::to_owned);
                     ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 
-                    apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, buf.opt_mut());
+                    apply_autocmds(
+                        EVENT_SYNTAX,
+                        Some(&b_p_syn),
+                        b_fname.as_deref(),
+                        true,
+                        buf.opt_mut(),
+                    );
 
                     ctx_restore(&mut aco);
                 }

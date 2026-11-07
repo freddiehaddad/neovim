@@ -5414,10 +5414,16 @@ fn vgr_process_files(
                     }
 
                     let mut aco: CtxSwitch = CtxSwitch::new();
-                    let b_p_ft = Some(buf.b_p_ft.as_cstr());
-                    let b_fname = buf.fname_opt();
+                    let b_p_ft = buf.b_p_ft.to_owned();
+                    let b_fname = buf.fname_opt().map(CStr::to_owned);
                     ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
-                    apply_autocmds(EVENT_FILETYPE, b_p_ft, b_fname, true, Some(&mut *buf));
+                    apply_autocmds(
+                        EVENT_FILETYPE,
+                        Some(&b_p_ft),
+                        b_fname.as_deref(),
+                        true,
+                        Some(&mut *buf),
+                    );
                     do_modelines(OPT_NOWIN);
                     ctx_restore(&mut aco);
                 }

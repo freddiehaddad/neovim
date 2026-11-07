@@ -923,17 +923,17 @@ fn fname2fnum(fm: &Xfmark) {
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
 pub fn fmarks_check_names(buf: &mut FileBuf) {
-    let Some(name) = buf.ffname_opt() else {
+    let Some(name) = buf.ffname_opt().map(CStr::to_owned) else {
         return;
     };
 
     for i in 0..NGLOBALMARKS {
-        fmarks_check_one(&mut g_st().namedfm[i], name, buf);
+        fmarks_check_one(&mut g_st().namedfm[i], &name, buf);
     }
 
     for wp in win_iter_mut(first_win_in_tab(curtab_mut())) {
         for i in 0..(wp.w_jumplistlen as usize) {
-            fmarks_check_one(&mut wp.w_jumplist[i], name, buf);
+            fmarks_check_one(&mut wp.w_jumplist[i], &name, buf);
         }
     }
 }

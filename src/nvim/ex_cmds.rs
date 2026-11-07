@@ -2414,9 +2414,11 @@ pub fn do_wqall(eap: &mut Exarg) {
                 b.b_fnum as i64,
             );
             error += 1;
-        } else if check_readonly(&mut eap.forceit, b)
-            || !check_overwrite(eap, b, b.fname_opt(), b.ffname_opt(), false)
-        {
+        } else if check_readonly(&mut eap.forceit, b) || {
+            let b_fname = b.fname_opt().map(CStr::to_owned);
+            let b_ffname = b.ffname_opt().map(CStr::to_owned);
+            !check_overwrite(eap, b, b_fname.as_deref(), b_ffname.as_deref(), false)
+        } {
             error += 1;
         } else {
             let mut bufref: Bufref = Bufref::new();
