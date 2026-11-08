@@ -2437,9 +2437,9 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
 }
 
 pub fn ex_display(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.clone();
     if !arg.is_null() && arg.is_empty() {
-        arg = crate::strings::BYTE_SLICE_NULL;
+        arg = crate::strings::OwnedSlice::NULL;
     }
     let hl_id = HLF_8;
 

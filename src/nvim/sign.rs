@@ -987,7 +987,10 @@ fn parse_sign_cmd_args<'a>(
 }
 
 pub fn ex_sign(eap: &mut Exarg) {
-    let mut arg = eap.arg.as_ptr();
+    let mut arg = eap
+        .arg_cstr_buf_mut()
+        .as_mut_ptr()
+        .cast::<std::ffi::c_char>();
 
     let mut p = crate::charset::skiptowhite_ptr(arg);
     let idx = sign_cmd_idx(crate::strings::AsByteSlice::slice_len(

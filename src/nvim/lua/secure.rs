@@ -75,7 +75,8 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
 
 /// `:trust` command implementation (`ex_trust`).
 pub fn ex_trust(eap: &mut Exarg) {
-    let arg = crate::strings::ByteSliceExt::as_ptr(eap.arg);
+    let arg_owned = eap.arg.to_cstring();
+    let arg = arg_owned.as_ptr().cast_mut();
     let p = crate::charset::skiptowhite_ptr(arg);
     let arg1_len = (p as usize) - (arg as usize);
     let arg1_bytes = crate::strings::AsByteSlice::slice_len(arg, arg1_len);

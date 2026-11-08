@@ -1296,13 +1296,13 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 },
             ) {
                 eap.cmdidx = Cmdidx::CmdSplit;
-                eap.arg = crate::strings::ByteSlice::from_cstr(tmp_new.as_cstr());
+                eap.arg = crate::strings::OwnedSlice::from_cstr(tmp_new.as_cstr());
                 do_exedit(eap, old_curwin.opt_mut());
                 if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
                     diff_win_options(curwin_mut(), true);
                     diff_win_options(old_curwin.borrow_mut(), true);
                     if !newname_vec.is_empty() {
-                        eap.arg = crate::strings::ByteSlice::from_bytes(&newname_vec);
+                        eap.arg = crate::strings::OwnedSlice::from_bytes(&newname_vec);
                         ex_file(eap);
                         if crate::autocmd::augroup_exists(Some(c"filetypedetect")) {
                             do_cmdline_cmd(c":doau filetypedetect BufRead");
@@ -3049,10 +3049,10 @@ pub fn nv_diffgetput(put: bool, count: usize) {
     let mut ea = Exarg::new();
     let mut buf: [u8; 30] = [0; 30];
     if count == 0 {
-        ea.arg = crate::strings::ByteSlice::from_cstr(c"");
+        ea.arg = crate::strings::OwnedSlice::from_cstr(c"");
     } else {
         format_to_buf!(&mut buf, c"%zu", count);
-        ea.arg = crate::strings::ByteSlice::from_bytes(&buf);
+        ea.arg = crate::strings::OwnedSlice::from_bytes(&buf);
     }
     ea.cmdidx = if put {
         Cmdidx::CmdDiffput

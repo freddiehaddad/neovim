@@ -4472,7 +4472,7 @@ fn put_node(
 /// ":mkspell [-ascii] addfile"
 pub fn ex_mkspell(eap: &mut Exarg) {
     let mut fnames: Vec<std::ffi::CString> = Vec::new();
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.clone();
     let mut ascii = false;
 
     if (arg).as_bytes().starts_with(b"-ascii") {

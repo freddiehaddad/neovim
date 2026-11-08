@@ -228,7 +228,7 @@ pub fn ex_menu(eap: &mut Exarg) {
         Some(&mut noremap),
         Some(&mut unmenu),
     );
-    let mut arg = eap.arg;
+    let mut arg = crate::strings::ByteSlice::from_ptr(eap.arg_cstr_buf_mut().as_mut_ptr());
 
     loop {
         let arg_bytes = (arg).as_bytes();
@@ -1653,7 +1653,7 @@ fn menu_getbyname(name_arg: &CStr) -> Option<&'static mut Vimmenu> {
 
 /// `:emenu` (`ex_emenu`).
 pub fn ex_emenu(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.clone();
     let mut mode_idx = MENU_INDEX_INVALID;
 
     let arg_bytes = (arg).as_bytes();
@@ -1725,7 +1725,6 @@ pub fn menu_find(path_name: &CStr) -> Option<&'static mut Vimmenu> {
 
 /// `:menutranslate` (`ex_menutranslate`).
 pub fn ex_menutranslate(eap: &mut Exarg) {
-    let mut arg = eap.arg.cast::<u8>();
     let menutrans = &mut menu_st().menutrans_ga;
 
     if eap.arg.as_bytes().starts_with(b"clear")
@@ -1734,6 +1733,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         menutrans.clear();
         del_menutrans_vars();
     } else {
+        let mut arg = eap.arg_cstr_buf_mut().as_mut_ptr();
         let from_arg = arg;
         let part1_len = menu_skip_part(crate::strings::ByteSlice::from_ptr(from_arg).as_bytes());
         arg = from_arg.wrapping_add(part1_len);

@@ -520,8 +520,8 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
 
     if !eap.args.is_empty() {
         unsafe { lua_createtable(lstate, eap.args.len() as i32, 0) };
-        for (i, (&arg, &arglen)) in eap.args.iter().zip(&eap.arglens).enumerate() {
-            unsafe { lua_pushlstring(lstate, arg.as_ptr(), arglen) };
+        for (i, (arg, &arglen)) in eap.args.iter().zip(&eap.arglens).enumerate() {
+            unsafe { lua_pushlstring(lstate, arg.as_cstr().as_ptr(), arglen) };
             unsafe { lua_rawseti(lstate, -2, (i + 1) as i32) };
         }
         lua_setfield(lstate, -2, c"fargs");

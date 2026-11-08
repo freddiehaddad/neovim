@@ -510,7 +510,7 @@ pub fn parse_pattern_and_range(
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
     ea.line2 = 1;
-    ea.cmd = crate::strings::ByteSlice::from_bytes(&getln_st().ccline.cmdbuff_vec);
+    ea.cmd = getln_st().ccline.cmdbuff();
     ea.addr_type = ADDR_LINES;
 
     let mut dummy_cmdmod: Cmdmod = Cmdmod::new();
@@ -518,7 +518,7 @@ pub fn parse_pattern_and_range(
     parse_command_modifiers(&mut ea, &mut dummy, &mut dummy_cmdmod, true);
 
     // Skip over the range to find the command.
-    let cmd = crate::strings::ByteSlice::from_cstr(skip_range(ea.cmd.as_cstr(), None));
+    let cmd = ea.cmd.advance_to_cstr(skip_range(ea.cmd.as_cstr(), None));
     let cmd_bytes = cmd.as_bytes();
     let Some(&first_b) = cmd_bytes.first() else {
         return false;
@@ -603,7 +603,7 @@ pub fn parse_pattern_and_range(
 
     // Skip if the pattern matches everything (e.g., for 'hlsearch')
     if !use_last_pat {
-        let pat_len = end.offset_from(p);
+        let pat_len = end.offset_from(&p);
         if empty_pattern_magic(p.slice(pat_len), magic) {
             return false;
         }
@@ -611,7 +611,7 @@ pub fn parse_pattern_and_range(
 
     // Found a non-empty pattern or //
     *skiplen = p.offset_from(getln_st().ccline.cmdbuff()) as i32;
-    *patlen = end.offset_from(p) as i32;
+    *patlen = end.offset_from(&p) as i32;
 
     // Parse the address range
     let save_cursor = curwin_mut().w_cursor;
@@ -3064,14 +3064,13 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
     let mut cmdpreview_type: i32;
-    let mut cmdline_vec: Vec<u8> = getln_st()
+    ea.cmdline_buf = getln_st()
         .ccline
         .cmdbuff()
         .as_cstr()
         .to_bytes_with_nul()
         .to_vec();
     let mut errormsg = None;
-    ea.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_vec);
     g_st().emsg_off += 1;
     let parsed = parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false);
     g_st().emsg_off -= 1;
@@ -3150,7 +3149,6 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     g_st().emsg_silent -= 1;
     redrawcmdline();
 
-    drop(cmdline_vec);
     cmdpreview_type != 0
 }
 
@@ -4938,7 +4936,7 @@ pub fn is_in_cmdwin() -> bool {
 
 /// Get script string.
 pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString> {
-    let mut cmd = eap.arg;
+    let mut cmd = eap.arg.clone();
 
     if !(cmd).as_bytes().starts_with(b"<<") || eap.ea_getline.is_none() {
         *lenp = eap.arg.len();

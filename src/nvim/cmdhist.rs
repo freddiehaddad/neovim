@@ -565,7 +565,7 @@ pub fn ex_history(eap: &mut Exarg) {
     let mut histype2 = HIST_CMD;
     let mut hisidx1: i32 = 1;
     let mut hisidx2: i32 = -1;
-    let arg = eap.arg;
+    let arg = eap.arg.clone();
 
     msg_ext_set_kind(c"list_cmd");
     let hislen = hist_st().hislen;

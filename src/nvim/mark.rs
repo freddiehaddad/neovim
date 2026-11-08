@@ -1061,7 +1061,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
         emsg(gettext(E_ARGREQ));
     } else {
         let timestamp = os_time();
-        let mut p = eap.arg;
+        let mut p = eap.arg.clone();
         while !(p).is_empty() {
             let ch = i32::from((p).first_byte());
             let lower = ascii_islower(ch);

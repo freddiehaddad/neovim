@@ -1174,7 +1174,7 @@ pub fn heredoc_get(
         }
     }
     if heredoc_in_string {
-        eap.nextcmd = crate::strings::ByteSlice::from_ptr(line_arg);
+        eap.nextcmd = crate::strings::OwnedSlice::from_ptr(line_arg);
     }
     drop(theline_owned);
     drop(text_indent);
@@ -1189,7 +1189,8 @@ pub fn heredoc_get(
 /// ":let" and ":const" commands.
 pub fn ex_let(eap: &mut Exarg) {
     let is_const = eap.cmdidx == Cmdidx::CmdConst;
-    let mut arg = eap.arg.as_ptr();
+    let arg_slice = eap.arg.clone();
+    let mut arg = arg_slice.as_cstr().as_ptr().cast_mut();
     let mut rettv: TypVal = TypVal::new();
     let mut var_count: i32 = 0;
     let mut semicolon: i32 = 0;
@@ -1232,7 +1233,7 @@ pub fn ex_let(eap: &mut Exarg) {
             list_func_vars(&mut first);
             list_vim_vars(&mut first);
         }
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
+        eap.nextcmd = arg_slice.advance_to_opt_cstr(check_nextcmd(
             crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
         ));
         return;
@@ -1912,11 +1913,11 @@ fn ex_let_one<'a>(
 
 /// ":unlet[!] var1 ... " command.
 pub fn ex_unlet(eap: &mut Exarg) {
-    let arg = eap.arg.as_cstr();
+    let arg = eap.arg.to_cstring();
     let forceit = eap.forceit;
     ex_unletlock(
         eap,
-        arg,
+        &arg,
         0,
         if forceit { GLV_QUIET } else { 0 },
         do_unlet_var,
@@ -1925,17 +1926,20 @@ pub fn ex_unlet(eap: &mut Exarg) {
 
 /// ":lockvar" and ":unlockvar" commands.
 pub fn ex_lockvar(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = eap.arg.clone();
     let mut deep: i32 = 2;
 
     if eap.forceit {
         deep = -1;
     } else if ascii_isdigit((arg).first_byte()) {
-        let arg_bytes = (arg).as_bytes();
-        let mut rem = arg_bytes;
-        deep = getdigits_int(&mut rem, false, -1);
-        let rem = crate::charset::skipwhite_slice(rem);
-        arg = arg.wrapping_add(arg_bytes.len() - rem.len());
+        let step = {
+            let arg_bytes = arg.as_bytes();
+            let mut rem = arg_bytes;
+            deep = getdigits_int(&mut rem, false, -1);
+            let rem = crate::charset::skipwhite_slice(rem);
+            arg_bytes.len() - rem.len()
+        };
+        arg = arg.wrapping_add(step);
     }
 
     ex_unletlock(eap, (arg).as_cstr(), deep, 0, do_lock_var);
@@ -2003,7 +2007,7 @@ fn ex_unletlock(
         }
     }
 
-    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg.as_cstr()));
+    eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd(arg.as_cstr()));
 }
 
 /// Unlet a variable indicated by `lp`.

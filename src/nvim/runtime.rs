@@ -2366,7 +2366,8 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
 
 /// ":source [{fname}]"
 pub fn ex_source(eap: &mut Exarg) {
-    cmd_source(eap.arg.as_cstr(), Some(&mut *eap));
+    let arg = eap.arg.to_cstring();
+    cmd_source(&arg, Some(&mut *eap));
 }
 
 /// ":options"
@@ -2973,11 +2974,11 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
         } else {
             if eap.addr_count > 0 {
                 eap.arg =
-                    crate::strings::ByteSlice::from_opt_cstr(script_item(eap.line2).name_cstr());
+                    crate::strings::OwnedSlice::from_opt_cstr(script_item(eap.line2).name_cstr());
             } else {
                 expand_env(eap.arg.as_cstr(), g_st().name_buff_bytes_mut());
                 to_slash(g_st().name_buff_bytes_mut());
-                eap.arg = crate::strings::ByteSlice::from_bytes(g_st().name_buff_bytes_mut());
+                eap.arg = crate::strings::OwnedSlice::from_bytes(g_st().name_buff_bytes_mut());
             }
             do_exedit(eap, None);
         }
@@ -3376,19 +3377,14 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
         return;
     };
 
-    let name_owned: Option<std::ffi::CString>;
-    let name = if !eap.arg.is_empty() {
-        name_owned = Some(enc_canonize(eap.arg.as_cstr()));
-        name_owned.as_ref().unwrap().as_ptr().cast_mut()
+    let name_owned = (!eap.arg.is_empty()).then(|| enc_canonize(eap.arg.as_cstr()));
+    let name_opt = if let Some(ref n) = name_owned {
+        Some(n.as_c_str())
     } else {
-        eap.arg.as_ptr()
+        eap.arg.as_opt_cstr()
     };
 
-    convert_setup(
-        &mut sp.conv,
-        crate::strings::ByteSlice::from_ptr(name).as_opt_cstr(),
-        Some(opt_vars().p_enc.as_cstr()),
-    );
+    convert_setup(&mut sp.conv, name_opt, Some(opt_vars().p_enc.as_cstr()));
 }
 
 /// ":finish": Mark a sourced file as finished.

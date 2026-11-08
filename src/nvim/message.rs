@@ -232,8 +232,8 @@ macro_rules! smsg {
         {
             $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
             );
             $crate::message::msg(
                 $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
@@ -251,8 +251,8 @@ macro_rules! smsg_keep {
         {
             $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
             );
             $crate::message::msg_keep(
                 $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
@@ -294,7 +294,7 @@ macro_rules! semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         $crate::message::semsg_fmt(
             $fmt,
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     }};
 }
@@ -306,7 +306,7 @@ macro_rules! semsg_multiline {
         $crate::message::semsg_multiline_fmt(
             $kind,
             $fmt,
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     }};
 }
@@ -326,8 +326,8 @@ macro_rules! msg_schedule_semsg {
         {
             $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
             );
             $crate::message::msg_schedule_semsg_cstr(
                 $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
@@ -343,8 +343,8 @@ macro_rules! msg_schedule_semsg_multiline {
         {
             $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
             );
             $crate::message::msg_schedule_semsg_multiline_cstr(
                 $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
@@ -361,8 +361,8 @@ macro_rules! swmsg {
         {
             $crate::strings::format_to_buf_fmt(
                 $crate::globals::g_st().iobuff_bytes_mut(),
-                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+                $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
             );
             $crate::message::give_warning(
                 $crate::memory::bytes_as_cstr($crate::globals::g_st().iobuff_bytes()),
@@ -3228,7 +3228,7 @@ pub fn clear_sb_text(all: bool) {
 pub fn show_sb_text() {
     if ui_has(K_UIMESSAGES) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::ByteSlice::from_cstr(c"");
+        ea.arg = crate::strings::OwnedSlice::from_cstr(c"");
         ea.skip = true;
         ex_messages(&mut ea);
         return;

@@ -3294,7 +3294,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
 }
 
 pub fn qf_list(eap: &mut Exarg) {
-    let arg = eap.arg;
+    let arg = eap.arg.clone();
     let mut all = eap.forceit;
     let Some(qi) = qf_cmd_get_stack_opt(eap, true) else {
         return;
@@ -5247,7 +5247,7 @@ fn vgr_jump_to_match(
         && let Some(target_dir) = target_dir
     {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::ByteSlice::from_cstr(target_dir);
+        ea.arg = crate::strings::OwnedSlice::from_cstr(target_dir);
         ea.cmdidx = Cmdidx::CmdLcd;
         ex_cd(&mut ea);
     }
@@ -5285,17 +5285,13 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         emsg(gettext(E_INVALPAT));
         return false;
     };
-    let p = eap
-        .arg
-        .as_ptr()
-        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
+    let p_rem = crate::charset::skipwhite_slice(p_cstr.to_bytes());
 
     vgr_init_regmatch(&mut args.regmatch, args.spat.as_deref());
     if args.regmatch.regprog.is_null() {
         return false;
     }
 
-    let p_rem = crate::charset::skipwhite_slice(crate::strings::ByteSlice::from_ptr(p).as_bytes());
     if p_rem.is_empty() {
         emsg(gettext(c"E683: File name missing or invalid pattern"));
         return false;
@@ -5556,7 +5552,7 @@ fn restore_start_dir(dirname_start: &CStr) {
     os_dirname(&mut dirname_now);
     if dirname_start.to_bytes() != crate::memory::bytes_until_nul(&dirname_now) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::ByteSlice::from_cstr(dirname_start);
+        ea.arg = crate::strings::OwnedSlice::from_cstr(dirname_start);
         ea.cmdidx = if curwin_mut().w_localdir.is_none() {
             Cmdidx::CmdCd
         } else {
@@ -6964,7 +6960,8 @@ pub fn ex_cexpr(eap: &mut Exarg) {
         return;
     }
 
-    let Some(mut tv) = eval_expr(eap.arg.as_cstr(), Some(&mut *eap)) else {
+    let arg = eap.arg.to_cstring();
+    let Some(mut tv) = eval_expr(&arg, Some(&mut *eap)) else {
         return;
     };
 
@@ -7119,13 +7116,12 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
 
     incr_quickfix_busy();
 
-    let lang = if eap.arg.is_null() {
+    let lang_owned = if eap.arg.is_null() {
         None
     } else {
-        let len = eap.arg.len();
-        let slice = crate::globals::GraphPtr::raw_slice_mut(eap.arg.cast::<u8>(), len + 1);
-        check_help_lang(slice)
+        check_help_lang(eap.arg_cstr_buf_mut()).map(CStr::to_owned)
     };
+    let lang = lang_owned.as_deref();
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(eap.arg.as_cstr(), RE_MAGIC + RE_STRING));
     regmatch.rm_ic = false;

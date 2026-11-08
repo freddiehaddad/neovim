@@ -693,7 +693,10 @@ pub fn ex_sort(eap: &mut Exarg) {
     let mut change_occurred = false;
 
     'sortend: {
-        let mut p = eap.arg.as_ptr();
+        let mut p = eap
+            .arg_cstr_buf_mut()
+            .as_mut_ptr()
+            .cast::<std::ffi::c_char>();
         while !crate::strings::AsByteSlice::is_empty_val(p) {
             let pb = crate::strings::AsByteSlice::first_byte_val(p);
             if ascii_iswhite(pb) {
@@ -725,7 +728,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                 break;
             } else if let Some(nc) = check_nextcmd(crate::strings::ByteSlice::from_ptr(p).as_cstr())
             {
-                eap.nextcmd = crate::strings::ByteSlice::from_cstr(nc);
+                eap.nextcmd = crate::strings::OwnedSlice::from_cstr(nc);
                 break;
             } else if !ascii_isalpha(pb) && regmatch.regprog.is_null() {
                 let Some(s_cstr) = skip_regexp_err(
@@ -984,7 +987,10 @@ pub fn ex_uniq(eap: &mut Exarg) {
     let mut change_occurred = false;
 
     'uniqend: {
-        let mut p = eap.arg.as_ptr();
+        let mut p = eap
+            .arg_cstr_buf_mut()
+            .as_mut_ptr()
+            .cast::<std::ffi::c_char>();
         while *crate::globals::GraphPtr::of(p).borrow() != 0 {
             let b0 = (*crate::globals::GraphPtr::of(p).borrow()) as u8;
             if ascii_iswhite(b0 as i32) {
@@ -1004,7 +1010,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
             } else if eap.nextcmd.is_null()
                 && let Some(nc) = check_nextcmd(crate::strings::ByteSlice::from_ptr(p).as_cstr())
             {
-                eap.nextcmd = crate::strings::ByteSlice::from_cstr(nc);
+                eap.nextcmd = crate::strings::OwnedSlice::from_cstr(nc);
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
                 let Some(s_cstr) = skip_regexp_err(
@@ -1408,7 +1414,8 @@ fn prevcmd_is_set() -> bool {
 
 /// Handle the `":!cmd"` command.
 pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_out: bool) {
-    let arg = eap.arg.as_ptr();
+    let arg_owned = eap.arg.to_cstring();
+    let arg = arg_owned.as_ptr().cast_mut();
     let line1 = eap.line1;
     let line2 = eap.line2;
     let mut newcmd: Vec<u8> = Vec::new();
@@ -2118,7 +2125,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         return false;
     }
 
-    let mut ffname = eap.arg.as_ptr();
+    let arg_owned = eap.arg.to_cstring();
+    let mut ffname = arg_owned.as_ptr().cast_mut();
     let other: bool;
 
     'theend: {
@@ -3219,7 +3227,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         if len < next_bytes.len() {
             eap.nextcmd = eap.nextcmd.wrapping_add(len + 1);
         } else {
-            eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
+            eap.nextcmd = crate::strings::OwnedSlice::NULL;
         }
         Some(theline)
     } else {
@@ -3785,7 +3793,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let mut got_quit = false;
     let mut got_match = false;
     let mut which_pat: i32;
-    let mut cmd = eap.arg.as_ptr();
+    let mut cmd = eap
+        .arg_cstr_buf_mut()
+        .as_mut_ptr()
+        .cast::<std::ffi::c_char>();
     let mut first_line: Linenr = 0;
     let mut last_line: Linenr = 0;
     let old_line_count = curbuf_mut().b_ml.ml_line_count;
@@ -3946,7 +3957,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     if *crate::globals::GraphPtr::of(cmd).borrow() != 0
         && *crate::globals::GraphPtr::of(cmd).borrow() as u8 != b'"'
     {
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
+        eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd(
             crate::strings::ByteSlice::from_ptr(cmd).as_cstr(),
         ));
         if eap.nextcmd.is_null() {
@@ -4866,7 +4877,7 @@ pub fn ex_global(eap: &mut Exarg) {
     } else {
         (eap.cmd.first_byte()) as i32
     };
-    cmd = eap.arg.cast::<u8>();
+    cmd = eap.arg_cstr_buf_mut().as_mut_ptr();
     let mut which_pat = RE_LAST;
 
     if *crate::globals::GraphPtr::of(cmd).borrow() == b'\\' {
@@ -5229,7 +5240,7 @@ pub fn ex_substitute_preview(
     cmdpreview_bufnr: ObjHandle,
 ) -> i32 {
     if !eap.arg.is_empty() && !ascii_isalnum(eap.arg.first_byte()) {
-        let save_eap = eap.arg;
+        let save_eap = eap.arg.clone();
         let retv = do_sub(
             eap,
             profile_setlimit(opt_vars().p_rdt),

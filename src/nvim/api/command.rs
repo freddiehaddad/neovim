@@ -294,14 +294,13 @@ pub fn nvim_parse_cmd(
     let mut result = KeyDict_cmd::default();
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
-    let mut cmdline_buf: Vec<u8> = str_val
+    let mut errormsg = None;
+    ea.cmdline_buf = str_val
         .as_bytes()
         .iter()
         .copied()
         .chain(std::iter::once(0))
         .collect();
-    let mut errormsg = None;
-    ea.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_buf);
 
     if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false) {
         if let Some(msg) = errormsg {
@@ -645,11 +644,11 @@ pub fn nvim_cmd(
         }
 
         let cmdname = arena_string(arena, cmd.cmd).data;
-        ea.cmd = cmdname;
+        ea.cmd = cmdname.into();
 
         let mut p_opt = find_ex_command(&mut ea, None);
 
-        if p_opt.is_some()
+        if !p_opt.is_null()
             && ea.cmdidx == Cmdidx::CmdSize
             && ascii_isupper(ea.cmd.first_byte())
             && has_event(EVENT_CMDUNDEFINED)
@@ -660,7 +659,7 @@ pub fn nvim_cmd(
             p_opt = if ret && !aborting() {
                 find_ex_command(&mut ea, None)
             } else {
-                ea.cmd.as_opt_cstr()
+                ea.cmd.clone()
             };
         }
 
@@ -677,7 +676,7 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        if !((p_opt.is_some() && ea.cmdidx != Cmdidx::CmdSize) || range_only) {
+        if !((!p_opt.is_null() && ea.cmdidx != Cmdidx::CmdSize) || range_only) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -842,7 +841,7 @@ pub fn nvim_cmd(
         }
 
         build_cmdline_str(&mut cmdline_buf, &mut ea, args);
-        ea.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_buf);
+        ea.cmdline_buf = std::mem::take(&mut cmdline_buf);
         if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, true) {
             api_set_error!(
                 err,
@@ -869,9 +868,9 @@ pub fn nvim_cmd(
         if args.size > 0 {
             ea.args.reserve_exact(args.size);
             ea.arglens.reserve_exact(args.size);
-            let mut arg_cur = ea.arg;
+            let mut arg_cur = ea.arg.clone();
             for i in 0..args.size {
-                ea.args.push(arg_cur);
+                ea.args.push(arg_cur.clone());
                 let arglen = args[i].data.string().size;
                 ea.arglens.push(arglen);
                 arg_cur = arg_cur.wrapping_add(arglen + 1);
@@ -1109,11 +1108,8 @@ pub fn nvim_cmd(
             }
         }
 
-        let ea_arg = ea.arg.as_cstr();
-        let p_cstr = replace_makeprg(&mut ea, ea_arg);
-        let new_arg = ea
-            .cmdline_ptr()
-            .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr().as_ptr() as usize));
+        let ea_arg = ea.arg.clone();
+        let new_arg = replace_makeprg(&mut ea, ea_arg);
         if new_arg.addr() != ea.arg.addr() {
             ea.arg = new_arg;
             ea.args.clear();
@@ -1122,17 +1118,16 @@ pub fn nvim_cmd(
 
         if (ea.argt & EX_ARGOPT) != 0 {
             while ea.arg.as_bytes().starts_with(b"++") {
-                let orig_arg = ea.arg;
                 let result = getargopt(&mut ea);
                 if !result && !is_cmd_ni(ea.cmdidx) {
-                    api_err_invalid(err, c"argument ", (orig_arg).as_opt_cstr(), 0, true);
+                    api_err_invalid(err, c"argument ", ea.arg.as_opt_cstr(), 0, true);
                     break 'end;
                 }
             }
         }
 
         if (ea.argt & EX_CMDARG) != 0 && !ea.usefilter {
-            ea.do_ecmd_cmd = getargcmd(&mut ea).map(CStr::to_owned);
+            ea.do_ecmd_cmd = getargcmd(&mut ea);
         }
 
         let mut capture_local: Vec<u8> = Vec::new();

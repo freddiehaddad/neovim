@@ -3298,7 +3298,7 @@ fn set_cmd_index<'a>(
             eap.cmdidx = Cmdidx::CmdSubstitute;
             p_idx = 1;
         } else if cmd_bytes.first().is_some_and(u8::is_ascii_uppercase) {
-            eap.cmd = crate::strings::ByteSlice::from_cstr(cmd);
+            eap.cmd = crate::strings::OwnedSlice::from_cstr(cmd);
             if let Some(off) = find_ucmd(eap, p_idx, None, Some(&mut *xp), Some(&mut *complp)) {
                 p_idx = off;
             } else {

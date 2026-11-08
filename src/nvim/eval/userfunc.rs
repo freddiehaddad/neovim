@@ -2470,21 +2470,13 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
     }
 }
 
-fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
-    let pat_start = eap.arg.as_ptr().wrapping_add(1);
-    let mut p = skip_regexp(
-        crate::strings::ByteSlice::from_ptr(pat_start).as_cstr(),
-        b'/' as i32,
-        1,
-    )
-    .as_ptr()
-    .cast_mut();
+fn list_functions_matching_pat(eap: &mut Exarg) -> crate::strings::OwnedSlice {
+    let pat_start = eap.arg.wrapping_add(1);
+    let mut p = pat_start.advance_to_cstr(skip_regexp(pat_start.as_cstr(), b'/' as i32, 1));
     if !eap.skip {
         let mut regmatch: Regmatch = Regmatch::new();
-        let pat_len = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(pat_start) as isize))
-            as usize;
-        let pat_cstr = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(pat_start, pat_len));
+        let pat_len = p.offset_from(&pat_start);
+        let pat_cstr = bytes_to_cstring(pat_start.slice(pat_len));
         regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic;
@@ -2492,43 +2484,36 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
             regmatch.free_prog();
         }
     }
-    if crate::strings::AsByteSlice::first_byte_val(p) == b'/' {
+    if p.first_byte() == b'/' {
         p = p.wrapping_add(1);
     }
 
-    crate::strings::ByteSlice::from_ptr(p).as_cstr()
+    p
 }
 
 fn list_one_function(
     eap: &mut Exarg,
     name: Option<&CStr>,
-    p_cstr: &CStr,
+    p_off: usize,
 ) -> Option<&'static mut UserFunc> {
-    let p = eap
-        .arg
-        .as_ptr()
-        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
+    let p = eap.arg.wrapping_add(p_off);
     if ends_excmd(
-        crate::charset::skipwhite_slice(p_cstr.to_bytes())
+        crate::charset::skipwhite_slice(p.as_bytes())
             .first()
             .copied()
             .unwrap_or(0),
     ) == 0
     {
-        semsg!(
-            gettext(E_TRAILING_ARG),
-            crate::strings::ByteSlice::from_ptr(p)
-        );
+        semsg!(gettext(E_TRAILING_ARG), p);
         return None;
     }
 
-    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::BYTE_SLICE_NULL, |s| {
-        eap.arg
-            .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
-    });
+    eap.nextcmd = p.advance_to_opt_cstr(check_nextcmd(p.as_cstr()));
 
-    if !eap.nextcmd.is_null() {
-        *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
+    if !eap.nextcmd.is_null()
+        && let Some(b) = eap.arg_cstr_buf_mut().get_mut(p_off)
+    {
+        *b = 0;
     }
 
     if eap.skip || g_st().got_int {
@@ -2751,7 +2736,7 @@ fn get_function_body(
                             eap.set_cmdline_vec(new_buf);
                             eap.nextcmd = eap.cmdline_ptr().wrapping_add(off);
                         } else {
-                            eap.nextcmd = crate::strings::ByteSlice::from_ptr(nextcmd);
+                            eap.nextcmd = crate::strings::OwnedSlice::from_ptr(nextcmd);
                         }
                     }
                     break;
@@ -3003,17 +2988,20 @@ pub fn ex_function(eap: &mut Exarg) {
         if !eap.skip {
             list_functions(None);
         }
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
+        eap.nextcmd = eap
+            .arg
+            .advance_to_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
         return;
     }
 
     if eap.arg.first_byte() == b'/' {
         let p = list_functions_matching_pat(eap);
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(p));
+        eap.nextcmd = p.advance_to_opt_cstr(check_nextcmd(p.as_cstr()));
         return;
     }
 
-    let mut p_cstr = eap.arg.as_cstr();
+    let arg_slice = eap.arg.clone();
+    let mut p_cstr = arg_slice.as_cstr();
     let mut name_owned =
         save_function_name(&mut p_cstr, eap.skip, TFN_NO_AUTOLOAD, Some(&mut fudi));
     let mut p = p_cstr.as_ptr().cast_mut();
@@ -3073,11 +3061,8 @@ pub fn ex_function(eap: &mut Exarg) {
     }
 
     if !paren {
-        let _ = list_one_function(
-            eap,
-            name_owned.as_deref(),
-            crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-        );
+        let p_off = (p as usize) - (arg_slice.as_cstr().as_ptr() as usize);
+        let _ = list_one_function(eap, name_owned.as_deref(), p_off);
         ret_free!();
     }
 
@@ -3503,12 +3488,11 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     let mut fp: Option<&'static mut UserFunc> = None;
     let mut fudi = Funcdict::new();
 
-    let mut p_cstr = eap.arg.as_cstr();
+    let arg_slice = eap.arg.clone();
+    let mut p_cstr = arg_slice.as_cstr();
     let name_owned = trans_function_name(&mut p_cstr, eap.skip, 0, Some(&mut fudi), None);
-    let p = eap
-        .arg
-        .as_ptr()
-        .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg.as_ptr() as usize));
+    let p_off = (p_cstr.as_ptr() as usize) - (arg_slice.as_cstr().as_ptr() as usize);
+    let p = eap.arg.wrapping_add(p_off);
     let Some(ref name_cstr) = name_owned else {
         if !fudi.fd_dict.is_null() && !eap.skip {
             emsg(gettext(E_FUNCREF));
@@ -3523,18 +3507,14 @@ pub fn ex_delfunction(eap: &mut Exarg) {
             .unwrap_or(0),
     ) == 0
     {
-        semsg!(
-            gettext(E_TRAILING_ARG),
-            crate::strings::ByteSlice::from_ptr(p)
-        );
+        semsg!(gettext(E_TRAILING_ARG), p);
         return;
     }
-    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::BYTE_SLICE_NULL, |s| {
-        eap.arg
-            .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
-    });
-    if !eap.nextcmd.is_null() {
-        *crate::globals::GraphPtr::of(p).borrow_mut() = NUL;
+    eap.nextcmd = p.advance_to_opt_cstr(check_nextcmd(p.as_cstr()));
+    if !eap.nextcmd.is_null()
+        && let Some(b) = eap.arg_cstr_buf_mut().get_mut(p_off)
+    {
+        *b = NUL as u8;
     }
 
     if (name.first_byte()).is_ascii_digit() && fudi.fd_dict.is_null() {
@@ -3657,7 +3637,7 @@ fn can_free_funccal(fc: &Funccall, copy_id: i32) -> bool {
 
 /// `:return [expr]`
 pub fn ex_return(eap: &mut Exarg) {
-    let arg = eap.arg;
+    let arg = eap.arg.clone();
     let mut rettv: TypVal = TypVal::new();
     let mut returning = false;
 
@@ -3674,7 +3654,7 @@ pub fn ex_return(eap: &mut Exarg) {
         g_st().emsg_skip += 1;
     }
 
-    eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
+    eap.nextcmd = crate::strings::OwnedSlice::NULL;
     if (!(arg).is_empty() && (arg).first_byte() != b'|' && (arg).first_byte() != b'\n')
         && eval0((arg).as_cstr(), &mut rettv, Some(&mut *eap), &mut evalarg)
     {
@@ -3692,9 +3672,9 @@ pub fn ex_return(eap: &mut Exarg) {
     }
 
     if returning {
-        eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
+        eap.nextcmd = crate::strings::OwnedSlice::NULL;
     } else if eap.nextcmd.is_null() {
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd((arg).as_cstr()));
+        eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd((arg).as_cstr()));
     }
 
     if eap.skip {
@@ -3923,7 +3903,8 @@ pub fn invoke_all_defer() {
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
 pub fn ex_call(eap: &mut Exarg) {
-    let mut arg = eap.arg.as_cstr();
+    let arg_slice = eap.arg.clone();
+    let mut arg = arg_slice.as_cstr();
     let mut fudi = Funcdict::new();
     let mut partial_opt: Option<&'static mut TvPartial> = None;
     let mut evalarg = Evalarg::new();
@@ -4004,7 +3985,7 @@ pub fn ex_call(eap: &mut Exarg) {
                 semsg!(gettext(E_TRAILING_ARG), arg);
             }
         } else {
-            eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));
+            eap.nextcmd = arg_slice.advance_to_opt_cstr(check_nextcmd(arg));
         }
     }
 

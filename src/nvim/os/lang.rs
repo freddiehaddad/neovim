@@ -653,7 +653,7 @@ pub fn init_locale() {
 pub fn ex_language(eap: &mut Exarg) {
     let mut what = LC_ALL;
     let mut whatstr: &CStr = c"";
-    let mut name = eap.arg;
+    let mut name = eap.arg.clone();
 
     let arg_len = crate::charset::skiptowhite_len(eap.arg.as_bytes());
     let p = eap.arg.wrapping_add(arg_len);
@@ -692,13 +692,13 @@ pub fn ex_language(eap: &mut Exarg) {
         let loc = if what == VIM_LC_MESSAGES {
             c"".as_ptr().cast_mut().cast()
         } else {
-            let l = unsafe { setlocale(what, name.cast()) };
+            let l = unsafe { setlocale(what, name.as_cstr().as_ptr().cast()) };
             let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr().cast()) };
             l
         };
         #[cfg(not(windows))]
         let loc = {
-            let l = unsafe { setlocale(what, name.cast()) };
+            let l = unsafe { setlocale(what, name.as_cstr().as_ptr().cast()) };
             let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr().cast()) };
             l
         };

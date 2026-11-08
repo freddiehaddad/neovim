@@ -116,7 +116,7 @@ macro_rules! logmsg {
             let len = $crate::strings::format_to_buf_fmt(
                 &mut stack_buf,
                 Some(fmt_cstr),
-                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+],
+                &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),+],
             );
             if len >= stack_buf.len() as i32 {
                 let cap = (len as usize) + 1;
@@ -124,7 +124,7 @@ macro_rules! logmsg {
                 $crate::strings::format_to_buf_fmt(
                     &mut heap_buf,
                     Some(fmt_cstr),
-                    &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+],
+                    &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),+],
                 );
                 let msg_cstr = ::std::ffi::CStr::from_bytes_until_nul(&heap_buf).unwrap_or(c"");
                 $crate::log::logmsg_str(

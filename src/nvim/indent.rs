@@ -1327,7 +1327,7 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut last_line: Linenr = 0;
     let mut is_indent_only = false;
 
-    let mut ptr = eap.arg;
+    let mut ptr = crate::strings::ByteSlice::from_cstr(eap.arg.as_cstr());
     let ptr_bytes = ptr.as_bytes();
     if ptr_bytes.starts_with(b"-indentonly")
         && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))

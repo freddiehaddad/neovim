@@ -213,24 +213,32 @@ pub fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: &CStr) {
     err.err_type = err_type;
 }
 
+pub fn api_set_error_fmt(
+    err: &mut Error,
+    err_type: ErrorType,
+    fmt_cstr: &CStr,
+    fmt_args: &[crate::strings::FmtVal<'_>],
+) {
+    let len = crate::strings::format_to_buf_fmt(&mut [], Some(fmt_cstr), fmt_args);
+    let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
+    let mut buf = vec![0u8; bufsize];
+    crate::strings::format_to_buf_fmt(&mut buf, Some(fmt_cstr), fmt_args);
+    err.msg = Some(crate::memory::cstring_until_nul(&buf));
+    err.err_type = err_type;
+}
+
 #[macro_export]
 macro_rules! api_set_error {
     ($err:expr, $err_type:expr, $fmt:expr $(,)?) => {{
         $crate::api::private::helpers::api_set_error_str($err, $err_type, $fmt);
     }};
     ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
-        let err_ref: &mut $crate::api::private::validate::Error = $err;
-        let et: $crate::api::private::validate::ErrorType = $err_type;
-        let fmt_cstr: &::std::ffi::CStr = $fmt;
-        let fmt_args = [$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+];
-        {
-            let len = $crate::strings::format_to_buf_fmt(&mut [], Some(fmt_cstr), &fmt_args);
-            let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
-            let mut buf = vec![0u8; bufsize];
-            $crate::strings::format_to_buf_fmt(&mut buf, Some(fmt_cstr), &fmt_args);
-            err_ref.msg = Some($crate::memory::cstring_until_nul(&buf));
-            err_ref.err_type = et;
-        }
+        $crate::api::private::helpers::api_set_error_fmt(
+            $err,
+            $err_type,
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),+],
+        );
     }};
 }
 pub use api_set_error;

@@ -2064,13 +2064,13 @@ pub fn eval0(
             && let Some(nextcmd) = check_nextcmd(p)
             && nextcmd.to_bytes().first() != Some(&b'|')
         {
-            eap.as_deref_mut().unwrap().nextcmd = crate::strings::ByteSlice::from_cstr(nextcmd);
+            eap.as_deref_mut().unwrap().nextcmd = crate::strings::OwnedSlice::from_cstr(nextcmd);
         }
         return false;
     }
 
     if let Some(eap) = eap {
-        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(p));
+        eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd(p));
     }
 
     ret
@@ -6193,7 +6193,8 @@ pub fn var_item_copy(
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
 pub fn ex_echo(eap: &mut Exarg) {
-    let mut arg = eap.arg.as_cstr();
+    let arg_slice = eap.arg.clone();
+    let mut arg = arg_slice.as_cstr();
     let mut rettv = tv_initial_value();
     let mut atstart = true;
     let mut need_clear = true;
@@ -6255,7 +6256,7 @@ pub fn ex_echo(eap: &mut Exarg) {
         tv_clear(&mut rettv);
         arg = crate::charset::skipwhite(arg);
     }
-    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));
+    eap.nextcmd = arg_slice.advance_to_opt_cstr(check_nextcmd(arg));
     msg_ext_set_append(false);
 
     if eap.skip {
@@ -6286,7 +6287,8 @@ pub fn get_echo_hl_id() -> i32 {
 
 /// ":execute", ":echomsg", ":echoerr"
 pub fn ex_execute(eap: &mut Exarg) {
-    let mut arg = eap.arg.as_cstr();
+    let arg_slice = eap.arg.clone();
+    let mut arg = arg_slice.as_cstr();
     let mut rettv = tv_initial_value();
     let mut ret = true;
     let mut buf: Vec<u8> = Vec::with_capacity(80);
@@ -6357,7 +6359,7 @@ pub fn ex_execute(eap: &mut Exarg) {
         g_st().emsg_skip -= 1;
     }
 
-    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));
+    eap.nextcmd = arg_slice.advance_to_opt_cstr(check_nextcmd(arg));
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".

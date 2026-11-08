@@ -1127,12 +1127,12 @@ pub fn ex_command(eap: &mut Exarg) {
     let mut addr_type_arg: CmdAddr = ADDR_NONE;
     let has_attr = eap.arg.first_byte() == b'-';
 
-    let mut p = eap.arg;
+    let mut p = eap.arg.clone();
 
     while (p).first_byte() == b'-' {
         p = p.wrapping_add(1);
         let end = p.skiptowhite();
-        let attr_len = ((end).offset_from(p) as isize) as usize;
+        let attr_len = ((end).offset_from(&p) as isize) as usize;
         if !uc_scan_attr(
             (p).slice(attr_len),
             &mut argt,
@@ -1199,7 +1199,7 @@ pub fn ex_comclear(_eap: &mut Exarg) {
 pub fn ex_delcommand(eap: &mut Exarg) {
     let mut i: i32;
     let mut res: i32 = -1;
-    let mut arg = eap.arg.cast_const();
+    let mut arg = eap.arg.as_cstr().as_ptr();
     let mut buffer_only = false;
 
     let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
@@ -1348,7 +1348,7 @@ fn uc_split_args(eap: &Exarg, lenp: &mut usize) -> CString {
             }
         }
     } else {
-        for (i, (&arg_i, &arglen_i)) in eap.args.iter().zip(&eap.arglens).enumerate() {
+        for (i, (arg_i, &arglen_i)) in eap.args.iter().zip(&eap.arglens).enumerate() {
             let mut rem = (arg_i).slice(arglen_i);
             while !rem.is_empty() {
                 if matches!(rem[0], b'\\' | b'"') {

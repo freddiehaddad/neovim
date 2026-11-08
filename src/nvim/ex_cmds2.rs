@@ -876,8 +876,9 @@ pub fn ex_drop(eap: &mut Exarg) {
 
     if split {
         eap.cmdidx = Cmdidx::CmdSfirst;
-
-        *crate::globals::GraphPtr::of(eap.cmd.cast::<u8>()).borrow_mut() = b's';
+        if let Some(b) = eap.cmd.cstr_buf_mut().first_mut() {
+            *b = b's';
+        }
     } else {
         eap.cmdidx = Cmdidx::CmdFirst;
     }

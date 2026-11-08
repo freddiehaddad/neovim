@@ -1246,7 +1246,7 @@ pub fn ex_match(eap: &mut Exarg) {
         match_delete(curwin_mut(), id, false);
     }
 
-    let arg = eap.arg;
+    let arg = crate::strings::ByteSlice::from_cstr(eap.arg.as_cstr());
     if ends_excmd(arg.first_byte()) != 0 {
         end = arg;
     } else {
@@ -1297,5 +1297,5 @@ pub fn ex_match(eap: &mut Exarg) {
             }
         }
     }
-    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(end.as_cstr()));
+    eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(find_nextcmd(end.as_cstr()));
 }

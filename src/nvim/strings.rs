@@ -115,6 +115,14 @@ impl OwnedSlice {
     }
 
     #[inline]
+    pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
+        match s {
+            Some(s) => Self::from_cstr(s),
+            None => Self::NULL,
+        }
+    }
+
+    #[inline]
     pub fn from_bytes_with_addr(b: &[u8], addr: usize) -> Self {
         let mut v = crate::memory::bytes_until_nul(b).to_vec();
         v.push(0);
@@ -165,6 +173,55 @@ impl OwnedSlice {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.as_cstr().to_bytes()
+    }
+
+    #[inline]
+    pub fn cstr_buf_mut(&mut self) -> &mut [u8] {
+        match self.bytes {
+            Some(ref mut v) => {
+                let len = CStr::from_bytes_until_nul(v).map_or(0, |s| s.to_bytes().len());
+                let n = (len + 1).min(v.len());
+                &mut v[..n]
+            }
+            None => &mut [],
+        }
+    }
+
+    #[inline]
+    pub fn mut_bytes(&mut self) -> &mut [u8] {
+        let buf = self.cstr_buf_mut();
+        let n = buf.len().saturating_sub(1);
+        &mut buf[..n]
+    }
+
+    #[inline]
+    pub fn set_subslice_lowercased_nul(&mut self, offset: usize, len: usize) {
+        if let Some(ref mut v) = self.bytes
+            && offset <= v.len()
+        {
+            let end = (offset + len).min(v.len().saturating_sub(1));
+            for b in &mut v[offset..end] {
+                *b = crate::charset::tolower_asc(i32::from(*b)) as u8;
+            }
+            if end < v.len() {
+                v[end] = 0;
+            }
+        }
+    }
+
+    #[inline]
+    pub fn advance_to_cstr(&self, sub: &CStr) -> Self {
+        let base_ptr = self.as_cstr().as_ptr() as usize;
+        let sub_ptr = sub.as_ptr() as usize;
+        self.wrapping_add(sub_ptr.saturating_sub(base_ptr))
+    }
+
+    #[inline]
+    pub fn advance_to_opt_cstr(&self, sub: Option<&CStr>) -> Self {
+        match sub {
+            Some(s) => self.advance_to_cstr(s),
+            None => Self::NULL,
+        }
     }
 
     #[inline]
@@ -1703,7 +1760,21 @@ impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &&'a crate::option_vars::OptString {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for &'a mut crate::option_vars::OptString {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a &'a mut crate::option_vars::OptString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(self.as_cstr()))
@@ -1717,96 +1788,53 @@ impl<'a> IntoFmtVal<'a> for FmtVal<'a> {
     }
 }
 
-impl IntoFmtVal<'_> for i8 {
+impl<'a> IntoFmtVal<'a> for &FmtVal<'a> {
     #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Signed(i64::from(self))
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        *self
     }
 }
 
-impl IntoFmtVal<'_> for i16 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Signed(i64::from(self))
-    }
+macro_rules! impl_into_fmt_val_prim {
+    ($($t:ty => $variant:ident($cast:ty)),* $(,)?) => {
+        $(
+            impl IntoFmtVal<'_> for $t {
+                #[inline(always)]
+                fn into_fmt_val(self) -> FmtVal<'static> {
+                    FmtVal::$variant(self as $cast)
+                }
+            }
+            impl IntoFmtVal<'_> for &$t {
+                #[inline(always)]
+                fn into_fmt_val(self) -> FmtVal<'static> {
+                    FmtVal::$variant((*self) as $cast)
+                }
+            }
+            impl IntoFmtVal<'_> for &mut $t {
+                #[inline(always)]
+                fn into_fmt_val(self) -> FmtVal<'static> {
+                    FmtVal::$variant((*self) as $cast)
+                }
+            }
+        )*
+    };
 }
 
-impl IntoFmtVal<'_> for i32 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Signed(i64::from(self))
-    }
-}
-
-impl IntoFmtVal<'_> for i64 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Signed(self)
-    }
-}
-
-impl IntoFmtVal<'_> for isize {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Signed(self as i64)
-    }
-}
-
-impl IntoFmtVal<'_> for u8 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Unsigned(u64::from(self))
-    }
-}
-
-impl IntoFmtVal<'_> for u16 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Unsigned(u64::from(self))
-    }
-}
-
-impl IntoFmtVal<'_> for u32 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Unsigned(u64::from(self))
-    }
-}
-
-impl IntoFmtVal<'_> for u64 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Unsigned(self)
-    }
-}
-
-impl IntoFmtVal<'_> for usize {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Unsigned(self as u64)
-    }
-}
-
-impl IntoFmtVal<'_> for bool {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Unsigned(u64::from(self))
-    }
-}
-
-impl IntoFmtVal<'_> for f32 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Float(f64::from(self))
-    }
-}
-
-impl IntoFmtVal<'_> for f64 {
-    #[inline(always)]
-    fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::Float(self)
-    }
-}
+impl_into_fmt_val_prim!(
+    i8 => Signed(i64),
+    i16 => Signed(i64),
+    i32 => Signed(i64),
+    i64 => Signed(i64),
+    isize => Signed(i64),
+    u8 => Unsigned(u64),
+    u16 => Unsigned(u64),
+    u32 => Unsigned(u64),
+    u64 => Unsigned(u64),
+    usize => Unsigned(u64),
+    bool => Unsigned(u64),
+    f32 => Float(f64),
+    f64 => Float(f64),
+);
 
 impl<'a> IntoFmtVal<'a> for &'a CStr {
     #[inline(always)]
@@ -1829,7 +1857,35 @@ impl<'a> IntoFmtVal<'a> for &'a std::borrow::Cow<'a, CStr> {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &'a &'a std::borrow::Cow<'a, CStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_ref()))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for &'a Vec<u8> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &&'a Vec<u8> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a mut Vec<u8> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a &'a mut Vec<u8> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
@@ -1850,6 +1906,20 @@ impl<'a> IntoFmtVal<'a> for &'a Option<&'a CStr> {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &'a &'a Option<&'a CStr> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(**self)
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a Option<std::ffi::CString> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_deref())
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for &'a std::ffi::CString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
@@ -1865,6 +1935,13 @@ impl<'a> IntoFmtVal<'a> for &&'a std::ffi::CString {
 }
 
 impl<'a> IntoFmtVal<'a> for Option<&'a std::ffi::CString> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.map(std::ffi::CString::as_c_str))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a Option<&'a std::ffi::CString> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self.map(std::ffi::CString::as_c_str))
@@ -1892,6 +1969,13 @@ impl<'a> IntoFmtVal<'a> for &'a mut [u8] {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &'a &'a mut [u8] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+    }
+}
+
 impl<'a, const N: usize> IntoFmtVal<'a> for &'a [u8; N] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
@@ -1913,6 +1997,13 @@ impl<'a, const N: usize> IntoFmtVal<'a> for &'a mut [u8; N] {
     }
 }
 
+impl<'a, const N: usize> IntoFmtVal<'a> for &'a &'a mut [u8; N] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self.as_slice())))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
@@ -1927,6 +2018,13 @@ impl<'a> IntoFmtVal<'a> for &'a Option<&'a [u8]> {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &&'a Option<&'a [u8]> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for &'a OwnedSlice {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
@@ -1934,7 +2032,21 @@ impl<'a> IntoFmtVal<'a> for &'a OwnedSlice {
     }
 }
 
+impl<'a> IntoFmtVal<'a> for &&'a OwnedSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_opt_cstr())
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for &'a mut OwnedSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_opt_cstr())
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a &'a mut OwnedSlice {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self.as_opt_cstr())
@@ -2793,8 +2905,8 @@ macro_rules! format_to_buf {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::strings::format_to_buf_fmt(
             $str_out,
-            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     };
 }
@@ -2805,8 +2917,8 @@ macro_rules! format_to_buf_add {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::strings::format_to_buf_add_fmt(
             $str_out,
-            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     };
 }
@@ -2817,8 +2929,8 @@ macro_rules! format_to_buf_safelen {
     ($str_out:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::strings::format_to_buf_safelen_fmt(
             $str_out,
-            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            $crate::strings::IntoFmtVal::into_fmt_val(&$fmt).as_cstr(),
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     };
 }

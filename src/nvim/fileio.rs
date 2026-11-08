@@ -3131,7 +3131,7 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
     cmd_vec.extend_from_slice(b"e ++enc=");
     cmd_vec.extend_from_slice(fenc_bytes);
     let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
-    eap.cmd = crate::strings::ByteSlice::from_cstr(&cmd_cstr);
+    eap.cmd = crate::strings::OwnedSlice::from_cstr(&cmd_cstr);
     eap.force_enc = 8;
     eap.bad_char = buf.b_bad_char;
     eap.force_ff = (buf.b_p_ff.first_byte()) as i32;
@@ -4942,7 +4942,7 @@ macro_rules! fprintf {
         $crate::fileio::vim_fprintf_fmt(
             &$stream,
             $fmt,
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     };
 }
@@ -4953,7 +4953,7 @@ macro_rules! printf {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::fileio::vim_printf_fmt(
             $fmt,
-            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+            &[$($crate::strings::IntoFmtVal::into_fmt_val(&$arg)),*],
         )
     };
 }
