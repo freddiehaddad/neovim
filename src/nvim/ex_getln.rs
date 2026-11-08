@@ -510,7 +510,7 @@ pub fn parse_pattern_and_range(
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
     ea.line2 = 1;
-    ea.cmd = getln_st().ccline.cmdbuff();
+    ea.cmd = crate::strings::ByteSlice::from_bytes(&getln_st().ccline.cmdbuff_vec);
     ea.addr_type = ADDR_LINES;
 
     let mut dummy_cmdmod: Cmdmod = Cmdmod::new();
@@ -1075,7 +1075,7 @@ fn command_line_enter(
 
         if getln_st().ccline.input_fn != 0 {
             s.xpc.xp_context = getln_st().ccline.xp_context;
-            s.xpc.xp_pattern = getln_st().ccline.cmdbuff().into();
+            s.xpc.xp_pattern = getln_st().ccline.cmdbuff();
             s.xpc.xp_arg = getln_st().ccline.xp_arg.clone();
         }
 
@@ -2046,12 +2046,9 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
         getln_st().ccline.cmdpos += 1;
     }
     if s.c == K_DEL {
-        getln_st().ccline.cmdpos += crate::mbyte::mb_off_next_ptr(
-            getln_st().ccline.cmdbuff(),
-            getln_st()
-                .ccline
-                .cmdbuff()
-                .wrapping_add(getln_st().ccline.cmdpos as usize),
+        getln_st().ccline.cmdpos += crate::mbyte::mb_off_next(
+            &getln_st().ccline.cmdbuff_vec,
+            getln_st().ccline.cmdpos as usize,
         );
     }
 
@@ -2309,7 +2306,8 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
 
     if s.lookfor.is_none() {
         let prefix_len = getln_st().ccline.cmdpos as usize;
-        let bytes = getln_st().ccline.cmdbuff().slice(prefix_len);
+        let cmdbuff = getln_st().ccline.cmdbuff();
+        let bytes = cmdbuff.slice(prefix_len);
         s.lookfor = Some(std::ffi::CString::new(bytes).unwrap_or_default());
         s.lookforlen = getln_st().ccline.cmdpos;
     }
@@ -2523,12 +2521,9 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                     }
                     loop {
                         getln_st().ccline.cmdpos -= 1;
-                        getln_st().ccline.cmdpos -= crate::mbyte::utf_head_off_ptr(
-                            getln_st().ccline.cmdbuff(),
-                            getln_st()
-                                .ccline
-                                .cmdbuff()
-                                .wrapping_add(getln_st().ccline.cmdpos as usize),
+                        getln_st().ccline.cmdpos -= crate::mbyte::utf_head_off(
+                            &getln_st().ccline.cmdbuff_vec,
+                            getln_st().ccline.cmdpos as usize,
                         );
                         getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
 
@@ -3531,7 +3526,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
         let i = ((xpc.xp_pattern).offset_from(p) as isize) as i32;
 
         if i >= 0 && i <= getln_st().ccline.cmdlen {
-            xpc.xp_pattern = getln_st().ccline.cmdbuff().wrapping_add(i as usize).into();
+            xpc.xp_pattern = getln_st().ccline.cmdbuff().wrapping_add(i as usize);
         }
     }
 }
@@ -3873,16 +3868,16 @@ fn draw_cmdline(start: i32, len: i32) {
                 continue;
             }
             let chunk_start = chunk.start.max(start);
-            let slice = (getln_st()
+            let sub = getln_st()
                 .ccline
                 .cmdbuff()
-                .wrapping_add(chunk_start as usize))
-            .slice((chunk.end - chunk_start).max(0) as usize);
+                .wrapping_add(chunk_start as usize);
+            let slice = sub.slice((chunk.end - chunk_start).max(0) as usize);
             msg_outtrans_len(slice, chunk.end - chunk_start, chunk.hl_id, false);
         }
     } else {
-        let slice =
-            (getln_st().ccline.cmdbuff().wrapping_add(start as usize)).slice(len.max(0) as usize);
+        let sub = getln_st().ccline.cmdbuff().wrapping_add(start as usize);
+        let slice = sub.slice(len.max(0) as usize);
         msg_outtrans_len(slice, len, 0, false);
     }
 }
@@ -3890,12 +3885,14 @@ fn draw_cmdline(start: i32, len: i32) {
 fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     let mut arena = Arena::new();
     let mut content: Array;
+    let cmdbuff = line.cmdbuff();
     if g_st().cmdline_star != 0 {
         content = arena_array(&mut arena, 1);
         let mut len: usize = 0;
         let mut p = getln_st().ccline.cmdbuff();
         while !p.is_empty() {
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+            let step = utfc_ptr2len(&p) as usize;
+            p = p.wrapping_add(step);
             len += 1;
         }
         let buf = arena_alloc(&mut arena, len, false).cast::<u8>();
@@ -3912,6 +3909,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
         add_c(&mut content, array_obj(item));
     } else if !line.last_colors.colors.is_empty() {
         content = arena_array(&mut arena, line.last_colors.colors.len());
+        let cmd_bytes = cmdbuff.as_bytes();
         for &chunk in &line.last_colors.colors {
             let mut item = arena_array(&mut arena, 3);
             add_c(
@@ -3924,12 +3922,11 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             );
 
             debug_assert!(chunk.end >= chunk.start);
+            let start_idx = (chunk.start as usize).min(cmd_bytes.len());
+            let end_idx = (chunk.end as usize).min(cmd_bytes.len());
             add_c(
                 &mut item,
-                string_obj(cstrn_as_string(
-                    (line.cmdbuff().wrapping_add(chunk.start as usize))
-                        .slice((chunk.end - chunk.start) as usize),
-                )),
+                string_obj(cstrn_as_string(&cmd_bytes[start_idx..end_idx])),
             );
             add_c(&mut item, integer_obj(chunk.hl_id as Integer));
             add_c(&mut content, array_obj(item));
@@ -3937,7 +3934,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     } else {
         let mut item = arena_array(&mut arena, 3);
         add_c(&mut item, integer_obj(0));
-        add_c(&mut item, cstr_as_obj(line.cmdbuff().as_opt_cstr()));
+        add_c(&mut item, cstr_as_obj(cmdbuff.as_opt_cstr()));
         add_c(&mut item, integer_obj(0));
         content = arena_array(&mut arena, 1);
         add_c(&mut content, array_obj(item));
@@ -4152,12 +4149,9 @@ pub fn put_on_cmdline(str_bytes: &[u8], mut len: i32, redraw: bool) {
     getln_st().ccline.cmdbuff_vec[new_cmdlen] = 0;
 
     if getln_st().ccline.cmdpos > 0 && getln_st().ccline.cmdbuff_vec[cmdpos_usize] >= 0x80 {
-        let i = crate::mbyte::utf_head_off_ptr(
-            getln_st().ccline.cmdbuff(),
-            getln_st()
-                .ccline
-                .cmdbuff()
-                .wrapping_add(getln_st().ccline.cmdpos as usize),
+        let i = crate::mbyte::utf_head_off(
+            &getln_st().ccline.cmdbuff_vec,
+            getln_st().ccline.cmdpos as usize,
         );
         if i != 0 {
             getln_st().ccline.cmdpos -= i;
@@ -4582,7 +4576,8 @@ fn get_cmdline_str() -> Option<std::ffi::CString> {
         return None;
     }
     let p = get_ccline_opt()?;
-    let slice = p.cmdbuff().slice(p.cmdlen as usize);
+    let cmdbuff = p.cmdbuff();
+    let slice = cmdbuff.slice(p.cmdlen as usize);
     let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
     Some(crate::memory::bytes_to_cstring(&slice[..len]))
 }
@@ -4916,7 +4911,8 @@ fn open_cmdwin() -> i32 {
     }
 
     let content = (!getln_st().ccline.cmdbuff().is_null()).then(|| {
-        let bytes = (getln_st().ccline.cmdbuff()).slice(getln_st().ccline.cmdlen as usize);
+        let cmdbuff = getln_st().ccline.cmdbuff();
+        let bytes = cmdbuff.slice(getln_st().ccline.cmdlen as usize);
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         std::ffi::CString::new(&bytes[..end]).unwrap()
     });

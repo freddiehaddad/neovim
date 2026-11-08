@@ -1133,6 +1133,28 @@ impl AsMbyteSlice for crate::globals::GraphPtr<i8> {
     }
 }
 
+impl AsMbyteSlice for crate::strings::OwnedSlice {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl AsMbyteSlice for &crate::strings::OwnedSlice {
+    #[inline]
+    fn as_char_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+    #[inline]
+    fn as_cluster_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
 impl AsMbyteSlice for Option<&[u8]> {
     #[inline(always)]
     fn as_char_bytes(&self) -> &[u8] {

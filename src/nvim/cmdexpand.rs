@@ -1571,11 +1571,11 @@ impl CmdlineInfo {
     }
 
     #[inline]
-    pub fn cmdbuff(&self) -> crate::strings::ByteSlice {
+    pub fn cmdbuff(&self) -> crate::strings::OwnedSlice {
         if self.cmdbuff_vec.is_empty() {
-            crate::strings::BYTE_SLICE_NULL
+            crate::strings::OwnedSlice::NULL
         } else {
-            crate::strings::ByteSlice::from_bytes(&self.cmdbuff_vec)
+            crate::strings::OwnedSlice::from_bytes(&self.cmdbuff_vec)
         }
     }
 }
@@ -2047,7 +2047,8 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     }
 
     if !wild_navigate && !ccline.cmdbuff().is_null() {
-        let slice = ccline.cmdbuff().slice(ccline.cmdlen as usize);
+        let cmdbuff = ccline.cmdbuff();
+        let slice = cmdbuff.slice(ccline.cmdlen as usize);
         let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
         cmdexp().cmdline_orig = Some(slice[..len].to_vec());
     }
@@ -2071,7 +2072,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             .copy_from_slice(&p_str.to_bytes_with_nul()[..plen]);
         ccline.cmdlen += difflen;
         ccline.cmdpos += difflen;
-        xp.xp_pattern = ccline.cmdbuff().wrapping_add(i as usize).into();
+        xp.xp_pattern = ccline.cmdbuff().wrapping_add(i as usize);
     }
 
     redrawcmd();
@@ -2881,7 +2882,7 @@ pub fn showmatches(
         }
         let retval = expand_cmdline(
             xp,
-            ccline.cmdbuff().as_cstr(),
+            crate::memory::bytes_as_cstr(&ccline.cmdbuff_vec),
             ccline.cmdpos,
             &mut temp_matches,
         );
@@ -3206,7 +3207,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
         } else {
             BACKWARD
         };
-        xp.xp_pattern = ccline.cmdbuff().into();
+        xp.xp_pattern = ccline.cmdbuff();
         xp.xp_pattern_len = ccline.cmdpos as usize;
         g_st().search_global.first_line = 0;
         return;
@@ -3706,7 +3707,7 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
         return;
     }
 
-    xp.xp_pattern = ccline.cmdbuff().wrapping_add(skiplen as usize).into();
+    xp.xp_pattern = ccline.cmdbuff().wrapping_add(skiplen as usize);
     xp.xp_pattern_len = (ccline.cmdpos - skiplen) as usize;
     xp.xp_context = EXPAND_PATTERN_IN_BUF;
     xp.xp_search_dir = FORWARD;
@@ -4288,12 +4289,17 @@ pub fn set_cmd_context(
         set_context_for_expression(xp, crate::memory::bytes_as_cstr(str_buf), Cmdidx::CmdSize);
     } else if use_ccline && ccline.input_fn != 0 {
         xp.xp_context = ccline.xp_context;
-        xp.xp_pattern = ccline.cmdbuff().into();
+        xp.xp_pattern = ccline.cmdbuff();
         xp.xp_arg = ccline.xp_arg.clone();
         if xp.xp_context == EXPAND_SHELLCMDLINE {
             let mut context = xp.xp_context;
-            let pat_cstr = ccline.cmdbuff().as_cstr();
-            set_context_for_wildcard_arg(None, pat_cstr, false, xp, &mut context);
+            set_context_for_wildcard_arg(
+                None,
+                crate::memory::bytes_as_cstr(str_buf),
+                false,
+                xp,
+                &mut context,
+            );
         }
     } else {
         let mut nextcomm = Some(crate::memory::bytes_as_cstr(str_buf));
@@ -5640,10 +5646,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             j -= 1;
             j > i
         } {
-            j -= crate::mbyte::utf_head_off_ptr(
-                cclp.cmdbuff(),
-                cclp.cmdbuff().wrapping_add(j as usize),
-            );
+            j -= crate::mbyte::utf_head_off(&cclp.cmdbuff_vec, j as usize);
             if vim_ispathsep(cmd_slice[j as usize]) {
                 found = true;
                 break;
@@ -5667,10 +5670,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             j -= 1;
             j > i
         } {
-            j -= crate::mbyte::utf_head_off_ptr(
-                cclp.cmdbuff(),
-                cclp.cmdbuff().wrapping_add(j as usize),
-            );
+            j -= crate::mbyte::utf_head_off(&cclp.cmdbuff_vec, j as usize);
             #[cfg(windows)]
             let is_sep = vim_ispathsep(cmd_slice[j as usize])
                 && !b" *?[{`$%#".contains(&cmd_slice[(j + 1) as usize]);

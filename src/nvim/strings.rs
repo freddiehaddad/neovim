@@ -83,9 +83,22 @@ pub const BYTE_SLICE_NULL: ByteSlice = None;
 
 #[derive(Clone, Default, Debug)]
 pub struct OwnedSlice {
-    bytes: Option<std::ffi::CString>,
+    bytes: Option<Vec<u8>>,
     addr: usize,
 }
+
+impl PartialEq for OwnedSlice {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.bytes, &other.bytes) {
+            (None, None) => true,
+            (Some(_), Some(_)) => self.addr == other.addr,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for OwnedSlice {}
 
 impl OwnedSlice {
     pub const NULL: Self = Self {
@@ -96,26 +109,30 @@ impl OwnedSlice {
     #[inline]
     pub fn from_cstr(s: &CStr) -> Self {
         Self {
-            bytes: Some(s.to_owned()),
+            bytes: Some(s.to_bytes_with_nul().to_vec()),
             addr: s.as_ptr() as usize,
         }
     }
 
     #[inline]
-    pub fn from_bytes(b: &[u8]) -> Self {
+    pub fn from_bytes_with_addr(b: &[u8], addr: usize) -> Self {
+        let mut v = crate::memory::bytes_until_nul(b).to_vec();
+        v.push(0);
         Self {
-            bytes: Some(crate::memory::bytes_to_cstring(b)),
-            addr: b.as_ptr() as usize,
+            bytes: Some(v),
+            addr,
         }
+    }
+
+    #[inline]
+    pub fn from_bytes(b: &[u8]) -> Self {
+        Self::from_bytes_with_addr(b, b.as_ptr() as usize)
     }
 
     #[inline]
     pub fn from_ptr(p: impl AsByteSlice) -> Self {
         match p.into_byte_slice() {
-            Some(b) => Self {
-                bytes: Some(crate::memory::bytes_to_cstring(b)),
-                addr: b.as_ptr() as usize,
-            },
+            Some(b) => Self::from_bytes_with_addr(b, b.as_ptr() as usize),
             None => Self::NULL,
         }
     }
@@ -131,18 +148,23 @@ impl OwnedSlice {
     }
 
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        self.bytes.as_ref().map_or(&[], |s| s.as_bytes())
-    }
-
-    #[inline]
     pub fn as_cstr(&self) -> &CStr {
-        self.bytes.as_deref().unwrap_or(c"")
+        match self.bytes {
+            Some(ref v) => CStr::from_bytes_until_nul(v).unwrap_or(c""),
+            None => c"",
+        }
     }
 
     #[inline]
     pub fn as_opt_cstr(&self) -> Option<&CStr> {
-        self.bytes.as_deref()
+        self.bytes
+            .as_ref()
+            .map(|v| CStr::from_bytes_until_nul(v).unwrap_or(c""))
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.as_cstr().to_bytes()
     }
 
     #[inline]
@@ -179,14 +201,11 @@ impl OwnedSlice {
     #[inline]
     pub fn wrapping_add(&self, n: usize) -> Self {
         match self.bytes {
-            Some(ref s) => {
-                let b = s.as_bytes();
-                let step = n.min(b.len());
+            Some(ref v) => {
+                let max_step = v.len().saturating_sub(1);
+                let step = n.min(max_step);
                 Self {
-                    bytes: Some(
-                        crate::memory::cstr_from_bytes_with_nul(&s.as_bytes_with_nul()[step..])
-                            .to_owned(),
-                    ),
+                    bytes: Some(v[step..].to_vec()),
                     addr: self.addr.wrapping_add(step),
                 }
             }
@@ -245,9 +264,7 @@ impl AsByteSlice for usize {
 impl AsByteSlice for OwnedSlice {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        self.bytes
-            .as_ref()
-            .and_then(|s| byte_slice_from_bytes(s.as_bytes_with_nul()))
+        self.bytes.as_deref().and_then(byte_slice_from_bytes)
     }
 
     #[inline(always)]
@@ -259,9 +276,7 @@ impl AsByteSlice for OwnedSlice {
 impl AsByteSlice for &OwnedSlice {
     #[inline(always)]
     fn into_byte_slice(self) -> ByteSlice {
-        self.bytes
-            .as_ref()
-            .and_then(|s| byte_slice_from_bytes(s.as_bytes_with_nul()))
+        self.bytes.as_deref().and_then(byte_slice_from_bytes)
     }
 
     #[inline(always)]
@@ -1909,6 +1924,20 @@ impl<'a> IntoFmtVal<'a> for &'a Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a OwnedSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_opt_cstr())
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a mut OwnedSlice {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.as_opt_cstr())
     }
 }
 
