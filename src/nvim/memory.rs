@@ -1,5 +1,6 @@
 //! Memory allocation, arena allocator, string utilities, and linked-list mergesort
 //! (`src/nvim/memory.c`).
+#![deny(unsafe_code)]
 
 use crate::api::ui::remote_ui_free_all_mem;
 use crate::buffer_updates::buf_free_callbacks;
@@ -84,78 +85,87 @@ pub(crate) fn mem_st() -> crate::globals::GraphPtr<MemoryModuleState> {
     MEM_STATE.handle()
 }
 
-#[inline(always)]
-fn layout_with_header(size: usize) -> Option<std::alloc::Layout> {
-    let total = HEADER_SIZE.checked_add(size.max(1))?;
-    std::alloc::Layout::from_size_align(total, ALLOC_ALIGN).ok()
-}
+#[allow(unsafe_code)]
+mod alloc_ffi {
+    use super::{ALLOC_ALIGN, HEADER_SIZE};
+    use std::ffi::c_void;
 
-#[inline(always)]
-fn sys_malloc(size: usize) -> *mut u8 {
-    let Some(layout) = layout_with_header(size) else {
-        return std::ptr::null_mut();
-    };
-    let base = unsafe { std::alloc::alloc(layout) };
-    if base.is_null() {
-        return std::ptr::null_mut();
+    #[inline(always)]
+    fn layout_with_header(size: usize) -> Option<std::alloc::Layout> {
+        let total = HEADER_SIZE.checked_add(size.max(1))?;
+        std::alloc::Layout::from_size_align(total, ALLOC_ALIGN).ok()
     }
-    unsafe {
-        std::ptr::write(base.cast::<usize>(), layout.size());
-        base.add(HEADER_SIZE)
-    }
-}
 
-#[inline(always)]
-pub fn raw_dealloc(ptr: *mut c_void) {
-    if ptr.is_null() {
-        return;
-    }
-    unsafe {
-        let base = ptr.cast::<u8>().sub(HEADER_SIZE);
-        let total_size = std::ptr::read(base.cast::<usize>());
-        let layout = std::alloc::Layout::from_size_align_unchecked(total_size, ALLOC_ALIGN);
-        std::alloc::dealloc(base, layout);
-    }
-}
-
-#[inline(always)]
-fn sys_calloc(count: usize, size: usize) -> *mut u8 {
-    let Some(byte_size) = count.checked_mul(size) else {
-        return std::ptr::null_mut();
-    };
-    let Some(layout) = layout_with_header(byte_size) else {
-        return std::ptr::null_mut();
-    };
-    let base = unsafe { std::alloc::alloc_zeroed(layout) };
-    if base.is_null() {
-        return std::ptr::null_mut();
-    }
-    unsafe {
-        std::ptr::write(base.cast::<usize>(), layout.size());
-        base.add(HEADER_SIZE)
-    }
-}
-
-#[inline(always)]
-fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
-    if ptr.is_null() {
-        return sys_malloc(size);
-    }
-    let Some(new_layout) = layout_with_header(size) else {
-        return std::ptr::null_mut();
-    };
-    unsafe {
-        let old_base = ptr.cast::<u8>().sub(HEADER_SIZE);
-        let old_total = std::ptr::read(old_base.cast::<usize>());
-        let old_layout = std::alloc::Layout::from_size_align_unchecked(old_total, ALLOC_ALIGN);
-        let new_base = std::alloc::realloc(old_base, old_layout, new_layout.size());
-        if new_base.is_null() {
+    #[inline(always)]
+    pub fn sys_malloc(size: usize) -> *mut u8 {
+        let Some(layout) = layout_with_header(size) else {
+            return std::ptr::null_mut();
+        };
+        let base = unsafe { std::alloc::alloc(layout) };
+        if base.is_null() {
             return std::ptr::null_mut();
         }
-        std::ptr::write(new_base.cast::<usize>(), new_layout.size());
-        new_base.add(HEADER_SIZE)
+        unsafe {
+            std::ptr::write(base.cast::<usize>(), layout.size());
+            base.add(HEADER_SIZE)
+        }
+    }
+
+    #[inline(always)]
+    pub fn raw_dealloc(ptr: *mut c_void) {
+        if ptr.is_null() {
+            return;
+        }
+        unsafe {
+            let base = ptr.cast::<u8>().sub(HEADER_SIZE);
+            let total_size = std::ptr::read(base.cast::<usize>());
+            let layout = std::alloc::Layout::from_size_align_unchecked(total_size, ALLOC_ALIGN);
+            std::alloc::dealloc(base, layout);
+        }
+    }
+
+    #[inline(always)]
+    pub fn sys_calloc(count: usize, size: usize) -> *mut u8 {
+        let Some(byte_size) = count.checked_mul(size) else {
+            return std::ptr::null_mut();
+        };
+        let Some(layout) = layout_with_header(byte_size) else {
+            return std::ptr::null_mut();
+        };
+        let base = unsafe { std::alloc::alloc_zeroed(layout) };
+        if base.is_null() {
+            return std::ptr::null_mut();
+        }
+        unsafe {
+            std::ptr::write(base.cast::<usize>(), layout.size());
+            base.add(HEADER_SIZE)
+        }
+    }
+
+    #[inline(always)]
+    pub fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
+        if ptr.is_null() {
+            return sys_malloc(size);
+        }
+        let Some(new_layout) = layout_with_header(size) else {
+            return std::ptr::null_mut();
+        };
+        unsafe {
+            let old_base = ptr.cast::<u8>().sub(HEADER_SIZE);
+            let old_total = std::ptr::read(old_base.cast::<usize>());
+            let old_layout = std::alloc::Layout::from_size_align_unchecked(old_total, ALLOC_ALIGN);
+            let new_base = std::alloc::realloc(old_base, old_layout, new_layout.size());
+            if new_base.is_null() {
+                return std::ptr::null_mut();
+            }
+            std::ptr::write(new_base.cast::<usize>(), new_layout.size());
+            new_base.add(HEADER_SIZE)
+        }
     }
 }
+
+pub use self::alloc_ffi::raw_dealloc;
+use self::alloc_ffi::{sys_calloc, sys_malloc, sys_realloc};
 
 fn try_to_free_memory() {
     if mem_st().trying_to_free {
@@ -377,9 +387,7 @@ pub fn arena_alloc_block(arena: &mut Arena) {
     arena.pos = 0;
     arena.size = ARENA_BLOCK_SIZE;
     let blk = arena_alloc(arena, std::mem::size_of::<ConsumedBlk>(), true).cast::<ConsumedBlk>();
-    unsafe {
-        (*blk).prev = crate::globals::GraphPtr::new(prev_blk);
-    }
+    crate::globals::GraphPtr::of(blk).borrow_mut().prev = crate::globals::GraphPtr::new(prev_blk);
 }
 
 #[inline(always)]
@@ -412,13 +420,12 @@ pub fn arena_alloc(arena: &mut Arena, size: usize, align: bool) -> *mut c_void {
                 hdr_size
             };
             let alloc = raw_alloc(size + aligned_hdr_size).cast::<u8>();
-            unsafe {
-                let cur_blk = arena.cur_blk.cast::<ConsumedBlk>();
-                let fix_blk = alloc.cast::<ConsumedBlk>();
-                (*fix_blk).prev = (*cur_blk).prev;
-                (*cur_blk).prev = crate::globals::GraphPtr::new(fix_blk);
-                return alloc.add(aligned_hdr_size).cast::<c_void>();
-            }
+            let cur_blk =
+                crate::globals::GraphPtr::of(arena.cur_blk.cast::<ConsumedBlk>()).borrow_mut();
+            let fix_blk = alloc.cast::<ConsumedBlk>();
+            crate::globals::GraphPtr::of(fix_blk).borrow_mut().prev = cur_blk.prev;
+            cur_blk.prev = crate::globals::GraphPtr::new(fix_blk);
+            return alloc.wrapping_add(aligned_hdr_size).cast::<c_void>();
         } else {
             arena_alloc_block(arena);
             alloc_pos = if align {
@@ -474,7 +481,7 @@ pub fn arena_mem_free(mem: ArenaMem) {
 
 fn arena_allocz_mut(arena: &mut Arena, size: usize) -> &'static mut [u8] {
     let mem = arena_alloc(arena, size + 1, false).cast::<u8>();
-    let slice = unsafe { std::slice::from_raw_parts_mut(mem, size + 1) };
+    let slice = crate::globals::GraphPtr::raw_slice_mut(mem, size + 1);
     slice[size] = 0;
     slice
 }
@@ -488,7 +495,7 @@ pub fn arena_allocz(arena: &mut Arena, size: usize) -> crate::globals::GraphPtr<
 #[inline(always)]
 pub fn arena_allocz_opt_mut(arena: Option<&mut Arena>, size: usize) -> &'static mut [u8] {
     let mem = arena_alloc_opt(arena, size + 1, false).cast::<u8>();
-    let slice = unsafe { std::slice::from_raw_parts_mut(mem, size + 1) };
+    let slice = crate::globals::GraphPtr::raw_slice_mut(mem, size + 1);
     slice[size] = 0;
     slice
 }
