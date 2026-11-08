@@ -1,4 +1,5 @@
 //! Code for folding (`src/nvim/fold.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::parse_virt_text;
 use crate::api::private::helpers::{api_clear_error, api_free_object};

@@ -1,4 +1,5 @@
 //! VTerm unit-test callback and inspection harness (`test/unit/fixtures/vterm_test.c`).
+#![forbid(unsafe_code)]
 
 use crate::terminal::Terminal;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};

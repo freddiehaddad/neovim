@@ -1,4 +1,5 @@
 //! Functions for dealing with the buffer structure (`src/nvim/buffer.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
 use crate::api::win_config::{K_CTX_NO_DISPLAY, K_WIN_STYLE_MINIMAL, UIExtension};
@@ -3357,7 +3358,6 @@ fn buf_time_compare(buf1: &FileBuf, buf2: &FileBuf) -> std::cmp::Ordering {
 pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options: i32) -> bool {
     let pat_bytes = crate::memory::bytes_until_nul(pat_in);
     let pat_cstr = crate::memory::bytes_to_cstring(pat_bytes);
-    let pat = pat_cstr.as_ptr();
     {
         let mut matches: Vec<Bufmatch> = Vec::new();
 
@@ -3376,7 +3376,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
         if !fuzzy {
             let patc: &CStr = if pat_bytes.first() == Some(&b'^') && pat_bytes.len() > 1 {
-                let pc = unsafe { CStr::from_ptr(pat.wrapping_add(1)) }.to_owned();
+                let pc = crate::memory::bytes_to_cstring(&pat_bytes[1..]);
                 patc_owned = Some(pc);
                 patc_owned.as_deref().unwrap()
             } else if pat_bytes.first() == Some(&b'^') {

@@ -1,5 +1,6 @@
 //! Vimscript compound assignment operator execution (`+=`, `-=`, `*=`, `/=`, `%=`, `.=`)
 //! (`src/nvim/eval/executor.c`).
+#![forbid(unsafe_code)]
 
 use crate::errors::*;
 use crate::eval::typval::{

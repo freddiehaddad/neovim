@@ -1,4 +1,5 @@
 //! JSON and MessagePack decoding into Vimscript `TypVal` values (`src/nvim/eval/decode.c`).
+#![forbid(unsafe_code)]
 
 use crate::charset::vim_slice2nr;
 use crate::eval::encode::encode_list_write;

@@ -1,4 +1,5 @@
 //! Editor state context and temporary window/buffer context switching (`src/nvim/context.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::nvim_create_namespace;
 

@@ -1,4 +1,5 @@
 //! Low-level functions to manipulate individual character cells on the screen grid (`src/nvim/grid.c`).
+#![forbid(unsafe_code)]
 
 use crate::arabic::arabic_shape;
 use crate::cursor::{Colnr, Linenr};

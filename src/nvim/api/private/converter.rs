@@ -1,4 +1,5 @@
 //! Conversions between Vimscript `TypVal` and API `Object` (`src/nvim/api/private/converter.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{arena_array_opt, arena_bytes_opt, arena_dict_opt, nil_obj};
 use crate::api::private::validate::{

@@ -1,4 +1,5 @@
 //! Code for menus, used for the GUI and `'wildmenu'` (`src/nvim/menu.c`).
+#![forbid(unsafe_code)]
 
 use std::ffi::CString;
 

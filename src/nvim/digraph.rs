@@ -1,4 +1,5 @@
 //! Digraph and keymap functions (`src/nvim/digraph.c`).
+#![forbid(unsafe_code)]
 
 use crate::charset::{NUL, char2cells, getdigits_int, is_special, skipwhite_slice};
 use crate::drawscreen::status_redraw_curbuf;

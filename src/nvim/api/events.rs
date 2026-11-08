@@ -1,4 +1,5 @@
 //! API event handlers (`src/nvim/api/events.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::api_typename;
 use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_err_exp};

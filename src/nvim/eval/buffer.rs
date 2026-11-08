@@ -1,4 +1,5 @@
 //! Buffer related builtin functions (`src/nvim/eval/buffer.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::{
     FileBuf, K_EXTMARK_NO_UNDO, K_MARK_ADJUST_NORMAL, MAXLNUM, SEA_NONE, bt_cmdwin, bt_nofilename,

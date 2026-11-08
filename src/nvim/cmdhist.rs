@@ -1,4 +1,5 @@
 //! Command-line history (`src/nvim/cmdhist.c`).
+#![forbid(unsafe_code)]
 
 use crate::charset::vim_strsize;
 use crate::errors::{E_TRAILING_ARG, E_VAL_TOO_LARGE};

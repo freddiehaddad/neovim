@@ -1,4 +1,5 @@
 //! The input engine "bytes layer" (`src/nvim/input.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};

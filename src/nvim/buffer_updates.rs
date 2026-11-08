@@ -1,4 +1,5 @@
 //! Buffer update event notifications and Lua callbacks (`src/nvim/buffer_updates.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, buf_collect_lines};
 use crate::api::private::helpers::{

@@ -1,4 +1,5 @@
 //! Autocommand API functions (`src/nvim/api/autocmd.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, arena_array,

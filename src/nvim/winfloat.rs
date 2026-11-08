@@ -1,4 +1,5 @@
 //! Floating window creation, configuration, and layout (`src/nvim/winfloat.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_obj, error_init, error_set, find_window_by_handle,

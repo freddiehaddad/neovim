@@ -1,4 +1,5 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
+#![forbid(unsafe_code)]
 
 use crate::terminal::Terminal;
 use crate::vterm::mouse::VTerm;

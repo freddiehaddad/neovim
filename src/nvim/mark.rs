@@ -1,4 +1,5 @@
 //! Functions for setting marks and jumping to them (`src/nvim/mark.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::validate::{
     Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,

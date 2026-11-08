@@ -1,4 +1,5 @@
 //! Mathematical and bit-manipulation utilities (`src/nvim/math.c`).
+#![forbid(unsafe_code)]
 
 pub const FP_NAN: i32 = if cfg!(any(
     target_os = "windows",

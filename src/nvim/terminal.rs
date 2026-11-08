@@ -1,4 +1,5 @@
 //! VT220/xterm-like terminal emulator (`src/nvim/terminal.c`).
+#![forbid(unsafe_code)]
 
 use crate::option::{K_OPT_BUFTYPE, OPT_LOCAL, OptInt, SB_MAX, set_option_value};
 use crate::vterm::keyboard::VTERM_KEY_KP_0;

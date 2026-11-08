@@ -1,4 +1,5 @@
 //! Command API functions (`src/nvim/api/command.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::dispatch::{

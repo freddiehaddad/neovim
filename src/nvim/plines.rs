@@ -1,4 +1,5 @@
 //! Vertical and horizontal text display size calculations (`src/nvim/plines.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::ns_in_win;
 use crate::api::ui::MAX_SCHAR_SIZE;

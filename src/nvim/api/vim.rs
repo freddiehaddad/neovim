@@ -1,4 +1,5 @@
 //! Global Neovim API functions (`src/nvim/api/vim.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::buffer::{
     INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded,

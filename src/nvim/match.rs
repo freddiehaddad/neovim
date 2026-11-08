@@ -1,4 +1,5 @@
 //! Functions for highlighting matches (`src/nvim/match.c`).
+#![forbid(unsafe_code)]
 
 use std::ffi::CStr;
 

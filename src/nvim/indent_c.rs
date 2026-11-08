@@ -1,4 +1,5 @@
 //! C-indentation functions (`src/nvim/indent_c.c`).
+#![forbid(unsafe_code)]
 use crate::buffer::{FileBuf, MAXLNUM};
 use crate::change::{
     COM_END, COM_LEFT, COM_MAX_LEN, COM_MIDDLE, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,

@@ -1,4 +1,5 @@
 //! Shared error messages (`src/nvim/errors.h`).
+#![forbid(unsafe_code)]
 
 macro_rules! def_err {
     ($name:ident, $s:literal) => {

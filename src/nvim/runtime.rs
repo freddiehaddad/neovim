@@ -1,4 +1,5 @@
 //! Management of runtime files (including packages) (`src/nvim/runtime.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_array_opt, arena_dict,

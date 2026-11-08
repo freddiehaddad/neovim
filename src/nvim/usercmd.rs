@@ -1,4 +1,5 @@
 //! User defined command support (`src/nvim/usercmd.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, put_c,

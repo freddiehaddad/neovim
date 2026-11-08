@@ -1,4 +1,5 @@
 //! Version information, patch checks, and `:version` / `:intro` commands (`src/nvim/version.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};

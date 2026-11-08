@@ -1,4 +1,5 @@
 //! Functions for dealing with Vimscript variables (`src/nvim/eval/vars.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA, cstr_to_string, nil_obj, string_obj,

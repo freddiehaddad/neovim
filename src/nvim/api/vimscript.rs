@@ -1,4 +1,5 @@
 //! Vimscript execution, evaluation, and expression parsing API (`src/nvim/api/vimscript.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::helpers::{

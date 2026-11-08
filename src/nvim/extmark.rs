@@ -1,4 +1,5 @@
 //! Extended marks for plugins (`src/nvim/extmark.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::{FileBuf, K_EXTMARK_NO_UNDO, MAXLNUM};
 use crate::buffer_updates::buf_updates_send_splice;

@@ -1,4 +1,5 @@
 //! XDG standard directory paths (`src/nvim/os/stdpaths.c`).
+#![forbid(unsafe_code)]
 
 use crate::fileio::vim_gettempdir;
 use crate::globals::*;

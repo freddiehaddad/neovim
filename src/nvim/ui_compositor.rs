@@ -1,5 +1,6 @@
 //! Compositor: merge floating grids with the main grid for display in TUI and
 //! non-multigrid UIs (`src/nvim/ui_compositor.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::validate::NvimString;
 use crate::globals::*;

@@ -1,4 +1,5 @@
 //! Window and tabpage layout, management, and navigation (`src/nvim/window.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     TryState, api_clear_error, api_set_error, cstr_as_string, dict_obj, error_set,

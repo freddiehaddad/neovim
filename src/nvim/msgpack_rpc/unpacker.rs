@@ -1,4 +1,5 @@
 //! Msgpack-RPC and ShaDa deserializer (`src/nvim/msgpack_rpc/unpacker.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
 use crate::api::private::helpers::{api_set_error, nil_obj};

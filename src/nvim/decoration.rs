@@ -1,4 +1,5 @@
 //! Buffer decorations, virtual text/lines, and sign/highlight range state (`src/nvim/decoration.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::{ns_in_win, virt_text_to_array};
 use crate::api::private::helpers::{

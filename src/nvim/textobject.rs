@@ -1,4 +1,5 @@
 //! Functions for text objects (`src/nvim/textobject.c`).
+#![forbid(unsafe_code)]
 
 use crate::charset::{NUL, ascii_iswhite};
 use crate::cursor::{

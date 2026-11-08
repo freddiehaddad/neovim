@@ -1,4 +1,5 @@
 //! Deprecated Vimscript evaluation functions (`src/nvim/eval/deprecated.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, object_to_vim, vim_to_object};
 use crate::api::private::helpers::api_clear_error;

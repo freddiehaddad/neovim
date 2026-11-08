@@ -1,4 +1,5 @@
 //! VTerm keyboard event encoding (`src/nvim/vterm/keyboard.c`).
+#![forbid(unsafe_code)]
 
 use crate::mbyte::utf_char2slice;
 use crate::terminal::Terminal;

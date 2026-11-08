@@ -1,4 +1,5 @@
 //! String option validation, handling, and completion (`src/nvim/optionstr.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{TryState, api_clear_error, try_enter, try_leave};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
@@ -833,7 +834,7 @@ const E_CONFLICTS_WITH_VALUE_OF_FILLCHARS: &CStr = c"E835: Conflicts with value 
 const SHM_ALL: &CStr = c"rmlwaWtToOsAIcCqFSunfxi";
 
 struct OptionStrState {
-    set_opt_callback_orig_option: Option<&'static std::ffi::CStr>,
+    set_opt_callback_orig_option: Option<std::ffi::CString>,
     set_opt_callback_func: CompleteListItemGetter,
     expand_eiw: bool,
 }
@@ -1304,7 +1305,13 @@ fn expand_set_opt_string(
 /// Callback used by expand_set_opt_generic to also include the original value.
 fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        return Some(optstr_st().set_opt_callback_orig_option.unwrap_or(c""));
+        return Some(
+            optstr_st()
+                .borrow()
+                .set_opt_callback_orig_option
+                .as_deref()
+                .unwrap_or(c""),
+        );
     }
     optstr_st().set_opt_callback_func?(xp, idx - 1)
 }
@@ -1317,7 +1324,7 @@ fn expand_set_opt_generic(
 ) -> bool {
     optstr_st().set_opt_callback_orig_option = args
         .oe_include_orig_val
-        .then(|| unsafe { CStr::from_ptr(args.oe_opt_value.as_ptr()) });
+        .then(|| args.oe_opt_value.to_owned());
     optstr_st().set_opt_callback_func = func;
 
     expand_generic(

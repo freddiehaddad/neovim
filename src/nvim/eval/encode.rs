@@ -1,5 +1,6 @@
 //! Encoding Vimscript `TypVal` values to strings, `:echo`, JSON, and MessagePack
 //! (`src/nvim/eval/encode.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::validate::NvimString;

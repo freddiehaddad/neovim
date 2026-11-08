@@ -1,4 +1,5 @@
 //! Window API functions (`src/nvim/api/window.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,

@@ -1,4 +1,5 @@
 //! VTerm screen buffer and damage management (`src/nvim/vterm/screen.c`).
+#![forbid(unsafe_code)]
 
 use crate::terminal::Terminal;
 use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, VTermColor, VTermStateFull};

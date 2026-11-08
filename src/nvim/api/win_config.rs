@@ -1,4 +1,5 @@
 //! Window configuration API functions (`src/nvim/api/win_config.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::private::helpers::{

@@ -1,4 +1,5 @@
 //! Msgpack-RPC serializer (`src/nvim/msgpack_rpc/packer.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;

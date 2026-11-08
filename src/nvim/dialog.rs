@@ -1,4 +1,5 @@
 //! User prompts and console dialogs (`yes`/`no`, number, `confirm()`) (`src/nvim/dialog.c`).
+#![forbid(unsafe_code)]
 
 use crate::cmdexpand::EXPAND_NOTHING;
 use crate::eval::typval::Callback;

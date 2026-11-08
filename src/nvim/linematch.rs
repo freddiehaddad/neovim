@@ -1,4 +1,5 @@
 //! Diff `linematch` dynamic-programming alignment algorithm (`src/nvim/linematch.c`).
+#![forbid(unsafe_code)]
 
 const LN_MAX_BUFS: usize = 8;
 const LN_DECISION_MAX: usize = (1 << LN_MAX_BUFS) - 1;

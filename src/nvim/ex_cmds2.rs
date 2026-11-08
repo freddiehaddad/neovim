@@ -1,4 +1,5 @@
 //! Functions for command-line commands (`src/nvim/ex_cmds2.c`).
+#![forbid(unsafe_code)]
 
 use crate::arglist::{
     Aentry, CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, do_argfile, editing_arg_idx,

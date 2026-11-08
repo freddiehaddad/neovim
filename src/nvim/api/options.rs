@@ -1,4 +1,5 @@
 //! Options API functions (`src/nvim/api/options.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_bytes,

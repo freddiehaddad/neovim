@@ -1,4 +1,5 @@
 //! Indentation and tabstop functions (`src/nvim/indent.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::buffer::{FileBuf, buf_get_changedtick, modifiable};

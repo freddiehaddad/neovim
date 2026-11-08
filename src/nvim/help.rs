@@ -1,4 +1,5 @@
 //! Functions for Vim help (`src/nvim/help.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::cstr_as_obj;
 use crate::buffer::{bt_help, buflist_findnr_opt, set_buflisted, wipe_buffer};

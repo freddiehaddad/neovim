@@ -1,4 +1,5 @@
 //! VTerm input byte stream parser (`src/nvim/vterm/parser.c`).
+#![forbid(unsafe_code)]
 
 use crate::vterm::keyboard::VTermStateFull;
 use crate::vterm::mouse::{CSI_LEADER_MAX, INTERMED_MAX, VTerm};

@@ -1,4 +1,5 @@
 //! Window related builtin functions (`src/nvim/eval/window.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
 use crate::charset::getdigits_int;

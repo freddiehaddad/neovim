@@ -1,5 +1,6 @@
 //! B-tree data structure for storing marks at `(row, col)` positions and updating them
 //! to arbitrary text changes (`src/nvim/marktree.c`).
+#![forbid(unsafe_code)]
 
 use std::fmt::Write as _;
 

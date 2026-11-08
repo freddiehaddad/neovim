@@ -1,4 +1,5 @@
 //! VTerm character encodings (`src/nvim/vterm/encoding.c`).
+#![forbid(unsafe_code)]
 
 const UNICODE_INVALID: u32 = 0xFFFD;
 

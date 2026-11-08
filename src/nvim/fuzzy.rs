@@ -1,4 +1,5 @@
 //! Fuzzy matching algorithm and functions (`src/nvim/fuzzy.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::FileBuf;
 use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};

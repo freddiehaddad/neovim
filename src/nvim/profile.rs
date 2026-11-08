@@ -1,4 +1,5 @@
 //! Script, function, and startup profiling (`src/nvim/profile.c`).
+#![forbid(unsafe_code)]
 
 use crate::debugger::ex_breakadd;
 use crate::errors::E_NOTOPEN;

@@ -1,4 +1,5 @@
 //! Cursor positioning, validation, and line access (`src/nvim/cursor.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::FileBuf;
 use crate::change::{K_OPT_VE_FLAG_ONEMORE, TAB, inserted_bytes};

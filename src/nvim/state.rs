@@ -1,4 +1,5 @@
 //! Core editor state loop and mode queries (`src/nvim/state.c`).
+#![forbid(unsafe_code)]
 
 use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE, apply_autocmds, has_event};
 use crate::drawscreen::{K_OPT_VE_FLAG_BLOCK, setcursor, update_screen};

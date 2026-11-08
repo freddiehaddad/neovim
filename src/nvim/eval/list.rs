@@ -1,4 +1,5 @@
 //! List support and container (`List`, `Dict`, `Blob`) functions (`src/nvim/eval/list.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::VAR_FIXED;
 use crate::errors::*;

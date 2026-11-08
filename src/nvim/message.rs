@@ -1,4 +1,5 @@
 //! Functions for displaying messages on the command line (`src/nvim/message.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     HLF_E, HlMessageChunk, api_free_array, copy_string, cstr_as_string, cstr_to_string,

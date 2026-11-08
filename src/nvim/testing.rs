@@ -1,4 +1,5 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 use crate::errors::E_CANT_READ_FILE_STR;

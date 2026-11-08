@@ -1,4 +1,5 @@
 //! Ex command-line evaluation, conditionals, loops, and exception handling (`src/nvim/ex_eval.c`).
+#![forbid(unsafe_code)]
 
 use crate::cmdexpand::Cmdidx;
 use crate::cursor::Linenr;

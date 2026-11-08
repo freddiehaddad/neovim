@@ -1,4 +1,5 @@
 //! Functions for Insert mode (`src/nvim/insert.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{
@@ -3652,9 +3653,12 @@ fn ins_tab() -> bool {
 
         if change_col >= 0 {
             let mut repl_off: i32 = 0;
-            cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, unsafe {
-                CStr::from_ptr(ptr.cast())
-            });
+            let ptr_cstr = if (g_st().state_global & VREPLACE_FLAG) != 0 {
+                crate::memory::bytes_as_cstr(&saved_line_vec[fpos.col as usize..])
+            } else {
+                crate::memory::CStrSubslice::advance(get_cursor_line_ptr(), fpos.col as usize)
+            };
+            cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, ptr_cstr);
             while vcol < want_vcol && *crate::globals::GraphPtr::of(ptr).borrow() == b' ' {
                 vcol += win_charsize(cstype, vcol, b" ", b' ' as i32, &mut csarg, 1).width;
                 ptr = ptr.wrapping_add(1);

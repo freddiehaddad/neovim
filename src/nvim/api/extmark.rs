@@ -1,4 +1,5 @@
 //! Extmark and namespace API functions (`src/nvim/api/extmark.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,

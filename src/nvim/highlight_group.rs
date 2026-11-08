@@ -1,4 +1,5 @@
 //! Code for managing highlight groups (`src/nvim/highlight_group.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{

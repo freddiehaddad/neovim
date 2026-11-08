@@ -1,4 +1,5 @@
 //! User defined function support (`src/nvim/eval/userfunc.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{

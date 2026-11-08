@@ -1,4 +1,5 @@
 //! Popup menu (PUM) (`src/nvim/popupmenu.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::private::helpers::{

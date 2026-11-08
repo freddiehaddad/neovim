@@ -1,4 +1,5 @@
 //! Mouse input, clicking, dragging, and scrolling (`src/nvim/mouse.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
 use crate::charset::{ascii_iswhite, vim_iswordc};

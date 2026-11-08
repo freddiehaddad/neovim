@@ -1,4 +1,5 @@
 //! Tabpage API functions (`src/nvim/api/tabpage.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,

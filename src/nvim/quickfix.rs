@@ -1,4 +1,5 @@
 //! Quickfix and location list commands and functions (`src/nvim/quickfix.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{boolean_obj, cstr_as_obj, cstr_as_string, cstrn_as_string};
 use crate::arglist::{ML_EMPTY, get_arglist_exp};

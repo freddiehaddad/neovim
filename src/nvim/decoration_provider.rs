@@ -1,4 +1,5 @@
 //! Decoration provider management and invocation (`src/nvim/decoration_provider.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{

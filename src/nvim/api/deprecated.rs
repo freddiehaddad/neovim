@@ -1,4 +1,5 @@
 //! Deprecated API functions (`src/nvim/api/deprecated.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};

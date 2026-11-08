@@ -1,4 +1,5 @@
 //! Functions for Arabic language shaping (`src/nvim/arabic.c`).
+#![forbid(unsafe_code)]
 
 use crate::option_vars::*;
 

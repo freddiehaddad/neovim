@@ -1,4 +1,5 @@
 //! Functions for command-line completion (`src/nvim/cmdexpand.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::command::is_user_cmdidx;
 use crate::api::private::helpers::{api_clear_error, api_free_object, cstr_as_string};

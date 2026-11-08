@@ -1,4 +1,5 @@
 //! Handling of cursor and mouse pointer shapes in various modes (`src/nvim/cursor_shape.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string};
 use crate::api::private::validate::{

@@ -1,4 +1,5 @@
 //! Multicursor tracking, preview, and cascade replay (`src/nvim/mcursor.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, nvim_buf_set_text};
 use crate::api::extmark::nvim_create_namespace;
@@ -81,7 +82,6 @@ use crate::strings::format_to_buf;
 use crate::textformat::{InsState, Oparg};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
 use std::ffi::CStr;
-use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
     data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
@@ -366,13 +366,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     let mut ctx = cursors()[cursoridx].clone();
     let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
         let a = &atom_st().borrow_mut().g_atoms.as_slice()[atomidx];
-        (
-            a.keys.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
-            a.r#type,
-            a.spec.cmd,
-            a.spec.cmd2,
-            a.remap,
-        )
+        (a.keys.clone(), a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
     };
 
     if !handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
@@ -382,7 +376,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     if ctx.mark != 0 && !extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, &mut ctx.pos) {
         return;
     }
-    let atom_keys_opt = (!atom_keys.is_null()).then(|| unsafe { CStr::from_ptr(atom_keys) });
+    let atom_keys_opt = atom_keys.as_deref();
     if ctx.visual.vi_start.lnum == 0 && atom_keys_opt.unwrap_or(c"").to_bytes().starts_with(b"gv") {
         return;
     }

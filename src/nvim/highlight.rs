@@ -1,4 +1,5 @@
 //! Low-level code for UI and syntax highlighting (`src/nvim/highlight.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,

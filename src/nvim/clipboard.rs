@@ -1,4 +1,5 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{api_clear_string, cstr_to_string};
 use crate::eval::typval::{

@@ -1,4 +1,5 @@
 //! VTerm mouse event encoding (`src/nvim/vterm/mouse.c`).
+#![forbid(unsafe_code)]
 
 use crate::math::xctz;
 use crate::mbyte::utf_char2slice;

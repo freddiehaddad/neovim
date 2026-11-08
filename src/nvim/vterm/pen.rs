@@ -1,4 +1,5 @@
 //! VTerm pen and SGR color/attribute handling (`src/nvim/vterm/pen.c`).
+#![forbid(unsafe_code)]
 
 use crate::vterm::keyboard::{VTermColor, VTermPen, VTermStateFull};
 use crate::vterm::mouse::VTermPos;

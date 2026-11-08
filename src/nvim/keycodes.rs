@@ -1,4 +1,5 @@
 //! Keycode definitions and `<key>` notation translation (`src/nvim/keycodes.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::validate::NvimString;
 use crate::charset::{ascii_isalpha, is_special, transchar, vim_isprintc, vim_str2nr};

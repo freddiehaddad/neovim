@@ -1,4 +1,5 @@
 //! Code for updating all the windows on the screen (`src/nvim/drawscreen.c`).
+#![forbid(unsafe_code)]
 
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::buffer::{

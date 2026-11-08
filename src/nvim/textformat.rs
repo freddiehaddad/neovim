@@ -1,4 +1,5 @@
 //! Text formatting functions (`src/nvim/textformat.c`).
+#![forbid(unsafe_code)]
 
 use crate::change::{
     COM_END, COM_FIRST, COM_MIDDLE, COM_START, OPENLINE_COM_LIST, OPENLINE_DELSPACES,

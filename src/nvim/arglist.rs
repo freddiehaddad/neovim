@@ -1,4 +1,5 @@
 //! Functions for dealing with the argument list (`src/nvim/arglist.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::{
     BLN_CURBUF, BLN_LISTED, Bufref, buf_hide, buf_is_empty, buflist_add, buflist_findnr_opt,

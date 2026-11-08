@@ -1,4 +1,5 @@
 //! Input engine command-atom policy layer (`src/nvim/input_cmdatom.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     api_free_dict, array_obj, boolean_obj, cstr_to_obj, cstr_to_string, dict_obj, integer_obj,

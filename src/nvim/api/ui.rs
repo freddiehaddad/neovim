@@ -1,4 +1,5 @@
 //! Remote UI API and msgpack redraw packing (`src/nvim/api/ui.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,

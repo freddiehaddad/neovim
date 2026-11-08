@@ -1,4 +1,5 @@
 //! Global variables for settable options (`src/nvim/option_vars.h`).
+#![forbid(unsafe_code)]
 
 use crate::eval::typval::Callback;
 use crate::option::OptInt;
