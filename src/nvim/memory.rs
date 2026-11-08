@@ -255,18 +255,6 @@ pub fn free_items<T>(items: crate::globals::GraphPtr<T>) {
     raw_dealloc(items.as_ptr().cast::<c_void>());
 }
 
-/// Portable `strnlen` (`xstrnlen`).
-pub fn xstrnlen(s: *const std::ffi::c_char, n: usize) -> usize {
-    if s.is_null() {
-        return 0;
-    }
-    let mut len = 0;
-    while len < n && unsafe { *s.add(len) } != 0 {
-        len += 1;
-    }
-    len
-}
-
 /// Safe O(1) sub-slicing of a `&CStr`.
 pub trait CStrSubslice<'a> {
     fn advance(self, n: usize) -> &'a CStr;
@@ -277,7 +265,7 @@ impl<'a> CStrSubslice<'a> for &'a CStr {
     fn advance(self, n: usize) -> &'a CStr {
         let bytes = self.to_bytes_with_nul();
         let off = n.min(bytes.len() - 1);
-        unsafe { CStr::from_bytes_with_nul_unchecked(&bytes[off..]) }
+        CStr::from_bytes_with_nul(&bytes[off..]).unwrap_or(c"")
     }
 }
 
@@ -295,10 +283,10 @@ impl<'a> CStrSubslice<'a> for &mut &'a CStr {
     }
 }
 
-/// Construct a `&CStr` in O(1) from a single-line byte slice whose trailing byte is NUL.
+/// Construct a `&CStr` from a single-line byte slice whose trailing byte is NUL.
 #[inline(always)]
 pub fn cstr_from_bytes_with_nul(bytes: &[u8]) -> &CStr {
-    unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
+    CStr::from_bytes_with_nul(bytes).unwrap_or_else(|_| bytes_as_cstr(bytes))
 }
 
 /// View a byte slice up to the first NUL byte (or the whole slice if no NUL is present).
@@ -712,7 +700,7 @@ mod tests {
         let big = arena_alloc(&mut arena, 8192, true);
         assert!(!big.is_null());
         assert_eq!(
-            unsafe { CStr::from_ptr(s1.as_ptr().cast()) }
+            bytes_as_cstr(crate::globals::GraphPtr::raw_slice(s1.as_ptr(), 12))
                 .to_str()
                 .unwrap(),
             "hello arena"

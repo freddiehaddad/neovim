@@ -575,7 +575,7 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
 
 fn string_compare(s1: &CStr, s2: &CStr) -> i32 {
     if excmds_st().sort_lc {
-        return unsafe { strcoll(s1.as_ptr(), s2.as_ptr()) };
+        return strcoll(s1, s2);
     }
     if excmds_st().sort_ic {
         s1.to_bytes()

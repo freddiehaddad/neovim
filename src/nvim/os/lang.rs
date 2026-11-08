@@ -88,6 +88,26 @@ unsafe extern "C" {
 
     fn towupper(wc: wint_t) -> wint_t;
     fn towlower(wc: wint_t) -> wint_t;
+
+    #[link_name = "strcoll"]
+    fn c_strcoll(s1: *const std::ffi::c_char, s2: *const std::ffi::c_char) -> i32;
+    #[link_name = "strerror"]
+    fn c_strerror(errnum: i32) -> *mut std::ffi::c_char;
+}
+
+#[inline]
+pub fn strcoll(s1: &CStr, s2: &CStr) -> i32 {
+    unsafe { c_strcoll(s1.as_ptr(), s2.as_ptr()) }
+}
+
+#[inline]
+pub fn strerror(errnum: i32) -> &'static CStr {
+    let p = unsafe { c_strerror(errnum) };
+    if p.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(p) }
+    }
 }
 
 #[cfg(windows)]

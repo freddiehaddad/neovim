@@ -1362,7 +1362,8 @@ pub fn set_context_in_map_cmd(
             }
             break;
         }
-        xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg);
+        xp.xp_pattern =
+            crate::strings::OwnedSlice::from_cstr(unsafe { CStr::from_ptr(arg.cast()) });
     }
 
     None

@@ -2119,7 +2119,7 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
     };
     if !info.item_compare_numeric {
         if info.item_compare_lc {
-            res = unsafe { strcoll(p1.as_ptr(), p2.as_ptr()) };
+            res = strcoll(p1, p2);
         } else if info.item_compare_ic {
             res = p1
                 .to_bytes()

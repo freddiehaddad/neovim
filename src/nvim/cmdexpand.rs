@@ -3527,12 +3527,11 @@ fn set_context_in_unlet_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :language command.
 fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_ptr = arg.as_ptr().cast::<u8>();
     let bytes = arg.to_bytes();
     let p_rem = crate::charset::skiptowhite_slice(bytes);
     if p_rem.is_empty() {
         xp.xp_context = EXPAND_LANGUAGE;
-        xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg_ptr);
+        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
     } else {
         let n = bytes.len() - p_rem.len();
         let word = &bytes[..n];
@@ -3543,9 +3542,8 @@ fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
         {
             xp.xp_context = EXPAND_LOCALES;
             let rest = crate::charset::skipwhite_slice(p_rem);
-            xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(
-                arg_ptr.wrapping_add(bytes.len() - rest.len()),
-            );
+            xp.xp_pattern =
+                crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(bytes.len() - rest.len());
         } else {
             xp.xp_context = EXPAND_NOTHING;
         }
@@ -3554,9 +3552,8 @@ fn set_context_in_lang_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Set the completion context for the :breakadd command.
 fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
-    let arg_ptr = arg.as_ptr().cast::<u8>();
     xp.xp_context = EXPAND_BREAKPOINT;
-    xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg_ptr);
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
 
     if cmdidx == Cmdidx::CmdBreakadd {
         cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
@@ -3590,12 +3587,12 @@ fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
             EXPAND_USER_FUNC
         };
         xp.xp_pattern =
-            crate::strings::OwnedSlice::from_ptr(arg_ptr.wrapping_add(bytes.len() - rem.len()));
+            crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(bytes.len() - rem.len());
     } else if let Some(after_expr) = p_rem.strip_prefix(b"expr ") {
         let rem = crate::charset::skipwhite_slice(after_expr);
         xp.xp_context = EXPAND_EXPRESSION;
         xp.xp_pattern =
-            crate::strings::OwnedSlice::from_ptr(arg_ptr.wrapping_add(bytes.len() - rem.len()));
+            crate::strings::OwnedSlice::from_cstr(arg).wrapping_add(bytes.len() - rem.len());
     }
 }
 
@@ -4069,7 +4066,6 @@ fn set_context_by_cmdname<'a>(
 
 /// Parse one command from `buff` and set completion context in `xp`.
 fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'a CStr> {
-    let buff = buff_cstr.as_ptr().cast::<u8>();
     let mut ea: Exarg = Exarg::new();
     let mut context: i32 = EXPAND_NOTHING;
     let mut forceit = false;
@@ -4221,11 +4217,11 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 
     let buff_bytes = buff_cstr.to_bytes();
     let mut idx = 0usize;
-    xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(buff);
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr);
     while idx < buff_bytes.len() {
         if matches!(buff_bytes[idx], b' ' | TAB) {
             idx += 1;
-            xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(buff.wrapping_add(idx));
+            xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr).wrapping_add(idx);
         } else {
             if buff_bytes[idx] == b'\\' && idx + 1 < buff_bytes.len() {
                 idx += 1;
@@ -5788,9 +5784,9 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         xpc.xp_pattern_len = (xpc.xp_pattern).len();
         xpc.xp_col = cmdline_len;
     } else {
-        xpc.xp_pattern = crate::strings::OwnedSlice::from_ptr(pattern);
+        xpc.xp_pattern = crate::strings::OwnedSlice::from_cstr(pattern_cstr);
         xpc.xp_pattern_len = (xpc.xp_pattern).len();
-        xpc.xp_line = crate::strings::OwnedSlice::from_ptr(pattern);
+        xpc.xp_line = crate::strings::OwnedSlice::from_cstr(pattern_cstr);
 
         xpc.xp_context = cmdcomplete_str_to_type(type_str.to_bytes());
         match xpc.xp_context {

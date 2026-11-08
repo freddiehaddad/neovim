@@ -599,11 +599,11 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     }
                 }
 
-                if path_with_url(unsafe { CStr::from_ptr(dirptrs[0].cast()) }.to_bytes()) {
-                    let dir_len = crate::memory::xstrnlen(dirptrs[0].cast(), file_path.size);
-                    stackp.ffs_filearray = vec![crate::memory::bytes_to_cstring(unsafe {
-                        std::slice::from_raw_parts(dirptrs[0].cast::<u8>(), dir_len)
-                    })];
+                let dir0_bytes = unsafe { CStr::from_ptr(dirptrs[0].cast()) }.to_bytes();
+                if path_with_url(dir0_bytes) {
+                    let dir_len = file_path.size.min(dir0_bytes.len());
+                    stackp.ffs_filearray =
+                        vec![crate::memory::bytes_to_cstring(&dir0_bytes[..dir_len])];
                 } else {
                     let dir_cstrs: Vec<&std::ffi::CStr> = dirptrs
                         .iter()

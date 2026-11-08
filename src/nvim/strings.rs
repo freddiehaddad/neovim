@@ -1,4 +1,5 @@
 //! String manipulation functions and Vimscript string builtins (`src/nvim/strings.c`).
+#![forbid(unsafe_code)]
 
 use crate::charset::{
     STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE, ascii_iswhite,
@@ -58,21 +59,7 @@ const E_POSITIONAL_TYPE_INCONSISTENT: &CStr =
     c"E1504: Positional argument %d type used inconsistently: %s/%s";
 const E_INVALID_FORMAT_SPECIFIER: &CStr = c"E1505: Invalid format specifier: %s";
 
-unsafe extern "C" {
-    pub fn strcoll(s1: *const c_char, s2: *const c_char) -> i32;
-    #[link_name = "strerror"]
-    fn c_strerror(errnum: i32) -> *mut c_char;
-}
-
-#[inline]
-pub fn strerror(errnum: i32) -> &'static CStr {
-    let p = unsafe { c_strerror(errnum) };
-    if p.is_null() {
-        c""
-    } else {
-        unsafe { CStr::from_ptr(p) }
-    }
-}
+pub use crate::os::lang::{strcoll, strerror};
 
 pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
@@ -131,24 +118,6 @@ impl<T> SliceBaseAddr for *mut T {
     }
 }
 
-pub trait RawCStrPtr {
-    fn into_raw_c_char_ptr(self) -> *const c_char;
-}
-
-impl<T> RawCStrPtr for *const T {
-    #[inline(always)]
-    fn into_raw_c_char_ptr(self) -> *const c_char {
-        self.cast()
-    }
-}
-
-impl<T> RawCStrPtr for *mut T {
-    #[inline(always)]
-    fn into_raw_c_char_ptr(self) -> *const c_char {
-        self.cast()
-    }
-}
-
 #[must_use]
 #[derive(Clone, Default, Debug)]
 pub struct OwnedSlice {
@@ -204,16 +173,6 @@ impl OwnedSlice {
     #[inline]
     pub fn from_bytes(b: &[u8]) -> Self {
         Self::from_bytes_with_addr(b, b.as_ptr() as usize)
-    }
-
-    #[inline]
-    pub fn from_ptr(p: impl RawCStrPtr) -> Self {
-        let ptr = p.into_raw_c_char_ptr();
-        if ptr.is_null() {
-            Self::NULL
-        } else {
-            Self::from_cstr(unsafe { CStr::from_ptr(ptr) })
-        }
     }
 
     #[inline]

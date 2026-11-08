@@ -1,4 +1,5 @@
 //! `xxd`: hexdump and reverse-hexdump utility (`src/xxd/xxd.c`).
+#![deny(unsafe_code)]
 
 use std::env;
 use std::fs::{File, OpenOptions};
@@ -207,19 +208,19 @@ const fn get_color_char(e: u8, ebcdic: bool) -> u8 {
     }
 }
 
-fn enable_color() -> bool {
-    if !io::stdout().is_terminal() {
-        return false;
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod win_console {
+    const STD_OUTPUT_HANDLE: u32 = (-11i32) as u32;
+    const ENABLE_VIRTUAL_TERMINAL_PROCESSING: u32 = 0x0004;
+
+    unsafe extern "system" {
+        fn GetStdHandle(nStdHandle: u32) -> *mut std::ffi::c_void;
+        fn GetConsoleMode(hConsoleHandle: *mut std::ffi::c_void, lpMode: *mut u32) -> i32;
+        fn SetConsoleMode(hConsoleHandle: *mut std::ffi::c_void, dwMode: u32) -> i32;
     }
-    #[cfg(windows)]
-    {
-        const STD_OUTPUT_HANDLE: u32 = (-11i32) as u32;
-        const ENABLE_VIRTUAL_TERMINAL_PROCESSING: u32 = 0x0004;
-        unsafe extern "system" {
-            fn GetStdHandle(nStdHandle: u32) -> *mut std::ffi::c_void;
-            fn GetConsoleMode(hConsoleHandle: *mut std::ffi::c_void, lpMode: *mut u32) -> i32;
-            fn SetConsoleMode(hConsoleHandle: *mut std::ffi::c_void, dwMode: u32) -> i32;
-        }
+
+    pub fn enable_vt_processing() -> bool {
         unsafe {
             let out = GetStdHandle(STD_OUTPUT_HANDLE);
             let mut mode: u32 = 0;
@@ -227,6 +228,16 @@ fn enable_color() -> bool {
             mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             SetConsoleMode(out, mode) != 0
         }
+    }
+}
+
+fn enable_color() -> bool {
+    if !io::stdout().is_terminal() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        win_console::enable_vt_processing()
     }
     #[cfg(not(windows))]
     {
