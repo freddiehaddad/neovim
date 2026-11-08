@@ -287,18 +287,170 @@ impl Default for Regmmatch {
     }
 }
 
-pub type RegLineSlice = crate::strings::ByteSlice;
-pub const REG_LINE_NULL: RegLineSlice = crate::strings::BYTE_SLICE_NULL;
-pub use crate::strings::ByteSliceExt as RegLineExt;
+const REG_LINE_SLOTS: usize = 64;
+
+#[derive(Clone, Copy, Default, Debug)]
+pub struct RegLineSlice {
+    slot: u16,
+    is_some: bool,
+    off: u32,
+    addr: usize,
+}
+
+impl PartialEq for RegLineSlice {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (self.is_some, other.is_some) {
+            (false, false) => true,
+            (true, true) => self.addr == other.addr,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for RegLineSlice {}
+
+pub const REG_LINE_NULL: RegLineSlice = RegLineSlice {
+    slot: 0,
+    is_some: false,
+    off: 0,
+    addr: 0,
+};
+
+impl RegLineSlice {
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        !self.is_some
+    }
+
+    #[inline(always)]
+    pub const fn addr(self) -> usize {
+        if self.is_some { self.addr } else { 0 }
+    }
+
+    #[inline(always)]
+    fn raw_slot_bytes(self) -> &'static [u8] {
+        if !self.is_some {
+            return &[];
+        }
+        let b = &re_st().borrow().line_slots[self.slot as usize];
+        let start = (self.off as usize).min(b.len());
+        &b[start..]
+    }
+
+    #[inline(always)]
+    pub fn first_byte(self) -> u8 {
+        self.raw_slot_bytes().first().copied().unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub fn is_empty(self) -> bool {
+        self.first_byte() == 0
+    }
+
+    #[inline(always)]
+    pub fn as_bytes(self) -> &'static [u8] {
+        if !self.is_some {
+            return &[];
+        }
+        let b = &re_st().borrow().line_slots[self.slot as usize];
+        let end = b.len().saturating_sub(1);
+        let start = (self.off as usize).min(end);
+        &b[start..end]
+    }
+
+    #[inline(always)]
+    pub fn unwrap_or(self, default: &'static [u8]) -> &'static [u8] {
+        if self.is_some {
+            self.raw_slot_bytes()
+        } else {
+            default
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_cstr(self) -> &'static CStr {
+        let b = self.raw_slot_bytes();
+        CStr::from_bytes_until_nul(b).unwrap_or(c"")
+    }
+
+    #[inline(always)]
+    pub fn slice(self, len: usize) -> &'static [u8] {
+        let b = self.raw_slot_bytes();
+        &b[..len.min(b.len())]
+    }
+
+    #[inline(always)]
+    pub fn wrapping_add(self, n: usize) -> Self {
+        if !self.is_some {
+            return REG_LINE_NULL;
+        }
+        let b = &re_st().borrow().line_slots[self.slot as usize];
+        let max_off = b.len().saturating_sub(1);
+        let cur_off = self.off as usize;
+        let new_off = (cur_off + n).min(max_off);
+        let delta = new_off.saturating_sub(cur_off);
+        Self {
+            slot: self.slot,
+            is_some: true,
+            off: new_off as u32,
+            addr: self.addr.wrapping_add(delta),
+        }
+    }
+
+    #[inline(always)]
+    pub const fn offset_from(self, base: Self) -> usize {
+        self.addr().saturating_sub(base.addr())
+    }
+
+    #[inline(always)]
+    pub fn offset_in(self, base: Self, d: isize) -> Self {
+        if d >= 0 {
+            self.wrapping_add(d as usize)
+        } else {
+            let off = self.offset_from(base).saturating_sub((-d) as usize);
+            base.wrapping_add(off)
+        }
+    }
+
+    #[inline(always)]
+    pub fn span_to(self, end: Self) -> &'static [u8] {
+        self.slice(end.offset_from(self))
+    }
+
+    #[inline(always)]
+    pub const fn before(self, other: Self) -> bool {
+        self.is_some && other.is_some && self.addr < other.addr
+    }
+}
 
 #[inline(always)]
 pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
-    RegLineSlice::from_cstr(s)
+    let bytes = s.to_bytes_with_nul();
+    let addr = s.as_ptr() as usize;
+    let mut st = re_st();
+    let cur = st.cur_line_slot;
+    if st.line_slot_addrs[cur] != addr || st.line_slots[cur].as_slice() != bytes {
+        let next = (cur + 1) % REG_LINE_SLOTS;
+        st.cur_line_slot = next;
+        st.line_slot_addrs[next] = addr;
+        st.line_slots[next].clear();
+        st.line_slots[next].extend_from_slice(bytes);
+    }
+    RegLineSlice {
+        slot: st.cur_line_slot as u16,
+        is_some: true,
+        off: 0,
+        addr,
+    }
 }
 
 #[inline(always)]
 pub fn reg_line_from_opt_cstr(s: Option<&std::ffi::CStr>) -> RegLineSlice {
-    RegLineSlice::from_opt_cstr(s)
+    match s {
+        Some(s) => reg_line_from_cstr(s),
+        None => REG_LINE_NULL,
+    }
 }
 
 #[repr(C)]
@@ -328,18 +480,20 @@ impl Regmatch {
     }
 
     #[inline(always)]
-    pub fn span_bytes(&self, idx: usize) -> &'static [u8] {
+    pub fn span_bytes(&self, idx: usize) -> &[u8] {
         self.startp[idx].span_to(self.endp[idx])
     }
 
     #[inline(always)]
     pub fn start_offset(&self, idx: usize, base: &std::ffi::CStr) -> usize {
-        self.startp[idx].offset_from(reg_line_from_cstr(base))
+        self.startp[idx]
+            .addr()
+            .saturating_sub(base.as_ptr() as usize)
     }
 
     #[inline(always)]
     pub fn end_offset(&self, idx: usize, base: &std::ffi::CStr) -> usize {
-        self.endp[idx].offset_from(reg_line_from_cstr(base))
+        self.endp[idx].addr().saturating_sub(base.as_ptr() as usize)
     }
 
     #[inline(always)]
@@ -1298,6 +1452,9 @@ pub(super) struct RegexpState {
     pub(super) nfa_endp: Option<SaveSe>,
     pub(super) nfa_ll_index: usize,
     pub(super) regexp_engine: i32,
+    pub(super) line_slots: [Vec<u8>; REG_LINE_SLOTS],
+    pub(super) line_slot_addrs: [usize; REG_LINE_SLOTS],
+    pub(super) cur_line_slot: usize,
 }
 
 impl RegexpState {
@@ -1388,6 +1545,9 @@ impl RegexpState {
             nfa_endp: None,
             nfa_ll_index: 0,
             regexp_engine: 0,
+            line_slots: [const { Vec::new() }; REG_LINE_SLOTS],
+            line_slot_addrs: [0; REG_LINE_SLOTS],
+            cur_line_slot: 0,
         }
     }
 }
@@ -2366,13 +2526,13 @@ pub(super) fn match_with_backref(
         if re_st().reg_tofree.is_empty()
             || re_st().rex.line.addr() != re_st().reg_tofree.as_ptr() as usize
         {
-            let line_bytes = re_st().rex.line.as_cstr().to_bytes_with_nul();
+            let line_bytes = re_st().rex.line.as_cstr().to_bytes_with_nul().to_vec();
             let len = line_bytes.len() - 1 + 51;
             let off = re_st().rex.input_off();
             if re_st().reg_tofree.len() < len {
                 re_st().reg_tofree.resize(len, 0);
             }
-            re_st().reg_tofree[..line_bytes.len()].copy_from_slice(line_bytes);
+            re_st().reg_tofree[..line_bytes.len()].copy_from_slice(&line_bytes);
             re_st().rex.line =
                 reg_line_from_cstr(crate::memory::bytes_as_cstr(&re_st().reg_tofree));
             re_st().rex.input = re_st().rex.line.wrapping_add(off);

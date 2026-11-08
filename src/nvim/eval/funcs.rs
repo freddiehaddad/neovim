@@ -5209,12 +5209,12 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     }
                     SomeMatchType::SomeMatchList => {
                         for i in 0..NSUBEXP {
-                            if regmatch.endp[i].is_none() {
+                            if regmatch.endp[i].is_null() {
                                 tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
                             } else {
                                 tv_list_append_string(
                                     rettv.vval.v_list_ref(),
-                                    Some(crate::regexp::RegLineExt::as_cstr(regmatch.startp[i])),
+                                    Some(regmatch.startp[i].as_cstr()),
                                     regmatch.span_len(i) as isize,
                                 );
                             }
@@ -5301,12 +5301,12 @@ fn get_matches_in_str(
             let sml = tv_list_alloc((NSUBEXP - 1) as isize);
             tv_dict_add_list(&mut *d, c"submatches", Some(sml));
             for i in 1..NSUBEXP {
-                if rmp.endp[i].is_none() {
+                if rmp.endp[i].is_null() {
                     tv_list_append_string(&mut *sml, Some(c""), 0);
                 } else {
                     tv_list_append_string(
                         &mut *sml,
-                        Some(crate::regexp::RegLineExt::as_cstr(rmp.startp[i])),
+                        Some(rmp.startp[i].as_cstr()),
                         rmp.span_len(i) as isize,
                     );
                 }

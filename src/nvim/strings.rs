@@ -78,8 +78,76 @@ pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
 pub type RawCCharPtrMut = *mut c_char;
 
-pub type ByteSlice = Option<&'static [u8]>;
-pub const BYTE_SLICE_NULL: ByteSlice = None;
+pub trait SliceBaseAddr {
+    fn base_addr(self) -> usize;
+}
+
+impl SliceBaseAddr for usize {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self
+    }
+}
+
+impl SliceBaseAddr for OwnedSlice {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self.addr
+    }
+}
+
+impl SliceBaseAddr for &OwnedSlice {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self.addr
+    }
+}
+
+impl SliceBaseAddr for &CStr {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
+}
+
+impl SliceBaseAddr for &[u8] {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self.as_ptr() as usize
+    }
+}
+
+impl<T> SliceBaseAddr for *const T {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self as usize
+    }
+}
+
+impl<T> SliceBaseAddr for *mut T {
+    #[inline(always)]
+    fn base_addr(self) -> usize {
+        self as usize
+    }
+}
+
+pub trait RawCStrPtr {
+    fn into_raw_c_char_ptr(self) -> *const c_char;
+}
+
+impl<T> RawCStrPtr for *const T {
+    #[inline(always)]
+    fn into_raw_c_char_ptr(self) -> *const c_char {
+        self.cast()
+    }
+}
+
+impl<T> RawCStrPtr for *mut T {
+    #[inline(always)]
+    fn into_raw_c_char_ptr(self) -> *const c_char {
+        self.cast()
+    }
+}
 
 #[must_use]
 #[derive(Clone, Default, Debug)]
@@ -139,10 +207,12 @@ impl OwnedSlice {
     }
 
     #[inline]
-    pub fn from_ptr(p: impl AsByteSlice) -> Self {
-        match p.into_byte_slice() {
-            Some(b) => Self::from_bytes_with_addr(b, b.as_ptr() as usize),
-            None => Self::NULL,
+    pub fn from_ptr(p: impl RawCStrPtr) -> Self {
+        let ptr = p.into_raw_c_char_ptr();
+        if ptr.is_null() {
+            Self::NULL
+        } else {
+            Self::from_cstr(unsafe { CStr::from_ptr(ptr) })
         }
     }
 
@@ -282,8 +352,8 @@ impl OwnedSlice {
     }
 
     #[inline]
-    pub fn offset_from(&self, base: impl AsByteSlice) -> usize {
-        self.addr.saturating_sub(base.byte_addr())
+    pub fn offset_from(&self, base: impl SliceBaseAddr) -> usize {
+        self.addr.saturating_sub(base.base_addr())
     }
 
     #[inline]
@@ -294,466 +364,6 @@ impl OwnedSlice {
             let off = self.offset_from(base.addr()).saturating_sub((-d) as usize);
             base.wrapping_add(off)
         }
-    }
-}
-
-impl From<ByteSlice> for OwnedSlice {
-    #[inline]
-    fn from(b: ByteSlice) -> Self {
-        match b {
-            Some(s) => Self::from_bytes(s),
-            None => Self::NULL,
-        }
-    }
-}
-
-impl AsByteSlice for usize {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        None
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self
-    }
-}
-
-impl AsByteSlice for OwnedSlice {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self.bytes.as_deref().and_then(byte_slice_from_bytes)
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.addr
-    }
-}
-
-impl AsByteSlice for &OwnedSlice {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self.bytes.as_deref().and_then(byte_slice_from_bytes)
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.addr
-    }
-}
-
-#[inline(always)]
-pub const fn byte_slice_from_bytes(b: &[u8]) -> ByteSlice {
-    Some(unsafe { &*(b as *const [u8]) })
-}
-
-#[allow(dead_code)]
-pub trait AsByteSlice: Sized {
-    fn into_byte_slice(self) -> ByteSlice;
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.into_byte_slice().addr()
-    }
-
-    #[inline(always)]
-    fn first_byte_val(self) -> u8 {
-        self.into_byte_slice().first_byte()
-    }
-
-    #[inline(always)]
-    fn byte_at_val(self, idx: usize) -> u8 {
-        self.into_byte_slice().byte_at(idx)
-    }
-
-    #[allow(clippy::wrong_self_convention)]
-    #[inline(always)]
-    fn is_empty_val(self) -> bool {
-        self.first_byte_val() == 0
-    }
-
-    #[inline(always)]
-    fn slice_len(self, len: usize) -> &'static [u8] {
-        self.into_byte_slice().slice(len)
-    }
-}
-
-impl AsByteSlice for ByteSlice {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.map_or(0, |b| b.as_ptr() as usize)
-    }
-}
-
-impl AsByteSlice for &[u8] {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self)
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl AsByteSlice for &mut [u8] {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self)
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl AsByteSlice for &Vec<u8> {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self.as_slice())
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl AsByteSlice for &std::ffi::CString {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self.to_bytes_with_nul())
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl<const N: usize> AsByteSlice for &[u8; N] {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self)
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl<const N: usize> AsByteSlice for &mut [u8; N] {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self)
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl AsByteSlice for &CStr {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        byte_slice_from_bytes(self.to_bytes_with_nul())
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-}
-
-impl AsByteSlice for Option<&CStr> {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self.and_then(|s| byte_slice_from_bytes(s.to_bytes_with_nul()))
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.map_or(0, |s| s.as_ptr() as usize)
-    }
-}
-
-impl<T> AsByteSlice for *const T {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        let p = self.cast::<c_char>();
-        if p.is_null() {
-            None
-        } else {
-            unsafe { CStr::from_ptr(p) }.into_byte_slice()
-        }
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self as usize
-    }
-
-    #[inline(always)]
-    fn first_byte_val(self) -> u8 {
-        let p = self.cast::<u8>();
-        if p.is_null() { 0 } else { unsafe { *p } }
-    }
-
-    #[inline(always)]
-    fn byte_at_val(self, idx: usize) -> u8 {
-        let p = self.cast::<u8>();
-        if p.is_null() {
-            0
-        } else {
-            unsafe { *p.wrapping_add(idx) }
-        }
-    }
-
-    #[inline(always)]
-    fn slice_len(self, len: usize) -> &'static [u8] {
-        let p = self.cast::<u8>();
-        if p.is_null() || len == 0 {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(p, len) }
-        }
-    }
-}
-
-impl<T> AsByteSlice for *mut T {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self.cast_const().into_byte_slice()
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self as usize
-    }
-
-    #[inline(always)]
-    fn first_byte_val(self) -> u8 {
-        self.cast_const().first_byte_val()
-    }
-
-    #[inline(always)]
-    fn byte_at_val(self, idx: usize) -> u8 {
-        self.cast_const().byte_at_val(idx)
-    }
-
-    #[inline(always)]
-    fn slice_len(self, len: usize) -> &'static [u8] {
-        self.cast_const().slice_len(len)
-    }
-}
-
-impl<T> AsByteSlice for crate::globals::GraphPtr<T> {
-    #[inline(always)]
-    fn into_byte_slice(self) -> ByteSlice {
-        self.as_ptr().into_byte_slice()
-    }
-
-    #[inline(always)]
-    fn byte_addr(self) -> usize {
-        self.as_ptr() as usize
-    }
-
-    #[inline(always)]
-    fn first_byte_val(self) -> u8 {
-        self.as_ptr().first_byte_val()
-    }
-
-    #[inline(always)]
-    fn byte_at_val(self, idx: usize) -> u8 {
-        self.as_ptr().byte_at_val(idx)
-    }
-
-    #[inline(always)]
-    fn slice_len(self, len: usize) -> &'static [u8] {
-        self.as_ptr().slice_len(len)
-    }
-}
-
-#[allow(dead_code)]
-pub trait ByteSliceExt: Copy {
-    fn from_cstr(s: &CStr) -> Self;
-    fn from_opt_cstr(s: Option<&CStr>) -> Self;
-    fn from_bytes(b: &[u8]) -> Self;
-    fn from_ptr(p: impl AsByteSlice) -> Self;
-    fn is_null(self) -> bool;
-    fn addr(self) -> usize;
-    fn as_ptr(self) -> *mut c_char;
-    fn cast<U>(self) -> *mut U;
-    fn first_byte(self) -> u8;
-    fn byte_at(self, idx: usize) -> u8;
-    fn is_empty(self) -> bool;
-    fn len(self) -> usize;
-    fn as_bytes(self) -> &'static [u8];
-    fn as_cstr(self) -> &'static CStr;
-    fn as_opt_cstr(self) -> Option<&'static CStr>;
-    fn to_cstring(self) -> std::ffi::CString;
-    fn slice(self, len: usize) -> &'static [u8];
-    fn wrapping_add(self, n: usize) -> Self;
-    fn skipwhite(self) -> Self;
-    fn offset_in(self, base: Self, d: isize) -> Self;
-    fn offset_from(self, base: impl AsByteSlice) -> usize;
-    fn span_to(self, end: Self) -> &'static [u8];
-    fn before(self, other: Self) -> bool;
-}
-
-impl ByteSliceExt for ByteSlice {
-    #[inline(always)]
-    fn from_cstr(s: &CStr) -> Self {
-        byte_slice_from_bytes(s.to_bytes_with_nul())
-    }
-
-    #[inline(always)]
-    fn from_opt_cstr(s: Option<&CStr>) -> Self {
-        s.and_then(Self::from_cstr)
-    }
-
-    #[inline(always)]
-    fn from_bytes(b: &[u8]) -> Self {
-        byte_slice_from_bytes(b)
-    }
-
-    #[inline(always)]
-    fn from_ptr(p: impl AsByteSlice) -> Self {
-        p.into_byte_slice()
-    }
-
-    #[inline(always)]
-    fn is_null(self) -> bool {
-        self.is_none()
-    }
-
-    #[inline(always)]
-    fn addr(self) -> usize {
-        self.map_or(0, |b| b.as_ptr() as usize)
-    }
-
-    #[inline(always)]
-    fn as_ptr(self) -> *mut c_char {
-        self.map_or(ptr::null_mut(), |b| b.as_ptr().cast_mut().cast())
-    }
-
-    #[inline(always)]
-    fn cast<U>(self) -> *mut U {
-        self.as_ptr().cast()
-    }
-
-    #[inline(always)]
-    fn first_byte(self) -> u8 {
-        self.and_then(|b| b.first().copied()).unwrap_or(0)
-    }
-
-    #[inline(always)]
-    fn byte_at(self, idx: usize) -> u8 {
-        self.and_then(|b| b.get(idx).copied()).unwrap_or(0)
-    }
-
-    #[inline(always)]
-    fn is_empty(self) -> bool {
-        self.first_byte() == 0
-    }
-
-    #[inline(always)]
-    fn len(self) -> usize {
-        self.as_bytes().len()
-    }
-
-    #[inline(always)]
-    fn as_bytes(self) -> &'static [u8] {
-        match self {
-            Some(b) => crate::memory::bytes_until_nul(b),
-            None => &[],
-        }
-    }
-
-    #[inline(always)]
-    fn as_cstr(self) -> &'static CStr {
-        match self {
-            Some(b) if !b.is_empty() => CStr::from_bytes_until_nul(b)
-                .unwrap_or_else(|_| unsafe { CStr::from_ptr(b.as_ptr().cast()) }),
-            _ => c"",
-        }
-    }
-
-    #[inline(always)]
-    fn as_opt_cstr(self) -> Option<&'static CStr> {
-        self.map(|b| {
-            if b.is_empty() {
-                c""
-            } else {
-                CStr::from_bytes_until_nul(b)
-                    .unwrap_or_else(|_| unsafe { CStr::from_ptr(b.as_ptr().cast()) })
-            }
-        })
-    }
-
-    #[inline(always)]
-    fn to_cstring(self) -> std::ffi::CString {
-        self.as_cstr().to_owned()
-    }
-
-    #[inline(always)]
-    fn slice(self, len: usize) -> &'static [u8] {
-        match self {
-            Some(b) => &b[..len.min(b.len())],
-            None => &[],
-        }
-    }
-
-    #[inline(always)]
-    fn wrapping_add(self, n: usize) -> Self {
-        self.map(|b| {
-            let max = if b.last() == Some(&0) {
-                b.len() - 1
-            } else {
-                b.len()
-            };
-            &b[n.min(max)..]
-        })
-    }
-
-    #[inline(always)]
-    fn skipwhite(self) -> Self {
-        self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
-    }
-
-    #[inline(always)]
-    fn offset_in(self, base: Self, d: isize) -> Self {
-        if d >= 0 {
-            self.wrapping_add(d as usize)
-        } else {
-            let off = self.offset_from(base).saturating_sub((-d) as usize);
-            base.wrapping_add(off)
-        }
-    }
-
-    #[inline(always)]
-    fn offset_from(self, base: impl AsByteSlice) -> usize {
-        self.addr().saturating_sub(base.byte_addr())
-    }
-
-    #[inline(always)]
-    fn span_to(self, end: Self) -> &'static [u8] {
-        self.slice(end.offset_from(self))
-    }
-
-    #[inline(always)]
-    fn before(self, other: Self) -> bool {
-        self.addr() < other.addr()
     }
 }
 
@@ -1688,6 +1298,7 @@ pub enum FmtVal<'a> {
     Unsigned(u64),
     Float(f64),
     CStr(Option<&'a CStr>),
+    Bytes(Option<&'a [u8]>),
 }
 
 impl<'a> FmtVal<'a> {
@@ -1698,6 +1309,7 @@ impl<'a> FmtVal<'a> {
             Self::Unsigned(v) => v as i64,
             Self::Float(v) => v as i64,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as i64),
+            Self::Bytes(b) => b.map_or(0, |s| s.as_ptr() as usize as i64),
         }
     }
 
@@ -1708,6 +1320,7 @@ impl<'a> FmtVal<'a> {
             Self::Unsigned(v) => v,
             Self::Float(v) => v as u64,
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as u64),
+            Self::Bytes(b) => b.map_or(0, |s| s.as_ptr() as usize as u64),
         }
     }
 
@@ -1717,7 +1330,7 @@ impl<'a> FmtVal<'a> {
             Self::Float(v) => v,
             Self::Signed(v) => v as f64,
             Self::Unsigned(v) => v as f64,
-            Self::CStr(_) => 0.0,
+            Self::CStr(_) | Self::Bytes(_) => 0.0,
         }
     }
 
@@ -1725,6 +1338,7 @@ impl<'a> FmtVal<'a> {
     fn as_addr(self) -> usize {
         match self {
             Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize),
+            Self::Bytes(b) => b.map_or(0, |s| s.as_ptr() as usize),
             Self::Signed(v) => v as usize,
             Self::Unsigned(v) => v as usize,
             Self::Float(_) => 0,
@@ -1735,6 +1349,16 @@ impl<'a> FmtVal<'a> {
     pub fn as_cstr(self) -> Option<&'a CStr> {
         match self {
             Self::CStr(s) => s,
+            Self::Bytes(b) => b.map(crate::memory::bytes_as_cstr),
+            Self::Signed(_) | Self::Unsigned(_) | Self::Float(_) => None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn as_bytes(self) -> Option<&'a [u8]> {
+        match self {
+            Self::CStr(s) => s.map(CStr::to_bytes),
+            Self::Bytes(b) => b.map(crate::memory::bytes_until_nul),
             Self::Signed(_) | Self::Unsigned(_) | Self::Float(_) => None,
         }
     }
@@ -1858,28 +1482,28 @@ impl<'a> IntoFmtVal<'a> for &'a &'a std::borrow::Cow<'a, CStr> {
 impl<'a> IntoFmtVal<'a> for &'a Vec<u8> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &&'a Vec<u8> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a mut Vec<u8> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a &'a mut Vec<u8> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
@@ -1942,77 +1566,77 @@ impl<'a> IntoFmtVal<'a> for &'a Option<&'a std::ffi::CString> {
 impl<'a> IntoFmtVal<'a> for &'a [u8] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &&'a [u8] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a mut [u8] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a &'a mut [u8] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a, const N: usize> IntoFmtVal<'a> for &'a [u8; N] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a, const N: usize> IntoFmtVal<'a> for &&'a [u8; N] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self.as_slice())))
+        FmtVal::Bytes(Some(self.as_slice()))
     }
 }
 
 impl<'a, const N: usize> IntoFmtVal<'a> for &'a mut [u8; N] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self)))
+        FmtVal::Bytes(Some(self))
     }
 }
 
 impl<'a, const N: usize> IntoFmtVal<'a> for &'a &'a mut [u8; N] {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(Some(crate::memory::bytes_as_cstr(self.as_slice())))
+        FmtVal::Bytes(Some(self.as_slice()))
     }
 }
 
 impl<'a> IntoFmtVal<'a> for Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+        FmtVal::Bytes(self)
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+        FmtVal::Bytes(*self)
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &&'a Option<&'a [u8]> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(self.map(crate::memory::bytes_as_cstr))
+        FmtVal::Bytes(**self)
     }
 }
 
@@ -2325,14 +1949,14 @@ fn vim_vsnprintf_typval_inner(
                             str_arg_slice = &uchar_arg;
                         }
                         b's' | b'S' => {
-                            let str_arg_opt: Option<&CStr> = if let Some(ref mut tvs_slice) = tvs {
-                                tv_str(tvs_slice, &mut arg_idx, &mut tofree)
+                            let str_arg_opt: Option<&[u8]> = if let Some(ref mut tvs_slice) = tvs {
+                                tv_str(tvs_slice, &mut arg_idx, &mut tofree).map(CStr::to_bytes)
                             } else {
-                                fmt_arg_val(fmt_args, &mut arg_idx).as_cstr()
+                                fmt_arg_val(fmt_args, &mut arg_idx).as_bytes()
                             };
 
-                            if let Some(s_cstr) = str_arg_opt {
-                                str_arg_slice = s_cstr.to_bytes();
+                            if let Some(s_bytes) = str_arg_opt {
+                                str_arg_slice = s_bytes;
                                 if !precision_specified {
                                     str_arg_l = str_arg_slice.len();
                                 } else if precision == 0 {
@@ -3130,10 +2754,11 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
-    let mut p = ByteSlice::from_cstr(tv_get_string(&argvars[0]));
+    let mut p = tv_get_string(&argvars[0]).to_bytes();
     while !p.is_empty() {
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(utf_ptr2char(p)));
-        p = p.wrapping_add(utf_ptr2len(p) as usize);
+        let step = (utf_ptr2len(p) as usize).min(p.len());
+        p = &p[step..];
     }
 }
 
@@ -3589,34 +3214,34 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
 
-    let mut in_str = ByteSlice::from_cstr(tv_get_string(&argvars[0]));
-    let fromstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
-    let tostr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
+    let mut in_str = tv_get_string(&argvars[0]).to_bytes();
+    let fromstr_cstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
+    let tostr_cstr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
-    let (Some(fromstr), Some(tostr)) = (fromstr, tostr) else {
+    let (Some(fromstr_cstr), Some(tostr_cstr)) = (fromstr_cstr, tostr_cstr) else {
         return;
     };
-    let fromstr = ByteSlice::from_cstr(fromstr);
-    let tostr = ByteSlice::from_cstr(tostr);
+    let fromstr = fromstr_cstr.to_bytes();
+    let tostr = tostr_cstr.to_bytes();
     let mut out: Vec<u8> = Vec::with_capacity(80);
 
     let mut first = true;
     while !in_str.is_empty() {
         let mut cpstr = in_str;
-        let inlen = utfc_ptr2len(in_str) as usize;
+        let inlen = (utfc_ptr2len(in_str) as usize).min(in_str.len());
         let mut cplen = inlen;
         let mut idx: i32 = 0;
         let mut p = fromstr;
         while !p.is_empty() {
-            let fromlen = utfc_ptr2len(p) as usize;
-            let in_slice = in_str.slice(inlen);
-            let p_slice = p.slice(fromlen);
+            let fromlen = (utfc_ptr2len(p) as usize).min(p.len());
+            let in_slice = &in_str[..inlen];
+            let p_slice = &p[..fromlen];
             if fromlen == inlen && in_slice == p_slice {
                 let mut tp = tostr;
                 while !tp.is_empty() {
-                    let tolen = utfc_ptr2len(tp) as usize;
+                    let tolen = (utfc_ptr2len(tp) as usize).min(tp.len());
                     if idx == 0 {
                         idx -= 1;
                         cplen = tolen;
@@ -3624,35 +3249,35 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                         break;
                     }
                     idx -= 1;
-                    tp = tp.wrapping_add(tolen);
+                    tp = &tp[tolen..];
                 }
                 if tp.is_empty() {
-                    semsg!(gettext(E_INVARG2), fromstr);
+                    semsg!(gettext(E_INVARG2), fromstr_cstr);
                     return;
                 }
                 break;
             }
             idx += 1;
-            p = p.wrapping_add(fromlen);
+            p = &p[fromlen..];
         }
 
-        if first && cpstr.addr() == in_str.addr() {
+        if first && ptr::eq(cpstr.as_ptr(), in_str.as_ptr()) {
             first = false;
             let mut tp = tostr;
             while !tp.is_empty() {
-                let tolen = utfc_ptr2len(tp) as usize;
+                let tolen = (utfc_ptr2len(tp) as usize).min(tp.len());
                 idx -= 1;
-                tp = tp.wrapping_add(tolen);
+                tp = &tp[tolen..];
             }
             if idx != 0 {
-                semsg!(gettext(E_INVARG2), fromstr);
+                semsg!(gettext(E_INVARG2), fromstr_cstr);
                 return;
             }
         }
 
-        out.extend_from_slice(cpstr.slice(cplen));
+        out.extend_from_slice(&cpstr[..cplen.min(cpstr.len())]);
 
-        in_str = in_str.wrapping_add(inlen);
+        in_str = &in_str[inlen..];
     }
 
     crate::eval::typval::tv_set_string_len(rettv, Some(&out));

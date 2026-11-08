@@ -3243,7 +3243,7 @@ pub fn find_pattern_in_path(
                     )
                 } else {
                     file_name_in_line(
-                        crate::regexp::RegLineExt::as_bytes(incl_regmatch.endp[0]),
+                        incl_regmatch.endp[0].as_bytes(),
                         0,
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,

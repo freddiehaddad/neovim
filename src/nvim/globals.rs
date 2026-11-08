@@ -908,7 +908,7 @@ impl EditorState {
 
     #[inline(always)]
     pub fn iobuff_cstr(&self) -> &'static std::ffi::CStr {
-        crate::strings::ByteSlice::from_ptr(self.iobuff.as_ptr()).as_cstr()
+        std::ffi::CStr::from_bytes_until_nul(&EDITOR_STATE.handle().borrow().iobuff).unwrap_or(c"")
     }
 
     #[inline(always)]
@@ -918,7 +918,8 @@ impl EditorState {
 
     #[inline(always)]
     pub fn name_buff_cstr(&self) -> &'static std::ffi::CStr {
-        crate::strings::ByteSlice::from_ptr(self.name_buff.as_ptr()).as_cstr()
+        std::ffi::CStr::from_bytes_until_nul(&EDITOR_STATE.handle().borrow().name_buff)
+            .unwrap_or(c"")
     }
 
     #[inline(always)]
@@ -1458,7 +1459,6 @@ impl<T> GraphPtr<T> {
     }
 }
 
-pub use crate::strings::ByteSliceExt;
 pub type WinPtr = GraphPtr<WinInfoInfo>;
 pub type BufPtr = GraphPtr<FileBuf>;
 pub type TabpagePtr = GraphPtr<TabPageInfo>;

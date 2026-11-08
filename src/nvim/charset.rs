@@ -902,36 +902,28 @@ impl CStrPtrSkip for *mut u8 {
     }
 }
 
-impl CStrPtrSkip for Option<&'static [u8]> {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.map(|b| &b[n.min(b.len().saturating_sub(1))..])
+#[inline]
+fn c_char_ptr_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
+    if p.is_null() {
+        &[]
+    } else {
+        unsafe { CStr::from_ptr(p) }.to_bytes()
     }
 }
 
 #[inline]
 pub fn skipwhite_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skipwhite_len(
-        crate::strings::ByteSlice::from_ptr(p.as_c_char_ptr()).as_bytes(),
-    ))
+    p.advance_bytes(skipwhite_len(c_char_ptr_bytes(p.as_c_char_ptr())))
 }
 
 #[inline]
 pub fn skiptowhite_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skiptowhite_len(
-        crate::strings::ByteSlice::from_ptr(p.as_c_char_ptr()).as_bytes(),
-    ))
+    p.advance_bytes(skiptowhite_len(c_char_ptr_bytes(p.as_c_char_ptr())))
 }
 
 #[inline]
 pub fn skiptowhite_esc_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skiptowhite_esc_len(
-        crate::strings::ByteSlice::from_ptr(p.as_c_char_ptr()).as_bytes(),
-    ))
+    p.advance_bytes(skiptowhite_esc_len(c_char_ptr_bytes(p.as_c_char_ptr())))
 }
 
 #[inline]

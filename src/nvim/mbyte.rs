@@ -74,8 +74,13 @@ impl<'a> StrCharInfo<'a> {
     }
 
     #[inline]
-    pub fn as_cstr(&self) -> &'static CStr {
-        crate::strings::ByteSlice::from_ptr(self.ptr.as_ptr()).as_cstr()
+    pub fn as_cstr(&self) -> &'a CStr {
+        if self.ptr.is_empty() {
+            c""
+        } else {
+            CStr::from_bytes_until_nul(self.ptr)
+                .unwrap_or_else(|_| unsafe { CStr::from_ptr(self.ptr.as_ptr().cast()) })
+        }
     }
 
     #[inline]
@@ -1155,31 +1160,31 @@ impl AsMbyteSlice for &crate::strings::OwnedSlice {
     }
 }
 
-impl AsMbyteSlice for Option<&[u8]> {
+impl AsMbyteSlice for crate::regexp::RegLineSlice {
     #[inline(always)]
     fn as_char_bytes(&self) -> &[u8] {
-        match *self {
-            Some(b) if !b.is_empty() && b[0] != 0 => {
-                if b[0] < 0x80 {
-                    &b[..1]
-                } else {
-                    &b[..b.len().min(MB_MAXCHAR as usize)]
-                }
+        let b = self.as_bytes();
+        if !b.is_empty() {
+            if b[0] < 0x80 {
+                &b[..1]
+            } else {
+                &b[..b.len().min(MB_MAXCHAR as usize)]
             }
-            _ => &[],
+        } else {
+            &[]
         }
     }
     #[inline(always)]
     fn as_cluster_bytes(&self) -> &[u8] {
-        match *self {
-            Some(b) if !b.is_empty() && b[0] != 0 => {
-                if b[0] < 0x80 && b.get(1).is_none_or(|&b1| b1 < 0x80) {
-                    &b[..1]
-                } else {
-                    &b[..b.len().min(64)]
-                }
+        let b = self.as_bytes();
+        if !b.is_empty() {
+            if b[0] < 0x80 && b.get(1).is_none_or(|&b1| b1 < 0x80) {
+                &b[..1]
+            } else {
+                &b[..b.len().min(64)]
             }
-            _ => &[],
+        } else {
+            &[]
         }
     }
 }
@@ -3201,37 +3206,38 @@ pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
 }
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
+    #[inline]
+    fn ptr_opt_cstr<'a>(p: *const u8) -> Option<&'a CStr> {
+        if p.is_null() {
+            None
+        } else {
+            Some(unsafe { CStr::from_ptr(p.cast()) })
+        }
+    }
+
     #[cfg(unix)]
-    let mut s = crate::strings::ByteSlice::from_ptr(unsafe { nl_langinfo(CODESET) });
+    let mut s_opt: Option<&CStr> = ptr_opt_cstr(unsafe { nl_langinfo(CODESET) });
     #[cfg(not(unix))]
-    let mut s = crate::strings::BYTE_SLICE_NULL;
+    let mut s_opt: Option<&CStr> = None;
 
     let mut env_buf = [0u8; 64];
-    if s.is_empty() {
-        s = crate::strings::ByteSlice::from_ptr(unsafe { setlocale(LC_CTYPE, ptr::null()) });
-        if s.is_empty() {
-            s = crate::strings::ByteSlice::from_opt_cstr(os_getenv_buf(c"LC_ALL", &mut env_buf));
-            if s.is_null() {
-                s = crate::strings::ByteSlice::from_opt_cstr(os_getenv_buf(
-                    c"LC_CTYPE",
-                    &mut env_buf,
-                ));
-                if s.is_null() {
-                    s = crate::strings::ByteSlice::from_opt_cstr(os_getenv_buf(
-                        c"LANG",
-                        &mut env_buf,
-                    ));
+    if s_opt.is_none_or(|s| s.to_bytes().is_empty()) {
+        s_opt = ptr_opt_cstr(unsafe { setlocale(LC_CTYPE, ptr::null()) });
+        if s_opt.is_none_or(|s| s.to_bytes().is_empty()) {
+            s_opt = os_getenv_buf(c"LC_ALL", &mut env_buf);
+            if s_opt.is_none() {
+                s_opt = os_getenv_buf(c"LC_CTYPE", &mut env_buf);
+                if s_opt.is_none() {
+                    s_opt = os_getenv_buf(c"LANG", &mut env_buf);
                 }
             }
         }
     }
 
-    if s.is_null() {
-        return None;
-    }
+    let s = s_opt?;
 
     let mut buf = [0u8; 50];
-    let mut s_full = s.as_bytes();
+    let mut s_full = s.to_bytes();
     if let Some(dot_idx) = s_full.iter().position(|&b| b == b'.') {
         let p_bytes = &s_full[dot_idx..];
         if dot_idx > 2
