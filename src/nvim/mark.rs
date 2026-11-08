@@ -23,7 +23,7 @@ use crate::fold::{FoldEntry, fold_mark_adjust, has_folding};
 use crate::globals::*;
 use crate::insert::beginline;
 use crate::lua::executor::nlua_call_excmd;
-use crate::mbyte::{ptr2cells, slice2cells, utfc_ptr2len};
+use crate::mbyte::slice2cells;
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_get;
 use crate::message::{
@@ -885,9 +885,7 @@ fn fname2fnum(fm: &Xfmark) {
         let Some(ref fname_cstr) = fm.fname else {
             return;
         };
-        let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
-
-        let fname_bytes = fname.as_bytes();
+        let fname_bytes = fname_cstr.to_bytes();
         if fname_bytes.first() == Some(&b'~')
             && fname_bytes
                 .get(1)
@@ -1003,21 +1001,20 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
         return c"-invalid-".to_owned();
     }
     debug_assert!(g_st().columns_global >= 0);
-    let line = crate::strings::ByteSlice::from_cstr(ml_get(mp.lnum)).skipwhite();
+    let line = crate::charset::skipwhite_slice(ml_get(mp.lnum).to_bytes());
     let max_bytes = line.len().min((g_st().columns_global as usize) * 5);
 
     let mut len: i32 = 0;
-    let mut p = line;
-    let end = line.wrapping_add(max_bytes);
-    while (p.as_ptr() as usize) < (end.as_ptr() as usize) && !p.is_empty() {
-        len += ptr2cells(p);
+    let mut off = 0usize;
+    while off < max_bytes {
+        len += slice2cells(&line[off..]);
         if len >= g_st().columns_global - lead_len {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        off += crate::mbyte::utfc_slice2len(&line[off..]);
     }
-    let keep = (((p).offset_from(line) as isize) as usize).min(max_bytes);
-    std::ffi::CString::new(line.slice(keep)).unwrap_or_default()
+    let keep = off.min(max_bytes);
+    std::ffi::CString::new(&line[..keep]).unwrap_or_default()
 }
 
 /// `:marks {arg}` (`ex_marks`).

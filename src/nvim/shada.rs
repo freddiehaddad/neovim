@@ -976,7 +976,6 @@ fn shada_read_file(file: Option<&CStr>, flags: i32) -> bool {
     let Some(fname_cstr) = shada_filename(file) else {
         return false;
     };
-    let fname = fname_cstr.as_ptr();
 
     let mut sd_reader = FileDescriptor::new();
     let of_ret = file_open(
@@ -992,7 +991,7 @@ fn shada_read_file(file: Option<&CStr>, flags: i32) -> bool {
         smsg!(
             0,
             gettext(c"Reading ShaDa file \"%s\"%s%s%s%s"),
-            crate::strings::ByteSlice::from_ptr(fname),
+            &fname_cstr,
             if (flags & K_SHA_DA_WANT_INFO) != 0 {
                 gettext(c" info")
             } else {
@@ -1021,7 +1020,7 @@ fn shada_read_file(file: Option<&CStr>, flags: i32) -> bool {
         if of_ret != UV_ENOENT || (flags & K_SHA_DA_MISSING_ERROR) != 0 {
             semsg!(
                 gettext(c"E886: System error while opening ShaDa file %s for reading: %s",),
-                crate::strings::ByteSlice::from_ptr(fname),
+                &fname_cstr,
                 uv_strerror(of_ret),
             );
         }
@@ -1199,14 +1198,7 @@ fn var_shada_iter(
         let mut i = 0;
         while i < hinum
             && (hashitem_empty(&harray[i])
-                || (var_flavour(
-                    crate::strings::ByteSlice::from_ptr(
-                        (harray[i].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    )
-                    .as_cstr()
-                    .to_bytes(),
-                ) & flavour)
-                    == 0)
+                || (var_flavour(harray[i].key_cstr().unwrap_or(c"").to_bytes()) & flavour) == 0)
         {
             i += 1;
         }
@@ -1221,14 +1213,7 @@ fn var_shada_iter(
     idx += 1;
     while idx < hinum {
         if !hashitem_empty(&harray[idx])
-            && (var_flavour(
-                crate::strings::ByteSlice::from_ptr(
-                    (harray[idx].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                )
-                .as_cstr()
-                .to_bytes(),
-            ) & flavour)
-                != 0
+            && (var_flavour(harray[idx].key_cstr().unwrap_or(c"").to_bytes()) & flavour) != 0
         {
             return Some(idx);
         }
@@ -1575,19 +1560,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
             }
             ShadaEntryType::SDItemBufferList => {
                 for item in &mut cur_entry.data.buffer_list_mut().buffers {
-                    let fname_ptr = item
-                        .fname
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let sfname = path_try_shorten_fname(
-                        crate::strings::ByteSlice::from_ptr(fname_ptr).as_opt_cstr(),
-                    );
-                    if let Some(buf) = buflist_new(
-                        crate::strings::ByteSlice::from_ptr(fname_ptr).as_opt_cstr(),
-                        sfname,
-                        0,
-                        BLN_LISTED,
-                    ) {
+                    let fname_opt = item.fname.as_deref();
+                    let sfname = path_try_shorten_fname(fname_opt);
+                    if let Some(buf) = buflist_new(fname_opt, sfname, 0, BLN_LISTED) {
                         buf.b_last_cursor = Fmark {
                             mark: item.pos,
                             fnum: 0,
@@ -1709,9 +1684,10 @@ fn shada_filename(file_arg: Option<&CStr>) -> Option<std::ffi::CString> {
             if file.is_none_or(|s| s.is_empty()) {
                 file = Some(shada_get_default_file());
             }
-            let name_buff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
             let len = expand_env(file.unwrap_or(c""), g_st().name_buff_bytes_mut());
-            return Some(std::ffi::CString::new(name_buff_ptr.slice(len)).unwrap_or_default());
+            return Some(
+                std::ffi::CString::new(&g_st().name_buff_bytes_mut()[..len]).unwrap_or_default(),
+            );
         }
     }
     Some(file.unwrap_or(c"").to_owned())
@@ -1767,18 +1743,12 @@ fn shada_pack_entry(
             dump_additional_data(&entry.additional_data, &mut sbuf);
         }
         ShadaEntryType::SDItemVariable => {
-            let gv_name_ptr = entry
-                .data
-                .global_var()
-                .name
-                .as_ref()
-                .map_or(ptr::null(), |s| s.as_ptr());
+            let gv_name_opt = entry.data.global_var().name.as_deref();
             let mut gv_val = entry.data.global_var().value.clone();
             let is_blob = gv_val.v_type == VarType::VarBlob;
             let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
-            let varname =
-                cstr_as_string(crate::strings::ByteSlice::from_ptr(gv_name_ptr).as_opt_cstr());
+            let varname = cstr_as_string(gv_name_opt);
             mpack_bin(varname, &mut sbuf);
             let mut vardesc = [0u8; 256];
             let prefix = b"variable g:";
@@ -1793,7 +1763,7 @@ fn shada_pack_entry(
                 ret = ShaDaWriteResult::SDWriteIgnError;
                 semsg!(
                     gettext(c"E574: Failed to write variable %s"),
-                    crate::strings::ByteSlice::from_ptr(gv_name_ptr)
+                    gv_name_opt.unwrap_or(c"")
                 );
                 return ret;
             }
@@ -1807,17 +1777,7 @@ fn shada_pack_entry(
             let arr_size = 1 + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
             mpack_bin(
-                cstr_as_string(
-                    crate::strings::ByteSlice::from_ptr(
-                        entry
-                            .data
-                            .sub_string()
-                            .sub
-                            .as_ref()
-                            .map_or(ptr::null(), |s| s.as_ptr()),
-                    )
-                    .as_opt_cstr(),
-                ),
+                cstr_as_string(entry.data.sub_string().sub.as_deref()),
                 &mut sbuf,
             );
             dump_additional_data(&entry.additional_data, &mut sbuf);
@@ -2237,12 +2197,6 @@ fn shada_read_when_writing(
                 let fm_mark = entry.data.filemark().mark;
                 let fm_name = entry.data.filemark().name;
                 let fname_cstr = entry.data.filemark().fname.as_deref().unwrap_or(c"");
-                let fname_ptr = entry
-                    .data
-                    .filemark()
-                    .fname
-                    .as_ref()
-                    .map_or(ptr::null(), |s| s.as_ptr());
                 if shada_removable(fname_cstr) {
                     shada_free_shada_entry(&mut entry);
                     continue;
@@ -2279,11 +2233,7 @@ fn shada_read_when_writing(
                         } else {
                             for buf in for_all_buffers_mut() {
                                 if buf.b_ffname.is_some()
-                                    && path_equal(
-                                        crate::strings::ByteSlice::from_ptr(fname_ptr).as_cstr(),
-                                        buf.ffname_cstr(),
-                                        K_PATH_CMP_LITERAL,
-                                    )
+                                    && path_equal(fname_cstr, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
                                 {
                                     let mut fm = Fmark::new();
                                     mark_get(
@@ -2441,13 +2391,7 @@ fn add_search_pattern(
                 is_last_used,
                 is_substitute_pattern,
                 highlighted: is_last_used && search_highlighted,
-                pat: cstr_as_string(
-                    crate::strings::ByteSlice::from_ptr(
-                        (get_search_pattern_ptr(is_substitute_pattern))
-                            .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                    )
-                    .as_opt_cstr(),
-                ),
+                pat: cstr_as_string(get_search_pattern_ptr(is_substitute_pattern)),
                 search_backward: !is_substitute_pattern && pat.off.dir == b'?',
             }),
             additional_data: pat.additional_data,
@@ -3123,11 +3067,7 @@ fn shada_open_tmp(
                 gettext(
                     c"E886: System error while opening temporary ShaDa file %s for writing: %s",
                 ),
-                crate::strings::ByteSlice::from_ptr(
-                    CStr::from_bytes_with_nul(&tempname_bytes)
-                        .unwrap_or_default()
-                        .as_ptr()
-                ),
+                CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default(),
                 uv_strerror(error),
             );
             return None;
@@ -3155,11 +3095,7 @@ fn shada_open_tmp(
     }
     semsg!(
         gettext(c"E138: All %s.tmp.X files exist, cannot write ShaDa file!"),
-        crate::strings::ByteSlice::from_ptr(
-            CStr::from_bytes_with_nul(fname_bytes)
-                .unwrap_or_default()
-                .as_ptr()
-        ),
+        CStr::from_bytes_with_nul(fname_bytes).unwrap_or_default(),
     );
     None
 }
@@ -3170,14 +3106,15 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         return false;
     };
     let fname_bytes = fname_cstr.into_bytes_with_nul();
-    let fname = crate::strings::ByteSlice::from_bytes(&fname_bytes);
+    let fname_cstr = CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default();
+    let fname_opt = Some(fname_cstr);
 
     let mut sd_writer = FileDescriptor::new();
     let mut sd_reader = FileDescriptor::new();
     let mut did_open_reader = false;
 
     if !nomerge {
-        let error = file_open(&mut sd_reader, fname.as_opt_cstr(), K_FILE_READ_ONLY, 0);
+        let error = file_open(&mut sd_reader, fname_opt, K_FILE_READ_ONLY, 0);
         if error == 0 {
             did_open_reader = true;
         } else if error != UV_ENOENT {
@@ -3185,21 +3122,19 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                 gettext(
                     c"E886: System error while opening ShaDa file %s for reading to merge before writing it: %s",
                 ),
-                crate::strings::ByteSlice::from_ptr(CStr::from_bytes_with_nul(&fname_bytes)
-                    .unwrap_or_default()
-                    .as_ptr()),
-                 uv_strerror(error) ,
+                fname_cstr,
+                uv_strerror(error),
             );
         }
     }
 
-    let mut perm = os_getperm(fname.as_cstr());
+    let mut perm = os_getperm(fname_cstr);
     perm = if perm >= 0 {
         (perm & 0o777) | 0o600
     } else {
         0o600
     };
-    let tempname_opt = if os_file_mkdir(fname.as_cstr(), 0o700) == 0 {
+    let tempname_opt = if os_file_mkdir(fname_cstr, 0o700) == 0 {
         shada_open_tmp(&fname_bytes, &mut sd_writer, perm)
     } else {
         None
@@ -3211,7 +3146,6 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         return false;
     };
 
-    let fname_cstr = CStr::from_bytes_with_nul(&fname_bytes).unwrap_or_default();
     if opt_vars().p_verbose > 1 {
         verbose_enter();
         smsg!(0, gettext(c"Writing ShaDa file \"%s\""), fname_cstr);
@@ -3223,9 +3157,8 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
     if did_open_reader {
         close_file(&mut sd_reader);
     }
-    let tempname_cstr = CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default();
-    let tempname = crate::strings::ByteSlice::from_cstr(tempname_cstr);
-    let fname = crate::strings::ByteSlice::from_cstr(fname_cstr);
+    let tempname = CStr::from_bytes_with_nul(&tempname_bytes).unwrap_or_default();
+    let fname = fname_cstr;
     let mut did_remove = false;
     if sw_ret == ShaDaWriteResult::SDWriteSuccessful {
         let mut can_rename = true;
@@ -3246,7 +3179,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         #[cfg(not(unix))]
         let unix_not_writable = |_info: &FileInfo| -> bool { false };
 
-        if os_fileinfo(fname.as_cstr(), &mut old_info) {
+        if os_fileinfo(fname, &mut old_info) {
             if (old_info.stat.st_mode & S_IFMT) == S_IFDIR || unix_not_writable(&old_info) {
                 semsg!(gettext(c"E137: ShaDa file is not writable: %s"), fname,);
                 can_rename = false;
@@ -3273,7 +3206,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
             }
         }
         if can_rename && close_file(&mut sd_writer) == 0 {
-            if vim_rename(tempname.as_cstr(), fname.as_cstr()) == -1 {
+            if vim_rename(tempname, fname) == -1 {
                 semsg!(
                     gettext(c"E136: Can't rename ShaDa file from %s to %s!"),
                     tempname,
@@ -3281,7 +3214,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                 );
             } else {
                 did_remove = true;
-                os_remove(tempname.as_cstr());
+                os_remove(tempname);
             }
         }
     } else if sw_ret == ShaDaWriteResult::SDWriteReadNotShada {
@@ -3609,12 +3542,12 @@ fn shada_read_next_item(
                         &mut error_alloc,
                     ) {
                         semsg!(
-                                gettext(
-                                    c"E575: Error while reading ShaDa file: search pattern entry at position %llu %s",
-                                ),
-                                initial_fpos,
-                                crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                            );
+                            gettext(
+                                c"E575: Error while reading ShaDa file: search pattern entry at position %llu %s",
+                            ),
+                            initial_fpos,
+                            error_alloc.as_deref().unwrap_or(c""),
+                        );
                         it.pat = NvimString::new();
                         break 'parse_item false;
                     }
@@ -3644,12 +3577,12 @@ fn shada_read_next_item(
                         &mut error_alloc,
                     ) {
                         semsg!(
-                                gettext(
-                                    c"E575: Error while reading ShaDa file: mark entry at position %llu %s",
-                                ),
-                                initial_fpos,
-                                crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                            );
+                            gettext(
+                                c"E575: Error while reading ShaDa file: mark entry at position %llu %s",
+                            ),
+                            initial_fpos,
+                            error_alloc.as_deref().unwrap_or(c""),
+                        );
                         break 'parse_item false;
                     }
                     let fm = entry.data.filemark_mut();
@@ -3729,12 +3662,12 @@ fn shada_read_next_item(
                         &mut error_alloc,
                     ) {
                         semsg!(
-                                gettext(
-                                    c"E575: Error while reading ShaDa file: register entry at position %llu %s",
-                                ),
-                                initial_fpos,
-                                crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                            );
+                            gettext(
+                                c"E575: Error while reading ShaDa file: register entry at position %llu %s",
+                            ),
+                            initial_fpos,
+                            error_alloc.as_deref().unwrap_or(c""),
+                        );
                         break 'parse_item false;
                     }
                     if it.rc.is_empty() {
@@ -3940,12 +3873,12 @@ fn shada_read_next_item(
                                 &mut error_alloc,
                             ) {
                                 semsg!(
-                                        gettext(
-                                            c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that %s",
-                                        ),
-                                        initial_fpos,
-                                        crate::strings::ByteSlice::from_ptr(error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                                    );
+                                    gettext(
+                                        c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that %s",
+                                    ),
+                                    initial_fpos,
+                                    error_alloc.as_deref().unwrap_or(c""),
+                                );
                                 break 'parse_item false;
                             }
                             let mut e = BufferListBuffer {
@@ -4064,14 +3997,13 @@ fn shada_removable(name: &CStr) -> bool {
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
         if part[0] == b'r' {
-            let name_buff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
             let n = home_replace(
                 None,
                 Some(crate::memory::bytes_as_cstr(&part[1..])),
                 g_st().name_buff_bytes_mut(),
                 true,
             );
-            if mb_strnicmp(name_buff_ptr.as_bytes(), new_name.as_bytes(), n) == 0 {
+            if mb_strnicmp(g_st().name_buff_cstr().to_bytes(), new_name.as_bytes(), n) == 0 {
                 retval = true;
                 break;
             }

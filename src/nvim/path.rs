@@ -632,11 +632,7 @@ fn do_path_expand(
         && e_pos - s_idx == 2
         && path_bytes.get(path_idx) == Some(&b'/')
     {
-        format_to_buf!(
-            &mut buf_vec[s_idx..],
-            c"%s",
-            crate::strings::ByteSlice::from_ptr(path_end_cstr[1..].as_ptr())
-        );
+        format_to_buf!(&mut buf_vec[s_idx..], c"%s", &path_end_cstr[1..]);
         path_st().stardepth += 1;
         let sub_path = crate::memory::cstring_until_nul(&buf_vec);
         do_path_expand(gap, &sub_path, len, flags, true);

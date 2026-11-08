@@ -579,16 +579,16 @@ pub fn u_compute_hash(buf: &mut FileBuf, hash: &mut [u8; UNDO_HASH_SIZE]) {
 pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<std::ffi::CString> {
     let ffname_cstr = buf_ffname?;
     #[cfg(unix)]
-    let mut ffname = crate::strings::ByteSlice::from_cstr(ffname_cstr);
+    let mut ffname = ffname_cstr;
     #[cfg(not(unix))]
-    let ffname = crate::strings::ByteSlice::from_cstr(ffname_cstr);
+    let ffname = ffname_cstr;
 
     #[cfg(unix)]
     let mut fname_buf = [0u8; MAXPATHL];
     #[cfg(unix)]
     {
         if resolve_symlink(Some(ffname_cstr), &mut fname_buf) {
-            ffname = crate::strings::ByteSlice::from_bytes(&fname_buf);
+            ffname = crate::memory::bytes_as_cstr(&fname_buf);
         }
     }
 
@@ -596,18 +596,14 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
     let mut munged_vec: Vec<u8> = Vec::new();
     let mut undo_file_name: Option<std::ffi::CString> = None;
 
-    let ffname_len = ffname.len();
-    let ffname_slice = ffname.slice(ffname_len);
+    let ffname_slice = ffname.to_bytes();
+    let ffname_len = ffname_slice.len();
     let p_udir = opt_vars().p_udir.to_owned();
     let mut dirp = p_udir.as_bytes();
     while !dirp.is_empty() {
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
-            let tail_off =
-                ((crate::strings::AsByteSlice::byte_addr(path_tail(ffname.as_cstr()).as_ptr())
-                    as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(ffname) as isize))
-                    as usize;
+            let tail_off = path_tail(ffname).as_ptr() as usize - ffname.as_ptr() as usize;
             let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
             ufn_vec.extend_from_slice(&ffname_slice[..tail_off]);
             ufn_vec.push(b'.');
@@ -634,9 +630,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
                 if ret != 0 {
                     semsg!(
                         gettext(c"E5003: Unable to create directory \"%s\" for undo file: %s",),
-                        crate::strings::ByteSlice::from_ptr(
-                            failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr())
-                        ),
+                        failed_dir.as_deref().unwrap_or(c""),
                         uv_strerror(ret),
                     );
                 } else {
@@ -645,7 +639,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
             }
             if has_directory {
                 if munged_vec.is_empty() {
-                    munged_vec = ffname.slice(ffname_len + 1).to_vec();
+                    munged_vec = ffname.to_bytes_with_nul().to_vec();
                     let mut idx = 0usize;
                     while idx < ffname_len {
                         if vim_ispathsep(i32::from(munged_vec[idx])) {
@@ -853,10 +847,12 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
         ExtmarkUndoObject::Splice(splice) => {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
             undo_write_bytes(bi, K_EXTMARK_SPLICE as u64, 4);
-            let slice = crate::strings::AsByteSlice::slice_len(
-                &raw const splice,
-                size_of::<ExtmarkSplice>(),
-            );
+            let slice = unsafe {
+                std::slice::from_raw_parts(
+                    (&raw const splice).cast::<u8>(),
+                    size_of::<ExtmarkSplice>(),
+                )
+            };
             if !undo_write(bi, slice) {
                 return false;
             }
@@ -864,8 +860,12 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
         ExtmarkUndoObject::Move(move_) => {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
             undo_write_bytes(bi, K_EXTMARK_MOVE as u64, 4);
-            let slice =
-                crate::strings::AsByteSlice::slice_len(&raw const move_, size_of::<ExtmarkMove>());
+            let slice = unsafe {
+                std::slice::from_raw_parts(
+                    (&raw const move_).cast::<u8>(),
+                    size_of::<ExtmarkMove>(),
+                )
+            };
             if !undo_write(bi, slice) {
                 return false;
             }
@@ -1010,7 +1010,6 @@ pub fn u_write_undo(
         };
         f.as_c_str()
     };
-    let file_name = crate::strings::ByteSlice::from_cstr(file_name_cstr);
 
     let mut perm: i32 = 0o600;
     if buf.b_ffname.is_some() {
@@ -1022,9 +1021,9 @@ pub fn u_write_undo(
     perm &= 0o666;
 
     'theend: {
-        if os_path_exists(file_name.as_cstr()) {
+        if os_path_exists(file_name_cstr) {
             if name.is_none() || !forceit {
-                let fd = os_open(file_name.as_cstr(), O_RDONLY, 0);
+                let fd = os_open(file_name_cstr, O_RDONLY, 0);
                 if fd < 0 {
                     if name.is_some() || opt_vars().p_verbose > 0 {
                         if name.is_none() {
@@ -1033,7 +1032,7 @@ pub fn u_write_undo(
                         smsg!(
                             0,
                             gettext(c"Will not overwrite with undo file, cannot read: %s",),
-                            file_name,
+                            file_name_cstr,
                         );
                         if name.is_none() {
                             verbose_leave();
@@ -1054,7 +1053,7 @@ pub fn u_write_undo(
                             smsg!(
                                 0,
                                 gettext(c"Will not overwrite, this is not an undo file: %s",),
-                                file_name,
+                                file_name_cstr,
                             );
                             if name.is_none() {
                                 verbose_leave();
@@ -1064,7 +1063,7 @@ pub fn u_write_undo(
                     }
                 }
             }
-            os_remove(file_name.as_cstr());
+            os_remove(file_name_cstr);
         }
 
         if buf.b_u_numhead == 0 && buf.b_u_line_ptr.is_none() {
@@ -1075,18 +1074,18 @@ pub fn u_write_undo(
         }
 
         let fd = os_open(
-            file_name.as_cstr(),
+            file_name_cstr,
             O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW,
             perm,
         );
         if fd < 0 {
-            semsg!(gettext(E_NOT_OPEN), file_name);
+            semsg!(gettext(E_NOT_OPEN), file_name_cstr);
             break 'theend;
         }
-        os_setperm(file_name.as_cstr(), perm);
+        os_setperm(file_name_cstr, perm);
         if opt_vars().p_verbose > 0 {
             verbose_enter();
-            smsg!(0, gettext(c"Writing undo file: %s"), file_name);
+            smsg!(0, gettext(c"Writing undo file: %s"), file_name_cstr);
             verbose_leave();
         }
 
@@ -1094,7 +1093,6 @@ pub fn u_write_undo(
         {
             let mut file_info_old = FileInfo::new();
             let mut file_info_new = FileInfo::new();
-            let file_name_cstr = file_name.as_cstr();
             if buf.b_ffname.is_some()
                 && os_fileinfo(buf.ffname_cstr(), &mut file_info_old)
                 && os_fileinfo(file_name_cstr, &mut file_info_new)
@@ -1110,9 +1108,9 @@ pub fn u_write_undo(
         }
 
         let Some(bi_fp) = CFile::from_fd(fd, c"w") else {
-            semsg!(gettext(E_NOT_OPEN), file_name);
+            semsg!(gettext(E_NOT_OPEN), file_name_cstr);
             os_close(fd);
-            os_remove(file_name.as_cstr());
+            os_remove(file_name_cstr);
             break 'theend;
         };
 
@@ -1177,12 +1175,12 @@ pub fn u_write_undo(
 
         drop(bi);
         if !write_ok {
-            semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR), file_name);
+            semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR), file_name_cstr);
         }
 
         if buf.b_ffname.is_some() {
             let acl: VimAcl = os_get_acl(buf.ffname_cstr());
-            os_set_acl(file_name.as_cstr(), acl);
+            os_set_acl(file_name_cstr, acl);
             os_free_acl(acl);
         }
     }
@@ -1246,15 +1244,10 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
         }
         f_cstr.as_c_str()
     };
-    let file_name = file_name_cstr.as_ptr();
 
     if opt_vars().p_verbose > 0 {
         verbose_enter();
-        smsg!(
-            0,
-            gettext(c"Reading undo file: %s"),
-            crate::strings::ByteSlice::from_ptr(file_name)
-        );
+        smsg!(0, gettext(c"Reading undo file: %s"), file_name_cstr);
         verbose_leave();
     }
 
@@ -1265,7 +1258,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
                 if name.is_some() || opt_vars().p_verbose > 0 {
                     semsg!(
                         gettext(c"E822: Cannot open undo file for reading: %s"),
-                        crate::strings::ByteSlice::from_ptr(file_name),
+                        file_name_cstr,
                     );
                 }
                 break 'error;
@@ -1287,18 +1280,12 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             if !undo_read(&mut bi, &mut magic_buf)
                 || magic_buf != UF_START_MAGIC[..UF_START_MAGIC_LEN]
             {
-                semsg!(
-                    gettext(c"E823: Not an undo file: %s"),
-                    crate::strings::ByteSlice::from_ptr(file_name)
-                );
+                semsg!(gettext(c"E823: Not an undo file: %s"), file_name_cstr);
                 break 'error;
             }
             let version = get2c(&bi.bi_fp);
             if version != UF_VERSION {
-                semsg!(
-                    gettext(c"E824: Incompatible undo file: %s"),
-                    crate::strings::ByteSlice::from_ptr(file_name),
-                );
+                semsg!(gettext(c"E824: Incompatible undo file: %s"), file_name_cstr,);
                 break 'error;
             }
 
@@ -1472,11 +1459,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             curbuf_mut().b_u_synced = true;
 
             if name.is_some() {
-                smsg!(
-                    0,
-                    gettext(c"Finished reading undo file %s"),
-                    crate::strings::ByteSlice::from_ptr(file_name),
-                );
+                smsg!(0, gettext(c"Finished reading undo file %s"), file_name_cstr,);
             }
             break 'theend;
         }
@@ -2069,11 +2052,10 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
         if newsize != 0 {
             for (i, line) in uep.ue_array.drain(..).enumerate() {
                 let lnum = top + i as Linenr;
-                let line_ptr = crate::strings::ByteSlice::from_cstr(&line);
                 if empty_buffer && lnum == 0 {
-                    ml_replace(1, line_ptr.as_bytes(), true);
+                    ml_replace(1, line.to_bytes(), true);
                 } else {
-                    ml_append_flags(lnum, line_ptr.as_bytes(), 0, 0);
+                    ml_append_flags(lnum, line.to_bytes(), 0, 0);
                 }
             }
         }
@@ -2251,19 +2233,19 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 
     undo_st().u_oldcount -= undo_st().u_newcount;
     let msgstr = if undo_st().u_oldcount == -1 {
-        c"more line".as_ptr()
+        c"more line"
     } else if undo_st().u_oldcount < 0 {
-        c"more lines".as_ptr()
+        c"more lines"
     } else if undo_st().u_oldcount == 1 {
-        c"line less".as_ptr()
+        c"line less"
     } else if undo_st().u_oldcount > 1 {
-        c"fewer lines".as_ptr()
+        c"fewer lines"
     } else {
         undo_st().u_oldcount = undo_st().u_newcount;
         if undo_st().u_newcount == 1 {
-            c"change".as_ptr()
+            c"change"
         } else {
-            c"changes".as_ptr()
+            c"changes"
         }
     };
 
@@ -2304,16 +2286,14 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         } else {
             undo_st().u_oldcount as i64
         },
-        gettext(crate::strings::ByteSlice::from_ptr(msgstr).as_cstr()),
+        gettext(msgstr),
         if did_undo {
             gettext(c"before")
         } else {
             gettext(c"after")
         },
         uhp.map_or(0i64, |uh| uhp_ref(curbuf_mut(), uh).uh_seq as i64),
-        crate::strings::ByteSlice::from_ptr(
-            CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c"").as_ptr()
-        ),
+        CStr::from_bytes_until_nul(&msgbuf).unwrap_or(c""),
     );
 }
 
@@ -2384,7 +2364,6 @@ pub fn ex_undolist(_eap: &mut Exarg) {
     let nomark = undo_st().lastmark;
     let mut lines: Vec<std::ffi::CString> = Vec::new();
 
-    let iobuf_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     let mut uhp = curbuf_mut().b_u_oldhead;
     while let Some(uh) = uhp {
         let uh_prev = uhp_ref(curbuf_mut(), uh).uh_prev;
@@ -2394,15 +2373,15 @@ pub fn ex_undolist(_eap: &mut Exarg) {
         let uh_save_nr = uhp_ref(curbuf_mut(), uh).uh_save_nr;
         if uh_prev.is_none() && uh_walk != nomark && uh_walk != mark {
             format_to_buf!(g_st().iobuff_bytes_mut(), c"%6d %7d  ", uh_seq, changes);
-            let cur_len = iobuf_ptr.len();
+            let cur_len = g_st().iobuff_cstr().to_bytes().len();
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
-                while iobuf_ptr.len() < 33 {
+                while g_st().iobuff_cstr().to_bytes().len() < 33 {
                     crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b" ");
                 }
                 format_to_buf_add!(g_st().iobuff_bytes_mut(), c"  %3d", uh_save_nr);
             }
-            lines.push(iobuf_ptr.to_cstring());
+            lines.push(g_st().iobuff_cstr().to_owned());
         }
 
         uhp_mut(curbuf_mut(), uh).uh_walk = mark;

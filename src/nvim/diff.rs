@@ -1,4 +1,6 @@
 //! Diff mode functions (`src/nvim/diff.c`).
+use std::ffi::CStr;
+
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
@@ -32,10 +34,7 @@ use crate::fold::{
 use crate::globals::*;
 use crate::linematch::linematch_nbuffers;
 use crate::mark::{mark_adjust, setpcmark};
-use crate::mbyte::{
-    mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold, utf_ptr2char,
-    utfc_ptr2len,
-};
+use crate::mbyte::{mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold};
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
@@ -708,21 +707,21 @@ fn diff_write_buffer(
     *backing = vec![0u8; len];
     len = 0;
     for lnum in start..=end {
-        let mut s = crate::strings::ByteSlice::from_cstr(ml_get_buf(buf, lnum));
+        let mut s = ml_get_buf(buf, lnum).to_bytes();
         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
             while !s.is_empty() {
                 let c: i32;
                 let mut c_len: i32 = 1;
                 let mut cbuf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
-                if s.first_byte() == NL as u8 {
+                if s[0] == NL as u8 {
                     c = NUL as i32;
                 } else {
-                    let ch = utf_ptr2char(s);
+                    let ch = crate::mbyte::utf_slice2char(s);
                     c_len = utf_char2len(ch);
                     c = utf_fold(ch);
                 }
-                let orig_len = utfc_ptr2len(s) as usize;
-                let s_bytes = s.slice(orig_len);
+                let orig_len = crate::mbyte::utfc_slice2len(s);
+                let s_bytes = &s[..orig_len];
                 if crate::mbyte::utf_char2slice(c, &mut cbuf) != c_len as usize {
                     backing[len..len + orig_len].copy_from_slice(s_bytes);
                 } else {
@@ -732,11 +731,11 @@ fn diff_write_buffer(
                         backing[len + cl..len + orig_len].copy_from_slice(&s_bytes[cl..]);
                     }
                 }
-                s = s.wrapping_add(orig_len);
+                s = &s[orig_len..];
                 len += orig_len;
             }
         } else {
-            let s_bytes = s.as_bytes();
+            let s_bytes = s;
             let slen = s_bytes.len();
             backing[len..len + slen].copy_from_slice(s_bytes);
             for b in &mut backing[len..len + slen] {
@@ -976,15 +975,12 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
 fn check_external_diff(diffio: &mut Diffio) -> bool {
     let mut io_error = false;
     let mut ok: TriState;
-    let orig_fname =
-        crate::strings::ByteSlice::from_cstr(diffio.dio_orig.din_fname.as_deref().unwrap());
-    let new_fname =
-        crate::strings::ByteSlice::from_cstr(diffio.dio_new.din_fname.as_deref().unwrap());
-    let diff_fname =
-        crate::strings::ByteSlice::from_cstr(diffio.dio_diff.dout_fname.as_deref().unwrap());
+    let orig_fname = diffio.dio_orig.din_fname.clone().unwrap();
+    let new_fname = diffio.dio_new.din_fname.clone().unwrap();
+    let diff_fname = diffio.dio_diff.dout_fname.clone().unwrap();
     loop {
         ok = K_FALSE;
-        let Some(fd1) = CFile::open(orig_fname.as_cstr(), c"w") else {
+        let Some(fd1) = CFile::open(&orig_fname, c"w") else {
             io_error = true;
             if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
                 != K_CALLBACK_NONE_CONST
@@ -999,13 +995,13 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             io_error = true;
         }
         drop(fd1);
-        if let Some(fd2) = CFile::open(new_fname.as_cstr(), c"w") {
+        if let Some(fd2) = CFile::open(&new_fname, c"w") {
             if !fd2.write_all(b"line2\n") {
                 io_error = true;
             }
             drop(fd2);
             let fd3 = diff_file(diffio)
-                .then(|| CFile::open(diff_fname.as_cstr(), c"r"))
+                .then(|| CFile::open(&diff_fname, c"r"))
                 .flatten();
             if let Some(fd3) = fd3 {
                 let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
@@ -1017,12 +1013,12 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             } else {
                 io_error = true;
             }
-            let _ = os_remove(diff_fname.as_cstr());
-            let _ = os_remove(new_fname.as_cstr());
+            let _ = os_remove(&diff_fname);
+            let _ = os_remove(&new_fname);
         } else {
             io_error = true;
         }
-        let _ = os_remove(orig_fname.as_cstr());
+        let _ = os_remove(&orig_fname);
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
             break;
         }
@@ -1085,41 +1081,19 @@ fn diff_file_internal(diffio: &mut Diffio) -> bool {
     true
 }
 fn diff_file(dio: &mut Diffio) -> bool {
-    let tmp_orig = dio
-        .dio_orig
-        .din_fname
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let tmp_new = dio
-        .dio_new
-        .din_fname
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let tmp_diff = dio
-        .dio_diff
-        .dout_fname
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let tmp_orig = dio.dio_orig.din_fname.as_deref().unwrap_or(c"");
+    let tmp_new = dio.dio_new.din_fname.as_deref().unwrap_or(c"");
+    let tmp_diff = dio.dio_diff.dout_fname.as_deref().unwrap_or(c"");
     if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
-        eval_diff(
-            crate::strings::ByteSlice::from_ptr(tmp_orig).as_cstr(),
-            crate::strings::ByteSlice::from_ptr(tmp_new).as_cstr(),
-            crate::strings::ByteSlice::from_ptr(tmp_diff).as_cstr(),
-        );
+        eval_diff(tmp_orig, tmp_new, tmp_diff);
         return true;
     }
     if dio.dio_internal != 0 {
         return diff_file_internal(dio);
     }
-    let len = crate::strings::ByteSlice::from_ptr(tmp_orig)
-        .as_bytes()
-        .len()
-        + crate::strings::ByteSlice::from_ptr(tmp_new)
-            .as_bytes()
-            .len()
-        + crate::strings::ByteSlice::from_ptr(tmp_diff)
-            .as_bytes()
-            .len()
+    let len = tmp_orig.to_bytes().len()
+        + tmp_new.to_bytes().len()
+        + tmp_diff.to_bytes().len()
         + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
@@ -1129,45 +1103,41 @@ fn diff_file(dio: &mut Diffio) -> bool {
     format_to_buf!(
         &mut cmd_vec,
         c"diff %s%s%s%s%s%s%s%s %s",
-        crate::strings::ByteSlice::from_ptr(if diff_st().diff_a_works == K_FALSE {
-            c"".as_ptr()
+        if diff_st().diff_a_works == K_FALSE {
+            c""
         } else {
-            c"-a ".as_ptr()
-        }),
+            c"-a "
+        },
         c"",
-        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
-            c"-b ".as_ptr()
+        if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
+            c"-b "
         } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
-            c"-w ".as_ptr()
+            c""
+        },
+        if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
+            c"-w "
         } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
-            c"-Z ".as_ptr()
+            c""
+        },
+        if (diff_st().diff_flags & DIFF_IWHITEEOL) != 0 {
+            c"-Z "
         } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
-            c"-B ".as_ptr()
+            c""
+        },
+        if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
+            c"-B "
         } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(if (diff_st().diff_flags & DIFF_ICASE) != 0 {
-            c"-i ".as_ptr()
+            c""
+        },
+        if (diff_st().diff_flags & DIFF_ICASE) != 0 {
+            c"-i "
         } else {
-            c"".as_ptr()
-        }),
-        crate::strings::ByteSlice::from_ptr(tmp_orig),
-        crate::strings::ByteSlice::from_ptr(tmp_new),
+            c""
+        },
+        tmp_orig,
+        tmp_new,
     );
-    append_redir(
-        &mut cmd_vec,
-        opt_vars().p_srr.as_cstr(),
-        crate::strings::ByteSlice::from_ptr(tmp_diff).as_cstr(),
-    );
+    append_redir(&mut cmd_vec, opt_vars().p_srr.as_cstr(), tmp_diff);
     crate::autocmd::block_autocmds();
     call_shell(
         Some(crate::memory::bytes_as_cstr(&cmd_vec)),
@@ -1190,8 +1160,6 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let (Some(tmp_orig_cstr), Some(tmp_new_cstr)) = (&tmp_orig_owned, &tmp_new_owned) else {
             break 'theend;
         };
-        let tmp_orig = crate::strings::ByteSlice::from_cstr(tmp_orig_cstr);
-        let tmp_new = crate::strings::ByteSlice::from_cstr(tmp_new_cstr);
         if !buf_write(
             curbuf_mut(),
             Some(tmp_orig_cstr.as_c_str()),
@@ -1221,11 +1189,10 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         {
             esc_name = Some(vim_strsave_shellescape(eap.arg.as_bytes(), true, true));
         }
-        let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-        let esc_len = esc_name.as_ref().map_or(0, |s| s.as_bytes().len());
-        let buflen = tmp_orig.len() + esc_len + tmp_new.len() + 16;
+        let esc_cstr = esc_name.as_deref().unwrap_or(c"");
+        let esc_len = esc_cstr.to_bytes().len();
+        let buflen = tmp_orig_cstr.as_bytes().len() + esc_len + tmp_new_cstr.as_bytes().len() + 16;
         buf_vec = vec![0; buflen];
-        let buf = crate::strings::ByteSlice::from_bytes(&buf_vec);
         #[cfg(unix)]
         let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]
@@ -1243,22 +1210,23 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
             #[cfg(unix)]
             eval_patch(
-                tmp_orig.as_cstr(),
+                tmp_orig_cstr,
                 fullname.as_deref().unwrap_or_else(|| eap.arg.as_cstr()),
-                tmp_new.as_cstr(),
+                tmp_new_cstr,
             );
             #[cfg(not(unix))]
-            eval_patch(tmp_orig.as_cstr(), eap.arg.as_cstr(), tmp_new.as_cstr());
+            eval_patch(tmp_orig_cstr, eap.arg.as_cstr(), tmp_new_cstr);
         } else {
             format_to_buf!(
                 &mut buf_vec,
                 c"patch -o %s %s < %s",
-                tmp_new,
-                tmp_orig,
-                crate::strings::ByteSlice::from_ptr(esc_ptr),
+                tmp_new_cstr,
+                tmp_orig_cstr,
+                esc_cstr,
             );
             crate::autocmd::block_autocmds();
-            call_shell(buf.as_opt_cstr(), K_SHELL_OPT_FILTER, None);
+            let buf_cstr = crate::memory::bytes_as_cstr(&buf_vec);
+            call_shell(Some(buf_cstr), K_SHELL_OPT_FILTER, None);
             crate::autocmd::unblock_autocmds();
         }
         #[cfg(unix)]
@@ -1268,14 +1236,14 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             }
             shorten_fnames(true);
         }
-        let tmp_new_bytes = tmp_new.as_bytes();
+        let tmp_new_bytes = tmp_new_cstr.as_bytes();
         buf_vec[..tmp_new_bytes.len()].copy_from_slice(tmp_new_bytes);
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 6].copy_from_slice(b".orig\0");
-        let _ = os_remove(buf.as_cstr());
+        let _ = os_remove(crate::memory::bytes_as_cstr(&buf_vec));
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 5].copy_from_slice(b".rej\0");
-        let _ = os_remove(buf.as_cstr());
+        let _ = os_remove(crate::memory::bytes_as_cstr(&buf_vec));
         let mut file_info = FileInfo::new();
-        let info_ok = os_fileinfo(tmp_new.as_cstr(), &mut file_info);
+        let info_ok = os_fileinfo(tmp_new_cstr, &mut file_info);
         let filesize = os_fileinfo_size(&file_info);
         if !info_ok || filesize == 0 {
             emsg(gettext(c"E816: Cannot read patch output"));
@@ -1296,7 +1264,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 },
             ) {
                 eap.cmdidx = Cmdidx::CmdSplit;
-                eap.arg = crate::strings::OwnedSlice::from_cstr(tmp_new.as_cstr());
+                eap.arg = crate::strings::OwnedSlice::from_cstr(tmp_new_cstr);
                 do_exedit(eap, old_curwin.opt_mut());
                 if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
                     diff_win_options(curwin_mut(), true);
@@ -2159,11 +2127,12 @@ fn parse_diffanchors(
     mut anchors: Option<&mut [Linenr; MAX_DIFF_ANCHORS]>,
     num_anchors: Option<&mut i32>,
 ) -> bool {
-    let mut dia = if buf.b_p_dia.is_empty() {
-        opt_vars().p_dia.as_ptr().cast_mut()
+    let dia_owned = if buf.b_p_dia.is_empty() {
+        opt_vars().p_dia.to_owned()
     } else {
-        buf.b_p_dia.as_ptr().cast_mut()
+        buf.b_p_dia.to_owned()
     };
+    let mut dia = dia_owned.as_c_str();
     let orig_curbuf = g_st().curbuf;
     let orig_curwin = curwin_ptr();
     let bufwin = if check_only {
@@ -2176,21 +2145,21 @@ fn parse_diffanchors(
                 break;
             }
         }
-        if found_bw.is_null() && !crate::strings::AsByteSlice::is_empty_val(dia) {
+        if found_bw.is_null() && !dia.is_empty() {
             emsg(gettext(E_DIFF_ANCHORS_WITH_HIDDEN_WINDOWS));
             return false;
         }
         found_bw
     };
     let mut i: usize = 0;
-    while i < MAX_DIFF_ANCHORS && !crate::strings::AsByteSlice::is_empty_val(dia) {
-        if crate::strings::AsByteSlice::first_byte_val(dia) == b',' {
+    while i < MAX_DIFF_ANCHORS && !dia.is_empty() {
+        if dia.to_bytes().first() == Some(&b',') {
             return false;
         }
         g_st().curbuf = (buf).into();
         set_curwin(bufwin);
         let mut errormsg = None;
-        let mut dia_opt = crate::strings::ByteSlice::from_ptr(dia).as_opt_cstr();
+        let mut dia_opt = Some(dia);
         let lnum = get_address(
             None,
             &mut dia_opt,
@@ -2201,18 +2170,16 @@ fn parse_diffanchors(
             1,
             &mut errormsg,
         );
-        dia = dia_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         g_st().curbuf = orig_curbuf;
         set_curwin(orig_curwin);
         if let Some(msg) = errormsg {
             emsg(msg);
         }
-        if dia.is_null() {
+        let Some(next_dia) = dia_opt else {
             return false;
-        }
-        if crate::strings::AsByteSlice::first_byte_val(dia) != b','
-            && !crate::strings::AsByteSlice::is_empty_val(dia)
-        {
+        };
+        dia = next_dia;
+        if dia.to_bytes().first() != Some(&b',') && !dia.is_empty() {
             return false;
         }
         if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > buf.b_ml.ml_line_count + 1) {
@@ -2222,12 +2189,12 @@ fn parse_diffanchors(
         if let Some(ref mut a) = anchors {
             a[i] = lnum;
         }
-        if crate::strings::AsByteSlice::first_byte_val(dia) == b',' {
-            dia = dia.wrapping_add(1);
+        if dia.to_bytes().first() == Some(&b',') {
+            dia = &dia[1..];
         }
         i += 1;
     }
-    if i == MAX_DIFF_ANCHORS && !crate::strings::AsByteSlice::is_empty_val(dia) {
+    if i == MAX_DIFF_ANCHORS && !dia.is_empty() {
         semsg!(
             gettext(E_CANNOT_HAVE_MORE_THAN_NR_DIFF_ANCHORS),
             MAX_DIFF_ANCHORS as i32,
@@ -2420,17 +2387,13 @@ fn diff_find_change_simple(
             if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
                 break;
             }
-            let line_new = ml_get_buf(curtab_mut().diffbuf_mut(i), dp.df_lnum[i] + off)
-                .as_ptr()
-                .cast_mut();
-            let org_slice = crate::strings::ByteSlice::from_ptr(line_org).as_bytes();
-            let new_slice = crate::strings::ByteSlice::from_ptr(line_new).as_bytes();
-            let org_bytes = crate::strings::ByteSlice::from_ptr(line_org)
-                .as_cstr()
-                .to_bytes_with_nul();
-            let new_bytes = crate::strings::ByteSlice::from_ptr(line_new)
-                .as_cstr()
-                .to_bytes_with_nul();
+            let line_new_cstr = ml_get_buf(curtab_mut().diffbuf_mut(i), dp.df_lnum[i] + off);
+            let line_new = line_new_cstr.as_ptr().cast_mut();
+            let org_cstr = line_org_owned.as_deref().unwrap_or(c"");
+            let org_slice = org_cstr.to_bytes();
+            let new_slice = line_new_cstr.to_bytes();
+            let org_bytes = org_cstr.to_bytes_with_nul();
+            let new_bytes = line_new_cstr.to_bytes_with_nul();
             let mut si_org: i32 = 0;
             let mut si_new: i32 = 0;
             while org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0 {
@@ -2442,16 +2405,16 @@ fn diff_find_change_simple(
                     || ((diff_st().diff_flags & DIFF_IWHITEALL) != 0
                         && (ascii_iswhite(c_org) || ascii_iswhite(c_new)))
                 {
-                    si_org = ((crate::strings::AsByteSlice::byte_addr(
-                        crate::charset::skipwhite_ptr(line_org.wrapping_add(si_org as usize)),
-                    ) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line_org) as isize))
-                        as i32;
-                    si_new = ((crate::strings::AsByteSlice::byte_addr(
-                        crate::charset::skipwhite_ptr(line_new.wrapping_add(si_new as usize)),
-                    ) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line_new) as isize))
-                        as i32;
+                    si_org = (org_slice.len()
+                        - crate::charset::skipwhite_slice(
+                            org_slice.get(si_org as usize..).unwrap_or(&[]),
+                        )
+                        .len()) as i32;
+                    si_new = (new_slice.len()
+                        - crate::charset::skipwhite_slice(
+                            new_slice.get(si_new as usize..).unwrap_or(&[]),
+                        )
+                        .len()) as i32;
                 } else {
                     let mut l: i32 = 0;
                     if !diff_equal_char(
@@ -2630,8 +2593,7 @@ fn diff_refine_inline_word_highlight(
             {
                 has_content = true;
                 let char_class = mb_get_class_tab(
-                    crate::strings::ByteSlice::from_ptr(gap_text.wrapping_add(i as usize))
-                        .as_bytes(),
+                    unsafe { CStr::from_ptr(gap_text.wrapping_add(i as usize).cast()) }.to_bytes(),
                     &curtab_mut().diffbuf_mut(idx1).b_chartab,
                 );
                 if char_class == 2 {
@@ -2730,20 +2692,19 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
             let mut numlines: Linenr = 0;
             curstr.clear();
             for off in 0..dp_count[i] {
-                let curline = ml_get_buf(curtab_mut().diffbuf_mut(i), dp_lnum[i] + off)
-                    .as_ptr()
-                    .cast_mut();
+                let curline_bytes =
+                    ml_get_buf(curtab_mut().diffbuf_mut(i), dp_lnum[i] + off).to_bytes();
                 let mut in_keyword = false;
                 let mut last_white = false;
                 let mut eol_ga_len: i32 = -1;
                 let mut eol_linemap_len: i32 = -1;
                 let mut eol_numlines: Linenr = -1;
-                let mut s = crate::strings::ByteSlice::from_ptr(curline);
+                let mut s = curline_bytes;
                 while !s.is_empty() {
                     let mut new_in_keyword = false;
                     if (diff_st().diff_flags & DIFF_INLINE_WORD) != 0 {
                         new_in_keyword = mb_get_class_tab(
-                            s.as_bytes(),
+                            s,
                             &curtab_mut().diffbuf_mut(file1_idx as usize).b_chartab,
                         ) == 2;
                     }
@@ -2751,10 +2712,10 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         curstr.push(NL as u8);
                         numlines += 1;
                     }
-                    if ascii_iswhite(s.first_byte()) {
+                    if ascii_iswhite(s[0]) {
                         if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                             in_keyword = false;
-                            s = s.skipwhite();
+                            s = crate::charset::skipwhite_slice(s);
                             continue;
                         } else if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0
                             || (diff_st().diff_flags & DIFF_IWHITE) != 0)
@@ -2774,30 +2735,25 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         eol_numlines = -1;
                     }
                     let mut char_len: i32 = 1;
-                    if s.first_byte() == NL as u8 {
+                    if s[0] == NL as u8 {
                         curstr.push(NUL as u8);
                     } else {
-                        char_len = utfc_ptr2len(s);
-                        if ascii_iswhite(s.first_byte())
-                            && (diff_st().diff_flags & DIFF_IWHITE) != 0
-                        {
-                            char_len = s.skipwhite().offset_from(s) as i32;
+                        char_len = crate::mbyte::utfc_slice2len(s) as i32;
+                        if ascii_iswhite(s[0]) && (diff_st().diff_flags & DIFF_IWHITE) != 0 {
+                            char_len = (s.len() - crate::charset::skipwhite_slice(s).len()) as i32;
                         }
                         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
-                            let mut c = utf_ptr2char(s);
+                            let mut c = crate::mbyte::utf_slice2char(s);
                             let c_len = utf_char2len(c);
                             c = utf_fold(c);
                             let mut cbuf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
                             let c_fold_len = utf_char2bytes(c, &mut cbuf);
                             curstr.extend_from_slice(&cbuf[..c_fold_len as usize]);
                             if char_len > c_len {
-                                curstr.extend_from_slice(
-                                    (s.wrapping_add(c_len as usize))
-                                        .slice((char_len - c_len) as usize),
-                                );
+                                curstr.extend_from_slice(&s[c_len as usize..char_len as usize]);
                             }
                         } else {
-                            curstr.extend_from_slice((s).slice(char_len as usize));
+                            curstr.extend_from_slice(&s[..char_len as usize]);
                         }
                     }
                     if !new_in_keyword {
@@ -2806,7 +2762,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     }
                     if !new_in_keyword || (new_in_keyword && !in_keyword) {
                         lm.push(LinemapEntry {
-                            byte_start: ((s).offset_from(curline) as isize) as Colnr,
+                            byte_start: (curline_bytes.len() - s.len()) as Colnr,
                             num_bytes: char_len,
                             lineoff: off,
                         });
@@ -2814,7 +2770,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         last.num_bytes += char_len;
                     }
                     in_keyword = new_in_keyword;
-                    s = s.wrapping_add(char_len as usize);
+                    s = &s[char_len as usize..];
                 }
                 if in_keyword {
                     curstr.push(NL as u8);
@@ -2832,7 +2788,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     curstr.push(NL as u8);
                     let _ = numlines;
                     lm.push(LinemapEntry {
-                        byte_start: ((s).offset_from(curline) as isize) as Colnr,
+                        byte_start: (curline_bytes.len() - s.len()) as Colnr,
                         num_bytes: size_of::<i32>() as Colnr,
                         lineoff: off,
                     });

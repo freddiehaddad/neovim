@@ -80,7 +80,7 @@ use crate::window::{
     win_setwidth, win_split, win_valid,
 };
 
-use crate::mbyte::{Vimconv, convert_setup, ptr2cells, remove_bom, string_convert, utfc_ptr2len};
+use crate::mbyte::{Vimconv, convert_setup, remove_bom, string_convert};
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
@@ -1044,7 +1044,6 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
     let QfInputSource::File(ref fd) = state.source else {
         return QfStatus::Fail;
     };
-    let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     loop {
         os_set_errno(0);
         if !fd.gets(g_st().iobuff_bytes_mut()) {
@@ -1057,13 +1056,13 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
     }
 
     let mut discard = false;
-    state.linelen = iobuff_ptr.len();
+    state.linelen = g_st().iobuff_cstr().to_bytes().len();
     if state.linelen == IOSIZE - 1 && g_st().iobuff[state.linelen - 1] != b'\n' {
         if state.growbuf.len() < 2 * (IOSIZE - 1) {
             state.growbuf.resize(2 * (IOSIZE - 1), 0);
         }
 
-        state.growbuf[..IOSIZE - 1].copy_from_slice(iobuff_ptr.slice(IOSIZE - 1));
+        state.growbuf[..IOSIZE - 1].copy_from_slice(&g_st().iobuff_bytes()[..IOSIZE - 1]);
         let mut growbuflen = state.linelen;
         state.growbuf[growbuflen] = 0;
 
@@ -1101,7 +1100,9 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
                     }
                     break;
                 }
-                if iobuff_ptr.len() < IOSIZE - 1 || g_st().iobuff[IOSIZE - 2] == b'\n' {
+                if g_st().iobuff_cstr().to_bytes().len() < IOSIZE - 1
+                    || g_st().iobuff[IOSIZE - 2] == b'\n'
+                {
                     break;
                 }
             }
@@ -2295,9 +2296,9 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         return 0;
     };
 
-    let mut ptr_cstr: Option<std::ffi::CString> = None;
     let fname_str = cstr_as_string(Some(fname));
-    let bufname_ptr = if let Some(dir) = directory
+    #[cfg_attr(not(windows), expect(unused_mut))]
+    let mut bufname_cstr = if let Some(dir) = directory
         && !vim_isAbsName(fname.to_bytes())
     {
         let mut joined = concat_fnames(cstr_as_string(Some(dir)), fname_str, true);
@@ -2309,36 +2310,31 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
                 fname.to_owned()
             };
         }
-        let p = joined.as_ptr().cast_mut();
-        ptr_cstr = Some(joined);
-        p
+        joined
     } else {
-        fname.as_ptr().cast_mut()
+        fname.to_owned()
     };
     #[cfg(windows)]
     {
-        let bufname_len = crate::strings::ByteSlice::from_ptr(bufname_ptr).len();
-        path_to_slash(crate::globals::GraphPtr::raw_slice_mut(
-            bufname_ptr.cast::<u8>(),
-            bufname_len + 1,
-        ));
+        let mut bytes = bufname_cstr.into_bytes_with_nul();
+        path_to_slash(&mut bytes);
+        bufname_cstr = std::ffi::CString::from_vec_with_nul(bytes).unwrap_or_default();
     }
 
-    let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
-        crate::strings::ByteSlice::from_ptr(bufname_ptr).as_bytes() == last.to_bytes()
-    });
+    let same_as_last = qf_st()
+        .qf_last_bufname
+        .as_ref()
+        .is_some_and(|last| bufname_cstr.as_bytes() == last.to_bytes());
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
-        drop(ptr_cstr);
         qf_st().qf_last_bufref.br_buf
     } else {
         let b = crate::globals::GraphPtr::from(buflist_new(
-            crate::strings::ByteSlice::from_ptr(bufname_ptr).as_opt_cstr(),
+            Some(bufname_cstr.as_c_str()),
             None,
             0,
             BLN_NOOPT,
         ));
-        qf_st().qf_last_bufname = ptr_cstr
-            .or_else(|| Some(crate::strings::ByteSlice::from_ptr(bufname_ptr).to_cstring()));
+        qf_st().qf_last_bufname = Some(bufname_cstr);
         set_bufref(&mut qf_st().qf_last_bufref, b.opt_mut());
         b
     };
@@ -2888,22 +2884,22 @@ fn qf_jump_edit_buffer(
     retval
 }
 fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
-    let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
-    let mut p = line;
+    let line = get_cursor_line_ptr().to_bytes();
+    let mut off = 0usize;
     let mut col: Colnr = 0;
 
-    while !p.is_empty() && col < vcol {
-        if p.first_byte() == TAB {
+    while off < line.len() && col < vcol {
+        if line[off] == TAB {
             col += 8 - (col % 8);
         } else {
-            col += ptr2cells(p);
+            col += crate::mbyte::slice2cells(&line[off..]);
         }
         if col > vcol {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        off += crate::mbyte::utfc_slice2len(&line[off..]);
     }
-    p.offset_from(line) as i32
+    off as i32
 }
 
 fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: bool, qf_pattern: Option<&CStr>) {
@@ -3190,7 +3186,7 @@ fn qf_jump_newwin(
 }
 
 fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
-    let mut fname = ptr::null_mut();
+    let mut fname: Option<&CStr> = None;
     if let Some(ref module) = qfp.qf_module
         && !module.as_bytes().is_empty()
     {
@@ -3199,28 +3195,17 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         if qfp.qf_fnum != 0
             && let Some(buf) = buflist_findnr_opt(qfp.qf_fnum)
         {
-            fname = qfp.qf_fname.as_ref().map_or_else(
-                || {
-                    buf.fname_opt()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                },
-                |s| s.as_ptr().cast_mut(),
-            );
-            if qfp.qf_type == 1 {
-                fname = path_tail(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
-                    .as_ptr()
-                    .cast_mut();
+            fname = qfp.qf_fname.as_deref().or_else(|| buf.fname_opt());
+            if qfp.qf_type == 1
+                && let Some(f) = fname
+            {
+                fname = Some(path_tail(f));
             }
         }
-        if fname.is_null() {
-            format_to_buf!(&mut g_st().iobuff, c"%2d", qf_idx);
+        if let Some(f) = fname {
+            format_to_buf!(&mut g_st().iobuff, c"%2d %s", qf_idx, f);
         } else {
-            format_to_buf!(
-                &mut g_st().iobuff,
-                c"%2d %s",
-                qf_idx,
-                crate::strings::ByteSlice::from_ptr(fname)
-            );
+            format_to_buf!(&mut g_st().iobuff, c"%2d", qf_idx);
         }
     }
 
@@ -3230,8 +3215,8 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     {
         filter_entry &= message_filtered(module);
     }
-    if filter_entry && !fname.is_null() {
-        filter_entry &= message_filtered(crate::strings::ByteSlice::from_ptr(fname).as_cstr());
+    if filter_entry && let Some(f) = fname {
+        filter_entry &= message_filtered(f);
     }
     if filter_entry && let Some(ref pat) = qfp.qf_pattern {
         filter_entry &= message_filtered(pat);
@@ -3283,7 +3268,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     msg_puts(c" ");
 
     gap = qfga_get();
-    let text = if !fname.is_null() || qfp.qf_lnum != 0 {
+    let text = if fname.is_some() || qfp.qf_lnum != 0 {
         crate::charset::skipwhite_slice(qfp.qf_text.as_bytes())
     } else {
         qfp.qf_text.as_bytes()
@@ -4078,16 +4063,8 @@ fn qf_buf_add_line(
     }
 
     gap.push(0);
-    if !ml_append_buf(
-        &mut *buf,
-        lnum,
-        crate::strings::AsByteSlice::slice_len(
-            gap.as_mut_ptr(),
-            (gap.len() as Colnr as usize).saturating_sub(1),
-        ),
-        gap.len() as Colnr,
-        false,
-    ) {
+    let text_len = gap.len().saturating_sub(1);
+    if !ml_append_buf(&mut *buf, lnum, &gap[..text_len], gap.len() as Colnr, false) {
         return false;
     }
 
@@ -4390,8 +4367,7 @@ pub fn ex_make(eap: &mut Exarg) {
     let Some(fname) = get_mef_name() else {
         return;
     };
-    let fname_ptr = crate::strings::ByteSlice::from_cstr(&fname);
-    os_remove(fname_ptr.as_cstr());
+    os_remove(&fname);
 
     let cmd = make_get_fullcmd(eap.arg.as_cstr(), &fname);
 
@@ -4452,7 +4428,7 @@ pub fn ex_make(eap: &mut Exarg) {
     }
 
     decr_quickfix_busy();
-    os_remove(fname_ptr.as_cstr());
+    os_remove(&fname);
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
@@ -4481,11 +4457,11 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         name_vec.extend_from_slice(format!("{}{}", qf_st().mef_start, qf_st().mef_off).as_bytes());
         name_vec.extend_from_slice(&mef_bytes[off_idx + 2..]);
         name_vec.push(0);
-        let name = crate::strings::ByteSlice::from_bytes(&name_vec);
+        let name_cstr = crate::memory::bytes_as_cstr(&name_vec);
         let mut file_info = FileInfo::new();
-        let file_or_link_found = os_fileinfo_link(name.as_cstr(), &mut file_info);
+        let file_or_link_found = os_fileinfo_link(name_cstr, &mut file_info);
         if !file_or_link_found {
-            return Some(name.to_cstring());
+            return Some(name_cstr.to_owned());
         }
     }
 }
@@ -5132,10 +5108,7 @@ fn vgr_match_buflines(
                 None,
             ) > 0
             {
-                let mesg_cstr = crate::strings::ByteSlice::from_ptr(
-                    (ml_get_buf(buf, regmatch.startpos[0].lnum + lnum)).as_ptr(),
-                )
-                .as_cstr();
+                let mesg_cstr = ml_get_buf(buf, regmatch.startpos[0].lnum + lnum);
                 if qf_add_entry(
                     qfl,
                     None,
@@ -5172,13 +5145,14 @@ fn vgr_match_buflines(
                 }
             }
         } else {
-            let str_ = ml_get_buf(buf, lnum).as_ptr().cast_mut();
+            let str_cstr = ml_get_buf(buf, lnum);
+            let str_bytes = str_cstr.to_bytes();
             let linelen = ml_get_buf_len(buf, lnum);
             let mut score: i32 = 0;
             let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
             while fuzzy_match(
-                crate::strings::ByteSlice::from_ptr(str_.wrapping_add(col as usize)).as_bytes(),
+                &str_bytes[(col as usize).min(str_bytes.len())..],
                 spat_bytes,
                 false,
                 &mut score,
@@ -5190,7 +5164,7 @@ fn vgr_match_buflines(
                     fname,
                     None,
                     if duplicate_name != 0 { 0 } else { buf.b_fnum },
-                    crate::strings::ByteSlice::from_ptr(str_).as_cstr(),
+                    str_cstr,
                     lnum,
                     0,
                     matches[0] as Colnr + col + 1,
@@ -5329,9 +5303,9 @@ fn vgr_process_files(
     let mut fi: usize = 0;
     let mut aborted = false;
     while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
-        let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
-        let fname =
-            path_try_shorten_fname(crate::strings::ByteSlice::from_ptr(fname_exp).as_opt_cstr());
+        let fname_exp_cstr = cmd_args.fnames.as_slice()[fi].as_c_str();
+        let fname_exp_opt = Some(fname_exp_cstr);
+        let fname = path_try_shorten_fname(fname_exp_opt);
         let fname_cstr = fname.unwrap_or(c"");
         let now = os_time() as time_t;
         if now > seconds {
@@ -5339,9 +5313,7 @@ fn vgr_process_files(
             vgr_display_fname(fname_cstr);
         }
 
-        let mut buf = crate::globals::GraphPtr::from(buflist_findname_exp(
-            crate::strings::ByteSlice::from_ptr(fname_exp).as_opt_cstr(),
-        ));
+        let mut buf = crate::globals::GraphPtr::from(buflist_findname_exp(fname_exp_opt));
         let using_dummy: bool;
         if buf.is_null() || buf.b_ml.ml_mfp.is_none() {
             duplicate_name = !buf.is_null();
@@ -6808,10 +6780,10 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     };
 
     let qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
-    let mut qf_title = crate::strings::ByteSlice::from_cstr(&qf_title_cstr);
+    let mut qf_title: &CStr = &qf_title_cstr;
     if let Some(buf_sfname) = buf.sfname_opt() {
         format_to_buf!(&mut g_st().iobuff, c"%s (%s)", qf_title, buf_sfname);
-        qf_title = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
+        qf_title = g_st().iobuff_cstr();
     }
 
     incr_quickfix_busy();
@@ -6827,7 +6799,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         eap.cmdidx != Cmdidx::CmdCaddbuffer && eap.cmdidx != Cmdidx::CmdLaddbuffer,
         eap.line1,
         eap.line2,
-        qf_title.as_opt_cstr(),
+        Some(qf_title),
         None,
     );
     if qf_stack_empty(Some(qi)) {
@@ -6990,17 +6962,15 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
         return;
     };
 
-    let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     let mut lnum: Linenr = 1;
     while !vim_fgets(g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int {
-        let line = iobuff_ptr;
-
         if vim_regexec(p_regmatch, g_st().iobuff_cstr(), 0) {
             let mut l = g_st().iobuff_cstr().to_bytes().len();
             while l > 0 && g_st().iobuff[l - 1] <= b' ' {
                 l -= 1;
                 g_st().iobuff[l] = 0;
             }
+            let line_cstr = g_st().iobuff_cstr();
 
             if qf_add_entry(
                 qfl,
@@ -7008,15 +6978,11 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
                 Some(fname),
                 None,
                 0,
-                crate::strings::ByteSlice::from_ptr(line).as_cstr(),
+                line_cstr,
                 lnum,
                 0,
-                (p_regmatch.start_offset(0, crate::strings::ByteSlice::from_ptr(line).as_cstr())
-                    as i32)
-                    + 1,
-                (p_regmatch.end_offset(0, crate::strings::ByteSlice::from_ptr(line).as_cstr())
-                    as i32)
-                    + 1,
+                (p_regmatch.start_offset(0, line_cstr) as i32) + 1,
+                (p_regmatch.end_offset(0, line_cstr) as i32) + 1,
                 false,
                 None,
                 0,

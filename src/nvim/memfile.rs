@@ -602,17 +602,17 @@ pub fn mf_need_trans(mfp: &Memfile) -> bool {
 
 fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bool {
     mf_set_fnames(mfp, fname);
-    let fname_ptr = crate::strings::ByteSlice::from_cstr(mfp.mf_fname.as_deref().unwrap());
+    let fname_cstr = mfp.mf_fname.clone().unwrap();
 
     {
         let mut file_info = FileInfo::new();
-        if (flags & O_CREAT) != 0 && os_fileinfo_link(fname_ptr.as_cstr(), &mut file_info) {
+        if (flags & O_CREAT) != 0 && os_fileinfo_link(&fname_cstr, &mut file_info) {
             mfp.mf_fd = -1;
             emsg(gettext(c"E300: Swap file already exists (symlink attack?)"));
         } else {
             flags |= O_NOFOLLOW;
             mfp.mf_flags = flags;
-            mfp.mf_fd = os_open(fname_ptr.as_cstr(), flags, S_IREAD | S_IWRITE);
+            mfp.mf_fd = os_open(&fname_cstr, flags, S_IREAD | S_IWRITE);
         }
     }
 

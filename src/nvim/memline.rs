@@ -1066,7 +1066,6 @@ pub fn ml_recover(checkext: bool) {
         b0p = hp_zero_block(crate::globals::GraphPtr::of(hp).borrow_mut());
     }
 
-    let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
     if directly {
         #[cfg(windows)]
         path_to_slash(&mut b0p.b0_fname);
@@ -1076,7 +1075,8 @@ pub fn ml_recover(checkext: bool) {
             g_st().name_buff_bytes_mut(),
         );
 
-        if !setfname(curbuf_mut(), namebuff_ptr.as_opt_cstr(), None, true) {
+        let namebuff_cstr = g_st().name_buff_cstr().to_owned();
+        if !setfname(curbuf_mut(), Some(&namebuff_cstr), None, true) {
             ml_recover_theend(
                 crate::globals::GraphPtr::of(hp).opt_mut(),
                 Some(buf),
@@ -1100,7 +1100,7 @@ pub fn ml_recover(checkext: bool) {
         g_st().name_buff_bytes_mut(),
         true,
     );
-    smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
+    smsg!(0, tr(c"Using swap file \"%s\""), g_st().name_buff_cstr());
 
     if let Some(sp) = buf_spname(curbuf_mut()) {
         crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
@@ -1113,7 +1113,7 @@ pub fn ml_recover(checkext: bool) {
         );
     }
     msg_putchar(b'\n' as i32);
-    smsg!(0, tr(c"Original file \"%s\""), namebuff_ptr);
+    smsg!(0, tr(c"Original file \"%s\""), g_st().name_buff_cstr());
     msg_putchar(b'\n' as i32);
     g_st().msg_ext_skip_flush = false;
 
@@ -1416,11 +1416,9 @@ pub fn ml_recover(checkext: bool) {
                             line_bytes = b"???";
                         } else {
                             did_questions = false;
-                            line_bytes = crate::strings::ByteSlice::from_ptr(
-                                dp_ptr.wrapping_add(txt_start as usize),
-                            )
-                            .as_cstr()
-                            .to_bytes();
+                            line_bytes =
+                                unsafe { CStr::from_ptr(dp_ptr.wrapping_add(txt_start as usize)) }
+                                    .to_bytes();
                         }
                         ml_append(lnum, line_bytes, 0, true);
                         lnum += 1;
@@ -2163,17 +2161,14 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
     }
     if will_change {
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS | ML_LINE_INPLACE;
-        ml_add_deleted_len_buf(
-            buf,
-            crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_bytes(),
-        );
+        ml_add_deleted_len_buf(buf, crate::memory::bytes_until_nul(buf.b_ml.ml_line_slice));
     } else if (buf.b_ml.ml_flags & ML_LINE_INPLACE) == 0
         && buf.b_ml.ml_line_slice.last() == Some(&0)
     {
         return crate::memory::cstr_from_bytes_with_nul(buf.b_ml.ml_line_slice);
     }
 
-    crate::strings::ByteSlice::from_ptr(buf.b_ml.ml_line_slice.as_ptr()).as_cstr()
+    crate::memory::bytes_as_cstr(buf.b_ml.ml_line_slice)
 }
 
 fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
@@ -2776,15 +2771,14 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     };
 
     assert!(line_size >= 1);
-    ml_add_deleted_len_buf(
-        buf,
-        crate::strings::AsByteSlice::slice_len(
+    ml_add_deleted_len_buf(buf, unsafe {
+        std::slice::from_raw_parts(
             (&raw mut *dp)
-                .cast::<std::ffi::c_char>()
+                .cast::<u8>()
                 .wrapping_add(line_start as usize),
             (line_size - 1) as usize,
-        ),
-    );
+        )
+    });
 
     if count == 1 {
         mf_free(buf.b_ml.mfp_mut(), hp);
@@ -3482,7 +3476,6 @@ fn findswapname(
         {
             let mut b0 = ZeroBlock::new();
             let mut differ = false;
-            let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
 
             let fd = os_open(fname_cstr, O_RDONLY, 0);
             if fd >= 0 {
@@ -3507,7 +3500,7 @@ fn findswapname(
                             expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                             if fnamecmp_ino(
                                 buf_ffname_opt,
-                                namebuff_ptr.as_opt_cstr(),
+                                Some(g_st().name_buff_cstr()),
                                 char_to_long(&b0.b0_ino),
                             ) {
                                 differ = true;
@@ -3517,7 +3510,7 @@ fn findswapname(
                         expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                         if fnamecmp_ino(
                             buf_ffname_opt,
-                            namebuff_ptr.as_opt_cstr(),
+                            Some(g_st().name_buff_cstr()),
                             char_to_long(&b0.b0_ino),
                         ) {
                             differ = true;

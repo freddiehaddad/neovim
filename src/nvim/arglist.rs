@@ -677,19 +677,12 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
     let mut i: i32 = 0;
     while i < argcount() {
         let first_fullname = FullName_save(arglist_slice()[i as usize].fname_cstr(), false);
-        let first_ptr = first_fullname
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-
         let mut j = i + 1;
         while j < argcount() {
             let second_fullname = FullName_save(arglist_slice()[j as usize].fname_cstr(), false);
-            let second_ptr = second_fullname
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             let dup = path_equal(
-                crate::strings::ByteSlice::from_ptr(first_ptr).as_cstr(),
-                crate::strings::ByteSlice::from_ptr(second_ptr).as_cstr(),
+                first_fullname.as_deref().unwrap_or(c""),
+                second_fullname.as_deref().unwrap_or(c""),
                 K_PATH_CMP_LITERAL,
             );
 

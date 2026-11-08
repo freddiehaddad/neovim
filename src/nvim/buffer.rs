@@ -107,7 +107,7 @@ use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
-use crate::strings::{RawCCharPtr, format_to_buf, format_to_buf_safelen, gettext, ngettext};
+use crate::strings::{format_to_buf, format_to_buf_safelen, gettext, ngettext};
 use crate::syntax::{Synblock, reset_synblock, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
@@ -2000,7 +2000,7 @@ pub fn do_bufdel(
     forceit: bool,
 ) -> Option<&'static std::ffi::CStr> {
     let arg_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(arg_in));
-    let mut arg = crate::strings::ByteSlice::from_cstr(&arg_cstr);
+    let mut arg = arg_cstr.as_c_str();
     let mut do_current = 0;
     let mut deleted: i32 = 0;
     let mut errormsg: Option<&'static std::ffi::CStr> = None;
@@ -2011,7 +2011,7 @@ pub fn do_bufdel(
     } else {
         if addr_count == 2 {
             if !arg.is_empty() {
-                return Some(ex_errmsg(E_TRAILING_ARG, arg.as_cstr()));
+                return Some(ex_errmsg(E_TRAILING_ARG, arg));
             }
             bnr = start_bnr;
         } else {
@@ -2031,23 +2031,23 @@ pub fn do_bufdel(
                     break;
                 }
             } else {
-                arg = arg.skipwhite();
-                if arg.is_empty() {
+                arg = crate::charset::skipwhite(arg);
+                let arg_bytes = arg.to_bytes();
+                if arg_bytes.is_empty() {
                     break;
                 }
-                if !ascii_isdigit(arg.first_byte()) {
-                    let p = crate::charset::skiptowhite_esc_ptr(arg);
-                    let pat_len = ((p).offset_from(arg) as isize).max(0) as usize;
-                    bnr = buflist_findpat(arg.slice(pat_len), command == DOBUF_WIPE, false, false);
+                if !ascii_isdigit(arg_bytes[0]) {
+                    let pat_len = crate::charset::skiptowhite_esc_len(arg_bytes);
+                    bnr =
+                        buflist_findpat(&arg_bytes[..pat_len], command == DOBUF_WIPE, false, false);
                     if bnr < 0 {
                         break;
                     }
-                    arg = arg.wrapping_add(pat_len);
+                    arg = &arg[pat_len..];
                 } else {
-                    let arg_bytes = arg.as_bytes();
                     let mut rem = arg_bytes;
                     bnr = getdigits_int(&mut rem, false, 0);
-                    arg = arg.wrapping_add(arg_bytes.len() - rem.len());
+                    arg = &arg[arg_bytes.len() - rem.len()..];
                 }
             }
             os_breakcheck();
@@ -2066,7 +2066,6 @@ pub fn do_bufdel(
         }
 
         if deleted == 0 {
-            let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
             let msg_cstr = if command == DOBUF_UNLOAD {
                 gettext(c"E515: No buffers were unloaded")
             } else if command == DOBUF_DEL {
@@ -2075,7 +2074,7 @@ pub fn do_bufdel(
                 gettext(c"E517: No buffers were wiped out")
             };
             crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg_cstr.to_bytes());
-            errormsg = Some(iobuff_ptr.as_cstr());
+            errormsg = Some(g_st().iobuff_cstr());
         } else if i64::from(deleted) >= opt_vars().p_report {
             if command == DOBUF_UNLOAD {
                 smsg!(
@@ -3376,20 +3375,16 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
         let mut regmatch: Regmatch = Regmatch::new();
 
         if !fuzzy {
-            let patc: RawCCharPtr = if pat_bytes.first() == Some(&b'^') && pat_bytes.len() > 1 {
-                let pc = crate::strings::ByteSlice::from_ptr(pat.wrapping_add(1)).to_cstring();
-                let ptr = pc.as_ptr();
+            let patc: &CStr = if pat_bytes.first() == Some(&b'^') && pat_bytes.len() > 1 {
+                let pc = unsafe { CStr::from_ptr(pat.wrapping_add(1)) }.to_owned();
                 patc_owned = Some(pc);
-                ptr
+                patc_owned.as_deref().unwrap()
             } else if pat_bytes.first() == Some(&b'^') {
-                c"".as_ptr()
+                c""
             } else {
-                pat
+                &pat_cstr
             };
-            regmatch.set_prog(vim_regcomp(
-                crate::strings::ByteSlice::from_ptr(patc).as_cstr(),
-                RE_MAGIC,
-            ));
+            regmatch.set_prog(vim_regcomp(patc, RE_MAGIC));
             if regmatch.regprog.is_null() {
                 return false;
             }
@@ -3749,7 +3744,6 @@ pub fn buflist_list(eap: &mut Exarg) {
             continue;
         }
 
-        let namebuff_ptr = g_st().name_buff.as_mut_ptr();
         if let Some(name) = buf_spname(&*(buf)) {
             crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), name.to_bytes());
         } else {
@@ -3811,7 +3805,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             },
             ro_char,
             changed_char,
-            crate::strings::ByteSlice::from_ptr(namebuff_ptr),
+            g_st().name_buff_cstr(),
         )
         .min(IOSIZE - 20);
 
@@ -4131,9 +4125,9 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     };
     let sep_str =
         if is_changed || (curbuf_mut().b_flags & BF_WRITE_MASK) != 0 || curbuf_mut().b_p_ro {
-            c" ".as_ptr()
+            c" "
         } else {
-            c"".as_ptr()
+            c""
         };
 
     bufferlen += format_to_buf_safelen!(
@@ -4144,7 +4138,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         new_str,
         readerr_str,
         ro_str,
-        crate::strings::ByteSlice::from_ptr(sep_str),
+        sep_str,
     );
 
     let line_count = i64::from(curbuf_mut().b_ml.ml_line_count);
@@ -4205,8 +4199,8 @@ pub fn col_print(buf: &mut [u8], col: i32, vcol: i32) -> i32 {
 
 /// Put the title name in the title bar and icon of the window.
 pub fn maketitle() {
-    let mut title_str = crate::strings::BYTE_SLICE_NULL;
-    let mut icon_str = crate::strings::BYTE_SLICE_NULL;
+    let mut title_cstr: Option<std::ffi::CString> = None;
+    let mut icon_cstr: Option<std::ffi::CString> = None;
     let mut buf = [0u8; IOSIZE];
     let outbuf = CharBuf::from_slice(&mut buf);
 
@@ -4247,10 +4241,9 @@ pub fn maketitle() {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
-                title_str = crate::strings::ByteSlice::from_bytes(&buf);
+                title_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
             } else {
-                title_str =
-                    crate::strings::ByteSlice::from_cstr(opt_vars().p_titlestring.as_cstr());
+                title_cstr = Some(opt_vars().p_titlestring.as_cstr().to_owned());
             }
         } else {
             #[cfg(windows)]
@@ -4276,17 +4269,16 @@ pub fn maketitle() {
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
-            title_str = crate::strings::ByteSlice::from_bytes(&buf);
+            title_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
             #[cfg(windows)]
             {
                 opt_vars().p_ssl = p_ssl_save;
             }
         }
     }
-    let mut mustset = value_change(title_str.as_opt_cstr(), &mut buf_st().lasttitle);
+    let mut mustset = value_change(title_cstr.as_deref(), &mut buf_st().lasttitle);
 
     if opt_vars().p_icon {
-        icon_str = crate::strings::ByteSlice::from_bytes(&buf);
         if !opt_vars().p_iconstring.is_empty() {
             if (g_st().stl_syntax & STL_IN_ICON) != 0 {
                 build_stl_str_hl(
@@ -4302,8 +4294,9 @@ pub fn maketitle() {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 );
+                icon_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
             } else {
-                icon_str = crate::strings::ByteSlice::from_cstr(opt_vars().p_iconstring.as_cstr());
+                icon_cstr = Some(opt_vars().p_iconstring.as_cstr().to_owned());
             }
         } else {
             let name_bytes = if let Some(sp) = buf_spname(curbuf_mut()) {
@@ -4321,10 +4314,11 @@ pub fn maketitle() {
             buf[..copy_len].copy_from_slice(&tail[..copy_len]);
             buf[copy_len] = 0;
             trans_characters(&mut buf);
+            icon_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
         }
     }
 
-    mustset |= value_change(icon_str.as_opt_cstr(), &mut buf_st().lasticon);
+    mustset |= value_change(icon_cstr.as_deref(), &mut buf_st().lasticon);
 
     if mustset {
         resettitle();
@@ -4350,15 +4344,10 @@ fn value_change(str_: Option<&CStr>, last: &mut Option<std::ffi::CString>) -> bo
 
 /// Set current window title.
 pub fn resettitle() {
-    let state = buf_st();
-    let icon_ptr = state.lasticon.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-    let title_ptr = state.lasttitle.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-    ui_call_set_icon(cstr_as_string(
-        crate::strings::ByteSlice::from_ptr(icon_ptr).as_opt_cstr(),
-    ));
-    ui_call_set_title(cstr_as_string(
-        crate::strings::ByteSlice::from_ptr(title_ptr).as_opt_cstr(),
-    ));
+    let lasticon = buf_st().lasticon.clone();
+    let lasttitle = buf_st().lasttitle.clone();
+    ui_call_set_icon(cstr_as_string(lasticon.as_deref()));
+    ui_call_set_title(cstr_as_string(lasttitle.as_deref()));
 }
 
 pub fn free_titles() {
@@ -4397,11 +4386,7 @@ pub fn get_rel_pos(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
     let perc = calc_percentage(i64::from(above), i64::from(above + below));
     let mut tmp = [0u8; 8];
     format_to_buf!(&mut tmp, gettext(c"%d%%"), perc);
-    format_to_buf_safelen!(
-        buf,
-        gettext(c"%3s"),
-        crate::strings::ByteSlice::from_ptr(tmp.as_ptr().cast::<()>())
-    ) as i32
+    format_to_buf_safelen!(buf, gettext(c"%3s"), crate::memory::bytes_as_cstr(&tmp)) as i32
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
@@ -4434,16 +4419,15 @@ pub fn fname_expand(
     #[cfg_attr(not(windows), expect(unused_mut))]
     let mut sf_cstr = sfname_in.to_owned();
     if os_isdir(&full_cstr) {
-        let name_vec: Vec<u8> = sf_cstr.as_bytes_with_nul().to_vec();
-        let name = crate::strings::ByteSlice::from_bytes(&name_vec);
+        let mut name_vec: Vec<u8> = sf_cstr.as_bytes_with_nul().to_vec();
         let name_len = name_vec.len() - 1;
-        if name_len > 0
-            && after_pathsep(name.slice(name_len)) != 0
-            && (name.wrapping_add(name_len).as_ptr() as usize)
-                > (get_past_head(name.as_cstr()).as_ptr() as usize)
-        {
-            *crate::globals::GraphPtr::of(path_tail_with_sep(name.as_cstr()).as_ptr().cast_mut())
-                .borrow_mut() = 0;
+        let name_cstr = crate::memory::bytes_as_cstr(&name_vec);
+        let past_head_off =
+            get_past_head(name_cstr).as_ptr() as usize - name_cstr.as_ptr() as usize;
+        if name_len > 0 && after_pathsep(&name_vec[..name_len]) != 0 && name_len > past_head_off {
+            let tail_off =
+                path_tail_with_sep(name_cstr).as_ptr() as usize - name_cstr.as_ptr() as usize;
+            name_vec[tail_off] = 0;
         }
         let full = fix_fname(Some(crate::memory::bytes_as_cstr(&name_vec)));
         drop(name_vec);

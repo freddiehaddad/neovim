@@ -592,7 +592,6 @@ pub trait ByteSliceExt: Copy {
     fn addr(self) -> usize;
     fn as_ptr(self) -> *mut c_char;
     fn cast<U>(self) -> *mut U;
-    fn cast_const(self) -> *const c_char;
     fn first_byte(self) -> u8;
     fn byte_at(self, idx: usize) -> u8;
     fn is_empty(self) -> bool;
@@ -650,11 +649,6 @@ impl ByteSliceExt for ByteSlice {
     #[inline(always)]
     fn cast<U>(self) -> *mut U {
         self.as_ptr().cast()
-    }
-
-    #[inline(always)]
-    fn cast_const(self) -> *const c_char {
-        self.map_or(ptr::null(), |b| b.as_ptr().cast())
     }
 
     #[inline(always)]
