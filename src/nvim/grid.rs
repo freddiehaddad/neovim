@@ -7,7 +7,7 @@ use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::mbyte::{
     mb_string2cells, utf_char2bytes, utf_char2len, utf_cluster_info_len, utf_cp_bounds,
-    utf_ptr2_str_char_info_len, utf_ptr2cells, utf_slice2char, utf_slice2len, utfc_ptr2len,
+    utf_ptr2_str_char_info_len, utf_ptr2cells, utf_slice2char, utf_slice2len,
 };
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
@@ -1221,19 +1221,20 @@ fn grid_draw_bordertext(
         let Some(text_cstr) = next_virt_text_chunk(vt, &mut i, &mut attr) else {
             break;
         };
-        let mut text = crate::strings::ByteSlice::from_cstr(text_cstr);
+        let mut text = text_cstr;
         if overflow > 0 {
             let cells = mb_string2cells(text_cstr.to_bytes()) as i32;
             if overflow >= cells {
                 overflow -= cells;
                 continue;
             }
-            let mut p = text;
-            while !p.is_empty() && overflow > 0 {
-                overflow -= utf_ptr2cells(p);
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
+            let text_bytes = text_cstr.to_bytes();
+            let mut off = 0usize;
+            while off < text_bytes.len() && overflow > 0 {
+                overflow -= utf_ptr2cells(&text_bytes[off..]);
+                off += crate::mbyte::utfc_slice2len(&text_bytes[off..]).max(1);
             }
-            text = p;
+            text = &text_cstr[off.min(text_bytes.len())..];
         }
         if attr == -1 {
             attr = default_attr;
@@ -1241,7 +1242,7 @@ fn grid_draw_bordertext(
             attr = hl_apply_winblend(winbl, attr);
             attr = hl_combine_attr(win_hl_attr_normal, attr);
         }
-        col += grid_line_puts(col, text.as_cstr(), -1, attr);
+        col += grid_line_puts(col, text, -1, attr);
     }
 }
 

@@ -81,6 +81,7 @@ pub type RawCCharPtrMut = *mut c_char;
 pub type ByteSlice = Option<&'static [u8]>;
 pub const BYTE_SLICE_NULL: ByteSlice = None;
 
+#[must_use]
 #[derive(Clone, Default, Debug)]
 pub struct OwnedSlice {
     bytes: Option<Vec<u8>>,

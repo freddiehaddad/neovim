@@ -379,12 +379,7 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     for hlf in 0..HLF_COUNT {
         remote_ui_hl_group_set(
             ui,
-            cstr_as_string(
-                crate::strings::ByteSlice::from_ptr(
-                    (hlf_name_ptr(hlf)).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                )
-                .as_opt_cstr(),
-            ),
+            cstr_as_string(hlf_name_ptr(hlf)),
             Integer::from(g_st().highlight_attr[hlf]),
         );
     }
@@ -1580,13 +1575,11 @@ pub fn dict2hlattrs(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Invalid Key: '%s'",
-                crate::strings::ByteSlice::from_ptr(
-                    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
-                        c"link_global".as_ptr()
-                    } else {
-                        c"link".as_ptr()
-                    }
-                ),
+                if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
+                    c"link_global"
+                } else {
+                    c"link"
+                },
             );
             return hlattrs;
         }

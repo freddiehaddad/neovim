@@ -521,43 +521,10 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
                 let mut arr = arena_array(&mut arena, size as usize);
                 for elem in &items[..(size as usize)] {
                     let mut item = arena_array(&mut arena, 4);
-                    add_c(
-                        &mut item,
-                        cstr_as_obj(
-                            crate::strings::ByteSlice::from_ptr(
-                                (elem.text_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                            )
-                            .as_opt_cstr(),
-                        ),
-                    );
-                    add_c(
-                        &mut item,
-                        cstr_as_obj(
-                            crate::strings::ByteSlice::from_ptr(
-                                (elem.kind_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                            )
-                            .as_opt_cstr(),
-                        ),
-                    );
-                    add_c(
-                        &mut item,
-                        cstr_as_obj(
-                            crate::strings::ByteSlice::from_ptr(
-                                (elem.extra_cstr())
-                                    .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                            )
-                            .as_opt_cstr(),
-                        ),
-                    );
-                    add_c(
-                        &mut item,
-                        cstr_as_obj(
-                            crate::strings::ByteSlice::from_ptr(
-                                (elem.info_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-                            )
-                            .as_opt_cstr(),
-                        ),
-                    );
+                    add_c(&mut item, cstr_as_obj(elem.text_cstr()));
+                    add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
+                    add_c(&mut item, cstr_as_obj(elem.extra_cstr()));
+                    add_c(&mut item, cstr_as_obj(elem.info_cstr()));
                     add_c(&mut arr, array_obj(item));
                 }
                 ui_call_popupmenu_show(
@@ -642,88 +609,82 @@ fn pum_compute_text_attrs(
     hlf: Hlf,
     user_hlattr: i32,
 ) -> Option<Vec<i32>> {
-    let text = crate::strings::ByteSlice::from_cstr(text_cstr);
+    if text_cstr.is_empty()
+        || (hlf != HLF_PSI && hlf != HLF_PNI)
+        || (win_hl_attr(curwin_mut(), HLF_PMSI) == win_hl_attr(curwin_mut(), HLF_PSI)
+            && win_hl_attr(curwin_mut(), HLF_PMNI) == win_hl_attr(curwin_mut(), HLF_PNI))
     {
-        if text_cstr.is_empty()
-            || (hlf != HLF_PSI && hlf != HLF_PNI)
-            || (win_hl_attr(curwin_mut(), HLF_PMSI) == win_hl_attr(curwin_mut(), HLF_PSI)
-                && win_hl_attr(curwin_mut(), HLF_PMNI) == win_hl_attr(curwin_mut(), HLF_PNI))
-        {
-            return None;
-        }
-
-        let leader = if (g_st().state_global & MODE_CMDLINE) != 0 {
-            cmdline_compl_pattern()
-        } else {
-            ins_compl_leader()
-        };
-        let leader = leader.filter(|s| !s.is_empty())?;
-
-        let in_fuzzy = if (g_st().state_global & MODE_CMDLINE) != 0 {
-            cmdline_compl_is_fuzzy()
-        } else {
-            (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0
-        };
-        let leader_len = leader.to_bytes().len();
-
-        let mut match_positions: Option<Vec<u32>> = None;
-        let mut matched_len: i32 = -1;
-
-        if in_fuzzy {
-            match_positions =
-                fuzzy_match_str_with_pos(Some(text_cstr.to_bytes()), Some(leader.to_bytes()));
-            match_positions.as_ref()?;
-        }
-
-        let mut attrs = vec![0; vim_strsize(text.as_cstr()) as usize];
-        let mut ptr = text;
-        let mut cell_idx: usize = 0;
-        let mut char_pos: u32 = 0;
-        let is_select = hlf == HLF_PSI;
-
-        while !ptr.is_empty() {
-            let mut new_attr = win_hl_attr(curwin_mut(), hlf);
-
-            if let Some(ref positions) = match_positions {
-                if positions.contains(&char_pos) {
-                    new_attr =
-                        win_hl_attr(curwin_mut(), if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), hlf), new_attr);
-                }
-            } else {
-                if matched_len < 0
-                    && mb_strnicmp(ptr.as_bytes(), (leader).to_bytes(), leader_len) == 0
-                {
-                    matched_len = leader_len as i32;
-                }
-                if matched_len > 0 {
-                    new_attr =
-                        win_hl_attr(curwin_mut(), if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), hlf), new_attr);
-                    matched_len -= 1;
-                }
-            }
-
-            new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), new_attr);
-
-            if user_hlattr > 0 {
-                new_attr = hl_combine_attr(new_attr, user_hlattr);
-            }
-
-            let char_cells = utf_ptr2cells(ptr) as usize;
-            for i in 0..char_cells {
-                attrs[cell_idx + i] = new_attr;
-            }
-            cell_idx += char_cells;
-
-            ptr = ptr.wrapping_add(utfc_ptr2len(ptr) as usize);
-            char_pos += 1;
-        }
-
-        Some(attrs)
+        return None;
     }
+
+    let leader = if (g_st().state_global & MODE_CMDLINE) != 0 {
+        cmdline_compl_pattern()
+    } else {
+        ins_compl_leader()
+    };
+    let leader = leader.filter(|s| !s.is_empty())?;
+
+    let in_fuzzy = if (g_st().state_global & MODE_CMDLINE) != 0 {
+        cmdline_compl_is_fuzzy()
+    } else {
+        (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0
+    };
+    let leader_len = leader.to_bytes().len();
+
+    let mut match_positions: Option<Vec<u32>> = None;
+    let mut matched_len: i32 = -1;
+
+    if in_fuzzy {
+        match_positions =
+            fuzzy_match_str_with_pos(Some(text_cstr.to_bytes()), Some(leader.to_bytes()));
+        match_positions.as_ref()?;
+    }
+
+    let mut attrs = vec![0; vim_strsize(text_cstr) as usize];
+    let mut rem_bytes = text_cstr.to_bytes();
+    let mut cell_idx: usize = 0;
+    let mut char_pos: u32 = 0;
+    let is_select = hlf == HLF_PSI;
+
+    while !rem_bytes.is_empty() {
+        let mut new_attr = win_hl_attr(curwin_mut(), hlf);
+
+        if let Some(ref positions) = match_positions {
+            if positions.contains(&char_pos) {
+                new_attr = win_hl_attr(curwin_mut(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PMNI), new_attr);
+                new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), hlf), new_attr);
+            }
+        } else {
+            if matched_len < 0 && mb_strnicmp(rem_bytes, leader.to_bytes(), leader_len) == 0 {
+                matched_len = leader_len as i32;
+            }
+            if matched_len > 0 {
+                new_attr = win_hl_attr(curwin_mut(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PMNI), new_attr);
+                new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), hlf), new_attr);
+                matched_len -= 1;
+            }
+        }
+
+        new_attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), new_attr);
+
+        if user_hlattr > 0 {
+            new_attr = hl_combine_attr(new_attr, user_hlattr);
+        }
+
+        let char_cells = utf_ptr2cells(rem_bytes) as usize;
+        for i in 0..char_cells {
+            attrs[cell_idx + i] = new_attr;
+        }
+        cell_idx += char_cells;
+
+        let step = crate::mbyte::utfc_slice2len(rem_bytes).max(1);
+        rem_bytes = &rem_bytes[step.min(rem_bytes.len())..];
+        char_pos += 1;
+    }
+
+    Some(attrs)
 }
 
 /// Displays text on the popup menu with specific attributes (`pum_grid_puts_with_attrs`).
@@ -734,27 +695,27 @@ fn pum_grid_puts_with_attrs(
     textlen: i32,
     attrs: &[i32],
 ) {
-    let text = crate::strings::ByteSlice::from_cstr(text_cstr);
-    {
-        let col_start = col;
-        let mut ptr = text;
+    let col_start = col;
+    let text_bytes = text_cstr.to_bytes();
+    let max_off = if textlen < 0 {
+        text_bytes.len()
+    } else {
+        (textlen as usize).min(text_bytes.len())
+    };
+    let mut off = 0usize;
 
-        while !ptr.is_empty()
-            && (textlen < 0
-                || (ptr.as_ptr() as usize)
-                    < (text.wrapping_add(textlen as usize).as_ptr() as usize))
-        {
-            let char_len = utfc_ptr2len(ptr);
-            let attr_idx = if pum().rl {
-                col_start + cells - col - 1
-            } else {
-                col - col_start
-            };
-            let attr = attrs[attr_idx as usize];
-            grid_line_puts(col, ptr.as_cstr(), char_len, attr);
-            col += utf_ptr2cells(ptr);
-            ptr = ptr.wrapping_add(char_len as usize);
-        }
+    while off < max_off {
+        let cur_cstr = &text_cstr[off..];
+        let char_len = utfc_ptr2len(cur_cstr.to_bytes());
+        let attr_idx = if pum().rl {
+            col_start + cells - col - 1
+        } else {
+            col - col_start
+        };
+        let attr = attrs[attr_idx as usize];
+        grid_line_puts(col, cur_cstr, char_len, attr);
+        col += utf_ptr2cells(cur_cstr.to_bytes());
+        off += (char_len.max(1) as usize).min(max_off - off);
     }
 }
 
@@ -1884,28 +1845,25 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 }
 
 pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
-    let path_name = crate::strings::ByteSlice::from_cstr(path_name);
-    {
-        if !use_mouse_pos {
-            g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
-            g_st().mouse_col = curwin_mut().w_grid.col_offset
-                + if curwin_mut().w_onebuf_opt.wo_rl {
-                    curwin_mut().w_view_width - curwin_mut().w_wcol - 1
-                } else {
-                    curwin_mut().w_wcol
-                };
-            if ui_has(K_UIMULTIGRID) {
-                g_st().mouse_grid = curwin_mut().w_grid.target.handle;
-            } else if curwin_mut().w_grid.target != &raw const g_st().default_grid {
-                g_st().mouse_grid = 0;
-                g_st().mouse_row += curwin_mut().w_winrow;
-                g_st().mouse_col += curwin_mut().w_wincol;
-            }
+    if !use_mouse_pos {
+        g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
+        g_st().mouse_col = curwin_mut().w_grid.col_offset
+            + if curwin_mut().w_onebuf_opt.wo_rl {
+                curwin_mut().w_view_width - curwin_mut().w_wcol - 1
+            } else {
+                curwin_mut().w_wcol
+            };
+        if ui_has(K_UIMULTIGRID) {
+            g_st().mouse_grid = curwin_mut().w_grid.target.handle;
+        } else if curwin_mut().w_grid.target != &raw const g_st().default_grid {
+            g_st().mouse_grid = 0;
+            g_st().mouse_row += curwin_mut().w_winrow;
+            g_st().mouse_col += curwin_mut().w_wincol;
         }
+    }
 
-        if let Some(menu) = menu_find(path_name.as_cstr()) {
-            pum_show_popupmenu(menu);
-        }
+    if let Some(menu) = menu_find(path_name) {
+        pum_show_popupmenu(menu);
     }
 }
 
@@ -1917,16 +1875,12 @@ pub fn pum_pos_ui_flush(force: bool) {
             && g_st().pum_grid.handle != 0
             && g_st().pum_grid.pending_comp_index_update)
     {
-        let anchor = if pum().above {
-            c"SW".as_ptr()
-        } else {
-            c"NW".as_ptr()
-        };
+        let anchor = if pum().above { c"SW" } else { c"NW" };
         let row_off = if pum().above { -pum().height } else { 0 };
         ui_call_win_float_pos(
             i64::from(g_st().pum_grid.handle),
             -1,
-            cstr_as_string(crate::strings::ByteSlice::from_ptr(anchor).as_opt_cstr()),
+            cstr_as_string(Some(anchor)),
             i64::from(pum().anchor_grid),
             f64::from(pum().row - row_off - pum().win_row_offset),
             f64::from(pum().left_col - pum().win_col_offset),

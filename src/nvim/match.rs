@@ -1,5 +1,7 @@
 //! Functions for highlighting matches (`src/nvim/match.c`).
 
+use std::ffi::CStr;
+
 use crate::charset::ascii_iswhite;
 use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_range_later};
 use crate::errors::*;
@@ -667,7 +669,7 @@ pub fn prepare_search_hl_line(
 
             if shl.startcol == shl.endcol {
                 let p = line.wrapping_add(shl.endcol as usize);
-                if !crate::strings::AsByteSlice::is_empty_val(p) {
+                if unsafe { *p } != 0 {
                     shl.endcol += utfc_ptr2len(p);
                 } else {
                     shl.endcol += 1;
@@ -786,7 +788,7 @@ pub fn update_search_hl(
 
                     if shl.startcol == shl.endcol {
                         let p = line.wrapping_add(shl.endcol as usize);
-                        if crate::strings::AsByteSlice::is_empty_val(p) {
+                        if unsafe { *p } == 0 {
                             shl.endcol += 1;
                         } else {
                             shl.endcol += utfc_ptr2len(p);
@@ -1068,20 +1070,12 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
 
         let mut group_buf = [0u8; NUMBUFLEN];
-        let group = crate::strings::ByteSlice::from_ptr(
-            (tv_dict_get_string_buf(Some(d), c"group", &mut group_buf))
-                .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-        )
-        .as_opt_cstr();
+        let group = tv_dict_get_string_buf(Some(d), c"group", &mut group_buf);
         let priority = tv_dict_get_number(Some(d), c"priority") as i32;
         let id = tv_dict_get_number(Some(d), c"id") as i32;
         let conceal = tv_dict_find_opt(Some(d), c"conceal", 7).map(|di| tv_get_string(&di.di_tv));
         if i == 0 {
-            let pat = crate::strings::ByteSlice::from_ptr(
-                (tv_dict_get_string(Some(d), c"pattern"))
-                    .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            )
-            .as_opt_cstr();
+            let pat = tv_dict_get_string(Some(d), c"pattern");
             if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
                 match_add_failed = true;
             }
@@ -1233,7 +1227,6 @@ pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// `:[N]match {group} {pattern}` (`ex_match`).
 pub fn ex_match(eap: &mut Exarg) {
     let mut g = None;
-    let end;
 
     let id: i32 = if eap.line2 <= 3 {
         eap.line2
@@ -1246,45 +1239,51 @@ pub fn ex_match(eap: &mut Exarg) {
         match_delete(curwin_mut(), id, false);
     }
 
-    let arg = crate::strings::ByteSlice::from_cstr(eap.arg.as_cstr());
-    if ends_excmd(arg.first_byte()) != 0 {
+    let arg_slice = eap.arg.clone();
+    let arg = arg_slice.as_cstr();
+    let end: &CStr;
+    if ends_excmd(i32::from(arg.to_bytes().first().copied().unwrap_or(0))) != 0 {
         end = arg;
     } else {
-        let arg_bytes = arg.as_bytes();
+        let arg_bytes = arg.to_bytes();
         if arg_bytes.len() >= 4 && arg_bytes[..4].eq_ignore_ascii_case(b"none") && {
             let b4 = arg_bytes.get(4).copied().unwrap_or(0);
             ascii_iswhite(b4) || ends_excmd(i32::from(b4)) != 0
         } {
-            end = arg.wrapping_add(4);
+            end = &arg[4..];
         } else {
-            let mut p = arg.skiptowhite();
+            let wlen = crate::charset::skiptowhite_len(arg_bytes);
             if !eap.skip {
-                g = Some(std::ffi::CString::new(arg.slice(p.offset_from(arg))).unwrap_or_default());
+                g = Some(std::ffi::CString::new(&arg_bytes[..wlen]).unwrap_or_default());
             }
-            p = p.skipwhite();
+            let p = crate::charset::skipwhite(&arg[wlen..]);
             if p.is_empty() {
                 semsg!(gettext(E_INVARG2), arg);
                 return;
             }
-            end = crate::strings::ByteSlice::from_cstr(skip_regexp(
-                p.wrapping_add(1).as_cstr(),
-                i32::from(p.first_byte()),
-                1,
-            ));
+            let p0 = p.to_bytes()[0];
+            end = skip_regexp(&p[1..], i32::from(p0), 1);
             if !eap.skip {
-                if !end.is_empty() && ends_excmd(end.wrapping_add(1).skipwhite().first_byte()) == 0
+                if !end.is_empty()
+                    && ends_excmd(i32::from(
+                        crate::charset::skipwhite(&end[1..])
+                            .to_bytes()
+                            .first()
+                            .copied()
+                            .unwrap_or(0),
+                    )) == 0
                 {
-                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, end.as_cstr()));
+                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, end));
                     return;
                 }
-                if end.first_byte() != p.first_byte() {
+                if end.to_bytes().first() != Some(&p0) {
                     semsg!(gettext(E_INVARG2), p);
                     return;
                 }
 
-                let p_next = p.wrapping_add(1);
-                let pat_len = end.offset_from(p_next);
-                let pat_cstr = crate::memory::bytes_to_cstring(p_next.slice(pat_len));
+                let p_next = &p[1..];
+                let pat_len = (end.as_ptr() as usize).wrapping_sub(p_next.as_ptr() as usize);
+                let pat_cstr = crate::memory::bytes_to_cstring(&p_next.to_bytes()[..pat_len]);
                 match_add(
                     curwin_mut(),
                     g.as_deref(),
@@ -1297,5 +1296,5 @@ pub fn ex_match(eap: &mut Exarg) {
             }
         }
     }
-    eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(find_nextcmd(end.as_cstr()));
+    eap.nextcmd = arg_slice.advance_to_opt_cstr(find_nextcmd(end));
 }

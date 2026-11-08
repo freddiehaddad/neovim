@@ -107,8 +107,7 @@ fn decor_provider_error(
     name: &std::ffi::CStr,
     msg: Option<&std::ffi::CStr>,
 ) {
-    let msg_ptr = crate::strings::ByteSlice::from_opt_cstr(msg);
-    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)").as_ptr();
+    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)");
     logmsg!(
         LOGLVL_ERR,
         None,
@@ -117,15 +116,10 @@ fn decor_provider_error(
         true,
         c"Error in decoration provider \"%s\" (ns=%s):\n%s",
         name,
-        crate::strings::ByteSlice::from_ptr(ns),
-        msg_ptr,
+        ns,
+        msg,
     );
-    msg_schedule_semsg_multiline!(
-        c"Decoration provider \"%s\" (ns=%s):\n%s",
-        name,
-        crate::strings::ByteSlice::from_ptr(ns),
-        msg_ptr,
-    );
+    msg_schedule_semsg_multiline!(c"Decoration provider \"%s\" (ns=%s):\n%s", name, ns, msg,);
 }
 
 /// Note we pass in a provider index as this function may cause `decor_prov_st().decor_providers` to be

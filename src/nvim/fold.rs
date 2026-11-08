@@ -1517,7 +1517,6 @@ pub fn get_foldtext(
             let mut idx = 0;
             let slen = bytes.len() - 1;
             while idx < slen && bytes[idx] != 0 {
-                let p_at = crate::strings::ByteSlice::from_bytes(&bytes[idx..]);
                 let len = utfc_ptr2len(&bytes[idx..slen]) as usize;
                 if len > 1 {
                     if !vim_isprintc(utf_ptr2char(&bytes[idx..slen])) {
@@ -1527,7 +1526,7 @@ pub fn get_foldtext(
                 } else if bytes[idx] == TAB {
                     bytes[idx] = b' ';
                     idx += 1;
-                } else if ptr2cells(p_at) > 1 {
+                } else if ptr2cells(&bytes[idx..]) > 1 {
                     break;
                 } else {
                     idx += 1;
@@ -2623,11 +2622,11 @@ fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
         return false;
     }
     let cmd = if fp.fd_flags == FD_CLOSED {
-        c"sil! normal! zc".as_ptr()
+        c"sil! normal! zc"
     } else {
-        c"sil! normal! zo".as_ptr()
+        c"sil! normal! zo"
     };
-    if fd.puts(crate::strings::ByteSlice::from_ptr(cmd).as_cstr()) < 0 || !put_eol(fd) {
+    if fd.puts(cmd) < 0 || !put_eol(fd) {
         return false;
     }
     true
@@ -2692,20 +2691,20 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             lnum += 1;
         }
 
-        let mut s = crate::strings::ByteSlice::from_cstr(ml_get(lnum)).skipwhite();
-        let s_bytes = s.as_bytes();
+        let mut s = crate::charset::skipwhite(ml_get(lnum));
+        let s_bytes = s.to_bytes();
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
-            s = s.wrapping_add(2).skipwhite();
-            if s.skipwhite().is_empty() && lnum + 1 < foldend {
-                s = crate::strings::ByteSlice::from_cstr(ml_get(lnum + 1)).skipwhite();
-                if s.first_byte() == b'*' {
-                    s = s.wrapping_add(1).skipwhite();
+            s = crate::charset::skipwhite(&s[2..]);
+            if crate::charset::skipwhite(s).is_empty() && lnum + 1 < foldend {
+                s = crate::charset::skipwhite(ml_get(lnum + 1));
+                if s.to_bytes().first() == Some(&b'*') {
+                    s = crate::charset::skipwhite(&s[1..]);
                 }
             }
         }
         let count = foldend - foldstart + 1;
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
-        let s_bytes = s.as_cstr().to_bytes_with_nul();
+        let s_bytes = s.to_bytes_with_nul();
         let s_len = s_bytes.len() - 1;
         let len = txt.to_bytes().len() + dashes.to_bytes().len() + 20 + s_len;
         let mut r_vec = vec![0u8; len];

@@ -192,10 +192,9 @@ fn coladvance2(
             }
         }
 
-        let line = ml_get_buf(wp.buf_mut(), pos.lnum).as_ptr().cast_mut();
+        let line_cstr = ml_get_buf(wp.buf_mut(), pos.lnum);
         let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
-        let line_cstr = crate::strings::ByteSlice::from_ptr(line).as_cstr();
         let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_cstr);
         let mut ci = utf_ptr2_str_char_info(line_cstr);
         col = 0;
@@ -221,11 +220,8 @@ fn coladvance2(
             && wcol >= 0
             && ((col != wcol && col != wcol + 1) || csize > 1)
         {
-            if line_cstr
-                .to_bytes()
-                .get(idx as usize..)
-                .is_none_or(<[u8]>::is_empty)
-            {
+            let line_bytes = line_cstr.to_bytes();
+            if line_bytes.get(idx as usize..).is_none_or(<[u8]>::is_empty) {
                 let correct = wcol - col;
                 let idx_usize = idx as usize;
                 let correct_usize = correct as usize;
@@ -233,8 +229,7 @@ fn coladvance2(
                     .checked_add(correct_usize)
                     .expect("STRICT_ADD overflow");
                 let mut newline = vec![0u8; newline_size + 1];
-                newline[..idx_usize]
-                    .copy_from_slice(crate::strings::AsByteSlice::slice_len(line, idx_usize));
+                newline[..idx_usize].copy_from_slice(&line_bytes[..idx_usize]);
                 newline[idx_usize..idx_usize + correct_usize].fill(b' ');
 
                 ml_replace(pos.lnum, crate::memory::bytes_until_nul(&newline), true);
@@ -253,7 +248,8 @@ fn coladvance2(
                     .checked_add(csize_usize)
                     .expect("STRICT_ADD overflow");
                 let mut newline = vec![0u8; alloc_n + 1];
-                let line_slice = crate::strings::AsByteSlice::slice_len(line, linelen as usize);
+                let line_slice = &line_cstr.to_bytes_with_nul()
+                    [..(linelen as usize).min(line_cstr.to_bytes_with_nul().len())];
                 newline[..idx_usize].copy_from_slice(&line_slice[..idx_usize]);
                 newline[idx_usize..idx_usize + csize_usize].fill(b' ');
                 let rest_n = (linelen as usize)
@@ -521,13 +517,9 @@ pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
 /// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
     let cursor = curwin_mut().w_cursor;
-    crate::strings::ByteSlice::from_ptr(
-        ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum)
-            .as_ptr()
-            .cast_mut()
-            .wrapping_add(cursor.col as usize),
-    )
-    .as_cstr()
+    let line = ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum);
+    let col = (cursor.col.max(0) as usize).min(line.to_bytes().len());
+    &line[col..]
 }
 
 /// Return the bytes (excluding the NUL) of the cursor line.

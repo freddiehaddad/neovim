@@ -475,7 +475,6 @@ pub fn ui_client_event_connect(args: Array) {
 
 pub fn channel_connect_event(server_addr: std::ffi::CString) {
     let mut err: Option<&CStr> = None;
-    let addr_ptr = server_addr.as_ptr();
     let is_tcp = socket_address_tcp_host_end(server_addr.to_bytes()).is_some();
     let on_data = CallbackReader::none();
     let chan = channel_connect(is_tcp, &server_addr, true, false, on_data, 50, &mut err);
@@ -488,7 +487,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             302,
             true,
             c"Cannot connect to server %s: %s",
-            crate::strings::ByteSlice::from_ptr(addr_ptr),
+            &server_addr,
             err_cstr,
         );
         drop(server_addr);
@@ -512,7 +511,7 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
         312,
         true,
         c"Connected to server %s on channel %lld",
-        crate::strings::ByteSlice::from_ptr(addr_ptr),
+        &server_addr,
         chan as i64,
     );
 }

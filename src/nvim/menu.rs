@@ -1,5 +1,7 @@
 //! Code for menus, used for the GUI and `'wildmenu'` (`src/nvim/menu.c`).
 
+use std::ffi::CString;
+
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
 use crate::charset::{CTRL_V_CONST, ascii_isdigit, ascii_iswhite, getdigits_int};
 use crate::cursor::{CursorPos, check_cursor, gchar_cursor};
@@ -228,10 +230,10 @@ pub fn ex_menu(eap: &mut Exarg) {
         Some(&mut noremap),
         Some(&mut unmenu),
     );
-    let mut arg = crate::strings::ByteSlice::from_ptr(eap.arg_cstr_buf_mut().as_mut_ptr());
+    let mut arg = eap.arg.clone();
 
     loop {
-        let arg_bytes = (arg).as_bytes();
+        let arg_bytes = arg.as_bytes();
         if arg_bytes.starts_with(b"<script>") {
             noremap = REMAP_SCRIPT;
             arg = arg.wrapping_add(8).skipwhite();
@@ -249,10 +251,10 @@ pub fn ex_menu(eap: &mut Exarg) {
         break;
     }
 
-    if (arg).as_bytes().starts_with(b"icon=") {
+    if arg.as_bytes().starts_with(b"icon=") {
         arg = arg.wrapping_add(5);
-        let mut arg_len = (arg).len();
-        let arg_slice = crate::globals::GraphPtr::raw_slice_mut(arg.cast::<u8>(), arg_len + 1);
+        let mut arg_len = arg.len();
+        let arg_slice = arg.cstr_buf_mut();
         let mut idx = 0;
         while idx < arg_len && arg_slice[idx] != b' ' {
             if arg_slice[idx] == b'\\' {
@@ -272,17 +274,15 @@ pub fn ex_menu(eap: &mut Exarg) {
         arg = arg.wrapping_add(idx);
     }
 
-    let mut p = arg;
-    while !(p).is_empty() {
-        if !ascii_isdigit((p).first_byte()) && (p).first_byte() != b'.' {
-            break;
-        }
-        p = p.wrapping_add(1);
-    }
+    let p_len = arg
+        .as_bytes()
+        .iter()
+        .take_while(|&&b| ascii_isdigit(b) || b == b'.')
+        .count();
     let mut i: usize;
-    if ascii_iswhite((p).first_byte()) {
-        let arg_bytes = (arg).as_bytes();
-        let mut rem = arg_bytes;
+    if ascii_iswhite(arg.byte_at(p_len)) {
+        let arg_bytes = arg.as_bytes().to_vec();
+        let mut rem = arg_bytes.as_slice();
         i = 0;
         while i < MENUDEPTH && rem.first().is_some_and(|&b| !ascii_iswhite(i32::from(b))) {
             pri_tab[i] = getdigits_int(&mut rem, false, 0);
@@ -294,8 +294,7 @@ pub fn ex_menu(eap: &mut Exarg) {
             }
             i += 1;
         }
-        arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-        arg = arg.skipwhite();
+        arg = arg.wrapping_add(arg_bytes.len() - rem.len()).skipwhite();
     } else if eap.addr_count != 0 && eap.line2 != 0 {
         pri_tab[0] = eap.line2;
         i = 1;
@@ -308,7 +307,7 @@ pub fn ex_menu(eap: &mut Exarg) {
     }
     pri_tab[MENUDEPTH] = -1;
 
-    let arg_bytes = (arg).as_bytes();
+    let arg_bytes = arg.as_bytes();
     if arg_bytes.starts_with(b"enable")
         && arg_bytes
             .get(6)
@@ -325,32 +324,26 @@ pub fn ex_menu(eap: &mut Exarg) {
         arg = arg.wrapping_add(7).skipwhite();
     }
 
-    if (arg).is_empty() {
-        show_menus((arg).as_cstr(), modes);
+    if arg.is_empty() {
+        show_menus(arg.as_cstr(), modes);
         return;
     }
 
-    let menu_path_ptr = arg;
-    if (menu_path_ptr).first_byte() == b'.' {
-        semsg!(gettext(E_INVARG2), menu_path_ptr);
+    if arg.first_byte() == b'.' {
+        semsg!(gettext(E_INVARG2), &arg);
         return;
     }
 
-    let arg_len = (arg).len();
-    let arg_buf = crate::globals::GraphPtr::raw_slice_mut(arg.cast::<u8>(), arg_len + 1);
-    let map_to_off = menu_translate_tab_and_shift(arg_buf);
-    let mut map_to = arg.cast::<u8>().wrapping_add(map_to_off);
-    let map_to_empty = crate::strings::AsByteSlice::is_empty_val(map_to);
-    let mut menu_path = (menu_path_ptr).as_cstr();
+    let map_to_off = menu_translate_tab_and_shift(arg.cstr_buf_mut());
+    let map_to_slice = arg.wrapping_add(map_to_off);
+    let map_to_empty = map_to_slice.is_empty();
+    let mut menu_path = arg.as_cstr();
 
     if map_to_empty && !unmenu && enable == K_NONE {
         show_menus(menu_path, modes);
         return;
     } else if !map_to_empty && (unmenu || enable != K_NONE) {
-        semsg!(
-            gettext(E_TRAILING_ARG),
-            crate::strings::ByteSlice::from_ptr(map_to)
-        );
+        semsg!(gettext(E_TRAILING_ARG), &map_to_slice);
         return;
     }
 
@@ -392,29 +385,25 @@ pub fn ex_menu(eap: &mut Exarg) {
             return;
         }
 
-        let map_buf_owned = if crate::strings::ByteSlice::from_ptr(map_to)
-            .as_cstr()
-            .to_bytes()
-            .eq_ignore_ascii_case(b"<nop>")
-        {
-            map_to = c"".as_ptr().cast_mut().cast();
-            None
+        let map_buf_owned: Option<CString>;
+        let map_to_cstr: Option<&CStr> = if map_to_slice.as_bytes().eq_ignore_ascii_case(b"<nop>") {
+            Some(c"")
         } else if (modes & MENU_TIP_MODE) == 0 {
-            replace_termcodes(
-                crate::strings::ByteSlice::from_ptr(map_to).as_bytes(),
+            map_buf_owned = replace_termcodes(
+                map_to_slice.as_bytes(),
                 false,
                 0,
                 REPTERM_DO_LT,
                 None,
                 opt_vars().p_cpo.as_bytes(),
-            )
+            );
+            match map_buf_owned {
+                Some(ref mb) => Some(mb.as_c_str()),
+                None => map_to_slice.as_opt_cstr(),
+            }
         } else {
-            None
+            map_to_slice.as_opt_cstr()
         };
-        if let Some(ref mb) = map_buf_owned {
-            map_to = mb.as_ptr().cast_mut().cast();
-        }
-        let map_to_cstr = crate::strings::ByteSlice::from_ptr(map_to).as_opt_cstr();
 
         let mut menuarg = Vimmenu::new();
         menuarg.modes = modes;
@@ -431,8 +420,6 @@ pub fn ex_menu(eap: &mut Exarg) {
                 }
             }
         }
-
-        drop(map_buf_owned);
     }
 
     ui_call_update_menu();
@@ -991,7 +978,6 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
 
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
 pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, forceit: bool) {
-    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg_in);
     let mut unmenu = false;
 
     xp.xp_context = EXPAND_UNSUCCESSFUL;
@@ -1093,7 +1079,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
         } else {
             EXPAND_MENUS
         };
-        xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg_ptr.wrapping_add(after_dot_idx));
+        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_in).wrapping_add(after_dot_idx);
         menu_st().expand_menu = crate::globals::GraphPtr::new(menu_list.cast_mut());
     } else {
         xp.xp_context = EXPAND_NOTHING;
@@ -1200,12 +1186,9 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                 menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
             }
 
-            Some(
-                crate::strings::ByteSlice::from_ptr(
-                    (&raw const menu_st().get_menu_names_tbuffer[0]),
-                )
-                .as_cstr(),
-            )
+            Some(crate::memory::bytes_as_cstr(
+                &menu_st().borrow().get_menu_names_tbuffer,
+            ))
         } else if menu_st().get_menu_names_advance {
             menu.en_dname.as_deref()
         } else {
@@ -1733,29 +1716,19 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         menutrans.clear();
         del_menutrans_vars();
     } else {
-        let mut arg = eap.arg_cstr_buf_mut().as_mut_ptr();
-        let from_arg = arg;
-        let part1_len = menu_skip_part(crate::strings::ByteSlice::from_ptr(from_arg).as_bytes());
-        arg = from_arg.wrapping_add(part1_len);
-        let to_arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast::<u8>();
-
-        *crate::globals::GraphPtr::of(arg).borrow_mut() = 0;
-
-        let part2_len = menu_skip_part(crate::strings::ByteSlice::from_ptr(to_arg).as_bytes());
-        arg = to_arg.wrapping_add(part2_len);
-        if arg == to_arg {
+        let arg_bytes = eap.arg.as_bytes();
+        let part1_len = menu_skip_part(arg_bytes);
+        let to_off = part1_len + crate::charset::skipwhite_len(&arg_bytes[part1_len..]);
+        let part2_len = menu_skip_part(&arg_bytes[to_off..]);
+        if part2_len == 0 {
             emsg(gettext(E_INVARG));
         } else {
-            let mut from_vec: Vec<u8> = crate::strings::ByteSlice::from_ptr(from_arg)
-                .as_bytes()
-                .to_vec();
+            let mut from_vec: Vec<u8> = Vec::with_capacity(part1_len + 1);
+            from_vec.extend_from_slice(&arg_bytes[..part1_len]);
             from_vec.push(0);
-            let from_noamp_cstr = menu_text(&from_vec[..from_vec.len() - 1], None, None);
-            let to_len = ((crate::strings::AsByteSlice::byte_addr(arg) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(to_arg) as isize))
-                as usize;
-            let mut to_vec: Vec<u8> = Vec::with_capacity(to_len + 1);
-            to_vec.extend_from_slice(crate::strings::AsByteSlice::slice_len(to_arg, to_len));
+            let from_noamp_cstr = menu_text(&from_vec[..part1_len], None, None);
+            let mut to_vec: Vec<u8> = Vec::with_capacity(part2_len + 1);
+            to_vec.extend_from_slice(&arg_bytes[to_off..to_off + part2_len]);
             to_vec.push(0);
             menu_translate_tab_and_shift(&mut from_vec);
             menu_translate_tab_and_shift(&mut to_vec);

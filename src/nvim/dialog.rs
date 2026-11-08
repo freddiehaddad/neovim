@@ -260,12 +260,12 @@ pub fn prompt_for_input(
     let mut ret = if one_key { ESC } else { 0 };
     let kmsg = g_st().keep_msg.clone();
 
-    let prompt_ptr = if let Some(prompt_cstr) = prompt {
-        prompt_cstr.as_ptr()
+    let prompt_cstr = if let Some(prompt_cstr) = prompt {
+        prompt_cstr
     } else if mouse_used.is_some() && ui_mouse_has(K_MOUSE_COMMAND) {
-        c"Type number and <Enter> or click with the mouse (q or empty cancels): ".as_ptr()
+        c"Type number and <Enter> or click with the mouse (q or empty cancels): "
     } else {
-        c"Type number and <Enter> (q or empty cancels): ".as_ptr()
+        c"Type number and <Enter> (q or empty cancels): "
     };
 
     g_st().cmdline_row = g_st().msg_row;
@@ -276,7 +276,7 @@ pub fn prompt_for_input(
     g_st().allow_keys += 1;
     let resp = getcmdline_prompt(
         -1,
-        crate::strings::ByteSlice::from_ptr(prompt_ptr).as_opt_cstr(),
+        Some(prompt_cstr),
         hl_id,
         EXPAND_NOTHING,
         None,

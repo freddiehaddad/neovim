@@ -24,7 +24,7 @@ use crate::marktree::{
     mt_right,
 };
 pub use crate::mbyte::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info, utfc_ptr2len};
+use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
@@ -406,14 +406,14 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg<'_>, col: i32) -> i32 {
 }
 
 fn conceal_next_byte(csarg: &CharsizeArg<'_>, col: i32) -> i32 {
-    let line = crate::strings::ByteSlice::from_cstr(csarg.line);
-    let mut p = line.wrapping_add(col as usize);
-    while !p.is_empty() {
-        let c = conceal_disp_byte(csarg, p.offset_from(line) as i32);
+    let line_bytes = csarg.line.to_bytes();
+    let mut idx = (col.max(0) as usize).min(line_bytes.len());
+    while idx < line_bytes.len() {
+        let c = conceal_disp_byte(csarg, idx as i32);
         if c != i32::from(NUL) {
             return c;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        idx += crate::mbyte::utfc_slice2len(&line_bytes[idx..]).max(1);
     }
     i32::from(NUL)
 }
@@ -425,11 +425,14 @@ pub fn charsize_regular(
     cur_char: i32,
     mb_width: i32,
 ) -> CharSize {
-    let line = crate::strings::ByteSlice::from_cstr(csarg.line);
-    let cur = if cur.is_empty() {
-        line.wrapping_add(csarg.line.to_bytes().len())
+    let line_bytes = csarg.line.to_bytes();
+    let cur_bytes = crate::memory::bytes_until_nul(cur);
+    let cur_off = if cur_bytes.is_empty() {
+        line_bytes.len()
     } else {
-        crate::strings::ByteSlice::from_bytes(cur)
+        (cur_bytes.as_ptr() as usize)
+            .saturating_sub(line_bytes.as_ptr() as usize)
+            .min(line_bytes.len())
     };
     {
         csarg.cur_text_width_left = 0;
@@ -448,7 +451,7 @@ pub fn charsize_regular(
         let mut is_doublewidth = false;
         if use_tabstop {
             size = tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array);
-        } else if cur.is_empty() {
+        } else if cur_bytes.is_empty() {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
             size = K_INVALID_BYTE_CELLS;
@@ -459,7 +462,7 @@ pub fn charsize_regular(
 
         if csarg.virt_row >= 0 && !csarg.skip_cur_text {
             let mut tab_size = size;
-            let col = cur.offset_from(line) as i32;
+            let col = cur_off as i32;
             loop {
                 let mark = marktree_itr_current(&buf.b_marktree, &csarg.iter);
                 if mark.pos.row != csarg.virt_row || mark.pos.col > col {
@@ -497,10 +500,10 @@ pub fn charsize_regular(
 
         let body = size;
         let mut hidden = 0;
-        let mut lbr_char = i32::from(cur.first_byte());
+        let mut lbr_char = i32::from(cur_bytes.first().copied().unwrap_or(0));
         let spans = csarg.extconceal_opt();
         if let Some(spans) = spans {
-            let col = cur.offset_from(line) as i32;
+            let col = cur_off as i32;
             let own = body - csarg.cur_text_width_left - csarg.cur_text_width_right;
             let span = conceal_span_at(spans, col);
             if let Some(span_ref) = span {
@@ -553,7 +556,7 @@ pub fn charsize_regular(
                         head_prev += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
-                        head_prev += get_breakindent_win(&mut *wp, (line).as_bytes());
+                        head_prev += get_breakindent_win(&mut *wp, line_bytes);
                     }
                     csarg.indent_width = head_prev;
                 }
@@ -578,7 +581,7 @@ pub fn charsize_regular(
                         head_mid += vim_strsize(&sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri {
-                        head_mid += get_breakindent_win(&mut *wp, (line).as_bytes());
+                        head_mid += get_breakindent_win(&mut *wp, line_bytes);
                     }
                     csarg.indent_width = head_mid;
                 }
@@ -598,7 +601,7 @@ pub fn charsize_regular(
                             / width2
                             * head_mid;
                     } else if max_head_vcol < 0 {
-                        let off = mb_added + virt_text_cursor_off(&*csarg, cur.is_empty());
+                        let off = mb_added + virt_text_cursor_off(&*csarg, cur_bytes.is_empty());
                         if off >= prev_rem {
                             if size > off {
                                 head += (1 + (off - prev_rem) / width) * head_mid;
@@ -622,18 +625,18 @@ pub fn charsize_regular(
             && lbr_char < 256
             && vim_isbreak(lbr_char)
         {
-            let next_col = cur.offset_from(line) as i32 + utfc_ptr2len(cur);
+            let next_col = cur_off as i32 + crate::mbyte::utfc_slice2len(cur_bytes) as i32;
             let next_c = conceal_next_byte(csarg, next_col);
             if !vim_isbreak(i32::from(next_c as u8)) {
-                let mut t = line;
-                while vim_isbreak(i32::from(t.first_byte())) {
-                    t = t.wrapping_add(1);
-                }
-                need_lbr = cur.addr() >= t.addr();
+                let lead_breaks = line_bytes
+                    .iter()
+                    .take_while(|&&b| vim_isbreak(i32::from(b)))
+                    .count();
+                need_lbr = cur_off >= lead_breaks;
             }
         }
         if need_lbr {
-            let mut s = cur;
+            let mut s_off = cur_off;
             let numberextra = win_col_off(wp);
             let col_adj = size - 1;
             let mut colmax: Colnr = wp.w_view_width - numberextra - col_adj;
@@ -653,13 +656,16 @@ pub fn charsize_regular(
             let mut vcol2 = disp_vcol;
             let mut prev_break = true;
             loop {
-                s = s.wrapping_add(utfc_ptr2len(s) as usize);
-                let mut c = i32::from(s.first_byte());
+                s_off += crate::mbyte::utfc_slice2len(&line_bytes[s_off..]).max(1);
+                if s_off >= line_bytes.len() {
+                    break;
+                }
+                let mut c = i32::from(line_bytes[s_off]);
                 if c == 0 {
                     break;
                 }
 
-                let col = s.offset_from(line) as i32;
+                let col = s_off as i32;
                 if has_virt < 0 {
                     has_virt = i32::from(marktree_itr_get_filter(
                         &buf.b_marktree,
@@ -677,10 +683,11 @@ pub fn charsize_regular(
                     0
                 };
 
-                let s_bytes = s.as_bytes();
+                let s_bytes = &line_bytes[s_off..];
+                let s_first = i32::from(s_bytes[0]);
                 let raw_w = if spans.is_none() {
                     0
-                } else if i32::from(s.first_byte()) == TAB && csarg.use_tabstop {
+                } else if s_first == TAB && csarg.use_tabstop {
                     tabstop_padding(raw_vcol2 + virt_width, buf.b_p_ts, &buf.b_p_vts_array)
                 } else {
                     win_chartabsize(&mut *wp, s_bytes, raw_vcol2)
@@ -695,16 +702,12 @@ pub fn charsize_regular(
                 let mut lookahead_hidden = conceal_span_hidden(span, col, w);
                 if !use_raw_width && lookahead_hidden != 0 {
                     use_raw_width = true;
-                    if i32::from(s.first_byte()) == TAB && csarg.use_tabstop {
+                    if s_first == TAB && csarg.use_tabstop {
                         lookahead_hidden += raw_w - w;
                         w = raw_w;
                     }
                 }
-                if use_raw_width
-                    && i32::from(s.first_byte()) == TAB
-                    && csarg.use_tabstop
-                    && span.is_none()
-                {
+                if use_raw_width && s_first == TAB && csarg.use_tabstop && span.is_none() {
                     lookahead_hidden = (-lbr_off).min(w - 1);
                 }
                 lbr_off += lookahead_hidden;

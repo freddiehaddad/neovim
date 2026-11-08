@@ -2722,11 +2722,7 @@ fn msg_ext_emit_chunk() {
         data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
     });
     msg_st().msg_ext_last_attr = -1;
-    let text =
-        crate::api::private::helpers::cbuf_to_string(crate::strings::AsByteSlice::slice_len(
-            msg_st().msg_ext_last_chunk.as_ptr(),
-            msg_st().msg_ext_last_chunk.len(),
-        ));
+    let text = crate::api::private::helpers::cbuf_to_string(&msg_st().msg_ext_last_chunk);
     msg_st().msg_ext_last_chunk = Vec::new();
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeString,
@@ -3318,8 +3314,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
 
         let mut rem = slice;
         while !rem.is_empty() {
-            let s_ptr = crate::strings::ByteSlice::from_bytes(rem);
-            let len = (utf_ptr2len(s_ptr) as usize).max(1).min(rem.len());
+            let len = (utf_ptr2len(rem) as usize).max(1).min(rem.len());
             let first = rem[0];
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut pos = 0usize;
@@ -3340,7 +3335,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
                 }
             }
 
-            let cw = utf_char2cells(utf_ptr2char(s_ptr));
+            let cw = utf_char2cells(utf_slice2char(rem));
             if matches!(first, b'\r' | b'\n') {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;
@@ -4047,11 +4042,11 @@ pub fn msg_delay(mut ms: u64, ignoreinput: bool) {
         true,
         c"%llu ms%s",
         ms,
-        crate::strings::ByteSlice::from_ptr(if g_st().nvim_testing {
-            c" (skipped by NVIM_TEST)".as_ptr()
+        if g_st().nvim_testing {
+            c" (skipped by NVIM_TEST)"
         } else {
-            c"".as_ptr()
-        }),
+            c""
+        },
     );
     ui_flush();
     os_delay(ms, ignoreinput);

@@ -797,8 +797,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
 }
 
 fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
-    let msg_ptr = crate::strings::ByteSlice::from_opt_cstr(msg);
-    let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)").as_ptr();
+    let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
     logmsg!(
         LOGLVL_ERR,
         None,
@@ -807,14 +806,14 @@ fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
         true,
         c"Error in \"%s\" UI event handler (ns=%s):\n%s",
         name,
-        crate::strings::ByteSlice::from_ptr(ns),
-        msg_ptr,
+        ns,
+        msg,
     );
     msg_schedule_semsg_multiline!(
         c"Error in \"%s\" UI event handler (ns=%s):\n%s",
         name,
-        crate::strings::ByteSlice::from_ptr(ns),
-        msg_ptr,
+        ns,
+        msg,
     );
 }
 
@@ -917,11 +916,8 @@ pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
         ui_cb_update_ext();
         ui_refresh();
         if checkerr {
-            let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)").as_ptr();
-            msg_schedule_semsg!(
-                c"Excessive errors in vim.ui_attach() callback (ns=%s)",
-                crate::strings::ByteSlice::from_ptr(ns),
-            );
+            let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
+            msg_schedule_semsg!(c"Excessive errors in vim.ui_attach() callback (ns=%s)", ns,);
         }
     }
 }
@@ -946,11 +942,7 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
                     -1,
                     true,
                     c"%s (+%zu times...)",
-                    crate::strings::ByteSlice::from_ptr(
-                        ui_state()
-                            .uilog_last_event
-                            .map_or(ptr::null(), |s| s.as_ptr())
-                    ),
+                    ui_state().uilog_last_event,
                     ui_state().uilog_seen,
                 );
             }

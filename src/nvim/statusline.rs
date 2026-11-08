@@ -1,5 +1,7 @@
 //! Statusline, winbar, ruler, tabline, and statuscolumn rendering (`src/nvim/statusline.c`).
 
+use std::ffi::CStr;
+
 use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
@@ -221,12 +223,8 @@ impl StlItem {
     }
 
     #[inline]
-    pub fn set_start(
-        &mut self,
-        base: impl crate::strings::AsByteSlice,
-        p: impl crate::strings::AsByteSlice,
-    ) {
-        self.start_off = p.byte_addr().saturating_sub(base.byte_addr());
+    pub fn set_start(&mut self, base: *const u8, p: *const u8) {
+        self.start_off = (p as usize).saturating_sub(base as usize);
     }
 }
 
@@ -445,7 +443,7 @@ pub fn stl_fill_click_defs(
     let Some(click_defs) = click_defs else {
         return;
     };
-    let mut buf = crate::strings::ByteSlice::from_cstr(buf_cstr);
+    let mut buf = buf_cstr;
     let mut col: i32 = 0;
     let mut len: i32 = 0;
 
@@ -458,15 +456,16 @@ pub fn stl_fill_click_defs(
         let Some(rec_start) = rec.start else {
             break;
         };
-        let rec_ptr = crate::strings::ByteSlice::from_cstr(rec_start);
-        let rec_len = ((rec_ptr).offset_from(buf) as isize).max(0) as usize;
-        len += vim_strnsize(buf.slice(rec_len), rec_len as i32);
+        let buf_bytes = buf.to_bytes();
+        let rec_len = (rec_start.as_ptr() as isize - buf.as_ptr() as isize).max(0) as usize;
+        let rec_len = rec_len.min(buf_bytes.len());
+        len += vim_strnsize(&buf_bytes[..rec_len], rec_len as i32);
         debug_assert!(len <= width);
         while col < len {
             click_defs[col as usize] = cur_click_def.clone();
             col += 1;
         }
-        buf = rec_ptr;
+        buf = rec_start;
         cur_click_def = rec.def.clone();
         if !tabline
             && !(cur_click_def.type_ == K_STL_CLICK_DISABLED
@@ -595,7 +594,7 @@ fn win_redr_stl_expr(
             if *crate::globals::GraphPtr::of(stl).borrow() == b'-' {
                 stl = stl.wrapping_add(1);
             }
-            if crate::charset::parse_i64_prefix(crate::strings::ByteSlice::from_ptr(stl).as_bytes())
+            if crate::charset::parse_i64_prefix(unsafe { CStr::from_ptr(stl.cast()) }.to_bytes())
                 as i32
                 != 0
             {
@@ -667,7 +666,11 @@ fn win_redr_stl_expr(
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
         ewp.w_onebuf_opt.wo_crb = false;
 
-        let stl_cstr = crate::strings::ByteSlice::from_ptr(stl).to_cstring();
+        let stl_cstr = if stl.is_null() {
+            c"".to_owned()
+        } else {
+            unsafe { CStr::from_ptr(stl.cast()) }.to_owned()
+        };
 
         let mut tabtab = crate::globals::GraphPtr::<StlClickRecord>::NULL.as_ptr();
         build_stl_str_hl(
@@ -706,26 +709,23 @@ fn win_redr_stl_expr(
             screengrid_line_start(crate::globals::GraphPtr::of(grid).borrow_mut(), row, 0);
         }
 
-        let mut p = crate::strings::ByteSlice::from_bytes(&buf);
+        let buf_base = buf.as_ptr() as usize;
+        let mut p_off = 0usize;
         let mut curattr = attr;
         let mut curgroup = group;
         let mut content = Array::new();
         let mut sp = hltab;
         loop {
             let sp_ref = crate::globals::GraphPtr::of(sp).borrow();
-            let textlen = if let Some(sp_start) = sp_ref.start {
-                (crate::strings::AsByteSlice::byte_addr(sp_start.as_ptr()) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(p) as isize)
+            let end_off = if let Some(sp_start) = sp_ref.start {
+                (sp_start.as_ptr() as usize).saturating_sub(buf_base)
             } else {
-                (crate::strings::AsByteSlice::byte_addr(buf.as_ptr().wrapping_add(len)) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(p) as isize)
+                len
             };
-            let src_slice = if (p.as_ptr() as usize) >= (buf.as_ptr().wrapping_add(len) as usize)
-                || textlen <= 0
-            {
+            let src_slice = if p_off >= len || end_off <= p_off {
                 &[][..]
             } else {
-                p.slice(textlen as usize)
+                &buf[p_off..end_off.min(len)]
             };
             let tsize = transstr_buf(src_slice, &mut transbuf, true);
             if !ui_event {
@@ -744,7 +744,7 @@ fn win_redr_stl_expr(
                 chunk.push(Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
-                        crate::strings::AsByteSlice::slice_len(transbuf.as_ptr(), tsize),
+                        &transbuf[..tsize],
                     )),
                 });
                 chunk.push(Object {
@@ -760,7 +760,7 @@ fn win_redr_stl_expr(
             let Some(sp_start) = sp_ref.start else {
                 break;
             };
-            p = crate::strings::ByteSlice::from_cstr(sp_start);
+            p_off = (sp_start.as_ptr() as usize).saturating_sub(buf_base);
 
             if sp_ref.userhl == 0 {
                 curattr = attr;
@@ -872,7 +872,6 @@ pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
 
 fn ui_ext_tabline_update() {
     let mut arena = Arena::new();
-    let name_buff = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
 
     let mut n_tabs: usize = 0;
     let mut tp = g_st().first_tabpage;
@@ -911,7 +910,7 @@ fn ui_ext_tabline_update() {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(arena_string(
                     &mut arena,
-                    cstr_as_string(name_buff.as_opt_cstr()),
+                    cstr_as_string(Some(g_st().name_buff_cstr())),
                 )),
             },
         );
@@ -961,7 +960,7 @@ fn ui_ext_tabline_update() {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(arena_string(
                         &mut arena,
-                        cstr_as_string(name_buff.as_opt_cstr()),
+                        cstr_as_string(Some(g_st().name_buff_cstr())),
                     )),
                 },
             );
@@ -987,7 +986,6 @@ pub fn draw_tabline() {
     let attr_fill = hl_attr(HLF_TPF);
     let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
     let use_sep_chars = g_st().t_colors < 8;
-    let name_buff = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
 
     if !crate::grid::grid_allocated(&g_st().default_grid) {
         return;
@@ -1086,7 +1084,7 @@ pub fn draw_tabline() {
 
                     grid_line_puts(
                         col,
-                        name_buff.as_cstr(),
+                        g_st().name_buff_cstr(),
                         len,
                         hl_combine_attr(
                             attr,
@@ -1109,16 +1107,19 @@ pub fn draw_tabline() {
                 get_trans_bufname(crate::globals::GraphPtr::of(cwp).borrow_mut().buf_mut());
 
                 shorten_dir(g_st().name_buff_bytes_mut());
-                let mut len = vim_strsize(name_buff.as_cstr());
-                let mut p = name_buff;
+                let name_cstr = g_st().name_buff_cstr();
+                let mut len = vim_strsize(name_cstr);
+                let mut p_cstr = name_cstr;
                 while len > room {
-                    len -= ptr2cells(p);
-                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                    let b = p_cstr.to_bytes();
+                    len -= ptr2cells(b);
+                    let step = crate::mbyte::utfc_slice2len(b).max(1).min(b.len());
+                    p_cstr = &p_cstr[step..];
                 }
                 let n = g_st().columns_global - col - 1;
                 len = len.min(n);
 
-                grid_line_puts(col, p.as_cstr(), -1, attr);
+                grid_line_puts(col, p_cstr, -1, attr);
                 col += len;
             }
             grid_line_put_schar(col, schar_from_ascii(b' '), attr);
@@ -1285,7 +1286,7 @@ fn stl_truncate(
         }
     }
 
-    if *width - vim_strsize(crate::strings::ByteSlice::from_ptr(trunc_p).as_cstr()) >= maxwid {
+    if *width - vim_strsize(unsafe { CStr::from_ptr(trunc_p.cast()) }) >= maxwid {
         trunc_p = start_p;
         *width = 0;
         loop {
@@ -1321,18 +1322,12 @@ fn stl_truncate(
         }
 
         let trunc_end_p = trunc_p.wrapping_add(trunc_len as usize);
-        let move_len = ((crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(trunc_end_p) as isize))
-            as usize
-            + 1;
+        let move_len = (out_p as usize).wrapping_sub(trunc_end_p as usize) + 1;
 
         crate::globals::GraphPtr::copy_to(trunc_end_p, trunc_p.wrapping_add(1), move_len);
 
-        out_p = out_p.wrapping_sub(
-            ((crate::strings::AsByteSlice::byte_addr(trunc_end_p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(trunc_p.wrapping_add(1)) as isize))
-                as usize,
-        );
+        out_p = out_p
+            .wrapping_sub((trunc_end_p as usize).wrapping_sub(trunc_p.wrapping_add(1) as usize));
 
         *crate::globals::GraphPtr::of(trunc_p).borrow_mut() = b'<';
 
@@ -1359,8 +1354,7 @@ fn stl_truncate(
     }
 
     *crate::globals::GraphPtr::of(out_p).borrow_mut() = 0;
-    *out_idx = ((crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(base_ptr) as isize)) as usize;
+    *out_idx = (out_p as usize).wrapping_sub(base_ptr as usize);
 }
 
 /// Expands the statusline at separation markers (`%=`) if present,
@@ -1411,7 +1405,7 @@ fn stl_expand(
 
                 let start = base_ptr.wrapping_add(item.start_off);
                 let seploc = start.wrapping_add(dislocation as usize);
-                let len = crate::strings::ByteSlice::from_ptr(start).as_bytes().len() + 1;
+                let len = unsafe { CStr::from_ptr(start.cast()) }.to_bytes().len() + 1;
 
                 crate::globals::GraphPtr::copy_to(start, seploc, len);
 
@@ -1462,8 +1456,7 @@ fn stl_expand(
         *width += orig_added_cells;
         out_p = out_p.wrapping_add(added_bytes as usize);
     }
-    *out_idx = ((crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(base_ptr) as isize)) as usize;
+    *out_idx = (out_p as usize).wrapping_sub(base_ptr as usize);
 }
 
 /// Build a string from the status line items in `fmt`.
@@ -1528,10 +1521,10 @@ pub extern "C" fn build_stl_str_hl(
         false
     };
 
-    if crate::strings::ByteSlice::from_ptr(fmt)
-        .as_cstr()
-        .to_bytes()
-        .starts_with(b"%!")
+    if !fmt.is_null()
+        && unsafe { CStr::from_ptr(fmt.cast()) }
+            .to_bytes()
+            .starts_with(b"%!")
     {
         let mut tv = TypVal {
             v_type: VarType::VarNumber,
@@ -1541,7 +1534,7 @@ pub extern "C" fn build_stl_str_hl(
         set_var(b"g:statusline_winid", &mut tv, false);
 
         owned_usefmt = eval_to_string_safe(
-            crate::strings::ByteSlice::from_ptr(fmt.wrapping_add(2)).as_cstr(),
+            unsafe { CStr::from_ptr(fmt.wrapping_add(2).cast()) },
             use_sandbox,
             false,
         );
@@ -1668,7 +1661,7 @@ pub extern "C" fn build_stl_str_hl(
 
             *crate::globals::GraphPtr::of(out_p).borrow_mut() = 0;
 
-            let mut group_len = vim_strsize(crate::strings::ByteSlice::from_ptr(t).as_cstr());
+            let mut group_len = vim_strsize(unsafe { CStr::from_ptr(t.cast()) });
 
             if stl_st().curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
                 let mut group_start_userhl = 0;
@@ -1722,12 +1715,8 @@ pub extern "C" fn build_stl_str_hl(
             minwid = minwid.abs();
 
             let out_slice = crate::globals::GraphPtr::raw_slice_mut(out_data, out_size);
-            let start_idx = ((crate::strings::AsByteSlice::byte_addr(t) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(out_data) as isize))
-                as usize;
-            let mut out_idx = ((crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(out_data) as isize))
-                as usize;
+            let start_idx = (t as usize).wrapping_sub(out_data as usize);
+            let mut out_idx = (out_p as usize).wrapping_sub(out_data as usize);
             if group_len > maxwid && stl_items!()[gidx as usize].type_ != StlItemType::HighlightFold
             {
                 stl_truncate(
@@ -1748,9 +1737,7 @@ pub extern "C" fn build_stl_str_hl(
                     &mut group_len,
                     minwid,
                     padding,
-                    ((crate::strings::AsByteSlice::byte_addr(out_end_p) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(out_p) as isize))
-                        as i32,
+                    ((out_end_p as isize) - (out_p as isize)) as i32,
                     fillchar,
                     stl_items!(),
                     gidx + 1,
@@ -1788,7 +1775,7 @@ pub extern "C" fn build_stl_str_hl(
         }
 
         if (*crate::globals::GraphPtr::of(fmt_p).borrow()).is_ascii_digit() {
-            let fmt_bytes = crate::strings::ByteSlice::from_ptr(fmt_p).as_bytes();
+            let fmt_bytes = unsafe { CStr::from_ptr(fmt_p.cast()) }.to_bytes();
             let mut rem = fmt_bytes;
             minwid = getdigits_int(&mut rem, false, 0);
             fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
@@ -1845,8 +1832,7 @@ pub extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::ClickFunc;
             stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
             stl_items!()[stl_st().curitem as usize].cmd = if !tabtab.is_null() {
-                let slice =
-                    crate::strings::AsByteSlice::slice_len(t, (fmt_p as usize) - (t as usize));
+                let slice = crate::globals::GraphPtr::raw_slice(t, (fmt_p as usize) - (t as usize));
                 Some(std::ffi::CString::new(slice).unwrap())
             } else {
                 None
@@ -1860,7 +1846,7 @@ pub extern "C" fn build_stl_str_hl(
         if *crate::globals::GraphPtr::of(fmt_p).borrow() == b'.' {
             fmt_p = fmt_p.wrapping_add(1);
             if (*crate::globals::GraphPtr::of(fmt_p).borrow()).is_ascii_digit() {
-                let fmt_bytes = crate::strings::ByteSlice::from_ptr(fmt_p).as_bytes();
+                let fmt_bytes = unsafe { CStr::from_ptr(fmt_p.cast()) }.to_bytes();
                 let mut rem = fmt_bytes;
                 maxwid = getdigits_int(&mut rem, false, 50);
                 fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
@@ -1960,7 +1946,7 @@ pub extern "C" fn build_stl_str_hl(
             STL_ALL,
             i32::from(*crate::globals::GraphPtr::of(fmt_p).borrow()),
         ) {
-            if crate::strings::AsByteSlice::is_empty_val(fmt_p) {
+            if *crate::globals::GraphPtr::of(fmt_p).borrow() == 0 {
                 break;
             }
             fmt_p = fmt_p.wrapping_add(1);
@@ -1999,7 +1985,7 @@ pub extern "C" fn build_stl_str_hl(
                 if opt != STL_FILENAME {
                     str = name_buff.cast();
                 } else {
-                    str = path_tail(crate::strings::ByteSlice::from_ptr(name_buff).as_cstr())
+                    str = path_tail(unsafe { CStr::from_ptr(name_buff.cast()) })
                         .as_ptr()
                         .cast_mut()
                         .cast();
@@ -2017,7 +2003,7 @@ pub extern "C" fn build_stl_str_hl(
                 while (*crate::globals::GraphPtr::of(fmt_p).borrow() != b'}'
                     || (reevaluate
                         && *crate::globals::GraphPtr::of(fmt_p.wrapping_sub(1)).borrow() != b'%'))
-                    && !crate::strings::AsByteSlice::is_empty_val(fmt_p)
+                    && *crate::globals::GraphPtr::of(fmt_p).borrow() != 0
                     && out_p < out_end_p
                 {
                     *crate::globals::GraphPtr::of(out_p).borrow_mut() =
@@ -2057,7 +2043,7 @@ pub extern "C" fn build_stl_str_hl(
                     }
 
                     owned_str = eval_to_string_safe(
-                        crate::strings::ByteSlice::from_ptr(out_p).as_cstr(),
+                        unsafe { CStr::from_ptr(out_p.cast()) },
                         use_sandbox,
                         false,
                     );
@@ -2073,12 +2059,13 @@ pub extern "C" fn build_stl_str_hl(
                     do_unlet(b"g:actual_curwin", true);
 
                     if !zeropad
-                        && !crate::strings::AsByteSlice::is_empty_val(str)
-                        && skipdigits_slice(crate::strings::ByteSlice::from_ptr(str).as_bytes())
+                        && !str.is_null()
+                        && unsafe { *str } != 0
+                        && skipdigits_slice(unsafe { CStr::from_ptr(str.cast()) }.to_bytes())
                             .is_empty()
                     {
                         num = crate::charset::parse_i64_prefix(
-                            crate::strings::ByteSlice::from_ptr(str).as_bytes(),
+                            unsafe { CStr::from_ptr(str.cast()) }.to_bytes(),
                         ) as i32;
                         owned_str = None;
                         str = ptr::null_mut();
@@ -2086,19 +2073,17 @@ pub extern "C" fn build_stl_str_hl(
                     }
 
                     if reevaluate
-                        && !crate::strings::AsByteSlice::is_empty_val(str)
+                        && !str.is_null()
+                        && unsafe { *str } != 0
                         && crate::strings::vim_haschr(
-                            crate::strings::ByteSlice::from_ptr(str).as_cstr(),
+                            unsafe { CStr::from_ptr(str.cast()) },
                             b'%' as i32,
                         )
                         && evaldepth < MAX_STL_EVAL_DEPTH
                     {
-                        let parsed_usefmt = ((crate::strings::AsByteSlice::byte_addr(block_start)
-                            as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(usefmt) as isize))
-                            as usize;
-                        let str_bytes = crate::strings::ByteSlice::from_ptr(str).as_bytes();
-                        let fmt_bytes = crate::strings::ByteSlice::from_ptr(fmt_p).as_bytes();
+                        let parsed_usefmt = (block_start as usize).wrapping_sub(usefmt as usize);
+                        let str_bytes = unsafe { CStr::from_ptr(str.cast()) }.to_bytes();
+                        let fmt_bytes = unsafe { CStr::from_ptr(fmt_p.cast()) }.to_bytes();
                         let mut new_bytes = Vec::with_capacity(
                             parsed_usefmt + str_bytes.len() + fmt_bytes.len() + 2,
                         );
@@ -2336,7 +2321,7 @@ pub extern "C" fn build_stl_str_hl(
                     }
                     stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
                     stl_items!()[stl_st().curitem as usize].minwid = -syn_name2id_len(
-                        crate::strings::AsByteSlice::slice_len(t, (fmt_p as usize) - (t as usize)),
+                        crate::globals::GraphPtr::raw_slice(t, (fmt_p as usize) - (t as usize)),
                     );
                     stl_st().curitem += 1;
                     fmt_p = fmt_p.wrapping_add(1);
@@ -2431,10 +2416,10 @@ pub extern "C" fn build_stl_str_hl(
         stl_items!()[stl_st().curitem as usize].set_start(out_data, out_p);
         stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Normal;
 
-        if !crate::strings::AsByteSlice::is_empty_val(str) {
+        if !str.is_null() && unsafe { *str } != 0 {
             let mut t = str;
             if itemisflag {
-                if !crate::strings::AsByteSlice::is_empty_val(t.wrapping_add(1))
+                if unsafe { *t.wrapping_add(1) } != 0
                     && ((!prevchar_isitem && (*crate::globals::GraphPtr::of(t).borrow() == b','))
                         || (prevchar_isflag && (*crate::globals::GraphPtr::of(t).borrow() == b' ')))
                 {
@@ -2443,7 +2428,7 @@ pub extern "C" fn build_stl_str_hl(
                 prevchar_isflag = true;
             }
 
-            let mut l = vim_strsize(crate::strings::ByteSlice::from_ptr(t).as_cstr());
+            let mut l = vim_strsize(unsafe { CStr::from_ptr(t.cast()) });
             if l > 0 {
                 prevchar_isitem = true;
             }
@@ -2482,10 +2467,9 @@ pub extern "C" fn build_stl_str_hl(
                 }
                 minwid = 0;
                 if foldsignitem >= 0 {
-                    let offset = (crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(
-                            out_data.wrapping_add(stl_items!()[foldsignitem as usize].start_off),
-                        ) as isize);
+                    let offset = (out_p as isize)
+                        - (out_data.wrapping_add(stl_items!()[foldsignitem as usize].start_off)
+                            as isize);
                     for item in
                         &mut stl_items!()[(foldsignitem as usize)..(stl_st().curitem as usize)]
                     {
@@ -2496,7 +2480,7 @@ pub extern "C" fn build_stl_str_hl(
                 minwid = -minwid;
             }
 
-            while !crate::strings::AsByteSlice::is_empty_val(t) && out_p < out_end_p {
+            while unsafe { *t } != 0 && out_p < out_end_p {
                 if fillable
                     && (*crate::globals::GraphPtr::of(t).borrow() == b' ')
                     && (!ascii_isdigit(*crate::globals::GraphPtr::of(t.wrapping_add(1)).borrow())
@@ -2571,13 +2555,8 @@ pub extern "C" fn build_stl_str_hl(
                 num_chars += 1;
             }
 
-            let out_offset = ((crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(out_data) as isize))
-                as usize;
-            let remaining_buf_len = ((crate::strings::AsByteSlice::byte_addr(out_end_p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(out_p) as isize))
-                as usize
-                + 1;
+            let out_offset = (out_p as usize).wrapping_sub(out_data as usize);
+            let remaining_buf_len = (out_end_p as usize).wrapping_sub(out_p as usize) + 1;
             if num_chars > maxwid {
                 num_chars += 2;
                 let n = num_chars - maxwid;
@@ -2613,7 +2592,7 @@ pub extern "C" fn build_stl_str_hl(
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::NormalEmpty;
         }
 
-        if num >= 0 || (!itemisflag && !crate::strings::AsByteSlice::is_empty_val(str)) {
+        if num >= 0 || (!itemisflag && !str.is_null() && unsafe { *str } != 0) {
             prevchar_isflag = false;
         }
 
@@ -2631,11 +2610,9 @@ pub extern "C" fn build_stl_str_hl(
 
     drop(owned_usefmt);
 
-    let mut width = vim_strsize(crate::strings::ByteSlice::from_ptr(out_data).as_cstr());
+    let mut width = vim_strsize(unsafe { CStr::from_ptr(out_data.cast()) });
     let out_slice = crate::globals::GraphPtr::raw_slice_mut(out_data, out_size);
-    let mut out_idx = ((crate::strings::AsByteSlice::byte_addr(out_p) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(out_data) as isize))
-        as usize;
+    let mut out_idx = (out_p as usize).wrapping_sub(out_data as usize);
     if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {
         stl_truncate(
             &mut width,
@@ -2654,8 +2631,7 @@ pub extern "C" fn build_stl_str_hl(
             &mut width,
             maxwidth,
             StlPadding::PaddingNone,
-            ((crate::strings::AsByteSlice::byte_addr(out_end_p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(out_p) as isize)) as i32,
+            ((out_end_p as isize) - (out_p as isize)) as i32,
             fillchar,
             stl_items!(),
             evalstart,
@@ -2680,10 +2656,8 @@ pub extern "C" fn build_stl_str_hl(
                     | StlItemType::HighlightFold
                     | StlItemType::HighlightSign
             ) {
-                stl_hltab!()[sp_idx].start = Some(
-                    crate::strings::ByteSlice::from_ptr(out_data.wrapping_add(item.start_off))
-                        .as_cstr(),
-                );
+                stl_hltab!()[sp_idx].start =
+                    Some(unsafe { CStr::from_ptr(out_data.wrapping_add(item.start_off).cast()) });
                 stl_hltab!()[sp_idx].userhl = item.minwid;
                 stl_hltab!()[sp_idx].item = match item.type_ {
                     StlItemType::HighlightSign => i32::from(STL_SIGNCOL),
@@ -2711,10 +2685,8 @@ pub extern "C" fn build_stl_str_hl(
         for item in &mut stl_items!()[(evalstart as usize)..(stl_st().curitem as usize)] {
             if item.type_ == StlItemType::TabPage {
                 let rec = &mut stl_tabtab!()[tab_idx];
-                rec.start = Some(
-                    crate::strings::ByteSlice::from_ptr(out_data.wrapping_add(item.start_off))
-                        .as_cstr(),
-                );
+                rec.start =
+                    Some(unsafe { CStr::from_ptr(out_data.wrapping_add(item.start_off).cast()) });
                 if item.minwid == 0 {
                     rec.def.type_ = K_STL_CLICK_DISABLED;
                     rec.def.tabnr = 0;
@@ -2732,10 +2704,8 @@ pub extern "C" fn build_stl_str_hl(
                 tab_idx += 1;
             } else if item.type_ == StlItemType::ClickFunc {
                 let rec = &mut stl_tabtab!()[tab_idx];
-                rec.start = Some(
-                    crate::strings::ByteSlice::from_ptr(out_data.wrapping_add(item.start_off))
-                        .as_cstr(),
-                );
+                rec.start =
+                    Some(unsafe { CStr::from_ptr(out_data.wrapping_add(item.start_off).cast()) });
                 rec.def.type_ = K_STL_CLICK_FUNC_RUN;
                 rec.def.tabnr = item.minwid;
                 rec.def.func = item.cmd.take();

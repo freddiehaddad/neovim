@@ -1,6 +1,8 @@
 //! Functions for drawing window lines on the screen (`src/nvim/drawline.c`).
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
+use std::ffi::CStr;
+
 #[cfg(debug_assertions)]
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
@@ -973,8 +975,8 @@ fn draw_statuscol(
         return;
     }
 
-    let buf_ptr = crate::strings::ByteSlice::from_bytes(&buf);
-    let mut p = buf_ptr;
+    let buf_base = buf.as_ptr() as usize;
+    let mut p_off = 0usize;
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: Option<&[Colnr]> = None;
     let len = crate::memory::bytes_until_nul(&buf).len();
@@ -988,9 +990,11 @@ fn draw_statuscol(
     let mut cur_attr = num_attr;
 
     for sp in &stcp.hlrec {
-        let sp_ptr = crate::strings::ByteSlice::from_opt_cstr(sp.start);
-        let textlen = sp_ptr.offset_from(p);
-        let translen = transstr_buf(p.slice(textlen), &mut transbuf, true);
+        let sp_off = sp
+            .start
+            .map_or(p_off, |s| (s.as_ptr() as usize).saturating_sub(buf_base));
+        let textlen = sp_off.saturating_sub(p_off).min(len.saturating_sub(p_off));
+        let translen = transstr_buf(&buf[p_off..p_off + textlen], &mut transbuf, true);
         draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
         let attr = if sp.item == i32::from(STL_SIGNCOL) {
             scl_attr
@@ -1008,10 +1012,10 @@ fn draw_statuscol(
             },
         );
         fold_vcol = (sp.item == i32::from(STL_FOLDCOL)).then_some(&stcp.fold_vcol);
-        p = p.wrapping_add(textlen);
+        p_off += textlen;
     }
-    let rem_len = ((buf_ptr.wrapping_add(len)).offset_from(p) as isize).max(0) as usize;
-    let translen = transstr_buf(p.slice(rem_len), &mut transbuf, true);
+    let rem_len = len.saturating_sub(p_off);
+    let translen = transstr_buf(&buf[p_off..p_off + rem_len], &mut transbuf, true);
     draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
     draw_col_fill(wlv, schar_from_ascii(b' '), stcp.width - width, cur_attr);
 }
@@ -1406,9 +1410,7 @@ fn win_line_skip_columns(
     if wp.w_onebuf_opt.wo_wrap {
         wlv.need_showbreak = true;
     }
-    ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(line.cast_const()) as isize))
-        .max(0) as usize
+    ((ptr as isize) - (line as isize)).max(0) as usize
 }
 
 /// Display line "lnum" of window "wp" on the screen.
@@ -1915,23 +1917,19 @@ pub fn win_line(
             {
                 trailcol -= 1;
             }
-            trailcol += ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                as Colnr;
+            trailcol += ((ptr as isize) - (line as isize)) as Colnr;
         }
         if wp.w_p_lcs_chars.lead != 0
             || !wp.w_p_lcs_chars.leadmultispace.is_empty()
             || wp.w_p_lcs_chars.leadtab1 != 0
         {
-            let ptr_bytes = crate::strings::ByteSlice::from_ptr(ptr).as_bytes();
+            let ptr_bytes = unsafe { CStr::from_ptr(ptr) }.to_bytes();
             let rem = crate::charset::skipwhite_slice(ptr_bytes);
             leadcol = if rem.is_empty() {
                 0
             } else {
                 (ptr_bytes.len() - rem.len()) as Colnr
-                    + ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                        as Colnr
+                    + ((ptr as isize) - (line as isize)) as Colnr
                     + 1
             };
         }
@@ -1960,9 +1958,7 @@ pub fn win_line(
         }
         ptr = line.wrapping_add(skip_off);
         if spv.spv_has_spell {
-            let linecol = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                as Colnr;
+            let linecol = ((ptr as isize) - (line as isize)) as Colnr;
             let mut spell_hlf: Hlf = HLF_COUNT;
 
             let pos = wp.w_cursor;
@@ -1975,8 +1971,7 @@ pub fn win_line(
 
             if len == 0 || wp.w_cursor.col > linecol {
                 word_end = linecol
-                    + spell_to_word_end(crate::strings::ByteSlice::from_ptr(ptr).as_bytes(), wp)
-                        as i32
+                    + spell_to_word_end(unsafe { CStr::from_ptr(ptr) }.to_bytes(), wp) as i32
                     + 1;
             } else {
                 debug_assert!(len <= i32::MAX as usize);
@@ -1995,8 +1990,7 @@ pub fn win_line(
     }
 
     if check_decor_providers {
-        let col = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as i32;
+        let col = ((ptr as isize) - (line as isize)) as i32;
         decor_provider_end_col =
             decor_providers_setup(endrow - startrow, start_vcol == 0, lnum, col, wp);
         line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
@@ -2018,8 +2012,7 @@ pub fn win_line(
     }
 
     if col_rows == 0 && draw_text && !has_foldtext {
-        let v = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as i32;
+        let v = ((ptr as isize) - (line as isize)) as i32;
         area_highlighting |= prepare_search_hl_line(
             wp,
             lnum,
@@ -2076,13 +2069,9 @@ pub fn win_line(
         let mut cell_hidden = false;
 
         if check_decor_providers
-            && (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as i32)
-                >= decor_provider_end_col
+            && (((ptr as isize) - (line as isize)) as i32) >= decor_provider_end_col
         {
-            let col = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                as i32;
+            let col = ((ptr as isize) - (line as isize)) as i32;
             decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
             line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
             ptr = line.wrapping_add(col as usize);
@@ -2137,9 +2126,7 @@ pub fn win_line(
             if has_virt_line && (virt_line_flags & K_VLLEFTCOL) != 0 {
                 // skip columns
             } else if statuscol.draw {
-                let v = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                    as i32;
+                let v = ((ptr as isize) - (line as isize)) as i32;
                 draw_statuscol(&mut *wp, &mut wlv, col_rows, &mut statuscol);
                 if wp.w_redr_statuscol {
                     break;
@@ -2208,10 +2195,7 @@ pub fn win_line(
             if has_decor && wlv.row == startrow + wlv.filler_lines {
                 decor_redraw_col(
                     &mut *wp,
-                    (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                        as Colnr)
-                        - 1,
+                    (((ptr as isize) - (line as isize)) as Colnr) - 1,
                     wlv.off,
                     true,
                     &mut g_st().decor_state,
@@ -2278,9 +2262,7 @@ pub fn win_line(
                     }
                     extmark_attr = decor_redraw_col(
                         &mut *wp,
-                        ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as Colnr,
+                        ((ptr as isize) - (line as isize)) as Colnr,
                         if may_have_inline_virt { -3 } else { wlv.off },
                         selected,
                         &mut g_st().decor_state,
@@ -2289,8 +2271,7 @@ pub fn win_line(
                     if may_have_inline_virt {
                         handle_inline_virtual_text(
                             &mut wlv,
-                            (crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize),
+                            (ptr as isize) - (line as isize),
                             selected,
                         );
                         if wlv.n_extra > 0 && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
@@ -2331,9 +2312,7 @@ pub fn win_line(
                 }
 
                 if !has_foldtext && wlv.n_extra == 0 {
-                    let v = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                        as i32;
+                    let v = ((ptr as isize) - (line as isize)) as i32;
                     search_attr = update_search_hl(
                         wp,
                         lnum,
@@ -2348,7 +2327,7 @@ pub fn win_line(
                     line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                     ptr = line.wrapping_add(v as usize);
 
-                    if crate::strings::AsByteSlice::is_empty_val(ptr) {
+                    if unsafe { *ptr } == 0 {
                         has_match_conc = 0;
                     }
 
@@ -2358,9 +2337,7 @@ pub fn win_line(
                     {
                         let ins_match_attr = ins_compl_col_range_attr(
                             lnum,
-                            ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                as i32,
+                            ((ptr as isize) - (line as isize)) as i32,
                         );
                         if ins_match_attr > 0 {
                             search_attr = hl_combine_attr(search_attr, ins_match_attr);
@@ -2372,9 +2349,7 @@ pub fn win_line(
                     let num_changes = line_changes.changes.len() as i32;
                     if num_changes > 0 && change_index >= 0 && change_index < num_changes - 1 {
                         let next_change = &line_changes.changes[(change_index + 1) as usize];
-                        if (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as i32)
+                        if (((ptr as isize) - (line as isize)) as i32)
                             >= next_change.dc_start[line_changes.bufidx as usize]
                         {
                             change_index += 1;
@@ -2390,19 +2365,13 @@ pub fn win_line(
                         );
                     }
                     if wlv.diff_hlf == HLF_CHD
-                        && (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as i32)
-                            >= change_start
+                        && (((ptr as isize) - (line as isize)) as i32) >= change_start
                         && wlv.n_extra == 0
                     {
                         wlv.diff_hlf = if added { HLF_TXA } else { HLF_TXD };
                     }
                     if (wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA)
-                        && (((((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as i32)
-                            >= change_end
+                        && (((((ptr as isize) - (line as isize)) as i32) >= change_end
                             && wlv.n_extra == 0)
                             || (wlv.n_extra > 0 && wlv.extra_for_extmark))
                     {
@@ -2432,9 +2401,7 @@ pub fn win_line(
             }
 
             if draw_folded && has_foldtext && wlv.n_extra == 0 && wlv.col == win_col_offset {
-                let v = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                    as i32;
+                let v = ((ptr as isize) - (line as isize)) as i32;
                 let lnume = lnum + foldinfo.fi_lines - 1;
                 let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
                 wlv.n_extra = fdt.to_bytes().len() as i32;
@@ -2450,7 +2417,7 @@ pub fn win_line(
                 && wlv.n_extra == 0
                 && wlv.col < view_width
                 && (has_foldtext
-                    || (crate::strings::AsByteSlice::is_empty_val(ptr)
+                    || (unsafe { *ptr } == 0
                         && (!wp.w_onebuf_opt.wo_list || !lcs_eol_todo || lcs_eol == 0)))
             {
                 wlv.sc_extra = wp.w_p_fcs_chars.fold;
@@ -2522,7 +2489,7 @@ pub fn win_line(
                             search_attr = saved_search_attr;
                             saved_search_attr = 0;
                         }
-                        if area_attr == 0 && !crate::strings::AsByteSlice::is_empty_val(ptr) {
+                        if area_attr == 0 && unsafe { *ptr } != 0 {
                             area_attr = saved_area_attr;
                             saved_area_attr = 0;
                         }
@@ -2554,11 +2521,11 @@ pub fn win_line(
             } else {
                 let mut prev_ptr = ptr;
 
-                if crate::strings::AsByteSlice::is_empty_val(ptr) {
+                if unsafe { *ptr } == 0 {
                     wlv.skip_cells = 0;
                 }
 
-                let ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(ptr).as_cstr());
+                let ci = utf_ptr2_str_char_info(unsafe { CStr::from_ptr(ptr) });
                 let cli = utf_cluster_info(ci);
                 let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                 let mb_c = ci.chr.value;
@@ -2568,7 +2535,7 @@ pub fn win_line(
                     transchar_hex(
                         &mut wlv.extra,
                         if mb_c < 0 {
-                            i32::from(crate::strings::AsByteSlice::first_byte_val(ptr))
+                            i32::from(unsafe { *ptr } as u8)
                         } else {
                             mb_c
                         },
@@ -2578,8 +2545,7 @@ pub fn win_line(
                     }
                     let extra_ptr = wlv.extra.as_ptr();
 
-                    let p_extra_cstr =
-                        crate::strings::ByteSlice::from_ptr(extra_ptr.wrapping_add(1)).as_cstr();
+                    let p_extra_cstr = unsafe { CStr::from_ptr(extra_ptr.wrapping_add(1).cast()) };
                     wlv.set_p_extra(p_extra_cstr);
                     mb_schar = schar_from_ascii(wlv.extra[0]);
                     mb_schar_width = 1;
@@ -2607,9 +2573,7 @@ pub fn win_line(
                     extconceal_char = decor_extconceal_char(
                         &*wp,
                         &g_st().decor_state,
-                        ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as i32,
+                        ((ptr as isize) - (line as isize)) as i32,
                         Some(&mut extconceal_attr),
                     );
                 }
@@ -2634,7 +2598,7 @@ pub fn win_line(
                     multi_attr = win_hl_attr(&mut *wp, HLF_AT);
                     ptr = ptr.wrapping_sub(1);
                     did_decrement_ptr = true;
-                } else if !crate::strings::AsByteSlice::is_empty_val(ptr) {
+                } else if unsafe { *ptr } != 0 {
                     ptr = ptr.wrapping_add((mb_l - 1) as usize);
                 }
 
@@ -2660,11 +2624,8 @@ pub fn win_line(
                     let no_plain_buffer = (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
                     let mut can_spell = !no_plain_buffer;
 
-                    let v = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                        as i32;
-                    let prev_v = (crate::strings::AsByteSlice::byte_addr(prev_ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize);
+                    let v = ((ptr as isize) - (line as isize)) as i32;
+                    let prev_v = (prev_ptr as isize) - (line as isize);
                     if has_syntax && v > 0 {
                         let save_did_emsg = g_st().did_emsg;
                         g_st().did_emsg = 0;
@@ -2707,9 +2668,7 @@ pub fn win_line(
                     char_attr_base = hl_combine_attr(folded_attr, decor_attr);
                     wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
 
-                    let mut v1 = ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                        as i32;
+                    let mut v1 = ((ptr as isize) - (line as isize)) as i32;
                     if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                         spell_attr = 0;
                         if mb_schar != 0
@@ -2723,29 +2682,16 @@ pub fn win_line(
                             let mut spell_hlf: Hlf = HLF_COUNT;
                             v1 -= mb_l - 1;
 
-                            let p = if (((crate::strings::AsByteSlice::byte_addr(prev_ptr)
-                                as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                as i32)
-                                - nextlinecol
-                                >= 0
-                            {
-                                nextline_ptr.wrapping_add(
-                                    ((((crate::strings::AsByteSlice::byte_addr(prev_ptr) as isize)
-                                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                        as i32)
-                                        - nextlinecol) as usize,
-                                )
+                            let prev_col = ((prev_ptr as isize) - (line as isize)) as i32;
+                            let p = if prev_col - nextlinecol >= 0 {
+                                nextline_ptr.wrapping_add((prev_col - nextlinecol) as usize)
                             } else {
                                 prev_ptr.cast_mut().cast()
                             };
-                            spv.spv_cap_col -= ((crate::strings::AsByteSlice::byte_addr(prev_ptr)
-                                as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                as i32;
+                            spv.spv_cap_col -= prev_col;
                             let tmplen = spell_check(
                                 wp,
-                                crate::strings::ByteSlice::from_ptr(p).as_cstr(),
+                                unsafe { CStr::from_ptr(p.cast()) },
                                 &mut spell_hlf,
                                 Some(&mut spv.spv_cap_col),
                                 spv.spv_unchanged,
@@ -2757,32 +2703,20 @@ pub fn win_line(
                             if spell_hlf != HLF_COUNT
                                 && (g_st().state_global & MODE_INSERT) != 0
                                 && wp.w_cursor.lnum == lnum
-                                && wp.w_cursor.col
-                                    >= (((crate::strings::AsByteSlice::byte_addr(prev_ptr)
-                                        as isize)
-                                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                        as Colnr)
+                                && wp.w_cursor.col >= prev_col
                                 && wp.w_cursor.col < word_end
                             {
                                 spell_hlf = HLF_COUNT;
                                 g_st().spell_redraw_lnum = lnum;
                             }
 
+                            let p_off = ((p as isize) - (nextline_ptr as isize)) as i32;
                             if spell_hlf == HLF_COUNT
                                 && !ptr::eq(p, prev_ptr.cast())
-                                && (((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                                    - (crate::strings::AsByteSlice::byte_addr(nextline_ptr)
-                                        as isize)) as i32)
-                                    + len
-                                    > nextline_idx
+                                && p_off + len > nextline_idx
                             {
                                 spv.spv_checked_lnum = lnum + 1;
-                                spv.spv_checked_col =
-                                    (((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                                        - (crate::strings::AsByteSlice::byte_addr(nextline_ptr)
-                                            as isize)) as i32)
-                                        + len
-                                        - nextline_idx;
+                                spv.spv_checked_col = p_off + len - nextline_idx;
                             }
 
                             if spell_hlf != HLF_COUNT {
@@ -2791,28 +2725,12 @@ pub fn win_line(
 
                             if spv.spv_cap_col > 0 {
                                 if !ptr::eq(p, prev_ptr.cast())
-                                    && (((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                                        - (crate::strings::AsByteSlice::byte_addr(nextline_ptr)
-                                            as isize))
-                                        as i32)
-                                        + spv.spv_cap_col
-                                        >= nextline_idx
+                                    && p_off + spv.spv_cap_col >= nextline_idx
                                 {
                                     spv.spv_capcol_lnum = lnum + 1;
-                                    spv.spv_cap_col = (((crate::strings::AsByteSlice::byte_addr(p)
-                                        as isize)
-                                        - (crate::strings::AsByteSlice::byte_addr(nextline_ptr)
-                                            as isize))
-                                        as i32)
-                                        + spv.spv_cap_col
-                                        - nextline_idx;
+                                    spv.spv_cap_col = p_off + spv.spv_cap_col - nextline_idx;
                                 } else {
-                                    spv.spv_cap_col +=
-                                        ((crate::strings::AsByteSlice::byte_addr(prev_ptr)
-                                            as isize)
-                                            - (crate::strings::AsByteSlice::byte_addr(line)
-                                                as isize))
-                                            as i32;
+                                    spv.spv_cap_col += prev_col;
                                 }
                             }
                         }
@@ -2856,27 +2774,19 @@ pub fn win_line(
                         let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
                         let has_conceal = !conceal_spans.is_empty();
-                        if has_conceal
-                            || !vim_isbreak(i32::from(crate::strings::AsByteSlice::first_byte_val(
-                                ptr,
-                            )))
-                        {
+                        if has_conceal || !vim_isbreak(i32::from(unsafe { *ptr } as u8)) {
                             let mut csarg = CharsizeArg::new();
-                            let mut cstype = init_charsize_arg_skip_cur_text(
-                                &mut csarg,
-                                wp,
-                                lnum,
-                                crate::strings::ByteSlice::from_ptr(line).as_cstr(),
-                            );
+                            let mut cstype =
+                                init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, unsafe {
+                                    CStr::from_ptr(line)
+                                });
                             if has_conceal {
                                 csarg.extconceal =
                                     Some(crate::globals::GraphPtr::from(&conceal_spans).borrow());
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }
-                            let lbr_ci = utf_ptr2_str_char_info(
-                                crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-                            );
+                            let lbr_ci = utf_ptr2_str_char_info(unsafe { CStr::from_ptr(p) });
                             let lbr_cli = utf_cluster_info(lbr_ci);
                             let lbr_size = win_charsize(
                                 cstype,
@@ -2943,11 +2853,9 @@ pub fn win_line(
 
                     if wp.w_onebuf_opt.wo_list {
                         in_multispace = mb_c == b' ' as i32
-                            && (crate::strings::AsByteSlice::first_byte_val(ptr) == b' '
+                            && (unsafe { *ptr } as u8 == b' '
                                 || (prev_ptr > line.cast_const()
-                                    && crate::strings::AsByteSlice::first_byte_val(
-                                        prev_ptr.wrapping_sub(1),
-                                    ) == b' '));
+                                    && unsafe { *prev_ptr.wrapping_sub(1) } as u8 == b' '));
                         if !in_multispace {
                             multispace_pos = 0;
                         }
@@ -2960,14 +2868,8 @@ pub fn win_line(
                                 && mb_l == 1
                                 && (wp.w_p_lcs_chars.space != 0
                                     || (in_multispace && !wp.w_p_lcs_chars.multispace.is_empty()))
-                                && (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                    - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                    as Colnr)
-                                    >= leadcol
-                                && (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                    - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                    as Colnr)
-                                    <= trailcol))
+                                && (((ptr as isize) - (line as isize)) as Colnr) >= leadcol
+                                && (((ptr as isize) - (line as isize)) as Colnr) <= trailcol))
                     {
                         if in_multispace && !wp.w_p_lcs_chars.multispace.is_empty() {
                             mb_schar = wp.w_p_lcs_chars.multispace.as_slice()[multispace_pos];
@@ -3102,9 +3004,7 @@ pub fn win_line(
                                     wlv.n_extra +=
                                         slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                 }
-                                wlv.set_p_extra(
-                                    crate::strings::ByteSlice::from_ptr(extra_base).as_cstr(),
-                                );
+                                wlv.set_p_extra(unsafe { CStr::from_ptr(extra_base.cast()) });
 
                                 if wlv.vcol_off_co + wlv.extconceal_off > 0 {
                                     wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
@@ -3181,11 +3081,7 @@ pub fn win_line(
                     } else if mb_schar != 0 {
                         crate::memory::copy_bytes_to_c_buf(
                             &mut wlv.extra,
-                            crate::strings::ByteSlice::from_ptr(
-                                (transchar_buf(wp.buf_opt(), mb_c)).as_ptr(),
-                            )
-                            .as_cstr()
-                            .to_bytes(),
+                            transchar_buf(wp.buf_opt(), mb_c).to_bytes(),
                         );
 
                         if wlv.n_extra == 0 {
@@ -3218,17 +3114,12 @@ pub fn win_line(
 
                             extra_slice[wlv.n_extra as usize] = 0;
 
-                            wlv.set_p_extra(
-                                crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr(),
-                            );
+                            wlv.set_p_extra(unsafe { CStr::from_ptr(p.cast_const().cast()) });
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
-                            wlv.set_p_extra(
-                                crate::strings::ByteSlice::from_ptr(
-                                    wlv.extra.as_ptr().wrapping_add(1),
-                                )
-                                .as_cstr(),
-                            );
+                            wlv.set_p_extra(unsafe {
+                                CStr::from_ptr(wlv.extra.as_ptr().wrapping_add(1).cast())
+                            });
                         }
                         wlv.n_attr = wlv.n_extra + 1;
                         wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
@@ -3401,10 +3292,7 @@ pub fn win_line(
                 let prevcol_hl_flag = get_prevcol_hl_flag(
                     wp,
                     &mut g_st().screen_search_hl,
-                    (((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                        as Colnr)
-                        - 1,
+                    (((ptr as isize) - (line as isize)) as Colnr) - 1,
                 );
 
                 if lcs_eol_todo
@@ -3426,9 +3314,7 @@ pub fn win_line(
                         get_search_match_hl(
                             wp,
                             &mut g_st().screen_search_hl,
-                            ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                                as Colnr,
+                            ((ptr as isize) - (line as isize)) as Colnr,
                             &mut wlv.char_attr,
                         );
                     }
@@ -3580,33 +3466,23 @@ pub fn win_line(
 
             let lcs_ext = get_lcs_ext(wp);
             if lcs_ext != 0 && wlv.filler_todo <= 0 && wlv.col == view_width - 1 && !has_foldtext {
-                if has_decor
-                    && crate::strings::AsByteSlice::is_empty_val(ptr)
-                    && lcs_eol == 0
-                    && lcs_eol_todo
-                {
+                if has_decor && unsafe { *ptr } == 0 && lcs_eol == 0 && lcs_eol_todo {
                     decor_redraw_col(
                         &mut *wp,
-                        ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as Colnr,
+                        ((ptr as isize) - (line as isize)) as Colnr,
                         -1,
                         false,
                         &mut g_st().decor_state,
                         decor_provider_end_col - 1,
                     );
                 }
-                if !crate::strings::AsByteSlice::is_empty_val(ptr)
+                if unsafe { *ptr } != 0
                     || (lcs_eol > 0 && lcs_eol_todo)
                     || (wlv.n_extra > 0
                         && (wlv.sc_extra != 0
                             || wlv.p_extra().is_some_and(|s| !s.to_bytes().is_empty())))
                     || (may_have_inline_virt
-                        && has_more_inline_virt(
-                            &wlv,
-                            (crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize),
-                        ))
+                        && has_more_inline_virt(&wlv, (ptr as isize) - (line as isize)))
                 {
                     mb_schar = lcs_ext;
                     mb_schar_width = schar_get_single_width(mb_schar);
@@ -3776,9 +3652,7 @@ pub fn win_line(
                 if is_wrapped && wlv.n_extra == 0 {
                     decor_redraw_col(
                         &mut *wp,
-                        ((crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize))
-                            as Colnr,
+                        ((ptr as isize) - (line as isize)) as Colnr,
                         -3,
                         false,
                         &mut g_st().decor_state,
@@ -3787,16 +3661,13 @@ pub fn win_line(
                     decor_need_recheck = true;
                     if conceal_enabled && g_st().decor_state.conceal_slot_i >= 0 {
                         if disp_len < 0 {
-                            let col = (crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(line) as isize);
+                            let col = (ptr as isize) - (line as isize);
                             disp_len = linetabsize_disp_eol(&mut *wp, lnum);
                             line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                             ptr = line.wrapping_offset(col);
                         }
                         if wlv.vcol >= disp_len {
-                            ptr = ptr.wrapping_add(
-                                crate::strings::ByteSlice::from_ptr(ptr).as_bytes().len(),
-                            );
+                            ptr = ptr.wrapping_add(unsafe { CStr::from_ptr(ptr) }.to_bytes().len());
                         }
                     }
                 } else if !is_wrapped {
@@ -3817,18 +3688,14 @@ pub fn win_line(
         if wlv.col >= view_width
             && (!has_foldtext || wlv.filler_todo > 0)
             && (wlv.col <= leftcols_width
-                || !crate::strings::AsByteSlice::is_empty_val(ptr)
+                || unsafe { *ptr } != 0
                 || wlv.filler_todo > 0
                 || (wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                 || (wlv.n_extra != 0
                     && (wlv.sc_extra != 0
                         || wlv.p_extra().is_some_and(|s| !s.to_bytes().is_empty())))
                 || (may_have_inline_virt
-                    && has_more_inline_virt(
-                        &wlv,
-                        (crate::strings::AsByteSlice::byte_addr(ptr) as isize)
-                            - (crate::strings::AsByteSlice::byte_addr(line) as isize),
-                    )))
+                    && has_more_inline_virt(&wlv, (ptr as isize) - (line as isize))))
         {
             let grid_width = wp.w_grid.target.cols;
             let wrap = is_wrapped

@@ -1111,7 +1111,7 @@ fn set_gui_color(
 }
 
 pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
-    let mut line = crate::strings::ByteSlice::from_cstr(line_in);
+    let mut line = crate::strings::OwnedSlice::from_cstr(line_in);
     {
         if !init && ends_excmd(i32::from(line.first_byte())) != 0 {
             msg_ext_set_kind(c"list_cmd");
@@ -1128,7 +1128,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         let mut name_end = line.skiptowhite();
         let mut linep = name_end.skipwhite();
 
-        let def_len = name_end.offset_from(line);
+        let def_len = name_end.offset_from(&line);
         if line.slice(def_len) == &b"default"[..def_len.min(7)] {
             dodefault = true;
             line = linep;
@@ -1139,7 +1139,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         let mut doclear = false;
         let mut dolink = false;
 
-        let word_len = name_end.offset_from(line);
+        let word_len = name_end.offset_from(&line);
         let word_slice = line.slice(word_len);
         if word_slice == &b"clear"[..word_len.min(5)] {
             doclear = true;
@@ -1150,7 +1150,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         if !doclear && !dolink && ends_excmd(i32::from(linep.first_byte())) != 0 {
             let id = syn_name2id_len(word_slice);
             if id == 0 {
-                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), line,);
+                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), &line,);
             } else {
                 msg_ext_set_kind(c"list_cmd");
                 highlight_list_one(id);
@@ -1169,7 +1169,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
             {
                 semsg!(
                     gettext(c"E412: Not enough arguments: \":highlight link %s\""),
-                    from_start,
+                    &from_start,
                 );
                 return;
             }
@@ -1177,16 +1177,16 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
             if ends_excmd(i32::from(to_end.skipwhite().first_byte())) == 0 {
                 semsg!(
                     gettext(c"E413: Too many arguments: \":highlight link %s\""),
-                    from_start,
+                    &from_start,
                 );
                 return;
             }
 
-            let from_id = syn_check_group(from_start.slice(from_end.offset_from(from_start)));
+            let from_id = syn_check_group(from_start.slice(from_end.offset_from(&from_start)));
             let to_id = if to_start.as_bytes().starts_with(b"NONE") {
                 0
             } else {
-                syn_check_group(to_start.slice(to_end.offset_from(to_start)))
+                syn_check_group(to_start.slice(to_end.offset_from(&to_start)))
             };
 
             let mut hlgroup: Option<&mut HlGroup> = None;
@@ -1249,7 +1249,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
             linep = name_end.skipwhite();
         }
 
-        let id = syn_check_group(line.slice(name_end.offset_from(line)));
+        let id = syn_check_group(line.slice(name_end.offset_from(&line)));
         if id == 0 {
             return;
         }
@@ -1279,10 +1279,10 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         let mut arg = [0u8; 512];
         if !doclear {
             while ends_excmd(i32::from(linep.first_byte())) == 0 {
-                let key_start = linep;
-                let linep_bytes = linep.as_bytes();
+                let key_start = linep.clone();
+                let linep_bytes = linep.as_bytes().to_vec();
                 if linep_bytes.first() == Some(&b'=') {
-                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), key_start);
+                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR), &key_start);
                     error = true;
                     break;
                 }
@@ -1315,7 +1315,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 }
 
                 if linep.first_byte() != b'=' {
-                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
+                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), &key_start);
                     error = true;
                     break;
                 }
@@ -1323,27 +1323,27 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 let arg_start;
                 if linep.first_byte() == b'\'' {
                     linep = linep.wrapping_add(1);
-                    arg_start = linep;
+                    arg_start = linep.clone();
                     linep = linep
                         .as_bytes()
                         .iter()
                         .position(|&b| b == b'\'')
-                        .map_or(crate::strings::BYTE_SLICE_NULL, |i| linep.wrapping_add(i));
+                        .map_or(crate::strings::OwnedSlice::NULL, |i| linep.wrapping_add(i));
                     if linep.is_null() {
-                        semsg!(gettext(E_INVARG2), key_start);
+                        semsg!(gettext(E_INVARG2), &key_start);
                         error = true;
                         break;
                     }
                 } else {
-                    arg_start = linep;
+                    arg_start = linep.clone();
                     linep = linep.skiptowhite();
                 }
                 if linep.addr() == arg_start.addr() {
-                    semsg!(gettext(E_MISSING_ARGUMENT_STR), key_start);
+                    semsg!(gettext(E_MISSING_ARGUMENT_STR), &key_start);
                     error = true;
                     break;
                 }
-                let arg_len = linep.offset_from(arg_start);
+                let arg_len = linep.offset_from(&arg_start);
                 if arg_len > arg.len() - 1 {
                     emsg(gettext(c"E423: Illegal argument"));
                     error = true;
@@ -1506,14 +1506,11 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                     {
                                         set_option_value_give_err(
                                             K_OPT_BACKGROUND,
-                                            cstr_as_obj(
-                                                crate::strings::ByteSlice::from_ptr(if dark != 0 {
-                                                    c"dark".as_ptr()
-                                                } else {
-                                                    c"light".as_ptr()
-                                                })
-                                                .as_opt_cstr(),
-                                            ),
+                                            cstr_as_obj(Some(if dark != 0 {
+                                                c"dark"
+                                            } else {
+                                                c"light"
+                                            })),
                                             0,
                                         );
                                         reset_option_was_set(K_OPT_BACKGROUND);
@@ -1578,7 +1575,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     hl_table_at(idx as usize).sg_link = 0;
                 }
 
-                linep = crate::charset::skipwhite_ptr(linep);
+                linep = linep.skipwhite();
             }
         }
 
@@ -1751,12 +1748,7 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool
         put_c(
             hl,
             c"link",
-            cstr_as_obj(
-                crate::strings::ByteSlice::from_ptr(
-                    hl_table_at((link - 1) as usize).sg_name.as_ptr(),
-                )
-                .as_opt_cstr(),
-            ),
+            cstr_as_obj(Some(hl_table_at((link - 1) as usize).sg_name.as_c_str())),
         );
     }
     let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
@@ -1860,12 +1852,9 @@ fn highlight_list_arg(
     }
 
     let mut buf = [0u8; 100];
-    let mut ts = crate::strings::ByteSlice::from_bytes(&buf);
     if type_ == LIST_INT {
         write_dec(&mut buf, iarg - 1);
-    } else if type_ == LIST_STRING {
-        ts = crate::strings::ByteSlice::from_opt_cstr(sarg);
-    } else {
+    } else if type_ != LIST_STRING {
         buf[0] = 0;
         let mut i = 0;
         while HL_ATTR_TABLE[i] != 0 {
@@ -1884,10 +1873,15 @@ fn highlight_list_arg(
             i += 1;
         }
     }
+    let ts_cstr = if type_ == LIST_STRING {
+        sarg.unwrap_or(c"")
+    } else {
+        crate::memory::bytes_as_cstr(&buf)
+    };
 
     syn_list_header(
         didh,
-        vim_strsize(ts.as_cstr()) + name.to_bytes().len() as i32 + 1,
+        vim_strsize(ts_cstr) + name.to_bytes().len() as i32 + 1,
         id,
         false,
     );
@@ -1897,7 +1891,7 @@ fn highlight_list_arg(
             msg_puts_hl(name, HLF_D, false);
             msg_puts_hl(c"=", HLF_D, false);
         }
-        msg_outtrans(ts.as_cstr(), 0, false);
+        msg_outtrans(ts_cstr, 0, false);
     }
     didh
 }
@@ -2551,16 +2545,16 @@ pub fn coloridx_to_name(idx: i32, val: i32, hexbuf: &mut [u8; 8]) -> Option<&CSt
 }
 
 pub fn name_to_ctermcolor(name: &CStr) -> i32 {
-    let name = crate::strings::ByteSlice::from_cstr(name);
-    let off = (name.first_byte()).to_ascii_uppercase();
+    let name_bytes = name.to_bytes();
+    let Some(&first) = name_bytes.first() else {
+        return -1;
+    };
+    let off = first.to_ascii_uppercase();
     let mut i = COLOR_NAMES.len() as isize - 1;
     while i >= 0 {
         let cname = COLOR_NAMES[i as usize];
         if off == cname.to_bytes()[0]
-            && mb_stricmp(
-                name.wrapping_add(1).as_cstr(),
-                crate::memory::CStrSubslice::advance(cname, 1),
-            ) == 0
+            && mb_stricmp(&name[1..], crate::memory::CStrSubslice::advance(cname, 1)) == 0
         {
             break;
         }

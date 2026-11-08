@@ -2018,15 +2018,10 @@ pub fn vcol2col(
     vcol: Colnr,
     coladdp: Option<&mut Colnr>,
 ) -> Colnr {
-    let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
+    let line_cstr = ml_get_buf(wp.buf_mut(), lnum);
     let mut csarg = CharsizeArg::new();
-    let cstype: CSType = init_charsize_arg(
-        &mut csarg,
-        wp,
-        lnum,
-        crate::strings::ByteSlice::from_ptr(line).as_cstr(),
-    );
-    let mut ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(line).as_cstr());
+    let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line_cstr);
+    let mut ci = utf_ptr2_str_char_info(line_cstr);
     let mut cur_vcol: i32 = 0;
     while cur_vcol < vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
@@ -2050,7 +2045,7 @@ pub fn vcol2col(
     if let Some(coladdp) = coladdp {
         *coladdp = vcol - cur_vcol;
     }
-    ci.offset_from(crate::strings::ByteSlice::from_ptr(line).as_cstr()) as Colnr
+    ci.offset_from(line_cstr) as Colnr
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.
