@@ -570,11 +570,11 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
     if arg0.v_type != VarType::VarList || arg0.vval.v_list().is_null() {
         semsg!(
             E_LISTARG,
-            crate::strings::ByteSlice::from_ptr(if retmatchpos {
-                c"matchfuzzypos()".as_ptr()
+            if retmatchpos {
+                c"matchfuzzypos()"
             } else {
-                c"matchfuzzy()".as_ptr()
-            }),
+                c"matchfuzzy()"
+            },
         );
         return;
     }

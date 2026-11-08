@@ -275,17 +275,8 @@ pub fn mc_showcmd(buf: &mut [u8]) -> usize {
         }
         return 0;
     }
-    let prefix = if mc_following() {
-        c"=".as_ptr()
-    } else {
-        c"".as_ptr()
-    };
-    format_to_buf!(
-        &mut *buf,
-        c"%s%zu\xc3\x97 ",
-        crate::strings::ByteSlice::from_ptr(prefix),
-        count
-    ) as usize
+    let prefix = if mc_following() { c"=" } else { c"" };
+    format_to_buf!(&mut *buf, c"%s%zu\xc3\x97 ", prefix, count) as usize
 }
 
 pub fn mc_replaying() -> bool {
@@ -391,12 +382,8 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     if ctx.mark != 0 && !extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, &mut ctx.pos) {
         return;
     }
-    if ctx.visual.vi_start.lnum == 0
-        && crate::strings::ByteSlice::from_ptr(atom_keys)
-            .as_cstr()
-            .to_bytes()
-            .starts_with(b"gv")
-    {
+    let atom_keys_opt = (!atom_keys.is_null()).then(|| unsafe { CStr::from_ptr(atom_keys) });
+    if ctx.visual.vi_start.lnum == 0 && atom_keys_opt.unwrap_or(c"").to_bytes().starts_with(b"gv") {
         return;
     }
 
@@ -449,7 +436,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     let tick = buf_get_changedtick(curbuf_mut());
     let mode_str = if atom_remap { c"ix" } else { c"nix" };
     nvim_feedkeys(
-        cstr_as_string(crate::strings::ByteSlice::from_ptr(atom_keys).as_opt_cstr()),
+        cstr_as_string(atom_keys_opt),
         cstr_as_string(Some(mode_str)),
         false,
     );

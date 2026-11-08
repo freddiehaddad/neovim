@@ -2593,10 +2593,9 @@ pub fn find_ident_at_pos(
     let mut prevcol: i32;
     let mut bn: i32;
 
-    let mut ptr = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
-    let line_bytes = crate::strings::ByteSlice::from_ptr(ptr)
-        .as_cstr()
-        .to_bytes_with_nul();
+    let line_cstr = ml_get_buf(wp.buf_mut(), lnum);
+    let ptr = line_cstr.as_ptr().cast_mut();
+    let line_bytes = line_cstr.to_bytes_with_nul();
     let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
     while i < 2 {
         col = startcol;
@@ -2655,7 +2654,6 @@ pub fn find_ident_at_pos(
         }
         return &[];
     }
-    ptr = ptr.wrapping_add(col as usize);
     let ptr_bytes = &line_bytes[col as usize..];
     if let Some(textcol) = textcol {
         *textcol = col;
@@ -2678,7 +2676,7 @@ pub fn find_ident_at_pos(
     }
 
     assert!(col >= 0);
-    crate::strings::AsByteSlice::slice_len(ptr, col as usize)
+    &ptr_bytes[..(col as usize).min(ptr_bytes.len())]
 }
 
 fn prep_redo_cmd(cap: &mut Cmdarg) {
@@ -2883,8 +2881,6 @@ pub fn add_to_showcmd(c: i32) -> bool {
         return false;
     }
 
-    let sc_buf = crate::strings::ByteSlice::from_bytes(&g_st().showcmd_buf);
-
     if norm_st().showcmd_visual {
         g_st().showcmd_buf[0] = 0;
         norm_st().showcmd_visual = false;
@@ -2895,23 +2891,17 @@ pub fn add_to_showcmd(c: i32) -> bool {
     }
 
     let mut mbyte_buf: [u8; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
-    let p = if c <= 0x7f || !vim_isprintc(c) {
+    let p_cstr: &CStr = if c <= 0x7f || !vim_isprintc(c) {
         let tc = transchar(c);
-        if tc.to_bytes() == b" " {
-            c"<20>".as_ptr()
-        } else {
-            tc.as_ptr()
-        }
+        if tc.to_bytes() == b" " { c"<20>" } else { tc }
     } else {
         let len = utf_char2bytes(c, &mut mbyte_buf) as usize;
         mbyte_buf[len] = 0;
-        mbyte_buf.as_ptr().cast()
+        crate::memory::bytes_as_cstr(&mbyte_buf)
     };
 
-    let old_len = sc_buf.len();
-    let p_bytes = crate::strings::ByteSlice::from_ptr(p)
-        .as_cstr()
-        .to_bytes_with_nul();
+    let old_len = crate::memory::bytes_until_nul(&g_st().showcmd_buf).len();
+    let p_bytes = p_cstr.to_bytes_with_nul();
     let extra_len = p_bytes.len() - 1;
     let limit = if ui_has(K_UIMESSAGES) {
         SHOWCMD_BUFLEN - 1
@@ -2944,8 +2934,7 @@ fn del_from_showcmd(mut len: i32) {
     if !opt_vars().p_sc {
         return;
     }
-    let sc_buf = crate::strings::ByteSlice::from_bytes(&g_st().showcmd_buf);
-    let old_len = sc_buf.len() as i32;
+    let old_len = crate::memory::bytes_until_nul(&g_st().showcmd_buf).len() as i32;
     len = len.min(old_len);
     g_st().showcmd_buf[(old_len - len) as usize] = 0;
 
@@ -3000,7 +2989,8 @@ pub fn display_showcmd() {
 
     let mut mc_buf: [u8; 16] = [0; 16];
     let mc_len = mc_showcmd(&mut mc_buf);
-    let sc_buf = crate::strings::ByteSlice::from_bytes(&g_st().showcmd_buf);
+    let sc_buf = g_st().showcmd_buf;
+    let sc_cstr = crate::memory::bytes_as_cstr(&sc_buf);
 
     if ui_has(K_UIMESSAGES) {
         let mut content_items: [Object; 1] = [NIL_OBJ];
@@ -3012,7 +3002,7 @@ pub fn display_showcmd() {
             if norm_st().showcmd_is_clear {
                 b""
             } else {
-                sc_buf.as_bytes()
+                sc_cstr.to_bytes()
             },
         );
         let mut size = 0;
@@ -3055,12 +3045,7 @@ pub fn display_showcmd() {
         0
     };
     if !norm_st().showcmd_is_clear {
-        len += grid_line_puts(
-            g_st().sc_col + len,
-            sc_buf.as_cstr(),
-            -1,
-            hl_attr(HLF_MSG as i32),
-        );
+        len += grid_line_puts(g_st().sc_col + len, sc_cstr, -1, hl_attr(HLF_MSG as i32));
     }
     len = len.min(SHOWCMD_COLS as i32);
 
@@ -3266,9 +3251,6 @@ fn is_ident(line_b: &[u8], offset: i32) -> bool {
 
 pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i32) -> bool {
     let len = ptr_bytes.len();
-    let ptr_cstr =
-        std::ffi::CString::new(crate::memory::bytes_until_nul(ptr_bytes)).unwrap_or_default();
-    let ptr = ptr_cstr.as_ptr();
     {
         let par_pos: CursorPos;
         let mut found_pos: CursorPos = CursorPos {
@@ -3283,19 +3265,19 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
 
         let patsize = len + 7;
         let mut pat_vec = vec![0u8; patsize];
-        let pat = crate::strings::ByteSlice::from_bytes(&pat_vec);
 
         assert!(patsize <= i32::MAX as usize);
         let patlen = format_to_buf!(
             &mut pat_vec,
-            crate::strings::ByteSlice::from_ptr(if vim_iswordp(ptr_bytes) {
-                c"\\V\\<%.*s\\>".as_ptr()
+            if vim_iswordp(ptr_bytes) {
+                c"\\V\\<%.*s\\>"
             } else {
-                c"\\V%.*s".as_ptr()
-            }),
+                c"\\V%.*s"
+            },
             len as i32,
-            crate::strings::ByteSlice::from_ptr(ptr),
+            ptr_bytes,
         ) as usize;
+        let pat_cstr = crate::memory::bytes_as_cstr(&pat_vec);
 
         let old_pos = curwin_mut().w_cursor;
         let save_p_ws = opt_vars().p_ws;
@@ -3327,7 +3309,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
                 &mut cursor_pos,
                 None,
                 FORWARD,
-                pat.as_cstr(),
+                pat_cstr,
                 patlen,
                 1,
                 searchflags,
@@ -3639,7 +3621,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
     }
     assert!(len <= i32::MAX as usize);
     spell_add_word(
-        crate::strings::AsByteSlice::slice_len(ptr, len),
+        crate::globals::GraphPtr::raw_slice(ptr.cast::<u8>(), len),
         if nchar == b'w' as i32 || nchar == b'W' as i32 {
             SPELL_ADD_BAD
         } else {
@@ -4182,11 +4164,8 @@ fn nv_k_getcmd(
     }
 
     if kp_ex {
-        *buflen = format_to_buf!(
-            &mut *buf_slice,
-            c"%s ",
-            crate::strings::ByteSlice::from_ptr(kp_ptr)
-        ) as usize;
+        *buflen =
+            format_to_buf!(&mut *buf_slice, c"%s ", unsafe { CStr::from_ptr(kp_ptr) }) as usize;
         if cap.count0 != 0 {
             *buflen +=
                 format_to_buf!(&mut buf_slice[*buflen..], c"%lld ", cap.count0 as i64) as usize;
@@ -4213,11 +4192,9 @@ fn nv_k_getcmd(
     if cap.count0 == 0 && isman_s {
         *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"man ") as usize;
     } else {
-        *buflen += format_to_buf!(
-            &mut buf_slice[*buflen..],
-            c"%s ",
-            crate::strings::ByteSlice::from_ptr(kp_ptr)
-        ) as usize;
+        *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"%s ", unsafe {
+            CStr::from_ptr(kp_ptr)
+        }) as usize;
     }
     if cap.count0 != 0 && (isman || isman_s) {
         *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"%lld ", cap.count0 as i64) as usize;
@@ -4298,11 +4275,9 @@ fn nv_ident(cap: &mut Cmdarg) {
     match cmdchar {
         c if c == b'*' as i32 || c == b'#' as i32 => {
             setpcmark();
-            curwin_mut().w_cursor.col =
-                ((crate::strings::AsByteSlice::byte_addr(ident_slice.as_ptr()) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(
-                        get_cursor_line_ptr().as_ptr().cast_mut(),
-                    ) as isize)) as Colnr;
+            curwin_mut().w_cursor.col = ((ident_slice.as_ptr() as isize)
+                - (get_cursor_line_ptr().as_ptr() as isize))
+                as Colnr;
 
             if !g_cmd && vim_iswordp(ident_slice) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
@@ -4345,7 +4320,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         }
     }
 
-    let mut ptr = crate::strings::ByteSlice::from_bytes(ident_slice);
+    let mut ptr_rem = ident_slice;
     let mut n: usize = ident_slice.len();
     if cmdchar == b'K' as i32 && kp_helpbang && !visual_sel {
         buf_vec[..6].copy_from_slice(b"help!\0");
@@ -4363,51 +4338,48 @@ fn nv_ident(cap: &mut Cmdarg) {
         buf_vec[buflen..buflen + p_bytes.len()].copy_from_slice(p_bytes);
         buflen += plen;
     } else {
-        let aux_ptr = if cmdchar == b'*' as i32 {
+        let aux_cstr = if cmdchar == b'*' as i32 {
             if opt_vars().p_magic {
-                c"/.*~[^$\\".as_ptr()
+                c"/.*~[^$\\"
             } else {
-                c"/^$\\".as_ptr()
+                c"/^$\\"
             }
         } else if cmdchar == b'#' as i32 {
             if opt_vars().p_magic {
-                c"/?.*~[^$\\".as_ptr()
+                c"/?.*~[^$\\"
             } else {
-                c"/?^$\\".as_ptr()
+                c"/?^$\\"
             }
         } else if tag_cmd {
             if Some(curbuf_mut().b_p_ft.as_bytes()) == Some(b"help") {
-                c"".as_ptr()
+                c""
             } else {
-                c"\\|\"\n[".as_ptr()
+                c"\\|\"\n["
             }
         } else {
-            c"\\|\"\n*?[".as_ptr()
+            c"\\|\"\n*?["
         };
 
         let mut p_idx = buflen;
         while n > 0 {
             n -= 1;
-            let first = ptr.first_byte();
-            if crate::strings::vim_haschr(
-                crate::strings::ByteSlice::from_ptr(aux_ptr).as_cstr(),
-                i32::from(first),
-            ) {
+            let first = ptr_rem.first().copied().unwrap_or(0);
+            if crate::strings::vim_haschr(aux_cstr, i32::from(first)) {
                 buf_vec[p_idx] = b'\\';
                 p_idx += 1;
             }
-            let len = (utfc_ptr2len(ptr) - 1) as usize;
+            let len = (utfc_ptr2len(ptr_rem) - 1) as usize;
             let mut i = 0;
             while i < len && n > 0 {
-                buf_vec[p_idx] = ptr.first_byte();
+                buf_vec[p_idx] = ptr_rem.first().copied().unwrap_or(0);
                 p_idx += 1;
-                ptr = ptr.wrapping_add(1);
+                ptr_rem = &ptr_rem[1.min(ptr_rem.len())..];
                 i += 1;
                 n -= 1;
             }
-            buf_vec[p_idx] = ptr.first_byte();
+            buf_vec[p_idx] = ptr_rem.first().copied().unwrap_or(0);
             p_idx += 1;
-            ptr = ptr.wrapping_add(1);
+            ptr_rem = &ptr_rem[1.min(ptr_rem.len())..];
         }
         buf_vec[p_idx] = 0;
         buflen = p_idx;
@@ -5856,15 +5828,12 @@ fn nv_abbrev(cap: &mut Cmdarg) {
 
 fn nv_optrans(cap: &mut Cmdarg) {
     const AR: [&CStr; 8] = [c"dl", c"dh", c"d$", c"c$", c"cl", c"cc", c"yy", c":s\r"];
-    let str_p = c"xXDCsSY&".as_ptr();
 
     if !checkclearopq(cap.oap_mut()) {
         if cap.count0 != 0 {
             stuffnum_readbuff(cap.count0);
         }
-        let idx = crate::strings::ByteSlice::from_ptr(str_p)
-            .as_cstr()
-            .to_bytes()
+        let idx = b"xXDCsSY&"
             .iter()
             .position(|&b| b == cap.cmdchar as u8)
             .unwrap();

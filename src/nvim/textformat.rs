@@ -8,8 +8,7 @@ use crate::change::{
 use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, coladvance, dec_cursor, gchar_cursor,
-    get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_slice,
-    inc_cursor, pchar_cursor,
+    get_cursor_line_len, get_cursor_line_slice, get_cursor_pos_slice, inc_cursor, pchar_cursor,
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
@@ -31,7 +30,7 @@ use crate::insert::{
 };
 use crate::mark::mark_col_adjust;
 use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first};
-use crate::memline::{ml_get, ml_get_len, ml_replace};
+use crate::memline::{ml_get_len, ml_replace};
 use crate::message::msgmore;
 use crate::r#move::update_topline;
 use crate::ops::do_join;
@@ -550,15 +549,10 @@ fn fmt_check_par(
     leader_flags: &mut Option<&'static CStr>,
     do_comments: bool,
 ) -> bool {
-    let ptr = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
+    let line_slice = crate::memline::ml_get_slice(lnum);
     if do_comments {
         *leader_flags = None;
-        *leader_len = get_leader_len(
-            crate::memline::ml_get_slice(lnum),
-            Some(leader_flags),
-            false,
-            true,
-        );
+        *leader_len = get_leader_len(line_slice, Some(leader_flags), false, true);
     } else {
         *leader_len = 0;
         *leader_flags = None;
@@ -576,7 +570,8 @@ fn fmt_check_par(
         is_com_end = flags_bytes.get(idx) == Some(&COM_END);
     }
 
-    (crate::charset::skipwhite_ptr(ptr.wrapping_add(*leader_len as usize))).is_empty()
+    let rem = &line_slice[(*leader_len as usize).min(line_slice.len())..];
+    crate::charset::skipwhite_slice(rem).is_empty()
         || (*leader_len > 0 && is_com_end)
         || start_ps(lnum, 0, false)
 }
@@ -708,12 +703,12 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     }
 
     let pos = curwin_mut().w_cursor;
-    let old = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
+    let old_bytes = crate::cursor::get_cursor_line_slice();
 
     check_auto_format(false);
 
     let wasatend = pos.col == get_cursor_line_len();
-    if !old.is_empty() && !trailblank && wasatend {
+    if !old_bytes.is_empty() && !trailblank && wasatend {
         dec_cursor();
         let mut cc = gchar_cursor();
         if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(K_FO_ONE_LETTER) {
@@ -727,7 +722,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         curwin_mut().w_cursor = pos;
     }
 
-    if !old.is_empty()
+    if !old_bytes.is_empty()
         && !trailblank
         && !wasatend
         && pos.col > 0
@@ -742,7 +737,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
     if has_format_option(K_FO_WRAP_COMS)
         && !has_format_option(K_FO_WRAP)
-        && get_leader_len(old.as_bytes(), None, false, true) == 0
+        && get_leader_len(crate::cursor::get_cursor_line_slice(), None, false, true) == 0
     {
         return;
     }

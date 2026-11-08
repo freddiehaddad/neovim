@@ -1277,7 +1277,6 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 
 /// Open a new script file for the `":source!"` command.
 pub fn openscript(name: &CStr, directly: bool) {
-    let name_ptr = crate::strings::ByteSlice::from_cstr(name);
     {
         if inp_st().curscript + 1 == NSCRIPT as i32 {
             emsg(gettext(E_NESTING));
@@ -1293,17 +1292,16 @@ pub fn openscript(name: &CStr, directly: bool) {
         }
 
         inp_st().curscript += 1;
-        expand_env(name_ptr.as_cstr(), g_st().name_buff_bytes_mut());
-        let namebuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
+        expand_env(name, g_st().name_buff_bytes_mut());
         let cur_idx = inp_st().curscript as usize;
         let error = file_open(
             &mut inp_st().scriptin[cur_idx],
-            namebuff_ptr.as_opt_cstr(),
+            Some(g_st().name_buff_cstr()),
             K_FILE_READ_ONLY,
             0,
         );
         if error != 0 {
-            semsg!(gettext(E_NOTOPEN_2), name_ptr, uv_strerror(error),);
+            semsg!(gettext(E_NOTOPEN_2), name, uv_strerror(error));
             inp_st().curscript -= 1;
             return;
         }
@@ -2504,19 +2502,16 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 .is_empty()
                             {
                                 curwin_mut().w_wcol = 0;
-                                let ptr =
-                                    crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
-                                let endptr = ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
+                                let ptr_cstr = get_cursor_line_ptr();
+                                let end_off = curwin_mut().w_cursor.col as usize;
 
                                 let mut csarg = CharsizeArg::new();
                                 let cstype: CSType = init_charsize_arg(
                                     &mut csarg,
                                     curwin_mut(),
                                     curwin_mut().w_cursor.lnum,
-                                    ptr.as_cstr(),
+                                    ptr_cstr,
                                 );
-                                let ptr_cstr = ptr.as_cstr();
-                                let end_off = ((endptr).offset_from(ptr) as isize) as usize;
                                 let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr_cstr);
                                 let mut vcol: i32 = 0;
                                 while ci.offset_from(ptr_cstr) < end_off {
@@ -2551,10 +2546,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                             col = curwin_mut().w_cursor.col - 1;
                         }
                         if col > 0 && curwin_mut().w_wcol > 0 {
-                            let ptr = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
-                            col -=
-                                crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add(col as usize));
-                            if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {
+                            let line_slice = crate::cursor::get_cursor_line_slice();
+                            col -= crate::mbyte::utf_head_off_slice(line_slice, col as usize);
+                            if utf_ptr2cells(&line_slice[(col as usize).min(line_slice.len())..])
+                                > 1
+                            {
                                 curwin_mut().w_wcol -= 1;
                             }
                         }
@@ -2649,11 +2645,12 @@ fn vgetorpeek(advance: bool) -> i32 {
                         && g_st().cmdline_star == 0
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
-                        let p = crate::strings::ByteSlice::from_bytes(
+                        let first_b = g_st().typebuf.tb_buf.get(last_idx).copied().unwrap_or(0);
+                        let cells = utf_ptr2cells(crate::memory::bytes_until_nul(
                             &g_st().typebuf.tb_buf[last_idx..],
-                        );
-                        if utf_ptr2cells(p) == 1 && (p.first_byte()) < 128 {
-                            putcmdline(p.first_byte(), false);
+                        ));
+                        if cells == 1 && first_b < 128 {
+                            putcmdline(first_b, false);
                             showing_partial = true;
                         }
                     }

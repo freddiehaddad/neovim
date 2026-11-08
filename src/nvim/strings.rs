@@ -348,6 +348,7 @@ pub const fn byte_slice_from_bytes(b: &[u8]) -> ByteSlice {
     Some(unsafe { &*(b as *const [u8]) })
 }
 
+#[allow(dead_code)]
 pub trait AsByteSlice: Sized {
     fn into_byte_slice(self) -> ByteSlice;
 
@@ -583,6 +584,7 @@ impl<T> AsByteSlice for crate::globals::GraphPtr<T> {
     }
 }
 
+#[allow(dead_code)]
 pub trait ByteSliceExt: Copy {
     fn from_cstr(s: &CStr) -> Self;
     fn from_opt_cstr(s: Option<&CStr>) -> Self;

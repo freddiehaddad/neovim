@@ -257,17 +257,15 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
     }
     curwin_mut().w_cursor.lnum = curr;
     if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as i32 && dir == FORWARD {
-        let line = crate::strings::ByteSlice::from_cstr(ml_get(curr));
+        let line_slice = crate::memline::ml_get_slice(curr);
 
         // Put the cursor on the last character in the last line and make the
         // motion inclusive.
         curwin_mut().w_cursor.col = ml_get_len(curr);
         if curwin_mut().w_cursor.col != 0 {
             curwin_mut().w_cursor.col -= 1;
-            curwin_mut().w_cursor.col -= crate::mbyte::utf_head_off_ptr(
-                line,
-                line.wrapping_add(curwin_mut().w_cursor.col as usize),
-            );
+            curwin_mut().w_cursor.col -=
+                crate::mbyte::utf_head_off_slice(line_slice, curwin_mut().w_cursor.col as usize);
             *pincl = true;
         }
     } else {
@@ -741,21 +739,16 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     }
 
     let mut start_pos = curwin_mut().w_cursor;
-    start_pos.col = ((crate::strings::AsByteSlice::byte_addr(start) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
+    start_pos.col = ((start as isize) - (line as isize)) as Colnr;
     start_pos.coladd = 0;
 
     let mut end_pos = curwin_mut().w_cursor;
-    end_pos.col = ((crate::strings::AsByteSlice::byte_addr({
-        let _l = line;
-        let _p = end;
-        if (_p as usize) > (_l as usize) {
-            _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
-        } else {
-            _p
-        }
-    }) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
+    let end_prev = if (end as usize) > (line as usize) {
+        end.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(line, end.wrapping_sub(1)) as usize)
+    } else {
+        end
+    };
+    end_pos.col = ((end_prev as isize) - (line as isize)) as Colnr;
     end_pos.coladd = 0;
 
     if g_st().visual_global.active {
@@ -1070,8 +1063,7 @@ pub fn current_block(
 
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
-    let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
-    let line_bytes = line.as_cstr().to_bytes_with_nul();
+    let line_bytes = get_cursor_line_ptr().to_bytes_with_nul();
     let mut idx = (curwin_mut().w_cursor.col as usize).min(line_bytes.len().saturating_sub(1));
     let mut lc: i32 = i32::from(NUL);
 
@@ -1079,7 +1071,7 @@ fn in_html_tag(end_tag: bool) -> bool {
         if line_bytes[idx] == b'<' {
             break;
         }
-        let off = crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(idx - 1)) as usize + 1;
+        let off = crate::mbyte::utf_head_off_slice(line_bytes, idx - 1) as usize + 1;
         idx = idx.saturating_sub(off);
         if line_bytes[idx] == b'>' {
             break;
@@ -1095,7 +1087,7 @@ fn in_html_tag(end_tag: bool) -> bool {
         coladd: 0,
     };
 
-    idx += utfc_ptr2len(line.wrapping_add(idx)) as usize;
+    idx += utfc_ptr2len(crate::memory::bytes_until_nul(&line_bytes[idx..])) as usize;
     let next_b = line_bytes.get(idx).copied().unwrap_or(0);
     if end_tag {
         return next_b == b'/';

@@ -489,10 +489,10 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     let mut todo = size;
     let mut ind_len: i32 = 0;
-    let oldline = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
-    let oldline_bytes = oldline.as_bytes();
+    let oldline_with_nul = get_cursor_line_ptr().to_bytes_with_nul();
+    let oldline_bytes = &oldline_with_nul[..oldline_with_nul.len() - 1];
     let mut p_idx = 0usize;
-    let mut p;
+    let mut p_off: usize;
     let mut line_len = get_cursor_line_len() + 1;
 
     if !curbuf_mut().b_p_et || ((flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi) {
@@ -561,7 +561,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         ind_len += 1;
     }
 
-    p = oldline.wrapping_add(p_idx);
+    p_off = p_idx;
     if !doit
         && !oldline_bytes
             .get(p_idx)
@@ -572,10 +572,10 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     }
 
     if (flags & SIN_INSERT) != 0 {
-        p = oldline;
+        p_off = 0;
     } else {
-        p = crate::charset::skipwhite_ptr(p);
-        line_len -= ((p).offset_from(oldline) as isize) as i32;
+        p_off += crate::charset::skipwhite_len(&oldline_bytes[p_off..]);
+        line_len -= p_off as i32;
     }
 
     let mut skipcols: i32 = 0;
@@ -592,15 +592,15 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         todo = size - ind_done;
 
         ind_len = orig_char_len + todo;
-        p = oldline;
+        p_off = 0;
         skipcols = orig_char_len;
         let orig_usize = orig_char_len as usize;
-        newline_vec[..orig_usize].copy_from_slice(p.slice(orig_usize));
+        newline_vec[..orig_usize].copy_from_slice(&oldline_with_nul[..orig_usize]);
         s_idx = orig_usize;
-        p = p.wrapping_add(orig_usize);
+        p_off += orig_usize;
 
-        while ascii_iswhite(p.first_byte()) {
-            p = p.wrapping_add(1);
+        while oldline_bytes.get(p_off).copied().is_some_and(ascii_iswhite) {
+            p_off += 1;
         }
     } else {
         todo = size;
@@ -613,11 +613,11 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     if !curbuf_mut().b_p_et {
         if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi {
-            p = oldline;
+            p_off = 0;
             ind_done = 0;
 
-            while todo > 0 && ascii_iswhite(p.first_byte()) {
-                if p.first_byte() == TAB {
+            while todo > 0 && oldline_bytes.get(p_off).copied().is_some_and(ascii_iswhite) {
+                if oldline_bytes[p_off] == TAB {
                     tab_pad =
                         tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
                     if todo < tab_pad {
@@ -629,9 +629,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                     todo -= 1;
                     ind_done += 1;
                 }
-                newline_vec[s_idx] = p.first_byte();
+                newline_vec[s_idx] = oldline_bytes[p_off];
                 s_idx += 1;
-                p = p.wrapping_add(1);
+                p_off += 1;
                 skipcols += 1;
             }
 
@@ -642,7 +642,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                 todo -= tab_pad;
                 ind_done += tab_pad;
             }
-            p = crate::charset::skipwhite_ptr(p);
+            p_off += crate::charset::skipwhite_len(&oldline_bytes[p_off..]);
         }
 
         loop {
@@ -663,10 +663,11 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         s_idx += todo_usize;
     }
     let line_usize = line_len as usize;
-    newline_vec[s_idx..s_idx + line_usize].copy_from_slice(p.slice(line_usize));
+    newline_vec[s_idx..s_idx + line_usize]
+        .copy_from_slice(&oldline_with_nul[p_off..p_off + line_usize]);
 
     if (flags & SIN_UNDO) == 0 || u_savesub(curwin_mut().w_cursor.lnum) {
-        let old_offset = ((p).offset_from(oldline) as isize) as Colnr;
+        let old_offset = p_off as Colnr;
         let new_offset = s_idx as Colnr;
 
         ml_replace(
@@ -1142,10 +1143,9 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         curwin_mut().w_virtcol = end_vcol;
 
         new_cursor_col = 0;
-        let line = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
+        let line_cstr = get_cursor_line_ptr();
         vcol = 0;
-        if !line.is_empty() {
-            let line_cstr = line.as_cstr();
+        if !line_cstr.to_bytes().is_empty() {
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line_cstr);
             let mut ci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
@@ -1320,38 +1320,37 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut num_spaces: i32 = 0;
     let mut start_col: i32 = 0;
     let mut start_vcol: i64 = 0;
-    let mut new_line;
     let mut new_vts_array: Vec<Colnr> = Vec::new();
 
     let mut first_line: Linenr = 0;
     let mut last_line: Linenr = 0;
     let mut is_indent_only = false;
 
-    let mut ptr = crate::strings::ByteSlice::from_cstr(eap.arg.as_cstr());
-    let ptr_bytes = ptr.as_bytes();
-    if ptr_bytes.starts_with(b"-indentonly")
-        && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))
+    let mut arg_bytes = eap.arg.as_bytes();
+    if arg_bytes.starts_with(b"-indentonly")
+        && ascii_iswhite_or_nul(i32::from(arg_bytes.get(11).copied().unwrap_or(0)))
     {
         is_indent_only = true;
-        ptr = ptr.wrapping_add(11).skipwhite();
+        arg_bytes = crate::charset::skipwhite_slice(&arg_bytes[11..]);
     }
 
-    let ts_start = ptr;
+    let ts_start = arg_bytes;
     let mut errbuf_storage = [0u8; IOSIZE];
     let errbuf = CharBuf::from_slice(&mut errbuf_storage);
-    if let Some(errmsg) = tabstop_set(ptr.as_bytes(), &mut new_vts_array, Some(errbuf)) {
+    if let Some(errmsg) = tabstop_set(arg_bytes, &mut new_vts_array, Some(errbuf)) {
         emsg(gettext(errmsg));
         return;
     }
-    while ascii_isdigit(ptr.first_byte()) || ptr.first_byte() == b',' {
-        ptr = ptr.wrapping_add(1);
-    }
+    let ts_len = ts_start
+        .iter()
+        .take_while(|&&b| ascii_isdigit(b) || b == b',')
+        .count();
 
     let new_ts_str = if new_vts_array.is_empty() {
         new_vts_array = curbuf_mut().b_p_vts_array.clone();
         None
     } else {
-        Some(std::ffi::CString::new(ts_start.slice(ptr.offset_from(ts_start))).unwrap_or_default())
+        Some(std::ffi::CString::new(&ts_start[..ts_len]).unwrap_or_default())
     };
 
     let save_list = curwin_mut().w_onebuf_opt.wo_list;
@@ -1359,14 +1358,14 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let mut lnum = eap.line1;
     while !g_st().got_int && lnum <= eap.line2 {
-        ptr = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
+        let mut ptr_slice: &[u8] = ml_get(lnum).to_bytes_with_nul();
         let mut old_len = ml_get_len(lnum);
         let mut col: i32 = 0;
         let mut vcol: i64 = 0;
         let mut did_undo = false;
         let mut had_err = false;
         loop {
-            let cur_b = ptr.wrapping_add(col as usize).first_byte();
+            let cur_b = ptr_slice.get(col as usize).copied().unwrap_or(0);
             if ascii_iswhite(cur_b) {
                 if !got_tab && num_spaces == 0 {
                     start_vcol = vcol;
@@ -1416,19 +1415,16 @@ pub fn ex_retab(eap: &mut Exarg) {
                         let len_usize = len as usize;
                         let tabs_usize = num_tabs as usize;
                         let tail_len = (old_len - col + 1) as usize;
-                        let old_slice = ptr.slice(col_usize + tail_len);
+                        let old_slice = &ptr_slice[..col_usize + tail_len];
                         let mut new_line_vec = vec![0u8; new_len as usize];
                         new_line_vec[..start_usize].copy_from_slice(&old_slice[..start_usize]);
                         new_line_vec[start_usize + len_usize..start_usize + len_usize + tail_len]
                             .copy_from_slice(&old_slice[col_usize..]);
                         new_line_vec[start_usize..start_usize + tabs_usize].fill(b'\t');
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
-                        new_line = crate::strings::ByteSlice::from_bytes(&new_line_vec);
 
                         if ml_replace(lnum, &new_line_vec[..(new_len - 1) as usize], true) {
-                            new_line = crate::strings::ByteSlice::from_bytes(
-                                curbuf_mut().b_ml.ml_line_slice,
-                            );
+                            ptr_slice = curbuf_mut().b_ml.ml_line_slice;
                             extmark_splice_cols(
                                 curbuf_mut(),
                                 lnum - 1,
@@ -1443,7 +1439,6 @@ pub fn ex_retab(eap: &mut Exarg) {
                             first_line = lnum;
                         }
                         last_line = lnum;
-                        ptr = new_line;
                         old_len = new_len - 1;
                         col = start_col + len;
                     }
@@ -1455,19 +1450,17 @@ pub fn ex_retab(eap: &mut Exarg) {
                     break;
                 }
             }
-            if ptr.wrapping_add(col as usize).is_empty() {
+            let rem_slice =
+                crate::memory::bytes_until_nul(ptr_slice.get(col as usize..).unwrap_or(&[]));
+            if rem_slice.is_empty() {
                 break;
             }
-            vcol += i64::from(win_chartabsize(
-                curwin_mut(),
-                ptr.wrapping_add(col as usize),
-                vcol as Colnr,
-            ));
+            vcol += i64::from(win_chartabsize(curwin_mut(), rem_slice, vcol as Colnr));
             if vcol >= i64::from(MAXCOL) {
                 emsg_text_too_long();
                 break;
             }
-            col += utfc_ptr2len(ptr.wrapping_add(col as usize));
+            col += utfc_ptr2len(rem_slice);
         }
         if had_err {
             break;

@@ -330,7 +330,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             &mut g_st().iobuff,
             ngettext(msg_line_single, msg_line_plural, oap.line_count as u64),
             i64::from(oap.line_count),
-            crate::strings::ByteSlice::from_ptr(op),
+            unsafe { std::ffi::CStr::from_ptr(op) },
             amount,
         );
         msg_keep(
@@ -490,7 +490,9 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         return;
     }
 
-    let oldp = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
+    let oldp_cstr = get_cursor_line_ptr();
+    let oldp_with_nul = oldp_cstr.to_bytes_with_nul();
+    let oldp_addr = oldp_cstr.as_ptr() as isize;
     let old_line_len = get_cursor_line_len();
 
     let mut newp_vec: Vec<u8>;
@@ -552,21 +554,15 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         let new_line_len = bd.textcol
             + tabs
             + spaces
-            + (old_line_len
-                - (((crate::strings::AsByteSlice::byte_addr(bd.textstart.as_ptr()) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(oldp) as isize))
-                    as i32));
+            + (old_line_len - (((bd.textstart.as_ptr() as isize) - oldp_addr) as i32));
         let textcol = bd.textcol as usize;
         let tabs_len = tabs as usize;
         let spaces_len = spaces as usize;
         let prefix_len = textcol + tabs_len + spaces_len;
         newp_vec = vec![0u8; (new_line_len as usize) + 1];
-        newp_vec[..textcol].copy_from_slice(oldp.slice(textcol));
+        newp_vec[..textcol].copy_from_slice(&oldp_with_nul[..textcol]);
         startcol = bd.textcol;
-        oldlen = (((crate::strings::AsByteSlice::byte_addr(bd.textstart.as_ptr()) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(old_textstart) as isize))
-            as i32)
-            + col_pre;
+        oldlen = (((bd.textstart.as_ptr() as isize) - (old_textstart as isize)) as i32) + col_pre;
         newlen = tabs + spaces;
         newp_vec[textcol..textcol + tabs_len].fill(b'\t');
         newp_vec[textcol + tabs_len..prefix_len].fill(b' ');
@@ -574,10 +570,13 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         newp_vec[prefix_len..prefix_len + tail.len()].copy_from_slice(tail);
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
     } else {
-        let mut non_white = crate::strings::ByteSlice::from_cstr(bd.textstart);
+        let mut non_white_cstr = bd.textstart;
 
         if bd.startspaces != 0 {
-            non_white = non_white.wrapping_add(utfc_ptr2len(non_white) as usize);
+            non_white_cstr = crate::memory::CStrSubslice::advance(
+                non_white_cstr,
+                utfc_ptr2len(non_white_cstr.to_bytes()) as usize,
+            );
         }
 
         let mut non_white_col = bd.start_vcol;
@@ -589,32 +588,33 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             curwin_mut().w_cursor.lnum,
             bd.textstart,
         );
-        while ascii_iswhite(i32::from(non_white.first_byte())) {
+        while let Some(&b0) = non_white_cstr.to_bytes().first()
+            && ascii_iswhite(i32::from(b0))
+        {
             let incr = win_charsize(
                 cstype,
                 non_white_col,
-                non_white.slice(1),
-                i32::from(non_white.first_byte()),
+                &non_white_cstr.to_bytes()[..1],
+                i32::from(b0),
                 &mut csarg,
                 1,
             )
             .width;
             non_white_col += incr;
-            non_white = non_white.wrapping_add(1);
+            non_white_cstr = crate::memory::CStrSubslice::advance(non_white_cstr, 1);
         }
 
         let block_space_width = non_white_col - oap.start_vcol;
         let shift_amount = block_space_width.min(total);
         let destination_col = non_white_col - shift_amount;
 
-        let mut verbatim_copy_end = crate::strings::ByteSlice::from_cstr(bd.textstart);
         let mut verbatim_copy_width = bd.start_vcol;
 
         if bd.startspaces != 0 {
             verbatim_copy_width -= bd.start_char_vcols;
         }
         cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart);
-        let mut ci = utf_ptr2_str_char_info(verbatim_copy_end.as_cstr());
+        let mut ci = utf_ptr2_str_char_info(bd.textstart);
         while verbatim_copy_width < destination_col {
             let cli = utf_cluster_info(ci);
             let incr = win_charsize(
@@ -632,27 +632,29 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             verbatim_copy_width += incr;
             ci = cli.next;
         }
-        verbatim_copy_end = crate::strings::ByteSlice::from_cstr(ci.as_cstr());
+        let verbatim_copy_end = ci.as_cstr();
 
         debug_assert!(destination_col - verbatim_copy_width >= 0);
         let fill = destination_col - verbatim_copy_width;
 
-        debug_assert!(((verbatim_copy_end).offset_from(oldp) as isize) >= 0);
-        let fixedlen = ((verbatim_copy_end).offset_from(oldp) as isize) as i32;
-        let new_line_len =
-            fixedlen + fill + (old_line_len - (((non_white).offset_from(oldp) as isize) as i32));
+        debug_assert!((verbatim_copy_end.as_ptr() as isize) - oldp_addr >= 0);
+        let fixedlen = ((verbatim_copy_end.as_ptr() as isize) - oldp_addr) as i32;
+        let new_line_len = fixedlen
+            + fill
+            + (old_line_len - (((non_white_cstr.as_ptr() as isize) - oldp_addr) as i32));
 
         let fixed_usize = fixedlen as usize;
         let fill_usize = fill as usize;
         let prefix_len = fixed_usize + fill_usize;
         newp_vec = vec![0u8; (new_line_len as usize) + 1];
         startcol = fixedlen;
-        oldlen = bd.textcol + (((non_white).offset_from(bd.textstart.as_ptr()) as isize) as i32)
+        oldlen = bd.textcol
+            + (((non_white_cstr.as_ptr() as isize) - (bd.textstart.as_ptr() as isize)) as i32)
             - fixedlen;
         newlen = fill;
-        newp_vec[..fixed_usize].copy_from_slice(oldp.slice(fixed_usize));
+        newp_vec[..fixed_usize].copy_from_slice(&oldp_with_nul[..fixed_usize]);
         newp_vec[fixed_usize..prefix_len].fill(b' ');
-        let tail = non_white.as_bytes();
+        let tail = non_white_cstr.to_bytes();
         newp_vec[prefix_len..prefix_len + tail.len()].copy_from_slice(tail);
         debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
     }
@@ -692,7 +694,8 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
                 continue;
             }
 
-            let mut oldp = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
+            let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
+            let oldp_bytes = &oldp_with_nul[..oldp_with_nul.len() - 1];
 
             if b_insert {
                 ts_val = bdp.start_char_vcols;
@@ -725,7 +728,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             }
 
             if spaces > 0 {
-                offset -= crate::mbyte::utf_head_off_ptr(oldp, oldp.wrapping_add(offset as usize));
+                offset -= crate::mbyte::utf_head_off_slice(oldp_bytes, offset as usize);
             }
             spaces = spaces.max(0);
 
@@ -744,8 +747,8 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             let offset_usize = offset as usize;
             let spaces_usize = spaces as usize;
 
-            newp_vec[..offset_usize].copy_from_slice(oldp.slice(offset_usize));
-            oldp = oldp.wrapping_add(offset_usize);
+            newp_vec[..offset_usize].copy_from_slice(&oldp_with_nul[..offset_usize]);
+            let mut oldp_rem = &oldp_bytes[offset_usize.min(oldp_bytes.len())..];
             let startcol = offset;
 
             newp_vec[offset_usize..offset_usize + spaces_usize].fill(b' ');
@@ -755,11 +758,11 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
 
             let mut skipped: i32 = 0;
             if spaces > 0 && !bdp.is_short {
-                if oldp.first_byte() == b'\t' {
+                if oldp_rem.first() == Some(&b'\t') {
                     let pad_start = (offset + spaces) as usize;
                     let pad_len = (ts_val - spaces) as usize;
                     newp_vec[pad_start..pad_start + pad_len].fill(b' ');
-                    oldp = oldp.wrapping_add(1);
+                    oldp_rem = &oldp_rem[1..];
                     count += 1;
                     skipped = 1;
                 } else {
@@ -770,7 +773,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             if spaces > 0 {
                 offset += count;
             }
-            let tail = oldp.as_bytes();
+            let tail = oldp_rem;
             newp_vec[offset as usize..offset as usize + tail.len()].copy_from_slice(tail);
 
             ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
@@ -1122,13 +1125,13 @@ fn mb_adjust_opend(oap: &mut Oparg) {
         return;
     }
 
-    let line = crate::strings::ByteSlice::from_cstr(ml_get(oap.end.lnum));
-    let mut ptr_line = line.wrapping_add(oap.end.col as usize);
-    if !ptr_line.is_empty() {
-        let head_off = crate::mbyte::utf_head_off_ptr(line, ptr_line) as usize;
-        ptr_line = line.wrapping_add((oap.end.col as usize) - head_off);
-        ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
-        oap.end.col = ((ptr_line).offset_from(line) as isize) as Colnr;
+    let line_slice = crate::memline::ml_get_slice(oap.end.lnum);
+    let end_col = oap.end.col as usize;
+    if end_col < line_slice.len() {
+        let head_off = crate::mbyte::utf_head_off_slice(line_slice, end_col) as usize;
+        let base_col = end_col.saturating_sub(head_off);
+        let clen = (utfc_ptr2len(&line_slice[base_col..]) - 1).max(0) as usize;
+        oap.end.col = (base_col + clen) as Colnr;
     }
 }
 
@@ -1231,7 +1234,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             let mut num_chars = numc;
             numc *= utf_char2len(c);
 
-            let mut oldp = crate::strings::ByteSlice::from_cstr(get_cursor_line_ptr());
+            let oldp_with_nul = get_cursor_line_ptr().to_bytes_with_nul();
             let oldlen = get_cursor_line_len();
 
             let mut newp_size = (bd.textcol as usize) + (bd.startspaces as usize);
@@ -1244,11 +1247,13 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             let mut newp_vec = vec![0u8; newp_size + 1];
             let textcol = bd.textcol as usize;
             let startspaces = bd.startspaces as usize;
-            newp_vec[..textcol].copy_from_slice(oldp.slice(textcol));
-            oldp = oldp.wrapping_add((bd.textcol + bd.textlen) as usize);
+            newp_vec[..textcol].copy_from_slice(&oldp_with_nul[..textcol]);
+            let tail_off = ((bd.textcol + bd.textlen) as usize).min(oldp_with_nul.len());
+            let oldp_tail = &oldp_with_nul[tail_off..];
             newp_vec[textcol..textcol + startspaces].fill(b' ');
             let col = oldlen - bd.textcol - bd.textlen + 1;
             debug_assert!(col >= 0);
+            let col_u = (col as usize).min(oldp_tail.len());
             let mut newrows: i32 = 0;
             let mut newcols: i32 = 0;
             if had_ctrl_v_cr || (c != b'\r' as i32 && c != b'\n' as i32) {
@@ -1261,13 +1266,12 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                     let endspaces = bd.endspaces as usize;
                     newp_vec[newp_len..newp_len + endspaces].fill(b' ');
                     newp_len += endspaces;
-                    newp_vec[newp_len..newp_len + col as usize]
-                        .copy_from_slice(oldp.slice(col as usize));
+                    newp_vec[newp_len..newp_len + col_u].copy_from_slice(&oldp_tail[..col_u]);
                 }
                 newcols = (newp_len as i32) - bd.textcol;
             } else {
                 after_p.clear();
-                after_p.extend_from_slice(oldp.slice(col as usize));
+                after_p.extend_from_slice(&oldp_tail[..col_u]);
                 newrows = 1;
             }
             ml_replace(
@@ -1281,13 +1285,11 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             if !after_p.is_empty() {
                 let cur_lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
+                let after_len = after_p.len();
                 ml_append(
                     cur_lnum,
-                    crate::strings::AsByteSlice::slice_len(
-                        after_p.as_mut_ptr(),
-                        (after_p.len() as i32 as usize).saturating_sub(1),
-                    ),
-                    after_p.len() as i32,
+                    &after_p[..after_len.saturating_sub(1)],
+                    after_len as i32,
                     false,
                 );
                 appended_lines_mark(curwin_mut().w_cursor.lnum, 1);
@@ -1687,7 +1689,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             bd.textlen = bd2.textlen;
         }
 
-        let mut firstline = crate::strings::ByteSlice::from_cstr(ml_get(oap.start.lnum));
+        let firstline_slice = crate::memline::ml_get_slice(oap.start.lnum);
         let mut len = ml_get_len(oap.start.lnum);
         let mut add = bd.textcol;
         let mut offset: Colnr = 0;
@@ -1707,11 +1709,13 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             }
         }
         add = add.min(len);
-        firstline = firstline.wrapping_add(add as usize);
+        let add_u = (add.max(0) as usize).min(firstline_slice.len());
+        let firstline_rem = &firstline_slice[add_u..];
         len -= add;
         let ins_len = len - pre_textlen - offset;
         if pre_textlen >= 0 && ins_len > 0 {
-            let ins_text = firstline.slice(ins_len as usize).to_vec();
+            let ins_u = (ins_len as usize).min(firstline_rem.len());
+            let ins_text = firstline_rem[..ins_u].to_vec();
             if u_save(oap.start.lnum, oap.end.lnum + 1) {
                 block_insert(oap, &ins_text, oap.op_type == OP_INSERT, &mut bd);
             }
@@ -2088,7 +2092,7 @@ pub fn do_join(
 
         ml_replace_len(
             curwin_mut().w_cursor.lnum,
-            crate::strings::AsByteSlice::slice_len(newp_vec.as_ptr(), newp_len),
+            &newp_vec[..newp_len.min(newp_vec.len())],
             newp_len,
             true,
         );
@@ -2167,17 +2171,13 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     bdp.end_char_vcols = 0;
     bdp.start_char_vcols = 0;
 
-    let line = ml_get(lnum).as_ptr().cast_mut();
+    let line_cstr = ml_get(lnum);
+    let line = line_cstr.as_ptr().cast_mut();
     let mut prev_pstart = line;
 
     let mut csarg = CharsizeArg::new();
-    let mut cstype = init_charsize_arg(
-        &mut csarg,
-        curwin_mut(),
-        lnum,
-        crate::strings::ByteSlice::from_ptr(line).as_cstr(),
-    );
-    let mut ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(line).as_cstr());
+    let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line_cstr);
+    let mut ci = utf_ptr2_str_char_info(line_cstr);
     let mut vcol = bdp.start_vcol;
     while vcol < oap.start_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
@@ -2225,13 +2225,8 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 }
             }
         } else {
-            cstype = init_charsize_arg(
-                &mut csarg,
-                curwin_mut(),
-                lnum,
-                crate::strings::ByteSlice::from_ptr(line).as_cstr(),
-            );
-            ci = utf_ptr2_str_char_info(crate::strings::ByteSlice::from_ptr(pend).as_cstr());
+            cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line_cstr);
+            ci = utf_ptr2_str_char_info(unsafe { std::ffi::CStr::from_ptr(pend) });
             vcol = bdp.end_vcol;
             let mut prev_pend = pend;
             while vcol <= oap.end_vcol && !ci.ptr.is_empty() {
@@ -2266,13 +2261,10 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         if is_del && bdp.startspaces != 0 {
             pstart = prev_pstart;
         }
-        bdp.textlen = ((crate::strings::AsByteSlice::byte_addr(pend) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(pstart) as isize))
-            as i32;
+        bdp.textlen = ((pend as isize) - (pstart as isize)) as i32;
     }
-    bdp.textcol = ((crate::strings::AsByteSlice::byte_addr(pstart) as isize)
-        - (crate::strings::AsByteSlice::byte_addr(line) as isize)) as Colnr;
-    bdp.textstart = crate::strings::ByteSlice::from_ptr(pstart).as_cstr();
+    bdp.textcol = ((pstart as isize) - (line as isize)) as Colnr;
+    bdp.textstart = unsafe { std::ffi::CStr::from_ptr(pstart) };
     restore_lbr(lbr_saved);
 }
 
@@ -2431,7 +2423,8 @@ pub fn charwise_block_prep(
     let mut endcol: Colnr = MAXCOL;
     let mut cs: Colnr = 0;
     let mut ce: Colnr = 0;
-    let p = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
+    let p_cstr = ml_get(lnum);
+    let p_bytes = p_cstr.to_bytes();
     let plen = ml_get_len(lnum);
 
     bdp.startspaces = 0;
@@ -2469,9 +2462,9 @@ pub fn charwise_block_prep(
                 Some(&mut ce),
                 0,
             );
-            if p.wrapping_add(endcol as usize).is_empty()
+            if (endcol as usize) >= p_bytes.len()
                 || (cs + end.coladd < ce
-                    && crate::mbyte::utf_head_off_ptr(p, p.wrapping_add(endcol as usize)) == 0)
+                    && crate::mbyte::utf_head_off_slice(p_bytes, endcol as usize) == 0)
             {
                 if start.lnum == end.lnum && start.col == end.col {
                     bdp.is_one_char = true;
@@ -2493,12 +2486,11 @@ pub fn charwise_block_prep(
         bdp.textlen = endcol - startcol + i32::from(inclusive);
     }
     bdp.textcol = startcol;
-    bdp.textstart = (if startcol <= plen {
-        p.wrapping_add(startcol as usize)
+    bdp.textstart = if startcol <= plen {
+        crate::memory::CStrSubslice::advance(p_cstr, startcol as usize)
     } else {
-        p
-    })
-    .as_cstr();
+        p_cstr
+    };
 }
 
 pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
@@ -2626,10 +2618,10 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     }
 
     curwin_mut().w_cursor = *pos;
-    let ptr_line = crate::strings::ByteSlice::from_cstr(ml_get(pos.lnum));
+    let ptr_line = ml_get(pos.lnum);
     let linelen = ml_get_len(pos.lnum);
     let line_bytes =
-        crate::globals::GraphPtr::raw_slice(ptr_line.cast::<u8>(), linelen as usize + 1);
+        crate::globals::GraphPtr::raw_slice(ptr_line.as_ptr().cast::<u8>(), linelen as usize + 1);
     let mut col = pos.col;
 
     if col + i32::from(save_coladd != 0) >= linelen {
@@ -2645,16 +2637,14 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         if do_bin {
             while col > 0 && ascii_isbdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
-                col -=
-                    crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
+                col -= crate::mbyte::utf_head_off_slice(line_bytes, col as usize);
             }
         }
 
         if do_hex {
             while col > 0 && ascii_isxdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
-                col -=
-                    crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
+                col -= crate::mbyte::utf_head_off_slice(line_bytes, col as usize);
             }
         }
         if do_bin
@@ -2662,18 +2652,14 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             && !(col > 0
                 && matches!(line_bytes[col as usize], b'X' | b'x')
                 && line_bytes[(col - 1) as usize] == b'0'
-                && crate::mbyte::utf_head_off_ptr(
-                    ptr_line,
-                    ptr_line.wrapping_add((col - 1) as usize),
-                ) == 0
+                && crate::mbyte::utf_head_off_slice(line_bytes, (col - 1) as usize) == 0
                 && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
         {
             col = curwin_mut().w_cursor.col;
 
             while col > 0 && ascii_isdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
-                col -=
-                    crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
+                col -= crate::mbyte::utf_head_off_slice(line_bytes, col as usize);
             }
         }
 
@@ -2681,21 +2667,17 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             && col > 0
             && matches!(line_bytes[col as usize], b'X' | b'x')
             && line_bytes[(col - 1) as usize] == b'0'
-            && crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add((col - 1) as usize))
-                == 0
+            && crate::mbyte::utf_head_off_slice(line_bytes, (col - 1) as usize) == 0
             && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
             || (do_bin
                 && col > 0
                 && matches!(line_bytes[col as usize], b'B' | b'b')
                 && line_bytes[(col - 1) as usize] == b'0'
-                && crate::mbyte::utf_head_off_ptr(
-                    ptr_line,
-                    ptr_line.wrapping_add((col - 1) as usize),
-                ) == 0
+                && crate::mbyte::utf_head_off_slice(line_bytes, (col - 1) as usize) == 0
                 && ascii_isbdigit(i32::from(line_bytes[(col + 1) as usize])))
         {
             col -= 1;
-            col -= crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
+            col -= crate::mbyte::utf_head_off_slice(line_bytes, col as usize);
         } else {
             col = pos.col;
 
@@ -2721,7 +2703,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             && !ascii_isdigit(i32::from(line_bytes[col as usize]))
             && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
         {
-            let mb_len = utfc_ptr2len(ptr_line.wrapping_add(col as usize));
+            let mb_len = utfc_ptr2len(&line_bytes[col as usize..]);
             col += mb_len;
             length -= mb_len;
         }
@@ -2733,8 +2715,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
         if col > pos.col
             && line_bytes[(col - 1) as usize] == b'-'
-            && crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add((col - 1) as usize))
-                == 0
+            && crate::mbyte::utf_head_off_slice(line_bytes, (col - 1) as usize) == 0
             && !do_unsigned
         {
             if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize])) {
@@ -2787,8 +2768,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     } else {
         if col > 0
             && line_bytes[(col - 1) as usize] == b'-'
-            && crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add((col - 1) as usize))
-                == 0
+            && crate::mbyte::utf_head_off_slice(line_bytes, (col - 1) as usize) == 0
             && !visual
             && !do_unsigned
         {
@@ -2810,7 +2790,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
         let mut overflow = false;
         vim_str2nr(
-            ptr_line.wrapping_add(col as usize).as_bytes(),
+            crate::memory::bytes_until_nul(&line_bytes[col as usize..]),
             Some(&mut pre),
             Some(&mut length),
             (if do_bin { STR2NR_BIN } else { 0 })
@@ -3132,7 +3112,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     len = end_col;
                 }
                 if !s.is_null() {
-                    let s_bytes = crate::strings::ByteSlice::from_ptr(s).as_bytes();
+                    let s_bytes = unsafe { std::ffi::CStr::from_ptr(s.cast()) }.to_bytes();
                     byte_count_cursor += line_count_info(
                         s_bytes,
                         &mut word_count_cursor,
@@ -3228,7 +3208,6 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     );
                 }
             } else {
-                let p = get_cursor_line_ptr().as_ptr().cast_mut();
                 validate_virtcol(curwin_mut());
                 col_print(
                     &mut buf1,
@@ -3238,7 +3217,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 col_print(
                     &mut buf2,
                     get_cursor_line_len(),
-                    linetabsize_str(crate::strings::ByteSlice::from_ptr(p).as_bytes()),
+                    linetabsize_str(crate::cursor::get_cursor_line_slice()),
                 );
                 let buf1_cstr = std::ffi::CStr::from_bytes_until_nul(&buf1).unwrap_or_default();
                 let buf2_cstr = std::ffi::CStr::from_bytes_until_nul(&buf2).unwrap_or_default();

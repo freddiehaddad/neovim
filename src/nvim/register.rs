@@ -725,7 +725,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
         );
         if g_st().visual_global.active && p.as_bytes().starts_with(b"'<,'>") {
             retval = put_in_typebuf(
-                crate::strings::ByteSlice::from_ptr(p.as_ptr().wrapping_add(5)).as_cstr(),
+                crate::memory::CStrSubslice::advance(p.as_c_str(), 5),
                 true,
                 true,
                 silent,
@@ -763,17 +763,16 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
                 return false;
             }
 
-            let mut str_ = crate::strings::ByteSlice::from_ptr(reg.y_array[i].data);
+            let mut str_bytes = reg.y_array[i].cstr_bytes();
             let cont_vec: Vec<u8>;
             if colon && i > 0 {
-                let p = str_.skipwhite();
-                let p_bytes = p.as_bytes();
+                let p_bytes = crate::charset::skipwhite_slice(str_bytes);
                 if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                     cont_vec = execreg_line_continuation(&reg.y_array, &mut i);
-                    str_ = crate::strings::ByteSlice::from_bytes(&cont_vec);
+                    str_bytes = crate::memory::bytes_until_nul(&cont_vec);
                 }
             }
-            let escaped = vim_strsave_escape_ks(str_.as_bytes());
+            let escaped = vim_strsave_escape_ks(str_bytes);
             retval = ins_typebuf(&escaped, remap, 0, true, is_silent);
             drop(escaped);
             if !retval {
@@ -864,12 +863,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
     let cstr_to_vec =
         |cstr: Option<std::ffi::CString>| cstr.map(std::ffi::CString::into_bytes_with_nul);
     let ptr_to_vec = |p: *const std::ffi::c_char| {
-        (!p.is_null()).then(|| {
-            crate::strings::ByteSlice::from_ptr(p)
-                .as_cstr()
-                .to_bytes_with_nul()
-                .to_vec()
-        })
+        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) }.to_bytes_with_nul().to_vec())
     };
     match regname {
         x if x == i32::from(b'%') => {
@@ -1005,25 +999,26 @@ fn yank_copy_line(
     let text_usize = bd.textlen as usize;
     let end_usize = bd.endspaces as usize;
     let mut buf_vec = vec![0u8; (size as usize) + 1];
-    let text_ptr = crate::strings::ByteSlice::from_cstr(bd.textstart);
+    let text_bytes = bd.textstart.to_bytes_with_nul();
     buf_vec[..start_usize].fill(b' ');
-    buf_vec[start_usize..start_usize + text_usize].copy_from_slice(text_ptr.slice(text_usize));
+    buf_vec[start_usize..start_usize + text_usize]
+        .copy_from_slice(&text_bytes[..text_usize.min(text_bytes.len())]);
     buf_vec[start_usize + text_usize..start_usize + text_usize + end_usize].fill(b' ');
     let mut out_size = start_usize + text_usize + end_usize;
     if exclude_trailing_space {
         let mut s = bd.textlen + bd.endspaces;
-        while s > 0 && ascii_iswhite(text_ptr.wrapping_add((s - 1) as usize).first_byte()) {
-            s = s
-                - crate::mbyte::utf_head_off_ptr(text_ptr, text_ptr.wrapping_add((s - 1) as usize))
-                - 1;
+        while s > 0
+            && text_bytes
+                .get((s - 1) as usize)
+                .copied()
+                .is_some_and(ascii_iswhite)
+        {
+            s = s - crate::mbyte::utf_head_off_slice(text_bytes, (s - 1) as usize) - 1;
             out_size -= 1;
         }
     }
     buf_vec[out_size] = 0;
-    reg.y_array[y_idx] = cbuf_to_string(crate::strings::AsByteSlice::slice_len(
-        buf_vec.as_ptr(),
-        out_size,
-    ));
+    reg.y_array[y_idx] = cbuf_to_string(&buf_vec[..out_size]);
 }
 
 pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append: bool) {
@@ -1089,10 +1084,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
             MotionType::MtLineWise => {
                 let line_slice = crate::memline::ml_get_slice(lnum);
 
-                reg_mut.y_array[y_idx] = cbuf_to_string(crate::strings::AsByteSlice::slice_len(
-                    line_slice.as_ptr(),
-                    line_slice.len(),
-                ));
+                reg_mut.y_array[y_idx] = cbuf_to_string(line_slice);
             }
             MotionType::MtCharWise => {
                 charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
@@ -1139,10 +1131,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
 
             let last_slot = curr_reg.y_array.last_mut().unwrap();
             api_clear_string(last_slot);
-            *last_slot = cbuf_to_string(crate::strings::AsByteSlice::slice_len(
-                pnew.as_ptr(),
-                last_old.size + first_new.size,
-            ));
+            *last_slot = cbuf_to_string(&pnew[..last_old.size + first_new.size]);
             api_clear_string(&mut new_reg.y_array[0]);
             y_idx = 1;
         } else {
@@ -1556,14 +1545,12 @@ pub fn do_put(
             let mut ptr_ = insert_string.data.as_ptr().cast::<std::ffi::c_char>();
             let mut ptrlen = insert_string.size;
             while !ptr_.is_null() {
-                let mut tmp = vim_strchr(
-                    crate::strings::ByteSlice::from_ptr(ptr_).as_cstr(),
-                    i32::from(b'\n'),
-                )
-                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                let ptr_cstr = unsafe { CStr::from_ptr(ptr_) };
+                let mut tmp = vim_strchr(ptr_cstr, i32::from(b'\n'))
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if tmp.is_null() {
                     expr_y_array.push(NvimString::from_bytes_len(
-                        crate::strings::ByteSlice::from_ptr(ptr_).unwrap_or(b"\0"),
+                        ptr_cstr.to_bytes_with_nul(),
                         ptrlen,
                     ));
                 } else {
@@ -1571,12 +1558,12 @@ pub fn do_put(
 
                     let item_size = (tmp as usize) - (ptr_ as usize);
                     expr_y_array.push(NvimString::from_bytes_len(
-                        crate::strings::ByteSlice::from_ptr(ptr_).unwrap_or(b"\0"),
+                        unsafe { CStr::from_ptr(ptr_) }.to_bytes_with_nul(),
                         item_size,
                     ));
                     ptrlen -= item_size + 1;
                     tmp = tmp.wrapping_add(1);
-                    if crate::strings::AsByteSlice::is_empty_val(tmp) {
+                    if *crate::globals::GraphPtr::of(tmp).borrow() == 0 {
                         y_type = MotionType::MtLineWise;
                         break;
                     }
@@ -1663,12 +1650,11 @@ pub fn do_put(
                     false,
                 );
 
+                let line_slice = crate::cursor::get_cursor_line_slice();
+                let split_u = (split_pos as usize).min(line_slice.len());
                 crate::memline::ml_replace_len(
                     curwin_mut().w_cursor.lnum,
-                    crate::strings::AsByteSlice::slice_len(
-                        get_cursor_line_ptr().as_ptr().cast_mut(),
-                        split_pos as usize,
-                    ),
+                    &line_slice[..split_u],
                     split_pos as usize,
                     true,
                 );
@@ -1833,15 +1819,15 @@ pub fn do_put(
                 }
                 let oldp = get_cursor_line_ptr().as_ptr().cast_mut();
                 let oldlen = get_cursor_line_len();
+                let oldp_cstr = unsafe { CStr::from_ptr(oldp) };
 
                 let mut csarg = CharsizeArg::new();
                 let mut cstype: CSType = init_charsize_arg(
                     &mut csarg,
                     curwin_mut(),
                     curwin_mut().w_cursor.lnum,
-                    crate::strings::ByteSlice::from_ptr(oldp).as_cstr(),
+                    oldp_cstr,
                 );
-                let oldp_cstr = crate::strings::ByteSlice::from_ptr(oldp).as_cstr();
                 let mut ci = utf_ptr2_str_char_info(oldp_cstr);
                 vcol = 0;
                 while vcol < col && !ci.ptr.is_empty() {
@@ -1856,7 +1842,7 @@ pub fn do_put(
                 bd.textcol = ci.offset_from(oldp_cstr) as Colnr;
 
                 let shortline = (vcol < col)
-                    || (vcol == col && crate::strings::AsByteSlice::is_empty_val(ptr_));
+                    || (vcol == col && *crate::globals::GraphPtr::of(ptr_).borrow() == 0);
 
                 if vcol < col {
                     bd.startspaces = col - vcol;
@@ -1973,7 +1959,7 @@ pub fn do_put(
 
                 ml_replace(
                     curwin_mut().w_cursor.lnum,
-                    crate::strings::ByteSlice::from_ptr(newp).as_bytes(),
+                    crate::memory::bytes_until_nul(&newp_vec),
                     true,
                 );
                 drop(newp_vec);
@@ -2108,11 +2094,7 @@ pub fn do_put(
                             ((oldlen - col) as usize) + 1,
                         );
 
-                        ml_replace(
-                            lnum,
-                            crate::strings::ByteSlice::from_ptr(newp).as_bytes(),
-                            true,
-                        );
+                        ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
 
                         first_byte_off = crate::mbyte::utf_head_off_ptr(newp, ptr_.wrapping_sub(1));
                         drop(newp_vec);
@@ -2414,20 +2396,21 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
     let Some(p_cstr) = p_opt else {
         return;
     };
-    let mut p = crate::strings::ByteSlice::from_cstr(p_cstr);
+    let mut p = p_cstr.to_bytes();
     let mut n = g_st().columns_global - 6;
-    while !p.is_empty() && !(p.first_byte() == ESC && skip_esc && p.len() == 1) {
+    while !p.is_empty() && !(p[0] == ESC && skip_esc && p.len() == 1) {
         n -= ptr2cells(p);
         if n < 0 {
             break;
         }
         let l = utfc_ptr2len(p);
         if l > 1 {
-            msg_outtrans_len(p.slice(l as usize), l, 0, false);
-            p = p.wrapping_add(l as usize);
+            let l_u = (l as usize).min(p.len());
+            msg_outtrans_len(&p[..l_u], l, 0, false);
+            p = &p[l_u..];
         } else {
-            msg_outtrans_len(p.slice(1), 1, 0, false);
-            p = p.wrapping_add(1);
+            msg_outtrans_len(&p[..1], 1, 0, false);
+            p = &p[1..];
         }
     }
     os_breakcheck();
@@ -2508,15 +2491,16 @@ pub fn ex_display(eap: &mut Exarg) {
                         msg_puts_hl(c"^J", hl_id, false);
                         n -= 2;
                     }
-                    let mut p = crate::strings::ByteSlice::from_ptr(yb_ref.y_array[j].data);
+                    let mut p = yb_ref.y_array[j].cstr_bytes();
                     while !p.is_empty() {
                         n -= ptr2cells(p);
                         if n < 0 {
                             break;
                         }
                         let clen = utfc_ptr2len(p);
-                        msg_outtrans_len(p.slice(clen.max(0) as usize), clen, 0, false);
-                        p = p.wrapping_add(clen as usize);
+                        let clen_u = (clen.max(0) as usize).min(p.len());
+                        msg_outtrans_len(&p[..clen_u], clen, 0, false);
+                        p = &p[clen_u..];
                     }
                     j += 1;
                 }

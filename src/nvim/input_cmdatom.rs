@@ -712,10 +712,7 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     dict_put(
         &mut d,
         c"type",
-        cstr_to_obj(
-            crate::strings::ByteSlice::from_ptr(TYPE_NAMES[atom.r#type as usize].as_ptr())
-                .as_opt_cstr(),
-        ),
+        cstr_to_obj(Some(TYPE_NAMES[atom.r#type as usize])),
     );
     d
 }
