@@ -1441,8 +1441,8 @@ fn ins_compl_longest_match(match_: &mut Compl) {
         return;
     }
 
-    let mut p = insexp().compl_leader.data;
-    let mut s = match_.cp_str.data;
+    let mut p = crate::strings::ByteSlice::from_ptr(insexp().compl_leader.data);
+    let mut s = crate::strings::ByteSlice::from_ptr(match_.cp_str.data);
     while !p.is_empty() {
         let c1 = utf_ptr2char(p);
         let c2 = utf_ptr2char(s);
@@ -2668,7 +2668,7 @@ pub fn ins_compl_addfrommatch() {
             return;
         }
 
-        p = crate::strings::BYTE_SLICE_NULL;
+        p = crate::globals::GraphPtr::NULL;
         let mut plen: usize = 0;
         let mut cp_idx = compl_next_idx(shown_idx);
         while let Some(ci) = cp_idx
@@ -3007,7 +3007,6 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
     };
     let ptr_bytes = ptr_cstr.to_bytes();
     if !insexp().compl_orig_text.data.is_null() {
-        let p = insexp().compl_orig_text.data.cast_const();
         let orig_bytes = insexp().compl_orig_text.as_bytes();
         len = orig_bytes
             .iter()
@@ -3015,7 +3014,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
             .take_while(|&(a, b)| a == b)
             .count();
         if len > 0 {
-            len -= crate::mbyte::utf_head_off_ptr(p, p.wrapping_add(len)) as usize;
+            len -= crate::mbyte::utf_head_off(orig_bytes, len) as usize;
         }
         let mut rem = &orig_bytes[len..];
         while !rem.is_empty() {
@@ -4126,30 +4125,24 @@ fn fuzzy_longest_match() {
         i += 1;
     }
 
-    let prefix = compl_best_matches[0].cp_str.data;
-    let mut prefix_len = compl_best_matches[0].cp_str.size as i32;
+    let prefix = compl_best_matches[0].cp_str;
+    let mut prefix_len = prefix.size as i32;
 
     for best in &compl_best_matches[1..] {
-        let match_str = best.cp_str.data;
-        let mut prefix_ptr = prefix;
-        let mut match_ptr = match_str;
+        let mut prefix_ptr = prefix.as_bytes();
+        let mut match_ptr = best.cp_str.as_bytes();
         let mut j: i32 = 0;
 
         while j < prefix_len && !match_ptr.is_empty() && !prefix_ptr.is_empty() {
             let clen = utfc_ptr2len(prefix_ptr) as usize;
-            let m_b = match_ptr.as_bytes();
-            if prefix_ptr.slice(clen) != &m_b[..clen.min(m_b.len())] {
+            if prefix_ptr.get(..clen) != match_ptr.get(..clen) {
                 break;
             }
 
-            {
-                let _adv = crate::mbyte::utfc_ptr2len(prefix_ptr) as usize;
-                prefix_ptr = (prefix_ptr).wrapping_add(_adv);
-            };
-            {
-                let _adv = crate::mbyte::utfc_ptr2len(match_ptr) as usize;
-                match_ptr = (match_ptr).wrapping_add(_adv);
-            };
+            let adv1 = crate::mbyte::utfc_ptr2len(prefix_ptr) as usize;
+            prefix_ptr = &prefix_ptr[adv1.min(prefix_ptr.len())..];
+            let adv2 = crate::mbyte::utfc_ptr2len(match_ptr) as usize;
+            match_ptr = &match_ptr[adv2.min(match_ptr.len())..];
             j += 1;
         }
 
@@ -4624,11 +4617,11 @@ fn get_register_completion() {
         }
 
         for j in 0..reg.y_array.len() {
-            let str_ptr = reg.y_array[j].data;
-            if str_ptr.is_null() {
+            let str_val = reg.y_array[j];
+            if str_val.data.is_null() {
                 continue;
             }
-            let str_b = str_ptr.as_bytes();
+            let str_b = str_val.cstr_bytes();
 
             if adding_mode {
                 let str_len = str_b.len() as i32;
@@ -5131,7 +5124,7 @@ fn ins_compl_update_shown_match() {
 pub fn ins_compl_delete(new_leader: bool) {
     let mut orig_col: i32 = 0;
     if new_leader {
-        let mut orig = insexp().compl_orig_text.data;
+        let mut orig = crate::strings::ByteSlice::from_ptr(insexp().compl_orig_text.data);
         let mut leader = ins_compl_leader_slice();
         while !orig.is_empty()
             && !leader.is_empty()
@@ -5333,13 +5326,13 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     let mut cp_str = shown.cp_str.data;
     let mut cp_str_len = shown.cp_str.size;
     let leader_len = ins_compl_leader_len();
-    let has_multiple = cp_str.as_bytes().contains(&b'\n');
+    let has_multiple = shown.cp_str.cstr_bytes().contains(&b'\n');
 
     if insert_prefix {
         if let Some(pref) = find_common_prefix(&mut cp_str_len, false)
             .or_else(|| find_common_prefix(&mut cp_str_len, true))
         {
-            cp_str = crate::strings::ByteSlice::from_ptr(pref.as_ptr());
+            cp_str = crate::globals::GraphPtr::new(pref.as_ptr().cast_mut());
         } else {
             let shown = compl_opt(insexp().compl_shown_idx).unwrap();
             cp_str = shown.cp_str.data;
@@ -5360,7 +5353,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     }
 
     if compl_len < cp_str_len as i32 {
-        let cp_slice = cp_str.slice(cp_str_len);
+        let cp_slice = crate::globals::GraphPtr::raw_slice(cp_str.as_ptr(), cp_str_len);
         let skip = (compl_len.max(0) as usize).min(cp_slice.len());
         if has_multiple {
             ins_compl_expand_multiple(&cp_slice[skip..]);

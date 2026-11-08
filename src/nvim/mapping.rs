@@ -2833,7 +2833,7 @@ pub fn modify_keymap(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"LHS exceeds maximum map length: %s",
-                lhs.data,
+                lhs,
             );
             break 'block;
         }
@@ -2843,7 +2843,7 @@ pub fn modify_keymap(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"LHS exceeds maximum map length: %s",
-                lhs.data,
+                lhs,
             );
             break 'block;
         }
@@ -2864,7 +2864,7 @@ pub fn modify_keymap(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Invalid mode shortname: \"%s\"",
-                mode.data,
+                mode,
             );
             break 'block;
         }
@@ -2931,7 +2931,7 @@ pub fn modify_keymap(
                     } else {
                         E_MAPPING_ALREADY_EXISTS_FOR_STR
                     },
-                    lhs.data,
+                    lhs,
                 );
             }
             6 => {
@@ -2943,7 +2943,7 @@ pub fn modify_keymap(
                     } else {
                         E_GLOBAL_MAPPING_ALREADY_EXISTS_FOR_STR
                     },
-                    lhs.data,
+                    lhs,
                 );
             }
             _ => {

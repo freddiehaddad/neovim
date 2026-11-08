@@ -1205,7 +1205,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
                 );
                 os_exit(2);
             }
-            fprintf!(stderr, c"%s\n", item.value.data.string().data);
+            fprintf!(stderr, c"%s\n", item.value.data.string());
             os_exit(2);
         } else if item.key.opt_bytes() == Some(b"result") {
             if item.value.obj_type != ObjectType::ObjectTypeString {
@@ -1215,7 +1215,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
                 );
                 os_exit(2);
             }
-            printf!(c"%s", item.value.data.string().data);
+            printf!(c"%s", item.value.data.string());
         } else if item.key.opt_bytes() == Some(b"tabbed") {
             if item.value.obj_type != ObjectType::ObjectTypeBoolean {
                 fprintf!(

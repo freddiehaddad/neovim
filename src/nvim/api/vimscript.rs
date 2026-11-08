@@ -211,7 +211,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
                 ErrorType::ErrorTypeException,
                 c"Failed to evaluate expression: '%.*s'",
                 256_i32,
-                expr.data,
+                expr,
             );
         } else {
             rv = vim_to_object(&mut rettv, Some(arena), false);
@@ -351,13 +351,9 @@ pub fn nvim_call_dict_function(
         ObjectType::ObjectTypeString => {
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
-            let s_ptr = dict.data.string().data;
+            let s_val = dict.data.string();
             let eval_ret = eval0(
-                if s_ptr.is_null() {
-                    c""
-                } else {
-                    s_ptr.as_cstr()
-                },
+                s_val.as_cstr(),
                 &mut rettv,
                 None,
                 &mut g_st().evalarg_evaluate,
@@ -404,7 +400,7 @@ pub fn nvim_call_dict_function(
                     err,
                     ErrorType::ErrorTypeValidation,
                     c"Not found: %s",
-                    fn_name.data,
+                    fn_name,
                 );
                 break 'body;
             };
@@ -421,7 +417,7 @@ pub fn nvim_call_dict_function(
                     err,
                     ErrorType::ErrorTypeValidation,
                     c"Not a function: %s",
-                    fn_name.data,
+                    fn_name,
                 );
                 break 'body;
             }

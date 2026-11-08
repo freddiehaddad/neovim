@@ -111,13 +111,9 @@ pub fn shape_table_mut() -> &'static mut [Cursorentry; SHAPE_IDX_COUNT] {
 #[inline]
 fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     assert!(dic.size < dic.capacity);
-    let key_bytes = key.to_bytes();
     {
         *dic.next_slot_mut() = KeyValuePair {
-            key: NvimString {
-                data: Some(key.to_bytes_with_nul()),
-                size: key_bytes.len(),
-            },
+            key: NvimString::from_cstr(key),
             value,
         };
     }

@@ -415,10 +415,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         let mut key_size: usize = 0;
         let key_data = luaL_checklstring(lstate, 3, &raw mut key_size);
         let key = NvimString {
-            data: Some(std::slice::from_raw_parts(
-                key_data.cast::<u8>(),
-                key_size + 1,
-            )),
+            data: crate::globals::GraphPtr::new(key_data.cast_mut().cast()),
             size: key_size,
         };
 
@@ -804,14 +801,16 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
         }
         lua_setfield(lstate, -2, c"mod");
 
-        unsafe { lua_pushlstring(lstate, data.key.data.as_ptr(), data.key.size) };
+        unsafe { lua_pushlstring(lstate, data.key.data.as_ptr().cast(), data.key.size) };
         lua_setfield(lstate, -2, c"key");
 
         lua_pushstring(lstate, keys);
         lua_setfield(lstate, -2, c"keys");
 
         if data.key_alt.size != 0 {
-            unsafe { lua_pushlstring(lstate, data.key_alt.data.as_ptr(), data.key_alt.size) };
+            unsafe {
+                lua_pushlstring(lstate, data.key_alt.data.as_ptr().cast(), data.key_alt.size)
+            };
             lua_setfield(lstate, -2, c"key_alt");
         }
 

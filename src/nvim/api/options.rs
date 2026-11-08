@@ -441,7 +441,7 @@ pub fn nvim_option_to_object(
             err,
             ErrorType::ErrorTypeValidation,
             c"Unknown option '%s'",
-            name.data,
+            name,
         );
         return OBJECT_NIL;
     }
@@ -454,8 +454,8 @@ pub fn nvim_option_to_object(
     let flags = option.flags;
     let schema = option.schema;
 
-    let str_ptr = if !value.data.string().data.is_null() {
-        value.data.string().data.as_ptr()
+    let str_ptr: *mut std::ffi::c_char = if !value.data.string().data.is_null() {
+        value.data.string().data.as_ptr().cast()
     } else {
         c"".as_ptr().cast_mut()
     };

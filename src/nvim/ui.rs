@@ -1070,36 +1070,9 @@ pub fn ui_call_suspend() {
     ui_call_loop!(true, c"suspend", |ui| remote_ui_suspend(ui));
 }
 
-#[repr(C)]
-pub struct CAbiString {
-    pub data: crate::globals::GraphPtr<std::ffi::c_char>,
-    pub size: usize,
-}
-
-impl CAbiString {
-    #[inline]
-    fn into_nvim_string(self) -> NvimString {
-        NvimString {
-            data: if self.data.is_null() {
-                None
-            } else {
-                Some(crate::globals::GraphPtr::raw_slice(
-                    self.data.as_ptr().cast::<u8>(),
-                    self.size + 1,
-                ))
-            },
-            size: self.size,
-        }
-    }
-}
-
-pub fn ui_call_set_title(title: NvimString) {
+#[unsafe(no_mangle)]
+pub extern "C" fn ui_call_set_title(title: NvimString) {
     ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
-}
-
-#[unsafe(export_name = "ui_call_set_title")]
-pub extern "C" fn ui_call_set_title_cabi(title: CAbiString) {
-    ui_call_set_title(title.into_nvim_string());
 }
 
 pub fn ui_call_set_icon(icon: NvimString) {
@@ -1116,13 +1089,9 @@ pub fn ui_call_option_set(name: NvimString, value: Object) {
     });
 }
 
-pub fn ui_call_chdir(path: NvimString) {
+#[unsafe(no_mangle)]
+pub extern "C" fn ui_call_chdir(path: NvimString) {
     ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));
-}
-
-#[unsafe(export_name = "ui_call_chdir")]
-pub extern "C" fn ui_call_chdir_cabi(path: CAbiString) {
-    ui_call_chdir(path.into_nvim_string());
 }
 
 pub fn ui_call_ui_send(content: NvimString) {

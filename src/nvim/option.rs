@@ -3577,10 +3577,7 @@ macro_rules! cstr_def_val {
         const S: &CStr = $s;
         Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(NvimString {
-                data: Some(S.to_bytes_with_nul()),
-                size: S.to_bytes().len(),
-            }),
+            data: ObjectData::String(NvimString::from_cstr(S)),
         }
     }};
 }
@@ -4921,11 +4918,11 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
             if !is_expr {
                 option_set_callback_func(value.data.string().as_bytes(), &mut cb);
             } else if value.data.string().size > 0 {
-                let s_ptr = value.data.string().data;
-                let funcref = if let Some(name) = get_scriptlocal_funcname(s_ptr.as_opt_cstr()) {
+                let s_val = value.data.string();
+                let funcref = if let Some(name) = get_scriptlocal_funcname(s_val.as_opt_cstr()) {
                     name
                 } else {
-                    s_ptr.to_cstring()
+                    s_val.to_cstring()
                 };
                 cb.data = crate::eval::typval::CallbackData::expr(funcref);
             }
@@ -6249,10 +6246,10 @@ fn put_set_value(
             {
                 return false;
             }
-            let value_str = value.data.string().data;
-            if !value_str.is_null() {
+            let value_str = value.data.string();
+            if !value_str.data.is_null() {
                 if (flags & K_OPT_FLAG_EXPAND) != 0 {
-                    let size = value_str.len() + 1;
+                    let size = value_str.cstr_bytes().len() + 1;
                     let mut buf_vec = vec![0u8; size];
                     home_replace(None, value_str.as_opt_cstr(), &mut buf_vec, false);
 
@@ -8239,7 +8236,7 @@ pub fn get_option_info(
             err,
             ErrorType::ErrorTypeValidation,
             c"Invalid option (not found): '%s'",
-            name.data,
+            name,
         );
         return Dict::new();
     }

@@ -1794,12 +1794,12 @@ fn ex_let_option<'a>(
                 newval = opt_from_tristate(tristate_from_int(new_n));
             }
         } else if !hidden && is_string {
-            let curval_data = curval.data.string().data;
-            let newval_data = newval.data.string().data;
+            let curval_str = curval.data.string();
+            let newval_str = newval.data.string();
 
-            if !curval_data.is_null() && !newval_data.is_null() {
+            if !curval_str.data.is_null() && !newval_str.data.is_null() {
                 let newval_old = newval;
-                let joined = concat_str(curval_data.as_bytes(), newval_data.as_bytes());
+                let joined = concat_str(curval_str.cstr_bytes(), newval_str.cstr_bytes());
                 newval = crate::api::private::helpers::cstr_to_obj(Some(&*joined));
                 optval_free(newval_old);
             }

@@ -665,7 +665,7 @@ pub fn msg_multihl(
         msg_st().msg_special_case_for_lua_print = true;
         assert!(active_msg.len() == 1);
         let chunk = &active_msg[0];
-        printf!(c"%.*s\n", chunk.text.size as i32, chunk.text.data,);
+        printf!(c"%.*s\n", chunk.text.size as i32, chunk.text,);
     }
 
     g_st().msg_ext_skip_flush = true;
@@ -1430,10 +1430,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     let mut data_size = 0usize;
     let mut put_c = |key: &'static CStr, value: Object| {
         data_items[data_size] = KeyValuePair {
-            key: NvimString {
-                data: Some(key.to_bytes_with_nul()),
-                size: key.to_bytes().len(),
-            },
+            key: NvimString::from_cstr(key),
             value,
         };
         data_size += 1;

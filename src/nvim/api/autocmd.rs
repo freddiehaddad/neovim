@@ -1048,7 +1048,7 @@ pub fn nvim_create_augroup(
     opts: &mut KeyDict_create_augroup,
     err: &mut Error,
 ) -> Integer {
-    let augroup_name = name.data;
+    let augroup_name = name;
     let clear_autocmds = if has_key(
         opts.is_set_create_augroup,
         KEYSET_OPTIDX_CREATE_AUGROUP_CLEAR,

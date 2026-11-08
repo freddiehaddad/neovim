@@ -1421,7 +1421,7 @@ pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'backspace' option.
 pub fn validate_backspace(args: &mut Optset) -> Option<&CStr> {
-    let value = args.os_newval.data.string().data;
+    let value = args.os_newval.data.string();
     if ascii_isdigit(value.first_byte()) {
         return if value.first_byte() == b'2' {
             None
@@ -1530,7 +1530,7 @@ pub fn did_set_breakindentopt(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_buftype(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
     let os_flags = args.os_flags;
-    let newval_data = args.os_newval.data.string().data;
+    let newval_data = args.os_newval.data.string();
     let errmsg = validate_str_generic(args);
     if errmsg.is_some() {
         return errmsg;
@@ -2092,7 +2092,7 @@ pub fn validate_fileformat(args: &mut Optset) -> Option<&CStr> {
 /// The 'fileformat' option is changed.
 pub fn did_set_fileformat(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
-    let oldval = args.os_oldval.data.string().data;
+    let oldval = args.os_oldval.data.string();
 
     redraw_titles();
     ml_setflags(buf);
@@ -2145,8 +2145,8 @@ pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
-    let value = args.os_newval.data.string().data;
-    let Some(p) = vim_strchr(value.as_cstr(), b',' as i32) else {
+    let value = args.os_newval.data.string().as_cstr();
+    let Some(p) = vim_strchr(value, b',' as i32) else {
         return Some(E_COMMA_REQUIRED);
     };
     if ptr::eq(value.as_ptr(), p.as_ptr()) || p.to_bytes().len() <= 1 {
@@ -2553,12 +2553,13 @@ pub fn validate_shortmess(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'showbreak' option.
 pub fn validate_showbreak(args: &mut Optset) -> Option<&CStr> {
-    let mut s = args.os_newval.data.string().data;
+    let mut s = args.os_newval.data.string().cstr_bytes();
     while !s.is_empty() {
         if ptr2cells(s) != 1 {
             return Some(E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER);
         }
-        s = s.wrapping_add(utfc_ptr2len(s) as usize);
+        let step = (utfc_ptr2len(s) as usize).max(1).min(s.len());
+        s = &s[step..];
     }
     None
 }
@@ -2580,12 +2581,12 @@ pub fn validate_signcolumn(args: &mut Optset) -> Option<&CStr> {
 /// The 'signcolumn' option is changed.
 pub fn did_set_signcolumn(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    let oldval = args.os_oldval.data.string().data;
+    let oldval = args.os_oldval.data.string();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
     if !check_signcolumn(Some(args.var_cstr()), is_local.then_some(&mut *win)) {
         return Some(E_INVARG);
     }
-    if oldval.as_bytes().starts_with(b"nu") || win.w_minscwidth == SCL_NUM {
+    if oldval.cstr_bytes().starts_with(b"nu") || win.w_minscwidth == SCL_NUM {
         win.w_nrwidth_line_count = 0;
     }
     None
@@ -2841,28 +2842,22 @@ pub fn did_set_titlestring(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
 pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
-    let value = args.os_newval.data.string().data;
-    let mut cp = value;
+    let val_bytes = args.os_newval.data.string().cstr_bytes();
     let mut prev_comma = false;
-    while !cp.is_empty() {
-        if ascii_isdigit(cp.first_byte()) {
+    for (idx, &b) in val_bytes.iter().enumerate() {
+        if ascii_isdigit(b) {
             prev_comma = false;
-            cp = cp.wrapping_add(1);
             continue;
         }
-        if cp.first_byte() == b','
-            && (cp.as_ptr() as usize) > (value.as_ptr() as usize)
-            && !prev_comma
-        {
+        if b == b',' && idx > 0 && !prev_comma {
             prev_comma = true;
-            cp = cp.wrapping_add(1);
             continue;
         }
         return Some(E_INVARG);
     }
 
     let mut array: Vec<Colnr> = Vec::new();
-    let errmsg = tabstop_set(value.as_bytes(), &mut array, args.os_errbuf);
+    let errmsg = tabstop_set(val_bytes, &mut array, args.os_errbuf);
     args.os_prep = OptSetPrep::Tabstop(array);
     errmsg
 }

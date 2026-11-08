@@ -3658,8 +3658,8 @@ impl SubBuf {
             data: self
                 .vec
                 .as_ref()
-                .map_or(crate::strings::BYTE_SLICE_NULL, |v| {
-                    crate::strings::ByteSlice::from_bytes(v)
+                .map_or(crate::globals::GraphPtr::NULL, |v| {
+                    crate::globals::GraphPtr::new(v.as_ptr().cast_mut())
                 }),
             size: self.size,
         }
@@ -3855,7 +3855,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             which_pat = RE_LAST;
             delimiter = i32::from(crate::strings::AsByteSlice::first_byte_val(cmd));
             cmd = cmd.wrapping_add(1);
-            pat.data = crate::strings::ByteSlice::from_ptr(cmd);
+            pat.data = crate::globals::GraphPtr::new(cmd.cast());
             let cmd_len = crate::strings::ByteSlice::from_ptr(cmd).as_bytes().len();
             let cmd_slice = crate::globals::GraphPtr::raw_slice_mut(cmd.cast::<u8>(), cmd_len + 1);
             let off = skip_regexp_ex(

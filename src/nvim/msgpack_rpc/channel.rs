@@ -386,12 +386,7 @@ pub fn rpc_send_call(
     if frame.errored.get() {
         let res = frame.result.get();
         if res.obj_type == ObjectType::ObjectTypeString {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"%s",
-                res.data.string().data,
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", res.data.string(),);
         } else if res.obj_type == ObjectType::ObjectTypeArray {
             let array = res.data.array();
             if array.size == 2
@@ -403,7 +398,7 @@ pub fn rpc_send_call(
                 )
                 && array[1].obj_type == ObjectType::ObjectTypeString
             {
-                api_set_error!(err, et, c"%s", array[1].data.string().data,);
+                api_set_error!(err, et, c"%s", array[1].data.string(),);
             } else {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"%s", c"unknown error",);
             }
@@ -1011,9 +1006,9 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
             && item.key.cstr_bytes() == key_bytes
             && item.value.obj_type == ObjectType::ObjectTypeString
         {
-            let val_ptr = item.value.data.string().data;
-            if !val_ptr.is_null() {
-                return Some(val_ptr.as_cstr());
+            let val_str = item.value.data.string();
+            if !val_str.data.is_null() {
+                return Some(val_str.as_cstr());
             }
         }
     }

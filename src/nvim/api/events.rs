@@ -5,7 +5,6 @@ use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_e
 use crate::autocmd::do_termresponse_autocmd;
 use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_bytes};
 use crate::log::{LOGLVL_ERR, logmsg};
-use crate::strings::ByteSliceExt;
 
 /// Emitted on the client channel if an async API request responds with an error.
 ///
@@ -14,11 +13,7 @@ use crate::strings::ByteSliceExt;
 /// @param msg Error message.
 // DLLEXPORT void nvim_error_event(uint64_t channel_id, Integer type, String msg) FUNC_API_REMOTE_ONLY;
 pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
-    let msg_ptr = if msg.size != 0 {
-        msg.data.as_ptr().cast_const()
-    } else {
-        c"".as_ptr()
-    };
+    let msg_cstr = if msg.size != 0 { msg.as_cstr() } else { c"" };
     logmsg!(
         LOGLVL_ERR,
         None,
@@ -27,7 +22,7 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
         true,
         c"async error on channel %lld: %s",
         channel_id as i64,
-        crate::strings::ByteSlice::from_ptr(msg_ptr),
+        msg_cstr,
     );
 }
 

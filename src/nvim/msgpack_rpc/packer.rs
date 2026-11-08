@@ -3,7 +3,6 @@
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
-use crate::strings::ByteSliceExt;
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: i32 = ObjectType::ObjectTypeBuffer as i32;
@@ -240,7 +239,7 @@ pub fn mpack_str(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    let slice = str_val.data.slice(len);
+    let slice = str_val.slice(len);
     mpack_raw(slice, packer);
 }
 
@@ -259,7 +258,7 @@ pub fn mpack_bin(str_val: NvimString, packer: &mut PackerBuffer) {
     } else {
         std::process::abort();
     }
-    let slice = str_val.data.slice(len);
+    let slice = str_val.slice(len);
     mpack_raw(slice, packer);
 }
 

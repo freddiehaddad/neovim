@@ -492,8 +492,8 @@ fn arena_allocz_mut(arena: &mut Arena, size: usize) -> &'static mut [u8] {
 }
 
 /// Allocate `size + 1` bytes on `arena` and NUL-terminate (`arena_allocz`).
-pub fn arena_allocz(arena: &mut Arena, size: usize) -> crate::strings::ByteSlice {
-    Some(arena_allocz_mut(arena, size))
+pub fn arena_allocz(arena: &mut Arena, size: usize) -> crate::globals::GraphPtr<u8> {
+    crate::globals::GraphPtr::new(arena_allocz_mut(arena, size).as_mut_ptr())
 }
 
 /// Allocate `size + 1` mutable bytes on `arena` (or heap if `None`) and NUL-terminate.
@@ -506,18 +506,18 @@ pub fn arena_allocz_opt_mut(arena: Option<&mut Arena>, size: usize) -> &'static 
 }
 
 /// Copy `buf` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
-pub fn arena_memdupz(arena: &mut Arena, buf: &[u8]) -> crate::strings::ByteSlice {
+pub fn arena_memdupz(arena: &mut Arena, buf: &[u8]) -> crate::globals::GraphPtr<u8> {
     let slice = arena_allocz_mut(arena, buf.len());
     slice[..buf.len()].copy_from_slice(buf);
-    Some(slice)
+    crate::globals::GraphPtr::new(slice.as_mut_ptr())
 }
 
 /// Copy `buf` into a NUL-terminated buffer on `arena` (or heap if `None`).
 #[inline(always)]
-pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: &[u8]) -> crate::strings::ByteSlice {
+pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: &[u8]) -> crate::globals::GraphPtr<u8> {
     let slice = arena_allocz_opt_mut(arena, buf.len());
     slice[..buf.len()].copy_from_slice(buf);
-    Some(slice)
+    crate::globals::GraphPtr::new(slice.as_mut_ptr())
 }
 
 /// Free everything that we allocated (`free_all_mem`).
@@ -711,7 +711,12 @@ mod tests {
         let s1 = arena_memdupz(&mut arena, b"hello arena");
         let big = arena_alloc(&mut arena, 8192, true);
         assert!(!big.is_null());
-        assert_eq!(s1.as_cstr().to_str().unwrap(), "hello arena");
+        assert_eq!(
+            unsafe { CStr::from_ptr(s1.as_ptr().cast()) }
+                .to_str()
+                .unwrap(),
+            "hello arena"
+        );
         let mem = arena_finish(&mut arena);
         arena_mem_free(mem);
         arena_free_reuse_blks();

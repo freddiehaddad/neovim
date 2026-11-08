@@ -655,7 +655,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
         err,
         ErrorType::ErrorTypeValidation,
         c"Invalid UI option: '%s'",
-        name.data,
+        name,
     );
 }
 

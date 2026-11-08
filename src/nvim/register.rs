@@ -763,7 +763,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
                 return false;
             }
 
-            let mut str_ = reg.y_array[i].data;
+            let mut str_ = crate::strings::ByteSlice::from_ptr(reg.y_array[i].data);
             let cont_vec: Vec<u8>;
             if colon && i > 0 {
                 let p = str_.skipwhite();
@@ -1539,7 +1539,7 @@ pub fn do_put(
         let Some(spec_vec) = spec else {
             return;
         };
-        insert_string.data = crate::strings::ByteSlice::from_bytes(&spec_vec);
+        insert_string.data = crate::globals::GraphPtr::new(spec_vec.as_ptr().cast_mut());
         insert_string_owned = Some(spec_vec);
     }
 
@@ -1553,7 +1553,7 @@ pub fn do_put(
         insert_string.size = insert_string.cstr_bytes().len();
         y_type = MotionType::MtCharWise;
         if regname == i32::from(b'=') {
-            let mut ptr_ = insert_string.data.as_ptr();
+            let mut ptr_ = insert_string.data.as_ptr().cast::<std::ffi::c_char>();
             let mut ptrlen = insert_string.size;
             while !ptr_.is_null() {
                 let mut tmp = vim_strchr(
@@ -1885,9 +1885,8 @@ pub fn do_put(
                 if (flags & PUT_BLOCK_INNER) == 0 {
                     spaces = y_width + 1;
 
-                    let y_data = (crate::globals::GraphPtr::of(y_array.wrapping_add(i))
+                    let y_data = crate::globals::GraphPtr::of(y_array.wrapping_add(i))
                         .borrow()
-                        .data)
                         .as_cstr();
                     cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, y_data);
 
@@ -1936,7 +1935,7 @@ pub fn do_put(
                             .borrow()
                             .data
                             .as_ptr(),
-                        ptr_,
+                        ptr_.cast::<u8>(),
                         yanklen as usize,
                     );
 
@@ -2339,10 +2338,8 @@ pub fn do_put(
                 if col > 1 {
                     curbuf_mut().b_op_end.col = col - 1;
                     if last_item.size > 0 {
-                        curbuf_mut().b_op_end.col -= crate::mbyte::utf_head_off_ptr(
-                            last_item.data,
-                            last_item.data.wrapping_add(last_item.size - 1),
-                        );
+                        curbuf_mut().b_op_end.col -=
+                            crate::mbyte::utf_head_off(last_item.as_bytes(), last_item.size - 1);
                     }
                 } else {
                     curbuf_mut().b_op_end.col = 0;
@@ -2511,7 +2508,7 @@ pub fn ex_display(eap: &mut Exarg) {
                         msg_puts_hl(c"^J", hl_id, false);
                         n -= 2;
                     }
-                    let mut p = yb_ref.y_array[j].data;
+                    let mut p = crate::strings::ByteSlice::from_ptr(yb_ref.y_array[j].data);
                     while !p.is_empty() {
                         n -= ptr2cells(p);
                         if n < 0 {
@@ -2534,14 +2531,13 @@ pub fn ex_display(eap: &mut Exarg) {
     }
 
     let insert = get_last_insert();
-    let p = insert.data;
-    if !p.is_null()
+    if !insert.data.is_null()
         && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'.')))
         && !g_st().got_int
-        && !message_filtered(p.as_cstr())
+        && !message_filtered(insert.as_cstr())
     {
         msg_puts(c"\n  c  \".   ");
-        dis_msg(p.as_opt_cstr(), true);
+        dis_msg(insert.as_opt_cstr(), true);
     }
 
     if let Some(last_cmd) = g_st().last_cmdline.as_ref()
@@ -2812,8 +2808,8 @@ fn str_to_reg(
             let s_len = extra + line_len;
             let mut s_vec = vec![0u8; s_len + 1];
             if extra > 0 {
-                let last_data = y_ptr.y_array.last().unwrap().data;
-                s_vec[..extra].copy_from_slice(last_data.slice(extra));
+                let last_item = y_ptr.y_array.last().unwrap();
+                s_vec[..extra].copy_from_slice(last_item.slice(extra));
             }
             if line_len > 0 {
                 s_vec[extra..s_len].copy_from_slice(&slice[..line_len]);

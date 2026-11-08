@@ -643,8 +643,8 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        let cmdname = arena_string(arena, cmd.cmd).data;
-        ea.cmd = cmdname.into();
+        let cmdname = arena_string(arena, cmd.cmd);
+        ea.cmd = crate::strings::OwnedSlice::from_cstr(cmdname.as_cstr());
 
         let mut p_opt = find_ex_command(&mut ea, None);
 
@@ -653,7 +653,7 @@ pub fn nvim_cmd(
             && ascii_isupper(ea.cmd.first_byte())
             && has_event(EVENT_CMDUNDEFINED)
         {
-            let p_raw = arena_string(arena, cmd.cmd).data;
+            let p_raw = arena_string(arena, cmd.cmd);
             let p_ev = p_raw.as_opt_cstr();
             let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_ev, p_ev, true, None);
             p_opt = if ret && !aborting() {
@@ -814,7 +814,7 @@ pub fn nvim_cmd(
                     ErrorType::ErrorTypeValidation,
                     c"Command cannot accept %s: %s",
                     c"range",
-                    cmd.cmd.data,
+                    cmd.cmd,
                 );
                 break 'end;
             }
@@ -893,7 +893,7 @@ pub fn nvim_cmd(
                     ErrorType::ErrorTypeValidation,
                     c"Command cannot accept %s: %s",
                     c"count",
-                    cmd.cmd.data,
+                    cmd.cmd,
                 );
                 break 'end;
             }
@@ -911,7 +911,7 @@ pub fn nvim_cmd(
                     ErrorType::ErrorTypeValidation,
                     c"Command cannot accept %s: %s",
                     c"register",
-                    cmd.cmd.data,
+                    cmd.cmd,
                 );
                 break 'end;
             }
@@ -919,7 +919,7 @@ pub fn nvim_cmd(
                 api_err_exp(err, c"reg", c"single character", cmd.reg.as_opt_cstr());
                 break 'end;
             }
-            let regname = *crate::globals::GraphPtr::of(cmd.reg.data.cast::<u8>()).borrow();
+            let regname = cmd.reg.first_byte();
             if regname == b'=' {
                 api_set_error!(
                     err,
@@ -953,7 +953,7 @@ pub fn nvim_cmd(
                 ErrorType::ErrorTypeValidation,
                 c"Command cannot accept %s: %s",
                 c"bang",
-                cmd.cmd.data,
+                cmd.cmd,
             );
             break 'end;
         }
@@ -1325,7 +1325,7 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
         err,
         ErrorType::ErrorTypeException,
         c"Invalid command (not found): %s",
-        name.data,
+        name,
     );
 }
 

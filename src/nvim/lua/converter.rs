@@ -1493,7 +1493,7 @@ pub fn nlua_push_typval(lstate: *mut lua_State, tv: &mut TypVal, flags: i32) -> 
 pub fn nlua_push_string(lstate: *mut lua_State, s: NvimString, _flags: i32) {
     unsafe {
         let data = if s.size != 0 {
-            s.data.as_ptr().cast_const()
+            s.data.as_ptr().cast::<std::ffi::c_char>().cast_const()
         } else {
             c"".as_ptr()
         };

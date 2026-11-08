@@ -438,10 +438,7 @@ fn main_loop_events_mut() -> &'static mut MultiQueue {
 
 #[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
-    NvimString {
-        data: Some(bytes),
-        size: bytes.len() - 1,
-    }
+    NvimString::from_bytes_len(bytes, bytes.len() - 1)
 }
 
 pub struct TermRequestEvent {

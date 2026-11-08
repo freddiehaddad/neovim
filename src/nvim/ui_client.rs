@@ -565,7 +565,7 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         return;
     }
 
-    let first_arg = args[0].data.string().data;
+    let first_arg = args[0].data.string();
     let chan_id = if start_server {
         if args.size < 2 || args[1].obj_type != ObjectType::ObjectTypeArray {
             logmsg!(

@@ -1699,7 +1699,7 @@ fn tui_cursor_decode_shape(shape_str: NvimString) -> CursorShape {
                     1268,
                     true,
                     c"Unknown shape value '%s'",
-                    shape_str.data,
+                    shape_str,
                 );
             }
             CursorShape::ShapeBlock
@@ -2267,7 +2267,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
 }
 
 pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
-    let err = unsafe { uv_chdir(path.data.as_ptr()) };
+    let err = unsafe { uv_chdir(path.data.as_ptr().cast()) };
     if err != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
@@ -2276,7 +2276,7 @@ pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
             1777,
             true,
             c"Failed to chdir to %s: %s",
-            path.data,
+            path,
             uv_strerror(err),
         );
     }

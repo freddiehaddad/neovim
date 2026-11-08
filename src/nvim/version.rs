@@ -4097,10 +4097,7 @@ pub fn list_lua_version() {
         capacity: 0,
     };
     let ret = nlua_exec(
-        NvimString {
-            data: Some(CODE),
-            size: CODE.len() - 1,
-        },
+        NvimString::from_bytes_len(CODE, CODE.len() - 1),
         None,
         args,
         K_RET_OBJECT,

@@ -1058,7 +1058,7 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
-                name.data,
+                name,
             );
             return nil_obj();
         }
@@ -1069,7 +1069,7 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
             err,
             ErrorType::ErrorTypeValidation,
             c"Key not found: %s",
-            name.data,
+            name,
         );
         return nil_obj();
     };
@@ -1190,7 +1190,12 @@ pub fn nvim_echo(
         return id;
     }
 
-    let mut kind = opts.kind.data.cast_const();
+    let mut kind = opts
+        .kind
+        .data
+        .as_ptr()
+        .cast::<std::ffi::c_char>()
+        .cast_const();
     if opts.verbose {
         verbose_enter();
     } else if kind.is_null() {

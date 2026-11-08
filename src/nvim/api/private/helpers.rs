@@ -140,18 +140,12 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 
 #[inline]
 pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    NvimString {
-        data: Some(s.to_bytes_with_nul()),
-        size: s.to_bytes().len(),
-    }
+    NvimString::from_cstr(s)
 }
 
 #[inline]
 pub fn cstr_as_obj(s: Option<&CStr>) -> Object {
-    string_obj(cstr_as_string(
-        crate::strings::ByteSlice::from_ptr((s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr))
-            .as_opt_cstr(),
-    ))
+    string_obj(cstr_as_string(s))
 }
 
 #[inline]
@@ -305,7 +299,7 @@ pub const fn error_init() -> Error {
 #[inline]
 pub fn api_clear_string(s: &mut NvimString) {
     api_free_string(*s);
-    s.data = crate::strings::BYTE_SLICE_NULL;
+    s.data = crate::globals::GraphPtr::NULL;
     s.size = 0;
 }
 
@@ -332,10 +326,17 @@ impl IntoDictKey for RawCCharPtrMut {
     }
 }
 
-impl IntoDictKey for Option<&[u8]> {
+impl IntoDictKey for crate::globals::GraphPtr<u8> {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(self.map(crate::memory::bytes_as_cstr))
+        cstr_as_string(crate::strings::ByteSlice::from_ptr(self).as_opt_cstr())
+    }
+}
+
+impl IntoDictKey for NvimString {
+    #[inline]
+    fn into_dict_key(self) -> NvimString {
+        self
     }
 }
 
@@ -477,7 +478,7 @@ pub fn dict_get_value(
             err,
             ErrorType::ErrorTypeValidation,
             c"Key not found: %s",
-            key.data,
+            key,
         );
         return OBJECT_NIL;
     };
@@ -498,22 +499,17 @@ pub fn dict_check_writable(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Key is read-only: %s",
-                key.data,
+                key,
             );
         } else if (di.di_flags & DI_FLAGS_LOCK) != 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Key is locked: %s",
-                key.data,
+                key,
             );
         } else if del && (di.di_flags & DI_FLAGS_FIX) != 0 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Key is fixed: %s",
-                key.data,
-            );
+            api_set_error!(err, ErrorType::ErrorTypeException, c"Key is fixed: %s", key,);
         }
     } else if dict.dv_lock != 0 {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
@@ -548,7 +544,7 @@ pub fn dict_set_var(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
-                key.data,
+                key,
             );
             return rv;
         };
@@ -584,7 +580,7 @@ pub fn dict_set_var(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"Setting v:%s to value with wrong type",
-                        key.data,
+                        key,
                     );
                 }
                 return rv;
@@ -860,8 +856,8 @@ pub fn buf_get_text(
 }
 
 pub fn api_free_string(value: NvimString) {
-    if let Some(b) = value.data {
-        raw_dealloc(b.as_ptr().cast_mut().cast());
+    if !value.data.is_null() {
+        raw_dealloc(value.data.as_ptr().cast());
     }
 }
 
@@ -1167,7 +1163,7 @@ pub fn api_dict_to_keydict<T>(
                 ErrorType::ErrorTypeValidation,
                 c"Invalid key: '%.*s'",
                 k.size as i32,
-                k.data,
+                k,
             );
             return false;
         };
@@ -1309,7 +1305,7 @@ pub fn api_dict_to_keydict<T>(
                     ErrorType::ErrorTypeValidation,
                     c"Invalid key: '%.*s' is only allowed from Lua",
                     k.size as i32,
-                    k.data,
+                    k,
                 );
                 return false;
             }

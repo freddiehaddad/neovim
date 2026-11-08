@@ -5,7 +5,7 @@ use crate::memory::realloc_items;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct NvimString {
-    pub data: crate::strings::ByteSlice,
+    pub data: crate::globals::GraphPtr<u8>,
     pub size: usize,
 }
 
@@ -13,7 +13,7 @@ impl NvimString {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            data: crate::strings::BYTE_SLICE_NULL,
+            data: crate::globals::GraphPtr::NULL,
             size: 0,
         }
     }
@@ -21,7 +21,7 @@ impl NvimString {
     #[inline]
     pub const fn empty_cstr() -> Self {
         Self {
-            data: Some(b"\0"),
+            data: crate::globals::GraphPtr::new(c"".as_ptr().cast_mut().cast()),
             size: 0,
         }
     }
@@ -29,7 +29,7 @@ impl NvimString {
     #[inline]
     pub const fn from_cstr(s: &std::ffi::CStr) -> Self {
         Self {
-            data: crate::strings::byte_slice_from_bytes(s.to_bytes_with_nul()),
+            data: crate::globals::GraphPtr::new(s.as_ptr().cast_mut().cast()),
             size: s.to_bytes().len(),
         }
     }
@@ -44,12 +44,13 @@ impl NvimString {
 
     #[inline]
     pub const fn from_bytes_len(bytes: &[u8], size: usize) -> Self {
+        let ptr = if bytes.is_empty() {
+            c"".as_ptr().cast::<u8>()
+        } else {
+            bytes.as_ptr()
+        };
         Self {
-            data: crate::strings::byte_slice_from_bytes(if bytes.is_empty() {
-                b"\0"
-            } else {
-                bytes
-            }),
+            data: crate::globals::GraphPtr::new(ptr.cast_mut()),
             size,
         }
     }
@@ -63,36 +64,37 @@ impl NvimString {
     pub fn as_bytes(self) -> &'static [u8] {
         if self.is_empty() {
             c"".to_bytes()
-        } else if let Some(b) = self.data {
-            &b[..self.size.min(b.len())]
         } else {
-            c"".to_bytes()
+            crate::globals::GraphPtr::raw_slice(self.data.as_ptr(), self.size)
         }
     }
 
     #[inline]
+    pub fn slice(self, len: usize) -> &'static [u8] {
+        let b = self.as_bytes();
+        &b[..len.min(b.len())]
+    }
+
+    #[inline]
     pub fn as_bytes_with_nul_mut(&mut self) -> &mut [u8] {
-        if let Some(b) = self.data {
-            crate::globals::GraphPtr::raw_slice_mut(
-                b.as_ptr().cast_mut(),
-                (self.size + 1).min(b.len()),
-            )
-        } else {
+        if self.data.is_null() {
             &mut []
+        } else {
+            crate::globals::GraphPtr::raw_slice_mut(self.data.as_ptr(), self.size + 1)
         }
     }
 
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.size == 0 || self.data.is_none()
+        self.size == 0 || self.data.is_null()
     }
 
     #[inline]
     pub fn cstr_bytes(self) -> &'static [u8] {
-        if self.data.is_none() {
+        if self.data.is_null() {
             c"".to_bytes()
         } else if self.size == 0 {
-            crate::strings::ByteSliceExt::as_bytes(self.data)
+            self.as_cstr().to_bytes()
         } else {
             crate::memory::bytes_until_nul(self.as_bytes())
         }
@@ -100,7 +102,7 @@ impl NvimString {
 
     #[inline]
     pub fn opt_bytes(self) -> Option<&'static [u8]> {
-        if self.data.is_none() {
+        if self.data.is_null() {
             None
         } else {
             Some(self.cstr_bytes())
@@ -114,17 +116,21 @@ impl NvimString {
 
     #[inline]
     pub fn as_cstr(self) -> &'static std::ffi::CStr {
-        crate::strings::ByteSliceExt::as_cstr(self.data)
+        self.as_opt_cstr().unwrap_or(c"")
     }
 
     #[inline]
     pub fn as_opt_cstr(self) -> Option<&'static std::ffi::CStr> {
-        crate::strings::ByteSliceExt::as_opt_cstr(self.data)
+        if self.data.is_null() {
+            None
+        } else {
+            Some(unsafe { std::ffi::CStr::from_ptr(self.data.as_ptr().cast()) })
+        }
     }
 
     #[inline]
     pub fn to_cstring(self) -> std::ffi::CString {
-        crate::strings::ByteSliceExt::to_cstring(self.data)
+        self.as_cstr().to_owned()
     }
 }
 

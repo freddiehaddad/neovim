@@ -960,7 +960,7 @@ fn runtime_get_named_common(
                     &mut *buf_slice,
                     c"%s/%s",
                     &item.path,
-                    pat_item.data.string().data,
+                    pat_item.data.string(),
                 ) as usize;
                 if size < buf_len && os_file_is_readable(crate::memory::bytes_as_cstr(buf_slice)) {
                     to_slash(buf_slice);

@@ -2056,21 +2056,21 @@ impl<'a> IntoFmtVal<'a> for &'a &'a mut OwnedSlice {
 impl IntoFmtVal<'_> for crate::api::private::validate::NvimString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'static> {
-        FmtVal::CStr(self.data.map(crate::memory::bytes_as_cstr))
+        FmtVal::CStr(self.as_opt_cstr())
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a crate::api::private::validate::NvimString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(self.data.map(crate::memory::bytes_as_cstr))
+        FmtVal::CStr(self.as_opt_cstr())
     }
 }
 
 impl<'a> IntoFmtVal<'a> for &&'a crate::api::private::validate::NvimString {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
-        FmtVal::CStr(self.data.map(crate::memory::bytes_as_cstr))
+        FmtVal::CStr(self.as_opt_cstr())
     }
 }
 
