@@ -578,7 +578,7 @@ fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
         return false;
     }
 
-    let rem = crate::strings::ByteSlice::from_cstr(s).skipwhite();
+    let rem = crate::charset::skipwhite(s);
     if !rem.is_empty() {
         tv_clear(rettv);
         semsg!(gettext(E_INVEXPR2), rem);
@@ -1008,23 +1008,26 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
 /// Find the end of a variable or function name. Unlike find_name_end() this
 /// does not recognize magic braces.
 fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
-    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg);
-    if !eval_isnamec1(i32::from(arg_ptr.first_byte())) {
+    let bytes = arg.to_bytes();
+    let Some(&first) = bytes.first() else {
+        return arg;
+    };
+    if !eval_isnamec1(i32::from(first)) {
         return arg;
     }
 
-    let mut p = arg_ptr.wrapping_add(1);
-    while !p.is_empty() && eval_isnamec(i32::from(p.first_byte())) {
-        if p.first_byte() == b':'
-            && (p != arg_ptr.wrapping_add(1)
+    let mut i = 1usize;
+    while i < bytes.len() && eval_isnamec(i32::from(bytes[i])) {
+        if bytes[i] == b':'
+            && (i != 1
                 || !use_namespace
-                || !crate::strings::vim_haschr(c"bgstvw", i32::from(arg_ptr.first_byte())))
+                || !crate::strings::vim_haschr(c"bgstvw", i32::from(first)))
         {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        i += crate::mbyte::utfc_slice2len(&bytes[i..]).max(1);
     }
-    p.as_cstr()
+    &arg[i.min(bytes.len())..]
 }
 
 fn get_lval_dict_item<'a>(
@@ -1038,14 +1041,15 @@ fn get_lval_dict_item<'a>(
     unlet: bool,
     rettv: Option<&mut TypVal>,
 ) -> GlvStatus {
-    let mut key = crate::strings::ByteSlice::from_cstr(key_in);
     let quiet = (flags & GLV_QUIET) != 0;
     let p_cstr = *key_end;
-    let p = crate::strings::ByteSlice::from_cstr(p_cstr);
+    let p0 = p_cstr.to_bytes().first().copied().unwrap_or(0);
 
-    if len == -1 {
-        key = crate::strings::ByteSlice::from_cstr(tv_get_string(&*var1));
-    }
+    let key: &CStr = if len == -1 {
+        tv_get_string(&*var1)
+    } else {
+        key_in
+    };
     lp.ll_list = crate::globals::TvListPtr::NULL;
 
     if lp.tv_mut().vval.v_dict().is_null() {
@@ -1057,7 +1061,7 @@ fn get_lval_dict_item<'a>(
     }
     lp.ll_dict = lp.tv_mut().vval.v_dict();
 
-    lp.ll_di = tv_dict_find(lp.ll_dict.opt(), key.as_cstr(), len as isize).map_or(
+    lp.ll_di = tv_dict_find(lp.ll_dict.opt(), key, len as isize).map_or(
         crate::globals::GraphPtr::NULL,
         crate::globals::GraphPtr::from,
     );
@@ -1065,8 +1069,8 @@ fn get_lval_dict_item<'a>(
     if let Some(rettv) = rettv.as_deref()
         && lp.ll_dict.dv_scope != 0
     {
-        let key_cstr = (len != -1).then(|| bytes_to_cstring(key.slice(len as usize)));
-        let key_ref = key_cstr.as_deref().unwrap_or_else(|| key.as_cstr());
+        let key_cstr = (len != -1).then(|| bytes_to_cstring(&key.to_bytes()[..len as usize]));
+        let key_ref = key_cstr.as_deref().unwrap_or(key);
         let wrong = (lp.ll_dict.dv_scope == VAR_DEF_SCOPE
             && tv_is_func(rettv)
             && var_wrong_func_name(key_ref, lp.ll_di.is_null()))
@@ -1094,16 +1098,16 @@ fn get_lval_dict_item<'a>(
             return GLV_FAIL;
         }
 
-        if p.first_byte() == b'[' || p.first_byte() == b'.' || unlet {
+        if p0 == b'[' || p0 == b'.' || unlet {
             if !quiet {
                 semsg!(gettext(E_DICTKEY), key);
             }
             return GLV_FAIL;
         }
         if len == -1 {
-            lp.ll_newkey = Some(key.to_cstring());
+            lp.ll_newkey = Some(key.to_owned());
         } else {
-            let slice = key.slice(len as usize);
+            let slice = &key.to_bytes()[..len as usize];
             lp.ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
         }
         *key_end = p_cstr;
@@ -1112,11 +1116,11 @@ fn get_lval_dict_item<'a>(
         && (var_check_ro(
             i32::from(lp.ll_di.di_flags),
             name,
-            (p.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize),
+            (p_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize),
         ) || var_check_lock(
             i32::from(lp.ll_di.di_flags),
             name,
-            (p.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize),
+            (p_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize),
         ))
     {
         return GLV_FAIL;
@@ -1219,7 +1223,6 @@ fn get_lval_subscript<'a>(
     let mut empty1 = false;
 
     loop {
-        let p = crate::strings::ByteSlice::from_cstr(p_cstr);
         let p_bytes = p_cstr.to_bytes();
         let Some(&p0) = p_bytes.first() else {
             break;
@@ -1261,8 +1264,7 @@ fn get_lval_subscript<'a>(
         let mut len: i32 = -1;
         let mut key_cstr: &'a CStr = c"";
         if p0 == b'.' {
-            let key = p.wrapping_add(1);
-            key_cstr = key.as_cstr();
+            key_cstr = &p_cstr[1..];
             len = p_bytes[1..]
                 .iter()
                 .take_while(|&&b| b.is_ascii_alphanumeric() || b == b'_')
@@ -1273,9 +1275,9 @@ fn get_lval_subscript<'a>(
                 }
                 return None;
             }
-            p_cstr = key.wrapping_add(len as usize).as_cstr();
+            p_cstr = &key_cstr[len as usize..];
         } else {
-            p_cstr = p.wrapping_add(1).skipwhite().as_cstr();
+            p_cstr = crate::charset::skipwhite_at(p_cstr, 1);
             if p_cstr.to_bytes().first().copied().unwrap_or(0) == b':' {
                 empty1 = true;
             } else {
@@ -1411,24 +1413,18 @@ pub fn get_lval<'a>(
 
     let mut expr_range: Option<(usize, usize)> = None;
     let mut p_cstr = find_name_end(name_in, Some(&mut expr_range), fne_flags);
-    let p = crate::strings::ByteSlice::from_cstr(p_cstr);
     if let Some((expr_start_off, expr_end_off)) = expr_range {
-        if unlet
-            && !ascii_iswhite(p.first_byte())
-            && ends_excmd(i32::from(p.first_byte())) == 0
-            && p.first_byte() != b'['
-            && p.first_byte() != b'.'
+        let p0 = p_cstr.to_bytes().first().copied().unwrap_or(0);
+        if unlet && !ascii_iswhite(p0) && ends_excmd(i32::from(p0)) == 0 && p0 != b'[' && p0 != b'.'
         {
-            semsg!(gettext(E_TRAILING_ARG), p);
+            semsg!(gettext(E_TRAILING_ARG), p_cstr);
             return None;
         }
 
-        let in_len = (p.as_ptr() as usize).wrapping_sub(name as usize);
-        if let Some(cstr) = make_expanded_name(
-            crate::strings::AsByteSlice::slice_len(name, in_len),
-            expr_start_off,
-            expr_end_off,
-        ) {
+        let in_len = (p_cstr.as_ptr() as usize).wrapping_sub(name as usize);
+        if let Some(cstr) =
+            make_expanded_name(&name_in.to_bytes()[..in_len], expr_start_off, expr_end_off)
+        {
             lp.ll_name_len = cstr.as_bytes().len();
             lp.set_ll_name(&cstr);
             lp.ll_exp_name = Some(cstr);
@@ -1445,10 +1441,11 @@ pub fn get_lval<'a>(
         }
     } else {
         lp.set_ll_name(name_in);
-        lp.ll_name_len = (p.as_ptr() as usize).wrapping_sub(name as usize);
+        lp.ll_name_len = (p_cstr.as_ptr() as usize).wrapping_sub(name as usize);
     }
 
-    if (p.first_byte() != b'[' && p.first_byte() != b'.') || lp.ll_name.is_none() {
+    let p0 = p_cstr.to_bytes().first().copied().unwrap_or(0);
+    if (p0 != b'[' && p0 != b'.') || lp.ll_name.is_none() {
         return Some(p_cstr);
     }
 
@@ -1504,7 +1501,6 @@ pub fn set_var_lval(
     is_const: bool,
     op_opt: Option<&CStr>,
 ) {
-    let op = crate::strings::ByteSlice::from_opt_cstr(op_opt);
     let ll_name_owned = lp.ll_name_cstr().map(CStr::to_owned);
     let ll_name = ll_name_owned.as_deref().unwrap_or(c"");
 
@@ -1519,7 +1515,10 @@ pub fn set_var_lval(
             bytes_to_cstring(&ll_name.to_bytes()[..full_len])
         };
         if let Some(blob) = lp.ll_blob.opt_mut() {
-            if !op.is_null() && op.first_byte() != b'=' {
+            if let Some(op) = op_opt
+                && !op.is_empty()
+                && op.to_bytes().first() != Some(&b'=')
+            {
                 semsg!(gettext(E_LETWRONG), op);
                 return;
             }
@@ -1549,7 +1548,10 @@ pub fn set_var_lval(
                     }
                 }
             }
-        } else if !op.is_null() && op.first_byte() != b'=' {
+        } else if let Some(op) = op_opt
+            && !op.is_empty()
+            && op.to_bytes().first() != Some(&b'=')
+        {
             let mut tv = tv_initial_value();
 
             if is_const {
@@ -1569,7 +1571,7 @@ pub fn set_var_lval(
                 if di.is_none_or(|di| {
                     !var_check_ro(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
                         && !tv_check_lock(&di.di_tv, Some(&name_cstr), TV_CSTRING)
-                }) && eexe_mod_op(&mut tv, &*rettv, op.as_cstr())
+                }) && eexe_mod_op(&mut tv, &*rettv, op)
                 {
                     set_var(name_cstr.as_bytes(), &mut tv, false);
                 }
@@ -1600,7 +1602,7 @@ pub fn set_var_lval(
             lp.ll_n1,
             lp.ll_n2,
             lp.ll_empty2,
-            op.as_opt_cstr(),
+            op_opt,
             ll_name,
         );
     } else {
@@ -1616,7 +1618,10 @@ pub fn set_var_lval(
         let mut skip_assign = false;
         if let Some(ref newkey) = lp.ll_newkey {
             let newkey_cstr = newkey.as_c_str();
-            if !op.is_null() && op.first_byte() != b'=' {
+            if let Some(op) = op_opt
+                && !op.is_empty()
+                && op.to_bytes().first() != Some(&b'=')
+            {
                 semsg!(gettext(E_DICTKEY), newkey_cstr);
                 return;
             }
@@ -1637,8 +1642,11 @@ pub fn set_var_lval(
                 tv_copy(lp.ll_tv.borrow(), &mut oldtv);
             }
 
-            if !op.is_null() && op.first_byte() != b'=' {
-                eexe_mod_op(lp.ll_tv.borrow_mut(), &*rettv, op.as_cstr());
+            if let Some(op) = op_opt
+                && !op.is_empty()
+                && op.to_bytes().first() != Some(&b'=')
+            {
+                eexe_mod_op(lp.ll_tv.borrow_mut(), &*rettv, op);
                 skip_assign = true;
             } else {
                 tv_clear(lp.ll_tv.borrow_mut());
@@ -1695,8 +1703,8 @@ pub fn eval_for_line(
         return fi;
     };
 
-    let mut expr = crate::strings::ByteSlice::from_cstr(expr_cstr).skipwhite();
-    let expr_bytes = expr.as_bytes();
+    let mut expr = crate::charset::skipwhite(expr_cstr);
+    let expr_bytes = expr.to_bytes();
     if !expr_bytes.starts_with(b"in")
         || expr_bytes
             .get(2)
@@ -1709,8 +1717,8 @@ pub fn eval_for_line(
     if skip {
         g_st().emsg_skip += 1;
     }
-    expr = expr.wrapping_add(2).skipwhite();
-    if eval0(expr.as_cstr(), &mut tv, Some(&mut *eap), &mut *evalarg) {
+    expr = crate::charset::skipwhite(&expr[2..]);
+    if eval0(expr, &mut tv, Some(&mut *eap), &mut *evalarg) {
         *errp = false;
         if !skip {
             if tv.v_type == VarType::VarList {
@@ -1767,18 +1775,21 @@ pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
             ex_let_vars(arg, &mut tv, 1, fi.fi_semicolon, fi.fi_varcount, 0, None)
         }
         ForSource::Str { text, byte_idx } => {
-            let str_ptr = crate::strings::ByteSlice::from_cstr(text.as_c_str());
-            let len = utfc_ptr2len(str_ptr.wrapping_add(*byte_idx));
+            let text_bytes = text.as_bytes();
+            if *byte_idx >= text_bytes.len() {
+                return false;
+            }
+            let len = crate::mbyte::utfc_slice2len(&text_bytes[*byte_idx..]);
             if len == 0 {
                 return false;
             }
             let mut tv = TypVal::new();
             crate::eval::typval::tv_set_string_len(
                 &mut tv,
-                Some(&text.as_bytes()[*byte_idx..*byte_idx + len as usize]),
+                Some(&text_bytes[*byte_idx..*byte_idx + len]),
             );
             tv.v_lock = VAR_FIXED;
-            *byte_idx += len as usize;
+            *byte_idx += len;
             let result = ex_let_vars(arg, &mut tv, 1, fi.fi_semicolon, fi.fi_varcount, 0, None);
             tv_clear(&mut tv);
             result
@@ -1813,7 +1824,7 @@ impl Drop for Forinfo {
 }
 
 pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmdidx) {
-    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
+    let mut arg = crate::strings::OwnedSlice::from_cstr(arg_in);
     let mut got_eq = false;
 
     if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
@@ -1825,7 +1836,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         {
             let mut p_idx = arg_bytes.len();
             loop {
-                xp.xp_pattern = arg.wrapping_add(p_idx).into();
+                xp.xp_pattern = arg.wrapping_add(p_idx);
                 if p_idx == 0 {
                     break;
                 }
@@ -1849,9 +1860,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             .as_bytes()
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-            .map_or(crate::strings::OwnedSlice::NULL, |i| {
-                arg.wrapping_add(i).into()
-            });
+            .map_or(crate::strings::OwnedSlice::NULL, |i| arg.wrapping_add(i));
         !xp.xp_pattern.is_null()
     } {
         let pat_bytes = xp.xp_pattern.as_bytes();
@@ -1918,7 +1927,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else {
             xp.xp_context = EXPAND_EXPRESSION;
         }
-        arg = arg.wrapping_add(xp.xp_pattern.offset_from(arg));
+        arg = arg.wrapping_add(xp.xp_pattern.offset_from(&arg));
         if !arg.is_empty() {
             loop {
                 arg = arg.wrapping_add(1);
@@ -1942,7 +1951,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         }
     }
 
-    xp.xp_pattern = arg.into();
+    xp.xp_pattern = arg;
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
@@ -1977,10 +1986,8 @@ fn eval_func(
     let mut found_var = false;
 
     if !evaluate {
-        check_vars(crate::strings::AsByteSlice::slice_len(
-            name.as_ptr(),
-            len as usize,
-        ));
+        let name_bytes = name.to_bytes();
+        check_vars(&name_bytes[..(len as usize).min(name_bytes.len())]);
     }
 
     let mut partial_opt: Option<&'static mut TvPartial> = None;
@@ -1992,9 +1999,9 @@ fn eval_func(
         Some(&mut found_var),
     );
     let partial = crate::globals::GraphPtr::from(partial_opt);
-    let s = crate::strings::ByteSlice::from_cstr(deref);
+    let deref_bytes = deref.to_bytes();
 
-    let s_cstr = bytes_to_cstring(s.slice(len as usize));
+    let s_cstr = bytes_to_cstring(&deref_bytes[..(len as usize).min(deref_bytes.len())]);
 
     let lnum = curwin_mut().w_cursor.lnum;
     let mut funcexe = Funcexe {
@@ -2079,54 +2086,26 @@ pub fn eval0(
 /// If "arg" is a simple function call without arguments then call it and return
 /// the result. Otherwise return NOTDONE.
 pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool> {
-    let arg = arg_cstr.as_ptr();
-    let parens = arg_cstr
-        .to_bytes()
-        .windows(2)
-        .position(|w| w == b"()")
-        .map_or(ptr::null(), |i| arg.wrapping_add(i));
+    let arg_bytes = arg_cstr.to_bytes();
+    let parens_idx = arg_bytes.windows(2).position(|w| w == b"()");
     let mut r = None;
 
-    if !parens.is_null()
-        && crate::charset::skipwhite_slice(
-            crate::strings::ByteSlice::from_ptr(parens.wrapping_add(2)).as_bytes(),
-        )
-        .is_empty()
+    if let Some(parens_off) = parens_idx
+        && crate::charset::skipwhite_slice(&arg_bytes[parens_off + 2..]).is_empty()
     {
-        if arg_cstr.to_bytes().starts_with(b"v:lua.") {
-            let p = arg.wrapping_add(6);
-            if p != parens
-                && skip_luafunc_name(crate::strings::ByteSlice::from_ptr(p).as_cstr()).as_ptr()
-                    == parens
-            {
-                r = call_simple_luafunc(
-                    crate::strings::AsByteSlice::slice_len(
-                        p,
-                        (parens as usize).wrapping_sub(p as usize),
-                    ),
-                    rettv,
-                );
+        let parens_ptr = arg_cstr[parens_off..].as_ptr();
+        if arg_bytes.starts_with(b"v:lua.") {
+            if parens_off != 6 && skip_luafunc_name(&arg_cstr[6..]).as_ptr() == parens_ptr {
+                r = call_simple_luafunc(&arg_bytes[6..parens_off], rettv);
             }
         } else {
-            let p = if arg_cstr.to_bytes().starts_with(b"<SNR>") {
-                arg.wrapping_add(
-                    5 + skipdigits_len(
-                        crate::strings::ByteSlice::from_ptr(arg.wrapping_add(5)).as_bytes(),
-                    ),
-                )
+            let p_off = if arg_bytes.starts_with(b"<SNR>") {
+                5 + skipdigits_len(&arg_bytes[5..])
             } else {
-                arg
+                0
             };
-            if to_name_end(crate::strings::ByteSlice::from_ptr(p).as_cstr(), true).as_ptr()
-                == parens
-            {
-                r = call_simple_func(
-                    crate::strings::AsByteSlice::slice_len(
-                        arg,
-                        (parens as usize).wrapping_sub(arg as usize),
-                    ),
-                    rettv,
-                );
+            if to_name_end(&arg_cstr[p_off..], true).as_ptr() == parens_ptr {
+                r = call_simple_func(&arg_bytes[..parens_off], rettv);
             }
         }
     }
@@ -2763,12 +2742,13 @@ fn eval7(
 
     rettv.v_type = VarType::VarUnknown;
 
-    let start_leader = arg.as_ptr().cast::<u8>();
+    let start_arg = *arg;
+    let start_leader = start_arg.as_ptr().cast::<u8>();
     while matches!(arg.to_bytes_with_nul()[0], b'!' | b'-' | b'+') {
         *arg = crate::charset::skipwhite_at(arg, 1);
     }
     let mut leader_len = (arg.as_ptr() as usize).wrapping_sub(start_leader as usize);
-    let leader_slice = crate::strings::AsByteSlice::slice_len(start_leader, leader_len);
+    let leader_slice = &start_arg.to_bytes()[..leader_len];
 
     if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
         semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), *arg);
@@ -2851,9 +2831,9 @@ fn eval7(
             } else {
                 evalarg.as_deref_mut().unwrap().eval_flags
             };
-            let next_nonwhite = crate::strings::ByteSlice::from_cstr(arg).skipwhite();
-            if next_nonwhite.first_byte() == b'(' {
-                *arg = next_nonwhite.as_cstr();
+            let next_nonwhite = crate::charset::skipwhite(arg);
+            if next_nonwhite.to_bytes().first() == Some(&b'(') {
+                *arg = next_nonwhite;
                 eval_func(
                     arg,
                     evalarg.as_deref_mut(),
@@ -2866,10 +2846,8 @@ fn eval7(
             } else if evaluate {
                 eval_variable(s, len, Some(&mut *rettv), None, true, false)
             } else {
-                check_vars(crate::strings::AsByteSlice::slice_len(
-                    s.as_ptr(),
-                    len as usize,
-                ));
+                let s_bytes = s.to_bytes();
+                check_vars(&s_bytes[..(len as usize).min(s_bytes.len())]);
                 if rettv.v_type == VarType::VarUnknown
                     && !evaluate
                     && s.to_bytes().starts_with(b"v:lua.")
@@ -3136,10 +3114,7 @@ fn eval_method<'a>(
             && let Some(paren_cstr) = paren
         {
             let expr_len = (paren_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize);
-            let expr_cstr = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
-                name.as_ptr(),
-                expr_len,
-            ));
+            let expr_cstr = bytes_to_cstring(&name.to_bytes()[..expr_len]);
             let expr_base = expr_cstr.as_ptr();
             let mut expr_cursor: &CStr = &expr_cstr;
             let mut ref_tv = tv_initial_value();
@@ -3407,7 +3382,6 @@ fn eval_index_inner(
     keylen: isize,
     verbose: bool,
 ) -> bool {
-    let mut key = crate::strings::ByteSlice::from_opt_cstr(key_opt);
     let mut n1: Varnumber = 0;
     let mut n2: Varnumber = 0;
     if let Some(var1) = var1
@@ -3492,16 +3466,17 @@ fn eval_index_inner(
             }
         }
         VarType::VarDict => {
-            let k_owned;
-            if key.is_null() {
-                let Some(k) = tv_get_string_chk(var1.unwrap()) else {
-                    return false;
-                };
-                k_owned = k;
-                key = crate::strings::ByteSlice::from_cstr(k_owned);
-            }
+            let key: &CStr = match key_opt {
+                Some(k) => k,
+                None => {
+                    let Some(k) = tv_get_string_chk(var1.unwrap()) else {
+                        return false;
+                    };
+                    k
+                }
+            };
 
-            let item = tv_dict_find_opt(rettv.vval.v_dict_opt().as_deref(), key.as_cstr(), keylen);
+            let item = tv_dict_find_opt(rettv.vval.v_dict_opt().as_deref(), key, keylen);
 
             if item.is_none() && verbose {
                 if keylen > 0 {
@@ -3550,7 +3525,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
     }
 
     let opt_len = (option_end.as_ptr() as usize).wrapping_sub(cur_arg.as_ptr() as usize);
-    let opt_bytes = crate::strings::AsByteSlice::slice_len(cur_arg.as_ptr(), opt_len);
+    let opt_bytes = &cur_arg.to_bytes()[..opt_len];
     let is_tty_opt = is_tty_option(opt_bytes);
 
     let mut ret = true;
@@ -3583,7 +3558,6 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
 /// Allocate a variable for a number constant. Also deals with "0z" for blob.
 fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string: bool) -> bool {
     let arg_cstr = *arg;
-    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg_cstr);
     let arg_bytes = arg_cstr.to_bytes();
     let mut get_float = false;
 
@@ -3614,7 +3588,7 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
     if get_float {
         let mut f: TvFloat = 0.0;
         let consumed = string2float(arg_cstr, &mut f);
-        *arg = arg_ptr.wrapping_add(consumed).as_cstr();
+        *arg = &arg_cstr[consumed.min(arg_bytes.len())..];
         if evaluate {
             rettv.v_type = VarType::VarFloat;
             rettv.vval = crate::eval::typval::TypvalVval::Float(f);
@@ -3648,7 +3622,7 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
             blob.bv_ga = bytes;
             tv_blob_set_ret(rettv, Some(blob));
         }
-        *arg = (arg_ptr.wrapping_add(arg_bytes.len() - rem.len())).as_cstr();
+        *arg = &arg_cstr[arg_bytes.len() - rem.len()..];
     } else {
         let mut len: i32 = 0;
         let mut n: Varnumber = 0;
@@ -3664,11 +3638,11 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
         );
         if len == 0 {
             if evaluate {
-                semsg!(gettext(E_INVEXPR2), arg_ptr);
+                semsg!(gettext(E_INVEXPR2), arg_cstr);
             }
             return false;
         }
-        *arg = arg_ptr.wrapping_add(len as usize).as_cstr();
+        *arg = &arg_cstr[(len as usize).min(arg_bytes.len())..];
         if evaluate {
             rettv.v_type = VarType::VarNumber;
             rettv.vval = crate::eval::typval::TypvalVval::Number(n);
@@ -3736,7 +3710,8 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
     }
 
     if !evaluate {
-        *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
+        let end_off = ((p as usize) - (arg_start as usize) + off).min(arg.to_bytes().len());
+        *arg = &arg[end_off..];
         return true;
     }
 
@@ -3848,7 +3823,8 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
     if rem.first() == Some(&b'"') && !interpolate {
         rem = &rem[1..];
     }
-    *arg = crate::strings::ByteSlice::from_ptr(arg_end.wrapping_sub(rem.len())).as_cstr();
+    let arg_len = arg.to_bytes().len();
+    *arg = &arg[arg_len.saturating_sub(rem.len())..];
 
     true
 }
@@ -3893,15 +3869,15 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
         return false;
     }
 
+    let end_off = ((p as usize) - (arg_start as usize) + off).min(arg.to_bytes().len());
     if !evaluate {
-        *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
+        *arg = &arg[end_off..];
         return true;
     }
 
     let alloc_len = ((p as isize) - (arg_start as isize) - reduce) as usize;
     let mut buf_vec = Vec::with_capacity(alloc_len);
-    let start_ptr = arg_start.wrapping_add(off);
-    let mut rem = crate::strings::ByteSlice::from_ptr(start_ptr).as_bytes();
+    let mut rem = &arg.to_bytes()[off.min(arg.to_bytes().len())..];
 
     while !rem.is_empty() {
         if rem[0] == b'\'' {
@@ -3919,7 +3895,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
     }
     buf_vec.push(0);
     crate::eval::typval::tv_set_string(rettv, Some(crate::memory::bytes_as_cstr(&buf_vec)));
-    *arg = crate::strings::ByteSlice::from_ptr(p.wrapping_add(off)).as_cstr();
+    *arg = &arg[end_off..];
 
     true
 }
@@ -4479,21 +4455,20 @@ pub fn set_ref_in_item(
 
 /// Get the key for #{key: val} into "tv" and advance "arg".
 fn get_literal_key(arg: &mut &CStr, tv: &mut TypVal) -> bool {
-    let b0 = arg.to_bytes_with_nul()[0];
+    let bytes = arg.to_bytes();
+    let Some(&b0) = bytes.first() else {
+        return false;
+    };
     if !ascii_isalnum(i32::from(b0)) && b0 != b'_' && b0 != b'-' {
         return false;
     }
-    let start = crate::strings::ByteSlice::from_cstr(arg);
-    let mut p = start;
-    while ascii_isalnum(p.first_byte()) || p.first_byte() == b'_' || p.first_byte() == b'-' {
-        p = p.wrapping_add(1);
-    }
-    crate::eval::typval::tv_set_string_len(
-        &mut *tv,
-        Some((start).slice((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize))),
-    );
+    let len = bytes
+        .iter()
+        .take_while(|&&b| ascii_isalnum(i32::from(b)) || b == b'_' || b == b'-')
+        .count();
+    crate::eval::typval::tv_set_string_len(&mut *tv, Some(&bytes[..len]));
 
-    *arg = p.skipwhite().as_cstr();
+    *arg = crate::charset::skipwhite(&arg[len..]);
     true
 }
 
@@ -4508,7 +4483,7 @@ fn eval_dict(
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
     let mut tv = tv_initial_value();
-    let mut key = ptr::null_mut();
+    let mut key: Option<std::ffi::CString> = None;
     let mut curly_expr = crate::charset::skipwhite_at(arg, 1);
     let mut buf = [0u8; NUMBUFLEN];
 
@@ -4556,7 +4531,7 @@ fn eval_dict(
                 }
                 return Some(false);
             };
-            key = key_cstr.as_ptr().cast_mut();
+            key = Some(key_cstr.to_owned());
         }
 
         *arg = crate::charset::skipwhite_at(arg, 1);
@@ -4568,11 +4543,11 @@ fn eval_dict(
             return Some(false);
         }
         if evaluate {
-            let key_cstr = crate::strings::ByteSlice::from_ptr(key).as_cstr();
+            let key_cstr = key.as_deref().unwrap_or(c"");
             if tv_dict_find(d.opt(), key_cstr, -1).is_some() {
                 semsg!(
                     gettext(c"E721: Duplicate key in Dictionary: \"%s\""),
-                    crate::strings::ByteSlice::from_ptr(key),
+                    key_cstr,
                 );
                 tv_clear(&mut tvkey);
                 tv_clear(&mut tv);
@@ -4669,10 +4644,9 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
         if len == 0 {
             return false;
         }
-        let env_with_dollar = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
-            orig_arg.as_ptr(),
-            len as usize + 1,
-        ));
+        let orig_bytes = orig_arg.to_bytes();
+        let env_with_dollar =
+            bytes_to_cstring(&orig_bytes[..(len as usize + 1).min(orig_bytes.len())]);
         let env_name =
             CStr::from_bytes_until_nul(&env_with_dollar.to_bytes_with_nul()[1..]).unwrap_or(c"");
         let mut string = vim_getenv(env_name).filter(|s| !s.as_bytes().is_empty());
@@ -4936,26 +4910,24 @@ pub fn callback_call(
     }
 
     let partial: crate::globals::GraphPtr<TvPartial>;
-    let mut name;
+    let name: &CStr;
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
             let funcref = callback.data.as_funcref().unwrap_or(c"");
-            name = funcref.as_ptr().cast_mut();
             if funcref.to_bytes().starts_with(b"v:lua.") {
-                name = name.wrapping_add(6);
-                if check_luafunc_name(crate::strings::ByteSlice::from_ptr(name).as_cstr(), false)
-                    == 0
-                {
+                name = &funcref[6..];
+                if check_luafunc_name(name, false) == 0 {
                     return false;
                 }
                 partial = crate::globals::GraphPtr::from(get_vim_var_partial(VV_LUA));
             } else {
+                name = funcref;
                 partial = crate::globals::GraphPtr::NULL;
             }
         }
         K_CALLBACK_PARTIAL => {
             partial = crate::globals::GraphPtr::<TvPartial>::of(callback.data.as_partial());
-            name = partial_name(partial.opt()).as_ptr().cast_mut();
+            name = partial_name(partial.opt());
         }
         K_CALLBACK_LUA => {
             let mut arena = Arena::new();
@@ -4992,19 +4964,8 @@ pub fn callback_call(
         }
         K_CALLBACK_EXPR => {
             eval_st().callback_depth += 1;
-            let expr_ptr = crate::charset::skipwhite_ptr(
-                callback
-                    .data
-                    .as_funcref()
-                    .map_or(c"".as_ptr(), CStr::as_ptr)
-                    .cast_mut(),
-            );
-            let r = eval0_simple_funccal(
-                crate::strings::ByteSlice::from_ptr(expr_ptr).as_cstr(),
-                rettv,
-                None,
-                &mut g_st().evalarg_evaluate,
-            );
+            let expr = crate::charset::skipwhite(callback.data.as_funcref().unwrap_or(c""));
+            let r = eval0_simple_funccal(expr, rettv, None, &mut g_st().evalarg_evaluate);
             eval_st().callback_depth -= 1;
             return r;
         }
@@ -5027,14 +4988,7 @@ pub fn callback_call(
     };
 
     eval_st().callback_depth += 1;
-    let ret = call_func(
-        crate::strings::ByteSlice::from_ptr(name).as_cstr(),
-        -1,
-        rettv,
-        argcount_in,
-        argvars_in,
-        &mut funcexe,
-    );
+    let ret = call_func(name, -1, rettv, argcount_in, argvars_in, &mut funcexe);
     eval_st().callback_depth -= 1;
     ret
 }
@@ -5618,30 +5572,22 @@ pub fn get_env_len(arg: &mut &CStr) -> i32 {
 
 /// Get the length of the name of a function or internal variable.
 pub fn get_id_len(arg: &mut &CStr) -> i32 {
-    let start = crate::strings::ByteSlice::from_cstr(arg);
-    let mut p = start;
-    while eval_isnamec(i32::from(p.first_byte())) {
-        if p.first_byte() == b':' {
-            let len = ((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize)) as i32;
-            if len > 1
-                || (len == 1
-                    && vim_strchr(NAMESPACE_CHAR, i32::from(start.first_byte()))
-                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                        .is_null())
-            {
-                break;
-            }
+    let bytes = arg.to_bytes();
+    let mut idx = 0usize;
+    while idx < bytes.len() && eval_isnamec(i32::from(bytes[idx])) {
+        if bytes[idx] == b':'
+            && (idx > 1 || (idx == 1 && vim_strchr(NAMESPACE_CHAR, i32::from(bytes[0])).is_none()))
+        {
+            break;
         }
-        p = p.wrapping_add(1);
+        idx += 1;
     }
-    if p == start {
+    if idx == 0 {
         return 0;
     }
 
-    let len = ((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize)) as i32;
-    *arg = p.skipwhite().as_cstr();
-
-    len
+    *arg = crate::charset::skipwhite(&arg[idx..]);
+    idx as i32
 }
 
 /// Get the length of the name of a variable or function.
@@ -5652,6 +5598,7 @@ pub fn get_name_len(
     verbose: bool,
 ) -> i32 {
     *alias = None;
+    let start_arg = *arg;
 
     if arg.to_bytes().starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
         *arg = crate::memory::CStrSubslice::advance(*arg, 3);
@@ -5668,19 +5615,17 @@ pub fn get_name_len(
         Some(&mut expr_range),
         if len > 0 { 0 } else { FNE_CHECK_START },
     );
-    let p = crate::strings::ByteSlice::from_cstr(p_cstr);
     if let Some((expr_start_off, expr_end_off)) = expr_range {
         if !evaluate {
-            len += ((p.as_ptr() as usize).wrapping_sub(arg.as_ptr() as usize)) as i32;
-            *arg = p.skipwhite().as_cstr();
+            len += ((p_cstr.as_ptr() as usize).wrapping_sub(arg.as_ptr() as usize)) as i32;
+            *arg = crate::charset::skipwhite(p_cstr);
             return len;
         }
 
         let prefix_len = len as usize;
-        let full_start = arg.as_ptr().wrapping_sub(prefix_len);
-        let full_len = (p.as_ptr() as usize).wrapping_sub(full_start as usize);
+        let full_len = (p_cstr.as_ptr() as usize).wrapping_sub(start_arg.as_ptr() as usize);
         let Some(temp_string) = make_expanded_name(
-            crate::strings::AsByteSlice::slice_len(full_start, full_len),
+            &start_arg.to_bytes()[..full_len],
             prefix_len + expr_start_off,
             prefix_len + expr_end_off,
         ) else {
@@ -5688,7 +5633,7 @@ pub fn get_name_len(
         };
         let ret_len = temp_string.as_bytes().len() as i32;
         *alias = Some(temp_string);
-        *arg = p.skipwhite().as_cstr();
+        *arg = crate::charset::skipwhite(p_cstr);
         return ret_len;
     }
 
@@ -6368,23 +6313,26 @@ pub fn find_option_var_end<'a>(
     opt_idxp: &mut OptIndex,
     opt_flags: &mut i32,
 ) -> Option<&'a CStr> {
-    let mut p = arg.as_ptr().wrapping_add(1);
-    let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+    let bytes = arg.to_bytes();
+    if bytes.is_empty() {
+        return None;
+    }
+    let mut off = 1usize;
+    let p_bytes = &bytes[off..];
     if p_bytes.starts_with(b"g:") {
         *opt_flags = OPT_GLOBAL;
-        p = p.wrapping_add(2);
+        off += 2;
     } else if p_bytes.starts_with(b"l:") {
         *opt_flags = OPT_LOCAL;
-        p = p.wrapping_add(2);
+        off += 2;
     } else {
         *opt_flags = 0;
     }
 
-    if let Some(end_off) =
-        find_option_end(crate::strings::ByteSlice::from_ptr(p).as_bytes(), opt_idxp)
-    {
-        *arg = crate::strings::ByteSlice::from_ptr(p).as_cstr();
-        Some(crate::strings::ByteSlice::from_ptr(p.wrapping_add(end_off)).as_cstr())
+    if let Some(end_off) = find_option_end(&bytes[off..], opt_idxp) {
+        let p_cstr = &arg[off..];
+        *arg = p_cstr;
+        Some(&p_cstr[end_off..])
     } else {
         None
     }

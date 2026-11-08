@@ -1425,9 +1425,12 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
 pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
     let v_string = match str_ {
         None => None,
-        Some(s) if len >= 0 => Some(crate::memory::bytes_to_cstring(
-            crate::strings::AsByteSlice::slice_len(s.as_ptr(), len as usize),
-        )),
+        Some(s) if len >= 0 => {
+            let bytes = s.to_bytes();
+            Some(crate::memory::bytes_to_cstring(
+                &bytes[..(len as usize).min(bytes.len())],
+            ))
+        }
         Some(s) => Some(s.to_owned()),
     };
     tv_list_append_owned_tv(
@@ -1544,7 +1547,6 @@ pub fn tv_list_assign_range(
     op_opt: Option<&CStr>,
     varname: &CStr,
 ) -> bool {
-    let op = crate::strings::ByteSlice::from_opt_cstr(op_opt);
     let mut idx1 = idx1_arg;
     let first_li = crate::globals::GraphPtr::from(tv_list_find_index(Some(&mut *dest), &mut idx1));
     let mut src_li: crate::globals::GraphPtr<Listitem>;
@@ -1569,11 +1571,13 @@ pub fn tv_list_assign_range(
     src_li = crate::globals::GraphPtr::from(tv_list_first_inline(src));
     while !src_li.is_null() {
         debug_assert!(!dest_li.is_null());
-        if !op.is_null() && op.first_byte() != b'=' {
+        if let Some(op) = op_opt
+            && op.to_bytes().first() != Some(&b'=')
+        {
             eexe_mod_op(
                 &mut (dest_li.borrow_mut().li_tv),
                 &(src_li.borrow().li_tv),
-                op.as_cstr(),
+                op,
             );
         } else {
             tv_clear(&mut (dest_li.borrow_mut().li_tv));
@@ -2155,11 +2159,9 @@ fn item_compare2(
 
     let partial = info.item_compare_partial;
     let func_name = if partial.is_null() {
-        info.item_compare_func
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr())
+        info.item_compare_func.as_deref().unwrap_or(c"")
     } else {
-        partial_name(partial.opt()).as_ptr()
+        partial_name(partial.opt())
     };
 
     let mut argv: [TypVal; 3] = [const { tv_initial_value() }; 3];
@@ -2171,14 +2173,7 @@ fn item_compare2(
     funcexe.fe_evaluate = true;
     funcexe.fe_partial = partial;
     funcexe.fe_selfdict = info.item_compare_selfdict;
-    let ok = call_func(
-        crate::strings::ByteSlice::from_ptr(func_name).as_cstr(),
-        -1,
-        &mut rettv,
-        2,
-        &mut argv,
-        &mut funcexe,
-    );
+    let ok = call_func(func_name, -1, &mut rettv, 2, &mut argv, &mut funcexe);
     tv_clear(&mut argv[0]);
     tv_clear(&mut argv[1]);
 
@@ -2390,14 +2385,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
 
 fn do_sort_uniq(argvars: &mut [TypVal], rettv: &mut TypVal, sort: bool) {
     if argvars[0].v_type != VarType::VarList {
-        semsg!(
-            tr(E_LISTARG),
-            crate::strings::ByteSlice::from_ptr(if sort {
-                c"sort()".as_ptr()
-            } else {
-                c"uniq()".as_ptr()
-            }),
-        );
+        semsg!(tr(E_LISTARG), if sort { c"sort()" } else { c"uniq()" });
         return;
     }
 
@@ -2959,11 +2947,9 @@ pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'stat
     let hi = if len < 0 {
         d.dv_hashtab.find_hi_mut(key)
     } else {
+        let bytes = key.to_bytes();
         d.dv_hashtab
-            .find_hi_len_mut(crate::strings::AsByteSlice::slice_len(
-                key.as_ptr(),
-                len as usize,
-            ))
+            .find_hi_len_mut(&bytes[..(len as usize).min(bytes.len())])
     };
     hi.and_then(|hi| hi.hi_di.opt_mut())
 }
@@ -4298,51 +4284,37 @@ pub fn tv_check_lock(tv: &TypVal, name: Option<&CStr>, name_len: usize) -> bool 
 
 /// Return true if variable "name" has a locked (immutable) value.
 pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_len: usize) -> bool {
-    let mut name = crate::strings::ByteSlice::from_opt_cstr(name_opt);
+    let name_opt = name_opt.filter(|s| !s.is_empty());
     match lock {
         VAR_UNLOCKED => return false,
         VAR_LOCKED => {
-            let error_message = if name.is_null() {
-                E_VALUE_IS_LOCKED
-            } else {
-                E_VALUE_IS_LOCKED_STR
-            };
-            if name.is_null() {
-                emsg(tr(error_message));
-            } else {
-                let tr_name;
+            if let Some(mut name) = name_opt {
                 if name_len == TV_TRANSLATE {
-                    tr_name = tr(name.as_cstr());
-                    name = crate::strings::ByteSlice::from_cstr(tr_name);
-                    name_len = tr_name.to_bytes().len();
+                    name = tr(name);
+                    name_len = name.to_bytes().len();
                 } else if name_len == TV_CSTRING {
-                    name_len = name.len();
+                    name_len = name.to_bytes().len();
                 }
-                semsg!(tr(error_message), name_len as i32, name);
+                semsg!(tr(E_VALUE_IS_LOCKED_STR), name_len as i32, name);
+            } else {
+                emsg(tr(E_VALUE_IS_LOCKED));
             }
         }
         VAR_FIXED => {
-            let error_message = if name.is_null() {
-                E_CANNOT_CHANGE_VALUE
-            } else {
-                E_CANNOT_CHANGE_VALUE_OF_STR
-            };
-            if name.is_null() {
-                emsg(tr(error_message));
-            } else {
-                let tr_name;
+            if let Some(mut name) = name_opt {
                 if name_len == TV_TRANSLATE {
-                    tr_name = tr(name.as_cstr());
-                    name = crate::strings::ByteSlice::from_cstr(tr_name);
-                    name_len = tr_name.to_bytes().len();
+                    name = tr(name);
+                    name_len = name.to_bytes().len();
                 } else if name_len == TV_CSTRING {
-                    name_len = name.len();
+                    name_len = name.to_bytes().len();
                 }
-                semsg!(tr(error_message), name_len as i32, name);
+                semsg!(tr(E_CANNOT_CHANGE_VALUE_OF_STR), name_len as i32, name);
+            } else {
+                emsg(tr(E_CANNOT_CHANGE_VALUE));
             }
         }
         _ => {
-            let _ = (&mut name, &mut name_len);
+            let _ = &mut name_len;
         }
     }
     true
@@ -4903,10 +4875,7 @@ pub fn check_repeat_count(slen: Varnumber, n: Varnumber) -> bool {
 
     let mut buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     format_to_buf!(&mut buf, c"%lld", n);
-    semsg!(
-        tr(E_VAL_TOO_LARGE),
-        crate::strings::ByteSlice::from_ptr(buf.as_ptr().cast::<()>())
-    );
+    semsg!(tr(E_VAL_TOO_LARGE), crate::memory::bytes_as_cstr(&buf));
     false
 }
 

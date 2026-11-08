@@ -1171,11 +1171,10 @@ pub fn check_internal_func(fdef: &EvalFuncDef, argcount: i32) -> i32 {
         return i32::from(fdef.base_arg);
     };
 
-    let name = crate::strings::ByteSlice::from_opt_cstr(fdef.name);
     if res == FCERR_TOOMANY {
-        semsg!(gettext(E_TOOMANYARG), name);
+        semsg!(gettext(E_TOOMANYARG), fdef.name);
     } else {
-        semsg!(gettext(E_TOOFEWARG), name);
+        semsg!(gettext(E_TOOFEWARG), fdef.name);
     }
     -1
 }
@@ -1689,20 +1688,16 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
 
             if virtual_active(wp.borrow_mut()) && ptr::eq(fp_ref, &raw const wp.borrow().w_cursor) {
                 let wp_ref = wp.borrow_mut();
-                let p = ml_get_buf(&mut *bp, wp_ref.w_cursor.lnum)
-                    .as_ptr()
-                    .cast_mut()
-                    .wrapping_add(wp_ref.w_cursor.col as usize);
+                let line_cstr = ml_get_buf(&mut *bp, wp_ref.w_cursor.lnum);
+                let line_bytes = line_cstr.to_bytes();
+                let col_idx = (wp_ref.w_cursor.col as usize).min(line_bytes.len());
+                let p_bytes = &line_bytes[col_idx..];
                 if wp_ref.w_cursor.coladd
-                    >= win_chartabsize(
-                        wp_ref,
-                        crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                        wp_ref.w_virtcol - wp_ref.w_cursor.coladd,
-                    )
-                    && !crate::strings::AsByteSlice::is_empty_val(p)
+                    >= win_chartabsize(wp_ref, p_bytes, wp_ref.w_virtcol - wp_ref.w_cursor.coladd)
+                    && !p_bytes.is_empty()
                 {
-                    let l = utfc_ptr2len(p);
-                    if *crate::globals::GraphPtr::of(p.wrapping_add(l as usize)).borrow() == 0 {
+                    let l = crate::mbyte::utfc_slice2len(p_bytes) as i32;
+                    if (l as usize) >= p_bytes.len() {
                         col += l;
                     }
                 }
@@ -1737,7 +1732,7 @@ pub fn f_col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let mut buttons = crate::strings::BYTE_SLICE_NULL;
+    let mut buttons: Option<&CStr> = None;
     let mut def: i32 = 1;
     let mut type_ = VIM_GENERIC;
     let mut error = false;
@@ -1748,9 +1743,9 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
     if argvars[1].v_type != VarType::VarUnknown {
         if let Some(b) = tv_get_string_buf_chk(&argvars[1], &mut buf) {
-            buttons = crate::strings::ByteSlice::from_cstr(b);
+            buttons = Some(b);
         } else {
-            buttons = crate::strings::BYTE_SLICE_NULL;
+            buttons = None;
             error = true;
         }
         if argvars[2].v_type != VarType::VarUnknown {
@@ -1774,19 +1769,13 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
     }
 
-    if buttons.is_empty() {
-        buttons = crate::strings::ByteSlice::from_cstr(gettext(c"&Ok"));
-    }
+    let buttons = buttons
+        .filter(|b| !b.is_empty())
+        .unwrap_or_else(|| gettext(c"&Ok"));
 
     if !error && let Some(message) = message {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(do_dialog(
-            type_,
-            None,
-            message,
-            buttons.as_cstr(),
-            def,
-            None,
-            0,
+            type_, None, message, buttons, def, None, 0,
         )));
     }
 }
@@ -2061,33 +2050,21 @@ pub fn f_getenv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// "eval()" function
 pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut s = tv_get_string_chk(&argvars[0]).map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
-    if !s.is_null() {
-        s = crate::charset::skipwhite_ptr(s);
-    }
-    let expr_start = s;
-    let mut s_cstr = if s.is_null() {
-        c""
-    } else {
-        crate::strings::ByteSlice::from_ptr(s).as_cstr()
-    };
-    let ok = !s.is_null() && eval1(&mut s_cstr, &mut *rettv, Some(&mut g_st().evalarg_evaluate));
-    s = s_cstr.as_ptr().cast_mut();
+    let s_opt = tv_get_string_chk(&argvars[0]).map(crate::charset::skipwhite);
+    let expr_start = s_opt;
+    let mut s_cstr = s_opt.unwrap_or(c"");
+    let ok = s_opt.is_some() && eval1(&mut s_cstr, &mut *rettv, Some(&mut g_st().evalarg_evaluate));
     if !ok {
-        if !expr_start.is_null() && !aborting() {
-            semsg!(
-                gettext(E_INVEXPR2),
-                crate::strings::ByteSlice::from_ptr(expr_start)
-            );
+        if let Some(expr_start) = expr_start
+            && !aborting()
+        {
+            semsg!(gettext(E_INVEXPR2), expr_start);
         }
         g_st().need_clr_eos = false;
         rettv.v_type = VarType::VarNumber;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else if !s_cstr.is_empty() {
-        semsg!(
-            gettext(E_TRAILING_ARG),
-            crate::strings::ByteSlice::from_ptr(s)
-        );
+        semsg!(gettext(E_TRAILING_ARG), s_cstr);
     }
 }
 
@@ -2186,47 +2163,44 @@ pub fn f_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// "exists()" function
 pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut n: i32 = 0;
-    let p_cstr = tv_get_string(&argvars[0]);
+    let mut p_cstr = tv_get_string(&argvars[0]);
     let p_bytes = p_cstr.to_bytes();
-    let mut p = crate::strings::ByteSlice::from_cstr(p_cstr);
     match p_bytes.first() {
         Some(&b'$') => {
-            if os_env_exists(p.wrapping_add(1).as_cstr(), false) {
+            if os_env_exists(&p_cstr[1..], false) {
                 n = 1;
             } else {
-                let exp = expand_env_save(p.as_cstr());
+                let exp = expand_env_save(p_cstr);
                 if exp.to_bytes().first() != Some(&b'$') {
                     n = 1;
                 }
             }
         }
         Some(&b'&' | &b'+') => {
-            let mut p_cstr = p.as_cstr();
             n = i32::from(eval_option(&mut p_cstr, None, true));
-            p = crate::strings::ByteSlice::from_cstr(p_cstr);
-            if !crate::charset::skipwhite_slice(p.as_bytes()).is_empty() {
+            if !crate::charset::skipwhite_slice(p_cstr.to_bytes()).is_empty() {
                 n = 0;
             }
         }
         Some(&b'*') => {
             n = i32::from(if p_bytes.starts_with(b"*v:lua.") {
-                nlua_func_exists(p.wrapping_add(7).as_cstr())
+                nlua_func_exists(&p_cstr[7..])
             } else {
-                function_exists(p.wrapping_add(1).as_cstr(), false)
+                function_exists(&p_cstr[1..], false)
             });
         }
         Some(&b':') => {
-            n = cmd_exists(p.wrapping_add(1).as_cstr());
+            n = cmd_exists(&p_cstr[1..]);
         }
         Some(&b'#') => {
             if p_bytes.get(1) == Some(&b'#') {
-                n = i32::from(autocmd_supported((p.wrapping_add(2)).as_cstr()));
+                n = i32::from(autocmd_supported(&p_cstr[2..]));
             } else {
-                n = i32::from(au_exists(p.wrapping_add(1).as_cstr()));
+                n = i32::from(au_exists(&p_cstr[1..]));
             }
         }
         _ => {
-            n = i32::from(var_exists(p.as_cstr()));
+            n = i32::from(var_exists(p_cstr));
         }
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(n));
@@ -2247,15 +2221,13 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 
     let s_cstr = tv_get_string(&argvars[0]);
-    let s = s_cstr.as_ptr();
     if matches!(s_cstr.to_bytes().first(), Some(b'%' | b'#' | b'<')) {
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off += 1;
         }
         let mut len: usize = 0;
         let mut errormsg = None;
-        let mut s_buf = crate::strings::ByteSlice::from_ptr(s).as_bytes().to_vec();
-        s_buf.push(0);
+        let mut s_buf = s_cstr.to_bytes_with_nul().to_vec();
         let result = eval_vars(&mut s_buf, 0, &mut len, None, &mut errormsg, None, false);
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off -= 1;
@@ -2285,25 +2257,13 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 options += WILD_ICASE;
             }
             if rettv.v_type == VarType::VarString {
-                if let Some(exp) = expand_one(
-                    &mut xpc,
-                    crate::strings::ByteSlice::from_ptr(s).as_opt_cstr(),
-                    None,
-                    options,
-                    WILD_ALL,
-                ) {
+                if let Some(exp) = expand_one(&mut xpc, Some(s_cstr), None, options, WILD_ALL) {
                     crate::eval::typval::tv_set_string(rettv, Some(exp.as_c_str()));
                 } else {
                     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
                 }
             } else {
-                expand_one(
-                    &mut xpc,
-                    crate::strings::ByteSlice::from_ptr(s).as_opt_cstr(),
-                    None,
-                    options,
-                    WILD_ALL_KEEP,
-                );
+                expand_one(&mut xpc, Some(s_cstr), None, options, WILD_ALL_KEEP);
                 tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                 for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                     tv_list_append_string(
@@ -2457,16 +2417,7 @@ pub fn f_feedkeys(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
     if argvars[1].v_type != VarType::VarUnknown {
         flags = Some(tv_get_string_buf(&argvars[1], &mut nbuf));
     }
-    nvim_feedkeys(
-        cstr_as_string(Some(keys)),
-        cstr_as_string(
-            crate::strings::ByteSlice::from_ptr(
-                (flags).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            )
-            .as_opt_cstr(),
-        ),
-        true,
-    );
+    nvim_feedkeys(cstr_as_string(Some(keys)), cstr_as_string(flags), true);
 }
 
 /// "float2nr({float})" function
@@ -2511,7 +2462,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
     let mut arg_pt = crate::globals::GraphPtr::<TvPartial>::NULL;
     let mut trans_name_owned: Option<std::ffi::CString> = None;
 
-    let s_owned: Option<std::ffi::CString> = if argvars[0].v_type == VarType::VarFunc {
+    let mut s_owned: Option<std::ffi::CString> = if argvars[0].v_type == VarType::VarFunc {
         argvars[0].vval.v_string_cstr().map(CStr::to_owned)
     } else if argvars[0].v_type == VarType::VarPartial && !argvars[0].vval.v_partial().is_null() {
         arg_pt = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
@@ -2520,18 +2471,11 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         use_string = true;
         Some(tv_get_string(&argvars[0]).to_owned())
     };
-    let mut s = s_owned
-        .as_ref()
-        .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());
 
-    if (use_string
-        && !crate::strings::vim_haschr(
-            crate::strings::ByteSlice::from_ptr(s).as_cstr(),
-            AUTOLOAD_CHAR,
-        ))
+    if (use_string && !crate::strings::vim_haschr(s_owned.as_deref().unwrap_or(c""), AUTOLOAD_CHAR))
         || is_funcref
     {
-        let mut name_cstr = crate::strings::ByteSlice::from_ptr(s).as_cstr();
+        let mut name_cstr = s_owned.as_deref().unwrap_or(c"");
         trans_name_owned = save_function_name(
             &mut name_cstr,
             false,
@@ -2539,51 +2483,45 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             None,
         );
         if !name_cstr.is_empty() {
-            s = ptr::null_mut();
+            s_owned = None;
         }
     }
-    let trans_name = trans_name_owned
-        .as_ref()
-        .map_or(ptr::null_mut(), |tn| tn.as_ptr().cast_mut());
+    let s_cstr = s_owned.as_deref();
+    let trans_name = trans_name_owned.as_deref();
     'theend: {
-        if crate::strings::AsByteSlice::is_empty_val(s)
-            || (use_string && ascii_isdigit(crate::strings::AsByteSlice::first_byte_val(s)))
-            || (is_funcref && trans_name.is_null())
+        if s_cstr.is_none_or(CStr::is_empty)
+            || (use_string
+                && s_cstr
+                    .and_then(|s| s.to_bytes().first().copied())
+                    .is_some_and(ascii_isdigit))
+            || (is_funcref && trans_name.is_none())
         {
             semsg!(
                 gettext(E_INVARG2),
-                crate::strings::ByteSlice::from_ptr(if use_string {
-                    tv_get_string(&argvars[0]).as_ptr()
+                if use_string {
+                    Some(tv_get_string(&argvars[0]))
                 } else {
-                    s.cast_const()
-                }),
+                    s_cstr
+                },
             );
-        } else if !trans_name.is_null()
+        } else if let Some(tn) = trans_name
             && if is_funcref {
-                find_func(Some(
-                    crate::strings::ByteSlice::from_ptr(trans_name).as_cstr(),
-                ))
-                .is_none()
+                find_func(Some(tn)).is_none()
             } else {
-                !translated_function_exists(
-                    crate::strings::ByteSlice::from_ptr(trans_name).as_cstr(),
-                )
+                !translated_function_exists(tn)
             }
         {
-            semsg!(
-                gettext(c"E700: Unknown function: %s"),
-                crate::strings::ByteSlice::from_ptr(s)
-            );
+            semsg!(gettext(c"E700: Unknown function: %s"), s_cstr);
         } else {
+            let s_ref = s_cstr.unwrap_or(c"");
             let mut dict_idx: usize = 0;
             let mut arg_idx: usize = 0;
             let mut list = crate::globals::GraphPtr::<TvList>::NULL;
-            let s_bytes = crate::strings::ByteSlice::from_ptr(s).as_bytes();
+            let s_bytes = s_ref.to_bytes();
             let name_cstr = if s_bytes.starts_with(b"s:") || s_bytes.starts_with(b"<SID>") {
-                get_scriptlocal_funcname(Some(crate::strings::ByteSlice::from_ptr(s).as_cstr()))
-                    .unwrap_or_default()
+                get_scriptlocal_funcname(Some(s_ref)).unwrap_or_default()
             } else {
-                crate::strings::ByteSlice::from_ptr(s).to_cstring()
+                s_ref.to_owned()
             };
 
             if argvars[1].v_type != VarType::VarUnknown {
@@ -2614,10 +2552,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                     if tv_list_len(list.opt()) == 0 {
                         arg_idx = 0;
                     } else if (tv_list_len(list.opt()) as usize) > MAX_FUNC_ARGS {
-                        emsg_funcname(
-                            E_TOOMANYARG,
-                            crate::strings::ByteSlice::from_ptr(s).as_cstr(),
-                        );
+                        emsg_funcname(E_TOOMANYARG, s_ref);
                         break 'theend;
                     }
                 }
@@ -2667,9 +2602,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
 
                     func_ptr_ref(pt.pt_func.opt_mut());
                 } else if is_funcref {
-                    pt.pt_func = crate::globals::GraphPtr::from(find_func(
-                        crate::strings::ByteSlice::from_ptr(trans_name).as_opt_cstr(),
-                    ));
+                    pt.pt_func = crate::globals::GraphPtr::from(find_func(trans_name));
 
                     func_ptr_ref(pt.pt_func.opt_mut());
                 } else {
@@ -3140,8 +3073,7 @@ fn getregionpos(
     }
 
     let is_select_exclusive: bool;
-    let type_str;
-    let mut default_type = [b'v', 0];
+    let type_cstr: &CStr;
     if argvars[2].v_type == VarType::VarDict {
         let d = argvars[2].vval.v_dict().opt();
 
@@ -3151,42 +3083,30 @@ fn getregionpos(
             i32::from(opt_vars().p_sel.first_byte() == b'e'),
         ) != 0;
 
-        type_str = if let Some(s) = tv_dict_get_string(d, c"type") {
-            s.as_ptr().cast_mut()
-        } else {
-            default_type.as_mut_ptr().cast()
-        };
+        type_cstr = tv_dict_get_string(d, c"type").unwrap_or(c"v");
     } else {
         is_select_exclusive = opt_vars().p_sel.first_byte() == b'e';
-        type_str = default_type.as_mut_ptr().cast();
+        type_cstr = c"v";
     }
 
     let mut block_width: i32 = 0;
-    let type_bytes = crate::strings::ByteSlice::from_ptr(type_str).as_bytes();
+    let type_bytes = type_cstr.to_bytes();
     if type_bytes == b"v" {
         *region_type = MT_CHAR_WISE;
     } else if type_bytes == b"V" {
         *region_type = MT_LINE_WISE;
-    } else if *crate::globals::GraphPtr::of(type_str).borrow() == CTRL_V_CONST {
-        let mut rem = crate::strings::ByteSlice::from_ptr(type_str.wrapping_add(1)).as_bytes();
+    } else if type_bytes.first() == Some(&(CTRL_V_CONST as u8)) {
+        let mut rem = &type_bytes[1..];
         if !rem.is_empty() {
             block_width = getdigits_int(&mut rem, false, 0);
             if block_width <= 0 || !rem.is_empty() {
-                semsg!(
-                    gettext(E_INVARG_NVAL),
-                    c"type",
-                    crate::strings::ByteSlice::from_ptr(type_str)
-                );
+                semsg!(gettext(E_INVARG_NVAL), c"type", type_cstr);
                 return false;
             }
         }
         *region_type = MT_BLOCK_WISE;
     } else {
-        semsg!(
-            gettext(E_INVARG_NVAL),
-            c"type",
-            crate::strings::ByteSlice::from_ptr(type_str)
-        );
+        semsg!(gettext(E_INVARG_NVAL), c"type", type_cstr);
         return false;
     }
 
@@ -4221,7 +4141,6 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if let Some(end_cstr) = end
         && let Some(ll_name) = lv.ll_name_cstr()
     {
-        let end = end_cstr.as_ptr();
         if !end_cstr.to_bytes().is_empty() {
             semsg!(
                 gettext(if lv.ll_name_len == 0 {
@@ -4229,7 +4148,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 } else {
                     E_TRAILING_ARG
                 }),
-                crate::strings::ByteSlice::from_ptr(end),
+                end_cstr,
             );
         } else if lv.ll_tv.is_null() {
             if let Some(di) = crate::eval::vars::find_var_opt(ll_name, lv.ll_name_len, None, 1) {
@@ -4341,7 +4260,6 @@ pub fn create_environment(
     set_nvim_addr: bool,
     pty_term_name: Option<&CStr>,
 ) -> &'static mut TvDict {
-    let pty_term_name = crate::strings::ByteSlice::from_opt_cstr(pty_term_name);
     let env = tv_dict_alloc();
 
     if !clear_env {
@@ -4350,23 +4268,30 @@ pub fn create_environment(
         if unsafe { uv_os_environ(&raw mut envitems, &mut envcount) } == 0 {
             for i in 0..(envcount as usize) {
                 let item = crate::globals::GraphPtr::of(envitems.wrapping_add(i)).borrow();
+                let item_name = if item.name.is_null() {
+                    c""
+                } else {
+                    unsafe { CStr::from_ptr(item.name.cast()) }
+                };
                 #[cfg(windows)]
-                let mut name = crate::strings::ByteSlice::from_ptr(item.name);
-                #[cfg(not(windows))]
-                let name = crate::strings::ByteSlice::from_ptr(item.name);
-                #[cfg(windows)]
-                {
-                    let name_b = name.as_bytes();
+                let name_owned: Option<std::ffi::CString> = {
+                    let name_b = item_name.to_bytes();
                     if name_b.len() < MAXPATHL / MB_MAXBYTES {
                         mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
-                        name = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
+                        Some(crate::memory::cstring_until_nul(
+                            g_st().name_buff_bytes_mut(),
+                        ))
+                    } else {
+                        None
                     }
-                }
-                tv_dict_add_str(
-                    &mut *env,
-                    name.as_cstr(),
-                    crate::strings::ByteSlice::from_ptr(item.value).as_opt_cstr(),
-                );
+                };
+                #[cfg(windows)]
+                let name_cstr = name_owned.as_deref().unwrap_or(item_name);
+                #[cfg(not(windows))]
+                let name_cstr = item_name;
+                let item_val =
+                    (!item.value.is_null()).then(|| unsafe { CStr::from_ptr(item.value.cast()) });
+                tv_dict_add_str(&mut *env, name_cstr, item_val);
             }
             unsafe { uv_os_free_environ(envitems, envcount) };
         }
@@ -4387,7 +4312,7 @@ pub fn create_environment(
         if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&*env), c"TERM", 4) {
             tv_dict_item_remove(&mut *env, dv);
         }
-        tv_dict_add_str(&mut *env, c"TERM", pty_term_name.as_opt_cstr());
+        tv_dict_add_str(&mut *env, c"TERM", pty_term_name);
     }
 
     if set_nvim_addr {
@@ -4406,13 +4331,17 @@ pub fn create_environment(
             if let Some(d) = job_env.di_tv.vval.v_dict_opt() {
                 for (_, var) in d.dv_hashtab.iter_items() {
                     let key_b = var.key_bytes();
-                    let mut name = crate::strings::ByteSlice::from_bytes(&var.di_key);
                     let mut namelen = key_b.len();
-                    if namelen < MAXPATHL / MB_MAXBYTES {
+                    let name_owned: Option<std::ffi::CString> = if namelen < MAXPATHL / MB_MAXBYTES
+                    {
                         namelen = mb_strup_buf(key_b, g_st().name_buff_bytes_mut());
-                        name = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
-                    }
-                    let name_cstr = name.as_cstr();
+                        Some(crate::memory::cstring_until_nul(
+                            g_st().name_buff_bytes_mut(),
+                        ))
+                    } else {
+                        None
+                    };
+                    let name_cstr = name_owned.as_deref().unwrap_or_else(|| var.key_cstr());
                     if let Some(dv) = crate::eval::typval::tv_dict_find_opt(
                         Some(&*env),
                         name_cstr,
@@ -4534,7 +4463,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             && !new_cwd.to_bytes().is_empty()
         {
             cwd = new_cwd.as_ptr();
-            if !os_isdir(crate::strings::ByteSlice::from_ptr(cwd).as_cstr()) {
+            if !os_isdir(new_cwd) {
                 semsg!(gettext(E_INVARG2), c"expected valid directory",);
                 return;
             }
@@ -4559,7 +4488,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let mut width = tv_dict_get_number(job_opts.opt(), c"width") as u16;
     let mut height = tv_dict_get_number(job_opts.opt(), c"height") as u16;
-    let mut term_name = ptr::null();
+    let mut term_name: Option<&CStr> = None;
 
     if term {
         if text_locked() {
@@ -4583,7 +4512,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             buf_close_terminal(curbuf_mut());
         }
         debug_assert!(!rpc);
-        term_name = c"xterm-256color".as_ptr();
+        term_name = Some(c"xterm-256color");
         if cwd.is_null() {
             cwd = c".".as_ptr();
         }
@@ -4599,23 +4528,18 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
 
     if pty {
-        if term_name.is_null()
+        if term_name.is_none()
             && let Some(tn) = tv_dict_get_string(job_opts.opt(), c"TERM")
         {
-            term_name = tn.as_ptr();
+            term_name = Some(tn);
         }
-        if term_name.is_null() {
-            term_name = c"ansi".as_ptr();
+        if term_name.is_none() {
+            term_name = Some(c"ansi");
         }
     }
 
-    let env = create_environment(
-        job_env.opt(),
-        clear_env,
-        pty,
-        true,
-        crate::strings::ByteSlice::from_ptr(term_name).as_opt_cstr(),
-    );
+    let cwd_opt = (!cwd.is_null()).then(|| unsafe { CStr::from_ptr(cwd) });
+    let env = create_environment(job_env.opt(), clear_env, pty, true, term_name);
     let chan = channel_job_start(
         argv,
         None,
@@ -4627,7 +4551,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         overlapped,
         detach,
         stdin_mode,
-        crate::strings::ByteSlice::from_ptr(cwd).as_opt_cstr(),
+        cwd_opt,
         width,
         height,
         Some(env),
@@ -4668,36 +4592,33 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            let namebuff = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
-            let iobuff = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
-            vim_full_name(
-                crate::strings::ByteSlice::from_ptr(cwd).as_opt_cstr(),
-                g_st().name_buff_bytes_mut(),
-                false,
-            );
+            vim_full_name(cwd_opt, g_st().name_buff_bytes_mut(), false);
+            let namebuff_cstr = crate::memory::cstring_until_nul(g_st().name_buff_bytes_mut());
             let len = home_replace(
                 None,
-                namebuff.as_opt_cstr(),
+                Some(namebuff_cstr.as_c_str()),
                 g_st().iobuff_bytes_mut(),
                 true,
             );
             if len > 1 && matches!(g_st().iobuff[len - 1], b'\\' | b'/') {
                 g_st().iobuff[len - 1] = 0;
             }
-            if len == 1 && iobuff.first_byte() == b'/' {
+            if len == 1 && g_st().iobuff[0] == b'/' {
                 g_st().iobuff[1] = b'.';
                 g_st().iobuff[2] = 0;
             }
 
+            let iobuff_cstr = g_st().iobuff_cstr().to_owned();
             format_to_buf!(
                 &mut g_st().name_buff,
                 c"term://%s//%d:%s",
-                iobuff,
+                &iobuff_cstr,
                 pid,
                 &cmd,
             );
 
-            setfname(&mut *buf, namebuff.as_opt_cstr(), None, true);
+            let fname_cstr = crate::memory::cstring_until_nul(g_st().name_buff_bytes_mut());
+            setfname(&mut *buf, Some(fname_cstr.as_c_str()), None, true);
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
 
             if ct.term.is_null() || terminal_buf(ct.term.borrow()) == 0 {
@@ -5164,7 +5085,6 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         let Some(pat_cstr) = tv_get_string_buf_chk(&argvars[1], &mut patbuf) else {
             break 'theend;
         };
-        let pat = crate::strings::ByteSlice::from_cstr(pat_cstr);
 
         if argvars[2].v_type != VarType::VarUnknown {
             let mut error = false;
@@ -5203,7 +5123,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
         }
 
-        regmatch.set_prog(vim_regcomp(pat.as_cstr(), RE_MAGIC + RE_STRING));
+        regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC + RE_STRING));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic;
 
@@ -5227,7 +5147,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                 match_found = vim_regexec_nl(
                     &mut regmatch,
-                    crate::strings::ByteSlice::from_ptr(str_).as_opt_cstr(),
+                    (!str_.is_null()).then(|| unsafe { CStr::from_ptr(str_) }),
                     startcol,
                 );
 
@@ -5246,7 +5166,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                     idx += 1;
                 } else {
-                    let str_cstr = crate::strings::ByteSlice::from_ptr(str_).as_cstr();
+                    let str_cstr = unsafe { CStr::from_ptr(str_) };
                     let match_start = regmatch.start_offset(0, str_cstr);
                     let adv = utfc_ptr2len(regmatch.startp[0]) as usize;
                     startcol = (match_start + adv) as Colnr;
@@ -5258,8 +5178,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
 
             if match_found {
-                let expr_cstr = crate::strings::ByteSlice::from_ptr(expr).as_cstr();
-                let str_cstr = crate::strings::ByteSlice::from_ptr(str_).as_cstr();
+                let expr_cstr = unsafe { CStr::from_ptr(expr) };
+                let str_cstr = unsafe { CStr::from_ptr(str_) };
                 match type_ {
                     SomeMatchType::SomeMatchStrPos => {
                         let ret_l = rettv.vval.v_list();
@@ -5325,9 +5245,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                                 );
                             }
                             *rettv.vval.v_number_mut() +=
-                                ((crate::strings::AsByteSlice::byte_addr(str_) as isize)
-                                    - (crate::strings::AsByteSlice::byte_addr(expr) as isize))
-                                    as Varnumber;
+                                ((str_ as isize) - (expr as isize)) as Varnumber;
                         }
                     }
                 }
@@ -5480,10 +5398,10 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         regmatch.rm_ic = opt_vars().p_ic;
 
         while slnum <= elnum {
-            let str_ = ml_get_buf(buf.borrow_mut(), slnum).as_ptr().cast_mut();
+            let str_cstr = ml_get_buf(buf.borrow_mut(), slnum);
 
             get_matches_in_str(
-                crate::strings::ByteSlice::from_ptr(str_).as_cstr(),
+                str_cstr,
                 &mut regmatch,
                 retlist.borrow_mut(),
                 slnum,
@@ -5627,11 +5545,7 @@ fn max_min(tv: &TypVal, rettv: &mut TypVal, domax: bool) {
     } else {
         semsg!(
             gettext(E_LISTDICTARG),
-            crate::strings::ByteSlice::from_ptr(if domax {
-                c"max()".as_ptr()
-            } else {
-                c"min()".as_ptr()
-            }),
+            if domax { c"max()" } else { c"min()" }
         );
         return;
     }
@@ -6406,46 +6320,43 @@ fn reduce_list(argvars: &mut [TypVal], rettv: &mut TypVal) {
 fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let expr = &argvars[1];
     {
-        let mut p = tv_get_string(&argvars[0]).as_ptr();
-        let mut len: i32;
+        let mut p_bytes = tv_get_string(&argvars[0]).to_bytes();
         let called_emsg_start = g_st().called_emsg;
 
         if argvars[2].v_type == VarType::VarUnknown {
-            if crate::strings::AsByteSlice::is_empty_val(p) {
+            if p_bytes.is_empty() {
                 semsg!(
                     gettext(E_REDUCE_OF_AN_EMPTY_STR_WITH_NO_INITIAL_VALUE),
                     c"String",
                 );
                 return;
             }
-            len = utfc_ptr2len(p);
+            let len = crate::mbyte::utfc_slice2len(p_bytes)
+                .max(1)
+                .min(p_bytes.len());
             *rettv = TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
-            crate::eval::typval::tv_set_string_len(
-                &mut *rettv,
-                Some(crate::strings::AsByteSlice::slice_len(p, len as usize)),
-            );
-            p = p.wrapping_add(len as usize);
+            crate::eval::typval::tv_set_string_len(&mut *rettv, Some(&p_bytes[..len]));
+            p_bytes = &p_bytes[len..];
         } else if !tv_check_for_string_arg(argvars, 2) {
             return;
         } else {
             tv_copy(&argvars[2], &mut *rettv);
         }
 
-        while !crate::strings::AsByteSlice::is_empty_val(p) {
+        while !p_bytes.is_empty() {
             let mut argv = [
                 std::mem::replace(&mut *rettv, tv_initial_value()),
                 tv_initial_value(),
                 tv_initial_value(),
             ];
-            len = utfc_ptr2len(p);
-            crate::eval::typval::tv_set_string_len(
-                &mut argv[1],
-                Some(crate::strings::AsByteSlice::slice_len(p, len as usize)),
-            );
+            let len = crate::mbyte::utfc_slice2len(p_bytes)
+                .max(1)
+                .min(p_bytes.len());
+            crate::eval::typval::tv_set_string_len(&mut argv[1], Some(&p_bytes[..len]));
 
             let r = eval_expr_typval(expr, true, &mut argv, 2, &mut *rettv);
             tv_clear(&mut argv[0]);
@@ -6453,7 +6364,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             if !r || g_st().called_emsg != called_emsg_start {
                 break;
             }
-            p = p.wrapping_add(len as usize);
+            p_bytes = &p_bytes[len..];
         }
     }
 }
@@ -6551,13 +6462,13 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
     let Some(flags_cstr) = tv_get_string_buf_chk(varp, &mut nbuf) else {
         return 0;
     };
-    let mut flags = crate::strings::ByteSlice::from_cstr(flags_cstr);
-    while !flags.is_empty() {
-        match flags.first_byte() {
+    let flags_bytes = flags_cstr.to_bytes();
+    for (i, &b) in flags_bytes.iter().enumerate() {
+        match b {
             b'b' => dir = BACKWARD,
             b'w' => opt_vars().p_ws = true,
             b'W' => opt_vars().p_ws = false,
-            b => {
+            _ => {
                 let mut mask: i32 = 0;
                 if flagsp.is_some() {
                     mask = match b {
@@ -6573,7 +6484,7 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
                     };
                 }
                 if mask == 0 {
-                    semsg!(gettext(E_INVARG2), flags);
+                    semsg!(gettext(E_INVARG2), &flags_cstr[i..]);
                     dir = 0;
                 } else {
                     *flagsp.as_deref_mut().unwrap() |= mask;
@@ -6583,7 +6494,6 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
         if dir == 0 {
             break;
         }
-        flags = flags.wrapping_add(1);
     }
     dir
 }
@@ -6655,7 +6565,6 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
         };
 
         let patlen = pat.to_bytes().len();
-        let pat_ptr = crate::strings::ByteSlice::from_cstr(pat);
         let mut subpatnum: i32;
 
         loop {
@@ -6665,7 +6574,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 pos.as_cursor_mut(),
                 None,
                 dir,
-                pat_ptr.as_cstr(),
+                pat,
                 patlen,
                 1,
                 options,
@@ -6872,15 +6781,12 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
     'theend: {
         let mut nbuf1 = [0u8; NUMBUFLEN];
         let mut nbuf2 = [0u8; NUMBUFLEN];
-        let spat = tv_get_string_chk(&argvars[0]);
+        let spat = tv_get_string_chk(&argvars[0]).map(CStr::to_owned);
         let mpat = tv_get_string_buf_chk(&argvars[1], &mut nbuf1);
         let epat = tv_get_string_buf_chk(&argvars[2], &mut nbuf2);
         let (Some(spat), Some(mpat), Some(epat)) = (spat, mpat, epat) else {
             break 'theend;
         };
-        let spat = crate::strings::ByteSlice::from_cstr(spat);
-        let mpat = crate::strings::ByteSlice::from_cstr(mpat);
-        let epat = crate::strings::ByteSlice::from_cstr(epat);
 
         let dir = get_search_arg(&argvars[3], Some(&mut flags));
         if dir == 0 {
@@ -6903,7 +6809,7 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
             {
                 ptr::null()
             } else {
-                let s = (&raw mut argvars[4]).cast_const();
+                let s = &raw const argvars[4];
                 if argvars[5].v_type != VarType::VarUnknown {
                     lnum_stop = tv_get_number_chk(&argvars[5], None) as Linenr;
                     if lnum_stop < 0 {
@@ -6925,9 +6831,9 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         .cast_const();
 
         retval = do_searchpair(
-            spat.as_cstr(),
-            mpat.as_cstr(),
-            epat.as_cstr(),
+            &spat,
+            mpat,
+            epat,
             dir,
             crate::globals::GraphPtr::of(skip).opt(),
             flags,
@@ -6978,9 +6884,6 @@ pub fn do_searchpair(
     lnum_stop: Linenr,
     time_limit: i64,
 ) -> i32 {
-    let spat = spat_cstr.as_ptr();
-    let mpat = mpat_cstr.as_ptr();
-    let epat = epat_cstr.as_ptr();
     let mut retval: i32 = 0;
     let mut nest: i32 = 1;
     let mut use_skip = false;
@@ -6999,8 +6902,8 @@ pub fn do_searchpair(
     let pat2len = format_to_buf!(
         &mut pat2_vec,
         c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)",
-        crate::strings::ByteSlice::from_ptr(spat),
-        crate::strings::ByteSlice::from_ptr(epat)
+        spat_cstr,
+        epat_cstr
     );
     let pat3len = if mpat_cstr.to_bytes().is_empty() {
         pat3_vec[..(pat2len as usize) + 1].copy_from_slice(&pat2_vec[..(pat2len as usize) + 1]);
@@ -7009,13 +6912,13 @@ pub fn do_searchpair(
         format_to_buf!(
             &mut pat3_vec,
             c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)\\|\\(%s\\m\\)",
-            crate::strings::ByteSlice::from_ptr(spat),
-            crate::strings::ByteSlice::from_ptr(epat),
-            crate::strings::ByteSlice::from_ptr(mpat),
+            spat_cstr,
+            epat_cstr,
+            mpat_cstr,
         )
     };
-    let pat2 = pat2_vec.as_mut_ptr();
-    let pat3 = pat3_vec.as_mut_ptr();
+    let pat2 = crate::memory::bytes_as_cstr(&pat2_vec);
+    let pat3 = crate::memory::bytes_as_cstr(&pat3_vec);
     if (flags & SP_START) != 0 {
         options |= SEARCH_START;
     }
@@ -7059,7 +6962,7 @@ pub fn do_searchpair(
             pos.as_cursor_mut(),
             None,
             dir,
-            crate::strings::ByteSlice::from_ptr(pat).as_cstr(),
+            pat,
             patlen,
             1,
             options,
@@ -7269,10 +7172,9 @@ pub fn f_serverstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
     let mut curswant: Colnr = -1;
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-    let Some(name_cstr) = tv_get_string_chk(&argvars[0]) else {
+    let Some(name_cstr) = tv_get_string_chk(&argvars[0]).map(CStr::to_owned) else {
         return;
     };
-    let name = crate::strings::ByteSlice::from_cstr(name_cstr);
 
     let mut pos = CursorPos {
         lnum: 0,
@@ -7296,7 +7198,7 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
             pos.col = 0;
         }
     }
-    let name_bytes = name.as_bytes();
+    let name_bytes = name_cstr.to_bytes();
     if name_bytes == b"." {
         curwin_mut().w_cursor.lnum = pos.lnum;
         curwin_mut().w_cursor.col = pos.col;
@@ -7618,13 +7520,7 @@ pub fn f_sha256(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         crate::eval::typval::tv_set_string_len(rettv, Some(&hex));
     } else {
         let p = tv_get_string(&argvars[0]);
-        let len = p.to_bytes().len();
-        let slice = if len > 0 {
-            crate::strings::AsByteSlice::slice_len((p).as_ptr(), len)
-        } else {
-            &[]
-        };
-        let hex = sha256_hex(slice, None);
+        let hex = sha256_hex(p.to_bytes(), None);
         crate::eval::typval::tv_set_string_len(rettv, Some(&hex));
     }
 }
@@ -7747,10 +7643,7 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut error = None;
     let id = channel_from_stdio(rpc, on_stdin, &mut error);
     if id == 0 {
-        semsg!(
-            E_STDIOCHAN2,
-            crate::strings::ByteSlice::from_ptr(error.map_or(ptr::null(), |s| s.as_ptr()))
-        );
+        semsg!(E_STDIOCHAN2, error);
     }
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(id as Varnumber);
@@ -7793,32 +7686,25 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    let mut word = c"".as_ptr();
+    let mut word = c"";
     let mut attr: Hlf = HLF_COUNT;
     let mut len: usize = 0;
     if argvars[0].v_type == VarType::VarUnknown {
         len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
         if len != 0 {
-            word = get_cursor_pos_ptr().as_ptr().cast_mut();
+            word = get_cursor_pos_ptr();
             curwin_mut().w_set_curswant = true;
         }
     } else if !curbuf_mut().b_s.b_p_spl.is_empty() {
         let mut capcol: i32 = -1;
-        if let Some(str_cstr) = tv_get_string_chk(&argvars[0]) {
-            let mut str_ = str_cstr.as_ptr();
-            while !crate::strings::AsByteSlice::is_empty_val(str_) {
-                len = spell_check(
-                    curwin_mut(),
-                    crate::strings::ByteSlice::from_ptr(str_).as_cstr(),
-                    &mut attr,
-                    Some(&mut capcol),
-                    false,
-                );
+        if let Some(mut str_cstr) = tv_get_string_chk(&argvars[0]) {
+            while !str_cstr.is_empty() {
+                len = spell_check(curwin_mut(), str_cstr, &mut attr, Some(&mut capcol), false);
                 if attr != HLF_COUNT {
-                    word = str_;
+                    word = str_cstr;
                     break;
                 }
-                str_ = str_.wrapping_add(len);
+                str_cstr = &str_cstr[len.min(str_cstr.to_bytes().len())..];
                 capcol -= len as i32;
                 len = 0;
             }
@@ -7828,11 +7714,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     debug_assert!(len <= i32::MAX as usize);
     tv_list_alloc_ret(rettv, 2);
-    tv_list_append_string(
-        rettv.vval.v_list_ref(),
-        Some(crate::strings::ByteSlice::from_ptr(word).as_cstr()),
-        len as isize,
-    );
+    tv_list_append_string(rettv.vval.v_list_ref(), Some(word), len as isize);
     match attr {
         HLF_SPB => tv_list_append_string(rettv.vval.v_list_ref(), Some(c"bad"), 3),
         HLF_SPR => tv_list_append_string(rettv.vval.v_list_ref(), Some(c"rare"), 4),
@@ -7900,12 +7782,12 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
-    let mut str_ = tv_get_string(&argvars[0]).as_ptr();
-    let mut pat = ptr::null();
+    let mut str_cstr = tv_get_string(&argvars[0]);
+    let mut pat_opt: Option<&CStr> = None;
     let mut patbuf = [0u8; NUMBUFLEN];
     if argvars[1].v_type != VarType::VarUnknown {
         if let Some(p) = tv_get_string_buf_chk(&argvars[1], &mut patbuf) {
-            pat = p.as_ptr();
+            pat_opt = Some(p);
         } else {
             typeerr = true;
         }
@@ -7913,29 +7795,19 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             keepempty = tv_get_bool_chk(&argvars[2], Some(&mut typeerr)) != 0;
         }
     }
-    if crate::strings::AsByteSlice::is_empty_val(pat) {
-        pat = c"[\\x01- ]\\+".as_ptr();
-    }
+    let pat_cstr = pat_opt.filter(|p| !p.is_empty()).unwrap_or(c"[\\x01- ]\\+");
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
     if !typeerr {
         let mut regmatch = Regmatch::new();
-        regmatch.set_prog(vim_regcomp(
-            crate::strings::ByteSlice::from_ptr(pat).as_cstr(),
-            RE_MAGIC + RE_STRING,
-        ));
+        regmatch.set_prog(vim_regcomp(pat_cstr, RE_MAGIC + RE_STRING));
         if !regmatch.regprog.is_null() {
-            while (!crate::strings::AsByteSlice::is_empty_val(str_)) || keepempty {
-                let str_cstr = crate::strings::ByteSlice::from_ptr(str_).as_cstr();
+            while !str_cstr.is_empty() || keepempty {
                 let match_found = if str_cstr.is_empty() {
                     false
                 } else {
-                    vim_regexec_nl(
-                        &mut regmatch,
-                        crate::strings::ByteSlice::from_ptr(str_).as_opt_cstr(),
-                        col,
-                    )
+                    vim_regexec_nl(&mut regmatch, Some(str_cstr), col)
                 };
                 let end_off = if match_found {
                     regmatch.start_offset(0, str_cstr)
@@ -7964,7 +7836,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 } else {
                     col = utfc_ptr2len(regmatch.endp[0]);
                 }
-                str_ = str_.wrapping_add(match_end_off);
+                str_cstr = &str_cstr[match_end_off.min(str_cstr.to_bytes().len())..];
             }
             regmatch.free_prog();
         }
@@ -8063,7 +7935,8 @@ pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// "strftime({format}[, {time}])" function
 pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    let mut p = tv_get_string(&argvars[0]).as_ptr().cast_mut();
+    let p_in = tv_get_string(&argvars[0]);
+    let mut p = p_in.as_ptr().cast_mut();
     let seconds: time_t = if argvars[1].v_type == VarType::VarUnknown {
         os_time() as time_t
     } else {
@@ -8080,21 +7953,10 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
-    let enc_ptr = enc
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    convert_setup(
-        &mut conv,
-        Some(opt_vars().p_enc.as_cstr()),
-        crate::strings::ByteSlice::from_ptr(enc_ptr).as_opt_cstr(),
-    );
+    convert_setup(&mut conv, Some(opt_vars().p_enc.as_cstr()), enc.as_deref());
     let p_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        p_owned = string_convert(
-            &conv,
-            crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-            None,
-        );
+        p_owned = string_convert(&conv, p_in.to_bytes(), None);
         p = p_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -8116,11 +7978,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
     drop(p_owned);
 
-    convert_setup(
-        &mut conv,
-        crate::strings::ByteSlice::from_ptr(enc_ptr).as_opt_cstr(),
-        Some(opt_vars().p_enc.as_cstr()),
-    );
+    convert_setup(&mut conv, enc.as_deref(), Some(opt_vars().p_enc.as_cstr()));
     if conv.vc_type != CONV_NONE {
         if let Some(conv_bytes) =
             string_convert(&conv, crate::memory::bytes_until_nul(&result_buf), None)
@@ -8144,42 +8002,24 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let mut tmval = Tm { _fields: [0; 16] };
     tmval._fields[8] = -1; // tm_isdst = -1
-    let mut fmt = tv_get_string_buf(&argvars[0], &mut fmt_buf)
-        .as_ptr()
-        .cast_mut();
+    let fmt_in = tv_get_string_buf(&argvars[0], &mut fmt_buf);
     let str_ = tv_get_string_buf(&argvars[1], &mut str_buf);
 
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
-    let enc_ptr = enc
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    convert_setup(
-        &mut conv,
-        Some(opt_vars().p_enc.as_cstr()),
-        crate::strings::ByteSlice::from_ptr(enc_ptr).as_opt_cstr(),
-    );
-    let fmt_owned: Option<Vec<u8>>;
-    if conv.vc_type != CONV_NONE {
-        fmt_owned = string_convert(
-            &conv,
-            crate::strings::ByteSlice::from_ptr(fmt).as_bytes(),
-            None,
-        );
-        fmt = fmt_owned
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+    convert_setup(&mut conv, Some(opt_vars().p_enc.as_cstr()), enc.as_deref());
+    let fmt_owned: Option<Vec<u8>> = if conv.vc_type != CONV_NONE {
+        string_convert(&conv, fmt_in.to_bytes(), None)
     } else {
-        fmt_owned = None;
-    }
-    if fmt.is_null()
-        || !os_strptime(
-            str_,
-            crate::strings::ByteSlice::from_ptr(fmt).as_cstr(),
-            &mut tmval,
-        )
-    {
+        None
+    };
+    let fmt_cstr: Option<&CStr> = if conv.vc_type != CONV_NONE {
+        fmt_owned.as_deref().map(crate::memory::bytes_as_cstr)
+    } else {
+        Some(fmt_in)
+    };
+    if fmt_cstr.is_none_or(|f| !os_strptime(str_, f, &mut tmval)) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else {
         let t = unsafe { mktime(&raw mut tmval) };
@@ -8227,16 +8067,15 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         unreachable!()
     };
     let str_ = tv_get_string_chk(arg0);
-    let pat = tv_get_string_buf_chk(arg1, &mut patbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
-    let mut sub = ptr::null();
-    let flg =
-        tv_get_string_buf_chk(arg3, &mut flagsbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
+    let pat = tv_get_string_buf_chk(arg1, &mut patbuf);
+    let mut sub: Option<&CStr> = None;
+    let flg = tv_get_string_buf_chk(arg3, &mut flagsbuf);
 
     let mut expr = crate::globals::GraphPtr::<TypVal>::NULL;
     if tv_is_func(arg2) {
         expr = crate::globals::GraphPtr::<TypVal>::from_ref(&*arg2);
     } else {
-        sub = tv_get_string_buf_chk(arg2, &mut subbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
+        sub = tv_get_string_buf_chk(arg2, &mut subbuf);
     }
 
     rettv.v_type = VarType::VarString;
@@ -8244,20 +8083,20 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
-    if pat.is_null() || (sub.is_null() && expr.is_null()) || flg.is_null() {
+    let (Some(pat), Some(flg)) = (pat, flg) else {
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
+        return;
+    };
+    if sub.is_none() && expr.is_null() {
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     } else {
         let sub_res = do_string_sub(
             str_,
             str_.to_bytes().len(),
-            crate::strings::ByteSlice::from_ptr(pat).as_cstr(),
-            if sub.is_null() {
-                c""
-            } else {
-                crate::strings::ByteSlice::from_ptr(sub).as_cstr()
-            },
+            pat,
+            sub.unwrap_or(c""),
             expr.opt(),
-            crate::strings::ByteSlice::from_ptr(flg).as_cstr(),
+            flg,
         );
         crate::eval::typval::tv_set_string_len(rettv, Some(sub_res.as_bytes()));
     }

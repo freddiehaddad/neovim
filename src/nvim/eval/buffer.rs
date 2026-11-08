@@ -421,30 +421,21 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     if !buf.b_prompt_append_new_line {
         let text = if lnum > 0 {
             ml_get_buf(buf.borrow_mut(), lnum)
-                .as_ptr()
-                .cast_mut()
-                .cast_const()
         } else {
-            c"".as_ptr()
+            c""
         };
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
                 let li = tv_list_first(l.opt()).unwrap();
                 let str_ = tv_get_string(&li.li_tv);
-                let new_str = concat_str(
-                    crate::strings::ByteSlice::from_ptr(text).as_bytes(),
-                    str_.to_bytes(),
-                );
+                let new_str = concat_str(text.to_bytes(), str_.to_bytes());
                 crate::eval::typval::tv_set_string(&mut li.li_tv, Some(new_str.as_c_str()));
                 did_concat = true;
             }
         } else if lines.v_type == VarType::VarString {
             let str_ = tv_get_string(&*lines);
-            let new_str = concat_str(
-                crate::strings::ByteSlice::from_ptr(text).as_bytes(),
-                str_.to_bytes(),
-            );
+            let new_str = concat_str(text.to_bytes(), str_.to_bytes());
             crate::eval::typval::tv_set_string(&mut *lines, Some(new_str.as_c_str()));
         }
     }

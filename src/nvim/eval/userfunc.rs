@@ -338,7 +338,6 @@ fn one_function_arg<'a>(
     newargs: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> &'a CStr {
-    let arg = crate::strings::ByteSlice::from_cstr(arg_in);
     let bytes = arg_in.to_bytes();
     let len = bytes
         .iter()
@@ -351,10 +350,7 @@ fn one_function_arg<'a>(
         || arg_slice == b"lastline"
     {
         if !skip {
-            semsg!(
-                gettext(c"E125: Illegal argument: %s"),
-                crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>())
-            );
+            semsg!(gettext(c"E125: Illegal argument: %s"), arg_in);
         }
         return arg_in;
     }
@@ -371,7 +367,7 @@ fn one_function_arg<'a>(
         newargs.push(arg_copy);
     }
 
-    arg.wrapping_add(len).as_cstr()
+    &arg_in[len..]
 }
 
 /// Get function arguments.
@@ -384,67 +380,46 @@ fn get_function_args(
     skip: bool,
 ) -> bool {
     let mut mustend = false;
-    let mut arg = argp.as_ptr().cast_mut().cast::<u8>();
-    let mut p = arg;
+    let mut p_cstr = *argp;
 
     if let Some(ref mut p) = varargs {
         **p = 0;
     }
 
     let mut any_default = false;
-    while *crate::globals::GraphPtr::of(p).borrow() != endchar {
-        if crate::strings::ByteSlice::from_ptr(p)
-            .as_cstr()
-            .to_bytes()
-            .starts_with(b"...")
-        {
+    while p_cstr.to_bytes_with_nul()[0] != endchar {
+        if p_cstr.to_bytes().starts_with(b"...") {
             if let Some(ref mut p) = varargs {
                 **p = 1;
             }
-            p = p.wrapping_add(3);
+            p_cstr = &p_cstr[3..];
             mustend = true;
         } else {
-            arg = p;
-            p = one_function_arg(
-                crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-                newargs.as_deref_mut(),
-                skip,
-            )
-            .as_ptr()
-            .cast_mut()
-            .cast();
-            if p == arg {
+            let arg_cstr = p_cstr;
+            p_cstr = one_function_arg(p_cstr, newargs.as_deref_mut(), skip);
+            if p_cstr.as_ptr() == arg_cstr.as_ptr() {
                 break;
             }
 
-            if crate::strings::AsByteSlice::first_byte_val(crate::charset::skipwhite_ptr(
-                p.cast::<std::ffi::c_char>(),
-            )) == b'='
+            if crate::charset::skipwhite(p_cstr).to_bytes().first() == Some(&b'=')
                 && default_args.is_some()
             {
                 let mut rettv: TypVal = TypVal::new();
 
                 any_default = true;
-                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>())
-                    .wrapping_add(1)
-                    .cast();
-                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
-                let expr = p;
-                let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
+                p_cstr = crate::charset::skipwhite_at(crate::charset::skipwhite(p_cstr), 1);
+                let expr_cstr = p_cstr;
                 let eval_ok = eval1(&mut p_cstr, &mut rettv, None);
-                p = p_cstr.as_ptr().cast_mut().cast();
                 if eval_ok {
-                    while p > expr
-                        && ascii_iswhite(*crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow())
-                    {
-                        p = p.wrapping_sub(1);
+                    let mut expr_len =
+                        (p_cstr.as_ptr() as usize).wrapping_sub(expr_cstr.as_ptr() as usize);
+                    let expr_bytes = expr_cstr.to_bytes();
+                    while expr_len > 0 && ascii_iswhite(expr_bytes[expr_len - 1]) {
+                        expr_len -= 1;
                     }
+                    p_cstr = &expr_cstr[expr_len..];
                     if let Some(default_args) = default_args.as_deref_mut() {
-                        let expr_slice = crate::strings::AsByteSlice::slice_len(
-                            expr,
-                            (p as usize) - (expr as usize),
-                        );
-                        default_args.push(std::ffi::CString::new(expr_slice).unwrap());
+                        default_args.push(std::ffi::CString::new(&expr_bytes[..expr_len]).unwrap());
                     }
                 } else {
                     mustend = true;
@@ -456,16 +431,14 @@ fn get_function_args(
                 mustend = true;
             }
 
-            if ascii_iswhite(*crate::globals::GraphPtr::of(p).borrow())
-                && crate::strings::AsByteSlice::first_byte_val(crate::charset::skipwhite_ptr(
-                    p.cast::<std::ffi::c_char>(),
-                )) == b','
+            if ascii_iswhite(p_cstr.to_bytes_with_nul()[0])
+                && crate::charset::skipwhite(p_cstr).to_bytes().first() == Some(&b',')
             {
                 if !skip {
                     semsg!(
                         gettext(E_NO_WHITE_SPACE_ALLOWED_BEFORE_STR_STR),
                         c",",
-                        crate::strings::ByteSlice::from_ptr(p.cast::<std::ffi::c_void>()),
+                        p_cstr
                     );
                     if let Some(newargs) = newargs.as_deref_mut() {
                         newargs.clear();
@@ -475,23 +448,23 @@ fn get_function_args(
                     }
                     return false;
                 }
-                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
+                p_cstr = crate::charset::skipwhite(p_cstr);
             }
-            if *crate::globals::GraphPtr::of(p).borrow() == b',' {
-                p = p.wrapping_add(1);
+            if p_cstr.to_bytes_with_nul()[0] == b',' {
+                p_cstr = &p_cstr[1..];
             } else {
                 mustend = true;
             }
         }
-        p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
-        if mustend && *crate::globals::GraphPtr::of(p).borrow() != endchar {
+        p_cstr = crate::charset::skipwhite(p_cstr);
+        if mustend && p_cstr.to_bytes_with_nul()[0] != endchar {
             if !skip {
                 semsg!(gettext(E_INVARG2), *argp);
             }
             break;
         }
     }
-    if *crate::globals::GraphPtr::of(p).borrow() != endchar {
+    if p_cstr.to_bytes_with_nul()[0] != endchar {
         if let Some(newargs) = newargs {
             newargs.clear();
         }
@@ -500,9 +473,11 @@ fn get_function_args(
         }
         return false;
     }
-    p = p.wrapping_add(1); // skip "endchar"
+    if !p_cstr.is_empty() {
+        p_cstr = &p_cstr[1..]; // skip "endchar"
+    }
 
-    *argp = crate::strings::ByteSlice::from_ptr(p).as_cstr();
+    *argp = p_cstr;
 
     true
 }
@@ -614,9 +589,9 @@ pub fn get_lambda_tv(
     }
 
     let mut arg_cstr = crate::charset::skipwhite_at(arg, 1);
-    let start = crate::strings::ByteSlice::from_cstr(arg_cstr);
+    let start_cstr = arg_cstr;
     ret = skip_expr(&mut arg_cstr, evalarg);
-    let end = crate::strings::ByteSlice::from_cstr(arg_cstr);
+    let end_cstr = arg_cstr;
     *arg = arg_cstr;
     if !ret {
         if evaluate {
@@ -625,18 +600,18 @@ pub fn get_lambda_tv(
         return Some(false);
     }
 
-    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg_cstr).skipwhite();
-    *arg = arg_ptr.as_cstr();
+    let arg_ws = crate::charset::skipwhite(arg_cstr);
+    *arg = arg_ws;
 
-    if arg_ptr.first_byte() != b'}' {
-        semsg!(gettext(c"E451: Expected }: %s"), arg_ptr);
+    if arg_ws.to_bytes().first() != Some(&b'}') {
+        semsg!(gettext(c"E451: Expected }: %s"), arg_ws);
         if evaluate {
             eval_st().eval_lavars_used = old_eval_lavars;
         }
         return Some(false);
     }
 
-    *arg = arg_ptr.wrapping_add(1).as_cstr();
+    *arg = &arg_ws[1..];
 
     if evaluate {
         let mut flags = 0;
@@ -645,10 +620,10 @@ pub fn get_lambda_tv(
         let fp = alloc_ufunc(name.as_bytes());
         let pt = Box::leak(Box::new(TvPartial::default()));
 
-        let expr_len = ((end).offset_from(start) as isize) as usize;
+        let expr_len = (end_cstr.as_ptr() as usize).wrapping_sub(start_cstr.as_ptr() as usize);
         let mut line_bytes = Vec::with_capacity(7 + expr_len);
         line_bytes.extend_from_slice(b"return ");
-        line_bytes.extend_from_slice(start.slice(expr_len));
+        line_bytes.extend_from_slice(&start_cstr.to_bytes()[..expr_len]);
         let line_cstr = std::ffi::CString::new(line_bytes).unwrap();
         if !line_cstr.to_bytes()[7..].windows(2).any(|w| w == b"a:") {
             flags |= FC_NOARGS;
@@ -741,18 +716,18 @@ pub fn deref_func_name<'a>(
 /// Give an error message with a function name. Handle `<SNR>` things.
 pub fn emsg_funcname(errmsg: &CStr, name: &CStr) {
     let mut p_owned: Option<std::ffi::CString> = None;
-    let mut p = name.as_ptr();
+    let mut p = name;
 
     let name_bytes = name.to_bytes();
     if name_bytes.first() == Some(&K_SPECIAL) && name_bytes.len() >= 3 {
         let mut bytes = Vec::from(&b"<SNR>"[..]);
         bytes.extend_from_slice(&name_bytes[3..]);
         let joined = bytes_to_cstring(&bytes);
-        p = joined.as_ptr();
         p_owned = Some(joined);
+        p = p_owned.as_deref().unwrap();
     }
 
-    semsg!(gettext(errmsg), crate::strings::ByteSlice::from_ptr(p));
+    semsg!(gettext(errmsg), p);
     drop(p_owned);
 }
 
@@ -764,40 +739,38 @@ fn get_func_arguments(
     argvars: &mut [TypVal],
     argcount: &mut i32,
 ) -> bool {
-    let mut argp = crate::strings::ByteSlice::from_cstr(arg);
+    let mut argp = *arg;
     let mut ret = true;
 
     while *argcount < MAX_FUNC_ARGS as i32 - partial_argc {
-        argp = argp.wrapping_add(1).skipwhite();
+        argp = crate::charset::skipwhite_at(argp, 1);
 
-        if argp.first_byte() == b')' || argp.first_byte() == b',' || argp.is_empty() {
+        let b0 = argp.to_bytes().first().copied().unwrap_or(0);
+        if b0 == b')' || b0 == b',' || b0 == 0 {
             break;
         }
-        let mut argp_cstr = argp.as_cstr();
         if !eval1(
-            &mut argp_cstr,
+            &mut argp,
             &mut argvars[*argcount as usize],
             evalarg.as_deref_mut(),
         ) {
-            argp = crate::strings::ByteSlice::from_cstr(argp_cstr);
             ret = false;
             break;
         }
-        argp = crate::strings::ByteSlice::from_cstr(argp_cstr);
         *argcount += 1;
-        if argp.first_byte() != b',' {
+        if argp.to_bytes().first() != Some(&b',') {
             break;
         }
     }
 
-    argp = argp.skipwhite();
-    if argp.first_byte() == b')' {
-        argp = argp.wrapping_add(1);
+    argp = crate::charset::skipwhite(argp);
+    if argp.to_bytes().first() == Some(&b')') {
+        argp = &argp[1..];
     } else {
         ret = false;
     }
 
-    *arg = argp.as_cstr();
+    *arg = argp;
 
     ret
 }
@@ -881,13 +854,12 @@ fn fname_trans_sid<'a>(
     tofree: &'a mut Option<std::ffi::CString>,
     error: &mut i32,
 ) -> &'a CStr {
-    let name = crate::strings::ByteSlice::from_cstr(name_in);
     let name_bytes = name_in.to_bytes();
     let script_off = eval_fname_script(name_bytes);
     if script_off == 0 {
         return name_in;
     }
-    let script_name = name.wrapping_add(script_off);
+    let script_name = &name_in[script_off..];
 
     fname_buf[..4].copy_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR, 0]);
     let mut fname_buflen = 3usize;
@@ -902,7 +874,7 @@ fn fname_trans_sid<'a>(
             ) as usize;
         }
     }
-    let script_bytes = script_name.as_cstr().to_bytes_with_nul();
+    let script_bytes = script_name.to_bytes_with_nul();
     let fnamelen = fname_buflen + script_bytes.len() - 1;
     if fnamelen < FLEN_FIXED {
         fname_buf[fname_buflen..fname_buflen + script_bytes.len()].copy_from_slice(script_bytes);
@@ -977,14 +949,11 @@ fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
     let uflen = fp.uf_namelen;
     debug_assert!(uflen > 0);
 
+    let hikey = uf2hikey(fp);
     let len = if !func_is_global(fp) && uflen > 3 {
-        format_to_buf!(
-            &mut *buf,
-            c"<SNR>%s",
-            crate::strings::ByteSlice::from_ptr(uf2hikey(fp).as_ptr().wrapping_add(3))
-        )
+        format_to_buf!(&mut *buf, c"<SNR>%s", &hikey[3..])
     } else {
-        format_to_buf!(&mut *buf, c"%s", uf2hikey(fp))
+        format_to_buf!(&mut *buf, c"%s", hikey)
     };
 
     debug_assert!(len > 0);
@@ -1330,7 +1299,7 @@ pub fn call_user_func(
             name = numbuf.as_ptr();
         }
 
-        let v = tv_dict_item_alloc_len(crate::strings::AsByteSlice::slice_len(name, namelen));
+        let v = tv_dict_item_alloc_len(crate::globals::GraphPtr::raw_slice(name, namelen));
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
         v.di_tv = if isdefault {
@@ -1388,13 +1357,14 @@ pub fn call_user_func(
                     g_st().emsg_off += 1;
                     let tf = encode_tv2string(arg_tv, None);
                     g_st().emsg_off -= 1;
-                    let mut s = crate::strings::ByteSlice::from_cstr(tf.as_c_str());
                     let mut buf = [0u8; MSG_BUF_LEN];
-                    if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
+                    let s = if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                         trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
-                        s = crate::strings::ByteSlice::from_bytes(&buf);
-                    }
-                    msg_puts(s.as_cstr());
+                        crate::memory::bytes_as_cstr(&buf)
+                    } else {
+                        tf.as_c_str()
+                    };
+                    msg_puts(s);
                 }
             }
             msg_puts(c")");
@@ -1436,10 +1406,8 @@ pub fn call_user_func(
     if default_arg_err && ((fp.uf_flags & FC_ABORT) != 0 || g_st().trylevel > 0) {
         g_st().did_emsg = 1;
     } else if islambda {
-        let mut p = crate::strings::ByteSlice::from_ptr(
-            (&fp.uf_lines)[0].as_ref().unwrap().as_ptr().wrapping_add(7),
-        )
-        .as_cstr();
+        let line0 = (&fp.uf_lines)[0].as_ref().unwrap().as_c_str();
+        let mut p = &line0[7..];
         g_st().ex_nesting_level += 1;
         eval1(&mut p, rettv, Some(&mut g_st().evalarg_evaluate));
         g_st().ex_nesting_level -= 1;
@@ -1496,11 +1464,12 @@ pub fn call_user_func(
             g_st().emsg_off += 1;
             let tf = encode_tv2string(fc.fc_rettv.borrow_mut(), None);
             g_st().emsg_off -= 1;
-            let mut s = crate::strings::ByteSlice::from_cstr(tf.as_c_str());
-            if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
+            let s = if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                 trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
-                s = crate::strings::ByteSlice::from_bytes(&buf);
-            }
+                crate::memory::bytes_as_cstr(&buf)
+            } else {
+                tf.as_c_str()
+            };
             smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
         }
         msg_puts(c"\n");
@@ -1820,10 +1789,8 @@ pub fn call_func(
         fp = partial_ref.pt_func.opt_mut();
     }
     if fp.is_none() {
-        let nm = bytes_to_cstring(crate::strings::AsByteSlice::slice_len(
-            funcname.as_ptr(),
-            len as usize,
-        ));
+        let fn_bytes = funcname.to_bytes();
+        let nm = bytes_to_cstring(&fn_bytes[..(len as usize).min(fn_bytes.len())]);
         name_owned = Some(nm);
         fname = fname_trans_sid(
             name_owned.as_deref().unwrap(),
@@ -1899,8 +1866,9 @@ pub fn call_func(
                 } else {
                     &mut active_argv[..argcount as usize]
                 };
+                let fn_bytes = funcname.to_bytes();
                 nlua_call_vlua(
-                    crate::strings::AsByteSlice::slice_len(funcname.as_ptr(), len as usize),
+                    &fn_bytes[..(len as usize).min(fn_bytes.len())],
                     argslice,
                     rettv,
                 );
@@ -2146,58 +2114,47 @@ pub fn trans_function_name(
     if fdp.is_some() {
         *fdp.as_deref_mut().unwrap() = Funcdict::new();
     }
-    let mut start = pp.as_ptr().cast::<u8>();
+    let orig_pp = *pp;
+    let mut start_cstr = orig_pp;
 
     if pp.to_bytes().starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
         *pp = crate::memory::CStrSubslice::advance(*pp, 3);
 
         len = get_id_len(pp) + 3;
-        return Some(bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
-            start,
-            len as usize,
-        )));
+        return Some(bytes_to_cstring(&orig_pp.to_bytes()[..len as usize]));
     }
 
-    let start_cstr = crate::strings::ByteSlice::from_ptr(start).as_cstr();
     let mut lead = eval_fname_script(start_cstr.to_bytes()) as i32;
     if lead > 2 {
-        start = start.wrapping_add(lead as usize);
+        start_cstr = &start_cstr[lead as usize..];
     }
 
-    let end = crate::globals::GraphPtr::<u8>::of(
-        get_lval(
-            crate::strings::ByteSlice::from_ptr(start).as_cstr(),
-            None,
-            &mut lv,
-            false,
-            skip,
-            flags | GLV_READ_ONLY,
-            if lead > 2 { 0 } else { FNE_CHECK_START },
-        )
-        .map_or(ptr::null(), |s| s.as_ptr().cast()),
-    )
-    .as_ptr()
-    .cast_const();
-    if end == start {
+    let end_opt = get_lval(
+        start_cstr,
+        None,
+        &mut lv,
+        false,
+        skip,
+        flags | GLV_READ_ONLY,
+        if lead > 2 { 0 } else { FNE_CHECK_START },
+    );
+    if end_opt.is_some_and(|e| e.as_ptr() == start_cstr.as_ptr()) {
         if !skip {
             emsg(gettext(c"E129: Function name required"));
         }
         return None;
     }
-    if end.is_null() || (!lv.ll_tv.is_null() && (lead > 2 || lv.ll_range)) {
+    let Some(end_cstr) = end_opt else {
+        if aborting() {
+            *pp = find_name_end(start_cstr, None, FNE_INCL_BR);
+        }
+        return None;
+    };
+    if !lv.ll_tv.is_null() && (lead > 2 || lv.ll_range) {
         if !aborting() {
-            if !end.is_null() {
-                semsg!(
-                    gettext(E_INVARG2),
-                    crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>())
-                );
-            }
+            semsg!(gettext(E_INVARG2), start_cstr);
         } else {
-            *pp = find_name_end(
-                crate::strings::ByteSlice::from_ptr(start).as_cstr(),
-                None,
-                FNE_INCL_BR,
-            );
+            *pp = find_name_end(start_cstr, None, FNE_INCL_BR);
         }
         return None;
     }
@@ -2212,33 +2169,24 @@ pub fn trans_function_name(
         if ll_tv.v_type == VarType::VarFunc && !ll_tv.vval.v_string_is_null() {
             res = Some(ll_tv.vval.v_string_owned());
 
-            *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
+            *pp = end_cstr;
         } else if ll_tv.v_type == VarType::VarPartial && !ll_tv.vval.v_partial().is_null() {
             let pt = ll_tv.vval.v_partial();
-            if is_luafunc(pt.opt())
-                && !end.is_null()
-                && *crate::globals::GraphPtr::of(end).borrow() == b'.'
-            {
-                len = check_luafunc_name(
-                    crate::strings::ByteSlice::from_ptr(end.wrapping_add(1)).as_cstr(),
-                    true,
-                );
+            if is_luafunc(pt.opt()) && end_cstr.to_bytes().first() == Some(&b'.') {
+                let after_dot = &end_cstr[1..];
+                len = check_luafunc_name(after_dot, true);
                 if len == 0 {
                     semsg!(E_INVEXPR2, c"v:lua");
                     return None;
                 }
 
-                res = Some(bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
-                    end.wrapping_add(1),
-                    len as usize,
-                )));
+                res = Some(bytes_to_cstring(&after_dot.to_bytes()[..len as usize]));
 
-                *pp = crate::strings::ByteSlice::from_ptr(end.wrapping_add(1 + len as usize))
-                    .as_cstr();
+                *pp = &after_dot[len as usize..];
             } else {
                 res = Some(partial_name(pt.opt()).to_owned());
 
-                *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
+                *pp = end_cstr;
             }
             if let Some(ref mut partial_out) = partial {
                 **partial_out = pt.opt_mut();
@@ -2249,13 +2197,13 @@ pub fn trans_function_name(
         {
             emsg(gettext(E_FUNCREF));
         } else {
-            *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
+            *pp = end_cstr;
         }
         return res;
     }
 
     if lv.ll_name.is_none() {
-        *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
+        *pp = end_cstr;
 
         return None;
     }
@@ -2274,8 +2222,7 @@ pub fn trans_function_name(
             name = Some(deref);
         }
     } else if (flags & TFN_NO_DEREF) == 0 {
-        len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
-            - (crate::strings::AsByteSlice::byte_addr(pp.as_ptr()) as isize)) as i32;
+        len = ((end_cstr.as_ptr() as isize) - (pp.as_ptr() as isize)) as i32;
 
         let deref = deref_func_name(pp, &mut len, partial, (flags & TFN_NO_AUTOLOAD) != 0, None);
 
@@ -2284,7 +2231,7 @@ pub fn trans_function_name(
         }
     }
     if let Some(name_cstr) = name {
-        *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
+        *pp = end_cstr;
 
         let name_bytes = name_cstr.to_bytes();
         if let Some(tail) = name_bytes.strip_prefix(b"<SNR>") {
@@ -2317,7 +2264,7 @@ pub fn trans_function_name(
             lv.advance_ll_name(2);
             lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
         }
-        let end_len = crate::strings::ByteSlice::from_ptr(end).as_bytes().len();
+        let end_len = end_cstr.to_bytes().len();
         len = lv
             .ll_name_cstr()
             .unwrap_or(c"")
@@ -2352,7 +2299,7 @@ pub fn trans_function_name(
     {
         semsg!(
             gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
-            crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>()),
+            start_cstr,
         );
         return None;
     }
@@ -2365,7 +2312,7 @@ pub fn trans_function_name(
         if ll_name_bytes[..check_len].contains(&b':') {
             semsg!(
                 gettext(c"E884: Function name cannot contain a colon: %s"),
-                crate::strings::ByteSlice::from_ptr(start.cast::<std::ffi::c_char>()),
+                start_cstr,
             );
             return None;
         }
@@ -2381,7 +2328,7 @@ pub fn trans_function_name(
 
     bytes.extend_from_slice(&ll_name_bytes[..(len.max(0) as usize).min(ll_name_bytes.len())]);
 
-    *pp = crate::strings::ByteSlice::from_ptr(end).as_cstr();
+    *pp = end_cstr;
 
     Some(bytes_to_cstring(&bytes))
 }
@@ -2573,11 +2520,10 @@ fn list_one_function(
 fn get_function_body(
     eap: &mut Exarg,
     newlines: &mut Vec<Option<std::ffi::CString>>,
-    line_arg_in: Option<&CStr>,
+    mut line_arg_opt: Option<&CStr>,
     show_block: bool,
 ) -> bool {
     let mut saved_wait_return = g_st().need_wait_return;
-    let mut line_arg = line_arg_in.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut line_to_free: Option<std::ffi::CString> = None;
     let mut indent: i32 = 2;
     let mut nesting: i32 = 0;
@@ -2595,40 +2541,36 @@ fn get_function_body(
         }
         g_st().need_wait_return = false;
 
-        let theline;
-        let mut p;
-        let mut arg;
         let line_arg_cstr: std::ffi::CString;
-        let mut line_arg_base = ptr::null_mut();
+        let mut line_arg_base: Option<&CStr> = None;
 
-        if !line_arg.is_null() {
-            line_arg_base = line_arg;
-            let rem_bytes = crate::strings::ByteSlice::from_ptr(line_arg).as_bytes();
+        let theline_opt: Option<&CStr> = if let Some(la) = line_arg_opt {
+            line_arg_base = Some(la);
+            let rem_bytes = la.to_bytes();
             let line_len = rem_bytes
                 .iter()
                 .position(|&b| b == b'\n')
                 .unwrap_or(rem_bytes.len());
             line_arg_cstr = bytes_to_cstring(&rem_bytes[..line_len]);
-            theline = line_arg_cstr.as_ptr().cast_mut();
-            line_arg = line_arg.wrapping_add(if line_len < rem_bytes.len() {
+            let step = if line_len < rem_bytes.len() {
                 line_len + 1
             } else {
                 line_len
-            });
+            };
+            line_arg_opt = Some(&la[step..]);
+            Some(line_arg_cstr.as_c_str())
         } else {
             line_to_free = if eap.ea_getline.is_none() {
                 getcmdline(b':' as i32, 0, indent, do_concat)
             } else {
                 eap.ea_getline.call(b':' as i32, indent, do_concat)
             };
-            theline = line_to_free
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        }
+            line_to_free.as_deref()
+        };
         if g_st().key_typed {
             g_st().lines_left = g_st().rows_global - 1;
         }
-        if theline.is_null() {
+        let Some(theline_cstr) = theline_opt else {
             if let Some(ref marker) = skip_until {
                 semsg!(gettext(E_MISSING_HEREDOC_END_MARKER_STR), marker,);
             } else {
@@ -2636,13 +2578,11 @@ fn get_function_body(
             }
             g_st().need_wait_return |= saved_wait_return;
             return ret;
-        }
+        };
+        let theline_bytes = theline_cstr.to_bytes();
         if show_block {
             debug_assert!(indent >= 0);
-            ui_ext_cmdline_block_append(
-                indent as usize,
-                crate::strings::ByteSlice::from_ptr(theline).as_bytes(),
-            );
+            ui_ext_cmdline_block_append(indent as usize, theline_bytes);
         }
 
         let mut sourcing_lnum_off = get_sourced_lnum(eap.ea_getline);
@@ -2654,27 +2594,20 @@ fn get_function_body(
         }
 
         if let Some(ref marker) = skip_until {
+            let no_leading_ws = crate::charset::skipwhite_len(theline_bytes) == 0;
             if heredoc_trimmed.is_none()
-                || (is_heredoc && crate::charset::skipwhite_ptr(theline) == theline)
+                || (is_heredoc && no_leading_ws)
                 || heredoc_trimmed.as_ref().is_some_and(|ht| {
-                    crate::strings::ByteSlice::from_ptr(theline)
-                        .as_cstr()
-                        .to_bytes()
+                    theline_bytes
                         .starts_with(&ht.as_bytes()[..heredoc_trimmedlen.min(ht.as_bytes().len())])
                 })
             {
-                p = if heredoc_trimmed.is_none() {
-                    theline
-                } else if is_heredoc {
-                    if crate::charset::skipwhite_ptr(theline) == theline {
-                        theline
-                    } else {
-                        theline.wrapping_add(heredoc_trimmedlen)
-                    }
+                let p_off = if heredoc_trimmed.is_none() || (is_heredoc && no_leading_ws) {
+                    0
                 } else {
-                    theline.wrapping_add(heredoc_trimmedlen)
+                    heredoc_trimmedlen.min(theline_bytes.len())
                 };
-                if crate::strings::ByteSlice::from_ptr(p).as_bytes() == marker.to_bytes() {
+                if &theline_bytes[p_off..] == marker.to_bytes() {
                     skip_until = None;
                     heredoc_trimmed = None;
                     heredoc_trimmedlen = 0;
@@ -2683,67 +2616,63 @@ fn get_function_body(
                 }
             }
         } else {
-            p = theline;
-            while ascii_iswhite(crate::strings::AsByteSlice::first_byte_val(p))
-                || crate::strings::AsByteSlice::first_byte_val(p) == b':'
+            let mut p_cstr = theline_cstr;
+            while p_cstr
+                .to_bytes()
+                .first()
+                .is_some_and(|&b| ascii_iswhite(b) || b == b':')
             {
-                p = p.wrapping_add(1);
+                p_cstr = &p_cstr[1..];
             }
 
-            if checkforcmd(
-                crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                b"endfunction",
-                4,
-            )
-            .inspect(|&n| p = p.wrapping_add(n))
-            .is_some()
+            if checkforcmd(p_cstr.to_bytes(), b"endfunction", 4)
+                .inspect(|&n| p_cstr = &p_cstr[n..])
+                .is_some()
             {
                 let prev_nesting = nesting;
                 nesting -= 1;
                 if prev_nesting == 0 {
-                    if crate::strings::AsByteSlice::first_byte_val(p) == b'!' {
-                        p = p.wrapping_add(1);
+                    if p_cstr.to_bytes().first() == Some(&b'!') {
+                        p_cstr = &p_cstr[1..];
                     }
-                    let mut nextcmd = ptr::null_mut();
-                    if crate::strings::AsByteSlice::first_byte_val(p) == b'|' {
-                        nextcmd = if !line_arg_base.is_null() {
-                            let off = (p as usize) - (theline as usize) + 1;
-                            line_arg_base.wrapping_add(off)
+                    let mut nextcmd_opt: Option<&CStr> = None;
+                    if p_cstr.to_bytes().first() == Some(&b'|') {
+                        nextcmd_opt = Some(if let Some(la_base) = line_arg_base {
+                            let off =
+                                (p_cstr.as_ptr() as usize) - (theline_cstr.as_ptr() as usize) + 1;
+                            &la_base[off..]
                         } else {
-                            p.wrapping_add(1)
-                        };
-                    } else if !line_arg.is_null()
-                        && !crate::charset::skipwhite_slice(
-                            crate::strings::ByteSlice::from_ptr(line_arg).as_bytes(),
-                        )
-                        .is_empty()
+                            &p_cstr[1..]
+                        });
+                    } else if let Some(la) = line_arg_opt
+                        && !crate::charset::skipwhite_slice(la.to_bytes()).is_empty()
                     {
-                        nextcmd = line_arg;
-                    } else if *crate::globals::GraphPtr::of(p).borrow() != 0
-                        && *crate::globals::GraphPtr::of(p).borrow() as u8 != b'"'
+                        nextcmd_opt = Some(la);
+                    } else if !p_cstr.is_empty()
+                        && p_cstr.to_bytes().first() != Some(&b'"')
                         && opt_vars().p_verbose > 0
                     {
                         swmsg!(
                             true,
                             gettext(c"W22: Text found after :endfunction: %s"),
-                            crate::strings::ByteSlice::from_ptr(p),
+                            p_cstr,
                         );
                     }
-                    if !nextcmd.is_null() {
+                    if let Some(nextcmd) = nextcmd_opt {
                         if let Some(ref ltf) = line_to_free {
-                            let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
+                            let off = (nextcmd.as_ptr() as usize) - (ltf.as_ptr() as usize);
                             let new_buf: Vec<u8> = ltf.as_bytes_with_nul().to_vec();
                             eap.set_cmdline_vec(new_buf);
                             eap.nextcmd = eap.cmdline_ptr().wrapping_add(off);
                         } else {
-                            eap.nextcmd = crate::strings::OwnedSlice::from_ptr(nextcmd);
+                            eap.nextcmd = crate::strings::OwnedSlice::from_cstr(nextcmd);
                         }
                     }
                     break;
                 }
             }
 
-            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+            let p_bytes = p_cstr.to_bytes();
             if indent > 2 && p_bytes.starts_with(b"end") {
                 indent -= 2;
             } else if p_bytes.starts_with(b"if")
@@ -2754,26 +2683,17 @@ fn get_function_body(
                 indent += 2;
             }
 
-            if checkforcmd(
-                crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                b"function",
-                2,
-            )
-            .inspect(|&n| p = p.wrapping_add(n))
-            .is_some()
+            if checkforcmd(p_cstr.to_bytes(), b"function", 2)
+                .inspect(|&n| p_cstr = &p_cstr[n..])
+                .is_some()
             {
-                if crate::strings::AsByteSlice::first_byte_val(p) == b'!' {
-                    p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
+                if p_cstr.to_bytes().first() == Some(&b'!') {
+                    p_cstr = crate::charset::skipwhite_at(p_cstr, 1);
                 }
-                p = p.wrapping_add(eval_fname_script(
-                    crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                ));
-                let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
+                let script_off = eval_fname_script(p_cstr.to_bytes());
+                p_cstr = &p_cstr[script_off..];
                 let _ = trans_function_name(&mut p_cstr, true, 0, None, None);
-                p = p_cstr.as_ptr().cast_mut();
-                if (*crate::globals::GraphPtr::of(crate::charset::skipwhite_ptr(p)).borrow() as u8)
-                    == b'('
-                {
+                if crate::charset::skipwhite(p_cstr).to_bytes().first() == Some(&b'(') {
                     if nesting == MAX_FUNC_NESTING - 1 {
                         emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP));
                     } else {
@@ -2783,52 +2703,37 @@ fn get_function_body(
                 }
             }
 
-            p = skip_range(crate::strings::ByteSlice::from_ptr(p).as_cstr(), None)
-                .as_ptr()
-                .cast_mut();
-            let tp = p;
-            if (checkforcmd(
-                crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                b"append",
-                1,
-            )
-            .inspect(|&n| p = p.wrapping_add(n))
-            .is_some()
-                || checkforcmd(
-                    crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                    b"change",
-                    1,
-                )
-                .inspect(|&n| p = p.wrapping_add(n))
+            p_cstr = skip_range(p_cstr, None);
+            let tp_cstr = p_cstr;
+            if (checkforcmd(p_cstr.to_bytes(), b"append", 1)
+                .inspect(|&n| p_cstr = &p_cstr[n..])
                 .is_some()
-                || checkforcmd(
-                    crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                    b"insert",
-                    1,
-                )
-                .inspect(|&n| p = p.wrapping_add(n))
-                .is_some())
-                && (*crate::globals::GraphPtr::of(p).borrow() as u8 == b'!'
-                    || *crate::globals::GraphPtr::of(p).borrow() as u8 == b'|'
-                    || ascii_iswhite_nl_or_nul(i32::from(
-                        crate::strings::AsByteSlice::first_byte_val(p),
-                    )))
+                || checkforcmd(p_cstr.to_bytes(), b"change", 1)
+                    .inspect(|&n| p_cstr = &p_cstr[n..])
+                    .is_some()
+                || checkforcmd(p_cstr.to_bytes(), b"insert", 1)
+                    .inspect(|&n| p_cstr = &p_cstr[n..])
+                    .is_some())
+                && {
+                    let b0 = p_cstr.to_bytes().first().copied().unwrap_or(0);
+                    b0 == b'!' || b0 == b'|' || ascii_iswhite_nl_or_nul(i32::from(b0))
+                }
             {
                 skip_until = Some(c".".to_owned());
             } else {
-                p = tp;
+                p_cstr = tp_cstr;
             }
 
-            arg = crate::charset::skipwhite_ptr(crate::charset::skiptowhite_ptr(p));
-            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+            let mut arg_cstr = crate::charset::skipwhite_at(
+                p_cstr,
+                crate::charset::skiptowhite_len(p_cstr.to_bytes()),
+            );
+            let p_bytes = p_cstr.to_bytes();
             let p0 = p_bytes.first().copied().unwrap_or(0);
             let p1 = p_bytes.get(1).copied().unwrap_or(0);
             let p2 = p_bytes.get(2).copied().unwrap_or(0);
             let p3 = p_bytes.get(3).copied().unwrap_or(0);
-            let is_script_heredoc = crate::strings::ByteSlice::from_ptr(arg)
-                .as_cstr()
-                .to_bytes()
-                .starts_with(b"<<")
+            let is_script_heredoc = arg_cstr.to_bytes().starts_with(b"<<")
                 && ((p0 == b'p'
                     && p1 == b'y'
                     && (!ascii_isalnum(p2 as i32)
@@ -2843,104 +2748,72 @@ fn get_function_body(
                         && (!p3.is_ascii_alphabetic() || p3 == b'y'))
                     || (p0 == b'm' && p1 == b'z' && (!p2.is_ascii_alphabetic() || p2 == b's')));
             if is_script_heredoc {
-                p = crate::charset::skipwhite_ptr(arg.wrapping_add(2));
-                let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+                p_cstr = crate::charset::skipwhite_at(arg_cstr, 2);
+                let p_bytes = p_cstr.to_bytes();
                 if p_bytes.starts_with(b"trim")
                     && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                 {
-                    p = crate::charset::skipwhite_ptr(p.wrapping_add(4));
-                    heredoc_trimmedlen = ((crate::strings::AsByteSlice::byte_addr(
-                        crate::charset::skipwhite_ptr(theline),
-                    ) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(theline) as isize))
-                        as usize;
-                    let slice = crate::strings::AsByteSlice::slice_len(theline, heredoc_trimmedlen);
-                    heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
+                    p_cstr = crate::charset::skipwhite_at(p_cstr, 4);
+                    heredoc_trimmedlen = crate::charset::skipwhite_len(theline_bytes);
+                    heredoc_trimmed =
+                        Some(std::ffi::CString::new(&theline_bytes[..heredoc_trimmedlen]).unwrap());
                 }
-                if crate::strings::AsByteSlice::is_empty_val(p) {
+                if p_cstr.is_empty() {
                     skip_until = Some(c".".to_owned());
                 } else {
-                    let slice = crate::strings::AsByteSlice::slice_len(
-                        p,
-                        (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
-                    );
-                    skip_until = Some(std::ffi::CString::new(slice).unwrap());
+                    let p_bytes = p_cstr.to_bytes();
+                    let wlen = crate::charset::skiptowhite_len(p_bytes);
+                    skip_until = Some(std::ffi::CString::new(&p_bytes[..wlen]).unwrap());
                 }
                 do_concat = false;
                 is_heredoc = true;
             }
 
             if !is_heredoc {
-                arg = p;
-                if checkforcmd(
-                    crate::strings::ByteSlice::from_ptr(arg).as_bytes(),
-                    b"let",
-                    2,
-                )
-                .inspect(|&n| arg = arg.wrapping_add(n))
-                .is_some()
-                    || checkforcmd(
-                        crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                        b"const",
-                        5,
-                    )
-                    .inspect(|&n| p = p.wrapping_add(n))
+                arg_cstr = p_cstr;
+                if checkforcmd(arg_cstr.to_bytes(), b"let", 2)
+                    .inspect(|&n| arg_cstr = &arg_cstr[n..])
                     .is_some()
+                    || checkforcmd(p_cstr.to_bytes(), b"const", 5)
+                        .inspect(|&n| p_cstr = &p_cstr[n..])
+                        .is_some()
                 {
                     let mut var_count = 0;
                     let mut semicolon = 0;
-                    arg = skip_var_list(
-                        crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
-                        &mut var_count,
-                        &mut semicolon,
-                        true,
-                    )
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    if !arg.is_null() {
-                        arg = crate::charset::skipwhite_ptr(arg);
-                    }
-                    if !arg.is_null()
-                        && crate::strings::ByteSlice::from_ptr(arg)
-                            .as_cstr()
-                            .to_bytes()
-                            .starts_with(b"=<<")
+                    let arg_after = skip_var_list(arg_cstr, &mut var_count, &mut semicolon, true)
+                        .map(crate::charset::skipwhite);
+                    if let Some(arg_ws) = arg_after
+                        && arg_ws.to_bytes().starts_with(b"=<<")
                     {
-                        p = crate::charset::skipwhite_ptr(arg.wrapping_add(3));
+                        p_cstr = crate::charset::skipwhite_at(arg_ws, 3);
                         let mut has_trim = false;
                         loop {
-                            let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+                            let p_bytes = p_cstr.to_bytes();
                             if p_bytes.starts_with(b"trim")
                                 && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                             {
-                                p = crate::charset::skipwhite_ptr(p.wrapping_add(4));
+                                p_cstr = crate::charset::skipwhite_at(p_cstr, 4);
                                 has_trim = true;
                                 continue;
                             }
                             if p_bytes.starts_with(b"eval")
                                 && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                             {
-                                p = crate::charset::skipwhite_ptr(p.wrapping_add(4));
+                                p_cstr = crate::charset::skipwhite_at(p_cstr, 4);
                                 continue;
                             }
                             break;
                         }
                         if has_trim {
-                            heredoc_trimmedlen = ((crate::strings::AsByteSlice::byte_addr(
-                                crate::charset::skipwhite_ptr(theline),
-                            ) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(theline) as isize))
-                                as usize;
-                            let slice = crate::globals::GraphPtr::raw_slice(
-                                theline.cast::<u8>(),
-                                heredoc_trimmedlen,
+                            heredoc_trimmedlen = crate::charset::skipwhite_len(theline_bytes);
+                            heredoc_trimmed = Some(
+                                std::ffi::CString::new(&theline_bytes[..heredoc_trimmedlen])
+                                    .unwrap(),
                             );
-                            heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                         }
-                        let slice = crate::strings::AsByteSlice::slice_len(
-                            p,
-                            (crate::charset::skiptowhite_ptr(p) as usize) - (p as usize),
-                        );
-                        skip_until = Some(std::ffi::CString::new(slice).unwrap());
+                        let p_bytes = p_cstr.to_bytes();
+                        let wlen = crate::charset::skiptowhite_len(p_bytes);
+                        skip_until = Some(std::ffi::CString::new(&p_bytes[..wlen]).unwrap());
                         do_concat = false;
                         is_heredoc = true;
                     }
@@ -2948,17 +2821,15 @@ fn get_function_body(
             }
         }
 
-        newlines.push(Some(
-            crate::strings::ByteSlice::from_ptr(theline).to_cstring(),
-        ));
+        newlines.push(Some(theline_cstr.to_owned()));
 
         while sourcing_lnum_off > 0 {
             sourcing_lnum_off -= 1;
             newlines.push(None);
         }
 
-        if !line_arg.is_null() && crate::strings::AsByteSlice::is_empty_val(line_arg) {
-            line_arg = ptr::null_mut();
+        if line_arg_opt.is_some_and(CStr::is_empty) {
+            line_arg_opt = None;
         }
     }
 
@@ -3004,16 +2875,8 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut p_cstr = arg_slice.as_cstr();
     let mut name_owned =
         save_function_name(&mut p_cstr, eap.skip, TFN_NO_AUTOLOAD, Some(&mut fudi));
-    let mut p = p_cstr.as_ptr().cast_mut();
-    let mut name = name_owned
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let paren = vim_strchr(
-        crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-        b'(' as i32,
-    )
-    .is_some();
-    if name.is_null() && (fudi.fd_dict.is_null() || !paren) && !eap.skip {
+    let paren = vim_strchr(p_cstr, b'(' as i32).is_some();
+    if name_owned.is_none() && (fudi.fd_dict.is_null() || !paren) && !eap.skip {
         if !aborting() {
             if let Some(ref newkey) = fudi.fd_newkey {
                 semsg!(gettext(E_DICTKEY), newkey);
@@ -3061,64 +2924,48 @@ pub fn ex_function(eap: &mut Exarg) {
     }
 
     if !paren {
-        let p_off = (p as usize) - (arg_slice.as_cstr().as_ptr() as usize);
+        let p_off = (p_cstr.as_ptr() as usize) - (arg_slice.as_cstr().as_ptr() as usize);
         let _ = list_one_function(eap, name_owned.as_deref(), p_off);
         ret_free!();
     }
 
-    p = crate::charset::skipwhite_ptr(p);
-    if crate::strings::AsByteSlice::first_byte_val(p) != b'(' {
+    p_cstr = crate::charset::skipwhite(p_cstr);
+    if p_cstr.to_bytes().first() != Some(&b'(') {
         if !eap.skip {
             semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
             ret_free!();
         }
-        if let Some(open_paren) = vim_strchr(
-            crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-            b'(' as i32,
-        ) {
-            p = open_paren.as_ptr().cast_mut();
+        if let Some(open_paren) = vim_strchr(p_cstr, b'(' as i32) {
+            p_cstr = open_paren;
         }
     }
-    p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
+    p_cstr = crate::charset::skipwhite_at(p_cstr, 1);
 
     if !eap.skip {
-        let fudi_newkey_ptr = fudi
-            .fd_newkey
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let arg = if !name.is_null() {
-            name
-        } else {
-            fudi_newkey_ptr
-        };
-        if !arg.is_null() && (fudi.fd_di.is_null() || !tv_is_func(&fudi.fd_di.di_tv)) {
-            let mut name_base = arg;
-            if arg != fudi_newkey_ptr {
-                if crate::strings::AsByteSlice::first_byte_val(arg) == K_SPECIAL {
-                    if let Some(underscore) = vim_strchr(
-                        crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
-                        b'_' as i32,
-                    ) {
-                        name_base = underscore.as_ptr().wrapping_add(1).cast_mut();
-                    } else {
-                        name_base = arg.wrapping_add(3);
-                    }
+        let arg_opt = name_owned.as_deref().or(fudi.fd_newkey.as_deref());
+        if let Some(arg_cstr) = arg_opt
+            && (fudi.fd_di.is_null() || !tv_is_func(&fudi.fd_di.di_tv))
+            && name_owned.is_some()
+        {
+            let mut name_base = arg_cstr;
+            if arg_cstr.to_bytes().first() == Some(&K_SPECIAL) {
+                if let Some(underscore) = vim_strchr(arg_cstr, b'_' as i32) {
+                    name_base = &underscore[1..];
+                } else {
+                    name_base = &arg_cstr[3..];
                 }
-                let name_bytes = crate::strings::ByteSlice::from_ptr(name_base).as_bytes();
-                let valid = name_bytes.iter().enumerate().all(|(i, &b)| {
-                    if i == 0 {
-                        eval_isnamec1(b)
-                    } else {
-                        eval_isnamec(b)
-                    }
-                });
-                if !valid {
-                    emsg_funcname(
-                        E_INVARG2,
-                        crate::strings::ByteSlice::from_ptr(arg).as_cstr(),
-                    );
-                    ret_free!();
+            }
+            let name_bytes = name_base.to_bytes();
+            let valid = name_bytes.iter().enumerate().all(|(i, &b)| {
+                if i == 0 {
+                    eval_isnamec1(b)
+                } else {
+                    eval_isnamec(b)
                 }
+            });
+            if !valid {
+                emsg_funcname(E_INVARG2, arg_cstr);
+                ret_free!();
             }
         }
         if !fudi.fd_dict.is_null() && fudi.fd_dict.dv_scope == VAR_DEF_SCOPE {
@@ -3127,7 +2974,6 @@ pub fn ex_function(eap: &mut Exarg) {
         }
     }
 
-    let mut p_cstr = crate::strings::ByteSlice::from_ptr(p).as_cstr();
     if !get_function_args(
         &mut p_cstr,
         b')',
@@ -3138,7 +2984,6 @@ pub fn ex_function(eap: &mut Exarg) {
     ) {
         errret_2!();
     }
-    p = p_cstr.as_ptr().cast_mut();
 
     if g_st().key_typed && ui_has(K_UICMDLINE) {
         show_block = true;
@@ -3146,28 +2991,24 @@ pub fn ex_function(eap: &mut Exarg) {
     }
 
     loop {
-        p = crate::charset::skipwhite_ptr(p);
-        let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+        p_cstr = crate::charset::skipwhite(p_cstr);
+        let p_bytes = p_cstr.to_bytes();
         if p_bytes.starts_with(b"range") {
             flags |= FC_RANGE;
-            p = p.wrapping_add(5);
+            p_cstr = &p_cstr[5..];
         } else if p_bytes.starts_with(b"dict") {
             flags |= FC_DICT;
-            p = p.wrapping_add(4);
+            p_cstr = &p_cstr[4..];
         } else if p_bytes.starts_with(b"abort") {
             flags |= FC_ABORT;
-            p = p.wrapping_add(5);
+            p_cstr = &p_cstr[5..];
         } else if p_bytes.starts_with(b"closure") {
             flags |= FC_CLOSURE;
-            p = p.wrapping_add(7);
+            p_cstr = &p_cstr[7..];
             if uf_st().current_funccal.is_null() {
                 emsg_funcname(
                     c"E932: Closure function should not be at top level: %s",
-                    if name.is_null() {
-                        c""
-                    } else {
-                        crate::strings::ByteSlice::from_ptr(name).as_cstr()
-                    },
+                    name_owned.as_deref().unwrap_or(c""),
                 );
                 erret!();
             }
@@ -3176,30 +3017,24 @@ pub fn ex_function(eap: &mut Exarg) {
         }
     }
 
-    if crate::strings::AsByteSlice::first_byte_val(p) == b'\n' {
-        line_arg = Some(crate::strings::ByteSlice::from_ptr(p.wrapping_add(1)).as_cstr());
-    } else if *crate::globals::GraphPtr::of(p).borrow() != 0
-        && *crate::globals::GraphPtr::of(p).borrow() as u8 != b'"'
+    if p_cstr.to_bytes().first() == Some(&b'\n') {
+        line_arg = Some(&p_cstr[1..]);
+    } else if !p_cstr.is_empty()
+        && p_cstr.to_bytes().first() != Some(&b'"')
         && !eap.skip
         && g_st().did_emsg == 0
     {
-        semsg!(
-            gettext(E_TRAILING_ARG),
-            crate::strings::ByteSlice::from_ptr(p)
-        );
+        semsg!(gettext(E_TRAILING_ARG), p_cstr);
     }
 
     if g_st().key_typed {
         if !eap.skip && !eap.forceit {
             if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                 emsg(gettext(E_FUNCDICT));
-            } else if !name.is_null()
-                && find_func(Some(crate::strings::ByteSlice::from_ptr(name).as_cstr())).is_some()
+            } else if let Some(ref nm) = name_owned
+                && find_func(Some(nm.as_c_str())).is_some()
             {
-                emsg_funcname(
-                    E_FUNCEXTS,
-                    crate::strings::ByteSlice::from_ptr(name).as_cstr(),
-                );
+                emsg_funcname(E_FUNCEXTS, nm.as_c_str());
             }
         }
 
@@ -3222,34 +3057,30 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut namelen = 0usize;
     if fudi.fd_dict.is_null() {
         let mut ht_opt: Option<&'static mut Hashtab> = None;
-        let name_cstr = crate::strings::ByteSlice::from_ptr(name).as_cstr();
+        let name_cstr = name_owned.as_deref().unwrap_or(c"");
         let v = find_var(name_cstr, name_cstr.to_bytes().len(), Some(&mut ht_opt), 0);
         if v.is_some_and(|v| v.di_tv.v_type == VarType::VarFunc) {
             emsg_funcname(
                 c"E707: Function name conflicts with variable: %s",
-                crate::strings::ByteSlice::from_ptr(name).as_cstr(),
+                name_cstr,
             );
             erret!();
         }
 
-        fp = find_func(Some(crate::strings::ByteSlice::from_ptr(name).as_cstr()))
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        fp = find_func(Some(name_cstr)).map_or(ptr::null_mut(), ptr::from_mut);
         if !fp.is_null() {
             let fp_ref = crate::globals::GraphPtr::of(fp).borrow_mut();
             if !eap.forceit
                 && (fp_ref.uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
                     || fp_ref.uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
             {
-                emsg_funcname(
-                    E_FUNCEXTS,
-                    crate::strings::ByteSlice::from_ptr(name).as_cstr(),
-                );
+                emsg_funcname(E_FUNCEXTS, name_cstr);
                 errret_keep!();
             }
             if fp_ref.uf_calls > 0 {
                 emsg_funcname(
                     c"E127: Cannot redefine function %s: It is in use",
-                    crate::strings::ByteSlice::from_ptr(name).as_cstr(),
+                    name_cstr,
                 );
                 errret_keep!();
             }
@@ -3263,7 +3094,6 @@ pub fn ex_function(eap: &mut Exarg) {
             } else {
                 let exp_name = fp_ref.uf_name_exp.take();
                 name_owned = None;
-                name = ptr::null_mut();
 
                 func_clear_items(fp_ref);
 
@@ -3293,33 +3123,22 @@ pub fn ex_function(eap: &mut Exarg) {
         uf_st().func_nr += 1;
         namelen = format_to_buf!(&mut numbuf, c"%d", uf_st().func_nr) as usize;
         let nm = bytes_to_cstring(&numbuf[..namelen]);
-        name = nm.as_ptr().cast_mut();
         name_owned = Some(nm);
     }
 
     if fp.is_null() {
-        if fudi.fd_dict.is_null()
-            && !vim_strchr(
-                crate::strings::ByteSlice::from_ptr(name).as_cstr(),
-                AUTOLOAD_CHAR as i32,
-            )
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-            .is_null()
-        {
+        let name_cstr = name_owned.as_deref().unwrap_or(c"");
+        if fudi.fd_dict.is_null() && vim_strchr(name_cstr, AUTOLOAD_CHAR as i32).is_some() {
             let mut j = false;
             if let Some(sname) = sourcing_name() {
-                let sn = autoload_name(crate::strings::ByteSlice::from_ptr(name).as_bytes());
-                p = vim_strchr(&(sn), b'/' as i32)
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                let plen = crate::strings::ByteSlice::from_ptr(p).as_bytes().len() as i32;
+                let sn = autoload_name(name_cstr.to_bytes());
+                let p_slash = vim_strchr(&sn, b'/' as i32).unwrap_or(c"");
+                let plen = p_slash.to_bytes().len() as i32;
                 let slen = sname.to_bytes().len() as i32;
                 if slen > plen
                     && path_equal(
-                        crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-                        crate::strings::ByteSlice::from_ptr(
-                            sname.as_ptr().wrapping_add((slen - plen) as usize),
-                        )
-                        .as_cstr(),
+                        p_slash,
+                        &sname[(slen - plen) as usize..],
                         K_PATH_CMP_LITERAL,
                     )
                 {
@@ -3329,16 +3148,18 @@ pub fn ex_function(eap: &mut Exarg) {
             if !j {
                 semsg!(
                     gettext(c"E746: Function name does not match script file name: %s",),
-                    crate::strings::ByteSlice::from_ptr(name),
+                    name_cstr,
                 );
                 erret!();
             }
         }
 
+        let name_bytes = name_cstr.to_bytes();
         if namelen == 0 {
-            namelen = crate::strings::ByteSlice::from_ptr(name).as_bytes().len();
+            namelen = name_bytes.len();
         }
-        fp = alloc_ufunc(crate::strings::AsByteSlice::slice_len(name, namelen));
+        let name_slice = &name_bytes[..namelen.min(name_bytes.len())];
+        fp = alloc_ufunc(name_slice);
 
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
@@ -3354,7 +3175,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
             crate::eval::typval::tv_set_string_len(
                 &mut fudi.fd_di.borrow_mut().di_tv,
-                Some(crate::strings::AsByteSlice::slice_len(name, namelen)),
+                Some(name_slice),
             );
 
             fudi.fd_di.borrow_mut().di_tv.v_type = VarType::VarFunc;
@@ -3363,12 +3184,7 @@ pub fn ex_function(eap: &mut Exarg) {
         }
 
         if overwrite {
-            uf_st().func_hashtab.insert(
-                crate::strings::ByteSlice::from_ptr(name)
-                    .as_bytes()
-                    .to_vec(),
-                fp,
-            );
+            uf_st().func_hashtab.insert(name_bytes.to_vec(), fp);
         } else if !func_hashtab_add(crate::globals::GraphPtr::of(fp).borrow_mut()) {
             free_fp = true;
             erret!();
@@ -3432,10 +3248,10 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
         flag |= TFN_NO_DEREF;
     }
     let p = trans_function_name(&mut nm, false, flag, None, None);
-    let nm_ptr = crate::strings::ByteSlice::from_cstr(nm).skipwhite();
+    let nm_ws = crate::charset::skipwhite(nm);
 
     if let Some(ref p) = p
-        && (nm_ptr.is_empty() || nm_ptr.first_byte() == b'(')
+        && (nm_ws.is_empty() || nm_ws.to_bytes().first() == Some(&b'('))
     {
         n = translated_function_exists(p);
     }
@@ -3470,7 +3286,6 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             return Some(uf2hikey(&*fp));
         }
 
-        let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
         let len = cat_func_name(g_st().iobuff_bytes_mut(), &*fp);
         if xp.xp_context != EXPAND_USER_FUNC {
             crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
@@ -3478,7 +3293,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
                 crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len + 1..], b")");
             }
         }
-        return Some(iobuff_ptr.as_cstr());
+        return Some(g_st().iobuff_cstr());
     }
     None
 }
@@ -3499,7 +3314,6 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         }
         return;
     };
-    let name = crate::strings::ByteSlice::from_cstr(name_cstr);
     if ends_excmd(
         crate::charset::skipwhite_slice(p_cstr.to_bytes())
             .first()
@@ -3517,7 +3331,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         *b = NUL as u8;
     }
 
-    if (name.first_byte()).is_ascii_digit() && fudi.fd_dict.is_null() {
+    if name_cstr.as_bytes().first().is_some_and(u8::is_ascii_digit) && fudi.fd_dict.is_null() {
         if !eap.skip {
             semsg!(gettext(E_INVARG2), eap.arg);
         }
@@ -4043,25 +3857,18 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
     if let Some(mut tv) = rettv {
         tofree = Some(encode_tv2echo(&mut tv, None));
     }
-    let (s, slen) = if let Some(ref tf) = tofree {
-        (tf.as_ptr(), tf.as_bytes().len())
-    } else {
-        (c"".as_ptr(), 0)
-    };
+    let s_bytes = tofree.as_ref().map_or(&[][..], |tf| tf.as_bytes());
+    let slen = s_bytes.len();
 
-    let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
-    crate::memory::copy_bytes_to_c_buf(
-        &mut g_st().iobuff_bytes_mut()[8..],
-        crate::strings::AsByteSlice::slice_len(s, slen),
-    );
+    crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[8..], s_bytes);
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {
         crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[IOSIZE - 4..], b"...");
         iobuff_len = IOSIZE - 1;
     }
     drop(tofree);
-    bytes_to_cstring(iobuff_ptr.slice(iobuff_len))
+    bytes_to_cstring(&g_st().iobuff_bytes_mut()[..iobuff_len])
 }
 
 /// Get next function line.
@@ -4329,12 +4136,11 @@ pub fn find_hi_in_scoped_ht(
         {
             let ht_ptr = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
             let len = namelen
-                - ((crate::strings::AsByteSlice::byte_addr(varname.as_ptr()) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(name.as_ptr()) as isize))
-                    as usize;
+                .saturating_sub((varname.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize));
+            let varname_bytes = varname.to_bytes();
             hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(
                 ht_ptr.borrow(),
-                crate::strings::AsByteSlice::slice_len(varname.as_ptr(), len),
+                &varname_bytes[..len.min(varname_bytes.len())],
             ));
             if !hashitem_empty(hi.borrow()) {
                 *pht = Some(ht_ptr.borrow_mut());
@@ -4373,10 +4179,9 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
                 ht_ref,
                 i32::from(name_slice.first().copied().unwrap_or(0)),
                 varname,
-                namelen
-                    - ((crate::strings::AsByteSlice::byte_addr(varname.as_ptr()) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(name_cstr.as_ptr()) as isize))
-                        as usize,
+                namelen.saturating_sub(
+                    (varname.as_ptr() as usize).wrapping_sub(name_cstr.as_ptr() as usize),
+                ),
                 no_autoload,
             );
             if v.is_some() {

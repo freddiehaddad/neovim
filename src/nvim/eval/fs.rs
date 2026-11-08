@@ -59,7 +59,6 @@ use crate::runtime::script_is_lua;
 use crate::strings::{gettext, vim_strsave_shellescape};
 use crate::window::{TabPageInfo, WinInfoInfo, find_tabpage};
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::api::vim::K_CD_SCOPE_GLOBAL;
 use crate::charset::{NL, NUL};
@@ -96,422 +95,369 @@ pub fn modify_fname(
     fnamelen: &mut usize,
     use_shellslash: bool,
 ) -> i32 {
-    let mut fname =
-        crate::globals::GraphPtr::<u8>::of(fbuf.as_mut_ptr().wrapping_add(*fname_off)).as_ptr();
-    {
-        let mut valid: i32 = 0;
-        let mut s = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
-        let mut p;
-        let mut pbuf: Option<Vec<u8>>;
-        let mut dirname = [0u8; MAXPATHL];
-        let mut has_fullname = false;
-        let mut has_homerelative = false;
-        let mut didit = false;
+    let mut off = *fname_off;
+    let mut valid: i32 = 0;
+    let mut dirname = [0u8; MAXPATHL];
+    let mut has_fullname = false;
+    let mut has_homerelative = false;
+    let mut didit = false;
 
-        loop {
-            // ":p" - full path/file_name
-            if src_bytes
-                .get(*usedlen..)
-                .is_some_and(|r| r.starts_with(b":p"))
-            {
-                has_fullname = true;
+    loop {
+        // ":p" - full path/file_name
+        if src_bytes
+            .get(*usedlen..)
+            .is_some_and(|r| r.starts_with(b":p"))
+        {
+            has_fullname = true;
 
-                valid |= VALID_PATH;
-                *usedlen += 2;
+            valid |= VALID_PATH;
+            *usedlen += 2;
 
-                // Expand "~/path" for all systems and "~user/path" for Unix
-                let fname_bytes = crate::strings::ByteSlice::from_ptr(fname).as_bytes();
-                let tilde_cond = fname_bytes.first() == Some(&b'~')
-                    && (cfg!(unix)
-                        || fname_bytes.get(1) == Some(&b'/')
-                        || (cfg!(windows) && fname_bytes.get(1) == Some(&b'\\'))
-                        || fname_bytes.len() == 1)
-                    && !(tilde_file && fname_bytes.len() == 1);
-                if tilde_cond {
-                    let exp = expand_env_save(crate::strings::ByteSlice::from_ptr(fname).as_cstr());
-                    *fbuf = exp.into_bytes_with_nul();
-                    fname = fbuf.as_mut_ptr();
-                }
+            // Expand "~/path" for all systems and "~user/path" for Unix
+            let fname_bytes = crate::memory::bytes_until_nul(&fbuf[off..]);
+            let tilde_cond = fname_bytes.first() == Some(&b'~')
+                && (cfg!(unix)
+                    || fname_bytes.get(1) == Some(&b'/')
+                    || (cfg!(windows) && fname_bytes.get(1) == Some(&b'\\'))
+                    || fname_bytes.len() == 1)
+                && !(tilde_file && fname_bytes.len() == 1);
+            if tilde_cond {
+                let exp = expand_env_save(crate::memory::bytes_as_cstr(&fbuf[off..]));
+                *fbuf = exp.into_bytes_with_nul();
+                off = 0;
+            }
 
-                // When "/." or "/.." is used: force expansion to get rid of it.
-                let fname_bytes = crate::strings::ByteSlice::from_ptr(fname).as_bytes();
-                let mut p_idx = 0usize;
-                while p_idx < fname_bytes.len() {
-                    let rem = &fname_bytes[p_idx..];
-                    if vim_ispathsep(rem[0] as i32)
-                        && rem.get(1) == Some(&b'.')
-                        && (rem.len() == 2
-                            || vim_ispathsep(rem[2] as i32)
-                            || (rem[2] == b'.' && (rem.len() == 3 || vim_ispathsep(rem[3] as i32))))
-                    {
-                        break;
-                    }
-                    p_idx += utfc_slice2len(rem).min(rem.len());
-                }
-                let has_dot_comp = p_idx < fname_bytes.len();
-
-                // FullName_save() is slow, don't use it when not needed.
-                if has_dot_comp
-                    || !vim_isAbsName(
-                        crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_bytes(),
-                    )
-                    || (cfg!(windows) && matches!(fname_bytes.first(), Some(b'/' | b'\\')))
+            // When "/." or "/.." is used: force expansion to get rid of it.
+            let fname_bytes = crate::memory::bytes_until_nul(&fbuf[off..]);
+            let mut p_idx = 0usize;
+            while p_idx < fname_bytes.len() {
+                let rem = &fname_bytes[p_idx..];
+                if vim_ispathsep(rem[0] as i32)
+                    && rem.get(1) == Some(&b'.')
+                    && (rem.len() == 2
+                        || vim_ispathsep(rem[2] as i32)
+                        || (rem[2] == b'.' && (rem.len() == 3 || vim_ispathsep(rem[3] as i32))))
                 {
-                    let Some(full) = FullName_save(
-                        crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_opt_cstr(),
-                        has_dot_comp,
-                    ) else {
-                        fbuf.clear();
-                        *fname_off = 0;
-                        return -1;
-                    };
-                    *fbuf = full.into_bytes_with_nul();
-                    fname = fbuf.as_mut_ptr();
+                    break;
                 }
+                p_idx += utfc_slice2len(rem).min(rem.len());
+            }
+            let has_dot_comp = p_idx < fname_bytes.len();
 
-                // Append a path separator to a directory.
-                if os_isdir(crate::strings::ByteSlice::from_ptr(fname).as_cstr()) {
-                    // Make room for one or two extra characters.
-                    let cur_len = crate::strings::ByteSlice::from_ptr(fname).as_bytes().len();
-                    let mut v = vec![0u8; cur_len + 3];
-                    crate::globals::GraphPtr::copy_to(fname, v.as_mut_ptr(), cur_len + 1);
-                    add_pathsep(&mut v);
-                    *fbuf = v;
-                    fname = fbuf.as_mut_ptr();
+            // FullName_save() is slow, don't use it when not needed.
+            if has_dot_comp
+                || !vim_isAbsName(fname_bytes)
+                || (cfg!(windows) && matches!(fname_bytes.first(), Some(b'/' | b'\\')))
+            {
+                let Some(full) = FullName_save(
+                    Some(crate::memory::bytes_as_cstr(&fbuf[off..])),
+                    has_dot_comp,
+                ) else {
+                    fbuf.clear();
+                    *fname_off = 0;
+                    return -1;
+                };
+                *fbuf = full.into_bytes_with_nul();
+                off = 0;
+            }
+
+            // Append a path separator to a directory.
+            if os_isdir(crate::memory::bytes_as_cstr(&fbuf[off..])) {
+                // Make room for one or two extra characters.
+                let cur_bytes = crate::memory::bytes_until_nul(&fbuf[off..]);
+                let cur_len = cur_bytes.len();
+                let mut v = vec![0u8; cur_len + 3];
+                v[..cur_len].copy_from_slice(cur_bytes);
+                add_pathsep(&mut v);
+                *fbuf = v;
+                off = 0;
+            }
+        }
+
+        let mut c: i32;
+
+        // ":." - path relative to the current directory
+        // ":~" - path relative to the home directory
+        // ":8" - shortname path - postponed till after
+        while src_bytes.get(*usedlen) == Some(&b':') && {
+            c = src_bytes.get(*usedlen + 1).copied().unwrap_or(0) as i32;
+            c == b'.' as i32 || c == b'~' as i32 || c == b'8' as i32
+        } {
+            *usedlen += 2;
+            if c == b'8' as i32 {
+                continue;
+            }
+            let mut pbuf: Option<Vec<u8>> = None;
+            let mut has_p = true;
+            // Need full path first (use expand_env() to remove a "~/")
+            if !has_fullname && !has_homerelative {
+                if fbuf.get(off) == Some(&b'~') {
+                    let exp = expand_env_save(crate::memory::bytes_as_cstr(&fbuf[off..]))
+                        .into_bytes_with_nul();
+                    pbuf = Some(exp);
+                } else if let Some(full) =
+                    FullName_save(Some(crate::memory::bytes_as_cstr(&fbuf[off..])), false)
+                {
+                    pbuf = Some(full.into_bytes_with_nul());
+                } else {
+                    has_p = false;
                 }
             }
 
-            let mut c: i32;
+            has_fullname = false;
 
-            // ":." - path relative to the current directory
-            // ":~" - path relative to the home directory
-            // ":8" - shortname path - postponed till after
-            while src_bytes.get(*usedlen) == Some(&b':') && {
-                c = src_bytes.get(*usedlen + 1).copied().unwrap_or(0) as i32;
-                c == b'.' as i32 || c == b'~' as i32 || c == b'8' as i32
-            } {
-                *usedlen += 2;
-                if c == b'8' as i32 {
-                    continue;
-                }
-                pbuf = None;
-                // Need full path first (use expand_env() to remove a "~/")
-                if !has_fullname && !has_homerelative {
-                    if *crate::globals::GraphPtr::of(fname).borrow() == b'~' {
-                        let exp =
-                            expand_env_save(crate::strings::ByteSlice::from_ptr(fname).as_cstr())
-                                .into_bytes_with_nul();
-                        p = exp.as_ptr().cast_mut();
-                        pbuf = Some(exp);
-                    } else if let Some(full) = FullName_save(
-                        crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_opt_cstr(),
-                        false,
-                    ) {
-                        let full_vec = full.into_bytes_with_nul();
-                        p = full_vec.as_ptr().cast_mut();
-                        pbuf = Some(full_vec);
-                    } else {
-                        p = ptr::null_mut();
+            if has_p {
+                let mut dirnamelen: usize = 0;
+                let p_cstr = match pbuf {
+                    Some(ref pb) => crate::memory::bytes_as_cstr(pb),
+                    None => crate::memory::bytes_as_cstr(&fbuf[off..]),
+                };
+
+                if c == b'.' as i32 {
+                    os_dirname(&mut dirname);
+                    if has_homerelative {
+                        let s_cstr = crate::memory::cstring_until_nul(&dirname);
+                        dirnamelen =
+                            home_replace(None, Some(s_cstr.as_c_str()), &mut dirname, true);
                     }
-                } else {
-                    p = fname;
-                }
 
-                has_fullname = false;
+                    if dirnamelen == 0 {
+                        dirnamelen = crate::memory::bytes_until_nul(&dirname).len();
+                    }
 
-                if !p.is_null() {
-                    let mut dirnamelen: usize = 0;
-
-                    if c == b'.' as i32 {
-                        os_dirname(&mut dirname);
-                        if has_homerelative {
-                            let s_cstr = crate::memory::cstring_until_nul(&dirname);
-                            dirnamelen =
-                                home_replace(None, Some(s_cstr.as_c_str()), &mut dirname, true);
-                        }
-
-                        if dirnamelen == 0 {
-                            dirnamelen = crate::memory::bytes_until_nul(&dirname).len();
-                        }
-
-                        // Do not call shorten_fname() here since it removes the prefix
-                        // even though the path does not have a prefix.
-                        if path_cmp(
-                            opt_vars().p_fic,
-                            crate::strings::ByteSlice::from_ptr(p.cast_const()).as_cstr(),
-                            crate::memory::bytes_as_cstr(&dirname),
-                            dirnamelen,
-                        ) == 0
-                        {
-                            p = p.wrapping_add(dirnamelen);
-                            let p_rem = crate::strings::ByteSlice::from_ptr(p).as_bytes();
-                            if p_rem.first().is_some_and(|&b| vim_ispathsep(b as i32)) {
-                                let skip_seps = p_rem
-                                    .iter()
-                                    .take_while(|&&b| vim_ispathsep(b as i32))
-                                    .count();
-                                if let Some(pb) = pbuf.take() {
-                                    let off = (p.wrapping_add(skip_seps) as usize)
-                                        - (pb.as_ptr() as usize);
-                                    *fbuf = pb;
-                                    fname = fbuf.as_mut_ptr().wrapping_add(off);
-                                } else {
-                                    fname = p.wrapping_add(skip_seps);
-                                }
+                    // Do not call shorten_fname() here since it removes the prefix
+                    // even though the path does not have a prefix.
+                    if path_cmp(
+                        opt_vars().p_fic,
+                        p_cstr,
+                        crate::memory::bytes_as_cstr(&dirname),
+                        dirnamelen,
+                    ) == 0
+                    {
+                        let p_bytes = p_cstr.to_bytes();
+                        let p_rem = p_bytes.get(dirnamelen..).unwrap_or(&[]);
+                        if p_rem.first().is_some_and(|&b| vim_ispathsep(b as i32)) {
+                            let skip_seps = p_rem
+                                .iter()
+                                .take_while(|&&b| vim_ispathsep(b as i32))
+                                .count();
+                            let advance = dirnamelen + skip_seps;
+                            if let Some(pb) = pbuf.take() {
+                                *fbuf = pb;
+                                off = advance;
+                            } else {
+                                off += advance;
                             }
                         }
-                    } else {
-                        dirnamelen = home_replace(
-                            None,
-                            crate::strings::ByteSlice::from_ptr(p).as_opt_cstr(),
-                            &mut dirname,
-                            true,
-                        );
-                        // Only replace it when it starts with '~'
-                        if dirname[0] == b'~' {
-                            let mut v = vec![0u8; dirnamelen + 1];
-                            crate::globals::GraphPtr::copy_to(
-                                dirname.as_ptr(),
-                                v.as_mut_ptr(),
-                                dirnamelen,
-                            );
-                            *fbuf = v;
-                            fname = fbuf.as_mut_ptr();
-                            has_homerelative = true;
-                        }
-                    }
-                    drop(pbuf);
-                }
-            }
-
-            let mut file_info = FileInfo::new();
-            os_fileinfo2(
-                crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
-                &mut file_info,
-            );
-            if src_bytes
-                .get(*usedlen..)
-                .is_some_and(|r| r.starts_with(b":h"))
-            {
-                s = fname.wrapping_add(file_info.rest_off);
-                fname = fname.wrapping_add(file_info.prefix_off);
-            }
-
-            let mut tail =
-                path_tail(crate::strings::ByteSlice::from_ptr(fname.cast_const()).as_cstr())
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>();
-            *fnamelen = crate::strings::ByteSlice::from_ptr(fname).as_bytes().len();
-
-            // ":h" - head, remove "/file_name", can be repeated
-            // Don't remove the logical root, see `FileInfo`.
-            while src_bytes
-                .get(*usedlen..)
-                .is_some_and(|r| r.starts_with(b":h"))
-            {
-                valid |= VALID_HEAD;
-                *usedlen += 2;
-                while (tail as usize) > (s as usize)
-                    && after_pathsep(crate::strings::AsByteSlice::slice_len(
-                        s,
-                        (tail as usize).saturating_sub(s as usize),
-                    )) != 0
-                {
-                    tail = tail.wrapping_sub(
-                        crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize + 1,
-                    );
-                }
-                *fnamelen = if (tail as usize) <= (s as usize) {
-                    (s as usize).wrapping_sub(fname as usize)
-                } else {
-                    (tail as usize).wrapping_sub(fname as usize)
-                };
-                if *fnamelen == 0 {
-                    // Result is empty.  Turn it into "." to make ":cd %:h" work.
-                    *fbuf = vec![b'.', 0];
-                    fname = fbuf.as_mut_ptr();
-                    tail = fname;
-                    s = fname; // s pointed into the freed buffer.
-                    *fnamelen = 1;
-                } else {
-                    while (tail as usize) > (s as usize)
-                        && after_pathsep(crate::strings::AsByteSlice::slice_len(
-                            s,
-                            (tail as usize).saturating_sub(s as usize),
-                        )) == 0
-                    {
-                        tail = tail.wrapping_sub(
-                            crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize
-                                + 1,
-                        );
-                    }
-                }
-            }
-
-            // ":8" - shortname
-            if src_bytes
-                .get(*usedlen..)
-                .is_some_and(|r| r.starts_with(b":8"))
-            {
-                *usedlen += 2;
-            }
-
-            // ":t" - tail, just the basename
-            if src_bytes
-                .get(*usedlen..)
-                .is_some_and(|r| r.starts_with(b":t"))
-            {
-                *usedlen += 2;
-                *fnamelen -= (tail as usize).wrapping_sub(fname as usize);
-                fname = tail;
-            }
-
-            // ":e" - extension, can be repeated
-            // ":r" - root, without extension, can be repeated
-            while src_bytes.get(*usedlen) == Some(&b':')
-                && matches!(src_bytes.get(*usedlen + 1), Some(b'e' | b'r'))
-            {
-                let mod_ch = src_bytes[*usedlen + 1];
-                // find a '.' in the tail:
-                // - for second :e: before the current fname
-                // - otherwise: The last '.'
-                let is_second_e = (fname as usize) > (tail as usize);
-                if mod_ch == b'e' && is_second_e {
-                    s = fname.wrapping_sub(2);
-                } else {
-                    s = fname.wrapping_add(*fnamelen).wrapping_sub(1);
-                }
-
-                while (s as usize) > (tail as usize) {
-                    if *crate::globals::GraphPtr::of(s).borrow() == b'.' {
-                        break;
-                    }
-                    s = s.wrapping_sub(1);
-                }
-                if mod_ch == b'e' {
-                    if (s as usize) > (tail as usize) {
-                        // we stopped at a '.' (so anchor to &'.' + 1)
-                        let newstart = s.wrapping_add(1);
-                        let distance_stepped_back =
-                            (fname as usize).wrapping_sub(newstart as usize);
-                        *fnamelen = (*fnamelen).wrapping_add(distance_stepped_back);
-                        fname = newstart;
-                    } else if (fname as usize) <= (tail as usize) {
-                        *fnamelen = 0;
                     }
                 } else {
-                    // :r - Remove one extension
-                    let max_ptr = if (tail as usize) > (fname as usize) {
-                        tail
-                    } else {
-                        fname
-                    };
-                    if (s as usize) > (max_ptr as usize) {
-                        *fnamelen = (s as usize).wrapping_sub(fname as usize);
+                    dirnamelen = home_replace(None, Some(p_cstr), &mut dirname, true);
+                    // Only replace it when it starts with '~'
+                    if dirname[0] == b'~' {
+                        let mut v = vec![0u8; dirnamelen + 1];
+                        v[..dirnamelen].copy_from_slice(&dirname[..dirnamelen]);
+                        *fbuf = v;
+                        off = 0;
+                        has_homerelative = true;
                     }
                 }
-                *usedlen += 2;
             }
+        }
 
-            #[cfg(windows)]
-            if !didit && use_shellslash && !fname.is_null() {
-                let mut v = crate::strings::ByteSlice::from_ptr(fname)
-                    .to_cstring()
-                    .into_bytes_with_nul();
-                slash_adjust(&mut v);
-                *fbuf = v;
-                fname = fbuf.as_mut_ptr();
+        let mut file_info = FileInfo::new();
+        os_fileinfo2(crate::memory::bytes_as_cstr(&fbuf[off..]), &mut file_info);
+        let mut s_off = 0usize;
+        if src_bytes
+            .get(*usedlen..)
+            .is_some_and(|r| r.starts_with(b":h"))
+        {
+            s_off = off + file_info.rest_off;
+            off += file_info.prefix_off;
+        }
+
+        let fname_cstr = crate::memory::bytes_as_cstr(&fbuf[off..]);
+        let mut tail_off =
+            off + (path_tail(fname_cstr).as_ptr() as usize - fname_cstr.as_ptr() as usize);
+        *fnamelen = fname_cstr.to_bytes().len();
+
+        // ":h" - head, remove "/file_name", can be repeated
+        // Don't remove the logical root, see `FileInfo`.
+        while src_bytes
+            .get(*usedlen..)
+            .is_some_and(|r| r.starts_with(b":h"))
+        {
+            valid |= VALID_HEAD;
+            *usedlen += 2;
+            while tail_off > s_off && after_pathsep(&fbuf[s_off..tail_off]) != 0 {
+                let back =
+                    crate::mbyte::utf_head_off(&fbuf[off..], tail_off - off - 1) as usize + 1;
+                tail_off -= back;
             }
-            #[cfg(not(windows))]
-            let _ = use_shellslash;
-
-            // ":s?pat?foo?" - substitute
-            // ":gs?pat?foo?" - global substitute
-            let mut repeat_loop = false;
-            if src_bytes.get(*usedlen) == Some(&b':')
-                && (src_bytes.get(*usedlen + 1) == Some(&b's')
-                    || src_bytes
-                        .get(*usedlen + 1..)
-                        .is_some_and(|r| r.starts_with(b"gs")))
-            {
-                let mut flags = c"".as_ptr();
-                let mut s_idx = *usedlen + 2;
-                if src_bytes.get(*usedlen + 1) == Some(&b'g') {
-                    flags = c"g".as_ptr();
-                    s_idx += 1;
+            *fnamelen = if tail_off <= s_off {
+                s_off.saturating_sub(off)
+            } else {
+                tail_off.saturating_sub(off)
+            };
+            if *fnamelen == 0 {
+                // Result is empty.  Turn it into "." to make ":cd %:h" work.
+                *fbuf = vec![b'.', 0];
+                off = 0;
+                tail_off = 0;
+                s_off = 0;
+                *fnamelen = 1;
+            } else {
+                while tail_off > s_off && after_pathsep(&fbuf[s_off..tail_off]) == 0 {
+                    let back =
+                        crate::mbyte::utf_head_off(&fbuf[off..], tail_off - off - 1) as usize + 1;
+                    tail_off -= back;
                 }
+            }
+        }
 
-                let sep = src_bytes.get(s_idx).copied().unwrap_or(0);
+        // ":8" - shortname
+        if src_bytes
+            .get(*usedlen..)
+            .is_some_and(|r| r.starts_with(b":8"))
+        {
+            *usedlen += 2;
+        }
+
+        // ":t" - tail, just the basename
+        if src_bytes
+            .get(*usedlen..)
+            .is_some_and(|r| r.starts_with(b":t"))
+        {
+            *usedlen += 2;
+            *fnamelen -= tail_off.wrapping_sub(off);
+            off = tail_off;
+        }
+
+        // ":e" - extension, can be repeated
+        // ":r" - root, without extension, can be repeated
+        while src_bytes.get(*usedlen) == Some(&b':')
+            && matches!(src_bytes.get(*usedlen + 1), Some(b'e' | b'r'))
+        {
+            let mod_ch = src_bytes[*usedlen + 1];
+            // find a '.' in the tail:
+            // - for second :e: before the current fname
+            // - otherwise: The last '.'
+            let is_second_e = off > tail_off;
+            let mut s_idx: isize = if mod_ch == b'e' && is_second_e {
+                off as isize - 2
+            } else {
+                (off + *fnamelen) as isize - 1
+            };
+
+            while s_idx > tail_off as isize {
+                if fbuf.get(s_idx as usize) == Some(&b'.') {
+                    break;
+                }
+                s_idx -= 1;
+            }
+            if mod_ch == b'e' {
+                if s_idx > tail_off as isize {
+                    // we stopped at a '.' (so anchor to &'.' + 1)
+                    let newstart = (s_idx + 1) as usize;
+                    let distance_stepped_back = off.wrapping_sub(newstart);
+                    *fnamelen = (*fnamelen).wrapping_add(distance_stepped_back);
+                    off = newstart;
+                } else if off <= tail_off {
+                    *fnamelen = 0;
+                }
+            } else {
+                // :r - Remove one extension
+                let max_off = tail_off.max(off) as isize;
+                if s_idx > max_off {
+                    *fnamelen = (s_idx as usize) - off;
+                }
+            }
+            *usedlen += 2;
+        }
+
+        #[cfg(windows)]
+        if !didit && use_shellslash && !fbuf.is_empty() {
+            slash_adjust(&mut fbuf[off..]);
+        }
+        #[cfg(not(windows))]
+        let _ = use_shellslash;
+
+        // ":s?pat?foo?" - substitute
+        // ":gs?pat?foo?" - global substitute
+        let mut repeat_loop = false;
+        if src_bytes.get(*usedlen) == Some(&b':')
+            && (src_bytes.get(*usedlen + 1) == Some(&b's')
+                || src_bytes
+                    .get(*usedlen + 1..)
+                    .is_some_and(|r| r.starts_with(b"gs")))
+        {
+            let mut flags = c"";
+            let mut s_idx = *usedlen + 2;
+            if src_bytes.get(*usedlen + 1) == Some(&b'g') {
+                flags = c"g";
                 s_idx += 1;
-                if sep != 0 {
-                    // find end of pattern
-                    if let Some(pat_len) = src_bytes
+            }
+
+            let sep = src_bytes.get(s_idx).copied().unwrap_or(0);
+            s_idx += 1;
+            if sep != 0 {
+                // find end of pattern
+                if let Some(pat_len) = src_bytes
+                    .get(s_idx..)
+                    .and_then(|r| r.iter().position(|&b| b == sep))
+                {
+                    let pat = bytes_to_cstring(&src_bytes[s_idx..s_idx + pat_len]);
+                    s_idx += pat_len + 1;
+                    // find end of substitution
+                    if let Some(sub_len) = src_bytes
                         .get(s_idx..)
                         .and_then(|r| r.iter().position(|&b| b == sep))
                     {
-                        let pat = bytes_to_cstring(&src_bytes[s_idx..s_idx + pat_len]);
-                        s_idx += pat_len + 1;
-                        // find end of substitution
-                        if let Some(sub_len) = src_bytes
-                            .get(s_idx..)
-                            .and_then(|r| r.iter().position(|&b| b == sep))
-                        {
-                            let sub = bytes_to_cstring(&src_bytes[s_idx..s_idx + sub_len]);
-                            let mut str_copy = vec![0u8; *fnamelen + 1];
-                            if *fnamelen > 0 {
-                                crate::globals::GraphPtr::copy_to(
-                                    fname,
-                                    str_copy.as_mut_ptr(),
-                                    *fnamelen,
-                                );
-                            }
-                            *usedlen = s_idx + sub_len + 1;
-                            let sub_res = do_string_sub(
-                                crate::memory::bytes_as_cstr(&str_copy),
-                                *fnamelen,
-                                &pat,
-                                &sub,
-                                None,
-                                crate::strings::ByteSlice::from_ptr(flags).as_cstr(),
-                            );
-                            *fnamelen = sub_res.as_bytes().len();
-                            *fbuf = sub_res.into_bytes_with_nul();
-                            fname = fbuf.as_mut_ptr();
-                            didit = true;
+                        let sub = bytes_to_cstring(&src_bytes[s_idx..s_idx + sub_len]);
+                        let mut str_copy = vec![0u8; *fnamelen + 1];
+                        if *fnamelen > 0 {
+                            str_copy[..*fnamelen].copy_from_slice(&fbuf[off..off + *fnamelen]);
                         }
-                    }
-                    // after using ":s", repeat all the modifiers
-                    if didit {
-                        repeat_loop = true;
+                        *usedlen = s_idx + sub_len + 1;
+                        let sub_res = do_string_sub(
+                            crate::memory::bytes_as_cstr(&str_copy),
+                            *fnamelen,
+                            &pat,
+                            &sub,
+                            None,
+                            flags,
+                        );
+                        *fnamelen = sub_res.as_bytes().len();
+                        *fbuf = sub_res.into_bytes_with_nul();
+                        off = 0;
+                        didit = true;
                     }
                 }
+                // after using ":s", repeat all the modifiers
+                if didit {
+                    repeat_loop = true;
+                }
             }
-            if repeat_loop {
-                continue;
-            }
-
-            if src_bytes
-                .get(*usedlen..)
-                .is_some_and(|r| r.starts_with(b":S"))
-            {
-                let esc = vim_strsave_shellescape(
-                    crate::strings::AsByteSlice::slice_len(fname, *fnamelen),
-                    false,
-                    false,
-                );
-                *fnamelen = esc.as_bytes().len();
-                *fbuf = esc.into_bytes_with_nul();
-                fname = fbuf.as_mut_ptr();
-                *usedlen += 2;
-            }
-
-            break;
+        }
+        if repeat_loop {
+            continue;
         }
 
-        *fname_off = (fname as usize).wrapping_sub(fbuf.as_ptr() as usize);
-        valid
+        if src_bytes
+            .get(*usedlen..)
+            .is_some_and(|r| r.starts_with(b":S"))
+        {
+            let esc = vim_strsave_shellescape(&fbuf[off..off + *fnamelen], false, false);
+            *fnamelen = esc.as_bytes().len();
+            *fbuf = esc.into_bytes_with_nul();
+            off = 0;
+            *usedlen += 2;
+        }
+
+        break;
     }
+
+    *fname_off = off;
+    valid
 }
 
 /// "chdir(dir)" function
@@ -1298,17 +1244,19 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     let mut buf = [0u8; NUMBUFLEN];
-    let dir = tv_get_string_buf(&argvars[0], &mut buf);
-    if dir.to_bytes().is_empty() {
+    let dir_in = tv_get_string_buf(&argvars[0], &mut buf);
+    if dir_in.to_bytes().is_empty() {
         return;
     }
-    let dir = crate::strings::ByteSlice::from_cstr(dir);
-
-    if path_tail(dir.as_cstr()).is_empty() {
+    let mut dir_vec = dir_in.to_bytes_with_nul().to_vec();
+    let dir_cstr = crate::memory::bytes_as_cstr(&dir_vec);
+    if path_tail(dir_cstr).is_empty() {
         // Remove trailing slashes.
-        *crate::globals::GraphPtr::of(path_tail_with_sep(dir.as_cstr()).as_ptr().cast_mut())
-            .borrow_mut() = NUL;
+        let sep_off =
+            (path_tail_with_sep(dir_cstr).as_ptr() as usize) - (dir_cstr.as_ptr() as usize);
+        dir_vec[sep_off] = NUL as u8;
     }
+    let dir_cstr = crate::memory::bytes_as_cstr(&dir_vec);
 
     let mut defer = false;
     let mut defer_recurse = false;
@@ -1330,19 +1278,13 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         if crate::strings::vim_haschr(arg2, b'p' as i32) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(
-                dir.as_cstr(),
+                dir_cstr,
                 prot,
                 &mut failed_dir,
                 (defer || defer_recurse).then_some(&mut created),
             );
             if ret != 0 {
-                semsg!(
-                    gettext(E_MKDIR),
-                    crate::strings::ByteSlice::from_ptr(
-                        failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr())
-                    ),
-                    uv_strerror(ret),
-                );
+                semsg!(gettext(E_MKDIR), failed_dir, uv_strerror(ret));
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
                 return;
             }
@@ -1351,14 +1293,13 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
     if rettv.vval.v_number() == 0 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_mkdir_emsg(
-            dir.as_cstr(),
-            prot,
+            dir_cstr, prot,
         )));
     }
 
     // Handle "D" and "R": deferred deletion of the created directory.
     if rettv.vval.v_number() == 1 && created.is_none() && (defer || defer_recurse) {
-        created = FullName_save(dir.as_opt_cstr(), false);
+        created = FullName_save(Some(dir_cstr), false);
     }
     if let Some(created_cstr) = created {
         let mut tv = [TypVal::new(), TypVal::new()];
@@ -1569,7 +1510,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
 
                 // Finished a line.  Remove CRs before NL.
                 if readlen > 0 && !binary {
-                    let line_bytes = crate::strings::AsByteSlice::slice_len(start, len);
+                    let line_bytes = crate::globals::GraphPtr::raw_slice(start, len);
                     while len > 0 && line_bytes[len - 1] == b'\r' {
                         len -= 1;
                     }
@@ -1611,7 +1552,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if readlen <= 0 {
                     break;
                 }
-            } else if crate::strings::AsByteSlice::is_empty_val(p) {
+            } else if *crate::globals::GraphPtr::of(p).borrow() == 0 {
                 *crate::globals::GraphPtr::of(p).borrow_mut() = b'\n';
             } else if *crate::globals::GraphPtr::of(p).borrow() == 0xbf && !binary {
                 // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
@@ -1729,7 +1670,6 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let mut limit: i32 = 100;
 
         let mut p_vec = fname.to_bytes_with_nul().to_vec();
-        let mut p = crate::strings::ByteSlice::from_bytes(&p_vec);
         let mut p_len = p_vec.len() - 1;
 
         if p_vec.first() == Some(&b'.')
@@ -1740,21 +1680,19 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             is_relative_to_current = true;
         }
 
-        if p_len > 1 && after_pathsep(p.slice(p_len)) != 0 {
+        if p_len > 1 && after_pathsep(&p_vec[..p_len]) != 0 {
             has_trailing_pathsep = true;
             p_len -= 1;
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
         }
 
-        let mut q = path_next_component(p.as_cstr())
-            .as_ptr()
-            .cast_mut()
-            .cast::<u8>();
+        let p_cstr = crate::memory::bytes_as_cstr(&p_vec);
+        let q = path_next_component(p_cstr);
         let mut remain_vec: Option<Vec<u8>> = None;
-        if *crate::globals::GraphPtr::of(q).borrow() != 0 {
+        if !q.is_empty() {
             // Separate the first path component in "p", and keep the
             // remainder (beginning with the path separator).
-            let q_off = (q as usize) - (p.as_ptr() as usize);
+            let q_off = (q.as_ptr() as usize) - (p_cstr.as_ptr() as usize);
             let mut rem = Vec::with_capacity(p_len - (q_off - 1) + 1);
             rem.extend_from_slice(&p_vec[q_off - 1..p_len]);
             rem.push(0);
@@ -1764,11 +1702,12 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
 
         let mut buf_vec = vec![0u8; MAXPATHL + 1];
-        let buf = buf_vec.as_mut_ptr();
 
         loop {
             loop {
-                let len = unsafe { readlink(p.cast(), buf.cast(), MAXPATHL) };
+                let len = unsafe {
+                    readlink(p_vec.as_ptr().cast(), buf_vec.as_mut_ptr().cast(), MAXPATHL)
+                };
                 if len <= 0 {
                     break;
                 }
@@ -1792,17 +1731,12 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
                 // Separate the first path component in the link value and
                 // concatenate the remainders.
-                let start_comp = if vim_ispathsep(buf_vec[0] as i32) {
-                    buf.wrapping_add(1)
-                } else {
-                    buf
-                };
-                q = path_next_component(crate::strings::ByteSlice::from_ptr(start_comp).as_cstr())
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>();
-                if *crate::globals::GraphPtr::of(q).borrow() != 0 {
-                    let q_off = (q as usize) - (buf as usize);
+                let start_off = usize::from(vim_ispathsep(buf_vec[0] as i32));
+                let start_cstr = crate::memory::bytes_as_cstr(&buf_vec[start_off..]);
+                let q = path_next_component(start_cstr);
+                if !q.is_empty() {
+                    let q_off =
+                        start_off + ((q.as_ptr() as usize) - (start_cstr.as_ptr() as usize));
                     let head_bytes = &buf_vec[q_off - 1..buf_len];
                     let rem_old_len = remain_vec
                         .as_ref()
@@ -1818,58 +1752,48 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     buf_vec[buf_len] = 0;
                 }
 
-                q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
-                if (q as usize) > (p.as_ptr() as usize)
-                    && *crate::globals::GraphPtr::of(q).borrow() == 0
-                {
+                let p_cstr = crate::memory::bytes_as_cstr(&p_vec);
+                let mut q_off = (path_tail(p_cstr).as_ptr() as usize) - (p_cstr.as_ptr() as usize);
+                if q_off > 0 && p_vec[q_off] == 0 {
                     // Ignore trailing path separator.
-                    *crate::globals::GraphPtr::of(q.wrapping_sub(1)).borrow_mut() = 0;
-                    q = path_tail(p.as_cstr()).as_ptr().cast_mut().cast::<u8>();
+                    p_vec[q_off - 1] = 0;
+                    let p_cstr = crate::memory::bytes_as_cstr(&p_vec);
+                    q_off = (path_tail(p_cstr).as_ptr() as usize) - (p_cstr.as_ptr() as usize);
                 }
-                if (q as usize) > (p.as_ptr() as usize)
-                    && !path_is_absolute(crate::strings::ByteSlice::from_ptr(buf).as_bytes())
-                {
+                if q_off > 0 && !path_is_absolute(&buf_vec[..buf_len]) {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
-                    let prefix_len = (q as usize) - (p.as_ptr() as usize);
+                    let prefix_len = q_off;
                     let mut new_p = vec![0u8; prefix_len + buf_len + 1];
                     new_p[..prefix_len].copy_from_slice(&p_vec[..prefix_len]);
                     new_p[prefix_len..prefix_len + buf_len].copy_from_slice(&buf_vec[..buf_len]);
                     p_len = prefix_len + buf_len;
                     p_vec = new_p;
-                    p = crate::strings::ByteSlice::from_bytes(&p_vec);
                 } else {
                     let mut new_p = Vec::with_capacity(buf_len + 1);
                     new_p.extend_from_slice(&buf_vec[..buf_len]);
                     new_p.push(0);
                     p_len = buf_len;
                     p_vec = new_p;
-                    p = crate::strings::ByteSlice::from_bytes(&p_vec);
                 }
             }
 
             let Some(ref mut rem_v) = remain_vec else {
                 break;
             };
-            let remain = crate::strings::ByteSlice::from_bytes(rem_v);
-
-            // Append the first path component of "remain" to "p".
-            q = path_next_component(remain.wrapping_add(1).as_cstr())
-                .as_ptr()
-                .cast_mut()
-                .cast::<u8>();
-            let comp_len = (q as usize).wrapping_sub(remain.as_ptr() as usize)
-                - usize::from(*crate::globals::GraphPtr::of(q).borrow() != 0);
+            let rem_cstr = crate::memory::bytes_as_cstr(&rem_v[1..]);
+            let q = path_next_component(rem_cstr);
+            let q_off = 1 + ((q.as_ptr() as usize) - (rem_cstr.as_ptr() as usize));
+            let comp_len = q_off - usize::from(!q.is_empty());
             let mut new_p = vec![0u8; p_len + comp_len + 1];
             new_p[..p_len].copy_from_slice(&p_vec[..p_len]);
             new_p[p_len..p_len + comp_len].copy_from_slice(&rem_v[..comp_len]);
             p_len += comp_len;
             p_vec = new_p;
-            p = crate::strings::ByteSlice::from_bytes(&p_vec);
 
             // Shorten "remain".
-            if *crate::globals::GraphPtr::of(q).borrow() != 0 {
-                let rem_tail_off = ((q as usize) - 1) - (remain.as_ptr() as usize);
+            if !q.is_empty() {
+                let rem_tail_off = q_off - 1;
                 let rem_len = crate::memory::bytes_until_nul(&rem_v[rem_tail_off..]).len() + 1;
                 rem_v.copy_within(rem_tail_off..rem_tail_off + rem_len, 0);
             } else {
@@ -1894,7 +1818,6 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 new_p[2..2 + p_len].copy_from_slice(&p_vec[..p_len]);
                 p_len += 2;
                 p_vec = new_p;
-                p = crate::strings::ByteSlice::from_bytes(&p_vec);
             } else if !is_relative_to_current {
                 // Strip leading "./".
                 let mut q_idx = 0usize;
@@ -1913,14 +1836,11 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         // Ensure that the result will have no trailing path separator
         // if the argument had none.  But keep "/" or "//".
-        if !has_trailing_pathsep && after_pathsep(p.slice(p_len)) != 0 {
-            *crate::globals::GraphPtr::of(
-                path_tail_with_sep(p.as_cstr())
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>(),
-            )
-            .borrow_mut() = 0;
+        if !has_trailing_pathsep && after_pathsep(&p_vec[..p_len]) != 0 {
+            let p_cstr = crate::memory::bytes_as_cstr(&p_vec);
+            let sep_off =
+                (path_tail_with_sep(p_cstr).as_ptr() as usize) - (p_cstr.as_ptr() as usize);
+            p_vec[sep_off] = 0;
         }
 
         crate::eval::typval::tv_set_string(
@@ -1966,27 +1886,23 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         let Some(s_cstr) = tv_get_string_chk(&cur_li.li_tv) else {
             return false;
         };
-        let mut hunk_start = s_cstr.as_ptr();
-        let mut p = hunk_start;
-        loop {
-            if *crate::globals::GraphPtr::of(p).borrow() == 0
-                || *crate::globals::GraphPtr::of(p).borrow() == NL
-            {
-                if p != hunk_start {
-                    let hunk = crate::strings::AsByteSlice::slice_len(
-                        hunk_start,
-                        (p as usize).wrapping_sub(hunk_start as usize),
-                    );
+        let s_bytes = s_cstr.to_bytes();
+        let mut hunk_start = 0usize;
+        for i in 0..=s_bytes.len() {
+            let b = s_bytes.get(i).copied().unwrap_or(0);
+            if b == 0 || b == NL as u8 {
+                if i != hunk_start {
+                    let hunk = &s_bytes[hunk_start..i];
                     let written = file_write(fp, hunk);
                     if written < 0 {
                         error = written as i32;
                         break 'outer;
                     }
                 }
-                if crate::strings::AsByteSlice::is_empty_val(p) {
+                if b == 0 {
                     break;
                 } else {
-                    hunk_start = p.wrapping_add(1);
+                    hunk_start = i + 1;
                     let written = file_write(fp, &[0]);
                     if written < 0 {
                         error = written as i32;
@@ -1994,7 +1910,6 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                     }
                 }
             }
-            p = p.wrapping_add(1);
         }
         if !binary || !cur_li.li_next.is_null() {
             let written = file_write(fp, b"\n");
@@ -2082,9 +1997,9 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let Some(flags_cstr) = tv_get_string_chk(&argvars[2]) else {
             return;
         };
-        let mut p = crate::strings::ByteSlice::from_cstr(flags_cstr);
-        while !p.is_empty() {
-            match p.first_byte() {
+        let flags_bytes = flags_cstr.to_bytes();
+        for (i, &b) in flags_bytes.iter().enumerate() {
+            match b {
                 b'b' => binary = true,
                 b'a' => append = true,
                 b'D' => defer = true,
@@ -2092,11 +2007,10 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                 b'S' => do_fsync = false,
                 b'p' => mkdir_p = true,
                 _ => {
-                    semsg!(gettext(c"E5060: Unknown flag: %s"), p);
+                    semsg!(gettext(c"E5060: Unknown flag: %s"), &flags_cstr[i..]);
                     return;
                 }
             }
-            p = p.wrapping_add(1);
         }
     }
 
@@ -2113,7 +2027,6 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if fname.to_bytes().is_empty() {
         emsg(gettext(c"E482: Can't open file with an empty name"));
     } else {
-        let fname = crate::strings::ByteSlice::from_cstr(fname);
         let open_flags = (if append {
             K_FILE_APPEND
         } else {
@@ -2123,7 +2036,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else {
             K_FILE_CREATE
         }) | K_FILE_CREATE;
-        let mut error = file_open(&mut fp, fname.as_opt_cstr(), open_flags, 0o666);
+        let mut error = file_open(&mut fp, Some(fname), open_flags, 0o666);
         if error != 0 {
             semsg!(
                 gettext(c"E482: Can't open file %s for writing: %s"),
@@ -2133,7 +2046,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else {
             if defer {
                 let mut tv = TypVal::new();
-                if let Some(full) = FullName_save(fname.as_opt_cstr(), false) {
+                if let Some(full) = FullName_save(Some(fname), false) {
                     crate::eval::typval::tv_set_string(&mut tv, Some(full.as_c_str()));
                 } else {
                     tv.v_type = VarType::VarString;

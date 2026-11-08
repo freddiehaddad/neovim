@@ -511,13 +511,14 @@ fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64
     if ic {
         let hay_cstr = crate::memory::bytes_to_cstring(hay_bytes);
         let needle_cstr = crate::memory::bytes_to_cstring(needle_bytes);
-        let mut p = crate::strings::ByteSlice::from_cstr(&hay_cstr);
+        let mut p = hay_cstr.as_c_str().to_bytes();
         while !p.is_empty() {
-            if mb_strnicmp(p.as_bytes(), needle_cstr.as_bytes(), needlelen) == 0 {
+            if mb_strnicmp(p, needle_cstr.as_bytes(), needlelen) == 0 {
                 n += 1;
-                p = p.wrapping_add(needlelen);
+                p = &p[needlelen..];
             } else {
-                p = p.wrapping_add(utf_ptr2len(p) as usize);
+                let step = utf_ptr2len(p).max(1) as usize;
+                p = &p[step.min(p.len())..];
             }
         }
     } else {
@@ -750,11 +751,7 @@ fn extend_impl(
     } else {
         semsg!(
             E_LISTDICTARG,
-            crate::strings::ByteSlice::from_ptr(if is_new {
-                c"extendnew()".as_ptr()
-            } else {
-                c"extend()".as_ptr()
-            }),
+            if is_new { c"extendnew()" } else { c"extend()" },
         );
     }
 }

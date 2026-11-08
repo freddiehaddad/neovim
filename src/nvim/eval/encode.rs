@@ -24,7 +24,6 @@ use crate::msgpack_rpc::packer::{
     mpack_integer, mpack_map, mpack_nil, mpack_str, mpack_uint64,
 };
 use crate::regexp::NUMBUFLEN;
-use crate::strings::ByteSliceExt;
 use crate::strings::format_to_buf_safelen;
 use crate::testing::ga_concat_literal;
 use std::ffi::CStr;
@@ -393,12 +392,12 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
         }
     }
     let path_cstr = bytes_to_cstring(&msg_ga);
-    let path_ptr = if mpstack.is_empty() {
-        c"itself".as_ptr()
+    let path = if mpstack.is_empty() {
+        c"itself"
     } else {
-        path_cstr.as_ptr()
+        path_cstr.as_c_str()
     };
-    semsg!(msg, objname, crate::strings::ByteSlice::from_ptr(path_ptr));
+    semsg!(msg, objname, path);
     false
 }
 
