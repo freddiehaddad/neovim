@@ -1831,7 +1831,7 @@ pub fn ns_get_hl_defs(
         let target_id = if link { i } else { syn_get_final_id(i) };
         put_c(
             &mut rv,
-            hl_table_at((target_id - 1) as usize).sg_name.as_ptr(),
+            &*hl_table_at((target_id - 1) as usize).sg_name,
             dict_obj(attrs),
         );
     }

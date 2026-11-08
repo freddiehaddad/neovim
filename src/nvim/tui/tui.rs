@@ -3007,7 +3007,6 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
     value: Option<&'a CStr>,
     input: &mut TermInput,
 ) -> Option<&'a [u8]> {
-    let val_ptr = crate::strings::ByteSlice::from_opt_cstr(value);
     if !tui_st().stty_erase_inited {
         tui_st().stty_erase_inited = true;
         tui_init_stty_erase(input);
@@ -3023,7 +3022,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
                 2709,
                 true,
                 c"libtermkey:kbs=%s",
-                val_ptr,
+                value,
             );
         }
         if erase_byte != 0 {
@@ -3038,7 +3037,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
                 2714,
                 true,
                 c"libtermkey:kdch1=%s",
-                val_ptr,
+                value,
             );
         }
         if let Some(val_cstr) = value
@@ -3056,7 +3055,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
                 2720,
                 true,
                 c"libtermkey:kmous=%s",
-                val_ptr,
+                value,
             );
         }
         return None;

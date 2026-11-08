@@ -653,10 +653,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
     put_c(
         &mut ret_node,
         c"type",
-        string_obj(cstr_as_string(
-            crate::strings::ByteSlice::from_ptr(EAST_NODE_TYPE_TAB[nt as usize].as_ptr())
-                .as_opt_cstr(),
-        )),
+        string_obj(cstr_as_string(Some(EAST_NODE_TYPE_TAB[nt as usize]))),
     );
     let mut start_array = arena_array(arena, 2);
     add_c(&mut start_array, integer_obj(node.start.line as Integer));
@@ -718,23 +715,14 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             put_c(
                 &mut ret_node,
                 c"cmp_type",
-                string_obj(cstr_as_string(
-                    crate::strings::ByteSlice::from_ptr(
-                        ELTKN_CMP_TYPE_TAB[node.data.cmp().r#type as usize].as_ptr(),
-                    )
-                    .as_opt_cstr(),
-                )),
+                string_obj(cstr_as_string(Some(
+                    ELTKN_CMP_TYPE_TAB[node.data.cmp().r#type as usize],
+                ))),
             );
             put_c(
                 &mut ret_node,
                 c"ccs_strategy",
-                string_obj(cstr_as_string(
-                    crate::strings::ByteSlice::from_ptr(
-                        CCS_TAB[node.data.cmp().ccs as usize]
-                            .map_or(std::ptr::null(), |s| s.as_ptr()),
-                    )
-                    .as_opt_cstr(),
-                )),
+                string_obj(cstr_as_string(CCS_TAB[node.data.cmp().ccs as usize])),
             );
             put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
         }
@@ -755,12 +743,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             let str_val = if asgn_type == K_EXPR_ASGN_PLAIN {
                 NvimString::new()
             } else {
-                cstr_as_string(
-                    crate::strings::ByteSlice::from_ptr(
-                        EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr(),
-                    )
-                    .as_opt_cstr(),
-                )
+                cstr_as_string(Some(EXPR_ASGN_TYPE_TAB[asgn_type as usize]))
             };
             put_c(&mut ret_node, c"augmentation", string_obj(str_val));
         }

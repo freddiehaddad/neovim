@@ -691,9 +691,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     }
 
     if err != 0 {
-        let err_str = crate::strings::ByteSlice::from_ptr(uv_strerror(err))
-            .as_cstr()
-            .to_string_lossy();
+        let err_str = uv_strerror(err).to_string_lossy();
         let msg = format!(
             "ch {}: stream write failed: {err_str}. RPC canceled; closing channel\0",
             channel.id
@@ -806,7 +804,6 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
 }
 
 fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32) {
-    let msg = crate::strings::ByteSlice::from_cstr(msg);
     logmsg!(loglevel, Some(c"RPC: "), None, -1, true, c"%s", msg,);
     let p = channel.unpacker_mut();
 
@@ -816,7 +813,7 @@ fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32)
         }
         frame.returned.set(true);
         frame.errored.set(true);
-        let s = arena_string(&mut p.arena, cstr_as_string(msg.as_opt_cstr()));
+        let s = arena_string(&mut p.arena, cstr_as_string(Some(msg)));
         frame.result.set(Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(s),

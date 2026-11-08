@@ -669,12 +669,7 @@ pub fn nvim_win_resize(
             api_err_conflict(
                 err,
                 anchor.as_cstr(),
-                crate::strings::ByteSlice::from_ptr(if is_width {
-                    c"width".as_ptr()
-                } else {
-                    c"height".as_ptr()
-                })
-                .as_cstr(),
+                if is_width { c"width" } else { c"height" },
             );
             return;
         }

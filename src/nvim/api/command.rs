@@ -44,7 +44,6 @@ use crate::usercmd::{
     uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds_mut,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::cmdexpand::{CmdAddr, EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::cursor::Linenr;
@@ -204,23 +203,17 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
 
 fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
     let mut args = arena_array(arena, 2);
-
-    let lhs_start = crate::strings::ByteSlice::from_cstr(arg_str);
-    let lhs_end = lhs_start.skiptowhite();
-    let lhs_len = lhs_end.offset_from(lhs_start);
+    let bytes = arg_str.to_bytes();
+    let lhs_len = crate::charset::skiptowhite_len(bytes);
 
     add_c(
         &mut args,
-        string_obj(cbuf_to_arena_str(arena, lhs_start.slice(lhs_len))),
+        string_obj(cbuf_to_arena_str(arena, &bytes[..lhs_len])),
     );
 
-    let rhs_start = lhs_end.skipwhite();
-    if !rhs_start.is_empty() {
-        let rhs_len = rhs_start.len();
-        add_c(
-            &mut args,
-            string_obj(cbuf_to_arena_str(arena, rhs_start.slice(rhs_len))),
-        );
+    let rhs = crate::charset::skipwhite_slice(&bytes[lhs_len..]);
+    if !rhs.is_empty() {
+        add_c(&mut args, string_obj(cbuf_to_arena_str(arena, rhs)));
     }
 
     args
@@ -342,12 +335,7 @@ pub fn nvim_parse_cmd(
             let buf_slice = crate::globals::GraphPtr::raw_slice_mut(buf.cast::<u8>(), buf_rem);
             done = uc_split_args_iter(arg_slice, &mut end, buf_slice, &mut len);
             if len > 0 {
-                add_c(
-                    &mut args,
-                    string_obj(cstrn_as_string(crate::strings::AsByteSlice::slice_len(
-                        buf, len,
-                    ))),
-                );
+                add_c(&mut args, string_obj(cstrn_as_string(&buf_slice[..len])));
                 buf = buf.wrapping_add(len + 1);
                 buf_rem = buf_rem.saturating_sub(len + 1);
             }
@@ -698,13 +686,12 @@ pub fn nvim_cmd(
 
         if !range_only {
             let fullname = if is_user_cmdidx(ea.cmdidx) {
-                get_user_command_name(ea.useridx, ea.cmdidx).map_or(ptr::null(), |s| s.as_ptr())
+                get_user_command_name(ea.useridx, ea.cmdidx)
             } else {
                 get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
-                    .map_or(ptr::null(), |s| s.as_ptr())
             };
             let cmdname_bytes = cmdname.as_bytes();
-            let fullname_bytes = crate::strings::ByteSlice::from_ptr(fullname).as_bytes();
+            let fullname_bytes = fullname.map_or(&b""[..], CStr::to_bytes);
             if !fullname_bytes.starts_with(cmdname_bytes) {
                 api_set_error!(
                     err,

@@ -618,12 +618,7 @@ pub fn nvim_get_autocmds(
                     put_c(
                         &mut autocmd_info,
                         c"group_name",
-                        string_obj(cstr_as_string(
-                            crate::strings::ByteSlice::from_ptr(
-                                augroup_name(ap.group).map_or(std::ptr::null(), CStr::as_ptr),
-                            )
-                            .as_opt_cstr(),
-                        )),
+                        string_obj(cstr_as_string(augroup_name(ap.group))),
                     );
                 }
 

@@ -1114,21 +1114,21 @@ fn config_put_bordertext(
     let bordertext = virt_text_to_array(vt, true, arena);
 
     let pos = match align {
-        K_ALIGN_LEFT => c"left".as_ptr(),
-        K_ALIGN_CENTER => c"center".as_ptr(),
-        _ => c"right".as_ptr(),
+        K_ALIGN_LEFT => c"left",
+        K_ALIGN_CENTER => c"center",
+        _ => c"right",
     };
 
     if bordertext_type == K_BORDER_TEXT_TITLE {
         config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE;
         config.title = array_obj(bordertext);
         config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS;
-        config.title_pos = cstr_as_string(crate::strings::ByteSlice::from_ptr(pos).as_opt_cstr());
+        config.title_pos = cstr_as_string(Some(pos));
     } else {
         config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER;
         config.footer = array_obj(bordertext);
         config.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS;
-        config.footer_pos = cstr_as_string(crate::strings::ByteSlice::from_ptr(pos).as_opt_cstr());
+        config.footer_pos = cstr_as_string(Some(pos));
     }
 }
 
@@ -1176,10 +1176,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
     rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_MOUSE;
     rv.mouse = config.mouse;
     rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_STYLE;
-    rv.style = cstr_as_string(
-        crate::strings::ByteSlice::from_ptr(WIN_STYLE_STR[config.style as usize].as_ptr())
-            .as_opt_cstr(),
-    );
+    rv.style = cstr_as_string(Some(WIN_STYLE_STR[config.style as usize]));
 
     if wp.w_floating {
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
@@ -1199,12 +1196,7 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                 }
             }
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ANCHOR;
-            rv.anchor = cstr_as_string(
-                crate::strings::ByteSlice::from_ptr(
-                    FLOAT_ANCHOR_STR[config.anchor as usize].as_ptr(),
-                )
-                .as_opt_cstr(),
-            );
+            rv.anchor = cstr_as_string(Some(FLOAT_ANCHOR_STR[config.anchor as usize]));
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ROW;
             rv.row = config.row;
             rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_COL;
@@ -1251,19 +1243,16 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
         rv.height = i64::from(wp.w_height);
         let split = win_split_dir(wp);
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
-        rv.split = cstr_as_string(
-            crate::strings::ByteSlice::from_ptr(WIN_SPLIT_STR[split as usize].as_ptr())
-                .as_opt_cstr(),
-        );
+        rv.split = cstr_as_string(Some(WIN_SPLIT_STR[split as usize]));
     }
 
     let rel = if wp.w_floating && !config.external {
-        FLOAT_RELATIVE_STR[config.relative as usize].as_ptr()
+        FLOAT_RELATIVE_STR[config.relative as usize]
     } else {
-        c"".as_ptr()
+        c""
     };
     rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_RELATIVE;
-    rv.relative = cstr_as_string(crate::strings::ByteSlice::from_ptr(rel).as_opt_cstr());
+    rv.relative = cstr_as_string(Some(rel));
     if config._cmdline_offset < i32::MAX {
         rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET;
         rv._cmdline_offset = i64::from(config._cmdline_offset);
@@ -1427,12 +1416,11 @@ fn parse_bordertext_pos(
         _ => {
             api_err_invalid(
                 err,
-                crate::strings::ByteSlice::from_ptr(if bordertext_type == K_BORDER_TEXT_TITLE {
-                    c"title_pos".as_ptr()
+                if bordertext_type == K_BORDER_TEXT_TITLE {
+                    c"title_pos"
                 } else {
-                    c"footer_pos".as_ptr()
-                })
-                .as_cstr(),
+                    c"footer_pos"
+                },
                 bordertext_pos.as_opt_cstr(),
                 0,
                 true,

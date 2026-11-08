@@ -129,11 +129,11 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     #[cfg(windows)]
     let r = {
         get_appname(true);
-        let app = name.map_or_else(|| ptr::addr_of!(g_st().name_buff).cast(), CStr::as_ptr);
+        let app = name.unwrap_or_else(|| g_st().name_buff_cstr());
         format_to_buf!(
             &mut fmt,
             c"//./pipe/%s.%llu.%u",
-            crate::strings::ByteSlice::from_ptr(app),
+            app,
             os_get_pid() as u64,
             cur_count,
         )

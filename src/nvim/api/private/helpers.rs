@@ -31,7 +31,6 @@ use crate::memory::{
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::{Sctx, script_is_lua};
-use crate::strings::{RawCCharPtr, RawCCharPtrMut};
 use crate::window::{TabPageInfo, WinInfoInfo};
 use std::ffi::CStr;
 use std::mem::size_of;
@@ -249,23 +248,12 @@ pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
 
 #[inline]
 pub fn cstr_to_obj(s: Option<&CStr>) -> Object {
-    string_obj(cstr_to_string(
-        crate::strings::ByteSlice::from_ptr((s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr))
-            .as_opt_cstr(),
-    ))
+    string_obj(cstr_to_string(s))
 }
 
 #[inline]
 pub fn cstr_to_arena_obj(arena: &mut Arena, s: Option<&CStr>) -> Object {
-    string_obj(arena_string(
-        arena,
-        cstr_as_string(
-            crate::strings::ByteSlice::from_ptr(
-                (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
-            )
-            .as_opt_cstr(),
-        ),
-    ))
+    string_obj(arena_string(arena, cstr_as_string(s)))
 }
 
 #[inline]
@@ -312,27 +300,6 @@ pub trait IntoDictKey {
     fn into_dict_key(self) -> NvimString;
 }
 
-impl IntoDictKey for RawCCharPtr {
-    #[inline]
-    fn into_dict_key(self) -> NvimString {
-        cstr_as_string(crate::strings::ByteSlice::from_ptr(self).as_opt_cstr())
-    }
-}
-
-impl IntoDictKey for RawCCharPtrMut {
-    #[inline]
-    fn into_dict_key(self) -> NvimString {
-        cstr_as_string(crate::strings::ByteSlice::from_ptr(self).as_opt_cstr())
-    }
-}
-
-impl IntoDictKey for crate::globals::GraphPtr<u8> {
-    #[inline]
-    fn into_dict_key(self) -> NvimString {
-        cstr_as_string(crate::strings::ByteSlice::from_ptr(self).as_opt_cstr())
-    }
-}
-
 impl IntoDictKey for NvimString {
     #[inline]
     fn into_dict_key(self) -> NvimString {
@@ -340,10 +307,10 @@ impl IntoDictKey for NvimString {
     }
 }
 
-impl IntoDictKey for &'static CStr {
+impl IntoDictKey for &CStr {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        static_cstr_as_string(self)
+        cstr_as_string(Some(self))
     }
 }
 
@@ -826,7 +793,7 @@ pub fn buf_get_text(
         return rv;
     }
 
-    let bufstr = ml_get_buf(buf, lnum as Linenr).as_ptr().cast_mut();
+    let bufstr = ml_get_buf(buf, lnum as Linenr).to_bytes_with_nul();
     let line_length = i64::from(ml_get_buf_len(buf, lnum as Linenr));
 
     if start_col < 0 {
@@ -849,8 +816,7 @@ pub fn buf_get_text(
     }
 
     NvimString::from_bytes_len(
-        crate::strings::ByteSlice::from_ptr(bufstr.wrapping_add(start_col as usize))
-            .unwrap_or(b"\0"),
+        &bufstr[start_col as usize..],
         (end_col - start_col) as usize,
     )
 }

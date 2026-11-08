@@ -311,14 +311,7 @@ fn validate_s(
     err: &mut Error,
 ) -> bool {
     if !cond {
-        api_err_invalid(
-            err,
-            name,
-            crate::strings::ByteSlice::from_ptr(val.map_or(ptr::null(), std::ffi::CStr::as_ptr))
-                .as_opt_cstr(),
-            0,
-            true,
-        );
+        api_err_invalid(err, name, val, 0, true);
         false
     } else {
         true
@@ -800,10 +793,7 @@ pub fn nvim_replace_termcodes(
         opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
-    cbuf_to_string(crate::strings::AsByteSlice::slice_len(
-        out.as_ptr(),
-        out.as_bytes().len(),
-    ))
+    cbuf_to_string(out.as_bytes())
 }
 
 /// Executes Lua code. Arguments are available as `...` inside the chunk. The chunk can return
@@ -1190,28 +1180,20 @@ pub fn nvim_echo(
         return id;
     }
 
-    let mut kind = opts
-        .kind
-        .data
-        .as_ptr()
-        .cast::<std::ffi::c_char>()
-        .cast_const();
+    let mut kind = opts.kind.as_opt_cstr();
     if opts.verbose {
         verbose_enter();
-    } else if kind.is_null() {
-        kind = if opts.err {
-            c"echoerr".as_ptr()
+    } else if kind.is_none() {
+        kind = Some(if opts.err {
+            c"echoerr"
         } else if history {
-            c"echomsg".as_ptr()
+            c"echomsg"
         } else {
-            c"echo".as_ptr()
-        };
+            c"echo"
+        });
     }
 
-    let is_progress = crate::strings::ByteSlice::from_ptr(kind)
-        .as_opt_cstr()
-        .map(std::ffi::CStr::to_bytes)
-        == Some(b"progress");
+    let is_progress = kind.map(std::ffi::CStr::to_bytes) == Some(b"progress");
     let mut needs_clear = !history;
     let has_percent = (opts.is_set_echo_opts & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
 
@@ -1227,7 +1209,7 @@ pub fn nvim_echo(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
-                crate::strings::ByteSlice::from_ptr(kind),
+                kind,
             );
             break 'validate false;
         }
@@ -1306,7 +1288,7 @@ pub fn nvim_echo(
     id = msg_multihl(
         opts.id,
         &mut hl_msg,
-        crate::strings::ByteSlice::from_ptr(kind).as_opt_cstr(),
+        kind,
         history,
         opts.err,
         Some(&mut msg_data),
@@ -1892,7 +1874,7 @@ pub fn nvim_get_color_map(arena: &mut Arena) -> Dict {
     for entry in &COLOR_NAME_TABLE {
         put_c(
             &mut colors,
-            entry.name.as_ptr(),
+            entry.name,
             integer_obj(Integer::from(entry.color)),
         );
     }
@@ -2576,13 +2558,11 @@ pub fn nvim_inspect_cell(
     ret = arena_array(arena, 3);
     let off = g.line_offset[row as usize] + (col as usize);
     let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
-    schar_get(
-        crate::globals::GraphPtr::raw_slice_mut(sc_buf, MAX_SCHAR_SIZE),
-        g.chars[off],
-    );
+    let sc_slice = crate::globals::GraphPtr::raw_slice_mut(sc_buf, MAX_SCHAR_SIZE);
+    schar_get(sc_slice, g.chars[off]);
     add_c(
         &mut ret,
-        cstr_as_obj(crate::strings::ByteSlice::from_ptr(sc_buf).as_opt_cstr()),
+        cstr_as_obj(Some(crate::memory::bytes_as_cstr(sc_slice))),
     );
     let attr = g.attrs[off];
     add_c(
@@ -2929,11 +2909,7 @@ pub fn nvim_eval_statusline(
         if crate::globals::GraphPtr::of(hltab)
             .borrow()
             .start
-            .is_none_or(|s| {
-                ((crate::strings::AsByteSlice::byte_addr(s.as_ptr()) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(buf_data) as isize))
-                    != 0
-            })
+            .is_none_or(|s| !ptr::eq(s.as_ptr().cast(), buf_data))
         {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
@@ -2975,11 +2951,7 @@ pub fn nvim_eval_statusline(
             put_c(
                 &mut hl_info,
                 c"start",
-                integer_obj(
-                    ((crate::strings::AsByteSlice::byte_addr(sp_start.as_ptr()) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(buf_data) as isize))
-                        as Integer,
-                ),
+                integer_obj(((sp_start.as_ptr() as usize) - (buf_data as usize)) as Integer),
             );
 
             put_c(&mut hl_info, c"group", cstr_as_obj(Some(grpname)));
@@ -2996,10 +2968,11 @@ pub fn nvim_eval_statusline(
         }
         put_c(&mut result, c"highlights", array_obj(hl_values));
     }
+    let buf_slice = crate::globals::GraphPtr::raw_slice(buf_data, MAXPATHL);
     put_c(
         &mut result,
         c"str",
-        cstr_as_obj(crate::strings::ByteSlice::from_ptr(buf_data).as_opt_cstr()),
+        cstr_as_obj(Some(crate::memory::bytes_as_cstr(buf_slice))),
     );
 
     result

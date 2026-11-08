@@ -1877,7 +1877,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
         }
         put_c(&mut d, c"addr", obj);
 
-        put_c(&mut rv, cmd.uc_name.as_ptr(), dict_obj(d));
+        put_c(&mut rv, &*cmd.uc_name, dict_obj(d));
     }
     let _ = size_of::<KeyValuePair>();
     rv

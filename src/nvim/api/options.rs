@@ -2,9 +2,10 @@
 
 use crate::api::private::helpers::{
     OBJECT_NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_bytes,
-    arena_dict, arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj,
-    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, put_c,
-    static_cstr_as_obj, string_obj, try_wrap, with_script_context,
+    arena_dict, arena_string, array_obj, boolean_obj, cbuf_to_arena_str, copy_object,
+    cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_tab_by_handle,
+    find_window_by_handle, has_key, put_c, static_cstr_as_obj, string_obj, try_wrap,
+    with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_conflict,
@@ -21,7 +22,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_memdupz};
+use crate::memory::Arena;
 use crate::option::{
     K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FLAG_COLON, K_OPT_FLAG_COMMA, K_OPT_FLAG_FLAG_LIST,
     K_OPT_INVALID, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_TAB, K_OPT_SCOPE_WIN,
@@ -207,30 +208,30 @@ fn validate_option_value_args(
             && !option_has_scope(*opt_idxp, *scope)
         {
             let tgt = if *scope == K_OPT_SCOPE_BUF {
-                c"buf".as_ptr()
+                c"buf"
             } else {
-                c"win".as_ptr()
+                c"win"
             };
             let global = if option_has_scope(*opt_idxp, K_OPT_SCOPE_GLOBAL) {
-                c"global ".as_ptr()
+                c"global "
             } else {
-                c"".as_ptr()
+                c""
             };
             let req = if option_has_scope(*opt_idxp, K_OPT_SCOPE_BUF) {
-                c"buffer-local ".as_ptr()
+                c"buffer-local "
             } else if option_has_scope(*opt_idxp, K_OPT_SCOPE_WIN) {
-                c"window-local ".as_ptr()
+                c"window-local "
             } else {
-                c"".as_ptr()
+                c""
             };
 
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"'%s' cannot be passed for %s%soption '%s'",
-                crate::strings::ByteSlice::from_ptr(tgt),
-                crate::strings::ByteSlice::from_ptr(global),
-                crate::strings::ByteSlice::from_ptr(req),
+                tgt,
+                global,
+                req,
                 name,
             );
             return false;
@@ -453,29 +454,20 @@ pub fn nvim_option_to_object(
     let option = get_option(opt_idx);
     let flags = option.flags;
     let schema = option.schema;
-
-    let str_ptr: *mut std::ffi::c_char = if !value.data.string().data.is_null() {
-        value.data.string().data.as_ptr().cast()
-    } else {
-        c"".as_ptr().cast_mut()
-    };
+    let str_cstr = value.data.string().as_cstr();
+    let bytes = str_cstr.to_bytes();
 
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
-        string_obj(arena_string(
-            arena,
-            cstr_as_string(crate::strings::ByteSlice::from_ptr(str_ptr).as_opt_cstr()),
-        ))
+        string_obj(arena_string(arena, cstr_as_string(Some(str_cstr))))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
-        let bytes = crate::strings::ByteSlice::from_ptr(str_ptr).as_bytes();
         let mut d = arena_dict(arena, bytes.len());
         for &b in bytes {
-            put_c(&mut d, arena_memdupz(arena, &[b]), boolean_obj(true));
+            put_c(&mut d, cbuf_to_arena_str(arena, &[b]), boolean_obj(true));
         }
         dict_obj(d)
     } else {
         let mut nparts: usize = 1;
-        let p = str_ptr;
-        for &p_byte in crate::strings::ByteSlice::from_ptr(p).as_bytes() {
+        for &p_byte in bytes {
             if p_byte == b',' {
                 nparts += 1;
             }
@@ -493,7 +485,7 @@ pub fn nvim_option_to_object(
         } else {
             arena_array(arena, nparts)
         };
-        let mut p_bytes = crate::strings::ByteSlice::from_ptr(str_ptr).as_bytes();
+        let mut p_bytes = bytes;
         let str_len = p_bytes.len();
         let mut item_buf = vec![0u8; str_len + 1];
         while !p_bytes.is_empty() {
@@ -519,7 +511,7 @@ pub fn nvim_option_to_object(
                 }
                 _ => boolean_obj(true),
             };
-            put_c(&mut d, key.data, v);
+            put_c(&mut d, key, v);
         }
         if as_map { dict_obj(d) } else { array_obj(a) }
     }
@@ -860,24 +852,5 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_OPTION_BUF));
         assert!(has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE));
         assert!(!has_key(mask, KEYSET_OPTIDX_OPTION_WIN));
-        {
-            assert!(
-                crate::strings::ByteSlice::from_ptr(c"local".as_ptr())
-                    .as_opt_cstr()
-                    .map(CStr::to_bytes)
-                    == Some(b"local")
-            );
-            assert!(
-                crate::strings::ByteSlice::from_ptr(c"local".as_ptr())
-                    .as_opt_cstr()
-                    .map(CStr::to_bytes)
-                    != Some(b"global")
-            );
-            assert!(
-                crate::strings::ByteSlice::from_ptr(std::ptr::null::<u8>())
-                    .as_opt_cstr()
-                    .is_none()
-            );
-        }
     }
 }

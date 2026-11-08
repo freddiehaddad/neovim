@@ -8250,7 +8250,7 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
     for opt_idx in 0..K_OPT_COUNT {
         let opt = get_option(opt_idx);
         let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
-        put_c(&mut retval, opt.fullname.as_ptr(), dict_obj(opt_dict));
+        put_c(&mut retval, opt.fullname, dict_obj(opt_dict));
     }
     retval
 }

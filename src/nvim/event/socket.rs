@@ -1,6 +1,6 @@
 //! Socket watcher and client connection helpers (`src/nvim/event/socket.c`).
 
-use crate::charset::{NUL, try_getdigits};
+use crate::charset::try_getdigits;
 use crate::event::r#loop::{
     Loop, loop_poll_events, main_loop_ptr, uv_close, uv_connect_t, uv_freeaddrinfo,
     uv_handle_get_loop, uv_handle_get_type, uv_handle_t, uv_pipe_connect, uv_pipe_init,
@@ -14,7 +14,7 @@ use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
-use crate::strings::{ByteSliceExt as _, format_to_buf, gettext};
+use crate::strings::{format_to_buf, gettext};
 
 use std::ffi::{CStr, c_void};
 use std::ptr;
@@ -179,12 +179,8 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
     if let Some(colon_idx) = host_end_idx {
         watcher.addr[colon_idx] = 0;
         let addr = watcher.addr.as_ptr().cast();
-        let mut port = watcher
-            .addr
-            .as_mut_ptr()
-            .wrapping_add(colon_idx + 1)
-            .cast::<std::ffi::c_char>();
-        let mut port_scan = crate::strings::ByteSlice::from_ptr(port).as_bytes();
+        let port_cstr = CStr::from_bytes_until_nul(&watcher.addr[colon_idx + 1..]).unwrap_or(c"");
+        let mut port_scan = port_cstr.to_bytes();
         let mut iport: i64 = 0;
 
         let ok = try_getdigits(&mut port_scan, &mut iport);
@@ -196,14 +192,16 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
                 line!() as i32,
                 true,
                 c"Invalid port: %s",
-                crate::strings::ByteSlice::from_ptr(port),
+                port_cstr,
             );
             return UV_EINVAL;
         }
 
-        if !port.is_null() && crate::strings::AsByteSlice::is_empty_val(port) {
-            port = ptr::null_mut();
-        }
+        let port = if port_cstr.to_bytes().is_empty() {
+            ptr::null_mut()
+        } else {
+            port_cstr.as_ptr().cast_mut()
+        };
 
         let mut request = UvGetaddrinfoReq([0; 512]);
         let hints = addrinfo {
@@ -329,7 +327,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                 let mut error = None;
 
                 if !socket_alive(&mut *loop_, false, watcher.addr_cstr(), &mut error) {
-                    let rm_result = os_remove(crate::strings::ByteSlice::from_ptr(addr).as_cstr());
+                    let rm_result = os_remove(watcher.addr_cstr());
 
                     if rm_result != 0 {
                         logmsg!(
@@ -339,7 +337,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                             line!() as i32,
                             true,
                             c"Failed to remove stale socket %s: %s",
-                            crate::strings::ByteSlice::from_ptr(addr),
+                            watcher.addr_cstr(),
                             uv_strerror(rm_result),
                         );
                     } else {
@@ -366,7 +364,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         line!() as i32,
                         true,
                         c"Socket already in use by another Nvim instance: %s",
-                        crate::strings::ByteSlice::from_ptr(addr),
+                        watcher.addr_cstr(),
                     );
                 }
             }
@@ -379,10 +377,10 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
         debug_assert!(result <= 0);
         if result < 0 {
             if result == UV_EACCES {
-                *path_tail(crate::strings::ByteSlice::from_ptr(addr).as_cstr())
-                    .as_ptr()
-                    .cast_mut() = NUL;
-                if !os_path_exists(crate::strings::ByteSlice::from_ptr(addr).as_cstr()) {
+                let tail_off = (path_tail(watcher.addr_cstr()).as_ptr() as usize)
+                    - (watcher.addr.as_ptr() as usize);
+                watcher.addr[tail_off] = 0;
+                if !os_path_exists(watcher.addr_cstr()) {
                     result = UV_ENOENT;
                 }
             }
