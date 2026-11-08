@@ -22,7 +22,7 @@ use crate::highlight_group::{
     syn_id2attr, syn_list_header, syn_name2id, syn_name2id_len,
 };
 use crate::indent_c::find_start_comment;
-use crate::mbyte::{mb_strcmp_ic, utf_ptr2char, utfc_ptr2len, utfc_slice2len};
+use crate::mbyte::{mb_strcmp_ic, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
@@ -1533,7 +1533,7 @@ fn syn_current_attr(
         {
             if do_keywords {
                 line = syn_getcurline!();
-                let line_bytes = crate::strings::ByteSlice::from_ptr(line).as_bytes();
+                let line_bytes = unsafe { CStr::from_ptr(line) }.to_bytes();
                 let cur_col = (syn_st().current_col as usize).min(line_bytes.len());
                 if vim_iswordp_buf(&line_bytes[cur_col..], syn_st().syn_buf_mut())
                     && (cur_col == 0
@@ -1784,7 +1784,7 @@ fn syn_current_attr(
                         .borrow(),
                     ))
                     || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
-                        && crate::strings::AsByteSlice::is_empty_val(line))
+                        && (line.is_null() || unsafe { *line } == 0))
                 {
                     break;
                 }
@@ -3467,14 +3467,14 @@ fn add_keyword(
 }
 
 fn get_group_name<'a>(arg: &'a CStr, name_len: &mut usize) -> Option<&'a CStr> {
-    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg);
-    let name_end = arg_ptr.skiptowhite();
-    *name_len = name_end.offset_from(arg_ptr);
-    let rest = name_end.skipwhite();
-    if ends_excmd(arg_ptr.first_byte()) != 0 || rest.is_empty() {
+    let arg_bytes = arg.to_bytes();
+    let wlen = crate::charset::skiptowhite_len(arg_bytes);
+    *name_len = wlen;
+    let rest = crate::charset::skipwhite(&arg[wlen..]);
+    if ends_excmd(arg_bytes.first().copied().unwrap_or(0)) != 0 || rest.is_empty() {
         return None;
     }
-    Some(rest.as_cstr())
+    Some(rest)
 }
 
 fn get_syn_options<'a>(
@@ -3483,7 +3483,7 @@ fn get_syn_options<'a>(
     conceal_char: &mut i32,
     skip: bool,
 ) -> Option<&'a CStr> {
-    let mut arg = arg?.as_ptr().cast_mut().cast::<u8>();
+    let mut arg = arg?;
     {
         const FLAGTAB: &[(&[u8], i32, i32)] = &[
             (b"cCoOnNtTaAiInNeEdD\0", 0, HL_CONTAINED),
@@ -3508,16 +3508,13 @@ fn get_syn_options<'a>(
         ];
         const FIRST_LETTERS: &[u8] = b"cCoOkKeEtTsSgGdDfFnN";
 
-        if arg.is_null() {
-            return None;
-        }
-
         if win_s(curwin_mut()).b_syn_conceal != 0 {
             opt.flags |= HL_CONCEAL;
         }
 
         loop {
-            let arg_b = *crate::globals::GraphPtr::of(arg).borrow();
+            let arg_bytes = arg.to_bytes();
+            let arg_b = arg_bytes.first().copied().unwrap_or(0);
             if arg_b == 0 || !FIRST_LETTERS.contains(&arg_b) {
                 break;
             }
@@ -3527,7 +3524,6 @@ fn get_syn_options<'a>(
             while fidx >= 0 {
                 let (p, argtype, flags) = FLAGTAB[fidx as usize];
                 let mut i: usize = 0;
-                let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
                 len = 0;
                 while p[i] != 0 {
                     let ch = arg_bytes.get(len).copied().unwrap_or(0);
@@ -3565,54 +3561,40 @@ fn get_syn_options<'a>(
                     emsg(gettext(E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE));
                     return None;
                 }
-                let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
-                if !get_id_list(&mut arg_cstr, 8, &mut opt.cont_list, skip) {
+                if !get_id_list(&mut arg, 8, &mut opt.cont_list, skip) {
                     return None;
                 }
-                arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 2 {
-                let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
-                if !get_id_list(&mut arg_cstr, 11, &mut opt.cont_in_list, skip) {
+                if !get_id_list(&mut arg, 11, &mut opt.cont_in_list, skip) {
                     return None;
                 }
-                arg = arg_cstr.as_ptr().cast_mut().cast();
             } else if argtype == 3 {
-                let mut arg_cstr = crate::strings::ByteSlice::from_ptr(arg).as_cstr();
-                if !get_id_list(&mut arg_cstr, 9, &mut opt.next_list, skip) {
+                if !get_id_list(&mut arg, 9, &mut opt.next_list, skip) {
                     return None;
                 }
-                arg = arg_cstr.as_ptr().cast_mut().cast();
-            } else if argtype == 11
-                && crate::strings::ByteSlice::from_ptr(arg).as_bytes().get(5) == Some(&b'=')
-            {
-                *conceal_char = utf_ptr2char(arg.wrapping_add(6));
-                arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6)) - 1) as isize);
+            } else if argtype == 11 && arg_bytes.get(5) == Some(&b'=') {
+                *conceal_char = crate::mbyte::utf_slice2char(&arg_bytes[6..]);
+                let clen = crate::mbyte::utfc_slice2len(&arg_bytes[6..]);
                 if !vim_isprintc(*conceal_char) {
                     emsg(gettext(E_INVALID_CCHAR_VALUE));
                     return None;
                 }
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(7).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = crate::charset::skipwhite(&arg[6 + clen..]);
             } else {
                 opt.flags |= flags;
-                arg =
-                    crate::charset::skipwhite_ptr(arg.wrapping_add(len).cast::<std::ffi::c_char>())
-                        .cast();
+                arg = crate::charset::skipwhite(&arg[len..]);
 
                 if flags == HL_SYNC_HERE || flags == HL_SYNC_THERE {
                     if opt.sync_idx.is_none() {
                         emsg(gettext(c"E393: group[t]here not accepted here"));
                         return None;
                     }
-                    let gname_start = arg;
-                    arg = crate::charset::skiptowhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
-                    if gname_start == arg {
+                    let arg_bytes = arg.to_bytes();
+                    let wlen = crate::charset::skiptowhite_len(arg_bytes);
+                    if wlen == 0 {
                         return None;
                     }
-                    let gname_slice = crate::strings::AsByteSlice::slice_len(
-                        gname_start,
-                        (arg as usize) - (gname_start as usize),
-                    );
+                    let gname_slice = &arg_bytes[..wlen];
                     let gname = std::ffi::CString::new(gname_slice).unwrap();
                     if gname.as_bytes() == b"NONE" {
                         opt.sync_idx = Some(NONE_IDX);
@@ -3633,14 +3615,14 @@ fn get_syn_options<'a>(
                         }
                     }
 
-                    arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
+                    arg = crate::charset::skipwhite(&arg[wlen..]);
                 } else if flags == HL_FOLD && foldmethod_is_syntax(curwin_mut()) {
                     fold_update_all(curwin_mut());
                 }
             }
         }
 
-        Some(crate::strings::ByteSlice::from_ptr(arg).as_cstr())
+        Some(arg)
     }
 }
 
@@ -3757,32 +3739,27 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 let Some(rest_cstr) = rest_opt else {
                     break;
                 };
-                let mut rest = rest_cstr.as_ptr().cast_mut();
-                if ends_excmd(crate::strings::AsByteSlice::first_byte_val(rest)) != 0 {
+                let rest_bytes = rest_cstr.to_bytes();
+                if ends_excmd(rest_bytes.first().copied().unwrap_or(0)) != 0 {
                     break;
                 }
-                while *crate::globals::GraphPtr::of(rest).borrow() != 0
-                    && !ascii_iswhite(*crate::globals::GraphPtr::of(rest).borrow() as u8)
-                {
-                    if *crate::globals::GraphPtr::of(rest).borrow() as u8 == b'\\'
-                        && *crate::globals::GraphPtr::of(rest.wrapping_add(1)).borrow() != 0
-                    {
-                        rest = rest.wrapping_add(1);
+                let mut r_idx = 0usize;
+                while r_idx < rest_bytes.len() && !ascii_iswhite(rest_bytes[r_idx]) {
+                    if rest_bytes[r_idx] == b'\\' && r_idx + 1 < rest_bytes.len() {
+                        r_idx += 1;
                     }
 
-                    *crate::globals::GraphPtr::of(p).borrow_mut() =
-                        crate::strings::AsByteSlice::first_byte_val(rest);
+                    *crate::globals::GraphPtr::of(p).borrow_mut() = rest_bytes[r_idx] as _;
 
                     p = p.wrapping_add(1);
-                    rest = rest.wrapping_add(1);
+                    r_idx += 1;
                 }
 
                 *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
 
                 p = p.wrapping_add(1);
                 cnt += 1;
-                let next_rest = crate::charset::skipwhite_ptr(rest);
-                rest_opt = Some(crate::strings::ByteSlice::from_ptr(next_rest).as_cstr());
+                rest_opt = Some(crate::charset::skipwhite(&rest_cstr[r_idx..]));
             }
 
             if !eap.skip {
@@ -3792,24 +3769,19 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 let mut kwlen: usize;
                 'kw_loop: while cnt > 0 {
                     cnt -= 1;
-                    p = vim_strchr(
-                        crate::strings::ByteSlice::from_ptr(kw).as_cstr(),
-                        b'[' as i32,
-                    )
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                    .cast();
+                    p = vim_strchr(unsafe { CStr::from_ptr(kw.cast()) }, b'[' as i32)
+                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                        .cast();
                     loop {
                         if p.is_null() {
-                            kwlen = crate::strings::ByteSlice::from_ptr(kw).as_bytes().len();
+                            kwlen = unsafe { CStr::from_ptr(kw.cast()) }.to_bytes().len();
                         } else {
                             *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
 
-                            kwlen = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                                - (crate::strings::AsByteSlice::byte_addr(kw) as isize))
-                                as usize;
+                            kwlen = (p as usize) - (kw as usize);
                         }
                         add_keyword(
-                            crate::strings::AsByteSlice::slice_len(kw, kwlen),
+                            unsafe { std::slice::from_raw_parts(kw.cast::<u8>(), kwlen) },
                             syn_id,
                             syn_opt_arg.flags,
                             &syn_opt_arg.cont_in_list,
@@ -3820,24 +3792,19 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             break;
                         }
                         let after_p =
-                            crate::strings::ByteSlice::from_ptr(p.wrapping_add(1)).as_bytes();
+                            unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) }.to_bytes();
                         if after_p.is_empty() {
-                            semsg!(
-                                gettext(c"E789: Missing ']': %s"),
-                                crate::strings::ByteSlice::from_ptr(kw.cast::<std::ffi::c_void>())
-                            );
+                            semsg!(gettext(c"E789: Missing ']': %s"), unsafe {
+                                CStr::from_ptr(kw.cast())
+                            },);
                             break 'kw_loop;
                         }
                         if after_p[0] == b']' {
                             if after_p.len() > 1 {
                                 semsg!(
                                     gettext(E_TRAILING_CHAR_AFTER_RSB_STR_STR),
-                                    crate::strings::ByteSlice::from_ptr(
-                                        kw.cast::<std::ffi::c_void>()
-                                    ),
-                                    crate::strings::ByteSlice::from_ptr(
-                                        p.wrapping_add(2).cast::<std::ffi::c_void>()
-                                    )
+                                    unsafe { CStr::from_ptr(kw.cast()) },
+                                    unsafe { CStr::from_ptr(p.wrapping_add(2).cast()) },
                                 );
                                 break 'kw_loop;
                             }
@@ -3963,20 +3930,21 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         let Some(rest_cstr) = rest_opt else {
             break;
         };
-        let mut rest = crate::strings::ByteSlice::from_cstr(rest_cstr);
-        if ends_excmd(rest.first_byte()) != 0 {
+        let mut rest = rest_cstr;
+        if ends_excmd(rest.to_bytes().first().copied().unwrap_or(0)) != 0 {
             break;
         }
 
-        let mut key_end = rest;
-        while !key_end.is_empty()
-            && !ascii_iswhite(key_end.first_byte())
-            && key_end.first_byte() != b'='
+        let rest_bytes = rest.to_bytes();
+        let mut key_len = 0usize;
+        while key_len < rest_bytes.len()
+            && !ascii_iswhite(rest_bytes[key_len])
+            && rest_bytes[key_len] != b'='
         {
-            key_end = key_end.wrapping_add(1);
+            key_len += 1;
         }
         key = Some(crate::memory::bytes_to_cstring(
-            &rest.slice(key_end.offset_from(rest)).to_ascii_uppercase(),
+            &rest_bytes[..key_len].to_ascii_uppercase(),
         ));
         let key_ptr = key.as_deref().unwrap_or(c"");
         let item = if key_ptr.to_bytes() == b"MATCHGROUP" {
@@ -3994,33 +3962,34 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         } else {
             break;
         };
-        rest = key_end.skipwhite();
-        if rest.first_byte() != b'=' {
+        rest = crate::charset::skipwhite(&rest[key_len..]);
+        if rest.to_bytes().first() != Some(&b'=') {
             rest_opt = None;
             semsg!(gettext(c"E398: Missing '=': %s"), arg);
             break;
         }
-        rest = rest.wrapping_add(1).skipwhite();
-        rest_opt = Some(rest.as_cstr());
+        rest = crate::charset::skipwhite(&rest[1..]);
+        rest_opt = Some(rest);
         if rest.is_empty() {
             not_enough = true;
             break;
         }
 
         if item == ITEM_MATCHGROUP {
-            let p_len = crate::charset::skiptowhite_len(rest.as_bytes());
-            let p = rest.wrapping_add(p_len);
-            if (p_len == 4 && rest.slice(4) == b"NONE") || eap.skip {
+            let rest_bytes = rest.to_bytes();
+            let p_len = crate::charset::skiptowhite_len(rest_bytes);
+            let p = &rest[p_len..];
+            if (p_len == 4 && &rest_bytes[..4] == b"NONE") || eap.skip {
                 matchgroup_id = 0;
             } else {
-                matchgroup_id = syn_check_group(rest.slice(p_len));
+                matchgroup_id = syn_check_group(&rest_bytes[..p_len]);
                 if matchgroup_id == 0 {
                     illegal = true;
                     break;
                 }
             }
-            rest = p.skipwhite();
-            rest_opt = Some(rest.as_cstr());
+            rest = crate::charset::skipwhite(p);
+            rest_opt = Some(rest);
         } else {
             let mut synp = Synpat::new();
 
@@ -4046,20 +4015,19 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         }
     }
     drop(key);
-    let mut rest = crate::strings::ByteSlice::from_opt_cstr(rest_opt);
     if illegal || not_enough {
-        rest = crate::strings::BYTE_SLICE_NULL;
+        rest_opt = None;
     }
 
-    if !rest.is_null() && (pat_ptrs[ITEM_START].is_empty() || pat_ptrs[ITEM_END].is_empty()) {
+    if rest_opt.is_some() && (pat_ptrs[ITEM_START].is_empty() || pat_ptrs[ITEM_END].is_empty()) {
         not_enough = true;
-        rest = crate::strings::BYTE_SLICE_NULL;
+        rest_opt = None;
     }
 
-    if !rest.is_null() {
-        eap.nextcmd = crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd(rest.as_cstr()));
-        if ends_excmd(rest.first_byte()) == 0 || eap.skip {
-            rest = crate::strings::BYTE_SLICE_NULL;
+    if let Some(rest_cstr) = rest_opt {
+        eap.nextcmd = arg.advance_to_opt_cstr(check_nextcmd(rest_cstr));
+        if ends_excmd(rest_cstr.to_bytes().first().copied().unwrap_or(0)) == 0 || eap.skip {
+            rest_opt = None;
         } else {
             let syn_id = syn_check_group((arg).slice(group_name_len));
             if syn_id != 0 {
@@ -4115,7 +4083,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
                 gettext(c"E399: Not enough arguments: syntax region %s"),
                 arg,
             );
-        } else if illegal || rest.is_null() {
+        } else if illegal || rest_opt.is_none() {
             semsg!(gettext(E_INVARG2), arg);
         }
     }
@@ -4204,10 +4172,10 @@ fn syn_add_cluster(name: std::ffi::CString) -> i32 {
         return 0;
     }
 
-    let name_ptr = crate::strings::ByteSlice::from_cstr(&name);
-    let is_spell = name_ptr.as_bytes().eq_ignore_ascii_case(b"Spell");
-    let is_nospell = name_ptr.as_bytes().eq_ignore_ascii_case(b"NoSpell");
-    let scl_name_u = crate::memory::bytes_to_cstring(&name_ptr.as_bytes().to_ascii_uppercase());
+    let name_bytes = name.as_bytes();
+    let is_spell = name_bytes.eq_ignore_ascii_case(b"Spell");
+    let is_nospell = name_bytes.eq_ignore_ascii_case(b"NoSpell");
+    let scl_name_u = crate::memory::bytes_to_cstring(&name_bytes.to_ascii_uppercase());
 
     let clusters = &mut win_s(curwin_mut()).b_syn_clusters;
     clusters.push(SynCluster {
@@ -4299,7 +4267,6 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
 
 fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CStr> {
     let arg_cstr = arg?;
-    let arg = crate::strings::ByteSlice::from_cstr(arg_cstr);
     let arg_bytes = arg_cstr.to_bytes();
     {
         if arg_bytes.len() < 3 {
@@ -4307,18 +4274,13 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         }
 
         let delim = arg_bytes[0];
-        let mut end = skip_regexp(arg.wrapping_add(1).as_cstr(), delim as i32, 1)
-            .as_ptr()
-            .cast_mut()
-            .cast::<u8>();
-        if *crate::globals::GraphPtr::of(end).borrow() != delim {
-            semsg!(
-                gettext(c"E401: Pattern delimiter not found: %s"),
-                crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>()),
-            );
+        let mut end = skip_regexp(&arg_cstr[1..], delim as i32, 1);
+        if end.to_bytes().first() != Some(&delim) {
+            semsg!(gettext(c"E401: Pattern delimiter not found: %s"), arg_cstr,);
             return None;
         }
-        let pat_slice = arg.wrapping_add(1).slice((end as usize) - arg.addr() - 1);
+        let pat_len = arg_bytes.len() - 1 - end.to_bytes().len();
+        let pat_slice = &arg_bytes[1..1 + pat_len];
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
         let cpo_save = std::mem::take(&mut opt_vars().p_cpo);
@@ -4330,9 +4292,9 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         ci.sp_ic = win_s(curwin_mut()).b_syn_ic;
         syn_clear_time(&mut ci.sp_time);
 
-        end = end.wrapping_add(1);
+        end = &end[1..];
         loop {
-            let end_bytes = crate::strings::ByteSlice::from_ptr(end).as_bytes();
+            let end_bytes = end.to_bytes();
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
                 if end_bytes.starts_with(SPO_NAME_TAB[idx as usize].to_bytes()) {
@@ -4352,10 +4314,9 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
                 if idx >= 0 {
                     ci.sp_off_flags |= 1 << (idx as usize);
                     if base_idx == SPO_LC_OFF {
-                        end = end.wrapping_add(3);
                         let mut rem = &end_bytes[3..];
                         let val = getdigits_int(&mut rem, true, 0);
-                        end = end.wrapping_add((end_bytes.len() - 3) - rem.len());
+                        end = &end[end_bytes.len() - rem.len()..];
                         ci.sp_offsets[base_idx] = val;
 
                         if (ci.sp_off_flags & (1 << SPO_MS_OFF)) == 0 {
@@ -4363,22 +4324,23 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
                             ci.sp_offsets[SPO_MS_OFF] = val;
                         }
                     } else {
-                        end = end.wrapping_add(4);
                         let mut rem = &end_bytes[4..];
                         if let Some(after_plus) = rem.strip_prefix(b"+") {
                             rem = after_plus;
                             ci.sp_offsets[base_idx] = getdigits_int(&mut rem, true, 0);
-                            end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
+                            end = &end[end_bytes.len() - rem.len()..];
                         } else if let Some(after_minus) = rem.strip_prefix(b"-") {
                             rem = after_minus;
                             ci.sp_offsets[base_idx] = -getdigits_int(&mut rem, true, 0);
-                            end = end.wrapping_add((end_bytes.len() - 4) - rem.len());
+                            end = &end[end_bytes.len() - rem.len()..];
+                        } else {
+                            end = &end[4..];
                         }
                     }
-                    if *crate::globals::GraphPtr::of(end).borrow() != b',' {
+                    if end.to_bytes().first() != Some(&b',') {
                         break;
                     }
-                    end = end.wrapping_add(1);
+                    end = &end[1..];
                 }
             }
             if idx < 0 {
@@ -4386,26 +4348,17 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
             }
         }
 
-        if ends_excmd(*crate::globals::GraphPtr::of(end).borrow()) == 0
-            && !ascii_iswhite(*crate::globals::GraphPtr::of(end).borrow())
-        {
-            semsg!(
-                gettext(c"E402: Garbage after pattern: %s"),
-                crate::strings::ByteSlice::from_ptr(arg.cast::<std::ffi::c_void>())
-            );
+        let end_first = end.to_bytes().first().copied().unwrap_or(0);
+        if ends_excmd(end_first) == 0 && !ascii_iswhite(end_first) {
+            semsg!(gettext(c"E402: Garbage after pattern: %s"), arg_cstr);
             return None;
         }
-        Some(
-            crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(
-                end.cast::<std::ffi::c_char>(),
-            ))
-            .as_cstr(),
-        )
+        Some(crate::charset::skipwhite(end))
     }
 }
 
 fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
-    let mut arg_start = crate::strings::ByteSlice::from_cstr(eap.arg.as_cstr());
+    let mut arg_start = eap.arg.clone();
     let mut key_owned: Option<std::ffi::CString>;
     let mut illegal = false;
     let mut finished = false;
@@ -4420,7 +4373,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
         let mut next_arg = arg_end.skipwhite();
         key_owned = Some(crate::memory::bytes_to_cstring(
             &arg_start
-                .slice(((arg_end).offset_from(arg_start) as isize) as usize)
+                .slice(((arg_end).offset_from(&arg_start) as isize) as usize)
                 .to_ascii_uppercase(),
         ));
         let key = key_owned.as_deref().unwrap_or(c"");
@@ -4432,7 +4385,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 arg_end = next_arg.skiptowhite();
                 if !eap.skip {
                     win_s(curwin_mut()).b_syn_sync_id = syn_check_group(
-                        next_arg.slice(((arg_end).offset_from(next_arg) as isize) as usize),
+                        next_arg.slice(((arg_end).offset_from(&next_arg) as isize) as usize),
                     ) as i16;
                 }
                 next_arg = arg_end.skipwhite();
@@ -4488,8 +4441,9 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 finished = true;
                 break;
             }
-            arg_end = crate::strings::ByteSlice::from_cstr(skip_regexp(
-                next_arg.wrapping_add(1).as_cstr(),
+            let next_plus1 = next_arg.wrapping_add(1);
+            arg_end = next_plus1.advance_to_cstr(skip_regexp(
+                next_plus1.as_cstr(),
                 i32::from((next_arg).first_byte()),
                 1,
             ));
@@ -4499,9 +4453,8 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             }
 
             if !eap.skip {
-                let pat_slice = next_arg
-                    .wrapping_add(1)
-                    .slice(((arg_end).offset_from(next_arg) as isize) as usize - 1);
+                let pat_slice =
+                    next_plus1.slice(((arg_end).offset_from(&next_arg) as isize) as usize - 1);
                 let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                 win_s(curwin_mut()).b_syn_linecont_ic = win_s(curwin_mut()).b_syn_ic;
 
@@ -4520,7 +4473,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             }
             next_arg = arg_end.wrapping_add(1).skipwhite();
         } else {
-            eap.arg = next_arg.into();
+            eap.arg = next_arg.clone();
             if key.to_bytes() == b"MATCH" {
                 syn_cmd_match(eap, 1);
             } else if key.to_bytes() == b"REGION" {
@@ -4538,17 +4491,16 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
     if illegal {
         semsg!(gettext(c"E404: Illegal arguments: %s"), arg_start);
     } else if !finished {
-        eap.nextcmd =
-            crate::strings::OwnedSlice::from_opt_cstr(check_nextcmd((arg_start).as_cstr()));
+        eap.nextcmd = arg_start.advance_to_opt_cstr(check_nextcmd(arg_start.as_cstr()));
         redraw_curbuf_later(UPD_SOME_VALID);
         syn_stack_free_all(win_s(curwin_mut()));
     }
 }
 
 fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -> bool {
-    let arg_ptr = arg.as_ptr().cast_mut().cast::<u8>();
+    let arg_start = *arg;
     {
-        let mut p = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+        let mut p: &CStr = c"";
         let mut total_count: i32 = 0;
         let mut retval: Vec<i16> = Vec::new();
         let mut regmatch: Regmatch = Regmatch::new();
@@ -4556,69 +4508,50 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
 
         let mut round: i32 = 1;
         while round <= 2 {
-            p = crate::charset::skipwhite_ptr(
-                arg_ptr
-                    .wrapping_offset(keylen as isize)
-                    .cast::<std::ffi::c_char>(),
-            )
-            .cast();
-            if *crate::globals::GraphPtr::of(p).borrow() != b'=' {
-                semsg!(
-                    gettext(c"E405: Missing equal sign: %s"),
-                    crate::strings::ByteSlice::from_ptr(arg_ptr.cast::<std::ffi::c_void>())
-                );
+            p = crate::charset::skipwhite(&arg_start[keylen as usize..]);
+            if p.to_bytes().first() != Some(&b'=') {
+                semsg!(gettext(c"E405: Missing equal sign: %s"), arg_start);
                 break;
             }
-            p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>()).cast();
-            if ends_excmd(*crate::globals::GraphPtr::of(p).borrow()) != 0 {
-                semsg!(
-                    gettext(c"E406: Empty argument: %s"),
-                    crate::strings::ByteSlice::from_ptr(arg_ptr.cast::<std::ffi::c_void>())
-                );
+            p = crate::charset::skipwhite(&p[1..]);
+            if ends_excmd(p.to_bytes().first().copied().unwrap_or(0)) != 0 {
+                semsg!(gettext(c"E406: Empty argument: %s"), arg_start);
                 break;
             }
 
             let mut count: i32 = 0;
             loop {
-                let mut end = p;
-                while *crate::globals::GraphPtr::of(end).borrow() != 0
-                    && !ascii_iswhite(*crate::globals::GraphPtr::of(end).borrow())
-                    && *crate::globals::GraphPtr::of(end).borrow() != b','
+                let p_bytes = p.to_bytes();
+                let mut item_len = 0usize;
+                while item_len < p_bytes.len()
+                    && !ascii_iswhite(p_bytes[item_len])
+                    && p_bytes[item_len] != b','
                 {
-                    end = end.wrapping_add(1);
+                    item_len += 1;
                 }
-                let item_len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(p) as isize))
-                    as usize;
                 let mut name_buf = vec![0u8; item_len + 3];
-                name_buf[1..=item_len]
-                    .copy_from_slice(crate::strings::AsByteSlice::slice_len(p, item_len));
-                let name = crate::strings::ByteSlice::from_bytes(&name_buf);
+                name_buf[1..=item_len].copy_from_slice(&p_bytes[..item_len]);
+                let name_item = &name_buf[1..=item_len];
                 let mut id: i32;
-                if (name.wrapping_add(1).as_bytes() == b"ALLBUT")
-                    || (name.wrapping_add(1).as_bytes() == b"ALL")
-                    || (name.wrapping_add(1).as_bytes() == b"TOP")
-                    || (name.wrapping_add(1).as_bytes() == b"CONTAINED")
+                if name_item == b"ALLBUT"
+                    || name_item == b"ALL"
+                    || name_item == b"TOP"
+                    || name_item == b"CONTAINED"
                 {
-                    if !crate::globals::GraphPtr::of(arg_ptr)
-                        .borrow()
-                        .eq_ignore_ascii_case(&b'C')
+                    let name_cstr = crate::memory::bytes_as_cstr(&name_buf[1..]);
+                    if !arg_start
+                        .to_bytes()
+                        .first()
+                        .is_some_and(|b| b.eq_ignore_ascii_case(&b'C'))
                     {
-                        semsg!(
-                            gettext(c"E407: %s not allowed here"),
-                            crate::strings::ByteSlice::from_ptr(
-                                name.wrapping_add(1).cast::<std::ffi::c_void>()
-                            )
-                        );
+                        semsg!(gettext(c"E407: %s not allowed here"), name_cstr);
                         failed = true;
                         break;
                     }
                     if count != 0 {
                         semsg!(
                             gettext(c"E408: %s must be first in contains list"),
-                            crate::strings::ByteSlice::from_ptr(
-                                name.wrapping_add(1).cast::<std::ffi::c_void>()
-                            ),
+                            name_cstr,
                         );
                         failed = true;
                         break;
@@ -4635,26 +4568,18 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     if skip {
                         id = -1;
                     } else {
-                        id = syn_check_cluster(
-                            name.wrapping_add(2)
-                                .slice(((end as usize) - (p as usize)).max(1) - 1),
-                        );
+                        id = syn_check_cluster(&name_buf[2..=item_len.max(1)]);
                     }
-                } else if !name
-                    .wrapping_add(1)
-                    .as_bytes()
-                    .iter()
-                    .any(|b| b"\\.*^$~[".contains(b))
-                {
-                    id = syn_check_group(name.wrapping_add(1).slice((end as usize) - (p as usize)));
+                } else if !name_item.iter().any(|b| b"\\.*^$~[".contains(b)) {
+                    id = syn_check_group(name_item);
                 } else {
-                    let item_len = ((crate::strings::AsByteSlice::byte_addr(end) as isize)
-                        - (crate::strings::AsByteSlice::byte_addr(p) as isize))
-                        as usize;
                     name_buf[0] = b'^';
                     name_buf[1 + item_len] = b'$';
                     name_buf[2 + item_len] = 0;
-                    regmatch.set_prog(vim_regcomp(name.as_cstr(), RE_MAGIC));
+                    regmatch.set_prog(vim_regcomp(
+                        crate::memory::bytes_as_cstr(&name_buf),
+                        RE_MAGIC,
+                    ));
                     if regmatch.regprog.is_null() {
                         failed = true;
                         break;
@@ -4681,10 +4606,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     regmatch.free_prog();
                 }
                 if id == 0 {
-                    semsg!(
-                        gettext(c"E409: Unknown group name: %s"),
-                        crate::strings::ByteSlice::from_ptr(p.cast::<std::ffi::c_void>())
-                    );
+                    semsg!(gettext(c"E409: Unknown group name: %s"), p);
                     failed = true;
                     break;
                 }
@@ -4699,13 +4621,12 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     }
                     count += 1;
                 }
-                p = crate::charset::skipwhite_ptr(end.cast::<std::ffi::c_char>()).cast();
-                if *crate::globals::GraphPtr::of(p).borrow() != b',' {
+                p = crate::charset::skipwhite(&p[item_len..]);
+                if p.to_bytes().first() != Some(&b',') {
                     break;
                 }
-                p = crate::charset::skipwhite_ptr(p.wrapping_add(1).cast::<std::ffi::c_char>())
-                    .cast();
-                if ends_excmd(*crate::globals::GraphPtr::of(p).borrow()) != 0 {
+                p = crate::charset::skipwhite(&p[1..]);
+                if ends_excmd(p.to_bytes().first().copied().unwrap_or(0)) != 0 {
                     break;
                 }
             }
@@ -4719,7 +4640,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
             round += 1;
         }
 
-        *arg = crate::strings::ByteSlice::from_ptr(p).as_cstr();
+        *arg = p;
         if failed || retval.is_empty() {
             return false;
         }
@@ -5108,11 +5029,7 @@ pub fn get_syntax_name(xp: &mut ExpandCtx, idx: i32) -> Option<&std::ffi::CStr> 
                 format_to_buf!(
                     &mut xp.xp_buf[..],
                     c"@%s",
-                    crate::strings::ByteSlice::from_ptr(
-                        syn_clstr(&mut *win_s(curwin_mut()), idx as isize)
-                            .scl_name
-                            .as_ptr()
-                    ),
+                    &syn_clstr(&mut *win_s(curwin_mut()), idx as isize).scl_name,
                 );
                 Some(crate::memory::bytes_as_cstr(&xp.xp_buf))
             } else {

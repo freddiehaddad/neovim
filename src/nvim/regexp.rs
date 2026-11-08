@@ -2132,11 +2132,11 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     if re_st().regparse_byte() != b'}' {
         semsg!(
             tr(c"E554: Syntax error in %s{...}"),
-            crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                c"".as_ptr()
+            if re_st().reg_magic == MAGIC_ALL {
+                c""
             } else {
-                c"\\".as_ptr()
-            }),
+                c"\\"
+            },
         );
         g_st().rc_did_emsg = true;
         return false;
@@ -2391,11 +2391,7 @@ pub(super) fn match_with_backref(
         if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
-                    crate::strings::ByteSlice::from_ptr(
-                        p_cstr.as_ptr().wrapping_add(ccol as usize),
-                    )
-                    .as_cstr()
-                    .to_bytes(),
+                    &p_bytes[ccol as usize..],
                     re_st().rex.input.as_bytes(),
                     len as usize,
                 ) != 0)
@@ -2526,12 +2522,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_ptr = s.as_ptr();
     if !re_st().rex.reg_ic {
-        let p = vim_strchr(crate::strings::ByteSlice::from_ptr(s_ptr).as_cstr(), c)
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        return (!p.is_null()).then(|| {
-            ((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(s_ptr) as isize)) as usize
-        });
+        return vim_strchr(s, c).map(|found| (found.as_ptr() as usize) - (s_ptr as usize));
     }
 
     let (cc, lc) = if c > 0x80 {
@@ -2544,12 +2535,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         let u = (c as u8).to_ascii_uppercase() as i32;
         (u, c)
     } else {
-        let p = vim_strchr(crate::strings::ByteSlice::from_ptr(s_ptr).as_cstr(), c)
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        return (!p.is_null()).then(|| {
-            ((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(s_ptr) as isize)) as usize
-        });
+        return vim_strchr(s, c).map(|found| (found.as_ptr() as usize) - (s_ptr as usize));
     };
 
     let s_bytes = s.to_bytes();
@@ -2645,7 +2631,7 @@ pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi
         };
     }
 
-    newsub_vec.map(|v| crate::strings::ByteSlice::from_ptr(v.as_ptr()).to_cstring())
+    newsub_vec.map(|v| crate::memory::cstring_until_nul(&v))
 }
 
 pub(crate) fn fill_submatch_list(
@@ -3025,7 +3011,7 @@ fn vim_regsub_both(
                     if clnum < 0 || re_st().rex.mmatch_mut().endpos[no as usize].lnum < 0 {
                         s = REG_LINE_NULL;
                     } else {
-                        let line_ptr = crate::strings::ByteSlice::from_opt_cstr(reg_getline(clnum));
+                        let line_ptr = reg_line_from_opt_cstr(reg_getline(clnum));
                         s = line_ptr.wrapping_add(
                             re_st().rex.mmatch_mut().startpos[no as usize].col as usize,
                         );
@@ -3063,7 +3049,7 @@ fn vim_regsub_both(
                                 }
                                 dst_off += 1;
                                 clnum += 1;
-                                s = crate::strings::ByteSlice::from_opt_cstr(reg_getline(clnum));
+                                s = reg_line_from_opt_cstr(reg_getline(clnum));
                                 if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
                                     len = re_st().rex.mmatch_mut().endpos[no as usize].col;
                                 } else {
@@ -3139,9 +3125,9 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
     }
     let line = ml_get_buf(re_st().rex.buf_mut(), firstlnum)
         .as_ptr()
-        .cast_mut();
+        .cast::<u8>();
     let len = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum) as usize;
-    Some(crate::strings::AsByteSlice::slice_len(line, len))
+    Some(unsafe { std::slice::from_raw_parts(line, len) })
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {

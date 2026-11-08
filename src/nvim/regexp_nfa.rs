@@ -867,9 +867,7 @@ fn nfa_regatom() -> bool {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(CLASSCHARS.as_ptr().cast::<u8>())
-                        as isize)) as usize;
+                let idx = (p as usize) - (CLASSCHARS.as_ptr() as usize);
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -928,9 +926,7 @@ fn nfa_regatom() -> bool {
                 old_regparse_off = re_st().regparse_off;
                 c = getchr();
             } else {
-                let idx = ((crate::strings::AsByteSlice::byte_addr(p) as isize)
-                    - (crate::strings::AsByteSlice::byte_addr(CLASSCHARS.as_ptr().cast::<u8>())
-                        as isize)) as usize;
+                let idx = (p as usize) - (CLASSCHARS.as_ptr() as usize);
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -1099,11 +1095,11 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
             if nr < 0 || nr > i64::from(i32::MAX) {
                 semsg!(
                     tr(c"E678: Invalid character after %s%%[dxouU]"),
-                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                        c"".as_ptr()
+                    if re_st().reg_magic == MAGIC_ALL {
+                        c""
                     } else {
-                        c"\\".as_ptr()
-                    }),
+                        c"\\"
+                    },
                 );
                 g_st().rc_did_emsg = true;
                 return false;
@@ -1150,11 +1146,11 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
                 if c == NUL as i32 {
                     semsg!(
                         tr(E_MISSING_SB),
-                        crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                            c"".as_ptr()
+                        if re_st().reg_magic == MAGIC_ALL {
+                            c""
                         } else {
-                            c"\\".as_ptr()
-                        }),
+                            c"\\"
+                        },
                     );
                     g_st().rc_did_emsg = true;
                     return false;
@@ -1168,11 +1164,11 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
             if n == 0 {
                 semsg!(
                     tr(E_EMPTY_SB),
-                    crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                        c"".as_ptr()
+                    if re_st().reg_magic == MAGIC_ALL {
+                        c""
                     } else {
-                        c"\\".as_ptr()
-                    }),
+                        c"\\"
+                    },
                 );
                 g_st().rc_did_emsg = true;
                 return false;
@@ -1803,20 +1799,20 @@ fn nfa_reg(paren: i32) -> bool {
         if paren == REG_NPAREN {
             semsg!(
                 tr(E_UNMATCHED_STR_PERCENT_OPEN),
-                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                    c"".as_ptr()
+                if re_st().reg_magic == MAGIC_ALL {
+                    c""
                 } else {
-                    c"\\".as_ptr()
-                }),
+                    c"\\"
+                },
             );
         } else {
             semsg!(
                 tr(E_UNMATCHED_STR_OPEN),
-                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                    c"".as_ptr()
+                if re_st().reg_magic == MAGIC_ALL {
+                    c""
                 } else {
-                    c"\\".as_ptr()
-                }),
+                    c"\\"
+                },
             );
         }
         g_st().rc_did_emsg = true;
@@ -1826,11 +1822,11 @@ fn nfa_reg(paren: i32) -> bool {
         if peekchr() == magic_fn(b')' as i32) {
             semsg!(
                 tr(E_UNMATCHED_STR_CLOSE),
-                crate::strings::ByteSlice::from_ptr(if re_st().reg_magic == MAGIC_ALL {
-                    c"".as_ptr()
+                if re_st().reg_magic == MAGIC_ALL {
+                    c""
                 } else {
-                    c"\\".as_ptr()
-                }),
+                    c"\\"
+                },
             );
         } else {
             emsg(tr(c"E873: (NFA regexp) proper termination error"));
@@ -4793,11 +4789,10 @@ fn nfa_regtry(
                     && mpos.end_col >= mpos.start_col
                     && let Some(line_cstr) = reg_getline(mpos.start_lnum)
                 {
-                    extmatch.matches[i] =
-                        cstring_from_bytes(crate::strings::AsByteSlice::slice_len(
-                            line_cstr.as_ptr().wrapping_add(mpos.start_col as usize),
-                            (mpos.end_col - mpos.start_col) as usize,
-                        ));
+                    let line_bytes = line_cstr.to_bytes();
+                    let start = (mpos.start_col as usize).min(line_bytes.len());
+                    let end = (mpos.end_col as usize).min(line_bytes.len());
+                    extmatch.matches[i] = cstring_from_bytes(&line_bytes[start..end]);
                 }
             } else {
                 let lpos = subs.synt.list.line()[i];
