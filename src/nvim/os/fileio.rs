@@ -11,7 +11,6 @@ use crate::os::fs::{
 };
 #[cfg(unix)]
 use crate::os::fs::{iovec, os_readv};
-use crate::strings::ByteSliceExt;
 
 pub const K_FILE_READ_ONLY: i32 = 1;
 pub const K_FILE_CREATE: i32 = 2;
@@ -70,7 +69,7 @@ pub fn file_open(
     flags: i32,
     mode: i32,
 ) -> i32 {
-    let fname = crate::strings::ByteSlice::from_opt_cstr(fname);
+    let fname_cstr = fname.unwrap_or(c"");
     let mut os_open_flags: i32 = 0;
     let mut wr: Option<bool> = None;
 
@@ -112,13 +111,13 @@ pub fn file_open(
     }
 
     if (flags & K_FILE_MK_DIR) != 0 {
-        let mkdir_ret = os_file_mkdir(fname.as_cstr(), 0o755);
+        let mkdir_ret = os_file_mkdir(fname_cstr, 0o755);
         if mkdir_ret < 0 {
             return mkdir_ret;
         }
     }
 
-    let fd = os_open(fname.as_cstr(), os_open_flags, mode);
+    let fd = os_open(fname_cstr, os_open_flags, mode);
     if fd < 0 {
         return fd;
     }

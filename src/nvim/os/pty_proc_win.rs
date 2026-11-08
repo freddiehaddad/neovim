@@ -13,8 +13,6 @@ use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
 #[cfg(windows)]
-use crate::strings::ByteSliceExt as _;
-#[cfg(windows)]
 use std::ffi::{CStr, c_void};
 #[cfg(windows)]
 use std::ptr;
@@ -239,16 +237,11 @@ mod win_impl {
                     }
                 }
 
-                let arg0 = hdr.argv.as_slice()[0].as_ptr();
-                let is_cmdexe =
-                    os_shell_is_cmdexe(crate::strings::ByteSlice::from_ptr(arg0).as_cstr());
+                let arg0 = &hdr.argv.as_slice()[0];
+                let is_cmdexe = os_shell_is_cmdexe(arg0);
                 if is_cmdexe {
                     let mut path: Option<std::ffi::CString> = None;
-                    if !os_can_exe(
-                        crate::strings::ByteSlice::from_ptr(arg0).as_cstr(),
-                        Some(&mut path),
-                        true,
-                    ) {
+                    if !os_can_exe(arg0, Some(&mut path), true) {
                         status = UV_ENOENT;
                         emsg = Some(c"executable not found");
                         break 'cleanup;
@@ -321,8 +314,8 @@ mod win_impl {
                     line!() as i32,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",
-                    crate::strings::ByteSlice::from_ptr(hdr.argv.as_slice()[0].as_ptr()),
-                    crate::strings::ByteSlice::from_ptr(emsg.map_or(ptr::null(), CStr::as_ptr)),
+                    &hdr.argv.as_slice()[0],
+                    emsg,
                     status,
                 );
                 status = uv_translate_sys_error(status);

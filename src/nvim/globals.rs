@@ -921,7 +921,6 @@ impl EditorState {
         crate::strings::ByteSlice::from_ptr(self.name_buff.as_ptr()).as_cstr()
     }
 
-    #[cfg(windows)]
     #[inline(always)]
     pub const fn os_buf_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
         &mut self.os_buf

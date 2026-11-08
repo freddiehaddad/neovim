@@ -340,7 +340,8 @@ pub fn os_icon_init() {
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
         let namebuff = g_st().name_buff.as_ptr();
         format_to_buf!(&mut g_st().name_buff, c"%s/neovim.ico", &vimruntime);
-        if !os_path_exists(crate::strings::ByteSlice::from_ptr(namebuff).as_cstr()) {
+        let namebuff_cstr = g_st().name_buff_cstr();
+        if !os_path_exists(namebuff_cstr) {
             logmsg!(
                 LOGLVL_WRN,
                 None,
@@ -348,7 +349,7 @@ pub fn os_icon_init() {
                 148,
                 true,
                 c"neovim.ico not found: %s",
-                crate::strings::ByteSlice::from_ptr(namebuff),
+                namebuff_cstr,
             );
         } else {
             let h_vim_icon = unsafe {

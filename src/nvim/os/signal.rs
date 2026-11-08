@@ -13,7 +13,6 @@ use crate::main_init::preserve_exit;
 #[cfg(target_os = "linux")]
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
-use crate::strings::ByteSliceExt;
 use crate::strings::format_to_buf;
 use std::ffi::CStr;
 #[cfg(unix)]
@@ -230,7 +229,6 @@ fn deadly_signal(signum: i32) -> ! {
     set_vim_var_nr(VV_DYING, 1);
     g_st().v_dying = 1;
 
-    let io_buf = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     format_to_buf!(
         &mut g_st().iobuff,
         c"Nvim: Caught deadly signal '%s'\n",
@@ -242,7 +240,7 @@ fn deadly_signal(signum: i32) -> ! {
     }
 
     // Preserve files and exit.
-    preserve_exit(io_buf.as_opt_cstr());
+    preserve_exit(Some(g_st().iobuff_cstr()));
 }
 
 pub(crate) fn on_signal(signum: i32) {

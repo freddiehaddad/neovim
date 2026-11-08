@@ -4,8 +4,6 @@
 use crate::fileio::getuid;
 #[cfg(unix)]
 use crate::os::env::os_getenv_buf;
-#[cfg(unix)]
-use crate::strings::ByteSliceExt as _;
 use crate::strings::format_to_buf;
 #[cfg(windows)]
 use std::ffi::c_void;
@@ -134,7 +132,7 @@ fn collect_usernames() -> Vec<CString> {
             let pw = &mut *pw;
             add_user(
                 &mut users,
-                crate::strings::ByteSlice::from_ptr(pw.pw_name).as_opt_cstr(),
+                (!pw.pw_name.is_null()).then(|| CStr::from_ptr(pw.pw_name.cast())),
             );
         }
         endpwent();
@@ -150,7 +148,7 @@ fn collect_usernames() -> Vec<CString> {
                 if !pw.is_null() {
                     add_user(
                         &mut users,
-                        crate::strings::ByteSlice::from_ptr((*pw).pw_name).as_opt_cstr(),
+                        (!(*pw).pw_name.is_null()).then(|| CStr::from_ptr((*pw).pw_name.cast())),
                     );
                 }
             }
@@ -218,10 +216,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: &mut [u8]) -> bool {
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            crate::memory::copy_bytes_to_c_buf(
-                s,
-                crate::strings::ByteSlice::from_ptr((*pw).pw_name).as_bytes(),
-            );
+            crate::memory::copy_bytes_to_c_buf(s, CStr::from_ptr((*pw).pw_name.cast()).to_bytes());
             return true;
         }
     }
@@ -238,7 +233,7 @@ pub fn os_get_userdir(name: Option<&CStr>) -> Option<CString> {
         let name = name.filter(|s| !s.to_bytes().is_empty())?;
         let pw = getpwnam(name.as_ptr().cast());
         if !pw.is_null() && !(*pw).pw_dir.is_null() {
-            return Some(crate::strings::ByteSlice::from_ptr((*pw).pw_dir).to_cstring());
+            return Some(CStr::from_ptr((*pw).pw_dir.cast()).to_owned());
         }
     }
     #[cfg(not(unix))]

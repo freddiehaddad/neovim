@@ -195,7 +195,6 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             emsg(gettext(E_NOTMP));
             return false;
         };
-        let tempname = tempname_cstr.as_ptr();
 
         if pat.len() == 1 && pat[0].to_bytes().first() == Some(&b'`') {
             let pat0_bytes = pat[0].to_bytes();
@@ -222,10 +221,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        let mut len = crate::strings::ByteSlice::from_ptr(tempname)
-            .as_bytes()
-            .len()
-            + 29;
+        let mut len = tempname_cstr.as_bytes().len() + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -296,7 +292,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
 
-        command_vec.extend_from_slice(crate::strings::ByteSlice::from_ptr(tempname).as_bytes());
+        command_vec.extend_from_slice(tempname_cstr.as_bytes());
 
         if shell_style != STYLE_BT {
             for &p in pat {
@@ -440,8 +436,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = 0;
                 if len != 0
-                    && (crate::strings::ByteSlice::from_ptr(buffer).as_bytes().len() as i32)
-                        < (len as i32)
+                    && (CStr::from_ptr(buffer.cast()).to_bytes().len() as i32) < (len as i32)
                 {
                     sh_st().did_find_nul = true;
                 } else {
@@ -503,7 +498,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         for entry in raw_entries {
-            let entry_cstr = crate::strings::ByteSlice::from_ptr(entry).as_cstr();
+            let entry_cstr = CStr::from_ptr(entry.cast());
             if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry_cstr) {
                 continue;
             }
@@ -658,10 +653,11 @@ pub fn call_shell(cmd: Option<&CStr>, opts: i32, extra_shell_arg: Option<&CStr>)
 
     if opt_vars().p_verbose > 3 {
         verbose_enter();
+        let p_sh = opt_vars().p_sh.to_owned();
         smsg!(
             0,
             gettext(c"Executing command: \"%s\""),
-            crate::strings::ByteSlice::from_ptr(cmd.map_or(opt_vars().p_sh.as_ptr(), CStr::as_ptr)),
+            cmd.unwrap_or(&p_sh),
         );
         if !ui_has(K_UIMESSAGES) {
             msg_putchar(b'\n' as i32);
@@ -703,14 +699,9 @@ pub fn get_cmd_output(
         emsg(gettext(E_NOTMP));
         return None;
     };
-    let tempname = crate::strings::ByteSlice::from_cstr(&tempname_cstr);
+    let tempname = tempname_cstr.as_c_str();
 
-    let command = make_filter_cmd(
-        cmd.unwrap_or(c""),
-        infile,
-        Some(tempname_cstr.as_c_str()),
-        false,
-    );
+    let command = make_filter_cmd(cmd.unwrap_or(c""), infile, Some(tempname), false);
 
     g_st().no_check_timestamps += 1;
     call_shell(
@@ -724,7 +715,7 @@ pub fn get_cmd_output(
 
     let mut result: Option<std::ffi::CString> = None;
 
-    if let Some(f) = CFile::open(tempname.as_cstr(), c"rb") {
+    if let Some(f) = CFile::open(tempname, c"rb") {
         'done: {
             if f.seek(0, SEEK_END) == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
@@ -755,7 +746,7 @@ pub fn get_cmd_output(
         semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
     }
 
-    os_remove(tempname.as_cstr());
+    os_remove(tempname);
     drop(tempname_cstr);
     result
 }
@@ -821,11 +812,7 @@ fn do_os_system(
             loop_poll_events(&mut *mloop, 0);
             if !silent {
                 msg_puts(gettext(c"\nshell failed to start: "));
-                msg_outtrans(
-                    crate::strings::ByteSlice::from_ptr(uv_strerror(status)).as_cstr(),
-                    0,
-                    false,
-                );
+                msg_outtrans(uv_strerror(status), 0, false);
                 msg_puts(c": ");
                 msg_outtrans(crate::memory::bytes_as_cstr(&prog), 0, false);
                 msg_putchar(b'\n' as i32);
@@ -1039,15 +1026,14 @@ pub(crate) fn out_data_cb(stream_fd: i32, buf: &[u8], eof: bool) -> usize {
 }
 
 fn tokenize(str_in: Option<&CStr>, argv: &mut Vec<std::ffi::CString>) {
-    let Some(str_in) = str_in else {
+    let Some(mut p) = str_in else {
         return;
     };
-    let mut p = crate::strings::ByteSlice::from_cstr(str_in);
 
-    while !p.is_empty() {
-        let len = word_length(p.as_cstr());
-        argv.push(vim_strnsave_unquoted(p.slice(len)));
-        p = p.wrapping_add(len).skipwhite();
+    while !p.to_bytes().is_empty() {
+        let len = word_length(p);
+        argv.push(vim_strnsave_unquoted(&p.to_bytes()[..len]));
+        p = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p, len));
     }
 }
 

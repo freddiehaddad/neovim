@@ -2,8 +2,7 @@
 
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::message::semsg;
-use crate::strings::ByteSliceExt;
-use std::ffi::{CString, c_void};
+use std::ffi::{CStr, CString, c_void};
 
 #[repr(C)]
 pub struct UvLib {
@@ -24,7 +23,6 @@ pub fn os_libcall(
     };
     let libname = libname.as_ptr();
     let funcname = funcname.as_ptr();
-    let argv = crate::strings::ByteSlice::from_opt_cstr(argv);
 
     unsafe {
         let mut lib = UvLib {
@@ -32,28 +30,26 @@ pub fn os_libcall(
         };
 
         if uv_dlopen(libname, &mut lib) != 0 {
-            semsg!(
-                c"dlerror = \"%s\"",
-                crate::strings::ByteSlice::from_ptr(uv_dlerror(&lib))
-            );
+            let err_ptr = uv_dlerror(&lib);
+            let err_cstr = (!err_ptr.is_null()).then(|| CStr::from_ptr(err_ptr));
+            semsg!(c"dlerror = \"%s\"", err_cstr);
             uv_dlclose(&mut lib);
             return false;
         }
 
         let mut fn_ptr: *mut c_void = std::ptr::null_mut();
         if uv_dlsym(&mut lib, funcname, &mut fn_ptr) != 0 {
-            semsg!(
-                c"dlerror = \"%s\"",
-                crate::strings::ByteSlice::from_ptr(uv_dlerror(&lib))
-            );
+            let err_ptr = uv_dlerror(&lib);
+            let err_cstr = (!err_ptr.is_null()).then(|| CStr::from_ptr(err_ptr));
+            semsg!(c"dlerror = \"%s\"", err_cstr);
             uv_dlclose(&mut lib);
             return false;
         }
 
         if let Some(out) = str_out {
-            let res = crate::globals::GraphPtr::<u8>::of(if !argv.is_null() {
+            let res = crate::globals::GraphPtr::<u8>::of(if let Some(argv) = argv {
                 let sfn: unsafe extern "C" fn(*const u8) -> *const u8 = std::mem::transmute(fn_ptr);
-                sfn(argv.cast())
+                sfn(argv.as_ptr().cast())
             } else {
                 let ifn: unsafe extern "C" fn(i32) -> *const u8 = std::mem::transmute(fn_ptr);
                 ifn(argi)
@@ -63,14 +59,14 @@ pub fn os_libcall(
 
             let addr = res as isize;
             *out = if !res.is_null() && addr != 1 && addr != -1 {
-                Some(crate::strings::ByteSlice::from_ptr(res).to_cstring())
+                Some(CStr::from_ptr(res.cast()).to_owned())
             } else {
                 None
             };
         } else if let Some(int_out) = int_out {
-            *int_out = if !argv.is_null() {
+            *int_out = if let Some(argv) = argv {
                 let sfn: unsafe extern "C" fn(*const u8) -> i32 = std::mem::transmute(fn_ptr);
-                sfn(argv.cast())
+                sfn(argv.as_ptr().cast())
             } else {
                 let ifn: unsafe extern "C" fn(i32) -> i32 = std::mem::transmute(fn_ptr);
                 ifn(argi)
