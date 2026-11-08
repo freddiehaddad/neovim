@@ -1,4 +1,5 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
+#![forbid(unsafe_code)]
 
 use crate::message::siemsg;
 use std::ffi::CStr;
@@ -135,9 +136,6 @@ fn key_matches(hi_key: Option<&CStr>, key: &[u8]) -> bool {
 }
 
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
-///
-/// # Safety
-/// `ht` must be a valid writable pointer to an initialized `Hashtab`.
 pub fn hash_clear(ht: &mut Hashtab) {
     *ht = Hashtab::new();
 }
@@ -156,45 +154,40 @@ pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> &'static mut Hashitem {
 
 /// Find item for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
 pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hashitem {
-    let arr_ptr = crate::globals::GraphPtr::<Hashitem>::of(ht.array_ptr()).as_ptr();
+    let arr = if ht.ht_array.is_empty() {
+        &mut EMPTY_HASHARRAY.handle().borrow_mut()[..]
+    } else {
+        crate::globals::GraphPtr::raw_slice_mut(ht.ht_array.as_ptr().cast_mut(), ht.ht_array.len())
+    };
 
     let mut idx = hash & ht.ht_mask;
-    let mut hi = arr_ptr.wrapping_add(idx);
-    let hi_ref = crate::globals::GraphPtr::of(hi).borrow();
-
-    if hi_ref.is_null_slot() {
-        return crate::globals::GraphPtr::of(hi).borrow_mut();
+    if arr[idx].is_null_slot() {
+        return &mut arr[idx];
     }
 
-    let mut freeitem = crate::globals::GraphPtr::<Hashitem>::NULL;
-    if hi_ref.hi_removed {
-        freeitem = crate::globals::GraphPtr::<Hashitem>::of(hi);
-    } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_cstr(), key) {
-        return crate::globals::GraphPtr::of(hi).borrow_mut();
+    let mut free_idx: Option<usize> = None;
+    if arr[idx].hi_removed {
+        free_idx = Some(idx);
+    } else if arr[idx].hi_hash == hash && key_matches(arr[idx].key_cstr(), key) {
+        return &mut arr[idx];
     }
 
     let mut perturb = hash;
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
-        hi = arr_ptr.wrapping_add(idx & ht.ht_mask);
-        let item = crate::globals::GraphPtr::of(hi).borrow();
+        let slot_idx = idx & ht.ht_mask;
+        let item = &arr[slot_idx];
 
         if item.is_null_slot() {
-            return unsafe {
-                &mut *(if freeitem.is_null() {
-                    hi
-                } else {
-                    freeitem.as_ptr()
-                })
-            };
+            return &mut arr[free_idx.unwrap_or(slot_idx)];
         }
 
         if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key) {
-            return crate::globals::GraphPtr::of(hi).borrow_mut();
+            return &mut arr[slot_idx];
         }
 
-        if item.hi_removed && freeitem.is_null() {
-            freeitem = crate::globals::GraphPtr::<Hashitem>::of(hi);
+        if item.hi_removed && free_idx.is_none() {
+            free_idx = Some(slot_idx);
         }
 
         perturb >>= PERTURB_SHIFT;
@@ -202,9 +195,6 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
 }
 
 /// Add dictionary item `di` to hashtable `ht` (`hash_add`).
-///
-/// # Safety
-/// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
 pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> bool {
     let key = di.key_cstr();
     let hash = hash_hash(key);
@@ -221,9 +211,6 @@ pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> boo
 }
 
 /// Add item `hi` with precomputed `hash` to `ht` (`hash_add_item`).
-///
-/// # Safety
-/// `ht`, `hi`, and `di` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
 pub fn hash_add_item(
     ht: &mut Hashtab,
     hi_in: &mut Hashitem,
@@ -235,7 +222,7 @@ pub fn hash_add_item(
         let offset = (hi.as_ptr() as usize - EMPTY_HASHARRAY.as_ptr() as usize)
             / std::mem::size_of::<Hashitem>();
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
-        hi = crate::globals::GraphPtr::new(ht.ht_array.as_mut_ptr().wrapping_add(offset));
+        hi = crate::globals::GraphPtr::new(&raw mut ht.ht_array[offset]);
     }
     let hi_ref = hi.borrow_mut();
     ht.ht_used += 1;
@@ -251,9 +238,6 @@ pub fn hash_add_item(
 }
 
 /// Remove item `hi` from `ht` (`hash_remove`).
-///
-/// # Safety
-/// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
 pub fn hash_remove(ht: &mut Hashtab, hi: &mut Hashitem) {
     let hi_ref = hi;
     ht.ht_used -= 1;
@@ -264,17 +248,11 @@ pub fn hash_remove(ht: &mut Hashtab, hi: &mut Hashitem) {
 }
 
 /// Lock hashtable to prevent `ht_array` reallocation (`hash_lock`).
-///
-/// # Safety
-/// `ht` must be a valid writable pointer to a `Hashtab`.
 pub fn hash_lock(ht: &mut Hashtab) {
     ht.ht_locked += 1;
 }
 
 /// Unlock hashtable and resize if needed (`hash_unlock`).
-///
-/// # Safety
-/// `ht` must be a valid writable pointer to a `Hashtab`.
 pub fn hash_unlock(ht: &mut Hashtab) {
     ht.ht_locked -= 1;
     hash_may_resize(ht, 0);
