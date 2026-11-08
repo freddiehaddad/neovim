@@ -2341,11 +2341,10 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     lua_getfield(lstate, -1, c"_expand_pat");
     unsafe { luaL_checktype(lstate, -1, LUA_TFUNCTION) };
 
-    let pat = xp.xp_pattern;
     let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
-    assert!(line_end.addr() >= pat.addr());
-    let patlen = line_end.offset_from(pat) as isize;
-    unsafe { lua_pushlstring(lstate, pat.cast(), patlen as usize) };
+    assert!(line_end.addr() >= xp.xp_pattern.addr());
+    let patlen = line_end.offset_from(&xp.xp_pattern) as isize;
+    unsafe { lua_pushlstring(lstate, xp.xp_pattern.as_cstr().as_ptr(), patlen as usize) };
 
     if nlua_pcall(lstate, 1, 2) != 0 {
         nlua_error(lstate, gettext(c"vim._expand_pat: %.*s"));
@@ -2373,7 +2372,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
             }
 
             if all_strings {
-                xp.xp_pattern = xp.xp_pattern.offset_in(xp.xp_line, prefix_len);
+                xp.xp_pattern = xp.xp_pattern.offset_in(&xp.xp_line, prefix_len);
                 status = true;
             }
         }

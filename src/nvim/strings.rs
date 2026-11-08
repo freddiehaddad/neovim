@@ -81,6 +81,195 @@ pub type RawCCharPtrMut = *mut c_char;
 pub type ByteSlice = Option<&'static [u8]>;
 pub const BYTE_SLICE_NULL: ByteSlice = None;
 
+#[derive(Clone, Default, Debug)]
+pub struct OwnedSlice {
+    bytes: Option<std::ffi::CString>,
+    addr: usize,
+}
+
+impl OwnedSlice {
+    pub const NULL: Self = Self {
+        bytes: None,
+        addr: 0,
+    };
+
+    #[inline]
+    pub fn from_cstr(s: &CStr) -> Self {
+        Self {
+            bytes: Some(s.to_owned()),
+            addr: s.as_ptr() as usize,
+        }
+    }
+
+    #[inline]
+    pub fn from_bytes(b: &[u8]) -> Self {
+        Self {
+            bytes: Some(crate::memory::bytes_to_cstring(b)),
+            addr: b.as_ptr() as usize,
+        }
+    }
+
+    #[inline]
+    pub fn from_ptr(p: impl AsByteSlice) -> Self {
+        match p.into_byte_slice() {
+            Some(b) => Self {
+                bytes: Some(crate::memory::bytes_to_cstring(b)),
+                addr: b.as_ptr() as usize,
+            },
+            None => Self::NULL,
+        }
+    }
+
+    #[inline]
+    pub const fn is_null(&self) -> bool {
+        self.bytes.is_none()
+    }
+
+    #[inline]
+    pub const fn addr(&self) -> usize {
+        self.addr
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.bytes.as_ref().map_or(&[], |s| s.as_bytes())
+    }
+
+    #[inline]
+    pub fn as_cstr(&self) -> &CStr {
+        self.bytes.as_deref().unwrap_or(c"")
+    }
+
+    #[inline]
+    pub fn as_opt_cstr(&self) -> Option<&CStr> {
+        self.bytes.as_deref()
+    }
+
+    #[inline]
+    pub fn to_cstring(&self) -> std::ffi::CString {
+        self.as_cstr().to_owned()
+    }
+
+    #[inline]
+    pub fn first_byte(&self) -> u8 {
+        self.as_bytes().first().copied().unwrap_or(0)
+    }
+
+    #[inline]
+    pub fn byte_at(&self, idx: usize) -> u8 {
+        self.as_bytes().get(idx).copied().unwrap_or(0)
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.first_byte() == 0
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.as_bytes().len()
+    }
+
+    #[inline]
+    pub fn slice(&self, len: usize) -> &[u8] {
+        let b = self.as_bytes();
+        &b[..len.min(b.len())]
+    }
+
+    #[inline]
+    pub fn wrapping_add(&self, n: usize) -> Self {
+        match self.bytes {
+            Some(ref s) => {
+                let b = s.as_bytes();
+                let step = n.min(b.len());
+                Self {
+                    bytes: Some(
+                        crate::memory::cstr_from_bytes_with_nul(&s.as_bytes_with_nul()[step..])
+                            .to_owned(),
+                    ),
+                    addr: self.addr.wrapping_add(step),
+                }
+            }
+            None => Self::NULL,
+        }
+    }
+
+    #[inline]
+    pub fn skipwhite(&self) -> Self {
+        self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
+    }
+
+    #[inline]
+    pub fn skiptowhite(&self) -> Self {
+        self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
+    }
+
+    #[inline]
+    pub fn offset_from(&self, base: impl AsByteSlice) -> usize {
+        self.addr.saturating_sub(base.byte_addr())
+    }
+
+    #[inline]
+    pub fn offset_in(&self, base: &Self, d: isize) -> Self {
+        if d >= 0 {
+            self.wrapping_add(d as usize)
+        } else {
+            let off = self.offset_from(base.addr()).saturating_sub((-d) as usize);
+            base.wrapping_add(off)
+        }
+    }
+}
+
+impl From<ByteSlice> for OwnedSlice {
+    #[inline]
+    fn from(b: ByteSlice) -> Self {
+        match b {
+            Some(s) => Self::from_bytes(s),
+            None => Self::NULL,
+        }
+    }
+}
+
+impl AsByteSlice for usize {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        None
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self
+    }
+}
+
+impl AsByteSlice for OwnedSlice {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self.bytes
+            .as_ref()
+            .and_then(|s| byte_slice_from_bytes(s.as_bytes_with_nul()))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.addr
+    }
+}
+
+impl AsByteSlice for &OwnedSlice {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self.bytes
+            .as_ref()
+            .and_then(|s| byte_slice_from_bytes(s.as_bytes_with_nul()))
+    }
+
+    #[inline(always)]
+    fn byte_addr(self) -> usize {
+        self.addr
+    }
+}
+
 #[inline(always)]
 pub const fn byte_slice_from_bytes(b: &[u8]) -> ByteSlice {
     Some(unsafe { &*(b as *const [u8]) })

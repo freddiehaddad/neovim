@@ -7291,13 +7291,13 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     xp.xp_context = EXPAND_SETTINGS;
     let arg_bytes = arg_cstr.to_bytes();
     if arg_bytes.is_empty() {
-        xp.xp_pattern = arg;
+        xp.xp_pattern = arg.into();
         return;
     }
     let argend = arg.wrapping_add(arg_bytes.len());
     let mut p_idx = arg_bytes.len() - 1;
     if arg_bytes[p_idx] == b' ' && (p_idx == 0 || arg_bytes[p_idx - 1] != b'\\') {
-        xp.xp_pattern = arg.wrapping_add(p_idx + 1);
+        xp.xp_pattern = arg.wrapping_add(p_idx + 1).into();
         return;
     }
     while p_idx > 0 {
@@ -7323,7 +7323,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         p_idx += 3;
     }
     let mut p = arg.wrapping_add(p_idx);
-    xp.xp_pattern = p;
+    xp.xp_pattern = p.into();
     let p_bytes = &arg_bytes[p_idx..];
     arg = p;
 
@@ -7400,9 +7400,9 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         opt_st().expand_option_idx = opt_idx;
     }
 
-    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p.wrapping_add(1));
+    xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(p.wrapping_add(1));
     opt_st().expand_option_start_col =
-        ((p.wrapping_add(1)).offset_from(xp.xp_line) as isize) as i32;
+        ((p.wrapping_add(1)).offset_from(&xp.xp_line) as isize) as i32;
 
     let opt_var = get_option(opt_idx).var();
     if opt_var.ptr_eq(&opt_vars().p_syn) {
@@ -7471,7 +7471,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         || (flags & K_OPT_FLAG_COMMA) != 0
         || (flags & K_OPT_FLAG_COLON) != 0
     {
-        let pat_start_idx = (xp.xp_pattern.as_ptr() as usize) - (arg_cstr.as_ptr() as usize);
+        let pat_start_idx = xp.xp_pattern.offset_from(arg_cstr);
         let mut idx = arg_bytes.len();
         while idx > pat_start_idx + 1 {
             idx -= 1;
@@ -7491,7 +7491,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
                     || (b == b':' && (flags & K_OPT_FLAG_COLON) != 0)
                 {
                     xp.xp_pattern =
-                        crate::strings::ByteSlice::from_cstr(arg_cstr).wrapping_add(idx + 1);
+                        crate::strings::OwnedSlice::from_cstr(arg_cstr).wrapping_add(idx + 1);
                     break;
                 }
             }
@@ -7499,7 +7499,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     }
 
     if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        xp.xp_pattern = argend;
+        xp.xp_pattern = argend.into();
     }
 
     if get_option(opt_idx).var().ptr_eq(&opt_vars().p_sps) {
@@ -7675,17 +7675,16 @@ pub fn expand_string_setting(
         return false;
     };
 
-    let set_arg_ptr = xp
+    let set_arg = xp
         .xp_line
         .wrapping_add(opt_st().expand_option_start_col as usize);
-    let set_arg = (set_arg_ptr).as_cstr();
     optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
     let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
     let mut args = Optexpand {
         oe_idx: opt_st().expand_option_idx,
         oe_opt_value: buf.as_c_str(),
         oe_append: opt_st().expand_option_append,
-        oe_include_orig_val: !opt_st().expand_option_append && set_arg.to_bytes().is_empty(),
+        oe_include_orig_val: !opt_st().expand_option_append && set_arg.is_empty(),
         oe_regmatch: regmatch,
         oe_xp: xp,
         oe_set_arg: set_arg,

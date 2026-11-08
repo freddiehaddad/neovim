@@ -3435,7 +3435,7 @@ pub fn aucmd_set_expand_context<'a>(
             au_st().autocmd_include_groups = true;
         }
         xp.xp_context = EXPAND_EVENTS;
-        xp.xp_pattern = crate::strings::ByteSlice::from_cstr(arg);
+        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
         return None;
     }
 

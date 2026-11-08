@@ -431,14 +431,7 @@ pub struct Optexpand<'a> {
     pub oe_include_orig_val: bool,
     pub oe_regmatch: &'a mut Regmatch,
     pub oe_xp: &'a mut ExpandCtx,
-    pub oe_set_arg: &'a std::ffi::CStr,
-}
-
-impl Optexpand<'_> {
-    #[inline]
-    pub fn xp_mut(&mut self) -> &mut ExpandCtx {
-        self.oe_xp
-    }
+    pub oe_set_arg: crate::strings::OwnedSlice,
 }
 
 pub type OptValidateCb = Option<fn(&mut Optset) -> Option<&CStr>>;
@@ -1350,7 +1343,7 @@ fn expand_set_opt_listflag(
     let flags_bytes = flags.to_bytes();
     let option_val = args.oe_opt_value;
     let option_bytes = option_val.to_bytes();
-    let cmdline_bytes = args.oe_set_arg.to_bytes();
+    let cmdline_bytes = args.oe_set_arg.as_bytes().to_vec();
     let append = args.oe_append;
     let include_orig_val = args.oe_include_orig_val && !option_bytes.is_empty();
 
@@ -1377,12 +1370,11 @@ fn expand_set_opt_listflag(
 }
 
 fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CStr) -> bool {
-    let set_arg = crate::strings::ByteSlice::from_cstr(args.oe_set_arg);
-    let pat_off = args.xp_mut().xp_pattern.offset_from(set_arg);
+    let pat_off = args.oe_xp.xp_pattern.offset_from(&args.oe_set_arg);
     let suffix_bytes = name_suffix.to_bytes();
     let len = suffix_bytes.len();
 
-    pat_off > len && set_arg.wrapping_add(pat_off - 1 - len).slice(len) == suffix_bytes
+    pat_off > len && args.oe_set_arg.wrapping_add(pat_off - 1 - len).slice(len) == suffix_bytes
 }
 
 /// The 'ambiwidth' option is changed.
@@ -1984,10 +1976,9 @@ pub fn did_set_diffopt(_args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    let set_arg = crate::strings::ByteSlice::from_cstr(args.oe_set_arg);
-    let pat_off = args.xp_mut().xp_pattern.offset_from(set_arg);
+    let pat_off = args.oe_xp.xp_pattern.offset_from(&args.oe_set_arg);
 
-    if pat_off > 0 && set_arg.byte_at(pat_off - 1) == b':' {
+    if pat_off > 0 && args.oe_set_arg.byte_at(pat_off - 1) == b':' {
         if completing_value_for_subopt(args, c"algorithm") {
             return expand_set_opt_string(args, &OPT_DIP_ALGORITHM_VALUES, matches);
         }
@@ -3814,10 +3805,9 @@ pub fn validate_previewpopup(args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    let set_arg = crate::strings::ByteSlice::from_cstr(args.oe_set_arg);
-    let pat_off = args.xp_mut().xp_pattern.offset_from(set_arg);
+    let pat_off = args.oe_xp.xp_pattern.offset_from(&args.oe_set_arg);
 
-    if pat_off > 0 && set_arg.byte_at(pat_off - 1) == b':' {
+    if pat_off > 0 && args.oe_set_arg.byte_at(pat_off - 1) == b':' {
         if completing_value_for_subopt(args, c"border") {
             return expand_set_opt_string(args, &OPT_PVP_BORDER_VALUES, matches);
         }

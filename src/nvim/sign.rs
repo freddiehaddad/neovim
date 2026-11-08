@@ -1257,7 +1257,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
     let arg = crate::strings::ByteSlice::from_cstr(arg_cstr);
     xp.xp_context = EXPAND_SIGN;
     sign_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = arg;
+    xp.xp_pattern = arg.into();
 
     let end_subcmd = arg.skiptowhite();
     if end_subcmd.is_empty() {
@@ -1279,7 +1279,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
     }
 
     let Some(eq_cstr) = vim_strchr(last.as_cstr(), b'=' as i32) else {
-        xp.xp_pattern = last;
+        xp.xp_pattern = last.into();
         match cmd_idx {
             SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
             SIGNCMD_PLACE => {
@@ -1296,7 +1296,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
         return;
     };
     {
-        xp.xp_pattern = crate::strings::ByteSlice::from_cstr(eq_cstr).wrapping_add(1);
+        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(eq_cstr).wrapping_add(1);
         let last_bytes = last.as_bytes();
         match cmd_idx {
             SIGNCMD_DEFINE => {

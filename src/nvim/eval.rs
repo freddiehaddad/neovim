@@ -1825,7 +1825,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         {
             let mut p_idx = arg_bytes.len();
             loop {
-                xp.xp_pattern = arg.wrapping_add(p_idx);
+                xp.xp_pattern = arg.wrapping_add(p_idx).into();
                 if p_idx == 0 {
                     break;
                 }
@@ -1849,7 +1849,9 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             .as_bytes()
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-            .map_or(crate::strings::BYTE_SLICE_NULL, |i| arg.wrapping_add(i));
+            .map_or(crate::strings::OwnedSlice::NULL, |i| {
+                arg.wrapping_add(i).into()
+            });
         !xp.xp_pattern.is_null()
     } {
         let pat_bytes = xp.xp_pattern.as_bytes();
@@ -1916,7 +1918,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else {
             xp.xp_context = EXPAND_EXPRESSION;
         }
-        arg = xp.xp_pattern;
+        arg = arg.wrapping_add(xp.xp_pattern.offset_from(arg));
         if !arg.is_empty() {
             loop {
                 arg = arg.wrapping_add(1);
@@ -1940,7 +1942,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         }
     }
 
-    xp.xp_pattern = arg;
+    xp.xp_pattern = arg.into();
 }
 
 /// Does not use 'cpo' and always uses 'magic'.

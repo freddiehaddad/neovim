@@ -600,7 +600,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
         arg_slice = crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(p));
     }
     xp.xp_context = EXPAND_RUNTIME;
-    xp.xp_pattern = arg_slice;
+    xp.xp_pattern = arg_slice.into();
 }
 
 fn source_callback_vim_lua(

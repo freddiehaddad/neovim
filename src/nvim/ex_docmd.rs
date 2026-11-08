@@ -8757,7 +8757,7 @@ pub fn expand_argopt(
     rmp: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    let pat_off = xp.xp_pattern.offset_from(xp.xp_line);
+    let pat_off = xp.xp_pattern.offset_from(&xp.xp_line);
     if pat_off > 0 && xp.xp_line.byte_at(pat_off - 1) == b'=' {
         let mut cb: CompleteListItemGetter = None;
         let name_slice = xp.xp_line.slice(pat_off - 1);

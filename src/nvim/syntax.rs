@@ -5011,15 +5011,15 @@ pub fn reset_expand_highlight() {
 
 pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_HIGHLIGHT;
-    xp.xp_pattern = crate::strings::ByteSlice::from_cstr(arg);
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
     g_st().include_none = 1;
 }
 
 pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg);
+    let arg_ptr = crate::strings::OwnedSlice::from_cstr(arg);
     xp.xp_context = EXPAND_SYNTAX;
     syn_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = arg_ptr;
+    xp.xp_pattern = arg_ptr.clone();
     g_st().include_link = 0;
     g_st().include_default = 0;
 

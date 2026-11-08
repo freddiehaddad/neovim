@@ -1093,7 +1093,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
         } else {
             EXPAND_MENUS
         };
-        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_ptr.wrapping_add(after_dot_idx));
+        xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg_ptr.wrapping_add(after_dot_idx));
         menu_st().expand_menu = crate::globals::GraphPtr::new(menu_list.cast_mut());
     } else {
         xp.xp_context = EXPAND_NOTHING;

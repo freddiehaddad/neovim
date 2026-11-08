@@ -2391,10 +2391,10 @@ pub fn highlight_changed() {
 }
 
 pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
-    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
+    let mut arg = crate::strings::OwnedSlice::from_cstr(arg_in);
     {
         xp.xp_context = EXPAND_HIGHLIGHT;
-        xp.xp_pattern = arg;
+        xp.xp_pattern = arg.clone();
         g_st().include_link = 2;
         g_st().include_default = 1;
 
@@ -2408,10 +2408,10 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         }
 
         g_st().include_default = 0;
-        let dlen = p.offset_from(arg);
+        let dlen = p.offset_from(&arg);
         if arg.slice(dlen) == &b"default"[..dlen.min(7)] {
             arg = p.skipwhite();
-            xp.xp_pattern = arg;
+            xp.xp_pattern = arg.clone();
             p = arg.skiptowhite();
         }
         if p.is_empty() {
@@ -2422,7 +2422,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         if arg.as_bytes().starts_with(b"Ni") {
             highlight_list();
         }
-        let len = p.offset_from(arg);
+        let len = p.offset_from(&arg);
         let arg_word = arg.slice(len);
         if arg_word == &b"link"[..len.min(4)] || arg_word == &b"clear"[..len.min(5)] {
             xp.xp_pattern = p.skipwhite();

@@ -1075,7 +1075,7 @@ fn command_line_enter(
 
         if getln_st().ccline.input_fn != 0 {
             s.xpc.xp_context = getln_st().ccline.xp_context;
-            s.xpc.xp_pattern = getln_st().ccline.cmdbuff();
+            s.xpc.xp_pattern = getln_st().ccline.cmdbuff().into();
             s.xpc.xp_arg = getln_st().ccline.xp_arg.clone();
         }
 
@@ -3531,7 +3531,7 @@ pub fn realloc_cmdbuff(mut len: i32) {
         let i = ((xpc.xp_pattern).offset_from(p) as isize) as i32;
 
         if i >= 0 && i <= getln_st().ccline.cmdlen {
-            xpc.xp_pattern = getln_st().ccline.cmdbuff().wrapping_add(i as usize);
+            xpc.xp_pattern = getln_st().ccline.cmdbuff().wrapping_add(i as usize).into();
         }
     }
 }
@@ -4606,12 +4606,12 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
         return None;
     }
 
-    let compl_pat = xpc.xp_pattern;
+    let compl_pat = &xpc.xp_pattern;
     if compl_pat.is_null() {
         return None;
     }
 
-    Some((compl_pat).to_cstring())
+    Some(compl_pat.to_cstring())
 }
 
 /// Get the command-line completion type.
