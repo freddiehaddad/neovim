@@ -549,7 +549,6 @@ fn store_session_globals(fd: &CFile) -> bool {
 }
 
 fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
-    let dirnow = crate::strings::ByteSlice::from_cstr(dirnow);
     {
         let mut only_save_windows = true;
         let mut edited_win = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
@@ -585,10 +584,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 return false;
             }
         } else if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
-            let sname = home_replace_save(
-                None,
-                g_st().globaldir.as_deref().or_else(|| dirnow.as_opt_cstr()),
-            );
+            let sname = home_replace_save(None, g_st().globaldir.as_deref().or(Some(dirnow)));
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
                 return false;
@@ -644,10 +640,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             for b in for_all_buffers_ptr() {
-                let Some(ref b_localdir) = b.b_localdir else {
-                    continue;
-                };
-                if b.fname_opt().is_none()
+                if b.b_localdir.is_none()
+                    || b.fname_opt().is_none()
                     || !b.b_p_bl
                     || (only_save_windows && b.b_nwindows == 0)
                     || (b.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
@@ -656,13 +650,13 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 {
                     continue;
                 }
-                let b_localdir_ptr = crate::strings::ByteSlice::from_cstr(b_localdir);
+                let b_localdir = b.b_localdir.clone().unwrap();
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
                     || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
-                    || fd.puts(b_localdir_ptr.as_cstr()) < 0
+                    || fd.puts(&b_localdir) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
                 {
                     return false;
@@ -1031,12 +1025,13 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 {
                     dirnow_vec[0] = 0;
                 }
-                let dirnow = crate::strings::ByteSlice::from_bytes(&dirnow_vec);
-                if !dirnow.is_empty() && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
+                let dirnow_cstr = crate::memory::bytes_as_cstr(&dirnow_vec);
+                let has_dirnow = !dirnow_cstr.to_bytes().is_empty();
+                if has_dirnow && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0 {
                     if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
                         shorten_fnames(true);
                     }
-                } else if !dirnow.is_empty()
+                } else if has_dirnow
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                     && let Some(ref gdir) = g_st().globaldir
                     && os_chdir(gdir) == 0
@@ -1044,14 +1039,14 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     shorten_fnames(true);
                 }
 
-                failed |= !makeopens(&fd, crate::memory::bytes_as_cstr(&dirnow_vec));
+                failed |= !makeopens(&fd, dirnow_cstr);
 
-                if !dirnow.is_empty()
+                if has_dirnow
                     && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
                         || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                             && g_st().globaldir.is_some()))
                 {
-                    if os_chdir(dirnow.as_cstr()) != 0 {
+                    if os_chdir(dirnow_cstr) != 0 {
                         emsg(gettext(E_PREV_DIR));
                     }
                     shorten_fnames(true);

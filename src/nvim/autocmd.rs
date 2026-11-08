@@ -2035,10 +2035,9 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 pat_len += 1;
             }
             if pat_len < pat_bytes.len() {
-                cmd = crate::strings::ByteSlice::from_ptr(pat.as_ptr().wrapping_add(pat_len + 1))
-                    .as_cstr();
+                cmd = crate::memory::CStrSubslice::advance(pat, pat_len + 1);
                 let p_cstr = CString::new(&pat_bytes[..pat_len]).unwrap_or_default();
-                pat = crate::strings::ByteSlice::from_ptr(p_cstr.as_ptr()).as_cstr();
+                pat = unsafe { CStr::from_ptr(p_cstr.as_ptr()) };
                 pat_owned = Some(p_cstr);
             } else {
                 cmd = c"";
@@ -2048,7 +2047,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
                 || crate::strings::vim_haschr(pat, b'~' as i32)
             {
                 let ep = expand_env_save(pat);
-                pat = crate::strings::ByteSlice::from_ptr(ep.as_ptr()).as_cstr();
+                pat = unsafe { CStr::from_ptr(ep.as_ptr()) };
                 envpat = Some(ep);
             }
 
@@ -2802,8 +2801,11 @@ pub fn apply_autocmds_group(
             } else {
                 fname_io
             };
-            let afile_orig_owned = if !raw_autocmd_fname.is_null() {
-                let orig = crate::strings::ByteSlice::from_ptr(raw_autocmd_fname).to_cstring();
+            let ptr_opt_cstr = |p: *const std::ffi::c_char| -> Option<&CStr> {
+                (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
+            };
+            let afile_orig_owned = if let Some(orig_cstr) = ptr_opt_cstr(raw_autocmd_fname) {
+                let orig = orig_cstr.to_owned();
                 g_st().autocmd_fname = Some(orig.clone());
                 Some(orig)
             } else {
@@ -2815,68 +2817,66 @@ pub fn apply_autocmds_group(
             g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum };
 
             let mut sfname_owned: Option<CString> = None;
-            let fname_owned: Option<CString> = if crate::strings::AsByteSlice::is_empty_val(fname) {
-                if buf.is_null() {
-                    fname = ptr::null_mut();
-                } else if event == EVENT_SYNTAX {
-                    fname = buf.b_p_syn.as_ptr().cast_mut();
-                } else if event == EVENT_FILETYPE {
-                    fname = buf.b_p_ft.as_ptr().cast_mut();
+            let fname_owned: Option<CString> =
+                if ptr_opt_cstr(fname).is_none_or(|s| s.to_bytes().is_empty()) {
+                    if buf.is_null() {
+                        fname = ptr::null_mut();
+                    } else if event == EVENT_SYNTAX {
+                        fname = buf.b_p_syn.as_ptr().cast_mut();
+                    } else if event == EVENT_FILETYPE {
+                        fname = buf.b_p_ft.as_ptr().cast_mut();
+                    } else {
+                        sfname_owned = buf.b_sfname.clone();
+                        fname = buf
+                            .ffname_opt()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                    }
+                    if fname.is_null() {
+                        fname = c"".as_ptr().cast_mut();
+                    }
+                    Some(ptr_opt_cstr(fname).unwrap_or(c"").to_owned())
                 } else {
-                    sfname_owned = buf.b_sfname.clone();
-                    fname = buf
-                        .ffname_opt()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                }
-                if fname.is_null() {
-                    fname = c"".as_ptr().cast_mut();
-                }
-                Some(crate::strings::ByteSlice::from_ptr(fname).to_cstring())
-            } else {
-                sfname_owned =
-                    to_slash_save(crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr());
-                if event == EVENT_CMDATOM
-                    || event == EVENT_CMDLINECHANGED
-                    || event == EVENT_CMDLINEENTER
-                    || event == EVENT_CMDLINELEAVEPRE
-                    || event == EVENT_CMDLINELEAVE
-                    || event == EVENT_CMDUNDEFINED
-                    || event == EVENT_CURSORMOVEDC
-                    || event == EVENT_CMDWINENTER
-                    || event == EVENT_CMDWINLEAVE
-                    || event == EVENT_COLORSCHEME
-                    || event == EVENT_COLORSCHEMEPRE
-                    || event == EVENT_DIRCHANGED
-                    || event == EVENT_DIRCHANGEDPRE
-                    || event == EVENT_FILETYPE
-                    || event == EVENT_FUNCUNDEFINED
-                    || event == EVENT_MARKSET
-                    || event == EVENT_MENUPOPUP
-                    || event == EVENT_MODECHANGED
-                    || event == EVENT_OPTIONSET
-                    || event == EVENT_PROGRESS
-                    || event == EVENT_QUICKFIXCMDPOST
-                    || event == EVENT_QUICKFIXCMDPRE
-                    || event == EVENT_REMOTEREPLY
-                    || event == EVENT_SIGNAL
-                    || event == EVENT_SPELLFILEMISSING
-                    || event == EVENT_SYNTAX
-                    || event == EVENT_TABCLOSED
-                    || event == EVENT_TABMOVED
-                    || event == EVENT_USER
-                    || event == EVENT_WINCLOSED
-                    || event == EVENT_WINRESIZED
-                    || event == EVENT_WINSCROLLED
-                {
-                    g_st().autocmd_fname_full = true;
-                    to_slash_save(crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr())
-                } else {
-                    FullName_save(
-                        crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
-                        false,
-                    )
-                }
-            };
+                    let fname_opt = ptr_opt_cstr(fname);
+                    sfname_owned = to_slash_save(fname_opt);
+                    if event == EVENT_CMDATOM
+                        || event == EVENT_CMDLINECHANGED
+                        || event == EVENT_CMDLINEENTER
+                        || event == EVENT_CMDLINELEAVEPRE
+                        || event == EVENT_CMDLINELEAVE
+                        || event == EVENT_CMDUNDEFINED
+                        || event == EVENT_CURSORMOVEDC
+                        || event == EVENT_CMDWINENTER
+                        || event == EVENT_CMDWINLEAVE
+                        || event == EVENT_COLORSCHEME
+                        || event == EVENT_COLORSCHEMEPRE
+                        || event == EVENT_DIRCHANGED
+                        || event == EVENT_DIRCHANGEDPRE
+                        || event == EVENT_FILETYPE
+                        || event == EVENT_FUNCUNDEFINED
+                        || event == EVENT_MARKSET
+                        || event == EVENT_MENUPOPUP
+                        || event == EVENT_MODECHANGED
+                        || event == EVENT_OPTIONSET
+                        || event == EVENT_PROGRESS
+                        || event == EVENT_QUICKFIXCMDPOST
+                        || event == EVENT_QUICKFIXCMDPRE
+                        || event == EVENT_REMOTEREPLY
+                        || event == EVENT_SIGNAL
+                        || event == EVENT_SPELLFILEMISSING
+                        || event == EVENT_SYNTAX
+                        || event == EVENT_TABCLOSED
+                        || event == EVENT_TABMOVED
+                        || event == EVENT_USER
+                        || event == EVENT_WINCLOSED
+                        || event == EVENT_WINRESIZED
+                        || event == EVENT_WINSCROLLED
+                    {
+                        g_st().autocmd_fname_full = true;
+                        to_slash_save(fname_opt)
+                    } else {
+                        FullName_save(fname_opt, false)
+                    }
+                };
             fname = fname_owned
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -2900,8 +2900,7 @@ pub fn apply_autocmds_group(
             let save_changed = curbuf_mut().b_changed;
             let old_curbuf = g_st().curbuf;
 
-            g_st().autocmd_match =
-                (!fname.is_null()).then(|| crate::strings::ByteSlice::from_ptr(fname).to_cstring());
+            g_st().autocmd_match = ptr_opt_cstr(fname).map(CStr::to_owned);
 
             g_st().redrawing_disabled += 1;
 
@@ -3209,15 +3208,7 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"match"),
-            value: cstr_as_obj(
-                crate::strings::ByteSlice::from_ptr(
-                    g_st()
-                        .autocmd_match
-                        .as_ref()
-                        .map_or(ptr::null(), |s| s.as_ptr()),
-                )
-                .as_opt_cstr(),
-            ),
+            value: cstr_as_obj(g_st().autocmd_match.as_deref()),
         };
         size += 1;
         data_items[size] = KeyValuePair {
@@ -3347,14 +3338,13 @@ fn has_autocmd_ext(
         return false;
     }
 
-    let sfname_ptr = crate::strings::ByteSlice::from_opt_cstr(sfname);
-    let tail = path_tail(sfname_ptr.as_cstr());
+    let tail = path_tail(sfname.unwrap_or(c""));
     let mut retval = false;
 
     let fname = if is_full {
         sfname.map(CStr::to_owned)
     } else {
-        FullName_save(sfname_ptr.as_opt_cstr(), false)
+        FullName_save(sfname, false)
     };
     let Some(fname) = fname else {
         return false;
@@ -3421,12 +3411,12 @@ pub fn aucmd_set_expand_context<'a>(
         group = AUGROUP_ALL;
     }
 
-    let ev_base = crate::strings::ByteSlice::from_cstr(arg);
+    let ev_base = arg;
     let arg_bytes = arg.to_bytes();
     let mut p_idx = 0usize;
     while p_idx < arg_bytes.len() && !ascii_iswhite(arg_bytes[p_idx] as i32) {
         if arg_bytes[p_idx] == b',' {
-            arg = ev_base.wrapping_add(p_idx + 1).as_cstr();
+            arg = crate::memory::CStrSubslice::advance(ev_base, p_idx + 1);
         }
         p_idx += 1;
     }
@@ -3439,8 +3429,8 @@ pub fn aucmd_set_expand_context<'a>(
         return None;
     }
 
-    let p_ptr = ev_base.wrapping_add(p_idx);
-    arg = (crate::charset::skipwhite_ptr(p_ptr)).as_cstr();
+    let p_cstr = crate::memory::CStrSubslice::advance(ev_base, p_idx);
+    arg = crate::charset::skipwhite(p_cstr);
     let pat_bytes = arg.to_bytes();
     let mut pat_idx = 0usize;
     while pat_idx < pat_bytes.len()
@@ -3672,17 +3662,11 @@ fn arg_event_skip(arg: &CStr, have_group: bool) -> Option<&CStr> {
         while !rem.is_empty() && rem[0] != b'|' && !ascii_iswhite(i32::from(rem[0])) {
             let pat_offset = arg_bytes.len() - rem.len();
             if (event_name2nr(&mut rem) as usize) >= NUM_EVENTS {
-                let pat = arg.as_ptr().wrapping_add(pat_offset);
+                let pat = crate::memory::CStrSubslice::advance(arg, pat_offset);
                 if have_group {
-                    semsg!(
-                        tr(c"E216: No such event: %s"),
-                        crate::strings::ByteSlice::from_ptr(pat)
-                    );
+                    semsg!(tr(c"E216: No such event: %s"), pat);
                 } else {
-                    semsg!(
-                        tr(c"E216: No such group or event: %s"),
-                        crate::strings::ByteSlice::from_ptr(pat)
-                    );
+                    semsg!(tr(c"E216: No such group or event: %s"), pat);
                 }
                 return None;
             }

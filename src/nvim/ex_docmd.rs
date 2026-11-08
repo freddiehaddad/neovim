@@ -5085,15 +5085,14 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     break;
                 }
 
+                let fname_opt = (!fname.is_null()).then(|| unsafe { CStr::from_ptr(fname) });
+                let fname_cstr = fname_opt.unwrap_or(c"");
                 if !breakpoint.is_null()
                     && !dbg_tick.is_null()
                     && *crate::globals::GraphPtr::of(dbg_tick).borrow() != g_st().debug_tick
                 {
-                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() = dbg_find_breakpoint(
-                        fgetline.is_source(),
-                        crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
-                        *sourcing_lnum_ptr(),
-                    );
+                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
+                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, *sourcing_lnum_ptr());
                     *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
                 }
 
@@ -5105,15 +5104,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     && *crate::globals::GraphPtr::of(breakpoint).borrow() != 0
                     && *crate::globals::GraphPtr::of(breakpoint).borrow() <= *sourcing_lnum_ptr()
                 {
-                    dbg_breakpoint(
-                        crate::strings::ByteSlice::from_ptr(fname).as_opt_cstr(),
-                        *sourcing_lnum_ptr(),
-                    );
-                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() = dbg_find_breakpoint(
-                        fgetline.is_source(),
-                        crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
-                        *sourcing_lnum_ptr(),
-                    );
+                    dbg_breakpoint(fname_opt, *sourcing_lnum_ptr());
+                    *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
+                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, *sourcing_lnum_ptr());
                     *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
                 }
                 if g_st().do_profiling == PROF_YES {
@@ -5169,7 +5162,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 if ui_has(K_UICMDLINE) && count > 0 && fgetline.is_exline() {
                     ui_ext_cmdline_block_append(
                         indent as usize,
-                        crate::strings::ByteSlice::from_ptr(next_cmdline).as_bytes(),
+                        crate::memory::bytes_until_nul(&cmdline_buf),
                     );
                 }
 
@@ -5181,8 +5174,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     }
                 }
             } else if cmdline_copy.is_null() {
-                cmdline_buf = crate::strings::ByteSlice::from_ptr(next_cmdline)
-                    .as_cstr()
+                cmdline_buf = unsafe { CStr::from_ptr(next_cmdline) }
                     .to_bytes_with_nul()
                     .to_vec();
                 next_cmdline = cmdline_buf.as_mut_ptr().cast();
@@ -5190,8 +5182,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             cmdline_copy = next_cmdline;
 
             let mut current_line_before: i32 = 0;
-            let using_loop_cookie = cstack.cs_looplevel > 0
-                || has_loop_cmd(crate::strings::ByteSlice::from_ptr(next_cmdline).as_bytes());
+            let next_cmdline_cstr = unsafe { CStr::from_ptr(next_cmdline) };
+            let using_loop_cookie =
+                cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline_cstr.to_bytes());
             if using_loop_cookie {
                 cmd_loop_cookie.current_line = current_line;
                 cmd_loop_cookie.lc_getline = fgetline;
@@ -5200,10 +5193,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 cmd_getline = LineGetter::Loop((&mut cmd_loop_cookie).into());
 
                 if (current_line as usize) == cmd_loop_cookie.lines.len() {
-                    store_loop_line(
-                        &mut cmd_loop_cookie.lines,
-                        crate::strings::ByteSlice::from_ptr(next_cmdline).as_cstr(),
-                    );
+                    store_loop_line(&mut cmd_loop_cookie.lines, next_cmdline_cstr);
                 }
                 current_line_before = current_line;
             } else {
@@ -5230,10 +5220,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             if (opt_vars().p_verbose >= 15 && sourcing_name().is_some())
                 || opt_vars().p_verbose >= 16
             {
-                msg_verbose_cmd(
-                    *sourcing_lnum_ptr(),
-                    crate::strings::ByteSlice::from_ptr(cmdline_copy).as_cstr(),
-                );
+                msg_verbose_cmd(*sourcing_lnum_ptr(), unsafe {
+                    CStr::from_ptr(cmdline_copy)
+                });
             }
 
             RECURSIVE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -5290,12 +5279,13 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                             && cmd_loop_cookie.lines.len() > current_line as usize
                         {
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
+                            let fname_cstr = if fname.is_null() {
+                                c""
+                            } else {
+                                unsafe { CStr::from_ptr(fname) }
+                            };
                             *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
-                                dbg_find_breakpoint(
-                                    fgetline.is_source(),
-                                    crate::strings::ByteSlice::from_ptr(fname).as_cstr(),
-                                    wp.lnum - 1,
-                                );
+                                dbg_find_breakpoint(fgetline.is_source(), fname_cstr, wp.lnum - 1);
                             *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() =
                                 g_st().debug_tick;
                         }
@@ -5669,14 +5659,14 @@ fn get_wincmd_addr_type(arg: &[u8], eap: &mut Exarg) {
 }
 
 fn skip_colon_white(p: &CStr, skipleadingwhite: bool) -> &CStr {
-    let mut p_ptr = crate::strings::ByteSlice::from_cstr(p);
+    let mut p_cstr = p;
     if skipleadingwhite {
-        p_ptr = p_ptr.skipwhite();
+        p_cstr = crate::charset::skipwhite(p_cstr);
     }
-    while p_ptr.first_byte() == b':' {
-        p_ptr = p_ptr.wrapping_add(1).skipwhite();
+    while p_cstr.to_bytes().first() == Some(&b':') {
+        p_cstr = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p_cstr, 1));
     }
-    p_ptr.as_cstr()
+    p_cstr
 }
 
 pub fn set_cmd_addr_type(eap: &mut Exarg, p: Option<&CStr>) {
@@ -6724,7 +6714,7 @@ fn do_one_cmd(
                 crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
             }
             append_command(ea.cmdline_cstr());
-            msg = crate::strings::ByteSlice::from_ptr(iobuf_ptr).as_cstr();
+            msg = g_st().iobuff_cstr();
         }
         let _ = emsg(msg);
     }
@@ -7689,50 +7679,53 @@ pub fn excmd_get_argt(idx: Cmdidx) -> u32 {
 }
 
 pub fn skip_range<'a>(cmd_in: &'a CStr, mut ctx: Option<&mut i32>) -> &'a CStr {
-    let mut cmd = crate::strings::ByteSlice::from_cstr(cmd_in);
+    let mut cmd = cmd_in;
     loop {
-        let b0 = cmd.first_byte();
+        let cmd_bytes = cmd.to_bytes();
+        let Some(&b0) = cmd_bytes.first() else {
+            break;
+        };
         if !b" \t0123456789.$%'/?-+,;\\".contains(&b0) {
             break;
         }
         if b0 == b'\\' {
-            let next = cmd.byte_at(1);
+            let next = cmd_bytes.get(1).copied().unwrap_or(0);
             if matches!(next, b'?' | b'/' | b'&') {
-                cmd = cmd.wrapping_add(1);
+                cmd = crate::memory::CStrSubslice::advance(cmd, 1);
             } else {
                 break;
             }
         } else if b0 == b'\'' {
-            cmd = cmd.wrapping_add(1);
-            if cmd.is_empty()
+            cmd = crate::memory::CStrSubslice::advance(cmd, 1);
+            if cmd.to_bytes().is_empty()
                 && let Some(ref mut ctx) = ctx
             {
                 **ctx = EXPAND_NOTHING;
             }
         } else if b0 == b'/' || b0 == b'?' {
-            cmd = crate::strings::ByteSlice::from_cstr(skip_regexp(
-                cmd.wrapping_add(1).as_cstr(),
+            cmd = skip_regexp(
+                crate::memory::CStrSubslice::advance(cmd, 1),
                 i32::from(b0),
                 i32::from(opt_vars().p_magic),
-            ));
-            if cmd.is_empty()
+            );
+            if cmd.to_bytes().is_empty()
                 && let Some(ref mut ctx) = ctx
             {
                 **ctx = EXPAND_NOTHING;
             }
         }
-        if !cmd.is_empty() {
-            cmd = cmd.wrapping_add(1);
+        if !cmd.to_bytes().is_empty() {
+            cmd = crate::memory::CStrSubslice::advance(cmd, 1);
         }
     }
 
-    cmd = crate::strings::ByteSlice::from_cstr(skip_colon_white(cmd.as_cstr(), false));
+    cmd = skip_colon_white(cmd, false);
 
-    if cmd.first_byte() == b'*' {
-        cmd = cmd.wrapping_add(1).skipwhite();
+    if cmd.to_bytes().first() == Some(&b'*') {
+        cmd = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(cmd, 1));
     }
 
-    cmd.as_cstr()
+    cmd
 }
 
 fn addr_error(addr_type: CmdAddr) -> &'static std::ffi::CStr {
@@ -7754,14 +7747,16 @@ pub fn get_address(
     errormsg: &mut Option<&'static std::ffi::CStr>,
 ) -> Linenr {
     let orig_opt = *cmd_opt;
-    let mut cmd = crate::strings::ByteSlice::from_opt_cstr(orig_opt).skipwhite();
+    let mut cmd_cur: Option<&CStr> = orig_opt.map(crate::charset::skipwhite);
     let mut lnum: Linenr = MAXLNUM;
 
     'error: {
         loop {
-            match cmd.first_byte() {
+            let cmd = cmd_cur.unwrap_or(c"");
+            let cmd_b0 = cmd.to_bytes().first().copied().unwrap_or(0);
+            match cmd_b0 {
                 b'.' => {
-                    cmd = cmd.wrapping_add(1);
+                    cmd_cur = cmd_cur.map(|c| crate::memory::CStrSubslice::advance(c, 1));
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curwin_mut().w_cursor.lnum,
                         ADDR_WINDOWS => lnum = current_win_nr(Some(curwin_mut()), None),
@@ -7770,7 +7765,7 @@ pub fn get_address(
                         ADDR_TABS => lnum = current_tab_nr(Some(curtab_mut())),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                             *errormsg = Some(addr_error(addr_type));
-                            cmd = crate::strings::BYTE_SLICE_NULL;
+                            cmd_cur = None;
                             break 'error;
                         }
                         ADDR_QUICKFIX => {
@@ -7782,7 +7777,7 @@ pub fn get_address(
                     }
                 }
                 b'$' => {
-                    cmd = cmd.wrapping_add(1);
+                    cmd_cur = cmd_cur.map(|c| crate::memory::CStrSubslice::advance(c, 1));
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count,
                         ADDR_WINDOWS => lnum = current_win_nr(None, eap.as_deref()),
@@ -7803,7 +7798,7 @@ pub fn get_address(
                         ADDR_TABS => lnum = current_tab_nr(None),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                             *errormsg = Some(addr_error(addr_type));
-                            cmd = crate::strings::BYTE_SLICE_NULL;
+                            cmd_cur = None;
                             break 'error;
                         }
                         ADDR_QUICKFIX => {
@@ -7823,20 +7818,20 @@ pub fn get_address(
                     }
                 }
                 b'\'' => {
-                    cmd = cmd.wrapping_add(1);
-                    if cmd.is_empty() {
-                        cmd = crate::strings::BYTE_SLICE_NULL;
+                    let after_quote = crate::memory::CStrSubslice::advance(cmd, 1);
+                    if after_quote.to_bytes().is_empty() {
+                        cmd_cur = None;
                         break 'error;
                     }
                     if addr_type != ADDR_LINES {
                         *errormsg = Some(addr_error(addr_type));
-                        cmd = crate::strings::BYTE_SLICE_NULL;
+                        cmd_cur = None;
                         break 'error;
                     }
                     if skip {
-                        cmd = cmd.wrapping_add(1);
+                        cmd_cur = Some(crate::memory::CStrSubslice::advance(after_quote, 1));
                     } else {
-                        let flag = if to_other_file != 0 && cmd.len() == 1 {
+                        let flag = if to_other_file != 0 && after_quote.to_bytes().len() == 1 {
                             K_MARK_ALL
                         } else {
                             K_MARK_BUF_LOCAL
@@ -7846,15 +7841,15 @@ pub fn get_address(
                             curwin_mut(),
                             None,
                             flag,
-                            i32::from(cmd.first_byte()),
+                            i32::from(after_quote.to_bytes()[0]),
                         );
-                        cmd = cmd.wrapping_add(1);
+                        cmd_cur = Some(crate::memory::CStrSubslice::advance(after_quote, 1));
                         if fm.as_ref().is_some_and(|f| f.fnum != curbuf_mut().b_fnum) {
                             mark_move_to(fm, 0);
                             lnum = curwin_mut().w_cursor.lnum;
                         } else {
                             if !mark_check(fm.as_deref_mut(), errormsg) {
-                                cmd = crate::strings::BYTE_SLICE_NULL;
+                                cmd_cur = None;
                                 break 'error;
                             }
                             lnum = fm.unwrap().mark.lnum;
@@ -7862,22 +7857,20 @@ pub fn get_address(
                     }
                 }
                 b'/' | b'?' => {
-                    let c = i32::from(cmd.first_byte());
-                    cmd = cmd.wrapping_add(1);
+                    let c = i32::from(cmd_b0);
+                    let after_delim = crate::memory::CStrSubslice::advance(cmd, 1);
                     if addr_type != ADDR_LINES {
                         *errormsg = Some(addr_error(addr_type));
-                        cmd = crate::strings::BYTE_SLICE_NULL;
+                        cmd_cur = None;
                         break 'error;
                     }
                     if skip {
-                        cmd = crate::strings::ByteSlice::from_cstr(skip_regexp(
-                            cmd.as_cstr(),
-                            c,
-                            i32::from(opt_vars().p_magic),
-                        ));
-                        if i32::from(cmd.first_byte()) == c {
-                            cmd = cmd.wrapping_add(1);
+                        let mut skipped =
+                            skip_regexp(after_delim, c, i32::from(opt_vars().p_magic));
+                        if skipped.to_bytes().first().copied().map(i32::from) == Some(c) {
+                            skipped = crate::memory::CStrSubslice::advance(skipped, 1);
                         }
+                        cmd_cur = Some(skipped);
                     } else {
                         let pos = curwin_mut().w_cursor;
                         if lnum > 0 && lnum != MAXLNUM {
@@ -7899,8 +7892,8 @@ pub fn get_address(
                             None,
                             c,
                             c,
-                            cmd.as_opt_cstr(),
-                            cmd.len(),
+                            Some(after_delim),
+                            after_delim.to_bytes().len(),
                             1,
                             search_flags,
                             opt_vars().p_magic,
@@ -7908,28 +7901,32 @@ pub fn get_address(
                         ) == 0
                         {
                             curwin_mut().w_cursor = pos;
-                            cmd = crate::strings::BYTE_SLICE_NULL;
+                            cmd_cur = None;
                             break 'error;
                         }
                         lnum = curwin_mut().w_cursor.lnum;
                         curwin_mut().w_cursor = pos;
-                        cmd = cmd.wrapping_add(g_st().search_global.cmdlen as usize);
+                        cmd_cur = Some(crate::memory::CStrSubslice::advance(
+                            after_delim,
+                            g_st().search_global.cmdlen as usize,
+                        ));
                     }
                 }
                 b'\\' => {
-                    cmd = cmd.wrapping_add(1);
+                    let after_bsl = crate::memory::CStrSubslice::advance(cmd, 1);
                     if addr_type != ADDR_LINES {
                         *errormsg = Some(addr_error(addr_type));
-                        cmd = crate::strings::BYTE_SLICE_NULL;
+                        cmd_cur = None;
                         break 'error;
                     }
-                    let pat_use = if cmd.first_byte() == b'&' {
+                    let b_next = after_bsl.to_bytes().first().copied().unwrap_or(0);
+                    let pat_use = if b_next == b'&' {
                         RE_SUBST
-                    } else if cmd.first_byte() == b'?' || cmd.first_byte() == b'/' {
+                    } else if b_next == b'?' || b_next == b'/' {
                         RE_SEARCH
                     } else {
                         *errormsg = Some(gettext(E_BACKSLASH));
-                        cmd = crate::strings::BYTE_SLICE_NULL;
+                        cmd_cur = None;
                         break 'error;
                     };
                     if !skip {
@@ -7939,7 +7936,7 @@ pub fn get_address(
                             } else {
                                 curwin_mut().w_cursor.lnum
                             },
-                            col: if cmd.first_byte() != b'?' { MAXCOL } else { 0 },
+                            col: if b_next != b'?' { MAXCOL } else { 0 },
                             coladd: 0,
                         };
                         if searchit(
@@ -7947,11 +7944,7 @@ pub fn get_address(
                             curbuf_mut(),
                             &mut pos,
                             None,
-                            if cmd.first_byte() == b'?' {
-                                BACKWARD
-                            } else {
-                                FORWARD
-                            },
+                            if b_next == b'?' { BACKWARD } else { FORWARD },
                             c"",
                             0,
                             1,
@@ -7963,28 +7956,30 @@ pub fn get_address(
                         {
                             lnum = pos.lnum;
                         } else {
-                            cmd = crate::strings::BYTE_SLICE_NULL;
+                            cmd_cur = None;
                             break 'error;
                         }
                     }
-                    cmd = cmd.wrapping_add(1);
+                    cmd_cur = Some(crate::memory::CStrSubslice::advance(after_bsl, 1));
                 }
                 _ => {
-                    if ascii_isdigit(cmd.first_byte()) {
-                        let cmd_bytes = cmd.as_bytes();
+                    if ascii_isdigit(cmd_b0) {
+                        let cmd_bytes = cmd.to_bytes();
                         let mut rem = cmd_bytes;
                         lnum = getdigits(&mut rem, false, 0) as Linenr;
-                        cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
+                        cmd_cur = Some(crate::memory::CStrSubslice::advance(
+                            cmd,
+                            cmd_bytes.len() - rem.len(),
+                        ));
                     }
                 }
             }
 
             loop {
-                cmd = cmd.skipwhite();
-                if cmd.first_byte() != b'-'
-                    && cmd.first_byte() != b'+'
-                    && !ascii_isdigit(cmd.first_byte())
-                {
+                cmd_cur = cmd_cur.map(crate::charset::skipwhite);
+                let cur = cmd_cur.unwrap_or(c"");
+                let cur_b0 = cur.to_bytes().first().copied().unwrap_or(0);
+                if cur_b0 != b'-' && cur_b0 != b'+' && !ascii_isdigit(cur_b0) {
                     break;
                 }
 
@@ -8006,23 +8001,32 @@ pub fn get_address(
                     }
                 }
 
-                let op = if ascii_isdigit(cmd.first_byte()) {
+                let op = if ascii_isdigit(cur_b0) {
                     b'+' as i32
                 } else {
-                    let ch = i32::from(cmd.first_byte());
-                    cmd = cmd.wrapping_add(1);
+                    let ch = i32::from(cur_b0);
+                    cmd_cur = Some(crate::memory::CStrSubslice::advance(cur, 1));
                     ch
                 };
-                let n = if !ascii_isdigit(cmd.first_byte()) {
+                let cur_after_op = cmd_cur.unwrap_or(c"");
+                let n = if !cur_after_op
+                    .to_bytes()
+                    .first()
+                    .copied()
+                    .is_some_and(ascii_isdigit)
+                {
                     1
                 } else {
-                    let cmd_bytes = cmd.as_bytes();
+                    let cmd_bytes = cur_after_op.to_bytes();
                     let mut rem = cmd_bytes;
                     let parsed = getdigits_int32(&mut rem, false, MAXLNUM);
-                    cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
+                    cmd_cur = Some(crate::memory::CStrSubslice::advance(
+                        cur_after_op,
+                        cmd_bytes.len() - rem.len(),
+                    ));
                     if parsed == MAXLNUM {
                         *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
-                        cmd = crate::strings::BYTE_SLICE_NULL;
+                        cmd_cur = None;
                         break 'error;
                     }
                     parsed
@@ -8030,7 +8034,7 @@ pub fn get_address(
 
                 if addr_type == ADDR_TABS_RELATIVE {
                     *errormsg = Some(gettext(E_INVRANGE));
-                    cmd = crate::strings::BYTE_SLICE_NULL;
+                    cmd_cur = None;
                     break 'error;
                 } else if addr_type == ADDR_LOADED_BUFFERS || addr_type == ADDR_BUFFERS {
                     lnum = compute_buffer_local_count(
@@ -8050,7 +8054,7 @@ pub fn get_address(
                     } else {
                         if lnum >= 0 && n >= i32::MAX - lnum {
                             *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
-                            cmd = crate::strings::BYTE_SLICE_NULL;
+                            cmd_cur = None;
                             break 'error;
                         }
                         lnum += n;
@@ -8058,13 +8062,16 @@ pub fn get_address(
                 }
             }
 
-            if cmd.first_byte() != b'/' && cmd.first_byte() != b'?' {
+            let cur_b0 = cmd_cur
+                .and_then(|c| c.to_bytes().first().copied())
+                .unwrap_or(0);
+            if cur_b0 != b'/' && cur_b0 != b'?' {
                 break;
             }
         }
     }
 
-    *cmd_opt = match (orig_opt, cmd.as_opt_cstr()) {
+    *cmd_opt = match (orig_opt, cmd_cur) {
         (Some(orig), Some(cur)) => {
             let off = (cur.as_ptr() as usize) - (orig.as_ptr() as usize);
             Some(crate::memory::CStrSubslice::advance(orig, off))
@@ -8575,7 +8582,7 @@ pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
     if rembs {
         let buf = crate::globals::GraphPtr::raw_slice_mut(p_ptr, len + 1);
         let idx = skip_cmd_arg_mut(buf);
-        return crate::strings::ByteSlice::from_ptr(p_ptr.wrapping_add(idx)).as_cstr();
+        return crate::memory::bytes_as_cstr(&buf[idx..]);
     }
     let bytes = p.to_bytes();
     let mut idx = 0;
@@ -8963,20 +8970,15 @@ pub fn ends_excmd<C: crate::charset::AsciiInt>(c: C) -> i32 {
 }
 
 pub fn find_nextcmd(p: &CStr) -> Option<&CStr> {
-    let mut ptr = crate::strings::ByteSlice::from_cstr(p);
-    while ptr.first_byte() != b'|' && ptr.first_byte() != b'\n' {
-        if ptr.is_empty() {
-            return None;
-        }
-        ptr = ptr.wrapping_add(1);
-    }
-    Some(ptr.wrapping_add(1).as_cstr())
+    let bytes = p.to_bytes();
+    let idx = bytes.iter().position(|&b| b == b'|' || b == b'\n')?;
+    Some(crate::memory::CStrSubslice::advance(p, idx + 1))
 }
 
 pub fn check_nextcmd(p: &CStr) -> Option<&CStr> {
-    let s = crate::strings::ByteSlice::from_cstr(p).skipwhite();
-    if s.first_byte() == b'|' || s.first_byte() == b'\n' {
-        return Some(s.wrapping_add(1).as_cstr());
+    let s = crate::charset::skipwhite(p);
+    if matches!(s.to_bytes().first(), Some(&b'|' | &b'\n')) {
+        return Some(crate::memory::CStrSubslice::advance(s, 1));
     }
     None
 }
@@ -9223,34 +9225,24 @@ fn ex_restart(eap: &mut Exarg) {
         return;
     }
 
-    let mut startreason = c"restart!".as_ptr();
+    let mut startreason: &CStr = c"restart!";
     let quit_cmd_cstr: std::ffi::CString;
-    let mut quit_cmd = eap
-        .do_ecmd_cmd
-        .as_ref()
-        .map_or(c"qall".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
-    let mut after_cmd = eap.arg.as_cstr().as_ptr().cast_mut();
+    let mut quit_cmd: &CStr = eap.do_ecmd_cmd.as_deref().unwrap_or(c"qall");
+    let mut after_cmd: &CStr = eap.arg.as_cstr();
 
-    if crate::strings::ByteSlice::from_ptr(quit_cmd)
-        .as_opt_cstr()
-        .map(std::ffi::CStr::to_bytes)
-        == Some(b":::")
-    {
-        startreason = c"restart".as_ptr();
+    if quit_cmd.to_bytes() == b":::" {
+        startreason = c"restart";
         if eap.args.len() > 1 {
             let arglen1 = eap.arglens.as_slice()[1];
             quit_cmd_cstr = bytes_to_cstring(eap.args[1].slice(arglen1));
-            quit_cmd = quit_cmd_cstr.as_ptr().cast_mut();
+            quit_cmd = quit_cmd_cstr.as_c_str();
             after_cmd = if eap.args.len() > 2 {
-                eap.args[2].as_cstr().as_ptr().cast_mut()
+                eap.args[2].as_cstr()
             } else {
-                c"".as_ptr().cast_mut()
+                c""
             };
         } else {
-            let _ = semsg!(
-                E_RESTART_FAILED_CMD_NO_QUIT,
-                crate::strings::ByteSlice::from_ptr(quit_cmd)
-            );
+            let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
             return;
         }
     }
@@ -9382,11 +9374,7 @@ fn ex_restart(eap: &mut Exarg) {
     };
 
     let env = create_environment(None, false, false, false, None);
-    tv_dict_add_str(
-        &mut *env,
-        ENV_STARTREASON,
-        crate::strings::ByteSlice::from_ptr(startreason).as_opt_cstr(),
-    );
+    tv_dict_add_str(&mut *env, ENV_STARTREASON, Some(startreason));
 
     let on_stdout = CallbackReader::none();
     let mut on_err = CallbackReader::none();
@@ -9421,11 +9409,10 @@ fn ex_restart(eap: &mut Exarg) {
     );
     let Some(channel_ref) = channel else {
         let _ = emsg(c"cannot create a channel job");
-        let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if server_stopped && server_start(listen_arg.as_deref()) != 0 {
             let _ = semsg!(
                 c"couldn't resume listening on %s",
-                crate::strings::ByteSlice::from_ptr(la_ptr)
+                listen_arg.as_deref().unwrap_or(c""),
             );
         }
         return;
@@ -9470,7 +9457,7 @@ fn ex_restart(eap: &mut Exarg) {
         arena_mem_free(result_mem);
         result_mem = ArenaMem::NULL;
 
-        if !crate::strings::AsByteSlice::is_empty_val(after_cmd) {
+        if !after_cmd.to_bytes().is_empty() {
             let mut autocmd_kv = [
                 KeyValuePair {
                     key: cstr_as_string(Some(c"once")),
@@ -9482,9 +9469,7 @@ fn ex_restart(eap: &mut Exarg) {
                 },
                 KeyValuePair {
                     key: cstr_as_string(Some(c"command")),
-                    value: cstr_as_obj(
-                        crate::strings::ByteSlice::from_ptr(after_cmd).as_opt_cstr(),
-                    ),
+                    value: cstr_as_obj(Some(after_cmd)),
                 },
             ];
             let autocmd_opts = Dict {
@@ -9588,33 +9573,23 @@ fn ex_restart(eap: &mut Exarg) {
         ui_flush();
         drop(listen_addr);
 
-        set_vim_var_string(
-            VV_EXITREASON,
-            crate::strings::ByteSlice::from_ptr(startreason).as_opt_cstr(),
-            -1,
-        );
+        set_vim_var_string(VV_EXITREASON, Some(startreason), -1);
 
         let mut quit_cmd_copy: Option<std::ffi::CString> = None;
         if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
             let mut bytes = Vec::from(&b"confirm "[..]);
-            bytes.extend_from_slice(crate::strings::ByteSlice::from_ptr(quit_cmd).as_bytes());
+            bytes.extend_from_slice(quit_cmd.to_bytes());
             let cstr = bytes_to_cstring(&bytes);
-            quit_cmd = cstr.as_ptr().cast_mut();
             quit_cmd_copy = Some(cstr);
+            quit_cmd = quit_cmd_copy.as_deref().unwrap_or(c"");
         }
-        nvim_command(
-            cstr_as_string(crate::strings::ByteSlice::from_ptr(quit_cmd).as_opt_cstr()),
-            &mut err,
-        );
+        nvim_command(cstr_as_string(Some(quit_cmd)), &mut err);
 
         if error_set(&err) {
             let _ = emsg(err.msg_cstr().unwrap_or(c""));
             api_clear_error(&mut err);
         } else if !g_st().exiting {
-            let _ = semsg!(
-                E_RESTART_FAILED_CMD_NO_QUIT,
-                crate::strings::ByteSlice::from_ptr(quit_cmd)
-            );
+            let _ = semsg!(E_RESTART_FAILED_CMD_NO_QUIT, quit_cmd);
         }
         drop(quit_cmd_copy);
     }
@@ -9658,11 +9633,10 @@ fn ex_restart(eap: &mut Exarg) {
         let _ = emsg(c"killing new nvim server failed");
     }
 
-    let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
     if server_stopped && server_start(listen_arg.as_deref()) != 0 {
         let _ = semsg!(
             c"couldn't resume listening on %s",
-            crate::strings::ByteSlice::from_ptr(la_ptr)
+            listen_arg.as_deref().unwrap_or(c""),
         );
     }
 }
@@ -10892,16 +10866,16 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
     if allbuf_locked() {
         return false;
     }
-    let mut new_dir = crate::strings::ByteSlice::from_cstr(new_dir_in);
+    let mut new_dir_cstr: &CStr = new_dir_in;
 
     let prev_dir_cstr: Option<std::ffi::CString>;
-    if new_dir.as_bytes() == b"-" {
+    if new_dir_cstr.to_bytes() == b"-" {
         let Some(ref prev) = *get_prevdir(scope) else {
             let _ = emsg(gettext(c"E186: No previous directory"));
             return false;
         };
         prev_dir_cstr = Some(prev.clone());
-        new_dir = crate::strings::ByteSlice::from_cstr(prev_dir_cstr.as_ref().unwrap());
+        new_dir_cstr = prev_dir_cstr.as_deref().unwrap();
     }
 
     let pdir = if os_dirname(g_st().name_buff_bytes_mut()) {
@@ -10910,19 +10884,18 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         None
     };
 
-    if new_dir.is_empty() && opt_vars().p_cdh {
+    if new_dir_cstr.to_bytes().is_empty() && opt_vars().p_cdh {
         expand_env(c"$HOME", g_st().name_buff_bytes_mut());
-        new_dir = crate::strings::ByteSlice::from_bytes(g_st().name_buff_bytes_mut());
+        new_dir_cstr = g_st().name_buff_cstr();
     }
 
-    let new_dir_owned = to_slash_save(new_dir.as_opt_cstr()).unwrap_or_default();
-    new_dir = crate::strings::ByteSlice::from_cstr(&new_dir_owned);
+    let new_dir_owned = to_slash_save(Some(new_dir_cstr)).unwrap_or_default();
 
     let bcd_active = scope != K_CD_SCOPE_BUFFER && curbuf_mut().b_localdir.is_some();
 
     let dir_differs = pdir
         .as_ref()
-        .is_none_or(|p| !path_equal(p, new_dir.as_cstr(), K_PATH_CMP_LITERAL));
+        .is_none_or(|p| !path_equal(p, new_dir_owned.as_c_str(), K_PATH_CMP_LITERAL));
     if dir_differs {
         if !bcd_active {
             do_autocmd_dirchanged(&new_dir_owned, scope, K_CD_CAUSE_MANUAL, true);
@@ -11000,22 +10973,17 @@ fn ex_pwd(_eap: &mut Exarg) {
         slash_adjust(g_st().name_buff_bytes_mut());
         if opt_vars().p_verbose > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason {
-                reason.as_ptr()
+                reason
             } else if curbuf_mut().b_localdir.is_some() {
-                c"buffer".as_ptr()
+                c"buffer"
             } else if curwin_mut().w_localdir.is_some() {
-                c"window".as_ptr()
+                c"window"
             } else if curtab_mut().tp_localdir.is_some() {
-                c"tabpage".as_ptr()
+                c"tabpage"
             } else {
-                c"global".as_ptr()
+                c"global"
             };
-            let _ = smsg!(
-                0,
-                c"[%s] %s",
-                crate::strings::ByteSlice::from_ptr(context),
-                &g_st().name_buff,
-            );
+            let _ = smsg!(0, c"[%s] %s", context, &g_st().name_buff);
         } else {
             let _ = msg(
                 crate::memory::bytes_as_cstr(g_st().name_buff_bytes_mut()),
@@ -11587,24 +11555,20 @@ pub fn vim_mkdir_emsg(name: &CStr, prot: i32) -> bool {
 }
 
 pub fn open_exfile(fname: &CStr, forceit: bool, mode: &std::ffi::CStr) -> Option<CFile> {
-    let fname_ptr = crate::strings::ByteSlice::from_cstr(fname);
     #[cfg(unix)]
     if os_isdir(fname) {
-        let _ = semsg!(gettext(E_ISADIR2), fname_ptr);
+        let _ = semsg!(gettext(E_ISADIR2), fname);
         return None;
     }
 
-    if !forceit && mode.to_bytes().first() != Some(&b'a') && os_path_exists(fname_ptr.as_cstr()) {
-        let _ = semsg!(
-            gettext(c"E189: \"%s\" exists (add ! to override)"),
-            fname_ptr,
-        );
+    if !forceit && mode.to_bytes().first() != Some(&b'a') && os_path_exists(fname) {
+        let _ = semsg!(gettext(c"E189: \"%s\" exists (add ! to override)"), fname);
         return None;
     }
 
-    let fd = CFile::open(fname_ptr.as_cstr(), mode);
+    let fd = CFile::open(fname, mode);
     if fd.is_none() {
-        let _ = semsg!(gettext(c"E190: Cannot open \"%s\" for writing"), fname_ptr,);
+        let _ = semsg!(gettext(c"E190: Cannot open \"%s\" for writing"), fname);
     }
     fd
 }
@@ -12119,7 +12083,11 @@ pub fn eval_vars(
                 use_shellslash = true;
             }
             SPEC_HASH => {
-                let src_bytes = crate::strings::ByteSlice::from_ptr(src).as_bytes();
+                let src_bytes = if src.is_null() {
+                    &[][..]
+                } else {
+                    unsafe { CStr::from_ptr(src) }.to_bytes()
+                };
                 if src_bytes.get(1) == Some(&b'#') {
                     arg_all_cstr = Some(arg_all());
                     result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
@@ -12201,10 +12169,8 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE));
                     return None;
                 }
-                result = path_try_shorten_fname(
-                    crate::strings::ByteSlice::from_ptr(result).as_opt_cstr(),
-                )
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                result = path_try_shorten_fname(Some(unsafe { CStr::from_ptr(result) }))
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr <= 0 {
@@ -12288,32 +12254,36 @@ pub fn eval_vars(
             }
         }
 
-        resultlen = crate::strings::ByteSlice::from_ptr(result).as_bytes().len();
+        let result_cstr = if result.is_null() {
+            c""
+        } else {
+            unsafe { CStr::from_ptr(result) }
+        };
+        resultlen = result_cstr.to_bytes().len();
         if *crate::globals::GraphPtr::of(src.wrapping_add(*usedlen)).borrow() as u8 == b'<' {
             *usedlen += 1;
-            let s = crate::strings::ByteSlice::from_ptr(result)
-                .as_cstr()
+            let tail_off = resultlen - path_tail(result_cstr).to_bytes().len();
+            if let Some(dot_off) = result_cstr
                 .to_bytes()
                 .iter()
                 .rposition(|&b| b == b'.')
-                .map_or(ptr::null_mut(), |i| result.wrapping_add(i));
-            if !s.is_null()
-                && (s as usize)
-                    >= (path_tail(crate::strings::ByteSlice::from_ptr(result).as_cstr()).as_ptr()
-                        as usize)
+                .filter(|&off| off >= tail_off)
             {
-                resultlen = (s as usize) - (result as usize);
+                resultlen = dot_off;
             }
         } else if !skip_mod {
             let mut fbuf = match resultbuf.take() {
                 Some(v) => v,
-                None => crate::strings::ByteSlice::from_ptr(result)
-                    .to_cstring()
-                    .into_bytes_with_nul(),
+                None => result_cstr.to_bytes_with_nul().to_vec(),
             };
             let mut fname_off = 0usize;
+            let src_bytes = if src.is_null() {
+                &[][..]
+            } else {
+                unsafe { CStr::from_ptr(src) }.to_bytes()
+            };
             let mod_res = modify_fname(
-                crate::strings::ByteSlice::from_ptr(src).as_bytes(),
+                src_bytes,
                 tilde_file,
                 usedlen,
                 &mut fbuf,
@@ -12413,29 +12383,29 @@ fn ex_filetype(eap: &mut Exarg) {
         let _ = smsg!(
             0,
             c"filetype detection:%s  plugin:%s  indent:%s",
-            crate::strings::ByteSlice::from_ptr(if docmd_st().filetype_detect == K_TRUE {
-                c"ON".as_ptr()
+            if docmd_st().filetype_detect == K_TRUE {
+                c"ON"
             } else {
-                c"OFF".as_ptr()
-            }),
-            crate::strings::ByteSlice::from_ptr(if docmd_st().filetype_plugin == K_TRUE {
+                c"OFF"
+            },
+            if docmd_st().filetype_plugin == K_TRUE {
                 if docmd_st().filetype_detect == K_TRUE {
-                    c"ON".as_ptr()
+                    c"ON"
                 } else {
-                    c"(on)".as_ptr()
+                    c"(on)"
                 }
             } else {
-                c"OFF".as_ptr()
-            }),
-            crate::strings::ByteSlice::from_ptr(if docmd_st().filetype_indent == K_TRUE {
+                c"OFF"
+            },
+            if docmd_st().filetype_indent == K_TRUE {
                 if docmd_st().filetype_detect == K_TRUE {
-                    c"ON".as_ptr()
+                    c"ON"
                 } else {
-                    c"(on)".as_ptr()
+                    c"(on)"
                 }
             } else {
-                c"OFF".as_ptr()
-            }),
+                c"OFF"
+            },
         );
         return;
     }

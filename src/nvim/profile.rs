@@ -485,20 +485,12 @@ fn prof_func_line(
         if prefer_self && profile_equal(*total, *self_time) {
             fprintf!(fd, c"           ");
         } else {
-            fprintf!(
-                fd,
-                c"%s ",
-                crate::strings::ByteSlice::from_ptr(profile_msg(*total).as_ptr())
-            );
+            fprintf!(fd, c"%s ", profile_msg(*total));
         }
         if !prefer_self && profile_equal(*total, *self_time) {
             fprintf!(fd, c"           ");
         } else {
-            fprintf!(
-                fd,
-                c"%s ",
-                crate::strings::ByteSlice::from_ptr(profile_msg(*self_time).as_ptr())
-            );
+            fprintf!(fd, c"%s ", profile_msg(*self_time));
         }
     } else {
         fprintf!(fd, c"                            ");
@@ -516,11 +508,15 @@ fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, pre
             &fp.uf_tm_self,
             prefer_self,
         );
-        let name_ptr = crate::strings::ByteSlice::from_cstr(&fp.uf_name);
-        if (name_ptr.first_byte()) == K_SPECIAL {
-            fprintf!(fd, c" <SNR>%s()\n", name_ptr.wrapping_add(3));
+        let name_cstr = fp.uf_name.as_c_str();
+        if name_cstr.to_bytes().first() == Some(&K_SPECIAL) {
+            fprintf!(
+                fd,
+                c" <SNR>%s()\n",
+                crate::memory::CStrSubslice::advance(name_cstr, 3),
+            );
         } else {
-            fprintf!(fd, c" %s()\n", name_ptr);
+            fprintf!(fd, c" %s()\n", name_cstr);
         }
     }
     fprintf!(fd, c"\n");
@@ -644,11 +640,15 @@ fn func_dump_profile(fd: &CFile) {
         if fp.uf_prof_initialized {
             sorttab.push(fp);
 
-            let name_ptr = crate::strings::ByteSlice::from_cstr(&fp.uf_name);
-            if (name_ptr.first_byte()) == K_SPECIAL {
-                fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
+            let name_cstr = fp.uf_name.as_c_str();
+            if name_cstr.to_bytes().first() == Some(&K_SPECIAL) {
+                fprintf!(
+                    fd,
+                    c"FUNCTION  <SNR>%s()\n",
+                    crate::memory::CStrSubslice::advance(name_cstr, 3),
+                );
             } else {
-                fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);
+                fprintf!(fd, c"FUNCTION  %s()\n", name_cstr);
             }
             if fp.uf_script_ctx.sc_sid != 0 {
                 let p = get_scriptname(fp.uf_script_ctx, true);
@@ -749,8 +749,8 @@ fn script_dump_profile(fd: &CFile) {
     for id in 1..=crate::runtime::script_items_len() {
         let si = script_item(id);
         if si.sn_prof_on {
-            let si_name = crate::strings::ByteSlice::from_opt_cstr(si.name_cstr());
-            fprintf!(fd, c"SCRIPT  %s\n", si_name);
+            let si_name = si.name_cstr();
+            fprintf!(fd, c"SCRIPT  %s\n", si_name.unwrap_or(c""));
             if si.sn_pr_count == 1 {
                 fprintf!(fd, c"Sourced 1 time\n");
             } else {
@@ -761,7 +761,7 @@ fn script_dump_profile(fd: &CFile) {
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            if let Some(sfd) = CFile::open(si_name.as_cstr(), c"r") {
+            if let Some(sfd) = CFile::open(si_name.unwrap_or(c""), c"r") {
                 let mut i: i32 = 0;
                 loop {
                     if vim_fgets(&mut iobuf, &sfd) {
@@ -951,9 +951,7 @@ pub fn time_init(fname: &CStr, proc_name: &CStr) {
     if r != 0 {
         prof_st().startuptime_buf = Vec::new();
         g_st().time_fd = None;
-        let err_str = crate::strings::ByteSlice::from_ptr(uv_err_name(r))
-            .as_cstr()
-            .to_string_lossy();
+        let err_str = uv_err_name(r).to_string_lossy();
         eprint!("time_init: setvbuf failed: {r} {err_str}");
         return;
     }

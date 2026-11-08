@@ -17,7 +17,6 @@ use crate::path::{concat_fnames_cstr, path_tail};
 use crate::strings::strerror;
 use std::ffi::CStr;
 use std::io::Write;
-use std::ptr;
 
 pub const LOGLVL_DBG: i32 = 1;
 pub const LOGLVL_INF: i32 = 2;
@@ -267,8 +266,8 @@ pub fn logmsg_str(
         fprintf!(
             &stderr,
             c"FATAL: error in free_all_mem\n %s %s %d: ",
-            crate::strings::ByteSlice::from_ptr(context.map_or(ptr::null(), CStr::as_ptr)),
-            crate::strings::ByteSlice::from_ptr(func_name.map_or(ptr::null(), CStr::as_ptr)),
+            context.unwrap_or(c""),
+            func_name.unwrap_or(c""),
             line_num,
         );
         fprintf!(&stderr, c"%s", msg);
@@ -284,9 +283,7 @@ pub fn logmsg_str(
             log_st().did_msg = true;
             msg_schedule_semsg!(
                 c"E5430: %s:%d: recursive log!",
-                crate::strings::ByteSlice::from_ptr(
-                    func_name.or(context).map_or(ptr::null(), CStr::as_ptr)
-                ),
+                func_name.or(context).unwrap_or(c""),
                 line_num,
             );
         }
@@ -408,24 +405,21 @@ fn do_log_to_file_str(
         log_st().instance_name[copy_len] = 0;
     }
 
-    let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();
-    let name_cptr = CStr::from_bytes_until_nul(&log_st().instance_name)
-        .unwrap_or(c"")
-        .as_ptr();
-    let date_time_ptr = CStr::from_bytes_until_nul(&date_time)
-        .unwrap_or(c"")
-        .as_ptr();
+    let level_cstr = LOG_LEVELS[log_level as usize];
+    let inst_name = log_st().instance_name;
+    let name_cstr = CStr::from_bytes_until_nul(&inst_name).unwrap_or(c"");
+    let date_time_cstr = CStr::from_bytes_until_nul(&date_time).unwrap_or(c"");
     let rv = if let Some(func_name) = func_name
         && line_num != -1
     {
         fprintf!(
             log_file,
             c"%s %s.%03d %-10s %s%s:%d: ",
-            crate::strings::ByteSlice::from_ptr(level_ptr),
-            crate::strings::ByteSlice::from_ptr(date_time_ptr),
+            level_cstr,
+            date_time_cstr,
             millis,
-            crate::strings::ByteSlice::from_ptr(name_cptr),
-            crate::strings::ByteSlice::from_ptr(context.unwrap_or(c"").as_ptr()),
+            name_cstr,
+            context.unwrap_or(c""),
             func_name,
             line_num,
         )
@@ -433,11 +427,11 @@ fn do_log_to_file_str(
         fprintf!(
             log_file,
             c"%s %s.%03d %-10s %s",
-            crate::strings::ByteSlice::from_ptr(level_ptr),
-            crate::strings::ByteSlice::from_ptr(date_time_ptr),
+            level_cstr,
+            date_time_cstr,
             millis,
-            crate::strings::ByteSlice::from_ptr(name_cptr),
-            crate::strings::ByteSlice::from_ptr(context.unwrap_or(c"?:").as_ptr()),
+            name_cstr,
+            context.unwrap_or(c"?:"),
         )
     };
 

@@ -902,16 +902,11 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
                 *c = mb_tolower(*c);
             }
             let special_chars = if opt_vars().p_magic {
-                c"\\~^$.*[".as_ptr()
+                c"\\~^$.*["
             } else {
-                c"\\^$".as_ptr()
+                c"\\^$"
             };
-            if *c == search_delim
-                || crate::strings::vim_haschr(
-                    crate::strings::ByteSlice::from_ptr(special_chars).as_cstr(),
-                    *c,
-                )
-            {
+            if *c == search_delim || crate::strings::vim_haschr(special_chars, *c) {
                 // put a backslash before special characters
                 stuffchar_readbuff(*c);
                 *c = b'\\' as i32;
@@ -1299,12 +1294,7 @@ fn command_line_enter(
 
         set_option_direct(
             K_OPT_INCCOMMAND,
-            cstr_as_obj(
-                crate::strings::ByteSlice::from_ptr(
-                    (s.save_p_icm.as_deref().unwrap_or(c"")).as_ptr(),
-                )
-                .as_opt_cstr(),
-            ),
+            cstr_as_obj(Some(s.save_p_icm.as_deref().unwrap_or(c""))),
             0,
             SID_NONE,
         );
@@ -2350,10 +2340,15 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             old_firstc = sep as i32;
             old_firstc != s.firstc
         } {
+            let p_cstr = if p.is_null() {
+                c""
+            } else {
+                unsafe { CStr::from_ptr(p.cast()) }
+            };
             let mut len: i32 = 0;
             for i in 0..=1 {
                 len = 0;
-                let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+                let p_bytes = p_cstr.to_bytes();
                 for (j, &pj) in p_bytes.iter().enumerate() {
                     if i32::from(pj) == old_firstc && (j == 0 || p_bytes[j - 1] != b'\\') {
                         if i > 0 {
@@ -2382,9 +2377,11 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             getln_st().ccline.cmdpos = len;
         } else {
             alloc_cmdbuff(plen);
-            let p_bytes = crate::strings::ByteSlice::from_ptr(p)
-                .as_cstr()
-                .to_bytes_with_nul();
+            let p_bytes = if p.is_null() {
+                c"".to_bytes_with_nul()
+            } else {
+                unsafe { CStr::from_ptr(p.cast()) }.to_bytes_with_nul()
+            };
             getln_st().ccline.cmdbuff_vec[..p_bytes.len()].copy_from_slice(p_bytes);
             getln_st().ccline.cmdlen = plen;
             getln_st().ccline.cmdpos = plen;
@@ -3899,7 +3896,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
         add_c(&mut item, integer_obj(0));
         add_c(
             &mut item,
-            string_obj(cstrn_as_string(crate::strings::AsByteSlice::slice_len(
+            string_obj(cstrn_as_string(crate::globals::GraphPtr::raw_slice(
                 buf, len,
             ))),
         );
@@ -4242,9 +4239,9 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
         let Some(vec_val) = opt_vec else {
             return false;
         };
-        let arg = crate::strings::ByteSlice::from_bytes(&vec_val);
+        let arg_b = crate::memory::bytes_until_nul(&vec_val);
 
-        let mut p = arg;
+        let mut p_slice = arg_b;
         if opt_vars().p_is && regname == CTRL_W_CONST {
             let cmd_bytes = &getln_st().ccline.cmdbuff_vec[..getln_st().ccline.cmdpos as usize];
             let mut w_idx = cmd_bytes.len();
@@ -4257,7 +4254,6 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
             }
             let len = cmd_bytes.len() - w_idx;
             let w_slice = &cmd_bytes[w_idx..];
-            let arg_b = arg.as_bytes();
             let arg_prefix = &arg_b[..len.min(arg_b.len())];
             let matches = if opt_vars().p_ic {
                 w_slice.eq_ignore_ascii_case(arg_prefix)
@@ -4265,11 +4261,11 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                 w_slice == arg_prefix
             };
             if matches {
-                p = p.wrapping_add(len);
+                p_slice = &arg_b[len.min(arg_b.len())..];
             }
         }
 
-        cmdline_paste_str(p.as_bytes(), literally);
+        cmdline_paste_str(p_slice, literally);
         return true;
     }
 
@@ -4521,10 +4517,7 @@ pub fn tilde_replace(orig_pat: &[u8], files: &mut [std::ffi::CString]) {
             .is_some_and(|&b| vim_ispathsep(i32::from(b)))
     {
         for f in files {
-            *f = home_replace_save(
-                None,
-                crate::strings::ByteSlice::from_ptr(f.as_ptr().cast_mut()).as_opt_cstr(),
-            );
+            *f = home_replace_save(None, Some(f.as_c_str()));
         }
     }
 }
@@ -4981,15 +4974,15 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         return;
     }
 
-    let prompt;
-    let mut defstr = crate::strings::ByteSlice::from_cstr(c"");
+    let prompt_cstr: &CStr;
+    let mut defstr: &CStr = c"";
     let mut cancelreturn = crate::globals::GraphPtr::<TypVal>::NULL;
     let mut cancelreturn_strarg2 = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: 0,
         vval: TypvalVval::Number(0),
     };
-    let mut xp_name = crate::strings::BYTE_SLICE_NULL;
+    let mut xp_name: Option<&CStr> = None;
     let mut input_callback: Callback = Callback::new();
     let mut prompt_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
     let mut defstr_buf: [u8; NUMBUFLEN] = [0; NUMBUFLEN];
@@ -5002,44 +4995,44 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         }
         let dict = argvars[0].vval.v_dict();
         let dict_ref = dict.opt();
-        let Some(prompt_cstr) =
+        let Some(p_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"prompt", 6, &mut prompt_buf, Some(c""))
         else {
             return;
         };
-        prompt = prompt_cstr.as_ptr().cast::<u8>();
+        prompt_cstr = p_cstr;
         let Some(defstr_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"default", 7, &mut defstr_buf, Some(c""))
         else {
             return;
         };
-        defstr = crate::strings::ByteSlice::from_cstr(defstr_cstr);
+        defstr = defstr_cstr;
         if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
             cancelreturn = crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_di.di_tv);
         }
         if tv_dict_find(dict_ref, c"completion", 10).is_none() {
-            xp_name = crate::strings::BYTE_SLICE_NULL;
+            xp_name = None;
         } else {
             let Some(xp_cstr) =
                 tv_dict_get_string_buf_chk(dict_ref, c"completion", 10, &mut xp_name_buf, None)
             else {
                 return;
             };
-            xp_name = crate::strings::ByteSlice::from_cstr(xp_cstr);
+            xp_name = Some(xp_cstr);
         }
         if !tv_dict_get_callback(dict.opt_mut(), c"highlight", 9, &mut input_callback) {
             return;
         }
     } else {
-        let Some(prompt_cstr) = tv_get_string_buf_chk(&argvars[0], &mut prompt_buf) else {
+        let Some(p_cstr) = tv_get_string_buf_chk(&argvars[0], &mut prompt_buf) else {
             return;
         };
-        prompt = prompt_cstr.as_ptr().cast();
+        prompt_cstr = p_cstr;
         if argvars[1].v_type != VarType::VarUnknown {
             let Some(defstr_cstr) = tv_get_string_buf_chk(&argvars[1], &mut defstr_buf) else {
                 return;
             };
-            defstr = crate::strings::ByteSlice::from_cstr(defstr_cstr);
+            defstr = defstr_cstr;
             if argvars[2].v_type != VarType::VarUnknown {
                 let Some(strarg2) = tv_get_string_buf_chk(&argvars[2], &mut cancelreturn_buf)
                 else {
@@ -5051,7 +5044,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                     cancelreturn =
                         crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_strarg2);
                 } else {
-                    xp_name = crate::strings::ByteSlice::from_cstr(strarg2);
+                    xp_name = Some(strarg2);
                 }
             }
         }
@@ -5059,47 +5052,41 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
 
     let mut xp_type: i32 = EXPAND_NOTHING;
     let mut xp_arg: Option<std::ffi::CString> = None;
-    if !xp_name.is_null() {
+    if let Some(xp_name_cstr) = xp_name {
         let mut argt: u32 = 0;
-        if !parse_compl_arg(xp_name.as_bytes(), &mut xp_type, &mut argt, &mut xp_arg) {
+        if !parse_compl_arg(
+            xp_name_cstr.to_bytes(),
+            &mut xp_type,
+            &mut argt,
+            &mut xp_arg,
+        ) {
             return;
         }
     }
 
-    let mut p = prompt;
+    let mut p_cstr = prompt_cstr;
     if !ui_has(K_UICMDLINE) {
-        let lastnl = crate::strings::ByteSlice::from_ptr(prompt)
-            .as_cstr()
-            .to_bytes()
-            .iter()
-            .rposition(|&b| b == b'\n')
-            .map_or(ptr::null_mut(), |i| prompt.wrapping_add(i).cast_mut());
-        if !lastnl.is_null() {
-            p = lastnl.wrapping_add(1);
+        let prompt_bytes = prompt_cstr.to_bytes();
+        if let Some(nl_idx) = prompt_bytes.iter().rposition(|&b| b == b'\n') {
+            p_cstr = crate::memory::CStrSubslice::advance(prompt_cstr, nl_idx + 1);
             msg_start();
             msg_clr_eos();
-            let plen = (crate::strings::AsByteSlice::byte_addr(p) as isize)
-                - (crate::strings::AsByteSlice::byte_addr(prompt) as isize);
-            msg_puts_len(
-                crate::strings::AsByteSlice::slice_len(prompt, plen.max(0) as usize),
-                plen,
-                get_echo_hl_id(),
-                false,
-            );
+            let plen = (nl_idx + 1) as isize;
+            msg_puts_len(&prompt_bytes[..=nl_idx], plen, get_echo_hl_id(), false);
             g_st().msg_didout = false;
             msg_starthere();
         }
     }
     g_st().cmdline_row = g_st().msg_row;
 
-    stuff_readbuff_special(defstr.as_cstr());
+    stuff_readbuff_special(defstr);
 
     let save_ex_normal_busy = g_st().ex_normal_busy;
     g_st().ex_normal_busy = 0;
     atom_payload_start();
     let res = getcmdline_prompt(
         if secret { NUL as i32 } else { b'@' as i32 },
-        crate::strings::ByteSlice::from_ptr(p).as_opt_cstr(),
+        Some(p_cstr),
         get_echo_hl_id(),
         xp_type,
         xp_arg.as_deref(),

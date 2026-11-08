@@ -4238,7 +4238,6 @@ pub fn intro_message(colon: bool) {
 }
 
 fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
-    let mesg = crate::strings::ByteSlice::from_cstr(mesg_cstr);
     let mesg_bytes = mesg_cstr.to_bytes();
     {
         let mut col = (g_st().columns_global - vim_strsize(mesg_cstr)) / 2;
@@ -4262,18 +4261,19 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             let mut seen_diagonal = false;
             let mut idx = 0usize;
             while idx < mesg_bytes.len() {
-                let p = mesg.wrapping_add(idx);
-                let clen = utfc_ptr2len(p);
+                let p = crate::memory::CStrSubslice::advance(mesg_cstr, idx);
+                let clen = utfc_ptr2len(p.to_bytes());
                 let mut attr: i32 = 0;
                 if mesg_bytes[idx] >= 0x80 {
-                    seen_diagonal = seen_diagonal || (clen == 3 && utf_ptr2char(p) == 0x2572);
+                    seen_diagonal =
+                        seen_diagonal || (clen == 3 && utf_ptr2char(p.to_bytes()) == 0x2572);
                     attr = if seen_diagonal {
                         string_attr
                     } else {
                         special_attr
                     };
                 }
-                col += grid_line_puts(col, p.as_cstr(), clen, attr);
+                col += grid_line_puts(col, p, clen, attr);
                 idx += clen as usize;
             }
             grid_line_flush();
@@ -4281,13 +4281,18 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         }
 
         let is_version = mesg_bytes.starts_with(b"NVIM");
-        let is_sep = utfc_ptr2len(mesg) == 3 && utf_ptr2char(mesg) == 0x2500;
+        let is_sep = utfc_ptr2len(mesg_bytes) == 3 && utf_ptr2char(mesg_bytes) == 0x2500;
         if is_version || is_sep {
             let clen = if is_sep { 3 } else { 1 };
             let attr = if is_sep { nontext_attr } else { string_attr };
             let mut idx = 0usize;
             while idx < mesg_bytes.len() {
-                col += grid_line_puts(col, mesg.wrapping_add(idx).as_cstr(), clen, attr);
+                col += grid_line_puts(
+                    col,
+                    crate::memory::CStrSubslice::advance(mesg_cstr, idx),
+                    clen,
+                    attr,
+                );
                 idx += clen as usize;
             }
             grid_line_flush();
@@ -4297,29 +4302,33 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         let hlf8_attr = crate::highlight::hl_attr(HLF_8 as i32);
         let mut idx = 0usize;
         while idx < mesg_bytes.len() {
-            let p = mesg.wrapping_add(idx);
+            let p = crate::memory::CStrSubslice::advance(mesg_cstr, idx);
             let rem = &mesg_bytes[idx..];
             let mut l: usize = 0;
             while l < rem.len() && (l == 0 || (rem[l] != b'<' && rem[l - 1] != b'>')) {
-                l += utfc_ptr2len(p.wrapping_add(l)) as usize;
+                l += utfc_ptr2len(&rem[l..]) as usize;
             }
 
             if rem[0] == b'<' {
-                col += grid_line_puts(col, p.as_cstr(), l as i32, hlf8_attr);
+                col += grid_line_puts(col, p, l as i32, hlf8_attr);
             } else {
                 let colon_off = rem[..l].iter().position(|&b| b == b':');
                 if let Some(c_off) = colon_off
                     && rem.get(l) == Some(&b'<')
                 {
-                    let colon_pos = p.wrapping_add(c_off);
+                    let colon_pos = crate::memory::CStrSubslice::advance(p, c_off);
                     let prefix_len = c_off as i32;
-                    col += grid_line_puts(col, p.as_cstr(), prefix_len, 0);
-                    col += grid_line_puts(col, colon_pos.as_cstr(), 1, hlf8_attr);
+                    col += grid_line_puts(col, p, prefix_len, 0);
+                    col += grid_line_puts(col, colon_pos, 1, hlf8_attr);
                     let cmd_len = l as i32 - prefix_len - 1;
-                    col +=
-                        grid_line_puts(col, colon_pos.wrapping_add(1).as_cstr(), cmd_len, id_attr);
+                    col += grid_line_puts(
+                        col,
+                        crate::memory::CStrSubslice::advance(colon_pos, 1),
+                        cmd_len,
+                        id_attr,
+                    );
                 } else {
-                    col += grid_line_puts(col, p.as_cstr(), l as i32, 0);
+                    col += grid_line_puts(col, p, l as i32, 0);
                 }
             }
             idx += l;

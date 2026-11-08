@@ -603,7 +603,6 @@ pub trait ByteSliceExt: Copy {
     fn slice(self, len: usize) -> &'static [u8];
     fn wrapping_add(self, n: usize) -> Self;
     fn skipwhite(self) -> Self;
-    fn skiptowhite(self) -> Self;
     fn offset_in(self, base: Self, d: isize) -> Self;
     fn offset_from(self, base: impl AsByteSlice) -> usize;
     fn span_to(self, end: Self) -> &'static [u8];
@@ -728,11 +727,6 @@ impl ByteSliceExt for ByteSlice {
     #[inline(always)]
     fn skipwhite(self) -> Self {
         self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
-    }
-
-    #[inline(always)]
-    fn skiptowhite(self) -> Self {
-        self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
     }
 
     #[inline(always)]

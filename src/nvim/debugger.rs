@@ -275,8 +275,9 @@ pub fn do_debug(cmd: &CStr) {
             g_st().cmdline_row = g_st().msg_row;
             msg_starthere();
             if !cmdline.is_null() {
-                let mut p = crate::charset::skipwhite_ptr(cmdline);
-                let p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+                let cmdline_cstr = unsafe { CStr::from_ptr(cmdline) };
+                let mut p_cstr = crate::charset::skipwhite(cmdline_cstr);
+                let p_bytes = p_cstr.to_bytes();
                 if let Some(&b0) = p_bytes.first() {
                     let b1 = p_bytes.get(1).copied().unwrap_or(0);
                     let (mut lcmd, mut tail): (i32, &[u8]) = match b0 {
@@ -306,10 +307,10 @@ pub fn do_debug(cmd: &CStr) {
                     };
 
                     if lcmd != 0 {
-                        p = p.wrapping_add(1);
-                        let mut p_bytes = crate::strings::ByteSlice::from_ptr(p).as_bytes();
+                        p_cstr = crate::memory::CStrSubslice::advance(p_cstr, 1);
+                        let mut p_bytes = p_cstr.to_bytes();
                         while !p_bytes.is_empty() && !tail.is_empty() && p_bytes[0] == tail[0] {
-                            p = p.wrapping_add(1);
+                            p_cstr = crate::memory::CStrSubslice::advance(p_cstr, 1);
                             p_bytes = &p_bytes[1..];
                             tail = &tail[1..];
                         }
@@ -350,9 +351,7 @@ pub fn do_debug(cmd: &CStr) {
                             continue;
                         }
                         CMD_FRAME => {
-                            let p_rem = crate::charset::skipwhite_slice(
-                                crate::strings::ByteSlice::from_ptr(p).as_bytes(),
-                            );
+                            let p_rem = crate::charset::skipwhite_slice(p_cstr.to_bytes());
                             if p_rem.is_empty() {
                                 do_showbacktrace(cmd);
                             } else {
@@ -379,7 +378,7 @@ pub fn do_debug(cmd: &CStr) {
                 let n2 = g_st().debug_break_level;
                 g_st().debug_break_level = -1;
                 do_cmdline(
-                    crate::strings::ByteSlice::from_ptr(cmdline).as_opt_cstr(),
+                    Some(cmdline_cstr),
                     crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );
@@ -422,16 +421,19 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
             let bp_bytes = bp_name_cstr.to_bytes();
             let is_snr = bp_bytes.starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
             let (prefix, rest) = if is_snr {
-                (c"<SNR>", bp_name_cstr.as_ptr().wrapping_add(3))
+                (
+                    c"<SNR>",
+                    crate::memory::CStrSubslice::advance(bp_name_cstr.as_c_str(), 3),
+                )
             } else {
-                (c"", bp_name_cstr.as_ptr())
+                (c"", bp_name_cstr.as_c_str())
             };
             let lnum = dbg_st().debug_breakpoint_lnum;
             smsg!(
                 0,
                 c"Breakpoint in \"%s%s\" line %ld",
                 prefix,
-                crate::strings::ByteSlice::from_ptr(rest),
+                rest,
                 i64::from(lnum)
             );
             do_debug(eap.cmd.as_cstr());
@@ -472,7 +474,7 @@ fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
 }
 
 fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
-    let mut p = crate::strings::ByteSlice::from_cstr(arg);
+    let mut p = arg;
     {
         let mut here = false;
         let mut bp = Debuggy {
@@ -482,11 +484,11 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             dbg_prog: None,
             dbg_lnum: 0,
             dbg_forceit: false,
-            dbg_val: None,
             dbg_level: 0,
+            dbg_val: None,
         };
 
-        let p_bytes = p.as_bytes();
+        let p_bytes = p.to_bytes();
         if p_bytes.starts_with(b"func") {
             bp.dbg_type = DBG_FUNC;
         } else if p_bytes.starts_with(b"file") {
@@ -504,21 +506,21 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             semsg!(E_INVARG2, p);
             return None;
         }
-        p = p.wrapping_add(4).skipwhite();
+        p = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p, 4));
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;
-        } else if !is_prof && (p.first_byte()).is_ascii_digit() {
-            let p_bytes = p.as_bytes();
+        } else if !is_prof && p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
+            let p_bytes = p.to_bytes();
             let mut rem = p_bytes;
             bp.dbg_lnum = getdigits_int32(&mut rem, true, 0);
             let rem = skipwhite_slice(rem);
-            p = p.wrapping_add(p_bytes.len() - rem.len());
+            p = crate::memory::CStrSubslice::advance(p, p_bytes.len() - rem.len());
         } else {
             bp.dbg_lnum = 0;
         }
 
-        let rem_bytes = p.as_bytes();
+        let rem_bytes = p.to_bytes();
         if (!here && rem_bytes.is_empty())
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
@@ -529,18 +531,18 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
 
         if bp.dbg_type == DBG_FUNC {
             let name_src = if rem_bytes.starts_with(b"g:") {
-                p.wrapping_add(2)
+                crate::memory::CStrSubslice::advance(p, 2)
             } else {
                 p
             };
-            bp.dbg_name = name_src.to_cstring();
+            bp.dbg_name = name_src.to_owned();
         } else if here {
             bp.dbg_name = curbuf_mut().b_ffname.clone()?;
         } else if bp.dbg_type == DBG_EXPR {
-            bp.dbg_name = p.to_cstring();
+            bp.dbg_name = p.to_owned();
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);
         } else {
-            let q = expand_env_save(p.as_cstr());
+            let q = expand_env_save(p);
             let p_exp = expand_env_save(&q);
             let raw_name = if p_exp.to_bytes().first().copied().unwrap_or(0) != b'*' {
                 fix_fname(Some(&p_exp))?
@@ -672,22 +674,22 @@ pub fn ex_breaklist(_eap: &mut Exarg) {
         }
         if bp.dbg_type != DBG_EXPR {
             let kind = if bp.dbg_type == DBG_FUNC {
-                c"func".as_ptr()
+                c"func"
             } else {
-                c"file".as_ptr()
+                c"file"
             };
             let name = if bp.dbg_type == DBG_FUNC {
-                bp.dbg_name.as_ptr()
+                bp.dbg_name.as_c_str()
             } else {
-                namebuf.as_ptr().cast()
+                crate::memory::bytes_as_cstr(&namebuf)
             };
             let lnum = bp.dbg_lnum;
             smsg!(
                 0,
                 c"%3d  %s %s  line %ld",
                 bp.dbg_nr,
-                crate::strings::ByteSlice::from_ptr(kind),
-                crate::strings::ByteSlice::from_ptr(name),
+                kind,
+                name,
                 i64::from(lnum)
             );
         } else {

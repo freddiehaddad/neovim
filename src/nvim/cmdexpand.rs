@@ -54,7 +54,7 @@ use crate::lua::executor::{
 };
 use crate::mapping::{expand_mappings, set_context_in_map_cmd};
 use crate::mbyte::{mb_tolower, utf_ptr2char, utfc_ptr2len};
-use crate::memline::{ml_get, ml_get_len};
+use crate::memline::ml_get_len;
 use crate::memory::bytes_to_cstring;
 use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
 use crate::message::{
@@ -2146,16 +2146,12 @@ fn cmdline_pum_create(
         0
     };
     let endpos_addr = xp.xp_pattern.addr().wrapping_add(tail_off);
+    let cmdbuff_addr = ccline.cmdbuff().addr();
     if ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null() {
-        cmdexp().compl_startcol = ((endpos_addr as isize)
-            - (crate::strings::AsByteSlice::byte_addr(ccline.cmdbuff()) as isize))
-            as i32;
+        cmdexp().compl_startcol = ((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32;
     } else {
-        cmdexp().compl_startcol = cmd_screencol(
-            ((endpos_addr as isize)
-                - (crate::strings::AsByteSlice::byte_addr(ccline.cmdbuff()) as isize))
-                as i32,
-        );
+        cmdexp().compl_startcol =
+            cmd_screencol(((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32);
     }
 }
 
@@ -2573,12 +2569,7 @@ fn expand_one_start(
                 {
                     non_suf_match = 0;
                     for i in 0..2 {
-                        if match_suffix(
-                            crate::strings::ByteSlice::from_ptr(
-                                xp.xp_files.as_slice()[i].as_ptr().cast_mut(),
-                            )
-                            .as_cstr(),
-                        ) {
+                        if match_suffix(xp.xp_files.as_slice()[i].as_c_str()) {
                             non_suf_match += 1;
                         }
                     }
@@ -2637,7 +2628,7 @@ fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
         len += mb_len;
     }
 
-    bytes_to_cstring(crate::strings::AsByteSlice::slice_len(first_file, len))
+    bytes_to_cstring(&first_bytes[..len.min(first_bytes.len())])
 }
 
 pub fn free_xp_files_extra(xp: &mut ExpandCtx) {
@@ -2798,46 +2789,30 @@ fn showmatches_oneline(
             msg_putchar(b' ' as i32);
         }
         let isdir: bool;
-        let p;
+        let p_cstr: &CStr;
         if xp.xp_context == EXPAND_FILES
             || xp.xp_context == EXPAND_SHELLCMD
             || xp.xp_context == EXPAND_BUFFERS
         {
-            let match_j = matches[j as usize].as_ptr();
+            let match_j = matches[j as usize].as_c_str();
             if xp.xp_numfiles != -1 {
                 let exp_path = expand_env_save_opt(&matches[j as usize], true, None);
                 let halved_slash = backslash_halve_save(exp_path.as_bytes());
                 isdir = os_isdir(&halved_slash);
             } else {
-                isdir = os_isdir(crate::strings::ByteSlice::from_ptr(match_j).as_cstr());
+                isdir = os_isdir(match_j);
             }
             if showtail {
-                p = show_match(matches, j as usize, showtail)
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>();
+                p_cstr = show_match(matches, j as usize, showtail);
             } else {
-                let name_buff = g_st().name_buff.as_mut_ptr();
-                home_replace(
-                    None,
-                    crate::strings::ByteSlice::from_ptr(match_j).as_opt_cstr(),
-                    g_st().name_buff_bytes_mut(),
-                    true,
-                );
-                p = name_buff.cast();
+                home_replace(None, Some(match_j), g_st().name_buff_bytes_mut(), true);
+                p_cstr = g_st().name_buff_cstr();
             }
         } else {
             isdir = false;
-            p = show_match(matches, j as usize, showtail)
-                .as_ptr()
-                .cast_mut()
-                .cast();
+            p_cstr = show_match(matches, j as usize, showtail);
         }
-        lastlen = msg_outtrans(
-            crate::strings::ByteSlice::from_ptr(p).as_cstr(),
-            if isdir { HLF_D } else { 0 },
-            false,
-        );
+        lastlen = msg_outtrans(p_cstr, if isdir { HLF_D } else { 0 }, false);
         j += lines;
     }
     if g_st().msg_col > 0 {
@@ -3043,14 +3018,16 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
         return false;
     }
 
-    let mut s = crate::strings::ByteSlice::from_cstr(pat_cstr);
-    while (s.as_ptr() as usize) < (end as usize) {
-        if rem_backslash(s.as_bytes()) {
-            s = s.wrapping_add(1);
-        } else if crate::strings::vim_haschr(c"*?[", s.first_byte()) {
+    let pat_bytes = pat_cstr.to_bytes();
+    let end_off = (end as usize).saturating_sub(pat_cstr.as_ptr() as usize);
+    let mut idx = 0usize;
+    while idx < end_off && idx < pat_bytes.len() {
+        if rem_backslash(&pat_bytes[idx..]) {
+            idx += 1;
+        } else if crate::strings::vim_haschr(c"*?[", i32::from(pat_bytes[idx])) {
             return false;
         }
-        s = s.wrapping_add(1);
+        idx += 1;
     }
     true
 }
@@ -3151,12 +3128,9 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
             let mut len = len;
             let mut retval_vec = vec![0u8; len + 4];
             retval_vec[..len].copy_from_slice(fname_slice);
-            let retval = retval_vec.as_mut_ptr();
-
-            let tail = path_tail(crate::strings::ByteSlice::from_ptr(retval).as_cstr())
-                .as_ptr()
-                .cast_mut()
-                .cast::<u8>();
+            let retval_cstr = crate::memory::bytes_as_cstr(&retval_vec);
+            let tail_cstr = path_tail(retval_cstr);
+            let tail_is_start = tail_cstr.as_ptr() == retval_cstr.as_ptr();
             #[cfg(windows)]
             let ends_in_star = len > 0 && retval_vec[len - 1] == b'*';
             #[cfg(not(windows))]
@@ -3172,16 +3146,10 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
                     k -= 1;
                 }
             }
-            if (retval_vec[0] != b'~' || tail != retval)
+            if (retval_vec[0] != b'~' || !tail_is_start)
                 && !ends_in_star
-                && !crate::strings::vim_haschr(
-                    crate::strings::ByteSlice::from_ptr(tail).as_cstr(),
-                    b'$' as i32,
-                )
-                && !crate::strings::vim_haschr(
-                    crate::strings::ByteSlice::from_ptr(retval).as_cstr(),
-                    b'`' as i32,
-                )
+                && !crate::strings::vim_haschr(tail_cstr, b'$' as i32)
+                && !crate::strings::vim_haschr(retval_cstr, b'`' as i32)
             {
                 retval_vec[len] = b'*';
                 len += 1;
@@ -3324,21 +3292,21 @@ fn set_context_for_wildcard_arg(
     xp: &mut ExpandCtx,
     complp: &mut i32,
 ) {
-    let arg = crate::strings::ByteSlice::from_cstr(arg);
     let mut in_quote = false;
-    let mut bow = crate::strings::BYTE_SLICE_NULL;
+    let mut bow: Option<&CStr> = None;
 
-    let mut pat = arg.skipwhite();
+    let arg_skipped = crate::charset::skipwhite(arg);
+    let mut pat = arg_skipped;
     let mut p = pat;
-    while !p.is_empty() {
-        let mut c = utf_ptr2char(p);
-        if c == b'\\' as i32 && p.byte_at(1) != 0 {
-            p = p.wrapping_add(2);
+    while !p.to_bytes().is_empty() {
+        let mut c = utf_ptr2char(p.to_bytes());
+        if c == b'\\' as i32 && p.to_bytes().get(1).copied().unwrap_or(0) != 0 {
+            p = crate::memory::CStrSubslice::advance(p, 2);
             continue;
         } else if c == b'`' as i32 {
             if !in_quote {
                 pat = p;
-                bow = p.wrapping_add(1);
+                bow = Some(crate::memory::CStrSubslice::advance(p, 1));
             }
             in_quote = !in_quote;
         } else if c == b'|' as i32
@@ -3347,27 +3315,29 @@ fn set_context_for_wildcard_arg(
             || (ascii_iswhite(c)
                 && (!eap.is_some_and(|eap| (eap.argt & EX_NOSPC) != 0) || usefilter))
         {
-            while !p.is_empty() {
-                c = utf_ptr2char(p);
+            while !p.to_bytes().is_empty() {
+                c = utf_ptr2char(p.to_bytes());
                 if c == b'`' as i32 || vim_isfilec_or_wc(c) {
                     break;
                 }
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                p = crate::memory::CStrSubslice::advance(p, utfc_ptr2len(p.to_bytes()) as usize);
             }
             if in_quote {
-                bow = p;
+                bow = Some(p);
             } else {
                 pat = p;
             }
             continue;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = crate::memory::CStrSubslice::advance(p, utfc_ptr2len(p.to_bytes()) as usize);
     }
 
-    if !bow.is_null() && in_quote {
-        pat = bow;
+    if let Some(bow_cstr) = bow
+        && in_quote
+    {
+        pat = bow_cstr;
     }
-    xp.xp_pattern = pat.into();
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(pat);
     xp.xp_context = EXPAND_FILES;
 
     if usefilter
@@ -3378,7 +3348,7 @@ fn set_context_for_wildcard_arg(
         {
             xp.xp_shell = true;
         }
-        if xp.xp_pattern.addr() == arg.skipwhite().addr() {
+        if xp.xp_pattern.addr() == arg_skipped.as_ptr() as usize {
             xp.xp_context = EXPAND_SHELLCMD;
         }
     }
@@ -3440,20 +3410,21 @@ fn set_context_in_filter_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'
 
 /// Set the completion context for the :match command.
 fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a CStr> {
-    let mut p = crate::strings::ByteSlice::from_cstr(arg);
+    let mut p = arg;
     if arg.to_bytes().is_empty() || ends_excmd(arg.to_bytes()[0]) == 0 {
         set_context_in_echohl_cmd(xp, arg);
-        p = p.skiptowhite().skipwhite();
-        if !p.is_empty() {
+        let ws_off = crate::charset::skiptowhite_len(p.to_bytes());
+        p = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(p, ws_off));
+        if !p.to_bytes().is_empty() {
             xp.xp_context = EXPAND_NOTHING;
-            p = crate::strings::ByteSlice::from_cstr(skip_regexp(
-                p.wrapping_add(1).as_cstr(),
-                p.first_byte() as i32,
+            p = skip_regexp(
+                crate::memory::CStrSubslice::advance(p, 1),
+                i32::from(p.to_bytes()[0]),
                 i32::from(opt_vars().p_magic),
-            ));
+            );
         }
     }
-    find_nextcmd(p.as_cstr())
+    find_nextcmd(p)
 }
 
 /// Returns a slice to the next command after a :global or a :v command.
@@ -3479,15 +3450,15 @@ fn find_cmd_after_global_cmd(arg: &CStr) -> Option<&CStr> {
 
 /// Returns a slice to the next command after a :substitute or a :& command.
 fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
-    let mut p = crate::strings::ByteSlice::from_cstr(arg);
-    let delim = p.first_byte();
+    let mut p = arg;
+    let delim = p.to_bytes().first().copied().unwrap_or(0);
     if delim != 0 {
-        p = crate::strings::ByteSlice::from_cstr(skip_regexp(
-            p.wrapping_add(1).as_cstr(),
+        p = skip_regexp(
+            crate::memory::CStrSubslice::advance(p, 1),
             i32::from(delim),
             i32::from(opt_vars().p_magic),
-        ));
-        let bytes = p.as_bytes();
+        );
+        let bytes = p.to_bytes();
         if let Some(mut rem) = bytes.strip_prefix(&[delim]) {
             while !rem.is_empty() && rem[0] != delim {
                 if rem[0] == b'\\' && rem.len() >= 2 {
@@ -3499,14 +3470,14 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
             if !rem.is_empty() {
                 rem = &rem[1..];
             }
-            p = p.wrapping_add(bytes.len() - rem.len());
+            p = crate::memory::CStrSubslice::advance(p, bytes.len() - rem.len());
         }
     }
-    let bytes = (p).as_bytes();
+    let bytes = p.to_bytes();
     bytes
         .iter()
         .position(|&b| matches!(b, b'|' | b'"' | b'#'))
-        .map(|pos| (p.wrapping_add(pos)).as_cstr())
+        .map(|pos| crate::memory::CStrSubslice::advance(p, pos))
 }
 
 /// Returns a slice to the next command after an :isearch/:dsearch/etc. command.
@@ -4105,117 +4076,119 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
     let mut usefilter = false;
 
     expand_init(xp);
-    let buff_slice = crate::strings::ByteSlice::from_cstr(buff_cstr);
-    xp.xp_pattern = buff_slice.into();
-    xp.xp_line = buff_slice.into();
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(buff_cstr);
+    xp.xp_line = crate::strings::OwnedSlice::from_cstr(buff_cstr);
     xp.xp_context = EXPAND_COMMANDS;
     ea.argt = 0;
 
-    let mut cmd = buff_slice;
-    while crate::strings::vim_haschr(c" \t:|", cmd.first_byte() as i32) {
-        cmd = cmd.wrapping_add(1);
+    let mut cmd = buff_cstr;
+    while let Some(&b) = cmd.to_bytes().first()
+        && crate::strings::vim_haschr(c" \t:|", i32::from(b))
+    {
+        cmd = crate::memory::CStrSubslice::advance(cmd, 1);
     }
-    xp.xp_pattern = cmd.into();
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(cmd);
 
-    if cmd.is_empty() {
+    if cmd.to_bytes().is_empty() {
         return None;
     }
-    if cmd.first_byte() == b'"' {
+    if cmd.to_bytes().first() == Some(&b'"') {
         xp.xp_context = EXPAND_NOTHING;
         return None;
     }
 
-    cmd = crate::strings::ByteSlice::from_cstr(skip_range(cmd.as_cstr(), Some(&mut xp.xp_context)));
-    xp.xp_pattern = cmd.into();
-    if cmd.is_empty() {
+    cmd = skip_range(cmd, Some(&mut xp.xp_context));
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(cmd);
+    if cmd.to_bytes().is_empty() {
         return None;
     }
-    if cmd.first_byte() == b'"' {
+    if cmd.to_bytes().first() == Some(&b'"') {
         xp.xp_context = EXPAND_NOTHING;
         return None;
     }
 
-    if cmd.first_byte() == b'|' || cmd.first_byte() == b'\n' {
-        return Some(cmd.wrapping_add(1).as_cstr());
+    if matches!(cmd.to_bytes().first(), Some(&b'|' | &b'\n')) {
+        return Some(crate::memory::CStrSubslice::advance(cmd, 1));
     }
 
-    let cmd_cstr = cmd.as_cstr();
-    let mut p =
-        crate::strings::ByteSlice::from_cstr(set_cmd_index(cmd_cstr, &mut ea, xp, &mut context)?);
+    let cmd_cstr = cmd;
+    let mut p = set_cmd_index(cmd_cstr, &mut ea, xp, &mut context)?;
 
     xp.xp_context = EXPAND_NOTHING;
 
-    if p.first_byte() == b'!' {
+    if p.to_bytes().first() == Some(&b'!') {
         forceit = true;
-        p = p.wrapping_add(1);
+        p = crate::memory::CStrSubslice::advance(p, 1);
     }
 
     if !is_user_cmdidx(ea.cmdidx) {
         ea.argt = excmd_get_argt(ea.cmdidx);
     }
 
-    let mut arg = p.skipwhite();
+    let mut arg = crate::charset::skipwhite(p);
 
     if (ea.argt & EX_ARGOPT) != 0 {
-        while arg.as_bytes().starts_with(b"++") {
-            p = arg.wrapping_add(2);
-            while !p.is_empty() && !ascii_isspace(p.first_byte()) {
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        while arg.to_bytes().starts_with(b"++") {
+            p = crate::memory::CStrSubslice::advance(arg, 2);
+            while let Some(&b) = p.to_bytes().first()
+                && !ascii_isspace(i32::from(b))
+            {
+                p = crate::memory::CStrSubslice::advance(p, utfc_ptr2len(p.to_bytes()) as usize);
             }
 
-            if p.is_empty() && (ea.argt & EX_ARGOPT) != 0 {
-                set_context_in_argopt(xp, arg.wrapping_add(2).as_cstr());
+            if p.to_bytes().is_empty() && (ea.argt & EX_ARGOPT) != 0 {
+                set_context_in_argopt(xp, crate::memory::CStrSubslice::advance(arg, 2));
                 return None;
             }
 
-            arg = p.skipwhite();
+            arg = crate::charset::skipwhite(p);
         }
     }
 
     if ea.cmdidx == Cmdidx::CmdWrite || ea.cmdidx == Cmdidx::CmdUpdate {
-        if arg.first_byte() == b'>' {
-            arg = arg.wrapping_add(1);
-            if arg.first_byte() == b'>' {
-                arg = arg.wrapping_add(1);
+        if arg.to_bytes().first() == Some(&b'>') {
+            arg = crate::memory::CStrSubslice::advance(arg, 1);
+            if arg.to_bytes().first() == Some(&b'>') {
+                arg = crate::memory::CStrSubslice::advance(arg, 1);
             }
-            arg = arg.skipwhite();
-        } else if arg.first_byte() == b'!' && ea.cmdidx == Cmdidx::CmdWrite {
-            arg = arg.wrapping_add(1);
+            arg = crate::charset::skipwhite(arg);
+        } else if arg.to_bytes().first() == Some(&b'!') && ea.cmdidx == Cmdidx::CmdWrite {
+            arg = crate::memory::CStrSubslice::advance(arg, 1);
             usefilter = true;
         }
     }
 
     if ea.cmdidx == Cmdidx::CmdRead {
         usefilter = forceit;
-        if arg.first_byte() == b'!' {
-            arg = arg.wrapping_add(1);
+        if arg.to_bytes().first() == Some(&b'!') {
+            arg = crate::memory::CStrSubslice::advance(arg, 1);
             usefilter = true;
         }
     }
 
     if ea.cmdidx == Cmdidx::CmdLshift || ea.cmdidx == Cmdidx::CmdRshift {
-        let cmd_first = cmd.first_byte();
-        while arg.first_byte() == cmd_first {
-            arg = arg.wrapping_add(1);
+        let cmd_first = cmd.to_bytes().first().copied().unwrap_or(0);
+        while arg.to_bytes().first().copied().unwrap_or(0) == cmd_first && cmd_first != 0 {
+            arg = crate::memory::CStrSubslice::advance(arg, 1);
         }
-        arg = arg.skipwhite();
+        arg = crate::charset::skipwhite(arg);
     }
 
-    if (ea.argt & EX_CMDARG) != 0 && !usefilter && arg.first_byte() == b'+' {
-        p = arg.wrapping_add(1);
-        arg = crate::strings::ByteSlice::from_cstr(skip_cmd_arg(arg.as_cstr(), false));
+    if (ea.argt & EX_CMDARG) != 0 && !usefilter && arg.to_bytes().first() == Some(&b'+') {
+        p = crate::memory::CStrSubslice::advance(arg, 1);
+        arg = skip_cmd_arg(arg, false);
 
-        if arg.is_empty() {
-            return Some(p.as_cstr());
+        if arg.to_bytes().is_empty() {
+            return Some(p);
         }
 
-        arg = arg.skipwhite();
+        arg = crate::charset::skipwhite(arg);
     }
 
     if (ea.argt & EX_TRLBAR) != 0 && !usefilter {
         p = arg;
         let p_base = p;
-        let p_bytes = p_base.as_bytes();
+        let p_bytes = p_base.to_bytes();
         let mut idx = if ea.cmdidx == Cmdidx::CmdRedir && p_bytes.starts_with(b"@\"") {
             2
         } else {
@@ -4231,7 +4204,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
                 && (idx == 0 || p_bytes[idx - 1] != b'\\')
             {
                 if b == b'|' || b == b'\n' {
-                    return Some(p_base.wrapping_add(idx + 1).as_cstr());
+                    return Some(crate::memory::CStrSubslice::advance(p_base, idx + 1));
                 }
                 return None;
             }
@@ -4239,7 +4212,10 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         }
     }
 
-    if (ea.argt & EX_EXTRA) == 0 && !arg.is_empty() && !matches!(arg.first_byte(), b'|' | b'"') {
+    if (ea.argt & EX_EXTRA) == 0
+        && !arg.to_bytes().is_empty()
+        && !matches!(arg.to_bytes().first(), Some(&b'|' | &b'"'))
+    {
         return None;
     }
 
@@ -4258,7 +4234,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         }
     }
 
-    let arg_cstr = (arg).as_cstr();
+    let arg_cstr = arg;
     if (ea.argt & EX_XFILE) != 0 {
         set_context_for_wildcard_arg(Some(&ea), arg_cstr, usefilter, xp, &mut context);
     }
@@ -4330,7 +4306,6 @@ pub fn expand_cmdline(
     col: i32,
     matches: &mut Vec<CString>,
 ) -> i32 {
-    let str_ptr = crate::strings::ByteSlice::from_cstr(str_arg);
     let mut options = WILD_ADD_SLASH | WILD_SILENT;
 
     if xp.xp_context == EXPAND_UNSUCCESSFUL {
@@ -4341,9 +4316,9 @@ pub fn expand_cmdline(
         return EXPAND_NOTHING;
     }
 
-    xp.xp_pattern_len = str_ptr
+    xp.xp_pattern_len = (str_arg.as_ptr() as usize)
         .wrapping_add(col as usize)
-        .offset_from(&xp.xp_pattern);
+        .saturating_sub(xp.xp_pattern.addr());
     let file_str = if cmdline_fuzzy_completion_supported(xp) {
         xp.xp_pattern.to_cstring()
     } else {
@@ -4369,13 +4344,13 @@ fn expand_files_and_dirs(
     mut flags: i32,
     options: i32,
 ) -> bool {
-    let mut pat = crate::strings::ByteSlice::from_cstr(pat_arg);
     {
         let mut pat_owned: Option<Vec<u8>> = None;
 
         if xp.xp_backslash != XP_BS_NONE {
-            let pat_len = pat.len();
-            let mut pat_vec = pat.slice(pat_len + 1).to_vec();
+            let pat_bytes = pat_arg.to_bytes();
+            let pat_len = pat_bytes.len();
+            let mut pat_vec = pat_arg.to_bytes_with_nul().to_vec();
             let mut cur_len = pat_len;
             let mut idx = 0usize;
             while idx < cur_len {
@@ -4405,12 +4380,14 @@ fn expand_files_and_dirs(
                 }
                 idx += 1;
             }
-            pat = crate::strings::ByteSlice::from_bytes(&pat_vec);
             pat_owned = Some(pat_vec);
         }
 
+        let pat_cstr = pat_owned
+            .as_deref()
+            .map_or(pat_arg, crate::memory::bytes_as_cstr);
         let ret = if xp.xp_context == EXPAND_FINDFUNC {
-            expand_findfunc(xp, pat.as_cstr(), matches)
+            expand_findfunc(xp, pat_cstr, matches)
         } else {
             if xp.xp_context == EXPAND_FILES {
                 flags |= EW_FILE;
@@ -4424,7 +4401,7 @@ fn expand_files_and_dirs(
             if (options & WILD_ICASE) != 0 {
                 flags |= EW_ICASE;
             }
-            expand_wildcards_eval(pat.as_cstr(), matches, flags)
+            expand_wildcards_eval(pat_cstr, matches, flags)
         };
         drop(pat_owned);
         #[cfg(windows)]
@@ -5008,7 +4985,7 @@ fn expand_from_context(
         format_to_buf!(
             &mut buf,
             c"^<SNR>\\d\\+_%s",
-            crate::strings::ByteSlice::from_ptr(pat_cstr.as_ptr().wrapping_add(3))
+            crate::memory::CStrSubslice::advance(pat_cstr, 3)
         );
         tofree = Some(buf);
         pat_cstr = crate::memory::bytes_as_cstr(tofree.as_deref().unwrap());
@@ -5200,39 +5177,32 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
         }
         idx += 1;
     }
-    let pat = crate::strings::ByteSlice::from_bytes(&pat_vec);
+    let pat_bytes = &pat_vec[..patlen];
 
     flags |= EW_FILE | EW_EXEC | EW_SHELLCMD;
 
     let mut path_owned: Option<std::ffi::CString> = None;
-    let path = crate::globals::GraphPtr::<u8>::of(
-        if pat_vec.first() == Some(&b'.')
-            && (pat_vec.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b)))
-                || (pat_vec.get(1) == Some(&b'.')
-                    && pat_vec.get(2).is_some_and(|&b| vim_ispathsep(i32::from(b)))))
-        {
-            c".".as_ptr().cast_mut().cast()
-        } else {
-            if !path_is_absolute(pat.as_bytes()) {
-                path_owned = vim_getenv(c"PATH");
-            }
-            path_owned
-                .as_ref()
-                .map_or(c"".as_ptr().cast_mut().cast(), |c| {
-                    c.as_ptr().cast_mut().cast()
-                })
-        },
-    )
-    .as_ptr();
+    let path_cstr: &CStr = if pat_vec.first() == Some(&b'.')
+        && (pat_vec.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b)))
+            || (pat_vec.get(1) == Some(&b'.')
+                && pat_vec.get(2).is_some_and(|&b| vim_ispathsep(i32::from(b)))))
+    {
+        c"."
+    } else {
+        if !path_is_absolute(pat_bytes) {
+            path_owned = vim_getenv(c"PATH");
+        }
+        path_owned.as_deref().unwrap_or(c"")
+    };
 
     let mut found_ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
-    let mut s = crate::strings::ByteSlice::from_ptr(path);
+    let mut s = path_cstr;
     loop {
         let mut pathlen: usize;
         let seplen: usize;
-        let mut e: crate::strings::ByteSlice;
+        let mut e: &CStr;
 
-        if s.is_empty() {
+        if s.to_bytes().is_empty() {
             if did_curdir {
                 break;
             }
@@ -5244,20 +5214,19 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
             pathlen = 0;
             seplen = 0;
         } else {
-            e = crate::strings::ByteSlice::from_opt_cstr(vim_strchr(s.as_cstr(), ENV_SEPCHAR));
-            if e.is_null() {
-                e = s.wrapping_add(s.len());
-            }
+            e = vim_strchr(s, ENV_SEPCHAR)
+                .unwrap_or_else(|| crate::memory::CStrSubslice::advance(s, s.to_bytes().len()));
 
-            pathlen = e.offset_from(s);
-            if s.slice(pathlen) == &b"."[..pathlen.min(1)] {
+            pathlen = (e.as_ptr() as usize).saturating_sub(s.as_ptr() as usize);
+            let s_seg = &s.to_bytes()[..pathlen];
+            if s_seg == &b"."[..pathlen.min(1)] {
                 did_curdir = true;
                 flags |= EW_DIR;
             } else {
                 flags &= !EW_DIR;
             }
 
-            seplen = if after_pathsep(s.slice(pathlen)) == 0 {
+            seplen = if after_pathsep(s_seg) == 0 {
                 PATHSEPSTR.len()
             } else {
                 0
@@ -5266,7 +5235,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
 
         if pathlen + seplen + patlen < MAXPATHL {
             if pathlen > 0 {
-                buf_vec[..pathlen].copy_from_slice(s.slice(pathlen));
+                buf_vec[..pathlen].copy_from_slice(&s.to_bytes()[..pathlen]);
                 if seplen > 0 {
                     buf_vec[pathlen..pathlen + seplen].copy_from_slice(&PATHSEPSTR[..seplen]);
                     pathlen += seplen;
@@ -5284,8 +5253,8 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
             );
         }
 
-        if !e.is_empty() {
-            e = e.wrapping_add(1);
+        if !e.to_bytes().is_empty() {
+            e = crate::memory::CStrSubslice::advance(e, 1);
         }
         s = e;
     }
@@ -5499,7 +5468,6 @@ pub fn globpath(
     expand_options: i32,
     dirs: bool,
 ) {
-    let path = crate::strings::ByteSlice::from_cstr(path_arg);
     let file_bytes = file_arg.to_bytes();
     let filelen = file_bytes.len();
     let mut buf_vec = vec![0u8; MAXPATHL];
@@ -5511,7 +5479,7 @@ pub fn globpath(
         EXPAND_FILES
     };
 
-    let mut path_bytes = path.as_bytes();
+    let mut path_bytes = path_arg.to_bytes();
     while !path_bytes.is_empty() {
         let mut pathlen = copy_option_part(&mut path_bytes, &mut buf_vec[..MAXPATHL], c",");
         let seplen = if buf_vec[0] != 0 && after_pathsep(&buf_vec[..pathlen]) == 0 {
@@ -5974,8 +5942,8 @@ fn copy_substring_from_pos(
 
     let mut ga: Vec<u8> = Vec::with_capacity(128);
 
-    let start_line = crate::strings::ByteSlice::from_cstr(ml_get(start.lnum));
-    let start_ptr = start_line.wrapping_add(start.col as usize);
+    let start_line = crate::memline::ml_get_slice(start.lnum);
+    let start_col = (start.col as usize).min(start_line.len());
     let is_single_line = start.lnum == end.lnum;
 
     let mut segment_len = if is_single_line {
@@ -5983,7 +5951,8 @@ fn copy_substring_from_pos(
     } else {
         ml_get_len(start.lnum) - start.col
     };
-    ga.extend_from_slice(start_ptr.slice(segment_len as usize));
+    let seg_end = (start_col + segment_len.max(0) as usize).min(start_line.len());
+    ga.extend_from_slice(&start_line[start_col..seg_end]);
     if !is_single_line {
         if exacttext {
             ga.extend_from_slice(b"\\n");
@@ -5995,9 +5964,8 @@ fn copy_substring_from_pos(
     if !is_single_line {
         let mut lnum = start.lnum + 1;
         while lnum < end.lnum {
-            let line = crate::strings::ByteSlice::from_cstr(ml_get(lnum));
-            let linelen = ml_get_len(lnum);
-            ga.extend_from_slice(line.slice(linelen as usize));
+            let line = crate::memline::ml_get_slice(lnum);
+            ga.extend_from_slice(line);
             if exacttext {
                 ga.extend_from_slice(b"\\n");
             } else {

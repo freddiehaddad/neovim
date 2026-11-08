@@ -1122,9 +1122,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
             fprintf!(
                 stderr,
                 c"Remote ui failed to start: %s\n",
-                crate::strings::ByteSlice::from_ptr(
-                    connect_error.map_or(ptr::null(), CStr::as_ptr)
-                ),
+                connect_error.unwrap_or(c""),
             );
             os_exit(1);
         } else {
@@ -1146,12 +1144,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
 
     let count = (argc - remote_args).max(0) as usize;
     let mut args_vec: Vec<Object> = (remote_args..argc)
-        .map(|t_argc| {
-            cstr_as_obj(
-                crate::strings::ByteSlice::from_ptr(params.argv[t_argc as usize].as_ptr())
-                    .as_opt_cstr(),
-            )
-        })
+        .map(|t_argc| cstr_as_obj(Some(params.argv[t_argc as usize].as_c_str())))
         .collect();
     let args = Array {
         items: if count > 0 {
@@ -1280,7 +1273,6 @@ fn command_line_scan(parmp: &mut Mparm) {
 
     while arg_idx < raw_len {
         let arg0_cstr = parmp.argv[arg_idx].clone();
-        let arg0_ptr = crate::strings::ByteSlice::from_cstr(&arg0_cstr);
         let arg0 = arg0_cstr.as_bytes();
         if arg0.first() == Some(&b'+') && !had_minmin {
             if parmp.commands.len() >= MAX_ARG_CMDS {
@@ -1483,7 +1475,10 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if (argv_idx as usize) < arg0.len() {
                         set_option_value_give_err(
                             K_OPT_VERBOSEFILE,
-                            cstr_as_obj((arg0_ptr.wrapping_add(argv_idx as usize)).as_opt_cstr()),
+                            cstr_as_obj(Some(crate::memory::CStrSubslice::advance(
+                                arg0_cstr.as_c_str(),
+                                argv_idx as usize,
+                            ))),
                             0,
                         );
                         argv_idx = arg0.len() as i32;
@@ -1531,7 +1526,7 @@ fn command_line_scan(parmp: &mut Mparm) {
 
                 let cur_cstr_opt = parmp.argv.get(arg_idx).cloned();
                 let cur_bytes = cur_cstr_opt.as_ref().map_or(&[][..], |s| s.as_bytes());
-                let prev_arg = arg0_ptr;
+                let prev_arg = arg0_cstr.as_c_str();
                 let prev_bytes = arg0;
 
                 match c {
@@ -1618,9 +1613,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 &mut g_st().iobuff,
                                 gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                 prev_arg,
-                                crate::strings::ByteSlice::from_ptr(
-                                    cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr())
-                                ),
+                                cur_cstr_opt.as_deref().unwrap_or(c""),
                             );
                             fprintf!(log_get_stderr(), c"%s", &g_st().iobuff,);
                             os_exit(2);
@@ -1653,9 +1646,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                     &mut g_st().iobuff,
                                     gettext(c"Attempt to open script file again: \"%s %s\"\n"),
                                     prev_arg,
-                                    crate::strings::ByteSlice::from_ptr(
-                                        cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr())
-                                    ),
+                                    cur_cstr_opt.as_deref().unwrap_or(c""),
                                 );
                                 fprintf!(log_get_stderr(), c"%s", &g_st().iobuff,);
                                 os_exit(2);
@@ -1815,18 +1806,17 @@ fn check_and_set_isatty(_paramp: &mut Mparm) {
 }
 
 fn init_path(exename: &CStr) {
-    let exename = crate::strings::ByteSlice::from_cstr(exename);
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
     if os_exepath(&mut exepath, &mut exepathlen) != 0 {
-        path_guess_exepath(exename.as_cstr(), &mut exepath);
+        path_guess_exepath(exename, &mut exepath);
     }
     set_vim_var_string(
         VV_PROGPATH,
         Some(crate::memory::bytes_as_cstr(&exepath)),
         -1,
     );
-    set_vim_var_string(VV_PROGNAME, Some(path_tail(exename.as_cstr())), -1);
+    set_vim_var_string(VV_PROGNAME, Some(path_tail(exename)), -1);
 
     #[cfg(windows)]
     {
@@ -2235,14 +2225,12 @@ fn do_user_initialization() -> bool {
 
     let init_lua_path = stdpaths_user_conf_subpath(c"init.lua");
     let user_vimrc = stdpaths_user_conf_subpath(c"init.vim");
-    let init_lua_ptr = crate::strings::ByteSlice::from_cstr(&init_lua_path);
-    let user_vimrc_ptr = crate::strings::ByteSlice::from_cstr(&user_vimrc);
 
-    if os_path_exists(init_lua_ptr.as_cstr())
+    if os_path_exists(init_lua_path.as_c_str())
         && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None)
     {
-        if os_path_exists(user_vimrc_ptr.as_cstr()) {
-            semsg!(E_CONFLICTING_CONFIGS, init_lua_ptr, user_vimrc_ptr,);
+        if os_path_exists(user_vimrc.as_c_str()) {
+            semsg!(E_CONFLICTING_CONFIGS, &init_lua_path, &user_vimrc);
         }
         do_exrc = opt_vars().p_exrc;
         return do_exrc;
@@ -2252,7 +2240,7 @@ fn do_user_initialization() -> bool {
     if do_source(user_vimrc.as_c_str(), true, DOSO_VIMRC, None) {
         do_exrc = opt_vars().p_exrc;
         if do_exrc {
-            do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr.as_cstr(), K_PATH_CMP_EXPAND);
+            do_exrc = !path_equal(c".nvimrc", user_vimrc.as_c_str(), K_PATH_CMP_EXPAND);
         }
         return do_exrc;
     }
@@ -2341,13 +2329,13 @@ fn do_exrc_initialization() {
     lua_getfield(lstate, LUA_GLOBALSINDEX, c"require");
     lua_pushstring(lstate, c"vim._core.exrc");
     if nlua_pcall(lstate, 1, 0) != 0 {
-        fprintf!(
-            log_get_stderr(),
-            c"%s\n",
-            crate::strings::ByteSlice::from_ptr(unsafe {
-                lua_tolstring(lstate, -1, ptr::null_mut())
-            }),
-        );
+        let err_ptr = unsafe { lua_tolstring(lstate, -1, ptr::null_mut()) };
+        let err_cstr = if err_ptr.is_null() {
+            c""
+        } else {
+            unsafe { CStr::from_ptr(err_ptr) }
+        };
+        fprintf!(log_get_stderr(), c"%s\n", err_cstr);
     }
 }
 

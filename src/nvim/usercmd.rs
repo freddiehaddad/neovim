@@ -326,22 +326,23 @@ pub fn find_ucmd(
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
 pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Option<&'a CStr> {
-    let arg_base = crate::strings::ByteSlice::from_cstr(arg_in);
     let full_bytes = arg_in.to_bytes();
     let mut rem = full_bytes;
 
     while let Some(after_dash) = rem.strip_prefix(b"-") {
         rem = after_dash;
-        let arg_ptr = arg_base.wrapping_add(full_bytes.len() - rem.len());
+        let arg_cstr = crate::memory::CStrSubslice::advance(arg_in, full_bytes.len() - rem.len());
         let p_rem = crate::charset::skiptowhite_slice(rem);
         if p_rem.is_empty() {
             let Some(eq_idx) = rem.iter().position(|&b| b == b'=') else {
                 xp.xp_context = EXPAND_USER_CMD_FLAGS;
-                xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg_ptr);
+                xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_cstr);
                 return None;
             };
             let attr = &rem[..eq_idx];
-            let pat_ptr = crate::strings::OwnedSlice::from_ptr(arg_ptr.wrapping_add(eq_idx + 1));
+            let pat_ptr = crate::strings::OwnedSlice::from_cstr(
+                crate::memory::CStrSubslice::advance(arg_cstr, eq_idx + 1),
+            );
             if attr.len() <= 8 && attr.eq_ignore_ascii_case(&b"complete"[..attr.len()]) {
                 xp.xp_context = EXPAND_USER_COMPLETE;
                 xp.xp_pattern = pat_ptr;
@@ -357,16 +358,19 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
         rem = crate::charset::skipwhite_slice(p_rem);
     }
 
-    let arg_ptr = arg_base.wrapping_add(full_bytes.len() - rem.len());
+    let arg_cstr = crate::memory::CStrSubslice::advance(arg_in, full_bytes.len() - rem.len());
     let p_rem = crate::charset::skiptowhite_slice(rem);
     if p_rem.is_empty() {
         xp.xp_context = EXPAND_USER_COMMANDS;
-        xp.xp_pattern = crate::strings::OwnedSlice::from_ptr(arg_ptr);
+        xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_cstr);
         return None;
     }
 
     let rest = crate::charset::skipwhite_slice(p_rem);
-    Some((arg_base.wrapping_add(full_bytes.len() - rest.len())).as_cstr())
+    Some(crate::memory::CStrSubslice::advance(
+        arg_in,
+        full_bytes.len() - rest.len(),
+    ))
 }
 
 /// Set the completion context for the argument of a user defined command (`set_context_in_user_cmdarg`).
@@ -378,13 +382,13 @@ pub fn set_context_in_user_cmdarg<'a>(
     xp: &mut ExpandCtx,
     forceit: bool,
 ) -> Option<&'a CStr> {
-    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
+    let mut arg = arg_in;
     if context == EXPAND_NOTHING || (argt & EX_XFILE) != 0 {
         return None;
     }
 
     if context == EXPAND_MENUS {
-        set_context_in_menu_cmd(xp, cmd, arg.as_cstr(), forceit);
+        set_context_in_menu_cmd(xp, cmd, arg, forceit);
         return None;
     }
     if context == EXPAND_COMMANDS {
@@ -402,12 +406,12 @@ pub fn set_context_in_user_cmdarg<'a>(
         );
     }
     if (argt & EX_ARGSPACE) == 0 {
-        let arg_base = arg;
         let full_bytes = arg_in.to_bytes();
         let mut rem = full_bytes;
         while !rem.is_empty() {
             if rem[0] == b' ' {
-                arg = arg_base.wrapping_add(full_bytes.len() - rem.len() + 1);
+                arg =
+                    crate::memory::CStrSubslice::advance(arg_in, full_bytes.len() - rem.len() + 1);
             } else if rem[0] == b'\\' && rem.len() >= 2 {
                 rem = &rem[1..];
             }
@@ -415,7 +419,7 @@ pub fn set_context_in_user_cmdarg<'a>(
             rem = &rem[clen..];
         }
     }
-    xp.xp_pattern = arg.into();
+    xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
     xp.xp_context = context;
 
     None
@@ -614,10 +618,7 @@ fn uc_list(name_prefix: &[u8]) {
                     len -= 1;
                 }
                 if len != 0 {
-                    msg_puts(
-                        crate::strings::ByteSlice::from_ptr(c"    ".as_ptr().wrapping_add(4 - len))
-                            .as_cstr(),
-                    );
+                    msg_puts(crate::memory::CStrSubslice::advance(c"    ", 4 - len));
                 }
 
                 msg_outtrans(&cmd.uc_name, HLF_D, false);
@@ -1199,17 +1200,17 @@ pub fn ex_comclear(_eap: &mut Exarg) {
 pub fn ex_delcommand(eap: &mut Exarg) {
     let mut i: i32;
     let mut res: i32 = -1;
-    let mut arg = eap.arg.as_cstr().as_ptr();
+    let mut arg = eap.arg.as_cstr();
     let mut buffer_only = false;
 
-    let arg_bytes = crate::strings::ByteSlice::from_ptr(arg).as_bytes();
+    let arg_bytes = arg.to_bytes();
     if arg_bytes.starts_with(b"-buffer")
         && arg_bytes
             .get(7)
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         buffer_only = true;
-        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(7));
+        arg = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(arg, 7));
     }
 
     let mut is_global = false;
@@ -1217,13 +1218,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
     loop {
         i = 0;
         while (i as usize) < gap.len() {
-            res = crate::strings::ByteSlice::from_ptr(arg)
-                .as_cstr()
-                .to_bytes()
-                .cmp(
-                    crate::strings::ByteSlice::from_ptr(gap[i as usize].uc_name.as_ptr())
-                        .as_bytes(),
-                ) as i32;
+            res = arg.to_bytes().cmp(gap[i as usize].uc_name.as_bytes()) as i32;
             if res <= 0 {
                 break;
             }
@@ -1245,7 +1240,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
             } else {
                 E_NO_SUCH_USER_DEFINED_COMMAND_STR
             }),
-            crate::strings::ByteSlice::from_ptr(arg),
+            arg,
         );
         return;
     }

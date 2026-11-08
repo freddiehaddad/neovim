@@ -964,13 +964,13 @@ pub fn ex_break(eap: &mut Exarg) {
 pub fn ex_endwhile(eap: &mut Exarg) {
     let cstack = eap.cstack_mut();
     let (err, csf) = if eap.cmdidx == Cmdidx::CmdEndwhile {
-        (E_WHILE.as_ptr(), CSF_WHILE)
+        (E_WHILE, CSF_WHILE)
     } else {
-        (E_FOR.as_ptr(), CSF_FOR)
+        (E_FOR, CSF_FOR)
     };
 
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = Some(gettext(crate::strings::ByteSlice::from_ptr(err).as_cstr()));
+        eap.errmsg = Some(gettext(err));
     } else {
         let mut fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & csf) == 0 {
@@ -990,7 +990,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
             while idx > 0 {
                 fl = cstack.cs_flags[idx as usize];
                 if (fl & CSF_TRY) != 0 && (fl & CSF_FINALLY) == 0 {
-                    eap.errmsg = Some(gettext(crate::strings::ByteSlice::from_ptr(err).as_cstr()));
+                    eap.errmsg = Some(gettext(err));
                     return;
                 }
                 if (fl & csf) != 0 {

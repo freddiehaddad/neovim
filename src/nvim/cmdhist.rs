@@ -646,11 +646,10 @@ pub fn ex_history(eap: &mut Exarg) {
                     i = 0;
                 }
                 let entry = &hist[i as usize];
-                let entry_ptr = crate::strings::ByteSlice::from_opt_cstr(entry.hisstr_cstr());
-                if !entry_ptr.is_null()
+                if let Some(entry_cstr) = entry.hisstr_cstr()
                     && entry.hisnum >= j
                     && entry.hisnum <= k
-                    && !message_filtered(entry_ptr.as_cstr())
+                    && !message_filtered(entry_cstr)
                 {
                     msg_putchar(b'\n' as i32);
                     let marker = if i == idx { '>' } else { ' ' };
@@ -658,14 +657,17 @@ pub fn ex_history(eap: &mut Exarg) {
                     let prefix_bytes = prefix.as_bytes();
                     let len = prefix_bytes.len();
                     iobuf[..len].copy_from_slice(prefix_bytes);
-                    if vim_strsize(entry_ptr.as_cstr()) > g_st().columns_global - 10 {
+                    if vim_strsize(entry_cstr) > g_st().columns_global - 10 {
                         trunc_string(
-                            Some(entry_ptr.as_bytes()),
+                            Some(entry_cstr.to_bytes()),
                             &mut iobuf[len..],
                             g_st().columns_global - 10,
                         );
                     } else {
-                        crate::memory::copy_bytes_to_c_buf(&mut iobuf[len..], entry_ptr.as_bytes());
+                        crate::memory::copy_bytes_to_c_buf(
+                            &mut iobuf[len..],
+                            entry_cstr.to_bytes(),
+                        );
                     }
                     msg_outtrans(crate::memory::bytes_as_cstr(&iobuf), 0, false);
                 }

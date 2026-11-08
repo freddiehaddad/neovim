@@ -1317,7 +1317,7 @@ fn expand_set_opt_generic(
 ) -> bool {
     optstr_st().set_opt_callback_orig_option = args
         .oe_include_orig_val
-        .then(|| crate::strings::ByteSlice::from_ptr(args.oe_opt_value.as_ptr()).as_cstr());
+        .then(|| unsafe { CStr::from_ptr(args.oe_opt_value.as_ptr()) });
     optstr_st().set_opt_callback_func = func;
 
     expand_generic(
@@ -2063,18 +2063,13 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw)?;
 
-    let io_buff = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     format_to_buf!(
         &mut g_st().iobuff,
         c"%s%s",
-        crate::strings::ByteSlice::from_ptr(if subtract {
-            c"-".as_ptr()
-        } else {
-            c"".as_ptr()
-        }),
+        if subtract { c"-" } else { c"" },
         name,
     );
-    Some(io_buff.as_cstr())
+    Some(g_st().iobuff_cstr())
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2612,7 +2607,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
     if err.err_type != ErrorType::ErrorTypeNone {
         let msg_cstr = err.msg_cstr().unwrap_or(c"");
         let msg = if msg_cstr.to_bytes().starts_with(b"Vim:") {
-            crate::strings::ByteSlice::from_ptr(msg_cstr.as_ptr().wrapping_add(4)).as_cstr()
+            crate::memory::CStrSubslice::advance(msg_cstr, 4)
         } else {
             msg_cstr
         };
@@ -2764,7 +2759,7 @@ fn did_set_statustabline_rulerformat<'a>(
         args.set_var_cstr(def.data.string().as_cstr());
         optval_free_read(args.os_idx, def);
     }
-    let s = crate::strings::ByteSlice::from_cstr(args.var_cstr());
+    let s_bytes = args.var_cstr().to_bytes();
 
     if is_stl
         && let Some(win) = args.win_opt()
@@ -2774,12 +2769,11 @@ fn did_set_statustabline_rulerformat<'a>(
         win_config_float(win, cfg);
     }
 
-    if rulerformat && !ui_has(K_UIMESSAGES) && s.first_byte() == b'%' {
-        let mut s_ptr = s.wrapping_add(1);
-        if s_ptr.first_byte() == b'-' {
-            s_ptr = s_ptr.wrapping_add(1);
+    if rulerformat && !ui_has(K_UIMESSAGES) && s_bytes.first() == Some(&b'%') {
+        let mut rem = &s_bytes[1..];
+        if let Some(after_dash) = rem.strip_prefix(b"-") {
+            rem = after_dash;
         }
-        let mut rem = s_ptr.as_bytes();
         let wid = getdigits_int(&mut rem, true, 0);
         if wid != 0 && rem.first() == Some(&b'(') {
             g_st().ru_wid = wid;
@@ -3002,11 +2996,7 @@ fn opt_values_err<'a>(
         n += format_to_buf!(
             &mut errbuf.as_mut_slice()[n as usize..],
             c"%s%s",
-            crate::strings::ByteSlice::from_ptr(if j == 0 {
-                c" ".as_ptr()
-            } else {
-                c", ".as_ptr()
-            }),
+            if j == 0 { c" " } else { c", " },
             v,
         );
     }
@@ -3157,9 +3147,8 @@ pub fn check_ff_value(p: &CStr) -> bool {
 
 /// Calls mb_cptr2char_adv(p) and returns the character.
 fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
-    let s = crate::strings::ByteSlice::from_cstr(p);
-
-    let s_bytes = p.to_bytes();
+    let s = *p;
+    let s_bytes = s.to_bytes();
     if s_bytes.first() == Some(&b'\\')
         && let Some(&b1 @ (b'x' | b'u' | b'U')) = s_bytes.get(1)
     {
@@ -3173,17 +3162,17 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         };
         let mut cur = s;
         while bytes > 0 {
-            cur = cur.wrapping_add(2);
-            let n = hexhex2nr(cur.as_bytes());
+            cur = crate::memory::CStrSubslice::advance(cur, 2);
+            let n = hexhex2nr(cur.to_bytes());
             if n < 0 {
-                *p = cur.as_cstr();
+                *p = cur;
                 return 0;
             }
             num = num * 256 + i64::from(n);
             bytes -= 1;
         }
-        cur = cur.wrapping_add(2);
-        *p = cur.as_cstr();
+        cur = crate::memory::CStrSubslice::advance(cur, 2);
+        *p = cur;
         return if char2cells(num as i32) > 1 {
             0
         } else {
@@ -3191,9 +3180,10 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         };
     }
 
-    let ci = utf_ptr2_str_char_info(s.as_cstr());
+    let ci = utf_ptr2_str_char_info(s);
     let cli = utf_cluster_info(ci);
-    *p = cli.next.as_cstr();
+    let adv = (cli.next.ptr.as_ptr() as usize).saturating_sub(s.as_ptr() as usize);
+    *p = crate::memory::CStrSubslice::advance(s, adv);
     if cli.cells > 1 {
         0
     } else {
