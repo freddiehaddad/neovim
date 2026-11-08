@@ -1821,13 +1821,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     pum().selected = -1;
     pum().first = 0;
     if !opt_vars().p_mousemev {
-        ui_call_option_set(
-            NvimString {
-                data: crate::strings::ByteSlice::from_cstr(c"mousemoveevent"),
-                size: 14,
-            },
-            boolean_obj(true),
-        );
+        ui_call_option_set(NvimString::from_cstr(c"mousemoveevent"), boolean_obj(true));
     }
 
     loop {
@@ -1885,13 +1879,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 
     pum_undisplay(true);
     if !opt_vars().p_mousemev {
-        ui_call_option_set(
-            NvimString {
-                data: crate::strings::ByteSlice::from_cstr(c"mousemoveevent"),
-                size: 14,
-            },
-            boolean_obj(false),
-        );
+        ui_call_option_set(NvimString::from_cstr(c"mousemoveevent"), boolean_obj(false));
     }
 }
 

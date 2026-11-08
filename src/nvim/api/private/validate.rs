@@ -19,15 +19,44 @@ impl NvimString {
     }
 
     #[inline]
-    pub const fn from_bytes(bytes: &[u8]) -> Self {
+    pub const fn empty_cstr() -> Self {
+        Self {
+            data: Some(b"\0"),
+            size: 0,
+        }
+    }
+
+    #[inline]
+    pub const fn from_cstr(s: &std::ffi::CStr) -> Self {
+        Self {
+            data: crate::strings::byte_slice_from_bytes(s.to_bytes_with_nul()),
+            size: s.to_bytes().len(),
+        }
+    }
+
+    #[inline]
+    pub fn from_opt_cstr(s: Option<&std::ffi::CStr>) -> Self {
+        match s {
+            Some(s) => Self::from_cstr(s),
+            None => Self::new(),
+        }
+    }
+
+    #[inline]
+    pub const fn from_bytes_len(bytes: &[u8], size: usize) -> Self {
         Self {
             data: crate::strings::byte_slice_from_bytes(if bytes.is_empty() {
                 b"\0"
             } else {
                 bytes
             }),
-            size: bytes.len(),
+            size,
         }
+    }
+
+    #[inline]
+    pub const fn from_bytes(bytes: &[u8]) -> Self {
+        Self::from_bytes_len(bytes, bytes.len())
     }
 
     #[inline]

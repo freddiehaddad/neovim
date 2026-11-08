@@ -1578,15 +1578,12 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvL
 
     let dir_cap = (opt_vars().p_dir.as_bytes().len() + 1).min(31000);
     let mut dir_name_vec: Vec<u8> = vec![0; dir_cap];
-    let mut dir_name = NvimString {
-        data: crate::strings::ByteSlice::from_bytes(&dir_name_vec),
-        size: 0,
-    };
+    let mut dir_name: NvimString;
     let p_dir = opt_vars().p_dir.to_owned();
     let mut dirp = p_dir.as_bytes();
     while !dirp.is_empty() {
-        dir_name.size = copy_option_part(&mut dirp, &mut dir_name_vec, c",");
-        dir_name.data = crate::strings::ByteSlice::from_bytes(&dir_name_vec);
+        let size = copy_option_part(&mut dirp, &mut dir_name_vec, c",");
+        dir_name = NvimString::from_bytes_len(&dir_name_vec, size);
 
         let dir_bytes = dir_name.as_bytes();
         let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
@@ -1681,16 +1678,10 @@ pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std:
         let step = crate::mbyte::utfc_slice2len(&fname_vec[idx..]);
         idx += step.max(1);
     }
-    let fixed_fname = NvimString {
-        data: crate::strings::ByteSlice::from_bytes(&fname_vec[fixed_off..]),
-        size: idx - fixed_off,
-    };
+    let fixed_fname = NvimString::from_bytes_len(&fname_vec[fixed_off..], idx - fixed_off);
 
     Some(concat_fnames(
-        NvimString {
-            data: crate::strings::ByteSlice::from_bytes(dir_slice),
-            size: dir_slice.len(),
-        },
+        NvimString::from_bytes(dir_slice),
         fixed_fname,
         true,
     ))
@@ -1904,10 +1895,7 @@ fn recov_file_names(names: &mut Vec<std::ffi::CString>, path: &CStr, prepend_dot
 
     let cur = concat_fnames(
         cstr_as_string(Some(path)),
-        NvimString {
-            data: crate::strings::ByteSlice::from_cstr(c".sw?"),
-            size: 4,
-        },
+        NvimString::from_cstr(c".sw?"),
         false,
     );
     if let Some(prev) = names.last() {
@@ -3357,36 +3345,20 @@ pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::C
     {
         if tail_off == 0 {
             concat_fnames(
-                NvimString {
-                    data: crate::strings::ByteSlice::from_cstr(dname).wrapping_add(2),
-                    size: dname_len - 2,
-                },
+                NvimString::from_bytes_len(&dname.to_bytes_with_nul()[2..], dname_len - 2),
                 tail,
                 true,
             )
         } else {
             let tmp = concat_fnames(
-                NvimString {
-                    data: crate::strings::ByteSlice::from_cstr(fname),
-                    size: tail_off,
-                },
-                NvimString {
-                    data: crate::strings::ByteSlice::from_cstr(dname).wrapping_add(2),
-                    size: dname_len - 2,
-                },
+                NvimString::from_bytes_len(fname.to_bytes_with_nul(), tail_off),
+                NvimString::from_bytes_len(&dname.to_bytes_with_nul()[2..], dname_len - 2),
                 true,
             );
             concat_fnames(cstr_as_string(Some(&tmp)), tail, true)
         }
     } else {
-        concat_fnames(
-            NvimString {
-                data: crate::strings::ByteSlice::from_cstr(dname),
-                size: dname_len,
-            },
-            tail,
-            true,
-        )
+        concat_fnames(NvimString::from_cstr(dname), tail, true)
     };
 
     Some(retval)
@@ -3622,10 +3594,7 @@ fn findswapname(
                         let msg_len = msg_sb.len();
                         msg_sb.push(0);
                         msg_multiline(
-                            NvimString {
-                                data: crate::strings::ByteSlice::from_bytes(&msg_sb),
-                                size: msg_len,
-                            },
+                            NvimString::from_bytes_len(&msg_sb, msg_len),
                             0,
                             false,
                             false,

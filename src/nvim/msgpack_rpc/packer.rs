@@ -373,11 +373,7 @@ pub fn mpack_object_inner(
                 let cs = nlua_funcref_str(cur.data.luaref(), true);
                 api_free_luaref(cur.data.luaref());
                 cur.data = ObjectData::LuaRef(LUA_NOREF);
-                let s = NvimString {
-                    data: crate::strings::ByteSlice::from_cstr(&cs),
-                    size: cs.to_bytes().len(),
-                };
-                mpack_str(s, packer);
+                mpack_str(NvimString::from_cstr(&cs), packer);
             }
             ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
                 mpack_nil(packer);
@@ -497,13 +493,7 @@ mod tests {
         mpack_integer(&mut pb, -33);
         mpack_integer(&mut pb, 42);
         let s = c"hello";
-        mpack_str(
-            NvimString {
-                data: crate::strings::ByteSlice::from_cstr(s),
-                size: 5,
-            },
-            &mut pb,
-        );
+        mpack_str(NvimString::from_cstr(s), &mut pb);
         let slice = packer_take_string(&mut pb);
         assert_eq!(
             slice,

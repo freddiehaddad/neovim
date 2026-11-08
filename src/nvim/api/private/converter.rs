@@ -15,7 +15,6 @@ use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 use crate::memory::Arena;
-use crate::strings::ByteSliceExt;
 
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
@@ -25,10 +24,7 @@ pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
 fn cbuf_to_string_obj(arena: Option<&mut Arena>, reuse_strdata: bool, bytes: &[u8]) -> Object {
     let s = if reuse_strdata {
         if bytes.is_empty() {
-            NvimString {
-                data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
-                size: 0,
-            }
+            NvimString::empty_cstr()
         } else {
             NvimString::from_bytes(bytes)
         }

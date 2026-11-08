@@ -2202,10 +2202,7 @@ pub fn get_special_key(
         if is_special(c) {
             if let Some(ref mut d) = data {
                 d.key_alt = NvimString::new();
-                d.key = NvimString {
-                    data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
-                    size: 4,
-                };
+                d.key = NvimString::from_bytes_len(&string_buf[idx..], 4);
             }
 
             string_buf[idx..idx + 4].copy_from_slice(&[
@@ -2222,25 +2219,14 @@ pub fn get_special_key(
                 if let Some(ref mut d) = data {
                     if (b'A' as i32..=b'Z' as i32).contains(&c) {
                         d.key_mem = c as u8 + 32;
-                        d.key = NvimString {
-                            data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(
-                                &d.key_mem,
-                            )),
-                            size: 1,
-                        };
+                        d.key = NvimString::from_bytes(std::slice::from_ref(&d.key_mem));
                         if !is_ascii_ctrl {
                             d.mods |= i32::from(MOD_MASK_SHIFT);
                         }
-                        d.key_alt = NvimString {
-                            data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
-                            size: len as usize,
-                        };
+                        d.key_alt = NvimString::from_bytes_len(&string_buf[idx..], len as usize);
                     } else {
                         d.key_alt = NvimString::new();
-                        d.key = NvimString {
-                            data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
-                            size: len as usize,
-                        };
+                        d.key = NvimString::from_bytes_len(&string_buf[idx..], len as usize);
                     }
                 }
 
@@ -2248,10 +2234,7 @@ pub fn get_special_key(
                 idx += 1;
             } else if len > 1 {
                 if let Some(ref mut d) = data {
-                    d.key = NvimString {
-                        data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
-                        size: len as usize,
-                    };
+                    d.key = NvimString::from_bytes_len(&string_buf[idx..], len as usize);
                     d.key_alt = NvimString::new();
                 }
 
@@ -2261,16 +2244,8 @@ pub fn get_special_key(
 
                 if let Some(ref mut d) = data {
                     d.key_mem = c as u8;
-                    d.key = NvimString {
-                        data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(
-                            &d.key_mem,
-                        )),
-                        size: 1,
-                    };
-                    d.key_alt = NvimString {
-                        data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
-                        size: tc_bytes.len(),
-                    };
+                    d.key = NvimString::from_bytes(std::slice::from_ref(&d.key_mem));
+                    d.key_alt = NvimString::from_bytes_len(&string_buf[idx..], tc_bytes.len());
                 }
 
                 string_buf[idx..idx + tc_bytes.len()].copy_from_slice(tc_bytes);
@@ -2281,18 +2256,12 @@ pub fn get_special_key(
         // use name of special key
         let entry = &KEY_NAMES_TABLE[table_idx as usize];
         let s_bytes = entry.name.to_bytes();
-        let s_str = NvimString {
-            data: crate::strings::ByteSlice::from_cstr(entry.name),
-            size: s_bytes.len(),
-        };
+        let s_str = NvimString::from_cstr(entry.name);
 
         if let Some(ref mut d) = data {
             if (0..=0x7f).contains(&c) {
                 d.key_mem = c as u8;
-                d.key = NvimString {
-                    data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(&d.key_mem)),
-                    size: 1,
-                };
+                d.key = NvimString::from_bytes(std::slice::from_ref(&d.key_mem));
                 d.key_alt = s_str;
             } else {
                 d.key = s_str;

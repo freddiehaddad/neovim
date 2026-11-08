@@ -300,33 +300,21 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
     let mark_str: [u8; 2] = [c, 0];
     let mut items: [KeyValuePair; 3] = [
         KeyValuePair {
-            key: NvimString {
-                data: crate::strings::ByteSlice::from_cstr(c"name"),
-                size: 4,
-            },
+            key: NvimString::from_cstr(c"name"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(NvimString {
-                    data: crate::strings::ByteSlice::from_bytes(&mark_str),
-                    size: 1,
-                }),
+                data: ObjectData::String(NvimString::from_bytes_len(&mark_str, 1)),
             },
         },
         KeyValuePair {
-            key: NvimString {
-                data: crate::strings::ByteSlice::from_cstr(c"line"),
-                size: 4,
-            },
+            key: NvimString::from_cstr(c"line"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(i64::from(pos.lnum)),
             },
         },
         KeyValuePair {
-            key: NvimString {
-                data: crate::strings::ByteSlice::from_cstr(c"col"),
-                size: 3,
-            },
+            key: NvimString::from_cstr(c"col"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(i64::from(pos.col)),

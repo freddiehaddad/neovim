@@ -743,10 +743,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             c"term_background",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(NvimString {
-                    data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
-                    size: 0,
-                }),
+                data: ObjectData::String(NvimString::empty_cstr()),
             },
         );
         put_info(c"term_colors", integer_obj(Integer::from(ui.term_colors)));

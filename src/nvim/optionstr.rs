@@ -1551,10 +1551,7 @@ pub fn did_set_buftype(args: &mut Optset) -> Option<&CStr> {
             K_OPT_COMMENTS,
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(NvimString {
-                    data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
-                    size: 0,
-                }),
+                data: ObjectData::String(NvimString::empty_cstr()),
             },
             OPT_LOCAL,
             SID_NONE,

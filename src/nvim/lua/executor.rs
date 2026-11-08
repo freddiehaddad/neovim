@@ -2687,10 +2687,7 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
     let str_cstr = std::ffi::CString::new(str_bytes).unwrap();
     let mut args_items: [Object; 1] = [Object {
         obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(NvimString {
-            data: crate::strings::ByteSlice::from_cstr(&str_cstr),
-            size: str_cstr.as_bytes().len(),
-        }),
+        data: ObjectData::String(NvimString::from_cstr(&str_cstr)),
     }];
     let args = Array {
         items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
@@ -2698,10 +2695,7 @@ pub fn nlua_func_exists(lua_funcname: &CStr) -> bool {
         capacity: 1,
     };
     let mut err = Error::new();
-    let code = NvimString {
-        data: crate::strings::ByteSlice::from_cstr(c"return type(loadstring(...)()) == 'function'"),
-        size: 44,
-    };
+    let code = NvimString::from_cstr(c"return type(loadstring(...)()) == 'function'");
     let result = nlua_exec(code, None, args, K_RET_NIL_BOOL, None, &mut err);
     drop(str_cstr);
 

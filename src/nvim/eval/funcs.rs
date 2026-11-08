@@ -3883,10 +3883,7 @@ fn has_wsl() -> bool {
         let mut err = Error::new();
         let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
         let o = nlua_exec(
-            NvimString {
-                data: crate::strings::ByteSlice::from_cstr(cmd),
-                size: cmd.to_bytes().len(),
-            },
+            NvimString::from_cstr(cmd),
             None,
             Array {
                 items: crate::globals::GraphPtr::NULL,

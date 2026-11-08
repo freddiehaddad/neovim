@@ -749,14 +749,8 @@ fn vim_runtime_dir(vimdir: Option<&CStr>) -> Option<std::ffi::CString> {
         return None;
     }
     let p_cstr = concat_fnames(
-        NvimString {
-            data: crate::strings::ByteSlice::from_cstr(vimdir),
-            size: vimdir.to_bytes().len(),
-        },
-        NvimString {
-            data: crate::strings::ByteSlice::from_cstr(RUNTIME_DIRNAME),
-            size: 7,
-        },
+        NvimString::from_cstr(vimdir),
+        NvimString::from_cstr(RUNTIME_DIRNAME),
         true,
     );
     os_isdir(&p_cstr).then_some(p_cstr)

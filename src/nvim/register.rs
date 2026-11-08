@@ -1562,18 +1562,18 @@ pub fn do_put(
                 )
                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if tmp.is_null() {
-                    expr_y_array.push(NvimString {
-                        data: crate::strings::ByteSlice::from_ptr(ptr_),
-                        size: ptrlen,
-                    });
+                    expr_y_array.push(NvimString::from_bytes_len(
+                        crate::strings::ByteSlice::from_ptr(ptr_).unwrap_or(b"\0"),
+                        ptrlen,
+                    ));
                 } else {
                     *crate::globals::GraphPtr::of(tmp).borrow_mut() = NUL as _;
 
                     let item_size = (tmp as usize) - (ptr_ as usize);
-                    expr_y_array.push(NvimString {
-                        data: crate::strings::ByteSlice::from_ptr(ptr_),
-                        size: item_size,
-                    });
+                    expr_y_array.push(NvimString::from_bytes_len(
+                        crate::strings::ByteSlice::from_ptr(ptr_).unwrap_or(b"\0"),
+                        item_size,
+                    ));
                     ptrlen -= item_size + 1;
                     tmp = tmp.wrapping_add(1);
                     if crate::strings::AsByteSlice::is_empty_val(tmp) {

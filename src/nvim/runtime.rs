@@ -1115,10 +1115,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         let cur_entry_slice = entry;
         let buflen = copy_option_part(&mut entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
 
-        let the_entry = NvimString {
-            data: crate::strings::ByteSlice::from_bytes(&cur_entry_slice[..buflen]),
-            size: buflen,
-        };
+        let the_entry = NvimString::from_bytes(&cur_entry_slice[..buflen]);
 
         pack_entries.push(the_entry);
         pack_used.insert(cur_entry_slice[..buflen].to_vec(), 0);
@@ -1328,11 +1325,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 
     'block: {
         let mut fname_len = ffname_owned.as_bytes().len();
-        let buf_data = [0u8; MAXPATHL];
-        let mut buf = NvimString {
-            data: crate::strings::ByteSlice::from_bytes(&buf_data),
-            size: 0,
-        };
+        let mut buf_data = [0u8; MAXPATHL];
 
         let mut insp = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
         let mut after_insp = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
@@ -1345,20 +1338,18 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             let cur_entry = entry;
             let mut entry_bytes = crate::strings::ByteSlice::from_ptr(entry).as_bytes();
             let old_len = entry_bytes.len();
-            let dst = crate::globals::GraphPtr::raw_slice_mut(buf.data.cast::<u8>(), MAXPATHL);
-            buf.size = copy_option_part(&mut entry_bytes, dst, c",");
+            let buf_size = copy_option_part(&mut entry_bytes, &mut buf_data, c",");
             entry = entry.wrapping_add(old_len - entry_bytes.len());
 
-            p_rtp_len += if *crate::globals::GraphPtr::of(cur_entry.wrapping_add(buf.size)).borrow()
+            p_rtp_len += if *crate::globals::GraphPtr::of(cur_entry.wrapping_add(buf_size)).borrow()
                 == b','
             {
-                buf.size + 1
+                buf_size + 1
             } else {
-                buf.size
+                buf_size
             };
 
-            let is_after = buf
-                .cstr_bytes()
+            let is_after = buf_data[..buf_size]
                 .windows(5)
                 .position(|w| w == b"after")
                 .is_some_and(|i| {
@@ -1378,11 +1369,9 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             }
 
             if insp.is_null() {
-                add_pathsep(crate::globals::GraphPtr::raw_slice_mut(
-                    buf.data.cast::<u8>(),
-                    buf.data.len() + 3,
-                ));
-                let Some(rtp_ffname) = fix_fname(buf.as_opt_cstr()) else {
+                add_pathsep(&mut buf_data[..buf_size + 3]);
+                let Some(rtp_ffname) = fix_fname(Some(crate::memory::bytes_as_cstr(&buf_data)))
+                else {
                     break 'block;
                 };
                 if path_cmp(
@@ -1405,10 +1394,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let fname_cstr = crate::strings::ByteSlice::from_ptr(fname).as_cstr();
         fname_len = fname_cstr.to_bytes().len();
         let ad = crate::path::concat_fnames_cstr(fname_cstr, c"after", true);
-        let mut afterdir = NvimString {
-            data: crate::strings::ByteSlice::from_cstr(&ad),
-            size: ad.as_bytes().len(),
-        };
+        let mut afterdir = NvimString::from_cstr(&ad);
         let afterdir_has_entries = if is_pack {
             pack_has_entries(&ad)
         } else {
@@ -1459,10 +1445,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         }
         let new_rtp_size = new_rtp_vec.len();
         new_rtp_vec.push(0);
-        let new_rtp = NvimString {
-            data: crate::strings::ByteSlice::from_bytes(&new_rtp_vec),
-            size: new_rtp_size,
-        };
+        let new_rtp = NvimString::from_bytes_len(&new_rtp_vec, new_rtp_size);
 
         let was_valid = rt_st().runtime_search_path_valid;
         set_option_value_give_err(K_OPT_RUNTIMEPATH, string_obj(new_rtp), 0);

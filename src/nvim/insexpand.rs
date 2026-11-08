@@ -2898,10 +2898,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
         do_c_expr_indent();
     }
     let word = match word_owned {
-        Some(ref w) => NvimString {
-            data: crate::strings::ByteSlice::from_cstr(w),
-            size: w.as_bytes().len(),
-        },
+        Some(ref w) => NvimString::from_cstr(w),
         None => empty_nvim_string(),
     };
     do_autocmd_completedone(c, prev_mode, Some(&word));

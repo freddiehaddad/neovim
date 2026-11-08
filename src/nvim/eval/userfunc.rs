@@ -528,10 +528,7 @@ fn get_lambda_name() -> NvimString {
         c"<lambda>%d",
         uf_st().lambda_no
     );
-    NvimString {
-        data: crate::strings::ByteSlice::from_bytes(&uf_st().lambda_name),
-        size,
-    }
+    NvimString::from_bytes_len(&uf_st().lambda_name, size)
 }
 
 /// Allocate a `UserFunc` for a function called `name`.

@@ -1178,10 +1178,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         size: 4,
         capacity: 4,
     };
-    let s = NvimString {
-        data: crate::strings::ByteSlice::from_cstr(c"return vim._cs_remote(...)"),
-        size: 26,
-    };
+    let s = NvimString::from_cstr(c"return vim._cs_remote(...)");
     let o = nlua_exec(s, None, a, K_RET_OBJECT, None, &mut err);
     drop(args_vec);
     if err.err_type != ErrorType::ErrorTypeNone {

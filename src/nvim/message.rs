@@ -403,10 +403,7 @@ fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
         g_st().msg_grid.handle as Integer,
         row as Integer,
         scrolled,
-        NvimString {
-            data: crate::strings::ByteSlice::from_bytes(&buf),
-            size,
-        },
+        NvimString::from_bytes_len(&buf, size),
         g_st().msg_grid.zindex as Integer,
         g_st().msg_grid.comp_index as Integer,
     );
@@ -2351,10 +2348,7 @@ pub fn str2special(
         *sp = rem;
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
-            data.key = NvimString {
-                data: crate::strings::ByteSlice::from_cstr(p),
-                size: p.to_bytes().len(),
-            };
+            data.key = NvimString::from_cstr(p);
             data.key_alt = NvimString::new();
         }
         return p;
@@ -2404,27 +2398,17 @@ pub fn str2special(
         );
     }
 
-    let buf_slice = crate::strings::ByteSlice::from_bytes(&msg_st().str2_special_buf);
+    let buf_slice = NvimString::from_bytes_len(&msg_st().str2_special_buf, 1);
     if data.is_some() {
         data.as_deref_mut().unwrap().mods = 0;
         if (b'A' as i32..=b'Z' as i32).contains(&c) {
             data.as_deref_mut().unwrap().key_mem = (c + 32) as u8;
-            data.as_deref_mut().unwrap().key = NvimString {
-                data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(
-                    &data.as_deref_mut().unwrap().key_mem,
-                )),
-                size: 1,
-            };
+            data.as_deref_mut().unwrap().key =
+                NvimString::from_bytes(std::slice::from_ref(&data.as_deref_mut().unwrap().key_mem));
             data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
-            data.as_deref_mut().unwrap().key_alt = NvimString {
-                data: buf_slice,
-                size: 1,
-            };
+            data.as_deref_mut().unwrap().key_alt = buf_slice;
         } else {
-            data.as_deref_mut().unwrap().key = NvimString {
-                data: buf_slice,
-                size: 1,
-            };
+            data.as_deref_mut().unwrap().key = buf_slice;
             data.unwrap().key_alt = NvimString::new();
         }
     }
@@ -3138,10 +3122,7 @@ fn inc_msg_scrolled() {
                 sname,
                 i64::from(sourcing_lnum()),
             );
-            NvimString {
-                data: crate::strings::ByteSlice::from_bytes(&tofree_vec),
-                size,
-            }
+            NvimString::from_bytes_len(&tofree_vec, size)
         } else {
             cstr_as_string(Some(gettext(c"Unknown")))
         };

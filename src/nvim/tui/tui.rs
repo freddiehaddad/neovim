@@ -2092,10 +2092,7 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
         capacity: 2,
     };
     let str_bytes = terminfo_info_msg(&tui.ti, tui.term.as_deref(), tui.terminfo_found_in_db);
-    let str_val = NvimString {
-        data: crate::strings::ByteSlice::from_bytes(&str_bytes),
-        size: str_bytes.len(),
-    };
+    let str_val = NvimString::from_bytes(&str_bytes);
     let mut info_items = [string_obj(str_val)];
     let info = Array {
         items: crate::globals::GraphPtr::new(info_items.as_mut_ptr()),

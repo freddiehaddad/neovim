@@ -2554,10 +2554,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
 
         errmsg = set_option_value(
             K_OPT_KEYMAP,
-            string_obj(NvimString {
-                data: crate::strings::ByteSlice::from_cstr(c"arabic"),
-                size: "arabic".len(),
-            }),
+            string_obj(NvimString::from_cstr(c"arabic")),
             OPT_LOCAL,
             true,
             args.os_errbuf,

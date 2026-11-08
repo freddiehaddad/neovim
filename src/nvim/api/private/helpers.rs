@@ -727,26 +727,14 @@ pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
 
 pub fn cstrn_as_string(str_: &[u8]) -> NvimString {
     if str_.is_empty() {
-        return NvimString {
-            data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
-            size: 0,
-        };
+        return NvimString::empty_cstr();
     }
     let size = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
-    NvimString {
-        data: crate::strings::ByteSlice::from_bytes(str_),
-        size,
-    }
+    NvimString::from_bytes_len(str_, size)
 }
 
 pub fn cstr_as_string(str_: Option<&CStr>) -> NvimString {
-    let Some(str_) = str_ else {
-        return NvimString::new();
-    };
-    NvimString {
-        data: crate::strings::ByteSlice::from_cstr(str_),
-        size: str_.to_bytes().len(),
-    }
+    NvimString::from_opt_cstr(str_)
 }
 
 pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Array {
@@ -856,10 +844,11 @@ pub fn buf_get_text(
         return rv;
     }
 
-    NvimString {
-        data: crate::strings::ByteSlice::from_ptr(bufstr.wrapping_add(start_col as usize)),
-        size: (end_col - start_col) as usize,
-    }
+    NvimString::from_bytes_len(
+        crate::strings::ByteSlice::from_ptr(bufstr.wrapping_add(start_col as usize))
+            .unwrap_or(b"\0"),
+        (end_col - start_col) as usize,
+    )
 }
 
 pub fn api_free_string(value: NvimString) {
@@ -917,10 +906,7 @@ pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
             size: bytes.len(),
         }
     } else {
-        NvimString {
-            data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
-            size: 0,
-        }
+        NvimString::empty_cstr()
     }
 }
 
@@ -4328,10 +4314,7 @@ pub fn api_metadata() -> Object {
 
 pub fn api_metadata_raw() -> NvimString {
     let packed = api_get_packed_metadata();
-    NvimString {
-        data: crate::strings::ByteSlice::from_bytes(packed),
-        size: packed.len(),
-    }
+    NvimString::from_bytes(packed)
 }
 
 #[cfg(test)]

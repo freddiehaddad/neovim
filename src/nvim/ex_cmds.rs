@@ -3836,10 +3836,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             if crate::strings::AsByteSlice::first_byte_val(cmd) != b'&' {
                 which_pat = RE_SEARCH;
             }
-            pat = NvimString {
-                data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
-                size: 0,
-            };
+            pat = NvimString::empty_cstr();
             delimiter = i32::from(crate::strings::AsByteSlice::first_byte_val(cmd));
             cmd = cmd.wrapping_add(1);
             has_second_delim = true;

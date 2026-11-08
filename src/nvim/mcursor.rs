@@ -905,10 +905,7 @@ pub fn mc_ins_cascade() {
     let mut start = INIT_POS;
     let mut end = INIT_POS;
     let ins_cstr = redo_keys(None);
-    let ins = NvimString {
-        data: crate::strings::ByteSlice::from_opt_cstr(ins_cstr.as_deref()),
-        size: ins_cstr.as_ref().map_or(0, |s| s.as_bytes().len()),
-    };
+    let ins = NvimString::from_opt_cstr(ins_cstr.as_deref());
 
     if mc_st().mc_ins_span.first {
         if !g_st().ins_global.did_ai && !ins.data.is_null() && ins.size > 0 {
@@ -1137,10 +1134,7 @@ pub fn mc_vsel_refresh() {
     if span_cstr.as_bytes().is_empty() || !mc_buf_has_cursors(curbuf_mut()) {
         return;
     }
-    let span = NvimString {
-        data: crate::strings::ByteSlice::from_cstr(&span_cstr),
-        size: span_cstr.to_bytes().len(),
-    };
+    let span = NvimString::from_cstr(&span_cstr);
 
     let mut sb = McSandbox::new();
     mc_sandbox_enter(&mut sb, false);
@@ -1235,10 +1229,7 @@ pub fn mc_ins_commit() -> bool {
     mc_st().mc_ins_span.vsel = None;
 
     if ins_cascaded && let Some(ins_cstr) = redo_keys(None) {
-        let ins = NvimString {
-            data: crate::strings::ByteSlice::from_cstr(&ins_cstr),
-            size: ins_cstr.as_bytes().len(),
-        };
+        let ins = NvimString::from_cstr(&ins_cstr);
         if ins.size > mc_st().mc_ins_span.done_len && ins.as_bytes().last() == Some(&ESC) {
             mc_ins_span_flush(&ins, true);
         }

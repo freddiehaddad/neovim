@@ -2455,10 +2455,7 @@ pub fn get_last_insert() -> NvimString {
         let skip = ins_st().last_insert_skip as usize;
         let bytes = li.as_bytes_with_nul();
         let skip = skip.min(bytes.len() - 1);
-        NvimString {
-            data: crate::strings::ByteSlice::from_bytes(&bytes[skip..]),
-            size: (bytes.len() - 1).saturating_sub(skip),
-        }
+        NvimString::from_bytes_len(&bytes[skip..], (bytes.len() - 1).saturating_sub(skip))
     } else {
         NvimString::new()
     }
