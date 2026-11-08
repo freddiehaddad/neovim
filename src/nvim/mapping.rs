@@ -1333,38 +1333,31 @@ pub fn set_context_in_map_cmd(
             let bytes = unsafe { CStr::from_ptr(arg.cast()) }.to_bytes();
             if bytes.starts_with(b"<buffer>") {
                 map_st().expand_buffer = true;
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(8 + crate::charset::skipwhite_len(&bytes[8..]));
                 continue;
             }
             if bytes.starts_with(b"<unique>") {
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(8 + crate::charset::skipwhite_len(&bytes[8..]));
                 continue;
             }
             if bytes.starts_with(b"<nowait>") {
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(8 + crate::charset::skipwhite_len(&bytes[8..]));
                 continue;
             }
             if bytes.starts_with(b"<silent>") {
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(8 + crate::charset::skipwhite_len(&bytes[8..]));
                 continue;
             }
             if bytes.starts_with(b"<special>") {
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(9).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(9 + crate::charset::skipwhite_len(&bytes[9..]));
                 continue;
             }
             if bytes.starts_with(b"<script>") {
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(8 + crate::charset::skipwhite_len(&bytes[8..]));
                 continue;
             }
             if bytes.starts_with(b"<expr>") {
-                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6).cast::<std::ffi::c_char>())
-                    .cast();
+                arg = arg.wrapping_add(6 + crate::charset::skipwhite_len(&bytes[6..]));
                 continue;
             }
             break;

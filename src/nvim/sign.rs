@@ -1,12 +1,11 @@
 //! Functions for managing signs (`src/nvim/sign.c`).
+#![forbid(unsafe_code)]
 
 use crate::api::extmark::{describe_ns, nvim_create_namespace};
 use crate::api::private::helpers::cstr_as_string;
 
 use crate::buffer::{FileBuf, buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
-use crate::charset::{
-    NUL, ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, vim_isprintc,
-};
+use crate::charset::{ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, vim_isprintc};
 use crate::cursor::{Linenr, check_cursor_lnum};
 use crate::decoration::{
     DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorSignHighlight, K_SHIS_SIGN, NS,
@@ -739,58 +738,57 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
 }
 
 fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
-    let mut cmdline = cmdline_in.as_mut_ptr().cast::<std::ffi::c_char>();
-    let mut icon = ptr::null_mut();
-    let mut text = ptr::null_mut();
-    let mut linehl = ptr::null_mut();
-    let mut texthl = ptr::null_mut();
-    let mut culhl = ptr::null_mut();
-    let mut numhl = ptr::null_mut();
+    let mut cmd_idx = 0usize;
+    let mut icon_off: Option<usize> = None;
+    let mut text_off: Option<usize> = None;
+    let mut linehl_off: Option<usize> = None;
+    let mut texthl_off: Option<usize> = None;
+    let mut culhl_off: Option<usize> = None;
+    let mut numhl_off: Option<usize> = None;
     let mut prio: i32 = -1;
 
     loop {
-        let arg = crate::charset::skipwhite_ptr(cmdline);
-        if unsafe { *arg } == 0 {
+        let arg_idx = cmd_idx + crate::charset::skipwhite_len(&cmdline_in[cmd_idx..]);
+        if cmdline_in.get(arg_idx).copied().unwrap_or(0) == 0 {
             break;
         }
-        cmdline = crate::charset::skiptowhite_esc_ptr(arg);
-        let arg_cstr = unsafe { CStr::from_ptr(arg) };
+        cmd_idx = arg_idx + crate::charset::skiptowhite_esc_len(&cmdline_in[arg_idx..]);
+        let arg_cstr = crate::memory::bytes_as_cstr(&cmdline_in[arg_idx..]);
         let arg_bytes = arg_cstr.to_bytes();
         if arg_bytes.starts_with(b"icon=") {
-            icon = arg.wrapping_add(5);
+            icon_off = Some(arg_idx + 5);
         } else if arg_bytes.starts_with(b"text=") {
-            text = arg.wrapping_add(5);
+            text_off = Some(arg_idx + 5);
         } else if arg_bytes.starts_with(b"linehl=") {
-            linehl = arg.wrapping_add(7);
+            linehl_off = Some(arg_idx + 7);
         } else if arg_bytes.starts_with(b"texthl=") {
-            texthl = arg.wrapping_add(7);
+            texthl_off = Some(arg_idx + 7);
         } else if arg_bytes.starts_with(b"culhl=") {
-            culhl = arg.wrapping_add(6);
+            culhl_off = Some(arg_idx + 6);
         } else if arg_bytes.starts_with(b"numhl=") {
-            numhl = arg.wrapping_add(6);
+            numhl_off = Some(arg_idx + 6);
         } else if let Some(rest) = arg_bytes.strip_prefix(b"priority=") {
             prio = crate::charset::parse_i64_prefix(rest) as i32;
         } else {
             semsg!(gettext(E_INVARG2), arg_cstr);
             return;
         }
-        if unsafe { *cmdline } == 0 {
+        if cmdline_in.get(cmd_idx).copied().unwrap_or(0) == 0 {
             break;
         }
 
-        *crate::globals::GraphPtr::of(cmdline).borrow_mut() = NUL as _;
-
-        cmdline = cmdline.wrapping_add(1);
+        cmdline_in[cmd_idx] = 0;
+        cmd_idx += 1;
     }
 
     sign_define_by_name(
         name,
-        (!icon.is_null()).then(|| unsafe { CStr::from_ptr(icon) }),
-        (!text.is_null()).then(|| unsafe { CStr::from_ptr(text) }),
-        (!linehl.is_null()).then(|| unsafe { CStr::from_ptr(linehl) }),
-        (!texthl.is_null()).then(|| unsafe { CStr::from_ptr(texthl) }),
-        (!culhl.is_null()).then(|| unsafe { CStr::from_ptr(culhl) }),
-        (!numhl.is_null()).then(|| unsafe { CStr::from_ptr(numhl) }),
+        icon_off.map(|off| crate::memory::bytes_as_cstr(&cmdline_in[off..])),
+        text_off.map(|off| crate::memory::bytes_as_cstr(&cmdline_in[off..])),
+        linehl_off.map(|off| crate::memory::bytes_as_cstr(&cmdline_in[off..])),
+        texthl_off.map(|off| crate::memory::bytes_as_cstr(&cmdline_in[off..])),
+        culhl_off.map(|off| crate::memory::bytes_as_cstr(&cmdline_in[off..])),
+        numhl_off.map(|off| crate::memory::bytes_as_cstr(&cmdline_in[off..])),
         prio,
     );
 }
@@ -879,30 +877,32 @@ fn parse_sign_cmd_args<'a>(
     buf: &mut Option<&'static mut FileBuf>,
     lnum: &mut Linenr,
 ) -> bool {
-    let mut arg = arg_in.as_mut_ptr().cast::<std::ffi::c_char>();
-    let arg1 = arg;
-    let mut filename = ptr::null_mut();
+    let mut arg_idx = 0usize;
+    let mut filename_off: Option<usize> = None;
+    let mut name_off: Option<usize> = None;
+    let mut group_off: Option<usize> = None;
     let mut lnum_arg = false;
 
-    if ascii_isdigit(unsafe { *arg } as u8) {
-        let arg_bytes = unsafe { CStr::from_ptr(arg) }.to_bytes();
+    if ascii_isdigit(arg_in.first().copied().unwrap_or(0)) {
+        let arg_bytes = crate::memory::bytes_until_nul(arg_in);
         let mut rem = arg_bytes;
         *id = getdigits_int(&mut rem, true, 0);
-        arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-        if !ascii_iswhite(unsafe { *arg } as u8) && unsafe { *arg } != 0 {
+        arg_idx = arg_bytes.len() - rem.len();
+        let next_b = arg_in.get(arg_idx).copied().unwrap_or(0);
+        if !ascii_iswhite(next_b) && next_b != 0 {
             *id = -1;
-            arg = arg1;
+            arg_idx = 0;
         } else {
-            arg = crate::charset::skipwhite_ptr(arg);
+            arg_idx += crate::charset::skipwhite_len(&arg_in[arg_idx..]);
         }
     }
 
-    while unsafe { *arg } != 0 {
-        let arg_bytes = unsafe { CStr::from_ptr(arg) }.to_bytes();
+    while arg_in.get(arg_idx).copied().unwrap_or(0) != 0 {
+        let arg_bytes = crate::memory::bytes_until_nul(&arg_in[arg_idx..]);
         if arg_bytes.starts_with(b"line=") {
-            arg = arg.wrapping_add(5);
+            arg_idx += 5;
             *lnum = crate::charset::parse_i64_prefix(&arg_bytes[5..]) as i32;
-            arg = crate::charset::skiptowhite_ptr(arg);
+            arg_idx += crate::charset::skiptowhite_len(&arg_in[arg_idx..]);
             lnum_arg = true;
         } else if arg_bytes.starts_with(b"*") && cmd == SIGNCMD_UNPLACE {
             if *id != -1 {
@@ -910,118 +910,128 @@ fn parse_sign_cmd_args<'a>(
                 return false;
             }
             *id = -2;
-            arg = crate::charset::skiptowhite_ptr(arg.wrapping_add(1));
+            arg_idx += 1 + crate::charset::skiptowhite_len(&arg_in[arg_idx + 1..]);
         } else if arg_bytes.starts_with(b"name=") {
-            arg = arg.wrapping_add(5);
-            let mut namep = arg;
-            arg = crate::charset::skiptowhite_ptr(arg);
-            if unsafe { *arg } != 0 {
-                *crate::globals::GraphPtr::of(arg).borrow_mut() = NUL as _;
-                arg = arg.wrapping_add(1);
+            arg_idx += 5;
+            let mut namep = arg_idx;
+            arg_idx += crate::charset::skiptowhite_len(&arg_in[arg_idx..]);
+            if arg_in.get(arg_idx).copied().unwrap_or(0) != 0 {
+                arg_in[arg_idx] = 0;
+                arg_idx += 1;
             }
-            while *crate::globals::GraphPtr::of(namep).borrow() as u8 == b'0'
-                && *crate::globals::GraphPtr::of(namep.wrapping_add(1)).borrow() != 0
+            while arg_in.get(namep).copied() == Some(b'0')
+                && arg_in.get(namep + 1).copied().unwrap_or(0) != 0
             {
-                namep = namep.wrapping_add(1);
+                namep += 1;
             }
-            *name = Some(unsafe { CStr::from_ptr(namep) });
+            name_off = Some(namep);
         } else if arg_bytes.starts_with(b"group=") {
-            arg = arg.wrapping_add(6);
-            let groupp = arg;
-            arg = crate::charset::skiptowhite_ptr(arg);
-            if unsafe { *arg } != 0 {
-                *crate::globals::GraphPtr::of(arg).borrow_mut() = NUL as _;
-                arg = arg.wrapping_add(1);
+            arg_idx += 6;
+            let groupp = arg_idx;
+            arg_idx += crate::charset::skiptowhite_len(&arg_in[arg_idx..]);
+            if arg_in.get(arg_idx).copied().unwrap_or(0) != 0 {
+                arg_in[arg_idx] = 0;
+                arg_idx += 1;
             }
-            *group = Some(unsafe { CStr::from_ptr(groupp) });
+            group_off = Some(groupp);
         } else if arg_bytes.starts_with(b"priority=") {
-            arg = arg.wrapping_add(9);
+            arg_idx += 9;
             *prio = crate::charset::parse_i64_prefix(&arg_bytes[9..]) as i32;
-            arg = crate::charset::skiptowhite_ptr(arg);
+            arg_idx += crate::charset::skiptowhite_len(&arg_in[arg_idx..]);
         } else if arg_bytes.starts_with(b"file=") {
-            arg = arg.wrapping_add(5);
-            filename = arg;
-            *buf = buflist_findname_exp(Some(unsafe { CStr::from_ptr(arg) }));
+            arg_idx += 5;
+            filename_off = Some(arg_idx);
+            *buf = buflist_findname_exp(Some(crate::memory::bytes_as_cstr(&arg_in[arg_idx..])));
             break;
         } else if arg_bytes.starts_with(b"buffer=") {
-            arg = arg.wrapping_add(7);
-            filename = arg;
-            let arg_bytes = unsafe { CStr::from_ptr(arg) }.to_bytes();
+            arg_idx += 7;
+            filename_off = Some(arg_idx);
+            let arg_bytes = crate::memory::bytes_until_nul(&arg_in[arg_idx..]);
             let mut rem = arg_bytes;
             *buf = buflist_findnr(getdigits_int(&mut rem, true, 0));
-            arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-            if *crate::globals::GraphPtr::of(crate::charset::skipwhite_ptr(arg)).borrow() != 0 {
-                semsg!(gettext(E_TRAILING_ARG), unsafe { CStr::from_ptr(arg) });
+            arg_idx += arg_bytes.len() - rem.len();
+            if !crate::charset::skipwhite_slice(crate::memory::bytes_until_nul(&arg_in[arg_idx..]))
+                .is_empty()
+            {
+                semsg!(
+                    gettext(E_TRAILING_ARG),
+                    crate::memory::bytes_as_cstr(&arg_in[arg_idx..]),
+                );
             }
             break;
         } else {
             emsg(gettext(E_INVARG));
             return false;
         }
-        arg = crate::charset::skipwhite_ptr(arg);
+        arg_idx += crate::charset::skipwhite_len(&arg_in[arg_idx..]);
     }
 
-    if !filename.is_null() && buf.is_none() {
-        semsg!(gettext(E_INVALID_BUFFER_NAME_STR), unsafe {
-            CStr::from_ptr(filename)
-        });
+    if let Some(off) = name_off {
+        *name = Some(crate::memory::bytes_as_cstr(&arg_in[off..]));
+    }
+    if let Some(off) = group_off {
+        *group = Some(crate::memory::bytes_as_cstr(&arg_in[off..]));
+    }
+
+    if let Some(off) = filename_off
+        && buf.is_none()
+    {
+        semsg!(
+            gettext(E_INVALID_BUFFER_NAME_STR),
+            crate::memory::bytes_as_cstr(&arg_in[off..]),
+        );
         return false;
     }
 
-    if filename.is_null() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
+    if filename_off.is_none() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
         *buf = curwin_mut().w_buffer.opt_mut();
     }
     true
 }
 
 pub fn ex_sign(eap: &mut Exarg) {
-    let mut arg = eap
-        .arg_cstr_buf_mut()
-        .as_mut_ptr()
-        .cast::<std::ffi::c_char>();
-
-    let mut p = crate::charset::skiptowhite_ptr(arg);
-    let idx = sign_cmd_idx(crate::globals::GraphPtr::raw_slice(
-        arg.cast::<u8>(),
-        (p as usize).saturating_sub(arg as usize),
-    ));
+    let arg_buf = eap.arg_cstr_buf_mut();
+    let p_off = crate::charset::skiptowhite_len(arg_buf);
+    let idx = sign_cmd_idx(&arg_buf[..p_off]);
     if idx == SIGNCMD_LAST {
-        semsg!(gettext(c"E160: Unknown sign command: %s"), unsafe {
-            CStr::from_ptr(arg)
-        });
+        semsg!(
+            gettext(c"E160: Unknown sign command: %s"),
+            crate::memory::bytes_as_cstr(arg_buf),
+        );
         return;
     }
-    arg = crate::charset::skipwhite_ptr(p);
+    let mut arg_off = p_off + crate::charset::skipwhite_len(&arg_buf[p_off..]);
 
     if idx <= SIGNCMD_LIST {
-        if idx == SIGNCMD_LIST && unsafe { *arg } == 0 {
+        let first_b = arg_buf.get(arg_off).copied().unwrap_or(0);
+        if idx == SIGNCMD_LIST && first_b == 0 {
             for sp in &mut sign_st().sign_map {
                 sign_list_defined(sp);
             }
-        } else if unsafe { *arg } == 0 {
+        } else if first_b == 0 {
             emsg(gettext(c"E156: Missing sign name"));
         } else {
-            p = crate::charset::skiptowhite_ptr(arg);
-            if unsafe { *p } != 0 {
-                *crate::globals::GraphPtr::of(p).borrow_mut() = NUL as _;
-
-                p = p.wrapping_add(1);
+            let mut p_off = arg_off + crate::charset::skiptowhite_len(&arg_buf[arg_off..]);
+            if arg_buf.get(p_off).copied().unwrap_or(0) != 0 {
+                arg_buf[p_off] = 0;
+                p_off += 1;
             }
-            while *crate::globals::GraphPtr::of(arg).borrow() as u8 == b'0'
-                && *crate::globals::GraphPtr::of(arg.wrapping_add(1)).borrow() != 0
+            while arg_buf.get(arg_off).copied() == Some(b'0')
+                && arg_buf.get(arg_off + 1).copied().unwrap_or(0) != 0
             {
-                arg = arg.wrapping_add(1);
+                arg_off += 1;
             }
-            let arg_cstr = unsafe { CStr::from_ptr(arg) };
 
             if idx == SIGNCMD_DEFINE {
-                let p_len = unsafe { CStr::from_ptr(p) }.to_bytes().len();
-                let p_slice = crate::globals::GraphPtr::raw_slice_mut(p.cast::<u8>(), p_len + 1);
-                sign_define_cmd(arg_cstr, p_slice);
-            } else if idx == SIGNCMD_LIST {
-                sign_list_by_name(arg_cstr);
+                let arg_cstr = crate::memory::cstring_until_nul(&arg_buf[arg_off..]);
+                sign_define_cmd(arg_cstr.as_c_str(), &mut arg_buf[p_off..]);
             } else {
-                sign_undefine_by_name(arg_cstr);
+                let arg_cstr = crate::memory::bytes_as_cstr(&arg_buf[arg_off..]);
+                if idx == SIGNCMD_LIST {
+                    sign_list_by_name(arg_cstr);
+                } else {
+                    sign_undefine_by_name(arg_cstr);
+                }
             }
         }
     } else {
@@ -1032,10 +1042,15 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut prio: i32 = -1;
         let mut buf: Option<&mut FileBuf> = None;
 
-        let arg_len = unsafe { CStr::from_ptr(arg) }.to_bytes().len();
-        let arg_slice = crate::globals::GraphPtr::raw_slice_mut(arg.cast::<u8>(), arg_len + 1);
         if !parse_sign_cmd_args(
-            idx, arg_slice, &mut name, &mut id, &mut group, &mut prio, &mut buf, &mut lnum,
+            idx,
+            &mut arg_buf[arg_off..],
+            &mut name,
+            &mut id,
+            &mut group,
+            &mut prio,
+            &mut buf,
+            &mut lnum,
         ) {
             return;
         }

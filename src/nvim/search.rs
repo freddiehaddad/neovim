@@ -3448,7 +3448,9 @@ pub fn find_pattern_in_path(
 
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
-                            startp = crate::charset::skipwhite_ptr(p);
+                            startp = p.wrapping_add(crate::charset::skipwhite_len(
+                                unsafe { CStr::from_ptr(p) }.to_bytes(),
+                            ));
                             let start_bytes = unsafe { CStr::from_ptr(startp) }.to_bytes();
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(start_bytes, pat_bytes, len) == 0;
@@ -3579,7 +3581,9 @@ pub fn find_pattern_in_path(
                                     }
 
                                     if !skip_add {
-                                        p = crate::charset::skipwhite_ptr(line);
+                                        p = line.wrapping_add(crate::charset::skipwhite_len(
+                                            unsafe { CStr::from_ptr(line) }.to_bytes(),
+                                        ));
                                         aux = p;
                                         already = p;
                                         p = find_word_start(

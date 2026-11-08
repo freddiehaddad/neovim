@@ -2672,11 +2672,10 @@ pub fn win_line(
                     if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                         spell_attr = 0;
                         if mb_schar != 0
-                            && *crate::globals::GraphPtr::of(crate::charset::skipwhite_ptr(
-                                prev_ptr,
-                            ))
-                            .borrow()
-                                != NUL
+                            && !crate::charset::skipwhite_slice(
+                                unsafe { CStr::from_ptr(prev_ptr) }.to_bytes(),
+                            )
+                            .is_empty()
                             && can_spell
                         {
                             let mut spell_hlf: Hlf = HLF_COUNT;
@@ -3910,13 +3909,13 @@ fn decor_providers_setup(
 }
 
 fn invoke_range_next(wp: &mut WinInfoInfo, lnum: i32, begin_col: Colnr, mut col_off: Colnr) -> i32 {
-    let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
+    let line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
     let line_len = ml_get_buf_len(wp.buf_mut(), lnum);
     col_off = col_off.max(1);
 
     if col_off <= line_len - begin_col {
         let mut end_col = begin_col + col_off;
-        end_col += crate::mbyte::mb_off_next_ptr(line, line.wrapping_add(end_col as usize));
+        end_col += crate::mbyte::mb_off_next(line_bytes, end_col as usize);
         decor_providers_invoke_range(wp, lnum - 1, begin_col, lnum - 1, end_col);
         validate_virtcol(wp);
         end_col

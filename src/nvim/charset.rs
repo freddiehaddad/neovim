@@ -1,4 +1,5 @@
 //! Code related to character sets (`src/nvim/charset.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::FileBuf;
 use crate::globals::*;
@@ -851,79 +852,6 @@ pub fn skipwhite_at(p: &CStr, offset: usize) -> &CStr {
     let off = offset.min(bytes.len());
     let rem = skipwhite_slice(&bytes[off..]);
     crate::memory::CStrSubslice::advance(p, bytes.len() - rem.len())
-}
-
-pub trait CStrPtrSkip: Copy {
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char;
-    fn advance_bytes(self, n: usize) -> Self;
-}
-
-impl CStrPtrSkip for *const i8 {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
-impl CStrPtrSkip for *mut i8 {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
-impl CStrPtrSkip for *const u8 {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
-impl CStrPtrSkip for *mut u8 {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
-#[inline]
-fn c_char_ptr_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
-    if p.is_null() {
-        &[]
-    } else {
-        unsafe { CStr::from_ptr(p) }.to_bytes()
-    }
-}
-
-#[inline]
-pub fn skipwhite_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skipwhite_len(c_char_ptr_bytes(p.as_c_char_ptr())))
-}
-
-#[inline]
-pub fn skiptowhite_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skiptowhite_len(c_char_ptr_bytes(p.as_c_char_ptr())))
-}
-
-#[inline]
-pub fn skiptowhite_esc_ptr<P: CStrPtrSkip>(p: P) -> P {
-    p.advance_bytes(skiptowhite_esc_len(c_char_ptr_bytes(p.as_c_char_ptr())))
 }
 
 #[inline]

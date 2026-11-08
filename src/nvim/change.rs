@@ -939,8 +939,8 @@ pub fn open_line(
         let col_u = curwin_mut().w_cursor.col as usize;
         p_extra = saved_line.wrapping_add(col_u);
         if do_si {
-            let p = crate::charset::skipwhite_ptr(p_extra.cast::<std::ffi::c_char>());
-            first_char = i32::from(*crate::globals::GraphPtr::of(p.cast::<u8>()).borrow());
+            let rem = crate::charset::skipwhite_slice(&saved_line_vec[col_u..]);
+            first_char = i32::from(rem.first().copied().unwrap_or(0));
         }
         extra_len = unsafe { CStr::from_ptr(p_extra.cast()) }.to_bytes().len() as i32;
 
@@ -1218,7 +1218,7 @@ pub fn open_line(
             if p_byte == COM_END {
                 if dir == FORWARD {
                     comment_end =
-                        crate::charset::skipwhite_ptr(saved_line.cast::<std::ffi::c_char>()).cast();
+                        saved_line.wrapping_add(crate::charset::skipwhite_len(&saved_line_vec));
                     lead_len = 0;
                     break;
                 }
@@ -1389,8 +1389,7 @@ pub fn open_line(
                         }
                     }
                 } else {
-                    let mut p = crate::charset::skipwhite_ptr(leader.cast::<std::ffi::c_char>())
-                        .cast::<u8>();
+                    let mut p = leader.wrapping_add(crate::charset::skipwhite_len(&allocated_vec));
                     {
                         let repl_size = vim_strnsize(
                             crate::globals::GraphPtr::raw_slice(
@@ -1487,8 +1486,9 @@ pub fn open_line(
                 }
 
                 while off > 0 && lead_len > 0 && allocated_vec[(lead_len - 1) as usize] == b' ' {
+                    let skip_n = crate::charset::skipwhite_len(&allocated_vec);
                     if crate::strings::vim_haschr(
-                        unsafe { CStr::from_ptr(crate::charset::skipwhite_ptr(leader.cast())) },
+                        crate::memory::bytes_as_cstr(&allocated_vec[skip_n..]),
                         b'\t' as i32,
                     ) {
                         break;

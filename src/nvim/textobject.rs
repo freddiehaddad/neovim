@@ -13,7 +13,7 @@ use crate::indent::inindent;
 use crate::insert::oneleft;
 use crate::mark::setpcmark;
 use crate::mbyte::{utf_class, utfc_ptr2len, utfc_slice2len};
-use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len};
+use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get_len};
 use crate::r#move::adjust_skipcol;
 use crate::normal::{FM_FORWARD, lineempty, unadjust_for_sel};
 use crate::option_vars::*;
@@ -714,41 +714,32 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
         return true;
     }
 
-    let line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
     let line_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
-    let start = crate::charset::skipwhite_ptr(line);
-    let mut end = line.wrapping_add(line_bytes.len());
-    while end > start {
-        let prev = {
-            let _l = line;
-            let _p = end;
-            if (_p as usize) > (_l as usize) {
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
-            } else {
-                _p
-            }
-        };
-        let prev_idx = (prev as usize) - (line as usize);
+    let start_idx = crate::charset::skipwhite_len(line_bytes);
+    let mut end_idx = line_bytes.len();
+    while end_idx > start_idx {
+        let prev_idx =
+            end_idx - 1 - crate::mbyte::utf_head_off_slice(line_bytes, end_idx - 1) as usize;
         if !ascii_iswhite(i32::from(line_bytes.get(prev_idx).copied().unwrap_or(0))) {
             break;
         }
-        end = prev;
+        end_idx = prev_idx;
     }
-    if start == end {
+    if start_idx == end_idx {
         return false;
     }
 
     let mut start_pos = curwin_mut().w_cursor;
-    start_pos.col = ((start as isize) - (line as isize)) as Colnr;
+    start_pos.col = start_idx as Colnr;
     start_pos.coladd = 0;
 
     let mut end_pos = curwin_mut().w_cursor;
-    let end_prev = if (end as usize) > (line as usize) {
-        end.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(line, end.wrapping_sub(1)) as usize)
+    let end_prev_idx = if end_idx > 0 {
+        end_idx - 1 - crate::mbyte::utf_head_off_slice(line_bytes, end_idx - 1) as usize
     } else {
-        end
+        0
     };
-    end_pos.col = ((end_prev as isize) - (line as isize)) as Colnr;
+    end_pos.col = end_prev_idx as Colnr;
     end_pos.coladd = 0;
 
     if g_st().visual_global.active {

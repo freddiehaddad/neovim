@@ -412,7 +412,9 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                 while *p != b' ' && *p != b'\n' {
                     p = p.add(1);
                 }
-                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
+                while ascii_iswhite(*p) {
+                    p = p.add(1);
+                }
                 count += 1;
             }
         } else if shell_style == STYLE_BT
@@ -428,7 +430,9 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                 if *p != 0 {
                     p = p.add(1);
                 }
-                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
+                while ascii_iswhite(*p) {
+                    p = p.add(1);
+                }
                 count += 1;
             }
         } else {
@@ -487,7 +491,10 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                     *p = 0;
                 } else {
                     *p = 0;
-                    p = crate::charset::skipwhite_ptr(p.add(1).cast::<std::ffi::c_char>()).cast();
+                    p = p.add(1);
+                    while ascii_iswhite(*p) {
+                        p = p.add(1);
+                    }
                 }
             } else {
                 while *p != 0 && (p as usize) < (buffer.add(len) as usize) {

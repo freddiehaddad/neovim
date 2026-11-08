@@ -2708,20 +2708,11 @@ pub fn utf_head_off(base: &[u8], idx: usize) -> i32 {
 
 #[inline]
 pub fn utf_head_off_ptr(
-    base: impl crate::charset::CStrPtrSkip,
-    p: impl crate::charset::CStrPtrSkip,
+    base: impl crate::strings::RawCStrPtr,
+    p: impl crate::strings::RawCStrPtr,
 ) -> i32 {
-    let (b, i) = ptr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
+    let (b, i) = ptr_span_to_char(base.into_raw_c_char_ptr(), p.into_raw_c_char_ptr());
     utf_head_off_slice(b, i)
-}
-
-#[inline]
-pub fn mb_off_next_ptr(
-    base: impl crate::charset::CStrPtrSkip,
-    p: impl crate::charset::CStrPtrSkip,
-) -> i32 {
-    let (b, i) = ptr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
-    mb_off_next(b, i)
 }
 
 pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> ClusterInfo<'a> {

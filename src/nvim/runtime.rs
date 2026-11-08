@@ -574,8 +574,7 @@ fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
 pub fn ex_runtime(eap: &mut Exarg) {
     let mut arg = eap.arg.as_cstr();
     let mut flags = if eap.forceit { DIP_ALL } else { 0 };
-    let p = crate::charset::skiptowhite_ptr(arg.as_ptr());
-    let where_len = (p as usize) - (arg.as_ptr() as usize);
+    let where_len = crate::charset::skiptowhite_len(arg.to_bytes());
     flags += get_runtime_cmd_flags(&mut arg, where_len);
     source_runtime(arg, flags);
 }
@@ -591,7 +590,8 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
     };
     let mut arg_cstr = arg;
     loop {
-        let p = unsafe { CStr::from_ptr(crate::charset::skiptowhite_esc_ptr(arg_cstr.as_ptr())) };
+        let step = crate::charset::skiptowhite_esc_len(arg_cstr.to_bytes());
+        let p = crate::memory::CStrSubslice::advance(arg_cstr, step);
         if p.to_bytes().is_empty() {
             break;
         }
