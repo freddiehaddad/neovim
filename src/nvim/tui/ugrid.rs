@@ -1,4 +1,5 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
+#![forbid(unsafe_code)]
 
 use crate::grid::{Sattr, Schar, schar_from_ascii};
 

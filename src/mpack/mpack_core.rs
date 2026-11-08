@@ -1,4 +1,5 @@
 //! Low-level MessagePack token reader and writer (`src/mpack/mpack_core.c`).
+#![forbid(unsafe_code)]
 
 pub type MpackUint32 = u32;
 pub type MpackSintmax = i64;

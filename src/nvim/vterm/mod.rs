@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 pub mod encoding;
 pub mod keyboard;
 pub mod mouse;

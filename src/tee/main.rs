@@ -2,6 +2,7 @@
 //!
 //! Reads standard input and writes what it reads to standard output and each
 //! specified file.
+#![forbid(unsafe_code)]
 
 use std::env;
 use std::fs::{File, OpenOptions};

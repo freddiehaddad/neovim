@@ -3994,47 +3994,36 @@ fn bt_regexec_both(
     if let Some(off) = prog.regmust_off {
         let regmust_slice = crate::memory::bytes_until_nul(&prog.program[off..]);
         let c = crate::mbyte::utf_slice2char(regmust_slice);
-        let mut s = line
-            .as_cstr()
-            .as_ptr()
-            .cast_mut()
-            .cast::<u8>()
-            .wrapping_add(col as usize);
+        let mut s = line.wrapping_add(col as usize);
         if !re_st().rex.reg_ic {
             loop {
-                s = vim_strchr(unsafe { CStr::from_ptr(s.cast()) }, c)
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                    .cast();
-                if s.is_null() {
+                let s_cstr = s.as_cstr();
+                let Some(found) = vim_strchr(s_cstr, c) else {
+                    s = REG_LINE_NULL;
                     break;
-                }
+                };
+                let found_off = (found.as_ptr() as usize) - (s_cstr.as_ptr() as usize);
+                s = s.wrapping_add(found_off);
                 let mut len = prog.regmlen;
-                if cstrncmp(
-                    unsafe { CStr::from_ptr(s.cast()) }.to_bytes(),
-                    regmust_slice,
-                    &mut len,
-                ) == 0
-                {
+                if cstrncmp(s.as_bytes(), regmust_slice, &mut len) == 0 {
                     break;
                 }
-                let s_cstr = unsafe { CStr::from_ptr(s.cast()) };
-                let step = utfc_ptr2len(s_cstr) as usize;
+                let step = utfc_ptr2len(s) as usize;
                 s = s.wrapping_add(step);
             }
         } else {
             loop {
-                let s_cstr = unsafe { CStr::from_ptr(s.cast()) };
+                let s_cstr = s.as_cstr();
                 let Some(found_off) = cstrchr(s_cstr, c) else {
-                    s = ptr::null_mut();
+                    s = REG_LINE_NULL;
                     break;
                 };
                 s = s.wrapping_add(found_off);
                 let mut len = prog.regmlen;
-                let s_cstr = unsafe { CStr::from_ptr(s.cast()) };
-                if cstrncmp(s_cstr.to_bytes(), regmust_slice, &mut len) == 0 {
+                if cstrncmp(s.as_bytes(), regmust_slice, &mut len) == 0 {
                     break;
                 }
-                let step = utfc_ptr2len(s_cstr) as usize;
+                let step = utfc_ptr2len(s) as usize;
                 s = s.wrapping_add(step);
             }
         }

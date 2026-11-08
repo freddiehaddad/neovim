@@ -1,4 +1,5 @@
 //! Regular expression compilation, execution, and substitution (`src/nvim/regexp.c`).
+#![forbid(unsafe_code)]
 
 use crate::buffer::FileBuf;
 pub(super) use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
@@ -3283,11 +3284,11 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
     if lnum > maxline {
         return Some(b"");
     }
-    let line = ml_get_buf(re_st().rex.buf_mut(), firstlnum)
-        .as_ptr()
-        .cast::<u8>();
-    let len = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum) as usize;
-    Some(unsafe { std::slice::from_raw_parts(line, len) })
+    let _ = ml_get_buf_len;
+    Some(crate::memline::ml_get_buf_slice(
+        re_st().rex.buf_mut(),
+        firstlnum,
+    ))
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {

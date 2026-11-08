@@ -1,5 +1,6 @@
 //! Pure-Rust port of utf8proc Unicode property, case-mapping, decomposition,
 //! and extended grapheme cluster break routines (`utf8proc.c` / `utf8proc_data.c`).
+#![forbid(unsafe_code)]
 
 pub const UTF8PROC_COMPAT: i32 = 1 << 2;
 pub const UTF8PROC_COMPOSE: i32 = 1 << 3;

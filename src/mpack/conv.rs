@@ -1,4 +1,5 @@
 //! MessagePack primitive value packing and unpacking (`src/mpack/conv.c`).
+#![forbid(unsafe_code)]
 
 use crate::mpack::mpack_core::{
     MpackSintmax, MpackToken, MpackTokenArray, MpackTokenBin, MpackTokenBoolean, MpackTokenChunk,

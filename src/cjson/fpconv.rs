@@ -1,4 +1,5 @@
 //! Floating point conversion routines (`src/cjson/fpconv.c`).
+#![forbid(unsafe_code)]
 
 use std::ffi::CStr;
 use std::io::Write;

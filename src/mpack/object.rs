@@ -1,4 +1,5 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
+#![forbid(unsafe_code)]
 
 use crate::globals::{AsGraphPtr, GraphPtr};
 use crate::mpack::mpack_core::{

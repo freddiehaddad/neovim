@@ -1,6 +1,7 @@
 //! FIPS-180-2 compliant SHA-256 implementation.
 //!
 //! Ported from `src/nvim/sha256.c` and `src/nvim/sha256.h`.
+#![forbid(unsafe_code)]
 
 pub const SHA256_BUFFER_SIZE: usize = 64;
 pub const SHA256_SUM_SIZE: usize = 32;

@@ -1,4 +1,5 @@
 //! String buffer routines (`src/cjson/strbuf.c`).
+#![forbid(unsafe_code)]
 
 use std::ffi::CStr;
 

@@ -1,4 +1,5 @@
 //! File differential library (`src/xdiff/`).
+#![forbid(unsafe_code)]
 
 pub mod xdiffi;
 pub mod xemit;

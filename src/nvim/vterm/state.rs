@@ -107,6 +107,7 @@ pub(crate) const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 pub(crate) const CSI_ARG_MISSING: i32 = ((1u32 << 31) - 1) as i32;
 
 /// Primary Device Attributes (DA1) response.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 #[allow(non_upper_case_globals)]
 pub static vterm_primary_device_attr: crate::globals::GlobalState<[u8; 9]> =

@@ -1,4 +1,5 @@
 //! Base64 encoding and decoding (`src/nvim/base64.c`).
+#![forbid(unsafe_code)]
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 

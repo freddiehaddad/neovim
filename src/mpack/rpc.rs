@@ -1,4 +1,5 @@
 //! MessagePack-RPC session state machine (`src/mpack/rpc.c`).
+#![forbid(unsafe_code)]
 
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_OK, MpackTokbuf, MpackToken, MpackTokenArray, MpackTokenUint, MpackUint32,
