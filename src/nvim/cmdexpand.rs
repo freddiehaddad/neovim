@@ -2595,15 +2595,15 @@ fn expand_one_start(
 fn find_longest_match(xp: &mut ExpandCtx, options: i32) -> CString {
     let mut len: usize = 0;
     let files = xp.xp_files.as_slice();
-    let first_file = files[0].as_ptr();
     let first_bytes = files[0].as_bytes();
 
     while len < first_bytes.len() {
-        let mb_len = utfc_ptr2len(first_file.wrapping_add(len)) as usize;
-        let c0 = utf_ptr2char(first_file.wrapping_add(len));
+        let mb_len = utfc_ptr2len(&first_bytes[len..]) as usize;
+        let c0 = utf_ptr2char(&first_bytes[len..]);
         let mut i: usize = 1;
         while (i as i32) < xp.xp_numfiles {
-            let ci = utf_ptr2char(files[i].as_ptr().wrapping_add(len));
+            let ci_bytes = files[i].as_bytes();
+            let ci = utf_ptr2char(ci_bytes.get(len..).unwrap_or(&[]));
 
             if opt_vars().p_fic
                 && (xp.xp_context == EXPAND_DIRECTORIES

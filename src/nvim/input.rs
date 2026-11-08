@@ -1559,7 +1559,7 @@ pub fn vgetc() -> i32 {
                     }
                 }
                 g_st().no_mapping -= 1;
-                c = utf_ptr2char(buf.as_ptr());
+                c = utf_ptr2char(&buf);
             }
 
             if g_st().no_mapping == 0
@@ -2008,7 +2008,7 @@ fn char_iter(itp: &mut &[u8], nomap: i32) -> i32 {
                 return 0;
             }
 
-            c = utf_ptr2char(buf.as_ptr());
+            c = utf_ptr2char(&buf);
             if c == buf[0] as i32 {
                 it = *itp;
             }
@@ -2617,7 +2617,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
                         if (g_st().state_global & MODE_INSERT) != 0
-                            && utf_ptr2cells(g_st().typebuf.tb_buf[last_idx..].as_ptr()) == 1
+                            && utf_ptr2cells(&g_st().typebuf.tb_buf[last_idx..]) == 1
                         {
                             edit_putchar(i32::from(g_st().typebuf.tb_buf[last_idx]), false);
                             setcursor();
@@ -2918,7 +2918,7 @@ pub fn get_keystroke(events: Option<&MultiQueue>) -> i32 {
         }
         let term_idx = if len >= buflen { buflen - 1 } else { len } as usize;
         buf[term_idx] = NUL as u8;
-        n = utf_ptr2char(buf.as_ptr());
+        n = utf_ptr2char(buf.as_slice());
         break;
     }
 

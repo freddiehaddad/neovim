@@ -1307,7 +1307,7 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
     {
         let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
         schar_get(&mut sc_buf, mb_schar);
-        debug_assert_eq!(crate::mbyte::ptr2cells(sc_buf.as_ptr()), 1);
+        debug_assert_eq!(crate::mbyte::ptr2cells(&sc_buf), 1);
     }
     let _ = mb_schar;
     1
@@ -2246,7 +2246,8 @@ pub fn win_line(
                 if has_decor && wlv.n_extra == 0 {
                     if wlv.vcol == wlv.fromcol
                         || (wlv.vcol + 1 == wlv.fromcol
-                            && (wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1))
+                            && (wlv.n_extra == 0
+                                && utf_ptr2cells(unsafe { CStr::from_ptr(ptr) }) > 1))
                     {
                         area_active = true;
                     } else if area_active && wlv.vcol == wlv.tocol {
@@ -2296,7 +2297,8 @@ pub fn win_line(
 
                 if wlv.vcol == wlv.fromcol
                     || (wlv.vcol + 1 == wlv.fromcol
-                        && ((wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1)
+                        && ((wlv.n_extra == 0
+                            && utf_ptr2cells(unsafe { CStr::from_ptr(ptr) }) > 1)
                             || (wlv.n_extra > 0
                                 && wlv
                                     .p_extra()
@@ -2769,7 +2771,11 @@ pub fn win_line(
                         && lbr_char < 128
                         && vim_isbreak(lbr_char)
                     {
-                        let mb_off = crate::mbyte::utf_head_off_ptr(line, ptr.wrapping_sub(1));
+                        let prev_idx = ((ptr as usize) - (line as usize)).saturating_sub(1);
+                        let mb_off = crate::mbyte::utf_head_off_slice(
+                            unsafe { CStr::from_ptr(line) }.to_bytes(),
+                            prev_idx,
+                        );
                         let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
                         let has_conceal = !conceal_spans.is_empty();

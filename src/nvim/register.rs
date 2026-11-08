@@ -1626,11 +1626,12 @@ pub fn do_put(
                     break 'end;
                 }
                 let curline = get_cursor_line_ptr().as_ptr().cast_mut();
-                let mut p = get_cursor_pos_ptr().as_ptr().cast_mut();
+                let p_cstr = get_cursor_pos_ptr();
+                let mut p = p_cstr.as_ptr().cast_mut();
                 let p_orig = p;
                 let plen = get_cursor_pos_len() as usize;
                 if dir == FORWARD && plen > 0 {
-                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(utfc_ptr2len(p_cstr) as usize);
                 }
                 split_pos = ((p as usize) - (curline as usize)) as Colnr;
 
@@ -1851,10 +1852,8 @@ pub fn do_put(
                     bd.startspaces = incr - bd.endspaces;
                     bd.textcol -= 1;
                     delcount = 1;
-                    bd.textcol -= crate::mbyte::utf_head_off_ptr(
-                        oldp,
-                        oldp.wrapping_add(bd.textcol as usize),
-                    );
+                    bd.textcol -=
+                        crate::mbyte::utf_head_off_slice(oldp_cstr.to_bytes(), bd.textcol as usize);
                     if *crate::globals::GraphPtr::of(oldp.wrapping_add(bd.textcol as usize))
                         .borrow() as u8
                         != TAB as u8
@@ -2096,7 +2095,8 @@ pub fn do_put(
 
                         ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
 
-                        first_byte_off = crate::mbyte::utf_head_off_ptr(newp, ptr_.wrapping_sub(1));
+                        let prev_idx = ((ptr_ as usize) - (newp as usize)).saturating_sub(1);
+                        first_byte_off = crate::mbyte::utf_head_off_slice(&newp_vec, prev_idx);
                         drop(newp_vec);
 
                         if lnum == curwin_mut().w_cursor.lnum {

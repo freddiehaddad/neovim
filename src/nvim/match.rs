@@ -200,7 +200,7 @@ fn match_add(
         mit_botlnum: 0,
         mit_hl: SynMatch::new(),
         mit_hlg_id: hlg_id,
-        mit_conceal_char: conceal_char.map_or(0, |c| utf_ptr2char(c.as_ptr())),
+        mit_conceal_char: conceal_char.map_or(0, utf_ptr2char),
     };
 
     if pos_list.is_some() {
@@ -649,8 +649,6 @@ pub fn prepare_search_hl_line(
             },
         );
 
-        let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
-
         if shl.lnum != 0 && shl.lnum <= lnum {
             shl.startcol = if shl.lnum == lnum {
                 shl.rm.startpos[0].col
@@ -668,9 +666,10 @@ pub fn prepare_search_hl_line(
             }
 
             if shl.startcol == shl.endcol {
-                let p = line.wrapping_add(shl.endcol as usize);
-                if unsafe { *p } != 0 {
-                    shl.endcol += utfc_ptr2len(p);
+                let line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
+                let end_off = shl.endcol as usize;
+                if end_off < line_bytes.len() {
+                    shl.endcol += utfc_ptr2len(&line_bytes[end_off..]);
                 } else {
                     shl.endcol += 1;
                 }
@@ -701,7 +700,7 @@ pub fn update_search_hl(
     on_last_col: &mut bool,
     search_attr_from_match: &mut bool,
 ) -> i32 {
-    let mut line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
+    let mut line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
     let mut idx = 0usize;
     let len = wp.w_match_head.len();
     let mut shl;
@@ -731,7 +730,7 @@ pub fn update_search_hl(
         let mut pos_inprogress = true;
         while !shl.rm.regprog.is_null() || (!cur.is_null() && pos_inprogress) {
             if shl.startcol != MAXCOL && col >= shl.startcol && col < shl.endcol {
-                let next_col = col + utfc_ptr2len(line.wrapping_add(col as usize));
+                let next_col = col + utfc_ptr2len(line_bytes.get(col as usize..).unwrap_or(&[]));
                 if shl.endcol < next_col {
                     shl.endcol = next_col;
                 }
@@ -772,7 +771,7 @@ pub fn update_search_hl(
                 pos_inprogress =
                     !cur.is_null() && crate::globals::GraphPtr::of(cur).borrow().mit_pos_cur != 0;
 
-                line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
+                line_bytes = ml_get_buf(wp.buf_mut(), lnum).to_bytes();
 
                 if shl.lnum == lnum {
                     shl.startcol = shl.rm.startpos[0].col;
@@ -787,11 +786,11 @@ pub fn update_search_hl(
                     }
 
                     if shl.startcol == shl.endcol {
-                        let p = line.wrapping_add(shl.endcol as usize);
-                        if unsafe { *p } == 0 {
+                        let end_off = shl.endcol as usize;
+                        if end_off >= line_bytes.len() {
                             shl.endcol += 1;
                         } else {
-                            shl.endcol += utfc_ptr2len(p);
+                            shl.endcol += utfc_ptr2len(&line_bytes[end_off..]);
                         }
                     }
                     continue;
@@ -835,9 +834,7 @@ pub fn update_search_hl(
             idx += 1;
         }
     }
-    if *crate::globals::GraphPtr::of(line.wrapping_add(col as usize)).borrow() == 0
-        && (wp.w_onebuf_opt.wo_list && !lcs_eol_todo)
-    {
+    if (col as usize) >= line_bytes.len() && (wp.w_onebuf_opt.wo_list && !lcs_eol_todo) {
         search_attr = 0;
     }
     search_attr

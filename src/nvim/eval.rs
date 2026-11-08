@@ -3699,7 +3699,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
             }
             extra -= 1;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(unsafe { CStr::from_ptr(p.cast()) }) as usize);
     }
 
     if *crate::globals::GraphPtr::of(p).borrow() != b'"'
@@ -3859,7 +3859,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
                 reduce += 1;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(unsafe { CStr::from_ptr(p.cast()) }) as usize);
     }
 
     if *crate::globals::GraphPtr::of(p).borrow() != b'\''

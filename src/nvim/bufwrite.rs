@@ -222,7 +222,7 @@ fn buf_write_convert(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: &mut i32) -
                 break;
             }
             let c: u32 = if n > 1 {
-                utf_ptr2char(ip.bw_buf[w_usize..].as_ptr()) as u32
+                utf_ptr2char(&ip.bw_buf[w_usize..]) as u32
             } else {
                 u32::from(ip.bw_buf[w_usize])
             };

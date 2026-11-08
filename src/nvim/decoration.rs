@@ -1724,7 +1724,7 @@ pub fn decor_virt_line_rows(
             let cells = if bytes[off] == b'\t' {
                 tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array)
             } else {
-                utf_ptr2cells(text.as_ptr().wrapping_add(off))
+                utf_ptr2cells(&bytes[off..])
             };
             off += bytes_to_next_char;
             if row_cells + cells > row_width {

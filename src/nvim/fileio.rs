@@ -2222,9 +2222,15 @@ pub fn readfile(
                                     if *crate::globals::GraphPtr::of(p).borrow() < 0x80 {
                                         u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
                                     } else {
-                                        let len = crate::mbyte::utf_head_off_ptr(ptr, p);
+                                        let p_idx = (p as usize).saturating_sub(ptr as usize);
+                                        let len = crate::mbyte::utf_head_off_slice(
+                                            crate::globals::GraphPtr::raw_slice(ptr, p_idx + 6),
+                                            p_idx,
+                                        );
                                         p = p.wrapping_offset(-(len as isize));
-                                        u8c = utf_ptr2char(p) as u32;
+                                        u8c =
+                                            utf_ptr2char(crate::globals::GraphPtr::raw_slice(p, 6))
+                                                as u32;
                                         if len == 0 {
                                             if can_retry {
                                                 if crate::eval::typval::Callback::raw_cb_type(
@@ -3495,10 +3501,7 @@ pub fn modname(
             ptr_idx += 1;
             break;
         }
-        let head_off = crate::mbyte::utf_head_off_ptr(
-            retval_vec.as_ptr(),
-            retval_vec[(ptr_idx - 1)..].as_ptr(),
-        ) as usize;
+        let head_off = crate::mbyte::utf_head_off_slice(&retval_vec, ptr_idx - 1) as usize;
         ptr_idx -= head_off + 1;
     }
 

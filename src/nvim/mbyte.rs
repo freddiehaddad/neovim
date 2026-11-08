@@ -1,4 +1,5 @@
 //! Multibyte UTF-8 character and encoding handling (`src/nvim/mbyte.c`).
+#![forbid(unsafe_code)]
 
 use crate::arabic::arabic_combine;
 use crate::charset::{
@@ -12,8 +13,6 @@ use crate::eval::typval::{
     tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
     tv_list_append_number, tv_list_first, tv_list_len,
 };
-#[cfg(windows)]
-use crate::event::r#loop::uv_translate_sys_error;
 use crate::fileio::{call_iconv, call_iconv_close, call_iconv_open};
 use crate::globals::*;
 use crate::grid::CharBoundsOff;
@@ -23,11 +22,11 @@ use crate::message::{emsg, msg, semsg};
 use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
-use crate::os::env::{ExpandCtx, os_getenv_buf};
+use crate::os::env::ExpandCtx;
 use crate::os::fs::os_errno;
-#[cfg(unix)]
-use crate::os::lang::nl_langinfo;
-use crate::os::lang::{LC_CTYPE, setlocale};
+use crate::os::lang::{os_locale_codeset, os_towlower, os_towupper};
+#[cfg(windows)]
+pub use crate::os::lang::{utf8_to_utf16, utf16_to_utf8};
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
     UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
@@ -38,7 +37,6 @@ use crate::utf8proc::{
 };
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
-use std::ptr;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,16 +72,6 @@ impl<'a> StrCharInfo<'a> {
     }
 
     #[inline]
-    pub fn as_cstr(&self) -> &'a CStr {
-        if self.ptr.is_empty() {
-            c""
-        } else {
-            CStr::from_bytes_until_nul(self.ptr)
-                .unwrap_or_else(|_| unsafe { CStr::from_ptr(self.ptr.as_ptr().cast()) })
-        }
-    }
-
-    #[inline]
     pub const fn offset_from(&self, base: &CStr) -> usize {
         base.to_bytes().len().saturating_sub(self.ptr.len())
     }
@@ -98,13 +86,6 @@ pub struct ClusterInfo<'a> {
 }
 
 pub type GraphemeState = i32;
-
-#[cfg(windows)]
-#[allow(non_camel_case_types)]
-type wint_t = u16;
-#[cfg(not(windows))]
-#[allow(non_camel_case_types)]
-type wint_t = u32;
 
 const MB_MAXCHAR: i32 = 6;
 
@@ -140,11 +121,6 @@ const ICONV_EILSEQ: i32 = 42;
 const ICONV_EILSEQ: i32 = 84;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const ICONV_EILSEQ: i32 = 92;
-
-#[cfg(target_os = "linux")]
-const CODESET: i32 = 14;
-#[cfg(all(unix, not(target_os = "linux")))]
-const CODESET: i32 = 0;
 
 #[cfg(windows)]
 pub(crate) const CP_UTF8: u32 = 65001;
@@ -896,33 +872,6 @@ fn mbyte_st() -> crate::globals::GraphPtr<MbyteModuleState> {
     MBYTE_STATE.handle()
 }
 
-unsafe extern "C" {
-    fn towupper(wc: wint_t) -> wint_t;
-    fn towlower(wc: wint_t) -> wint_t;
-}
-
-#[cfg(windows)]
-unsafe extern "system" {
-    fn MultiByteToWideChar(
-        CodePage: u32,
-        dwFlags: u32,
-        lpMultiByteStr: *const u8,
-        cbMultiByte: i32,
-        lpWideCharStr: *mut u16,
-        cchWideChar: i32,
-    ) -> i32;
-    fn WideCharToMultiByte(
-        CodePage: u32,
-        dwFlags: u32,
-        lpWideCharStr: *const u16,
-        cchWideChar: i32,
-        lpMultiByteStr: *mut u8,
-        cbMultiByte: i32,
-        lpDefaultChar: *const u8,
-        lpUsedDefaultChar: *mut i32,
-    ) -> i32;
-}
-
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::change::TAB;
 use crate::charset::NL;
@@ -931,8 +880,6 @@ use crate::fileio::{
 };
 use crate::globals::IOSIZE;
 use crate::keycodes::{K_SPECIAL, KE_FILLER, KS_SPECIAL};
-#[cfg(windows)]
-use crate::os::os_win_console::GetLastError;
 use crate::regexp::{GRAPHEME_STATE_INIT, NUMBUFLEN};
 use crate::viml::parser::parser::CONV_NONE;
 
@@ -1010,131 +957,14 @@ impl<const N: usize> AsMbyteSlice for &mut [u8; N] {
     }
 }
 
-#[inline(always)]
-fn ptr_char_bytes<'a>(p: *const u8) -> &'a [u8] {
-    if p.is_null() {
-        return &[];
-    }
-    let b0 = unsafe { *p };
-    if b0 == 0 {
-        return &[];
-    }
-    if b0 < 0x80 {
-        return unsafe { std::slice::from_raw_parts(p, 1) };
-    }
-    let mut n = 1usize;
-    while n < 6 && unsafe { *p.wrapping_add(n) } != 0 {
-        n += 1;
-    }
-    unsafe { std::slice::from_raw_parts(p, n) }
-}
-
-#[inline(always)]
-fn ptr_cluster_bytes<'a>(p: *const u8) -> &'a [u8] {
-    if p.is_null() {
-        return &[];
-    }
-    let b0 = unsafe { *p };
-    if b0 == 0 {
-        return &[];
-    }
-    if b0 < 0x80 && unsafe { *p.wrapping_add(1) } < 0x80 {
-        return unsafe { std::slice::from_raw_parts(p, 1) };
-    }
-    let mut n = 1usize;
-    while n < 64 && unsafe { *p.wrapping_add(n) } != 0 {
-        n += 1;
-    }
-    unsafe { std::slice::from_raw_parts(p, n) }
-}
-
-#[inline(always)]
-fn ptr_span_to_char<'a>(
-    base: *const std::ffi::c_char,
-    p: *const std::ffi::c_char,
-) -> (&'a [u8], usize) {
-    if base.is_null() || p.is_null() || (p as usize) < (base as usize) {
-        return (&[], 0);
-    }
-    let base_u8 = base.cast::<u8>();
-    let p_u8 = p.cast::<u8>();
-    if unsafe { *p_u8 } < 0x80 {
-        return (&[], 0);
-    }
-    let idx = (p_u8 as usize) - (base_u8 as usize);
-    let mut tail_len = 1usize;
-    while tail_len < 6 && unsafe { *p_u8.wrapping_add(tail_len) } != 0 {
-        tail_len += 1;
-    }
-    (
-        unsafe { std::slice::from_raw_parts(base_u8, idx + tail_len) },
-        idx,
-    )
-}
-
-impl AsMbyteSlice for *const i8 {
+impl AsMbyteSlice for &CStr {
     #[inline]
     fn as_char_bytes(&self) -> &[u8] {
-        ptr_char_bytes(self.cast())
+        self.to_bytes()
     }
     #[inline]
     fn as_cluster_bytes(&self) -> &[u8] {
-        ptr_cluster_bytes(self.cast())
-    }
-}
-
-impl AsMbyteSlice for *mut i8 {
-    #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        ptr_char_bytes(self.cast())
-    }
-    #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        ptr_cluster_bytes(self.cast())
-    }
-}
-
-impl AsMbyteSlice for *const u8 {
-    #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        ptr_char_bytes(*self)
-    }
-    #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        ptr_cluster_bytes(*self)
-    }
-}
-
-impl AsMbyteSlice for *mut u8 {
-    #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        ptr_char_bytes(self.cast_const())
-    }
-    #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        ptr_cluster_bytes(self.cast_const())
-    }
-}
-
-impl AsMbyteSlice for crate::globals::GraphPtr<u8> {
-    #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        ptr_char_bytes(self.as_ptr())
-    }
-    #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        ptr_cluster_bytes(self.as_ptr())
-    }
-}
-
-impl AsMbyteSlice for crate::globals::GraphPtr<i8> {
-    #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        ptr_char_bytes(self.as_ptr().cast())
-    }
-    #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        ptr_cluster_bytes(self.as_ptr().cast())
+        self.to_bytes()
     }
 }
 
@@ -2359,7 +2189,7 @@ pub fn mb_toupper(a: i32) -> i32 {
         return toupper_asc(a);
     }
     if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
-        return unsafe { towupper(a as wint_t) } as i32;
+        return os_towupper(a);
     }
     if a < 128 {
         return toupper_asc(a);
@@ -2376,7 +2206,7 @@ pub fn mb_tolower(a: i32) -> i32 {
         return tolower_asc(a);
     }
     if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
-        return unsafe { towlower(a as wint_t) } as i32;
+        return os_towlower(a);
     }
     if a < 128 {
         return tolower_asc(a);
@@ -2454,71 +2284,6 @@ pub fn utf_strnicmp(s1: &[u8], s2: &[u8], n1: usize, n2: usize) -> i32 {
     let b1 = crate::memory::bytes_until_nul(&s1[..n1.min(s1.len())]);
     let b2 = crate::memory::bytes_until_nul(&s2[..n2.min(s2.len())]);
     utf_strnicmp_slice(b1, b2)
-}
-
-#[cfg(windows)]
-pub fn utf8_to_utf16(utf8: &[u8], utf8len: i32, utf16: &mut Vec<u16>) -> i32 {
-    let utf8_ptr = utf8.as_ptr();
-    utf16.clear();
-    let mut bufsize =
-        unsafe { MultiByteToWideChar(CP_UTF8, 0, utf8_ptr, utf8len, ptr::null_mut(), 0) };
-    if bufsize == 0 {
-        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
-    }
-
-    utf16.resize((bufsize as usize) + 1, 0);
-    bufsize =
-        unsafe { MultiByteToWideChar(CP_UTF8, 0, utf8_ptr, utf8len, utf16.as_mut_ptr(), bufsize) };
-    if bufsize == 0 {
-        utf16.clear();
-        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
-    }
-
-    utf16[bufsize as usize] = 0;
-    0
-}
-
-#[cfg(windows)]
-pub fn utf16_to_utf8(utf16: &[u16], utf16len: i32, utf8: &mut Option<std::ffi::CString>) -> i32 {
-    let utf16_ptr = utf16.as_ptr();
-    let mut bufsize = unsafe {
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            utf16_ptr,
-            utf16len,
-            ptr::null_mut(),
-            0,
-            ptr::null(),
-            ptr::null_mut(),
-        )
-    };
-    if bufsize == 0 {
-        *utf8 = None;
-        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
-    }
-
-    let mut vec = vec![0u8; (bufsize as usize) + 1];
-    bufsize = unsafe {
-        WideCharToMultiByte(
-            CP_UTF8,
-            0,
-            utf16_ptr,
-            utf16len,
-            vec.as_mut_ptr(),
-            bufsize,
-            ptr::null(),
-            ptr::null_mut(),
-        )
-    };
-    if bufsize == 0 {
-        *utf8 = None;
-        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
-    }
-
-    vec[bufsize as usize] = 0;
-    *utf8 = Some(crate::memory::cstring_until_nul(&vec));
-    0
 }
 
 pub fn mb_utflen(bytes: &[u8], len: usize, codepoints: &mut usize, codeunits: &mut usize) {
@@ -2704,15 +2469,6 @@ pub fn utf_head_off_slice(bytes: &[u8], idx: usize) -> i32 {
 
 pub fn utf_head_off(base: &[u8], idx: usize) -> i32 {
     utf_head_off_slice(base, idx)
-}
-
-#[inline]
-pub fn utf_head_off_ptr(
-    base: impl crate::strings::RawCStrPtr,
-    p: impl crate::strings::RawCStrPtr,
-) -> i32 {
-    let (b, i) = ptr_span_to_char(base.into_raw_c_char_ptr(), p.into_raw_c_char_ptr());
-    utf_head_off_slice(b, i)
 }
 
 pub fn utf_cluster_info_impl<'a>(base: StrCharInfo<'a>, max_len: &mut i32) -> ClusterInfo<'a> {
@@ -3197,35 +2953,8 @@ pub fn enc_canonize(enc: &CStr) -> std::ffi::CString {
 }
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
-    #[inline]
-    fn ptr_opt_cstr<'a>(p: *const u8) -> Option<&'a CStr> {
-        if p.is_null() {
-            None
-        } else {
-            Some(unsafe { CStr::from_ptr(p.cast()) })
-        }
-    }
-
-    #[cfg(unix)]
-    let mut s_opt: Option<&CStr> = ptr_opt_cstr(unsafe { nl_langinfo(CODESET) });
-    #[cfg(not(unix))]
-    let mut s_opt: Option<&CStr> = None;
-
     let mut env_buf = [0u8; 64];
-    if s_opt.is_none_or(|s| s.to_bytes().is_empty()) {
-        s_opt = ptr_opt_cstr(unsafe { setlocale(LC_CTYPE, ptr::null()) });
-        if s_opt.is_none_or(|s| s.to_bytes().is_empty()) {
-            s_opt = os_getenv_buf(c"LC_ALL", &mut env_buf);
-            if s_opt.is_none() {
-                s_opt = os_getenv_buf(c"LC_CTYPE", &mut env_buf);
-                if s_opt.is_none() {
-                    s_opt = os_getenv_buf(c"LANG", &mut env_buf);
-                }
-            }
-        }
-    }
-
-    let s = s_opt?;
+    let s = os_locale_codeset(&mut env_buf)?;
 
     let mut buf = [0u8; 50];
     let mut s_full = s.to_bytes();

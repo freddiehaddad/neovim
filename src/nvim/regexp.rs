@@ -2701,9 +2701,9 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_bytes = s.to_bytes();
     let mut idx = 0usize;
     while idx < s_bytes.len() {
-        let p = s_ptr.wrapping_add(idx);
+        let rem = &s_bytes[idx..];
         let b0 = s_bytes[idx] as i32;
-        let uc = utf_ptr2char(p);
+        let uc = utf_ptr2char(rem);
         if c > 0x80 || uc > 0x80 {
             if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
                 return Some(idx);
@@ -2711,7 +2711,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         } else if b0 == c || b0 == cc {
             return Some(idx);
         }
-        idx += utfc_ptr2len(p) as usize;
+        idx += utfc_ptr2len(rem) as usize;
     }
     None
 }

@@ -2594,7 +2594,6 @@ pub fn find_ident_at_pos(
     let mut bn: i32;
 
     let line_cstr = ml_get_buf(wp.buf_mut(), lnum);
-    let ptr = line_cstr.as_ptr().cast_mut();
     let line_bytes = line_cstr.to_bytes_with_nul();
     let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
     while i < 2 {
@@ -2607,7 +2606,7 @@ pub fn find_ident_at_pos(
             if this_class != 0 && (i == 1 || this_class != 1) {
                 break;
             }
-            col += utfc_ptr2len(ptr.wrapping_add(col as usize));
+            col += utfc_ptr2len(&line_bytes[col as usize..]);
         }
 
         let at_rbracket = line_bytes.get(col as usize) == Some(&b']');
@@ -2619,8 +2618,7 @@ pub fn find_ident_at_pos(
             this_class = mb_get_class(&line_bytes[col as usize..]);
         }
         while col > 0 && this_class != 0 {
-            prevcol =
-                col - 1 - crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add((col - 1) as usize));
+            prevcol = col - 1 - crate::mbyte::utf_head_off_slice(line_bytes, (col - 1) as usize);
             prev_class = mb_get_class(&line_bytes[prevcol as usize..]);
             if this_class != prev_class
                 && (i == 0 || prev_class == 0 || (find_type & FIND_IDENT) != 0)
@@ -2810,7 +2808,7 @@ pub fn clear_showcmd() {
             } else {
                 s < e
             } {
-                let l = utfc_ptr2len(s);
+                let l = utfc_ptr2len(unsafe { CStr::from_ptr(s) });
                 if l == 0 {
                     bytes += 1;
                     chars += 1;
@@ -6279,9 +6277,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
         i = curwin_mut().w_leftcol + curwin_mut().w_view_width - col_off - 1;
         coladvance(curwin_mut(), i);
 
-        if curwin_mut().w_cursor.col > 0
-            && utf_ptr2cells(get_cursor_pos_ptr().as_ptr().cast_mut()) > 1
-        {
+        if curwin_mut().w_cursor.col > 0 && utf_ptr2cells(get_cursor_pos_ptr()) > 1 {
             let mut vcol: Colnr = 0;
             let mut cursor = curwin_mut().w_cursor;
             getvvcol(curwin_mut(), &mut cursor, None, None, Some(&mut vcol), 0);

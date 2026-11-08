@@ -2805,18 +2805,18 @@ pub fn f_strgetchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
 
-    let str_ = str_cstr.as_ptr();
-    let len = str_cstr.to_bytes().len();
+    let str_bytes = str_cstr.to_bytes();
+    let len = str_bytes.len();
     let mut byteidx: usize = 0;
     while charidx >= 0 && byteidx < len {
         if charidx == 0 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf_ptr2char(
-                str_.wrapping_add(byteidx),
+                &str_bytes[byteidx..],
             )));
             break;
         }
         charidx -= 1;
-        byteidx += utf_ptr2len(str_.wrapping_add(byteidx)) as usize;
+        byteidx += utf_ptr2len(&str_bytes[byteidx..]) as usize;
     }
 }
 
@@ -2949,8 +2949,8 @@ pub fn f_strwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let p_cstr = tv_get_string(&argvars[0]);
-    let p = p_cstr.as_ptr();
-    let slen = p_cstr.to_bytes().len();
+    let p_bytes = p_cstr.to_bytes();
+    let slen = p_bytes.len();
 
     let mut nbyte: i32 = 0;
     let mut skipcc: Varnumber = 0;
@@ -2971,9 +2971,9 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if nchar > 0 {
             while nchar > 0 && (nbyte as usize) < slen {
                 if skipcc != 0 {
-                    nbyte += utfc_ptr2len(p.wrapping_add(nbyte as usize));
+                    nbyte += utfc_ptr2len(&p_bytes[nbyte as usize..]);
                 } else {
-                    nbyte += utf_ptr2len(p.wrapping_add(nbyte as usize));
+                    nbyte += utf_ptr2len(&p_bytes[nbyte as usize..]);
                 }
                 nchar -= 1;
             }
@@ -2989,9 +2989,9 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             if off < 0 {
                 len += 1;
             } else if skipcc != 0 {
-                len += utfc_ptr2len(p.wrapping_add(off as usize));
+                len += utfc_ptr2len(&p_bytes[off as usize..]);
             } else {
-                len += utf_ptr2len(p.wrapping_add(off as usize));
+                len += utf_ptr2len(&p_bytes[off as usize..]);
             }
             charlen -= 1;
         }
@@ -3013,17 +3013,15 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     crate::eval::typval::tv_set_string_len(
         rettv,
-        Some(unsafe {
-            std::slice::from_raw_parts((p.wrapping_add(nbyte as usize)).cast::<u8>(), len as usize)
-        }),
+        Some(&p_bytes[nbyte as usize..(nbyte + len) as usize]),
     );
 }
 
 pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut error = false;
     let p_cstr = tv_get_string(&argvars[0]);
-    let p = p_cstr.as_ptr();
-    let slen = p_cstr.to_bytes().len() as Varnumber;
+    let p_bytes = p_cstr.to_bytes();
+    let slen = p_bytes.len() as Varnumber;
 
     let mut n = tv_get_number_chk(&argvars[1], Some(&mut error));
     let mut len = if error {
@@ -3049,18 +3047,13 @@ pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if argvars[2].v_type != VarType::VarUnknown && argvars[3].v_type != VarType::VarUnknown {
         let mut off = n;
         while off < slen && len > 0 {
-            off += Varnumber::from(utfc_ptr2len(p.wrapping_add(off as usize)));
+            off += Varnumber::from(utfc_ptr2len(&p_bytes[off as usize..]));
             len -= 1;
         }
         len = off - n;
     }
 
-    crate::eval::typval::tv_set_string_len(
-        rettv,
-        Some(unsafe {
-            std::slice::from_raw_parts((p.wrapping_add(n as usize)).cast::<u8>(), len as usize)
-        }),
-    );
+    crate::eval::typval::tv_set_string_len(rettv, Some(&p_bytes[n as usize..(n + len) as usize]));
 }
 
 pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {

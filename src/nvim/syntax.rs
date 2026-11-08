@@ -3812,7 +3812,8 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             kwlen = 1;
                             break;
                         }
-                        let l = utfc_ptr2len(p.wrapping_add(1)) as usize;
+                        let l = utfc_ptr2len(unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) })
+                            as usize;
                         crate::globals::GraphPtr::copy_to(p.wrapping_add(1), p, l);
                         p = p.wrapping_add(l);
                     }

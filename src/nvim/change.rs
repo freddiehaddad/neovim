@@ -1333,11 +1333,13 @@ pub fn open_line(
                         let endp = p;
 
                         while old_size < repl_size && p > leader {
+                            let prev_idx = (p as usize) - (leader as usize) - 1;
                             p = p.wrapping_sub(
-                                crate::mbyte::utf_head_off_ptr(leader, p.wrapping_sub(1)) as usize
+                                crate::mbyte::utf_head_off_slice(&allocated_vec, prev_idx) as usize
                                     + 1,
                             );
-                            old_size += ptr2cells(p);
+                            let p_off = (p as usize) - (leader as usize);
+                            old_size += ptr2cells(&allocated_vec[p_off..]);
                         }
                         let l = lead_repl_len - ((endp as isize) - (p as isize)) as i32;
                         if l != 0 {
@@ -1364,10 +1366,12 @@ pub fn open_line(
                         p = p.wrapping_sub(1);
                         p >= leader
                     } {
-                        let mut l = crate::mbyte::utf_head_off_ptr(leader, p);
+                        let p_idx = (p as usize) - (leader as usize);
+                        let mut l = crate::mbyte::utf_head_off_slice(&allocated_vec, p_idx);
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
-                            if ptr2cells(p) > 1 {
+                            let p_off = (p as usize) - (leader as usize);
+                            if ptr2cells(&allocated_vec[p_off..]) > 1 {
                                 *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow_mut() =
                                     b' ';
 
@@ -1399,11 +1403,12 @@ pub fn open_line(
                             lead_repl_len,
                         );
                         let mut i: i32 = 0;
+                        let p_base_off = (p as usize) - (leader as usize);
                         while i < lead_len
                             && *crate::globals::GraphPtr::of(p.wrapping_add(i as usize)).borrow()
                                 != 0
                         {
-                            let l = utfc_ptr2len(p.wrapping_add(i as usize));
+                            let l = utfc_ptr2len(&allocated_vec[p_base_off + i as usize..]);
                             if vim_strnsize(
                                 crate::globals::GraphPtr::raw_slice(p, (i + l).max(0) as usize),
                                 i + l,
@@ -1441,9 +1446,10 @@ pub fn open_line(
                                         .saturating_sub(p as usize),
                                 );
                             } else {
-                                let mut l = utfc_ptr2len(p);
+                                let p_off = (p as usize) - (leader as usize);
+                                let mut l = utfc_ptr2len(&allocated_vec[p_off..]);
                                 if l > 1 {
-                                    if ptr2cells(p) > 1 {
+                                    if ptr2cells(&allocated_vec[p_off..]) > 1 {
                                         l -= 1;
 
                                         *crate::globals::GraphPtr::of(p).borrow_mut() = b' ';
@@ -1550,7 +1556,9 @@ pub fn open_line(
         if curbuf_mut().b_p_ai || (flags & OPENLINE_DELSPACES) != 0 {
             while (*crate::globals::GraphPtr::of(p_extra).borrow() == b' '
                 || *crate::globals::GraphPtr::of(p_extra).borrow() == b'\t')
-                && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1)))
+                && !utf_iscomposing_first(utf_ptr2char(
+                    &saved_line_vec[(p_extra as usize) - (saved_line as usize) + 1..],
+                ))
             {
                 if replace_normal(g_st().state_global) {
                     replace_push(crate::globals::GraphPtr::raw_slice(p_extra, 1));

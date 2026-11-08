@@ -558,10 +558,10 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
         endidxcnt -= 1;
         arridx = endidx[endidxcnt];
         wlen = endlen[endidxcnt];
-        if crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add(wlen as usize)) > 0 {
+        let ptr_b = unsafe { CStr::from_ptr(ptr.cast()) }.to_bytes();
+        if crate::mbyte::utf_head_off_slice(ptr_b, wlen as usize) > 0 {
             continue;
         }
-        let ptr_b = unsafe { CStr::from_ptr(ptr.cast()) }.to_bytes();
         let word_ends = if spell_iswordp(ptr_b.get(wlen as usize..).unwrap_or(&[]), mip.win_mut()) {
             if slang.sl_compprog.is_none() && !slang.sl_nobreak {
                 continue;
@@ -734,18 +734,15 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                     if ptr_b[..(wlen as usize).min(ptr_b.len())]
                         != p_b[..(wlen as usize).min(p_b.len())]
                     {
-                        let mut s = ptr;
-                        let s_end = ptr.wrapping_add(wlen as usize);
-                        while s < s_end {
-                            {
-                                let _adv = crate::mbyte::utfc_ptr2len(p) as usize;
-                                p = (p).wrapping_add(_adv);
-                            };
-                            {
-                                let _adv = crate::mbyte::utfc_ptr2len(s) as usize;
-                                s = (s).wrapping_add(_adv);
-                            };
+                        let mut s_off = 0usize;
+                        let mut p_off = 0usize;
+                        while s_off < wlen as usize {
+                            p_off += crate::mbyte::utfc_ptr2len(p_b.get(p_off..).unwrap_or(&[]))
+                                as usize;
+                            s_off += crate::mbyte::utfc_ptr2len(ptr_b.get(s_off..).unwrap_or(&[]))
+                                as usize;
                         }
+                        p = p.wrapping_add(p_off);
                         mip.mi_compoff = ((p as isize)
                             - ((&raw const mip.mi_fword).cast::<u8>() as isize))
                             as i32;
@@ -2168,17 +2165,17 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         let mut regmatch = Regmatch::new();
         regmatch.borrow_prog(w_s.b_cap_prog.as_deref());
         regmatch.rm_ic = false;
-        let mut p = line.wrapping_add(endcol as usize);
+        let line_cstr = unsafe { CStr::from_ptr(line.cast()) };
+        let line_bytes = line_cstr.to_bytes();
+        let mut p_idx = endcol as usize;
         loop {
-            p = p
-                .wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(line, p.wrapping_sub(1)) as usize);
-            let p_cstr = unsafe { CStr::from_ptr(p.cast()) };
-            if p == line || spell_iswordp_nmw(p_cstr.to_bytes(), wp) {
+            p_idx = p_idx - 1 - crate::mbyte::utf_head_off_slice(line_bytes, p_idx - 1) as usize;
+            let p_cstr = crate::memory::CStrSubslice::advance(line_cstr, p_idx);
+            if p_idx == 0 || spell_iswordp_nmw(p_cstr.to_bytes(), wp) {
                 break;
             }
-            let p_off = (p as usize) - (line as usize);
             if vim_regexec(&mut regmatch, p_cstr, 0)
-                && p_off + regmatch.end_offset(0, p_cstr) == endcol as usize
+                && p_idx + regmatch.end_offset(0, p_cstr) == endcol as usize
             {
                 need_cap = true;
                 break;
@@ -2962,7 +2959,7 @@ fn dump_prefixes(
     let mut word_up: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut has_word_up = false;
     let mut lnum = startlnum;
-    let mut c = utf_ptr2char(word.as_ptr());
+    let mut c = utf_ptr2char(word);
     if spell_toupper(c) != c {
         onecap_copy(word.to_bytes(), &mut word_up, true);
         has_word_up = true;

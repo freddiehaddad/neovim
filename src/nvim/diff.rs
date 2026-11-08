@@ -1,5 +1,5 @@
 //! Diff mode functions (`src/nvim/diff.c`).
-use std::ffi::CStr;
+#![forbid(unsafe_code)]
 
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
@@ -58,7 +58,6 @@ use crate::window::{
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{Mmfile, Xdemitcb, Xdemitconf, Xpparam};
 use std::ffi::CString;
-use std::ptr;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
 const LBUFLEN: usize = 50;
@@ -2373,9 +2372,6 @@ fn diff_find_change_simple(
             crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum),
         ))
     };
-    let line_org = line_org_owned
-        .as_ref()
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut added = true;
     let off = lnum - dp.df_lnum[idx];
     for i in 0..DB_COUNT {
@@ -2388,7 +2384,6 @@ fn diff_find_change_simple(
                 break;
             }
             let line_new_cstr = ml_get_buf(curtab_mut().diffbuf_mut(i), dp.df_lnum[i] + off);
-            let line_new = line_new_cstr.as_ptr().cast_mut();
             let org_cstr = line_org_owned.as_deref().unwrap_or(c"");
             let org_slice = org_cstr.to_bytes();
             let new_slice = line_new_cstr.to_bytes();
@@ -2428,10 +2423,8 @@ fn diff_find_change_simple(
                     si_new += l;
                 }
             }
-            si_org -=
-                crate::mbyte::utf_head_off_ptr(line_org, line_org.wrapping_add(si_org as usize));
-            si_new -=
-                crate::mbyte::utf_head_off_ptr(line_new, line_new.wrapping_add(si_new as usize));
+            si_org -= crate::mbyte::utf_head_off_slice(org_bytes, si_org as usize);
+            si_new -= crate::mbyte::utf_head_off_slice(new_bytes, si_new as usize);
             *startp = (*startp).min(si_org);
             if org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0
                 || new_bytes.get(si_new as usize).copied().unwrap_or(0) != 0
@@ -2581,21 +2574,16 @@ fn diff_refine_inline_word_highlight(
                 di += 1;
                 continue;
             }
-            let line = ml_get_buf(curtab_mut().diffbuf_mut(idx1), start_lnum + entry1.lineoff)
-                .as_ptr()
-                .cast_mut();
-            let gap_text = line.wrapping_add(gap_start as usize);
+            let line_bytes =
+                ml_get_buf(curtab_mut().diffbuf_mut(idx1), start_lnum + entry1.lineoff).to_bytes();
+            let gap_text = line_bytes.get(gap_start as usize..).unwrap_or(&[]);
             let mut only_non_word = true;
             let mut has_content = false;
-            let mut i: i32 = 0;
-            while i < gap_size
-                && *crate::globals::GraphPtr::of(gap_text.wrapping_add(i as usize)).borrow() != 0
-            {
+            let mut i: usize = 0;
+            while i < (gap_size as usize).min(gap_text.len()) {
                 has_content = true;
-                let char_class = mb_get_class_tab(
-                    unsafe { CStr::from_ptr(gap_text.wrapping_add(i as usize).cast()) }.to_bytes(),
-                    &curtab_mut().diffbuf_mut(idx1).b_chartab,
-                );
+                let char_class =
+                    mb_get_class_tab(&gap_text[i..], &curtab_mut().diffbuf_mut(idx1).b_chartab);
                 if char_class == 2 {
                     only_non_word = false;
                     break;

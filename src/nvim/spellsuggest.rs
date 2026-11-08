@@ -1,4 +1,6 @@
 //! Functions for spelling suggestions (`src/nvim/spellsuggest.c`).
+#![forbid(unsafe_code)]
+
 use crate::buffer::FileBuf;
 use crate::change::inserted_bytes;
 use crate::charset::{ascii_iswhite, getdigits_int};
@@ -1243,7 +1245,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     goodword_ends = !(stack[udepth].ts_complen == stack[udepth].ts_compsplit
                         && fword_ends
                         && (flags & WF_NEEDCOMP) != 0);
-                    let mut p = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+                    let mut p_off: Option<usize> = None;
                     let mut compound_ok = true;
                     if stack[udepth].ts_complen > stack[udepth].ts_compsplit {
                         if slang.sl_nobreak {
@@ -1253,12 +1255,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             let so_off = stack[udepth].ts_splitoff as usize;
                             if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
                                 == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
-                                && unsafe {
-                                    std::slice::from_raw_parts(
-                                        fword.wrapping_add(sf_off),
-                                        split_len,
-                                    )
-                                } == &tword[so_off..so_off + split_len]
+                                && fword_buf[sf_off..sf_off + split_len]
+                                    == tword[so_off..so_off + split_len]
                             {
                                 preword[stack[udepth].ts_prewordlen as usize] = 0;
                                 let newscore = score_wordcount_adj(
@@ -1335,7 +1333,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             }
                             let mut p_idx = stack[udepth].ts_prewordlen as usize;
                             mb_cptr_back(&preword, &mut p_idx);
-                            p = preword.as_mut_ptr().wrapping_add(p_idx);
+                            p_off = Some(p_idx);
                         }
                     }
                     if soundfold {
@@ -1359,9 +1357,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             c = WF_ONECAP;
                         }
                         c |= flags;
-                        if !p.is_null()
+                        if let Some(off) = p_off
                             && spell_iswordp_nmw(
-                                unsafe { CStr::from_ptr(p.cast()) }.to_bytes(),
+                                crate::memory::bytes_until_nul(&preword[off..]),
                                 curwin_mut(),
                             )
                         {
@@ -1572,9 +1570,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                     && fword_buf[stack[udepth].ts_fidx as usize] != 0
                                     && goodword_ends
                                 {
-                                    let l = utfc_ptr2len(
-                                        fword.wrapping_add(stack[udepth].ts_fidx as usize),
-                                    );
+                                    let l =
+                                        utfc_ptr2len(&fword_buf[stack[udepth].ts_fidx as usize..]);
                                     if fword_ends {
                                         crate::globals::GraphPtr::copy_to(
                                             fword.wrapping_add(stack[udepth].ts_fidx as usize),
@@ -1704,35 +1701,21 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 stack[udepth].ts_tcharidx += 1;
                                 if stack[udepth].ts_tcharidx == stack[udepth].ts_tcharlen {
                                     if stack[udepth].ts_isdiff == DIFF_YES {
+                                        let fw_off = stack[udepth].ts_fcharstart as usize;
                                         stack[udepth].ts_fidx = stack[udepth].ts_fcharstart
-                                            + utfc_ptr2len(
-                                                fword.wrapping_add(
-                                                    stack[udepth].ts_fcharstart as usize,
-                                                ),
-                                            ) as u8;
-                                        let tw_ptr = tword
-                                            .as_ptr()
-                                            .wrapping_add(
-                                                (stack[udepth].ts_twordlen
-                                                    - stack[udepth].ts_tcharlen)
-                                                    as usize,
-                                            )
-                                            .cast::<std::ffi::c_char>();
-                                        let fw_ptr = fword
-                                            .wrapping_add(stack[udepth].ts_fcharstart as usize)
-                                            .cast::<std::ffi::c_char>()
-                                            .cast_const();
-                                        if utf_iscomposing_legacy(utf_ptr2char(tw_ptr))
-                                            && utf_iscomposing_legacy(utf_ptr2char(fw_ptr))
+                                            + utfc_ptr2len(&fword_buf[fw_off..]) as u8;
+                                        let tw_off = (stack[udepth].ts_twordlen
+                                            - stack[udepth].ts_tcharlen)
+                                            as usize;
+                                        let tw_c = utf_ptr2char(&tword[tw_off..]);
+                                        let fw_c = utf_ptr2char(&fword_buf[fw_off..]);
+                                        if utf_iscomposing_legacy(tw_c)
+                                            && utf_iscomposing_legacy(fw_c)
                                         {
                                             stack[udepth].ts_score -= SCORE_SUBST - SCORE_SUBCOMP;
                                         } else if !soundfold
                                             && slang.sl_has_map
-                                            && similar_chars(
-                                                slang,
-                                                utf_ptr2char(tw_ptr),
-                                                utf_ptr2char(fw_ptr),
-                                            )
+                                            && similar_chars(slang, tw_c, fw_c)
                                         {
                                             stack[udepth].ts_score -= SCORE_SUBST - SCORE_SIMILAR;
                                         }
@@ -1742,12 +1725,12 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                         let mut p_idx = (stack[udepth].ts_twordlen
                                             - stack[udepth].ts_tcharlen)
                                             as usize;
-                                        c = utf_ptr2char(tword[p_idx..].as_ptr());
+                                        c = utf_ptr2char(&tword[p_idx..]);
                                         if utf_iscomposing_legacy(c) {
                                             stack[udepth].ts_score -= SCORE_INS - SCORE_INSCOMP;
                                         } else {
                                             mb_cptr_back(&tword, &mut p_idx);
-                                            if c == utf_ptr2char(tword[p_idx..].as_ptr()) {
+                                            if c == utf_ptr2char(&tword[p_idx..]) {
                                                 stack[udepth].ts_score -= SCORE_INS - SCORE_INSDUP;
                                             }
                                         }
@@ -1784,15 +1767,13 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 udepth = depth as usize;
                                 stack[udepth].ts_flags |= TSF_DIDDEL;
                                 stack[udepth].ts_delidx = old_fidx;
-                                c = utf_ptr2char(fword.wrapping_add(old_fidx as usize));
+                                c = utf_ptr2char(&fword_buf[old_fidx as usize..]);
                                 stack[udepth].ts_fidx +=
-                                    utfc_ptr2len(fword.wrapping_add(old_fidx as usize)) as u8;
+                                    utfc_ptr2len(&fword_buf[old_fidx as usize..]) as u8;
                                 if utf_iscomposing_legacy(c) {
                                     stack[udepth].ts_score -= SCORE_DEL - SCORE_DELCOMP;
                                 } else if c
-                                    == utf_ptr2char(
-                                        fword.wrapping_add(stack[udepth].ts_fidx as usize),
-                                    )
+                                    == utf_ptr2char(&fword_buf[stack[udepth].ts_fidx as usize..])
                                 {
                                     stack[udepth].ts_score -= SCORE_DEL - SCORE_DELDUP;
                                 }
@@ -1893,8 +1874,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         stack[udepth].ts_state = SugState::StateRepIni;
                         continue;
                     }
-                    n = utf_ptr2len(p);
-                    c = utf_ptr2char(p);
+                    n = utf_ptr2len(&fword_buf[fidx..]);
+                    c = utf_ptr2char(&fword_buf[fidx..]);
                     if fword_buf[fidx + n as usize] == 0 {
                         c2 = 0;
                     } else if !soundfold
@@ -1902,7 +1883,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     {
                         c2 = c;
                     } else {
-                        c2 = utf_ptr2char(p.wrapping_add(n as usize));
+                        c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
                     }
                     if c2 == 0 {
                         stack[udepth].ts_state = SugState::StateRepIni;
@@ -1938,28 +1919,29 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 }
                 SugState::StateUnswap | SugState::StateSwap3 => {
                     if state == SugState::StateUnswap {
-                        let p = fword.wrapping_add(stack[udepth].ts_fidx as usize);
-                        n = utfc_ptr2len(p);
-                        c = utf_ptr2char(p.wrapping_add(n as usize));
+                        let fidx = stack[udepth].ts_fidx as usize;
+                        let p = fword.wrapping_add(fidx);
+                        n = utfc_ptr2len(&fword_buf[fidx..]);
+                        c = utf_ptr2char(&fword_buf[fidx + n as usize..]);
                         crate::globals::GraphPtr::copy_to(
                             p,
-                            p.wrapping_add(utfc_ptr2len(p.wrapping_add(n as usize)) as usize),
+                            p.wrapping_add(utfc_ptr2len(&fword_buf[fidx + n as usize..]) as usize),
                             n as usize,
                         );
                         utf_char2bytes(c, crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6));
                     }
                     let fidx = stack[udepth].ts_fidx as usize;
                     let p = fword.wrapping_add(fidx);
-                    n = utf_ptr2len(p);
-                    c = utf_ptr2char(p);
-                    fl = utf_ptr2len(p.wrapping_add(n as usize));
-                    c2 = utf_ptr2char(p.wrapping_add(n as usize));
+                    n = utf_ptr2len(&fword_buf[fidx..]);
+                    c = utf_ptr2char(&fword_buf[fidx..]);
+                    fl = utf_ptr2len(&fword_buf[fidx + n as usize..]);
+                    c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
                     if !soundfold
                         && !spell_iswordp(&fword_buf[fidx + (n + fl) as usize..], curwin_mut())
                     {
                         c3 = c;
                     } else {
-                        c3 = utf_ptr2char(p.wrapping_add((n + fl) as usize));
+                        c3 = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
                     }
                     if c == c3 || c3 == 0 {
                         stack[udepth].ts_state = SugState::StateRepIni;
@@ -1999,11 +1981,11 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 SugState::StateUnswap3 => {
                     let fidx = stack[udepth].ts_fidx as usize;
                     let mut p = fword.wrapping_add(fidx);
-                    n = utfc_ptr2len(p);
-                    c2 = utf_ptr2char(p.wrapping_add(n as usize));
-                    fl = utfc_ptr2len(p.wrapping_add(n as usize));
-                    c = utf_ptr2char(p.wrapping_add((n + fl) as usize));
-                    tl = utfc_ptr2len(p.wrapping_add((n + fl) as usize));
+                    n = utfc_ptr2len(&fword_buf[fidx..]);
+                    c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                    fl = utfc_ptr2len(&fword_buf[fidx + n as usize..]);
+                    c = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
+                    tl = utfc_ptr2len(&fword_buf[fidx + (n + fl) as usize..]);
                     crate::globals::GraphPtr::copy_to(
                         p,
                         p.wrapping_add((fl + tl) as usize),
@@ -2027,13 +2009,14 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
                         stack[udepth].ts_state = SugState::StateUnrot3l;
                         let old_fidx = stack[udepth].ts_fidx;
+                        let of_idx = old_fidx as usize;
                         depth += 1;
                         udepth = depth as usize;
-                        p = fword.wrapping_add(old_fidx as usize);
-                        n = utf_ptr2len(p);
-                        c = utf_ptr2char(p);
-                        fl = utf_ptr2len(p.wrapping_add(n as usize));
-                        fl += utf_ptr2len(p.wrapping_add((n + fl) as usize));
+                        p = fword.wrapping_add(of_idx);
+                        n = utf_ptr2len(&fword_buf[of_idx..]);
+                        c = utf_ptr2char(&fword_buf[of_idx..]);
+                        fl = utf_ptr2len(&fword_buf[of_idx + n as usize..]);
+                        fl += utf_ptr2len(&fword_buf[of_idx + (n + fl) as usize..]);
                         crate::globals::GraphPtr::copy_to(
                             p.wrapping_add(n as usize),
                             p,
@@ -2052,24 +2035,26 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     }
                 }
                 SugState::StateUnrot3l => {
-                    let mut p = fword.wrapping_add(stack[udepth].ts_fidx as usize);
-                    n = utfc_ptr2len(p);
-                    n += utfc_ptr2len(p.wrapping_add(n as usize));
-                    c = utf_ptr2char(p.wrapping_add(n as usize));
-                    tl = utfc_ptr2len(p.wrapping_add(n as usize));
+                    let fidx = stack[udepth].ts_fidx as usize;
+                    let mut p = fword.wrapping_add(fidx);
+                    n = utfc_ptr2len(&fword_buf[fidx..]);
+                    n += utfc_ptr2len(&fword_buf[fidx + n as usize..]);
+                    c = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                    tl = utfc_ptr2len(&fword_buf[fidx + n as usize..]);
                     crate::globals::GraphPtr::copy_to(p, p.wrapping_add(tl as usize), n as usize);
                     utf_char2bytes(c, crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6));
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
                         stack[udepth].ts_state = SugState::StateUnrot3r;
                         let old_fidx = stack[udepth].ts_fidx;
+                        let of_idx = old_fidx as usize;
                         depth += 1;
                         udepth = depth as usize;
-                        p = fword.wrapping_add(old_fidx as usize);
-                        n = utf_ptr2len(p);
-                        n += utf_ptr2len(p.wrapping_add(n as usize));
-                        c = utf_ptr2char(p.wrapping_add(n as usize));
-                        tl = utf_ptr2len(p.wrapping_add(n as usize));
+                        p = fword.wrapping_add(of_idx);
+                        n = utf_ptr2len(&fword_buf[of_idx..]);
+                        n += utf_ptr2len(&fword_buf[of_idx + n as usize..]);
+                        c = utf_ptr2char(&fword_buf[of_idx + n as usize..]);
+                        tl = utf_ptr2len(&fword_buf[of_idx + n as usize..]);
                         crate::globals::GraphPtr::copy_to(
                             p,
                             p.wrapping_add(tl as usize),
@@ -2085,11 +2070,12 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     let mut do_rep = true;
                     if state != SugState::StateRep {
                         if state == SugState::StateUnrot3r {
-                            let p = fword.wrapping_add(stack[udepth].ts_fidx as usize);
-                            c = utf_ptr2char(p);
-                            tl = utfc_ptr2len(p);
-                            n = utfc_ptr2len(p.wrapping_add(tl as usize));
-                            n += utfc_ptr2len(p.wrapping_add((tl + n) as usize));
+                            let fidx = stack[udepth].ts_fidx as usize;
+                            let p = fword.wrapping_add(fidx);
+                            c = utf_ptr2char(&fword_buf[fidx..]);
+                            tl = utfc_ptr2len(&fword_buf[fidx..]);
+                            n = utfc_ptr2len(&fword_buf[fidx + tl as usize..]);
+                            n += utfc_ptr2len(&fword_buf[fidx + (tl + n) as usize..]);
                             crate::globals::GraphPtr::copy_to(
                                 p.wrapping_add(tl as usize),
                                 p,
@@ -2125,7 +2111,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         }
                     }
                     if do_rep {
-                        let p = fword.wrapping_add(stack[udepth].ts_fidx as usize);
+                        let fidx_cur = stack[udepth].ts_fidx as usize;
                         let gap = if soundfold {
                             &slang.sl_repsal
                         } else {
@@ -2136,13 +2122,12 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             stack[udepth].ts_curi += 1;
                             let ftp = &gap[curi as usize];
                             if ftp.ft_from.to_bytes().first().copied().unwrap_or(0)
-                                != *crate::globals::GraphPtr::of(p).borrow()
+                                != fword_buf[fidx_cur]
                             {
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
-                            if unsafe { CStr::from_ptr(p.cast()) }
-                                .to_bytes()
+                            if crate::memory::bytes_until_nul(&fword_buf[fidx_cur..])
                                 .starts_with(ftp.ft_from.as_bytes())
                                 && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
@@ -2260,8 +2245,8 @@ fn find_keepcap_word(slang: &mut Slang, fword: &[u8], kword: &mut [u8]) {
             if round[udepth] > 2 {
                 depth -= 1;
             } else {
-                let flen = utf_ptr2len(fword[fwordidx[udepth] as usize..].as_ptr());
-                let ulen = utf_ptr2len(uword.as_ptr().wrapping_add(uwordidx[udepth] as usize));
+                let flen = utf_ptr2len(&fword[fwordidx[udepth] as usize..]);
+                let ulen = utf_ptr2len(&uword[uwordidx[udepth] as usize..]);
                 let (mut p_slice, mut l): (&[u8], i32) = if round[udepth] == 1 {
                     (&fword[fwordidx[udepth] as usize..], flen)
                 } else {
@@ -2593,7 +2578,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
                 } else {
                     0
                 };
-                let gc = utf_ptr2char(p_slice.as_ptr());
+                let gc = utf_ptr2char(p_slice);
                 if spell_isupper(gc) {
                     let bc = utf_ptr2char(&su.su_badword);
                     if !spell_isupper(bc) && spell_tofold(bc) != spell_tofold(gc) {
@@ -2730,9 +2715,7 @@ fn add_suggestion(
         }
         mb_cptr_back(goodword_bytes, &mut pgood_idx);
         mb_cptr_back(bad_slice, &mut pbad_idx);
-        if utf_ptr2char(goodword_bytes[pgood_idx..].as_ptr())
-            != utf_ptr2char(bad_slice[pbad_idx..].as_ptr())
-        {
+        if utf_ptr2char(&goodword_bytes[pgood_idx..]) != utf_ptr2char(&bad_slice[pbad_idx..]) {
             break;
         }
     }

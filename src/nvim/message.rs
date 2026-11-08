@@ -1301,8 +1301,8 @@ pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
         }
         let mut n = 0usize;
         while size >= room {
-            size -= utf_ptr2cells(s[n..].as_ptr());
-            n += utfc_ptr2len(s[n..].as_ptr()) as usize;
+            size -= utf_ptr2cells(&s[n..]);
+            n += utfc_ptr2len(&s[n..]) as usize;
         }
         n -= 1;
         s[n] = b'<';

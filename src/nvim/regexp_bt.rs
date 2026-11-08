@@ -4017,7 +4017,8 @@ fn bt_regexec_both(
                 {
                     break;
                 }
-                let step = utfc_ptr2len(s) as usize;
+                let s_cstr = unsafe { CStr::from_ptr(s.cast()) };
+                let step = utfc_ptr2len(s_cstr) as usize;
                 s = s.wrapping_add(step);
             }
         } else {
@@ -4029,15 +4030,11 @@ fn bt_regexec_both(
                 };
                 s = s.wrapping_add(found_off);
                 let mut len = prog.regmlen;
-                if cstrncmp(
-                    unsafe { CStr::from_ptr(s.cast()) }.to_bytes(),
-                    regmust_slice,
-                    &mut len,
-                ) == 0
-                {
+                let s_cstr = unsafe { CStr::from_ptr(s.cast()) };
+                if cstrncmp(s_cstr.to_bytes(), regmust_slice, &mut len) == 0 {
                     break;
                 }
-                let step = utfc_ptr2len(s) as usize;
+                let step = utfc_ptr2len(s_cstr) as usize;
                 s = s.wrapping_add(step);
             }
         }

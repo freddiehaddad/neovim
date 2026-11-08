@@ -1062,7 +1062,7 @@ pub fn ins_compl_add_infercase(
         {
             let mut rem = str_slice;
             while !rem.is_empty() {
-                let step = utf_ptr2len(rem.as_ptr()) as usize;
+                let step = utf_ptr2len(rem) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
                 char_len += 1;
             }
@@ -1072,7 +1072,7 @@ pub fn ins_compl_add_infercase(
         {
             let mut rem = insexp().compl_orig_text.as_bytes();
             while !rem.is_empty() {
-                let step = utf_ptr2len(rem.as_ptr()) as usize;
+                let step = utf_ptr2len(rem) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
                 compl_char_len += 1;
             }
@@ -2139,7 +2139,7 @@ fn thesaurus_add_words_in_line(
         let wstart = rem;
 
         while !rem.is_empty() {
-            let l = utfc_ptr2len(rem.as_ptr()) as usize;
+            let l = utfc_ptr2len(rem) as usize;
             if l < 2 && !vim_iswordc(i32::from(rem[0])) {
                 break;
             }
@@ -2639,14 +2639,13 @@ pub fn ins_compl_addfrommatch() {
     let len = curwin_mut().w_cursor.col - insexp().compl_col;
     let shown_idx = insexp().compl_shown_idx.unwrap();
     let shown = compl_at(shown_idx);
-    let mut p = shown.cp_str.data;
-    if (shown.cp_str.size as i32) <= len {
+    let mut s_bytes: &[u8] = shown.cp_str.as_bytes();
+    if (s_bytes.len() as i32) <= len {
         if !match_at_original_text(&*shown) {
             return;
         }
 
-        p = crate::globals::GraphPtr::NULL;
-        let mut plen: usize = 0;
+        s_bytes = &[];
         let mut cp_idx = compl_next_idx(shown_idx);
         while let Some(ci) = cp_idx
             && ci != 0
@@ -2655,18 +2654,16 @@ pub fn ins_compl_addfrommatch() {
             if insexp().compl_leader.data.is_null()
                 || ins_compl_equal(&mut *cp, insexp().compl_leader.as_bytes())
             {
-                p = cp.cp_str.data;
-                plen = cp.cp_str.size;
+                s_bytes = cp.cp_str.as_bytes();
                 break;
             }
             cp_idx = compl_next_idx(ci);
         }
-        if p.is_null() || (plen as i32) <= len {
+        if (s_bytes.len() as i32) <= len {
             return;
         }
     }
-    p = p.wrapping_add(len as usize);
-    let c = utf_ptr2char(p);
+    let c = utf_ptr2char(&s_bytes[len as usize..]);
     ins_compl_addleader(c);
 }
 
@@ -2996,7 +2993,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
         let mut rem = &orig_bytes[len..];
         while !rem.is_empty() {
             redo_append_char(K_BS);
-            let step = utf_ptr2len(rem.as_ptr()) as usize;
+            let step = utf_ptr2len(rem) as usize;
             rem = &rem[step.max(1).min(rem.len())..];
         }
     }
@@ -5779,23 +5776,14 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         let mut prefix: &[u8] = b"\\<";
         let mut prefixlen: usize = 2;
 
-        let line_at_col =
-            unsafe { CStr::from_ptr(line.wrapping_add(insexp().compl_col as usize).cast()) }
-                .to_bytes();
+        let line_bytes = unsafe { CStr::from_ptr(line.cast()) }.to_bytes();
+        let line_at_col = line_bytes.get(insexp().compl_col as usize..).unwrap_or(&[]);
         if !vim_iswordp(line_at_col)
             || (insexp().compl_col > 0 && {
-                let prev_p = {
-                    let _l = line;
-                    let _p = line.wrapping_add(insexp().compl_col as usize);
-                    if (_p as usize) > (_l as usize) {
-                        _p.wrapping_sub(
-                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                        )
-                    } else {
-                        _p
-                    }
-                };
-                vim_iswordp(unsafe { CStr::from_ptr(prev_p.cast()) }.to_bytes())
+                let col_u = insexp().compl_col as usize;
+                let prev_off =
+                    col_u - 1 - crate::mbyte::utf_head_off_slice(line_bytes, col_u - 1) as usize;
+                vim_iswordp(line_bytes.get(prev_off..).unwrap_or(&[]))
             })
         {
             prefix = b"";
@@ -5812,42 +5800,30 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         quote_meta(Some(&mut pat_vec[prefixlen..]), word_slice);
         set_compl_pattern_bytes(&pat_vec[..n - 1]);
     } else {
+        let line_bytes = unsafe { CStr::from_ptr(line.cast()) }.to_bytes();
         startcol -= 1;
         if startcol < 0 || {
-            let prev_p = {
-                let _l = line;
-                let _p = line.wrapping_add((startcol + 1) as usize);
-                if (_p as usize) > (_l as usize) {
-                    _p.wrapping_sub(
-                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                    )
-                } else {
-                    _p
-                }
-            };
-            !vim_iswordp(unsafe { CStr::from_ptr(prev_p.cast()) }.to_bytes())
+            let sc_u = startcol as usize;
+            let prev_off = sc_u - crate::mbyte::utf_head_off_slice(line_bytes, sc_u) as usize;
+            !vim_iswordp(line_bytes.get(prev_off..).unwrap_or(&[]))
         } {
             insexp().compl_pattern = Some(c"\\<\\k\\k".to_owned());
             insexp().compl_col += curs_col;
             insexp().compl_length = 0;
             insexp().compl_from_nonkeyword = true;
         } else {
-            startcol -= crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(startcol as usize));
-            let base_class = mb_get_class(
-                unsafe { CStr::from_ptr(line.wrapping_add(startcol as usize).cast()) }.to_bytes(),
-            );
+            startcol -= crate::mbyte::utf_head_off_slice(line_bytes, startcol as usize);
+            let base_class = mb_get_class(line_bytes.get(startcol as usize..).unwrap_or(&[]));
             while {
                 startcol -= 1;
                 startcol >= 0
             } {
-                let head_off =
-                    crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(startcol as usize));
+                let head_off = crate::mbyte::utf_head_off_slice(line_bytes, startcol as usize);
                 if base_class
                     != mb_get_class(
-                        unsafe {
-                            CStr::from_ptr(line.wrapping_add((startcol - head_off) as usize).cast())
-                        }
-                        .to_bytes(),
+                        line_bytes
+                            .get((startcol - head_off) as usize..)
+                            .unwrap_or(&[]),
                     )
                 {
                     break;

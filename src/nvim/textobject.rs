@@ -1485,15 +1485,9 @@ fn find_prev_quote(
     quotechar: i32,
     escape: Option<&[u8]>,
 ) -> i32 {
-    let line_ptr = if line_bytes.is_empty() {
-        c"".as_ptr()
-    } else {
-        line_bytes.as_ptr().cast()
-    };
     while col_start > 0 {
         col_start -= 1;
-        col_start -=
-            crate::mbyte::utf_head_off_ptr(line_ptr, line_ptr.wrapping_add(col_start as usize));
+        col_start -= crate::mbyte::utf_head_off_slice(line_bytes, col_start as usize);
         let mut n = 0;
         if let Some(esc) = escape {
             while col_start - n > 0 && esc.contains(&line_bytes[(col_start - n - 1) as usize]) {

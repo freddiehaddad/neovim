@@ -66,11 +66,162 @@ const LC_MESSAGES: i32 = 6;
 #[cfg(not(any(windows, target_os = "linux")))]
 const VIM_LC_MESSAGES: i32 = LC_MESSAGES;
 
+#[cfg(windows)]
+#[allow(non_camel_case_types)]
+type wint_t = u16;
+#[cfg(not(windows))]
+#[allow(non_camel_case_types)]
+type wint_t = u32;
+
+#[cfg(windows)]
+const CP_UTF8: u32 = 65001;
+#[cfg(target_os = "linux")]
+const CODESET: i32 = 14;
+#[cfg(all(unix, not(target_os = "linux")))]
+const CODESET: i32 = 0;
+
 unsafe extern "C" {
     pub(crate) fn setlocale(category: i32, locale: *const u8) -> *mut u8;
 
     #[cfg(unix)]
     pub(crate) fn nl_langinfo(item: i32) -> *mut u8;
+
+    fn towupper(wc: wint_t) -> wint_t;
+    fn towlower(wc: wint_t) -> wint_t;
+}
+
+#[cfg(windows)]
+unsafe extern "system" {
+    fn MultiByteToWideChar(
+        CodePage: u32,
+        dwFlags: u32,
+        lpMultiByteStr: *const u8,
+        cbMultiByte: i32,
+        lpWideCharStr: *mut u16,
+        cchWideChar: i32,
+    ) -> i32;
+    fn WideCharToMultiByte(
+        CodePage: u32,
+        dwFlags: u32,
+        lpWideCharStr: *const u16,
+        cchWideChar: i32,
+        lpMultiByteStr: *mut u8,
+        cbMultiByte: i32,
+        lpDefaultChar: *const u8,
+        lpUsedDefaultChar: *mut i32,
+    ) -> i32;
+}
+
+#[inline]
+pub(crate) fn os_towupper(a: i32) -> i32 {
+    unsafe { towupper(a as wint_t) as i32 }
+}
+
+#[inline]
+pub(crate) fn os_towlower(a: i32) -> i32 {
+    unsafe { towlower(a as wint_t) as i32 }
+}
+
+pub(crate) fn os_locale_codeset(env_buf: &mut [u8; 64]) -> Option<&CStr> {
+    #[inline]
+    fn ptr_opt_cstr<'b>(p: *const u8) -> Option<&'b CStr> {
+        if p.is_null() {
+            None
+        } else {
+            Some(unsafe { CStr::from_ptr(p.cast()) })
+        }
+    }
+
+    #[cfg(unix)]
+    let mut s_opt: Option<&CStr> = ptr_opt_cstr(unsafe { nl_langinfo(CODESET) });
+    #[cfg(not(unix))]
+    let mut s_opt: Option<&CStr> = None;
+
+    if s_opt.is_none_or(|s| s.to_bytes().is_empty()) {
+        s_opt = ptr_opt_cstr(unsafe { setlocale(LC_CTYPE, ptr::null()) });
+    }
+    if let Some(s) = s_opt
+        && !s.to_bytes().is_empty()
+    {
+        return Some(s);
+    }
+    for var in [c"LC_ALL", c"LC_CTYPE", c"LANG"] {
+        if os_getenv_buf(var, env_buf).is_some() {
+            return Some(crate::memory::bytes_as_cstr(env_buf));
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+pub fn utf8_to_utf16(utf8: &[u8], utf8len: i32, utf16: &mut Vec<u16>) -> i32 {
+    use crate::event::r#loop::uv_translate_sys_error;
+    use crate::os::os_win_console::GetLastError;
+
+    let utf8_ptr = utf8.as_ptr();
+    utf16.clear();
+    let mut bufsize =
+        unsafe { MultiByteToWideChar(CP_UTF8, 0, utf8_ptr, utf8len, ptr::null_mut(), 0) };
+    if bufsize == 0 {
+        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
+    }
+
+    utf16.resize((bufsize as usize) + 1, 0);
+    bufsize =
+        unsafe { MultiByteToWideChar(CP_UTF8, 0, utf8_ptr, utf8len, utf16.as_mut_ptr(), bufsize) };
+    if bufsize == 0 {
+        utf16.clear();
+        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
+    }
+
+    utf16[bufsize as usize] = 0;
+    0
+}
+
+#[cfg(windows)]
+pub fn utf16_to_utf8(utf16: &[u16], utf16len: i32, utf8: &mut Option<CString>) -> i32 {
+    use crate::event::r#loop::uv_translate_sys_error;
+    use crate::os::os_win_console::GetLastError;
+
+    let utf16_ptr = utf16.as_ptr();
+    let mut bufsize = unsafe {
+        WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            utf16_ptr,
+            utf16len,
+            ptr::null_mut(),
+            0,
+            ptr::null(),
+            ptr::null_mut(),
+        )
+    };
+    if bufsize == 0 {
+        *utf8 = None;
+        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
+    }
+
+    let mut vec = vec![0u8; (bufsize as usize) + 1];
+    bufsize = unsafe {
+        WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            utf16_ptr,
+            utf16len,
+            vec.as_mut_ptr(),
+            bufsize,
+            ptr::null(),
+            ptr::null_mut(),
+        )
+    };
+    if bufsize == 0 {
+        *utf8 = None;
+        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
+    }
+
+    vec[bufsize as usize] = 0;
+    *utf8 = Some(crate::memory::cstring_until_nul(&vec));
+    0
 }
 
 struct MoEntry {

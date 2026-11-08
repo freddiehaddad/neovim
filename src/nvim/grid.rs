@@ -291,7 +291,7 @@ pub fn schar_get_adv(buf_out: &mut [u8], sc: Schar) -> usize {
 pub fn schar_cells(sc: Schar) -> i32 {
     let mut buf = [0u8; MAX_SCHAR_SIZE];
     schar_get(&mut buf, sc);
-    crate::mbyte::utf_ptr2cells(buf.as_ptr())
+    crate::mbyte::utf_ptr2cells(&buf)
 }
 
 pub fn schar_len(sc: Schar) -> usize {

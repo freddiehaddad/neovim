@@ -4064,12 +4064,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         if sub_firstline.as_slice()[matchcol as usize] == 0 {
                             skip_match = true;
                         } else {
-                            matchcol += utfc_ptr2len(
-                                sub_firstline
-                                    .as_slice()
-                                    .as_ptr()
-                                    .wrapping_add(matchcol as usize),
-                            );
+                            matchcol +=
+                                utfc_ptr2len(&sub_firstline.as_slice()[matchcol as usize..]);
                         }
                         current_match.start.col = matchcol;
                         current_match.end.lnum = sub_firstlnum;
@@ -4442,7 +4438,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     p1 = p1.wrapping_add(1);
                                 }
                             } else {
-                                p1 = p1.wrapping_add(utfc_ptr2len(p1) as usize);
+                                p1 = p1.wrapping_add(utfc_ptr2len(unsafe {
+                                    CStr::from_ptr(p1.cast())
+                                }) as usize);
                             }
                         }
                         let new_endcol = new_start.size as Colnr;

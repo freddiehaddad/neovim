@@ -3518,7 +3518,7 @@ pub fn set_chars_option<'a>(
             for entry in tab {
                 if let Some(slot) = entry.target.slot_mut(&mut fcs_chars, &mut lcs_chars) {
                     let s_cstr = match entry.def {
-                        Some(d) if ptr2cells(d.as_ptr()) == 1 => Some(d),
+                        Some(d) if ptr2cells(d) == 1 => Some(d),
                         _ => entry.fallback,
                     };
                     *slot = schar_from_str(s_cstr);

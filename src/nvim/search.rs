@@ -861,8 +861,9 @@ pub fn searchit(
                                         .borrow()
                                             != 0
                                     {
-                                        matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                        matchcol += utfc_ptr2len(unsafe {
+                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
+                                        });
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
@@ -872,8 +873,9 @@ pub fn searchit(
                                     .borrow()
                                         != 0
                                     {
-                                        matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                        matchcol += utfc_ptr2len(unsafe {
+                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
+                                        });
                                     }
                                 }
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
@@ -954,8 +956,9 @@ pub fn searchit(
                                         .borrow()
                                             != 0
                                     {
-                                        matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                        matchcol += utfc_ptr2len(unsafe {
+                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
+                                        });
                                     }
                                 } else {
                                     if matchpos.lnum > 0 {
@@ -968,8 +971,9 @@ pub fn searchit(
                                     .borrow()
                                         != 0
                                     {
-                                        matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                        matchcol += utfc_ptr2len(unsafe {
+                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
+                                        });
                                     }
                                 }
                                 if *crate::globals::GraphPtr::of(
@@ -1023,10 +1027,10 @@ pub fn searchit(
                             } else {
                                 pos.col -= 1;
                                 if pos.lnum <= buf.b_ml.ml_line_count {
-                                    ptr_line = ml_get_buf(buf, pos.lnum).as_ptr().cast_mut();
-                                    pos.col -= crate::mbyte::utf_head_off_ptr(
-                                        ptr_line,
-                                        ptr_line.wrapping_add(pos.col as usize),
+                                    let line_bytes = ml_get_buf(buf, pos.lnum).to_bytes();
+                                    pos.col -= crate::mbyte::utf_head_off_slice(
+                                        line_bytes,
+                                        pos.col as usize,
                                     );
                                 }
                             }
@@ -1467,7 +1471,7 @@ pub fn do_search(
                 ui_busy_start();
                 msgbuf_vec[0] = dirc as u8;
                 let p_bytes = unsafe { std::slice::from_raw_parts(p.cast::<u8>(), plen) }.to_vec();
-                if utf_iscomposing_first(utf_ptr2char(p)) {
+                if utf_iscomposing_first(utf_ptr2char(p_bytes.as_slice())) {
                     msgbuf_vec[1] = b' ';
                     msgbuf_vec[2..2 + plen].copy_from_slice(&p_bytes);
                 } else {
@@ -3813,13 +3817,14 @@ pub fn find_pattern_in_path(
                         && !compl_status_sol()
                         && !startp.is_null()
                         && unsafe { *startp } != 0
-                        && *crate::globals::GraphPtr::of(
-                            startp.wrapping_add(utfc_ptr2len(startp) as usize),
-                        )
-                        .borrow()
-                            != 0
+                        && {
+                            let start_cstr = unsafe { CStr::from_ptr(startp) };
+                            let step = utfc_ptr2len(start_cstr) as usize;
+                            start_cstr.to_bytes().len() > step
+                        }
                     {
-                        p = startp.wrapping_add(utfc_ptr2len(startp) as usize);
+                        let start_cstr = unsafe { CStr::from_ptr(startp) };
+                        p = startp.wrapping_add(utfc_ptr2len(start_cstr) as usize);
                         continue;
                     }
                     break;

@@ -530,7 +530,8 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             total += incr;
             vcol += incr;
         }
-        bd.textstart = ci.as_cstr();
+        bd.textstart =
+            crate::memory::CStrSubslice::advance(bd.textstart, ci.offset_from(bd.textstart));
         bd.start_vcol = vcol;
 
         let mut tabs: i32 = 0;
@@ -632,7 +633,8 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             verbatim_copy_width += incr;
             ci = cli.next;
         }
-        let verbatim_copy_end = ci.as_cstr();
+        let verbatim_copy_end =
+            crate::memory::CStrSubslice::advance(bd.textstart, ci.offset_from(bd.textstart));
 
         debug_assert!(destination_col - verbatim_copy_width >= 0);
         let fill = destination_col - verbatim_copy_width;
@@ -2330,7 +2332,8 @@ pub fn getregionpos_line(
     ret_p1: &mut CursorPos,
     ret_p2: &mut CursorPos,
 ) {
-    let line = ml_get(lnum).as_ptr().cast_mut();
+    let line_cstr = ml_get(lnum);
+    let line = line_cstr.as_ptr().cast_mut();
     let line_len = ml_get_len(lnum);
 
     if region_type == MT_LINE_WISE {
@@ -2352,8 +2355,7 @@ pub fn getregionpos_line(
                 let off = (bd.textstart.as_ptr() as usize).saturating_sub(line as usize);
                 let prev_off = if off > 0 {
                     off - 1
-                        - (crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(off - 1))
-                            as usize)
+                        - (crate::mbyte::utf_head_off_slice(line_cstr.to_bytes(), off - 1) as usize)
                 } else {
                     0
                 };
@@ -2370,8 +2372,7 @@ pub fn getregionpos_line(
         } else if bd.startspaces > 0 {
             let off = (bd.textstart.as_ptr() as usize).saturating_sub(line as usize);
             let prev_off = if off > 0 {
-                off - 1
-                    - (crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(off - 1)) as usize)
+                off - 1 - (crate::mbyte::utf_head_off_slice(line_cstr.to_bytes(), off - 1) as usize)
             } else {
                 0
             };

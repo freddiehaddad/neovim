@@ -2852,22 +2852,19 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
             if (try_match || try_match_word) && (curwin_mut().w_cursor.col as usize) >= word_len {
                 let mut matched = false;
                 if keytyped == KEY_COMPLETE {
-                    let line = get_cursor_line_ptr().as_ptr().cast_mut();
-                    let mut s = line.wrapping_add(curwin_mut().w_cursor.col as usize);
-                    while s > line {
-                        let n = if (s as usize) > (line as usize) {
-                            s.wrapping_sub(
-                                1 + crate::mbyte::utf_head_off_ptr(line, s.wrapping_sub(1))
-                                    as usize,
-                            )
-                        } else {
-                            s
-                        };
-                        if !vim_iswordp(unsafe { std::ffi::CStr::from_ptr(n) }.to_bytes()) {
+                    let line_bytes = crate::cursor::get_cursor_line_slice();
+                    let mut s_off = curwin_mut().w_cursor.col as usize;
+                    while s_off > 0 {
+                        let n_off = s_off
+                            - 1
+                            - crate::mbyte::utf_head_off_slice(line_bytes, s_off - 1) as usize;
+                        if !vim_iswordp(line_bytes.get(n_off..).unwrap_or(&[])) {
                             break;
                         }
-                        s = n;
+                        s_off = n_off;
                     }
+                    let line = get_cursor_line_ptr().as_ptr().cast_mut();
+                    let s = line.wrapping_add(s_off);
                     let s_off = ((s as isize) - (line as isize)) as usize;
                     let col_usize = curwin_mut().w_cursor.col as usize;
                     if s_off + word_len <= col_usize {

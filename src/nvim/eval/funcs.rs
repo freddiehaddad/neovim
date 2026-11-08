@@ -6698,9 +6698,9 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     let mut i: usize = 0;
     loop {
-        let c = utf_ptr2char(buf.as_ptr().wrapping_add(i));
+        let c = utf_ptr2char(&buf[i..]);
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(c));
-        i += utf_ptr2len(buf.as_ptr().wrapping_add(i)) as usize;
+        i += utf_ptr2len(&buf[i..]) as usize;
         if buf[i] == 0 {
             break;
         }

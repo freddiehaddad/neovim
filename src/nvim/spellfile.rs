@@ -2205,14 +2205,14 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                         let mut upper = false;
                         if let (Some(chop), Some(add)) =
                             (aff_entry.chop_cstr(), aff_entry.add_cstr())
-                            && chop.to_bytes().len() == utfc_ptr2len(chop.as_ptr()) as usize
+                            && chop.to_bytes().len() == utfc_ptr2len(chop) as usize
                         {
-                            let c = utf_ptr2char(chop.as_ptr());
+                            let c = utf_ptr2char(chop);
                             let c_up = spell_toupper(c);
                             if c_up != c
                                 && aff_entry
                                     .cond_cstr()
-                                    .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
+                                    .is_none_or(|cond| utf_ptr2char(cond) == c)
                             {
                                 let add_bytes = add.to_bytes();
                                 let mut end_idx = add_bytes.len();
@@ -3114,20 +3114,20 @@ fn store_aff_word(
                         } else {
                             newword[0] = 0;
                         }
-                        let mut p = word.cast_mut();
+                        let word_bytes = unsafe { CStr::from_ptr(word.cast()) }.to_bytes();
+                        let mut p_off = 0usize;
                         if let Some(ae_chop) = ae_chop {
                             let mut i = mb_charlen(ae_chop.to_bytes());
                             while i > 0 {
-                                {
-                                    let _adv = crate::mbyte::utfc_ptr2len(p) as usize;
-                                    p = (p).wrapping_add(_adv);
-                                };
+                                p_off += crate::mbyte::utfc_ptr2len(
+                                    word_bytes.get(p_off..).unwrap_or(&[]),
+                                ) as usize;
                                 i -= 1;
                             }
                         }
                         crate::memory::append_bytes_to_c_buf(
                             &mut newword,
-                            unsafe { CStr::from_ptr(p.cast()) }.to_bytes(),
+                            word_bytes.get(p_off..).unwrap_or(&[]),
                         );
                     } else {
                         crate::memory::copy_bytes_to_c_buf(&mut newword, word_cstr.to_bytes());

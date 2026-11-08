@@ -1296,7 +1296,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             p2 = p1;
             p1 = past_head.wrapping_add(idx);
         }
-        idx += utfc_ptr2len(past_head.wrapping_add(idx)) as usize;
+        idx += utfc_ptr2len(&rem_bytes[idx..]) as usize;
     }
 
     p4 = p4.wrapping_add(1);
@@ -1837,9 +1837,9 @@ fn expand_rtdir_int(
     }
 
     for slot in gap.iter_mut() {
-        let bytes = slot.as_bytes();
-        let match_ptr = slot.as_ptr().cast_mut().cast::<u8>();
-        let mut end_idx = bytes.len();
+        let bytes = slot.to_bytes_with_nul();
+
+        let mut end_idx = bytes.len() - 1;
         if end_idx > 4 && !keep_ext {
             let tail4 = &bytes[(end_idx - 4)..end_idx];
             if tail4.eq_ignore_ascii_case(b".vim") || tail4.eq_ignore_ascii_case(b".lua") {
@@ -1852,28 +1852,17 @@ fn expand_rtdir_int(
         } else {
             0
         };
-        let mut s = match_ptr.wrapping_add(end_idx);
-        while (s as usize) > (match_ptr as usize) {
-            if vim_ispathsep(*crate::globals::GraphPtr::of(s).borrow() as i32) {
+        let mut s_idx = end_idx;
+        while s_idx > 0 {
+            if vim_ispathsep(bytes[s_idx] as i32) {
                 match_pathsep_cnt += 1;
                 if match_pathsep_cnt > pat_pathsep_cnt {
                     break;
                 }
             }
-            s = {
-                let _l = match_ptr;
-                let _p = s;
-                if (_p as usize) > (_l as usize) {
-                    _p.wrapping_sub(
-                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                    )
-                } else {
-                    _p
-                }
-            };
+            s_idx = s_idx - 1 - crate::mbyte::utf_head_off_slice(bytes, s_idx - 1) as usize;
         }
-        s = s.wrapping_add(1);
-        let start_idx = (s as usize) - (match_ptr as usize);
+        let start_idx = s_idx + 1;
         *slot = crate::memory::bytes_to_cstring(&bytes[start_idx..end_idx]);
     }
 

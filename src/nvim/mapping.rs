@@ -1494,60 +1494,38 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
     let mut clen: i32;
     let mut scol: i32;
     {
+        let ptr_bytes = unsafe { CStr::from_ptr(ptr_arg.cast()) }.to_bytes();
         let mut is_id = true;
-        let mut p = crate::globals::GraphPtr::<u8>::of({
-            let _l = ptr_arg;
-            let _p = ptr_arg.wrapping_add(col as usize);
-            if (_p as usize) > (_l as usize) {
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
-            } else {
-                _p
-            }
-        })
-        .as_ptr();
-        let vim_abbr = if !vim_iswordp(unsafe { CStr::from_ptr(p.cast()) }.to_bytes()) {
+        let col_u = col as usize;
+        let mut p_off = if col_u > 0 {
+            col_u - 1 - crate::mbyte::utf_head_off_slice(ptr_bytes, col_u - 1) as usize
+        } else {
+            0
+        };
+        let vim_abbr = if !vim_iswordp(ptr_bytes.get(p_off..).unwrap_or(&[])) {
             true
         } else {
-            if (p as usize) > (ptr_arg as usize) {
-                let prev_p = {
-                    let _l = ptr_arg;
-                    let _p = p;
-                    if (_p as usize) > (_l as usize) {
-                        _p.wrapping_sub(
-                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                        )
-                    } else {
-                        _p
-                    }
-                };
-                is_id = vim_iswordp(unsafe { CStr::from_ptr(prev_p.cast()) }.to_bytes());
+            if p_off > 0 {
+                let prev_off =
+                    p_off - 1 - crate::mbyte::utf_head_off_slice(ptr_bytes, p_off - 1) as usize;
+                is_id = vim_iswordp(ptr_bytes.get(prev_off..).unwrap_or(&[]));
             }
             false
         };
         clen = 1;
-        let min_ptr = ptr_arg.wrapping_add(mincol.max(0) as usize);
-        while (p as usize) > (min_ptr as usize) {
-            p = {
-                let _l = ptr_arg;
-                let _p = p;
-                if (_p as usize) > (_l as usize) {
-                    _p.wrapping_sub(
-                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                    )
-                } else {
-                    _p
-                }
-            };
-            let p_bytes = unsafe { CStr::from_ptr(p.cast()) }.to_bytes();
+        let min_off = mincol.max(0) as usize;
+        while p_off > min_off {
+            p_off = p_off - 1 - crate::mbyte::utf_head_off_slice(ptr_bytes, p_off - 1) as usize;
+            let p_bytes = ptr_bytes.get(p_off..).unwrap_or(&[]);
             if ascii_isspace(p_bytes.first().copied().unwrap_or(0) as i32)
                 || (!vim_abbr && is_id != vim_iswordp(p_bytes))
             {
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                p_off += utfc_ptr2len(p_bytes) as usize;
                 break;
             }
             clen += 1;
         }
-        scol = ((p as isize) - (ptr_arg as isize)) as i32;
+        scol = p_off as i32;
     }
 
     if scol < mincol {
