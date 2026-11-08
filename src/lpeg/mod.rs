@@ -1,4 +1,5 @@
 //! LPeg - PEG pattern matching for Lua (`src/lpeg/`).
+#![deny(unsafe_code)]
 
 pub mod lpcap;
 pub mod lpcode;
@@ -7,11 +8,8 @@ pub mod lptree;
 pub mod lpvm;
 
 use std::ffi::CStr;
-use std::mem::{offset_of, size_of};
-use std::ptr;
 
 use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
-use crate::strings::RawCCharPtr;
 
 pub type LpegByte = u8;
 pub type LpegUint = u32;
@@ -77,27 +75,27 @@ pub fn clearset(s: &mut [LpegByte; CHARSETSIZE]) {
 }
 
 #[inline]
-pub const fn bytes2slots(n: usize) -> usize {
-    (n - 1) / size_of::<TTree>() + 1
-}
-
-#[inline]
 pub fn setchar(cs: &mut [LpegByte; CHARSETSIZE], b: usize) {
     cs[b >> 3] |= 1u8 << (b & 7);
 }
 
+#[cfg(test)]
 #[inline]
-pub fn testchar(st: *const LpegByte, c: LpegUint) -> i32 {
-    unsafe { (((*st.wrapping_add((c >> 3) as usize) as LpegUint) >> (c & 7)) & 1) as i32 }
+pub fn testchar(st: &[LpegByte], c: LpegUint) -> i32 {
+    let idx = (c >> 3) as usize;
+    let b = st.get(idx).copied().unwrap_or(0);
+    (((b as LpegUint) >> (c & 7)) & 1) as i32
 }
 
 pub const MAXOFF: i32 = 0xF;
 pub const MAXAUX: i32 = 0xFF;
 pub const MAXBEHIND: i32 = MAXAUX;
 
+pub const INST_BUFF_SIZE: usize = 4;
+
 #[inline]
 pub const fn instsize(l: i32) -> i32 {
-    (l as usize).div_ceil(size_of::<Instruction>()) as i32
+    (l as usize).div_ceil(INST_BUFF_SIZE) as i32
 }
 
 pub type CapKind = LpegByte;
@@ -147,41 +145,38 @@ impl Default for Capture {
     }
 }
 
-#[repr(C)]
-pub struct CapState {
-    pub cap: *mut Capture,
-    pub ocap: *mut Capture,
+pub struct CapState<'a> {
+    pub caps: &'a [Capture],
+    pub cap_idx: usize,
     pub lstate: *mut lua_State,
     pub ptop: i32,
     pub firstcap: i32,
-    pub s: RawCCharPtr,
+    pub s: &'a [u8],
     pub valuecached: i32,
     pub reclevel: i32,
 }
 
 #[inline]
-pub fn captype(cap: *const Capture) -> LpegByte {
-    unsafe { (*cap).kind }
+pub const fn captype(cap: &Capture) -> LpegByte {
+    cap.kind
 }
 
 #[inline]
-pub fn isclosecap(cap: *const Capture) -> bool {
+pub const fn isclosecap(cap: &Capture) -> bool {
     captype(cap) == CCLOSE
 }
 
 #[inline]
-pub fn isopencap(cap: &Capture) -> bool {
+pub const fn isopencap(cap: &Capture) -> bool {
     cap.siz == 0
 }
 
 #[inline]
-pub fn capinside(c1: &Capture, c2: *const Capture) -> bool {
-    unsafe {
-        if isopencap(c1) {
-            !isclosecap(c2)
-        } else {
-            (*c2).index < c1.index + LpegIndex::from(c1.siz) - 1
-        }
+pub const fn capinside(c1: &Capture, c2: &Capture) -> bool {
+    if isopencap(c1) {
+        !isclosecap(c2)
+    } else {
+        c2.index < c1.index + (c1.siz as LpegIndex) - 1
     }
 }
 
@@ -206,56 +201,52 @@ pub const TBEHIND: TTag = 16;
 pub const TCAPTURE: TTag = 17;
 pub const TRUN_TIME: TTag = 18;
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct TTreeSet {
-    pub offset: LpegByte,
-    pub size: LpegByte,
-    pub deflt: LpegByte,
-    pub bitmap: [LpegByte; 1],
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union TTreeU {
-    pub ps: i32,
-    pub n: i32,
-    pub set: TTreeSet,
-}
-
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct TTree {
     pub tag: LpegByte,
     pub cap: LpegByte,
     pub key: u16,
-    pub u: TTreeU,
+    pub u_n: i32,
+    pub set_offset: LpegByte,
+    pub set_size: LpegByte,
+    pub set_deflt: LpegByte,
+    pub set_bitmap: [LpegByte; CHARSETSIZE],
+}
+
+impl TTree {
+    pub const fn new() -> Self {
+        Self {
+            tag: 0,
+            cap: 0,
+            key: 0,
+            u_n: 0,
+            set_offset: 0,
+            set_size: 0,
+            set_deflt: 0,
+            set_bitmap: [0; CHARSETSIZE],
+        }
+    }
+}
+
+impl Default for TTree {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[inline]
-pub const fn ttree_bitmap_offset() -> usize {
-    offset_of!(TTree, u) + offset_of!(TTreeSet, bitmap)
+pub const fn sib1_idx(idx: usize) -> usize {
+    idx + 1
 }
 
 #[inline]
-pub fn treebuffer(t: *mut TTree) -> *mut LpegByte {
-    t.cast::<LpegByte>().wrapping_add(ttree_bitmap_offset())
+pub const fn sib2_idx(tree: &[TTree], idx: usize) -> usize {
+    (idx as isize + tree[idx].u_n as isize) as usize
 }
 
-#[inline]
-pub fn sib1(t: *mut TTree) -> *mut TTree {
-    t.wrapping_add(1)
-}
-
-#[inline]
-pub fn sib2(t: *mut TTree) -> *mut TTree {
-    unsafe { t.wrapping_offset((*t).u.ps as isize) }
-}
-
-#[repr(C)]
 pub struct Pattern {
     pub code: Vec<Instruction>,
-    pub tree: [TTree; 1],
+    pub tree: Vec<TTree>,
 }
 
 pub const NUMSIBLINGS: [LpegByte; 19] = [
@@ -297,44 +288,45 @@ pub const ICLOSE_CAPTURE: Opcode = 23;
 pub const ICLOSE_RUN_TIME: Opcode = 24;
 pub const IEMPTY: Opcode = 25;
 
-#[repr(C)]
 #[derive(Copy, Clone)]
-pub struct InstAux2Set {
-    pub offset: LpegByte,
-    pub size: LpegByte,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union InstAux2 {
-    pub key: i16,
-    pub set: InstAux2Set,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct Inst {
+pub struct Instruction {
     pub code: LpegByte,
     pub aux1: LpegByte,
-    pub aux2: InstAux2,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union Instruction {
-    pub i: Inst,
+    pub key: i16,
+    pub set_offset: LpegByte,
+    pub set_size: LpegByte,
     pub offset: i32,
-    pub buff: [LpegByte; 1],
+    pub buff: [LpegByte; INST_BUFF_SIZE],
+}
+
+impl Instruction {
+    pub const fn new() -> Self {
+        Self {
+            code: 0,
+            aux1: 0,
+            key: 0,
+            set_offset: 0,
+            set_size: 0,
+            offset: 0,
+            buff: [0; INST_BUFF_SIZE],
+        }
+    }
+}
+
+impl Default for Instruction {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[inline]
-pub fn getkind(op: &Instruction) -> i32 {
-    unsafe { i32::from(op.i.aux1 & 0xF) }
+pub const fn getkind(op: &Instruction) -> i32 {
+    (op.aux1 & 0xF) as i32
 }
 
 #[inline]
-pub fn getoff(op: &Instruction) -> i32 {
-    unsafe { i32::from((op.i.aux1 >> 4) & 0xF) }
+pub const fn getoff(op: &Instruction) -> i32 {
+    ((op.aux1 >> 4) & 0xF) as i32
 }
 
 #[inline]
@@ -343,14 +335,13 @@ pub const fn joinkindoff(k: i32, o: i32) -> i32 {
 }
 
 #[inline]
-pub fn utf_to(inst: &Instruction) -> i32 {
-    unsafe { (i32::from(inst.i.aux2.key) << 8) | i32::from(inst.i.aux1) }
+pub const fn utf_to(inst: &Instruction) -> i32 {
+    ((inst.key as i32) << 8) | (inst.aux1 as i32)
 }
 
-#[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CharsetInfo {
-    pub cs: *const LpegByte,
+    pub cs: [LpegByte; CHARSETSIZE],
     pub offset: i32,
     pub size: i32,
     pub deflt: i32,
@@ -359,7 +350,7 @@ pub struct CharsetInfo {
 impl CharsetInfo {
     pub const fn new() -> Self {
         Self {
-            cs: ptr::null(),
+            cs: [0; CHARSETSIZE],
             offset: 0,
             size: 0,
             deflt: 0,
@@ -385,7 +376,7 @@ mod tests {
         assert_eq!(charsettype(&cs, &mut info), IFAIL);
 
         setchar(&mut cs, b'A' as usize);
-        assert_eq!(testchar(cs.as_ptr(), b'A' as LpegUint), 1);
+        assert_eq!(testchar(&cs, b'A' as LpegUint), 1);
         assert_eq!(charsettype(&cs, &mut info), ICHAR);
         assert_eq!(info.offset, i32::from(b'A'));
 
