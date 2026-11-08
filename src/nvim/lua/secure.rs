@@ -7,7 +7,6 @@ use crate::lua::converter::{
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
-use crate::strings::ByteSliceExt as _;
 use std::ffi::CString;
 
 use crate::ex_docmd::Exarg;
@@ -43,29 +42,18 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
     let success = unsafe { lua_toboolean(lstate, -2) } != 0;
     let msg = unsafe { lua_tolstring(lstate, -1, std::ptr::null_mut()) };
     if !msg.is_null() {
+        let msg_cstr = unsafe { std::ffi::CStr::from_ptr(msg) };
         if success {
             let action_bytes = action.to_bytes();
             if action_bytes == b"allow" {
-                smsg!(
-                    0,
-                    c"Allowed in trust database: \"%s\"",
-                    crate::strings::ByteSlice::from_ptr(msg)
-                );
+                smsg!(0, c"Allowed in trust database: \"%s\"", msg_cstr);
             } else if action_bytes == b"deny" {
-                smsg!(
-                    0,
-                    c"Denied in trust database: \"%s\"",
-                    crate::strings::ByteSlice::from_ptr(msg)
-                );
+                smsg!(0, c"Denied in trust database: \"%s\"", msg_cstr);
             } else if action_bytes == b"remove" {
-                smsg!(
-                    0,
-                    c"Removed from trust database: \"%s\"",
-                    crate::strings::ByteSlice::from_ptr(msg)
-                );
+                smsg!(0, c"Removed from trust database: \"%s\"", msg_cstr);
             }
         } else {
-            semsg!(E_TRUSTFILE, crate::strings::ByteSlice::from_ptr(msg));
+            semsg!(E_TRUSTFILE, msg_cstr);
         }
     }
 
@@ -75,13 +63,12 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
 
 /// `:trust` command implementation (`ex_trust`).
 pub fn ex_trust(eap: &mut Exarg) {
-    let arg_owned = eap.arg.to_cstring();
-    let arg = arg_owned.as_ptr().cast_mut();
-    let p = crate::charset::skiptowhite_ptr(arg);
-    let arg1_len = (p as usize) - (arg as usize);
-    let arg1_bytes = crate::strings::AsByteSlice::slice_len(arg, arg1_len);
+    let arg_cstr = eap.arg.as_cstr();
+    let arg_bytes = arg_cstr.to_bytes();
+    let arg1_len = crate::charset::skiptowhite_len(arg_bytes);
+    let arg1_bytes = &arg_bytes[..arg1_len];
     let mut action = c"allow";
-    let path_ptr = crate::charset::skipwhite_ptr(p);
+    let rest_off = arg1_len + crate::charset::skipwhite_len(&arg_bytes[arg1_len..]);
 
     if arg1_bytes == b"++deny" {
         action = c"deny";
@@ -93,10 +80,10 @@ pub fn ex_trust(eap: &mut Exarg) {
         return;
     }
 
-    let path = if *crate::globals::GraphPtr::of(path_ptr).borrow() == 0 {
+    let path = if rest_off >= arg_bytes.len() {
         None
     } else {
-        Some(crate::strings::ByteSlice::from_ptr(path_ptr).as_cstr())
+        Some(&arg_cstr[rest_off..])
     };
 
     nlua_trust(action, path);

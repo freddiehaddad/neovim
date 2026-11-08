@@ -48,11 +48,11 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
 
     unsafe { lua_createtable(lstate, 0, 0) };
 
-    while !crate::strings::AsByteSlice::is_empty_val(str_) {
+    while !str_.is_null() && unsafe { *str_ } != 0 {
         let mut attr: Hlf = HLF_COUNT;
         let len = spell_check(
             curwin_mut(),
-            crate::strings::ByteSlice::from_ptr(str_).as_cstr(),
+            unsafe { std::ffi::CStr::from_ptr(str_) },
             &mut attr,
             Some(&mut capcol),
             false,
@@ -66,18 +66,15 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
             unsafe { lua_rawseti(lstate, -2, 1) };
 
             let result = match attr {
-                HLF_SPB => c"bad".as_ptr(),
-                HLF_SPR => c"rare".as_ptr(),
-                HLF_SPL => c"local".as_ptr(),
-                HLF_SPC => c"caps".as_ptr(),
-                _ => ptr::null(),
+                HLF_SPB => Some(c"bad"),
+                HLF_SPR => Some(c"rare"),
+                HLF_SPL => Some(c"local"),
+                HLF_SPC => Some(c"caps"),
+                _ => None,
             };
-            assert!(!result.is_null());
+            let result = result.expect("spell_check returned unexpected Hlf");
 
-            lua_pushstring(
-                lstate,
-                crate::strings::ByteSlice::from_ptr(result).as_cstr(),
-            );
+            lua_pushstring(lstate, result);
             unsafe { lua_rawseti(lstate, -2, 2) };
 
             unsafe { lua_pushinteger(lstate, (pos as lua_Integer) + 1) };

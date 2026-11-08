@@ -26,7 +26,6 @@ use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
-use crate::strings::ByteSliceExt;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::memory::{Arena, arena_memdupz_opt};
@@ -463,7 +462,7 @@ pub fn lua_getglobal(lstate: *mut lua_State, s: &std::ffi::CStr) {
 #[inline]
 pub fn lua_tostring(lstate: *mut lua_State, i: i32) -> Option<&'static CStr> {
     let ptr = unsafe { lua_tolstring(lstate, i, std::ptr::null_mut()) };
-    crate::strings::ByteSlice::from_ptr(ptr).as_opt_cstr()
+    (!ptr.is_null()).then(|| unsafe { CStr::from_ptr(ptr) })
 }
 
 #[inline]
@@ -494,8 +493,12 @@ pub fn lua_isnoneornil(lstate: *mut lua_State, n: i32) -> bool {
 #[inline]
 #[allow(non_snake_case)]
 pub fn luaL_typename(lstate: *mut lua_State, i: i32) -> &'static CStr {
-    crate::strings::ByteSlice::from_ptr(unsafe { lua_typename(lstate, lua_type(lstate, i)) })
-        .as_cstr()
+    let ptr = unsafe { lua_typename(lstate, lua_type(lstate, i)) };
+    if ptr.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(ptr) }
+    }
 }
 
 #[inline]
@@ -515,10 +518,12 @@ pub fn luaL_argcheck(lstate: *mut lua_State, cond: bool, numarg: i32, extramsg: 
 #[inline]
 #[allow(non_snake_case)]
 pub fn luaL_checkstring(lstate: *mut lua_State, n: i32) -> &'static CStr {
-    crate::strings::ByteSlice::from_ptr(unsafe {
-        luaL_checklstring(lstate, n, std::ptr::null_mut())
-    })
-    .as_cstr()
+    let ptr = unsafe { luaL_checklstring(lstate, n, std::ptr::null_mut()) };
+    if ptr.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(ptr) }
+    }
 }
 
 #[inline]
@@ -1613,7 +1618,14 @@ pub fn nlua_pop_string_opt(
     let mut size = 0usize;
     let data = unsafe { lua_tolstring(lstate, -1, &mut size) };
     assert!(!data.is_null());
-    let dup = arena_memdupz_opt(arena, crate::strings::AsByteSlice::slice_len(data, size));
+    let dup = arena_memdupz_opt(
+        arena,
+        if size == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(data.cast::<u8>(), size) }
+        },
+    );
     lua_pop(lstate, 1);
     NvimString { data: dup, size }
 }
@@ -1676,15 +1688,15 @@ fn nlua_check_type(
 ) -> LuaTableProps {
     if unsafe { lua_type(lstate, -1) } != LUA_TTABLE {
         let name = if expected_type == ObjectType::ObjectTypeFloat {
-            c"number".as_ptr()
+            c"number"
         } else {
-            c"table".as_ptr()
+            c"table"
         };
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
             c"Expected Lua %s",
-            crate::strings::ByteSlice::from_ptr(name),
+            name,
         );
         return LuaTableProps {
             maxidx: 0,
@@ -2176,7 +2188,7 @@ pub fn nlua_pop_keydict_opt<T>(
                     ErrorType::ErrorTypeValidation,
                     c"invalid key: %.*s",
                     len as i32,
-                    crate::strings::ByteSlice::from_ptr(s),
+                    (!s.is_null()).then(|| CStr::from_ptr(s)),
                 );
                 lua_pop(lstate, 3);
                 return;

@@ -42,7 +42,7 @@ unsafe extern "C-unwind" fn nlua_base64_decode(lstate: *mut lua_State) -> i32 {
     let slice = if src_len == 0 || src.is_null() {
         &[]
     } else {
-        crate::strings::AsByteSlice::slice_len(src, src_len)
+        unsafe { std::slice::from_raw_parts(src.cast::<u8>(), src_len) }
     };
 
     let Some(decoded) = decode_bytes(slice) else {
