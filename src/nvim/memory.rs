@@ -484,8 +484,7 @@ pub fn arena_mem_free(mem: ArenaMem) {
     }
 }
 
-/// Allocate `size + 1` mutable bytes on `arena` and NUL-terminate.
-pub fn arena_allocz_mut(arena: &mut Arena, size: usize) -> &'static mut [u8] {
+fn arena_allocz_mut(arena: &mut Arena, size: usize) -> &'static mut [u8] {
     let mem = arena_alloc(arena, size + 1, false).cast::<u8>();
     let slice = unsafe { std::slice::from_raw_parts_mut(mem, size + 1) };
     slice[size] = 0;
@@ -506,16 +505,11 @@ pub fn arena_allocz_opt_mut(arena: Option<&mut Arena>, size: usize) -> &'static 
     slice
 }
 
-/// Copy `buf` into a NUL-terminated mutable buffer on `arena`.
-pub fn arena_memdupz_mut(arena: &mut Arena, buf: &[u8]) -> &'static mut [u8] {
-    let slice = arena_allocz_mut(arena, buf.len());
-    slice[..buf.len()].copy_from_slice(buf);
-    slice
-}
-
 /// Copy `buf` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
 pub fn arena_memdupz(arena: &mut Arena, buf: &[u8]) -> crate::strings::ByteSlice {
-    Some(arena_memdupz_mut(arena, buf))
+    let slice = arena_allocz_mut(arena, buf.len());
+    slice[..buf.len()].copy_from_slice(buf);
+    Some(slice)
 }
 
 /// Copy `buf` into a NUL-terminated buffer on `arena` (or heap if `None`).

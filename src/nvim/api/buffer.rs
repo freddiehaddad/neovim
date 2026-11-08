@@ -38,7 +38,7 @@ use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf_len,
     ml_replace_buf,
 };
-use crate::memory::{Arena, arena_allocz_mut, arena_memdupz, arena_memdupz_mut};
+use crate::memory::Arena;
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
@@ -405,7 +405,7 @@ pub fn nvim_buf_set_lines(
     mut end: Integer,
     strict_indexing: Boolean,
     replacement: Array,
-    arena: &mut Arena,
+    _arena: &mut Arena,
     err: &mut Error,
 ) {
     let Some(b) = api_buf_ensure_loaded(buf, err) else {
@@ -443,17 +443,17 @@ pub fn nvim_buf_set_lines(
     let new_len = replacement.size;
     let old_len = (end - start) as usize;
     let mut extra: isize = 0;
-    let mut lines: Vec<crate::strings::ByteSlice> = Vec::with_capacity(new_len);
+    let mut lines: Vec<Vec<u8>> = Vec::with_capacity(new_len);
 
     for i in 0..new_len {
         let l = replacement[i].data.string();
-        let p = arena_memdupz_mut(arena, l.as_bytes());
-        for b in &mut p[..l.size] {
+        let mut p = l.as_bytes().to_vec();
+        for b in &mut p {
             if *b == 0 {
                 *b = b'\n';
             }
         }
-        lines.push(Some(p));
+        lines.push(p);
     }
 
     try_wrap_err(err, |err| 'end: {
@@ -491,7 +491,7 @@ pub fn nvim_buf_set_lines(
 
         let to_replace = old_len.min(new_len);
         let mut inserted_bytes: Bcount = 0;
-        for (i, &line) in lines.iter().enumerate().take(to_replace) {
+        for (i, line) in lines.iter().enumerate().take(to_replace) {
             let lnum = start + (i as i64);
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -503,7 +503,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if !ml_replace_buf(b, lnum as Linenr, line.as_bytes(), false, true) {
+            if !ml_replace_buf(b, lnum as Linenr, line, false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -515,7 +515,7 @@ pub fn nvim_buf_set_lines(
             inserted_bytes += line.len() as Bcount + 1;
         }
 
-        for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
+        for (i, line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
             let lnum = start + (i as i64) - 1;
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -527,7 +527,7 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            if !ml_append_buf(b, lnum as Linenr, line.as_bytes(), 0, false) {
+            if !ml_append_buf(b, lnum as Linenr, line, 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
@@ -620,7 +620,7 @@ pub fn nvim_buf_set_text(
     mut end_row: Integer,
     mut end_col: Integer,
     mut replacement: Array,
-    arena: &mut Arena,
+    _arena: &mut Arena,
     err: &mut Error,
 ) {
     let mut scratch_items = [static_cstr_as_obj(c"")];
@@ -655,7 +655,7 @@ pub fn nvim_buf_set_text(
 
     let str_at_start_slice = crate::memline::ml_get_buf_slice(b, start_row as Linenr);
     let len_at_start = str_at_start_slice.len() as Colnr;
-    let str_at_start = arena_memdupz(arena, str_at_start_slice);
+    let str_at_start = str_at_start_slice.to_vec();
     if start_col < 0 {
         start_col = i64::from(len_at_start) + start_col + 1;
     }
@@ -666,7 +666,7 @@ pub fn nvim_buf_set_text(
 
     let str_at_end_slice = crate::memline::ml_get_buf_slice(b, end_row as Linenr);
     let len_at_end = str_at_end_slice.len() as Colnr;
-    let str_at_end = arena_memdupz(arena, str_at_end_slice);
+    let str_at_end = str_at_end_slice.to_vec();
     if end_col < 0 {
         end_col = i64::from(len_at_end) + end_col + 1;
     }
@@ -714,10 +714,10 @@ pub fn nvim_buf_set_text(
     if replacement.size == 1 {
         firstlen += last_part_len;
     }
-    let first = arena_allocz_mut(arena, firstlen);
-    let mut last = crate::strings::BYTE_SLICE_NULL;
+    let mut first = vec![0u8; firstlen];
+    let mut last: Option<Vec<u8>> = None;
 
-    first[..start_col as usize].copy_from_slice(str_at_start.slice(start_col as usize));
+    first[..start_col as usize].copy_from_slice(&str_at_start[..start_col as usize]);
 
     if first_item.size > 0 {
         let start_idx = start_col as usize;
@@ -731,13 +731,10 @@ pub fn nvim_buf_set_text(
     }
     if replacement.size == 1 {
         let off = (start_col as usize) + first_item.size;
-        first[off..off + last_part_len].copy_from_slice(
-            str_at_end
-                .wrapping_add(end_col as usize)
-                .slice(last_part_len),
-        );
+        first[off..off + last_part_len]
+            .copy_from_slice(&str_at_end[end_col as usize..end_col as usize + last_part_len]);
     } else {
-        let last_buf = arena_allocz_mut(arena, last_item.size + last_part_len);
+        let mut last_buf = vec![0u8; last_item.size + last_part_len];
         if last_item.size > 0 {
             let last_dst = &mut last_buf[..last_item.size];
             last_dst.copy_from_slice(last_item.as_bytes());
@@ -748,30 +745,27 @@ pub fn nvim_buf_set_text(
             }
         }
 
-        last_buf[last_item.size..last_item.size + last_part_len].copy_from_slice(
-            str_at_end
-                .wrapping_add(end_col as usize)
-                .slice(last_part_len),
-        );
+        last_buf[last_item.size..last_item.size + last_part_len]
+            .copy_from_slice(&str_at_end[end_col as usize..end_col as usize + last_part_len]);
         last = Some(last_buf);
     }
 
-    let mut lines: Vec<crate::strings::ByteSlice> = Vec::with_capacity(new_len);
-    lines.push(Some(first));
+    let mut lines: Vec<Vec<u8>> = Vec::with_capacity(new_len);
+    lines.push(first);
     new_byte += first_item.size as Bcount;
     for i in 1..new_len.saturating_sub(1) {
         let l = replacement[i].data.string();
-        let p = arena_memdupz_mut(arena, l.as_bytes());
-        for b in &mut p[..l.size] {
+        let mut p = l.as_bytes().to_vec();
+        for b in &mut p {
             if *b == 0 {
                 *b = b'\n';
             }
         }
-        lines.push(Some(p));
+        lines.push(p);
         new_byte += (l.size as Bcount) + 1;
     }
     if replacement.size > 1 {
-        lines.push(last);
+        lines.push(last.unwrap_or_default());
         new_byte += (last_item.size as Bcount) + 1;
     }
 
@@ -810,7 +804,7 @@ pub fn nvim_buf_set_text(
         }
 
         let to_replace = old_len.min(new_len);
-        for (i, &line) in lines.iter().enumerate().take(to_replace) {
+        for (i, line) in lines.iter().enumerate().take(to_replace) {
             let lnum = start_row + (i as i64);
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -822,7 +816,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_replace_buf(b, lnum as Linenr, line.as_bytes(), false, true) {
+            if !ml_replace_buf(b, lnum as Linenr, line, false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -832,7 +826,7 @@ pub fn nvim_buf_set_text(
             }
         }
 
-        for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
+        for (i, line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
             let lnum = start_row + (i as i64) - 1;
             if lnum >= MAXLNUM {
                 api_set_error!(
@@ -844,7 +838,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_append_buf(b, lnum as Linenr, line.as_bytes(), 0, false) {
+            if !ml_append_buf(b, lnum as Linenr, line, 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
