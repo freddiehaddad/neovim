@@ -375,12 +375,11 @@ pub fn readfile(
         let mut read_buf_lnum: Linenr = 1;
         let mut read_buf_col: Colnr = 0;
         let mut lnum = from;
-        let mut ptr = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+        let mut ptr_idx: usize = 0;
         let mut buffer_vec: Vec<u8> = Vec::new();
-        let mut buffer = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
-        let mut line_start = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+        let mut line_start_idx: usize = 0;
         let mut size: isize = 0;
-        let mut p;
+        let mut p_idx: usize;
         let mut filesize: Off = 0;
         let mut skip_read = false;
         let mut sha_ctx = ContextSha256::new();
@@ -1080,23 +1079,19 @@ pub fn readfile(
 
                         if size < 0 || size + linerest + 1 < 0 || linerest >= MAXCOL - size {
                             split += 1;
-                            *crate::globals::GraphPtr::of(ptr).borrow_mut() = b'\n';
+                            buffer_vec[ptr_idx] = b'\n';
                             size = 1;
                         } else if !skip_read {
                             let mut new_buffer_vec: Vec<u8> =
                                 vec![0; (size as usize) + (linerest as usize) + 1];
-                            let new_buffer = new_buffer_vec.as_mut_ptr();
                             if linerest != 0 {
-                                crate::globals::GraphPtr::copy_to(
-                                    ptr.wrapping_offset(-linerest),
-                                    new_buffer,
-                                    linerest as usize,
-                                );
+                                let lr = linerest as usize;
+                                new_buffer_vec[..lr]
+                                    .copy_from_slice(&buffer_vec[ptr_idx - lr..ptr_idx]);
                             }
                             buffer_vec = new_buffer_vec;
-                            buffer = buffer_vec.as_mut_ptr();
-                            ptr = buffer.wrapping_offset(linerest);
-                            line_start = buffer;
+                            ptr_idx = linerest as usize;
+                            line_start_idx = 0;
 
                             real_size = size as i32;
                             if iconv_fd != -1 {
@@ -1112,12 +1107,9 @@ pub fn readfile(
                             }
 
                             if conv_restlen > 0 {
-                                crate::globals::GraphPtr::copy_to(
-                                    conv_rest.as_ptr(),
-                                    ptr,
-                                    conv_restlen as usize,
-                                );
-                                ptr = ptr.wrapping_offset(conv_restlen as isize);
+                                let cr = conv_restlen as usize;
+                                buffer_vec[ptr_idx..ptr_idx + cr].copy_from_slice(&conv_rest[..cr]);
+                                ptr_idx += cr;
                                 size -= conv_restlen as isize;
                             }
 
@@ -1127,43 +1119,27 @@ pub fn readfile(
                                 } else {
                                     let mut tlen: isize = 0;
                                     loop {
-                                        p = ml_get(read_buf_lnum)
-                                            .as_ptr()
-                                            .cast_mut()
-                                            .cast::<u8>()
-                                            .wrapping_offset(read_buf_col as isize);
+                                        let line_bytes = &ml_get(read_buf_lnum).to_bytes()
+                                            [read_buf_col as usize..];
                                         let mut n =
                                             (ml_get_len(read_buf_lnum) - read_buf_col) as isize;
                                         if tlen + n + 1 > size {
                                             n = size - tlen;
-                                            for ni in 0..n {
-                                                let ch = *crate::globals::GraphPtr::of(
-                                                    p.wrapping_offset(ni),
-                                                )
-                                                .borrow();
-                                                *crate::globals::GraphPtr::of(
-                                                    ptr.wrapping_offset(tlen),
-                                                )
-                                                .borrow_mut() = if ch == b'\n' { 0 } else { ch };
+                                            for &ch in &line_bytes[..n as usize] {
+                                                buffer_vec[ptr_idx + (tlen as usize)] =
+                                                    if ch == b'\n' { 0 } else { ch };
                                                 tlen += 1;
                                             }
                                             read_buf_col += n as Colnr;
                                             break;
                                         }
 
-                                        for ni in 0..n {
-                                            let ch = *crate::globals::GraphPtr::of(
-                                                p.wrapping_offset(ni),
-                                            )
-                                            .borrow();
-                                            *crate::globals::GraphPtr::of(
-                                                ptr.wrapping_offset(tlen),
-                                            )
-                                            .borrow_mut() = if ch == b'\n' { 0 } else { ch };
+                                        for &ch in &line_bytes[..n as usize] {
+                                            buffer_vec[ptr_idx + (tlen as usize)] =
+                                                if ch == b'\n' { 0 } else { ch };
                                             tlen += 1;
                                         }
-                                        *crate::globals::GraphPtr::of(ptr.wrapping_offset(tlen))
-                                            .borrow_mut() = b'\n';
+                                        buffer_vec[ptr_idx + (tlen as usize)] = b'\n';
                                         tlen += 1;
                                         read_buf_col = 0;
                                         read_buf_lnum += 1;
@@ -1178,8 +1154,7 @@ pub fn readfile(
                                 }
                             } else {
                                 let read_size = size as usize;
-                                let read_slice =
-                                    crate::globals::GraphPtr::raw_slice_mut(ptr, read_size);
+                                let read_slice = &mut buffer_vec[ptr_idx..ptr_idx + read_size];
                                 size = read_eintr(fd, read_slice);
                             }
 
@@ -1210,19 +1185,15 @@ pub fn readfile(
                                             curbuf_mut().b_ml.ml_line_count - linecnt + 1;
                                     }
                                     if bad_char_behavior == BAD_DROP {
-                                        *crate::globals::GraphPtr::of(
-                                            ptr.wrapping_offset(-(conv_restlen as isize)),
-                                        )
-                                        .borrow_mut() = 0;
+                                        buffer_vec[ptr_idx - (conv_restlen as usize)] = 0;
                                         conv_restlen = 0;
                                     } else {
                                         if bad_char_behavior != BAD_KEEP
                                             && (fio_flags != 0 || iconv_fd != -1)
                                         {
                                             while conv_restlen > 0 {
-                                                ptr = ptr.wrapping_sub(1);
-                                                *crate::globals::GraphPtr::of(ptr).borrow_mut() =
-                                                    bad_char_behavior as u8;
+                                                ptr_idx -= 1;
+                                                buffer_vec[ptr_idx] = bad_char_behavior as u8;
                                                 conv_restlen -= 1;
                                             }
                                         }
@@ -1250,7 +1221,7 @@ pub fn readfile(
                                 None
                             } else {
                                 check_for_bom(
-                                    crate::globals::GraphPtr::raw_slice(ptr, size as usize),
+                                    &buffer_vec[ptr_idx..ptr_idx + (size as usize)],
                                     &mut blen,
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
@@ -1262,11 +1233,10 @@ pub fn readfile(
                             if ccname.is_some() {
                                 filesize += i64::from(blen);
                                 size -= blen as isize;
-                                crate::globals::GraphPtr::copy_to(
-                                    ptr.wrapping_offset(blen as isize),
-                                    ptr,
-                                    size as usize,
-                                );
+                                let b_off = blen as usize;
+                                let sz = size as usize;
+                                buffer_vec
+                                    .copy_within(ptr_idx + b_off..ptr_idx + b_off + sz, ptr_idx);
                                 if set_options {
                                     curbuf_mut().b_p_bomb = true;
                                     curbuf_mut().b_start_bomb = true;
@@ -1284,7 +1254,7 @@ pub fn readfile(
                             }
                         }
 
-                        ptr = ptr.wrapping_offset(-(conv_restlen as isize));
+                        ptr_idx -= conv_restlen as usize;
                         size += conv_restlen as isize;
                         conv_restlen = 0;
                         if size <= 0 {
@@ -1294,155 +1264,151 @@ pub fn readfile(
                         if iconv_fd != -1 {
                             let from_total = size as usize;
                             let to_total = (real_size as isize - size) as usize;
-                            let (from_part, to_part) =
-                                crate::globals::GraphPtr::raw_slice_mut(ptr, from_total + to_total)
+                            let orig_ptr_idx = ptr_idx;
+                            ptr_idx += from_total;
+
+                            let (conv_retry, out_written) = {
+                                let (from_part, to_part) = buffer_vec
+                                    [orig_ptr_idx..orig_ptr_idx + from_total + to_total]
                                     .split_at_mut(from_total);
-                            let mut from_rem: &[u8] = from_part;
-                            let mut to_rem: &mut [u8] = to_part;
-                            ptr = ptr.wrapping_offset(size);
+                                let mut from_rem: &[u8] = from_part;
+                                let mut out_written = 0usize;
+                                let mut retry = false;
 
-                            while (call_iconv(iconv_fd, Some(&mut from_rem), &mut to_rem)
-                                == usize::MAX
-                                && os_errno() != ICONV_EINVAL)
-                                || from_rem.len() > CONV_RESTLEN
-                            {
-                                if can_retry {
-                                    if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv)
-                                        != K_CALLBACK_NONE_CONST
-                                        && iconv_fd != -1
+                                loop {
+                                    let mut to_rem: &mut [u8] = &mut to_part[out_written..];
+                                    let iconv_res =
+                                        call_iconv(iconv_fd, Some(&mut from_rem), &mut to_rem);
+                                    out_written = to_total - to_rem.len();
+                                    if (iconv_res != usize::MAX || os_errno() == ICONV_EINVAL)
+                                        && from_rem.len() <= CONV_RESTLEN
                                     {
-                                        did_iconv = true;
-                                    } else {
-                                        advance_fenc = true;
+                                        break;
                                     }
-                                    file_rewind = true;
-                                    continue 'retry;
-                                }
-                                let out_written = to_total - to_rem.len();
-                                if conv_error == 0 {
-                                    conv_error = readfile_linenr(
-                                        linecnt,
-                                        crate::globals::GraphPtr::raw_slice(ptr, out_written),
-                                    );
+                                    if can_retry {
+                                        retry = true;
+                                        break;
+                                    }
+                                    if conv_error == 0 {
+                                        conv_error =
+                                            readfile_linenr(linecnt, &to_part[..out_written]);
+                                    }
+
+                                    let skipped_byte = from_rem[0];
+                                    from_rem = &from_rem[1..];
+                                    if bad_char_behavior == BAD_KEEP {
+                                        to_part[out_written] = skipped_byte;
+                                        out_written += 1;
+                                    } else if bad_char_behavior != BAD_DROP {
+                                        to_part[out_written] = bad_char_behavior as u8;
+                                        out_written += 1;
+                                    }
                                 }
 
-                                let skipped_byte = from_rem[0];
-                                from_rem = &from_rem[1..];
-                                if bad_char_behavior == BAD_KEEP {
-                                    to_rem[0] = skipped_byte;
-                                    to_rem = &mut to_rem[1..];
-                                } else if bad_char_behavior != BAD_DROP {
-                                    to_rem[0] = bad_char_behavior as u8;
-                                    to_rem = &mut to_rem[1..];
+                                if !retry && !from_rem.is_empty() {
+                                    conv_rest[..from_rem.len()].copy_from_slice(from_rem);
+                                    conv_restlen = from_rem.len() as i32;
                                 }
+
+                                (retry, out_written)
+                            };
+
+                            if conv_retry {
+                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv)
+                                    != K_CALLBACK_NONE_CONST
+                                    && iconv_fd != -1
+                                {
+                                    did_iconv = true;
+                                } else {
+                                    advance_fenc = true;
+                                }
+                                file_rewind = true;
+                                continue 'retry;
                             }
 
-                            if !from_rem.is_empty() {
-                                conv_rest[..from_rem.len()].copy_from_slice(from_rem);
-                                conv_restlen = from_rem.len() as i32;
-                            }
-
-                            let out_written = to_total - to_rem.len();
-                            line_start = ptr.wrapping_offset(-linerest);
-                            crate::globals::GraphPtr::copy_to(
-                                buffer,
-                                line_start,
-                                linerest as usize,
-                            );
+                            let lr = linerest as usize;
+                            line_start_idx = ptr_idx - lr;
+                            buffer_vec.copy_within(0..lr, line_start_idx);
                             size = out_written as isize;
                         }
 
                         if fio_flags != 0 {
                             let mut u8c: u32;
-                            let mut tail = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+                            let mut tail_opt: Option<usize> = None;
 
-                            let mut dest = ptr.wrapping_offset(real_size as isize);
+                            let mut dest_idx = ptr_idx + (real_size as usize);
+                            let size_usize = size as usize;
                             if fio_flags == FIO_LATIN1 || fio_flags == FIO_UTF8 {
-                                p = ptr.wrapping_offset(size);
+                                p_idx = ptr_idx + size_usize;
                                 if fio_flags == FIO_UTF8 {
-                                    tail = ptr.wrapping_offset(size - 1);
-                                    while tail > ptr
-                                        && (*crate::globals::GraphPtr::of(tail).borrow() & 0xc0)
-                                            == 0x80
-                                    {
-                                        tail = tail.wrapping_sub(1);
+                                    let mut t_idx = ptr_idx + size_usize - 1;
+                                    while t_idx > ptr_idx && (buffer_vec[t_idx] & 0xc0) == 0x80 {
+                                        t_idx -= 1;
                                     }
-                                    if tail.wrapping_offset(utf_byte2len(i32::from(
-                                        *crate::globals::GraphPtr::of(tail).borrow(),
-                                    ))
-                                        as isize)
-                                        <= ptr.wrapping_offset(size)
+                                    if t_idx + (utf_byte2len(i32::from(buffer_vec[t_idx])) as usize)
+                                        > ptr_idx + size_usize
                                     {
-                                        tail = ptr::null_mut();
-                                    } else {
-                                        p = tail;
+                                        tail_opt = Some(t_idx);
+                                        p_idx = t_idx;
                                     }
                                 }
                             } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
-                                p = ptr.wrapping_offset(size & !1);
-                                if (size & 1) != 0 {
-                                    tail = p;
+                                p_idx = ptr_idx + (size_usize & !1);
+                                if (size_usize & 1) != 0 {
+                                    tail_opt = Some(p_idx);
                                 }
-                                if (fio_flags & FIO_UTF16) != 0 && p > ptr {
+                                if (fio_flags & FIO_UTF16) != 0 && p_idx > ptr_idx {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                        p = p.wrapping_sub(1);
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 8;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow());
+                                        p_idx -= 1;
+                                        u8c = u32::from(buffer_vec[p_idx]) << 8;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]);
                                     } else {
-                                        p = p.wrapping_sub(1);
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 8;
+                                        p_idx -= 1;
+                                        u8c = u32::from(buffer_vec[p_idx]);
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 8;
                                     }
                                     if (0xd800..=0xdbff).contains(&u8c) {
-                                        tail = p;
+                                        tail_opt = Some(p_idx);
                                     } else {
-                                        p = p.wrapping_add(2);
+                                        p_idx += 2;
                                     }
                                 }
                             } else {
-                                p = ptr.wrapping_offset(size & !3);
-                                if (size & 3) != 0 {
-                                    tail = p;
+                                p_idx = ptr_idx + (size_usize & !3);
+                                if (size_usize & 3) != 0 {
+                                    tail_opt = Some(p_idx);
                                 }
                             }
 
-                            if !tail.is_null() {
-                                conv_restlen =
-                                    ((ptr.wrapping_offset(size) as usize) - (tail as usize)) as i32;
-                                crate::globals::GraphPtr::copy_to(
-                                    tail,
-                                    conv_rest.as_mut_ptr(),
-                                    conv_restlen as usize,
-                                );
+                            if let Some(t_idx) = tail_opt {
+                                let cr = (ptr_idx + size_usize) - t_idx;
+                                conv_restlen = cr as i32;
+                                conv_rest[..cr].copy_from_slice(&buffer_vec[t_idx..t_idx + cr]);
                                 size -= conv_restlen as isize;
                             }
 
-                            while p > ptr {
+                            while p_idx > ptr_idx {
                                 if (fio_flags & FIO_LATIN1) != 0 {
-                                    p = p.wrapping_sub(1);
-                                    u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
+                                    p_idx -= 1;
+                                    u8c = u32::from(buffer_vec[p_idx]);
                                 } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                        p = p.wrapping_sub(1);
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 8;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow());
+                                        p_idx -= 1;
+                                        u8c = u32::from(buffer_vec[p_idx]) << 8;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]);
                                     } else {
-                                        p = p.wrapping_sub(1);
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 8;
+                                        p_idx -= 1;
+                                        u8c = u32::from(buffer_vec[p_idx]);
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 8;
                                     }
                                     if (fio_flags & FIO_UTF16) != 0
                                         && (0xdc00..=0xdfff).contains(&u8c)
                                     {
-                                        if p == ptr {
+                                        if p_idx == ptr_idx {
                                             if can_retry {
                                                 if crate::eval::typval::Callback::raw_cb_type(
                                                     &opt_vars().p_ccv,
@@ -1459,11 +1425,7 @@ pub fn readfile(
                                             if conv_error == 0 {
                                                 conv_error = readfile_linenr(
                                                     linecnt,
-                                                    crate::globals::GraphPtr::raw_slice(
-                                                        ptr,
-                                                        ((p as isize) - (ptr as isize)).max(0)
-                                                            as usize,
-                                                    ),
+                                                    &buffer_vec[ptr_idx..p_idx],
                                                 );
                                             }
                                             if bad_char_behavior == BAD_DROP {
@@ -1476,23 +1438,15 @@ pub fn readfile(
 
                                         let mut u16c: i32;
                                         if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                            p = p.wrapping_sub(1);
-                                            u16c = i32::from(
-                                                *crate::globals::GraphPtr::of(p).borrow(),
-                                            ) << 8;
-                                            p = p.wrapping_sub(1);
-                                            u16c += i32::from(
-                                                *crate::globals::GraphPtr::of(p).borrow(),
-                                            );
+                                            p_idx -= 1;
+                                            u16c = i32::from(buffer_vec[p_idx]) << 8;
+                                            p_idx -= 1;
+                                            u16c += i32::from(buffer_vec[p_idx]);
                                         } else {
-                                            p = p.wrapping_sub(1);
-                                            u16c = i32::from(
-                                                *crate::globals::GraphPtr::of(p).borrow(),
-                                            );
-                                            p = p.wrapping_sub(1);
-                                            u16c += i32::from(
-                                                *crate::globals::GraphPtr::of(p).borrow(),
-                                            ) << 8;
+                                            p_idx -= 1;
+                                            u16c = i32::from(buffer_vec[p_idx]);
+                                            p_idx -= 1;
+                                            u16c += i32::from(buffer_vec[p_idx]) << 8;
                                         }
                                         u8c = 0x10000
                                             + (((u16c as u32) & 0x3ff) << 10)
@@ -1515,11 +1469,7 @@ pub fn readfile(
                                             if conv_error == 0 {
                                                 conv_error = readfile_linenr(
                                                     linecnt,
-                                                    crate::globals::GraphPtr::raw_slice(
-                                                        ptr,
-                                                        ((p as isize) - (ptr as isize)).max(0)
-                                                            as usize,
-                                                    ),
+                                                    &buffer_vec[ptr_idx..p_idx],
                                                 );
                                             }
                                             if bad_char_behavior == BAD_DROP {
@@ -1532,47 +1482,42 @@ pub fn readfile(
                                     }
                                 } else if (fio_flags & FIO_UCS4) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
-                                        p = p.wrapping_sub(1);
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 24;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 16;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 8;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow());
+                                        p_idx -= 1;
+                                        u8c = u32::from(buffer_vec[p_idx]) << 24;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 16;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 8;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]);
                                     } else {
-                                        p = p.wrapping_sub(1);
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 8;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 16;
-                                        p = p.wrapping_sub(1);
-                                        u8c += u32::from(*crate::globals::GraphPtr::of(p).borrow())
-                                            << 24;
+                                        p_idx -= 1;
+                                        u8c = u32::from(buffer_vec[p_idx]);
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 8;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 16;
+                                        p_idx -= 1;
+                                        u8c += u32::from(buffer_vec[p_idx]) << 24;
                                     }
                                     if u8c > i32::MAX as u32 {
                                         u8c = 0xfffd;
                                     }
                                 } else {
-                                    p = p.wrapping_sub(1);
-                                    if *crate::globals::GraphPtr::of(p).borrow() < 0x80 {
-                                        u8c = u32::from(*crate::globals::GraphPtr::of(p).borrow());
+                                    p_idx -= 1;
+                                    if buffer_vec[p_idx] < 0x80 {
+                                        u8c = u32::from(buffer_vec[p_idx]);
                                     } else {
-                                        let p_idx = (p as usize).saturating_sub(ptr as usize);
+                                        let rel_idx = p_idx.saturating_sub(ptr_idx);
+                                        let end_slice =
+                                            (ptr_idx + rel_idx + 6).min(buffer_vec.len());
                                         let len = crate::mbyte::utf_head_off_slice(
-                                            crate::globals::GraphPtr::raw_slice(ptr, p_idx + 6),
-                                            p_idx,
+                                            &buffer_vec[ptr_idx..end_slice],
+                                            rel_idx,
                                         );
-                                        p = p.wrapping_offset(-(len as isize));
-                                        u8c =
-                                            utf_ptr2char(crate::globals::GraphPtr::raw_slice(p, 6))
-                                                as u32;
+                                        p_idx -= len as usize;
+                                        let char_end = (p_idx + 6).min(buffer_vec.len());
+                                        u8c = utf_ptr2char(&buffer_vec[p_idx..char_end]) as u32;
                                         if len == 0 {
                                             if can_retry {
                                                 if crate::eval::typval::Callback::raw_cb_type(
@@ -1590,11 +1535,7 @@ pub fn readfile(
                                             if conv_error == 0 {
                                                 conv_error = readfile_linenr(
                                                     linecnt,
-                                                    crate::globals::GraphPtr::raw_slice(
-                                                        ptr,
-                                                        ((p as isize) - (ptr as isize)).max(0)
-                                                            as usize,
-                                                    ),
+                                                    &buffer_vec[ptr_idx..p_idx],
                                                 );
                                             }
                                             if bad_char_behavior == BAD_DROP {
@@ -1607,70 +1548,58 @@ pub fn readfile(
                                     }
                                 }
                                 debug_assert!(u8c <= i32::MAX as u32);
-                                dest = dest.wrapping_offset(-(utf_char2len(u8c as i32) as isize));
-                                utf_char2bytes(
-                                    u8c as i32,
-                                    crate::globals::GraphPtr::raw_slice_mut(dest.cast(), 6),
-                                );
+                                dest_idx -= utf_char2len(u8c as i32) as usize;
+                                let dest_end = (dest_idx + 6).min(buffer_vec.len());
+                                utf_char2bytes(u8c as i32, &mut buffer_vec[dest_idx..dest_end]);
                             }
 
-                            line_start = dest.wrapping_offset(-linerest);
-                            crate::globals::GraphPtr::copy_to(
-                                buffer,
-                                line_start,
-                                linerest as usize,
-                            );
-                            size = (ptr.wrapping_offset(real_size as isize) as isize)
-                                - (dest as isize);
-                            ptr = dest;
+                            let lr = linerest as usize;
+                            line_start_idx = dest_idx - lr;
+                            buffer_vec.copy_within(0..lr, line_start_idx);
+                            size = ((ptr_idx + (real_size as usize)) - dest_idx) as isize;
+                            ptr_idx = dest_idx;
                         } else if !curbuf_mut().b_p_bin {
                             let mut incomplete_tail = false;
 
-                            p = ptr;
+                            p_idx = ptr_idx;
                             loop {
                                 {
-                                    let ascii_end = ptr.wrapping_offset(size);
-                                    while ((ascii_end as isize) - (p as isize))
+                                    let ascii_end = ptr_idx + (size as usize);
+                                    while (ascii_end as isize) - (p_idx as isize)
                                         >= size_of::<u64>() as isize
                                     {
                                         let word = u64::from_ne_bytes(
-                                            crate::globals::GraphPtr::raw_slice(p, 8)
-                                                .try_into()
-                                                .unwrap(),
+                                            buffer_vec[p_idx..p_idx + 8].try_into().unwrap(),
                                         );
                                         if (word & NONASCII_MASK) != 0 {
                                             break;
                                         }
-                                        p = p.wrapping_add(size_of::<u64>());
+                                        p_idx += size_of::<u64>();
                                     }
-                                    while p < ascii_end
-                                        && *crate::globals::GraphPtr::of(p).borrow() < 0x80
-                                    {
-                                        p = p.wrapping_add(1);
+                                    while p_idx < ascii_end && buffer_vec[p_idx] < 0x80 {
+                                        p_idx += 1;
                                     }
                                 }
 
-                                let todo =
-                                    ((ptr.wrapping_offset(size) as isize) - (p as isize)) as i32;
+                                let todo = ((ptr_idx + (size as usize)) as isize - (p_idx as isize))
+                                    as i32;
                                 if todo <= 0 {
                                     break;
                                 }
-                                if *crate::globals::GraphPtr::of(p).borrow() >= 0x80 {
+                                if buffer_vec[p_idx] >= 0x80 {
                                     let l = utf_ptr2len_len(
-                                        crate::globals::GraphPtr::raw_slice(p, todo as usize),
+                                        &buffer_vec[p_idx..p_idx + (todo as usize)],
                                         todo,
                                     );
                                     if l > todo && !incomplete_tail {
-                                        if p > ptr || filesize > 0 {
+                                        if p_idx > ptr_idx || filesize > 0 {
                                             incomplete_tail = true;
                                         }
-                                        if p > ptr {
+                                        if p_idx > ptr_idx {
                                             conv_restlen = todo;
-                                            crate::globals::GraphPtr::copy_to(
-                                                p,
-                                                conv_rest.as_mut_ptr(),
-                                                conv_restlen as usize,
-                                            );
+                                            let cr = conv_restlen as usize;
+                                            conv_rest[..cr]
+                                                .copy_from_slice(&buffer_vec[p_idx..p_idx + cr]);
                                             size -= conv_restlen as isize;
                                             break;
                                         }
@@ -1680,10 +1609,7 @@ pub fn readfile(
                                             break;
                                         }
 
-                                        let err_slice = crate::globals::GraphPtr::raw_slice(
-                                            ptr,
-                                            ((p as isize) - (ptr as isize)).max(0) as usize,
-                                        );
+                                        let err_slice = &buffer_vec[ptr_idx..p_idx];
                                         if iconv_fd != -1 && conv_error == 0 {
                                             conv_error = readfile_linenr(linecnt, err_slice);
                                         }
@@ -1693,25 +1619,22 @@ pub fn readfile(
                                         }
 
                                         if bad_char_behavior == BAD_DROP {
-                                            crate::globals::GraphPtr::copy_to(
-                                                p.wrapping_add(1),
-                                                p,
-                                                (todo - 1) as usize,
-                                            );
+                                            let rem_len = (todo - 1) as usize;
+                                            buffer_vec
+                                                .copy_within(p_idx + 1..p_idx + 1 + rem_len, p_idx);
                                             size -= 1;
                                         } else {
                                             if bad_char_behavior != BAD_KEEP {
-                                                *crate::globals::GraphPtr::of(p).borrow_mut() =
-                                                    bad_char_behavior as u8;
+                                                buffer_vec[p_idx] = bad_char_behavior as u8;
                                             }
-                                            p = p.wrapping_add(1);
+                                            p_idx += 1;
                                         }
                                     } else {
-                                        p = p.wrapping_offset(l as isize);
+                                        p_idx += l as usize;
                                     }
                                 }
                             }
-                            if p < ptr.wrapping_offset(size) && !incomplete_tail {
+                            if p_idx < ptr_idx + (size as usize) && !incomplete_tail {
                                 if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv)
                                     != K_CALLBACK_NONE_CONST
                                     && iconv_fd != -1
@@ -1733,49 +1656,44 @@ pub fn readfile(
                                     try_mac = 1;
                                 }
 
-                                p = ptr;
-                                let end_p = ptr.wrapping_offset(size);
-                                while p < end_p {
-                                    if *crate::globals::GraphPtr::of(p).borrow() == b'\n' {
+                                p_idx = ptr_idx;
+                                let end_idx = ptr_idx + (size as usize);
+                                while p_idx < end_idx {
+                                    if buffer_vec[p_idx] == b'\n' {
                                         if try_unix == 0
                                             || (try_dos != 0
-                                                && p > ptr
-                                                && *crate::globals::GraphPtr::of(p.wrapping_sub(1))
-                                                    .borrow()
-                                                    == b'\r')
+                                                && p_idx > ptr_idx
+                                                && buffer_vec[p_idx - 1] == b'\r')
                                         {
                                             fileformat = EOL_DOS;
                                         } else {
                                             fileformat = EOL_UNIX;
                                         }
                                         break;
-                                    } else if *crate::globals::GraphPtr::of(p).borrow() == b'\r'
-                                        && try_mac != 0
-                                    {
+                                    } else if buffer_vec[p_idx] == b'\r' && try_mac != 0 {
                                         try_mac += 1;
                                     }
-                                    p = p.wrapping_add(1);
+                                    p_idx += 1;
                                 }
 
                                 if fileformat == EOL_UNIX && try_mac != 0 {
                                     try_mac = 1;
                                     try_unix = 1;
-                                    while p >= ptr
-                                        && *crate::globals::GraphPtr::of(p).borrow() != b'\r'
+                                    let mut scan_p = p_idx as isize;
+                                    while scan_p >= (ptr_idx as isize)
+                                        && buffer_vec[scan_p as usize] != b'\r'
                                     {
-                                        p = p.wrapping_sub(1);
+                                        scan_p -= 1;
                                     }
-                                    if p >= ptr {
-                                        p = ptr;
-                                        while p < end_p {
-                                            if *crate::globals::GraphPtr::of(p).borrow() == b'\n' {
+                                    if scan_p >= (ptr_idx as isize) {
+                                        p_idx = ptr_idx;
+                                        while p_idx < end_idx {
+                                            if buffer_vec[p_idx] == b'\n' {
                                                 try_unix += 1;
-                                            } else if *crate::globals::GraphPtr::of(p).borrow()
-                                                == b'\r'
-                                            {
+                                            } else if buffer_vec[p_idx] == b'\r' {
                                                 try_mac += 1;
                                             }
-                                            p = p.wrapping_add(1);
+                                            p_idx += 1;
                                         }
                                         if try_mac > try_unix {
                                             fileformat = EOL_MAC;
@@ -1801,32 +1719,30 @@ pub fn readfile(
                     }
 
                     if fileformat == EOL_MAC {
-                        ptr = ptr.wrapping_sub(1);
+                        let mut cur_ptr = (ptr_idx as isize) - 1;
                         loop {
-                            ptr = ptr.wrapping_add(1);
+                            cur_ptr += 1;
+                            ptr_idx = cur_ptr as usize;
                             size -= 1;
                             if size < 0 {
                                 break;
                             }
-                            let c = *crate::globals::GraphPtr::of(ptr).borrow();
+                            let c = buffer_vec[ptr_idx];
                             if c != 0 && c != CAR && c != b'\n' {
                                 continue;
                             }
                             if c == 0 {
-                                *crate::globals::GraphPtr::of(ptr).borrow_mut() = b'\n';
+                                buffer_vec[ptr_idx] = b'\n';
                             } else if c == b'\n' {
-                                *crate::globals::GraphPtr::of(ptr).borrow_mut() = CAR;
+                                buffer_vec[ptr_idx] = CAR;
                             } else {
                                 if skip_count == 0 {
-                                    *crate::globals::GraphPtr::of(ptr).borrow_mut() = 0;
-                                    let len =
-                                        (((ptr as isize) - (line_start as isize)) + 1) as Colnr;
+                                    buffer_vec[ptr_idx] = 0;
+                                    let len = ((ptr_idx - line_start_idx) + 1) as Colnr;
                                     if !ml_append(
                                         lnum,
-                                        crate::globals::GraphPtr::raw_slice(
-                                            line_start,
-                                            (len as usize).saturating_sub(1),
-                                        ),
+                                        &buffer_vec[line_start_idx
+                                            ..line_start_idx + (len as usize).saturating_sub(1)],
                                         len,
                                         newfile,
                                     ) {
@@ -1834,65 +1750,56 @@ pub fn readfile(
                                         break;
                                     }
                                     if read_undo_file && len > 0 {
-                                        sha_ctx.update(crate::globals::GraphPtr::raw_slice(
-                                            line_start,
-                                            len as usize,
-                                        ));
+                                        sha_ctx.update(
+                                            &buffer_vec
+                                                [line_start_idx..line_start_idx + (len as usize)],
+                                        );
                                     }
                                     lnum += 1;
                                     read_count -= 1;
                                     if read_count == 0 {
                                         error = true;
-                                        line_start = ptr;
+                                        line_start_idx = ptr_idx;
                                         break;
                                     }
                                 } else {
                                     skip_count -= 1;
                                 }
-                                line_start = ptr.wrapping_add(1);
+                                line_start_idx = ptr_idx + 1;
                             }
                         }
                     } else {
-                        let end = ptr.wrapping_offset(size);
+                        let end_idx = ptr_idx + (size as usize);
 
-                        while ptr < end {
-                            let rem = ((end as isize) - (ptr as isize)) as usize;
-                            let slice = crate::globals::GraphPtr::raw_slice(ptr, rem);
+                        while ptr_idx < end_idx {
+                            let rem = end_idx - ptr_idx;
+                            let slice = &buffer_vec[ptr_idx..ptr_idx + rem];
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
-                                let rem_slice = crate::globals::GraphPtr::raw_slice_mut(ptr, rem);
-                                for b in rem_slice {
+                                for b in &mut buffer_vec[ptr_idx..ptr_idx + rem] {
                                     if *b == 0 {
                                         *b = b'\n';
                                     }
                                 }
-                                ptr = end;
+                                ptr_idx = end_idx;
                                 break;
                             };
 
-                            let nl = ptr.wrapping_add(nl_pos);
+                            let nl_idx = ptr_idx + nl_pos;
                             if nl_pos > 0 {
-                                let scan_slice =
-                                    crate::globals::GraphPtr::raw_slice_mut(ptr, nl_pos);
-                                for b in scan_slice {
+                                for b in &mut buffer_vec[ptr_idx..nl_idx] {
                                     if *b == 0 {
                                         *b = b'\n';
                                     }
                                 }
                             }
 
-                            ptr = nl;
+                            ptr_idx = nl_idx;
                             if skip_count == 0 {
-                                *crate::globals::GraphPtr::of(ptr).borrow_mut() = 0;
-                                let mut len =
-                                    (((ptr as isize) - (line_start as isize)) + 1) as Colnr;
+                                buffer_vec[ptr_idx] = 0;
+                                let mut len = ((ptr_idx - line_start_idx) + 1) as Colnr;
                                 if fileformat == EOL_DOS {
-                                    if ptr > line_start
-                                        && *crate::globals::GraphPtr::of(ptr.wrapping_sub(1))
-                                            .borrow()
-                                            == CAR
-                                    {
-                                        *crate::globals::GraphPtr::of(ptr.wrapping_sub(1))
-                                            .borrow_mut() = 0;
+                                    if ptr_idx > line_start_idx && buffer_vec[ptr_idx - 1] == CAR {
+                                        buffer_vec[ptr_idx - 1] = 0;
                                         len -= 1;
                                     } else if ff_error != EOL_DOS {
                                         if try_unix != 0
@@ -1912,10 +1819,8 @@ pub fn readfile(
                                 }
                                 if !ml_append(
                                     lnum,
-                                    crate::globals::GraphPtr::raw_slice(
-                                        line_start,
-                                        (len as usize).saturating_sub(1),
-                                    ),
+                                    &buffer_vec[line_start_idx
+                                        ..line_start_idx + (len as usize).saturating_sub(1)],
                                     len,
                                     newfile,
                                 ) {
@@ -1923,27 +1828,27 @@ pub fn readfile(
                                     break;
                                 }
                                 if read_undo_file && len > 0 {
-                                    sha_ctx.update(crate::globals::GraphPtr::raw_slice(
-                                        line_start,
-                                        len as usize,
-                                    ));
+                                    sha_ctx.update(
+                                        &buffer_vec
+                                            [line_start_idx..line_start_idx + (len as usize)],
+                                    );
                                 }
                                 lnum += 1;
                                 read_count -= 1;
                                 if read_count == 0 {
                                     error = true;
-                                    line_start = ptr;
+                                    line_start_idx = ptr_idx;
                                     break;
                                 }
                             } else {
                                 skip_count -= 1;
                             }
-                            line_start = ptr.wrapping_add(1);
-                            ptr = ptr.wrapping_add(1);
+                            line_start_idx = ptr_idx + 1;
+                            ptr_idx += 1;
                         }
                         size = -1;
                     }
-                    linerest = (ptr as isize) - (line_start as isize);
+                    linerest = (ptr_idx as isize) - (line_start_idx as isize);
 
                     if show_msg && (progress || os_hrtime() - read_start > slow_io_ns()) {
                         let mut info: FileInfo = FileInfo::new();
@@ -1986,9 +1891,9 @@ pub fn readfile(
             if linerest != 0
                 && !curbuf_mut().b_p_bin
                 && fileformat == EOL_DOS
-                && *crate::globals::GraphPtr::of(ptr.wrapping_sub(1)).borrow() == CTRL_Z
+                && buffer_vec[ptr_idx - 1] == CTRL_Z
             {
-                ptr = ptr.wrapping_sub(1);
+                ptr_idx -= 1;
                 linerest -= 1;
                 if set_options {
                     curbuf_mut().b_p_eof = true;
@@ -1999,24 +1904,19 @@ pub fn readfile(
                 if set_options {
                     curbuf_mut().b_p_eol = false;
                 }
-                *crate::globals::GraphPtr::of(ptr).borrow_mut() = 0;
-                let len = (((ptr as isize) - (line_start as isize)) + 1) as Colnr;
+                buffer_vec[ptr_idx] = 0;
+                let len = ((ptr_idx - line_start_idx) + 1) as Colnr;
                 if !ml_append(
                     lnum,
-                    crate::globals::GraphPtr::raw_slice(
-                        line_start,
-                        (len as usize).saturating_sub(1),
-                    ),
+                    &buffer_vec[line_start_idx..line_start_idx + (len as usize).saturating_sub(1)],
                     len,
                     newfile,
                 ) {
                     error = true;
                 } else {
                     if read_undo_file && len > 0 {
-                        sha_ctx.update(crate::globals::GraphPtr::raw_slice(
-                            line_start,
-                            len as usize,
-                        ));
+                        sha_ctx
+                            .update(&buffer_vec[line_start_idx..line_start_idx + (len as usize)]);
                     }
                     lnum += 1;
                     read_no_eol_lnum = lnum;
@@ -3851,11 +3751,7 @@ pub fn vim_gettempdir() -> Option<&'static CStr> {
 fn vim_settempdir(tempdir: &CStr) -> bool {
     let mut buf_vec: Vec<u8> = vec![0; MAXPATHL + 2];
 
-    vim_full_name(
-        Some(tempdir),
-        crate::globals::GraphPtr::raw_slice_mut((buf_vec.as_mut_ptr()).cast(), MAXPATHL),
-        cfg!(windows),
-    );
+    vim_full_name(Some(tempdir), &mut buf_vec[..MAXPATHL], cfg!(windows));
 
     let mut buflen = crate::memory::bytes_until_nul(&buf_vec).len();
     if after_pathsep(&buf_vec[..buflen]) == 0 {
