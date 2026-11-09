@@ -310,6 +310,7 @@ pub struct QfInfo {
     pub qf_lists: Vec<QfList>,
     pub qfl_type: Qfltype,
     pub qf_bufnr: i32,
+    pub qf_arena_idx: Option<usize>,
 }
 
 #[repr(C)]
@@ -533,6 +534,8 @@ struct QuickfixState {
     mef_off: i32,
     did_bufnr_emsg: bool,
     set_qf_ll_recursive: i32,
+    llist_arena: Vec<Option<Box<QfInfo>>>,
+    free_llists: Vec<usize>,
 }
 
 impl QuickfixState {
@@ -546,6 +549,7 @@ impl QuickfixState {
                 qf_lists: Vec::new(),
                 qfl_type: QFLT_QUICKFIX,
                 qf_bufnr: INVALID_QFBUFNR,
+                qf_arena_idx: None,
             },
             last_qf_id: 0,
             qf_last_bufname: None,
@@ -568,6 +572,8 @@ impl QuickfixState {
             mef_off: 0,
             did_bufnr_emsg: false,
             set_qf_ll_recursive: 0,
+            llist_arena: Vec::new(),
+            free_llists: Vec::new(),
         }
     }
 }
@@ -1947,9 +1953,13 @@ fn ll_free_all(qi: Option<&mut QfInfo>) {
     qi.qf_refcount -= 1;
 
     if qi.qf_refcount < 1 {
-        let qi_ptr = ptr::from_mut(qi);
+        let arena_idx = qi.qf_arena_idx;
         wipe_qf_buffer(qi);
-        crate::globals::GraphPtr::of(qi_ptr).drop_box();
+        if let Some(idx) = arena_idx {
+            let st = qf_st().borrow_mut();
+            st.llist_arena[idx] = None;
+            st.free_llists.push(idx);
+        }
     }
 }
 
@@ -2128,15 +2138,34 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
     let qi = if qfltype == QFLT_QUICKFIX {
         ql_info_mut()
     } else {
-        Box::leak(Box::new(QfInfo {
-            qf_refcount: 1,
-            qf_listcount: 0,
-            qf_curlist: 0,
-            qf_maxcount: 0,
-            qf_lists: Vec::new(),
-            qfl_type: 0,
-            qf_bufnr: 0,
-        }))
+        let st = qf_st().borrow_mut();
+        let idx = if let Some(idx) = st.free_llists.pop() {
+            st.llist_arena[idx] = Some(Box::new(QfInfo {
+                qf_refcount: 1,
+                qf_listcount: 0,
+                qf_curlist: 0,
+                qf_maxcount: 0,
+                qf_lists: Vec::new(),
+                qfl_type: 0,
+                qf_bufnr: 0,
+                qf_arena_idx: Some(idx),
+            }));
+            idx
+        } else {
+            let idx = st.llist_arena.len();
+            st.llist_arena.push(Some(Box::new(QfInfo {
+                qf_refcount: 1,
+                qf_listcount: 0,
+                qf_curlist: 0,
+                qf_maxcount: 0,
+                qf_lists: Vec::new(),
+                qfl_type: 0,
+                qf_bufnr: 0,
+                qf_arena_idx: Some(idx),
+            })));
+            idx
+        };
+        st.llist_arena[idx].as_deref_mut().unwrap()
     };
     qi.qfl_type = qfltype;
     qi.qf_bufnr = INVALID_QFBUFNR;
@@ -5757,6 +5786,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         qf_lists: vec![QfList::default()],
         qfl_type: QFLT_INTERNAL,
         qf_bufnr: INVALID_QFBUFNR,
+        qf_arena_idx: None,
     };
 
     if qf_init_ext(

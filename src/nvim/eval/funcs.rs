@@ -2635,16 +2635,16 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         let mut error = false;
         let mut idx = tv_get_number_chk(&argvars[1], Some(&mut error)) as i32;
         if !error {
-            let blob = argvars[0].vval.v_blob().cast::<TvBlob>();
+            let blob = argvars[0].vval.v_blob();
             rettv.v_type = VarType::VarNumber;
             if idx < 0 {
-                idx += tv_blob_len(crate::globals::GraphPtr::of(blob).opt());
+                idx += tv_blob_len(blob.opt());
             }
-            if idx < 0 || idx >= tv_blob_len(crate::globals::GraphPtr::of(blob).opt()) {
+            if idx < 0 || idx >= tv_blob_len(blob.opt()) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
             } else {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_blob_get(
-                    crate::globals::GraphPtr::of(blob).borrow(),
+                    blob.borrow(),
                     idx,
                 )));
 

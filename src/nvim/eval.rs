@@ -342,7 +342,7 @@ fn tv_set_partial(tv: &mut TypVal, pt: Option<&mut TvPartial>) {
 #[inline]
 pub fn tv_blob_set_ret(tv: &mut TypVal, b: Option<&mut TvBlob>) {
     tv.v_type = VarType::VarBlob;
-    tv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::from(b));
+    tv.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::from(b));
     if let Some(b_ref) = tv.vval.v_blob_opt() {
         b_ref.bv_refcount += 1;
     }

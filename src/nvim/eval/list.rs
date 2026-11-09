@@ -192,7 +192,7 @@ fn filter_map_blob(
 ) {
     if filtermap == FilterMap::MapNew {
         rettv.v_type = VarType::VarBlob;
-        rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
+        rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::NULL);
     }
     let Some(b) = blob_arg else {
         return;
@@ -202,10 +202,10 @@ fn filter_map_blob(
         return;
     }
 
-    let mut b_ret = crate::globals::GraphPtr::<TvBlob>::from_ref(b);
+    let mut b_ret = b.bv_id;
     if filtermap == FilterMap::MapNew {
         tv_blob_copy(Some(&*b), &mut *rettv);
-        b_ret = crate::globals::GraphPtr::<TvBlob>::of(rettv.vval.v_blob());
+        b_ret = rettv.vval.v_blob();
     }
 
     set_vim_var_type(VV_KEY, VarType::VarNumber);

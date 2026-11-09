@@ -23,7 +23,7 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     };
 
     let Some(b1_ref) = tv1.vval.v_blob_opt() else {
-        tv1.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::new(b2));
+        tv1.vval = crate::eval::typval::TypvalVval::Blob(b2.bv_id);
         b2.bv_refcount += 1;
         return true;
     };

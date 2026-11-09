@@ -179,18 +179,57 @@ pub struct MultiQueue {
     items: VecDeque<QueueEntry>,
     notify_loop: crate::globals::GraphPtr<crate::event::r#loop::Loop>,
     size: usize,
+    arena_idx: usize,
+}
+
+struct MultiQueueState {
+    arena: Vec<Option<Box<MultiQueue>>>,
+    free_slots: Vec<usize>,
+}
+
+impl MultiQueueState {
+    const fn new() -> Self {
+        Self {
+            arena: Vec::new(),
+            free_slots: Vec::new(),
+        }
+    }
+}
+
+static MQ_STATE: crate::globals::GlobalState<MultiQueueState> =
+    crate::globals::GlobalState::new(MultiQueueState::new());
+
+#[inline]
+fn mq_st() -> crate::globals::GraphPtr<MultiQueueState> {
+    MQ_STATE.handle()
 }
 
 fn multiqueue_new_inner(
     parent: Option<&mut MultiQueue>,
     notify_loop: Option<&mut crate::event::r#loop::Loop>,
 ) -> &'static mut MultiQueue {
-    Box::leak(Box::new(MultiQueue {
-        parent: crate::globals::GraphPtr::from(parent),
-        items: VecDeque::new(),
-        notify_loop: crate::globals::GraphPtr::from(notify_loop),
-        size: 0,
-    }))
+    let st = mq_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_slots.pop() {
+        st.arena[idx] = Some(Box::new(MultiQueue {
+            parent: crate::globals::GraphPtr::from(parent),
+            items: VecDeque::new(),
+            notify_loop: crate::globals::GraphPtr::from(notify_loop),
+            size: 0,
+            arena_idx: idx,
+        }));
+        idx
+    } else {
+        let idx = st.arena.len();
+        st.arena.push(Some(Box::new(MultiQueue {
+            parent: crate::globals::GraphPtr::from(parent),
+            items: VecDeque::new(),
+            notify_loop: crate::globals::GraphPtr::from(notify_loop),
+            size: 0,
+            arena_idx: idx,
+        })));
+        idx
+    };
+    st.arena[idx].as_deref_mut().unwrap()
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
@@ -222,7 +261,10 @@ impl Drop for MultiQueue {
 
 /// Free a `MultiQueue` and all queued items (`multiqueue_free`).
 pub fn multiqueue_free(this: &mut MultiQueue) {
-    crate::globals::GraphPtr::from(this).drop_box();
+    let idx = this.arena_idx;
+    let st = mq_st().borrow_mut();
+    st.arena[idx] = None;
+    st.free_slots.push(idx);
 }
 
 fn multiqueue_remove(this: &mut MultiQueue) -> Event {

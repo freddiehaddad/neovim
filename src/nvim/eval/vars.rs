@@ -18,9 +18,9 @@ use crate::eval::funcs::{
 };
 use crate::eval::typval::{
     BoolVarValue, DI_FLAGS_ALLOC, Dictitem, EvalFuncData, Listitem, ScopeDictDictItem, TV_CSTRING,
-    TV_TRANSLATE, TvBlob, TvDict, TvList, TvPartial, TypVal, TypvalVval, VAR_UNLOCKED,
-    VarLockStatus, VarType, Varnumber, tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add,
-    tv_dict_alloc, tv_dict_alloc_lock, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_remove,
+    TV_TRANSLATE, TvDict, TvList, TvPartial, TypVal, TypvalVval, VAR_UNLOCKED, VarLockStatus,
+    VarType, Varnumber, tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc,
+    tv_dict_alloc_lock, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_remove,
     tv_dict_set_keys_readonly, tv_dict_unref, tv_dict_watcher_notify, tv_get_bool_chk,
     tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
     tv_is_func, tv_item_lock, tv_list_alloc, tv_list_append_string, tv_list_append_tv,
@@ -122,7 +122,7 @@ pub struct Lval {
     pub ll_dict: crate::globals::GraphPtr<TvDict>,
     pub ll_di: crate::globals::GraphPtr<Dictitem>,
     pub ll_newkey: Option<std::ffi::CString>,
-    pub ll_blob: crate::globals::GraphPtr<TvBlob>,
+    pub ll_blob: crate::eval::typval::BlobId,
 }
 
 impl Lval {
@@ -142,7 +142,7 @@ impl Lval {
             ll_dict: crate::globals::GraphPtr::NULL,
             ll_di: crate::globals::GraphPtr::NULL,
             ll_newkey: None,
-            ll_blob: crate::globals::GraphPtr::NULL,
+            ll_blob: crate::eval::typval::BlobId::NULL,
         }
     }
 

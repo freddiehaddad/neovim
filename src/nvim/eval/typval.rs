@@ -66,11 +66,104 @@ pub const K_CALLBACK_PARTIAL: i32 = 2;
 pub const K_CALLBACK_LUA: i32 = 3;
 pub const K_CALLBACK_EXPR: i32 = 4;
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct BlobId(Option<std::num::NonZeroU32>);
+
+impl BlobId {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(self) -> Option<&'static TvBlob> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow()
+            .blob_arena
+            .get(idx)
+            .and_then(|s| s.as_deref())
+    }
+
+    #[inline(always)]
+    pub fn opt_mut(self) -> Option<&'static mut TvBlob> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow_mut()
+            .blob_arena
+            .get_mut(idx)
+            .and_then(|s| s.as_deref_mut())
+    }
+
+    #[inline(always)]
+    pub fn borrow(self) -> &'static TvBlob {
+        self.opt().expect("null or freed BlobId")
+    }
+
+    #[inline(always)]
+    pub fn borrow_mut(self) -> &'static mut TvBlob {
+        self.opt_mut().expect("null or freed BlobId")
+    }
+}
+
+impl From<&TvBlob> for BlobId {
+    #[inline(always)]
+    fn from(b: &TvBlob) -> Self {
+        b.bv_id
+    }
+}
+
+impl From<&mut TvBlob> for BlobId {
+    #[inline(always)]
+    fn from(b: &mut TvBlob) -> Self {
+        b.bv_id
+    }
+}
+
+impl From<Option<&TvBlob>> for BlobId {
+    #[inline(always)]
+    fn from(opt: Option<&TvBlob>) -> Self {
+        opt.map_or(Self::NULL, |b| b.bv_id)
+    }
+}
+
+impl From<Option<&mut TvBlob>> for BlobId {
+    #[inline(always)]
+    fn from(opt: Option<&mut TvBlob>) -> Self {
+        opt.map_or(Self::NULL, |b| b.bv_id)
+    }
+}
+
+impl std::ops::Deref for BlobId {
+    type Target = TvBlob;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
+
+impl std::ops::DerefMut for BlobId {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut()
+    }
+}
+
 #[repr(C)]
 pub struct TvBlob {
     pub bv_ga: Vec<u8>,
     pub bv_refcount: i32,
     pub bv_lock: i32,
+    pub bv_id: BlobId,
 }
 
 #[repr(C)]
@@ -237,7 +330,7 @@ pub enum TypvalVval {
     String(Option<std::ffi::CString>),
     List(crate::globals::TvListPtr),
     Dict(crate::globals::GraphPtr<TvDict>),
-    Blob(crate::globals::GraphPtr<TvBlob>),
+    Blob(BlobId),
     Partial(crate::globals::GraphPtr<TvPartial>),
 }
 
@@ -414,10 +507,10 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_blob(&self) -> crate::globals::GraphPtr<TvBlob> {
+    pub const fn v_blob(&self) -> BlobId {
         match *self {
             Self::Blob(p) => p,
-            _ => crate::globals::GraphPtr::NULL,
+            _ => BlobId::NULL,
         }
     }
 
@@ -459,7 +552,7 @@ impl TypvalVval {
             Self::String(Some(s)) => s.as_ptr() as usize,
             Self::List(p) => p.as_ptr() as usize,
             Self::Dict(p) => p.as_ptr() as usize,
-            Self::Blob(p) => p.as_ptr() as usize,
+            Self::Blob(p) => p.opt().map_or(0, |b| ptr::from_ref(b) as usize),
             Self::Partial(p) => p.as_ptr() as usize,
             _ => 0,
         }
@@ -784,6 +877,8 @@ pub(crate) struct TypvalModuleState {
     dict_numbuf: [u8; NUMBUFLEN],
     mybuf_chk: [u8; NUMBUFLEN],
     mybuf: [u8; NUMBUFLEN],
+    blob_arena: Vec<Option<Box<TvBlob>>>,
+    free_blobs: Vec<usize>,
 }
 
 impl TypvalModuleState {
@@ -794,6 +889,8 @@ impl TypvalModuleState {
             dict_numbuf: [0; NUMBUFLEN],
             mybuf_chk: [0; NUMBUFLEN],
             mybuf: [0; NUMBUFLEN],
+            blob_arena: Vec::new(),
+            free_blobs: Vec::new(),
         }
     }
 }
@@ -1073,7 +1170,7 @@ fn tv_dict_is_watched_inline(d: Option<&TvDict>) -> bool {
 fn tv_blob_set_ret_inline(tv: &mut TypVal, b: &mut TvBlob) {
     b.bv_refcount += 1;
     tv.v_type = VarType::VarBlob;
-    tv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::new(b));
+    tv.vval = crate::eval::typval::TypvalVval::Blob(b.bv_id);
 }
 
 #[inline]
@@ -3399,20 +3496,41 @@ pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
 
 /// Allocate an empty blob.
 pub fn tv_blob_alloc() -> &'static mut TvBlob {
-    Box::leak(Box::new(TvBlob {
-        bv_ga: Vec::new(),
-        bv_refcount: 0,
-        bv_lock: 0,
-    }))
+    let st = tv_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_blobs.pop() {
+        let id = BlobId::from_slot(idx);
+        st.blob_arena[idx] = Some(Box::new(TvBlob {
+            bv_ga: Vec::new(),
+            bv_refcount: 0,
+            bv_lock: 0,
+            bv_id: id,
+        }));
+        idx
+    } else {
+        let idx = st.blob_arena.len();
+        let id = BlobId::from_slot(idx);
+        st.blob_arena.push(Some(Box::new(TvBlob {
+            bv_ga: Vec::new(),
+            bv_refcount: 0,
+            bv_lock: 0,
+            bv_id: id,
+        })));
+        idx
+    };
+    st.blob_arena[idx].as_deref_mut().unwrap()
 }
 
 /// Unreference a blob.
 pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
     if let Some(b_ref) = b {
         b_ref.bv_refcount -= 1;
-        if b_ref.bv_refcount <= 0 {
-            let b_ptr = crate::globals::GraphPtr::from(b_ref);
-            crate::globals::GraphPtr::of(b_ptr.as_ptr()).drop_box();
+        if b_ref.bv_refcount <= 0
+            && let Some(nz) = b_ref.bv_id.0
+        {
+            let idx = (nz.get() - 1) as usize;
+            let st = tv_st().borrow_mut();
+            st.blob_arena[idx] = None;
+            st.free_blobs.push(idx);
         }
     }
 }
@@ -3458,7 +3576,7 @@ fn tv_blob_slice(
     if n1 >= len64 || n2 < 0 || n1 > n2 {
         tv_clear(&mut *rettv);
         rettv.v_type = VarType::VarBlob;
-        rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
+        rettv.vval = crate::eval::typval::TypvalVval::Blob(BlobId::NULL);
     } else {
         let new_blob = tv_blob_alloc();
         let src_blob = rettv.vval.v_blob_ref();
@@ -3788,7 +3906,7 @@ pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
         let dst_blob = &mut *tv_blob_alloc_ret(to);
         dst_blob.bv_ga.extend_from_slice(&from.bv_ga);
     } else {
-        to.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
+        to.vval = crate::eval::typval::TypvalVval::Blob(BlobId::NULL);
     }
 }
 
@@ -3871,7 +3989,7 @@ fn nothing_convert_one_value(
         }
         VarType::VarBlob => {
             tv_blob_unref(tv.vval.v_blob_opt());
-            tv.vval = crate::eval::typval::TypvalVval::Blob(crate::globals::GraphPtr::NULL);
+            tv.vval = crate::eval::typval::TypvalVval::Blob(BlobId::NULL);
             tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarFunc => {
