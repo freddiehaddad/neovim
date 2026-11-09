@@ -434,7 +434,7 @@ enum QfInputSource {
     None,
     File(crate::os::fs::CFile),
     Str(std::ffi::CString, usize),
-    List(crate::globals::GraphPtr<Listitem>),
+    List(crate::eval::typval::ListitemId),
     Buf {
         buf: crate::globals::GraphPtr<FileBuf>,
         buflnum: Linenr,
@@ -1107,7 +1107,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
     }
 
     let Some(li) = p_li else {
-        state.source = QfInputSource::List(crate::globals::GraphPtr::NULL);
+        state.source = QfInputSource::List(crate::eval::typval::ListitemId::NULL);
         return QfStatus::EndOfInput;
     };
 

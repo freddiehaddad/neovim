@@ -2,11 +2,11 @@
 
 //! Garbage collection registries for dicts and lists (`src/nvim/eval/gc.c`).
 
-use crate::eval::typval::{TvDict, TvList};
+use crate::eval::typval::{ListId, TvDict, TvList};
 
 struct GcModuleState {
     gc_dicts: Vec<crate::globals::GraphPtr<TvDict>>,
-    gc_lists: Vec<crate::globals::GraphPtr<TvList>>,
+    gc_lists: Vec<ListId>,
 }
 
 impl GcModuleState {
@@ -47,16 +47,14 @@ pub fn gc_unregister_dict(idx: usize) {
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 #[allow(non_upper_case_globals)]
-pub static gc_first_list: crate::globals::GlobalState<crate::globals::TvListPtr> =
-    crate::globals::GlobalState::new(crate::globals::TvListPtr::NULL);
+pub static gc_first_list: crate::globals::GlobalState<usize> = crate::globals::GlobalState::new(0);
 
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
     let idx = gc_st().gc_lists.len();
-    let ptr = crate::globals::GraphPtr::<TvList>::from_ref(l);
-    gc_st().gc_lists.push(ptr);
+    gc_st().gc_lists.push(l.lv_id);
     l.lv_gc_idx = Some(idx);
-    gc_first_list.set(ptr);
+    gc_first_list.set(std::ptr::from_mut(l) as usize);
 }
 
 #[inline]
@@ -67,13 +65,7 @@ pub fn gc_unregister_list(idx: usize) {
         moved.lv_gc_idx = Some(idx);
     }
 
-    gc_first_list.set(
-        gc_st()
-            .gc_lists
-            .last()
-            .copied()
-            .unwrap_or(crate::globals::TvListPtr::NULL),
-    );
+    gc_first_list.set(gc_st().gc_lists.last().map_or(0, |id| id.as_ptr() as usize));
 }
 
 #[inline]

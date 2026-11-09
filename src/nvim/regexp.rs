@@ -10,8 +10,8 @@ use crate::cursor::{Colnr, Linenr, Lpos, lt};
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    StaticList10, TvList, TypVal, VarType, tv_clear, tv_list_alloc, tv_list_append_string,
-    tv_list_first, tv_list_init_static10, tv_set_string,
+    TvList, TypVal, VarType, tv_clear, tv_list_alloc, tv_list_alloc_static, tv_list_append_string,
+    tv_list_free_contents, tv_list_init_static10, tv_set_string, unref_var_list,
 };
 use crate::eval::userfunc::{Funcexe, UserFunc};
 use crate::globals::*;
@@ -2887,12 +2887,9 @@ pub(crate) fn fill_submatch_list(
         return argskip;
     }
     let listarg = &mut argv[argskip as usize];
+    tv_list_init_static10(listarg.vval.v_list().borrow_mut());
 
-    let static_list =
-        crate::globals::GraphPtr::of(listarg.vval.v_list().cast::<StaticList10>()).borrow_mut();
-    tv_list_init_static10(static_list);
-
-    let mut li = crate::globals::GraphPtr::from(tv_list_first(listarg.vval.v_list().opt()));
+    let mut li = listarg.vval.v_list().lv_first;
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
         let e = re_st().rsm.match_mut().endp[i];
@@ -3036,13 +3033,11 @@ fn vim_regsub_both(
             if let Some(expr) = expr {
                 let mut argv: [TypVal; 2] = [const { TypVal::new() }; 2];
                 let mut rettv: TypVal = TypVal::new();
-                let mut match_list = StaticList10::new();
+                let match_list_id = tv_list_alloc_static().lv_id;
                 rettv.v_type = VarType::VarString;
                 rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
                 argv[0].v_type = VarType::VarList;
-                argv[0].vval = crate::eval::typval::TypvalVval::List(
-                    crate::globals::GraphPtr::new(&raw mut match_list.sl_list),
-                );
+                argv[0].vval = crate::eval::typval::TypvalVval::List(match_list_id);
                 let mut funcexe = Funcexe {
                     fe_fill_submatch: true,
                     fe_firstline: 0,
@@ -3072,6 +3067,10 @@ fn vim_regsub_both(
                     }
                 }
                 tv_clear(&mut rettv);
+                if let Some(match_list) = match_list_id.opt_mut() {
+                    tv_list_free_contents(match_list);
+                    unref_var_list(match_list);
+                }
             } else if let Some(src) = source {
                 *eval_slot =
                     eval_to_string(crate::memory::CStrSubslice::advance(src, 2), true, false);

@@ -923,7 +923,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         let l = buffer_to_tv_list(&reader.buffer);
         argv[1].v_type = VarType::VarList;
         argv[1].v_lock = VAR_UNLOCKED;
-        argv[1].vval = TypvalVval::List(crate::globals::GraphPtr::new(l));
+        argv[1].vval = TypvalVval::List(l.lv_id);
         tv_list_ref(Some(&mut *l));
         reader.buffer = Vec::new();
         argv[2].vval = TypvalVval::from_opt_cstr(reader.reader_type);

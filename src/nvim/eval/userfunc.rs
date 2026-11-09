@@ -16,10 +16,11 @@ use crate::eval::funcs::{
     check_internal_func, find_internal_func,
 };
 use crate::eval::typval::{
-    Callback, Dictitem, EvalFuncData, Listitem, TV_CSTRING, TvDict, TvPartial, TypVal,
-    VAR_UNLOCKED, VarType, Varnumber, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc,
-    tv_dict_item_alloc_len, tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func,
-    tv_list_append, tv_list_init_static, tv_list_set_lock, value_check_lock,
+    Callback, Dictitem, EvalFuncData, TV_CSTRING, TvDict, TvPartial, TypVal, VAR_UNLOCKED, VarType,
+    Varnumber, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_alloc_static,
+    tv_list_append, tv_list_free_contents, tv_list_item_alloc, tv_list_set_lock, unref_var_list,
+    value_check_lock,
 };
 use crate::eval::vars::{
     Evalarg, Lval, VV_TESTING, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr,
@@ -1111,6 +1112,10 @@ impl Drop for Funccall {
     fn drop(&mut self) {
         vars_clear(&mut self.fc_l_vars.dv_hashtab);
         vars_clear(&mut self.fc_l_avars.dv_hashtab);
+        if let Some(varlist) = self.fc_l_varlist.opt_mut() {
+            tv_list_free_contents(varlist);
+            unref_var_list(varlist);
+        }
         let self_ptr = std::ptr::from_mut(self);
         for fp in &mut self.fc_ufuncs {
             if !fp.is_null() && fp.uf_scoped == self_ptr {
@@ -1152,7 +1157,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
         for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.first_opt()) {
             li.li_tv = TypVal::new();
         }
-        fc.fc_l_varlist.lv_first = crate::globals::ListitemPtr::NULL;
+        tv_list_free_contents(fc.fc_l_varlist.borrow_mut());
     } else {
         free_fc = false;
 
@@ -1398,18 +1403,17 @@ pub fn call_user_func(
         );
     }
     fc.fc_l_avars.dv_lock = VAR_FIXED;
+    let varlist = tv_list_alloc_static();
+    tv_list_set_lock(Some(varlist), VAR_FIXED);
+    fc.fc_l_varlist = varlist.lv_id;
     if (fp.uf_flags & FC_NOARGS) == 0 {
         let v = tv_dict_item_alloc_len(b"000");
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         v.di_tv.v_type = VarType::VarList;
         v.di_tv.v_lock = VAR_FIXED;
-        v.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(
-            &raw mut fc.fc_l_varlist,
-        ));
+        v.di_tv.vval = crate::eval::typval::TypvalVval::List(fc.fc_l_varlist);
         hash_add(&mut fc.fc_l_avars.dv_hashtab, &mut *v);
     }
-    tv_list_init_static(&mut fc.fc_l_varlist);
-    tv_list_set_lock(Some(&mut fc.fc_l_varlist), VAR_FIXED);
 
     if (fp.uf_flags & FC_NOARGS) == 0 {
         add_nr_var(&mut fc.fc_l_avars, c"firstline", Varnumber::from(firstline));
@@ -1418,7 +1422,6 @@ pub fn call_user_func(
 
     let mut default_arg_err = false;
     let max_i = argcount.max(uf_args_len);
-    let listitems_ptr = (&raw mut fc.fc_l_listitems).cast::<Listitem>();
     for i in 0..max_i {
         let mut addlocal = false;
         let mut isdefault = false;
@@ -1481,11 +1484,10 @@ pub fn call_user_func(
         }
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
-            let li =
-                crate::globals::GraphPtr::of(listitems_ptr.wrapping_add(ai as usize)).borrow_mut();
+            let li = tv_list_item_alloc();
             li.li_tv = argvars[i as usize].clone();
             li.li_tv.v_lock = VAR_FIXED;
-            tv_list_append(&mut fc.fc_l_varlist, li);
+            tv_list_append(fc.fc_l_varlist.borrow_mut(), li);
         }
     }
 
@@ -4351,7 +4353,7 @@ pub fn set_ref_in_previous_funccal(copy_id: i32) -> bool {
         fc.fc_copy_id = copy_id + 1;
         if set_ref_in_ht(Some(&mut fc.fc_l_vars.dv_hashtab), copy_id + 1, None)
             || set_ref_in_ht(Some(&mut fc.fc_l_avars.dv_hashtab), copy_id + 1, None)
-            || set_ref_in_list_items(Some(&mut fc.fc_l_varlist), copy_id + 1, None)
+            || set_ref_in_list_items(fc.fc_l_varlist.opt_mut(), copy_id + 1, None)
         {
             return true;
         }
@@ -4378,7 +4380,7 @@ fn set_ref_in_funccal(fc: &mut Funccall, copy_id: i32) -> bool {
         fc.fc_copy_id = copy_id;
         if set_ref_in_ht(Some(&mut fc.fc_l_vars.dv_hashtab), copy_id, None)
             || set_ref_in_ht(Some(&mut fc.fc_l_avars.dv_hashtab), copy_id, None)
-            || set_ref_in_list_items(Some(&mut fc.fc_l_varlist), copy_id, None)
+            || set_ref_in_list_items(fc.fc_l_varlist.opt_mut(), copy_id, None)
             || set_ref_in_defer(fc, copy_id)
             || set_ref_in_func(None, fc.fc_func.opt_mut(), copy_id)
         {

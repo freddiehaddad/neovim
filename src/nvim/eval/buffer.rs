@@ -14,12 +14,11 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, Linenr, check_cursor_col};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
-    Callback, EvalFuncData, K_CALLBACK_NONE_CONST, Listitem, TvDict, TvList, TypVal, TypvalVval,
-    VarType, Varnumber, callback_free, tv_check_str_or_nr, tv_clear, tv_dict_add_dict,
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool,
-    tv_get_bool_chk, tv_get_lnum, tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number, tv_list_first,
-    tv_list_item_remove, tv_list_last, tv_list_len, tv_set_string,
+    Callback, EvalFuncData, K_CALLBACK_NONE_CONST, TvDict, TypVal, TypvalVval, VarType, Varnumber,
+    callback_free, tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list,
+    tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
+    tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number, tv_list_item_remove, tv_list_len, tv_set_string,
 };
 use crate::eval::window::win_has_winnr;
 use crate::eval::{
@@ -163,11 +162,11 @@ fn set_buffer_lines(
         curbuf_mut().b_ml.ml_line_count
     };
 
-    let mut l = crate::globals::GraphPtr::<TvList>::NULL;
-    let mut li = crate::globals::GraphPtr::<Listitem>::NULL;
+    let mut l = crate::eval::typval::ListId::NULL;
+    let mut li = crate::eval::typval::ListitemId::NULL;
     let mut line: Option<std::ffi::CString> = None;
     if lines.v_type == VarType::VarList {
-        l = crate::globals::GraphPtr::<TvList>::of(lines.vval.v_list());
+        l = lines.vval.v_list();
         if l.is_null() || tv_list_len(l.opt()) == 0 {
             if !is_curbuf {
                 change_other_buffer_restore(&mut cob);
@@ -175,7 +174,7 @@ fn set_buffer_lines(
             return;
         }
 
-        li = crate::globals::GraphPtr::from(tv_list_first(l.opt()));
+        li = l.lv_first;
     } else {
         line = Some(typval_tostring(Some(lines), false));
     }
@@ -188,7 +187,7 @@ fn set_buffer_lines(
 
             line = Some(typval_tostring(Some(&mut (li.borrow_mut().li_tv)), false));
 
-            li = crate::globals::GraphPtr::<Listitem>::of(li.li_next.as_ptr());
+            li = li.li_next;
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
@@ -428,7 +427,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
-                let li = tv_list_first(l.opt()).unwrap();
+                let mut li = l.lv_first;
                 let str_ = tv_get_string(&li.li_tv);
                 let new_str = concat_str(text.to_bytes(), str_.to_bytes());
                 crate::eval::typval::tv_set_string(&mut li.li_tv, Some(new_str.as_c_str()));
@@ -444,7 +443,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     if g_st().did_emsg == did_emsg_before {
         if did_concat && tv_list_len(lines.vval.v_list().opt()) > 1 {
             let l = lines.vval.v_list();
-            let li = crate::globals::GraphPtr::<Listitem>::of(tv_list_first(l.opt()).unwrap());
+            let li = l.lv_first;
 
             set_buffer_lines(
                 buf.opt_mut(),
@@ -471,7 +470,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
-                let li = crate::globals::GraphPtr::<Listitem>::of(tv_list_last(l.opt()).unwrap());
+                let li = l.lv_last;
                 let str_ = tv_get_string(&li.li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {

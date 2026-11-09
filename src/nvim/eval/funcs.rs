@@ -307,7 +307,7 @@ enum SomeMatchType {
 
 #[repr(C)]
 pub struct GetListLineCookie {
-    li: crate::globals::ListitemPtr,
+    li: crate::eval::typval::ListitemId,
 }
 
 struct EvalFuncsState {
@@ -2355,7 +2355,7 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
     }
 
     if make_copy {
-        let copied = crate::globals::GraphPtr::from(tv_list_copy(
+        let copied = crate::eval::typval::ListId::from(tv_list_copy(
             None,
             list_opt.take(),
             false,
@@ -2502,7 +2502,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             let s_ref = s_cstr.unwrap_or(c"");
             let mut dict_idx: usize = 0;
             let mut arg_idx: usize = 0;
-            let mut list = crate::globals::GraphPtr::<TvList>::NULL;
+            let mut list = crate::eval::typval::ListId::NULL;
             let s_bytes = s_ref.to_bytes();
             let name_cstr = if s_bytes.starts_with(b"s:") || s_bytes.starts_with(b"<SID>") {
                 get_scriptlocal_funcname(Some(s_ref)).unwrap_or_default()
@@ -2534,7 +2534,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                         ));
                         break 'theend;
                     }
-                    list = crate::globals::GraphPtr::<TvList>::of(argvars[arg_idx].vval.v_list());
+                    list = argvars[arg_idx].vval.v_list();
                     if tv_list_len(list.opt()) == 0 {
                         arg_idx = 0;
                     } else if (tv_list_len(list.opt()) as usize) > MAX_FUNC_ARGS {
@@ -3408,9 +3408,9 @@ pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     if return_list {
         rettv.v_type = VarType::VarList;
-        let list_ptr = get_reg_contents_list(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 })
-            .map_or_else(|| tv_list_alloc(0), ptr::from_mut);
-        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(list_ptr));
+        let list = get_reg_contents_list(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 })
+            .unwrap_or_else(|| tv_list_alloc(0));
+        rettv.vval = crate::eval::typval::TypvalVval::List(list.lv_id);
         tv_list_ref(rettv.vval.v_list_opt());
     } else {
         let reg_str = get_reg_contents_str(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 });
@@ -3869,15 +3869,15 @@ pub fn f_index(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             tv_get_number_chk(&argvars[2], Some(&mut error)) as i32,
         );
         if error || idx == -1 {
-            item = crate::globals::GraphPtr::NULL;
+            item = crate::eval::typval::ListitemId::NULL;
         } else {
-            item = crate::globals::GraphPtr::from(tv_list_find(Some(l), idx));
+            item = crate::eval::typval::ListitemId::from(tv_list_find(Some(l), idx));
             debug_assert!(!item.is_null());
         }
         if argvars[3].v_type != VarType::VarUnknown {
             ic = tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0;
             if error {
-                item = crate::globals::GraphPtr::NULL;
+                item = crate::eval::typval::ListitemId::NULL;
             }
         }
     }
@@ -4785,7 +4785,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
     tv_list_ref(Some(&mut *rv));
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(rv));
+    rettv.vval = crate::eval::typval::TypvalVval::List(rv.lv_id);
 }
 
 /// "json_decode()" function
@@ -5008,7 +5008,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
     let mut nth: i64 = 1;
     let mut startcol: Colnr = 0;
     let mut match_found = false;
-    let mut l = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut l = crate::eval::typval::ListId::NULL;
     let mut idx: i32 = 0;
     let mut tofree_owned: Option<std::ffi::CString> = None;
 
@@ -5033,15 +5033,15 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         SomeMatchType::SomeMatch | SomeMatchType::SomeMatchEnd => {}
     }
 
-    let mut li = crate::globals::GraphPtr::<Listitem>::NULL;
+    let mut li = crate::eval::typval::ListitemId::NULL;
     'theend: {
         if argvars[0].v_type == VarType::VarList {
-            l = crate::globals::GraphPtr::<TvList>::of(argvars[0].vval.v_list());
+            l = argvars[0].vval.v_list();
             if l.is_null() {
                 break 'theend;
             }
 
-            li = crate::globals::GraphPtr::from(tv_list_first(l.opt()));
+            li = l.lv_first;
         } else {
             let s = tv_get_string(&argvars[0]);
             str_cstr_opt = Some(s);
@@ -5067,7 +5067,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     break 'theend;
                 }
 
-                li = crate::globals::GraphPtr::from(tv_list_find(l.opt_mut(), idx));
+                li = crate::eval::typval::ListitemId::from(tv_list_find(l.opt_mut(), idx));
             } else {
                 if start < 0 {
                     start = 0;
@@ -5126,7 +5126,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 }
 
                 if !l.is_null() {
-                    li = crate::globals::GraphPtr::<Listitem>::of(li.li_next.as_ptr());
+                    li = li.li_next;
 
                     idx += 1;
                 } else {
@@ -7802,7 +7802,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
     let list = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(list));
+    rettv.vval = crate::eval::typval::TypvalVval::List(list.lv_id);
     tv_list_ref(Some(&mut *list));
     let Some(dirs) = stdpaths_get_xdg_var(xdg) else {
         return;
@@ -7995,7 +7995,7 @@ pub fn f_submatch(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         crate::eval::typval::tv_set_string(rettv, reg_submatch(no).as_deref());
     } else {
         rettv.v_type = VarType::VarList;
-        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(
+        rettv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(
             reg_submatch_list(no),
         ));
     }

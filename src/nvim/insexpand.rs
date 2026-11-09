@@ -3188,7 +3188,7 @@ fn get_insert_callback(type_: i32) -> &'static mut Callback {
 }
 
 fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callback>) {
-    let mut matchlist = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut matchlist = crate::eval::typval::ListId::NULL;
     let mut matchdict = crate::globals::GraphPtr::<TvDict>::NULL;
     let mut rettv: TypVal = TypVal::new();
     let save_state = g_st().state_global;
@@ -3233,7 +3233,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     if called {
         match rettv.v_type {
             VAR_LIST => {
-                matchlist = crate::globals::GraphPtr::<TvList>::of(rettv.vval.v_list());
+                matchlist = rettv.vval.v_list();
             }
             VAR_DICT => {
                 matchdict = crate::globals::GraphPtr::<TvDict>::of(rettv.vval.v_dict());
@@ -3772,14 +3772,14 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
 pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_dict_alloc_ret(rettv);
 
-    let mut what_list = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut what_list = crate::eval::typval::ListId::NULL;
 
     if argvars[0].v_type != VAR_UNKNOWN {
         if argvars[0].v_type != VAR_LIST {
             emsg(gettext(E_LISTREQ));
             return;
         }
-        what_list = crate::globals::GraphPtr::<TvList>::of(argvars[0].vval.v_list());
+        what_list = argvars[0].vval.v_list();
     }
     get_complete_info(what_list.opt(), rettv.vval.v_dict_ref());
 }

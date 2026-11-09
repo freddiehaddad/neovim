@@ -120,7 +120,7 @@ pub struct Except {
     pub messages: Vec<Msglist>,
     pub throw_name: CString,
     pub throw_lnum: Linenr,
-    pub stacktrace: crate::globals::TvListPtr,
+    pub stacktrace: crate::eval::typval::ListId,
 }
 
 impl Drop for Except {
@@ -454,7 +454,7 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
         messages,
         throw_name,
         throw_lnum,
-        stacktrace: crate::globals::TvListPtr::new(stacktrace),
+        stacktrace: crate::eval::typval::ListId::from(stacktrace),
     });
 
     if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {

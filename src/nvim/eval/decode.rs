@@ -39,7 +39,7 @@ use crate::mpack::conv::{
 #[derive(Clone)]
 struct JsonContainerStackItem {
     stack_index: usize,
-    special_val: crate::globals::TvListPtr,
+    special_val: crate::eval::typval::ListId,
     s: usize,
     container: TypVal,
 }
@@ -70,7 +70,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     let type_di = tv_dict_item_alloc_len(b"_TYPE");
     type_di.di_tv.v_type = VarType::VarList;
     type_di.di_tv.v_lock = VAR_UNLOCKED;
-    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(
+    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(
         eval_msgpack_type_list(mp_type),
     ));
     tv_list_ref(type_di.di_tv.vval.v_list_opt());
@@ -97,7 +97,7 @@ pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> &'stat
         TypVal {
             v_type: VarType::VarList,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
+            vval: TypvalVval::List(list.lv_id),
         },
     );
     list
@@ -851,13 +851,13 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                     let tv = TypVal {
                         v_type: VarType::VarList,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
+                        vval: TypvalVval::List(list.lv_id),
                     };
                     container_stack.push(JsonContainerStackItem {
                         stack_index: stack.len(),
                         s: p,
                         container: tv.clone(),
-                        special_val: crate::globals::TvListPtr::NULL,
+                        special_val: crate::eval::typval::ListId::NULL,
                     });
                     stack.push(ValuesStackItem {
                         is_special_string: false,
@@ -872,12 +872,11 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::Number(0),
                     };
-                    let mut val_list = crate::globals::GraphPtr::<TvList>::NULL;
+                    let mut val_list = crate::eval::typval::ListId::NULL;
                     if next_map_special {
                         next_map_special = false;
-                        val_list = crate::globals::GraphPtr::<TvList>::of(
-                            decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW),
-                        );
+                        val_list =
+                            decode_create_map_special_dict(&mut tv, K_LIST_LEN_MAY_KNOW).lv_id;
                     } else {
                         let dict = tv_dict_alloc();
                         dict.dv_refcount += 1;
@@ -950,7 +949,7 @@ fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
             TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
+                vval: TypvalVval::List(list.lv_id),
             },
         );
         tv_list_append_number(&mut *list, 1);
@@ -1051,10 +1050,10 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             *result = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
+                vval: TypvalVval::List(list.lv_id),
             };
 
-            node.data[1] = MpackData::List(crate::globals::GraphPtr::new(list));
+            node.data[1] = MpackData::List(list.lv_id);
         }
         MpackTokenType::MpackTokenMap => {
             node.data[1] =
@@ -1102,7 +1101,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 TypVal {
                     v_type: VarType::VarList,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
+                    vval: TypvalVval::List(list.lv_id),
                 },
             );
             encode_list_write(Some(&mut *ext_val_list), &bytes[..node.tok.length as usize]);

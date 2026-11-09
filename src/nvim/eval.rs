@@ -272,7 +272,7 @@ pub(crate) fn eval_st() -> crate::globals::GraphPtr<EvalModuleState> {
 enum ForSource {
     None,
     List {
-        list: crate::globals::GraphPtr<TvList>,
+        list: crate::eval::typval::ListId,
         lw: std::rc::Rc<Listwatch>,
     },
     Blob {
@@ -293,7 +293,7 @@ pub struct Forinfo {
 }
 
 pub type HtStack = Vec<crate::globals::GraphPtr<Hashtab>>;
-pub type ListStack = Vec<crate::globals::GraphPtr<TvList>>;
+pub type ListStack = Vec<crate::eval::typval::ListId>;
 
 #[repr(C)]
 pub struct VimTimer {
@@ -1052,7 +1052,7 @@ fn get_lval_dict_item<'a>(
     } else {
         key_in
     };
-    lp.ll_list = crate::globals::TvListPtr::NULL;
+    lp.ll_list = crate::eval::typval::ListId::NULL;
 
     if lp.tv_mut().vval.v_dict().is_null() {
         lp.tv_mut().vval =
@@ -1186,8 +1186,8 @@ fn get_lval_list(
     lp.ll_dict = crate::globals::GraphPtr::NULL;
     lp.ll_list = lp.tv_mut().vval.v_list();
     lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet).map_or(
-        crate::globals::ListitemPtr::NULL,
-        crate::globals::ListitemPtr::from,
+        crate::eval::typval::ListitemId::NULL,
+        crate::eval::typval::ListitemId::from,
     );
     if lp.ll_li.is_null() {
         return false;
@@ -4288,7 +4288,7 @@ pub fn set_ref_in_list_items(
     let mut abort = false;
     let mut list_stack: ListStack = Vec::new();
 
-    let mut cur_l = crate::globals::GraphPtr::from(l);
+    let mut cur_l = crate::eval::typval::ListId::from(l);
     loop {
         if let Some(cur_l_ref) = cur_l.opt() {
             for li in crate::eval::typval::list_iter_mut(cur_l_ref.first_opt()) {
@@ -4783,9 +4783,8 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
             keepempty = tv_get_number(&argvars[2]) as i32;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(
-            string_to_list(&res, keepempty != 0),
-        ));
+        rettv.vval =
+            crate::eval::typval::TypvalVval::List(string_to_list(&res, keepempty != 0).lv_id);
         tv_list_ref(rettv.vval.v_list().opt_mut());
         rettv.v_type = VarType::VarList;
     } else {
@@ -6071,16 +6070,16 @@ pub fn var_item_copy(
             to.v_type = VarType::VarList;
             to.v_lock = VAR_UNLOCKED;
             let Some(from_list) = from.vval.v_list_opt() else {
-                to.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
+                to.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::NULL);
                 eval_st().var_item_copy_recurse -= 1;
                 return ret;
             };
             if copy_id != 0 && tv_list_copyid(from_list) == copy_id {
-                let latest = crate::globals::GraphPtr::from(tv_list_latest_copy(from_list));
+                let latest = crate::eval::typval::ListId::from(tv_list_latest_copy(from_list));
                 to.vval = crate::eval::typval::TypvalVval::List(latest);
                 tv_list_ref(to.vval.v_list_opt());
             } else {
-                to.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(
+                to.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(
                     tv_list_copy(conv, Some(from_list), deep, copy_id),
                 ));
             }
@@ -6582,7 +6581,7 @@ pub fn eval_call_provider(
         TypVal {
             v_type: VarType::VarList,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::List(crate::globals::GraphPtr::new(arguments)),
+            vval: TypvalVval::List(arguments.lv_id),
         },
         tv_initial_value(),
     ];

@@ -319,7 +319,7 @@ fn filter_map_list(
     {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarList;
-            rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
+            rettv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::NULL);
         }
         if l.is_none()
             || (filtermap == FilterMap::Filter

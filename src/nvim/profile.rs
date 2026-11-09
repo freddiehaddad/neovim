@@ -3,7 +3,7 @@
 
 use crate::debugger::ex_breakadd;
 use crate::errors::E_NOTOPEN;
-use crate::eval::typval::{Dictitem, Listitem, TvDict, TvList, TypVal};
+use crate::eval::typval::{Dictitem, TvDict, TypVal};
 use crate::eval::userfunc::{DeferCall, UserFunc, func_tbl_get, get_current_funccal};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
@@ -111,7 +111,6 @@ impl Scriptitem {
 use crate::autocmd::PROF_YES;
 use crate::charset::NL;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
-use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::globals::{IOSIZE, PROF_NONE};
 use crate::keycodes::K_SPECIAL;
 
@@ -164,8 +163,7 @@ pub struct Funccall {
     pub fc_l_vars_var: Dictitem,
     pub fc_l_avars: TvDict,
     pub fc_l_avars_var: Dictitem,
-    pub fc_l_varlist: TvList,
-    pub fc_l_listitems: [Listitem; MAX_FUNC_ARGS],
+    pub fc_l_varlist: crate::eval::typval::ListId,
     pub fc_rettv: crate::globals::GraphPtr<TypVal>,
     pub fc_breakpoint: i32,
     pub fc_dbg_tick: i32,
@@ -189,8 +187,7 @@ impl Funccall {
             fc_l_vars_var: Dictitem::new(),
             fc_l_avars: TvDict::new(),
             fc_l_avars_var: Dictitem::new(),
-            fc_l_varlist: TvList::new(),
-            fc_l_listitems: [const { Listitem::new() }; MAX_FUNC_ARGS],
+            fc_l_varlist: crate::eval::typval::ListId::NULL,
             fc_rettv: crate::globals::GraphPtr::NULL,
             fc_breakpoint: 0,
             fc_dbg_tick: 0,

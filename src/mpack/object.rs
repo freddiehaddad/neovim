@@ -19,7 +19,7 @@ pub enum MpackData {
     LmpackUnpacker(GraphPtr<crate::mpack::lmpack::LmpackUnpacker>),
     LmpackPacker(GraphPtr<crate::mpack::lmpack::Packer>),
     Typval(GraphPtr<crate::eval::typval::TypVal>),
-    List(GraphPtr<crate::eval::typval::TvList>),
+    List(crate::eval::typval::ListId),
     MapPairs(Vec<[crate::eval::typval::TypVal; 2]>),
     OwnedBytes(Vec<u8>),
     NvimString(crate::api::private::validate::NvimString),

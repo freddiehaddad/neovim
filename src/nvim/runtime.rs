@@ -541,7 +541,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
 pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let l = stacktrace_create();
     rettv.v_type = VarType::VarList;
-    rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(l));
+    rettv.vval = crate::eval::typval::TypvalVval::List(l.lv_id);
     l.lv_refcount += 1;
 }
 

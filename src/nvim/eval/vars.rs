@@ -113,8 +113,8 @@ pub struct Lval {
     pub ll_name_len: usize,
     pub ll_exp_name: Option<std::ffi::CString>,
     pub ll_tv: crate::globals::GraphPtr<TypVal>,
-    pub ll_li: crate::globals::ListitemPtr,
-    pub ll_list: crate::globals::TvListPtr,
+    pub ll_li: crate::eval::typval::ListitemId,
+    pub ll_list: crate::eval::typval::ListId,
     pub ll_range: bool,
     pub ll_empty2: bool,
     pub ll_n1: i32,
@@ -133,8 +133,8 @@ impl Lval {
             ll_name_len: 0,
             ll_exp_name: None,
             ll_tv: crate::globals::GraphPtr::NULL,
-            ll_li: crate::globals::ListitemPtr::NULL,
-            ll_list: crate::globals::TvListPtr::NULL,
+            ll_li: crate::eval::typval::ListitemId::NULL,
+            ll_list: crate::eval::typval::ListId::NULL,
             ll_range: false,
             ll_empty2: false,
             ll_n1: 0,
@@ -510,8 +510,8 @@ const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
     c"nil", c"boolean", c"integer", c"float", c"string", c"array", c"map", c"ext",
 ];
 
-static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[crate::globals::TvListPtr; NUM_MSGPACK_TYPES]> =
-    GlobalState::new([crate::globals::TvListPtr::NULL; NUM_MSGPACK_TYPES]);
+static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[crate::eval::typval::ListId; NUM_MSGPACK_TYPES]> =
+    GlobalState::new([crate::eval::typval::ListId::NULL; NUM_MSGPACK_TYPES]);
 
 #[inline]
 pub(crate) fn eval_msgpack_type_list(idx: usize) -> Option<&'static mut TvList> {
@@ -597,9 +597,9 @@ pub fn evalvars_init() {
         di.di_tv = TypVal {
             v_type: VarType::VarList,
             v_lock: 0,
-            vval: TypvalVval::List(crate::globals::GraphPtr::new(type_list)),
+            vval: TypvalVval::List(type_list.lv_id),
         };
-        EVAL_MSGPACK_TYPE_LISTS.handle()[i] = crate::globals::TvListPtr::new(type_list);
+        EVAL_MSGPACK_TYPE_LISTS.handle()[i] = type_list.lv_id;
         if !tv_dict_add(&mut *msgpack_types_dict, di) {
             std::process::abort();
         }
@@ -799,7 +799,7 @@ pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
 pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvList> {
     let mut save_val: TypVal = TypVal::new();
     let mut rettv: TypVal = TypVal::new();
-    let mut list = crate::globals::GraphPtr::<TvList>::NULL;
+    let mut list = crate::eval::typval::ListId::NULL;
     let mut p = crate::charset::skipwhite(expr);
     let saved_sctx = g_st().current_sctx;
 
@@ -817,7 +817,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
         if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
         } else {
-            list = crate::globals::GraphPtr::<TvList>::of(rettv.vval.v_list());
+            list = rettv.vval.v_list();
         }
     }
 
@@ -1316,8 +1316,7 @@ pub fn ex_let_vars(
 
             ltv.v_type = VarType::VarList;
             ltv.v_lock = VAR_UNLOCKED;
-            ltv.vval =
-                crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(rest_list));
+            ltv.vval = crate::eval::typval::TypvalVval::List(rest_list.lv_id);
             tv_list_ref(Some(&mut *rest_list));
 
             let semi_arg = crate::charset::skipwhite_at(arg, 1);
@@ -2003,7 +2002,7 @@ fn tv_list_unlet_range(
     n2: i32,
 ) {
     debug_assert!(l.is_some());
-    let mut li_last = crate::globals::GraphPtr::<Listitem>::from_ref(li_first);
+    let mut li_last = crate::eval::typval::ListitemId::from_ref(li_first);
     let mut n1 = n1_arg;
     loop {
         let li = li_last.li_next;
@@ -2375,7 +2374,7 @@ pub fn set_vim_var_list(idx: VimVarIndex, val: Option<&mut TvList>) {
     let tv = get_vim_var_tv(idx);
     tv_clear(tv);
     tv.v_type = VarType::VarList;
-    tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(val));
+    tv.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::from(val));
     tv_list_ref(tv.vval.v_list_opt());
 }
 

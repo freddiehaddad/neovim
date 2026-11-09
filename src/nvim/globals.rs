@@ -1439,8 +1439,6 @@ pub type WinPtr = GraphPtr<WinInfoInfo>;
 pub type BufPtr = GraphPtr<FileBuf>;
 pub type TabpagePtr = GraphPtr<TabPageInfo>;
 pub type FramePtr = GraphPtr<Frame>;
-pub type TvListPtr = GraphPtr<crate::eval::typval::TvList>;
-pub type ListitemPtr = GraphPtr<crate::eval::typval::Listitem>;
 
 #[inline(always)]
 pub fn curwin_handle() -> WinPtr {

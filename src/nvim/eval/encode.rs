@@ -65,7 +65,7 @@ fn encode_st() -> crate::globals::GraphPtr<EvalEncodeState> {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ListReaderState {
-    pub li: crate::globals::ListitemPtr,
+    pub li: crate::eval::typval::ListitemId,
     pub offset: usize,
     pub li_length: usize,
 }
@@ -80,8 +80,8 @@ impl ListReaderState {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MPContainerRef {
     Dict(crate::globals::GraphPtr<TvDict>),
-    List(crate::globals::GraphPtr<TvList>),
-    Pairs(crate::globals::GraphPtr<TvList>),
+    List(crate::eval::typval::ListId),
+    Pairs(crate::eval::typval::ListId),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -99,12 +99,12 @@ pub(crate) enum MPConvStackData {
         todo: usize,
     },
     List {
-        list: crate::globals::GraphPtr<TvList>,
-        li: crate::globals::GraphPtr<Listitem>,
+        list: crate::eval::typval::ListId,
+        li: crate::eval::typval::ListitemId,
     },
     Pairs {
-        list: crate::globals::GraphPtr<TvList>,
-        li: crate::globals::GraphPtr<Listitem>,
+        list: crate::eval::typval::ListId,
+        li: crate::eval::typval::ListitemId,
     },
     Partial {
         stage: MPConvPartialStage,
@@ -175,8 +175,8 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
 pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
     let first = tv_list_first(list).map_or(
-        crate::globals::ListitemPtr::NULL,
-        crate::globals::ListitemPtr::from,
+        crate::eval::typval::ListitemId::NULL,
+        crate::eval::typval::ListitemId::from,
     );
     let mut state = ListReaderState {
         li: first,
@@ -327,7 +327,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
             }
             MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
                 let is_list = matches!(v.data, MPConvStackData::List { .. });
-                let first = crate::globals::GraphPtr::from(tv_list_first(list.opt()));
+                let first = crate::eval::typval::ListitemId::from(tv_list_first(list.opt()));
                 let idx = if li == first {
                     0
                 } else if li.is_null() {
@@ -335,37 +335,20 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 } else {
                     tv_list_idx_of_item(list.opt(), li.li_prev.opt())
                 };
-                let prev_li = crate::globals::GraphPtr::<Listitem>::of(if li.is_null() {
-                    tv_list_last(list.opt()).map_or(std::ptr::null(), |p| p)
+                let prev_li = if li.is_null() {
+                    crate::eval::typval::ListitemId::from(tv_list_last(list.opt()))
                 } else {
-                    li.li_prev.as_ptr()
-                })
-                .as_ptr()
-                .cast_const();
+                    li.li_prev
+                };
                 if is_list
                     || prev_li.is_null()
-                    || (crate::globals::GraphPtr::of(prev_li).borrow().li_tv.v_type
-                        != VarType::VarList
-                        && tv_list_len(
-                            crate::globals::GraphPtr::of(prev_li)
-                                .borrow_mut()
-                                .li_tv
-                                .vval
-                                .v_list()
-                                .opt(),
-                        ) <= 0)
+                    || (prev_li.borrow().li_tv.v_type != VarType::VarList
+                        && tv_list_len(prev_li.borrow_mut().li_tv.vval.v_list().opt()) <= 0)
                 {
                     let _ = write!(&mut msg_ga, "index {idx}");
                 } else {
-                    let first_item = tv_list_first(
-                        crate::globals::GraphPtr::of(prev_li)
-                            .borrow_mut()
-                            .li_tv
-                            .vval
-                            .v_list()
-                            .opt(),
-                    )
-                    .unwrap();
+                    let first_item =
+                        tv_list_first(prev_li.borrow_mut().li_tv.vval.v_list().opt()).unwrap();
                     let mut key_tv = first_item.li_tv.clone();
                     let key = encode_tv2echo(&mut key_tv, None);
                     let mut item_buf: Vec<u8> = Vec::new();
@@ -1255,9 +1238,9 @@ fn convert_one_value(
                                     handled_special = true;
                                 } else {
                                     let mut all_pairs = true;
-                                    let mut li = crate::globals::GraphPtr::from(tv_list_first(
-                                        val_list.opt(),
-                                    ));
+                                    let mut li = crate::eval::typval::ListitemId::from(
+                                        tv_list_first(val_list.opt()),
+                                    );
                                     while !li.is_null() {
                                         if li.li_tv.v_type != VarType::VarList
                                             || tv_list_len(li.li_tv.vval.v_list().opt()) != 2
@@ -1416,7 +1399,8 @@ fn encode_vim_with_backend(
 
                     backend.conv_list_end();
                     continue;
-                } else if cur_li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
+                } else if cur_li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt()))
+                {
                     backend.conv_list_between_items();
                 }
 
@@ -1432,7 +1416,7 @@ fn encode_vim_with_backend(
 
                     backend.conv_dict_end();
                     continue;
-                } else if li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
+                } else if li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt())) {
                     backend.conv_dict_between_items();
                 }
                 let kv_pair = li.li_tv.vval.v_list();
@@ -1650,49 +1634,18 @@ mod tests {
 
     #[test]
     fn read_from_list_substitutes_nl_with_nul_and_joins_with_nl() {
-        let mut li2 = Listitem {
-            li_next: crate::globals::ListitemPtr::NULL,
-            li_prev: crate::globals::ListitemPtr::NULL,
-            li_tv: TypVal {
-                v_type: VarType::VarString,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::from_cstr(c"c"),
-            },
-            li_arena_idx: usize::MAX,
-        };
-        let mut li1 = Listitem {
-            li_next: crate::globals::ListitemPtr::from(&mut li2),
-            li_prev: crate::globals::ListitemPtr::NULL,
-            li_tv: TypVal {
-                v_type: VarType::VarString,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::from_cstr(c"a\nb"),
-            },
-            li_arena_idx: usize::MAX,
-        };
-        li2.li_prev = crate::globals::ListitemPtr::from(&mut li1);
-        let list = TvList {
-            lv_first: crate::globals::ListitemPtr::from(&mut li1),
-            lv_last: crate::globals::ListitemPtr::from(&mut li2),
-            lv_watch: Vec::new(),
-            lv_idx_item: crate::globals::ListitemPtr::NULL,
-            lv_copylist: crate::globals::TvListPtr::NULL,
-            lv_gc_idx: None,
-            lv_refcount: 1,
-            lv_len: 2,
-            lv_idx: 0,
-            lv_copy_id: 0,
-            lv_lock: 0,
-            lua_table_ref: -2,
-            lv_arena_idx: usize::MAX,
-        };
-        {
-            let buf = encode_vim_list_to_buf(Some(&list)).unwrap();
-            assert_eq!(buf.len(), 5);
-            assert_eq!(&buf[..], b"a\0b\nc");
-        }
-        li1.li_tv.v_type = VarType::VarUnknown;
-        li2.li_tv.v_type = VarType::VarUnknown;
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        use crate::eval::typval::{tv_list_alloc, tv_list_append_string, tv_list_free};
+
+        let list = tv_list_alloc(2);
+        tv_list_append_string(list, Some(c"a\nb"), -1);
+        tv_list_append_string(list, Some(c"c"), -1);
+        let buf = encode_vim_list_to_buf(Some(list)).unwrap();
+        assert_eq!(buf.len(), 5);
+        assert_eq!(&buf[..], b"a\0b\nc");
+        tv_list_free(Some(list));
     }
 
     #[test]

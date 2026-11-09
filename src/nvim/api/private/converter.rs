@@ -7,8 +7,8 @@ use crate::api::private::validate::{
 };
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
-    Listitem, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add,
-    tv_dict_alloc, tv_list_alloc, tv_list_append_owned_tv,
+    TvDict, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add, tv_dict_alloc, tv_list_alloc,
+    tv_list_append_owned_tv,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::{get_copy_id, partial_name};
@@ -40,8 +40,8 @@ fn cbuf_to_string_obj(arena: Option<&mut Arena>, reuse_strdata: bool, bytes: &[u
 
 enum ConvStackEntry {
     List {
-        list: crate::globals::GraphPtr<TvList>,
-        li: crate::globals::GraphPtr<Listitem>,
+        list: crate::eval::typval::ListId,
+        li: crate::eval::typval::ListitemId,
         saved_copy_id: i32,
         first: bool,
     },
@@ -388,7 +388,7 @@ pub fn object_to_vim_take_luaref(
             }
             list.lv_refcount += 1;
             tv_ref.v_type = VarType::VarList;
-            tv_ref.vval = TypvalVval::List(crate::globals::GraphPtr::new(list));
+            tv_ref.vval = TypvalVval::List(list.lv_id);
         }
         ObjectType::ObjectTypeDict => {
             let mut d = obj.data.dict();
@@ -450,7 +450,7 @@ mod tests {
             let mut null_list = TypVal {
                 v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(crate::globals::GraphPtr::NULL),
+                vval: TypvalVval::List(crate::eval::typval::ListId::NULL),
             };
             let arr_obj = vim_to_object(&mut null_list, None, false);
             assert_eq!(arr_obj.obj_type, ObjectType::ObjectTypeArray);
@@ -471,7 +471,7 @@ mod tests {
             let mut list_tv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: 0,
-                vval: TypvalVval::List(crate::globals::GraphPtr::new(list)),
+                vval: TypvalVval::List(list.lv_id),
             };
             tv_list_append_owned_tv(&mut *list, list_tv.clone());
             let cyc_obj = vim_to_object(&mut list_tv, None, false);

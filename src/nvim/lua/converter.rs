@@ -408,9 +408,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                             l.lua_table_ref = table_ref;
                             tv_list_ref(Some(&mut *l));
                             cur.tv_mut().v_type = VarType::VarList;
-                            cur.tv_mut().vval = crate::eval::typval::TypvalVval::List(
-                                crate::globals::GraphPtr::new(l),
-                            );
+                            cur.tv_mut().vval = crate::eval::typval::TypvalVval::List(l.lv_id);
                             cur.list_len = table_props.maxidx;
                             if table_props.maxidx != 0 {
                                 cur.container = true;
@@ -791,9 +789,9 @@ fn lua_convert_one_value(
                                     handled_special = true;
                                 } else {
                                     let mut all_pairs = true;
-                                    let mut li = crate::globals::GraphPtr::from(tv_list_first(
-                                        val_list.opt(),
-                                    ));
+                                    let mut li = crate::eval::typval::ListitemId::from(
+                                        tv_list_first(val_list.opt()),
+                                    );
                                     while !li.is_null() {
                                         if li.li_tv.v_type != VarType::VarList
                                             || tv_list_len((li.li_tv.vval.v_list()).opt()) != 2
@@ -928,7 +926,8 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                     list.lv_copy_id = saved_copy_id;
                     lua_rawset_safe(lstate, -3);
                     continue;
-                } else if cur_li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
+                } else if cur_li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt()))
+                {
                     let idx = lua_tonumber_safe(lstate, -2);
                     lua_rawset_safe(lstate, -3);
                     lua_pushnumber_safe(lstate, idx + 1.0);
@@ -943,7 +942,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                     list.lv_copy_id = saved_copy_id;
                     lua_rawset_safe(lstate, -3);
                     continue;
-                } else if li != crate::globals::GraphPtr::from(tv_list_first(list.opt())) {
+                } else if li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt())) {
                     lua_rawset_safe(lstate, -3);
                 }
                 let kv_pair = li.li_tv.vval.v_list();
