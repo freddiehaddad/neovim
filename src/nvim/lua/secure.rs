@@ -1,9 +1,10 @@
+#![forbid(unsafe_code)]
 //! Secure file reading and `:trust` command (`src/nvim/lua/secure.c`).
 
 use crate::errors::{E_INVARG2, E_TRUSTFILE};
 use crate::lua::converter::{
-    LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
-    lua_settable, lua_settop, lua_toboolean, lua_tolstring,
+    LUA_GLOBALSINDEX, lua_createtable_safe, lua_getfield, lua_pushnumber_safe, lua_pushstring,
+    lua_settable_safe, lua_settop_safe, lua_toboolean_safe, lua_tolstring_opt_cstr, nlua_gettop,
 };
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
@@ -13,36 +14,34 @@ use crate::ex_docmd::Exarg;
 
 fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
     let lstate = get_global_lstate();
-    let top = unsafe { lua_gettop(lstate) };
+    let top = nlua_gettop(lstate);
 
     lua_getfield(lstate, LUA_GLOBALSINDEX, c"vim");
     lua_getfield(lstate, -1, c"secure");
     lua_getfield(lstate, -1, c"trust");
 
-    unsafe { lua_createtable(lstate, 0, 0) };
+    lua_createtable_safe(lstate, 0, 0);
     lua_pushstring(lstate, c"action");
     lua_pushstring(lstate, action);
-    unsafe { lua_settable(lstate, -3) };
+    lua_settable_safe(lstate, -3);
     if let Some(path) = path {
         lua_pushstring(lstate, c"path");
         lua_pushstring(lstate, path);
-        unsafe { lua_settable(lstate, -3) };
+        lua_settable_safe(lstate, -3);
     } else {
         lua_pushstring(lstate, c"bufnr");
-        unsafe { lua_pushnumber(lstate, 0.0) };
-        unsafe { lua_settable(lstate, -3) };
+        lua_pushnumber_safe(lstate, 0.0);
+        lua_settable_safe(lstate, -3);
     }
 
     if nlua_pcall(lstate, 1, 2) != 0 {
         nlua_error(lstate, c"vim.secure.trust: %.*s");
-        unsafe { lua_settop(lstate, top) };
+        lua_settop_safe(lstate, top);
         return false;
     }
 
-    let success = unsafe { lua_toboolean(lstate, -2) } != 0;
-    let msg = unsafe { lua_tolstring(lstate, -1, std::ptr::null_mut()) };
-    if !msg.is_null() {
-        let msg_cstr = unsafe { std::ffi::CStr::from_ptr(msg) };
+    let success = lua_toboolean_safe(lstate, -2);
+    if let Some(msg_cstr) = lua_tolstring_opt_cstr(lstate, -1) {
         if success {
             let action_bytes = action.to_bytes();
             if action_bytes == b"allow" {
@@ -57,7 +56,7 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
         }
     }
 
-    unsafe { lua_settop(lstate, top) };
+    lua_settop_safe(lstate, top);
     success
 }
 

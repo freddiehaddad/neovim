@@ -376,8 +376,212 @@ pub fn lua_createtable_safe(lstate: *mut lua_State, narr: i32, nrec: i32) {
 }
 
 #[inline]
+pub fn lua_settable_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_settable(lstate, idx) };
+}
+
+#[inline]
 pub fn lua_rawseti_safe(lstate: *mut lua_State, idx: i32, n: i32) {
     unsafe { lua_rawseti(lstate, idx, n) };
+}
+
+#[inline]
+pub fn lua_setmetatable_safe(lstate: *mut lua_State, objindex: i32) -> i32 {
+    unsafe { lua_setmetatable(lstate, objindex) }
+}
+
+#[inline]
+pub fn lua_settop_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_settop(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_type_safe(lstate: *mut lua_State, idx: i32) -> i32 {
+    unsafe { lua_type(lstate, idx) }
+}
+
+#[inline]
+pub fn lua_isnumber_safe(lstate: *mut lua_State, idx: i32) -> bool {
+    unsafe { lua_isnumber(lstate, idx) != 0 }
+}
+
+#[inline]
+pub fn lua_isstring_safe(lstate: *mut lua_State, idx: i32) -> bool {
+    unsafe { lua_isstring(lstate, idx) != 0 }
+}
+
+#[inline]
+pub fn lua_toboolean_safe(lstate: *mut lua_State, idx: i32) -> bool {
+    unsafe { lua_toboolean(lstate, idx) != 0 }
+}
+
+#[inline]
+pub fn lua_tonumber_safe(lstate: *mut lua_State, idx: i32) -> lua_Number {
+    unsafe { lua_tonumber(lstate, idx) }
+}
+
+#[inline]
+pub fn lua_objlen_safe(lstate: *mut lua_State, idx: i32) -> usize {
+    unsafe { lua_objlen(lstate, idx) }
+}
+
+#[inline]
+pub fn lua_next_safe(lstate: *mut lua_State, idx: i32) -> i32 {
+    unsafe { lua_next(lstate, idx) }
+}
+
+#[inline]
+pub fn lua_pushnil_safe(lstate: *mut lua_State) {
+    unsafe { lua_pushnil(lstate) };
+}
+
+#[inline]
+pub fn lua_pushboolean_safe(lstate: *mut lua_State, b: bool) {
+    unsafe { lua_pushboolean(lstate, i32::from(b)) };
+}
+
+#[inline]
+pub fn lua_pushinteger_safe(lstate: *mut lua_State, n: lua_Integer) {
+    unsafe { lua_pushinteger(lstate, n) };
+}
+
+#[inline]
+pub fn lua_pushnumber_safe(lstate: *mut lua_State, n: lua_Number) {
+    unsafe { lua_pushnumber(lstate, n) };
+}
+
+#[inline]
+pub fn lua_pushvalue_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_pushvalue(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_pushcfunction_safe(
+    lstate: *mut lua_State,
+    f: extern "C-unwind" fn(*mut lua_State) -> i32,
+) {
+    unsafe { lua_pushcclosure(lstate, Some(f), 0) };
+}
+
+#[inline]
+pub fn lua_register_funcs(
+    lstate: *mut lua_State,
+    funcs: &[(&'static CStr, extern "C-unwind" fn(*mut lua_State) -> i32)],
+) {
+    for &(name, func) in funcs {
+        lua_pushcfunction_safe(lstate, func);
+        lua_setfield(lstate, -2, name);
+    }
+}
+
+#[inline]
+pub fn lua_concat_safe(lstate: *mut lua_State, n: i32) {
+    unsafe { lua_concat(lstate, n) };
+}
+
+#[inline]
+pub fn lua_pcall_safe(lstate: *mut lua_State, nargs: i32, nresults: i32, errfunc: i32) -> i32 {
+    unsafe { lua_pcall(lstate, nargs, nresults, errfunc) }
+}
+
+#[inline]
+pub fn lua_error_safe(lstate: *mut lua_State) -> i32 {
+    unsafe { lua_error(lstate) }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_where_safe(lstate: *mut lua_State, lvl: i32) {
+    unsafe { luaL_where(lstate, lvl) };
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_cstr(lstate: *mut lua_State, msg: &CStr) -> i32 {
+    unsafe { luaL_error(lstate, c"%s".as_ptr(), msg.as_ptr()) }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_cstr_arg(lstate: *mut lua_State, fmt: &CStr, arg: &CStr) -> i32 {
+    unsafe { luaL_error(lstate, fmt.as_ptr(), arg.as_ptr()) }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checkinteger_safe(lstate: *mut lua_State, numarg: i32) -> lua_Integer {
+    unsafe { luaL_checkinteger(lstate, numarg) }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checkbytes(lstate: *mut lua_State, numarg: i32) -> &'static [u8] {
+    let mut len = 0usize;
+    let ptr = unsafe { luaL_checklstring(lstate, numarg, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checkbytes_with_nul(
+    lstate: *mut lua_State,
+    numarg: i32,
+) -> (&'static [u8], &'static [u8]) {
+    let mut len = 0usize;
+    let ptr = unsafe { luaL_checklstring(lstate, numarg, &mut len) };
+    if ptr.is_null() {
+        (&[], &[0])
+    } else {
+        let with_nul = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len + 1) };
+        (&with_nul[..len], with_nul)
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_check_nvim_string(lstate: *mut lua_State, numarg: i32) -> NvimString {
+    let mut size = 0usize;
+    let ptr = unsafe { luaL_checklstring(lstate, numarg, &mut size) };
+    NvimString {
+        data: crate::globals::GraphPtr::new(ptr.cast_mut().cast()),
+        size,
+    }
+}
+
+#[inline]
+pub fn lua_tolstring_bytes(lstate: *mut lua_State, idx: i32) -> &'static [u8] {
+    let mut len = 0usize;
+    let ptr = unsafe { lua_tolstring(lstate, idx, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }
+    }
+}
+
+#[inline]
+pub fn lua_tolstring_opt_cstr(lstate: *mut lua_State, idx: i32) -> Option<&'static CStr> {
+    let ptr = unsafe { lua_tolstring(lstate, idx, std::ptr::null_mut()) };
+    (!ptr.is_null()).then(|| unsafe { CStr::from_ptr(ptr) })
+}
+
+#[inline]
+pub fn lua_newuserdata_typed<T>(lstate: *mut lua_State, val: T) -> &'static mut T {
+    unsafe {
+        let p = lua_newuserdata(lstate, size_of::<T>()).cast::<T>();
+        p.write(val);
+        &mut *p
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checkudata_typed<T>(lstate: *mut lua_State, ud: i32, tname: &CStr) -> &'static mut T {
+    unsafe { &mut *luaL_checkudata(lstate, ud, tname).cast::<T>() }
 }
 
 #[inline]

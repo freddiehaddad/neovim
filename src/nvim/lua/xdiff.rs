@@ -1,13 +1,15 @@
+#![forbid(unsafe_code)]
 //! Lua `vim.diff` bindings (`src/nvim/lua/xdiff.c`).
 
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::converter::{
-    LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat, lua_createtable, lua_error, lua_gettop,
-    lua_isnumber, lua_objlen, lua_pcall, lua_push_bytes, lua_pushinteger, lua_pushvalue,
-    lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error,
-    luaL_where, nlua_pop_keydict_opt,
+    LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat_safe, lua_createtable_safe, lua_error_safe,
+    lua_isnumber_safe, lua_objlen_safe, lua_pcall_safe, lua_push_bytes, lua_pushinteger_safe,
+    lua_pushvalue_safe, lua_rawseti_safe, lua_settop_safe, lua_tolstring_bytes, lua_tolstring_cstr,
+    lua_tonumber_safe, lua_type_safe, luaL_argerror, luaL_error_cstr, luaL_where_safe, nlua_gettop,
+    nlua_pop_keydict_opt,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::xdiff::xdiffi::xdl_diff;
@@ -108,19 +110,17 @@ fn lua_pushhunk(
     if count_b > 0 {
         start_b += 1;
     }
-    unsafe {
-        lua_createtable(lstate, 0, 0);
-        lua_pushinteger(lstate, start_a);
-        lua_rawseti(lstate, -2, 1);
-        lua_pushinteger(lstate, count_a);
-        lua_rawseti(lstate, -2, 2);
-        lua_pushinteger(lstate, start_b);
-        lua_rawseti(lstate, -2, 3);
-        lua_pushinteger(lstate, count_b);
-        lua_rawseti(lstate, -2, 4);
-        let next_idx = (lua_objlen(lstate, -2) as i32) + 1;
-        lua_rawseti(lstate, -2, next_idx);
-    }
+    lua_createtable_safe(lstate, 0, 0);
+    lua_pushinteger_safe(lstate, start_a);
+    lua_rawseti_safe(lstate, -2, 1);
+    lua_pushinteger_safe(lstate, count_a);
+    lua_rawseti_safe(lstate, -2, 2);
+    lua_pushinteger_safe(lstate, start_b);
+    lua_rawseti_safe(lstate, -2, 3);
+    lua_pushinteger_safe(lstate, count_b);
+    lua_rawseti_safe(lstate, -2, 4);
+    let next_idx = (lua_objlen_safe(lstate, -2) as i32) + 1;
+    lua_rawseti_safe(lstate, -2, next_idx);
 }
 
 fn get_linematch_results(
@@ -237,48 +237,35 @@ pub(crate) fn call_on_hunk_cb(
     let lstate = priv_ref.lstate;
     let err = &mut priv_ref.err;
 
-    unsafe {
-        let fidx = lua_gettop(lstate);
-        lua_pushvalue(lstate, fidx);
-        lua_pushinteger(lstate, start_a as isize);
-        lua_pushinteger(lstate, count_a as isize);
-        lua_pushinteger(lstate, start_b as isize);
-        lua_pushinteger(lstate, count_b as isize);
+    let fidx = nlua_gettop(lstate);
+    lua_pushvalue_safe(lstate, fidx);
+    lua_pushinteger_safe(lstate, start_a as isize);
+    lua_pushinteger_safe(lstate, count_a as isize);
+    lua_pushinteger_safe(lstate, start_b as isize);
+    lua_pushinteger_safe(lstate, count_b as isize);
 
-        if lua_pcall(lstate, 4, 1, 0) != 0 {
-            let msg_ptr = lua_tolstring(lstate, -1, std::ptr::null_mut());
-            let msg = if msg_ptr.is_null() {
-                c""
-            } else {
-                std::ffi::CStr::from_ptr(msg_ptr)
-            };
-            api_set_error!(err, ErrorType::ErrorTypeException, c"on_hunk: %s", msg);
-            return -1;
-        }
-
-        let mut r = 0;
-        if lua_isnumber(lstate, -1) != 0 {
-            r = lua_tonumber(lstate, -1) as i32;
-        }
-        lua_settop(lstate, fidx);
-        r
+    if lua_pcall_safe(lstate, 4, 1, 0) != 0 {
+        let msg = lua_tolstring_cstr(lstate, -1);
+        api_set_error!(err, ErrorType::ErrorTypeException, c"on_hunk: %s", msg);
+        return -1;
     }
+
+    let mut r = 0;
+    if lua_isnumber_safe(lstate, -1) {
+        r = lua_tonumber_safe(lstate, -1) as i32;
+    }
+    lua_settop_safe(lstate, fidx);
+    r
 }
 
 fn get_string_arg<'a>(lstate: *mut lua_State, idx: i32) -> Mmfile<'a> {
-    if unsafe { lua_type(lstate, idx) } != LUA_TSTRING {
+    if lua_type_safe(lstate, idx) != LUA_TSTRING {
         luaL_argerror(lstate, idx, c"expected string");
     }
-    let mut size: usize = 0;
-    let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }.cast::<u8>();
-    if size > (i32::MAX as usize) {
+    let slice = lua_tolstring_bytes(lstate, idx);
+    if slice.len() > (i32::MAX as usize) {
         luaL_argerror(lstate, idx, c"string too long");
     }
-    let slice = if ptr.is_null() || size == 0 {
-        &[]
-    } else {
-        crate::globals::GraphPtr::raw_slice(ptr, size)
-    };
     Mmfile { slice }
 }
 
@@ -392,7 +379,7 @@ fn process_xdl_diff_opts(
             if opts.has_key(KEYSET_OPTIDX_ON_HUNK) {
                 mode = NluaXdiffMode::OnHunkCb;
                 nlua_pushref(lstate, opts.on_hunk);
-                if unsafe { lua_type(lstate, -1) } != LUA_TFUNCTION {
+                if lua_type_safe(lstate, -1) != LUA_TFUNCTION {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -412,9 +399,9 @@ fn process_xdl_diff_opts(
 }
 
 /// Lua `vim.diff(a, b, opts)` implementation (`nlua_xdl_diff`).
-pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
-    if unsafe { lua_gettop(lstate) } < 2 {
-        return unsafe { luaL_error(lstate, c"Expected at least 2 arguments".as_ptr()) };
+pub extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
+    if nlua_gettop(lstate) < 2 {
+        return luaL_error_cstr(lstate, c"Expected at least 2 arguments");
     }
     let mut ma = get_string_arg(lstate, 1);
     let mut mb = get_string_arg(lstate, 2);
@@ -426,8 +413,8 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     let mut linematch: i64 = 0;
     let mut mode = NluaXdiffMode::Unified;
 
-    if unsafe { lua_gettop(lstate) } == 3 {
-        if unsafe { lua_type(lstate, 3) } != LUA_TTABLE {
+    if nlua_gettop(lstate) == 3 {
+        if lua_type_safe(lstate, 3) != LUA_TTABLE {
             return luaL_argerror(lstate, 3, c"expected table");
         }
         mode = process_xdl_diff_opts(lstate, &mut cfg, &mut params, &mut linematch, &mut err);
@@ -452,7 +439,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
                 Xdemitcb::OnHunk(crate::globals::GraphPtr::from(&mut priv_state))
             }
             NluaXdiffMode::Locations => {
-                unsafe { lua_createtable(lstate, 0, 0) };
+                lua_createtable_safe(lstate, 0, 0);
                 Xdemitcb::Locations(crate::globals::GraphPtr::from(&mut priv_state))
             }
         };
@@ -469,11 +456,11 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     }
 
     if priv_state.err.err_type != ErrorType::ErrorTypeNone {
-        unsafe { luaL_where(lstate, 1) };
+        luaL_where_safe(lstate, 1);
         crate::lua::converter::lua_pushstring_opt(lstate, priv_state.err.msg_cstr());
         api_clear_error(&mut priv_state.err);
-        unsafe { lua_concat(lstate, 2) };
-        return unsafe { lua_error(lstate) };
+        lua_concat_safe(lstate, 2);
+        return lua_error_safe(lstate);
     } else if mode == NluaXdiffMode::Unified {
         lua_push_bytes(lstate, &unified_buf);
         return 1;

@@ -1502,3 +1502,7 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> i32 {
         1
     }
 }
+
+pub fn luaopen_cjson(l: *mut lua_State) -> i32 {
+    unsafe { lua_cjson_new(l) }
+}
