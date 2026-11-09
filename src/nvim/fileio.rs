@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! File reading, encoding conversion, timestamp checking, and temp files (`src/nvim/fileio.c`).
 
 use crate::api::private::helpers::{HLF_E, cstr_as_obj};
@@ -248,6 +250,7 @@ use crate::ex_docmd::UNDO_HASH_SIZE;
 use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 
+#[allow(unsafe_code)]
 unsafe extern "C" {
     #[link_name = "fopen"]
     pub(crate) fn c_fopen(filename: *const u8, mode: *const u8) -> *mut FILE;
@@ -362,21 +365,25 @@ unsafe extern "C" {
     fn flock(fd: i32, operation: i32) -> i32;
 }
 
+#[allow(unsafe_code)]
 #[inline]
 pub fn close(fd: i32) -> i32 {
     unsafe { c_close(fd) }
 }
 
+#[allow(unsafe_code)]
 #[inline]
 pub fn dup(oldfd: i32) -> i32 {
     unsafe { c_dup(oldfd) }
 }
 
+#[allow(unsafe_code)]
 #[inline]
 pub fn dup2(oldfd: i32, newfd: i32) -> i32 {
     unsafe { c_dup2(oldfd, newfd) }
 }
 
+#[allow(unsafe_code)]
 #[cfg(not(windows))]
 #[inline]
 pub fn os_dupfd_cloexec(fd: i32, min_fd: i32) -> i32 {
@@ -391,47 +398,62 @@ pub fn os_dupfd_cloexec(fd: i32, min_fd: i32) -> i32 {
     unsafe { fcntl(fd, F_DUPFD_CLOEXEC, min_fd) }
 }
 
+#[allow(unsafe_code)]
 #[inline]
 pub fn vim_lseek(fd: i32, offset: Off, whence: i32) -> Off {
     unsafe { c_vim_lseek(fd, offset, whence) }
 }
 
+#[allow(unsafe_code)]
 #[cfg(windows)]
 #[inline]
 pub fn _getdrive() -> i32 {
     unsafe { c_getdrive() }
 }
 
+#[allow(unsafe_code)]
 #[cfg(windows)]
 #[inline]
 pub fn _setmode(fd: i32, mode: i32) -> i32 {
     unsafe { c_setmode(fd, mode) }
 }
 
+#[allow(unsafe_code)]
 #[cfg(unix)]
 #[inline]
 pub fn tcdrain(fd: i32) -> i32 {
     unsafe { c_tcdrain(fd) }
 }
 
+#[allow(unsafe_code)]
 #[cfg(not(windows))]
 #[inline]
 pub fn getuid() -> u32 {
     unsafe { c_getuid() }
 }
 
+#[allow(unsafe_code)]
 #[cfg(not(windows))]
 #[inline]
 pub fn getgid() -> u32 {
     unsafe { c_getgid() }
 }
 
+#[allow(unsafe_code)]
 #[cfg(not(windows))]
 #[inline]
 pub fn os_readlink(path: &CStr, buf: &mut [u8]) -> isize {
     unsafe { readlink(path.as_ptr().cast(), buf.as_mut_ptr(), buf.len()) }
 }
 
+#[allow(unsafe_code)]
+#[cfg(not(windows))]
+#[inline]
+pub fn os_symlink(target: &CStr, linkpath: &CStr) -> i32 {
+    unsafe { symlink(target.as_ptr().cast(), linkpath.as_ptr().cast()) }
+}
+
+#[allow(unsafe_code)]
 #[inline]
 pub fn freopen(filename: &CStr, mode: &CStr, stream: &crate::os::fs::CFile) -> bool {
     !unsafe {
@@ -444,6 +466,7 @@ pub fn freopen(filename: &CStr, mode: &CStr, stream: &crate::os::fs::CFile) -> b
     .is_null()
 }
 
+#[allow(unsafe_code)]
 #[cfg(not(windows))]
 #[inline]
 pub fn call_iconv_open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
@@ -452,6 +475,7 @@ pub fn call_iconv_open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
 
 use crate::os::fs::{s_isdir, s_isfifo, s_isreg, s_issock};
 
+#[allow(unsafe_code)]
 #[cfg(windows)]
 mod win_iconv {
     use super::*;
@@ -906,6 +930,7 @@ pub fn call_iconv_open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
     win_iconv::open(tocode, fromcode)
 }
 
+#[allow(unsafe_code)]
 #[inline]
 pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]) -> usize {
     #[cfg(windows)]
@@ -948,6 +973,7 @@ pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]
     }
 }
 
+#[allow(unsafe_code)]
 #[inline]
 pub fn call_iconv_close(cd: iconv_t) -> i32 {
     #[cfg(windows)]
@@ -960,6 +986,7 @@ pub fn call_iconv_close(cd: iconv_t) -> i32 {
     }
 }
 
+#[allow(unsafe_code)]
 #[inline]
 fn call_umask(mask: u32) -> u32 {
     #[cfg(windows)]
@@ -1037,19 +1064,18 @@ pub fn slow_io_ns() -> u64 {
 
 /// Shows the progress-message of a slow readfile(). Locks `curbuf` so Progress handlers cannot
 /// accidentally unload it while it is loading.
-fn readfile_progress(
-    s: Option<&mut [u8]>,
+fn readfile_progress<'a>(
+    s: Option<&'a mut [u8]>,
     msg_id: &CStr,
     status: &CStr,
     percent: i32,
     hist: bool,
-) -> Option<&'static CStr> {
+) -> Option<&'a CStr> {
     let mut buf = g_st().curbuf;
     buf.b_locked += 1;
 
     let trunc = s.is_some();
-    let rv = msg_progress(s, msg_id, status, percent, 0, hist, trunc, false)
-        .map(|cs| unsafe { CStr::from_ptr(cs.as_ptr()) });
+    let rv = msg_progress(s, msg_id, status, percent, 0, hist, trunc, false);
 
     buf.b_locked -= 1;
 
@@ -1118,8 +1144,7 @@ pub fn readfile(
         let mut bad_char_behavior: i32 = BAD_REPLACE;
         let mut tmpname: Option<std::ffi::CString> = None;
         let mut fio_flags: i32;
-        let mut fenc;
-        let mut fenc_owned: Option<std::ffi::CString> = None;
+        let mut fenc_owned: Option<std::ffi::CString>;
         let mut advance_fenc = false;
         let mut real_size: i32 = 0;
         let mut iconv_fd: iconv_t = -1;
@@ -1644,29 +1669,17 @@ pub fn readfile(
                 fenc_owned = Some(enc_canonize(
                     eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr(),
                 ));
-                fenc = fenc_owned
-                    .as_ref()
-                    .unwrap()
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>();
                 keep_dest_enc = true;
             } else if curbuf_mut().b_p_bin {
-                fenc = c"".as_ptr().cast_mut().cast::<u8>();
+                fenc_owned = Some(c"".to_owned());
             } else if curbuf_mut().b_help {
                 fenc_next = b"latin1";
-                fenc = c"utf-8".as_ptr().cast_mut().cast::<u8>();
+                fenc_owned = Some(c"utf-8".to_owned());
             } else if opt_vars().p_fencs.is_empty() {
-                fenc = curbuf_mut().b_p_fenc.as_ptr().cast_mut().cast::<u8>();
+                fenc_owned = Some(curbuf_mut().b_p_fenc.as_cstr().to_owned());
             } else {
                 fenc_next = opt_vars().borrow().p_fencs.as_bytes();
                 fenc_owned = Some(next_fenc(&mut fenc_next));
-                fenc = fenc_owned
-                    .as_ref()
-                    .unwrap()
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<u8>();
             }
 
             'retry: loop {
@@ -1717,14 +1730,11 @@ pub fn readfile(
                     if eap.is_some() && eap.unwrap().force_enc != 0 {
                         notconverted = true;
                         conv_error = 0;
-                        fenc_owned = None;
-                        fenc = c"".as_ptr().cast_mut().cast();
+                        fenc_owned = Some(c"".to_owned());
                     } else if !fenc_next.is_empty() {
                         fenc_owned = Some(next_fenc(&mut fenc_next));
-                        fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut().cast();
                     } else {
-                        fenc_owned = None;
-                        fenc = c"".as_ptr().cast_mut().cast();
+                        fenc_owned = Some(c"".to_owned());
                     }
                     if let Some(ref tn) = tmpname {
                         os_remove(tn);
@@ -1733,12 +1743,8 @@ pub fn readfile(
                 }
 
                 fio_flags = 0;
-                let fenc_cstr = if fenc.is_null() {
-                    c""
-                } else {
-                    unsafe { CStr::from_ptr(fenc.cast()) }
-                };
-                let fenc_opt = (!fenc.is_null()).then_some(fenc_cstr);
+                let fenc_opt = fenc_owned.as_deref();
+                let fenc_cstr = fenc_opt.unwrap_or(c"");
                 converted = need_conversion(fenc_opt);
                 if converted {
                     if fenc_opt == Some(c"ucs-bom") {
@@ -1987,10 +1993,7 @@ pub fn readfile(
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
                                     } else {
-                                        get_fio_flags(
-                                            (!fenc.is_null())
-                                                .then(|| unsafe { CStr::from_ptr(fenc.cast()) }),
-                                        )
+                                        get_fio_flags(fenc_owned.as_deref())
                                     },
                                 )
                             };
@@ -2010,8 +2013,7 @@ pub fn readfile(
 
                             if fio_flags == FIO_UCSBOM {
                                 if let Some(ccname) = ccname {
-                                    fenc_owned = None;
-                                    fenc = ccname.as_ptr().cast_mut().cast();
+                                    fenc_owned = Some(ccname.to_owned());
                                 } else {
                                     advance_fenc = true;
                                 }
@@ -2369,7 +2371,11 @@ pub fn readfile(
                                     while ((ascii_end as isize) - (p as isize))
                                         >= size_of::<u64>() as isize
                                     {
-                                        let word = unsafe { ptr::read_unaligned(p.cast::<u64>()) };
+                                        let word = u64::from_ne_bytes(
+                                            crate::globals::GraphPtr::raw_slice(p, 8)
+                                                .try_into()
+                                                .unwrap(),
+                                        );
                                         if (word & NONASCII_MASK) != 0 {
                                             break;
                                         }
@@ -2389,7 +2395,7 @@ pub fn readfile(
                                 }
                                 if *crate::globals::GraphPtr::of(p).borrow() >= 0x80 {
                                     let l = utf_ptr2len_len(
-                                        unsafe { std::slice::from_raw_parts(p, todo as usize) },
+                                        crate::globals::GraphPtr::raw_slice(p, todo as usize),
                                         todo,
                                     );
                                     if l > todo && !incomplete_tail {
@@ -2555,12 +2561,10 @@ pub fn readfile(
                                         (((ptr as isize) - (line_start as isize)) + 1) as Colnr;
                                     if !ml_append(
                                         lnum,
-                                        unsafe {
-                                            std::slice::from_raw_parts(
-                                                line_start,
-                                                (len as usize).saturating_sub(1),
-                                            )
-                                        },
+                                        crate::globals::GraphPtr::raw_slice(
+                                            line_start,
+                                            (len as usize).saturating_sub(1),
+                                        ),
                                         len,
                                         newfile,
                                     ) {
@@ -2591,7 +2595,7 @@ pub fn readfile(
 
                         while ptr < end {
                             let rem = ((end as isize) - (ptr as isize)) as usize;
-                            let slice = unsafe { std::slice::from_raw_parts(ptr, rem) };
+                            let slice = crate::globals::GraphPtr::raw_slice(ptr, rem);
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
                                 let rem_slice = crate::globals::GraphPtr::raw_slice_mut(ptr, rem);
                                 for b in rem_slice {
@@ -2646,12 +2650,10 @@ pub fn readfile(
                                 }
                                 if !ml_append(
                                     lnum,
-                                    unsafe {
-                                        std::slice::from_raw_parts(
-                                            line_start,
-                                            (len as usize).saturating_sub(1),
-                                        )
-                                    },
+                                    crate::globals::GraphPtr::raw_slice(
+                                        line_start,
+                                        (len as usize).saturating_sub(1),
+                                    ),
                                     len,
                                     newfile,
                                 ) {
@@ -2739,9 +2741,10 @@ pub fn readfile(
                 let len = (((ptr as isize) - (line_start as isize)) + 1) as Colnr;
                 if !ml_append(
                     lnum,
-                    unsafe {
-                        std::slice::from_raw_parts(line_start, (len as usize).saturating_sub(1))
-                    },
+                    crate::globals::GraphPtr::raw_slice(
+                        line_start,
+                        (len as usize).saturating_sub(1),
+                    ),
                     len,
                     newfile,
                 ) {
@@ -2762,7 +2765,7 @@ pub fn readfile(
                 save_file_ff(curbuf_mut());
                 set_option_direct(
                     K_OPT_FILEENCODING,
-                    cstr_as_obj((!fenc.is_null()).then(|| unsafe { CStr::from_ptr(fenc.cast()) })),
+                    cstr_as_obj(fenc_owned.as_deref()),
                     OPT_LOCAL,
                     0,
                 );
@@ -2960,25 +2963,23 @@ pub fn readfile(
                     msg_add_lines(i32::from(c), linecnt, filesize);
 
                     g_st().keep_msg = None;
-                    p = ptr::null_mut();
+                    let mut keep_cstr: Option<&CStr> = None;
                     g_st().msg_scrolled_ign = true;
 
                     if !read_stdin && !read_buffer {
                         if g_st().msg_col > 0 {
                             msg_putchar(b'\r' as i32);
                         }
-                        p = if progress {
+                        keep_cstr = if progress {
                             readfile_progress(
-                                Some(g_st().iobuff_bytes_mut()),
+                                Some(g_st().borrow_mut().iobuff_bytes_mut()),
                                 crate::memory::bytes_as_cstr(&msg_id),
                                 if error { c"failed" } else { c"success" },
                                 -1,
                                 true,
                             )
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
                         } else {
-                            msg_trunc(g_st().iobuff_bytes_mut(), false, 0)
-                                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
+                            msg_trunc(g_st().borrow_mut().iobuff_bytes_mut(), false, 0)
                         };
                     }
 
@@ -2987,10 +2988,7 @@ pub fn readfile(
                         || g_st().restart_edit != 0
                         || (g_st().msg_scrolled != 0 && !g_st().need_wait_return)
                     {
-                        set_keep_msg(
-                            (!p.is_null()).then(|| unsafe { CStr::from_ptr(p.cast()) }),
-                            0,
-                        );
+                        set_keep_msg(keep_cstr, 0);
                     }
                     g_st().msg_scrolled_ign = false;
                 } else if progress {
@@ -3848,16 +3846,14 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
 pub fn vim_copyfile(from: &CStr, to: &CStr) -> bool {
     #[cfg(not(windows))]
     {
-        let from_ptr = from.as_ptr();
-        let to_ptr = to.as_ptr();
         let mut from_info: FileInfo = FileInfo::new();
         if os_fileinfo_link(from, &mut from_info) && s_islnk(from_info.stat.st_mode) {
             let mut ret = -1;
             let mut linkbuf: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
-            let len = unsafe { readlink(from_ptr.cast(), linkbuf.as_mut_ptr(), MAXPATHL) };
+            let len = os_readlink(from, &mut linkbuf[..MAXPATHL]);
             if len > 0 {
                 linkbuf[len as usize] = 0;
-                ret = unsafe { symlink(linkbuf.as_ptr(), to_ptr.cast()) };
+                ret = os_symlink(crate::memory::bytes_as_cstr(&linkbuf), to);
             }
             return ret == 0;
         }
@@ -4529,6 +4525,7 @@ pub fn delete_recursive(name: &CStr) -> i32 {
     result
 }
 
+#[allow(unsafe_code)]
 #[cfg(unix)]
 fn vim_opentempdir() {
     if !fio_st().vim_tempdir_dp.is_null() {
@@ -4548,6 +4545,7 @@ fn vim_opentempdir() {
     unsafe { flock(dirfd(fio_st().vim_tempdir_dp), LOCK_SH) };
 }
 
+#[allow(unsafe_code)]
 #[cfg(unix)]
 fn vim_closetempdir() {
     if fio_st().vim_tempdir_dp.is_null() {
@@ -4855,6 +4853,7 @@ pub fn file_pat_to_reg_pat(
 }
 
 /// Version of read() that retries when interrupted by EINTR.
+#[allow(unsafe_code)]
 pub fn read_eintr(fd: i32, buf: &mut [u8]) -> isize {
     loop {
         #[cfg(windows)]
@@ -4868,6 +4867,7 @@ pub fn read_eintr(fd: i32, buf: &mut [u8]) -> isize {
 }
 
 /// Version of write() that retries when interrupted by EINTR.
+#[allow(unsafe_code)]
 pub fn write_eintr(fd: i32, buf: &[u8]) -> isize {
     let mut ret: isize = 0;
     let bufsize = buf.len();
@@ -4894,15 +4894,12 @@ pub fn vim_fprintf_fmt(
     fmt: &CStr,
     args: &[crate::strings::FmtVal],
 ) -> i32 {
-    let stream = stream_file.as_nonnull().as_ptr();
     let fmt_bytes = fmt.to_bytes();
     if args.is_empty() && !fmt_bytes.contains(&b'%') {
         if fmt_bytes.is_empty() {
             return 0;
         }
-        return if unsafe { fwrite(fmt_bytes.as_ptr().cast(), 1, fmt_bytes.len(), stream) }
-            == fmt_bytes.len()
-        {
+        return if stream_file.write_all(fmt_bytes) {
             fmt_bytes.len() as i32
         } else {
             -1
@@ -4915,7 +4912,7 @@ pub fn vim_fprintf_fmt(
     }
     let len = needed as usize;
     if len < stack_buf.len() {
-        if len == 0 || unsafe { fwrite(stack_buf.as_ptr().cast(), 1, len, stream) } == len {
+        if len == 0 || stream_file.write_all(&stack_buf[..len]) {
             needed
         } else {
             -1
@@ -4927,7 +4924,7 @@ pub fn vim_fprintf_fmt(
             return -1;
         }
         let alen = actual as usize;
-        if alen == 0 || unsafe { fwrite(heap_buf.as_ptr().cast(), 1, alen, stream) } == alen {
+        if alen == 0 || stream_file.write_all(&heap_buf[..alen]) {
             actual
         } else {
             -1

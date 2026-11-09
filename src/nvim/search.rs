@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
@@ -338,7 +340,7 @@ pub fn search_regcomp(
     mut magic: bool,
     regmatch: &mut Regmmatch,
 ) -> bool {
-    let mut pat = pat_cstr.as_ptr().cast_mut();
+    let mut pat_ref = pat_cstr;
     {
         g_st().rc_did_emsg = false;
 
@@ -357,18 +359,15 @@ pub fn search_regcomp(
                 g_st().rc_did_emsg = true;
                 return false;
             }
-            pat = srch().spats[i as usize]
-                .pat_ptr()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            pat_ref = srch().borrow_mut().spats[i as usize]
+                .pat
+                .as_deref()
+                .unwrap_or(c"");
             patlen = srch().spats[i as usize].patlen();
             magic = srch().spats[i as usize].magic;
             g_st().search_global.no_smartcase = srch().spats[i as usize].no_scs;
         } else if (options & SEARCH_HIS) != 0 {
-            let pat_bytes = if pat.is_null() {
-                &[][..]
-            } else {
-                unsafe { CStr::from_ptr(pat) }.to_bytes()
-            };
+            let pat_bytes = pat_ref.to_bytes();
             add_to_history(
                 HIST_SEARCH,
                 &pat_bytes[..patlen.min(pat_bytes.len())],
@@ -377,11 +376,6 @@ pub fn search_regcomp(
             );
         }
 
-        let pat_ref = if pat.is_null() {
-            c""
-        } else {
-            unsafe { CStr::from_ptr(pat) }
-        };
         if let Some(used_pat) = used_pat {
             *used_pat = pat_ref.to_owned();
         }
@@ -391,11 +385,8 @@ pub fn search_regcomp(
         {
             Some(reverse_text(pat_ref.to_bytes()))
         } else {
-            let pat_slice = if pat.is_null() {
-                &[][..]
-            } else {
-                unsafe { std::slice::from_raw_parts(pat.cast::<u8>(), patlen) }
-            };
+            let pat_bytes = pat_ref.to_bytes();
+            let pat_slice = &pat_bytes[..patlen.min(pat_bytes.len())];
             Some(CString::new(pat_slice).unwrap_or_default())
         };
 
@@ -824,11 +815,13 @@ pub fn searchit(
                         matchpos = regmatch.startpos[0];
                         endpos = regmatch.endpos[0];
                         submatch = first_submatch(&regmatch);
-                        if lnum + matchpos.lnum > buf.b_ml.ml_line_count {
-                            ptr_line = c"".as_ptr().cast_mut();
-                        } else {
-                            ptr_line = ml_get_buf(buf, lnum + matchpos.lnum).as_ptr().cast_mut();
-                        }
+                        let mut ptr_line_cstr: &CStr =
+                            if lnum + matchpos.lnum > buf.b_ml.ml_line_count {
+                                c""
+                            } else {
+                                ml_get_buf(buf, lnum + matchpos.lnum)
+                            };
+                        ptr_line = ptr_line_cstr.as_ptr().cast_mut();
 
                         if dir == FORWARD && at_first_line {
                             match_ok = true;
@@ -861,9 +854,10 @@ pub fn searchit(
                                         .borrow()
                                             != 0
                                     {
-                                        matchcol += utfc_ptr2len(unsafe {
-                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
-                                        });
+                                        matchcol += utfc_ptr2len(
+                                            &ptr_line_cstr[(matchcol as usize)
+                                                .min(ptr_line_cstr.to_bytes().len())..],
+                                        );
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
@@ -873,9 +867,10 @@ pub fn searchit(
                                     .borrow()
                                         != 0
                                     {
-                                        matchcol += utfc_ptr2len(unsafe {
-                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
-                                        });
+                                        matchcol += utfc_ptr2len(
+                                            &ptr_line_cstr[(matchcol as usize)
+                                                .min(ptr_line_cstr.to_bytes().len())..],
+                                        );
                                     }
                                 }
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
@@ -912,7 +907,8 @@ pub fn searchit(
                                 if matchpos.lnum != 0 {
                                     break;
                                 }
-                                ptr_line = ml_get_buf(buf, lnum).as_ptr().cast_mut();
+                                ptr_line_cstr = ml_get_buf(buf, lnum);
+                                ptr_line = ptr_line_cstr.as_ptr().cast_mut();
                             }
                             if !match_ok {
                                 lnum += dir;
@@ -956,9 +952,10 @@ pub fn searchit(
                                         .borrow()
                                             != 0
                                     {
-                                        matchcol += utfc_ptr2len(unsafe {
-                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
-                                        });
+                                        matchcol += utfc_ptr2len(
+                                            &ptr_line_cstr[(matchcol as usize)
+                                                .min(ptr_line_cstr.to_bytes().len())..],
+                                        );
                                     }
                                 } else {
                                     if matchpos.lnum > 0 {
@@ -971,9 +968,10 @@ pub fn searchit(
                                     .borrow()
                                         != 0
                                     {
-                                        matchcol += utfc_ptr2len(unsafe {
-                                            CStr::from_ptr(ptr_line.wrapping_add(matchcol as usize))
-                                        });
+                                        matchcol += utfc_ptr2len(
+                                            &ptr_line_cstr[(matchcol as usize)
+                                                .min(ptr_line_cstr.to_bytes().len())..],
+                                        );
                                     }
                                 }
                                 if *crate::globals::GraphPtr::of(
@@ -1002,8 +1000,8 @@ pub fn searchit(
                                 if regmatch.regprog.is_null() {
                                     break;
                                 }
-                                ptr_line =
-                                    ml_get_buf(buf, lnum + matchpos.lnum).as_ptr().cast_mut();
+                                ptr_line_cstr = ml_get_buf(buf, lnum + matchpos.lnum);
+                                ptr_line = ptr_line_cstr.as_ptr().cast_mut();
                             }
 
                             if !match_ok {
@@ -1433,15 +1431,18 @@ pub fn do_search(
                 }
             }
 
-            let (p, plen) = if searchstr_cstr.as_bytes().is_empty() {
-                (
-                    srch().spats[0]
-                        .pat_ptr()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                    srch().spats[0].patlen(),
-                )
+            let (p_bytes, plen) = if searchstr_cstr.as_bytes().is_empty() {
+                let len = srch().spats[0].patlen();
+                let bytes = srch().spats[0].pat.as_ref().map_or(Vec::new(), |s| {
+                    s.as_bytes()[..len.min(s.as_bytes().len())].to_vec()
+                });
+                (bytes, len)
             } else {
-                (searchstr_cstr.as_ptr().cast_mut(), searchstrlen)
+                let bytes = searchstr_cstr.as_bytes();
+                (
+                    bytes[..searchstrlen.min(bytes.len())].to_vec(),
+                    searchstrlen,
+                )
             };
 
             let mut msgbufsize = if !shortmess(K_SHM_SEARCHCOUNT) || g_st().cmd_silent {
@@ -1470,7 +1471,6 @@ pub fn do_search(
             if !g_st().cmd_silent {
                 ui_busy_start();
                 msgbuf_vec[0] = dirc as u8;
-                let p_bytes = unsafe { std::slice::from_raw_parts(p.cast::<u8>(), plen) }.to_vec();
                 if utf_iscomposing_first(utf_ptr2char(p_bytes.as_slice())) {
                     msgbuf_vec[1] = b' ';
                     msgbuf_vec[2..2 + plen].copy_from_slice(&p_bytes);
@@ -2997,7 +2997,7 @@ fn update_search_stat(
 
 pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut pos = curwin_mut().w_cursor;
-    let mut pattern = ptr::null_mut();
+    let mut pattern: Option<CString> = None;
     let mut maxcount = opt_vars().p_msc as i32;
     let mut timeout = SEARCH_STAT_DEF_TIMEOUT;
     let mut recompute = true;
@@ -3033,7 +3033,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             let Some(pat) = tv_get_string_chk(&di.di_tv) else {
                 return;
             };
-            pattern = pat.as_ptr().cast_mut();
+            pattern = Some(pat.to_owned());
         }
         if let Some(di) = tv_dict_find_opt(dict.as_deref(), c"pos", -1) {
             if di.di_tv.v_type != VarType::VarList {
@@ -3068,12 +3068,11 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     save_last_search_pattern();
     save_incsearch_state();
     let mut do_update = true;
-    if !pattern.is_null() {
-        let pat_cstr = unsafe { CStr::from_ptr(pattern) };
+    if let Some(pat_cstr) = pattern {
         if pat_cstr.is_empty() {
             do_update = false;
         } else {
-            srch().spats[srch().last_idx as usize].pat = Some(pat_cstr.to_owned());
+            srch().spats[srch().last_idx as usize].pat = Some(pat_cstr);
         }
     }
     if do_update
@@ -3228,9 +3227,21 @@ pub fn find_pattern_in_path(
         get_line_and_copy(lnum, &mut file_line_vec);
         let mut line: crate::strings::RawCCharPtrMut = file_line_vec.as_mut_ptr().cast();
 
+        let ptr_cstr = |p: *const std::ffi::c_char| -> &'static CStr {
+            if p.is_null() {
+                return c"";
+            }
+            let p_u8 = p.cast::<u8>();
+            let mut n = 0usize;
+            while *crate::globals::GraphPtr::of(p_u8.wrapping_add(n)).borrow() != 0 {
+                n += 1;
+            }
+            crate::memory::bytes_as_cstr(crate::globals::GraphPtr::raw_slice(p_u8, n + 1))
+        };
+
         loop {
             if !incl_regmatch.regprog.is_null()
-                && vim_regexec(&mut incl_regmatch, unsafe { CStr::from_ptr(line) }, 0)
+                && vim_regexec(&mut incl_regmatch, ptr_cstr(line), 0)
             {
                 let p_fname_opt = if curr_fname.as_deref() == curbuf_mut().fname_opt() {
                     curbuf_mut().ffname_opt()
@@ -3324,13 +3335,13 @@ pub fn find_pattern_in_path(
                         if let Some(ref nf) = new_fname_cstr {
                             msg_outtrans(nf, HLF_D, false);
                         } else {
-                            let line_cstr = unsafe { CStr::from_ptr(line) };
+                            let line_cstr = ptr_cstr(line);
                             if find_substr(inc_opt_cstr, b"\\zs") {
                                 p = line.wrapping_add(incl_regmatch.start_offset(0, line_cstr));
                                 i = incl_regmatch.span_len(0) as i32;
                             } else {
                                 p = line.wrapping_add(incl_regmatch.end_offset(0, line_cstr));
-                                let p_bytes = unsafe { CStr::from_ptr(p) }.to_bytes();
+                                let p_bytes = ptr_cstr(p).to_bytes();
                                 let skip_n = p_bytes
                                     .iter()
                                     .take_while(|&&b| !vim_isfilec(i32::from(b)))
@@ -3363,9 +3374,10 @@ pub fn find_pattern_in_path(
                                 }
                             }
                             msg_outtrans_len(
-                                unsafe {
-                                    std::slice::from_raw_parts(p.cast::<u8>(), i.max(0) as usize)
-                                },
+                                crate::globals::GraphPtr::raw_slice(
+                                    p.cast::<u8>(),
+                                    i.max(0) as usize,
+                                ),
                                 i,
                                 HLF_D,
                                 false,
@@ -3436,12 +3448,12 @@ pub fn find_pattern_in_path(
                 p = line;
                 loop {
                     define_matched = false;
-                    let line_cstr = unsafe { CStr::from_ptr(line) };
+                    let line_cstr = ptr_cstr(line);
                     if !def_regmatch.regprog.is_null()
                         && vim_regexec(&mut def_regmatch, line_cstr, 0)
                     {
                         p = line.wrapping_add(def_regmatch.end_offset(0, line_cstr));
-                        let p_bytes = unsafe { CStr::from_ptr(p) }.to_bytes();
+                        let p_bytes = ptr_cstr(p).to_bytes();
                         let skip_n = p_bytes
                             .iter()
                             .take_while(|&&b| !vim_iswordc(i32::from(b)))
@@ -3453,9 +3465,9 @@ pub fn find_pattern_in_path(
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
                             startp = p.wrapping_add(crate::charset::skipwhite_len(
-                                unsafe { CStr::from_ptr(p) }.to_bytes(),
+                                ptr_cstr(p).to_bytes(),
                             ));
-                            let start_bytes = unsafe { CStr::from_ptr(startp) }.to_bytes();
+                            let start_bytes = ptr_cstr(startp).to_bytes();
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(start_bytes, pat_bytes, len) == 0;
                             } else {
@@ -3537,11 +3549,10 @@ pub fn find_pattern_in_path(
                             p = startp;
                             let mut skip_add = false;
                             if compl_status_adding()
-                                && (unsafe { CStr::from_ptr(p) }.to_bytes().len() as i32)
-                                    >= ins_compl_len()
+                                && (ptr_cstr(p).to_bytes().len() as i32) >= ins_compl_len()
                             {
                                 p = p.wrapping_add(ins_compl_len() as usize);
-                                let p_bytes = unsafe { CStr::from_ptr(p) }.to_bytes();
+                                let p_bytes = ptr_cstr(p).to_bytes();
                                 if vim_iswordp(p_bytes) {
                                     skip_add = true;
                                 } else {
@@ -3549,16 +3560,17 @@ pub fn find_pattern_in_path(
                                 }
                             }
                             if !skip_add {
-                                p = find_word_end(unsafe { CStr::from_ptr(p) }.to_bytes())
+                                p = find_word_end(ptr_cstr(p).to_bytes())
                                     .as_ptr()
                                     .cast_mut()
                                     .cast();
                                 i = ((p as isize) - (aux as isize)) as i32;
 
                                 if compl_status_adding() && i == ins_compl_len() {
-                                    for (idx, &b) in unsafe {
-                                        std::slice::from_raw_parts(aux.cast::<u8>(), i as usize)
-                                    }
+                                    for (idx, &b) in crate::globals::GraphPtr::raw_slice(
+                                        aux.cast::<u8>(),
+                                        i as usize,
+                                    )
                                     .iter()
                                     .enumerate()
                                     {
@@ -3586,22 +3598,22 @@ pub fn find_pattern_in_path(
 
                                     if !skip_add {
                                         p = line.wrapping_add(crate::charset::skipwhite_len(
-                                            unsafe { CStr::from_ptr(line) }.to_bytes(),
+                                            ptr_cstr(line).to_bytes(),
                                         ));
                                         aux = p;
                                         already = p;
-                                        p = find_word_start(
-                                            unsafe { CStr::from_ptr(p) }.to_bytes(),
-                                        )
-                                        .as_ptr()
-                                        .cast_mut()
-                                        .cast();
-                                        p = find_word_end(unsafe { CStr::from_ptr(p) }.to_bytes())
+                                        p = find_word_start(ptr_cstr(p).to_bytes())
+                                            .as_ptr()
+                                            .cast_mut()
+                                            .cast();
+                                        p = find_word_end(ptr_cstr(p).to_bytes())
                                             .as_ptr()
                                             .cast_mut()
                                             .cast();
                                         if p > aux {
-                                            if unsafe { *aux.cast::<u8>() } != b')'
+                                            if *crate::globals::GraphPtr::of(aux.cast::<u8>())
+                                                .borrow()
+                                                != b')'
                                                 && g_st().iobuff[(i - 1) as usize] != TAB
                                             {
                                                 if g_st().iobuff[(i - 1) as usize] != b' ' {
@@ -3623,12 +3635,10 @@ pub fn find_pattern_in_path(
                                             if copy_len >= IOSIZE - (i as usize) {
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
-                                            for (idx, &b) in unsafe {
-                                                std::slice::from_raw_parts(
-                                                    aux.cast::<u8>(),
-                                                    copy_len,
-                                                )
-                                            }
+                                            for (idx, &b) in crate::globals::GraphPtr::raw_slice(
+                                                aux.cast::<u8>(),
+                                                copy_len,
+                                            )
                                             .iter()
                                             .enumerate()
                                             {
@@ -3648,12 +3658,10 @@ pub fn find_pattern_in_path(
 
                                 if !skip_add {
                                     let add_r = ins_compl_add_infercase(
-                                        unsafe {
-                                            std::slice::from_raw_parts(
-                                                aux.cast::<u8>(),
-                                                i.max(0) as usize,
-                                            )
-                                        },
+                                        crate::globals::GraphPtr::raw_slice(
+                                            aux.cast::<u8>(),
+                                            i.max(0) as usize,
+                                        ),
                                         i,
                                         opt_vars().p_ic,
                                         if curr_fname.as_deref() == curbuf_mut().fname_opt() {
@@ -3816,14 +3824,14 @@ pub fn find_pattern_in_path(
                         && action == ACTION_EXPAND
                         && !compl_status_sol()
                         && !startp.is_null()
-                        && unsafe { *startp } != 0
+                        && *crate::globals::GraphPtr::of(startp).borrow() != 0
                         && {
-                            let start_cstr = unsafe { CStr::from_ptr(startp) };
+                            let start_cstr = ptr_cstr(startp);
                             let step = utfc_ptr2len(start_cstr) as usize;
                             start_cstr.to_bytes().len() > step
                         }
                     {
-                        let start_cstr = unsafe { CStr::from_ptr(startp) };
+                        let start_cstr = ptr_cstr(startp);
                         p = startp.wrapping_add(utfc_ptr2len(start_cstr) as usize);
                         continue;
                     }
