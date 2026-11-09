@@ -2907,11 +2907,7 @@ pub fn nvim_eval_statusline(
             opts.use_winbar,
             stc_hl_id,
         );
-        if crate::globals::GraphPtr::of(hltab)
-            .borrow()
-            .start
-            .is_none_or(|s| !ptr::eq(s.as_ptr().cast(), buf_data))
-        {
+        if crate::globals::GraphPtr::of(hltab).borrow().start_off != Some(0) {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
             put_c(&mut hl_info, c"group", cstr_as_obj(Some(dfltname)));
@@ -2922,7 +2918,7 @@ pub fn nvim_eval_statusline(
         }
 
         let mut sp = hltab;
-        while let Some(sp_start) = crate::globals::GraphPtr::of(sp).borrow().start {
+        while let Some(sp_off) = crate::globals::GraphPtr::of(sp).borrow().start_off {
             const USER_HLS: [&CStr; 9] = [
                 c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
                 c"User9",
@@ -2949,11 +2945,7 @@ pub fn nvim_eval_statusline(
             };
             let mut hl_info = arena_dict(arena, 3);
 
-            put_c(
-                &mut hl_info,
-                c"start",
-                integer_obj(((sp_start.as_ptr() as usize) - (buf_data as usize)) as Integer),
-            );
+            put_c(&mut hl_info, c"start", integer_obj(sp_off as Integer));
 
             put_c(&mut hl_info, c"group", cstr_as_obj(Some(grpname)));
             let diff_group = combine != grpname;

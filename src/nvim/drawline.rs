@@ -976,7 +976,6 @@ fn draw_statuscol(
         return;
     }
 
-    let buf_base = buf.as_ptr() as usize;
     let mut p_off = 0usize;
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: Option<&[Colnr]> = None;
@@ -991,9 +990,7 @@ fn draw_statuscol(
     let mut cur_attr = num_attr;
 
     for sp in &stcp.hlrec {
-        let sp_off = sp
-            .start
-            .map_or(p_off, |s| (s.as_ptr() as usize).saturating_sub(buf_base));
+        let sp_off = sp.start_off.unwrap_or(p_off);
         let textlen = sp_off.saturating_sub(p_off).min(len.saturating_sub(p_off));
         let translen = transstr_buf(&buf[p_off..p_off + textlen], &mut transbuf, true);
         draw_col_buf(wp, wlv, &transbuf, translen, cur_attr, fold_vcol, false);
