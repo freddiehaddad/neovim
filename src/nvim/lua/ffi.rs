@@ -572,3 +572,787 @@ unsafe extern "C" {
     #[cfg(target_os = "emscripten")]
     pub fn tree_sitter_vimdoc() -> *const TSLanguage;
 }
+
+pub struct TSOwnedRanges {
+    ptr: *mut TSRange,
+    len: usize,
+}
+
+impl TSOwnedRanges {
+    #[inline]
+    pub fn as_slice(&self) -> &[TSRange] {
+        if self.ptr.is_null() || self.len == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.ptr, self.len) }
+        }
+    }
+}
+
+impl Drop for TSOwnedRanges {
+    fn drop(&mut self) {
+        crate::memory::raw_dealloc(self.ptr.cast());
+    }
+}
+
+pub struct TSOwnedCString {
+    ptr: *mut u8,
+}
+
+impl TSOwnedCString {
+    #[inline]
+    pub fn as_cstr(&self) -> Option<&std::ffi::CStr> {
+        (!self.ptr.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(self.ptr.cast()) })
+    }
+}
+
+impl Drop for TSOwnedCString {
+    fn drop(&mut self) {
+        crate::memory::raw_dealloc(self.ptr.cast());
+    }
+}
+
+#[repr(C)]
+struct TSLuaLoggerOpts {
+    cb: LuaRef,
+    lstate: *mut lua_State,
+    lex: bool,
+    parse: bool,
+}
+
+impl Drop for TSLuaLoggerOpts {
+    fn drop(&mut self) {
+        unsafe {
+            luaL_unref(self.lstate, LUA_REGISTRYINDEX, self.cb);
+        }
+    }
+}
+
+unsafe extern "C" fn ts_malloc(size: usize) -> *mut c_void {
+    crate::memory::raw_alloc(size)
+}
+
+unsafe extern "C" fn ts_calloc(count: usize, size: usize) -> *mut c_void {
+    crate::memory::raw_calloc(count, size)
+}
+
+unsafe extern "C" fn ts_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
+    crate::memory::raw_realloc(ptr, size)
+}
+
+unsafe extern "C" fn ts_free(ptr: *mut c_void) {
+    crate::memory::raw_dealloc(ptr)
+}
+
+#[inline]
+pub fn ts_init_allocator() {
+    unsafe {
+        ts_set_allocator(
+            Some(ts_malloc),
+            Some(ts_calloc),
+            Some(ts_realloc),
+            Some(ts_free),
+        );
+    }
+}
+
+#[cfg(target_os = "emscripten")]
+pub fn ts_get_static_parser(lang: Option<&[u8]>) -> *const TSLanguage {
+    let Some(lang) = lang else {
+        return std::ptr::null();
+    };
+    unsafe {
+        match lang {
+            b"lua" => tree_sitter_lua(),
+            b"c" => tree_sitter_c(),
+            b"diff" => tree_sitter_diff(),
+            b"vim" => tree_sitter_vim(),
+            b"markdown" => tree_sitter_markdown(),
+            b"markdown_inline" => tree_sitter_markdown_inline(),
+            b"query" => tree_sitter_query(),
+            b"vimdoc" => tree_sitter_vimdoc(),
+            _ => std::ptr::null(),
+        }
+    }
+}
+
+#[inline]
+pub fn ts_lang_abi_version(lang: *const TSLanguage) -> u32 {
+    unsafe { ts_language_abi_version(lang) }
+}
+
+#[inline]
+pub fn ts_lang_symbol_count(lang: *const TSLanguage) -> u32 {
+    unsafe { ts_language_symbol_count(lang) }
+}
+
+#[inline]
+pub fn ts_lang_symbol_type(lang: *const TSLanguage, symbol: TSSymbol) -> TSSymbolType {
+    unsafe { ts_language_symbol_type(lang, symbol) }
+}
+
+#[inline]
+pub fn ts_lang_symbol_name(
+    lang: *const TSLanguage,
+    symbol: TSSymbol,
+) -> Option<&'static std::ffi::CStr> {
+    let ptr = unsafe { ts_language_symbol_name(lang, symbol) };
+    (!ptr.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(ptr.cast()) })
+}
+
+#[inline]
+pub fn ts_lang_field_count(lang: *const TSLanguage) -> u32 {
+    unsafe { ts_language_field_count(lang) }
+}
+
+#[inline]
+pub fn ts_lang_field_name(
+    lang: *const TSLanguage,
+    id: TSFieldId,
+) -> Option<&'static std::ffi::CStr> {
+    let ptr = unsafe { ts_language_field_name_for_id(lang, id) };
+    (!ptr.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(ptr.cast()) })
+}
+
+#[inline]
+pub fn ts_lang_is_wasm(lang: *const TSLanguage) -> bool {
+    unsafe { ts_language_is_wasm(lang) }
+}
+
+#[inline]
+pub fn ts_lang_metadata(lang: *const TSLanguage) -> Option<TSLanguageMetadata> {
+    let ptr = unsafe { ts_language_metadata(lang) };
+    (!ptr.is_null()).then(|| unsafe { *ptr })
+}
+
+#[inline]
+pub fn ts_lang_state_count(lang: *const TSLanguage) -> u32 {
+    unsafe { ts_language_state_count(lang) }
+}
+
+#[inline]
+pub fn ts_lang_supertypes(lang: *const TSLanguage) -> &'static [TSSymbol] {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_language_supertypes(lang, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, len as usize) }
+    }
+}
+
+#[inline]
+pub fn ts_lang_subtypes_raw(
+    lang: *const TSLanguage,
+    supertype: TSSymbol,
+) -> (*const TSSymbol, u32) {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_language_subtypes(lang, supertype, &mut len) };
+    (ptr, len)
+}
+
+#[inline]
+pub fn ts_lang_subtype_at(ptr: *const TSSymbol, idx: u32) -> TSSymbol {
+    unsafe { *ptr.wrapping_add(idx as usize) }
+}
+
+#[inline]
+pub fn ts_parser_create(lang: *const TSLanguage) -> Option<*mut TSParser> {
+    unsafe {
+        let p = ts_parser_new();
+        if !ts_parser_set_language(p, lang) {
+            ts_parser_delete(p);
+            None
+        } else {
+            Some(p)
+        }
+    }
+}
+
+#[inline]
+pub fn ts_parser_free(p: *mut TSParser) {
+    unsafe {
+        let logger = ts_parser_logger(p);
+        if logger.log.is_some() {
+            drop(Box::from_raw(logger.payload.cast::<TSLuaLoggerOpts>()));
+        }
+        ts_parser_delete(p);
+    }
+}
+
+#[inline]
+pub fn ts_parser_has_language(p: *const TSParser) -> bool {
+    unsafe { !ts_parser_language(p).is_null() }
+}
+
+#[inline]
+pub fn ts_parser_reset_safe(p: *mut TSParser) {
+    unsafe {
+        ts_parser_reset(p);
+    }
+}
+
+#[inline]
+pub fn ts_parser_parse_bytes(
+    p: *mut TSParser,
+    old_tree: *const TSTree,
+    bytes: &[u8],
+) -> *mut TSTree {
+    unsafe {
+        ts_parser_parse_string(
+            p,
+            old_tree,
+            if bytes.is_empty() {
+                c"".as_ptr().cast()
+            } else {
+                bytes.as_ptr()
+            },
+            bytes.len() as u32,
+        )
+    }
+}
+
+#[repr(C)]
+struct TSLuaParserCallbackPayload {
+    parse_start_time: u64,
+    timeout_threshold_ns: u64,
+}
+
+unsafe extern "C" fn on_parser_progress(state: *mut TSParseState) -> bool {
+    unsafe {
+        let payload = (*state).payload.cast::<TSLuaParserCallbackPayload>();
+        let parse_time = crate::os::time::os_hrtime().wrapping_sub((*payload).parse_start_time);
+        parse_time >= (*payload).timeout_threshold_ns
+    }
+}
+
+#[repr(C)]
+struct TSInputCallbackContext {
+    buf: *mut crate::buffer::FileBuf,
+    read_cb: fn(&mut crate::buffer::FileBuf, TSPoint) -> (&'static [u8], u32),
+}
+
+unsafe extern "C" fn ts_input_read_trampoline(
+    payload: *mut c_void,
+    _byte_index: u32,
+    position: TSPoint,
+    bytes_read: *mut u32,
+) -> *const u8 {
+    unsafe {
+        let ctx = &mut *payload.cast::<TSInputCallbackContext>();
+        let (slice, count) = (ctx.read_cb)(&mut *ctx.buf, position);
+        *bytes_read = count;
+        if slice.is_empty() {
+            c"".as_ptr().cast()
+        } else {
+            slice.as_ptr()
+        }
+    }
+}
+
+pub fn ts_parser_parse_with_input(
+    p: *mut TSParser,
+    old_tree: *const TSTree,
+    buf: &mut crate::buffer::FileBuf,
+    read_cb: fn(&mut crate::buffer::FileBuf, TSPoint) -> (&'static [u8], u32),
+    timeout_ns: u64,
+) -> *mut TSTree {
+    unsafe {
+        let mut ctx = TSInputCallbackContext {
+            buf: std::ptr::from_mut(buf),
+            read_cb,
+        };
+        let input = TSInput {
+            payload: (&raw mut ctx).cast::<c_void>(),
+            read: Some(ts_input_read_trampoline),
+            encoding: 0,
+            decode: None,
+        };
+
+        if timeout_ns == 0 {
+            return ts_parser_parse(p, old_tree, input);
+        }
+
+        let mut payload = TSLuaParserCallbackPayload {
+            parse_start_time: crate::os::time::os_hrtime(),
+            timeout_threshold_ns: timeout_ns,
+        };
+
+        let parse_options = TSParseOptions {
+            payload: (&raw mut payload).cast::<c_void>(),
+            progress_callback: Some(on_parser_progress),
+        };
+
+        ts_parser_parse_with_options(p, old_tree, input, parse_options)
+    }
+}
+
+#[inline]
+pub fn ts_parser_set_ranges_slice(p: *mut TSParser, ranges: &[TSRange]) {
+    unsafe {
+        ts_parser_set_included_ranges(p, ranges.as_ptr(), ranges.len() as u32);
+    }
+}
+
+#[inline]
+pub fn ts_parser_get_ranges_slice(p: *const TSParser) -> &'static [TSRange] {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_parser_included_ranges(p, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, len as usize) }
+    }
+}
+
+unsafe extern "C" fn ts_logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const u8) {
+    const TSLOG_TYPE_PARSE: TSLogType = 0;
+    const TSLOG_TYPE_LEX: TSLogType = 1;
+    unsafe {
+        let opts = &mut *payload.cast::<TSLuaLoggerOpts>();
+        if (!opts.lex && logtype == TSLOG_TYPE_LEX) || (!opts.parse && logtype == TSLOG_TYPE_PARSE)
+        {
+            return;
+        }
+
+        let lstate = opts.lstate;
+        lua_rawgeti(lstate, LUA_REGISTRYINDEX, opts.cb);
+        crate::lua::converter::lua_pushstring(
+            lstate,
+            if logtype == TSLOG_TYPE_PARSE {
+                c"parse"
+            } else {
+                c"lex"
+            },
+        );
+        crate::lua::converter::lua_pushstring_opt(
+            lstate,
+            (!s.is_null()).then(|| std::ffi::CStr::from_ptr(s.cast())),
+        );
+        if lua_pcall(lstate, 2, 0, 0) != 0 {
+            luaL_error(lstate, c"treesitter logger callback failed".as_ptr());
+        }
+    }
+}
+
+#[inline]
+pub fn ts_parser_set_lua_logger(
+    p: *mut TSParser,
+    lstate: *mut lua_State,
+    lex: bool,
+    parse: bool,
+    cb: LuaRef,
+) {
+    let opts = Box::into_raw(Box::new(TSLuaLoggerOpts {
+        cb,
+        lstate,
+        lex,
+        parse,
+    }));
+    let logger = TSLogger {
+        payload: opts.cast::<c_void>(),
+        log: Some(ts_logger_cb),
+    };
+    unsafe {
+        ts_parser_set_logger(p, logger);
+    }
+}
+
+#[inline]
+pub fn ts_parser_get_lua_logger_cb(p: *const TSParser) -> Option<LuaRef> {
+    unsafe {
+        let logger = ts_parser_logger(p);
+        logger.log.map(|_| {
+            let opts = logger.payload.cast::<TSLuaLoggerOpts>();
+            (*opts).cb
+        })
+    }
+}
+
+#[inline]
+pub fn ts_tree_clone(tree: *const TSTree) -> *mut TSTree {
+    unsafe { ts_tree_copy(tree) }
+}
+
+#[inline]
+pub fn ts_tree_free(tree: *mut TSTree) {
+    unsafe {
+        ts_tree_delete(tree);
+    }
+}
+
+#[inline]
+pub fn ts_tree_root(tree: *const TSTree) -> TSNode {
+    unsafe { ts_tree_root_node(tree) }
+}
+
+#[inline]
+pub fn ts_tree_edit_safe(tree: *mut TSTree, edit: &TSInputEdit) {
+    unsafe {
+        ts_tree_edit(tree, edit);
+    }
+}
+
+#[inline]
+pub fn ts_tree_included_ranges_owned(tree: *const TSTree) -> TSOwnedRanges {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_tree_included_ranges(tree, &mut len) };
+    TSOwnedRanges {
+        ptr,
+        len: len as usize,
+    }
+}
+
+#[inline]
+pub fn ts_tree_changed_ranges_owned(
+    old_tree: *const TSTree,
+    new_tree: *const TSTree,
+) -> TSOwnedRanges {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_tree_get_changed_ranges(old_tree, new_tree, &mut len) };
+    TSOwnedRanges {
+        ptr,
+        len: len as usize,
+    }
+}
+
+impl TSNode {
+    #[inline]
+    pub const fn empty() -> Self {
+        Self {
+            context: [0; 4],
+            id: std::ptr::null(),
+            tree: std::ptr::null(),
+        }
+    }
+
+    #[inline]
+    pub fn is_null(self) -> bool {
+        unsafe { ts_node_is_null(self) }
+    }
+
+    #[inline]
+    pub fn type_cstr(self) -> Option<&'static std::ffi::CStr> {
+        let ptr = unsafe { ts_node_type(self) };
+        (!ptr.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(ptr.cast()) })
+    }
+
+    #[inline]
+    pub fn symbol(self) -> TSSymbol {
+        unsafe { ts_node_symbol(self) }
+    }
+
+    #[inline]
+    pub fn start_point(self) -> TSPoint {
+        unsafe { ts_node_start_point(self) }
+    }
+
+    #[inline]
+    pub fn end_point(self) -> TSPoint {
+        unsafe { ts_node_end_point(self) }
+    }
+
+    #[inline]
+    pub fn start_byte(self) -> u32 {
+        unsafe { ts_node_start_byte(self) }
+    }
+
+    #[inline]
+    pub fn end_byte(self) -> u32 {
+        unsafe { ts_node_end_byte(self) }
+    }
+
+    #[inline]
+    pub fn child_count(self) -> u32 {
+        unsafe { ts_node_child_count(self) }
+    }
+
+    #[inline]
+    pub fn named_child_count(self) -> u32 {
+        unsafe { ts_node_named_child_count(self) }
+    }
+
+    #[inline]
+    pub fn child(self, idx: u32) -> Self {
+        unsafe { ts_node_child(self, idx) }
+    }
+
+    #[inline]
+    pub fn named_child(self, idx: u32) -> Self {
+        unsafe { ts_node_named_child(self, idx) }
+    }
+
+    #[inline]
+    pub fn field_name_for_child(self, idx: u32) -> Option<&'static std::ffi::CStr> {
+        let ptr = unsafe { ts_node_field_name_for_child(self, idx) };
+        (!ptr.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(ptr.cast()) })
+    }
+
+    #[inline]
+    pub fn is_named(self) -> bool {
+        unsafe { ts_node_is_named(self) }
+    }
+
+    #[inline]
+    pub fn is_missing(self) -> bool {
+        unsafe { ts_node_is_missing(self) }
+    }
+
+    #[inline]
+    pub fn is_extra(self) -> bool {
+        unsafe { ts_node_is_extra(self) }
+    }
+
+    #[inline]
+    pub fn has_changes(self) -> bool {
+        unsafe { ts_node_has_changes(self) }
+    }
+
+    #[inline]
+    pub fn has_error(self) -> bool {
+        unsafe { ts_node_has_error(self) }
+    }
+
+    #[inline]
+    pub fn sexpr_owned(self) -> TSOwnedCString {
+        TSOwnedCString {
+            ptr: unsafe { ts_node_string(self) },
+        }
+    }
+
+    #[inline]
+    pub fn descendant_for_point_range(self, start: TSPoint, end: TSPoint) -> Self {
+        unsafe { ts_node_descendant_for_point_range(self, start, end) }
+    }
+
+    #[inline]
+    pub fn named_descendant_for_point_range(self, start: TSPoint, end: TSPoint) -> Self {
+        unsafe { ts_node_named_descendant_for_point_range(self, start, end) }
+    }
+
+    #[inline]
+    pub fn parent(self) -> Self {
+        unsafe { ts_node_parent(self) }
+    }
+
+    #[inline]
+    pub fn child_with_descendant(self, descendant: Self) -> Self {
+        unsafe { ts_node_child_with_descendant(self, descendant) }
+    }
+
+    #[inline]
+    pub fn next_sibling(self) -> Self {
+        unsafe { ts_node_next_sibling(self) }
+    }
+
+    #[inline]
+    pub fn prev_sibling(self) -> Self {
+        unsafe { ts_node_prev_sibling(self) }
+    }
+
+    #[inline]
+    pub fn next_named_sibling(self) -> Self {
+        unsafe { ts_node_next_named_sibling(self) }
+    }
+
+    #[inline]
+    pub fn prev_named_sibling(self) -> Self {
+        unsafe { ts_node_prev_named_sibling(self) }
+    }
+
+    #[inline]
+    pub fn eq_node(self, other: Self) -> bool {
+        unsafe { ts_node_eq(self, other) }
+    }
+
+    #[inline]
+    pub fn id_ne_bytes(self) -> [u8; size_of::<*const c_void>()] {
+        (self.id as usize).to_ne_bytes()
+    }
+}
+
+impl TSQueryMatch {
+    #[inline]
+    pub fn captures_slice(&self) -> &[TSQueryCapture] {
+        let len = self.capture_count as usize;
+        if self.captures.is_null() || len == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.captures, len) }
+        }
+    }
+}
+
+#[inline]
+pub fn ts_query_create(
+    lang: *const TSLanguage,
+    src: &[u8],
+) -> Result<*mut TSQuery, (usize, TSQueryError)> {
+    let mut error_offset: u32 = 0;
+    let mut error_type: TSQueryError = 0;
+    let q = unsafe {
+        ts_query_new(
+            lang,
+            if src.is_empty() {
+                c"".as_ptr().cast()
+            } else {
+                src.as_ptr()
+            },
+            src.len() as u32,
+            &mut error_offset,
+            &mut error_type,
+        )
+    };
+    if q.is_null() {
+        Err((error_offset as usize, error_type))
+    } else {
+        Ok(q)
+    }
+}
+
+#[inline]
+pub fn ts_query_free(q: *mut TSQuery) {
+    unsafe {
+        ts_query_delete(q);
+    }
+}
+
+#[inline]
+pub fn ts_query_pattern_count_safe(q: *const TSQuery) -> u32 {
+    unsafe { ts_query_pattern_count(q) }
+}
+
+#[inline]
+pub fn ts_query_predicates_slice(
+    q: *const TSQuery,
+    pattern_index: u32,
+) -> &'static [TSQueryPredicateStep] {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_query_predicates_for_pattern(q, pattern_index, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, len as usize) }
+    }
+}
+
+#[inline]
+pub fn ts_query_string_bytes(q: *const TSQuery, id: u32) -> &'static [u8] {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_query_string_value_for_id(q, id, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, len as usize) }
+    }
+}
+
+#[inline]
+pub fn ts_query_capture_count_safe(q: *const TSQuery) -> u32 {
+    unsafe { ts_query_capture_count(q) }
+}
+
+#[inline]
+pub fn ts_query_capture_name_bytes(q: *const TSQuery, index: u32) -> &'static [u8] {
+    let mut len: u32 = 0;
+    let ptr = unsafe { ts_query_capture_name_for_id(q, index, &mut len) };
+    if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, len as usize) }
+    }
+}
+
+#[inline]
+pub fn ts_query_disable_capture_bytes(q: *mut TSQuery, name: &[u8]) {
+    unsafe {
+        ts_query_disable_capture(
+            q,
+            if name.is_empty() {
+                c"".as_ptr().cast()
+            } else {
+                name.as_ptr()
+            },
+            name.len() as u32,
+        );
+    }
+}
+
+#[inline]
+pub fn ts_query_disable_pattern_safe(q: *mut TSQuery, pattern_index: u32) {
+    unsafe {
+        ts_query_disable_pattern(q, pattern_index);
+    }
+}
+
+#[inline]
+pub fn ts_query_cursor_create() -> *mut TSQueryCursor {
+    unsafe { ts_query_cursor_new() }
+}
+
+#[inline]
+pub fn ts_query_cursor_free(c: *mut TSQueryCursor) {
+    unsafe {
+        ts_query_cursor_delete(c);
+    }
+}
+
+#[inline]
+pub fn ts_query_cursor_configure_and_exec(
+    c: *mut TSQueryCursor,
+    q: *const TSQuery,
+    node: TSNode,
+    start: TSPoint,
+    end: TSPoint,
+    max_start_depth: Option<u32>,
+    match_limit: Option<u32>,
+) {
+    unsafe {
+        ts_query_cursor_set_point_range(c, start, end);
+        if let Some(depth) = max_start_depth {
+            ts_query_cursor_set_max_start_depth(c, depth);
+        }
+        if let Some(limit) = match_limit {
+            ts_query_cursor_set_match_limit(c, limit);
+        }
+        ts_query_cursor_exec(c, q, node);
+    }
+}
+
+#[inline]
+pub fn ts_query_cursor_remove_match_safe(c: *mut TSQueryCursor, match_id: u32) {
+    unsafe {
+        ts_query_cursor_remove_match(c, match_id);
+    }
+}
+
+#[inline]
+pub fn ts_query_cursor_next_capture_safe(
+    c: *mut TSQueryCursor,
+) -> Option<(TSQueryMatch, TSQueryCapture)> {
+    let mut match_ = TSQueryMatch {
+        id: 0,
+        pattern_index: 0,
+        capture_count: 0,
+        captures: std::ptr::null(),
+    };
+    let mut capture_index: u32 = 0;
+    unsafe {
+        if !ts_query_cursor_next_capture(c, &mut match_, &mut capture_index) {
+            return None;
+        }
+        let capture = *match_.captures.wrapping_add(capture_index as usize);
+        Some((match_, capture))
+    }
+}
+
+#[inline]
+pub fn ts_query_cursor_next_match_safe(c: *mut TSQueryCursor) -> Option<TSQueryMatch> {
+    let mut match_ = TSQueryMatch {
+        id: 0,
+        pattern_index: 0,
+        capture_count: 0,
+        captures: std::ptr::null(),
+    };
+    unsafe { ts_query_cursor_next_match(c, &mut match_).then_some(match_) }
+}

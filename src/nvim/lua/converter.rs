@@ -178,6 +178,70 @@ pub fn lua_rawseti_safe(lstate: *mut lua_State, idx: i32, n: i32) {
 }
 
 #[inline]
+pub fn lua_rawgeti_safe(lstate: *mut lua_State, idx: i32, n: i32) {
+    unsafe { lua_rawgeti(lstate, idx, n) };
+}
+
+#[inline]
+pub fn lua_getfenv_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_getfenv(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_setfenv_safe(lstate: *mut lua_State, idx: i32) -> i32 {
+    unsafe { lua_setfenv(lstate, idx) }
+}
+
+#[inline]
+pub fn lua_tointeger_safe(lstate: *mut lua_State, idx: i32) -> lua_Integer {
+    unsafe { lua_tointeger(lstate, idx) }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checknumber_safe(lstate: *mut lua_State, numarg: i32) -> lua_Number {
+    unsafe { luaL_checknumber(lstate, numarg) }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_ref_safe(lstate: *mut lua_State, t: i32) -> i32 {
+    unsafe { luaL_ref(lstate, t) }
+}
+
+#[inline]
+pub fn lua_pushcclosure_safe(
+    lstate: *mut lua_State,
+    f: extern "C-unwind" fn(*mut lua_State) -> i32,
+    n: i32,
+) {
+    unsafe { lua_pushcclosure(lstate, Some(f), n) };
+}
+
+#[inline]
+pub fn lua_touserdata_typed<T>(lstate: *mut lua_State, idx: i32) -> &'static mut T {
+    unsafe { &mut *lua_touserdata(lstate, idx).cast::<T>() }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checkudata_opt_typed<T>(
+    lstate: *mut lua_State,
+    ud: i32,
+    tname: &CStr,
+) -> Option<&'static mut T> {
+    let ptr = luaL_checkudata(lstate, ud, tname).cast::<T>();
+    (!ptr.is_null()).then(|| unsafe { &mut *ptr })
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_str(lstate: *mut lua_State, msg: &str) -> i32 {
+    let cstr = std::ffi::CString::new(msg).unwrap_or_default();
+    luaL_error_cstr(lstate, &cstr)
+}
+
+#[inline]
 pub fn lua_setmetatable_safe(lstate: *mut lua_State, objindex: i32) -> i32 {
     unsafe { lua_setmetatable(lstate, objindex) }
 }

@@ -10,6 +10,5 @@ pub mod ffi;
 pub mod secure;
 pub mod spell;
 pub mod stdlib;
-#[allow(unsafe_code)]
 pub mod treesitter;
 pub mod xdiff;

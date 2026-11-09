@@ -9,6 +9,56 @@ pub struct UvLib {
     pub _opaque: [*mut c_void; 4],
 }
 
+pub enum DlLoadError {
+    OpenFailed(CString),
+    SymFailed(CString),
+    NullLanguage,
+}
+
+/// Load a Tree-sitter language parser from a shared library (`path`, `symbol`).
+pub fn os_dlopen_ts_language(
+    path: &CStr,
+    symbol: &CStr,
+) -> Result<*mut crate::lua::ffi::TSLanguage, DlLoadError> {
+    unsafe {
+        let mut lib = UvLib {
+            _opaque: [std::ptr::null_mut(); 4],
+        };
+        if uv_dlopen(path.as_ptr(), &mut lib) != 0 {
+            let dlerr = uv_dlerror(&lib);
+            let msg = if dlerr.is_null() {
+                CString::default()
+            } else {
+                CStr::from_ptr(dlerr).to_owned()
+            };
+            uv_dlclose(&mut lib);
+            return Err(DlLoadError::OpenFailed(msg));
+        }
+
+        let mut fn_ptr: *mut c_void = std::ptr::null_mut();
+        if uv_dlsym(&mut lib, symbol.as_ptr(), &mut fn_ptr) != 0 {
+            let dlerr = uv_dlerror(&lib);
+            let msg = if dlerr.is_null() {
+                CString::default()
+            } else {
+                CStr::from_ptr(dlerr).to_owned()
+            };
+            uv_dlclose(&mut lib);
+            return Err(DlLoadError::SymFailed(msg));
+        }
+
+        let lang_parser: unsafe extern "C" fn() -> *mut crate::lua::ffi::TSLanguage =
+            std::mem::transmute(fn_ptr);
+        let lang = lang_parser();
+        if lang.is_null() {
+            uv_dlclose(&mut lib);
+            return Err(DlLoadError::NullLanguage);
+        }
+
+        Ok(lang)
+    }
+}
+
 /// Call a function in a dynamically loadable library (`os_libcall`).
 pub fn os_libcall(
     libname: Option<&std::ffi::CStr>,
