@@ -7,9 +7,9 @@ use crate::api::private::dispatch::{
 };
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_bytes, arena_dict,
-    arena_string, boolean_obj, cbuf_to_arena_str, cstr_as_string, cstrn_as_string, dict_obj,
-    error_set, find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string,
-    string_obj, try_wrap, with_script_context,
+    arena_string, boolean_obj, cbuf_to_arena_str, cstr_as_string, dict_obj, error_set,
+    find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string, string_obj,
+    try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -36,7 +36,7 @@ use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, bytes_to_cstring};
+use crate::memory::{Arena, bytes_to_cstring};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -326,19 +326,21 @@ pub fn nvim_parse_cmd(
     } else {
         let mut end: usize = 0;
         let mut len: usize = 0;
-        let mut buf = arena_alloc(arena, length + 1, false);
-        let mut buf_rem = length + 1;
+        let mut buf_vec = vec![0u8; length + 1];
+        let mut buf_off = 0usize;
         let mut done = false;
         let arg_slice = ea.arg.slice(length);
         args = arena_array(arena, uc_nargs_upper_bound(arg_slice));
 
         while !done {
-            let buf_slice = crate::globals::GraphPtr::raw_slice_mut(buf.cast::<u8>(), buf_rem);
+            let buf_slice = &mut buf_vec[buf_off..];
             done = uc_split_args_iter(arg_slice, &mut end, buf_slice, &mut len);
             if len > 0 {
-                add_c(&mut args, string_obj(cstrn_as_string(&buf_slice[..len])));
-                buf = buf.wrapping_add(len + 1);
-                buf_rem = buf_rem.saturating_sub(len + 1);
+                add_c(
+                    &mut args,
+                    string_obj(cbuf_to_arena_str(arena, &buf_slice[..len])),
+                );
+                buf_off = (buf_off + len + 1).min(buf_vec.len());
             }
         }
     }

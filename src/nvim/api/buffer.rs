@@ -1751,9 +1751,7 @@ fn push_linestr(
         if !s.is_empty() {
             str_val = arena_bytes(arena, s);
             if replace_nl {
-                let slice =
-                    crate::globals::GraphPtr::raw_slice_mut(str_val.data.cast::<u8>(), s.len());
-                for b in slice {
+                for b in &mut str_val.as_bytes_with_nul_mut()[..s.len()] {
                     if *b == b'\n' {
                         *b = 0;
                     }

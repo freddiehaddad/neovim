@@ -213,7 +213,7 @@ impl PopupmenuState {
         if self.array.is_null() || self.size <= 0 {
             &[]
         } else {
-            crate::globals::GraphPtr::raw_slice(self.array.as_ptr(), self.size as usize)
+            self.array.ptr_slice(self.size as usize)
         }
     }
 

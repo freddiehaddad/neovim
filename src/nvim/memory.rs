@@ -480,8 +480,8 @@ pub fn arena_mem_free(mem: ArenaMem) {
 }
 
 fn arena_allocz_mut(arena: &mut Arena, size: usize) -> &'static mut [u8] {
-    let mem = arena_alloc(arena, size + 1, false).cast::<u8>();
-    let slice = crate::globals::GraphPtr::raw_slice_mut(mem, size + 1);
+    let mem = crate::globals::GraphPtr::new(arena_alloc(arena, size + 1, false).cast::<u8>());
+    let slice = mem.ptr_slice_mut(size + 1);
     slice[size] = 0;
     slice
 }
@@ -494,8 +494,8 @@ pub fn arena_allocz(arena: &mut Arena, size: usize) -> crate::globals::GraphPtr<
 /// Allocate `size + 1` mutable bytes on `arena` (or heap if `None`) and NUL-terminate.
 #[inline(always)]
 pub fn arena_allocz_opt_mut(arena: Option<&mut Arena>, size: usize) -> &'static mut [u8] {
-    let mem = arena_alloc_opt(arena, size + 1, false).cast::<u8>();
-    let slice = crate::globals::GraphPtr::raw_slice_mut(mem, size + 1);
+    let mem = crate::globals::GraphPtr::new(arena_alloc_opt(arena, size + 1, false).cast::<u8>());
+    let slice = mem.ptr_slice_mut(size + 1);
     slice[size] = 0;
     slice
 }
@@ -707,9 +707,7 @@ mod tests {
         let big = arena_alloc(&mut arena, 8192, true);
         assert!(!big.is_null());
         assert_eq!(
-            bytes_as_cstr(crate::globals::GraphPtr::raw_slice(s1.as_ptr(), 12))
-                .to_str()
-                .unwrap(),
+            bytes_as_cstr(s1.ptr_slice(12)).to_str().unwrap(),
             "hello arena"
         );
         let mem = arena_finish(&mut arena);

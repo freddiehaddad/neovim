@@ -285,7 +285,7 @@ pub fn os_getenvname_at_index(index: usize) -> Option<std::ffi::CString> {
                 break;
             }
             if i == index {
-                let slice = crate::globals::GraphPtr::raw_slice(p, l);
+                let slice = unsafe { std::slice::from_raw_parts(p, l) };
                 let Ok(utf8_str) = String::from_utf16(slice) else {
                     semsg!(c"utf16_to_utf8 failed: %d", 1);
                     break;

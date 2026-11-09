@@ -157,7 +157,9 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
     let arr = if ht.ht_array.is_empty() {
         &mut EMPTY_HASHARRAY.handle().borrow_mut()[..]
     } else {
-        crate::globals::GraphPtr::raw_slice_mut(ht.ht_array.as_ptr().cast_mut(), ht.ht_array.len())
+        crate::globals::GraphPtr::from_ref(&ht.ht_array)
+            .borrow_mut()
+            .as_mut_slice()
     };
 
     let mut idx = hash & ht.ht_mask;

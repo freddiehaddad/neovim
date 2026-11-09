@@ -727,10 +727,9 @@ pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Arra
         if crlf && end_byte == b'\r' && bytes.get(end_idx + 1).copied() == Some(b'\n') {
             i += 1;
         }
-        let s = arena_bytes(arena, &bytes[start..start + line_len]);
+        let mut s = arena_bytes(arena, &bytes[start..start + line_len]);
         if line_len > 0 {
-            let out_slice = crate::globals::GraphPtr::raw_slice_mut(s.data.cast::<u8>(), line_len);
-            for b in out_slice {
+            for b in &mut s.as_bytes_with_nul_mut()[..line_len] {
                 if *b == 0 {
                     *b = b'\n';
                 }

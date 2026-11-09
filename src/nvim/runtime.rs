@@ -776,8 +776,7 @@ pub fn do_in_path(
 fn runtime_search_path_get_cached() -> &'static mut [SearchPathItem] {
     runtime_search_path_validate();
     rt_st().runtime_search_path_refcount += 1;
-    let rsp = &mut rt_st().runtime_search_path;
-    crate::globals::GraphPtr::raw_slice_mut(rsp.as_mut_ptr(), rsp.len())
+    rt_st().borrow_mut().runtime_search_path.as_mut_slice()
 }
 
 fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {

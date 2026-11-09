@@ -67,7 +67,7 @@ impl NvimString {
         if self.is_empty() {
             c"".to_bytes()
         } else {
-            crate::globals::GraphPtr::raw_slice(self.data.as_ptr(), self.size)
+            self.data.ptr_slice(self.size)
         }
     }
 
@@ -82,7 +82,7 @@ impl NvimString {
         if self.data.is_null() {
             &mut []
         } else {
-            crate::globals::GraphPtr::raw_slice_mut(self.data.as_ptr(), self.size + 1)
+            self.data.ptr_slice_mut(self.size + 1)
         }
     }
 
@@ -133,7 +133,7 @@ impl NvimString {
                 len += 1;
             }
         }
-        let slice = crate::globals::GraphPtr::raw_slice(self.data.as_ptr(), len + 1);
+        let slice = self.data.ptr_slice(len + 1);
         Some(crate::memory::bytes_as_cstr(slice))
     }
 
@@ -260,7 +260,7 @@ impl Array {
         if self.size == 0 || self.items.is_null() {
             &[]
         } else {
-            crate::globals::GraphPtr::raw_slice(self.items.as_ptr(), self.size)
+            self.items.ptr_slice(self.size)
         }
     }
 
@@ -269,7 +269,7 @@ impl Array {
         if self.size == 0 || self.items.is_null() {
             &mut []
         } else {
-            crate::globals::GraphPtr::raw_slice_mut(self.items.as_ptr(), self.size)
+            self.items.ptr_slice_mut(self.size)
         }
     }
 
@@ -344,7 +344,7 @@ impl Dict {
         if self.size == 0 || self.items.is_null() {
             &[]
         } else {
-            crate::globals::GraphPtr::raw_slice(self.items.as_ptr(), self.size)
+            self.items.ptr_slice(self.size)
         }
     }
 
@@ -353,7 +353,7 @@ impl Dict {
         if self.size == 0 || self.items.is_null() {
             &mut []
         } else {
-            crate::globals::GraphPtr::raw_slice_mut(self.items.as_ptr(), self.size)
+            self.items.ptr_slice_mut(self.size)
         }
     }
 

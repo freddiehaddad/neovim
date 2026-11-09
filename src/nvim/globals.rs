@@ -1398,44 +1398,20 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
-    pub fn copy_to(src: impl AsGraphPtr<T>, dst: impl AsGraphPtr<T>, count: usize) {
-        if count > 0 {
-            unsafe {
-                ptr::copy(
-                    src.into_graph_ptr().as_ptr().cast_const(),
-                    dst.into_graph_ptr().as_ptr(),
-                    count,
-                );
-            }
-        }
-    }
-
-    #[inline(always)]
-    pub fn write_bytes(dst: impl AsGraphPtr<T>, val: u8, count: usize) {
-        if count > 0 {
-            unsafe {
-                ptr::write_bytes(dst.into_graph_ptr().as_ptr(), val, count);
-            }
-        }
-    }
-
-    #[inline(always)]
-    pub fn raw_slice<'a>(ptr: impl AsGraphPtr<T>, len: usize) -> &'a [T] {
-        let p = ptr.into_graph_ptr().as_ptr().cast_const();
-        if p.is_null() || len == 0 {
+    pub(crate) fn ptr_slice<'a>(self, len: usize) -> &'a [T] {
+        if self.0.is_null() || len == 0 {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(p, len) }
+            unsafe { std::slice::from_raw_parts(self.0.cast_const(), len) }
         }
     }
 
     #[inline(always)]
-    pub fn raw_slice_mut<'a>(ptr: impl AsGraphPtr<T>, len: usize) -> &'a mut [T] {
-        let p = ptr.into_graph_ptr().as_ptr();
-        if p.is_null() || len == 0 {
+    pub(crate) fn ptr_slice_mut<'a>(self, len: usize) -> &'a mut [T] {
+        if self.0.is_null() || len == 0 {
             &mut []
         } else {
-            unsafe { std::slice::from_raw_parts_mut(p, len) }
+            unsafe { std::slice::from_raw_parts_mut(self.0, len) }
         }
     }
 

@@ -2943,7 +2943,7 @@ pub fn os_is_reparse_point_include(path: &CStr) -> bool {
             if len >= 260 {
                 break;
             }
-            crate::globals::GraphPtr::copy_to(utf16_path, buf.as_mut_ptr(), len);
+            unsafe { ptr::copy_nonoverlapping(utf16_path, buf.as_mut_ptr(), len) };
             buf[len] = 0;
             let attr = unsafe { GetFileAttributesW(buf.as_ptr()) };
             if attr != 0xffff_ffff && (attr & 0x0400) != 0 {

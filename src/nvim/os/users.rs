@@ -184,7 +184,7 @@ fn collect_usernames() -> Vec<CString> {
                         len += 1;
                     }
                     if len > 0 {
-                        let slice = crate::globals::GraphPtr::raw_slice(name_ptr, len);
+                        let slice = unsafe { std::slice::from_raw_parts(name_ptr, len) };
                         if let Ok(s) = String::from_utf16(slice)
                             && let Ok(cstr) = CString::new(s)
                         {

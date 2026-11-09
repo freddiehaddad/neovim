@@ -935,14 +935,9 @@ fn out_data_decide_throttle(size: usize) -> bool {
 fn out_data_ring(output: Option<&[u8]>) {
     let Some(output) = output else {
         let len = sh_st().last_skipped_len;
-        let ring_ptr = (&raw const sh_st().last_skipped).cast::<u8>();
+        let ring_slice = &sh_st().borrow().last_skipped[..len];
         let mut count = len;
-        out_data_append_to_screen(
-            crate::globals::GraphPtr::raw_slice(ring_ptr, len),
-            &mut count,
-            STDOUT_FILENO,
-            true,
-        );
+        out_data_append_to_screen(ring_slice, &mut count, STDOUT_FILENO, true);
         return;
     };
 

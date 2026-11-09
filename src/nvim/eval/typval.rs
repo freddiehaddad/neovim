@@ -1194,7 +1194,7 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
     tv_list_set_lock_inline(Some(&mut *l), VAR_FIXED);
     l.lv_len = 10;
 
-    let items_slice = crate::globals::GraphPtr::raw_slice_mut(items, SL_SIZE);
+    let items_slice = &mut sl.sl_items;
     items_slice[0].li_prev = crate::globals::ListitemPtr::NULL;
     items_slice[0].li_next = crate::globals::ListitemPtr::new(items.wrapping_add(1));
     items_slice[SL_SIZE - 1].li_prev =

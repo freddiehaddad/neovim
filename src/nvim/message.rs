@@ -56,7 +56,7 @@ use crate::mbyte::{
     UTF8LEN_TAB, mb_string2cells_len, mb_unescape, utf_char2bytes, utf_char2cells, utf_ptr2cells,
     utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{Arena, arena_alloc};
+use crate::memory::Arena;
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -2319,8 +2319,7 @@ pub fn str2special_arena(
         len += s.to_bytes().len();
     }
 
-    let buf = arena_alloc(arena, len + 1, false).cast::<u8>();
-    let out = crate::globals::GraphPtr::raw_slice_mut(buf, len + 1);
+    let out = crate::memory::arena_allocz_opt_mut(Some(arena), len);
     let mut pos = 0usize;
     rem = str_bytes;
     while !rem.is_empty() {

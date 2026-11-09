@@ -114,7 +114,7 @@ impl CharBuf {
 
     #[inline]
     pub fn as_mut_slice(&self) -> &'static mut [u8] {
-        crate::globals::GraphPtr::raw_slice_mut(self.addr as *mut u8, self.size)
+        crate::globals::GraphPtr::new(self.addr as *mut u8).ptr_slice_mut(self.size)
     }
 
     #[inline]

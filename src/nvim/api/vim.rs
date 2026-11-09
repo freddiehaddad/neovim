@@ -84,7 +84,7 @@ use crate::mark::mark_get_global;
 use crate::math::xpopcount;
 use crate::mbyte::{mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_alloc};
+use crate::memory::Arena;
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
@@ -1810,21 +1810,15 @@ pub fn nvim_put(
             return;
         }
         let line = item.data.string();
-        let copied = copy_string(line, None);
-        reg.y_array.push(copied);
-        {
-            let _d = (copied.data).cast::<u8>();
-            let _sz = line.size;
-            if _sz > 0 {
-                let _c = (NUL) as u8;
-                let _x = (NL) as u8;
-                for _b in crate::globals::GraphPtr::raw_slice_mut(_d, _sz) {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
+        let mut copied = copy_string(line, None);
+        if line.size > 0 {
+            for b in &mut copied.as_bytes_with_nul_mut()[..line.size] {
+                if *b == NUL as u8 {
+                    *b = NL as u8;
                 }
             }
-        };
+        }
+        reg.y_array.push(copied);
     }
 
     finish_yankreg_from_object(&mut reg, false);
@@ -2558,12 +2552,14 @@ pub fn nvim_inspect_cell(
     }
     ret = arena_array(arena, 3);
     let off = g.line_offset[row as usize] + (col as usize);
-    let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
-    let sc_slice = crate::globals::GraphPtr::raw_slice_mut(sc_buf, MAX_SCHAR_SIZE);
-    schar_get(sc_slice, g.chars[off]);
+    let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
+    let sc_len = schar_get(&mut sc_buf, g.chars[off]);
     add_c(
         &mut ret,
-        cstr_as_obj(Some(crate::memory::bytes_as_cstr(sc_slice))),
+        string_obj(crate::api::private::helpers::arena_bytes(
+            arena,
+            &sc_buf[..sc_len],
+        )),
     );
     let attr = g.attrs[off];
     add_c(
@@ -2866,8 +2862,8 @@ pub fn nvim_eval_statusline(
         };
 
     result = arena_dict(arena, 3);
-    let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
-    let buf = CharBuf::from_slice(crate::globals::GraphPtr::raw_slice_mut(buf_data, MAXPATHL));
+    let mut buf_vec = [0u8; MAXPATHL];
+    let buf = CharBuf::from_slice(&mut buf_vec);
     let mut hltab = crate::globals::GraphPtr::<StlHlrec>::NULL.as_ptr();
     let mut hltab_len: usize = 0;
 
@@ -2961,11 +2957,13 @@ pub fn nvim_eval_statusline(
         }
         put_c(&mut result, c"highlights", array_obj(hl_values));
     }
-    let buf_slice = crate::globals::GraphPtr::raw_slice(buf_data, MAXPATHL);
     put_c(
         &mut result,
         c"str",
-        cstr_as_obj(Some(crate::memory::bytes_as_cstr(buf_slice))),
+        string_obj(crate::api::private::helpers::arena_bytes(
+            arena,
+            crate::memory::bytes_until_nul(&buf_vec),
+        )),
     );
 
     result

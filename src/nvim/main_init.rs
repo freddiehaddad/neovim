@@ -1734,14 +1734,7 @@ fn set_argf_var() {
     let count = gargcount();
     for i in 0..count {
         if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
-            let _ = vim_full_name(
-                Some(fname),
-                crate::globals::GraphPtr::raw_slice_mut(
-                    g_st().name_buff.as_mut_ptr().cast(),
-                    MAXPATHL,
-                ),
-                false,
-            );
+            let _ = vim_full_name(Some(fname), g_st().name_buff_bytes_mut(), false);
             tv_list_append_string(&mut *list, Some(g_st().name_buff_cstr()), -1);
         }
     }

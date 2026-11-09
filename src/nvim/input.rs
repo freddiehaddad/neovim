@@ -1821,10 +1821,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             temp[i + 2] = k_third(ni);
             i += 3;
         } else {
-            i += utf_char2bytes(
-                ni,
-                crate::globals::GraphPtr::raw_slice_mut(temp[i..].as_mut_ptr().cast(), 6),
-            ) as usize;
+            i += utf_char2bytes(ni, &mut temp[i..]) as usize;
         }
         assert!(i < 10);
         crate::eval::typval::tv_set_bytes(&mut *rettv, &temp[..i]);
