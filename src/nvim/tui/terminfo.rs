@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
 use crate::charset::kv_transstr;
@@ -2646,7 +2648,7 @@ pub fn terminfo_is_bsd_console(term: Option<&[u8]>) -> bool {
         target_os = "openbsd",
         target_os = "dragonfly"
     ))]
-    unsafe {
+    {
         if term == Some(b"vt220") || term == Some(b"vt100") {
             return true;
         }

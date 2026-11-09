@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! Expression evaluation (`src/nvim/eval.c`).
 
 use crate::api::private::helpers::{
@@ -3653,73 +3655,58 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
 
 /// Evaluate a string constant and put the result in "rettv".
 fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
-    let arg_start = arg.as_ptr().cast::<u8>();
-    let arg_end = arg_start.wrapping_add(arg.to_bytes().len());
+    let arg_bytes = arg.to_bytes();
     let mut extra: isize = if interpolate { 1 } else { 0 };
     let off: usize = if interpolate { 0 } else { 1 };
 
-    let mut p = arg_start.wrapping_add(off);
-    while *crate::globals::GraphPtr::of(p).borrow() != 0
-        && *crate::globals::GraphPtr::of(p).borrow() != b'"'
-    {
-        if *crate::globals::GraphPtr::of(p).borrow() == b'\\'
-            && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != 0
-        {
-            p = p.wrapping_add(1);
-            if *crate::globals::GraphPtr::of(p).borrow() == b'<' {
+    let mut idx = off.min(arg_bytes.len());
+    while idx < arg_bytes.len() && arg_bytes[idx] != b'"' {
+        if arg_bytes[idx] == b'\\' && idx + 1 < arg_bytes.len() {
+            idx += 1;
+            if arg_bytes[idx] == b'<' {
                 let mut modifiers: i32 = 0;
                 let mut flags = FSK_KEYCODE | FSK_IN_STRING;
 
                 extra += 5;
 
-                if *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'*' {
+                if arg_bytes.get(idx + 1) != Some(&b'*') {
                     flags |= FSK_SIMPLIFY;
                 }
-                let rem_len = (arg_end as usize).wrapping_sub(p as usize);
-                let mut p_slice = crate::globals::GraphPtr::raw_slice(p, rem_len);
+                let mut p_slice = &arg_bytes[idx..];
+                let rem_len = p_slice.len();
                 if find_special_key(&mut p_slice, &mut modifiers, flags, None) != 0 {
-                    p = p.wrapping_add(rem_len - p_slice.len()).wrapping_sub(1);
+                    idx = (idx + (rem_len - p_slice.len())).saturating_sub(1);
                 }
             }
-        } else if interpolate
-            && (*crate::globals::GraphPtr::of(p).borrow() == b'{'
-                || *crate::globals::GraphPtr::of(p).borrow() == b'}')
-        {
-            if *crate::globals::GraphPtr::of(p).borrow() == b'{'
-                && *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'{'
-            {
+        } else if interpolate && (arg_bytes[idx] == b'{' || arg_bytes[idx] == b'}') {
+            if arg_bytes[idx] == b'{' && arg_bytes.get(idx + 1) != Some(&b'{') {
                 break;
             }
-            p = p.wrapping_add(1);
-            if *crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow() == b'}'
-                && *crate::globals::GraphPtr::of(p).borrow() != b'}'
-            {
+            idx += 1;
+            if arg_bytes[idx - 1] == b'}' && arg_bytes.get(idx) != Some(&b'}') {
                 semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                 return false;
             }
             extra -= 1;
         }
-        p = p.wrapping_add(utfc_ptr2len(unsafe { CStr::from_ptr(p.cast()) }) as usize);
+        idx += utfc_ptr2len(&arg[idx.min(arg_bytes.len())..]) as usize;
     }
 
-    if *crate::globals::GraphPtr::of(p).borrow() != b'"'
-        && !(interpolate && *crate::globals::GraphPtr::of(p).borrow() == b'{')
-    {
+    let cur_b = arg_bytes.get(idx).copied().unwrap_or(0);
+    if cur_b != b'"' && !(interpolate && cur_b == b'{') {
         semsg!(gettext(c"E114: Missing quote: %s"), *arg);
         return false;
     }
 
     if !evaluate {
-        let end_off = ((p as usize) - (arg_start as usize) + off).min(arg.to_bytes().len());
+        let end_off = (idx + off).min(arg_bytes.len());
         *arg = &arg[end_off..];
         return true;
     }
 
-    let len = ((p as isize) - (arg_start as isize) + extra) as usize;
+    let len = ((idx as isize) + extra) as usize;
     let mut buf_vec = Vec::with_capacity(len);
-    let start_ptr = arg_start.wrapping_add(off);
-    let mut rem =
-        crate::globals::GraphPtr::raw_slice(start_ptr, (arg_end as usize) - (start_ptr as usize));
+    let mut rem = &arg_bytes[off.min(arg_bytes.len())..];
 
     while !rem.is_empty() && rem[0] != b'"' {
         if rem[0] == b'\\' {
@@ -3831,53 +3818,52 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
 
 /// Allocate a variable for a 'str''ing' constant.
 fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
-    let arg_start = arg.as_ptr().cast::<u8>();
+    let arg_bytes = arg.to_bytes();
     let mut reduce: isize = if interpolate { -1 } else { 0 };
     let off: usize = if interpolate { 0 } else { 1 };
 
-    let mut p = arg_start.wrapping_add(off);
-    while *crate::globals::GraphPtr::of(p).borrow() != 0 {
-        if *crate::globals::GraphPtr::of(p).borrow() == b'\'' {
-            if *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'\'' {
+    let mut idx = off.min(arg_bytes.len());
+    while idx < arg_bytes.len() {
+        if arg_bytes[idx] == b'\'' {
+            if arg_bytes.get(idx + 1) != Some(&b'\'') {
                 break;
             }
             reduce += 1;
-            p = p.wrapping_add(1);
+            idx += 1;
         } else if interpolate {
-            if *crate::globals::GraphPtr::of(p).borrow() == b'{' {
-                if *crate::globals::GraphPtr::of(p.wrapping_add(1)).borrow() != b'{' {
+            if arg_bytes[idx] == b'{' {
+                if arg_bytes.get(idx + 1) != Some(&b'{') {
                     break;
                 }
-                p = p.wrapping_add(1);
+                idx += 1;
                 reduce += 1;
-            } else if *crate::globals::GraphPtr::of(p).borrow() == b'}' {
-                p = p.wrapping_add(1);
-                if *crate::globals::GraphPtr::of(p).borrow() != b'}' {
+            } else if arg_bytes[idx] == b'}' {
+                idx += 1;
+                if arg_bytes.get(idx) != Some(&b'}') {
                     semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;
                 }
                 reduce += 1;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(unsafe { CStr::from_ptr(p.cast()) }) as usize);
+        idx += utfc_ptr2len(&arg[idx.min(arg_bytes.len())..]) as usize;
     }
 
-    if *crate::globals::GraphPtr::of(p).borrow() != b'\''
-        && !(interpolate && *crate::globals::GraphPtr::of(p).borrow() == b'{')
-    {
+    let cur_b = arg_bytes.get(idx).copied().unwrap_or(0);
+    if cur_b != b'\'' && !(interpolate && cur_b == b'{') {
         semsg!(gettext(c"E115: Missing quote: %s"), *arg);
         return false;
     }
 
-    let end_off = ((p as usize) - (arg_start as usize) + off).min(arg.to_bytes().len());
+    let end_off = (idx + off).min(arg_bytes.len());
     if !evaluate {
         *arg = &arg[end_off..];
         return true;
     }
 
-    let alloc_len = ((p as isize) - (arg_start as isize) - reduce) as usize;
+    let alloc_len = ((idx as isize) - reduce) as usize;
     let mut buf_vec = Vec::with_capacity(alloc_len);
-    let mut rem = &arg.to_bytes()[off.min(arg.to_bytes().len())..];
+    let mut rem = &arg_bytes[off.min(arg_bytes.len())..];
 
     while !rem.is_empty() {
         if rem[0] == b'\'' {

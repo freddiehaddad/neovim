@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Functions for entering and editing an Ex command line (`src/nvim/ex_getln.c`).
 
 use crate::api::extmark::nvim_create_namespace;
@@ -2310,41 +2312,27 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
     command_line_next_histidx(s, next_match);
 
     if s.hiscnt != s.save_hiscnt {
-        let p;
-        let plen: i32;
         let old_firstc: i32;
-        let mut sep: u8 = 0;
 
         dealloc_cmdbuff();
 
-        let lookfor_ptr = crate::globals::GraphPtr::<u8>::of(
-            s.lookfor
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
-        )
-        .as_ptr();
         s.xpc.xp_context = EXPAND_NOTHING;
-        if s.hiscnt == get_hislen() {
-            p = lookfor_ptr;
-            plen = s.lookforlen;
+        let (p_cstr, plen, is_lookfor, sep) = if s.hiscnt == get_hislen() {
+            (s.lookfor.as_deref().unwrap_or(c""), s.lookforlen, true, 0u8)
         } else {
             let entry = &get_histentry(s.histype)[s.hiscnt as usize];
-            p = entry
-                .hisstr_cstr()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-            plen = entry.hisstrlen() as i32;
-            sep = entry.sep;
-        }
+            (
+                entry.hisstr_cstr().unwrap_or(c""),
+                entry.hisstrlen() as i32,
+                false,
+                entry.sep,
+            )
+        };
 
-        if s.histype == HIST_SEARCH && p != lookfor_ptr && {
+        if s.histype == HIST_SEARCH && !is_lookfor && {
             old_firstc = sep as i32;
             old_firstc != s.firstc
         } {
-            let p_cstr = if p.is_null() {
-                c""
-            } else {
-                unsafe { CStr::from_ptr(p.cast()) }
-            };
             let mut len: i32 = 0;
             for i in 0..=1 {
                 len = 0;
@@ -2377,11 +2365,7 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
             getln_st().ccline.cmdpos = len;
         } else {
             alloc_cmdbuff(plen);
-            let p_bytes = if p.is_null() {
-                c"".to_bytes_with_nul()
-            } else {
-                unsafe { CStr::from_ptr(p.cast()) }.to_bytes_with_nul()
-            };
+            let p_bytes = p_cstr.to_bytes_with_nul();
             getln_st().ccline.cmdbuff_vec[..p_bytes.len()].copy_from_slice(p_bytes);
             getln_st().ccline.cmdlen = plen;
             getln_st().ccline.cmdpos = plen;

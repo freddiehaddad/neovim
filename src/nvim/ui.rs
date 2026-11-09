@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! UI subsystem (`src/nvim/ui.c`).
 
 use crate::api::extmark::describe_ns;
@@ -26,7 +28,6 @@ use crate::buffer::resettitle;
 use crate::context::{CONTEXT_INIT, K_CTX_COUNT, ctx_free, ctx_load, ctx_save};
 use crate::cursor_shape::{cursor_get_mode_idx, mode_style_array, shape_table_mut};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
-use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
 use crate::ex_getln::cmdline_ui_flush;
 use crate::globals::*;
@@ -43,6 +44,7 @@ use crate::message::{
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::option::{K_OPT_CMDHEIGHT, set_option_value, ui_refresh_options};
 use crate::option_vars::*;
+use crate::os::fs::os_cwd;
 use crate::os::time::{os_hrtime, os_sleep};
 use crate::strings::gettext;
 use crate::ui_compositor::{
@@ -420,9 +422,8 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
     resettitle();
 
     let mut cwd: [u8; MAXPATHL] = [0; MAXPATHL];
-    let mut cwdlen = MAXPATHL;
-    if unsafe { uv_cwd(cwd.as_mut_ptr().cast(), &mut cwdlen) } == 0 {
-        ui_call_chdir(NvimString::from_bytes(&cwd[..cwdlen]));
+    if let Some(cwd_bytes) = os_cwd(&mut cwd) {
+        ui_call_chdir(NvimString::from_bytes(cwd_bytes));
     }
 
     for i in K_UIGLOBAL_COUNT..K_UIEXT_COUNT {
@@ -1062,6 +1063,7 @@ pub fn ui_call_suspend() {
     ui_call_loop!(true, c"suspend", |ui| remote_ui_suspend(ui));
 }
 
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn ui_call_set_title(title: NvimString) {
     ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
@@ -1081,6 +1083,7 @@ pub fn ui_call_option_set(name: NvimString, value: Object) {
     });
 }
 
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn ui_call_chdir(path: NvimString) {
     ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));

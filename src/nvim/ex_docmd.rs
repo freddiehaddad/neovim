@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Functions for executing an Ex command line (`src/nvim/ex_docmd.c`).
 
 use crate::api::command::is_user_cmdidx;
@@ -4989,13 +4991,10 @@ pub fn do_cmdline_cmd(cmd: &CStr) -> bool {
 
 /// do_cmdline(): execute one Ex command line
 pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> bool {
-    let cmdline = cmdline.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     static RECURSIVE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
     {
-        let mut next_cmdline: RawCCharPtrMut;
         let mut cmdline_buf: Vec<u8> = Vec::new();
-        let mut cmdline_copy: RawCCharPtrMut = ptr::null_mut();
         let mut used_getline = false;
         let mut msg_didout_before_start = false;
         let mut count: i32 = 0;
@@ -5004,7 +5003,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut retval = true;
         let mut cstack = Cstack::default();
         let mut current_line: i32 = 0;
-        let mut fname: RawCCharPtrMut = ptr::null_mut();
+        let mut fname_opt: Option<&CStr> = None;
         let mut breakpoint = crate::globals::GraphPtr::<Linenr>::NULL.as_ptr();
         let mut dbg_tick = crate::globals::GraphPtr::<i32>::NULL.as_ptr();
         let mut debug_saved = DbgStuff::new();
@@ -5025,11 +5024,11 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             if g_st().ex_nesting_level == func_level(fcp) {
                 g_st().ex_nesting_level += 1;
             }
-            fname = func_name(fcp).as_ptr().cast_mut();
+            fname_opt = Some(func_name(fcp));
             breakpoint = func_breakpoint(fcp);
             dbg_tick = func_dbg_tick(fcp);
         } else if let Some(sp) = fgetline.as_source() {
-            fname = sourcing_name().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            fname_opt = sourcing_name();
             breakpoint = source_breakpoint(sp);
             dbg_tick = source_dbg_tick(sp);
         }
@@ -5052,9 +5051,10 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             g_st().key_typed = false;
         }
 
-        next_cmdline = cmdline;
+        let mut next_cmdline = cmdline;
+        let mut has_cmdline_copy = false;
         loop {
-            if next_cmdline.is_null()
+            if next_cmdline.is_none()
                 && !g_st().force_abort
                 && cstack.cs_idx < 0
                 && !fgetline
@@ -5066,7 +5066,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
 
             if cstack.cs_looplevel > 0 && (current_line as usize) < cmd_loop_cookie.lines.len() {
                 cmdline_buf.clear();
-                cmdline_copy = ptr::null_mut();
+                has_cmdline_copy = false;
 
                 if let Some(fcp) = fgetline.as_func() {
                     if g_st().do_profiling == PROF_YES {
@@ -5085,7 +5085,6 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     break;
                 }
 
-                let fname_opt = (!fname.is_null()).then(|| unsafe { CStr::from_ptr(fname) });
                 let fname_cstr = fname_opt.unwrap_or(c"");
                 if !breakpoint.is_null()
                     && !dbg_tick.is_null()
@@ -5097,7 +5096,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 }
 
                 let wp = &cmd_loop_cookie.lines[current_line as usize];
-                next_cmdline = wp.line.as_ptr().cast_mut();
+                next_cmdline = Some(wp.line.as_c_str());
                 *sourcing_lnum_ptr() = wp.lnum;
 
                 if !breakpoint.is_null()
@@ -5118,7 +5117,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 }
             }
 
-            if next_cmdline.is_null() {
+            if next_cmdline.is_none() {
                 let indent = if cstack.cs_idx < 0 {
                     0
                 } else {
@@ -5156,7 +5155,6 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                 let bytes = next_cstr.as_bytes_with_nul();
                 cmdline_buf.clear();
                 cmdline_buf.extend_from_slice(bytes);
-                next_cmdline = cmdline_buf.as_mut_ptr().cast();
                 used_getline = true;
 
                 if ui_has(K_UICMDLINE) && count > 0 && fgetline.is_exline() {
@@ -5173,16 +5171,12 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                         g_st().repeat_cmdline = None;
                     }
                 }
-            } else if cmdline_copy.is_null() {
-                cmdline_buf = unsafe { CStr::from_ptr(next_cmdline) }
-                    .to_bytes_with_nul()
-                    .to_vec();
-                next_cmdline = cmdline_buf.as_mut_ptr().cast();
+            } else if !has_cmdline_copy {
+                cmdline_buf = next_cmdline.unwrap_or(c"").to_bytes_with_nul().to_vec();
             }
-            cmdline_copy = next_cmdline;
 
             let mut current_line_before: i32 = 0;
-            let next_cmdline_cstr = unsafe { CStr::from_ptr(next_cmdline) };
+            let next_cmdline_cstr = crate::memory::bytes_as_cstr(&cmdline_buf);
             let using_loop_cookie =
                 cstack.cs_looplevel > 0 || has_loop_cmd(next_cmdline_cstr.to_bytes());
             if using_loop_cookie {
@@ -5220,9 +5214,10 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             if (opt_vars().p_verbose >= 15 && sourcing_name().is_some())
                 || opt_vars().p_verbose >= 16
             {
-                msg_verbose_cmd(*sourcing_lnum_ptr(), unsafe {
-                    CStr::from_ptr(cmdline_copy)
-                });
+                msg_verbose_cmd(
+                    *sourcing_lnum_ptr(),
+                    crate::memory::bytes_as_cstr(&cmdline_buf),
+                );
             }
 
             RECURSIVE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -5234,9 +5229,9 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             }
 
             if !has_next {
-                next_cmdline = ptr::null_mut();
+                next_cmdline = None;
                 cmdline_buf.clear();
-                cmdline_copy = ptr::null_mut();
+                has_cmdline_copy = false;
 
                 if fgetline.is_exline()
                     && let Some(new_cmd) = g_st().new_last_cmdline.take()
@@ -5244,8 +5239,8 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     g_st().last_cmdline = Some(new_cmd);
                 }
             } else {
-                cmdline_copy = cmdline_buf.as_mut_ptr().cast();
-                next_cmdline = cmdline_copy;
+                has_cmdline_copy = true;
+                next_cmdline = Some(c"");
             }
 
             if g_st().did_emsg != 0
@@ -5279,11 +5274,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                             && cmd_loop_cookie.lines.len() > current_line as usize
                         {
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
-                            let fname_cstr = if fname.is_null() {
-                                c""
-                            } else {
-                                unsafe { CStr::from_ptr(fname) }
-                            };
+                            let fname_cstr = fname_opt.unwrap_or(c"");
                             *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
                                 dbg_find_breakpoint(fgetline.is_source(), fname_cstr, wp.lnum - 1);
                             *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() =
@@ -5348,7 +5339,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     && (cstack.cs_trylevel == 0 || g_st().did_emsg_syntax)
                     && used_getline
                     && fgetline.is_exline())
-                && (!next_cmdline.is_null() || cstack.cs_idx >= 0 || (flags & DOCMD_REPEAT) != 0);
+                && (next_cmdline.is_some() || cstack.cs_idx >= 0 || (flags & DOCMD_REPEAT) != 0);
             if !keep_going {
                 break;
             }
@@ -12022,7 +12013,7 @@ pub fn eval_vars(
     mut escaped: Option<&mut bool>,
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
-    let mut result: RawCCharPtrMut = c"".as_ptr().cast_mut();
+    let mut result: RawCCharPtrMut;
     let mut resultbuf: Option<Vec<u8>> = None;
     let mut resultlen: usize;
     let mut valid = VALID_HEAD | VALID_PATH;
@@ -12071,26 +12062,23 @@ pub fn eval_vars(
         result = ident.as_ptr().cast_mut().cast();
         resultlen = ident.len();
     } else {
+        let mut result_cstr: Option<&CStr> = None;
         match spec_idx {
             SPEC_PERC => {
                 if let Some(f) = curbuf_mut().fname_opt() {
-                    result = f.as_ptr().cast_mut();
+                    result_cstr = Some(f);
                     tilde_file = f.to_bytes() == b"~";
                 } else {
-                    result = c"".as_ptr().cast_mut();
+                    result_cstr = Some(c"");
                     valid = 0;
                 }
                 use_shellslash = true;
             }
             SPEC_HASH => {
-                let src_bytes = if src.is_null() {
-                    &[][..]
-                } else {
-                    unsafe { CStr::from_ptr(src) }.to_bytes()
-                };
+                let src_bytes = crate::memory::bytes_until_nul(&src_buf[src_off..]);
                 if src_bytes.get(1) == Some(&b'#') {
                     arg_all_cstr = Some(arg_all());
-                    result = arg_all_cstr.as_ref().unwrap().as_ptr().cast_mut();
+                    result_cstr = arg_all_cstr.as_deref();
                     *usedlen = 2;
                     if let Some(escaped) = escaped {
                         *escaped = true;
@@ -12118,7 +12106,7 @@ pub fn eval_vars(
                             *errormsg = Some(c"");
                             return None;
                         };
-                        result = oldfile.as_ptr().cast_mut();
+                        result_cstr = Some(oldfile);
                     } else {
                         if i == 0 && is_lt && *usedlen > 1 {
                             *usedlen = 1;
@@ -12133,10 +12121,10 @@ pub fn eval_vars(
                             *lnump = ECMD_LAST;
                         }
                         if let Some(f) = buf.fname_opt() {
-                            result = f.as_ptr().cast_mut();
+                            result_cstr = Some(f);
                             tilde_file = f.to_bytes() == b"~";
                         } else {
-                            result = c"".as_ptr().cast_mut();
+                            result_cstr = Some(c"");
                             valid = 0;
                         }
                     }
@@ -12147,9 +12135,8 @@ pub fn eval_vars(
                     *errormsg = Some(c"");
                     return None;
                 };
-                let mut v: Vec<u8> = cfile.into_bytes_with_nul();
-                result = v.as_mut_ptr().cast();
-                resultbuf = Some(v);
+                resultbuf = Some(cfile.into_bytes_with_nul());
+                result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_AFILE => {
                 use_shellslash = !g_st().autocmd_fname_full;
@@ -12161,16 +12148,11 @@ pub fn eval_vars(
                         g_st().autocmd_fname = Some(full);
                     }
                 }
-                result = g_st()
-                    .autocmd_fname
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                if result.is_null() {
+                let Some(ref af) = g_st().borrow_mut().autocmd_fname else {
                     *errormsg = Some(gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE));
                     return None;
-                }
-                result = path_try_shorten_fname(Some(unsafe { CStr::from_ptr(result) }))
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                };
+                result_cstr = path_try_shorten_fname(Some(af));
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr <= 0 {
@@ -12180,19 +12162,16 @@ pub fn eval_vars(
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"%d", g_st().autocmd_bufnr);
-                result = strbuf.as_mut_ptr().cast();
+                result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_AMATCH => {
-                result = g_st()
-                    .autocmd_match
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                if result.is_null() {
+                let Some(ref am) = g_st().borrow_mut().autocmd_match else {
                     *errormsg = Some(gettext(
                         E_NO_AUTOCOMMAND_MATCH_NAME_TO_SUBSTITUTE_FOR_AMATCH,
                     ));
                     return None;
-                }
+                };
+                result_cstr = Some(am);
             }
             SPEC_SFILE => {
                 use_shellslash = true;
@@ -12200,9 +12179,8 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_SOURCE_FILE_NAME_TO_SUBSTITUTE_FOR_SFILE));
                     return None;
                 };
-                let mut v: Vec<u8> = sfile.into_bytes_with_nul();
-                result = v.as_mut_ptr().cast();
-                resultbuf = Some(v);
+                resultbuf = Some(sfile.into_bytes_with_nul());
+                result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_STACK => {
                 use_shellslash = true;
@@ -12210,9 +12188,8 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_CALL_STACK_TO_SUBSTITUTE_FOR_STACK));
                     return None;
                 };
-                let mut v: Vec<u8> = stack.into_bytes_with_nul();
-                result = v.as_mut_ptr().cast();
-                resultbuf = Some(v);
+                resultbuf = Some(stack.into_bytes_with_nul());
+                result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_SCRIPT => {
                 use_shellslash = true;
@@ -12220,9 +12197,8 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_SCRIPT_FILE_NAME_TO_SUBSTITUTE_FOR_SCRIPT));
                     return None;
                 };
-                let mut v: Vec<u8> = script.into_bytes_with_nul();
-                result = v.as_mut_ptr().cast();
-                resultbuf = Some(v);
+                resultbuf = Some(script.into_bytes_with_nul());
+                result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_SLNUM => {
                 if sourcing_name().is_none() || *sourcing_lnum_ptr() == 0 {
@@ -12230,7 +12206,7 @@ pub fn eval_vars(
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"%d", *sourcing_lnum_ptr());
-                result = strbuf.as_mut_ptr().cast();
+                result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_SFLNUM => {
                 let sflnum = g_st().current_sctx.sc_lnum + *sourcing_lnum_ptr();
@@ -12239,7 +12215,7 @@ pub fn eval_vars(
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"%d", sflnum);
-                result = strbuf.as_mut_ptr().cast();
+                result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_SID => {
                 if g_st().current_sctx.sc_sid <= 0 {
@@ -12247,18 +12223,18 @@ pub fn eval_vars(
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.sc_sid);
-                result = strbuf.as_mut_ptr().cast();
+                result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             _ => {
                 *errormsg = Some(c"");
             }
         }
 
-        let result_cstr = if result.is_null() {
-            c""
-        } else {
-            unsafe { CStr::from_ptr(result) }
+        let (result_cstr, result_from_buf) = match resultbuf.as_deref() {
+            Some(buf) => (crate::memory::bytes_as_cstr(buf), true),
+            None => (result_cstr.unwrap_or(c""), false),
         };
+        result = result_cstr.as_ptr().cast_mut();
         resultlen = result_cstr.to_bytes().len();
         if *crate::globals::GraphPtr::of(src.wrapping_add(*usedlen)).borrow() as u8 == b'<' {
             *usedlen += 1;
@@ -12272,16 +12248,13 @@ pub fn eval_vars(
                 resultlen = dot_off;
             }
         } else if !skip_mod {
-            let mut fbuf = match resultbuf.take() {
-                Some(v) => v,
-                None => result_cstr.to_bytes_with_nul().to_vec(),
+            let mut fbuf = if result_from_buf {
+                resultbuf.take().unwrap()
+            } else {
+                result_cstr.to_bytes_with_nul().to_vec()
             };
             let mut fname_off = 0usize;
-            let src_bytes = if src.is_null() {
-                &[][..]
-            } else {
-                unsafe { CStr::from_ptr(src) }.to_bytes()
-            };
+            let src_bytes = crate::memory::bytes_until_nul(&src_buf[src_off..]);
             let mod_res = modify_fname(
                 src_bytes,
                 tilde_file,

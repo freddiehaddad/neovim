@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Implementation of various operators: `op_shift`, `op_delete`, `op_tilde`,
 //! `op_change`, `op_yank`, `do_join` (`src/nvim/ops.c`).
 
@@ -83,7 +85,6 @@ use crate::strings::{format_to_buf, ngettext, tr};
 use crate::textformat::{Oparg, auto_format, has_format_option, op_format, op_formatexpr};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
-use std::ptr;
 
 use crate::arglist::ML_EMPTY;
 use crate::diff::K_OPT_BO_FLAG_OPERATOR;
@@ -310,11 +311,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
     fold_open_cursor();
 
     if i64::from(oap.line_count) > opt_vars().p_report {
-        let op = if oap.op_type == OP_RSHIFT {
-            c">".as_ptr()
-        } else {
-            c"<".as_ptr()
-        };
+        let op = if oap.op_type == OP_RSHIFT { c">" } else { c"<" };
 
         let msg_line_single = ngettext(
             c"%lld line %sed %d time",
@@ -330,7 +327,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             &mut g_st().iobuff,
             ngettext(msg_line_single, msg_line_plural, oap.line_count as u64),
             i64::from(oap.line_count),
-            unsafe { std::ffi::CStr::from_ptr(op) },
+            op,
             amount,
         );
         msg_keep(
@@ -2174,8 +2171,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     bdp.start_char_vcols = 0;
 
     let line_cstr = ml_get(lnum);
-    let line = line_cstr.as_ptr().cast_mut();
-    let mut prev_pstart = line;
+    let mut prev_pstart_off = 0usize;
 
     let mut csarg = CharsizeArg::new();
     let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line_cstr);
@@ -2192,11 +2188,11 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             bdp.pre_whitesp = 0;
             bdp.pre_whitesp_c = 0;
         }
-        prev_pstart = ci.ptr.as_ptr().cast_mut().cast();
+        prev_pstart_off = ci.offset_from(line_cstr);
         ci = cli.next;
     }
     bdp.start_vcol = vcol;
-    let mut pstart = ci.ptr.as_ptr().cast_mut().cast::<std::ffi::c_char>();
+    let mut pstart_off = ci.offset_from(line_cstr);
 
     bdp.start_char_vcols = incr;
     if bdp.start_vcol < oap.start_vcol {
@@ -2210,7 +2206,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
         if is_del && bdp.startspaces != 0 {
             bdp.startspaces = bdp.start_char_vcols - bdp.startspaces;
         }
-        let mut pend = pstart.cast_const();
+        let mut pend_off = pstart_off;
         bdp.end_vcol = bdp.start_vcol;
         if bdp.end_vcol > oap.end_vcol {
             bdp.is_one_char = true;
@@ -2228,11 +2224,11 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             }
         } else {
             cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line_cstr);
-            ci = utf_ptr2_str_char_info(unsafe { std::ffi::CStr::from_ptr(pend) });
+            ci = utf_ptr2_str_char_info(&line_cstr[pend_off..]);
             vcol = bdp.end_vcol;
-            let mut prev_pend = pend;
+            let mut prev_pend_off = pend_off;
             while vcol <= oap.end_vcol && !ci.ptr.is_empty() {
-                prev_pend = ci.ptr.as_ptr().cast();
+                prev_pend_off = ci.offset_from(line_cstr);
                 let cli = utf_cluster_info(ci);
                 incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
                     .width;
@@ -2240,7 +2236,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 ci = cli.next;
             }
             bdp.end_vcol = vcol;
-            pend = ci.ptr.as_ptr().cast();
+            pend_off = ci.offset_from(line_cstr);
 
             if bdp.end_vcol <= oap.end_vcol
                 && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
@@ -2253,20 +2249,20 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
                 if !is_del && bdp.endspaces != 0 {
                     bdp.endspaces = incr - bdp.endspaces;
-                    if !ptr::eq(pend, pstart) {
-                        pend = prev_pend;
+                    if pend_off != pstart_off {
+                        pend_off = prev_pend_off;
                     }
                 }
             }
         }
         bdp.end_char_vcols = incr;
         if is_del && bdp.startspaces != 0 {
-            pstart = prev_pstart;
+            pstart_off = prev_pstart_off;
         }
-        bdp.textlen = ((pend as isize) - (pstart as isize)) as i32;
+        bdp.textlen = ((pend_off as isize) - (pstart_off as isize)) as i32;
     }
-    bdp.textcol = ((pstart as isize) - (line as isize)) as Colnr;
-    bdp.textstart = unsafe { std::ffi::CStr::from_ptr(pstart) };
+    bdp.textcol = pstart_off as Colnr;
+    bdp.textstart = &line_cstr[pstart_off..];
     restore_lbr(lbr_saved);
 }
 
@@ -3085,17 +3081,17 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             }
 
             if l_visual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
-                let mut s = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+                let mut s_opt: Option<&[u8]> = None;
                 let mut len: i32 = 0;
 
                 if l_visual_mode == CTRL_V_CONST {
                     g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
                     block_prep(&mut oparg, &mut bd, lnum, false);
                     g_st().virtual_op = K_NONE;
-                    s = bd.textstart.as_ptr().cast_mut().cast();
+                    s_opt = Some(bd.textstart.to_bytes());
                     len = bd.textlen;
                 } else if l_visual_mode == b'V' as i32 {
-                    s = ml_get(lnum).as_ptr().cast_mut().cast();
+                    s_opt = Some(ml_get(lnum).to_bytes());
                     len = MAXCOL;
                 } else if l_visual_mode == b'v' as i32 {
                     let start_col = if lnum == min_pos.lnum { min_pos.col } else { 0 };
@@ -3105,15 +3101,11 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                         MAXCOL
                     };
 
-                    s = ml_get(lnum)
-                        .as_ptr()
-                        .cast_mut()
-                        .wrapping_add(start_col as usize)
-                        .cast();
+                    let line_bytes = ml_get(lnum).to_bytes();
+                    s_opt = Some(&line_bytes[(start_col as usize).min(line_bytes.len())..]);
                     len = end_col;
                 }
-                if !s.is_null() {
-                    let s_bytes = unsafe { std::ffi::CStr::from_ptr(s.cast()) }.to_bytes();
+                if let Some(s_bytes) = s_opt {
                     byte_count_cursor += line_count_info(
                         s_bytes,
                         &mut word_count_cursor,

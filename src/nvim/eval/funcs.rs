@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Builtin Vimscript functions (`src/nvim/eval/funcs.c`).
 
 use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, vim_to_object};
@@ -87,8 +89,6 @@ use crate::eval::{
     script_host_eval, string2float, timer_start, timer_stop, timer_stop_all, tv_dict_set_ret,
     tv_to_argv, var_item_copy, var2fpos,
 };
-#[cfg(unix)]
-use crate::event::r#loop::uv_kill;
 use crate::event::r#loop::{Loop, loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{
     multiqueue_empty, multiqueue_free, multiqueue_new, multiqueue_process_events,
@@ -159,14 +159,16 @@ use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::dl::os_libcall;
 use crate::os::env::{
-    ExpandCtx, expand_env_save, home_replace, os_env_exists, os_get_pid, os_getenv_cstr,
-    vim_env_iter, vim_getenv, vim_setenv_ext, vim_unsetenv_ext,
+    ExpandCtx, expand_env_save, home_replace, os_env_exists, os_get_environ, os_get_pid,
+    os_getenv_cstr, vim_env_iter, vim_getenv, vim_setenv_ext, vim_unsetenv_ext,
 };
 use crate::os::fs::{MAXPATHL, os_isdir, os_setperm};
+use crate::os::proc::os_debugbreak;
 use crate::os::pty_proc::pty_proc_resize;
 use crate::os::stdpaths::{XDGVarType, get_appname, get_xdg_home, stdpaths_get_xdg_var};
 use crate::os::time::{
-    NS_PER_SEC, Tm, os_hrtime, os_localtime_r, os_strptime, os_time, strftime, time_t,
+    NS_PER_SEC, Tm, os_hrtime, os_localtime_r, os_mktime, os_random_u32, os_strftime, os_strptime,
+    os_time, time_t,
 };
 use crate::path::{ENV_SEPCHAR, concat_fnames_cstr, to_slash_save, vim_full_name};
 use crate::plines::{getvvcol, win_chartabsize};
@@ -378,9 +380,6 @@ const REQUIRED_ENV_VARS: &[&CStr] = &[];
 
 #[cfg(windows)]
 pub(crate) const PROCESS_ALL_ACCESS: u32 = 0x001F0FFF;
-#[cfg(windows)]
-use crate::os::os_win_console::{CloseHandle, DebugBreakProcess, OpenProcess};
-
 const fn compute_build_has_flags() -> u32 {
     let mut flags = 0u32;
     if match option_env!("NVIM_HAVE_UNIBILIUM") {
@@ -406,9 +405,7 @@ const NVIM_BUILD_HAS_FLAGS: u32 = compute_build_has_flags();
 use crate::charset::{tolower_asc, toupper_asc};
 use crate::cursor::clearpos;
 use crate::eval::typval::tv_dict_len;
-use crate::event::r#loop::{uv_env_item_t, uv_os_environ, uv_os_free_environ, uv_random};
 use crate::mpack::object::mpack_parser_init;
-use crate::os::time::mktime;
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 
 #[inline]
@@ -1874,19 +1871,8 @@ pub fn f_debugbreak(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
 
-    #[cfg(windows)]
-    {
-        let h_process = unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, pid as u32) };
-        if h_process.is_null() {
-            return;
-        }
-        unsafe { DebugBreakProcess(h_process) };
-        unsafe { CloseHandle(h_process) };
+    if os_debugbreak(pid) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { uv_kill(pid, crate::os::signal::SIGINT) };
     }
 }
 
@@ -4263,38 +4249,25 @@ pub fn create_environment(
     let env = tv_dict_alloc();
 
     if !clear_env {
-        let mut envitems: *mut uv_env_item_t = ptr::null_mut();
-        let mut envcount: i32 = 0;
-        if unsafe { uv_os_environ(&raw mut envitems, &mut envcount) } == 0 {
-            for i in 0..(envcount as usize) {
-                let item = crate::globals::GraphPtr::of(envitems.wrapping_add(i)).borrow();
-                let item_name = if item.name.is_null() {
-                    c""
+        os_get_environ(|item_name, item_val| {
+            #[cfg(windows)]
+            let name_owned: Option<std::ffi::CString> = {
+                let name_b = item_name.to_bytes();
+                if name_b.len() < MAXPATHL / MB_MAXBYTES {
+                    mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
+                    Some(crate::memory::cstring_until_nul(
+                        g_st().name_buff_bytes_mut(),
+                    ))
                 } else {
-                    unsafe { CStr::from_ptr(item.name.cast()) }
-                };
-                #[cfg(windows)]
-                let name_owned: Option<std::ffi::CString> = {
-                    let name_b = item_name.to_bytes();
-                    if name_b.len() < MAXPATHL / MB_MAXBYTES {
-                        mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
-                        Some(crate::memory::cstring_until_nul(
-                            g_st().name_buff_bytes_mut(),
-                        ))
-                    } else {
-                        None
-                    }
-                };
-                #[cfg(windows)]
-                let name_cstr = name_owned.as_deref().unwrap_or(item_name);
-                #[cfg(not(windows))]
-                let name_cstr = item_name;
-                let item_val =
-                    (!item.value.is_null()).then(|| unsafe { CStr::from_ptr(item.value.cast()) });
-                tv_dict_add_str(&mut *env, name_cstr, item_val);
-            }
-            unsafe { uv_os_free_environ(envitems, envcount) };
-        }
+                    None
+                }
+            };
+            #[cfg(windows)]
+            let name_cstr = name_owned.as_deref().unwrap_or(item_name);
+            #[cfg(not(windows))]
+            let name_cstr = item_name;
+            tv_dict_add_str(&mut *env, name_cstr, item_val);
+        });
 
         if pty {
             for &ignored in PTY_IGNORED_ENV_VARS {
@@ -4406,7 +4379,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut on_stdout = CallbackReader::none();
     let mut on_stderr = CallbackReader::none();
     let mut on_exit = Callback::NONE;
-    let mut cwd = ptr::null();
+    let mut cwd_opt: Option<&CStr> = None;
     let mut job_env = crate::globals::GraphPtr::<Dictitem>::NULL;
 
     if argvars[1].v_type == VarType::VarDict {
@@ -4462,7 +4435,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if let Some(new_cwd) = tv_dict_get_string(job_opts_ref, c"cwd")
             && !new_cwd.to_bytes().is_empty()
         {
-            cwd = new_cwd.as_ptr();
+            cwd_opt = Some(new_cwd);
             if !os_isdir(new_cwd) {
                 semsg!(gettext(E_INVARG2), c"expected valid directory",);
                 return;
@@ -4513,8 +4486,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
         debug_assert!(!rpc);
         term_name = Some(c"xterm-256color");
-        if cwd.is_null() {
-            cwd = c".".as_ptr();
+        if cwd_opt.is_none() {
+            cwd_opt = Some(c".");
         }
         overlapped = false;
         detach = false;
@@ -4538,7 +4511,6 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
     }
 
-    let cwd_opt = (!cwd.is_null()).then(|| unsafe { CStr::from_ptr(cwd) });
     let env = create_environment(job_env.opt(), clear_env, pty, true, term_name);
     let chan = channel_job_start(
         argv,
@@ -5032,9 +5004,9 @@ pub fn f_luaeval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchType) {
-    let mut str_ = ptr::null_mut();
+    let mut str_cstr_opt: Option<&CStr> = None;
     let mut len: i64 = 0;
-    let mut expr = ptr::null_mut();
+    let mut expr_cstr_opt: Option<&CStr> = None;
     let mut regmatch: Regmatch = Regmatch::new();
     let mut start: i64;
     let mut nth: i64 = 1;
@@ -5076,8 +5048,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             li = crate::globals::GraphPtr::from(tv_list_first(l.opt()));
         } else {
             let s = tv_get_string(&argvars[0]);
-            str_ = s.as_ptr().cast_mut();
-            expr = str_;
+            str_cstr_opt = Some(s);
+            expr_cstr_opt = Some(s);
             len = s.to_bytes().len() as i64;
         }
 
@@ -5110,7 +5082,9 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 if argvars[3].v_type != VarType::VarUnknown {
                     startcol = start as Colnr;
                 } else {
-                    str_ = str_.wrapping_add(start as usize);
+                    if let Some(s) = str_cstr_opt {
+                        str_cstr_opt = Some(&s[start as usize..]);
+                    }
                     len -= start;
                 }
             }
@@ -5136,20 +5110,14 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                     tofree_owned = Some(encode_tv2echo(&mut (li.borrow_mut().li_tv), None));
 
-                    expr = tofree_owned
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    str_ = expr;
-                    if str_.is_null() {
+                    expr_cstr_opt = tofree_owned.as_deref();
+                    str_cstr_opt = expr_cstr_opt;
+                    if str_cstr_opt.is_none() {
                         break;
                     }
                 }
 
-                match_found = vim_regexec_nl(
-                    &mut regmatch,
-                    (!str_.is_null()).then(|| unsafe { CStr::from_ptr(str_) }),
-                    startcol,
-                );
+                match_found = vim_regexec_nl(&mut regmatch, str_cstr_opt, startcol);
 
                 if match_found {
                     nth -= 1;
@@ -5166,7 +5134,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                     idx += 1;
                 } else {
-                    let str_cstr = unsafe { CStr::from_ptr(str_) };
+                    let str_cstr = str_cstr_opt.unwrap_or(c"");
                     let match_start = regmatch.start_offset(0, str_cstr);
                     let adv = utfc_ptr2len(regmatch.startp[0]) as usize;
                     startcol = (match_start + adv) as Colnr;
@@ -5178,8 +5146,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
 
             if match_found {
-                let expr_cstr = unsafe { CStr::from_ptr(expr) };
-                let str_cstr = unsafe { CStr::from_ptr(str_) };
+                let expr_cstr = expr_cstr_opt.unwrap_or(c"");
+                let str_cstr = str_cstr_opt.unwrap_or(c"");
                 match type_ {
                     SomeMatchType::SomeMatchStrPos => {
                         let ret_l = rettv.vval.v_list();
@@ -5244,8 +5212,9 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                                     regmatch.end_offset(0, str_cstr) as Varnumber,
                                 );
                             }
-                            *rettv.vval.v_number_mut() +=
-                                ((str_ as isize) - (expr as isize)) as Varnumber;
+                            *rettv.vval.v_number_mut() += ((str_cstr.as_ptr() as isize)
+                                - (expr_cstr.as_ptr() as isize))
+                                as Varnumber;
                         }
                     }
                 }
@@ -5879,18 +5848,7 @@ pub fn f_py3eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 fn init_srand(x: &mut u32) {
-    let mut number: u32 = 0;
-    if unsafe {
-        uv_random(
-            ptr::null_mut(),
-            ptr::null_mut(),
-            (&raw mut number).cast(),
-            size_of::<u32>(),
-            0,
-            ptr::null(),
-        )
-    } == 0
-    {
+    if let Some(number) = os_random_u32() {
         *x = number;
         return;
     }
@@ -7936,7 +7894,6 @@ pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
     let p_in = tv_get_string(&argvars[0]);
-    let mut p = p_in.as_ptr().cast_mut();
     let seconds: time_t = if argvars[1].v_type == VarType::VarUnknown {
         os_time() as time_t
     } else {
@@ -7948,32 +7905,23 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         crate::eval::typval::tv_set_string(rettv, Some(gettext(c"(Invalid)")));
         return;
     };
-    let curtime_ptr: *const Tm = curtime_ref;
 
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
     let enc = enc_locale();
     convert_setup(&mut conv, Some(opt_vars().p_enc.as_cstr()), enc.as_deref());
-    let p_owned: Option<Vec<u8>>;
-    if conv.vc_type != CONV_NONE {
-        p_owned = string_convert(&conv, p_in.to_bytes(), None);
-        p = p_owned
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+    let p_owned: Option<Vec<u8>> = if conv.vc_type != CONV_NONE {
+        string_convert(&conv, p_in.to_bytes(), None)
     } else {
-        p_owned = None;
-    }
+        None
+    };
+    let p_cstr: Option<&CStr> = if conv.vc_type != CONV_NONE {
+        p_owned.as_deref().map(crate::memory::bytes_as_cstr)
+    } else {
+        Some(p_in)
+    };
     let mut result_buf = [0u8; 256];
-    if p.is_null()
-        || unsafe {
-            strftime(
-                result_buf.as_mut_ptr().cast(),
-                result_buf.len(),
-                p.cast(),
-                curtime_ptr,
-            )
-        } == 0
-    {
+    if p_cstr.is_none_or(|fmt| os_strftime(&mut result_buf, fmt, curtime_ref) == 0) {
         result_buf[0] = 0;
     }
     drop(p_owned);
@@ -8022,7 +7970,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if fmt_cstr.is_none_or(|f| !os_strptime(str_, f, &mut tmval)) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else {
-        let t = unsafe { mktime(&raw mut tmval) };
+        let t = os_mktime(&mut tmval);
         rettv.vval =
             crate::eval::typval::TypvalVval::Number(if t == -1 { 0 } else { t as Varnumber });
     }

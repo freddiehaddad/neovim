@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Code to handle tags and the tag stack (`src/nvim/tag.c`).
 
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
@@ -63,7 +65,6 @@ use crate::window::{
     win_close, win_enter, win_split, win_valid,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -2622,11 +2623,10 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         let fname_cstr = std::ffi::CString::new(tagp.fname).unwrap_or_default();
         let expanded = expand_tag_fname(&fname_cstr, tagp.tag_fname.unwrap_or(c""), true);
-        let mut fname = expanded.as_ptr();
         tofree_fname = Some(expanded);
 
-        let fname_cstr_ref = unsafe { CStr::from_ptr(fname) };
-        let fname_opt_ref = Some(fname_cstr_ref);
+        let fname_cstr_ref = tofree_fname.as_deref().unwrap();
+        let mut fname_opt_ref = Some(fname_cstr_ref);
         if !os_path_exists(fname_cstr_ref) && !has_autocmd(EVENT_BUFREADCMD, fname_opt_ref, None) {
             retval = None;
             tag_st().nofile_fname = tofree_fname.take();
@@ -2641,13 +2641,12 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
             if !curwin_mut().w_onebuf_opt.wo_pvw {
                 full_fname = FullName_save(fname_opt_ref, false);
-                fname = full_fname.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+                fname_opt_ref = full_fname.as_deref();
 
                 prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
             }
         }
 
-        let fname_opt_ref = (!fname.is_null()).then(|| unsafe { CStr::from_ptr(fname) });
         if g_st().postponed_split != 0
             && (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && let Some(existing_buf) = buflist_findname_exp(fname_opt_ref)
@@ -2708,7 +2707,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             let mut str_ = pbuf;
             if pbuf_vec[0] == b'/' || pbuf_vec[0] == b'?' {
                 str_ = skip_regexp(
-                    unsafe { CStr::from_ptr(pbuf.wrapping_add(1).cast()) },
+                    crate::memory::bytes_as_cstr(&pbuf_vec[1..]),
                     i32::from(pbuf_vec[0]),
                     0,
                 )

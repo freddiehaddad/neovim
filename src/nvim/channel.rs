@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Async I/O and process/socket/stdio/terminal channel management (`src/nvim/channel.c`).
 
 use crate::api::private::converter::object_to_vim;
@@ -25,7 +27,7 @@ use crate::event::socket::{SocketWatcher, socket_connect, socket_watcher_accept}
 use crate::event::stream::{Stream, StreamCbData, StreamInternalData, stream_may_close};
 use crate::event::wstream::{wstream_init, wstream_init_fd, wstream_new_vec_buffer, wstream_write};
 #[cfg(not(windows))]
-use crate::fileio::fcntl;
+use crate::fileio::{dup2, os_dupfd_cloexec};
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::api_free_luaref;
@@ -115,18 +117,6 @@ pub(crate) const K_CHANNEL_PART_RPC_CONST: ChannelPart = 3;
 
 pub(crate) const K_CHANNEL_STDIN_PIPE_CONST: ChannelStdinMode = 0;
 
-#[cfg(target_os = "linux")]
-const F_DUPFD_CLOEXEC: i32 = 1030;
-#[cfg(target_os = "macos")]
-const F_DUPFD_CLOEXEC: i32 = 67;
-#[cfg(target_os = "freebsd")]
-const F_DUPFD_CLOEXEC: i32 = 17;
-#[cfg(all(
-    not(windows),
-    not(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))
-))]
-const F_DUPFD_CLOEXEC: i32 = 12;
-
 struct ChannelModuleState {
     did_stdio: bool,
     next_chan_id: u64,
@@ -168,8 +158,6 @@ pub struct TerminalOptions {
 use crate::api::ui::{CHAN_STDIO, K_CHANNEL_PART_ALL};
 use crate::api::vim::K_CHANNEL_STREAM_INTERNAL;
 use crate::autocmd::{EVENT_CHANCLOSE, EVENT_CHANOPEN};
-#[cfg(not(windows))]
-use crate::fileio::dup2;
 use crate::lua::converter::LUA_NOREF;
 
 use crate::fileio::freopen;
@@ -684,10 +672,10 @@ pub fn channel_from_stdio(
 
     #[cfg(not(windows))]
     if g_st().embedded_mode {
-        stdin_dup_fd = unsafe { fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1) };
-        stdout_dup_fd = unsafe { fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1) };
-        let _ = unsafe { dup2(STDERR_FILENO, STDOUT_FILENO) };
-        let _ = unsafe { dup2(STDERR_FILENO, STDIN_FILENO) };
+        stdin_dup_fd = os_dupfd_cloexec(STDIN_FILENO, STDERR_FILENO + 1);
+        stdout_dup_fd = os_dupfd_cloexec(STDOUT_FILENO, STDERR_FILENO + 1);
+        let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
+        let _ = dup2(STDERR_FILENO, STDIN_FILENO);
     }
 
     rstream_init_fd(&mut g_st().main_loop, &mut channel.stdio_in, stdin_dup_fd);

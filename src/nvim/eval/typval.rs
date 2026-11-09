@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! Vimscript `TypVal`, `TvList`, `TvDict`, `TvBlob`, and `Callback` operations (`src/nvim/eval/typval.c`).
 
 use crate::charset::vim_str2nr;
@@ -1157,6 +1159,7 @@ fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
 }
 
 /// Allocate an empty list.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn tv_list_alloc(_len: isize) -> &'static mut TvList {
     let list = Box::leak(Box::new(TvList {
@@ -1226,6 +1229,7 @@ pub fn tv_list_free_contents(l: &mut TvList) {
 }
 
 /// Free a list, including all items it points to.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
     if tv_st().tv_in_free_unref_items {

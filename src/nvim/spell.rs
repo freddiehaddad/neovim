@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Code for spell checking (`src/nvim/spell.c`).
 use std::ffi::CStr;
 
@@ -558,11 +560,23 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
         endidxcnt -= 1;
         arridx = endidx[endidxcnt];
         wlen = endlen[endidxcnt];
-        let ptr_b = unsafe { CStr::from_ptr(ptr.cast()) }.to_bytes();
-        if crate::mbyte::utf_head_off_slice(ptr_b, wlen as usize) > 0 {
+        let ptr_is_mi_word = std::ptr::eq(ptr, mip.mi_word.as_ptr().cast());
+        fn get_ptr_b<'a>(mip: &'a Matchinf<'a>, ptr_is_mi_word: bool) -> &'a [u8] {
+            if ptr_is_mi_word {
+                mip.mi_word.to_bytes()
+            } else {
+                crate::memory::bytes_until_nul(&mip.mi_fword)
+            }
+        }
+        if crate::mbyte::utf_head_off_slice(get_ptr_b(mip, ptr_is_mi_word), wlen as usize) > 0 {
             continue;
         }
-        let word_ends = if spell_iswordp(ptr_b.get(wlen as usize..).unwrap_or(&[]), mip.win_mut()) {
+        let word_ends = if spell_iswordp(
+            get_ptr_b(mip, ptr_is_mi_word)
+                .get(wlen as usize..)
+                .unwrap_or(&[]),
+            mip.win_mut(),
+        ) {
             if slang.sl_compprog.is_none() && !slang.sl_nobreak {
                 continue;
             }
@@ -573,6 +587,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
         let mut prefix_found = false;
         if mode != FIND_KEEPWORD {
             let mut p_off = 0usize;
+            let ptr_b = get_ptr_b(mip, ptr_is_mi_word);
             let p_b = mip.mi_word.to_bytes();
             if ptr_b[..(wlen as usize).min(ptr_b.len())] != p_b[..(wlen as usize).min(p_b.len())] {
                 let mut s_off = 0usize;
@@ -653,12 +668,17 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                 if !byte_in_str(flags_cstr.as_deref(), (flags >> 24) as i32) {
                     continue;
                 }
-                if match_checkcompoundpattern(ptr_b, wlen, &slang.sl_comppat) {
+                if match_checkcompoundpattern(
+                    get_ptr_b(mip, ptr_is_mi_word),
+                    wlen,
+                    &slang.sl_comppat,
+                ) {
                     continue;
                 }
                 if mode == FIND_COMPOUND {
                     let mut p_off: usize;
                     let compoff = mip.mi_compoff as usize;
+                    let ptr_b = get_ptr_b(mip, ptr_is_mi_word);
                     let word_b = mip.mi_word.to_bytes();
                     if ptr_b[..compoff.min(ptr_b.len())] != word_b[..compoff.min(word_b.len())] {
                         p_off = 0;
@@ -702,9 +722,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                             );
                         } else {
                             let elen = endlen[endidxcnt] as usize;
-                            fword[..elen].copy_from_slice(unsafe {
-                                std::slice::from_raw_parts(ptr.cast::<u8>(), elen)
-                            });
+                            fword[..elen].copy_from_slice(&mip.mi_fword[..elen]);
                             fword[elen] = 0;
                         }
                     }
@@ -729,7 +747,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                 }
                 mip.mi_compoff = endlen[endidxcnt];
                 if mode == FIND_KEEPWORD {
-                    let mut p = (&raw mut mip.mi_fword).cast::<u8>();
+                    let ptr_b = get_ptr_b(mip, ptr_is_mi_word);
                     let p_b = crate::memory::bytes_until_nul(&mip.mi_fword);
                     if ptr_b[..(wlen as usize).min(ptr_b.len())]
                         != p_b[..(wlen as usize).min(p_b.len())]
@@ -742,10 +760,7 @@ fn find_word(mip: &mut Matchinf<'_>, mode: i32) {
                             s_off += crate::mbyte::utfc_ptr2len(ptr_b.get(s_off..).unwrap_or(&[]))
                                 as usize;
                         }
-                        p = p.wrapping_add(p_off);
-                        mip.mi_compoff = ((p as isize)
-                            - ((&raw const mip.mi_fword).cast::<u8>() as isize))
-                            as i32;
+                        mip.mi_compoff = p_off as i32;
                     }
                 }
                 mip.mi_complen += 1;
@@ -2131,29 +2146,22 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         return false;
     }
     let mut need_cap = false;
-    let mut line = crate::globals::GraphPtr::<u8>::of(if col != 0 {
-        ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut().cast()
-    } else {
-        ptr::null_mut()
-    })
-    .as_ptr();
+    let mut line_cstr: Option<&CStr> = (col != 0).then(|| ml_get_buf(wp.buf_mut(), lnum));
     let mut line_copy: Option<std::ffi::CString> = None;
     let mut endcol: Colnr = 0;
-    if col == 0 || (getwhitecols(unsafe { CStr::from_ptr(line.cast()) }.to_bytes()) as Colnr) >= col
-    {
+    if col == 0 || (getwhitecols(line_cstr.unwrap_or(c"").to_bytes()) as Colnr) >= col {
         if lnum == 1 {
             need_cap = true;
         } else {
-            let prev_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum - 1);
-            line = prev_slice.as_ptr().cast_mut();
+            let prev_cstr = ml_get_buf(wp.buf_mut(), lnum - 1);
+            let prev_slice = prev_cstr.to_bytes();
+            line_cstr = Some(prev_cstr);
             if crate::charset::skipwhite_slice(prev_slice).is_empty() {
                 need_cap = true;
             } else {
                 let len = prev_slice.len() as Colnr;
                 line_copy = Some(concat_str(prev_slice, b" "));
-                line = line_copy
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+                line_cstr = line_copy.as_deref();
                 endcol = len + 1;
             }
         }
@@ -2165,7 +2173,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         let mut regmatch = Regmatch::new();
         regmatch.borrow_prog(w_s.b_cap_prog.as_deref());
         regmatch.rm_ic = false;
-        let line_cstr = unsafe { CStr::from_ptr(line.cast()) };
+        let line_cstr = line_cstr.unwrap_or(c"");
         let line_bytes = line_cstr.to_bytes();
         let mut p_idx = endcol as usize;
         loop {
@@ -2860,24 +2868,21 @@ fn dump_word(
         flags |= WF_ALLCAP;
     }
     let word_bytes = word_cstr.to_bytes();
-    let mut p = crate::globals::GraphPtr::<u8>::of(
-        if (dumpflags & DUMPFLAG_KEEPCASE) == 0 && (flags & WF_CAPMASK) != 0 {
-            make_case_word(word_bytes, &mut cword, flags);
-            (&raw mut cword).cast()
-        } else {
-            if (dumpflags & DUMPFLAG_KEEPCASE) != 0
-                && ((captype(word_bytes) & WF_KEEPCAP) == 0 || (flags & WF_FIXCAP) != 0)
-            {
-                keepcap = true;
-            }
-            word_cstr.as_ptr().cast_mut().cast()
-        },
-    )
-    .as_ptr();
-    let tw = p;
+    let tw_cstr = if (dumpflags & DUMPFLAG_KEEPCASE) == 0 && (flags & WF_CAPMASK) != 0 {
+        make_case_word(word_bytes, &mut cword, flags);
+        crate::memory::bytes_as_cstr(&cword)
+    } else {
+        if (dumpflags & DUMPFLAG_KEEPCASE) != 0
+            && ((captype(word_bytes) & WF_KEEPCAP) == 0 || (flags & WF_FIXCAP) != 0)
+        {
+            keepcap = true;
+        }
+        word_cstr
+    };
+    let mut p_cstr = tw_cstr;
     if let Some(pat_cstr) = pat {
         let pat_bytes = pat_cstr.to_bytes();
-        let p_bytes = unsafe { CStr::from_ptr(p.cast()) }.to_bytes();
+        let p_bytes = p_cstr.to_bytes();
         if (if (dumpflags & DUMPFLAG_ICASE) != 0 {
             mb_strnicmp(p_bytes, pat_bytes, pat_bytes.len()) == 0
         } else {
@@ -2896,7 +2901,7 @@ fn dump_word(
         }
     } else {
         if (flags & (WF_BANNED | WF_RARE | WF_REGION)) != 0 || keepcap {
-            let p_bytes = unsafe { CStr::from_ptr(p.cast()) }.to_bytes();
+            let p_bytes = p_cstr.to_bytes();
             badword[..p_bytes.len()].copy_from_slice(p_bytes);
             let mut bw_len = p_bytes.len();
             badword[bw_len] = b'/';
@@ -2921,27 +2926,20 @@ fn dump_word(
                     }
                 }
             }
-            let bw_ptr = (&raw mut badword).cast::<u8>();
-            p = bw_ptr;
+            p_cstr = crate::memory::bytes_as_cstr(&badword);
         }
-        if (dumpflags & DUMPFLAG_COUNT) != 0 {
-            let tw_cstr = unsafe { CStr::from_ptr(tw.cast()) };
-            if let Some(&wc_count) = slang.sl_wordcount.get(tw_cstr.to_bytes()) {
-                format_to_buf!(
-                    g_st().iobuff_bytes_mut(),
-                    c"%s\t%d",
-                    tw_cstr,
-                    wc_count as i32,
-                );
-                p = g_st().iobuff.as_mut_ptr().cast();
-            }
+        if (dumpflags & DUMPFLAG_COUNT) != 0
+            && let Some(&wc_count) = slang.sl_wordcount.get(tw_cstr.to_bytes())
+        {
+            format_to_buf!(
+                g_st().iobuff_bytes_mut(),
+                c"%s\t%d",
+                tw_cstr,
+                wc_count as i32,
+            );
+            p_cstr = g_st().iobuff_cstr();
         }
-        let _ = ml_append(
-            lnum,
-            unsafe { CStr::from_ptr(p.cast()) }.to_bytes(),
-            0,
-            false,
-        );
+        let _ = ml_append(lnum, p_cstr.to_bytes(), 0, false);
     }
 }
 fn dump_prefixes(

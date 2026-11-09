@@ -509,6 +509,13 @@ pub fn os_chdir(path: &CStr) -> i32 {
     err
 }
 
+/// Get the current working directory into `buf` without NUL-termination (`uv_cwd`).
+#[inline]
+pub fn os_cwd(buf: &mut [u8]) -> Option<&[u8]> {
+    let mut len = buf.len();
+    (unsafe { uv_cwd(buf.as_mut_ptr().cast(), &mut len) } == 0).then(|| &buf[..len])
+}
+
 /// Get the name of current directory.
 pub fn os_dirname(buf: &mut [u8]) -> bool {
     let mut len = buf.len();

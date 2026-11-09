@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Functions for Insert mode completion (`src/nvim/insexpand.c`).
 
 use crate::api::private::helpers::{
@@ -110,7 +112,6 @@ use crate::undo::undo_allowed;
 use crate::window::{WinInfoInfo, WinKind, win_valid};
 use crate::winfloat::win_float_find;
 use std::ffi::CStr;
-use std::ptr;
 
 pub const CPT_ABBR: usize = 0;
 pub const CPT_KIND: usize = 1;
@@ -1707,10 +1708,10 @@ fn set_fuzzy_score() {
         if insexp().compl_orig_text.data.is_null() || insexp().compl_orig_text.size == 0 {
             return;
         }
-        pattern = insexp().compl_orig_text.data.cast::<u8>();
+        pattern = insexp().compl_orig_text;
     } else {
         let _ = get_leader_for_startcol(None, true);
-        pattern = ptr::null_mut();
+        pattern = NvimString::new();
     }
 
     let mut next: i32 = 0;
@@ -1721,12 +1722,12 @@ fn set_fuzzy_score() {
         next = next.max(comp.cp_order + 1);
 
         if use_leader {
-            pattern = get_leader_for_startcol(Some(&*comp), true).data.cast();
+            pattern = get_leader_for_startcol(Some(&*comp), true);
         }
 
         comp.cp_score = fuzzy_match_str(
             comp.cp_str.as_opt_cstr().map(CStr::to_bytes),
-            (!pattern.is_null()).then(|| unsafe { CStr::from_ptr(pattern.cast()) }.to_bytes()),
+            pattern.as_opt_cstr().map(CStr::to_bytes),
         );
     }
 }
@@ -3292,8 +3293,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool>
 
     if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
         let d = tv.vval.v_dict_ref();
-        word =
-            tv_dict_get_string(Some(d), c"word").map_or(ptr::null(), |s| s.as_ptr().cast::<u8>());
+        word = tv_dict_get_string(Some(d), c"word");
         cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(Some(d), c"abbr");
         cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(Some(d), c"menu");
         cptext[CPT_KIND] = crate::eval::typval::tv_dict_get_cstring(Some(d), c"kind");
@@ -3320,14 +3320,18 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool>
             flags |= CP_EQUAL;
         }
     } else {
-        word = tv_get_string_chk(&*tv).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+        word = tv_get_string_chk(&*tv);
     }
-    if word.is_null() || (!empty && *crate::globals::GraphPtr::of(word).borrow() == 0) {
+    let Some(word_cstr) = word else {
+        tv_clear(&mut user_data);
+        return Some(false);
+    };
+    if !empty && word_cstr.to_bytes().is_empty() {
         tv_clear(&mut user_data);
         return Some(false);
     }
     let status = ins_compl_add(
-        unsafe { CStr::from_ptr(word.cast()) }.to_bytes(),
+        word_cstr.to_bytes(),
         -1,
         None,
         cptext,
@@ -5202,7 +5206,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
     let _ = get_leader_for_startcol(None, true);
 
     let list = &mut insexp().compl_list;
-    let mut first = crate::globals::GraphPtr::<u8>::NULL.as_ptr();
+    let mut first = NvimString::new();
     let mut len: i32 = -1;
     for compl in list {
         let leader = get_leader_for_startcol(Some(&*compl), true);
@@ -5234,16 +5238,16 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
                     || (cur_source != -1
                         && insexp().cpt_sources_array[cur_source as usize].cs_flag == b'.'))
             {
-                if first.is_null() {
+                if first.data.is_null() {
                     let lead_b = ins_compl_leader_slice();
                     let lead_len = lead_b.len();
                     let cp_b = compl.cp_str.as_bytes();
                     if lead_b == &cp_b[..lead_len.min(cp_b.len())] {
-                        first = compl.cp_str.data.cast();
+                        first = compl.cp_str;
                         len = compl.cp_str.size as i32;
                     }
-                } else if !first.is_null() {
-                    let s1_bytes = crate::globals::GraphPtr::raw_slice(first, len.max(0) as usize);
+                } else {
+                    let s1_bytes = &first.as_bytes()[..len.max(0) as usize];
                     let s2_bytes = compl.cp_str.as_bytes();
                     let mut j: usize = 0;
 
@@ -5266,9 +5270,9 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
     }
 
     if len > ins_compl_leader_len() as i32 {
-        debug_assert!(!first.is_null());
-        let first_cstr = unsafe { CStr::from_ptr(first.cast()) };
-        if len == first_cstr.to_bytes().len() as i32 {
+        debug_assert!(!first.data.is_null());
+        let first_bytes = first.as_bytes();
+        if len == first_bytes.len() as i32 {
             let line = get_cursor_line_slice();
             let col_u = (curwin_mut().w_cursor.col.max(0) as usize).min(line.len());
             let p_slice = &line[col_u..];
@@ -5277,17 +5281,15 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
                 let text_len = (p_slice.len() - end_tail.len()) as i32;
                 if text_len > 0
                     && text_len < len - ins_compl_leader_len() as i32
-                    && crate::globals::GraphPtr::raw_slice(
-                        first.wrapping_add((len - text_len) as usize),
-                        text_len as usize,
-                    ) == &p_slice[..text_len as usize]
+                    && first_bytes[(len - text_len) as usize..len as usize]
+                        == p_slice[..text_len as usize]
                 {
                     len -= text_len;
                 }
             }
         }
         *prefix_len = len as usize;
-        return Some(crate::globals::GraphPtr::raw_slice(first, len as usize));
+        return Some(&first_bytes[..len as usize]);
     }
     None
 }
@@ -5776,7 +5778,6 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         let mut prefix: &[u8] = b"\\<";
         let mut prefixlen: usize = 2;
 
-        let line_bytes = unsafe { CStr::from_ptr(line.cast()) }.to_bytes();
         let line_at_col = line_bytes.get(insexp().compl_col as usize..).unwrap_or(&[]);
         if !vim_iswordp(line_at_col)
             || (insexp().compl_col > 0 && {
@@ -5800,7 +5801,6 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         quote_meta(Some(&mut pat_vec[prefixlen..]), word_slice);
         set_compl_pattern_bytes(&pat_vec[..n - 1]);
     } else {
-        let line_bytes = unsafe { CStr::from_ptr(line.cast()) }.to_bytes();
         startcol -= 1;
         if startcol < 0 || {
             let sc_u = startcol as usize;
@@ -6335,8 +6335,9 @@ fn ins_compl_show_statusmsg() {
                         curr.cp_number,
                     );
                 }
-                g_st().edit_submode_extra =
-                    Some(unsafe { CStr::from_ptr(insexp().match_ref.as_ptr().cast()) });
+                g_st().edit_submode_extra = Some(crate::memory::bytes_as_cstr(
+                    &insexp().borrow_mut().match_ref,
+                ));
                 g_st().edit_submode_highl = HLF_R;
                 if g_st().dollar_vcol >= 0 {
                     curs_columns(curwin_mut(), false);

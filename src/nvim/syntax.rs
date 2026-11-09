@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Code for syntax highlighting (`src/nvim/syntax.c`).
 
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
@@ -44,7 +46,7 @@ use crate::regexp::{
     skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
-use crate::strings::{format_to_buf, gettext, vim_strchr};
+use crate::strings::{format_to_buf, gettext};
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
 use std::ptr;
@@ -1532,8 +1534,8 @@ fn syn_current_attr(
             || cur_si.si_cont_list.is_some()
         {
             if do_keywords {
-                line = syn_getcurline!();
-                let line_bytes = unsafe { CStr::from_ptr(line) }.to_bytes();
+                let line_cstr = ml_get_buf(syn_st().syn_buf_mut(), syn_st().current_lnum);
+                let line_bytes = line_cstr.to_bytes();
                 let cur_col = (syn_st().current_col as usize).min(line_bytes.len());
                 if vim_iswordp_buf(&line_bytes[cur_col..], syn_st().syn_buf_mut())
                     && (cur_col == 0
@@ -1784,7 +1786,7 @@ fn syn_current_attr(
                         .borrow(),
                     ))
                     || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
-                        && (line.is_null() || unsafe { *line } == 0))
+                        && (line.is_null() || *crate::globals::GraphPtr::of(line).borrow() == 0))
                 {
                     break;
                 }
@@ -3719,7 +3721,6 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
         };
         if syn_id != 0 {
             let mut keyword_buf = vec![0u8; rest_initial.to_bytes().len() + 1];
-            let keyword_copy = keyword_buf.as_mut_ptr();
             let mut syn_opt_arg = SynOptArg {
                 flags: 0,
                 keyword: true,
@@ -3731,7 +3732,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
             };
 
             let mut cnt: i32 = 0;
-            let mut p = keyword_copy;
+            let mut p_idx = 0usize;
             while rest_opt
                 .is_some_and(|r| ends_excmd(r.to_bytes().first().copied().unwrap_or(0)) == 0)
             {
@@ -3749,15 +3750,15 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         r_idx += 1;
                     }
 
-                    *crate::globals::GraphPtr::of(p).borrow_mut() = rest_bytes[r_idx] as _;
+                    keyword_buf[p_idx] = rest_bytes[r_idx];
 
-                    p = p.wrapping_add(1);
+                    p_idx += 1;
                     r_idx += 1;
                 }
 
-                *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
+                keyword_buf[p_idx] = 0;
 
-                p = p.wrapping_add(1);
+                p_idx += 1;
                 cnt += 1;
                 rest_opt = Some(crate::charset::skipwhite(&rest_cstr[r_idx..]));
             }
@@ -3765,59 +3766,60 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
             if !eap.skip {
                 syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
 
-                let mut kw = keyword_copy;
+                let mut kw_idx = 0usize;
                 let mut kwlen: usize;
                 'kw_loop: while cnt > 0 {
                     cnt -= 1;
-                    p = vim_strchr(unsafe { CStr::from_ptr(kw.cast()) }, b'[' as i32)
-                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-                        .cast();
+                    let mut p_opt = crate::memory::bytes_until_nul(&keyword_buf[kw_idx..])
+                        .iter()
+                        .position(|&b| b == b'[')
+                        .map(|rel| kw_idx + rel);
                     loop {
-                        if p.is_null() {
-                            kwlen = unsafe { CStr::from_ptr(kw.cast()) }.to_bytes().len();
+                        if let Some(p_off) = p_opt {
+                            keyword_buf[p_off] = 0;
+                            kwlen = p_off - kw_idx;
                         } else {
-                            *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
-
-                            kwlen = (p as usize) - (kw as usize);
+                            kwlen = crate::memory::bytes_until_nul(&keyword_buf[kw_idx..]).len();
                         }
                         add_keyword(
-                            unsafe { std::slice::from_raw_parts(kw.cast::<u8>(), kwlen) },
+                            &keyword_buf[kw_idx..kw_idx + kwlen],
                             syn_id,
                             syn_opt_arg.flags,
                             &syn_opt_arg.cont_in_list,
                             &syn_opt_arg.next_list,
                             conceal_char,
                         );
-                        if p.is_null() {
+                        let Some(p_off) = p_opt else {
                             break;
-                        }
-                        let after_p =
-                            unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) }.to_bytes();
+                        };
+                        let after_p = crate::memory::bytes_until_nul(&keyword_buf[p_off + 1..]);
                         if after_p.is_empty() {
-                            semsg!(gettext(c"E789: Missing ']': %s"), unsafe {
-                                CStr::from_ptr(kw.cast())
-                            },);
+                            semsg!(
+                                gettext(c"E789: Missing ']': %s"),
+                                crate::memory::bytes_as_cstr(&keyword_buf[kw_idx..]),
+                            );
                             break 'kw_loop;
                         }
                         if after_p[0] == b']' {
                             if after_p.len() > 1 {
                                 semsg!(
                                     gettext(E_TRAILING_CHAR_AFTER_RSB_STR_STR),
-                                    unsafe { CStr::from_ptr(kw.cast()) },
-                                    unsafe { CStr::from_ptr(p.wrapping_add(2).cast()) },
+                                    crate::memory::bytes_as_cstr(&keyword_buf[kw_idx..]),
+                                    crate::memory::bytes_as_cstr(&keyword_buf[p_off + 2..]),
                                 );
                                 break 'kw_loop;
                             }
-                            kw = p.wrapping_add(1);
+                            kw_idx = p_off + 1;
                             kwlen = 1;
                             break;
                         }
-                        let l = utfc_ptr2len(unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) })
-                            as usize;
-                        crate::globals::GraphPtr::copy_to(p.wrapping_add(1), p, l);
-                        p = p.wrapping_add(l);
+                        let l =
+                            utfc_ptr2len(crate::memory::bytes_as_cstr(&keyword_buf[p_off + 1..]))
+                                as usize;
+                        keyword_buf.copy_within(p_off + 1..p_off + 1 + l, p_off);
+                        p_opt = Some(p_off + l);
                     }
-                    kw = kw.wrapping_add(kwlen + 1);
+                    kw_idx += kwlen + 1;
                 }
             }
         }

@@ -384,7 +384,6 @@ unsafe extern "C" {
     pub fn uv_os_setenv(name: *const std::ffi::c_char, value: *const std::ffi::c_char) -> i32;
     pub fn uv_os_unsetenv(name: *const std::ffi::c_char) -> i32;
     pub fn uv_os_homedir(buffer: *mut std::ffi::c_char, size: &mut usize) -> i32;
-    pub fn uv_os_getpid() -> i32;
     pub fn uv_random(
         loop_: *mut c_void,
         req: *mut c_void,

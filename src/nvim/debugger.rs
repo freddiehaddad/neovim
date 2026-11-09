@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Vimscript debugger (`src/nvim/debugger.c`).
 
 use crate::charset::{getdigits_int32, skipwhite_slice};
@@ -261,9 +263,6 @@ pub fn do_debug(cmd: &CStr) {
                 false,
                 None,
             );
-            let cmdline = cmdline_cstr
-                .as_ref()
-                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
             g_st().debug_break_level = n;
             if typeahead_saved {
@@ -274,8 +273,7 @@ pub fn do_debug(cmd: &CStr) {
 
             g_st().cmdline_row = g_st().msg_row;
             msg_starthere();
-            if !cmdline.is_null() {
-                let cmdline_cstr = unsafe { CStr::from_ptr(cmdline) };
+            if let Some(cmdline_cstr) = cmdline_cstr.as_deref() {
                 let mut p_cstr = crate::charset::skipwhite(cmdline_cstr);
                 let p_bytes = p_cstr.to_bytes();
                 if let Some(&b0) = p_bytes.first() {

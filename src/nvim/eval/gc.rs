@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! Garbage collection registries for dicts and lists (`src/nvim/eval/gc.c`).
 
 use crate::eval::typval::{TvDict, TvList};
@@ -42,6 +44,7 @@ pub fn gc_unregister_dict(idx: usize) {
     }
 }
 
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 #[allow(non_upper_case_globals)]
 pub static gc_first_list: crate::globals::GlobalState<crate::globals::TvListPtr> =

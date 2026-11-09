@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Normal and Visual mode command processing (`src/nvim/normal.c`).
 
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
@@ -2789,26 +2791,30 @@ pub fn clear_showcmd() {
         {
             format_to_buf!(&mut g_st().showcmd_buf, c"%lld", lines as i64);
         } else {
-            let (mut s, e) = if cursor_bot {
+            let (s_cstr, e_cstr) = if cursor_bot {
                 (
-                    ml_get_pos(&g_st().visual_global.start).as_ptr().cast_mut(),
-                    get_cursor_pos_ptr().as_ptr().cast_mut(),
+                    ml_get_pos(&g_st().visual_global.start),
+                    get_cursor_pos_ptr(),
                 )
             } else {
                 (
-                    get_cursor_pos_ptr().as_ptr().cast_mut(),
-                    ml_get_pos(&g_st().visual_global.start).as_ptr().cast_mut(),
+                    get_cursor_pos_ptr(),
+                    ml_get_pos(&g_st().visual_global.start),
                 )
             };
             let mut bytes: i32 = 0;
             let mut chars: i32 = 0;
+            let s_addr = s_cstr.as_ptr() as usize;
+            let e_addr = e_cstr.as_ptr() as usize;
+            let inclusive = opt_vars().p_sel.first_byte() != b'e';
+            let mut off = 0usize;
 
-            while if opt_vars().p_sel.first_byte() != b'e' {
-                s <= e
+            while if inclusive {
+                s_addr.wrapping_add(off) <= e_addr
             } else {
-                s < e
+                s_addr.wrapping_add(off) < e_addr
             } {
-                let l = utfc_ptr2len(unsafe { CStr::from_ptr(s) });
+                let l = utfc_ptr2len(&s_cstr[off.min(s_cstr.to_bytes().len())..]);
                 if l == 0 {
                     bytes += 1;
                     chars += 1;
@@ -2816,7 +2822,7 @@ pub fn clear_showcmd() {
                 }
                 bytes += l;
                 chars += 1;
-                s = s.wrapping_add(l as usize);
+                off += l as usize;
             }
             if bytes == chars {
                 format_to_buf!(&mut g_st().showcmd_buf, c"%d", chars);
@@ -4153,7 +4159,6 @@ fn nv_k_getcmd(
     buf_slice: &mut [u8],
     buflen: &mut usize,
 ) -> bool {
-    let kp_ptr = kp.as_ptr();
     let kp_bytes = kp.to_bytes();
     if kp_help {
         buf_slice[..7].copy_from_slice(b"help! \0");
@@ -4162,8 +4167,7 @@ fn nv_k_getcmd(
     }
 
     if kp_ex {
-        *buflen =
-            format_to_buf!(&mut *buf_slice, c"%s ", unsafe { CStr::from_ptr(kp_ptr) }) as usize;
+        *buflen = format_to_buf!(&mut *buf_slice, c"%s ", kp) as usize;
         if cap.count0 != 0 {
             *buflen +=
                 format_to_buf!(&mut buf_slice[*buflen..], c"%lld ", cap.count0 as i64) as usize;
@@ -4190,9 +4194,7 @@ fn nv_k_getcmd(
     if cap.count0 == 0 && isman_s {
         *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"man ") as usize;
     } else {
-        *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"%s ", unsafe {
-            CStr::from_ptr(kp_ptr)
-        }) as usize;
+        *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"%s ", kp) as usize;
     }
     if cap.count0 != 0 && (isman || isman_s) {
         *buflen += format_to_buf!(&mut buf_slice[*buflen..], c"%lld ", cap.count0 as i64) as usize;

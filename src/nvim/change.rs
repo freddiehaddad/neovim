@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Functions related to changing text (`src/nvim/change.c`).
 
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
@@ -942,7 +944,7 @@ pub fn open_line(
             let rem = crate::charset::skipwhite_slice(&saved_line_vec[col_u..]);
             first_char = i32::from(rem.first().copied().unwrap_or(0));
         }
-        extra_len = unsafe { CStr::from_ptr(p_extra.cast()) }.to_bytes().len() as i32;
+        extra_len = crate::memory::bytes_until_nul(&saved_line_vec[col_u..]).len() as i32;
 
         saved_char = saved_line_vec[col_u];
 
@@ -1138,6 +1140,7 @@ pub fn open_line(
         let mut require_blank = false;
 
         let mut p = lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
+        let lead_flags_bytes = lead_flags.map_or(&[][..], CStr::to_bytes);
         while !p.is_null()
             && *crate::globals::GraphPtr::of(p).borrow() != 0
             && *crate::globals::GraphPtr::of(p).borrow() != b':'
@@ -1150,7 +1153,8 @@ pub fn open_line(
             }
             if p_byte == COM_START || p_byte == COM_MIDDLE {
                 let current_flag = p_byte;
-                let mut p_bytes = unsafe { CStr::from_ptr(p.cast()) }.to_bytes();
+                let p_off = (p as usize) - (lead_flags_bytes.as_ptr() as usize);
+                let mut p_bytes = &lead_flags_bytes[p_off.min(lead_flags_bytes.len())..];
                 if p_byte == COM_START {
                     if dir == BACKWARD {
                         lead_len = 0;
@@ -1186,16 +1190,17 @@ pub fn open_line(
                 }
 
                 if dir == FORWARD {
-                    let mut q = saved_line.wrapping_add(lead_len as usize);
+                    let mut q_idx = lead_len as usize;
                     let end_bytes = &lead_end[..n];
-                    while *crate::globals::GraphPtr::of(q).borrow() != 0 {
-                        let q_bytes = unsafe { CStr::from_ptr(q.cast()) }.to_bytes();
+                    let saved_bytes = crate::memory::bytes_until_nul(&saved_line_vec);
+                    while q_idx < saved_bytes.len() {
+                        let q_bytes = &saved_bytes[q_idx..];
                         if q_bytes.len() >= n && &q_bytes[..n] == end_bytes {
-                            comment_end = q;
+                            comment_end = saved_line.wrapping_add(q_idx);
                             lead_len = 0;
                             break;
                         }
-                        q = q.wrapping_add(1);
+                        q_idx += 1;
                     }
                 }
 
@@ -1306,7 +1311,8 @@ pub fn open_line(
 
                         p = p.wrapping_add(1);
                     } else if ascii_isdigit(pb) || pb == b'-' {
-                        let p_bytes = unsafe { CStr::from_ptr(p.cast()) }.to_bytes();
+                        let p_off = (p as usize) - (lead_flags_bytes.as_ptr() as usize);
+                        let p_bytes = &lead_flags_bytes[p_off.min(lead_flags_bytes.len())..];
                         let mut rem = p_bytes;
                         off = getdigits_int(&mut rem, true, 0);
                         p = p.wrapping_add(p_bytes.len() - rem.len());
@@ -1477,8 +1483,9 @@ pub fn open_line(
                 }
 
                 if curbuf_mut().b_p_ai || do_si {
+                    let lead_off = (leader as usize) - (allocated_vec.as_ptr() as usize);
                     newindent = indent_size_ts(
-                        unsafe { CStr::from_ptr(leader.cast()) }.to_bytes(),
+                        crate::memory::bytes_until_nul(&allocated_vec[lead_off..]),
                         curbuf_mut().b_p_ts,
                         &curbuf_mut().b_p_vts_array,
                     );
@@ -1531,9 +1538,7 @@ pub fn open_line(
             g_st().ins_global.did_si = false;
             g_st().ins_global.can_si = false;
         } else if !comment_end.is_null()
-            && unsafe { CStr::from_ptr(comment_end.cast()) }
-                .to_bytes()
-                .starts_with(b"*/")
+            && saved_line_vec[(comment_end as usize) - (saved_line as usize)..].starts_with(b"*/")
             && (curbuf_mut().b_p_ai || do_si)
         {
             let old_cursor = curwin_mut().w_cursor;
@@ -1547,6 +1552,7 @@ pub fn open_line(
         }
     }
 
+    let mut p_extra_off: Option<usize> = None;
     if !p_extra.is_null() {
         *crate::globals::GraphPtr::of(p_extra).borrow_mut() = saved_char;
 
@@ -1568,13 +1574,12 @@ pub fn open_line(
             }
         }
 
-        less_cols = ((p_extra as isize) - (saved_line as isize)) as Colnr;
+        let off = (p_extra as usize) - (saved_line as usize);
+        p_extra_off = Some(off);
+        less_cols = off as Colnr;
     }
 
-    if p_extra.is_null() {
-        p_extra = c"".as_ptr().cast_mut().cast();
-    }
-
+    let mut p_extra_in_allocated: Option<usize> = None;
     if lead_len > 0 {
         let lead_off = ((leader as isize) - (allocated_vec.as_ptr() as isize)) as usize;
         let mut cur_len = crate::memory::bytes_as_cstr(&allocated_vec[lead_off..])
@@ -1589,10 +1594,13 @@ pub fn open_line(
                 newcol += 1;
             }
         }
-        let extra_bytes = unsafe { CStr::from_ptr(p_extra.cast()) }.to_bytes_with_nul();
+        let extra_bytes = match p_extra_off {
+            Some(off) => crate::memory::bytes_as_cstr(&saved_line_vec[off..]).to_bytes_with_nul(),
+            None => c"".to_bytes_with_nul(),
+        };
         allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
             .copy_from_slice(extra_bytes);
-        p_extra = allocated_vec[lead_off..].as_mut_ptr();
+        p_extra_in_allocated = Some(lead_off);
         g_st().ins_global.did_ai = true;
         less_cols -= lead_len;
     } else {
@@ -1604,22 +1612,33 @@ pub fn open_line(
     let old_cmod_flags = g_st().cmdmod.cmod_flags;
     let mut prompt_moved: Option<std::ffi::CString> = None;
 
+    fn current_extra_bytes<'a>(
+        p_extra_in_allocated: Option<usize>,
+        p_extra_off: Option<usize>,
+        allocated_vec: &'a [u8],
+        saved_line_vec: &'a [u8],
+    ) -> &'a [u8] {
+        if let Some(lead_off) = p_extra_in_allocated {
+            crate::memory::bytes_until_nul(&allocated_vec[lead_off..])
+        } else if let Some(off) = p_extra_off {
+            crate::memory::bytes_until_nul(&saved_line_vec[off..])
+        } else {
+            &[]
+        }
+    }
+
     if dir == BACKWARD {
         if bt_prompt(Some(crate::globals::curbuf_mut()))
             && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum
         {
-            let prompt_line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
+            let prompt_line_cstr = ml_get(curwin_mut().w_cursor.lnum);
+            let prompt_line_bytes = prompt_line_cstr.to_bytes();
+            let prompt_line = prompt_line_cstr.as_ptr().cast_mut();
             let prompt = prompt_text();
             let prompt_len = prompt.to_bytes().len();
 
-            if unsafe { CStr::from_ptr(prompt_line) }
-                .to_bytes()
-                .starts_with(prompt.to_bytes())
-            {
-                let rem_len = unsafe { CStr::from_ptr(prompt_line.wrapping_add(prompt_len)) }
-                    .to_bytes()
-                    .len()
-                    + 1;
+            if prompt_line_bytes.starts_with(prompt.to_bytes()) {
+                let rem_len = prompt_line_bytes.len() - prompt_len + 1;
 
                 crate::globals::GraphPtr::copy_to(
                     prompt_line.wrapping_add(prompt_len),
@@ -1630,25 +1649,33 @@ pub fn open_line(
                 g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                 ml_replace(
                     curwin_mut().w_cursor.lnum,
-                    unsafe { CStr::from_ptr(prompt_line) }.to_bytes(),
+                    crate::memory::bytes_until_nul(crate::globals::GraphPtr::raw_slice(
+                        prompt_line.cast(),
+                        rem_len,
+                    )),
                     true,
                 );
-                prompt_moved = Some(concat_str(
-                    prompt.to_bytes(),
-                    unsafe { CStr::from_ptr(p_extra.cast()) }.to_bytes(),
-                ));
-                p_extra = prompt_moved
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+                let cur_extra = current_extra_bytes(
+                    p_extra_in_allocated,
+                    p_extra_off,
+                    &allocated_vec,
+                    &saved_line_vec,
+                );
+                prompt_moved = Some(concat_str(prompt.to_bytes(), cur_extra));
             }
         }
         curwin_mut().w_cursor.lnum -= 1;
     }
 
-    let p_extra_bytes = if p_extra.is_null() {
-        &[][..]
+    let p_extra_bytes = if let Some(ref pm) = prompt_moved {
+        pm.as_bytes()
     } else {
-        unsafe { CStr::from_ptr(p_extra.cast()) }.to_bytes()
+        current_extra_bytes(
+            p_extra_in_allocated,
+            p_extra_off,
+            &allocated_vec,
+            &saved_line_vec,
+        )
     };
     let mut did_append: bool;
     let append_failed = if (g_st().state_global & VREPLACE_FLAG) == 0

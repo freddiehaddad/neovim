@@ -72,7 +72,10 @@ fn env_st() -> crate::globals::GraphPtr<EnvModuleState> {
 
 use crate::version::{default_vim_dir, default_vimruntime_dir};
 
-use crate::event::r#loop::{uv_os_getenv, uv_os_homedir, uv_os_setenv, uv_os_unsetenv};
+use crate::event::r#loop::{
+    uv_env_item_t, uv_os_environ, uv_os_free_environ, uv_os_getenv, uv_os_homedir, uv_os_setenv,
+    uv_os_unsetenv,
+};
 
 unsafe extern "C" {
     #[cfg(target_os = "macos")]
@@ -696,6 +699,26 @@ pub fn expand_env_esc(
     }
 
     dst_idx
+}
+
+/// Iterate over current process environment items via `uv_os_environ`.
+pub fn os_get_environ(mut cb: impl FnMut(&CStr, Option<&CStr>)) {
+    let mut envitems: *mut uv_env_item_t = std::ptr::null_mut();
+    let mut envcount: i32 = 0;
+    if unsafe { uv_os_environ(&raw mut envitems, &mut envcount) } == 0 {
+        for i in 0..(envcount as usize) {
+            let item = crate::globals::GraphPtr::of(envitems.wrapping_add(i)).borrow();
+            let item_name = if item.name.is_null() {
+                c""
+            } else {
+                unsafe { CStr::from_ptr(item.name.cast()) }
+            };
+            let item_val =
+                (!item.value.is_null()).then(|| unsafe { CStr::from_ptr(item.value.cast()) });
+            cb(item_name, item_val);
+        }
+        unsafe { uv_os_free_environ(envitems, envcount) };
+    }
 }
 
 fn vim_runtime_dir(vimdir: Option<&CStr>) -> Option<std::ffi::CString> {

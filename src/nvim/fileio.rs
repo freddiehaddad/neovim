@@ -291,11 +291,14 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     pub fn iconv_close(cd: iconv_t) -> i32;
     #[cfg_attr(windows, link_name = "_close")]
+    #[cfg_attr(not(windows), link_name = "close")]
     fn c_close(fd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_dup")]
-    pub fn dup(oldfd: i32) -> i32;
+    #[cfg_attr(not(windows), link_name = "dup")]
+    fn c_dup(oldfd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_dup2")]
-    pub fn dup2(oldfd: i32, newfd: i32) -> i32;
+    #[cfg_attr(not(windows), link_name = "dup2")]
+    fn c_dup2(oldfd: i32, newfd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_lseeki64")]
     #[cfg_attr(not(windows), link_name = "lseek")]
     fn c_vim_lseek(fd: i32, offset: Off, whence: i32) -> Off;
@@ -360,6 +363,30 @@ unsafe extern "C" {
 #[inline]
 pub fn close(fd: i32) -> i32 {
     unsafe { c_close(fd) }
+}
+
+#[inline]
+pub fn dup(oldfd: i32) -> i32 {
+    unsafe { c_dup(oldfd) }
+}
+
+#[inline]
+pub fn dup2(oldfd: i32, newfd: i32) -> i32 {
+    unsafe { c_dup2(oldfd, newfd) }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn os_dupfd_cloexec(fd: i32, min_fd: i32) -> i32 {
+    #[cfg(target_os = "linux")]
+    const F_DUPFD_CLOEXEC: i32 = 1030;
+    #[cfg(target_os = "macos")]
+    const F_DUPFD_CLOEXEC: i32 = 67;
+    #[cfg(target_os = "freebsd")]
+    const F_DUPFD_CLOEXEC: i32 = 17;
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
+    const F_DUPFD_CLOEXEC: i32 = 12;
+    unsafe { fcntl(fd, F_DUPFD_CLOEXEC, min_fd) }
 }
 
 #[inline]
@@ -2743,7 +2770,7 @@ pub fn readfile(
                 if g_st().stdin_fd < 0 {
                     #[cfg(not(windows))]
                     {
-                        g_st().vim_ignored = unsafe { dup(2) };
+                        g_st().vim_ignored = dup(2);
                     }
                     #[cfg(windows)]
                     {

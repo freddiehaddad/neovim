@@ -15,8 +15,8 @@ pub const NS_PER_SEC: i64 = 1_000_000_000;
 const UV_CLOCK_REALTIME: i32 = 1;
 
 use crate::event::r#loop::{
-    UvTimespec64, UvTimeval64, uv_clock_gettime, uv_gettimeofday, uv_hrtime, uv_now, uv_sleep,
-    uv_uptime,
+    UvTimespec64, UvTimeval64, uv_clock_gettime, uv_gettimeofday, uv_hrtime, uv_now, uv_random,
+    uv_sleep, uv_uptime,
 };
 
 #[repr(C)]
@@ -85,6 +85,29 @@ pub fn os_strftime(buf: &mut [u8], format: &CStr, tm: &Tm) -> usize {
             &raw const *tm,
         )
     }
+}
+
+/// Convert a broken-down local time into `time_t` (`mktime`).
+#[inline]
+pub fn os_mktime(tm: &mut Tm) -> time_t {
+    unsafe { mktime(&raw mut *tm) }
+}
+
+/// Generate a random `u32` via `uv_random`, returning `None` on failure.
+#[inline]
+pub fn os_random_u32() -> Option<u32> {
+    let mut number: u32 = 0;
+    (unsafe {
+        uv_random(
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            (&raw mut number).cast(),
+            size_of::<u32>(),
+            0,
+            std::ptr::null(),
+        )
+    } == 0)
+        .then_some(number)
 }
 
 /// Return current system uptime in seconds, or `None` on failure.

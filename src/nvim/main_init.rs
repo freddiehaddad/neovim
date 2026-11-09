@@ -514,7 +514,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if !server_init(params.listen_addr.as_deref()) {
         #[cfg(windows)]
         if startup_stderr_fd >= 0 {
-            unsafe { dup2(startup_stderr_fd, STDERR_FILENO) };
+            dup2(startup_stderr_fd, STDERR_FILENO);
             close(startup_stderr_fd);
         }
         mainerr(g_st().iobuff_cstr(), None, None);
@@ -1117,7 +1117,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         if chan == 0 {
             #[cfg(windows)]
             {
-                unsafe { dup2(STDOUT_FILENO, STDERR_FILENO) };
+                dup2(STDOUT_FILENO, STDERR_FILENO);
             }
             fprintf!(
                 stderr,

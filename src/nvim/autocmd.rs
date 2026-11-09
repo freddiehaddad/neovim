@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! Autocommand registration, matching, and execution (`src/nvim/autocmd.c`).
 
 use crate::api::private::converter::object_to_vim;
@@ -2036,9 +2038,8 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
             }
             if pat_len < pat_bytes.len() {
                 cmd = crate::memory::CStrSubslice::advance(pat, pat_len + 1);
-                let p_cstr = CString::new(&pat_bytes[..pat_len]).unwrap_or_default();
-                pat = unsafe { CStr::from_ptr(p_cstr.as_ptr()) };
-                pat_owned = Some(p_cstr);
+                pat_owned = Some(CString::new(&pat_bytes[..pat_len]).unwrap_or_default());
+                pat = pat_owned.as_deref().unwrap();
             } else {
                 cmd = c"";
             }
@@ -2046,9 +2047,8 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
             if crate::strings::vim_haschr(pat, b'$' as i32)
                 || crate::strings::vim_haschr(pat, b'~' as i32)
             {
-                let ep = expand_env_save(pat);
-                pat = unsafe { CStr::from_ptr(ep.as_ptr()) };
-                envpat = Some(ep);
+                envpat = Some(expand_env_save(pat));
+                pat = envpat.as_deref().unwrap();
             }
 
             cmd = crate::charset::skipwhite(cmd);
@@ -2705,8 +2705,7 @@ pub fn apply_autocmds_group(
     with_buf: bool,
 ) -> bool {
     let buf = crate::globals::GraphPtr::from(buf);
-    let mut fname = fname.map_or(ptr::null(), CStr::as_ptr);
-    let fname_io = fname_io.map_or(ptr::null(), CStr::as_ptr);
+    let mut fname = fname;
     {
         let mut retval = false;
         let mut wait_time: Proftime = 0;
@@ -2780,31 +2779,27 @@ pub fn apply_autocmds_group(
             let save_autocmd_busy = g_st().autocmd_busy;
             let save_autocmd_nested = au_st().autocmd_nested;
 
-            let raw_autocmd_fname = if fname_io.is_null() {
+            let raw_autocmd_fname = if fname_io.is_none() {
                 if event == EVENT_COLORSCHEME
                     || event == EVENT_COLORSCHEMEPRE
                     || event == EVENT_OPTIONSET
                     || event == EVENT_MODECHANGED
                     || event == EVENT_MARKSET
                 {
-                    ptr::null_mut()
-                } else if !fname.is_null()
-                    && ends_excmd(*crate::globals::GraphPtr::of(fname).borrow() as i32) == 0
+                    None
+                } else if let Some(f) = fname
+                    && ends_excmd(i32::from(f.to_bytes().first().copied().unwrap_or(0))) == 0
                 {
                     fname
                 } else if !buf.is_null() {
                     buf.ffname_opt()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
                 } else {
-                    ptr::null_mut()
+                    None
                 }
             } else {
                 fname_io
             };
-            let ptr_opt_cstr = |p: *const std::ffi::c_char| -> Option<&CStr> {
-                (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) })
-            };
-            let afile_orig_owned = if let Some(orig_cstr) = ptr_opt_cstr(raw_autocmd_fname) {
+            let afile_orig_owned = if let Some(orig_cstr) = raw_autocmd_fname {
                 let orig = orig_cstr.to_owned();
                 g_st().autocmd_fname = Some(orig.clone());
                 Some(orig)
@@ -2817,70 +2812,62 @@ pub fn apply_autocmds_group(
             g_st().autocmd_bufnr = if buf.is_null() { 0 } else { buf.b_fnum };
 
             let mut sfname_owned: Option<CString> = None;
-            let fname_owned: Option<CString> =
-                if ptr_opt_cstr(fname).is_none_or(|s| s.to_bytes().is_empty()) {
-                    if buf.is_null() {
-                        fname = ptr::null_mut();
-                    } else if event == EVENT_SYNTAX {
-                        fname = buf.b_p_syn.as_ptr().cast_mut();
-                    } else if event == EVENT_FILETYPE {
-                        fname = buf.b_p_ft.as_ptr().cast_mut();
-                    } else {
-                        sfname_owned = buf.b_sfname.clone();
-                        fname = buf
-                            .ffname_opt()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    }
-                    if fname.is_null() {
-                        fname = c"".as_ptr().cast_mut();
-                    }
-                    Some(ptr_opt_cstr(fname).unwrap_or(c"").to_owned())
+            let fname_owned: Option<CString> = if fname.is_none_or(|s| s.to_bytes().is_empty()) {
+                if buf.is_null() {
+                    fname = None;
+                } else if event == EVENT_SYNTAX {
+                    fname = Some(buf.b_p_syn.as_cstr());
+                } else if event == EVENT_FILETYPE {
+                    fname = Some(buf.b_p_ft.as_cstr());
                 } else {
-                    let fname_opt = ptr_opt_cstr(fname);
-                    sfname_owned = to_slash_save(fname_opt);
-                    if event == EVENT_CMDATOM
-                        || event == EVENT_CMDLINECHANGED
-                        || event == EVENT_CMDLINEENTER
-                        || event == EVENT_CMDLINELEAVEPRE
-                        || event == EVENT_CMDLINELEAVE
-                        || event == EVENT_CMDUNDEFINED
-                        || event == EVENT_CURSORMOVEDC
-                        || event == EVENT_CMDWINENTER
-                        || event == EVENT_CMDWINLEAVE
-                        || event == EVENT_COLORSCHEME
-                        || event == EVENT_COLORSCHEMEPRE
-                        || event == EVENT_DIRCHANGED
-                        || event == EVENT_DIRCHANGEDPRE
-                        || event == EVENT_FILETYPE
-                        || event == EVENT_FUNCUNDEFINED
-                        || event == EVENT_MARKSET
-                        || event == EVENT_MENUPOPUP
-                        || event == EVENT_MODECHANGED
-                        || event == EVENT_OPTIONSET
-                        || event == EVENT_PROGRESS
-                        || event == EVENT_QUICKFIXCMDPOST
-                        || event == EVENT_QUICKFIXCMDPRE
-                        || event == EVENT_REMOTEREPLY
-                        || event == EVENT_SIGNAL
-                        || event == EVENT_SPELLFILEMISSING
-                        || event == EVENT_SYNTAX
-                        || event == EVENT_TABCLOSED
-                        || event == EVENT_TABMOVED
-                        || event == EVENT_USER
-                        || event == EVENT_WINCLOSED
-                        || event == EVENT_WINRESIZED
-                        || event == EVENT_WINSCROLLED
-                    {
-                        g_st().autocmd_fname_full = true;
-                        to_slash_save(fname_opt)
-                    } else {
-                        FullName_save(fname_opt, false)
-                    }
-                };
-            fname = fname_owned
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            if fname.is_null() {
+                    sfname_owned = buf.b_sfname.clone();
+                    fname = buf.ffname_opt();
+                }
+                Some(fname.unwrap_or(c"").to_owned())
+            } else {
+                let fname_opt = fname;
+                sfname_owned = to_slash_save(fname_opt);
+                if event == EVENT_CMDATOM
+                    || event == EVENT_CMDLINECHANGED
+                    || event == EVENT_CMDLINEENTER
+                    || event == EVENT_CMDLINELEAVEPRE
+                    || event == EVENT_CMDLINELEAVE
+                    || event == EVENT_CMDUNDEFINED
+                    || event == EVENT_CURSORMOVEDC
+                    || event == EVENT_CMDWINENTER
+                    || event == EVENT_CMDWINLEAVE
+                    || event == EVENT_COLORSCHEME
+                    || event == EVENT_COLORSCHEMEPRE
+                    || event == EVENT_DIRCHANGED
+                    || event == EVENT_DIRCHANGEDPRE
+                    || event == EVENT_FILETYPE
+                    || event == EVENT_FUNCUNDEFINED
+                    || event == EVENT_MARKSET
+                    || event == EVENT_MENUPOPUP
+                    || event == EVENT_MODECHANGED
+                    || event == EVENT_OPTIONSET
+                    || event == EVENT_PROGRESS
+                    || event == EVENT_QUICKFIXCMDPOST
+                    || event == EVENT_QUICKFIXCMDPRE
+                    || event == EVENT_REMOTEREPLY
+                    || event == EVENT_SIGNAL
+                    || event == EVENT_SPELLFILEMISSING
+                    || event == EVENT_SYNTAX
+                    || event == EVENT_TABCLOSED
+                    || event == EVENT_TABMOVED
+                    || event == EVENT_USER
+                    || event == EVENT_WINCLOSED
+                    || event == EVENT_WINRESIZED
+                    || event == EVENT_WINSCROLLED
+                {
+                    g_st().autocmd_fname_full = true;
+                    to_slash_save(fname_opt)
+                } else {
+                    FullName_save(fname_opt, false)
+                }
+            };
+            fname = fname_owned.as_deref();
+            if fname.is_none() {
                 retval = false;
                 break 'bypass_au;
             }
@@ -2900,7 +2887,7 @@ pub fn apply_autocmds_group(
             let save_changed = curbuf_mut().b_changed;
             let old_curbuf = g_st().curbuf;
 
-            g_st().autocmd_match = ptr_opt_cstr(fname).map(CStr::to_owned);
+            g_st().autocmd_match = fname.map(CStr::to_owned);
 
             g_st().redrawing_disabled += 1;
 
@@ -3091,6 +3078,7 @@ pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
     au_st().termresponse_chan_id = channel_id;
 }
 
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn block_autocmds() {
     if !is_autocmd_blocked() {
@@ -3100,6 +3088,7 @@ pub extern "C" fn block_autocmds() {
     au_st().autocmd_blocked += 1;
 }
 
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn unblock_autocmds() {
     au_st().autocmd_blocked -= 1;

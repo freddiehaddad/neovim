@@ -71,7 +71,27 @@ impl Default for ProcessEntry32 {
 }
 
 #[cfg(target_os = "windows")]
-use crate::os::os_win_console::{CloseHandle, GetProcessId, OpenProcess, TerminateProcess};
+use crate::os::os_win_console::{
+    CloseHandle, DebugBreakProcess, GetProcessId, OpenProcess, TerminateProcess,
+};
+
+pub fn os_debugbreak(pid: i32) -> bool {
+    #[cfg(windows)]
+    {
+        let h_process = unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, pid as u32) };
+        if h_process.is_null() {
+            return false;
+        }
+        unsafe { DebugBreakProcess(h_process) };
+        unsafe { CloseHandle(h_process) };
+        true
+    }
+    #[cfg(not(windows))]
+    {
+        unsafe { uv_kill(pid, crate::os::signal::SIGINT) };
+        false
+    }
+}
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" {

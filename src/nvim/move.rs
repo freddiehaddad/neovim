@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! Functions for moving the cursor and scrolling text (`src/nvim/move.c`).
 
 use crate::buffer::{VALID_TOPLINE, buf_get_changedtick, buf_is_empty};
@@ -833,6 +835,7 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 
 /// Compute offset of a window, occupied by absolute or relative line number,
 /// fold column and sign column.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 #[allow(improper_ctypes_definitions)]
 pub extern "C" fn win_col_off(wp: &mut WinInfoInfo) -> i32 {

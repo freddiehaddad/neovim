@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Nvim's own UI client, which attaches to a child or remote Nvim server (`src/nvim/ui_client.c`).
 
 use crate::api::private::dispatch::key_dict_highlight_get_field as highlight_get_field_cb;
@@ -29,7 +31,7 @@ use crate::memory::Arena;
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
-use crate::os::env::os_env_exists;
+use crate::os::env::{os_env_exists, os_get_pid};
 #[cfg(windows)]
 use crate::os::os_win_console::os_open_conin_fd;
 use crate::profile::{time_finish, time_msg};
@@ -84,8 +86,6 @@ fn tui_ptr() -> &'static mut TUIData {
     uic_st().borrow_mut().tui.as_deref_mut().unwrap()
 }
 
-use crate::event::r#loop::uv_os_getpid;
-
 pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
     let mut args = Vec::with_capacity(1 + argv.len());
     args.push(argv.first().cloned().unwrap_or_default());
@@ -130,7 +130,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
         }
         #[cfg(not(windows))]
         {
-            let _ = unsafe { dup(if g_st().stderr_isatty { 2 } else { 1 }) };
+            let _ = dup(if g_st().stderr_isatty { 2 } else { 1 });
         }
     }
 
@@ -215,7 +215,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
         },
         KeyValuePair {
             key: cstr_as_string(Some(c"pid")),
-            value: integer_obj(Integer::from(unsafe { uv_os_getpid() })),
+            value: integer_obj(os_get_pid()),
         },
     ];
     let info = Dict {

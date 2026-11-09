@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
 use crate::grid::{Schar, schar_from_ascii, schar_from_bytes};

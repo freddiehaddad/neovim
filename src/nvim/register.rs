@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Functions for managing registers (`src/nvim/register.c`).
 
 use crate::api::private::helpers::{api_clear_string, cbuf_to_string};
@@ -12,7 +14,7 @@ use crate::buffer::{
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{K_OPT_VE_FLAG_ONEMORE, SIN_NOMARK, changed_bytes, changed_lines, del_chars};
-use crate::charset::{NUL, ascii_iswhite, getdigits_int, transchar, vim_strsize};
+use crate::charset::{ascii_iswhite, getdigits_int, transchar, vim_strsize};
 use crate::clipboard::{adjust_clipboard_name, get_clipboard, set_clipboard};
 use crate::cmdexpand::CTRL_P;
 use crate::cursor::{
@@ -73,7 +75,7 @@ use crate::regexp::{CTRL_V_CONST, MAXCOL, NUMBUFLEN};
 use crate::search::{BACKWARD, Direction, FORWARD, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, SaveVEvent};
 use crate::strings::{
-    format_to_buf, format_to_buf_safelen, gettext, ngettext, vim_strchr, vim_strsave_escaped_ext,
+    format_to_buf, format_to_buf_safelen, gettext, ngettext, vim_strsave_escaped_ext,
 };
 use crate::terminal::terminal_paste;
 use crate::textformat::Oparg;
@@ -862,9 +864,6 @@ pub fn insert_reg(regname: i32, reg: Option<&Yankreg>, literally_arg: bool) -> b
 pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
     let cstr_to_vec =
         |cstr: Option<std::ffi::CString>| cstr.map(std::ffi::CString::into_bytes_with_nul);
-    let ptr_to_vec = |p: *const std::ffi::c_char| {
-        (!p.is_null()).then(|| unsafe { CStr::from_ptr(p) }.to_bytes_with_nul().to_vec())
-    };
     match regname {
         x if x == i32::from(b'%') => {
             if errmsg {
@@ -935,8 +934,10 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
             if !errmsg {
                 return None;
             }
-            Some(ptr_to_vec(
-                (ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum)).as_ptr(),
+            Some(Some(
+                ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum)
+                    .to_bytes_with_nul()
+                    .to_vec(),
             ))
         }
         x if x == i32::from(b'_') => Some(Some(vec![0])),
@@ -1542,33 +1543,30 @@ pub fn do_put(
         insert_string.size = insert_string.cstr_bytes().len();
         y_type = MotionType::MtCharWise;
         if regname == i32::from(b'=') {
-            let mut ptr_ = insert_string.data.as_ptr().cast::<std::ffi::c_char>();
-            let mut ptrlen = insert_string.size;
-            while !ptr_.is_null() {
-                let ptr_cstr = unsafe { CStr::from_ptr(ptr_) };
-                let mut tmp = vim_strchr(ptr_cstr, i32::from(b'\n'))
-                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                if tmp.is_null() {
+            let spec_len = insert_string.size;
+            let spec_buf = insert_string_owned.as_mut().unwrap();
+            let mut start = 0usize;
+            loop {
+                if let Some(rel_nl) = spec_buf[start..spec_len].iter().position(|&b| b == b'\n') {
+                    let nl_idx = start + rel_nl;
+                    spec_buf[nl_idx] = 0;
                     expr_y_array.push(NvimString::from_bytes_len(
-                        ptr_cstr.to_bytes_with_nul(),
-                        ptrlen,
+                        &spec_buf[start..=nl_idx],
+                        rel_nl,
                     ));
-                } else {
-                    *crate::globals::GraphPtr::of(tmp).borrow_mut() = NUL as _;
-
-                    let item_size = (tmp as usize) - (ptr_ as usize);
-                    expr_y_array.push(NvimString::from_bytes_len(
-                        unsafe { CStr::from_ptr(ptr_) }.to_bytes_with_nul(),
-                        item_size,
-                    ));
-                    ptrlen -= item_size + 1;
-                    tmp = tmp.wrapping_add(1);
-                    if *crate::globals::GraphPtr::of(tmp).borrow() == 0 {
+                    start = nl_idx + 1;
+                    if start == spec_len {
                         y_type = MotionType::MtLineWise;
                         break;
                     }
+                } else {
+                    let rem_len = spec_len - start;
+                    expr_y_array.push(NvimString::from_bytes_len(
+                        &spec_buf[start..=spec_len],
+                        rem_len,
+                    ));
+                    break;
                 }
-                ptr_ = tmp;
             }
             y_size = expr_y_array.len();
             y_array = expr_y_array.as_mut_ptr();
@@ -1818,9 +1816,9 @@ pub fn do_put(
                     nr_lines += 1;
                     lines_appended = 1;
                 }
-                let oldp = get_cursor_line_ptr().as_ptr().cast_mut();
+                let oldp_cstr = get_cursor_line_ptr();
+                let oldp = oldp_cstr.as_ptr().cast_mut();
                 let oldlen = get_cursor_line_len();
-                let oldp_cstr = unsafe { CStr::from_ptr(oldp) };
 
                 let mut csarg = CharsizeArg::new();
                 let mut cstype: CSType = init_charsize_arg(
