@@ -266,7 +266,7 @@ pub struct TvPartial {
     pub pt_func: crate::eval::userfunc::UfuncId,
     pub pt_auto: bool,
     pub pt_argv: Vec<TypVal>,
-    pub pt_dict: crate::globals::GraphPtr<TvDict>,
+    pub pt_dict: DictId,
     pub pt_id: PartialId,
 }
 
@@ -279,7 +279,7 @@ impl Default for TvPartial {
             pt_func: crate::eval::userfunc::UfuncId::NULL,
             pt_auto: false,
             pt_argv: Vec::new(),
-            pt_dict: crate::globals::GraphPtr::NULL,
+            pt_dict: DictId::NULL,
             pt_id: PartialId::NULL,
         }
     }
@@ -423,7 +423,7 @@ pub enum TypvalVval {
     Float(f64),
     String(Option<std::ffi::CString>),
     List(ListId),
-    Dict(crate::globals::GraphPtr<TvDict>),
+    Dict(DictId),
     Blob(BlobId),
     Partial(PartialId),
 }
@@ -577,10 +577,10 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_dict(&self) -> crate::globals::GraphPtr<TvDict> {
+    pub const fn v_dict(&self) -> DictId {
         match *self {
             Self::Dict(p) => p,
-            _ => crate::globals::GraphPtr::NULL,
+            _ => DictId::NULL,
         }
     }
 
@@ -1080,6 +1080,143 @@ impl Drop for Dictitem {
 
 pub type ScopeDictDictItem = Dictitem;
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct DictId(pub Option<std::num::NonZeroU32>);
+
+impl DictId {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline(always)]
+    pub fn from_ref(d: &mut TvDict) -> Self {
+        d.dv_id
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(self) -> Option<&'static TvDict> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow()
+            .dict_arena
+            .get(idx)
+            .and_then(|s| s.as_deref())
+    }
+
+    #[inline(always)]
+    pub fn opt_mut(self) -> Option<&'static mut TvDict> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow_mut()
+            .dict_arena
+            .get_mut(idx)
+            .and_then(|s| s.as_deref_mut())
+    }
+
+    #[inline(always)]
+    pub fn borrow(self) -> &'static TvDict {
+        self.opt().expect("null or freed DictId")
+    }
+
+    #[inline(always)]
+    pub fn borrow_mut(self) -> &'static mut TvDict {
+        self.opt_mut().expect("null or freed DictId")
+    }
+
+    #[inline(always)]
+    pub fn as_ptr(self) -> *mut TvDict {
+        self.opt_mut().map_or(ptr::null_mut(), ptr::from_mut)
+    }
+}
+
+impl From<&TvDict> for DictId {
+    #[inline(always)]
+    fn from(d: &TvDict) -> Self {
+        d.dv_id
+    }
+}
+
+impl From<&mut TvDict> for DictId {
+    #[inline(always)]
+    fn from(d: &mut TvDict) -> Self {
+        d.dv_id
+    }
+}
+
+impl From<Option<&TvDict>> for DictId {
+    #[inline(always)]
+    fn from(opt: Option<&TvDict>) -> Self {
+        opt.map_or(Self::NULL, |d| d.dv_id)
+    }
+}
+
+impl From<Option<&mut TvDict>> for DictId {
+    #[inline(always)]
+    fn from(opt: Option<&mut TvDict>) -> Self {
+        opt.map_or(Self::NULL, |d| d.dv_id)
+    }
+}
+
+impl PartialEq<TvDict> for DictId {
+    #[inline(always)]
+    fn eq(&self, other: &TvDict) -> bool {
+        self.0.is_some() && *self == other.dv_id
+    }
+}
+
+impl PartialEq<&TvDict> for DictId {
+    #[inline(always)]
+    fn eq(&self, other: &&TvDict) -> bool {
+        self.0.is_some() && *self == other.dv_id
+    }
+}
+
+impl PartialEq<&mut TvDict> for DictId {
+    #[inline(always)]
+    fn eq(&self, other: &&mut TvDict) -> bool {
+        self.0.is_some() && *self == other.dv_id
+    }
+}
+
+impl PartialEq<*const TvDict> for DictId {
+    #[inline(always)]
+    fn eq(&self, other: &*const TvDict) -> bool {
+        ptr::eq(self.as_ptr().cast_const(), *other)
+    }
+}
+
+impl PartialEq<*mut TvDict> for DictId {
+    #[inline(always)]
+    fn eq(&self, other: &*mut TvDict) -> bool {
+        ptr::eq(self.as_ptr(), *other)
+    }
+}
+
+impl std::ops::Deref for DictId {
+    type Target = TvDict;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
+
+impl std::ops::DerefMut for DictId {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut()
+    }
+}
+
 #[repr(C)]
 pub struct TvDict {
     pub dv_lock: i32,
@@ -1087,11 +1224,11 @@ pub struct TvDict {
     pub dv_refcount: i32,
     pub dv_copy_id: i32,
     pub dv_hashtab: crate::hashtab::Hashtab,
-    pub dv_copydict: crate::globals::GraphPtr<TvDict>,
+    pub dv_copydict: DictId,
     pub dv_gc_idx: Option<usize>,
     pub watchers: Vec<DictWatcher>,
     pub lua_table_ref: i32,
-    pub dv_arena_idx: usize,
+    pub dv_id: DictId,
 }
 
 impl TvDict {
@@ -1102,11 +1239,11 @@ impl TvDict {
             dv_refcount: 0,
             dv_copy_id: 0,
             dv_hashtab: crate::hashtab::Hashtab::new(),
-            dv_copydict: crate::globals::GraphPtr::NULL,
+            dv_copydict: DictId::NULL,
             dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
-            dv_arena_idx: usize::MAX,
+            dv_id: DictId::NULL,
         }
     }
 }
@@ -1166,7 +1303,7 @@ struct Sortinfo {
     item_compare_float: bool,
     item_compare_func: Option<std::ffi::CString>,
     item_compare_partial: PartialId,
-    item_compare_selfdict: crate::globals::GraphPtr<TvDict>,
+    item_compare_selfdict: DictId,
     item_compare_func_err: bool,
     item_compare_keys_ready: bool,
 }
@@ -1181,7 +1318,7 @@ impl Sortinfo {
             item_compare_float: false,
             item_compare_func: None,
             item_compare_partial: PartialId::NULL,
-            item_compare_selfdict: crate::globals::GraphPtr::NULL,
+            item_compare_selfdict: DictId::NULL,
             item_compare_func_err: false,
             item_compare_keys_ready: false,
         }
@@ -1534,7 +1671,7 @@ fn tv_list_last_inline(l: Option<&TvList>) -> Option<&'static mut Listitem> {
 fn tv_dict_set_ret_inline(tv: &mut TypVal, d: &mut TvDict) {
     d.dv_refcount += 1;
     tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(d));
+    tv.vval = crate::eval::typval::TypvalVval::Dict(d.dv_id);
 }
 
 #[inline]
@@ -1937,16 +2074,16 @@ pub fn tv_list_append_list(l: &mut TvList, itemlist: Option<&mut TvList>) {
 
 /// Append a dictionary to a list.
 pub fn tv_list_append_dict(l: &mut TvList, dict: Option<&mut TvDict>) {
-    let dict_ptr = dict.map_or(ptr::null_mut(), |d| {
+    let dict_id = dict.map_or(DictId::NULL, |d| {
         d.dv_refcount += 1;
-        ptr::from_mut(d)
+        d.dv_id
     });
     tv_list_append_owned_tv(
         l,
         TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict_ptr)),
+            vval: TypvalVval::Dict(dict_id),
         },
     );
 }
@@ -2843,7 +2980,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
     info.item_compare_float = false;
     info.item_compare_func = None;
     info.item_compare_partial = PartialId::NULL;
-    info.item_compare_selfdict = crate::globals::GraphPtr::NULL;
+    info.item_compare_selfdict = DictId::NULL;
     info.item_compare_keys_ready = false;
 
     if argvars[1].v_type == VarType::VarUnknown {
@@ -3292,7 +3429,7 @@ pub fn tv_dict_watcher_notify(
     newtv: Option<&TypVal>,
     oldtv: Option<&TypVal>,
 ) {
-    let mut dict = crate::globals::GraphPtr::from(dict_in);
+    let mut dict = DictId::from(dict_in);
     let mut argv: [TypVal; 3] = [const { tv_initial_value() }; 3];
 
     argv[0].v_type = VarType::VarDict;
@@ -3303,8 +3440,7 @@ pub fn tv_dict_watcher_notify(
     argv[2].v_type = VarType::VarDict;
     argv[2].v_lock = VAR_UNLOCKED;
     let changes_dict = tv_dict_alloc();
-    argv[2].vval =
-        crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(changes_dict));
+    argv[2].vval = crate::eval::typval::TypvalVval::Dict(changes_dict.dv_id);
     changes_dict.dv_refcount += 1;
 
     if let Some(newtv) = newtv {
@@ -3426,48 +3562,59 @@ pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
     tv_dict_item_free(item);
 }
 
-/// Allocate an empty dictionary.
-pub fn tv_dict_alloc() -> &'static mut TvDict {
+fn tv_dict_alloc_slot() -> &'static mut TvDict {
     let st = tv_st().borrow_mut();
     let idx = if let Some(idx) = st.free_dicts.pop() {
+        let id = DictId::from_slot(idx);
         st.dict_arena[idx] = Some(Box::new(TvDict {
             dv_lock: VAR_UNLOCKED,
             dv_scope: VAR_NO_SCOPE,
             dv_refcount: 0,
             dv_copy_id: 0,
             dv_hashtab: crate::hashtab::Hashtab::new(),
-            dv_copydict: crate::globals::GraphPtr::NULL,
+            dv_copydict: DictId::NULL,
             dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
-            dv_arena_idx: idx,
+            dv_id: id,
         }));
         idx
     } else {
         let idx = st.dict_arena.len();
+        let id = DictId::from_slot(idx);
         st.dict_arena.push(Some(Box::new(TvDict {
             dv_lock: VAR_UNLOCKED,
             dv_scope: VAR_NO_SCOPE,
             dv_refcount: 0,
             dv_copy_id: 0,
             dv_hashtab: crate::hashtab::Hashtab::new(),
-            dv_copydict: crate::globals::GraphPtr::NULL,
+            dv_copydict: DictId::NULL,
             dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
-            dv_arena_idx: idx,
+            dv_id: id,
         })));
         idx
     };
-    let d = st.dict_arena[idx].as_deref_mut().unwrap();
+    st.dict_arena[idx].as_deref_mut().unwrap()
+}
+
+/// Allocate an empty dictionary.
+pub fn tv_dict_alloc() -> &'static mut TvDict {
+    let d = tv_dict_alloc_slot();
     gc_register_dict(d);
     d
 }
 
+/// Allocate an empty static dictionary (not registered in GC).
+pub fn tv_dict_alloc_static() -> &'static mut TvDict {
+    tv_dict_alloc_slot()
+}
+
 /// Free a heap-allocated `TvDict` slot in the arena.
 pub fn tv_dict_free_slot(d: &mut TvDict) {
-    let idx = d.dv_arena_idx;
-    if idx != usize::MAX {
+    if let Some(nz) = d.dv_id.0 {
+        let idx = (nz.get() - 1) as usize;
         let st = tv_st().borrow_mut();
         let dropped = st.dict_arena[idx].take();
         st.free_dicts.push(idx);
@@ -3496,7 +3643,7 @@ pub fn tv_dict_free_contents(d: &mut TvDict) {
 
 /// Free a dictionary, including all items it contains.
 pub fn tv_dict_free(d_in: &mut TvDict) {
-    if tv_st().tv_in_free_unref_items {
+    if tv_st().tv_in_free_unref_items && d_in.dv_gc_idx.is_some() {
         return;
     }
     tv_list_dict_free_dict_inner(d_in);
@@ -3706,10 +3853,9 @@ pub fn tv_dict_add_tv(d: &mut TvDict, key: &[u8], tv: &mut TypVal) -> bool {
 pub fn tv_dict_add_dict(d: &mut TvDict, key: &CStr, mut dict: Option<&mut TvDict>) -> bool {
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarDict;
-    item.di_tv.vval =
-        crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::from(dict.as_deref_mut()));
+    item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::from(dict.as_deref_mut()));
     if !tv_dict_add(d, item) {
-        item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
+        item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
         tv_dict_item_free(item);
         return false;
     }
@@ -3920,7 +4066,7 @@ pub fn tv_dict_copy(
     let copy = tv_dict_alloc();
     if copy_id != 0 {
         orig.as_deref_mut().unwrap().dv_copy_id = copy_id;
-        orig.as_deref_mut().unwrap().dv_copydict = crate::globals::GraphPtr::from(&mut *copy);
+        orig.as_deref_mut().unwrap().dv_copydict = copy.dv_id;
     }
     for (_, di) in orig.unwrap().dv_hashtab.iter_items_mut() {
         if g_st().got_int {
@@ -3953,13 +4099,13 @@ pub fn tv_dict_copy(
     }
 
     copy.dv_refcount += 1;
-    let copy_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(copy);
+    let copy_id_handle = copy.dv_id;
     if g_st().got_int {
-        tv_dict_unref(copy_ptr.opt_mut());
+        tv_dict_unref(copy_id_handle.opt_mut());
         return None;
     }
 
-    copy_ptr.opt_mut()
+    copy_id_handle.opt_mut()
 }
 
 /// Set all existing keys in "dict" as read-only.
@@ -4439,7 +4585,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
         };
         let dict = pt.pt_dict;
         debug_assert!(dict.is_null() || dict.dv_copy_id == copy_id);
-        pt.pt_dict = crate::globals::GraphPtr::NULL;
+        pt.pt_dict = DictId::NULL;
         pt.pt_argv.clear();
         debug_assert!(pt.pt_refcount <= 1);
         partial_unref(Some(pt));
@@ -4553,7 +4699,7 @@ fn nothing_convert_one_value(
             let mut dict = tv.vval.v_dict();
             if dict.is_null() || dict.dv_hashtab.ht_used == 0 {
                 tv_dict_unref(dict.opt_mut());
-                tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
+                tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
@@ -4567,7 +4713,7 @@ fn nothing_convert_one_value(
                 {
                     dict.dv_refcount -= 1;
                 }
-                tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
+                tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
                 return true;
             }
 
@@ -4617,8 +4763,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
 
                     dict.dv_copy_id = saved_copy_id;
                     if let Some(tv_ref) = cur_tv.opt_mut() {
-                        tv_ref.vval =
-                            crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
+                        tv_ref.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
                     }
                     tv_dict_unref(dict.opt_mut());
                     continue;
@@ -4680,13 +4825,13 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                             *stage_ref = MPConvPartialStage::End;
                         }
                         let mut dict = if pt.is_null() {
-                            crate::globals::GraphPtr::NULL
+                            DictId::NULL
                         } else {
                             pt.pt_dict
                         };
                         if !dict.is_null() {
                             if dict.dv_hashtab.ht_used == 0 {
-                                pt.pt_dict = crate::globals::GraphPtr::NULL;
+                                pt.pt_dict = DictId::NULL;
                                 tv_dict_unref(dict.opt_mut());
                                 continue;
                             }
@@ -4694,7 +4839,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                             if saved_copy_id == copy_id {
                                 continue;
                             }
-                            pt.pt_dict = crate::globals::GraphPtr::NULL;
+                            pt.pt_dict = DictId::NULL;
                             if dict.dv_refcount > 1 {
                                 dict.dv_refcount -= 1;
                                 continue;

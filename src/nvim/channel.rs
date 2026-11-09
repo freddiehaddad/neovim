@@ -65,7 +65,7 @@ pub type ChannelStdinMode = i32;
 #[repr(C)]
 pub struct CallbackReader {
     pub cb: Callback,
-    pub self_dict: crate::globals::GraphPtr<TvDict>,
+    pub self_dict: crate::eval::typval::DictId,
     pub buffer: Vec<u8>,
     pub eof: bool,
     pub buffered: bool,
@@ -78,7 +78,7 @@ impl CallbackReader {
     pub const fn none() -> Self {
         Self {
             cb: Callback::NONE,
-            self_dict: crate::globals::GraphPtr::NULL,
+            self_dict: crate::eval::typval::DictId::NULL,
             buffer: Vec::new(),
             eof: false,
             buffered: false,
@@ -431,7 +431,7 @@ pub fn channel_job_start(
     env: Option<&'static mut TvDict>,
     status_out: &mut Varnumber,
 ) -> Option<&'static mut Channel> {
-    let env_ptr = crate::globals::GraphPtr::from(env);
+    let env_ptr = crate::eval::typval::DictId::from(env);
     let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
     let chan_ptr = crate::globals::GraphPtr::<Channel>::from_ref(chan);
     chan.on_data = on_stdout;

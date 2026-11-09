@@ -7,7 +7,7 @@ use crate::api::private::validate::{
 };
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
-    TvDict, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add, tv_dict_alloc, tv_list_alloc,
+    TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add, tv_dict_alloc, tv_list_alloc,
     tv_list_append_owned_tv,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
@@ -46,7 +46,7 @@ enum ConvStackEntry {
         first: bool,
     },
     Dict {
-        dict: crate::globals::GraphPtr<TvDict>,
+        dict: crate::eval::typval::DictId,
         hi: crate::globals::GraphPtr<Hashitem>,
         todo: usize,
         saved_copy_id: i32,
@@ -400,7 +400,7 @@ pub fn object_to_vim_take_luaref(
             }
             dict.dv_refcount += 1;
             tv_ref.v_type = VarType::VarDict;
-            tv_ref.vval = TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
+            tv_ref.vval = TypvalVval::Dict(dict.dv_id);
         }
         ObjectType::ObjectTypeLuaRef => {
             let mut ref_id = obj.data.luaref();
@@ -459,7 +459,7 @@ mod tests {
             let mut null_dict = TypVal {
                 v_type: VarType::VarDict,
                 v_lock: 0,
-                vval: TypvalVval::Dict(crate::globals::GraphPtr::NULL),
+                vval: TypvalVval::Dict(crate::eval::typval::DictId::NULL),
             };
             let dict_obj = vim_to_object(&mut null_dict, None, false);
             assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);

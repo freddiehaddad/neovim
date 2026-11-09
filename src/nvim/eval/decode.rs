@@ -83,7 +83,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     *rettv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
+        vval: TypvalVval::Dict(dict.dv_id),
     };
 }
 
@@ -883,7 +883,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         tv = TypVal {
                             v_type: VarType::VarDict,
                             v_lock: VAR_UNLOCKED,
-                            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
+                            vval: TypvalVval::Dict(dict.dv_id),
                         };
                     }
                     container_stack.push(JsonContainerStackItem {
@@ -1121,7 +1121,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 *result = TypVal {
                     v_type: VarType::VarDict,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Dict(crate::globals::GraphPtr::new(dict)),
+                    vval: TypvalVval::Dict(dict.dv_id),
                 };
                 for pair in &items[..len] {
                     let di =

@@ -3045,7 +3045,7 @@ fn vim_regsub_both(
                     fe_doesrange: false,
                     fe_evaluate: true,
                     fe_partial: crate::eval::typval::PartialId::NULL,
-                    fe_selfdict: crate::globals::GraphPtr::NULL,
+                    fe_selfdict: crate::eval::typval::DictId::NULL,
                     fe_basetv: crate::globals::GraphPtr::NULL,
                     fe_found_var: false,
                 };

@@ -320,26 +320,26 @@ pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
 fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<&'static mut TvDict> {
     let scope = luaL_checkstring(lstate, 1);
     let handle = luaL_checkinteger_safe(lstate, 2) as ObjHandle;
-    let mut dict = crate::globals::GraphPtr::<TvDict>::NULL;
+    let mut dict = crate::eval::typval::DictId::NULL;
     let mut err = Error::new();
 
     match scope.to_bytes() {
-        b"g" => dict = crate::globals::GraphPtr::<TvDict>::of(get_globvar_dict()),
-        b"v" => dict = crate::globals::GraphPtr::<TvDict>::of(get_vimvar_dict()),
+        b"g" => dict = get_globvar_dict().dv_id,
+        b"v" => dict = get_vimvar_dict().dv_id,
         b"b" => {
             if let Some(buf) = find_buffer_by_handle(handle, &mut err) {
-                dict = crate::globals::GraphPtr::<TvDict>::of(buf.b_vars());
+                dict = buf.b_vars().dv_id;
             }
         }
         b"w" => {
             let win = find_window_by_handle(handle, &mut err);
             if !win.is_null() {
-                dict = crate::globals::GraphPtr::<TvDict>::of(win.w_vars());
+                dict = win.w_vars().dv_id;
             }
         }
         b"t" => {
             if let Some(tabpage) = find_tab_by_handle(handle, &mut err) {
-                dict = crate::globals::GraphPtr::<TvDict>::of(tabpage.tp_vars());
+                dict = tabpage.tp_vars().dv_id;
             }
         }
         _ => {

@@ -351,7 +351,7 @@ pub fn tv_blob_set_ret(tv: &mut TypVal, b: Option<&mut TvBlob>) {
 #[inline]
 pub fn tv_dict_set_ret(tv: &mut TypVal, d: Option<&mut TvDict>) {
     tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::from(d));
+    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::from(d));
     if let Some(d_ref) = tv.vval.v_dict_opt() {
         d_ref.dv_refcount += 1;
     }
@@ -528,7 +528,7 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: partial_ptr,
-        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
@@ -558,7 +558,7 @@ fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut Typ
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: crate::eval::typval::PartialId::NULL,
-        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
@@ -829,7 +829,7 @@ pub fn call_vim_function(
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: pt,
-        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
@@ -1055,8 +1055,7 @@ fn get_lval_dict_item<'a>(
     lp.ll_list = crate::eval::typval::ListId::NULL;
 
     if lp.tv_mut().vval.v_dict().is_null() {
-        lp.tv_mut().vval =
-            crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(tv_dict_alloc()));
+        lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc().dv_id);
         {
             lp.tv_mut().vval.v_dict().dv_refcount += 1;
         }
@@ -1183,7 +1182,7 @@ fn get_lval_list(
         lp.ll_n1 = tv_get_number(&*var1) as i32;
     }
 
-    lp.ll_dict = crate::globals::GraphPtr::NULL;
+    lp.ll_dict = crate::eval::typval::DictId::NULL;
     lp.ll_list = lp.tv_mut().vval.v_list();
     lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet).map_or(
         crate::eval::typval::ListitemId::NULL,
@@ -2013,7 +2012,7 @@ fn eval_func(
         fe_doesrange: false,
         fe_evaluate: evaluate,
         fe_partial: partial,
-        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: basetv.map_or(
             crate::globals::GraphPtr::NULL,
             crate::globals::GraphPtr::from,
@@ -2987,10 +2986,7 @@ fn call_func_rettv(
         fe_doesrange: false,
         fe_evaluate: evaluate,
         fe_partial: pt,
-        fe_selfdict: selfdict.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        ),
+        fe_selfdict: crate::eval::typval::DictId::from(selfdict),
         fe_basetv: basetv.map_or(
             crate::globals::GraphPtr::NULL,
             crate::globals::GraphPtr::from,
@@ -4965,7 +4961,7 @@ pub fn callback_call(
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: partial,
-        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
@@ -5925,7 +5921,7 @@ pub fn handle_subscript<'a>(
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
     let mut ret = true;
-    let mut selfdict = crate::globals::GraphPtr::<TvDict>::NULL;
+    let mut selfdict = crate::eval::typval::DictId::NULL;
     let mut lua_funcname: Option<&'a CStr> = None;
 
     if tv_is_luafunc(rettv) {
@@ -5976,7 +5972,7 @@ pub fn handle_subscript<'a>(
                 ret = false;
             }
             tv_dict_unref(selfdict.opt_mut());
-            selfdict = crate::globals::GraphPtr::NULL;
+            selfdict = crate::eval::typval::DictId::NULL;
         } else if arg.to_bytes_with_nul()[0] == b'-' {
             if arg.to_bytes().get(2) == Some(&b'{') {
                 ret = eval_lambda(arg, rettv, evalarg.as_deref_mut(), verbose);
@@ -5986,12 +5982,12 @@ pub fn handle_subscript<'a>(
         } else {
             tv_dict_unref(selfdict.opt_mut());
             if rettv.v_type == VarType::VarDict {
-                selfdict = crate::globals::GraphPtr::<TvDict>::of(rettv.vval.v_dict());
+                selfdict = rettv.vval.v_dict();
                 if !selfdict.is_null() {
                     selfdict.dv_refcount += 1;
                 }
             } else {
-                selfdict = crate::globals::GraphPtr::NULL;
+                selfdict = crate::eval::typval::DictId::NULL;
             }
             if !eval_index(arg, rettv, evalarg.as_deref_mut(), verbose) {
                 tv_clear(rettv);
@@ -6094,7 +6090,7 @@ pub fn var_item_copy(
             to.v_type = VarType::VarDict;
             to.v_lock = VAR_UNLOCKED;
             let Some(from_dict) = from.vval.v_dict_opt() else {
-                to.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
+                to.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::NULL);
                 eval_st().var_item_copy_recurse -= 1;
                 return ret;
             };
@@ -6102,7 +6098,7 @@ pub fn var_item_copy(
                 to.vval = crate::eval::typval::TypvalVval::Dict(from_dict.dv_copydict);
                 to.vval.v_dict_ref().dv_refcount += 1;
             } else {
-                to.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::from(
+                to.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::from(
                     tv_dict_copy(conv, Some(from_dict), deep, copy_id),
                 ));
             }
@@ -6472,10 +6468,10 @@ pub fn common_job_callbacks(
         on_stdout.buffered = tv_dict_get_number(Some(vopts), c"stdout_buffered") != 0;
         on_stderr.buffered = tv_dict_get_number(Some(vopts), c"stderr_buffered") != 0;
         if on_stdout.buffered && on_stdout.cb.cb_type() == K_CALLBACK_NONE_CONST {
-            on_stdout.self_dict = crate::globals::GraphPtr::from(&mut *vopts);
+            on_stdout.self_dict = vopts.dv_id;
         }
         if on_stderr.buffered && on_stderr.cb.cb_type() == K_CALLBACK_NONE_CONST {
-            on_stderr.self_dict = crate::globals::GraphPtr::from(&mut *vopts);
+            on_stderr.self_dict = vopts.dv_id;
         }
         vopts.dv_refcount += 1;
         return true;
@@ -6596,7 +6592,7 @@ pub fn eval_call_provider(
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: crate::eval::typval::PartialId::NULL,
-        fe_selfdict: crate::globals::GraphPtr::NULL,
+        fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };

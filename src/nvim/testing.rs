@@ -178,10 +178,8 @@ fn fill_assert_error(
             did_copy = true;
             let new_exp_d = tv_dict_alloc();
             let new_got_d = tv_dict_alloc();
-            exp_tv.vval =
-                crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(new_exp_d));
-            got_tv.vval =
-                crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(new_got_d));
+            exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d.dv_id);
+            got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d.dv_id);
 
             for (_hi, di1) in exp_d.dv_hashtab.iter_items_mut() {
                 let hi_key = CStr::from_bytes_until_nul(&di1.di_key).unwrap_or(c"");

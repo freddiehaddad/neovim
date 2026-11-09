@@ -320,8 +320,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     if arg1.v_type == VarType::VarUnknown {
         must_free = true;
         arg1.v_type = VarType::VarDict;
-        arg1.vval =
-            crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(tv_dict_alloc()));
+        arg1.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc().dv_id);
     }
 
     if arg1.v_type != VarType::VarDict {

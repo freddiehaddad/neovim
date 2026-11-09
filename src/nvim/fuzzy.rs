@@ -466,12 +466,12 @@ fn fuzzy_match_in_list(
                 itemstr = tv_dict_get_string(Some(&*d), k);
             } else {
                 d.dv_refcount += 1;
-                let d_ptr = &raw mut *d;
+                let d_id = d.dv_id;
                 let mut argv = [
                     TypVal {
                         v_type: VarType::VarDict,
                         v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d_ptr)),
+                        vval: TypvalVval::Dict(d_id),
                     },
                     TypVal {
                         v_type: VarType::VarUnknown,
@@ -484,7 +484,7 @@ fn fuzzy_match_in_list(
                 {
                     itemstr = rettv.vval.v_string_cstr();
                 }
-                tv_dict_unref(crate::globals::GraphPtr::of(d_ptr).opt_mut());
+                tv_dict_unref(d_id.opt_mut());
             }
         }
 

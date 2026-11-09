@@ -17,8 +17,8 @@ use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, ScopeDictDictItem, TvDict, TvList, TypVal, TypvalVval, VAR_LOCKED, VarType,
-    Varnumber, tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
+    EvalFuncData, ScopeDictDictItem, TvList, TypVal, TypvalVval, VAR_LOCKED, VarType, Varnumber,
+    tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_get_number_chk, tv_get_string, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_string, tv_list_append_tv,
@@ -202,14 +202,27 @@ const O_NOINHERIT: i32 = 0x0080;
 #[repr(C)]
 pub struct Scriptvar {
     pub sv_var: ScopeDictDictItem,
-    pub sv_dict: TvDict,
+    pub sv_dict: crate::eval::typval::DictId,
 }
 
 impl Scriptvar {
     pub const fn new() -> Self {
         Self {
             sv_var: ScopeDictDictItem::new(),
-            sv_dict: TvDict::new(),
+            sv_dict: crate::eval::typval::DictId::NULL,
+        }
+    }
+}
+
+impl Drop for Scriptvar {
+    fn drop(&mut self) {
+        if let Some(dict) = self.sv_dict.opt_mut() {
+            crate::eval::vars::vars_clear(&mut dict.dv_hashtab);
+            if dict.dv_refcount >= crate::buffer::DO_NOT_FREE_CNT / 2 {
+                crate::eval::vars::unref_var_dict(dict);
+            } else {
+                crate::eval::typval::tv_dict_free_slot(dict);
+            }
         }
     }
 }
@@ -489,7 +502,7 @@ fn stacktrace_push_item(
     let mut tv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_LOCKED,
-        vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d)),
+        vval: TypvalVval::Dict(d.dv_id),
     };
 
     if let Some(fp) = fp {
@@ -3077,7 +3090,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
             if sid > 0 {
                 let var_dict =
-                    tv_dict_copy(None, Some(&mut si.sn_vars.sv_dict), true, get_copy_id());
+                    tv_dict_copy(None, si.sn_vars.sv_dict.opt_mut(), true, get_copy_id());
                 tv_dict_add_dict(&mut *d, c"variables", var_dict);
                 tv_dict_add_list(
                     &mut *d,

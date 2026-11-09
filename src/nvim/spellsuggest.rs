@@ -601,7 +601,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         let mut item = TypVal {
             v_type: VarType::VarDict,
             v_lock: 0,
-            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d)),
+            vval: TypvalVval::Dict(d.dv_id),
         };
         tv_list_append_tv(items_tv.vval.v_list_ref(), &mut item);
     }

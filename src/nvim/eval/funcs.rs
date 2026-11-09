@@ -1520,12 +1520,12 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
 
     'done: {
-        let mut selfdict = crate::globals::GraphPtr::<TvDict>::NULL;
+        let mut selfdict = crate::eval::typval::DictId::NULL;
         if argvars[2].v_type != VarType::VarUnknown {
             if !tv_check_for_dict_arg(argvars, 2) {
                 break 'done;
             }
-            selfdict = crate::globals::GraphPtr::<TvDict>::of(argvars[2].vval.v_dict());
+            selfdict = argvars[2].vval.v_dict();
         }
 
         func_call(
@@ -4364,7 +4364,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
 
-    let mut job_opts = crate::globals::GraphPtr::<TvDict>::NULL;
+    let mut job_opts = crate::eval::typval::DictId::NULL;
     let mut detach = false;
     let mut rpc = false;
     let mut pty = false;
@@ -4379,7 +4379,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut job_env = crate::globals::GraphPtr::<Dictitem>::NULL;
 
     if argvars[1].v_type == VarType::VarDict {
-        job_opts = crate::globals::GraphPtr::<TvDict>::of(argvars[1].vval.v_dict());
+        job_opts = argvars[1].vval.v_dict();
         let job_opts_ref = job_opts.opt();
 
         detach = tv_dict_get_number(job_opts_ref, c"detach") != 0;

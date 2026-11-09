@@ -119,7 +119,7 @@ pub struct Lval {
     pub ll_empty2: bool,
     pub ll_n1: i32,
     pub ll_n2: i32,
-    pub ll_dict: crate::globals::GraphPtr<TvDict>,
+    pub ll_dict: crate::eval::typval::DictId,
     pub ll_di: crate::globals::GraphPtr<Dictitem>,
     pub ll_newkey: Option<std::ffi::CString>,
     pub ll_blob: crate::eval::typval::BlobId,
@@ -139,7 +139,7 @@ impl Lval {
             ll_empty2: false,
             ll_n1: 0,
             ll_n2: 0,
-            ll_dict: crate::globals::GraphPtr::NULL,
+            ll_dict: crate::eval::typval::DictId::NULL,
             ll_di: crate::globals::GraphPtr::NULL,
             ll_newkey: None,
             ll_blob: crate::eval::typval::BlobId::NULL,
@@ -337,20 +337,16 @@ const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: u8) -> VimVar 
     }
 }
 
-const fn empty_dict() -> TvDict {
-    TvDict::new()
-}
-
 const fn empty_scope_var() -> ScopeDictDictItem {
     ScopeDictDictItem::new()
 }
 
 struct VarsModuleState {
     globvars_var: ScopeDictDictItem,
-    globvardict: TvDict,
+    globvardict: crate::eval::typval::DictId,
     compat_hashtab: Hashtab,
     vimvars_var: ScopeDictDictItem,
-    vimvardict: TvDict,
+    vimvardict: crate::eval::typval::DictId,
     vimvars: [VimVar; VV_LEN],
     varnamebuf: Vec<u8>,
     redir_lval: Option<Lval>,
@@ -369,10 +365,10 @@ impl VarsModuleState {
     const fn new() -> Self {
         Self {
             globvars_var: empty_scope_var(),
-            globvardict: empty_dict(),
+            globvardict: crate::eval::typval::DictId::NULL,
             compat_hashtab: Hashtab::new(),
             vimvars_var: empty_scope_var(),
-            vimvardict: empty_dict(),
+            vimvardict: crate::eval::typval::DictId::NULL,
             vimvars: [
                 make_vimvar(c"count", VarType::VarNumber, VV_RO),
                 make_vimvar(c"count1", VarType::VarNumber, VV_RO),
@@ -553,11 +549,11 @@ pub fn evalvars_init() {
         VAR_DEF_SCOPE,
     );
     init_var_dict(
-        &mut vars_st().vimvardict,
+        &mut *get_vimvar_dict(),
         &mut vars_st().vimvars_var,
         VAR_SCOPE,
     );
-    vars_st().vimvardict.dv_lock = VAR_FIXED;
+    get_vimvar_dict().dv_lock = VAR_FIXED;
     hash_clear(&mut vars_st().compat_hashtab);
 
     for i in 0..VV_LEN {
@@ -574,7 +570,7 @@ pub fn evalvars_init() {
         p.vv_di.di_key.clear();
         p.vv_di.di_key.extend_from_slice(name_bytes);
         if p.vv_di.di_tv.v_type != VarType::VarUnknown {
-            hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
+            hash_add(&mut get_vimvar_dict().dv_hashtab, &mut p.vv_di);
         }
         if (p.vv_flags & VV_COMPAT) != 0 {
             hash_add(&mut vars_st().compat_hashtab, &mut p.vv_di);
@@ -674,7 +670,7 @@ pub fn evalvars_clear() {
 
     partial_unref(get_vim_var_partial(VV_LUA));
     set_vim_var_partial(VV_LUA, None);
-    hash_clear(&mut vars_st().vimvardict.dv_hashtab);
+    hash_clear(&mut get_vimvar_dict().dv_hashtab);
     hash_clear(&mut vars_st().compat_hashtab);
 
     vars_clear(&mut *get_globvar_ht());
@@ -685,15 +681,11 @@ pub fn evalvars_clear() {
 }
 
 pub fn garbage_collect_globvars(copy_id: i32) -> i32 {
-    i32::from(set_ref_in_ht(
-        Some(&mut vars_st().globvardict.dv_hashtab),
-        copy_id,
-        None,
-    ))
+    i32::from(set_ref_in_ht(Some(get_globvar_ht()), copy_id, None))
 }
 
 pub fn garbage_collect_vimvars(copy_id: i32) -> bool {
-    set_ref_in_ht(Some(&mut vars_st().vimvardict.dv_hashtab), copy_id, None)
+    set_ref_in_ht(Some(&mut get_vimvar_dict().dv_hashtab), copy_id, None)
 }
 
 pub fn garbage_collect_scriptvars(copy_id: i32) -> bool {
@@ -852,7 +844,7 @@ pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
     *save_tv = p.vv_di.di_tv.clone();
     p.vv_di.di_tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if p.vv_di.di_tv.v_type == VarType::VarUnknown {
-        hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
+        hash_add(&mut get_vimvar_dict().dv_hashtab, &mut p.vv_di);
     }
 }
 
@@ -864,12 +856,8 @@ pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
         return;
     }
 
-    if let Some(hi) = vars_st()
-        .vimvardict
-        .dv_hashtab
-        .find_hi_mut(p.vv_di.key_cstr())
-    {
-        hash_remove(&mut vars_st().vimvardict.dv_hashtab, hi);
+    if let Some(hi) = get_vimvar_dict().dv_hashtab.find_hi_mut(p.vv_di.key_cstr()) {
+        hash_remove(&mut get_vimvar_dict().dv_hashtab, hi);
     } else {
         internal_error(c"restore_vimvar()");
     }
@@ -878,7 +866,7 @@ pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
 /// List Vim variables.
 fn list_vim_vars(first: &mut i32) {
     list_hashtable_vars(
-        &mut vars_st().vimvardict.dv_hashtab,
+        &mut get_vimvar_dict().dv_hashtab,
         c"v:",
         false as i32,
         &mut *first,
@@ -1418,12 +1406,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
 }
 
 fn list_glob_vars(first: &mut i32) {
-    list_hashtable_vars(
-        &mut vars_st().globvardict.dv_hashtab,
-        c"",
-        true as i32,
-        &mut *first,
-    );
+    list_hashtable_vars(get_globvar_ht(), c"", true as i32, &mut *first);
 }
 
 fn list_buf_vars(first: &mut i32) {
@@ -2027,12 +2010,12 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
         && let Some(varname_cstr) = varname_opt.filter(|s| !s.to_bytes().is_empty())
     {
         let mut ht = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
-        let mut d = crate::globals::GraphPtr::from(get_current_funccal_dict(ht.borrow()));
+        let mut d = crate::eval::typval::DictId::from(get_current_funccal_dict(ht.borrow()));
         if d.is_null() {
-            if ht == &vars_st().globvardict.dv_hashtab {
-                d = (&mut vars_st().globvardict).into();
+            if ht == get_globvar_ht() {
+                d = get_globvar_dict().dv_id;
             } else if ht == &vars_st().compat_hashtab {
-                d = (&mut vars_st().vimvardict).into();
+                d = get_vimvar_dict().dv_id;
             } else if let Some(di) = find_var_in_ht(
                 ht.borrow_mut(),
                 name_slice.first().copied().unwrap_or(0) as i32,
@@ -2150,35 +2133,48 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
 
 /// Delete all "menutrans_" variables.
 pub fn del_menutrans_vars() {
-    hash_lock(&mut vars_st().globvardict.dv_hashtab);
-    for i in 0..vars_st().globvardict.dv_hashtab.ht_array.len() {
-        if vars_st().globvardict.dv_hashtab.ht_used == 0 {
+    let ght = get_globvar_ht();
+    hash_lock(ght);
+    for i in 0..ght.ht_array.len() {
+        if ght.ht_used == 0 {
             break;
         }
-        let is_menutrans = vars_st().globvardict.dv_hashtab.ht_array[i]
+        let is_menutrans = ght.ht_array[i]
             .key_cstr()
             .is_some_and(|k| k.to_bytes().starts_with(b"menutrans_"));
         if is_menutrans {
-            let di = vars_st().globvardict.dv_hashtab.ht_array[i]
-                .di_opt()
-                .unwrap();
-            vars_st().globvardict.dv_hashtab.remove_at(i);
+            let di = ght.ht_array[i].di_opt().unwrap();
+            ght.remove_at(i);
             crate::eval::typval::tv_dict_item_free(di);
         }
     }
-    hash_unlock(&mut vars_st().globvardict.dv_hashtab);
+    hash_unlock(ght);
 }
 
 pub fn get_globvar_dict() -> &'static mut TvDict {
-    &mut vars_st().borrow_mut().globvardict
+    let mut id = vars_st().globvardict;
+    if id.is_null() {
+        let d = crate::eval::typval::tv_dict_alloc_static();
+        d.dv_refcount = DO_NOT_FREE_CNT;
+        id = d.dv_id;
+        vars_st().globvardict = id;
+    }
+    id.borrow_mut()
 }
 
 pub fn get_globvar_ht() -> &'static mut Hashtab {
-    &mut vars_st().borrow_mut().globvardict.dv_hashtab
+    &mut get_globvar_dict().dv_hashtab
 }
 
 pub fn get_vimvar_dict() -> &'static mut TvDict {
-    &mut vars_st().borrow_mut().vimvardict
+    let mut id = vars_st().vimvardict;
+    if id.is_null() {
+        let d = crate::eval::typval::tv_dict_alloc_static();
+        d.dv_refcount = DO_NOT_FREE_CNT;
+        id = d.dv_id;
+        vars_st().vimvardict = id;
+    }
+    id.borrow_mut()
 }
 
 pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut TypVal) {
@@ -2236,7 +2232,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
         vars_st().tdone = 0;
     }
 
-    if vars_st().gdone < vars_st().globvardict.dv_hashtab.ht_used {
+    if vars_st().gdone < get_globvar_ht().ht_used {
         let arr = get_globvar_ht().ht_array.as_slice();
         if vars_st().gdone == 0 {
             vars_st().hi_idx = 0;
@@ -2382,7 +2378,7 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
     let tv = get_vim_var_tv(idx);
     tv_clear(tv);
     tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::from(val));
+    tv.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::from(val));
     let Some(val_ref) = tv.vval.v_dict_opt() else {
         return;
     };
@@ -2662,21 +2658,21 @@ fn find_var_ht_dict<'a>(
         }
 
         if let Some(local_d) = get_funccal_local_dict() {
-            let local_d_ptr = crate::globals::GraphPtr::<TvDict>::from_ref(local_d);
-            *d = Some(local_d_ptr.borrow_mut());
-            return Some(&mut (local_d_ptr.borrow_mut().dv_hashtab));
+            let local_d_id = local_d.dv_id;
+            *d = local_d_id.opt_mut();
+            return Some(&mut (local_d_id.borrow_mut().dv_hashtab));
         }
 
-        let glob_d = crate::globals::GraphPtr::<TvDict>::of(get_globvar_dict());
-        *d = Some(glob_d.borrow_mut());
+        let glob_d = get_globvar_dict().dv_id;
+        *d = glob_d.opt_mut();
         return Some(&mut (glob_d.borrow_mut().dv_hashtab));
     }
 
     *varname = Some(&name_in[2..]);
     let scope_b = name_slice[0];
-    let mut dict_ptr = crate::globals::GraphPtr::<TvDict>::NULL;
+    let mut dict_ptr = crate::eval::typval::DictId::NULL;
     if scope_b == b'g' {
-        dict_ptr = crate::globals::GraphPtr::<TvDict>::of(get_globvar_dict());
+        dict_ptr = get_globvar_dict().dv_id;
     } else if name_slice[2..]
         .iter()
         .any(|&b| b == b':' || b == AUTOLOAD_CHAR)
@@ -2685,12 +2681,12 @@ fn find_var_ht_dict<'a>(
     }
 
     match scope_b {
-        b'b' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(curbuf_mut().b_vars()),
-        b'w' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(curwin_mut().w_vars()),
-        b't' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(curtab_mut().tp_vars()),
-        b'v' => dict_ptr = crate::globals::GraphPtr::<TvDict>::of(get_vimvar_dict()),
-        b'a' => dict_ptr = crate::globals::GraphPtr::from(get_funccal_args_dict()),
-        b'l' => dict_ptr = crate::globals::GraphPtr::from(get_funccal_local_dict()),
+        b'b' => dict_ptr = curbuf_mut().b_vars().dv_id,
+        b'w' => dict_ptr = curwin_mut().w_vars().dv_id,
+        b't' => dict_ptr = curtab_mut().tp_vars().dv_id,
+        b'v' => dict_ptr = get_vimvar_dict().dv_id,
+        b'a' => dict_ptr = crate::eval::typval::DictId::from(get_funccal_args_dict()),
+        b'l' => dict_ptr = crate::eval::typval::DictId::from(get_funccal_local_dict()),
         b's' if (g_st().current_sctx.sc_sid > 0
             || g_st().current_sctx.sc_sid == SID_STR
             || g_st().current_sctx.sc_sid == SID_LUA)
@@ -2700,15 +2696,13 @@ fn find_var_ht_dict<'a>(
             if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
                 new_script_item(None, &mut g_st().current_sctx.sc_sid);
             }
-            dict_ptr = crate::globals::GraphPtr::<TvDict>::of(
-                &mut script_sv(g_st().current_sctx.sc_sid).sv_dict,
-            );
+            dict_ptr = script_sv(g_st().current_sctx.sc_sid).sv_dict;
         }
         _ => {}
     }
 
     if !dict_ptr.is_null() {
-        *d = Some(dict_ptr.borrow_mut());
+        *d = dict_ptr.opt_mut();
         Some(&mut (dict_ptr.borrow_mut().dv_hashtab))
     } else {
         None
@@ -2734,7 +2728,9 @@ pub fn get_var_value(name: &std::ffi::CStr) -> Option<&'static CStr> {
 /// Allocate a new hashtab for a sourced script.
 pub fn new_script_vars() -> Box<Scriptvar> {
     let mut sv = Box::new(Scriptvar::new());
-    init_var_dict(&mut sv.sv_dict, &mut sv.sv_var, VAR_SCOPE);
+    let dict = crate::eval::typval::tv_dict_alloc_static();
+    sv.sv_dict = dict.dv_id;
+    init_var_dict(dict, &mut sv.sv_var, VAR_SCOPE);
     sv
 }
 
@@ -2745,8 +2741,7 @@ pub fn init_var_dict(dict: &mut TvDict, dict_var: &mut ScopeDictDictItem, scope:
     dict.dv_scope = scope;
     dict.dv_refcount = DO_NOT_FREE_CNT;
     dict.dv_copy_id = 0;
-    dict_var.di_tv.vval =
-        crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
+    dict_var.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict.dv_id);
     dict_var.di_tv.v_type = VarType::VarDict;
     dict_var.di_tv.v_lock = VAR_FIXED;
     dict_var.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
@@ -2878,12 +2873,7 @@ pub fn before_set_vvar(
                 std::mem::replace(&mut tv.vval, crate::eval::typval::TypvalVval::NULL_STRING);
         }
         if watched {
-            tv_dict_watcher_notify(
-                &mut vars_st().vimvardict,
-                varname,
-                Some(&di.di_tv),
-                Some(&oldtv),
-            );
+            tv_dict_watcher_notify(get_vimvar_dict(), varname, Some(&di.di_tv), Some(&oldtv));
             tv_clear(&mut oldtv);
         }
         return false;
@@ -2904,12 +2894,7 @@ pub fn before_set_vvar(
             redraw_all_later(UPD_SOME_VALID);
         }
         if watched {
-            tv_dict_watcher_notify(
-                &mut vars_st().vimvardict,
-                varname,
-                Some(&di.di_tv),
-                Some(&oldtv),
-            );
+            tv_dict_watcher_notify(get_vimvar_dict(), varname, Some(&di.di_tv), Some(&oldtv));
             tv_clear(&mut oldtv);
         }
         return false;
@@ -2970,7 +2955,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         }
 
         let mut type_error = false;
-        if ht == &vars_st().vimvardict.dv_hashtab
+        if ht == &get_vimvar_dict().dv_hashtab
             && !before_set_vvar(varname_cstr, di, tv, copy, watched, &mut type_error)
         {
             if type_error {
@@ -2988,8 +2973,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         tv_clear(&mut di.di_tv);
         di
     } else {
-        if ht == &vars_st().vimvardict.dv_hashtab
-            || get_funccal_args_ht().is_some_and(|aht| ht == aht)
+        if ht == &get_vimvar_dict().dv_hashtab || get_funccal_args_ht().is_some_and(|aht| ht == aht)
         {
             semsg!(gettext(E_ILLVAR), &name_cstr);
             return;

@@ -946,7 +946,7 @@ fn select_tag_match(
             let mut item = TypVal {
                 v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Dict(crate::globals::GraphPtr::new(d)),
+                vval: TypvalVval::Dict(d.dv_id),
             };
             tv_list_append_tv(items_tv.vval.v_list_ref(), &mut item);
         }
@@ -958,7 +958,7 @@ fn select_tag_match(
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(extra_d)),
+            vval: TypvalVval::Dict(extra_d.dv_id),
         };
 
         nlua_call_excmd(
@@ -1278,7 +1278,7 @@ fn find_tagfunc_tags(
 
     d.dv_refcount += 1;
     args[2].v_type = VarType::VarDict;
-    args[2].vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(d));
+    args[2].vval = crate::eval::typval::TypvalVval::Dict(d.dv_id);
     args[3].v_type = VarType::VarUnknown;
 
     let save_pos = curwin_mut().w_cursor;

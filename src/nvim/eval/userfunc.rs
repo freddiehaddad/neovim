@@ -16,15 +16,15 @@ use crate::eval::funcs::{
     check_internal_func, find_internal_func,
 };
 use crate::eval::typval::{
-    Callback, Dictitem, EvalFuncData, TV_CSTRING, TvDict, TvPartial, TypVal, VAR_UNLOCKED, VarType,
-    Varnumber, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_alloc_static,
-    tv_list_append, tv_list_free_contents, tv_list_item_alloc, tv_list_set_lock, unref_var_list,
-    value_check_lock,
+    Callback, DictId, Dictitem, EvalFuncData, TV_CSTRING, TvDict, TvPartial, TypVal, VAR_UNLOCKED,
+    VarType, Varnumber, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc_static, tv_dict_free_slot,
+    tv_dict_item_alloc, tv_dict_item_alloc_len, tv_dict_item_remove, tv_dict_unref,
+    tv_get_number_chk, tv_is_func, tv_list_alloc_static, tv_list_append, tv_list_free_contents,
+    tv_list_item_alloc, tv_list_set_lock, unref_var_list, value_check_lock,
 };
 use crate::eval::vars::{
     Evalarg, Lval, VV_TESTING, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr,
-    init_var_dict, list_hashtable_vars, skip_var_list, vars_clear, vars_clear_ext,
+    init_var_dict, list_hashtable_vars, skip_var_list, unref_var_dict, vars_clear, vars_clear_ext,
 };
 use crate::eval::{
     AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
@@ -255,7 +255,7 @@ const MSG_BUF_CLEN: i32 = (MSG_BUF_LEN / 6) as i32;
 #[repr(C)]
 #[derive(Clone)]
 pub struct Funcdict {
-    pub fd_dict: crate::globals::GraphPtr<TvDict>,
+    pub fd_dict: DictId,
     pub fd_newkey: Option<std::ffi::CString>,
     pub fd_di: crate::globals::GraphPtr<Dictitem>,
 }
@@ -263,7 +263,7 @@ pub struct Funcdict {
 impl Funcdict {
     pub const fn new() -> Self {
         Self {
-            fd_dict: crate::globals::GraphPtr::NULL,
+            fd_dict: DictId::NULL,
             fd_newkey: None,
             fd_di: crate::globals::GraphPtr::NULL,
         }
@@ -295,7 +295,7 @@ pub struct Funcexe {
     pub fe_doesrange: bool,
     pub fe_evaluate: bool,
     pub fe_partial: crate::eval::typval::PartialId,
-    pub fe_selfdict: crate::globals::GraphPtr<TvDict>,
+    pub fe_selfdict: DictId,
     pub fe_basetv: crate::globals::GraphPtr<TypVal>,
     pub fe_found_var: bool,
 }
@@ -309,7 +309,7 @@ impl Funcexe {
             fe_doesrange: false,
             fe_evaluate: false,
             fe_partial: crate::eval::typval::PartialId::NULL,
-            fe_selfdict: crate::globals::GraphPtr::NULL,
+            fe_selfdict: DictId::NULL,
             fe_basetv: crate::globals::GraphPtr::NULL,
             fe_found_var: false,
         }
@@ -1110,8 +1110,22 @@ fn add_nr_var(dp: &mut TvDict, name: &std::ffi::CStr, nr: Varnumber) {
 
 impl Drop for Funccall {
     fn drop(&mut self) {
-        vars_clear(&mut self.fc_l_vars.dv_hashtab);
-        vars_clear(&mut self.fc_l_avars.dv_hashtab);
+        if let Some(vars) = self.fc_l_vars.opt_mut() {
+            vars_clear(&mut vars.dv_hashtab);
+            if vars.dv_refcount >= DO_NOT_FREE_CNT / 2 {
+                unref_var_dict(vars);
+            } else {
+                tv_dict_free_slot(vars);
+            }
+        }
+        if let Some(avars) = self.fc_l_avars.opt_mut() {
+            vars_clear(&mut avars.dv_hashtab);
+            if avars.dv_refcount >= DO_NOT_FREE_CNT / 2 {
+                unref_var_dict(avars);
+            } else {
+                tv_dict_free_slot(avars);
+            }
+        }
         if let Some(varlist) = self.fc_l_varlist.opt_mut() {
             tv_list_free_contents(varlist);
             unref_var_list(varlist);
@@ -1310,6 +1324,8 @@ pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static
     fc.fc_func = fp_ptr;
     func_ptr_ref(fp_ptr.opt_mut());
     fc.fc_rettv = crate::globals::GraphPtr::from(rettv);
+    fc.fc_l_vars = tv_dict_alloc_static().dv_id;
+    fc.fc_l_avars = tv_dict_alloc_static().dv_id;
     fc
 }
 
@@ -1323,7 +1339,7 @@ pub fn call_user_func(
     lastline: Linenr,
     selfdict_in: Option<&mut TvDict>,
 ) {
-    let selfdict = crate::globals::GraphPtr::from(selfdict_in);
+    let selfdict = DictId::from(selfdict_in);
     let mut using_sandbox = false;
     let mut islambda = false;
     let mut numbuf = [0u8; NUMBUFLEN];
@@ -1852,10 +1868,7 @@ pub fn func_call(
         funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
         funcexe.fe_evaluate = true;
         funcexe.fe_partial = crate::eval::typval::PartialId::from(partial);
-        funcexe.fe_selfdict = selfdict.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        );
+        funcexe.fe_selfdict = DictId::from(selfdict);
         r = call_func(name, -1, rettv, argc, &mut argv, &mut funcexe);
     }
 
@@ -1962,7 +1975,7 @@ pub fn call_func(
     let mut skip_eval = false;
     if let Some(partial) = funcexe.partial_opt() {
         if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
-            selfdict = crate::globals::GraphPtr::of(partial.pt_dict);
+            selfdict = partial.pt_dict;
         }
         let pt_argc = partial.pt_argv.len() as i32;
         if error == FCERR_NONE && pt_argc > 0 {
@@ -4118,7 +4131,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     {
         let pt = crate::eval::typval::tv_partial_alloc();
         pt.pt_refcount = 1;
-        pt.pt_dict = crate::globals::GraphPtr::from(&mut *selfdict);
+        pt.pt_dict = selfdict.dv_id;
         selfdict.dv_refcount += 1;
         pt.pt_auto = true;
         if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
@@ -4216,11 +4229,11 @@ fn get_funccal_for_vars_opt() -> Option<&'static mut Funccall> {
 }
 
 pub fn get_funccal_local_dict() -> Option<&'static mut TvDict> {
-    get_funccal_for_vars_opt().map(|fc| &mut fc.fc_l_vars)
+    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_vars.opt_mut())
 }
 
 pub fn get_funccal_local_ht() -> Option<&'static mut Hashtab> {
-    get_funccal_for_vars_opt().map(|fc| &mut fc.fc_l_vars.dv_hashtab)
+    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_vars.opt_mut().map(|d| &mut d.dv_hashtab))
 }
 
 pub fn get_funccal_local_var() -> Option<&'static mut Dictitem> {
@@ -4230,11 +4243,11 @@ pub fn get_funccal_local_var() -> Option<&'static mut Dictitem> {
 }
 
 pub fn get_funccal_args_dict() -> Option<&'static mut TvDict> {
-    get_funccal_for_vars_opt().map(|fc| &mut fc.fc_l_avars)
+    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_avars.opt_mut())
 }
 
 pub fn get_funccal_args_ht() -> Option<&'static mut Hashtab> {
-    get_funccal_for_vars_opt().map(|fc| &mut fc.fc_l_avars.dv_hashtab)
+    get_funccal_for_vars_opt().and_then(|fc| fc.fc_l_avars.opt_mut().map(|d| &mut d.dv_hashtab))
 }
 
 pub fn get_funccal_args_var() -> Option<&'static mut Dictitem> {
@@ -4258,7 +4271,7 @@ pub fn get_current_funccal_dict(ht: &Hashtab) -> Option<&'static mut TvDict> {
     if !uf_st().current_funccal.is_null()
         && ptr::eq(ht, &raw const cur_funccal_mut().fc_l_vars.dv_hashtab)
     {
-        return Some(&mut cur_funccal_mut().fc_l_vars);
+        return cur_funccal_mut().fc_l_vars.opt_mut();
     }
     None
 }

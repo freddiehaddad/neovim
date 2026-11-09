@@ -3189,7 +3189,7 @@ fn get_insert_callback(type_: i32) -> &'static mut Callback {
 
 fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callback>) {
     let mut matchlist = crate::eval::typval::ListId::NULL;
-    let mut matchdict = crate::globals::GraphPtr::<TvDict>::NULL;
+    let mut matchdict = crate::eval::typval::DictId::NULL;
     let mut rettv: TypVal = TypVal::new();
     let save_state = g_st().state_global;
 
@@ -3236,7 +3236,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
                 matchlist = rettv.vval.v_list();
             }
             VAR_DICT => {
-                matchdict = crate::globals::GraphPtr::<TvDict>::of(rettv.vval.v_dict());
+                matchdict = rettv.vval.v_dict();
             }
             _ => {
                 tv_clear(&mut rettv);

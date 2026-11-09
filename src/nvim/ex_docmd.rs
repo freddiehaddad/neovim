@@ -9197,7 +9197,7 @@ fn ex_restart(eap: &mut Exarg) {
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
             v_lock: 0,
-            vval: TypvalVval::Dict(crate::globals::GraphPtr::new(extra_d)),
+            vval: TypvalVval::Dict(extra_d.dv_id),
         };
         nlua_call_excmd(
             c"vim._core.server",

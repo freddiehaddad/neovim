@@ -422,9 +422,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                 d.dv_refcount += 1;
                                 d.lua_table_ref = table_ref;
                                 cur.tv_mut().v_type = VarType::VarDict;
-                                cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(
-                                    crate::globals::GraphPtr::new(d),
-                                );
+                                cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(d.dv_id);
                             } else {
                                 cur.special = table_props.has_string_with_nul;
                                 if table_props.has_string_with_nul {
@@ -446,9 +444,8 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                     d.dv_refcount += 1;
                                     d.lua_table_ref = table_ref;
                                     cur.tv_mut().v_type = VarType::VarDict;
-                                    cur.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(
-                                        crate::globals::GraphPtr::new(d),
-                                    );
+                                    cur.tv_mut().vval =
+                                        crate::eval::typval::TypvalVval::Dict(d.dv_id);
                                 }
                                 cur.container = true;
                                 cur.idx = nlua_gettop(lstate);

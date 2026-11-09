@@ -100,7 +100,7 @@ fn filter_map_dict(
     {
         if filtermap == FilterMap::MapNew {
             rettv.v_type = VarType::VarDict;
-            rettv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
+            rettv.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::NULL);
         }
         if d.is_none()
             || (filtermap == FilterMap::Filter
@@ -628,9 +628,9 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             return;
         }
 
-        let mut d1 = crate::globals::GraphPtr::<TvDict>::from_ref(d1_ref);
+        let mut d1 = crate::eval::typval::DictId::from_ref(d1_ref);
         if is_new {
-            d1 = crate::globals::GraphPtr::from(tv_dict_copy(
+            d1 = crate::eval::typval::DictId::from(tv_dict_copy(
                 None,
                 Some(d1_ref),
                 false,

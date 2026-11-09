@@ -4224,7 +4224,7 @@ fn call_qftf_func(
         tv_dict_add_nr(dict, c"end_idx", Varnumber::from(end_idx));
         dict.dv_refcount += 1;
         args[0].v_type = VarType::VarDict;
-        args[0].vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
+        args[0].vval = crate::eval::typval::TypvalVval::Dict(dict.dv_id);
 
         g_st().textlock += 1;
         if callback_call(cb, 1, &mut args, &mut rettv) {

@@ -9,9 +9,9 @@ use crate::eval::decode::{
     SURROGATE_LO_END, SURROGATE_LO_START,
 };
 use crate::eval::typval::{
-    Listitem, TvBlob, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_blob_get,
-    tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item,
-    tv_list_last, tv_list_len,
+    Listitem, TvBlob, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_blob_get, tv_blob_len,
+    tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item, tv_list_last,
+    tv_list_len,
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
@@ -79,7 +79,7 @@ impl ListReaderState {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MPContainerRef {
-    Dict(crate::globals::GraphPtr<TvDict>),
+    Dict(crate::eval::typval::DictId),
     List(crate::eval::typval::ListId),
     Pairs(crate::eval::typval::ListId),
 }
@@ -94,7 +94,7 @@ pub(crate) enum MPConvPartialStage {
 #[derive(Clone, Copy)]
 pub(crate) enum MPConvStackData {
     Dict {
-        dict: crate::globals::GraphPtr<TvDict>,
+        dict: crate::eval::typval::DictId,
         hi: crate::globals::GraphPtr<Hashitem>,
         todo: usize,
     },
@@ -1483,7 +1483,7 @@ fn encode_vim_with_backend(
                             *stage_ref = MPConvPartialStage::End;
                         }
                         let dict = if pt.is_null() {
-                            crate::globals::GraphPtr::NULL
+                            crate::eval::typval::DictId::NULL
                         } else {
                             pt.pt_dict
                         };

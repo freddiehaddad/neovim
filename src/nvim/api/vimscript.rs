@@ -268,10 +268,7 @@ fn call_function_impl(
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: crate::eval::typval::PartialId::NULL,
-        fe_selfdict: self_dict.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        ),
+        fe_selfdict: crate::eval::typval::DictId::from(self_dict),
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
     };
