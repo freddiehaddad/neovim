@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Multi-level undo facility (`src/nvim/undo.c`).
 
 use crate::api::private::validate::NvimString;
@@ -56,7 +58,7 @@ use crate::os::fs::{
     os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_acl, os_setperm,
 };
 use crate::os::input::fast_breakcheck;
-use crate::os::time::{Timestamp, Tm, os_localtime_r, os_time, strftime, time_t};
+use crate::os::time::{Timestamp, Tm, os_localtime_r, os_strftime, os_time, time_t};
 use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_ispathsep_nocolon};
 use crate::sha256::ContextSha256;
 use crate::spell::spell_check_window;
@@ -847,26 +849,16 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
         ExtmarkUndoObject::Splice(splice) => {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
             undo_write_bytes(bi, K_EXTMARK_SPLICE as u64, 4);
-            let slice = unsafe {
-                std::slice::from_raw_parts(
-                    (&raw const splice).cast::<u8>(),
-                    size_of::<ExtmarkSplice>(),
-                )
-            };
-            if !undo_write(bi, slice) {
+            let bytes = splice.to_ne_bytes();
+            if !undo_write(bi, &bytes) {
                 return false;
             }
         }
         ExtmarkUndoObject::Move(move_) => {
             undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
             undo_write_bytes(bi, K_EXTMARK_MOVE as u64, 4);
-            let slice = unsafe {
-                std::slice::from_raw_parts(
-                    (&raw const move_).cast::<u8>(),
-                    size_of::<ExtmarkMove>(),
-                )
-            };
-            if !undo_write(bi, slice) {
+            let bytes = move_.to_ne_bytes();
+            if !undo_write(bi, &bytes) {
                 return false;
             }
         }
@@ -878,25 +870,19 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
 fn unserialize_extmark(bi: &mut Bufinfo) -> Option<ExtmarkUndoObject> {
     let type_ = undo_read_4c(bi) as UndoObjectType;
     if type_ == K_EXTMARK_SPLICE {
-        let mut splice = ExtmarkSplice::new();
-        let slice = crate::globals::GraphPtr::raw_slice_mut(
-            (&raw mut splice).cast::<u8>(),
-            size_of::<ExtmarkSplice>(),
-        );
-        if !undo_read(bi, slice) {
+        let mut bytes = [0u8; size_of::<ExtmarkSplice>()];
+        if !undo_read(bi, &mut bytes) {
             return None;
         }
-        Some(ExtmarkUndoObject::Splice(splice))
+        Some(ExtmarkUndoObject::Splice(ExtmarkSplice::from_ne_bytes(
+            &bytes,
+        )))
     } else if type_ == K_EXTMARK_MOVE {
-        let mut move_ = ExtmarkMove::new();
-        let slice = crate::globals::GraphPtr::raw_slice_mut(
-            (&raw mut move_).cast::<u8>(),
-            size_of::<ExtmarkMove>(),
-        );
-        if !undo_read(bi, slice) {
+        let mut bytes = [0u8; size_of::<ExtmarkMove>()];
+        if !undo_read(bi, &mut bytes) {
             return None;
         }
-        Some(ExtmarkUndoObject::Move(move_))
+        Some(ExtmarkUndoObject::Move(ExtmarkMove::from_ne_bytes(&bytes)))
     } else {
         None
     }
@@ -1228,7 +1214,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             if os_fileinfo(orig_name.unwrap_or(c""), &mut file_info_orig)
                 && os_fileinfo(f_cstr, &mut file_info_undo)
                 && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
-                && file_info_undo.stat.st_uid != u64::from(unsafe { getuid() })
+                && file_info_undo.stat.st_uid != u64::from(getuid())
             {
                 if opt_vars().p_verbose > 0 {
                     verbose_enter();
@@ -2299,37 +2285,23 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 
 /// Put the timestamp of an undo header in `buf` in a nice format.
 pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
-    let buflen = buf.len();
     let now = os_time() as time_t;
     if now - tt >= 100 {
         let mut curtime = Tm { _fields: [0; 16] };
         let _ = os_localtime_r(&tt, &mut curtime);
-        let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
-            unsafe {
-                strftime(
-                    buf.as_mut_ptr(),
-                    buflen,
-                    c"%H:%M:%S".as_ptr().cast(),
-                    &raw const curtime,
-                )
-            }
+        let fmt = if (os_time() as time_t) - tt < 60 * 60 * 12 {
+            c"%H:%M:%S"
         } else {
-            unsafe {
-                strftime(
-                    buf.as_mut_ptr(),
-                    buflen,
-                    c"%Y/%m/%d %H:%M:%S".as_ptr().cast(),
-                    &raw const curtime,
-                )
-            }
+            c"%Y/%m/%d %H:%M:%S"
         };
+        let n = os_strftime(buf, fmt, &curtime);
         if n == 0 && !buf.is_empty() {
             buf[0] = 0;
         }
     } else {
         let seconds = now - tt;
         format_to_buf!(
-            &mut buf[..buflen],
+            buf,
             ngettext(
                 c"%lld second ago",
                 c"%lld seconds ago",

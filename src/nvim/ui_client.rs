@@ -123,7 +123,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
     channel.trust = false;
 
     if g_st().ui_client_forward_stdin {
-        unsafe { close(0) };
+        close(0);
         #[cfg(windows)]
         {
             os_open_conin_fd();

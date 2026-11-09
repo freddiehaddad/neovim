@@ -504,11 +504,9 @@ mod unix_impl {
     }
 
     pub fn pty_proc_close_master(ptyproc: &mut PtyProc) {
-        unsafe {
-            if ptyproc.tty_fd >= 0 {
-                close(ptyproc.tty_fd);
-                ptyproc.tty_fd = -1;
-            }
+        if ptyproc.tty_fd >= 0 {
+            close(ptyproc.tty_fd);
+            ptyproc.tty_fd = -1;
         }
     }
 

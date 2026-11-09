@@ -203,7 +203,7 @@ fn collect_usernames() -> Vec<CString> {
 /// Get the username that owns the current Nvim process (`os_get_username`).
 pub fn os_get_username(s: &mut [u8]) -> bool {
     #[cfg(unix)]
-    let uid = unsafe { getuid() };
+    let uid = getuid();
     #[cfg(not(unix))]
     let uid = 0;
 

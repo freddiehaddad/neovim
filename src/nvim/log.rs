@@ -1,18 +1,20 @@
+#![forbid(unsafe_code)]
+
 //! Log module (`src/nvim/log.c`).
 //!
 //! How Linux `printk()` handles recursion, buffering, etc.:
 //! <https://lwn.net/Articles/780556/>
 
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
-use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
-use crate::fileio::{EOF, FILE, fprintf};
+use crate::event::r#loop::{UvMutex, loop_print_all_handles, uv_strerror};
+use crate::fileio::{EOF, fprintf};
 use crate::globals::*;
 use crate::memory::mem_st;
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{CFile, MAXPATHL, os_isdir, os_mkdir_recurse};
 use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
-use crate::os::time::{Tm, os_localtime, strftime};
+use crate::os::time::{Tm, os_gettimeofday_ms, os_localtime, os_strftime};
 use crate::path::{concat_fnames_cstr, path_tail};
 use crate::strings::strerror;
 use std::ffi::CStr;
@@ -22,9 +24,6 @@ pub const LOGLVL_DBG: i32 = 1;
 pub const LOGLVL_INF: i32 = 2;
 pub const LOGLVL_WRN: i32 = 3;
 pub const LOGLVL_ERR: i32 = 4;
-
-#[repr(C, align(8))]
-struct UvMutex([u8; 128]);
 
 pub(crate) struct LogModuleState {
     pub(crate) g_min_log_level: i32,
@@ -42,7 +41,7 @@ impl LogModuleState {
             g_min_log_level: LOGLVL_WRN,
             log_file_path: [0; MAXPATHL + 1],
             did_log_init: false,
-            mutex: UvMutex([0; 128]),
+            mutex: UvMutex::new(),
             recursive: false,
             did_msg: false,
             instance_name: [0; 32],
@@ -58,37 +57,12 @@ pub(crate) fn log_st() -> crate::globals::GraphPtr<LogModuleState> {
     LOG_STATE.handle()
 }
 
-use crate::event::r#loop::{
-    UvTimeval64, uv_gettimeofday, uv_mutex_init_recursive, uv_print_all_handles,
-};
-
-unsafe extern "C" {
-    #[cfg(windows)]
-    fn __acrt_iob_func(ix: u32) -> *mut FILE;
-    #[cfg(not(windows))]
-    #[cfg_attr(target_os = "linux", link_name = "stderr")]
-    #[cfg_attr(not(target_os = "linux"), link_name = "__stderrp")]
-    static C_STDERR: *mut FILE;
-    #[cfg(not(windows))]
-    #[cfg_attr(target_os = "linux", link_name = "stdout")]
-    #[cfg_attr(not(target_os = "linux"), link_name = "__stdoutp")]
-    static C_STDOUT: *mut FILE;
-}
-
 pub fn log_get_stdout() -> CFile {
-    #[cfg(windows)]
-    let fp = unsafe { __acrt_iob_func(1) };
-    #[cfg(not(windows))]
-    let fp = unsafe { C_STDOUT };
-    CFile::from_std_stream(std::ptr::NonNull::new(fp).unwrap())
+    CFile::stdout()
 }
 
 pub fn log_get_stderr() -> CFile {
-    #[cfg(windows)]
-    let fp = unsafe { __acrt_iob_func(2) };
-    #[cfg(not(windows))]
-    let fp = unsafe { C_STDERR };
-    CFile::from_std_stream(std::ptr::NonNull::new(fp).unwrap())
+    CFile::stderr()
 }
 
 #[macro_export]
@@ -224,17 +198,17 @@ fn log_path_init() {
 }
 
 pub fn log_init() {
-    unsafe { uv_mutex_init_recursive((&raw mut log_st().mutex).cast()) };
+    log_st().mutex.init_recursive();
     log_path_init();
     log_st().did_log_init = true;
 }
 
 pub fn log_lock() {
-    unsafe { uv_mutex_lock((&raw mut log_st().mutex).cast()) };
+    log_st().mutex.lock();
 }
 
 pub fn log_unlock() {
-    unsafe { uv_mutex_unlock((&raw mut log_st().mutex).cast()) };
+    log_st().mutex.unlock();
 }
 
 pub fn log_should_log(log_level: i32) -> bool {
@@ -303,7 +277,7 @@ pub fn logmsg_str(
 pub fn log_uv_handles(loop_: &mut crate::event::r#loop::uv_loop_t) {
     log_lock();
     let log_file = open_log_file();
-    unsafe { uv_print_all_handles(&raw mut *loop_, log_file.as_nonnull().as_ptr()) };
+    loop_print_all_handles(loop_, &log_file);
     drop(log_file);
     log_unlock();
 }
@@ -355,26 +329,11 @@ fn do_log_to_file_str(
         return false;
     }
     let mut date_time = [0u8; 20];
-    if unsafe {
-        strftime(
-            date_time.as_mut_ptr(),
-            date_time.len(),
-            c"%Y-%m-%dT%H:%M:%S".as_ptr().cast(),
-            &raw const local_time,
-        )
-    } == 0
-    {
+    if os_strftime(&mut date_time, c"%Y-%m-%dT%H:%M:%S", &local_time) == 0 {
         return false;
     }
 
-    let mut millis: i32 = 0;
-    let mut curtime = UvTimeval64 {
-        tv_sec: 0,
-        tv_usec: 0,
-    };
-    if unsafe { uv_gettimeofday(&mut curtime) } == 0 {
-        millis = curtime.tv_usec / 1000;
-    }
+    let millis = os_gettimeofday_ms();
 
     let ui = g_st().ui_client_channel_id != 0;
     let first_byte = log_st().instance_name[0];

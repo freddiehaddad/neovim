@@ -586,7 +586,7 @@ pub fn os_nodetype(name: &CStr) -> i32 {
             return NODE_NORMAL;
         }
         let guess = unsafe { uv_guess_handle(fd) };
-        let _ = unsafe { close(fd) };
+        let _ = close(fd);
         match guess {
             UV_TTY => NODE_WRITABLE,
             UV_FILE => NODE_NORMAL,
@@ -806,6 +806,40 @@ impl CFile {
     #[inline]
     pub fn from_std_stream(ptr: std::ptr::NonNull<crate::fileio::FILE>) -> Self {
         Self { ptr, owned: false }
+    }
+
+    #[inline]
+    pub fn stdout() -> Self {
+        unsafe extern "C" {
+            #[cfg(windows)]
+            fn __acrt_iob_func(ix: u32) -> *mut crate::fileio::FILE;
+            #[cfg(not(windows))]
+            #[cfg_attr(target_os = "linux", link_name = "stdout")]
+            #[cfg_attr(not(target_os = "linux"), link_name = "__stdoutp")]
+            static C_STDOUT: *mut crate::fileio::FILE;
+        }
+        #[cfg(windows)]
+        let fp = unsafe { __acrt_iob_func(1) };
+        #[cfg(not(windows))]
+        let fp = unsafe { C_STDOUT };
+        Self::from_std_stream(std::ptr::NonNull::new(fp).unwrap())
+    }
+
+    #[inline]
+    pub fn stderr() -> Self {
+        unsafe extern "C" {
+            #[cfg(windows)]
+            fn __acrt_iob_func(ix: u32) -> *mut crate::fileio::FILE;
+            #[cfg(not(windows))]
+            #[cfg_attr(target_os = "linux", link_name = "stderr")]
+            #[cfg_attr(not(target_os = "linux"), link_name = "__stderrp")]
+            static C_STDERR: *mut crate::fileio::FILE;
+        }
+        #[cfg(windows)]
+        let fp = unsafe { __acrt_iob_func(2) };
+        #[cfg(not(windows))]
+        let fp = unsafe { C_STDERR };
+        Self::from_std_stream(std::ptr::NonNull::new(fp).unwrap())
     }
 
     #[inline]
@@ -1440,7 +1474,7 @@ pub fn os_free_acl(_aclent: VimAcl) {}
 /// Checks if the current user owns a file.
 pub fn os_file_owned(fname: &CStr) -> bool {
     #[cfg(not(windows))]
-    unsafe {
+    {
         let uid = u64::from(getuid());
         let mut finfo = FileInfo::new();
         let file_owned = os_fileinfo(fname, &mut finfo) && finfo.stat.st_uid == uid;

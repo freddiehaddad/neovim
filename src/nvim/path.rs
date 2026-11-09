@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Path manipulation, comparison, canonicalization, and wildcard expansion (`src/nvim/path.c`).
 
 use crate::api::private::validate::NvimString;
@@ -1787,8 +1789,7 @@ pub fn path_cmp(ic: bool, p: &CStr, q: &CStr, maxlen: usize) -> i32 {
             && q_bytes.first().is_some_and(u8::is_ascii_alphabetic)
             && q_bytes.get(1) == Some(&b':')
         {
-            if q_bytes[0].to_ascii_lowercase() as i32 == unsafe { _getdrive() } + (b'a' as i32) - 1
-            {
+            if q_bytes[0].to_ascii_lowercase() as i32 == _getdrive() + (b'a' as i32) - 1 {
                 q_bytes = &q_bytes[2..];
             }
         } else if q_bytes
@@ -1796,7 +1797,7 @@ pub fn path_cmp(ic: bool, p: &CStr, q: &CStr, maxlen: usize) -> i32 {
             .is_some_and(|&b| vim_ispathsep_nocolon(b as i32))
             && p_bytes.first().is_some_and(u8::is_ascii_alphabetic)
             && p_bytes.get(1) == Some(&b':')
-            && p_bytes[0].to_ascii_lowercase() as i32 == unsafe { _getdrive() } + (b'a' as i32) - 1
+            && p_bytes[0].to_ascii_lowercase() as i32 == _getdrive() + (b'a' as i32) - 1
         {
             p_bytes = &p_bytes[2..];
         }

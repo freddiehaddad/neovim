@@ -14,7 +14,10 @@ pub type time_t = i64;
 pub const NS_PER_SEC: i64 = 1_000_000_000;
 const UV_CLOCK_REALTIME: i32 = 1;
 
-use crate::event::r#loop::{UvTimespec64, uv_clock_gettime, uv_hrtime, uv_now, uv_sleep};
+use crate::event::r#loop::{
+    UvTimespec64, UvTimeval64, uv_clock_gettime, uv_gettimeofday, uv_hrtime, uv_now, uv_sleep,
+    uv_uptime,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -66,6 +69,43 @@ unsafe extern "C" {
 /// High-resolution monotonic clock in nanoseconds (`os_hrtime`).
 pub fn os_hrtime() -> u64 {
     unsafe { uv_hrtime() }
+}
+
+/// Format a `Tm` struct into `buf` using `strftime`.
+#[inline]
+pub fn os_strftime(buf: &mut [u8], format: &CStr, tm: &Tm) -> usize {
+    if buf.is_empty() {
+        return 0;
+    }
+    unsafe {
+        strftime(
+            buf.as_mut_ptr(),
+            buf.len(),
+            format.as_ptr().cast(),
+            &raw const *tm,
+        )
+    }
+}
+
+/// Return current system uptime in seconds, or `None` on failure.
+#[inline]
+pub fn os_uptime() -> Option<f64> {
+    let mut uptime: f64 = 0.0;
+    (unsafe { uv_uptime(&mut uptime) } == 0).then_some(uptime)
+}
+
+/// Return the millisecond component (0..999) of `uv_gettimeofday`.
+#[inline]
+pub fn os_gettimeofday_ms() -> i32 {
+    let mut curtime = UvTimeval64 {
+        tv_sec: 0,
+        tv_usec: 0,
+    };
+    if unsafe { uv_gettimeofday(&mut curtime) } == 0 {
+        curtime.tv_usec / 1000
+    } else {
+        0
+    }
 }
 
 /// High-resolution real-time clock in nanoseconds since Unix epoch (`os_realtime`).

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Filesystem related builtin functions (`src/nvim/eval/fs.c`).
 
 use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handle};
@@ -24,7 +26,7 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
 use crate::file_search::{FfSearchCtx, FindFileWhat, find_file_in_path_option};
 #[cfg(not(windows))]
-use crate::fileio::readlink;
+use crate::fileio::os_readlink;
 use crate::fileio::{
     Off, SEEK_END, SEEK_SET, delete_recursive, file_pat_to_reg_pat, readdir_core, vim_copyfile,
     vim_rename, vim_tempname,
@@ -1705,9 +1707,10 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         loop {
             loop {
-                let len = unsafe {
-                    readlink(p_vec.as_ptr().cast(), buf_vec.as_mut_ptr().cast(), MAXPATHL)
-                };
+                let len = os_readlink(
+                    crate::memory::bytes_as_cstr(&p_vec),
+                    &mut buf_vec[..MAXPATHL],
+                );
                 if len <= 0 {
                     break;
                 }

@@ -515,14 +515,14 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         #[cfg(windows)]
         if startup_stderr_fd >= 0 {
             unsafe { dup2(startup_stderr_fd, STDERR_FILENO) };
-            unsafe { close(startup_stderr_fd) };
+            close(startup_stderr_fd);
         }
         mainerr(g_st().iobuff_cstr(), None, None);
     }
 
     #[cfg(windows)]
     if startup_stderr_fd >= 0 {
-        unsafe { close(startup_stderr_fd) };
+        close(startup_stderr_fd);
     }
 
     time_msg_if_enabled(c"expanding arguments");

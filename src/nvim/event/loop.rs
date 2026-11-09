@@ -113,6 +113,35 @@ pub struct UvTimespec64 {
     pub tv_nsec: i32,
 }
 
+#[repr(C, align(8))]
+pub struct UvMutex([u8; 128]);
+
+impl UvMutex {
+    pub const fn new() -> Self {
+        Self([0; 128])
+    }
+
+    #[inline]
+    pub fn init_recursive(&mut self) {
+        unsafe { uv_mutex_init_recursive((&raw mut self.0).cast()) };
+    }
+
+    #[inline]
+    pub fn lock(&mut self) {
+        unsafe { uv_mutex_lock((&raw mut self.0).cast()) };
+    }
+
+    #[inline]
+    pub fn unlock(&mut self) {
+        unsafe { uv_mutex_unlock((&raw mut self.0).cast()) };
+    }
+}
+
+#[inline]
+pub fn loop_print_all_handles(loop_: &mut uv_loop_t, file: &crate::os::fs::CFile) {
+    unsafe { uv_print_all_handles(&raw mut *loop_, file.as_nonnull().as_ptr()) };
+}
+
 #[repr(C)]
 pub struct Loop {
     pub uv: [u64; 192],

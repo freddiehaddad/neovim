@@ -291,14 +291,14 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     pub fn iconv_close(cd: iconv_t) -> i32;
     #[cfg_attr(windows, link_name = "_close")]
-    pub fn close(fd: i32) -> i32;
+    fn c_close(fd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_dup")]
     pub fn dup(oldfd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_dup2")]
     pub fn dup2(oldfd: i32, newfd: i32) -> i32;
     #[cfg_attr(windows, link_name = "_lseeki64")]
     #[cfg_attr(not(windows), link_name = "lseek")]
-    pub fn vim_lseek(fd: i32, offset: Off, whence: i32) -> Off;
+    fn c_vim_lseek(fd: i32, offset: Off, whence: i32) -> Off;
     #[cfg_attr(windows, link_name = "_fseeki64")]
     #[cfg_attr(not(windows), link_name = "fseeko")]
     pub fn vim_fseek(stream: *mut FILE, offset: Off, whence: i32) -> i32;
@@ -318,7 +318,8 @@ unsafe extern "C" {
     #[cfg(windows)]
     pub fn _setmode(fd: i32, mode: i32) -> i32;
     #[cfg(windows)]
-    pub fn _getdrive() -> i32;
+    #[link_name = "_getdrive"]
+    fn c_getdrive() -> i32;
     #[cfg(windows)]
     pub fn _read(fd: i32, buf: *mut c_void, count: u32) -> i32;
     #[cfg(windows)]
@@ -329,9 +330,11 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     pub fn fcntl(fd: i32, cmd: i32, ...) -> i32;
     #[cfg(not(windows))]
-    pub fn getuid() -> u32;
+    #[link_name = "getuid"]
+    fn c_getuid() -> u32;
     #[cfg(not(windows))]
-    pub fn getgid() -> u32;
+    #[link_name = "getgid"]
+    fn c_getgid() -> u32;
     #[cfg(not(windows))]
     pub fn read(fd: i32, buf: *mut c_void, count: usize) -> isize;
     #[cfg(not(windows))]
@@ -352,6 +355,40 @@ unsafe extern "C" {
     fn dirfd(dirp: *mut DIR) -> i32;
     #[cfg(not(windows))]
     fn flock(fd: i32, operation: i32) -> i32;
+}
+
+#[inline]
+pub fn close(fd: i32) -> i32 {
+    unsafe { c_close(fd) }
+}
+
+#[inline]
+pub fn vim_lseek(fd: i32, offset: Off, whence: i32) -> Off {
+    unsafe { c_vim_lseek(fd, offset, whence) }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn _getdrive() -> i32 {
+    unsafe { c_getdrive() }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn getuid() -> u32 {
+    unsafe { c_getuid() }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn getgid() -> u32 {
+    unsafe { c_getgid() }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn os_readlink(path: &CStr, buf: &mut [u8]) -> isize {
+    unsafe { readlink(path.as_ptr().cast(), buf.as_mut_ptr(), buf.len()) }
 }
 
 #[inline]
@@ -1367,7 +1404,7 @@ pub fn readfile(
                 {
                     emsg(tr(E_AUCHANGEDBUF));
                     if !read_buffer {
-                        unsafe { close(fd) };
+                        close(fd);
                     }
                     break 'theend;
                 }
@@ -1398,7 +1435,7 @@ pub fn readfile(
 
             if g_st().swap_exists_action == SEA_QUIT {
                 if !read_buffer && !read_stdin {
-                    unsafe { close(fd) };
+                    close(fd);
                 }
                 break 'theend;
             }
@@ -1427,7 +1464,7 @@ pub fn readfile(
                 let n = g_st().msg_scrolled;
 
                 if !read_stdin {
-                    unsafe { close(fd) };
+                    close(fd);
                 }
 
                 g_st().msg_scroll = 1;
@@ -1596,7 +1633,7 @@ pub fn readfile(
                     if read_buffer {
                         read_buf_lnum = 1;
                         read_buf_col = 0;
-                    } else if read_stdin || unsafe { vim_lseek(fd, 0, SEEK_SET) } != 0 {
+                    } else if read_stdin || vim_lseek(fd, 0, SEEK_SET) != 0 {
                         error = true;
                         break 'retry;
                     }
@@ -2553,8 +2590,7 @@ pub fn readfile(
                                     } else if ff_error != EOL_DOS {
                                         if try_unix != 0
                                             && !read_stdin
-                                            && (read_buffer
-                                                || unsafe { vim_lseek(fd, 0, SEEK_SET) } == 0)
+                                            && (read_buffer || vim_lseek(fd, 0, SEEK_SET) == 0)
                                         {
                                             fileformat = EOL_UNIX;
                                             if set_options {
@@ -2696,14 +2732,14 @@ pub fn readfile(
             }
 
             if !read_buffer && !read_stdin {
-                unsafe { close(fd) };
+                close(fd);
             } else {
                 os_set_cloexec(fd);
             }
             drop(buffer_vec);
 
             if read_stdin {
-                unsafe { close(fd) };
+                close(fd);
                 if g_st().stdin_fd < 0 {
                     #[cfg(not(windows))]
                     {

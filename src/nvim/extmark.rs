@@ -73,6 +73,45 @@ impl ExtmarkSplice {
             new_byte: 0,
         }
     }
+
+    pub fn to_ne_bytes(self) -> [u8; size_of::<Self>()] {
+        let mut buf = [0u8; size_of::<Self>()];
+        let mut off = 0;
+        for v in [
+            self.start_row,
+            self.start_col,
+            self.old_row,
+            self.old_col,
+            self.new_row,
+            self.new_col,
+        ] {
+            buf[off..off + 4].copy_from_slice(&v.to_ne_bytes());
+            off += 4;
+        }
+        let bsz = size_of::<Bcount>();
+        for v in [self.start_byte, self.old_byte, self.new_byte] {
+            buf[off..off + bsz].copy_from_slice(&v.to_ne_bytes());
+            off += bsz;
+        }
+        buf
+    }
+
+    pub fn from_ne_bytes(buf: &[u8; size_of::<Self>()]) -> Self {
+        let read_i32 = |o: usize| i32::from_ne_bytes(buf[o..o + 4].try_into().unwrap());
+        let bsz = size_of::<Bcount>();
+        let read_bcount = |o: usize| Bcount::from_ne_bytes(buf[o..o + bsz].try_into().unwrap());
+        Self {
+            start_row: read_i32(0),
+            start_col: read_i32(4),
+            old_row: read_i32(8),
+            old_col: read_i32(12),
+            new_row: read_i32(16),
+            new_col: read_i32(20),
+            start_byte: read_bcount(24),
+            old_byte: read_bcount(24 + bsz),
+            new_byte: read_bcount(24 + 2 * bsz),
+        }
+    }
 }
 
 #[repr(C)]
@@ -101,6 +140,45 @@ impl ExtmarkMove {
             start_byte: 0,
             extent_byte: 0,
             new_byte: 0,
+        }
+    }
+
+    pub fn to_ne_bytes(self) -> [u8; size_of::<Self>()] {
+        let mut buf = [0u8; size_of::<Self>()];
+        let mut off = 0;
+        for v in [
+            self.start_row,
+            self.start_col,
+            self.extent_row,
+            self.extent_col,
+            self.new_row,
+            self.new_col,
+        ] {
+            buf[off..off + 4].copy_from_slice(&v.to_ne_bytes());
+            off += 4;
+        }
+        let bsz = size_of::<Bcount>();
+        for v in [self.start_byte, self.extent_byte, self.new_byte] {
+            buf[off..off + bsz].copy_from_slice(&v.to_ne_bytes());
+            off += bsz;
+        }
+        buf
+    }
+
+    pub fn from_ne_bytes(buf: &[u8; size_of::<Self>()]) -> Self {
+        let read_i32 = |o: usize| i32::from_ne_bytes(buf[o..o + 4].try_into().unwrap());
+        let bsz = size_of::<Bcount>();
+        let read_bcount = |o: usize| Bcount::from_ne_bytes(buf[o..o + bsz].try_into().unwrap());
+        Self {
+            start_row: read_i32(0),
+            start_col: read_i32(4),
+            extent_row: read_i32(8),
+            extent_col: read_i32(12),
+            new_row: read_i32(16),
+            new_col: read_i32(20),
+            start_byte: read_bcount(24),
+            extent_byte: read_bcount(24 + bsz),
+            new_byte: read_bcount(24 + 2 * bsz),
         }
     }
 }

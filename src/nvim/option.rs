@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! User-settable options (`src/nvim/option.c`).
 
 use crate::api::extmark::nvim_create_namespace;
@@ -939,7 +941,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let is_global_local_option = option_is_global_local(opt_idx);
 
     #[cfg(unix)]
-    if opt_idx == K_OPT_MODELINE && unsafe { getuid() } == ROOT_UID {
+    if opt_idx == K_OPT_MODELINE && getuid() == ROOT_UID {
         return boolean_obj(false);
     }
 
@@ -2521,7 +2523,7 @@ fn apply_optionset_autocmd(
 }
 
 /// Process the updated 'arabic' option value.
-pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_arabic(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let mut errmsg: Option<&CStr> = None;
 
@@ -2567,13 +2569,13 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'autochdir' option value.
-pub fn did_set_autochdir(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_autochdir(_args: &mut Optset) -> Option<&'static CStr> {
     do_autochdir();
     None
 }
 
 /// Process the updated 'binary' option value.
-pub fn did_set_binary(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_binary(args: &mut Optset) -> Option<&'static CStr> {
     set_options_bin(
         i32::from(args.os_oldval.data.boolean()),
         i32::from(args.buf_mut().b_p_bin),
@@ -2584,7 +2586,7 @@ pub fn did_set_binary(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'buflisted' option value.
-pub fn did_set_buflisted(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_buflisted(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
 
     if args.os_oldval.data.boolean() != buf.b_p_bl {
@@ -2604,7 +2606,7 @@ pub fn did_set_buflisted(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'cmdheight' option value.
-pub fn did_set_cmdheight(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_cmdheight(args: &mut Optset) -> Option<&'static CStr> {
     let old_value = args.os_oldval.data.integer();
 
     if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1) {
@@ -2624,7 +2626,7 @@ pub fn did_set_cmdheight(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'diff' option value.
-pub fn did_set_diff(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_diff(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     diff_buf_adjust(&mut *win);
     if foldmethod_is_diff(&mut *win) {
@@ -2634,13 +2636,13 @@ pub fn did_set_diff(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'endoffile' or 'endofline' or 'fixendofline' or 'bomb' option value.
-pub fn did_set_eof_eol_fixeol_bomb(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_eof_eol_fixeol_bomb(_args: &mut Optset) -> Option<&'static CStr> {
     redraw_titles();
     None
 }
 
 /// Process the updated 'equalalways' option value.
-pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_equalalways(args: &mut Optset) -> Option<&'static CStr> {
     if opt_vars().p_ea && !args.os_oldval.data.boolean() {
         win_equal(args.os_win.opt(), false, 0);
     }
@@ -2648,7 +2650,7 @@ pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'foldenable' option value.
-pub fn did_set_foldenable(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldenable(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_fen)
         && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen
@@ -2666,19 +2668,19 @@ pub fn did_set_foldenable(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'foldlevel' option value.
-pub fn did_set_foldlevel(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldlevel(_args: &mut Optset) -> Option<&'static CStr> {
     new_fold_level();
     None
 }
 
 /// Process the new 'foldminlines' option value.
-pub fn did_set_foldminlines(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldminlines(args: &mut Optset) -> Option<&'static CStr> {
     fold_update_all(args.win_mut());
     None
 }
 
 /// Process the new 'foldnestmax' option value.
-pub fn did_set_foldnestmax(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldnestmax(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if foldmethod_is_syntax(&mut *win) || foldmethod_is_indent(&mut *win) {
         fold_update_all(&mut *win);
@@ -2687,7 +2689,7 @@ pub fn did_set_foldnestmax(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Multicursor: handle updates to 'follow' option.
-pub fn did_set_follow(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_follow(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_buf == g_st().curbuf {
         atom_follow_changed();
     }
@@ -2695,7 +2697,7 @@ pub fn did_set_follow(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'helpheight' option value.
-pub fn did_set_helpheight(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_helpheight(_args: &mut Optset) -> Option<&'static CStr> {
     if !firstwin_mut().w_next.is_null()
         && curbuf_mut().b_help
         && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh
@@ -2706,13 +2708,13 @@ pub fn did_set_helpheight(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'hlsearch' option value.
-pub fn did_set_hlsearch(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_hlsearch(_args: &mut Optset) -> Option<&'static CStr> {
     set_no_hlsearch(false);
     None
 }
 
 /// Process the updated 'ignorecase' option value.
-pub fn did_set_ignorecase(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_ignorecase(_args: &mut Optset) -> Option<&'static CStr> {
     if opt_vars().p_hls {
         redraw_all_later(UPD_SOME_VALID);
     }
@@ -2720,26 +2722,26 @@ pub fn did_set_ignorecase(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'iminsert' option value.
-pub fn did_set_iminsert(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_iminsert(_args: &mut Optset) -> Option<&'static CStr> {
     showmode();
     status_redraw_curbuf();
     None
 }
 
 /// Process the updated 'langnoremap' option value.
-pub fn did_set_langnoremap(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_langnoremap(_args: &mut Optset) -> Option<&'static CStr> {
     opt_vars().p_lrm = !opt_vars().p_lnr;
     None
 }
 
 /// Process the updated 'langremap' option value.
-pub fn did_set_langremap(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_langremap(_args: &mut Optset) -> Option<&'static CStr> {
     opt_vars().p_lnr = !opt_vars().p_lrm;
     None
 }
 
 /// Process the new 'laststatus' option value.
-pub fn did_set_laststatus(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_laststatus(args: &mut Optset) -> Option<&'static CStr> {
     let old_value = args.os_oldval.data.integer();
     let value = args.os_newval.data.integer();
 
@@ -2762,7 +2764,7 @@ pub fn did_set_laststatus(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'lines' or 'columns' option value.
-pub fn did_set_lines_or_columns(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_lines_or_columns(args: &mut Optset) -> Option<&'static CStr> {
     if opt_vars().p_lines != OptInt::from(g_st().rows_global)
         || opt_vars().p_columns != OptInt::from(g_st().columns_global)
     {
@@ -2794,19 +2796,19 @@ pub fn did_set_lines_or_columns(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'lisp' option value.
-pub fn did_set_lisp(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_lisp(args: &mut Optset) -> Option<&'static CStr> {
     buf_init_isk_chartab(args.buf_mut());
     None
 }
 
 /// Process the updated 'modifiable' option value.
-pub fn did_set_modifiable(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_modifiable(_args: &mut Optset) -> Option<&'static CStr> {
     redraw_titles();
     None
 }
 
 /// Process the updated 'modified' option value.
-pub fn did_set_modified(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_modified(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let new_bool = args.os_newval.data.boolean();
     if !new_bool {
@@ -2818,7 +2820,7 @@ pub fn did_set_modified(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'number' or 'relativenumber' option value.
-pub fn did_set_number_relativenumber(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_number_relativenumber(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if !win.w_onebuf_opt.wo_stc.is_empty() {
         win.w_nrwidth_line_count = 0;
@@ -2828,13 +2830,13 @@ pub fn did_set_number_relativenumber(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'numberwidth' option value.
-pub fn did_set_numberwidth(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_numberwidth(args: &mut Optset) -> Option<&'static CStr> {
     args.win_mut().w_nrwidth_line_count = 0;
     None
 }
 
 /// Process the updated 'paste' option value.
-pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
     if opt_vars().p_paste {
         if !opt_st().old_p_paste {
             for buf in for_all_buffers_mut() {
@@ -2926,7 +2928,7 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'previewwindow' option.
-pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_previewwindow(args: &mut Optset) -> Option<&'static CStr> {
     if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
         return None;
     }
@@ -2946,7 +2948,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'pumblend' option value.
-pub fn did_set_pumblend(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_pumblend(_args: &mut Optset) -> Option<&'static CStr> {
     hl_invalidate_blends();
     if pum_drawn() {
         pum_redraw();
@@ -2955,7 +2957,7 @@ pub fn did_set_pumblend(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'readonly' option value.
-pub fn did_set_readonly(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_readonly(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
 
     if !buf.b_p_ro && (args.os_flags & OPT_LOCAL) == 0 {
@@ -2971,7 +2973,7 @@ pub fn did_set_readonly(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'scrollback' option value.
-pub fn did_set_scrollback(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_scrollback(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let old_value = args.os_oldval.data.integer();
     let value = args.os_newval.data.integer();
@@ -2985,7 +2987,7 @@ pub fn did_set_scrollback(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'scrollbind' option value.
-pub fn did_set_scrollbind(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_scrollbind(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
 
     if !win.w_onebuf_opt.wo_scb {
@@ -2997,7 +2999,7 @@ pub fn did_set_scrollbind(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'shiftwidth' or the 'tabstop' option value.
-pub fn did_set_shiftwidth_tabstop(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_shiftwidth_tabstop(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let win = args.win_mut();
 
@@ -3011,13 +3013,13 @@ pub fn did_set_shiftwidth_tabstop(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'showtabline' option value.
-pub fn did_set_showtabline(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_showtabline(_args: &mut Optset) -> Option<&'static CStr> {
     win_new_screen_rows();
     None
 }
 
 /// Process the updated 'smoothscroll' option value.
-pub fn did_set_smoothscroll(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_smoothscroll(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if !win.w_onebuf_opt.wo_sms {
         win.w_skipcol = 0;
@@ -3026,7 +3028,7 @@ pub fn did_set_smoothscroll(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'spell' option value.
-pub fn did_set_spell(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_spell(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if win.w_onebuf_opt.wo_spell {
         return parse_spelllang(win);
@@ -3035,7 +3037,7 @@ pub fn did_set_spell(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'swapfile' option value.
-pub fn did_set_swapfile(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_swapfile(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     if buf.b_p_swf && opt_vars().p_uc != 0 {
         ml_open_file(buf);
@@ -3046,7 +3048,7 @@ pub fn did_set_swapfile(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'textwidth' option value.
-pub fn did_set_textwidth(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_textwidth(_args: &mut Optset) -> Option<&'static CStr> {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&*tp) {
             check_colorcolumn(None::<&CStr>, Some(&mut *wp));
@@ -3056,13 +3058,13 @@ pub fn did_set_textwidth(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'title' or the 'icon' option value.
-pub fn did_set_title_icon(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_title_icon(_args: &mut Optset) -> Option<&'static CStr> {
     did_set_title();
     None
 }
 
 /// Process the new 'titlelen' option value.
-pub fn did_set_titlelen(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_titlelen(args: &mut Optset) -> Option<&'static CStr> {
     let old_value = args.os_oldval.data.integer();
     if starting_val() != NO_SCREEN && old_value != opt_vars().p_titlelen {
         g_st().need_maketitle = true;
@@ -3071,7 +3073,7 @@ pub fn did_set_titlelen(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'undofile' option value.
-pub fn did_set_undofile(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_undofile(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.os_buf.as_ptr();
 
     if !args.buf_mut().b_p_udf && !opt_vars().p_udf {
@@ -3114,7 +3116,7 @@ pub fn did_set_buflocal_undolevels(
 }
 
 /// Process the new 'undolevels' option value.
-pub fn did_set_undolevels(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_undolevels(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
 
     if args.os_varp.ptr_eq(&opt_vars().p_ul) {
@@ -3131,7 +3133,7 @@ pub fn did_set_undolevels(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'updatecount' option value.
-pub fn did_set_updatecount(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_updatecount(args: &mut Optset) -> Option<&'static CStr> {
     let old_value = args.os_oldval.data.integer();
     if opt_vars().p_uc != 0 && old_value == 0 {
         ml_open_files();
@@ -3140,7 +3142,7 @@ pub fn did_set_updatecount(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'wildchar' or 'wildcharm' option.
-pub fn validate_wildchar(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_wildchar(args: &mut Optset) -> Option<&'static CStr> {
     let c = args.os_newval.data.integer();
     if c == CTRL_C_CONST_CONST
         || c == OptInt::from(b'\n')
@@ -3153,7 +3155,7 @@ pub fn validate_wildchar(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'winblend' option value.
-pub fn did_set_winblend(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_winblend(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let old_value = args.os_oldval.data.integer();
     let value = args.os_newval.data.integer();
@@ -3167,7 +3169,7 @@ pub fn did_set_winblend(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'window' option value.
-pub fn did_set_window(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_window(_args: &mut Optset) -> Option<&'static CStr> {
     if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().rows_global) {
         opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
     }
@@ -3175,7 +3177,7 @@ pub fn did_set_window(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'winheight' value.
-pub fn did_set_winheight(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_winheight(_args: &mut Optset) -> Option<&'static CStr> {
     if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh {
         win_setheight(opt_vars().p_wh as i32);
     }
@@ -3183,7 +3185,7 @@ pub fn did_set_winheight(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'winwidth' option value.
-pub fn did_set_winwidth(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_winwidth(_args: &mut Optset) -> Option<&'static CStr> {
     if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw {
         win_setwidth(opt_vars().p_wiw as i32);
     }
@@ -3191,7 +3193,7 @@ pub fn did_set_winwidth(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the updated 'wrap' option value.
-pub fn did_set_wrap(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_wrap(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if win.w_onebuf_opt.wo_wrap {
         win.w_leftcol = 0;
@@ -3202,7 +3204,7 @@ pub fn did_set_wrap(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Process the new 'chistory' or 'lhistory' option value.
-pub fn did_set_xhistory(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_xhistory(args: &mut Optset) -> Option<&'static CStr> {
     let is_p_chi = args.os_varp.ptr_eq(&opt_vars().p_chi);
 
     if is_p_chi {
@@ -5238,7 +5240,7 @@ fn did_set_option<'a>(
     {
         errmsg = Some(E_INVARG);
     } else if let Some(cb) = opt.opt_did_set_cb {
-        errmsg = cb(args).map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
+        errmsg = cb(args);
     }
 
     if errmsg.is_some() {
@@ -5425,7 +5427,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         };
         args.os_varp = varp;
         args.os_oldval = opt_from_varp(opt_idx, varp);
-        let validate_err = validate_cb(args).map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
+        let validate_err = validate_cb(args);
         optval_free_read(opt_idx, args.os_oldval);
         args.os_oldval = nil_obj();
         return validate_err;
@@ -5468,8 +5470,7 @@ fn set_option<'a>(
             return Some(E_SECURE);
         }
 
-        errmsg = validate_and_prepare_option_value(&mut args)
-            .map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
+        errmsg = validate_and_prepare_option_value(&mut args);
         value = args.os_newval;
 
         if errmsg.is_none()
@@ -5586,8 +5587,7 @@ fn set_option<'a>(
     args.os_newval = value;
     args.os_buf = g_st().curbuf;
     args.os_win = crate::globals::curwin_ptr();
-    errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted)
-        .map(|s| unsafe { CStr::from_ptr(s.as_ptr()) });
+    errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
     args.os_prep = crate::optionstr::OptSetPrep::None;
 
     g_st().secure = secure_saved;

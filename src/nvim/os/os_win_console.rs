@@ -229,7 +229,7 @@ pub fn os_clear_hwnd() {
 
 #[cfg(windows)]
 pub fn os_redirect_stdin_to_conin() {
-    unsafe { close(STDIN_FILENO) };
+    close(STDIN_FILENO);
     let conin_fd = os_open_conin_fd();
     assert_eq!(conin_fd, STDIN_FILENO);
 }

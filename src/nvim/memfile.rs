@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Memory file block cache and swap file backing store (`src/nvim/memfile.c`).
 
 use crate::buffer::{FileBuf, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
@@ -128,7 +130,7 @@ pub fn mf_open(fname: Option<std::ffi::CString>, flags: i32) -> Option<Box<Memfi
 
     let size: Off;
     if mfp.mf_fd < 0 || (flags & (O_TRUNC | O_EXCL)) != 0 || {
-        size = unsafe { vim_lseek(mfp.mf_fd, 0, SEEK_END) };
+        size = vim_lseek(mfp.mf_fd, 0, SEEK_END);
         size <= 0
     } {
         mfp.mf_blocknr_max = 0;
@@ -159,7 +161,7 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
         return;
     };
     {
-        if mfp.mf_fd >= 0 && unsafe { close(mfp.mf_fd) } < 0 {
+        if mfp.mf_fd >= 0 && close(mfp.mf_fd) < 0 {
             emsg(gettext(E_SWAPCLOSE));
         }
         if del_file && let Some(ref fname) = mfp.mf_fname {
@@ -188,7 +190,7 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
     let Some(mfp_ref) = buf.b_ml.mfp_opt() else {
         return;
     };
-    if unsafe { close(mfp_ref.mf_fd) } < 0 {
+    if close(mfp_ref.mf_fd) < 0 {
         emsg(gettext(E_SWAPCLOSE));
     }
 
@@ -427,7 +429,7 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
 
     let page_size = mfp.mf_page_size;
     let offset = i64::from(page_size).wrapping_mul(hp.bh_bnum);
-    if unsafe { vim_lseek(mfp.mf_fd, offset, SEEK_SET) } != offset {
+    if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
         perror_msg(c"E294: Seek error in swap file read");
         return false;
     }
@@ -468,7 +470,7 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
 
         for attempt in 1..=2 {
             if mfp.mf_fd >= 0 {
-                if unsafe { vim_lseek(mfp.mf_fd, offset, SEEK_SET) } != offset {
+                if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
                     perror_msg(c"E296: Seek error in swap file write");
                     return false;
                 }
@@ -484,7 +486,7 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
 
             if attempt == 1 {
                 if mfp.mf_fd >= 0 {
-                    let _ = unsafe { close(mfp.mf_fd) };
+                    let _ = close(mfp.mf_fd);
                 }
                 {
                     mfp.mf_fd = os_open(

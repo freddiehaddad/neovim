@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Buffer line storage and swapfile recovery (`src/nvim/memline.c`).
 
 use crate::api::private::helpers::{HLF_E, cstr_as_string};
@@ -360,17 +362,16 @@ use crate::eval::funcs::VIM_WARNING;
 use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::{CMOD_NOSWAPFILE, FLUSH_TYPEAHEAD};
 #[cfg(unix)]
-use crate::fileio::readlink;
+use crate::fileio::os_readlink;
 use crate::fileio::vim_lseek;
 use crate::globals::IOSIZE;
 use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 #[cfg(unix)]
 const EINVAL: i32 = 22;
+use crate::os::time::os_uptime;
 use crate::regexp::MAXCOL;
 use crate::version::VERSIONS;
-
-use crate::event::r#loop::uv_uptime;
 
 #[inline(always)]
 const fn ml_simple(x: i32) -> bool {
@@ -384,6 +385,12 @@ fn pb_count_max(mfp: &Memfile) -> u16 {
 }
 
 impl DataBlock {
+    #[inline(always)]
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        let len = self.db_txt_end as usize;
+        crate::globals::GraphPtr::raw_slice_mut((&raw mut *self).cast::<u8>(), len)
+    }
+
     #[inline(always)]
     fn copy_within(&mut self, src_off: usize, dst_off: usize, len: usize) {
         let base = (&raw mut *self).cast::<u8>();
@@ -399,14 +406,10 @@ impl DataBlock {
         if total_len == 0 {
             return;
         }
-        let dst = (&raw mut *self).cast::<u8>().wrapping_add(dst_off);
         let copy_len = src.len().min(total_len.saturating_sub(1));
-        unsafe {
-            ptr::copy_nonoverlapping(src.as_ptr(), dst, copy_len);
-            if total_len > copy_len {
-                ptr::write_bytes(dst.wrapping_add(copy_len), 0, total_len - copy_len);
-            }
-        }
+        let dst = &mut self.as_bytes_mut()[dst_off..dst_off + total_len];
+        dst[..copy_len].copy_from_slice(&src[..copy_len]);
+        dst[copy_len..].fill(0);
     }
 }
 
@@ -835,9 +838,8 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
 
 fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: &CStr) -> i32 {
     let mut st = FileInfo::new();
-    let mut uptime: f64 = 0.0;
     if os_fileinfo(swap_fname, &mut st)
-        && unsafe { uv_uptime(&mut uptime) } == 0
+        && let Some(uptime) = os_uptime()
         && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
     {
         return 0;
@@ -1049,7 +1051,7 @@ pub fn ml_recover(checkext: bool) {
         }
         {
             let mfp = buf.b_ml.mfp_mut();
-            let size: Off = unsafe { vim_lseek(mfp.mf_fd, 0, SEEK_END) };
+            let size: Off = vim_lseek(mfp.mf_fd, 0, SEEK_END);
             mfp.mf_blocknr_max = if size <= 0 {
                 0
             } else {
@@ -1416,9 +1418,10 @@ pub fn ml_recover(checkext: bool) {
                             line_bytes = b"???";
                         } else {
                             did_questions = false;
-                            line_bytes =
-                                unsafe { CStr::from_ptr(dp_ptr.wrapping_add(txt_start as usize)) }
-                                    .to_bytes();
+                            line_bytes = crate::memory::bytes_as_cstr(
+                                &dp.as_bytes_mut()[txt_start as usize..],
+                            )
+                            .to_bytes();
                         }
                         ml_append(lnum, line_bytes, 0, true);
                         lnum += 1;
@@ -2771,14 +2774,9 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     };
 
     assert!(line_size >= 1);
-    ml_add_deleted_len_buf(buf, unsafe {
-        std::slice::from_raw_parts(
-            (&raw mut *dp)
-                .cast::<u8>()
-                .wrapping_add(line_start as usize),
-            (line_size - 1) as usize,
-        )
-    });
+    let start = line_start as usize;
+    let end = start + (line_size - 1) as usize;
+    ml_add_deleted_len_buf(buf, &dp.as_bytes_mut()[start..end]);
 
     if count == 1 {
         mf_free(buf.b_ml.mfp_mut(), hp);
@@ -3259,13 +3257,8 @@ pub fn resolve_symlink(fname: Option<&CStr>, buf: &mut [u8]) -> bool {
             return false;
         }
 
-        let ret = unsafe {
-            readlink(
-                tmp.as_ptr().cast(),
-                buf.as_mut_ptr().cast(),
-                buf.len().saturating_sub(1),
-            )
-        };
+        let buf_cap = buf.len().saturating_sub(1);
+        let ret = os_readlink(crate::memory::bytes_as_cstr(&tmp), &mut buf[..buf_cap]);
         if ret <= 0 {
             let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
             if err == EINVAL || err == ENOENT {

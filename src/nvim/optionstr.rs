@@ -435,8 +435,8 @@ pub struct Optexpand<'a> {
     pub oe_set_arg: crate::strings::OwnedSlice,
 }
 
-pub type OptValidateCb = Option<fn(&mut Optset) -> Option<&CStr>>;
-pub type OptDidSetCb = Option<fn(&mut Optset) -> Option<&CStr>>;
+pub type OptValidateCb = Option<fn(&mut Optset) -> Option<&'static CStr>>;
+pub type OptDidSetCb = Option<fn(&mut Optset) -> Option<&'static CStr>>;
 pub type OptExpandCb = Option<fn(&mut Optexpand, &mut Vec<std::ffi::CString>) -> bool>;
 
 #[repr(C)]
@@ -1237,12 +1237,12 @@ pub fn expand_set_str_generic(args: &mut Optexpand, matches: &mut Vec<std::ffi::
 }
 
 /// An option that accepts a list of flags is changed.
-pub fn did_set_str_generic(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_str_generic(args: &mut Optset) -> Option<&'static CStr> {
     check_str_opt(args.os_idx, Some(args.var_cstr()), args.os_errbuf)
 }
 
 /// Validate named string values without updating derived flags.
-pub fn validate_str_generic(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_str_generic(args: &mut Optset) -> Option<&'static CStr> {
     let opt = get_option(args.os_idx);
     let value = args.os_newval.data.string().as_cstr();
     opt_strings_flags(
@@ -1385,12 +1385,12 @@ fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CSt
 }
 
 /// The 'ambiwidth' option is changed.
-pub fn did_set_ambiwidth(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_ambiwidth(_args: &mut Optset) -> Option<&'static CStr> {
     check_chars_options()
 }
 
 /// The 'emoji' option is changed.
-pub fn did_set_emoji(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_emoji(args: &mut Optset) -> Option<&'static CStr> {
     let errmsg = check_str_opt(K_OPT_AMBIWIDTH, None, args.os_errbuf);
     if errmsg.is_some() {
         return errmsg;
@@ -1399,7 +1399,7 @@ pub fn did_set_emoji(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'background' option is changed.
-pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_background(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_oldval.data.string().first_byte() == opt_vars().p_bg.first_byte() {
         return None;
     }
@@ -1427,7 +1427,7 @@ pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'backspace' option.
-pub fn validate_backspace(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_backspace(args: &mut Optset) -> Option<&'static CStr> {
     let value = args.os_newval.data.string();
     if ascii_isdigit(value.first_byte()) {
         return if value.first_byte() == b'2' {
@@ -1439,7 +1439,7 @@ pub fn validate_backspace(args: &mut Optset) -> Option<&CStr> {
     validate_str_generic(args)
 }
 
-pub fn validate_backupcopy(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_backupcopy(args: &mut Optset) -> Option<&'static CStr> {
     let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
         args.os_newval.data.string().as_cstr(),
@@ -1458,7 +1458,7 @@ pub fn validate_backupcopy(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'backupcopy' option is changed.
-pub fn did_set_backupcopy(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_backupcopy(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
     let p_bkc = opt_vars().p_bkc.to_owned();
@@ -1485,7 +1485,7 @@ pub fn did_set_backupcopy(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'backupext' or 'patchmode' option.
-pub fn validate_backupext_or_patchmode(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_backupext_or_patchmode(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let ov = opt_vars();
     let bex_bytes = if args.os_idx == K_OPT_BACKUPEXT {
@@ -1508,7 +1508,7 @@ pub fn validate_backupext_or_patchmode(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'breakat' option is changed.
-pub fn did_set_breakat(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_breakat(_args: &mut Optset) -> Option<&'static CStr> {
     opt_vars().breakat_flags = [false; 256];
 
     if !opt_vars().p_breakat.is_null() {
@@ -1521,7 +1521,7 @@ pub fn did_set_breakat(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'breakindentopt' option is changed.
-pub fn did_set_breakindentopt(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_breakindentopt(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_briopt);
     briopt_check(is_local.then_some(&mut *win));
@@ -1534,7 +1534,7 @@ pub fn did_set_breakindentopt(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'buftype' option.
-pub fn validate_buftype(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_buftype(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let os_flags = args.os_flags;
     let newval_data = args.os_newval.data.string();
@@ -1550,7 +1550,7 @@ pub fn validate_buftype(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'buftype' option is changed.
-pub fn did_set_buftype(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_buftype(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let win = args.win_mut();
     if buf.b_p_bt.first_byte() == b'p' {
@@ -1588,7 +1588,7 @@ pub fn did_set_buftype(args: &mut Optset) -> Option<&CStr> {
     None
 }
 
-pub fn validate_chars_option(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_chars_option(args: &mut Optset) -> Option<&'static CStr> {
     set_chars_option(
         args.win_mut(),
         args.os_newval.data.string().as_cstr(),
@@ -1654,7 +1654,7 @@ fn did_set_global_chars_option<'a>(
 }
 
 /// The 'fillchars' option or the 'listchars' option is changed.
-pub fn did_set_chars_option(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_chars_option(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let varp = args.os_varp;
     let val = args.var_cstr();
@@ -1700,24 +1700,24 @@ pub fn expand_set_chars_option(args: &mut Optexpand, matches: &mut Vec<std::ffi:
 }
 
 /// The 'cinoptions' option is changed.
-pub fn did_set_cinoptions(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_cinoptions(args: &mut Optset) -> Option<&'static CStr> {
     parse_cino(args.buf_mut());
     None
 }
 
-pub fn validate_colorcolumn(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_colorcolumn(args: &mut Optset) -> Option<&'static CStr> {
     check_colorcolumn(args.os_newval.data.string().as_opt_cstr(), None)
 }
 
 /// The 'colorcolumn' option is changed.
-pub fn did_set_colorcolumn(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_colorcolumn(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_cc);
     check_colorcolumn(Some(args.var_cstr()), is_local.then_some(win))
 }
 
 /// Validate the 'comments' option.
-pub fn validate_comments(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_comments(args: &mut Optset) -> Option<&'static CStr> {
     let mut errmsg: Option<&CStr> = None;
     let newval_str = args.os_newval.data.string();
     let mut rem = newval_str.as_bytes();
@@ -1757,7 +1757,7 @@ pub fn validate_comments(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'commentstring' option.
-pub fn validate_commentstring(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_commentstring(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let bytes = newval_str.as_bytes();
     if bytes.is_empty() || bytes.windows(2).any(|w| w == b"%s") {
@@ -1768,7 +1768,7 @@ pub fn validate_commentstring(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'complete' option.
-pub fn validate_complete(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_complete(args: &mut Optset) -> Option<&'static CStr> {
     let mut buffer = [0u8; LSIZE];
     let mut char_before: u8 = 0;
 
@@ -1819,7 +1819,7 @@ pub fn validate_complete(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'complete' option is changed.
-pub fn did_set_complete(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_complete(args: &mut Optset) -> Option<&'static CStr> {
     if !set_cpt_callbacks(args) {
         return crate::option::opt_error_int(
             args.os_errbuf,
@@ -1831,7 +1831,7 @@ pub fn did_set_complete(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate 'completeitemalign' and prepare its column order.
-pub fn validate_completeitemalign(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_completeitemalign(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let mut p = newval_str.as_bytes();
     let mut new_cia_flags: u32 = 0;
@@ -1865,13 +1865,13 @@ pub fn validate_completeitemalign(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'completeitemalign' option is changed.
-pub fn did_set_completeitemalign(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_completeitemalign(args: &mut Optset) -> Option<&'static CStr> {
     opt_vars().cia_flags = args.os_prep.as_flags();
     None
 }
 
 /// The 'completeopt' option is changed.
-pub fn did_set_completeopt(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_completeopt(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let p_cot = opt_vars().p_cot.to_owned();
     let mut cot = p_cot.as_c_str();
@@ -1893,7 +1893,7 @@ fn opt_flags_is_both(opt_flags: i32) -> bool {
 }
 
 #[cfg(windows)]
-pub fn did_set_completeslash(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_completeslash(args: &mut Optset) -> Option<&'static CStr> {
     let errmsg = opt_strings_flags(
         opt_vars().p_csl.as_cstr(),
         &OPT_CSL_VALUES,
@@ -1914,7 +1914,7 @@ pub fn did_set_completeslash(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'concealcursor' option.
-pub fn validate_concealcursor(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_concealcursor(args: &mut Optset) -> Option<&'static CStr> {
     check_option_listflag(
         args.os_newval.data.string().as_bytes(),
         COCU_ALL,
@@ -1930,7 +1930,7 @@ pub fn expand_set_concealcursor(
 }
 
 /// Validate the 'cpoptions' option.
-pub fn validate_cpoptions(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_cpoptions(args: &mut Optset) -> Option<&'static CStr> {
     check_option_listflag(
         args.os_newval.data.string().as_bytes(),
         CPO_VI,
@@ -1942,7 +1942,7 @@ pub fn expand_set_cpoptions(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
     expand_set_opt_listflag(args, CPO_VI, matches)
 }
 
-pub fn validate_cursorlineopt(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_cursorlineopt(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let value = newval_str.as_bytes();
     let mut flags: u32 = 0;
@@ -1954,7 +1954,7 @@ pub fn validate_cursorlineopt(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'cursorlineopt' option is changed.
-pub fn did_set_cursorlineopt(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_cursorlineopt(args: &mut Optset) -> Option<&'static CStr> {
     if (args.os_flags & OPT_GLOBAL) != 0 {
         return None;
     }
@@ -1963,7 +1963,7 @@ pub fn did_set_cursorlineopt(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'diffanchors' option is changed.
-pub fn did_set_diffanchors(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_diffanchors(args: &mut Optset) -> Option<&'static CStr> {
     if !diffanchors_changed((args.os_flags & OPT_LOCAL) != 0) {
         return Some(E_INVARG);
     }
@@ -1971,7 +1971,7 @@ pub fn did_set_diffanchors(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'diffopt' option is changed.
-pub fn did_set_diffopt(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_diffopt(_args: &mut Optset) -> Option<&'static CStr> {
     if !diffopt_changed() {
         Some(E_INVARG)
     } else {
@@ -1996,7 +1996,7 @@ pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStr
 }
 
 /// The 'display' option is changed.
-pub fn did_set_display(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_display(args: &mut Optset) -> Option<&'static CStr> {
     let errmsg = did_set_str_generic(args);
     if errmsg.is_some() {
         return errmsg;
@@ -2011,7 +2011,7 @@ pub fn did_set_display(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
-pub fn validate_encoding(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_encoding(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_idx == K_OPT_FILEENCODING {
         if !modifiable(args.buf_mut()) && args.os_flags != OPT_GLOBAL {
             return Some(E_MODIFIABLE);
@@ -2032,7 +2032,7 @@ pub fn validate_encoding(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// One of the 'encoding', 'fileencoding' or 'makeencoding' options is changed.
-pub fn did_set_encoding(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_encoding(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_idx == K_OPT_FILEENCODING {
         redraw_titles();
         ml_setflags(args.buf_mut());
@@ -2052,7 +2052,7 @@ pub fn expand_set_encoding(args: &mut Optexpand, matches: &mut Vec<std::ffi::CSt
 }
 
 /// Validate the 'eventignore'/'eventignorewin' option.
-pub fn validate_eventignore(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_eventignore(args: &mut Optset) -> Option<&'static CStr> {
     if !check_ei(
         args.os_newval.data.string().as_cstr(),
         args.os_idx == K_OPT_EVENTIGNOREWIN,
@@ -2084,7 +2084,7 @@ pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::
     expand_set_opt_generic(args, Some(get_eventignore_name), matches)
 }
 
-pub fn validate_fileformat(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_fileformat(args: &mut Optset) -> Option<&'static CStr> {
     if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(args.buf_mut()) {
         return Some(E_MODIFIABLE);
     }
@@ -2092,7 +2092,7 @@ pub fn validate_fileformat(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'fileformat' option is changed.
-pub fn did_set_fileformat(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_fileformat(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let oldval = args.os_oldval.data.string();
 
@@ -2112,7 +2112,7 @@ pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CSt
 }
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
-pub fn validate_filetype(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_filetype(args: &mut Optset) -> Option<&'static CStr> {
     if valid_filetype(args.os_newval.data.string().as_bytes()) {
         None
     } else {
@@ -2121,14 +2121,14 @@ pub fn validate_filetype(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'filetype' or the 'syntax' option is changed.
-pub fn did_set_filetype_or_syntax(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_filetype_or_syntax(args: &mut Optset) -> Option<&'static CStr> {
     args.os_value_changed = args.os_oldval.data.string().cstr_bytes() != args.var_cstr().to_bytes();
     args.os_value_checked = true;
     None
 }
 
 /// The 'foldexpr' option is changed.
-pub fn did_set_foldexpr(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldexpr(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if foldmethod_is_expr(win) {
         fold_update_all(win);
@@ -2137,7 +2137,7 @@ pub fn did_set_foldexpr(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'foldignore' option is changed.
-pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldignore(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if foldmethod_is_indent(win) {
         fold_update_all(win);
@@ -2146,7 +2146,7 @@ pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'foldmarker' option.
-pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_foldmarker(args: &mut Optset) -> Option<&'static CStr> {
     let value = args.os_newval.data.string().as_cstr();
     let Some(p) = vim_strchr(value, b',' as i32) else {
         return Some(E_COMMA_REQUIRED);
@@ -2159,7 +2159,7 @@ pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'foldmarker' option is changed.
-pub fn did_set_foldmarker(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldmarker(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     if foldmethod_is_marker(win) {
         fold_update_all(win);
@@ -2168,7 +2168,7 @@ pub fn did_set_foldmarker(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'foldmethod' option is changed.
-pub fn did_set_foldmethod(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_foldmethod(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     fold_update_all(win);
     if foldmethod_is_diff(win) {
@@ -2178,7 +2178,7 @@ pub fn did_set_foldmethod(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'formatoptions' option.
-pub fn validate_formatoptions(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_formatoptions(args: &mut Optset) -> Option<&'static CStr> {
     check_option_listflag(
         args.os_newval.data.string().cstr_bytes(),
         FO_ALL,
@@ -2194,7 +2194,7 @@ pub fn expand_set_formatoptions(
 }
 
 /// The 'guicursor' option is changed.
-pub fn did_set_guicursor(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_guicursor(_args: &mut Optset) -> Option<&'static CStr> {
     if let Some(errmsg) = parse_shape_opt(SHAPE_CURSOR) {
         return Some(errmsg);
     }
@@ -2205,7 +2205,7 @@ pub fn did_set_guicursor(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'helpfile' option is changed.
-pub fn did_set_helpfile(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_helpfile(_args: &mut Optset) -> Option<&'static CStr> {
     if g_st().didset_vim {
         vim_unsetenv_ext(c"VIM");
     }
@@ -2216,7 +2216,7 @@ pub fn did_set_helpfile(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'helplang' option.
-pub fn validate_helplang(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_helplang(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let mut rem = newval_str.as_bytes();
     while !rem.is_empty() {
@@ -2232,7 +2232,7 @@ pub fn validate_helplang(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'highlight' option.
-pub fn validate_highlight(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_highlight(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_newval.data.string().cstr_bytes() != HIGHLIGHT_INIT.to_bytes() {
         return Some(E_UNSUPPORTEDOPTION);
     }
@@ -2240,12 +2240,12 @@ pub fn validate_highlight(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'iconstring' option is changed.
-pub fn did_set_iconstring(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_iconstring(args: &mut Optset) -> Option<&'static CStr> {
     did_set_titleiconstring(args, STL_IN_ICON)
 }
 
 /// The 'inccommand' option is changed.
-pub fn did_set_inccommand(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_inccommand(_args: &mut Optset) -> Option<&'static CStr> {
     if g_st().cmdpreview {
         return Some(E_INVARG);
     }
@@ -2253,7 +2253,7 @@ pub fn did_set_inccommand(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'isident', 'iskeyword' or 'isfname' option.
-pub fn validate_isopt(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_isopt(args: &mut Optset) -> Option<&'static CStr> {
     if !check_isopt(args.os_newval.data.string().as_bytes()) {
         Some(E_INVARG)
     } else {
@@ -2262,7 +2262,7 @@ pub fn validate_isopt(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'iskeyword' option is changed.
-pub fn did_set_iskeyword(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_iskeyword(args: &mut Optset) -> Option<&'static CStr> {
     if !args.os_varp.ptr_eq(&opt_vars().p_isk) && !buf_init_isk_chartab(args.buf_mut()) {
         return Some(E_INVARG);
     }
@@ -2270,7 +2270,7 @@ pub fn did_set_iskeyword(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'isident', 'iskeyword', 'isprint' or 'isfname' option is changed.
-pub fn did_set_isopt(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_isopt(args: &mut Optset) -> Option<&'static CStr> {
     let res = if args.os_varp.ptr_eq(&opt_vars().p_isf) {
         init_isf_chartab()
     } else {
@@ -2280,7 +2280,7 @@ pub fn did_set_isopt(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'keymap' option has changed.
-pub fn did_set_keymap(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_keymap(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
 
@@ -2318,14 +2318,14 @@ pub fn did_set_keymap(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'keymodel' option is changed.
-pub fn did_set_keymodel(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_keymodel(_args: &mut Optset) -> Option<&'static CStr> {
     g_st().km_stopsel = crate::strings::vim_haschr(opt_vars().p_km.as_cstr(), b'o' as i32);
     g_st().km_startsel = crate::strings::vim_haschr(opt_vars().p_km.as_cstr(), b'a' as i32);
     None
 }
 
 /// Validate the 'lispoptions' option.
-pub fn validate_lispoptions(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_lispoptions(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let bytes = newval_str.as_bytes();
     if bytes.is_empty() || bytes == b"expr:0" || bytes == b"expr:1" {
@@ -2336,7 +2336,7 @@ pub fn validate_lispoptions(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'matchpairs' option.
-pub fn validate_matchpairs(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_matchpairs(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let mut rem = newval_str.as_bytes();
     while !rem.is_empty() {
@@ -2366,7 +2366,7 @@ pub fn validate_matchpairs(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'mkspellmem' option.
-pub fn validate_mkspellmem(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_mkspellmem(args: &mut Optset) -> Option<&'static CStr> {
     if spell_check_msm(args.os_newval.data.string().as_bytes(), false) {
         None
     } else {
@@ -2375,7 +2375,7 @@ pub fn validate_mkspellmem(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'mouse' option.
-pub fn validate_mouse(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_mouse(args: &mut Optset) -> Option<&'static CStr> {
     check_option_listflag(
         args.os_newval.data.string().as_bytes(),
         MOUSE_ALL,
@@ -2388,7 +2388,7 @@ pub fn expand_set_mouse(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStrin
 }
 
 /// Validate the 'mousescroll' option.
-pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_mousescroll(args: &mut Optset) -> Option<&'static CStr> {
     let v: OptKeyDict_mousescroll =
         opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
@@ -2401,7 +2401,7 @@ pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Handle setting 'mousescroll'.
-pub fn did_set_mousescroll(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_mousescroll(_args: &mut Optset) -> Option<&'static CStr> {
     let v: OptKeyDict_mousescroll =
         opt_keyset(opt_vars().p_mousescroll.as_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
@@ -2420,12 +2420,12 @@ pub fn did_set_mousescroll(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'rulerformat' option is changed.
-pub fn did_set_rulerformat(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_rulerformat(args: &mut Optset) -> Option<&'static CStr> {
     did_set_statustabline_rulerformat(args, true, false)
 }
 
 /// The 'selection' option is changed.
-pub fn did_set_selection(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_selection(_args: &mut Optset) -> Option<&'static CStr> {
     if g_st().visual_global.active {
         redraw_curbuf_later(UPD_INVERTED);
     }
@@ -2433,7 +2433,7 @@ pub fn did_set_selection(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'sessionoptions' option.
-pub fn validate_sessionoptions(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_sessionoptions(args: &mut Optset) -> Option<&'static CStr> {
     let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
         args.os_newval.data.string().as_cstr(),
@@ -2453,7 +2453,7 @@ pub fn validate_sessionoptions(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'shada' option.
-pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_shada(args: &mut Optset) -> Option<&'static CStr> {
     let errbuf = args.os_errbuf;
     let newval_str = args.os_newval.data.string();
     let val_bytes = newval_str.as_bytes();
@@ -2511,7 +2511,7 @@ pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate 'shellpipe'/'shellredir' option.
-pub fn validate_shellpipe_redir(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_shellpipe_redir(args: &mut Optset) -> Option<&'static CStr> {
     let mut seen = false;
     let newval_str = args.os_newval.data.string();
     let mut rem = newval_str.as_bytes();
@@ -2545,7 +2545,7 @@ pub fn expand_set_shortmess(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
 }
 
 /// Validate the 'shortmess' option.
-pub fn validate_shortmess(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_shortmess(args: &mut Optset) -> Option<&'static CStr> {
     check_option_listflag(
         args.os_newval.data.string().cstr_bytes(),
         SHM_ALL,
@@ -2554,7 +2554,7 @@ pub fn validate_shortmess(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'showbreak' option.
-pub fn validate_showbreak(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_showbreak(args: &mut Optset) -> Option<&'static CStr> {
     let mut s = args.os_newval.data.string().cstr_bytes();
     while !s.is_empty() {
         if ptr2cells(s) != 1 {
@@ -2567,12 +2567,12 @@ pub fn validate_showbreak(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'showcmdloc' option is changed.
-pub fn did_set_showcmdloc(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_showcmdloc(_args: &mut Optset) -> Option<&'static CStr> {
     comp_col();
     None
 }
 
-pub fn validate_signcolumn(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_signcolumn(args: &mut Optset) -> Option<&'static CStr> {
     if check_signcolumn(args.os_newval.data.string().as_opt_cstr(), None) {
         None
     } else {
@@ -2581,7 +2581,7 @@ pub fn validate_signcolumn(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'signcolumn' option is changed.
-pub fn did_set_signcolumn(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_signcolumn(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let oldval = args.os_oldval.data.string();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_scl);
@@ -2595,7 +2595,7 @@ pub fn did_set_signcolumn(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate 'spellcapcheck' and prepare its regexp program.
-pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&'static CStr> {
     let mut prog: Option<Box<Regprog>> = None;
     let mut err = Error::new();
     let save_emsg_silent = g_st().emsg_silent;
@@ -2626,7 +2626,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'spellcapcheck' option is changed.
-pub fn did_set_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_spellcapcheck(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_varp.ptr_eq(&opt_vars().p_spc) {
         return None;
     }
@@ -2636,7 +2636,7 @@ pub fn did_set_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'spellfile' option.
-pub fn validate_spellfile(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_spellfile(args: &mut Optset) -> Option<&'static CStr> {
     if valid_spellfile(args.os_newval.data.string().as_cstr()) {
         None
     } else {
@@ -2645,12 +2645,12 @@ pub fn validate_spellfile(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'spellfile' option is changed.
-pub fn did_set_spellfile(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_spellfile(_args: &mut Optset) -> Option<&'static CStr> {
     did_set_spell_option()
 }
 
 /// Validate the 'spelllang' option.
-pub fn validate_spelllang(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_spelllang(args: &mut Optset) -> Option<&'static CStr> {
     if valid_spelllang(args.os_newval.data.string().as_cstr()) {
         None
     } else {
@@ -2659,12 +2659,12 @@ pub fn validate_spelllang(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'spelllang' option is changed.
-pub fn did_set_spelllang(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_spelllang(_args: &mut Optset) -> Option<&'static CStr> {
     did_set_spell_option()
 }
 
 /// The 'spelloptions' option is changed.
-pub fn did_set_spelloptions(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_spelloptions(args: &mut Optset) -> Option<&'static CStr> {
     let opt_flags = args.os_flags;
     let val = args.os_newval.data.string().as_cstr();
 
@@ -2697,7 +2697,7 @@ pub fn did_set_spelloptions(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'spellsuggest' option.
-pub fn validate_spellsuggest(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_spellsuggest(args: &mut Optset) -> Option<&'static CStr> {
     let mut sps: [i32; 2] = [0, 0];
     let [s0, s1] = &mut sps;
     if !spell_check_sps(args.os_newval.data.string().as_cstr(), s0, s1) {
@@ -2708,14 +2708,14 @@ pub fn validate_spellsuggest(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'spellsuggest' option is changed.
-pub fn did_set_spellsuggest(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_spellsuggest(args: &mut Optset) -> Option<&'static CStr> {
     if let OptSetPrep::Spellsuggest(sps) = args.os_prep {
         spell_apply_sps(sps[0], sps[1]);
     }
     None
 }
 
-pub fn did_set_splitkeep(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_splitkeep(_args: &mut Optset) -> Option<&'static CStr> {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_mut(&*tp) {
             wp.w_prev_height = wp.w_height;
@@ -2725,7 +2725,7 @@ pub fn did_set_splitkeep(_args: &mut Optset) -> Option<&CStr> {
     None
 }
 
-pub fn validate_statustabline_rulerformat(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_statustabline_rulerformat(args: &mut Optset) -> Option<&'static CStr> {
     let newval_str = args.os_newval.data.string();
     let value = newval_str.as_bytes();
     if value.starts_with(b"%!") {
@@ -2736,12 +2736,12 @@ pub fn validate_statustabline_rulerformat(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'statuscolumn' option is changed.
-pub fn did_set_statuscolumn(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_statuscolumn(args: &mut Optset) -> Option<&'static CStr> {
     did_set_statustabline_rulerformat(args, false, true)
 }
 
 /// The 'statusline' option is changed.
-pub fn did_set_statusline(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_statusline(args: &mut Optset) -> Option<&'static CStr> {
     did_set_statustabline_rulerformat(args, false, false)
 }
 
@@ -2793,12 +2793,12 @@ fn did_set_statustabline_rulerformat<'a>(
 }
 
 /// The 'tabline' option is changed.
-pub fn did_set_tabline(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_tabline(args: &mut Optset) -> Option<&'static CStr> {
     did_set_statustabline_rulerformat(args, false, false)
 }
 
 /// The 'tagcase' option is changed.
-pub fn did_set_tagcase(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_tagcase(args: &mut Optset) -> Option<&'static CStr> {
     let buf = args.buf_mut();
     let opt_flags = args.os_flags;
     let p_tc = opt_vars().p_tc.to_owned();
@@ -2837,12 +2837,12 @@ fn did_set_titleiconstring<'a>(args: &mut Optset, flagval: i32) -> Option<&'a CS
 }
 
 /// The 'titlestring' option is changed.
-pub fn did_set_titlestring(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_titlestring(args: &mut Optset) -> Option<&'static CStr> {
     did_set_titleiconstring(args, STL_IN_TITLE)
 }
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
-pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_vartabstop(args: &mut Optset) -> Option<&'static CStr> {
     let val_bytes = args.os_newval.data.string().cstr_bytes();
     let mut prev_comma = false;
     for (idx, &b) in val_bytes.iter().enumerate() {
@@ -2864,7 +2864,7 @@ pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
-pub fn did_set_vartabstop(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_vartabstop(args: &mut Optset) -> Option<&'static CStr> {
     if args.os_varp.ptr_eq(&opt_vars().p_vts) || args.os_varp.ptr_eq(&opt_vars().p_vsts) {
         return None;
     }
@@ -2884,7 +2884,7 @@ pub fn did_set_vartabstop(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'verbosefile' option is changed.
-pub fn did_set_verbosefile(_args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_verbosefile(_args: &mut Optset) -> Option<&'static CStr> {
     verbose_stop();
     if !opt_vars().p_vfile.is_empty() && !verbose_open() {
         return Some(E_INVARG);
@@ -2893,7 +2893,7 @@ pub fn did_set_verbosefile(_args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'virtualedit' option is changed.
-pub fn did_set_virtualedit(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_virtualedit(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
 
     let p_ve = opt_vars().p_ve.to_owned();
@@ -2921,7 +2921,7 @@ pub fn did_set_virtualedit(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// Validate the 'whichwrap' option.
-pub fn validate_whichwrap(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_whichwrap(args: &mut Optset) -> Option<&'static CStr> {
     check_option_listflag(
         args.os_newval.data.string().as_bytes(),
         WW_ALL_COMMA,
@@ -2933,7 +2933,7 @@ pub fn expand_set_whichwrap(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
     expand_set_opt_listflag(args, WW_ALL, matches)
 }
 
-pub fn validate_wildmode(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_wildmode(args: &mut Optset) -> Option<&'static CStr> {
     let mut flags = [0u8; 4];
     if !check_opt_wim(args.os_newval.data.string().as_bytes(), &mut flags) {
         return Some(E_INVARG);
@@ -2943,7 +2943,7 @@ pub fn validate_wildmode(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'wildmode' option is changed.
-pub fn did_set_wildmode(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_wildmode(args: &mut Optset) -> Option<&'static CStr> {
     if let OptSetPrep::Wildmode(flags) = args.os_prep {
         g_st().wim_flags = flags;
     }
@@ -2951,12 +2951,12 @@ pub fn did_set_wildmode(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'winbar' option is changed.
-pub fn did_set_winbar(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_winbar(args: &mut Optset) -> Option<&'static CStr> {
     did_set_statustabline_rulerformat(args, false, false)
 }
 
 /// Validate the 'winborder' or 'pumborder' option.
-pub fn validate_border(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_border(args: &mut Optset) -> Option<&'static CStr> {
     let mut fconfig = WIN_CONFIG_INIT;
     let mut err = Error::new();
     let ok = parse_winborder(
@@ -2969,7 +2969,7 @@ pub fn validate_border(args: &mut Optset) -> Option<&CStr> {
 }
 
 /// The 'winhighlight' option is changed.
-pub fn did_set_winhighlight(args: &mut Optset) -> Option<&CStr> {
+pub fn did_set_winhighlight(args: &mut Optset) -> Option<&'static CStr> {
     let win = args.win_mut();
     let is_local = args.os_varp.ptr_eq(&win.w_onebuf_opt.wo_winhl);
     if !parse_winhl_opt(Some(args.var_cstr()), is_local.then_some(win)) {
@@ -3784,7 +3784,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
     None
 }
 
-pub fn validate_previewpopup(args: &mut Optset) -> Option<&CStr> {
+pub fn validate_previewpopup(args: &mut Optset) -> Option<&'static CStr> {
     let mut fconfig = WIN_CONFIG_INIT;
     let cstr = args.os_newval.data.string().as_cstr();
     if !win_previewpopup_config(cstr, &mut fconfig) {

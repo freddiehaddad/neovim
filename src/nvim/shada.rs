@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! ShaDa (Shared Data) file reader and writer (`src/nvim/shada.c`).
 
 use crate::api::private::helpers::{
@@ -3165,8 +3167,8 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         let mut old_info = FileInfo::new();
         #[cfg(unix)]
         let unix_not_writable = |info: &FileInfo| -> bool {
-            let uid = unsafe { getuid() };
-            let gid = unsafe { getgid() };
+            let uid = getuid();
+            let gid = getgid();
             uid != ROOT_UID
                 && !(if info.stat.st_uid == u64::from(uid) {
                     (info.stat.st_mode & 0o200) != 0
@@ -3186,9 +3188,9 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
             } else {
                 #[cfg(unix)]
                 {
-                    if unsafe { getuid() } == ROOT_UID
+                    if getuid() == ROOT_UID
                         && (old_info.stat.st_uid != u64::from(ROOT_UID)
-                            || old_info.stat.st_gid != u64::from(unsafe { getgid() }))
+                            || old_info.stat.st_gid != u64::from(getgid()))
                     {
                         let old_uid = old_info.stat.st_uid as u32;
                         let old_gid = old_info.stat.st_gid as u32;
