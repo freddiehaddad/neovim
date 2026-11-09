@@ -2544,7 +2544,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
             }
             if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
-                let pt = Box::leak(Box::new(TvPartial::default()));
+                let pt = crate::eval::typval::tv_partial_alloc();
                 if arg_idx > 0 || (!arg_pt.is_null() && !&(arg_pt.borrow().pt_argv).is_empty()) {
                     let arg_len = if arg_pt.is_null() {
                         0

@@ -106,6 +106,7 @@ pub struct UserFunc {
     pub uf_name_exp: Option<std::ffi::CString>,
     pub uf_namelen: usize,
     pub uf_name: std::ffi::CString,
+    pub uf_arena_idx: usize,
 }
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, VAR_FIXED, VAR_SCOPE};
@@ -257,6 +258,10 @@ struct UserfuncState {
     get_uf_done: usize,
     get_uf_changed: i32,
     get_uf_items: Vec<crate::globals::GraphPtr<UserFunc>>,
+    ufunc_arena: Vec<Option<Box<UserFunc>>>,
+    free_ufuncs: Vec<usize>,
+    funccal_arena: Vec<Option<Box<Funccall>>>,
+    free_funccals: Vec<usize>,
 }
 
 impl UserfuncState {
@@ -276,6 +281,10 @@ impl UserfuncState {
             get_uf_done: 0,
             get_uf_changed: 0,
             get_uf_items: Vec::new(),
+            ufunc_arena: Vec::new(),
+            free_ufuncs: Vec::new(),
+            funccal_arena: Vec::new(),
+            free_funccals: Vec::new(),
         }
     }
 }
@@ -540,6 +549,7 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
         uf_name_exp: None,
         uf_namelen: namelen,
         uf_name: name_cstr,
+        uf_arena_idx: usize::MAX,
     });
 
     if name.first() == Some(&K_SPECIAL) {
@@ -549,7 +559,18 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
         fp.uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
     }
 
-    Box::leak(fp)
+    let st = uf_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_ufuncs.pop() {
+        fp.uf_arena_idx = idx;
+        st.ufunc_arena[idx] = Some(fp);
+        idx
+    } else {
+        let idx = st.ufunc_arena.len();
+        fp.uf_arena_idx = idx;
+        st.ufunc_arena.push(Some(fp));
+        idx
+    };
+    st.ufunc_arena[idx].as_deref_mut().unwrap()
 }
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
@@ -619,7 +640,7 @@ pub fn get_lambda_tv(
 
         let name = get_lambda_name();
         let fp = alloc_ufunc(name.as_bytes());
-        let pt = Box::leak(Box::new(TvPartial::default()));
+        let pt = crate::eval::typval::tv_partial_alloc();
 
         let expr_len = (end_cstr.as_ptr() as usize).wrapping_sub(start_cstr.as_ptr() as usize);
         let mut line_bytes = Vec::with_capacity(7 + expr_len);
@@ -1032,13 +1053,21 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
         }
     }
 
+    let fc_idx = fc.fc_arena_idx;
     if free_fc {
-        crate::globals::GraphPtr::of(fc_ptr.as_ptr()).drop_box();
+        if fc_idx != usize::MAX {
+            let st = uf_st().borrow_mut();
+            let dropped = st.funccal_arena[fc_idx].take();
+            st.free_funccals.push(fc_idx);
+            drop(dropped);
+        }
     } else {
         fc.fc_caller = crate::globals::GraphPtr::NULL;
-        uf_st().previous_funccal.push(RetainedFunccall(
-            crate::globals::GraphPtr::of(fc_ptr.as_ptr()).into_box(),
-        ));
+        let st = uf_st().borrow_mut();
+        if let Some(fc_box) = st.funccal_arena[fc_idx].take() {
+            st.free_funccals.push(fc_idx);
+            st.previous_funccal.push(RetainedFunccall(fc_box));
+        }
 
         if g_st().want_garbage_collect {
             uf_st().made_copy = 0;
@@ -1129,23 +1158,43 @@ impl Drop for UserFunc {
     }
 }
 
-fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
-    let fp = crate::globals::GraphPtr::from(fp_in);
-    func_clear(fp.borrow_mut(), force);
+fn free_ufunc_slot(fp: &mut UserFunc) {
+    let idx = fp.uf_arena_idx;
+    if idx != usize::MAX {
+        let st = uf_st().borrow_mut();
+        let dropped = st.ufunc_arena[idx].take();
+        st.free_ufuncs.push(idx);
+        drop(dropped);
+    }
+}
 
-    crate::globals::GraphPtr::of(fp.as_ptr()).drop_box();
+fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
+    func_clear(fp_in, force);
+    free_ufunc_slot(fp_in);
 }
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
 pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static mut Funccall {
     let fp_ptr = crate::globals::GraphPtr::from(fp);
-    let fc = Box::leak(Box::new(Funccall::new()));
-    fc.fc_caller = uf_st().current_funccal;
-    uf_st().current_funccal = crate::globals::GraphPtr::from(&mut *fc);
+    let st = uf_st().borrow_mut();
+    let mut fc_box = Box::new(Funccall::new());
+    let idx = if let Some(idx) = st.free_funccals.pop() {
+        fc_box.fc_arena_idx = idx;
+        st.funccal_arena[idx] = Some(fc_box);
+        idx
+    } else {
+        let idx = st.funccal_arena.len();
+        fc_box.fc_arena_idx = idx;
+        st.funccal_arena.push(Some(fc_box));
+        idx
+    };
+    let fc = st.funccal_arena[idx].as_deref_mut().unwrap();
+    fc.fc_caller = st.current_funccal;
+    st.current_funccal = crate::globals::GraphPtr::from(&mut *fc);
     fc.fc_func = fp_ptr;
     func_ptr_ref(fp_ptr.opt_mut());
     fc.fc_rettv = crate::globals::GraphPtr::from(rettv);
-    &mut *fc
+    fc
 }
 
 /// Call a user function.
@@ -1637,7 +1686,7 @@ pub fn free_all_functions() {
             if func_name_refcount(uf2hikey(crate::globals::GraphPtr::of(fp).borrow())) {
                 skipped += 1;
             } else {
-                crate::globals::GraphPtr::of(fp).drop_box();
+                free_ufunc_slot(crate::globals::GraphPtr::of(fp).borrow_mut());
                 skipped = 0;
                 break;
             }
@@ -3966,7 +4015,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     if let Some(fp_ref) = fp
         && (fp_ref.uf_flags & FC_DICT) != 0
     {
-        let pt = Box::leak(Box::new(TvPartial::default()));
+        let pt = crate::eval::typval::tv_partial_alloc();
         pt.pt_refcount = 1;
         pt.pt_dict = crate::globals::GraphPtr::from(&mut *selfdict);
         selfdict.dv_refcount += 1;

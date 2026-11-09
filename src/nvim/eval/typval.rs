@@ -175,6 +175,7 @@ pub struct TvPartial {
     pub pt_auto: bool,
     pub pt_argv: Vec<TypVal>,
     pub pt_dict: crate::globals::GraphPtr<TvDict>,
+    pub pt_arena_idx: usize,
 }
 
 impl Default for TvPartial {
@@ -187,6 +188,7 @@ impl Default for TvPartial {
             pt_auto: false,
             pt_argv: Vec::new(),
             pt_dict: crate::globals::GraphPtr::NULL,
+            pt_arena_idx: usize::MAX,
         }
     }
 }
@@ -879,6 +881,8 @@ pub(crate) struct TypvalModuleState {
     mybuf: [u8; NUMBUFLEN],
     blob_arena: Vec<Option<Box<TvBlob>>>,
     free_blobs: Vec<usize>,
+    partial_arena: Vec<Option<Box<TvPartial>>>,
+    free_partials: Vec<usize>,
 }
 
 impl TypvalModuleState {
@@ -891,6 +895,8 @@ impl TypvalModuleState {
             mybuf: [0; NUMBUFLEN],
             blob_arena: Vec::new(),
             free_blobs: Vec::new(),
+            partial_arena: Vec::new(),
+            free_partials: Vec::new(),
         }
     }
 }
@@ -3529,9 +3535,38 @@ pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
         {
             let idx = (nz.get() - 1) as usize;
             let st = tv_st().borrow_mut();
-            st.blob_arena[idx] = None;
+            let dropped = st.blob_arena[idx].take();
             st.free_blobs.push(idx);
+            drop(dropped);
         }
+    }
+}
+
+/// Allocate a `TvPartial` in the module arena.
+pub fn tv_partial_alloc() -> &'static mut TvPartial {
+    let st = tv_st().borrow_mut();
+    let mut pt = Box::new(TvPartial::default());
+    let idx = if let Some(idx) = st.free_partials.pop() {
+        pt.pt_arena_idx = idx;
+        st.partial_arena[idx] = Some(pt);
+        idx
+    } else {
+        let idx = st.partial_arena.len();
+        pt.pt_arena_idx = idx;
+        st.partial_arena.push(Some(pt));
+        idx
+    };
+    st.partial_arena[idx].as_deref_mut().unwrap()
+}
+
+/// Free a `TvPartial` previously allocated by `tv_partial_alloc`.
+pub fn tv_partial_free(pt: &mut TvPartial) {
+    let idx = pt.pt_arena_idx;
+    if idx != usize::MAX {
+        let st = tv_st().borrow_mut();
+        let dropped = st.partial_arena[idx].take();
+        st.free_partials.push(idx);
+        drop(dropped);
     }
 }
 

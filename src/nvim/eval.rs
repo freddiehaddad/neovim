@@ -3957,10 +3957,9 @@ pub fn partial_unref(pt: Option<&mut TvPartial>) {
     let Some(pt_ref) = pt else {
         return;
     };
-    let mut pt_ptr = crate::globals::GraphPtr::from(pt_ref);
-    pt_ptr.pt_refcount -= 1;
-    if pt_ptr.pt_refcount <= 0 {
-        crate::globals::GraphPtr::of(pt_ptr.as_ptr()).drop_box();
+    pt_ref.pt_refcount -= 1;
+    if pt_ref.pt_refcount <= 0 {
+        crate::eval::typval::tv_partial_free(pt_ref);
     }
 }
 

@@ -176,6 +176,7 @@ pub struct Funccall {
     pub fc_refcount: i32,
     pub fc_copy_id: i32,
     pub fc_ufuncs: Vec<crate::globals::GraphPtr<UserFunc>>,
+    pub fc_arena_idx: usize,
 }
 
 impl Funccall {
@@ -200,6 +201,7 @@ impl Funccall {
             fc_refcount: 0,
             fc_copy_id: 0,
             fc_ufuncs: Vec::new(),
+            fc_arena_idx: usize::MAX,
         }
     }
 
