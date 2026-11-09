@@ -188,6 +188,16 @@ pub fn uv_sleep_safe(msec: u32) {
     }
 }
 
+#[inline]
+pub fn uv_thread_self_safe() -> uv_thread_t {
+    unsafe { uv_thread_self() }
+}
+
+#[inline]
+pub fn uv_thread_equal_safe(t1: uv_thread_t, t2: uv_thread_t) -> bool {
+    unsafe { uv_thread_equal(&raw const t1, &raw const t2) != 0 }
+}
+
 unsafe extern "C" {
     pub fn uv_loop_size() -> usize;
     pub fn uv_handle_size(h_type: i32) -> usize;

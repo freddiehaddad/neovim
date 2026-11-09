@@ -90,6 +90,22 @@ impl Default for lua_Debug {
     }
 }
 
+impl lua_Debug {
+    #[inline]
+    pub fn is_c_what(&self) -> bool {
+        !self.what.is_null() && unsafe { *self.what.cast::<u8>() == b'C' }
+    }
+
+    #[inline]
+    pub fn file_source_cstr(&self) -> Option<&std::ffi::CStr> {
+        if !self.source.is_null() && unsafe { *self.source.cast::<u8>() == b'@' } {
+            Some(unsafe { std::ffi::CStr::from_ptr(self.source.wrapping_add(1)) })
+        } else {
+            None
+        }
+    }
+}
+
 pub const LUA_MULTRET: i32 = -1;
 pub const LUA_REGISTRYINDEX: i32 = -10000;
 pub const LUA_GLOBALSINDEX: i32 = -10002;
@@ -909,6 +925,151 @@ pub fn luaL_checkstring(lstate: *mut lua_State, n: i32) -> &'static std::ffi::CS
 #[allow(non_snake_case)]
 pub fn luaL_checkint(lstate: *mut lua_State, n: i32) -> i32 {
     luaL_checkinteger_safe(lstate, n) as i32
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_newstate_safe() -> *mut lua_State {
+    unsafe { luaL_newstate() }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_openlibs_safe(lstate: *mut lua_State) {
+    unsafe { luaL_openlibs(lstate) };
+}
+
+#[inline]
+pub fn lua_close_safe(lstate: *mut lua_State) {
+    unsafe { lua_close(lstate) };
+}
+
+#[inline]
+pub fn lua_remove_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_remove(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_insert_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_insert(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_replace_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_replace(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_call_safe(lstate: *mut lua_State, nargs: i32, nresults: i32) {
+    unsafe { lua_call(lstate, nargs, nresults) };
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checktype_safe(lstate: *mut lua_State, narg: i32, t: i32) {
+    unsafe { luaL_checktype(lstate, narg, t) };
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_unref_safe(lstate: *mut lua_State, t: i32, ref_: i32) {
+    unsafe { luaL_unref(lstate, t, ref_) };
+}
+
+#[inline]
+pub fn lua_newuserdata_empty(lstate: *mut lua_State) {
+    let _ = unsafe { lua_newuserdata(lstate, 0) };
+}
+
+#[inline]
+pub fn lua_tolstring_cstr_with_len(
+    lstate: *mut lua_State,
+    idx: i32,
+) -> Option<(&'static std::ffi::CStr, usize)> {
+    let mut len = 0usize;
+    let ptr = unsafe { lua_tolstring(lstate, idx, &mut len) };
+    (!ptr.is_null()).then(|| (unsafe { std::ffi::CStr::from_ptr(ptr) }, len))
+}
+
+#[inline]
+pub fn lua_iscfunction_eq(
+    lstate: *mut lua_State,
+    idx: i32,
+    expected: extern "C-unwind" fn(*mut lua_State) -> i32,
+) -> bool {
+    unsafe {
+        lua_iscfunction(lstate, idx) != 0
+            && lua_tocfunction(lstate, idx).is_some_and(|f| {
+                std::ptr::fn_addr_eq(
+                    f,
+                    expected as unsafe extern "C-unwind" fn(*mut lua_State) -> i32,
+                )
+            })
+    }
+}
+
+#[inline]
+pub fn lua_getstack_safe(lstate: *mut lua_State, level: i32, ar: &mut lua_Debug) -> i32 {
+    unsafe { lua_getstack(lstate, level, ar) }
+}
+
+unsafe extern "C-unwind" fn luv_thread_cfcpcall_trampoline(
+    lstate: *mut lua_State,
+    func: lua_CFunction,
+    ud: *mut c_void,
+    flags: i32,
+) -> i32 {
+    unsafe {
+        lua_pushcfunction(lstate, func);
+        lua_pushlightuserdata(lstate, ud);
+        crate::lua::executor::nlua_luv_thread_cfpcall(lstate, 1, 0, flags)
+    }
+}
+
+#[inline]
+pub fn luv_init_vim(
+    lstate: *mut lua_State,
+    is_thread: bool,
+    main_loop: &mut crate::event::r#loop::Loop,
+    fast_cb: extern "C-unwind" fn(*mut lua_State, i32, i32, i32) -> i32,
+    thread_cb: extern "C-unwind" fn(*mut lua_State, i32, i32, i32) -> i32,
+    thread_cb_cfpcall: extern "C-unwind" fn(*mut lua_State, i32, i32, i32) -> i32,
+) {
+    unsafe {
+        if is_thread {
+            luv_set_callback(lstate, Some(thread_cb_cfpcall));
+            luv_set_thread(lstate, Some(thread_cb));
+            luv_set_cthread(lstate, Some(luv_thread_cfcpcall_trampoline));
+        } else {
+            luv_set_loop(lstate, std::ptr::from_mut(main_loop).cast());
+            luv_set_callback(lstate, Some(fast_cb));
+        }
+        let _ = luaopen_luv(lstate);
+    }
+}
+
+#[inline]
+pub fn luv_set_thread_cb_safe(
+    acquire: extern "C-unwind" fn() -> *mut lua_State,
+    release: extern "C-unwind" fn(*mut lua_State),
+) {
+    unsafe {
+        luv_set_thread_cb(Some(acquire), Some(release));
+    }
+}
+
+pub fn nlua_exit_thread_on_oom(lstate: *mut lua_State) -> ! {
+    unsafe {
+        lua_close(lstate);
+        #[cfg(windows)]
+        {
+            crate::os::os_win_console::ExitThread(0);
+        }
+        #[cfg(not(windows))]
+        {
+            pthread_exit(std::ptr::null_mut());
+        }
+    }
 }
 
 // Tree-sitter C API FFI types and declarations

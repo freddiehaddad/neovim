@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Lua interpreter initialization, execution, and Vimscript/RPC bridges (`src/nvim/lua/executor.c`).
 
 use crate::api::command::is_user_cmdidx;
@@ -17,7 +18,10 @@ use crate::errors::*;
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
 use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
 use crate::eval::userfunc::{FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc};
-use crate::event::r#loop::{loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t};
+use crate::event::r#loop::{
+    loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_equal_safe,
+    uv_thread_self_safe, uv_thread_t,
+};
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
@@ -33,21 +37,26 @@ use crate::input::vgetc;
 use crate::keycodes::{special_to_buf, vim_unescape_ks};
 use crate::log::log_get_stderr;
 use crate::lua::converter::{
-    K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TBOOLEAN,
-    LUA_TFUNCTION, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LuaRef, NluaRefState, lua_CFunction,
-    lua_Integer, lua_State, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable,
-    lua_error, lua_getfield, lua_getglobal, lua_getmetatable, lua_gettop, lua_insert,
-    lua_isboolean, lua_iscfunction, lua_isfunction, lua_isnil, lua_isnumber, lua_isstring,
-    lua_istable, lua_newtable, lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean,
-    lua_pushcclosure, lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring,
-    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti,
-    lua_remove, lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop,
-    lua_toboolean, lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata,
-    lua_type, lua_upvalueindex, luaL_argerror, luaL_checkinteger, luaL_checklstring,
-    luaL_checkstring, luaL_checktype, luaL_error, luaL_loadbuffer, luaL_newstate, luaL_openlibs,
-    luaL_ref, luaL_unref, luaL_where, nlua_init_types, nlua_pop_array, nlua_pop_array_opt,
-    nlua_pop_integer, nlua_pop_object, nlua_pop_object_opt, nlua_pop_typval, nlua_push_array,
-    nlua_push_object, nlua_push_typval,
+    K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_MULTRET, LUA_NOREF, LUA_REGISTRYINDEX,
+    LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LuaRef, NluaRefState,
+    lua_Debug, lua_Integer, lua_State, lua_call_safe, lua_checkstack_safe, lua_close_safe,
+    lua_concat_safe, lua_createtable_safe, lua_error_safe, lua_getfield, lua_getglobal,
+    lua_getinfo, lua_getmetatable_safe, lua_getstack_safe, lua_insert_safe, lua_isboolean,
+    lua_iscfunction_eq, lua_isfunction, lua_isnil, lua_isnumber_safe, lua_isstring_safe,
+    lua_istable, lua_newtable, lua_newuserdata_empty, lua_newuserdata_typed, lua_next_safe,
+    lua_pcall_safe, lua_pop, lua_push_bytes, lua_pushboolean_safe, lua_pushcclosure_safe,
+    lua_pushcfunction_safe, lua_pushinteger_safe, lua_pushnil_safe, lua_pushnumber_safe,
+    lua_pushstring, lua_pushstring_opt, lua_pushvalue_safe, lua_rawgeti_safe, lua_rawseti_safe,
+    lua_remove_safe, lua_replace_safe, lua_setfield, lua_setglobal, lua_setmetatable_safe,
+    lua_settop_safe, lua_toboolean_safe, lua_tointeger_safe, lua_tolstring_bytes,
+    lua_tolstring_cstr_with_len, lua_tolstring_opt_cstr, lua_tostring, lua_touserdata_typed,
+    lua_type_safe, lua_upvalueindex, luaL_argerror, luaL_checkbytes_with_nul,
+    luaL_checkinteger_safe, luaL_checkstring, luaL_checktype_safe, luaL_error_cstr,
+    luaL_error_cstr_arg, luaL_loadbuffer, luaL_newstate_safe, luaL_openlibs_safe, luaL_ref_safe,
+    luaL_unref_safe, luaL_where_safe, luv_init_vim, luv_set_thread_cb_safe,
+    nlua_exit_thread_on_oom, nlua_fast_api_disabled_error, nlua_gettop, nlua_init_types,
+    nlua_pop_array, nlua_pop_array_opt, nlua_pop_integer, nlua_pop_object, nlua_pop_object_opt,
+    nlua_pop_typval, nlua_push_array, nlua_push_object, nlua_push_typval,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
@@ -75,17 +84,11 @@ use crate::ui::K_UIGLOBAL_COUNT;
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
 use crate::usercmd::{Ucmd, uc_mods, uc_split_args_iter};
-use std::ffi::{CStr, CString, c_void};
+use std::ffi::{CStr, CString};
 use std::io::Write;
-use std::mem::size_of;
 use std::ptr;
 
 use crate::api::vim::HlMessage;
-#[cfg(unix)]
-use crate::lua::ffi::pthread_exit;
-use crate::lua::ffi::{
-    luaopen_luv, luv_set_callback, luv_set_cthread, luv_set_loop, luv_set_thread, luv_set_thread_cb,
-};
 pub type LuaRetMode = i32;
 
 pub const K_RET_OBJECT: LuaRetMode = 0;
@@ -297,9 +300,6 @@ pub struct ExDocmdCookie {
     got_line: bool,
 }
 
-use crate::event::r#loop::{uv_thread_equal, uv_thread_self};
-use crate::lua::converter::{lua_Debug, lua_getinfo, lua_getstack};
-
 pub(crate) struct LuaExecutorState {
     pub(crate) active_lstate: *mut lua_State,
     in_fast_callback: i32,
@@ -340,9 +340,6 @@ use crate::ex_docmd::{
     CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE, EX_EXTRA, EX_NEEDARG, EX_NOSPC,
 };
 use crate::globals::IOSIZE;
-use crate::lua::converter::LUA_NOREF;
-#[cfg(windows)]
-use crate::os::os_win_console::ExitThread;
 use crate::version::MAIN_EXITFREE;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
@@ -357,7 +354,7 @@ fn push_all_typvals(lstate: *mut lua_State, args: &mut [TypVal], special: bool) 
     let flags = if special { K_NLUA_PUSH_SPECIAL } else { 0 };
     for arg in args {
         if arg.v_type == VarType::VarUnknown {
-            unsafe { lua_pushnil(lstate) };
+            lua_pushnil_safe(lstate);
         } else {
             nlua_push_typval(lstate, arg, flags);
         }
@@ -365,82 +362,77 @@ fn push_all_typvals(lstate: *mut lua_State, args: &mut [TypVal], special: bool) 
 }
 
 fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &Cmdmod) {
-    unsafe {
-        lua_newtable(lstate);
+    lua_newtable(lstate);
 
-        lua_pushinteger(lstate, (cmod.cmod_tab - 1) as lua_Integer);
-        lua_setfield(lstate, -2, c"tab");
+    lua_pushinteger_safe(lstate, (cmod.cmod_tab - 1) as lua_Integer);
+    lua_setfield(lstate, -2, c"tab");
 
-        lua_pushinteger(lstate, (cmod.cmod_verbose - 1) as lua_Integer);
-        lua_setfield(lstate, -2, c"verbose");
+    lua_pushinteger_safe(lstate, (cmod.cmod_verbose - 1) as lua_Integer);
+    lua_setfield(lstate, -2, c"verbose");
 
-        let split_str = if (cmod.cmod_split & WSP_ABOVE) != 0 {
-            c"aboveleft"
-        } else if (cmod.cmod_split & WSP_BELOW) != 0 {
-            c"belowright"
-        } else if (cmod.cmod_split & WSP_TOP) != 0 {
-            c"top"
-        } else if (cmod.cmod_split & WSP_BOT) != 0 {
-            c"botright"
-        } else {
-            c""
-        };
-        let split_str = if (cmod.cmod_split & WSP_TOP) != 0 {
-            c"topleft"
-        } else {
-            split_str
-        };
-        lua_pushstring(lstate, split_str);
-        lua_setfield(lstate, -2, c"split");
+    let split_str = if (cmod.cmod_split & WSP_ABOVE) != 0 {
+        c"aboveleft"
+    } else if (cmod.cmod_split & WSP_BELOW) != 0 {
+        c"belowright"
+    } else if (cmod.cmod_split & WSP_TOP) != 0 {
+        c"top"
+    } else if (cmod.cmod_split & WSP_BOT) != 0 {
+        c"botright"
+    } else {
+        c""
+    };
+    let split_str = if (cmod.cmod_split & WSP_TOP) != 0 {
+        c"topleft"
+    } else {
+        split_str
+    };
+    lua_pushstring(lstate, split_str);
+    lua_setfield(lstate, -2, c"split");
 
-        lua_pushboolean(lstate, i32::from((cmod.cmod_split & WSP_VERT) != 0));
-        lua_setfield(lstate, -2, c"vertical");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_split & WSP_HOR) != 0));
-        lua_setfield(lstate, -2, c"horizontal");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_SILENT) != 0));
-        lua_setfield(lstate, -2, c"silent");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_ERRSILENT) != 0));
-        lua_setfield(lstate, -2, c"emsg_silent");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_UNSILENT) != 0));
-        lua_setfield(lstate, -2, c"unsilent");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_SANDBOX) != 0));
-        lua_setfield(lstate, -2, c"sandbox");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_NOAUTOCMD) != 0));
-        lua_setfield(lstate, -2, c"noautocmd");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_BROWSE) != 0));
-        lua_setfield(lstate, -2, c"browse");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_CONFIRM) != 0));
-        lua_setfield(lstate, -2, c"confirm");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_HIDE) != 0));
-        lua_setfield(lstate, -2, c"hide");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_KEEPALT) != 0));
-        lua_setfield(lstate, -2, c"keepalt");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_KEEPJUMPS) != 0));
-        lua_setfield(lstate, -2, c"keepjumps");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_KEEPMARKS) != 0));
-        lua_setfield(lstate, -2, c"keepmarks");
-        lua_pushboolean(
-            lstate,
-            i32::from((cmod.cmod_flags & CMOD_KEEPPATTERNS) != 0),
-        );
-        lua_setfield(lstate, -2, c"keeppatterns");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_LOCKMARKS) != 0));
-        lua_setfield(lstate, -2, c"lockmarks");
-        lua_pushboolean(lstate, i32::from((cmod.cmod_flags & CMOD_NOSWAPFILE) != 0));
-        lua_setfield(lstate, -2, c"noswapfile");
+    lua_pushboolean_safe(lstate, (cmod.cmod_split & WSP_VERT) != 0);
+    lua_setfield(lstate, -2, c"vertical");
+    lua_pushboolean_safe(lstate, (cmod.cmod_split & WSP_HOR) != 0);
+    lua_setfield(lstate, -2, c"horizontal");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_SILENT) != 0);
+    lua_setfield(lstate, -2, c"silent");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_ERRSILENT) != 0);
+    lua_setfield(lstate, -2, c"emsg_silent");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_UNSILENT) != 0);
+    lua_setfield(lstate, -2, c"unsilent");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_SANDBOX) != 0);
+    lua_setfield(lstate, -2, c"sandbox");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_NOAUTOCMD) != 0);
+    lua_setfield(lstate, -2, c"noautocmd");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_BROWSE) != 0);
+    lua_setfield(lstate, -2, c"browse");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_CONFIRM) != 0);
+    lua_setfield(lstate, -2, c"confirm");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_HIDE) != 0);
+    lua_setfield(lstate, -2, c"hide");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_KEEPALT) != 0);
+    lua_setfield(lstate, -2, c"keepalt");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_KEEPJUMPS) != 0);
+    lua_setfield(lstate, -2, c"keepjumps");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_KEEPMARKS) != 0);
+    lua_setfield(lstate, -2, c"keepmarks");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_KEEPPATTERNS) != 0);
+    lua_setfield(lstate, -2, c"keeppatterns");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_LOCKMARKS) != 0);
+    lua_setfield(lstate, -2, c"lockmarks");
+    lua_pushboolean_safe(lstate, (cmod.cmod_flags & CMOD_NOSWAPFILE) != 0);
+    lua_setfield(lstate, -2, c"noswapfile");
 
-        lua_newtable(lstate);
-        lua_pushstring(lstate, cmod.cmod_filter_pat.as_deref().unwrap_or(c""));
-        lua_setfield(lstate, -2, c"pattern");
-        lua_pushboolean(lstate, i32::from(cmod.cmod_filter_force));
-        lua_setfield(lstate, -2, c"force");
-        lua_setfield(lstate, -2, c"filter");
-    }
+    lua_newtable(lstate);
+    lua_pushstring(lstate, cmod.cmod_filter_pat.as_deref().unwrap_or(c""));
+    lua_setfield(lstate, -2, c"pattern");
+    lua_pushboolean_safe(lstate, cmod.cmod_filter_force);
+    lua_setfield(lstate, -2, c"force");
+    lua_setfield(lstate, -2, c"filter");
 }
 
 fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < Cmdidx::CmdSize {
-        crate::lua::converter::lua_pushstring_opt(
+        lua_pushstring_opt(
             lstate,
             get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx as i32),
         );
@@ -459,22 +451,22 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     nlua_push_cmdmod(lstate, cmod);
     lua_setfield(lstate, -2, c"smods");
 
-    crate::lua::converter::lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
+    lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
     lua_setfield(lstate, -2, c"args");
 
-    unsafe { lua_pushboolean(lstate, i32::from(eap.forceit)) };
+    lua_pushboolean_safe(lstate, eap.forceit);
     lua_setfield(lstate, -2, c"bang");
 
-    unsafe { lua_pushinteger(lstate, eap.line1 as lua_Integer) };
+    lua_pushinteger_safe(lstate, eap.line1 as lua_Integer);
     lua_setfield(lstate, -2, c"line1");
 
-    unsafe { lua_pushinteger(lstate, eap.line2 as lua_Integer) };
+    lua_pushinteger_safe(lstate, eap.line2 as lua_Integer);
     lua_setfield(lstate, -2, c"line2");
 
-    unsafe { lua_pushinteger(lstate, eap.addr_count as lua_Integer) };
+    lua_pushinteger_safe(lstate, eap.addr_count as lua_Integer);
     lua_setfield(lstate, -2, c"range");
 
-    unsafe { lua_pushinteger(lstate, eap.line2 as lua_Integer) };
+    lua_pushinteger_safe(lstate, eap.line2 as lua_Integer);
     lua_setfield(lstate, -2, c"count");
 
     let reg: [u8; 2] = [eap.regname as u8, 0];
@@ -482,10 +474,10 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     lua_setfield(lstate, -2, c"reg");
 
     if !eap.args.is_empty() {
-        unsafe { lua_createtable(lstate, eap.args.len() as i32, 0) };
+        lua_createtable_safe(lstate, eap.args.len() as i32, 0);
         for (i, (arg, &arglen)) in eap.args.iter().zip(&eap.arglens).enumerate() {
-            unsafe { lua_pushlstring(lstate, arg.as_cstr().as_ptr(), arglen) };
-            unsafe { lua_rawseti(lstate, -2, (i + 1) as i32) };
+            lua_push_bytes(lstate, arg.slice(arglen));
+            lua_rawseti_safe(lstate, -2, (i + 1) as i32);
         }
         lua_setfield(lstate, -2, c"fargs");
     } else {
@@ -501,8 +493,8 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
             while !done {
                 done = uc_split_args_iter(arg_slice, &mut end, &mut buf, &mut len);
                 if len > 0 {
-                    crate::lua::converter::lua_push_bytes(lstate, &buf[..len]);
-                    unsafe { lua_rawseti(lstate, -2, i) };
+                    lua_push_bytes(lstate, &buf[..len]);
+                    lua_rawseti_safe(lstate, -2, i);
                     i += 1;
                 }
             }
@@ -516,20 +508,16 @@ pub fn get_global_lstate() -> *mut lua_State {
 }
 
 fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
-    unsafe {
-        if lua_type(lstate, -1) != LUA_TSTRING {
-            lua_getglobal(lstate, c"tostring");
-            lua_pushvalue(lstate, -2);
-            if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
-                lua_pop(lstate, 1);
-                lua_pushstring(lstate, c"[UNPRINTABLE ERROR]");
-            }
-            lua_replace(lstate, -2);
+    if lua_type_safe(lstate, -1) != LUA_TSTRING {
+        lua_getglobal(lstate, c"tostring");
+        lua_pushvalue_safe(lstate, -2);
+        if lua_pcall_safe(lstate, 1, 1, 0) != 0 || lua_type_safe(lstate, -1) != LUA_TSTRING {
+            lua_pop(lstate, 1);
+            lua_pushstring(lstate, c"[UNPRINTABLE ERROR]");
         }
-        let mut len: usize = 0;
-        let ptr = lua_tolstring(lstate, -1, &mut len);
-        (!ptr.is_null()).then(|| (CStr::from_ptr(ptr), len))
+        lua_replace_safe(lstate, -2);
     }
+    lua_tolstring_cstr_with_len(lstate, -1)
 }
 
 pub fn nlua_error(lstate: *mut lua_State, msg: &CStr) {
@@ -539,43 +527,37 @@ pub fn nlua_error(lstate: *mut lua_State, msg: &CStr) {
     lua_pop(lstate, 1);
 }
 
-unsafe extern "C-unwind" fn nlua_no_traceback(_lstate: *mut lua_State) -> i32 {
+extern "C-unwind" fn nlua_no_traceback(_lstate: *mut lua_State) -> i32 {
     1
 }
 
 pub fn nlua_pcall(lstate: *mut lua_State, nargs: i32, mut nresults: i32) -> i32 {
-    unsafe {
-        lua_getglobal(lstate, c"debug");
-        if lua_istable(lstate, -1) {
-            lua_getfield(lstate, -1, c"traceback");
-            lua_remove(lstate, -2);
-        }
-        let no_traceback = !lua_isfunction(lstate, -1);
-        if no_traceback {
-            lua_pop(lstate, 1);
-            lua_pushcfunction(lstate, Some(nlua_no_traceback));
-        }
-        lua_insert(lstate, -2 - nargs);
-        let pre_top = lua_gettop(lstate);
-        let status = lua_pcall(lstate, nargs, nresults, -2 - nargs);
-        if status != 0 {
-            lua_remove(lstate, -2);
-            if no_traceback && status == LUA_ERRRUN && lua_isstring(lstate, -1) != 0 {
-                lua_pushlstring(
-                    lstate,
-                    c"\nNo traceback: debug.traceback is not a function".as_ptr(),
-                    48,
-                );
-                lua_concat(lstate, 2);
-            }
-        } else {
-            if nresults == LUA_MULTRET {
-                nresults = lua_gettop(lstate) - (pre_top - nargs - 1);
-            }
-            lua_remove(lstate, -1 - nresults);
-        }
-        status
+    lua_getglobal(lstate, c"debug");
+    if lua_istable(lstate, -1) {
+        lua_getfield(lstate, -1, c"traceback");
+        lua_remove_safe(lstate, -2);
     }
+    let no_traceback = !lua_isfunction(lstate, -1);
+    if no_traceback {
+        lua_pop(lstate, 1);
+        lua_pushcfunction_safe(lstate, nlua_no_traceback);
+    }
+    lua_insert_safe(lstate, -2 - nargs);
+    let pre_top = nlua_gettop(lstate);
+    let status = lua_pcall_safe(lstate, nargs, nresults, -2 - nargs);
+    if status != 0 {
+        lua_remove_safe(lstate, -2);
+        if no_traceback && status == LUA_ERRRUN && lua_isstring_safe(lstate, -1) {
+            lua_push_bytes(lstate, b"\nNo traceback: debug.traceback is not a function");
+            lua_concat_safe(lstate, 2);
+        }
+    } else {
+        if nresults == LUA_MULTRET {
+            nresults = nlua_gettop(lstate) - (pre_top - nargs - 1);
+        }
+        lua_remove_safe(lstate, -1 - nresults);
+    }
+    status
 }
 
 pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
@@ -594,46 +576,44 @@ pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
     }
 }
 
-unsafe extern "C-unwind" fn nlua_fast_cfpcall(
+extern "C-unwind" fn nlua_fast_cfpcall(
     lstate: *mut lua_State,
     nargs: i32,
     mut nresult: i32,
     flags: i32,
 ) -> i32 {
-    unsafe {
-        nlua_st().in_fast_callback += 1;
+    nlua_st().in_fast_callback += 1;
 
-        let top = lua_gettop(lstate);
-        let status = nlua_pcall(lstate, nargs, nresult);
-        let retval = if status != 0 {
-            if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-                preserve_exit(Some(E_OUTOFMEM));
-            }
+    let top = nlua_gettop(lstate);
+    let status = nlua_pcall(lstate, nargs, nresult);
+    let retval = if status != 0 {
+        if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
+            preserve_exit(Some(E_OUTOFMEM));
+        }
 
-            let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
-            let queues = loop_queues(&mut g_st().main_loop);
-            put_event(
-                queues.events.opt_mut(),
-                Event::NluaLuvError {
-                    msg,
-                    kind: K_CALLBACK,
-                },
-            );
-            lua_pop(lstate, 1);
-            -status
-        } else {
-            if nresult == LUA_MULTRET {
-                nresult = { lua_gettop(lstate) } - top + nargs + 1;
-            }
-            nresult
-        };
+        let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
+        let queues = loop_queues(&mut g_st().main_loop);
+        put_event(
+            queues.events.opt_mut(),
+            Event::NluaLuvError {
+                msg,
+                kind: K_CALLBACK,
+            },
+        );
+        lua_pop(lstate, 1);
+        -status
+    } else {
+        if nresult == LUA_MULTRET {
+            nresult = nlua_gettop(lstate) - top + nargs + 1;
+        }
+        nresult
+    };
 
-        nlua_st().in_fast_callback -= 1;
-        retval
-    }
+    nlua_st().in_fast_callback -= 1;
+    retval
 }
 
-unsafe extern "C-unwind" fn nlua_luv_thread_cb_cfpcall(
+extern "C-unwind" fn nlua_luv_thread_cb_cfpcall(
     lstate: *mut lua_State,
     nargs: i32,
     nresult: i32,
@@ -642,26 +622,13 @@ unsafe extern "C-unwind" fn nlua_luv_thread_cb_cfpcall(
     nlua_luv_thread_common_cfpcall(lstate, nargs, nresult, flags, true)
 }
 
-unsafe extern "C-unwind" fn nlua_luv_thread_cfpcall(
+pub(crate) extern "C-unwind" fn nlua_luv_thread_cfpcall(
     lstate: *mut lua_State,
     nargs: i32,
     nresult: i32,
     flags: i32,
 ) -> i32 {
     nlua_luv_thread_common_cfpcall(lstate, nargs, nresult, flags, false)
-}
-
-unsafe extern "C-unwind" fn nlua_luv_thread_cfcpcall(
-    lstate: *mut lua_State,
-    func: lua_CFunction,
-    ud: *mut c_void,
-    flags: i32,
-) -> i32 {
-    unsafe {
-        lua_pushcfunction(lstate, func);
-        lua_pushlightuserdata(lstate, ud);
-        nlua_luv_thread_cfpcall(lstate, 1, 0, flags)
-    }
 }
 
 fn nlua_luv_thread_common_cfpcall(
@@ -671,20 +638,12 @@ fn nlua_luv_thread_common_cfpcall(
     flags: i32,
     is_callback: bool,
 ) -> i32 {
-    let top = unsafe { lua_gettop(lstate) };
-    let status = unsafe { lua_pcall(lstate, nargs, nresult, 0) };
+    let top = nlua_gettop(lstate);
+    let status = lua_pcall_safe(lstate, nargs, nresult, 0);
     if status != 0 {
         if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
             fprintf!(log_get_stderr(), c"%s\n", E_OUTOFMEM,);
-            unsafe { lua_close(lstate) };
-            #[cfg(windows)]
-            {
-                unsafe { ExitThread(0) };
-            }
-            #[cfg(not(windows))]
-            {
-                unsafe { pthread_exit(ptr::null_mut()) };
-            }
+            nlua_exit_thread_on_oom(lstate);
         }
         let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());
         let ev = Event::NluaLuvError {
@@ -700,47 +659,45 @@ fn nlua_luv_thread_common_cfpcall(
         -status
     } else {
         if nresult == LUA_MULTRET {
-            nresult = unsafe { lua_gettop(lstate) } - top + nargs + 1;
+            nresult = nlua_gettop(lstate) - top + nargs + 1;
         }
         nresult
     }
 }
 
-unsafe extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        if lua_gettop(lstate) != 3 {
-            return luaL_error(lstate, c"Expected 3 arguments".as_ptr());
-        }
-
-        luaL_checktype(lstate, -1, LUA_TTABLE);
-        lua_getfield(lstate, -1, c"is_lua");
-        if !lua_isboolean(lstate, -1) {
-            return luaL_error(lstate, c"is_lua is not a boolean".as_ptr());
-        }
-        let is_lua = lua_toboolean(lstate, -1) != 0;
-        lua_pop(lstate, 2);
-
-        luaL_checktype(lstate, -1, LUA_TBOOLEAN);
-        let all = lua_toboolean(lstate, -1) != 0;
-        lua_pop(lstate, 1);
-
-        let mut err = Error::new();
-        let pat = nlua_pop_array_opt(lstate, None, &mut err);
-        if error_set(&err) {
-            luaL_where(lstate, 1);
-            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
-            api_clear_error(&mut err);
-            lua_concat(lstate, 2);
-            return lua_error(lstate);
-        }
-
-        let ret = runtime_get_named_thread(is_lua, pat, all);
-        nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL);
-        api_free_array(ret);
-        api_free_array(pat);
-
-        1
+extern "C-unwind" fn nlua_thr_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
+    if nlua_gettop(lstate) != 3 {
+        return luaL_error_cstr(lstate, c"Expected 3 arguments");
     }
+
+    luaL_checktype_safe(lstate, -1, LUA_TTABLE);
+    lua_getfield(lstate, -1, c"is_lua");
+    if !lua_isboolean(lstate, -1) {
+        return luaL_error_cstr(lstate, c"is_lua is not a boolean");
+    }
+    let is_lua = lua_toboolean_safe(lstate, -1);
+    lua_pop(lstate, 2);
+
+    luaL_checktype_safe(lstate, -1, LUA_TBOOLEAN);
+    let all = lua_toboolean_safe(lstate, -1);
+    lua_pop(lstate, 1);
+
+    let mut err = Error::new();
+    let pat = nlua_pop_array_opt(lstate, None, &mut err);
+    if error_set(&err) {
+        luaL_where_safe(lstate, 1);
+        lua_pushstring_opt(lstate, err.msg_cstr());
+        api_clear_error(&mut err);
+        lua_concat_safe(lstate, 2);
+        return lua_error_safe(lstate);
+    }
+
+    let ret = runtime_get_named_thread(is_lua, pat, all);
+    nlua_push_array(lstate, ret, K_NLUA_PUSH_SPECIAL);
+    api_free_array(ret);
+    api_free_array(pat);
+
+    1
 }
 
 fn nlua_init_argv(lstate: *mut lua_State, argv: &[CString], lua_arg0: i32) -> i32 {
@@ -750,11 +707,11 @@ fn nlua_init_argv(lstate: *mut lua_State, argv: &[CString], lua_arg0: i32) -> i3
     let argc = argv.len() as i32;
     if lua_arg0 > 0 {
         lua_pushstring(lstate, argv[(lua_arg0 - 1) as usize].as_c_str());
-        unsafe { lua_rawseti(lstate, -2, 0) };
+        lua_rawseti_safe(lstate, -2, 0);
 
         while i + lua_arg0 < argc {
             lua_pushstring(lstate, argv[(i + lua_arg0) as usize].as_c_str());
-            unsafe { lua_rawseti(lstate, -2, i + 1) };
+            lua_rawseti_safe(lstate, -2, i + 1);
             i += 1;
         }
     }
@@ -783,69 +740,63 @@ pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
     g_st().textlock = save_textlock;
 }
 
-unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        if lua_type(lstate, 1) != LUA_TFUNCTION {
-            lua_pushlstring(lstate, c"vim.schedule: expected function".as_ptr(), 31);
-            return lua_error(lstate);
-        }
-
-        lua_pushnil(lstate);
-        if g_st().main_loop.closing {
-            lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
-            return 2;
-        }
-
-        let cb = nlua_ref_global(lstate, 1);
-        let queues = loop_queues(&mut g_st().main_loop);
-        put_event(
-            queues.events.opt_mut(),
-            Event::NluaSchedule {
-                cb,
-                ns_id: g_st().ui_event_ns_id,
-            },
-        );
-        lua_pushnil(lstate);
-        2
+extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
+    if lua_type_safe(lstate, 1) != LUA_TFUNCTION {
+        lua_push_bytes(lstate, b"vim.schedule: expected function");
+        return lua_error_safe(lstate);
     }
+
+    lua_pushnil_safe(lstate);
+    if g_st().main_loop.closing {
+        lua_push_bytes(lstate, b"main loop is closing");
+        return 2;
+    }
+
+    let cb = nlua_ref_global(lstate, 1);
+    let queues = loop_queues(&mut g_st().main_loop);
+    put_event(
+        queues.events.opt_mut(),
+        Event::NluaSchedule {
+            cb,
+            ns_id: g_st().ui_event_ns_id,
+        },
+    );
+    lua_pushnil_safe(lstate);
+    2
 }
 
-unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let timeout = { luaL_checkinteger(lstate, 1) } as i64;
-        let fast_only = { lua_toboolean(lstate, 2) } != 0;
+extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> i32 {
+    let timeout = luaL_checkinteger_safe(lstate, 1) as i64;
+    let fast_only = lua_toboolean_safe(lstate, 2);
 
-        let queues = loop_queues(&mut g_st().main_loop);
-        let loop_events = if fast_only {
-            queues.fast_events
-        } else {
-            queues.events
-        };
-        if !loop_events.is_null() && !multiqueue_empty(&loop_events) {
-            multiqueue_process_events(loop_events.borrow_mut());
-        } else {
-            loop_poll_events(&mut g_st().main_loop, timeout);
-        }
-
-        0
+    let queues = loop_queues(&mut g_st().main_loop);
+    let loop_events = if fast_only {
+        queues.fast_events
+    } else {
+        queues.events
+    };
+    if !loop_events.is_null() && !multiqueue_empty(&loop_events) {
+        multiqueue_process_events(loop_events.borrow_mut());
+    } else {
+        loop_poll_events(&mut g_st().main_loop, timeout);
     }
+
+    0
 }
 
-unsafe extern "C-unwind" fn nlua_ui_flush(_lstate: *mut lua_State) -> i32 {
+extern "C-unwind" fn nlua_ui_flush(_lstate: *mut lua_State) -> i32 {
     ui_flush();
     0
 }
 
-unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let interrupted = g_st().got_int;
-        if g_st().got_int {
-            g_st().got_int = false;
-            vgetc();
-        }
-        lua_pushboolean(lstate, i32::from(interrupted));
-        1
+extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> i32 {
+    let interrupted = g_st().got_int;
+    if g_st().got_int {
+        g_st().got_int = false;
+        vgetc();
     }
+    lua_pushboolean_safe(lstate, interrupted);
+    1
 }
 
 pub fn nlua_ex_getline(
@@ -863,7 +814,7 @@ pub fn nlua_ex_getline(
         );
         return None;
     }
-    if unsafe { lua_type(lstate, -1) } != LUA_TSTRING {
+    if lua_type_safe(lstate, -1) != LUA_TSTRING {
         lua_pop(lstate, 1);
         return None;
     }
@@ -873,68 +824,62 @@ pub fn nlua_ex_getline(
     Some(line)
 }
 
-unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        luaL_checktype(lstate, 1, LUA_TFUNCTION);
-        let mut cookie = ExDocmdCookie {
-            getline: nlua_ref_global(lstate, 1),
-            got_line: false,
-        };
-        g_st().msg_scroll = 1;
-        g_st().need_wait_return = false;
-        g_st().no_wait_return += 1;
-        do_cmdline(
-            None,
-            crate::cmdexpand::LineGetter::LuaEx((&mut cookie).into()),
-            0,
-        );
-        g_st().no_wait_return -= 1;
-        nlua_unref_global(lstate, cookie.getline);
-        lua_pushboolean(lstate, i32::from(cookie.got_line));
-        1
-    }
+extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
+    luaL_checktype_safe(lstate, 1, LUA_TFUNCTION);
+    let mut cookie = ExDocmdCookie {
+        getline: nlua_ref_global(lstate, 1),
+        got_line: false,
+    };
+    g_st().msg_scroll = 1;
+    g_st().need_wait_return = false;
+    g_st().no_wait_return += 1;
+    do_cmdline(
+        None,
+        crate::cmdexpand::LineGetter::LuaEx((&mut cookie).into()),
+        0,
+    );
+    g_st().no_wait_return -= 1;
+    nlua_unref_global(lstate, cookie.getline);
+    lua_pushboolean_safe(lstate, cookie.got_line);
+    1
 }
 
-unsafe extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        if nlua_st().in_fast_callback > 0 {
-            return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"os.exit".as_ptr());
-        }
-
-        let mut status: i32 = 0;
-        if lua_gettop(lstate) >= 1 && !lua_isnil(lstate, 1) {
-            status = if lua_isboolean(lstate, 1) {
-                if lua_toboolean(lstate, 1) != 0 { 0 } else { 1 }
-            } else {
-                luaL_checkinteger(lstate, 1) as i32
-            };
-        }
-        getout(status);
+extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> i32 {
+    if nlua_st().in_fast_callback > 0 {
+        return nlua_fast_api_disabled_error(lstate, c"os.exit");
     }
+
+    let mut status: i32 = 0;
+    if nlua_gettop(lstate) >= 1 && !lua_isnil(lstate, 1) {
+        status = if lua_isboolean(lstate, 1) {
+            if lua_toboolean_safe(lstate, 1) { 0 } else { 1 }
+        } else {
+            luaL_checkinteger_safe(lstate, 1) as i32
+        };
+    }
+    getout(status);
 }
 
 fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> &'static mut NluaRefState {
-    unsafe {
-        let ref_state = lua_newuserdata(lstate, size_of::<NluaRefState>()).cast::<NluaRefState>();
-        *ref_state = NluaRefState {
+    let ref_state = lua_newuserdata_typed(
+        lstate,
+        NluaRefState {
             nil_ref: LUA_NOREF,
             empty_dict_ref: LUA_NOREF,
             ref_count: 0,
-        };
-        if !is_thread {
-            g_st().nlua_global_refs = crate::globals::GraphPtr::new(ref_state);
-        }
-        &mut *ref_state
+        },
+    );
+    if !is_thread {
+        g_st().nlua_global_refs = crate::globals::GraphPtr::from(&mut *ref_state);
     }
+    ref_state
 }
 
 fn nlua_get_ref_state(lstate: *mut lua_State) -> &'static mut NluaRefState {
-    unsafe {
-        lua_getfield(lstate, LUA_REGISTRYINDEX, c"nlua.ref_state");
-        let ref_state = lua_touserdata(lstate, -1).cast::<NluaRefState>();
-        lua_pop(lstate, 1);
-        &mut *ref_state
-    }
+    lua_getfield(lstate, LUA_REGISTRYINDEX, c"nlua.ref_state");
+    let ref_state = lua_touserdata_typed::<NluaRefState>(lstate, -1);
+    lua_pop(lstate, 1);
+    ref_state
 }
 
 pub fn nlua_get_nil_ref(lstate: *mut lua_State) -> LuaRef {
@@ -950,81 +895,76 @@ pub fn nlua_get_global_ref_count() -> i32 {
 }
 
 fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
-    unsafe {
-        let ref_state = nlua_new_ref_state(lstate, is_thread);
-        lua_setfield(lstate, LUA_REGISTRYINDEX, c"nlua.ref_state");
+    let ref_state = nlua_new_ref_state(lstate, is_thread);
+    lua_setfield(lstate, LUA_REGISTRYINDEX, c"nlua.ref_state");
 
-        lua_pushboolean(lstate, i32::from(is_thread));
-        lua_setfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
-        lua_pushcfunction(lstate, Some(nlua_is_thread));
-        lua_setfield(lstate, -2, c"is_thread");
+    lua_pushboolean_safe(lstate, is_thread);
+    lua_setfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
+    lua_pushcfunction_safe(lstate, nlua_is_thread);
+    lua_setfield(lstate, -2, c"is_thread");
 
-        lua_createtable(lstate, 0, 0);
-        lua_setfield(lstate, -2, c"_core");
+    lua_createtable_safe(lstate, 0, 0);
+    lua_setfield(lstate, -2, c"_core");
 
-        lua_newuserdata(lstate, 0);
-        lua_createtable(lstate, 0, 0);
-        lua_pushcfunction(lstate, Some(nlua_nil_tostring));
-        lua_setfield(lstate, -2, c"__tostring");
-        lua_pushcfunction(lstate, Some(nlua_nil_index));
-        lua_setfield(lstate, -2, c"__index");
-        lua_pushcfunction(lstate, Some(nlua_nil_index));
-        lua_setfield(lstate, -2, c"__newindex");
-        lua_setmetatable(lstate, -2);
-        ref_state.nil_ref = nlua_ref(lstate, ref_state, -1);
-        lua_pushvalue(lstate, -1);
-        lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.NIL");
-        lua_setfield(lstate, -2, c"NIL");
+    lua_newuserdata_empty(lstate);
+    lua_createtable_safe(lstate, 0, 0);
+    lua_pushcfunction_safe(lstate, nlua_nil_tostring);
+    lua_setfield(lstate, -2, c"__tostring");
+    lua_pushcfunction_safe(lstate, nlua_nil_index);
+    lua_setfield(lstate, -2, c"__index");
+    lua_pushcfunction_safe(lstate, nlua_nil_index);
+    lua_setfield(lstate, -2, c"__newindex");
+    let _ = lua_setmetatable_safe(lstate, -2);
+    ref_state.nil_ref = nlua_ref(lstate, ref_state, -1);
+    lua_pushvalue_safe(lstate, -1);
+    lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.NIL");
+    lua_setfield(lstate, -2, c"NIL");
 
-        lua_createtable(lstate, 0, 0);
-        lua_pushcfunction(lstate, Some(nlua_empty_dict_tostring));
-        lua_setfield(lstate, -2, c"__tostring");
-        ref_state.empty_dict_ref = nlua_ref(lstate, ref_state, -1);
-        lua_pushvalue(lstate, -1);
-        lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.empty_dict");
-        lua_setfield(lstate, -2, c"_empty_dict_mt");
+    lua_createtable_safe(lstate, 0, 0);
+    lua_pushcfunction_safe(lstate, nlua_empty_dict_tostring);
+    lua_setfield(lstate, -2, c"__tostring");
+    ref_state.empty_dict_ref = nlua_ref(lstate, ref_state, -1);
+    lua_pushvalue_safe(lstate, -1);
+    lua_setfield(lstate, LUA_REGISTRYINDEX, c"mpack.empty_dict");
+    lua_setfield(lstate, -2, c"_empty_dict_mt");
 
-        if is_thread {
-            luv_set_callback(lstate, Some(nlua_luv_thread_cb_cfpcall));
-            luv_set_thread(lstate, Some(nlua_luv_thread_cfpcall));
-            luv_set_cthread(lstate, Some(nlua_luv_thread_cfcpcall));
-        } else {
-            luv_set_loop(lstate, (&raw mut g_st().main_loop).cast());
-            luv_set_callback(lstate, Some(nlua_fast_cfpcall));
-        }
-        luaopen_luv(lstate);
-        lua_pushvalue(lstate, -1);
-        lua_setfield(lstate, -3, c"uv");
+    luv_init_vim(
+        lstate,
+        is_thread,
+        &mut g_st().main_loop,
+        nlua_fast_cfpcall,
+        nlua_luv_thread_cfpcall,
+        nlua_luv_thread_cb_cfpcall,
+    );
+    lua_pushvalue_safe(lstate, -1);
+    lua_setfield(lstate, -3, c"uv");
 
-        lua_pushvalue(lstate, -1);
-        lua_setfield(lstate, -3, c"loop");
+    lua_pushvalue_safe(lstate, -1);
+    lua_setfield(lstate, -3, c"loop");
 
-        lua_getglobal(lstate, c"package");
-        lua_getfield(lstate, -1, c"loaded");
-        lua_pushvalue(lstate, -3);
-        lua_setfield(lstate, -2, c"luv");
-        lua_pop(lstate, 3);
-    }
+    lua_getglobal(lstate, c"package");
+    lua_getfield(lstate, -1, c"loaded");
+    lua_pushvalue_safe(lstate, -3);
+    lua_setfield(lstate, -2, c"luv");
+    lua_pop(lstate, 3);
 }
 
-unsafe extern "C-unwind" fn nlua_module_preloader(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let i = { lua_tointeger(lstate, lua_upvalueindex(1)) } as usize;
-        let def = BUILTIN_MODULES[i];
-        if luaL_loadbuffer(lstate, def.data, def.chunk_name) != 0 {
-            return lua_error(lstate);
-        }
-        lua_call(lstate, 0, 1);
-        1
+extern "C-unwind" fn nlua_module_preloader(lstate: *mut lua_State) -> i32 {
+    let i = lua_tointeger_safe(lstate, lua_upvalueindex(1)) as usize;
+    let def = BUILTIN_MODULES[i];
+    if luaL_loadbuffer(lstate, def.data, def.chunk_name) != 0 {
+        return lua_error_safe(lstate);
     }
+    lua_call_safe(lstate, 0, 1);
+    1
 }
 
 fn nlua_init_packages(lstate: *mut lua_State) -> bool {
     lua_getglobal(lstate, c"package");
     lua_getfield(lstate, -1, c"preload");
     for (i, def) in BUILTIN_MODULES.iter().enumerate() {
-        unsafe { lua_pushinteger(lstate, i as lua_Integer) };
-        unsafe { lua_pushcclosure(lstate, Some(nlua_module_preloader), 1) };
+        lua_pushinteger_safe(lstate, i as lua_Integer);
+        lua_pushcclosure_safe(lstate, nlua_module_preloader, 1);
         lua_setfield(lstate, -2, def.name);
 
         if g_st().nlua_disable_preload && def.name == c"vim.inspect" {
@@ -1044,29 +984,28 @@ fn nlua_init_packages(lstate: *mut lua_State) -> bool {
     true
 }
 
-unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
-    let ns_id = unsafe { luaL_checkinteger(lstate, 1) } as u32;
+extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
+    let ns_id = luaL_checkinteger_safe(lstate, 1) as u32;
 
     if !ns_initialized(ns_id) {
-        return unsafe { luaL_error(lstate, c"invalid ns_id".as_ptr()) };
+        return luaL_error_cstr(lstate, c"invalid ns_id");
     }
     if !lua_istable(lstate, 2) {
-        return unsafe { luaL_error(lstate, c"opts must be a table".as_ptr()) };
+        return luaL_error_cstr(lstate, c"opts must be a table");
     }
     if !lua_isfunction(lstate, 3) {
-        return unsafe { luaL_error(lstate, c"callback must be a Lua function".as_ptr()) };
+        return luaL_error_cstr(lstate, c"callback must be a Lua function");
     }
 
     let mut ext_widgets = [false; K_UIGLOBAL_COUNT];
     let mut tbl_has_true_val = false;
 
-    unsafe { lua_pushvalue(lstate, 2) };
-    unsafe { lua_pushnil(lstate) };
-    while unsafe { lua_next(lstate, -2) } != 0 {
-        let mut len: usize = 0;
-        let s = unsafe { lua_tolstring(lstate, -2, &raw mut len) };
-        let val = unsafe { lua_toboolean(lstate, -1) } != 0;
-        let s_bytes = (!s.is_null()).then(|| unsafe { CStr::from_ptr(s) }.to_bytes());
+    lua_pushvalue_safe(lstate, 2);
+    lua_pushnil_safe(lstate);
+    while lua_next_safe(lstate, -2) != 0 {
+        let s_opt = lua_tolstring_opt_cstr(lstate, -2);
+        let val = lua_toboolean_safe(lstate, -1);
+        let s_bytes = s_opt.map(CStr::to_bytes);
 
         let mut matched = false;
         if s_bytes == Some(b"set_cmdheight") {
@@ -1086,18 +1025,16 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
         }
 
         if !matched {
-            return unsafe { luaL_error(lstate, c"Unexpected key: %s".as_ptr(), s) };
+            return luaL_error_cstr_arg(lstate, c"Unexpected key: %s", s_opt.unwrap_or(c""));
         }
         lua_pop(lstate, 1);
     }
 
     if !tbl_has_true_val {
-        return unsafe {
-            luaL_error(
-                lstate,
-                c"opts table must contain at least one 'true' ext_widget".as_ptr(),
-            )
-        };
+        return luaL_error_cstr(
+            lstate,
+            c"opts table must contain at least one 'true' ext_widget",
+        );
     }
 
     let ui_event_cb = nlua_ref_global(lstate, 3);
@@ -1106,36 +1043,34 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
     0
 }
 
-unsafe extern "C-unwind" fn nlua_ui_detach(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let ns_id = luaL_checkinteger(lstate, 1) as u32;
-        if !ns_initialized(ns_id) {
-            return luaL_error(lstate, c"invalid ns_id".as_ptr());
-        }
-        ui_remove_cb(ns_id, false);
-        0
+extern "C-unwind" fn nlua_ui_detach(lstate: *mut lua_State) -> i32 {
+    let ns_id = luaL_checkinteger_safe(lstate, 1) as u32;
+    if !ns_initialized(ns_id) {
+        return luaL_error_cstr(lstate, c"invalid ns_id");
     }
+    ui_remove_cb(ns_id, false);
+    0
 }
 
 fn nlua_state_init(lstate: *mut lua_State) -> bool {
-    lua_pushcfunction(lstate, Some(nlua_print));
+    lua_pushcfunction_safe(lstate, nlua_print);
     lua_setglobal(lstate, c"print");
 
     lua_getglobal(lstate, c"debug");
-    lua_pushcfunction(lstate, Some(nlua_debug));
+    lua_pushcfunction_safe(lstate, nlua_debug);
     lua_setfield(lstate, -2, c"debug");
     lua_pop(lstate, 1);
 
     #[cfg(windows)]
     {
         lua_getglobal(lstate, c"os");
-        lua_pushcfunction(lstate, Some(nlua_getenv));
+        lua_pushcfunction_safe(lstate, nlua_getenv);
         lua_setfield(lstate, -2, c"getenv");
         lua_pop(lstate, 1);
     }
 
     lua_getglobal(lstate, c"os");
-    lua_pushcfunction(lstate, Some(nlua_os_exit));
+    lua_pushcfunction_safe(lstate, nlua_os_exit);
     lua_setfield(lstate, -2, c"exit");
     lua_pop(lstate, 1);
 
@@ -1144,38 +1079,38 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
     nlua_add_api_functions(lstate);
     nlua_init_types(lstate);
 
-    lua_pushcfunction(lstate, Some(nlua_schedule));
+    lua_pushcfunction_safe(lstate, nlua_schedule);
     lua_setfield(lstate, -2, c"schedule");
 
-    lua_pushcfunction(lstate, Some(nlua_in_fast_event));
+    lua_pushcfunction_safe(lstate, nlua_in_fast_event);
     lua_setfield(lstate, -2, c"in_fast_event");
 
-    lua_pushcfunction(lstate, Some(nlua_call));
+    lua_pushcfunction_safe(lstate, nlua_call);
     lua_setfield(lstate, -2, c"call");
 
-    lua_pushcfunction(lstate, Some(nlua_rpcrequest));
+    lua_pushcfunction_safe(lstate, nlua_rpcrequest);
     lua_setfield(lstate, -2, c"rpcrequest");
 
-    lua_pushcfunction(lstate, Some(nlua_rpcnotify));
+    lua_pushcfunction_safe(lstate, nlua_rpcnotify);
     lua_setfield(lstate, -2, c"rpcnotify");
 
-    lua_pushcfunction(lstate, Some(nlua_ui_attach));
+    lua_pushcfunction_safe(lstate, nlua_ui_attach);
     lua_setfield(lstate, -2, c"ui_attach");
 
-    lua_pushcfunction(lstate, Some(nlua_ui_detach));
+    lua_pushcfunction_safe(lstate, nlua_ui_detach);
     lua_setfield(lstate, -2, c"ui_detach");
 
     nlua_common_vim_init(lstate, false);
 
     lua_getfield(lstate, -1, c"_core");
-    lua_pushcfunction(lstate, Some(nlua_loop_poll));
+    lua_pushcfunction_safe(lstate, nlua_loop_poll);
     lua_setfield(lstate, -2, c"loop_poll");
-    lua_pushcfunction(lstate, Some(nlua_ui_flush));
+    lua_pushcfunction_safe(lstate, nlua_ui_flush);
     lua_setfield(lstate, -2, c"ui_flush");
-    lua_pushcfunction(lstate, Some(nlua_check_interrupt));
+    lua_pushcfunction_safe(lstate, nlua_check_interrupt);
     lua_setfield(lstate, -2, c"check_interrupt");
 
-    lua_pushcfunction(lstate, Some(nlua_ex_docmd));
+    lua_pushcfunction_safe(lstate, nlua_ex_docmd);
     lua_setfield(lstate, -2, c"ex_docmd");
     lua_pop(lstate, 1);
 
@@ -1183,7 +1118,7 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
         lua_getglobal(lstate, c"require");
         nlua_st().require_ref = nlua_ref_global(lstate, -1);
         lua_pop(lstate, 1);
-        lua_pushcfunction(lstate, Some(nlua_require));
+        lua_pushcfunction_safe(lstate, nlua_require);
         lua_setglobal(lstate, c"require");
     }
 
@@ -1196,7 +1131,7 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
 }
 
 pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
-    let lstate = unsafe { luaL_newstate() };
+    let lstate = luaL_newstate_safe();
     if lstate.is_null() {
         fprintf!(
             log_get_stderr(),
@@ -1204,42 +1139,42 @@ pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
         );
         os_exit(1);
     }
-    unsafe { luaL_openlibs(lstate) };
+    luaL_openlibs_safe(lstate);
     if !nlua_state_init(lstate) {
         fprintf!(
             log_get_stderr(),
             gettext(c"E970: Failed to initialize builtin Lua modules\n"),
         );
         if MAIN_EXITFREE {
-            unsafe { nlua_common_free_all_mem(lstate) };
+            nlua_common_free_all_mem(lstate);
         }
         os_exit(1);
     }
 
-    unsafe { luv_set_thread_cb(Some(nlua_thread_acquire_vm), Some(nlua_common_free_all_mem)) };
+    luv_set_thread_cb_safe(nlua_thread_acquire_vm, nlua_common_free_all_mem);
     nlua_st().global_lstate = lstate;
     nlua_st().active_lstate = lstate;
-    nlua_st().main_thread = unsafe { uv_thread_self() };
+    nlua_st().main_thread = uv_thread_self_safe();
     nlua_init_argv(lstate, argv, lua_arg0);
 }
 
-unsafe extern "C-unwind" fn nlua_thread_acquire_vm() -> *mut lua_State {
+extern "C-unwind" fn nlua_thread_acquire_vm() -> *mut lua_State {
     nlua_init_state(true)
 }
 
 fn nlua_init_state(thread: bool) -> *mut lua_State {
-    let self_ = unsafe { uv_thread_self() };
-    if unsafe { uv_thread_equal(&raw const nlua_st().main_thread, &raw const self_) } != 0 {
+    let self_ = uv_thread_self_safe();
+    if uv_thread_equal_safe(nlua_st().main_thread, self_) {
         runtime_search_path_validate();
     }
 
-    let lstate = unsafe { luaL_newstate() };
-    unsafe { luaL_openlibs(lstate) };
+    let lstate = luaL_newstate_safe();
+    luaL_openlibs_safe(lstate);
 
-    lua_pushcfunction(lstate, Some(nlua_print));
+    lua_pushcfunction_safe(lstate, nlua_print);
     lua_setglobal(lstate, c"print");
 
-    unsafe { lua_pushinteger(lstate, 0) };
+    lua_pushinteger_safe(lstate, 0);
     lua_setfield(lstate, LUA_REGISTRYINDEX, c"nlua.refcount");
 
     lua_newtable(lstate);
@@ -1247,8 +1182,8 @@ fn nlua_init_state(thread: bool) -> *mut lua_State {
     nlua_common_vim_init(lstate, thread);
     nlua_state_add_stdlib(lstate, true);
 
-    unsafe { lua_createtable(lstate, 0, 0) };
-    lua_pushcfunction(lstate, Some(nlua_thr_api_nvim_get_runtime));
+    lua_createtable_safe(lstate, 0, 0);
+    lua_pushcfunction_safe(lstate, nlua_thr_api_nvim_get_runtime);
     lua_setfield(lstate, -2, c"nvim__get_runtime");
     lua_setfield(lstate, -2, c"api");
 
@@ -1272,16 +1207,14 @@ pub fn nlua_free_all_mem() {
     let lstate = nlua_st().global_lstate;
     nlua_st().global_lstate = ptr::null_mut();
     nlua_unref_global(lstate, nlua_st().require_ref);
-    unsafe { nlua_common_free_all_mem(lstate) };
+    nlua_common_free_all_mem(lstate);
 }
 
-unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
-    unsafe {
-        let ref_state = nlua_get_ref_state(lstate);
-        nlua_unref(lstate, ref_state, ref_state.nil_ref);
-        nlua_unref(lstate, ref_state, ref_state.empty_dict_ref);
-        lua_close(lstate);
-    }
+extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
+    let ref_state = nlua_get_ref_state(lstate);
+    nlua_unref(lstate, ref_state, ref_state.nil_ref);
+    nlua_unref(lstate, ref_state, ref_state.empty_dict_ref);
+    lua_close_safe(lstate);
 }
 
 pub fn nlua_print_event(text: NvimString) {
@@ -1304,37 +1237,28 @@ pub fn nlua_print_event(text: NvimString) {
     );
 }
 
-unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
-    let nargs = unsafe { lua_gettop(lstate) };
+extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
+    let nargs = nlua_gettop(lstate);
     lua_getglobal(lstate, c"tostring");
     let mut msg_vec: Vec<u8> = Vec::with_capacity(80);
     let mut curargidx: i32 = 1;
     while curargidx <= nargs {
-        unsafe { lua_pushvalue(lstate, -1) };
-        unsafe { lua_pushvalue(lstate, curargidx) };
-        if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0
-            || unsafe { lua_type(lstate, -1) } != LUA_TSTRING
-        {
+        lua_pushvalue_safe(lstate, -1);
+        lua_pushvalue_safe(lstate, curargidx);
+        if lua_pcall_safe(lstate, 1, 1, 0) != 0 || lua_type_safe(lstate, -1) != LUA_TSTRING {
             let (errmsg, errmsg_len) =
-                nlua_get_error(lstate).map_or((ptr::null(), 0), |(s, l)| (s.as_ptr(), l));
+                nlua_get_error(lstate).map_or((None, 0), |(s, l)| (Some(s), l));
             drop(msg_vec);
             let mut buff = [0u8; IOSIZE];
             let fmt = gettext(c"E5114: Converting print argument #%i: %.*s");
-            let len = format_to_buf!(
-                &mut buff,
-                fmt,
-                curargidx,
-                errmsg_len as i32,
-                (!errmsg.is_null()).then(|| unsafe { CStr::from_ptr(errmsg) })
-            ) as usize;
-            unsafe { lua_pushlstring(lstate, buff.as_ptr().cast(), len) };
-            return unsafe { lua_error(lstate) };
+            let len = format_to_buf!(&mut buff, fmt, curargidx, errmsg_len as i32, errmsg) as usize;
+            lua_push_bytes(lstate, &buff[..len]);
+            return lua_error_safe(lstate);
         }
 
-        let mut len: usize = 0;
-        let s = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
-        if !s.is_null() && len > 0 {
-            msg_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) });
+        let s_slice = lua_tolstring_bytes(lstate, -1);
+        if !s_slice.is_empty() {
+            msg_vec.extend_from_slice(s_slice);
         }
         if curargidx < nargs {
             msg_vec.push(b' ');
@@ -1346,7 +1270,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     drop(msg_vec);
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
-    let is_thread = unsafe { lua_toboolean(lstate, -1) } != 0;
+    let is_thread = lua_toboolean_safe(lstate, -1);
     lua_pop(lstate, 1);
 
     if is_thread {
@@ -1360,47 +1284,35 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
     0
 }
 
-unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
-    let name = unsafe { luaL_checklstring(lstate, 1, ptr::null_mut()) };
-    let name_cstr = if name.is_null() {
-        c""
-    } else {
-        unsafe { CStr::from_ptr(name) }
-    };
-    unsafe { lua_settop(lstate, 1) };
+extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
+    let name_cstr = luaL_checkstring(lstate, 1);
+    lua_settop_safe(lstate, 1);
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"_LOADED");
     lua_getfield(lstate, 2, name_cstr);
-    if unsafe { lua_toboolean(lstate, -1) } != 0 {
+    if lua_toboolean_safe(lstate, -1) {
         return 1;
     }
     lua_pop(lstate, 2);
 
     nlua_pushref(lstate, nlua_st().require_ref);
-    unsafe { lua_insert(lstate, 1) };
+    lua_insert_safe(lstate, 1);
 
     if !has_time_fd() {
         lua_getglobal(lstate, c"require");
-        if unsafe { lua_iscfunction(lstate, -1) } != 0
-            && unsafe { lua_tocfunction(lstate, -1) }.is_some_and(|f| {
-                std::ptr::fn_addr_eq(
-                    f,
-                    nlua_require as unsafe extern "C-unwind" fn(*mut lua_State) -> i32,
-                )
-            })
-        {
-            unsafe { lua_pushvalue(lstate, 1) };
+        if lua_iscfunction_eq(lstate, -1, nlua_require) {
+            lua_pushvalue_safe(lstate, 1);
             lua_setglobal(lstate, c"require");
         }
         lua_pop(lstate, 1);
-        unsafe { lua_call(lstate, 1, 1) };
+        lua_call_safe(lstate, 1, 1);
         return 1;
     }
 
     let mut rel_time: Proftime = 0;
     let mut start_time: Proftime = 0;
     time_push(&mut rel_time, &mut start_time);
-    let status = unsafe { lua_pcall(lstate, 1, 1, 0) };
+    let status = lua_pcall_safe(lstate, 1, 1, 0);
     if status == 0 {
         format_to_buf!(&mut g_st().iobuff, c"require('%s')", name_cstr);
         time_msg(g_st().iobuff_cstr(), Some(&start_time));
@@ -1410,82 +1322,74 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     if status == 0 {
         1
     } else {
-        unsafe { lua_error(lstate) }
+        lua_error_safe(lstate)
     }
 }
 
-unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let input_args: [TypVal; 2] = [
-            TypVal {
-                v_type: VarType::VarString,
-                v_lock: VAR_FIXED,
-                vval: TypvalVval::from_cstr(c"lua_debug> "),
-            },
-            TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: 0,
-                vval: TypvalVval::Number(0),
-            },
-        ];
-        loop {
-            lua_settop(lstate, 0);
-            let mut input: TypVal = TypVal::new();
-            get_user_input(&input_args, &mut input, false, false);
+extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
+    let input_args: [TypVal; 2] = [
+        TypVal {
+            v_type: VarType::VarString,
+            v_lock: VAR_FIXED,
+            vval: TypvalVval::from_cstr(c"lua_debug> "),
+        },
+        TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: 0,
+            vval: TypvalVval::Number(0),
+        },
+    ];
+    loop {
+        lua_settop_safe(lstate, 0);
+        let mut input: TypVal = TypVal::new();
+        get_user_input(&input_args, &mut input, false, false);
 
-            if ui_has(K_UICMDLINE) {
-                format_to_buf!(
-                    &mut g_st().iobuff,
-                    c"lua_debug> %s",
-                    input.vval.v_string_cstr_or_empty(),
-                );
-                ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
-            } else {
-                msg_putchar(b'\n' as i32);
-            }
-
-            if input.v_type != VarType::VarString
-                || input.vval.v_string_is_empty()
-                || input.vval.v_string_bytes() == b"cont"
-            {
-                tv_clear(&mut input);
-                if ui_has(K_UICMDLINE) {
-                    ui_ext_cmdline_block_leave();
-                }
-                return 0;
-            }
-
-            let input_bytes = input.vval.v_string_bytes();
-            if luaL_loadbuffer(lstate, input_bytes, c"=(debug command)") != 0 {
-                nlua_error(lstate, gettext(c"E5115: Loading Lua debug string: %.*s"));
-            } else if nlua_pcall(lstate, 0, 0) != 0 {
-                nlua_error(lstate, gettext(c"E5116: Calling Lua debug string: %.*s"));
-            }
-            tv_clear(&mut input);
+        if ui_has(K_UICMDLINE) {
+            format_to_buf!(
+                &mut g_st().iobuff,
+                c"lua_debug> %s",
+                input.vval.v_string_cstr_or_empty(),
+            );
+            ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
+        } else {
+            msg_putchar(b'\n' as i32);
         }
+
+        if input.v_type != VarType::VarString
+            || input.vval.v_string_is_empty()
+            || input.vval.v_string_bytes() == b"cont"
+        {
+            tv_clear(&mut input);
+            if ui_has(K_UICMDLINE) {
+                ui_ext_cmdline_block_leave();
+            }
+            return 0;
+        }
+
+        let input_bytes = input.vval.v_string_bytes();
+        if luaL_loadbuffer(lstate, input_bytes, c"=(debug command)") != 0 {
+            nlua_error(lstate, gettext(c"E5115: Loading Lua debug string: %.*s"));
+        } else if nlua_pcall(lstate, 0, 0) != 0 {
+            nlua_error(lstate, gettext(c"E5116: Calling Lua debug string: %.*s"));
+        }
+        tv_clear(&mut input);
     }
 }
 
-pub unsafe extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        lua_pushboolean(lstate, i32::from(nlua_st().in_fast_callback > 0));
-        1
-    }
+pub extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> i32 {
+    lua_pushboolean_safe(lstate, nlua_st().in_fast_callback > 0);
+    1
 }
 
 fn viml_func_is_fast(name: &CStr) -> bool {
     find_internal_func(name).is_some_and(|fdef| fdef.fast)
 }
 
-pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
+pub extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
-    let mut name_len: usize = 0;
-    let name = unsafe { luaL_checklstring(lstate, 1, &raw mut name_len) };
-    let name_cstr = if name.is_null() {
-        c""
-    } else {
-        unsafe { CStr::from_ptr(name) }
-    };
+    let (name_bytes, name_with_nul) = luaL_checkbytes_with_nul(lstate, 1);
+    let name_len = name_bytes.len();
+    let name_cstr = crate::memory::bytes_as_cstr(name_with_nul);
     if !nlua_is_deferred_safe() && !viml_func_is_fast(name_cstr) {
         let length = name_len.min(100) + 22;
         format_to_buf!(
@@ -1493,27 +1397,27 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
             c"Vimscript function \"%s\"",
             name_cstr,
         );
-        return unsafe { luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), g_st().iobuff.as_ptr()) };
+        return nlua_fast_api_disabled_error(lstate, g_st().iobuff_cstr());
     }
 
-    let nargs = unsafe { lua_gettop(lstate) } - 1;
+    let nargs = nlua_gettop(lstate) - 1;
     if nargs > MAX_FUNC_ARGS {
-        return unsafe { luaL_error(lstate, c"Function called with too many arguments".as_ptr()) };
+        return luaL_error_cstr(lstate, c"Function called with too many arguments");
     }
 
     if let Some(func_lua) = find_internal_func_lua(name_cstr) {
         lua_getglobal(lstate, c"require");
-        unsafe { lua_pushlstring(lstate, c"vim._core.vimfn".as_ptr(), 15) };
-        if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0 {
-            return unsafe { lua_error(lstate) };
+        lua_push_bytes(lstate, b"vim._core.vimfn");
+        if lua_pcall_safe(lstate, 1, 1, 0) != 0 {
+            return lua_error_safe(lstate);
         }
         lua_getfield(lstate, -1, func_lua);
-        unsafe { lua_remove(lstate, -2) };
+        lua_remove_safe(lstate, -2);
         for j in 0..nargs {
-            unsafe { lua_pushvalue(lstate, j + 2) };
+            lua_pushvalue_safe(lstate, j + 2);
         }
-        if unsafe { lua_pcall(lstate, nargs, 1, 0) } != 0 {
-            return unsafe { lua_error(lstate) };
+        if lua_pcall_safe(lstate, nargs, 1, 0) != 0 {
+            return lua_error_safe(lstate);
         }
         return 1;
     }
@@ -1523,7 +1427,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
     let mut i: usize = 0;
     let mut conv_failed = false;
     while (i as i32) < nargs {
-        unsafe { lua_pushvalue(lstate, (i as i32) + 2) };
+        lua_pushvalue_safe(lstate, (i as i32) + 2);
         if !nlua_pop_typval(lstate, &mut vim_args[i]) {
             api_set_error!(
                 &mut err,
@@ -1574,28 +1478,26 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         tv_clear(&mut vim_args[i]);
     }
     if error_set(&err) {
-        crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
+        lua_pushstring_opt(lstate, err.msg_cstr());
         api_clear_error(&mut err);
-        return unsafe { lua_error(lstate) };
+        return lua_error_safe(lstate);
     }
     1
 }
 
-unsafe extern "C-unwind" fn nlua_rpcrequest(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        if !nlua_is_deferred_safe() {
-            return luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), c"rpcrequest".as_ptr());
-        }
-        nlua_rpc(lstate, true)
+extern "C-unwind" fn nlua_rpcrequest(lstate: *mut lua_State) -> i32 {
+    if !nlua_is_deferred_safe() {
+        return nlua_fast_api_disabled_error(lstate, c"rpcrequest");
     }
+    nlua_rpc(lstate, true)
 }
 
-unsafe extern "C-unwind" fn nlua_rpcnotify(lstate: *mut lua_State) -> i32 {
+extern "C-unwind" fn nlua_rpcnotify(lstate: *mut lua_State) -> i32 {
     nlua_rpc(lstate, false)
 }
 
 fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
-    let chan_id = unsafe { luaL_checkinteger(lstate, 1) } as u64;
+    let chan_id = luaL_checkinteger_safe(lstate, 1) as u64;
 
     let has_opts = request && (lua_isnil(lstate, 2) || lua_istable(lstate, 2));
     let name_idx = if has_opts { 3 } else { 2 };
@@ -1603,22 +1505,22 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     if has_opts && lua_istable(lstate, 2) {
         lua_getfield(lstate, 2, c"timeout");
         if !lua_isnil(lstate, -1) {
-            if unsafe { lua_type(lstate, -1) } != LUA_TNUMBER {
+            if lua_type_safe(lstate, -1) != LUA_TNUMBER {
                 return luaL_argerror(lstate, 2, c"timeout: expected integer");
             }
-            timeout = unsafe { lua_tointeger(lstate, -1) } as i32;
+            timeout = lua_tointeger_safe(lstate, -1) as i32;
         }
         lua_pop(lstate, 1);
     }
 
     let name_cstr = luaL_checkstring(lstate, name_idx);
-    let nargs = unsafe { lua_gettop(lstate) } - name_idx;
+    let nargs = nlua_gettop(lstate) - name_idx;
     let mut err = Error::new();
     let mut arena = Arena::new();
 
     let mut args = arena_array(&mut arena, nargs.max(0) as usize);
     for i in 0..nargs {
-        unsafe { lua_pushvalue(lstate, name_idx + 1 + i) };
+        lua_pushvalue_safe(lstate, name_idx + 1 + i);
         let obj = nlua_pop_object(lstate, false, &mut arena, &mut err);
         *args.next_slot_mut() = obj;
         args.size += 1;
@@ -1647,51 +1549,43 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     arena_mem_free(arena_finish(&mut arena));
 
     if error_set(&err) {
-        crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
+        lua_pushstring_opt(lstate, err.msg_cstr());
         api_clear_error(&mut err);
-        return unsafe { lua_error(lstate) };
+        return lua_error_safe(lstate);
     }
 
     if request { 1 } else { 0 }
 }
 
-unsafe extern "C-unwind" fn nlua_nil_tostring(lstate: *mut lua_State) -> i32 {
+extern "C-unwind" fn nlua_nil_tostring(lstate: *mut lua_State) -> i32 {
     lua_pushstring(lstate, c"vim.NIL");
     1
 }
 
-unsafe extern "C-unwind" fn nlua_nil_index(lstate: *mut lua_State) -> i32 {
-    unsafe { luaL_error(lstate, c"attempt to index vim.NIL".as_ptr()) }
+extern "C-unwind" fn nlua_nil_index(lstate: *mut lua_State) -> i32 {
+    luaL_error_cstr(lstate, c"attempt to index vim.NIL")
 }
 
-unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> i32 {
+extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> i32 {
     lua_pushstring(lstate, c"vim.empty_dict()");
     1
 }
 
 #[cfg(windows)]
-unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        let name = luaL_checklstring(lstate, 1, ptr::null_mut());
-        let val = os_getenv_cstr(if name.is_null() {
-            c""
-        } else {
-            CStr::from_ptr(name)
-        });
-        crate::lua::converter::lua_pushstring_opt(lstate, val.as_deref());
-        1
-    }
+extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
+    let name = luaL_checkstring(lstate, 1);
+    let val = os_getenv_cstr(name);
+    lua_pushstring_opt(lstate, val.as_deref());
+    1
 }
 
 pub fn nlua_ref(lstate: *mut lua_State, ref_state: &mut NluaRefState, index: i32) -> LuaRef {
-    unsafe {
-        lua_pushvalue(lstate, index);
-        let ref_ = luaL_ref(lstate, LUA_REGISTRYINDEX);
-        if ref_ > 0 {
-            ref_state.ref_count += 1;
-        }
-        ref_
+    lua_pushvalue_safe(lstate, index);
+    let ref_ = luaL_ref_safe(lstate, LUA_REGISTRYINDEX);
+    if ref_ > 0 {
+        ref_state.ref_count += 1;
     }
+    ref_
 }
 
 pub fn nlua_ref_global(lstate: *mut lua_State, index: i32) -> LuaRef {
@@ -1701,7 +1595,7 @@ pub fn nlua_ref_global(lstate: *mut lua_State, index: i32) -> LuaRef {
 pub fn nlua_unref(lstate: *mut lua_State, ref_state: &mut NluaRefState, ref_: LuaRef) {
     if ref_ > 0 {
         ref_state.ref_count -= 1;
-        unsafe { luaL_unref(lstate, LUA_REGISTRYINDEX, ref_) };
+        luaL_unref_safe(lstate, LUA_REGISTRYINDEX, ref_);
     }
 }
 
@@ -1714,9 +1608,7 @@ pub fn api_free_luaref(ref_: LuaRef) {
 }
 
 pub fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef) {
-    unsafe {
-        lua_rawgeti(lstate, LUA_REGISTRYINDEX, ref_);
-    }
+    lua_rawgeti_safe(lstate, LUA_REGISTRYINDEX, ref_);
 }
 
 pub fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
@@ -1770,9 +1662,9 @@ pub fn nlua_call_user_expand_func(xp: &mut ExpandCtx, ret_tv: &mut TypVal) {
     let lstate = nlua_st().global_lstate;
 
     nlua_pushref(lstate, xp.xp_luaref);
-    crate::lua::converter::lua_pushstring_opt(lstate, xp.xp_pattern.as_opt_cstr());
-    crate::lua::converter::lua_pushstring_opt(lstate, xp.xp_line.as_opt_cstr());
-    unsafe { lua_pushinteger(lstate, xp.xp_col as lua_Integer) };
+    lua_pushstring_opt(lstate, xp.xp_pattern.as_opt_cstr());
+    lua_pushstring_opt(lstate, xp.xp_line.as_opt_cstr());
+    lua_pushinteger_safe(lstate, xp.xp_col as lua_Integer);
 
     if nlua_pcall(lstate, 3, 1) != 0 {
         nlua_error(lstate, gettext(c"E5108: Lua function: %.*s"));
@@ -1855,21 +1747,21 @@ pub fn nlua_exec(
     err: &mut Error,
 ) -> Object {
     let lstate = nlua_st().global_lstate;
-    let top = unsafe { lua_gettop(lstate) };
+    let top = nlua_gettop(lstate);
     let name = match chunkname {
         Some(cn) if !cn.to_bytes().is_empty() => cn,
         _ => c"<nvim>",
     };
     let str_slice = str_.as_bytes();
     if luaL_loadbuffer(lstate, str_slice, name) != 0 {
-        let mut len: usize = 0;
-        let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
+        let (errstr, len) =
+            lua_tolstring_cstr_with_len(lstate, -1).map_or((None, 0), |(s, l)| (Some(s), l));
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
             c"Lua: %.*s",
             len as i32,
-            (!errstr.is_null()).then(|| unsafe { CStr::from_ptr(errstr) }),
+            errstr
         );
         return OBJECT_NIL;
     }
@@ -1879,14 +1771,14 @@ pub fn nlua_exec(
     }
 
     if nlua_pcall(lstate, args.size as i32, 1) != 0 {
-        let mut len: usize = 0;
-        let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
+        let (errstr, len) =
+            lua_tolstring_cstr_with_len(lstate, -1).map_or((None, 0), |(s, l)| (Some(s), l));
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
             c"Lua: %.*s",
             len as i32,
-            (!errstr.is_null()).then(|| unsafe { CStr::from_ptr(errstr) }),
+            errstr
         );
         return OBJECT_NIL;
     }
@@ -1927,12 +1819,12 @@ pub fn nlua_call_excmd(
     let lstate = nlua_st().global_lstate;
     lua_getglobal(lstate, c"require");
     lua_pushstring(lstate, module);
-    if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0 {
+    if lua_pcall_safe(lstate, 1, 1, 0) != 0 {
         nlua_error(lstate, c"E5108: %s");
         return false;
     }
     lua_getfield(lstate, -1, func);
-    unsafe { lua_remove(lstate, -2) };
+    lua_remove_safe(lstate, -2);
 
     lua_newtable(lstate);
     nlua_push_eap(lstate, eap, cmod);
@@ -1954,7 +1846,7 @@ pub fn nlua_call_excmd(
 pub fn nlua_ref_is_function(ref_: LuaRef) -> bool {
     let lstate = nlua_st().global_lstate;
     nlua_pushref(lstate, ref_);
-    let is_func = unsafe { lua_type(lstate, -1) } == LUA_TFUNCTION;
+    let is_func = lua_type_safe(lstate, -1) == LUA_TFUNCTION;
     lua_pop(lstate, 1);
     is_func
 }
@@ -1989,7 +1881,7 @@ pub fn nlua_call_ref_ctx(
     err: Option<&mut Error>,
 ) -> Object {
     let lstate = nlua_st().active_lstate;
-    let top = unsafe { lua_gettop(lstate) };
+    let top = nlua_gettop(lstate);
     nlua_pushref(lstate, ref_);
     let mut nargs = args.size as i32;
     if let Some(name) = name {
@@ -2001,7 +1893,7 @@ pub fn nlua_call_ref_ctx(
     }
 
     if fast {
-        if unsafe { nlua_fast_cfpcall(lstate, nargs, mode_ret(mode), -1) } < 0 {
+        if nlua_fast_cfpcall(lstate, nargs, mode_ret(mode), -1) < 0 {
             if let Some(err) = err {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"fast context failure",);
             }
@@ -2009,14 +1901,14 @@ pub fn nlua_call_ref_ctx(
         }
     } else if nlua_pcall(lstate, nargs, mode_ret(mode)) != 0 {
         if let Some(err) = err {
-            let mut len: usize = 0;
-            let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
+            let (errstr, len) =
+                lua_tolstring_cstr_with_len(lstate, -1).map_or((None, 0), |(s, l)| (Some(s), l));
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Lua: %.*s",
                 len as i32,
-                (!errstr.is_null()).then(|| unsafe { CStr::from_ptr(errstr) }),
+                errstr
             );
         } else {
             nlua_error(lstate, gettext(c"Lua callback: %.*s"));
@@ -2034,54 +1926,52 @@ fn nlua_call_pop_retval(
     pretop: i32,
     err: Option<&mut Error>,
 ) -> Object {
-    unsafe {
-        if mode != K_RET_MULTI && mode != K_RET_MULTI_STACK && lua_isnil(lstate, -1) {
-            lua_pop(lstate, 1);
-            return OBJECT_NIL;
-        }
-        let mut dummy = Error::new();
-        let perr = err.unwrap_or(&mut dummy);
+    if mode != K_RET_MULTI && mode != K_RET_MULTI_STACK && lua_isnil(lstate, -1) {
+        lua_pop(lstate, 1);
+        return OBJECT_NIL;
+    }
+    let mut dummy = Error::new();
+    let perr = err.unwrap_or(&mut dummy);
 
-        match mode {
-            K_RET_NIL_BOOL => {
-                let bool_value = lua_toboolean(lstate, -1) != 0;
-                lua_pop(lstate, 1);
-                Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(bool_value),
-                }
+    match mode {
+        K_RET_NIL_BOOL => {
+            let bool_value = lua_toboolean_safe(lstate, -1);
+            lua_pop(lstate, 1);
+            Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(bool_value),
             }
-            K_RET_LUAREF => {
-                let ref_ = nlua_ref_global(lstate, -1);
-                lua_pop(lstate, 1);
-                Object {
-                    obj_type: ObjectType::ObjectTypeLuaRef,
-                    data: ObjectData::LuaRef(ref_),
-                }
-            }
-            K_RET_OBJECT => nlua_pop_object_opt(lstate, false, arena, perr),
-            K_RET_MULTI => {
-                let nres = lua_gettop(lstate) - pretop;
-                let mut res = crate::api::private::helpers::arena_array_opt(
-                    arena.as_deref_mut(),
-                    nres.max(0) as usize,
-                );
-                for i in 0..(nres as usize) {
-                    *res.items.wrapping_add((nres as usize) - i - 1) =
-                        nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), perr);
-                    if error_set(perr) {
-                        return OBJECT_NIL;
-                    }
-                }
-                res.size = nres.max(0) as usize;
-                Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(res),
-                }
-            }
-            K_RET_MULTI_STACK => OBJECT_NIL,
-            _ => unreachable!(),
         }
+        K_RET_LUAREF => {
+            let ref_ = nlua_ref_global(lstate, -1);
+            lua_pop(lstate, 1);
+            Object {
+                obj_type: ObjectType::ObjectTypeLuaRef,
+                data: ObjectData::LuaRef(ref_),
+            }
+        }
+        K_RET_OBJECT => nlua_pop_object_opt(lstate, false, arena, perr),
+        K_RET_MULTI => {
+            let nres = nlua_gettop(lstate) - pretop;
+            let mut res = crate::api::private::helpers::arena_array_opt(
+                arena.as_deref_mut(),
+                nres.max(0) as usize,
+            );
+            for i in 0..(nres as usize) {
+                *res.items.wrapping_add((nres as usize) - i - 1) =
+                    nlua_pop_object_opt(lstate, false, arena.as_deref_mut(), perr);
+                if error_set(perr) {
+                    return OBJECT_NIL;
+                }
+            }
+            res.size = nres.max(0) as usize;
+            Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(res),
+            }
+        }
+        K_RET_MULTI_STACK => OBJECT_NIL,
+        _ => unreachable!(),
     }
 }
 
@@ -2153,13 +2043,11 @@ pub fn ex_luado(eap: &mut Exarg) {
             break;
         }
 
-        unsafe { lua_pushvalue(lstate, -1) };
-        let old_line = ml_get_buf(crate::globals::curbuf_mut(), l)
-            .as_ptr()
-            .cast::<std::ffi::c_char>();
+        lua_pushvalue_safe(lstate, -1);
+        let old_line_cstr = ml_get_buf(crate::globals::curbuf_mut(), l);
         let old_line_len: Colnr = ml_get_buf_len(crate::globals::curbuf_mut(), l);
-        lua_pushstring(lstate, unsafe { CStr::from_ptr(old_line) });
-        unsafe { lua_pushnumber(lstate, f64::from(l)) };
+        lua_pushstring(lstate, old_line_cstr);
+        lua_pushnumber_safe(lstate, f64::from(l));
         if nlua_pcall(lstate, 2, 1) != 0 {
             nlua_error(lstate, gettext(c"E5111: Lua: %.*s"));
             break;
@@ -2169,15 +2057,11 @@ pub fn ex_luado(eap: &mut Exarg) {
             break;
         }
 
-        if unsafe { lua_isstring(lstate, -1) } != 0 {
-            let mut new_line_len: usize = 0;
-            let new_line = unsafe { lua_tolstring(lstate, -1, &raw mut new_line_len) };
+        if lua_isstring_safe(lstate, -1) {
+            let new_line_slice = lua_tolstring_bytes(lstate, -1);
+            let new_line_len = new_line_slice.len();
             let mut new_line_vec = vec![0u8; new_line_len + 1];
-            if new_line_len > 0 {
-                new_line_vec[..new_line_len].copy_from_slice(unsafe {
-                    std::slice::from_raw_parts(new_line.cast::<u8>(), new_line_len)
-                });
-            }
+            new_line_vec[..new_line_len].copy_from_slice(new_line_slice);
             for b in &mut new_line_vec[..new_line_len] {
                 if *b == 0 {
                     *b = b'\n';
@@ -2199,65 +2083,63 @@ pub fn ex_luafile(eap: &mut Exarg) {
 }
 
 pub fn nlua_exec_file(path: &CStr) -> bool {
-    {
-        let lstate = nlua_st().global_lstate;
-        if path.to_bytes() != b"-" {
-            lua_getglobal(lstate, c"loadfile");
-            lua_pushstring(lstate, path);
-        } else {
-            let mut stdin_dup = FileDescriptor::new();
-            if file_open_stdin(&mut stdin_dup) != 0 {
+    let lstate = nlua_st().global_lstate;
+    if path.to_bytes() != b"-" {
+        lua_getglobal(lstate, c"loadfile");
+        lua_pushstring(lstate, path);
+    } else {
+        let mut stdin_dup = FileDescriptor::new();
+        if file_open_stdin(&mut stdin_dup) != 0 {
+            return false;
+        }
+
+        let mut sb: Vec<u8> = Vec::with_capacity(64);
+        let mut buf = [0u8; 64];
+        loop {
+            if g_st().got_int {
+                file_close(&mut stdin_dup, false);
                 return false;
             }
-
-            let mut sb: Vec<u8> = Vec::with_capacity(64);
-            let mut buf = [0u8; 64];
-            loop {
-                if g_st().got_int {
-                    file_close(&mut stdin_dup, false);
-                    return false;
-                }
-                let read_size = file_read(&mut stdin_dup, &mut buf);
-                if read_size < 0 {
-                    file_close(&mut stdin_dup, false);
-                    return false;
-                }
-                if read_size > 0 {
-                    sb.extend_from_slice(&buf[..read_size as usize]);
-                }
-                if read_size < 64 {
-                    break;
-                }
+            let read_size = file_read(&mut stdin_dup, &mut buf);
+            if read_size < 0 {
+                file_close(&mut stdin_dup, false);
+                return false;
             }
-            sb.push(0);
-            file_close(&mut stdin_dup, false);
-
-            lua_getglobal(lstate, c"loadstring");
-            lua_pushstring(lstate, CStr::from_bytes_until_nul(&sb).unwrap_or_default());
+            if read_size > 0 {
+                sb.extend_from_slice(&buf[..read_size as usize]);
+            }
+            if read_size < 64 {
+                break;
+            }
         }
+        sb.push(0);
+        file_close(&mut stdin_dup, false);
 
-        if nlua_pcall(lstate, 1, 2) != 0 {
-            nlua_error(lstate, gettext(c"E5111: Lua: %.*s"));
-            return false;
-        }
+        lua_getglobal(lstate, c"loadstring");
+        lua_pushstring(lstate, CStr::from_bytes_until_nul(&sb).unwrap_or_default());
+    }
 
-        if lua_isnil(lstate, -2) {
-            nlua_error(lstate, gettext(c"E5112: Lua chunk: %.*s"));
-            assert!(lua_isnil(lstate, -1));
-            lua_pop(lstate, 1);
-            return false;
-        }
+    if nlua_pcall(lstate, 1, 2) != 0 {
+        nlua_error(lstate, gettext(c"E5111: Lua: %.*s"));
+        return false;
+    }
 
+    if lua_isnil(lstate, -2) {
+        nlua_error(lstate, gettext(c"E5112: Lua chunk: %.*s"));
         assert!(lua_isnil(lstate, -1));
         lua_pop(lstate, 1);
-
-        if nlua_pcall(lstate, 0, 0) != 0 {
-            nlua_error(lstate, gettext(c"E5113: Lua chunk: %.*s"));
-            return false;
-        }
-
-        true
+        return false;
     }
+
+    assert!(lua_isnil(lstate, -1));
+    lua_pop(lstate, 1);
+
+    if nlua_pcall(lstate, 0, 0) != 0 {
+        nlua_error(lstate, gettext(c"E5113: Lua chunk: %.*s"));
+        return false;
+    }
+
+    true
 }
 
 pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
@@ -2266,12 +2148,12 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
 
     lua_getglobal(lstate, c"vim");
     lua_getfield(lstate, -1, c"_expand_pat");
-    unsafe { luaL_checktype(lstate, -1, LUA_TFUNCTION) };
+    luaL_checktype_safe(lstate, -1, LUA_TFUNCTION);
 
     let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
     assert!(line_end.addr() >= xp.xp_pattern.addr());
     let patlen = line_end.offset_from(&xp.xp_pattern) as isize;
-    unsafe { lua_pushlstring(lstate, xp.xp_pattern.as_cstr().as_ptr(), patlen as usize) };
+    lua_push_bytes(lstate, xp.xp_pattern.slice(patlen as usize));
 
     if nlua_pcall(lstate, 1, 2) != 0 {
         nlua_error(lstate, gettext(c"vim._expand_pat: %.*s"));
@@ -2316,20 +2198,18 @@ pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> bool {
     !results.is_empty()
 }
 
-unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> i32 {
+extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> i32 {
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");
     1
 }
 
 pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
-    {
-        if arg.v_type == VarType::VarDict {
-            arg.vval.v_dict().lua_table_ref != LUA_NOREF
-        } else if arg.v_type == VarType::VarList {
-            arg.vval.v_list().lua_table_ref != LUA_NOREF
-        } else {
-            false
-        }
+    if arg.v_type == VarType::VarDict {
+        arg.vval.v_dict().lua_table_ref != LUA_NOREF
+    } else if arg.v_type == VarType::VarList {
+        arg.vval.v_list().lua_table_ref != LUA_NOREF
+    } else {
+        false
     }
 }
 
@@ -2347,19 +2227,19 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<&'static CStr> {
     }
 
     let lstate = nlua_st().global_lstate;
-    let top = unsafe { lua_gettop(lstate) };
+    let top = nlua_gettop(lstate);
 
     nlua_pushref(lstate, table_ref);
-    if unsafe { lua_getmetatable(lstate, -1) } == 0 {
+    if !lua_getmetatable_safe(lstate, -1) {
         lua_pop(lstate, 1);
-        debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
+        debug_assert_eq!(top, nlua_gettop(lstate));
         return None;
     }
 
     lua_getfield(lstate, -1, c"__call");
     if !lua_isfunction(lstate, -1) {
         lua_pop(lstate, 3);
-        debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
+        debug_assert_eq!(top, nlua_gettop(lstate));
         return None;
     }
     lua_pop(lstate, 2);
@@ -2367,7 +2247,7 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<&'static CStr> {
     let func = nlua_ref_global(lstate, -1);
     let name = register_luafunc(func);
     lua_pop(lstate, 1);
-    debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
+    debug_assert_eq!(top, nlua_gettop(lstate));
 
     Some(name)
 }
@@ -2383,13 +2263,13 @@ pub fn nlua_exec_on_key(c: i32, typed_buf: &mut [u8]) -> bool {
     vim_unescape_ks(typed_buf);
 
     let lstate = nlua_st().global_lstate;
-    let top = unsafe { lua_gettop(lstate) };
+    let top = nlua_gettop(lstate);
 
     lua_getglobal(lstate, c"vim");
     lua_getfield(lstate, -1, c"_on_key");
-    unsafe { luaL_checktype(lstate, -1, LUA_TFUNCTION) };
+    luaL_checktype_safe(lstate, -1, LUA_TFUNCTION);
 
-    crate::lua::converter::lua_push_bytes(lstate, &buf[..buf_len]);
+    lua_push_bytes(lstate, &buf[..buf_len]);
     lua_pushstring(
         lstate,
         CStr::from_bytes_until_nul(typed_buf).unwrap_or_default(),
@@ -2398,18 +2278,18 @@ pub fn nlua_exec_on_key(c: i32, typed_buf: &mut [u8]) -> bool {
     let save_got_int = g_st().got_int;
     g_st().got_int = false;
     let mut discard = false;
-    if unsafe { lua_pcall(lstate, 2, 1, 0) } != 0 {
+    if lua_pcall_safe(lstate, 2, 1, 0) != 0 {
         nlua_error(lstate, gettext(c"vim.on_key() callbacks: %.*s"));
     } else {
         if lua_isboolean(lstate, -1) {
-            discard = unsafe { lua_toboolean(lstate, -1) } != 0;
+            discard = lua_toboolean_safe(lstate, -1);
         }
         lua_pop(lstate, 1);
     }
     g_st().got_int |= save_got_int;
 
     lua_pop(lstate, 1);
-    debug_assert_eq!(top, unsafe { lua_gettop(lstate) });
+    debug_assert_eq!(top, nlua_gettop(lstate));
 
     RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
     discard
@@ -2431,16 +2311,13 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
     let mut level: i32 = 1;
     let mut found = false;
     loop {
-        if unsafe { lua_getstack(lstate, level, &raw mut info) } != 1 {
+        if lua_getstack_safe(lstate, level, &mut info) != 1 {
             break;
         }
         if lua_getinfo(lstate, c"nSl", &mut info) == 0 {
             break;
         }
-        if (!info.what.is_null() && unsafe { *info.what.cast::<u8>() } == b'C')
-            || info.source.is_null()
-            || unsafe { *info.source.cast::<u8>() } != b'@'
-        {
+        if info.is_c_what() || info.file_source_cstr().is_none() {
             level += 1;
             continue;
         }
@@ -2448,8 +2325,8 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         break;
     }
     if found
-        && let Some(source_path) =
-            fix_fname(Some(unsafe { CStr::from_ptr(info.source.wrapping_add(1)) }))
+        && let Some(src_cstr) = info.file_source_cstr()
+        && let Some(source_path) = fix_fname(Some(src_cstr))
     {
         let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
@@ -2483,15 +2360,15 @@ pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
     lua_setfield(lstate, -2, c"name");
 
     if eap.addr_count == 0 {
-        unsafe { lua_pushinteger(lstate, cmd.uc_def as lua_Integer) };
+        lua_pushinteger_safe(lstate, cmd.uc_def as lua_Integer);
         lua_setfield(lstate, -2, c"count");
     }
 
     if (cmd.uc_argt & EX_NOSPC) != 0 {
-        unsafe { lua_createtable(lstate, 1, 0) };
+        lua_createtable_safe(lstate, 1, 0);
         if (cmd.uc_argt & EX_NEEDARG) != 0 || !eap.arg.is_empty() {
-            crate::lua::converter::lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
-            unsafe { lua_rawseti(lstate, -2, 1) };
+            lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
+            lua_rawseti_safe(lstate, -2, 1);
         }
         lua_setfield(lstate, -2, c"fargs");
     }
@@ -2521,12 +2398,12 @@ pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
     lua_setfield(lstate, -2, c"nargs");
 
     if preview {
-        unsafe { lua_pushinteger(lstate, cmdpreview_get_ns() as lua_Integer) };
+        lua_pushinteger_safe(lstate, cmdpreview_get_ns() as lua_Integer);
         let cmdpreview_bufnr: ObjHandle = cmdpreview_get_bufnr();
         if cmdpreview_bufnr != 0 {
-            unsafe { lua_pushinteger(lstate, cmdpreview_bufnr as lua_Integer) };
+            lua_pushinteger_safe(lstate, cmdpreview_bufnr as lua_Integer);
         } else {
-            unsafe { lua_pushnil(lstate) };
+            lua_pushnil_safe(lstate);
         }
     }
 
@@ -2541,8 +2418,8 @@ pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
     }
 
     let mut retv: i32 = 0;
-    if preview && unsafe { lua_isnumber(lstate, -1) } != 0 {
-        let v = unsafe { lua_tointeger(lstate, -1) } as i32;
+    if preview && lua_isnumber_safe(lstate, -1) {
+        let v = lua_tointeger_safe(lstate, -1) as i32;
         if (0..=2).contains(&v) {
             retv = v;
             lua_pop(lstate, 1);
@@ -2554,21 +2431,17 @@ pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
 
 pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
     let lstate = nlua_st().global_lstate;
-    if unsafe { lua_checkstack(lstate, 1) } != 0 {
+    if lua_checkstack_safe(lstate, 1) {
         nlua_pushref(lstate, ref_);
         if !lua_isfunction(lstate, -1) {
             lua_pop(lstate, 1);
         } else {
             let mut ar = lua_Debug::new();
             if lua_getinfo(lstate, c">S", &mut ar) != 0
-                && !ar.source.is_null()
-                && unsafe { *ar.source.cast::<u8>() } == b'@'
+                && let Some(src_cstr) = ar.file_source_cstr()
                 && ar.linedefined >= 0
             {
-                let src = home_replace_save(
-                    None,
-                    Some(unsafe { CStr::from_ptr(ar.source.wrapping_add(1)) }),
-                );
+                let src = home_replace_save(None, Some(src_cstr));
                 let src_s = src.to_string_lossy();
                 let formatted = if show_ref {
                     format!("<Lua {ref_}: {src_s}:{}>", ar.linedefined)
