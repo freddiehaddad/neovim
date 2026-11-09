@@ -1,7 +1,6 @@
 #![deny(unsafe_code)]
 
 pub mod base64;
-#[allow(unsafe_code)]
 pub mod converter;
 #[allow(unsafe_code)]
 pub mod executor;
