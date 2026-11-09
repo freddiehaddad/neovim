@@ -1425,7 +1425,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
 
                         if ml_replace(lnum, &new_line_vec[..(new_len - 1) as usize], true) {
-                            ptr_slice = curbuf_mut().b_ml.ml_line_slice;
+                            ptr_slice = curbuf_mut().b_ml.current_line_slice();
                             extmark_splice_cols(
                                 curbuf_mut(),
                                 lnum - 1,

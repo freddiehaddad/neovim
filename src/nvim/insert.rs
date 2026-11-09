@@ -3675,7 +3675,7 @@ fn ins_tab() -> bool {
             if i > 0 {
                 if (g_st().state_global & VREPLACE_FLAG) == 0 {
                     let newp_len = (curbuf_mut().b_ml.ml_line_textlen - i) as usize;
-                    let line_slice = curbuf_mut().b_ml.ml_line_slice;
+                    let line_slice = curbuf_mut().b_ml.current_line_slice();
                     let col = ((ptr as isize) - (line_slice.as_ptr() as isize)) as usize;
                     let tail_len = newp_len.saturating_sub(col + 1);
                     let mut new_line = Vec::with_capacity(newp_len.saturating_sub(1));

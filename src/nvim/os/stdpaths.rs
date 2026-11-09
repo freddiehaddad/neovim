@@ -7,9 +7,9 @@ use crate::memory::bytes_to_cstring;
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
 use crate::os::env::{expand_env_save, os_getenv_buf, os_getenv_cstr};
+use crate::os::fs::{ENV_SEPCHAR, PATHSEP};
 #[cfg(windows)]
-use crate::os::fs::os_realpath_cstr;
-use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
+use crate::os::fs::{MAXPATHL, os_realpath_cstr};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{K_PATH_CMP_LITERAL, concat_fnames_cstr, path_equal, path_is_absolute};

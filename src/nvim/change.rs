@@ -878,7 +878,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         );
 
         ml.ml_line_textlen = newlen + 1;
-        ml.ml_line_slice = &ml.ml_line_slice[..(newlen + 1) as usize];
+        ml.ml_line_buf.truncate((newlen + 1) as usize);
     }
 
     inserted_bytes(lnum, col, count, 0);

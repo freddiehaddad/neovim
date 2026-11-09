@@ -75,7 +75,7 @@ pub struct Memline {
     pub ml_flags: i32,
     pub ml_line_textlen: i32,
     pub ml_line_lnum: i32,
-    pub ml_line_slice: &'static [u8],
+    pub ml_line_start: usize,
     pub ml_line_buf: Vec<u8>,
     pub ml_line_offset: usize,
     pub ml_line_offset_ff: i32,
@@ -97,7 +97,7 @@ impl Memline {
             ml_flags: 0,
             ml_line_textlen: 0,
             ml_line_lnum: 0,
-            ml_line_slice: &[],
+            ml_line_start: 0,
             ml_line_buf: Vec::new(),
             ml_line_offset: 0,
             ml_line_offset_ff: 0,
@@ -107,6 +107,23 @@ impl Memline {
             ml_locked_lineadd: 0,
             ml_chunksize: Vec::new(),
             ml_usedchunks: 0,
+        }
+    }
+
+    #[inline(always)]
+    pub fn current_line_slice(&self) -> &'static [u8] {
+        let len = self.ml_line_textlen.max(0) as usize;
+        if (self.ml_flags & ML_LINE_DIRTY) != 0 {
+            let s = crate::globals::GraphPtr::from_ref(&self.ml_line_buf)
+                .borrow()
+                .as_slice();
+            &s[..len.min(s.len())]
+        } else if self.ml_line_start == usize::MAX || self.ml_locked.is_null() {
+            &ml_st().borrow().ml_get_questions[..len.min(4)]
+        } else {
+            let s = self.ml_locked.borrow().bh_data.as_slice();
+            let start = self.ml_line_start.min(s.len());
+            &s[start..(start + len).min(s.len())]
         }
     }
 
@@ -291,6 +308,29 @@ impl ZeroBlock {
     fn set_flags(&mut self, val: u8) {
         self.b0_fname[B0_FNAME_SIZE_ORG - 2] = val;
     }
+
+    fn read_from_fd(fd: i32) -> Option<Self> {
+        const RAW_SIZE: usize = size_of::<ZeroBlock>();
+        let mut raw = [0u8; RAW_SIZE];
+        if read_eintr(fd, &mut raw) != RAW_SIZE as isize {
+            return None;
+        }
+        let mut b0 = Self::new();
+        b0.b0_id.copy_from_slice(&raw[0..2]);
+        b0.b0_version.copy_from_slice(&raw[2..12]);
+        b0.b0_page_size.copy_from_slice(&raw[12..16]);
+        b0.b0_mtime.copy_from_slice(&raw[16..20]);
+        b0.b0_ino.copy_from_slice(&raw[20..24]);
+        b0.b0_pid.copy_from_slice(&raw[24..28]);
+        b0.b0_uname.copy_from_slice(&raw[28..68]);
+        b0.b0_hname.copy_from_slice(&raw[68..108]);
+        b0.b0_fname.copy_from_slice(&raw[108..1008]);
+        b0.b0_magic_long = i64::from_ne_bytes(raw[1008..1016].try_into().unwrap());
+        b0.b0_magic_int = i32::from_ne_bytes(raw[1016..1020].try_into().unwrap());
+        b0.b0_magic_short = i16::from_ne_bytes(raw[1020..1022].try_into().unwrap());
+        b0.b0_magic_char = raw[1022];
+        Some(b0)
+    }
 }
 
 #[repr(C)]
@@ -384,39 +424,34 @@ fn pb_count_max(mfp: &Memfile) -> u16 {
         / size_of::<PointerEntry>()) as u16
 }
 
-impl DataBlock {
-    #[inline(always)]
-    fn as_bytes_mut(&mut self) -> &mut [u8] {
-        let len = self.db_txt_end as usize;
-        crate::globals::GraphPtr::raw_slice_mut((&raw mut *self).cast::<u8>(), len)
-    }
+#[inline(always)]
+fn bh_copy_within(hp: &mut Bhdr, src_off: usize, dst_off: usize, len: usize) {
+    hp.bh_data.copy_within(src_off..src_off + len, dst_off);
+}
 
-    #[inline(always)]
-    fn copy_within(&mut self, src_off: usize, dst_off: usize, len: usize) {
-        let base = (&raw mut *self).cast::<u8>();
-        crate::globals::GraphPtr::copy_to(
-            base.wrapping_add(src_off),
-            base.wrapping_add(dst_off),
-            len,
-        );
+#[inline(always)]
+fn bh_write_bytes(hp: &mut Bhdr, dst_off: usize, src: &[u8], total_len: usize) {
+    if total_len == 0 {
+        return;
     }
-
-    #[inline(always)]
-    fn write_bytes(&mut self, dst_off: usize, src: &[u8], total_len: usize) {
-        if total_len == 0 {
-            return;
-        }
-        let copy_len = src.len().min(total_len.saturating_sub(1));
-        let dst = &mut self.as_bytes_mut()[dst_off..dst_off + total_len];
-        dst[..copy_len].copy_from_slice(&src[..copy_len]);
-        dst[copy_len..].fill(0);
-    }
+    let copy_len = src.len().min(total_len.saturating_sub(1));
+    let dst = &mut hp.bh_data[dst_off..dst_off + total_len];
+    dst[..copy_len].copy_from_slice(&src[..copy_len]);
+    dst[copy_len..].fill(0);
 }
 
 impl PointerBlock {
     #[inline(always)]
     fn copy_entries(&mut self, src_idx: usize, dst_idx: usize, count: usize) {
-        crate::globals::GraphPtr::copy_to(pb_ptr(self, src_idx), pb_ptr(self, dst_idx), count);
+        if src_idx < dst_idx {
+            for i in (0..count).rev() {
+                *pb_ptr(self, dst_idx + i) = *pb_ptr(self, src_idx + i);
+            }
+        } else if src_idx > dst_idx {
+            for i in 0..count {
+                *pb_ptr(self, dst_idx + i) = *pb_ptr(self, src_idx + i);
+            }
+        }
     }
 }
 
@@ -539,7 +574,8 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     *db_idx_ptr(dp, 0) = dp.db_txt_start;
     dp.db_free -= 1 + INDEX_SIZE as u32;
     dp.db_line_count = 1;
-    dp.write_bytes(dp.db_txt_start as usize, b"", 1);
+    let txt_start = dp.db_txt_start as usize;
+    bh_write_bytes(hp, txt_start, b"", 1);
 
     true
 }
@@ -1418,10 +1454,11 @@ pub fn ml_recover(checkext: bool) {
                             line_bytes = b"???";
                         } else {
                             did_questions = false;
-                            line_bytes = crate::memory::bytes_as_cstr(
-                                &dp.as_bytes_mut()[txt_start as usize..],
-                            )
-                            .to_bytes();
+                            let bh_data = &crate::globals::GraphPtr::of(hp).borrow().bh_data
+                                [..dp.db_txt_end as usize];
+                            line_bytes =
+                                crate::memory::bytes_as_cstr(&bh_data[txt_start as usize..])
+                                    .to_bytes();
                         }
                         ml_append(lnum, line_bytes, 0, true);
                         lnum += 1;
@@ -1690,14 +1727,9 @@ pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std:
 
 /// For Vimscript `swapinfo()`.
 pub fn swapfile_dict(fname: &CStr, d: &mut TvDict) {
-    let mut b0 = ZeroBlock::new();
     let fd = os_open(fname, O_RDONLY, 0);
     if fd >= 0 {
-        let b0_slice = crate::globals::GraphPtr::raw_slice_mut(
-            (&raw mut b0).cast::<u8>(),
-            size_of::<ZeroBlock>(),
-        );
-        if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
+        if let Some(b0) = ZeroBlock::read_from_fd(fd) {
             if !ml_check_b0_id(&b0) {
                 tv_dict_add_str_len(d, c"error", Some(b"Not a swap file"));
             } else if b0_magic_wrong(&b0) {
@@ -1745,7 +1777,6 @@ pub fn swapfile_dict(fname: &CStr, d: &mut TvDict) {
 }
 
 fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
-    let mut b0 = ZeroBlock::new();
     let mut x: time_t = 0;
 
     let mut file_info = FileInfo::new();
@@ -1773,11 +1804,7 @@ fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
 
     let fd = os_open(fname, O_RDONLY, 0);
     if fd >= 0 {
-        let b0_slice = crate::globals::GraphPtr::raw_slice_mut(
-            (&raw mut b0).cast::<u8>(),
-            size_of::<ZeroBlock>(),
-        );
-        if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
+        if let Some(b0) = ZeroBlock::read_from_fd(fd) {
             if b0.b0_version[..7] == *b"VIM 3.0" {
                 sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
             } else if !ml_check_b0_id(&b0) {
@@ -1850,13 +1877,10 @@ fn swapfile_unchanged(fname: &CStr) -> bool {
     if fd < 0 {
         return false;
     }
-    let mut b0 = ZeroBlock::new();
-    let b0_slice =
-        crate::globals::GraphPtr::raw_slice_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>());
-    if read_eintr(fd, b0_slice) != size_of::<ZeroBlock>() as isize {
+    let Some(mut b0) = ZeroBlock::read_from_fd(fd) else {
         os_close(fd);
         return false;
-    }
+    };
 
     let mut ret = true;
     if !ml_check_b0_id(&b0) || b0_magic_wrong(&b0) {
@@ -2049,12 +2073,22 @@ pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8
     if cstr.is_empty() {
         return &mut [];
     }
-    let ptr = cstr.as_ptr().cast_mut();
     assert!(buf.b_ml.ml_line_textlen > 0);
-    crate::globals::GraphPtr::raw_slice_mut(
-        ptr.cast::<u8>(),
-        (buf.b_ml.ml_line_textlen - 1) as usize,
-    )
+    let len = (buf.b_ml.ml_line_textlen - 1) as usize;
+    if (buf.b_ml.ml_flags & ML_LINE_DIRTY) != 0 {
+        let s = crate::globals::GraphPtr::from(&mut buf.b_ml.ml_line_buf)
+            .borrow_mut()
+            .as_mut_slice();
+        let slen = s.len();
+        &mut s[..len.min(slen)]
+    } else if buf.b_ml.ml_line_start == usize::MAX || buf.b_ml.ml_locked.is_null() {
+        &mut ml_st().borrow_mut().ml_get_questions[..len.min(3)]
+    } else {
+        let s = buf.b_ml.ml_locked.borrow_mut().bh_data.as_mut_slice();
+        let slen = s.len();
+        let start = buf.b_ml.ml_line_start.min(slen);
+        &mut s[start..(start + len).min(slen)]
+    }
 }
 
 /// Return reference to CStr starting at position `pos`.
@@ -2156,26 +2190,25 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
         };
 
         let len = (end - start) as usize;
-        let line_ptr = (&raw mut *dp).cast::<u8>().wrapping_add(start as usize);
-        buf.b_ml.ml_line_slice = crate::globals::GraphPtr::raw_slice(line_ptr, len);
+        buf.b_ml.ml_line_start = start as usize;
         buf.b_ml.ml_line_textlen = len as Colnr;
         buf.b_ml.ml_line_lnum = lnum;
         buf.b_ml.ml_flags &= !(ML_LINE_DIRTY | ML_LINE_INPLACE);
     }
+    let line_slice = buf.b_ml.current_line_slice();
     if will_change {
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS | ML_LINE_INPLACE;
-        ml_add_deleted_len_buf(buf, crate::memory::bytes_until_nul(buf.b_ml.ml_line_slice));
-    } else if (buf.b_ml.ml_flags & ML_LINE_INPLACE) == 0
-        && buf.b_ml.ml_line_slice.last() == Some(&0)
-    {
-        return crate::memory::cstr_from_bytes_with_nul(buf.b_ml.ml_line_slice);
+        ml_add_deleted_len_buf(buf, crate::memory::bytes_until_nul(line_slice));
+    } else if (buf.b_ml.ml_flags & ML_LINE_INPLACE) == 0 && line_slice.last() == Some(&0) {
+        return crate::memory::cstr_from_bytes_with_nul(line_slice);
     }
 
-    crate::memory::bytes_as_cstr(buf.b_ml.ml_line_slice)
+    crate::memory::bytes_as_cstr(line_slice)
 }
 
 fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
     ml_st().ml_get_questions = *b"???\0";
+    buf.b_ml.ml_line_start = usize::MAX;
     buf.b_ml.ml_line_textlen = 4;
     buf.b_ml.ml_line_lnum = lnum;
     crate::memory::bytes_as_cstr(&ml_st().borrow_mut().ml_get_questions)
@@ -2251,10 +2284,12 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             } else {
                 (*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK) as i32
             };
-            dp.copy_within(
-                dp.db_txt_start as usize + len as usize,
-                dp.db_txt_start as usize,
-                offset as usize - (dp.db_txt_start as usize + len as usize),
+            let txt_start = dp.db_txt_start as usize;
+            bh_copy_within(
+                hp,
+                txt_start + len as usize,
+                txt_start,
+                offset as usize - (txt_start + len as usize),
             );
             let mut i = line_count - 1;
             while i > db_idx {
@@ -2268,7 +2303,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
         }
 
         let dst_off = *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) as usize;
-        dp.write_bytes(dst_off, line, len as usize);
+        bh_write_bytes(hp, dst_off, line, len as usize);
         if (flags & ML_APPEND_MARK) != 0 {
             *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) |= DB_MARKED;
         }
@@ -2344,22 +2379,27 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 *db_idx_ptr(&mut *dp_right, 0) |= DB_MARKED;
             }
             let dst_off = dp_right.db_txt_start as usize;
-            dp_right.write_bytes(dst_off, line, len as usize);
+            bh_write_bytes(
+                crate::globals::GraphPtr::of(hp_right).borrow_mut(),
+                dst_off,
+                line,
+                len as usize,
+            );
             line_count_right += 1;
         }
 
         if lines_moved != 0 {
             dp_right.db_txt_start -= data_moved as u32;
             dp_right.db_free -= total_moved as u32;
-            crate::globals::GraphPtr::copy_to(
-                (&raw mut *dp_left)
-                    .cast::<u8>()
-                    .wrapping_add(dp_left.db_txt_start as usize),
-                (&raw mut *dp_right)
-                    .cast::<u8>()
-                    .wrapping_add(dp_right.db_txt_start as usize),
-                data_moved as usize,
-            );
+            let src_start = dp_left.db_txt_start as usize;
+            let dst_start = dp_right.db_txt_start as usize;
+            let move_len = data_moved as usize;
+            crate::globals::GraphPtr::of(hp_right).borrow_mut().bh_data
+                [dst_start..dst_start + move_len]
+                .copy_from_slice(
+                    &crate::globals::GraphPtr::of(hp_left).borrow().bh_data
+                        [src_start..src_start + move_len],
+                );
             let offset = (dp_right.db_txt_start as i32).wrapping_sub(dp_left.db_txt_start as i32);
             dp_left.db_txt_start += data_moved as u32;
             dp_left.db_free += total_moved as u32;
@@ -2384,7 +2424,12 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 *db_idx_ptr(&mut *dp_left, line_count_left as usize) |= DB_MARKED;
             }
             let dst_off = dp_left.db_txt_start as usize;
-            dp_left.write_bytes(dst_off, line, len as usize);
+            bh_write_bytes(
+                crate::globals::GraphPtr::of(hp_left).borrow_mut(),
+                dst_off,
+                line,
+                len as usize,
+            );
             line_count_left += 1;
         }
 
@@ -2437,11 +2482,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             }
             if pp.pb_count < pp.pb_count_max {
                 if pb_idx + 1 < pp.pb_count as usize {
-                    crate::globals::GraphPtr::copy_to(
-                        pb_ptr(&mut *pp, pb_idx + 1),
-                        pb_ptr(&mut *pp, pb_idx + 2),
-                        pp.pb_count as usize - pb_idx - 1,
-                    );
+                    pp.copy_entries(pb_idx + 1, pb_idx + 2, pp.pb_count as usize - pb_idx - 1);
                 }
                 pp.pb_count += 1;
                 let pe_cur = pb_ptr(&mut *pp, pb_idx);
@@ -2483,11 +2524,10 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                     break;
                 }
 
-                crate::globals::GraphPtr::copy_to(
-                    (pp as *mut PointerBlock).cast::<u8>(),
-                    (pp_new as *mut PointerBlock).cast::<u8>(),
-                    page_size as usize,
-                );
+                crate::globals::GraphPtr::of(hp_new_ptr)
+                    .borrow_mut()
+                    .bh_data[..page_size as usize]
+                    .copy_from_slice(&hp_ptr.bh_data[..page_size as usize]);
                 pp.pb_count = 1;
                 let pe0 = pb_ptr(&mut *pp, 0);
                 pe0.pe_bnum = crate::globals::GraphPtr::of(hp_new_ptr).borrow().bh_bnum;
@@ -2503,11 +2543,9 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
 
             total_moved = i32::from(pp.pb_count) - (pb_idx as i32) - 1;
             if total_moved != 0 {
-                crate::globals::GraphPtr::copy_to(
-                    pb_ptr(&mut *pp, pb_idx + 1),
-                    pb_ptr(&mut *pp_new, 0),
-                    total_moved as usize,
-                );
+                for k in 0..(total_moved as usize) {
+                    *pb_ptr(&mut *pp_new, k) = *pb_ptr(&mut *pp, pb_idx + 1 + k);
+                }
                 pp_new.pb_count = total_moved as u16;
                 pp.pb_count = (i32::from(pp.pb_count) - (total_moved - 1)) as u16;
                 let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
@@ -2695,21 +2733,17 @@ pub fn ml_replace_buf_len(
         ml_add_deleted_len_buf(buf, old_line.to_bytes());
     }
 
-    let line_slice: &'static [u8] = if let Some(v) = new_buf {
-        let s = crate::globals::GraphPtr::raw_slice(v.as_ptr(), v.len());
+    if let Some(v) = new_buf {
         buf.b_ml.ml_line_buf = v;
-        s
     } else {
         buf.b_ml.ml_line_buf.clear();
-        crate::globals::GraphPtr::raw_slice(line_arg.as_ptr(), len_arg)
-    };
+    }
 
-    buf.b_ml.ml_line_slice = line_slice;
     buf.b_ml.ml_line_textlen = (len_arg as Colnr) + 1;
     buf.b_ml.ml_line_lnum = lnum;
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
     if noalloc {
-        ml_flush_line(buf, true);
+        ml_flush_line_impl(buf, Some(&line_arg[..len_arg.min(line_arg.len())]));
     }
 
     true
@@ -2720,7 +2754,6 @@ pub fn ml_replace_dirty_line(buf: &mut FileBuf, bytes: &[u8], clear_empty: bool)
     let mut new_buf = Vec::with_capacity(bytes.len() + 1);
     new_buf.extend_from_slice(bytes);
     new_buf.push(0);
-    buf.b_ml.ml_line_slice = crate::globals::GraphPtr::raw_slice(new_buf.as_ptr(), new_buf.len());
     buf.b_ml.ml_line_buf = new_buf;
     buf.b_ml.ml_line_textlen = (bytes.len() as Colnr) + 1;
     buf.b_ml.ml_flags |= ML_LINE_DIRTY;
@@ -2776,7 +2809,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     assert!(line_size >= 1);
     let start = line_start as usize;
     let end = start + (line_size - 1) as usize;
-    ml_add_deleted_len_buf(buf, &dp.as_bytes_mut()[start..end]);
+    ml_add_deleted_len_buf(buf, &hp.bh_data[start..end]);
 
     if count == 1 {
         mf_free(buf.b_ml.mfp_mut(), hp);
@@ -2819,7 +2852,8 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
         }
     } else {
         let text_start = dp.db_txt_start as i32;
-        dp.copy_within(
+        bh_copy_within(
+            hp,
             text_start as usize,
             (text_start + line_size) as usize,
             (line_start - text_start) as usize,
@@ -2941,7 +2975,11 @@ pub fn ml_flush_deleted_bytes(
     ret
 }
 
-fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
+fn ml_flush_line(buf: &mut FileBuf, _noalloc: bool) {
+    ml_flush_line_impl(buf, None);
+}
+
+fn ml_flush_line_impl(buf: &mut FileBuf, override_line: Option<&[u8]>) {
     if buf.b_ml.ml_line_lnum == 0 || buf.b_ml.ml_mfp.is_none() {
         return;
     }
@@ -2955,16 +2993,12 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
 
         let lnum = buf.b_ml.ml_line_lnum;
         let new_len = buf.b_ml.ml_line_textlen;
-        let owned_line = if noalloc {
+        let owned_line = if override_line.is_some() {
             Vec::new()
         } else {
             std::mem::take(&mut buf.b_ml.ml_line_buf)
         };
-        let new_line_slice: &[u8] = if noalloc {
-            buf.b_ml.ml_line_slice
-        } else {
-            &owned_line
-        };
+        let new_line_slice: &[u8] = override_line.unwrap_or(&owned_line);
 
         let Some(hp) = ml_find_line(buf, lnum, ML_FIND) else {
             siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
@@ -2990,7 +3024,8 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
                 let count = (buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1) as usize;
                 if extra != 0 && idx < count - 1 {
                     let txt_start = dp.db_txt_start as isize;
-                    dp.copy_within(
+                    bh_copy_within(
+                        hp,
                         txt_start as usize,
                         (txt_start - extra as isize) as usize,
                         (start - dp.db_txt_start as i32) as usize,
@@ -3004,7 +3039,12 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
                 dp.db_free = dp.db_free.wrapping_sub(extra as u32);
                 dp.db_txt_start = dp.db_txt_start.wrapping_sub(extra as u32);
 
-                dp.write_bytes((start - extra) as usize, new_line_slice, new_len as usize);
+                bh_write_bytes(
+                    hp,
+                    (start - extra) as usize,
+                    new_line_slice,
+                    new_len as usize,
+                );
                 buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
                 if extra != 0 {
                     ml_updatechunk(buf, lnum, extra, ML_CHNK_UPDLINE);
@@ -3467,16 +3507,12 @@ fn findswapname(
             && !buf.b_help
             && (buf.b_flags & BF_DUMMY) == 0
         {
-            let mut b0 = ZeroBlock::new();
             let mut differ = false;
 
             let fd = os_open(fname_cstr, O_RDONLY, 0);
             if fd >= 0 {
-                let b0_slice = crate::globals::GraphPtr::raw_slice_mut(
-                    (&raw mut b0).cast::<u8>(),
-                    size_of::<ZeroBlock>(),
-                );
-                if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
+                #[allow(unused_mut)]
+                if let Some(mut b0) = ZeroBlock::read_from_fd(fd) {
                     #[cfg(windows)]
                     path_to_slash(&mut b0.b0_fname);
                     ml_st().proc_running = swapfile_proc_running(&b0, fname_cstr);
