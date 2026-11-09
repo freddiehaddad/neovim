@@ -3938,6 +3938,7 @@ fn regtry(
 }
 
 fn bt_regexec_both(
+    prog: &mut BtRegprog,
     line_opt: Option<&CStr>,
     startcol: Colnr,
     tm: Option<Proftime>,
@@ -3955,25 +3956,20 @@ fn bt_regexec_both(
         re_st().backpos.reserve(BACKPOS_INITIAL as usize);
     }
 
-    let prog = crate::globals::GraphPtr::<BtRegprog>::of(if reg_multi() {
-        let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
+    if reg_multi() {
         line = reg_line_from_opt_cstr(reg_getline(0));
         re_st().rex.reg_startpos =
             crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().startpos);
         re_st().rex.reg_endpos =
             crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().endpos);
-        p
-    } else {
-        re_st().rex.match_mut().prog_mut().bt_mut()
-    })
-    .as_ptr();
-    if prog.is_null() || line.is_null() {
+    }
+    if line.is_null() {
         iemsg(tr(E_NULL));
         return finish_bt_regexec(retval, col);
     }
-    let prog = crate::globals::GraphPtr::of(prog).borrow_mut();
 
-    if prog_magic_wrong() {
+    if prog.program.first().copied() != Some(REGMAGIC as u8) {
+        emsg(tr(E_RE_CORR));
         return finish_bt_regexec(retval, col);
     }
 
@@ -4139,6 +4135,7 @@ fn finish_bt_regexec(retval: i32, col: Colnr) -> i32 {
 }
 
 pub(super) fn bt_regexec_nl(
+    prog: &mut BtRegprog,
     rmp: &mut Regmatch,
     line: Option<&CStr>,
     col: Colnr,
@@ -4152,13 +4149,14 @@ pub(super) fn bt_regexec_nl(
     re_st().rex.reg_win = crate::globals::WinPtr::NULL;
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;
-    re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
+    re_st().rex.reg_nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     re_st().rex.reg_maxcol = 0;
 
-    bt_regexec_both(line, col, None, None)
+    bt_regexec_both(prog, line, col, None, None)
 }
 
 pub(super) fn bt_regexec_multi(
+    prog: &mut BtRegprog,
     rmp: &mut Regmmatch,
     win: Option<&mut WinInfoInfo>,
     buf: &mut FileBuf,
@@ -4168,7 +4166,7 @@ pub(super) fn bt_regexec_multi(
     timed_out: Option<&mut i32>,
 ) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
-    bt_regexec_both(None, col, tm, timed_out)
+    bt_regexec_both(prog, None, col, tm, timed_out)
 }
 
 fn re_num_cmp(val: u32, prog: &[u8], scan: usize) -> bool {

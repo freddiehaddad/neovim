@@ -4999,7 +4999,7 @@ fn vgr_get_auname(cmdidx: Cmdidx) -> Option<&'static CStr> {
 }
 
 fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
-    regmatch.regprog = crate::globals::GraphPtr::NULL;
+    regmatch.free_prog();
 
     if let Some(s) = s.filter(|s| !s.to_bytes().is_empty()) {
         regmatch.set_prog(vim_regcomp(s, RE_MAGIC));
@@ -5230,7 +5230,7 @@ fn existing_swapfile(buf: &FileBuf) -> bool {
 fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
     *args = VgrArgs::new();
 
-    args.regmatch.regprog = crate::globals::GraphPtr::NULL;
+    args.regmatch.free_prog();
     args.qf_title = Some(qf_cmdtitle(eap.cmdline_cstr()));
     args.tomatch = if eap.addr_count > 0 {
         eap.line2

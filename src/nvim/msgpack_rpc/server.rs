@@ -202,24 +202,17 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
     } else {
         None
     };
-    let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
+    let mut watcher = Box::new(SocketWatcher::new());
     let endpoint = addr_gen.as_deref().unwrap_or(addr);
-    let mut result = socket_watcher_init(
-        &mut g_st().main_loop,
-        crate::globals::GraphPtr::of(watcher).borrow_mut(),
-        endpoint,
-    );
+    let mut result = socket_watcher_init(&mut g_st().main_loop, &mut watcher, endpoint);
     drop(addr_gen);
     if result < 0 {
-        crate::globals::GraphPtr::of(watcher).drop_box();
         return result;
     }
 
     let w = &mut srv_st().watchers;
     for &existing in w.iter() {
-        if crate::globals::GraphPtr::of(watcher).borrow().addr_bytes()
-            == crate::globals::GraphPtr::of(existing).borrow().addr_bytes()
-        {
+        if watcher.addr_bytes() == existing.borrow().addr_bytes() {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -227,23 +220,18 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 184,
                 true,
                 c"Already listening on %s",
-                crate::globals::GraphPtr::of(watcher).borrow().addr_cstr(),
+                watcher.addr_cstr(),
             );
 
-            crate::globals::GraphPtr::of(watcher)
-                .borrow_mut()
-                .free_tcp_addrinfo();
+            watcher.free_tcp_addrinfo();
 
-            socket_watcher_close(crate::globals::GraphPtr::of(watcher).borrow_mut());
+            socket_watcher_close(Box::leak(watcher));
 
             return 2;
         }
     }
 
-    result = socket_watcher_start(
-        crate::globals::GraphPtr::of(watcher).borrow_mut(),
-        MAX_CONNECTIONS,
-    );
+    result = socket_watcher_start(&mut watcher, MAX_CONNECTIONS);
 
     if result < 0 {
         logmsg!(
@@ -254,15 +242,15 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
             true,
             c"Failed to start server: %s: %s",
             uv_strerror(result),
-            crate::globals::GraphPtr::of(watcher).borrow().addr_cstr(),
+            watcher.addr_cstr(),
         );
 
-        socket_watcher_close(crate::globals::GraphPtr::of(watcher).borrow_mut());
+        socket_watcher_close(Box::leak(watcher));
 
         return result;
     }
 
-    w.push(crate::globals::GraphPtr::new(watcher));
+    w.push(crate::globals::GraphPtr::from(Box::leak(watcher)));
 
     if get_vim_var_str(VV_SEND_SERVER).to_bytes().is_empty() {
         set_vservername();

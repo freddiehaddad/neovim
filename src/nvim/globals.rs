@@ -803,7 +803,7 @@ impl EditorState {
             redraw_not_allowed: false,
             screen_search_hl: SynMatch {
                 rm: crate::regexp::Regmmatch {
-                    regprog: crate::globals::GraphPtr::NULL,
+                    regprog: crate::regexp::RegprogPtr::NULL,
                     startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
                     endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
                     rmm_matchcol: 0,

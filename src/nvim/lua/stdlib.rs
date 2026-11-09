@@ -53,9 +53,7 @@ use crate::memline::{ml_get_buf, ml_get_buf_len, ml_get_buf_mut_slice};
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::path::path_with_url;
-use crate::regexp::{
-    RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, Regprog, vim_regcomp, vim_regexec,
-};
+use crate::regexp::{RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, vim_regcomp, vim_regexec};
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
 use crate::window::{WinInfoInfo, win_find_tabpage};
@@ -75,7 +73,7 @@ use crate::mpack::lmpack::luaopen_mpack;
 
 #[repr(C)]
 struct LuaRegex {
-    prog: crate::globals::GraphPtr<Regprog>,
+    prog: crate::regexp::RegprogPtr,
 }
 
 fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
@@ -84,10 +82,9 @@ fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
 
 fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32 {
     let mut rm: Regmatch = Regmatch::new();
-    rm.regprog = regex.prog;
+    rm.regprog = regex.prog.clone();
     rm.rm_ic = false;
     let matched = vim_regexec(&mut rm, str_, 0);
-    regex.prog = rm.regprog;
 
     if matched {
         lua_pushinteger_safe(lstate, rm.start_offset(0, str_) as lua_Integer);
@@ -182,10 +179,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 
 extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
     let regex = regex_check(lstate);
-    if !regex.prog.is_null() {
-        regex.prog.drop_box();
-        regex.prog = crate::globals::GraphPtr::NULL;
-    }
+    regex.prog = crate::regexp::RegprogPtr::NULL;
     0
 }
 
@@ -314,7 +308,7 @@ pub extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
     let _ = lua_newuserdata_typed(
         lstate,
         LuaRegex {
-            prog: prog.map_or(ptr::null_mut(), Box::into_raw).into(),
+            prog: crate::regexp::RegprogPtr::from_box(prog),
         },
     );
 

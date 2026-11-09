@@ -31,7 +31,6 @@ use crate::profile::{Proftime, profile_passed_limit};
 pub(super) use crate::strings::tr;
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
-use std::ptr;
 
 #[path = "regexp_bt.rs"]
 mod bt;
@@ -209,36 +208,134 @@ pub(super) enum RegProgEngine {
     Nfa(NfaRegprog),
 }
 
-pub struct Regprog {
-    pub regflags: u32,
-    pub re_engine: u32,
+pub struct RegprogInner {
+    pub regflags: std::cell::Cell<u32>,
+    pub re_engine: std::cell::Cell<u32>,
     pub re_flags: u32,
-    pub re_in_use: bool,
-    pub(super) engine: RegProgEngine,
+    pub re_in_use: std::cell::Cell<bool>,
+    pub(super) engine: std::cell::RefCell<RegProgEngine>,
 }
 
+#[derive(Clone)]
+pub struct Regprog(std::rc::Rc<RegprogInner>);
+
 impl Regprog {
-    #[inline(always)]
-    pub(super) fn bt_mut(&mut self) -> &mut BtRegprog {
-        match &mut self.engine {
-            RegProgEngine::Bt(bt) => bt,
-            RegProgEngine::Nfa(_) => unreachable!(),
-        }
+    pub(super) fn new(regflags: u32, re_engine: u32, re_flags: u32, engine: RegProgEngine) -> Self {
+        Self(std::rc::Rc::new(RegprogInner {
+            regflags: std::cell::Cell::new(regflags),
+            re_engine: std::cell::Cell::new(re_engine),
+            re_flags,
+            re_in_use: std::cell::Cell::new(false),
+            engine: std::cell::RefCell::new(engine),
+        }))
     }
 
     #[inline(always)]
-    pub(super) fn nfa_mut(&mut self) -> &mut NfaRegprog {
-        match &mut self.engine {
-            RegProgEngine::Nfa(nfa) => nfa,
+    pub fn regflags(&self) -> u32 {
+        self.0.regflags.get()
+    }
+
+    #[inline(always)]
+    pub fn re_engine(&self) -> u32 {
+        self.0.re_engine.get()
+    }
+
+    #[inline(always)]
+    pub fn re_flags(&self) -> u32 {
+        self.0.re_flags
+    }
+
+    #[inline(always)]
+    pub fn re_in_use(&self) -> bool {
+        self.0.re_in_use.get()
+    }
+
+    #[inline(always)]
+    pub fn set_re_in_use(&self, val: bool) {
+        self.0.re_in_use.set(val);
+    }
+
+    #[inline(always)]
+    pub fn replace_from(&self, other: &Self) {
+        self.0.regflags.set(other.regflags());
+        self.0.re_engine.set(other.re_engine());
+        let new_eng = match &*other.0.engine.borrow() {
+            RegProgEngine::Bt(bt) => RegProgEngine::Bt(bt.clone()),
+            RegProgEngine::Nfa(nfa) => RegProgEngine::Nfa(nfa.clone()),
+        };
+        *self.0.engine.borrow_mut() = new_eng;
+    }
+
+    #[inline(always)]
+    pub fn nfa_pattern(&self) -> std::ffi::CString {
+        match &*self.0.engine.borrow() {
+            RegProgEngine::Nfa(nfa) => nfa.pattern.clone(),
             RegProgEngine::Bt(_) => unreachable!(),
         }
     }
+
+    #[inline(always)]
+    pub fn bt_magic_wrong(&self) -> bool {
+        match &*self.0.engine.borrow() {
+            RegProgEngine::Bt(bt) => bt.program.first().copied() != Some(REGMAGIC as u8),
+            RegProgEngine::Nfa(_) => false,
+        }
+    }
 }
 
+#[derive(Clone, Default)]
+pub struct RegprogPtr(Option<Regprog>);
+
+impl RegprogPtr {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn is_null(&self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(&self) -> Option<&Regprog> {
+        self.0.as_ref()
+    }
+
+    #[inline(always)]
+    pub fn from_box(prog: Option<Box<Regprog>>) -> Self {
+        Self(prog.map(|b| *b))
+    }
+
+    #[inline(always)]
+    pub fn from_ref(prog: Option<&Regprog>) -> Self {
+        Self(prog.cloned())
+    }
+}
+
+impl std::ops::Deref for RegprogPtr {
+    type Target = Regprog;
+
+    #[inline(always)]
+    fn deref(&self) -> &Regprog {
+        self.0.as_ref().unwrap()
+    }
+}
+
+impl PartialEq for RegprogPtr {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(&a.0, &b.0),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for RegprogPtr {}
+
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Regmmatch {
-    pub regprog: crate::globals::GraphPtr<Regprog>,
+    pub regprog: RegprogPtr,
     pub startpos: [Lpos; NSUBEXP],
     pub endpos: [Lpos; NSUBEXP],
     pub rmm_matchcol: Colnr,
@@ -249,7 +346,7 @@ pub struct Regmmatch {
 impl Regmmatch {
     pub const fn new() -> Self {
         Self {
-            regprog: crate::globals::GraphPtr::NULL,
+            regprog: RegprogPtr::NULL,
             startpos: [Lpos::new(); NSUBEXP],
             endpos: [Lpos::new(); NSUBEXP],
             rmm_matchcol: 0,
@@ -260,24 +357,17 @@ impl Regmmatch {
 
     #[inline(always)]
     pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
-        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |b| {
-            crate::globals::GraphPtr::new(Box::into_raw(b))
-        });
+        self.regprog = RegprogPtr::from_box(prog);
     }
 
     #[inline(always)]
     pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
-        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |p| {
-            crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
-        });
+        self.regprog = RegprogPtr::from_ref(prog);
     }
 
     #[inline(always)]
     pub fn free_prog(&mut self) {
-        if !self.regprog.is_null() {
-            crate::globals::GraphPtr::of(self.regprog.as_ptr()).drop_box();
-            self.regprog = crate::globals::GraphPtr::NULL;
-        }
+        self.regprog = RegprogPtr::NULL;
     }
 }
 
@@ -455,9 +545,9 @@ pub fn reg_line_from_opt_cstr(s: Option<&std::ffi::CStr>) -> RegLineSlice {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Regmatch {
-    pub regprog: crate::globals::GraphPtr<Regprog>,
+    pub regprog: RegprogPtr,
     pub startp: [RegLineSlice; NSUBEXP],
     pub endp: [RegLineSlice; NSUBEXP],
     pub rm_matchcol: Colnr,
@@ -467,7 +557,7 @@ pub struct Regmatch {
 impl Regmatch {
     pub const fn new() -> Self {
         Self {
-            regprog: crate::globals::GraphPtr::NULL,
+            regprog: RegprogPtr::NULL,
             startp: [REG_LINE_NULL; NSUBEXP],
             endp: [REG_LINE_NULL; NSUBEXP],
             rm_matchcol: 0,
@@ -499,24 +589,17 @@ impl Regmatch {
 
     #[inline(always)]
     pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
-        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |b| {
-            crate::globals::GraphPtr::new(Box::into_raw(b))
-        });
+        self.regprog = RegprogPtr::from_box(prog);
     }
 
     #[inline(always)]
     pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
-        self.regprog = prog.map_or(crate::globals::GraphPtr::NULL, |p| {
-            crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
-        });
+        self.regprog = RegprogPtr::from_ref(prog);
     }
 
     #[inline(always)]
     pub fn free_prog(&mut self) {
-        if !self.regprog.is_null() {
-            crate::globals::GraphPtr::of(self.regprog.as_ptr()).drop_box();
-            self.regprog = crate::globals::GraphPtr::NULL;
-        }
+        self.regprog = RegprogPtr::NULL;
     }
 }
 
@@ -539,6 +622,7 @@ pub(super) fn cstring_from_bytes(bytes: &[u8]) -> Option<std::ffi::CString> {
     std::ffi::CString::new(&bytes[..end]).ok()
 }
 
+#[derive(Clone)]
 pub(super) struct BtRegprog {
     pub regflags: u32,
     pub regstart: i32,
@@ -592,6 +676,7 @@ impl Default for NfaState {
     }
 }
 
+#[derive(Clone)]
 pub(super) struct NfaRegprog {
     pub regflags: u32,
     pub re_engine: u32,
@@ -1742,7 +1827,7 @@ pub(super) fn ri_upper(c: i32) -> bool {
 
 /// Return true if compiled regular expression `prog` can match a line break.
 pub fn re_multiline(prog: &Regprog) -> i32 {
-    (prog.regflags & RF_HASNL) as i32
+    (prog.regflags() & RF_HASNL) as i32
 }
 
 /// Check for an equivalence class name `[=a=]`. `rem` starts at the `[`.
@@ -2459,14 +2544,11 @@ pub(super) fn reg_match_visual() -> bool {
 
 pub(super) fn prog_magic_wrong() -> bool {
     let prog = if reg_multi() {
-        re_st().rex.mmatch_mut().prog_mut()
+        &re_st().rex.mmatch_mut().regprog
     } else {
-        re_st().rex.match_mut().prog_mut()
+        &re_st().rex.match_mut().regprog
     };
-    let RegProgEngine::Bt(ref bt_prog) = prog.engine else {
-        return false;
-    };
-    if bt_prog.program.first().copied() != Some(REGMAGIC as u8) {
+    if prog.bt_magic_wrong() {
         emsg(tr(E_RE_CORR));
         return true;
     }
@@ -3403,7 +3485,7 @@ pub(super) fn init_regexec_multi(
     re_st().rex.reg_line_lbr = false;
     re_st().rex.reg_ic = rmp.rmm_ic;
     re_st().rex.reg_icombine = false;
-    re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
+    re_st().rex.reg_nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     re_st().rex.reg_maxcol = rmp.rmm_maxcol;
 }
 
@@ -3578,21 +3660,21 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         )
         .map(|mut nfa| {
             nfa.re_engine = re_st().regexp_engine as u32;
-            Regprog {
-                regflags: nfa.regflags,
-                re_engine: re_st().regexp_engine as u32,
-                re_flags: re_flags as u32,
-                re_in_use: false,
-                engine: RegProgEngine::Nfa(nfa),
-            }
+            Regprog::new(
+                nfa.regflags,
+                re_st().regexp_engine as u32,
+                re_flags as u32,
+                RegProgEngine::Nfa(nfa),
+            )
         })
     } else {
-        bt_regcomp(expr, re_flags).map(|bt| Regprog {
-            regflags: bt.regflags,
-            re_engine: re_st().regexp_engine as u32,
-            re_flags: re_flags as u32,
-            re_in_use: false,
-            engine: RegProgEngine::Bt(bt),
+        bt_regcomp(expr, re_flags).map(|bt| {
+            Regprog::new(
+                bt.regflags,
+                re_st().regexp_engine as u32,
+                re_flags as u32,
+                RegProgEngine::Bt(bt),
+            )
         })
     };
 
@@ -3602,12 +3684,13 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     {
         re_st().regexp_engine = BACKTRACKING_ENGINE;
         report_re_switch(expr);
-        prog_opt = bt_regcomp(expr, re_flags).map(|bt| Regprog {
-            regflags: bt.regflags,
-            re_engine: re_st().regexp_engine as u32,
-            re_flags: re_flags as u32,
-            re_in_use: false,
-            engine: RegProgEngine::Bt(bt),
+        prog_opt = bt_regcomp(expr, re_flags).map(|bt| {
+            Regprog::new(
+                bt.regflags,
+                re_st().regexp_engine as u32,
+                re_flags as u32,
+                RegProgEngine::Bt(bt),
+            )
         });
     }
 
@@ -3636,15 +3719,39 @@ fn report_re_switch(pat: &CStr) {
     }
 }
 
+fn exec_regmatch_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> i32 {
+    let prog = rmp.regprog.opt().unwrap().clone();
+    match &mut *prog.0.engine.borrow_mut() {
+        RegProgEngine::Bt(bt) => bt_regexec_nl(bt, rmp, line, col, nl),
+        RegProgEngine::Nfa(nfa) => nfa_regexec_nl(nfa, rmp, line, col, nl),
+    }
+}
+
+fn exec_regmmatch_multi(
+    rmp: &mut Regmmatch,
+    win: Option<&mut WinInfoInfo>,
+    buf: &mut FileBuf,
+    lnum: Linenr,
+    col: Colnr,
+    tm: Option<Proftime>,
+    timed_out: Option<&mut i32>,
+) -> i32 {
+    let prog = rmp.regprog.opt().unwrap().clone();
+    match &mut *prog.0.engine.borrow_mut() {
+        RegProgEngine::Bt(bt) => bt_regexec_multi(bt, rmp, win, buf, lnum, col, tm, timed_out),
+        RegProgEngine::Nfa(nfa) => nfa_regexec_multi(nfa, rmp, win, buf, lnum, col, tm, timed_out),
+    }
+}
+
 fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> bool {
     let mut rex_save = Regexec::new();
     let rex_in_use_save = re_st().rex_in_use;
 
-    if rmp.prog_mut().re_in_use {
+    if rmp.regprog.re_in_use() {
         emsg(tr(E_RECURSIVE));
         return false;
     }
-    rmp.prog_mut().re_in_use = true;
+    rmp.regprog.set_re_in_use(true);
 
     if re_st().rex_in_use {
         rex_save = re_st().rex;
@@ -3654,28 +3761,21 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     re_st().rex.reg_startpos = crate::globals::GraphPtr::NULL;
     re_st().rex.reg_endpos = crate::globals::GraphPtr::NULL;
 
-    let mut result = match rmp.prog_mut().engine {
-        RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line, col, nl),
-        RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line, col, nl),
-    };
-    rmp.prog_mut().re_in_use = false;
+    let mut result = exec_regmatch_nl(rmp, line, col, nl);
+    rmp.regprog.set_re_in_use(false);
 
-    if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
+    if rmp.regprog.re_engine() == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
         let save_p_re = opt_vars().p_re;
-        let re_flags = rmp.prog_mut().re_flags as i32;
-        let prev_prog = rmp.regprog.borrow_mut();
-        let pat_owned = prev_prog.nfa_mut().pattern.clone();
+        let re_flags = rmp.regprog.re_flags() as i32;
+        let pat_owned = rmp.regprog.nfa_pattern();
 
         opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
         report_re_switch(&pat_owned);
         if let Some(new_prog) = vim_regcomp(&pat_owned, re_flags) {
-            *prev_prog = *new_prog;
-            rmp.prog_mut().re_in_use = true;
-            result = match rmp.prog_mut().engine {
-                RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line, col, nl),
-                RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line, col, nl),
-            };
-            rmp.prog_mut().re_in_use = false;
+            rmp.regprog.replace_from(&new_prog);
+            rmp.regprog.set_re_in_use(true);
+            result = exec_regmatch_nl(rmp, line, col, nl);
+            rmp.regprog.set_re_in_use(false);
         }
 
         opt_vars().p_re = save_p_re;
@@ -3696,9 +3796,7 @@ pub fn vim_regexec_prog(
     col: Colnr,
 ) -> bool {
     let mut regmatch = Regmatch {
-        regprog: prog.map_or(crate::globals::GraphPtr::NULL, |p| {
-            crate::globals::GraphPtr::new(ptr::from_ref(p).cast_mut())
-        }),
+        regprog: RegprogPtr::from_ref(prog),
         rm_ic: ignore_case,
         ..Regmatch::new()
     };
@@ -3725,44 +3823,32 @@ pub fn vim_regexec_multi(
     let mut rex_save = Regexec::new();
     let rex_in_use_save = re_st().rex_in_use;
 
-    if rmp.prog_mut().re_in_use {
+    if rmp.regprog.re_in_use() {
         emsg(tr(E_RECURSIVE));
         return 0;
     }
-    rmp.prog_mut().re_in_use = true;
+    rmp.regprog.set_re_in_use(true);
 
     if re_st().rex_in_use {
         rex_save = re_st().rex;
     }
     re_st().rex_in_use = true;
 
-    let mut result = match rmp.prog_mut().engine {
-        RegProgEngine::Bt(_) => bt_regexec_multi(
-            rmp,
-            win.as_deref_mut(),
-            buf,
-            lnum,
-            col,
-            tm,
-            timed_out.as_deref_mut(),
-        ),
-        RegProgEngine::Nfa(_) => nfa_regexec_multi(
-            rmp,
-            win.as_deref_mut(),
-            buf,
-            lnum,
-            col,
-            tm,
-            timed_out.as_deref_mut(),
-        ),
-    };
-    rmp.prog_mut().re_in_use = false;
+    let mut result = exec_regmmatch_multi(
+        rmp,
+        win.as_deref_mut(),
+        buf,
+        lnum,
+        col,
+        tm,
+        timed_out.as_deref_mut(),
+    );
+    rmp.regprog.set_re_in_use(false);
 
-    if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
+    if rmp.regprog.re_engine() == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
         let save_p_re = opt_vars().p_re;
-        let re_flags = rmp.prog_mut().re_flags as i32;
-        let prev_prog = rmp.regprog.borrow_mut();
-        let pat_owned = prev_prog.nfa_mut().pattern.clone();
+        let re_flags = rmp.regprog.re_flags() as i32;
+        let pat_owned = rmp.regprog.nfa_pattern();
 
         opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
 
@@ -3772,22 +3858,11 @@ pub fn vim_regexec_multi(
         g_st().reg_do_extmatch = 0;
 
         if let Some(new_prog) = new_prog {
-            *prev_prog = *new_prog;
+            rmp.regprog.replace_from(&new_prog);
 
-            rmp.prog_mut().re_in_use = true;
-            result = match rmp.prog_mut().engine {
-                RegProgEngine::Bt(_) => bt_regexec_multi(
-                    rmp,
-                    win.as_deref_mut(),
-                    buf,
-                    lnum,
-                    col,
-                    tm,
-                    timed_out.as_deref_mut(),
-                ),
-                RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
-            };
-            rmp.prog_mut().re_in_use = false;
+            rmp.regprog.set_re_in_use(true);
+            result = exec_regmmatch_multi(rmp, win, buf, lnum, col, tm, timed_out);
+            rmp.regprog.set_re_in_use(false);
         }
 
         opt_vars().p_re = save_p_re;
@@ -3904,20 +3979,6 @@ impl Regsubmatch {
     #[inline(always)]
     pub fn match_mut(&self) -> &'static mut Regmatch {
         self.sm_match.borrow_mut()
-    }
-}
-
-impl Regmmatch {
-    #[inline(always)]
-    pub fn prog_mut(&self) -> &'static mut Regprog {
-        self.regprog.borrow_mut()
-    }
-}
-
-impl Regmatch {
-    #[inline(always)]
-    pub fn prog_mut(&self) -> &'static mut Regprog {
-        self.regprog.borrow_mut()
     }
 }
 

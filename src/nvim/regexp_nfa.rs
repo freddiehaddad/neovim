@@ -4808,6 +4808,7 @@ fn nfa_regtry(
 }
 
 fn nfa_regexec_both(
+    prog: &mut NfaRegprog,
     line_in: Option<&std::ffi::CStr>,
     startcol: Colnr,
     tm: Option<Proftime>,
@@ -4817,23 +4818,17 @@ fn nfa_regexec_both(
     let mut retval: i32 = 0;
     let mut col = startcol;
 
-    let prog = crate::globals::GraphPtr::<NfaRegprog>::of(if reg_multi() {
-        let p = re_st().rex.mmatch_mut().prog_mut().nfa_mut();
+    if reg_multi() {
         line = crate::regexp::reg_line_from_opt_cstr(reg_getline(0));
         re_st().rex.reg_startpos =
             crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().startpos);
         re_st().rex.reg_endpos =
             crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().endpos);
-        p
-    } else {
-        re_st().rex.match_mut().prog_mut().nfa_mut()
-    })
-    .as_ptr();
-    if prog.is_null() || line.is_null() {
+    }
+    if line.is_null() {
         iemsg(tr(E_NULL));
         return finish_nfa_regexec(retval, col);
     }
-    let prog = crate::globals::GraphPtr::of(prog).borrow_mut();
 
     if (prog.regflags & RF_ICASE) != 0 {
         re_st().rex.reg_ic = true;
@@ -4983,6 +4978,7 @@ fn cleanup_nfa_regcomp(prog: Option<NfaRegprog>) -> Option<NfaRegprog> {
 }
 
 pub(super) fn nfa_regexec_nl(
+    prog: &mut NfaRegprog,
     rmp: &mut Regmatch,
     line: Option<&std::ffi::CStr>,
     col: Colnr,
@@ -4996,12 +4992,13 @@ pub(super) fn nfa_regexec_nl(
     re_st().rex.reg_win = crate::globals::WinPtr::NULL;
     re_st().rex.reg_ic = rmp.rm_ic;
     re_st().rex.reg_icombine = false;
-    re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
+    re_st().rex.reg_nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
     re_st().rex.reg_maxcol = 0;
-    nfa_regexec_both(line, col, None, None)
+    nfa_regexec_both(prog, line, col, None, None)
 }
 
 pub(super) fn nfa_regexec_multi(
+    prog: &mut NfaRegprog,
     rmp: &mut Regmmatch,
     win: Option<&mut WinInfoInfo>,
     buf: &mut FileBuf,
@@ -5011,5 +5008,5 @@ pub(super) fn nfa_regexec_multi(
     timed_out: Option<&mut i32>,
 ) -> i32 {
     init_regexec_multi(rmp, win, buf, lnum);
-    nfa_regexec_both(None, col, tm, timed_out)
+    nfa_regexec_both(prog, None, col, tm, timed_out)
 }

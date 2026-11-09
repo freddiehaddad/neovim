@@ -687,7 +687,7 @@ pub fn ex_sort(eap: &mut Exarg) {
     if !u_save(eap.line1 - 1, eap.line2 + 1) {
         return;
     }
-    regmatch.regprog = crate::globals::GraphPtr::NULL;
+    regmatch.free_prog();
     let mut nrs_vec: Vec<Sorti> = Vec::with_capacity(count);
 
     excmds_st().sort_abort = false;
@@ -981,7 +981,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
     if !u_save(eap.line1 - 1, eap.line2 + 1) {
         return;
     }
-    regmatch.regprog = crate::globals::GraphPtr::NULL;
+    regmatch.free_prog();
 
     excmds_st().sort_abort = false;
     excmds_st().sort_ic = false;

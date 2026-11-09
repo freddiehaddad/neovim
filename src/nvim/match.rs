@@ -26,7 +26,7 @@ use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::regexp::{
-    MAXCOL, NUMBUFLEN, RE_MAGIC, Regmmatch, Regprog, re_multiline, skip_regexp, vim_regcomp,
+    MAXCOL, NUMBUFLEN, RE_MAGIC, Regmmatch, re_multiline, skip_regexp, vim_regcomp,
     vim_regexec_multi,
 };
 use crate::strings::{format_to_buf, gettext};
@@ -44,7 +44,7 @@ pub(crate) const HLF_LC: usize = 9;
 pub(crate) const K_CPO_SEARCH: i32 = b'c' as i32;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SynMatch {
     pub rm: Regmmatch,
     pub buf: crate::globals::BufPtr,
@@ -136,7 +136,7 @@ fn match_add(
     pos_list: Option<&TvList>,
     conceal_char: Option<&std::ffi::CStr>,
 ) -> i32 {
-    let mut regprog = crate::globals::GraphPtr::<Regprog>::NULL;
+    let mut regprog = crate::regexp::RegprogPtr::NULL;
     let mut rtype = UPD_SOME_VALID;
 
     let Some(grp) = grp.filter(|s| !s.is_empty()) else {
@@ -175,7 +175,7 @@ fn match_add(
             semsg!(gettext(E_INVARG2), pat);
             return -1;
         };
-        regprog = crate::globals::GraphPtr::<Regprog>::of(Box::into_raw(prog_box));
+        regprog = crate::regexp::RegprogPtr::from_box(Some(prog_box));
     }
 
     let pos_len = tv_list_len(pos_list);
@@ -348,7 +348,7 @@ fn get_match(wp: &WinInfoInfo, id: i32) -> Option<&Matchitem> {
 pub fn init_search_hl(wp: &mut WinInfoInfo, search_hl: &mut SynMatch) {
     let buf = wp.w_buffer;
     for cur in &mut wp.w_match_head {
-        cur.mit_hl.rm = cur.mit_match;
+        cur.mit_hl.rm = cur.mit_match.clone();
         cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
             0
         } else {
@@ -472,10 +472,6 @@ fn next_search_hl(
 
         shl.lnum = lnum;
         if !shl.rm.regprog.is_null() {
-            let regprog_is_copy = cur.is_some()
-                && ptr::eq(shl, &raw const cur.as_deref_mut().unwrap().mit_hl)
-                && cur.as_ref().unwrap().mit_match.regprog
-                    == cur.as_ref().unwrap().mit_hl.rm.regprog;
             let mut timed_out: i32 = 0;
 
             let shl_buf = shl.buf.borrow_mut();
@@ -488,16 +484,12 @@ fn next_search_hl(
                 Some(shl.tm),
                 Some(&mut timed_out),
             );
-            if regprog_is_copy {
-                cur.as_deref_mut().unwrap().mit_match.regprog =
-                    cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
-            }
             if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
                 if cur.is_none() {
                     shl.rm.free_prog();
                     set_no_hlsearch(true);
                 }
-                shl.rm.regprog = crate::globals::GraphPtr::NULL;
+                shl.rm.free_prog();
                 shl.lnum = 0;
                 g_st().got_int = false;
                 break;

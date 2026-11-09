@@ -719,7 +719,7 @@ pub fn update_screen() -> bool {
     }
 
     let mut did_one = false;
-    g_st().screen_search_hl.rm.regprog = crate::globals::GraphPtr::NULL;
+    g_st().screen_search_hl.rm.free_prog();
 
     for wp in for_all_windows_ptr() {
         if wp.w_config.hide && !wp.w_grid_alloc.chars.is_empty() {

@@ -655,7 +655,7 @@ pub fn set_last_search_pat(s: Option<&CStr>, idx: i32, magic: i32, setlast: bool
 
 pub fn last_pat_prog(regmatch: &mut Regmmatch) {
     if srch().spats[srch().last_idx as usize].pat.is_none() {
-        regmatch.regprog = crate::globals::GraphPtr::NULL;
+        regmatch.free_prog();
         return;
     }
     g_st().emsg_off += 1;

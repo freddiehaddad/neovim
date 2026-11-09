@@ -1070,7 +1070,9 @@ mod win_iconv {
 
     pub fn close(cd: iconv_t) -> i32 {
         if cd != -1 && cd != 0 {
-            crate::globals::GraphPtr::of(cd as *mut WinIconvDesc).drop_box();
+            unsafe {
+                drop(Box::from_raw(cd as *mut WinIconvDesc));
+            }
         }
         0
     }
