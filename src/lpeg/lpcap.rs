@@ -1,5 +1,5 @@
 //! Capture evaluation (`src/lpeg/lpcap.c`).
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 use std::ffi::CStr;
 
@@ -12,82 +12,62 @@ use crate::lpeg::{
 const MAXRECLEVEL: i32 = 200;
 const MAXSTRCAPS: usize = 10;
 
-#[allow(unsafe_code)]
 mod ffi {
     use std::ffi::CStr;
-    use std::ptr;
 
     use crate::lpeg::{ktableidx, lua_Integer, lua_State};
     use crate::lua::converter::{
-        LUA_MULTRET, LUAL_BUFFERSIZE, lua_call, lua_equal, lua_gettable, lua_gettop, lua_insert,
-        lua_isnil, lua_isstring, lua_newtable, lua_pop, lua_pushinteger, lua_pushlstring,
-        lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove, lua_replace, lua_settable,
-        lua_tolstring, lua_tostring, luaL_addlstring, luaL_addvalue, luaL_buffinit,
-        luaL_checkstack, luaL_error, luaL_prepbuffer, luaL_pushresult, luaL_typename,
+        LUA_MULTRET, lua_isnil, lua_newtable, lua_pop, lua_tostring, luaL_checkstack, luaL_typename,
     };
-    use crate::strings::{RawCChar, RawCCharPtrMut};
+    use crate::lua::ffi::{
+        lua_call_safe, lua_equal_safe, lua_gettable_safe, lua_insert_safe, lua_isstring_safe,
+        lua_push_bytes, lua_pushinteger_safe, lua_pushvalue_safe, lua_rawgeti_safe,
+        lua_rawseti_safe, lua_remove_safe, lua_replace_safe, lua_settable_safe,
+        lua_tolstring_bytes, luaL_addbytes, luaL_addchar, luaL_addvalue_safe, luaL_buffinit_safe,
+        luaL_error_cstr, luaL_error_int, luaL_error_opt_cstr_arg, luaL_error_two_cstrs,
+        luaL_pushresult_safe, nlua_gettop,
+    };
 
     pub use crate::lua::converter::luaL_Buffer as LuaBuffer;
 
     #[inline]
     pub fn buf_init(l: *mut lua_State, b: &mut LuaBuffer) {
-        unsafe {
-            luaL_buffinit(l, b);
-        }
+        luaL_buffinit_safe(l, b);
     }
 
     #[inline]
     pub fn buf_addchar(b: &mut LuaBuffer, c: u8) {
-        unsafe {
-            let buf_start: RawCCharPtrMut = (&raw mut b.buffer).cast();
-            if b.p >= buf_start.wrapping_add(LUAL_BUFFERSIZE) {
-                luaL_prepbuffer(b);
-            }
-            *b.p = c as RawCChar;
-            b.p = b.p.wrapping_add(1);
-        }
+        luaL_addchar(b, c);
     }
 
     #[inline]
     pub fn buf_addbytes(b: &mut LuaBuffer, bytes: &[u8]) {
-        unsafe {
-            luaL_addlstring(b, bytes.as_ptr().cast(), bytes.len());
-        }
+        luaL_addbytes(b, bytes);
     }
 
     #[inline]
     pub fn buf_addvalue(b: &mut LuaBuffer) {
-        unsafe {
-            luaL_addvalue(b);
-        }
+        luaL_addvalue_safe(b);
     }
 
     #[inline]
     pub fn buf_pushresult(b: &mut LuaBuffer) {
-        unsafe {
-            luaL_pushresult(b);
-        }
+        luaL_pushresult_safe(b);
     }
 
     #[inline]
     pub fn rawgeti_ktable(l: *mut lua_State, ptop: i32, v: i32) {
-        unsafe {
-            lua_rawgeti(l, ktableidx(ptop), v);
-        }
+        lua_rawgeti_safe(l, ktableidx(ptop), v);
     }
 
     #[inline]
     pub fn replace(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_replace(l, idx);
-        }
+        lua_replace_safe(l, idx);
     }
 
     #[inline]
     pub fn push_bytes(l: *mut lua_State, bytes: &[u8]) {
-        unsafe {
-            lua_pushlstring(l, bytes.as_ptr().cast(), bytes.len());
-        }
+        lua_push_bytes(l, bytes);
     }
 
     #[inline]
@@ -97,41 +77,27 @@ mod ffi {
 
     #[inline]
     pub fn equal(l: *mut lua_State, idx1: i32, idx2: i32) -> bool {
-        unsafe { lua_equal(l, idx1, idx2) != 0 }
+        lua_equal_safe(l, idx1, idx2)
     }
 
     #[inline]
     pub fn error_backref(l: *mut lua_State) -> ! {
-        unsafe {
-            luaL_error(
-                l,
-                c"back reference '%s' not found".as_ptr(),
-                lua_tostring(l, -1).map_or(ptr::null(), CStr::as_ptr),
-            );
-            unreachable!()
-        }
+        luaL_error_opt_cstr_arg(l, c"back reference '%s' not found", lua_tostring(l, -1))
     }
 
     #[inline]
     pub fn error_msg(l: *mut lua_State, msg: &CStr) -> i32 {
-        unsafe { luaL_error(l, msg.as_ptr()) }
+        luaL_error_cstr(l, msg)
     }
 
     #[inline]
     pub fn error_int(l: *mut lua_State, fmt: &CStr, val: i32) -> i32 {
-        unsafe { luaL_error(l, fmt.as_ptr(), val) }
+        luaL_error_int(l, fmt, val)
     }
 
     #[inline]
     pub fn error_invalid_val(l: *mut lua_State, what: &CStr) -> i32 {
-        unsafe {
-            luaL_error(
-                l,
-                c"invalid %s value (a %s)".as_ptr(),
-                what.as_ptr(),
-                luaL_typename(l, -1).as_ptr(),
-            )
-        }
+        luaL_error_two_cstrs(l, c"invalid %s value (a %s)", what, luaL_typename(l, -1))
     }
 
     #[inline]
@@ -141,23 +107,17 @@ mod ffi {
 
     #[inline]
     pub fn settable(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_settable(l, idx);
-        }
+        lua_settable_safe(l, idx);
     }
 
     #[inline]
     pub fn rawseti(l: *mut lua_State, idx: i32, n: i32) {
-        unsafe {
-            lua_rawseti(l, idx, n);
-        }
+        lua_rawseti_safe(l, idx, n);
     }
 
     #[inline]
     pub fn gettable(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_gettable(l, idx);
-        }
+        lua_gettable_safe(l, idx);
     }
 
     #[inline]
@@ -167,54 +127,42 @@ mod ffi {
 
     #[inline]
     pub fn isstring(l: *mut lua_State, idx: i32) -> bool {
-        unsafe { lua_isstring(l, idx) != 0 }
+        lua_isstring_safe(l, idx)
     }
 
     #[inline]
     pub fn pushvalue(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_pushvalue(l, idx);
-        }
+        lua_pushvalue_safe(l, idx);
     }
 
     #[inline]
     pub fn insert(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_insert(l, idx);
-        }
+        lua_insert_safe(l, idx);
     }
 
     #[inline]
     pub fn call(l: *mut lua_State, nargs: i32, nresults: i32) {
-        unsafe {
-            lua_call(l, nargs, nresults);
-        }
+        lua_call_safe(l, nargs, nresults);
     }
 
     #[inline]
     pub fn call_multret(l: *mut lua_State, nargs: i32) {
-        unsafe {
-            lua_call(l, nargs, LUA_MULTRET);
-        }
+        lua_call_safe(l, nargs, LUA_MULTRET);
     }
 
     #[inline]
     pub fn gettop(l: *mut lua_State) -> i32 {
-        unsafe { lua_gettop(l) }
+        nlua_gettop(l)
     }
 
     #[inline]
     pub fn remove(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_remove(l, idx);
-        }
+        lua_remove_safe(l, idx);
     }
 
     #[inline]
     pub fn pushinteger(l: *mut lua_State, n: lua_Integer) {
-        unsafe {
-            lua_pushinteger(l, n);
-        }
+        lua_pushinteger_safe(l, n);
     }
 
     #[inline]
@@ -224,15 +172,7 @@ mod ffi {
 
     #[inline]
     pub fn tolstring_vec(l: *mut lua_State, idx: i32) -> Vec<u8> {
-        unsafe {
-            let mut len: usize = 0;
-            let p = lua_tolstring(l, idx, &mut len);
-            if p.is_null() || len == 0 {
-                Vec::new()
-            } else {
-                std::slice::from_raw_parts(p.cast::<u8>(), len).to_vec()
-            }
-        }
+        lua_tolstring_bytes(l, idx).to_vec()
     }
 }
 

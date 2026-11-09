@@ -1,7 +1,5 @@
 //! LPeg virtual machine (`src/lpeg/lpvm.c`).
-#![deny(unsafe_code)]
-
-use std::mem::size_of;
+#![forbid(unsafe_code)]
 
 use crate::lpeg::lpcap::{finddyncap, runtimecap};
 use crate::lpeg::{
@@ -22,47 +20,40 @@ pub(crate) struct Stack {
     caplevel: usize,
 }
 
-#[allow(unsafe_code)]
 mod ffi {
     use std::ffi::CStr;
-    use std::mem::size_of;
 
     use super::Stack;
     use crate::lpeg::{Capture, MAXSTACKIDX, caplistidx, lua_Integer, lua_State, stackidx};
-    use crate::lua::converter::{
-        LUA_REGISTRYINDEX, lua_getfield, lua_gettop, lua_isboolean, lua_newuserdata, lua_pop,
-        lua_pushnil, lua_remove, lua_replace, lua_settop, lua_toboolean, lua_tointeger, luaL_error,
+    use crate::lua::converter::{LUA_REGISTRYINDEX, lua_getfield, lua_isboolean, lua_pop};
+    use crate::lua::ffi::{
+        lua_newuserdata_slice_copy, lua_pushnil_safe, lua_remove_safe, lua_settop_safe,
+        lua_toboolean_safe, lua_tointeger_safe, luaL_error_cstr, luaL_error_int, nlua_gettop,
     };
 
     #[inline]
     pub fn push_nil_stack_slot(l: *mut lua_State) {
-        unsafe {
-            lua_pushnil(l);
-        }
+        lua_pushnil_safe(l);
     }
 
     #[inline]
     pub fn gettop(l: *mut lua_State) -> i32 {
-        unsafe { lua_gettop(l) }
+        nlua_gettop(l)
     }
 
     #[inline]
     pub fn settop(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_settop(l, idx);
-        }
+        lua_settop_safe(l, idx);
     }
 
     #[inline]
     pub fn remove(l: *mut lua_State, idx: i32) {
-        unsafe {
-            lua_remove(l, idx);
-        }
+        lua_remove_safe(l, idx);
     }
 
     #[inline]
     pub fn toboolean(l: *mut lua_State, idx: i32) -> bool {
-        unsafe { lua_toboolean(l, idx) != 0 }
+        lua_toboolean_safe(l, idx)
     }
 
     #[inline]
@@ -72,33 +63,26 @@ mod ffi {
 
     #[inline]
     pub fn tointeger(l: *mut lua_State, idx: i32) -> lua_Integer {
-        unsafe { lua_tointeger(l, idx) }
+        lua_tointeger_safe(l, idx)
     }
 
     #[inline]
     pub fn error_msg(l: *mut lua_State, msg: &CStr) -> ! {
-        unsafe {
-            luaL_error(l, msg.as_ptr());
-            unreachable!()
-        }
+        luaL_error_cstr(l, msg);
+        unreachable!()
     }
 
     #[inline]
     pub fn error_int(l: *mut lua_State, fmt: &CStr, val: i32) -> ! {
-        unsafe {
-            luaL_error(l, fmt.as_ptr(), val);
-            unreachable!()
-        }
+        luaL_error_int(l, fmt, val)
     }
 
     #[inline]
     pub fn get_maxstack(l: *mut lua_State) -> usize {
-        unsafe {
-            lua_getfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
-            let max = lua_tointeger(l, -1) as usize;
-            lua_pop(l, 1);
-            max
-        }
+        lua_getfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
+        let max = lua_tointeger_safe(l, -1) as usize;
+        lua_pop(l, 1);
+        max
     }
 
     #[inline]
@@ -109,14 +93,7 @@ mod ffi {
         newsize: usize,
         ptop: i32,
     ) -> &'a mut [Capture] {
-        unsafe {
-            let newc = lua_newuserdata(l, newsize * size_of::<Capture>()).cast::<Capture>();
-            let slice = std::slice::from_raw_parts_mut(newc, newsize);
-            slice[..captop].copy_from_slice(&old[..captop]);
-            slice[captop..].fill(Capture::new());
-            lua_replace(l, caplistidx(ptop));
-            slice
-        }
+        lua_newuserdata_slice_copy(l, old, captop, newsize, Capture::new(), caplistidx(ptop))
     }
 
     #[inline]
@@ -127,14 +104,7 @@ mod ffi {
         newn: usize,
         ptop: i32,
     ) -> &'a mut [Stack] {
-        unsafe {
-            let newstack = lua_newuserdata(l, newn * size_of::<Stack>()).cast::<Stack>();
-            let slice = std::slice::from_raw_parts_mut(newstack, newn);
-            slice[..n].copy_from_slice(&old[..n]);
-            slice[n..].fill(Stack::default());
-            lua_replace(l, stackidx(ptop));
-            slice
-        }
+        lua_newuserdata_slice_copy(l, old, n, newn, Stack::default(), stackidx(ptop))
     }
 }
 

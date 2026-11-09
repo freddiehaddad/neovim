@@ -1,8 +1,7 @@
 //! LPeg pattern trees and Lua API (`src/lpeg/lptree.c`).
-#![allow(unsafe_code)]
+#![forbid(unsafe_code)]
 
-use std::mem::size_of;
-use std::ptr;
+use std::ffi::CStr;
 
 use crate::lpeg::lpcap::getcaptures;
 use crate::lpeg::lpcode::{compile, fixedlen, hascaptures, nofail, nullable};
@@ -14,53 +13,45 @@ use crate::lpeg::{
     INITCAPSIZE, ISET, LpegByte, LpegUint, MAXBACK, MAXBEHIND, MAXINDT, MAXRULES, MAXSTACKIDX,
     NUMSIBLINGS, PATTERN_T, Pattern, SUBJIDX, TAND, TANY, TBEHIND, TCALL, TCAPTURE, TCHAR, TCHOICE,
     TFALSE, TGRAMMAR, TNOT, TOPEN_CALL, TREP, TRULE, TRUN_TIME, TSEQ, TSET, TTRUE, TTag, TTree,
-    TUTFR, TXINFO, clearset, lua_Integer, lua_Number, lua_State, lua_Unsigned, luaL_Reg, setchar,
-    sib1_idx, sib2_idx,
+    TUTFR, TXINFO, clearset, lua_Integer, lua_Number, lua_State, lua_Unsigned, setchar, sib1_idx,
+    sib2_idx,
 };
 
 use crate::lua::converter::{
     LUA_MINSTACK, LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNUMBER, LUA_TSTRING,
-    LUA_TTABLE, lua_createtable, lua_equal, lua_getfenv, lua_getmetatable, lua_gettable,
-    lua_gettop, lua_insert, lua_isnil, lua_isnoneornil, lua_isstring, lua_istable, lua_newtable,
-    lua_newuserdata, lua_next, lua_objlen, lua_pop, lua_pushfstring, lua_pushinteger,
-    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushvalue, lua_rawequal, lua_rawgeti,
-    lua_rawseti, lua_replace, lua_setfenv, lua_setfield, lua_setmetatable, lua_settable,
-    lua_settop, lua_toboolean, lua_tointeger, lua_tolstring, lua_tonumber, lua_tostring,
-    lua_touserdata, lua_type, luaL_argcheck, luaL_checkany, luaL_checkinteger, luaL_checklstring,
-    luaL_checkstack, luaL_checktype, luaL_checkudata, luaL_error, luaL_getmetatable,
-    luaL_newmetatable, luaL_optinteger, luaL_register, luaL_typename,
+    LUA_TTABLE, lua_isnil, lua_isnoneornil, lua_istable, lua_newtable, lua_pop, lua_setfield,
+    lua_tostring, luaL_argcheck, luaL_checkstack, luaL_getmetatable, luaL_newmetatable,
+    luaL_typename,
 };
-use crate::strings::RawCCharPtr;
+use crate::lua::ffi::{
+    lua_createtable_safe, lua_equal_safe, lua_getfenv_safe, lua_getmetatable_safe,
+    lua_gettable_safe, lua_insert_safe, lua_isstring_safe, lua_newuserdata_typed, lua_next_safe,
+    lua_objlen_safe, lua_push_bytes, lua_pushinteger_safe, lua_pushnil_safe, lua_pushnumber_safe,
+    lua_pushvalue_safe, lua_rawequal_safe, lua_rawgeti_safe, lua_rawseti_safe, lua_replace_safe,
+    lua_setfenv_safe, lua_setmetatable_safe, lua_settable_safe, lua_settop_safe,
+    lua_toboolean_safe, lua_tointeger_safe, lua_tolstring_bytes, lua_tonumber_safe,
+    lua_touserdata_nonnull, lua_type_safe, lua_val2str_cstr, luaL_checkany_safe, luaL_checkbytes,
+    luaL_checkinteger_safe, luaL_checktype_safe, luaL_checkudata_typed, luaL_error_cstr,
+    luaL_error_cstr_arg, luaL_error_opt_cstr_arg, luaL_optinteger_safe, luaL_register_safe,
+    nlua_gettop,
+};
 
 const MAXLIM: lua_Integer = (i32::MAX / 100) as lua_Integer;
 
-fn val2str(l: *mut lua_State, idx: i32) -> RawCCharPtr {
-    unsafe {
-        if let Some(k) = lua_tostring(l, idx) {
-            lua_pushfstring(l, c"%s".as_ptr(), k.as_ptr())
-        } else {
-            lua_pushfstring(l, c"(a %s)".as_ptr(), luaL_typename(l, idx).as_ptr())
-        }
-    }
+fn val2str(l: *mut lua_State, idx: i32) -> &'static CStr {
+    lua_val2str_cstr(l, idx)
 }
 
 fn fixonecall(l: *mut lua_State, postable: i32, tree: &mut [TTree], g_idx: usize, t_idx: usize) {
     let key = i32::from(tree[t_idx].key);
-    let n = unsafe {
-        lua_rawgeti(l, -1, key);
-        lua_gettable(l, postable);
-        let n = lua_tonumber(l, -1) as i32;
-        lua_pop(l, 1);
-        if n == 0 {
-            lua_rawgeti(l, -1, key);
-            luaL_error(
-                l,
-                c"rule '%s' undefined in given grammar".as_ptr(),
-                val2str(l, -1),
-            );
-        }
-        n
-    };
+    lua_rawgeti_safe(l, -1, key);
+    lua_gettable_safe(l, postable);
+    let n = lua_tonumber_safe(l, -1) as i32;
+    lua_pop(l, 1);
+    if n == 0 {
+        lua_rawgeti_safe(l, -1, key);
+        luaL_error_cstr_arg(l, c"rule '%s' undefined in given grammar", val2str(l, -1));
+    }
     tree[t_idx].tag = TCALL;
     tree[t_idx].u_n = n - (t_idx as i32 - g_idx as i32);
     let s2 = sib2_idx(tree, t_idx);
@@ -99,14 +90,8 @@ fn finalfix(
                     fixonecall(l, postable, tree, g_idx, t_idx);
                 } else {
                     let key = i32::from(tree[t_idx].key);
-                    unsafe {
-                        lua_rawgeti(l, -1, key);
-                        luaL_error(
-                            l,
-                            c"rule '%s' used outside a grammar".as_ptr(),
-                            val2str(l, -1),
-                        );
-                    }
+                    lua_rawgeti_safe(l, -1, key);
+                    luaL_error_cstr_arg(l, c"rule '%s' used outside a grammar", val2str(l, -1));
                 }
             }
             TSEQ | TCHOICE => {
@@ -131,57 +116,49 @@ fn finalfix(
 }
 
 fn newktable(l: *mut lua_State, n: i32) {
-    unsafe {
-        lua_createtable(l, n, 0);
-        lua_setfenv(l, -2);
-    }
+    lua_createtable_safe(l, n, 0);
+    lua_setfenv_safe(l, -2);
 }
 
 fn addtoktable(l: *mut lua_State, idx: i32) -> i32 {
-    unsafe {
-        if lua_isnil(l, idx) {
-            0
-        } else {
-            lua_getfenv(l, -1);
-            let mut n = lua_objlen(l, -1) as i32;
-            if n >= i32::from(u16::MAX) {
-                luaL_error(l, c"too many Lua values in pattern".as_ptr());
-            }
-            lua_pushvalue(l, idx);
-            n += 1;
-            lua_rawseti(l, -2, n);
-            lua_pop(l, 1);
-            n
+    if lua_isnil(l, idx) {
+        0
+    } else {
+        lua_getfenv_safe(l, -1);
+        let mut n = lua_objlen_safe(l, -1) as i32;
+        if n >= i32::from(u16::MAX) {
+            luaL_error_cstr(l, c"too many Lua values in pattern");
         }
+        lua_pushvalue_safe(l, idx);
+        n += 1;
+        lua_rawseti_safe(l, -2, n);
+        lua_pop(l, 1);
+        n
     }
 }
 
 fn ktablelen(l: *mut lua_State, idx: i32) -> i32 {
-    unsafe {
-        if !lua_istable(l, idx) {
-            0
-        } else {
-            lua_objlen(l, idx) as i32
-        }
+    if !lua_istable(l, idx) {
+        0
+    } else {
+        lua_objlen_safe(l, idx) as i32
     }
 }
 
 fn concattable(l: *mut lua_State, idx1: i32, idx2: i32) -> i32 {
-    unsafe {
-        let n1 = ktablelen(l, idx1);
-        let n2 = ktablelen(l, idx2);
-        if n1 + n2 > i32::from(u16::MAX) {
-            luaL_error(l, c"too many Lua values in pattern".as_ptr());
-        }
-        if n1 == 0 {
-            return 0;
-        }
-        for i in 1..=n1 {
-            lua_rawgeti(l, idx1, i);
-            lua_rawseti(l, idx2 - 1, n2 + i);
-        }
-        n2
+    let n1 = ktablelen(l, idx1);
+    let n2 = ktablelen(l, idx2);
+    if n1 + n2 > i32::from(u16::MAX) {
+        luaL_error_cstr(l, c"too many Lua values in pattern");
     }
+    if n1 == 0 {
+        return 0;
+    }
+    for i in 1..=n1 {
+        lua_rawgeti_safe(l, idx1, i);
+        lua_rawseti_safe(l, idx2 - 1, n2 + i);
+    }
+    n2
 }
 
 fn correctkeys(tree: &mut [TTree], mut idx: usize, n: i32) {
@@ -217,45 +194,38 @@ fn correctkeys(tree: &mut [TTree], mut idx: usize, n: i32) {
 }
 
 fn joinktables(l: *mut lua_State, p1: i32, tree: &mut [TTree], t2_idx: usize, p2: i32) {
-    unsafe {
-        lua_getfenv(l, p1);
-        lua_getfenv(l, p2);
-        let n1 = ktablelen(l, -2);
-        let n2 = ktablelen(l, -1);
-        if n1 == 0 && n2 == 0 {
-            lua_pop(l, 2);
-        } else if n2 == 0 || lua_equal(l, -2, -1) != 0 {
-            lua_pop(l, 1);
-            lua_setfenv(l, -2);
-        } else if n1 == 0 {
-            lua_setfenv(l, -3);
-            lua_pop(l, 1);
-        } else {
-            lua_createtable(l, n1 + n2, 0);
-            concattable(l, -3, -1);
-            concattable(l, -2, -1);
-            lua_setfenv(l, -4);
-            lua_pop(l, 2);
-            correctkeys(tree, t2_idx, n1);
-        }
+    lua_getfenv_safe(l, p1);
+    lua_getfenv_safe(l, p2);
+    let n1 = ktablelen(l, -2);
+    let n2 = ktablelen(l, -1);
+    if n1 == 0 && n2 == 0 {
+        lua_pop(l, 2);
+    } else if n2 == 0 || lua_equal_safe(l, -2, -1) {
+        lua_pop(l, 1);
+        lua_setfenv_safe(l, -2);
+    } else if n1 == 0 {
+        lua_setfenv_safe(l, -3);
+        lua_pop(l, 1);
+    } else {
+        lua_createtable_safe(l, n1 + n2, 0);
+        concattable(l, -3, -1);
+        concattable(l, -2, -1);
+        lua_setfenv_safe(l, -4);
+        lua_pop(l, 2);
+        correctkeys(tree, t2_idx, n1);
     }
 }
 
 fn copyktable(l: *mut lua_State, idx: i32) {
-    unsafe {
-        lua_getfenv(l, idx);
-        lua_setfenv(l, -2);
-    }
+    lua_getfenv_safe(l, idx);
+    lua_setfenv_safe(l, -2);
 }
 
 fn mergektable(l: *mut lua_State, idx: i32, tree_opt: Option<(&mut [TTree], usize)>) {
-    let n = unsafe {
-        lua_getfenv(l, -1);
-        lua_getfenv(l, idx);
-        let n = concattable(l, -1, -2);
-        lua_pop(l, 2);
-        n
-    };
+    lua_getfenv_safe(l, -1);
+    lua_getfenv_safe(l, idx);
+    let n = concattable(l, -1, -2);
+    lua_pop(l, 2);
     if let Some((tree, stree_idx)) = tree_opt {
         correctkeys(tree, stree_idx, n);
     }
@@ -270,21 +240,19 @@ fn addtonewktable(l: *mut lua_State, p: i32, idx: i32) -> i32 {
 }
 
 fn testpattern(l: *mut lua_State, idx: i32) -> bool {
-    unsafe {
-        if !lua_touserdata(l, idx).is_null() && lua_getmetatable(l, idx) != 0 {
-            luaL_getmetatable(l, PATTERN_T);
-            if lua_rawequal(l, -1, -2) != 0 {
-                lua_pop(l, 2);
-                return true;
-            }
+    if lua_touserdata_nonnull(l, idx) && lua_getmetatable_safe(l, idx) {
+        luaL_getmetatable(l, PATTERN_T);
+        if lua_rawequal_safe(l, -1, -2) {
             lua_pop(l, 2);
+            return true;
         }
-        false
+        lua_pop(l, 2);
     }
+    false
 }
 
 fn getpattern(l: *mut lua_State, idx: i32) -> &'static mut Pattern {
-    unsafe { &mut *luaL_checkudata(l, idx, PATTERN_T).cast::<Pattern>() }
+    luaL_checkudata_typed(l, idx, PATTERN_T)
 }
 
 fn getsize(l: *mut lua_State, idx: i32) -> i32 {
@@ -300,18 +268,18 @@ fn gettree(l: *mut lua_State, idx: i32, len: Option<&mut i32>) -> &'static mut [
 }
 
 fn newtree(l: *mut lua_State, len: i32) -> &'static mut [TTree] {
-    unsafe {
-        let p = lua_newuserdata(l, size_of::<Pattern>()).cast::<Pattern>();
-        p.write(Pattern {
+    let p = lua_newuserdata_typed(
+        l,
+        Pattern {
             code: Vec::new(),
             tree: vec![TTree::new(); len as usize],
-        });
-        luaL_getmetatable(l, PATTERN_T);
-        lua_pushvalue(l, -1);
-        lua_setfenv(l, -3);
-        lua_setmetatable(l, -2);
-        &mut (*p).tree
-    }
+        },
+    );
+    luaL_getmetatable(l, PATTERN_T);
+    lua_pushvalue_safe(l, -1);
+    lua_setfenv_safe(l, -3);
+    lua_setmetatable_safe(l, -2);
+    &mut p.tree
 }
 
 fn newleaf(l: *mut lua_State, tag: TTag) -> &'static mut [TTree] {
@@ -385,47 +353,44 @@ fn numtree(l: *mut lua_State, mut n: i32) -> &'static mut [TTree] {
 }
 
 fn getpatt(l: *mut lua_State, idx: i32, len: Option<&mut i32>) -> &'static mut [TTree] {
-    unsafe {
-        let tree = match lua_type(l, idx) {
-            LUA_TSTRING => {
-                let mut slen: usize = 0;
-                let s = lua_tolstring(l, idx, &mut slen);
-                if slen == 0 {
-                    newleaf(l, TTRUE)
-                } else {
-                    let s_bytes = std::slice::from_raw_parts(s.cast::<u8>(), slen).to_vec();
-                    let t = newtree(l, (2 * (slen - 1) + 1) as i32);
-                    fillseq(t, 0, TCHAR, slen as i32, Some(&s_bytes));
-                    t
-                }
-            }
-            LUA_TNUMBER => {
-                let n = lua_tointeger(l, idx) as i32;
-                numtree(l, n)
-            }
-            LUA_TBOOLEAN => {
-                if lua_toboolean(l, idx) != 0 {
-                    newleaf(l, TTRUE)
-                } else {
-                    newleaf(l, TFALSE)
-                }
-            }
-            LUA_TTABLE => newgrammar(l, idx),
-            LUA_TFUNCTION => {
-                let t = newtree(l, 2);
-                t[0].tag = TRUN_TIME;
-                t[0].key = addtonewktable(l, 0, idx) as u16;
-                t[1].tag = TTRUE;
+    let tree = match lua_type_safe(l, idx) {
+        LUA_TSTRING => {
+            let s_bytes = lua_tolstring_bytes(l, idx).to_vec();
+            let slen = s_bytes.len();
+            if slen == 0 {
+                newleaf(l, TTRUE)
+            } else {
+                let t = newtree(l, (2 * (slen - 1) + 1) as i32);
+                fillseq(t, 0, TCHAR, slen as i32, Some(&s_bytes));
                 t
             }
-            _ => return gettree(l, idx, len),
-        };
-        lua_replace(l, idx);
-        if let Some(len) = len {
-            *len = tree.len() as i32;
         }
-        tree
+        LUA_TNUMBER => {
+            let n = lua_tointeger_safe(l, idx) as i32;
+            numtree(l, n)
+        }
+        LUA_TBOOLEAN => {
+            if lua_toboolean_safe(l, idx) {
+                newleaf(l, TTRUE)
+            } else {
+                newleaf(l, TFALSE)
+            }
+        }
+        LUA_TTABLE => newgrammar(l, idx),
+        LUA_TFUNCTION => {
+            let t = newtree(l, 2);
+            t[0].tag = TRUN_TIME;
+            t[0].key = addtonewktable(l, 0, idx) as u16;
+            t[1].tag = TTRUE;
+            t
+        }
+        _ => return gettree(l, idx, len),
+    };
+    lua_replace_safe(l, idx);
+    if let Some(len) = len {
+        *len = tree.len() as i32;
     }
+    tree
 }
 
 fn newroot1sib(l: *mut lua_State, tag: TTag) -> &'static mut [TTree] {
@@ -455,63 +420,55 @@ fn newroot2sib(l: *mut lua_State, tag: TTag) -> &'static mut [TTree] {
     tree
 }
 
-unsafe extern "C-unwind" fn lp_p(l: *mut lua_State) -> i32 {
-    unsafe {
-        luaL_checkany(l, 1);
-        getpatt(l, 1, None);
-        lua_settop(l, 1);
-        1
-    }
+extern "C-unwind" fn lp_p(l: *mut lua_State) -> i32 {
+    luaL_checkany_safe(l, 1);
+    getpatt(l, 1, None);
+    lua_settop_safe(l, 1);
+    1
 }
 
-unsafe extern "C-unwind" fn lp_seq(l: *mut lua_State) -> i32 {
-    unsafe {
-        let tree1 = getpatt(l, 1, None);
-        let tree2 = getpatt(l, 2, None);
-        if tree1[0].tag == TFALSE || tree2[0].tag == TTRUE {
-            lua_pushvalue(l, 1);
-        } else if tree1[0].tag == TTRUE {
-            lua_pushvalue(l, 2);
-        } else {
-            newroot2sib(l, TSEQ);
+extern "C-unwind" fn lp_seq(l: *mut lua_State) -> i32 {
+    let tree1 = getpatt(l, 1, None);
+    let tree2 = getpatt(l, 2, None);
+    if tree1[0].tag == TFALSE || tree2[0].tag == TTRUE {
+        lua_pushvalue_safe(l, 1);
+    } else if tree1[0].tag == TTRUE {
+        lua_pushvalue_safe(l, 2);
+    } else {
+        newroot2sib(l, TSEQ);
+    }
+    1
+}
+
+extern "C-unwind" fn lp_choice(l: *mut lua_State) -> i32 {
+    let mut st1 = Charset::new();
+    let mut st2 = Charset::new();
+    let t1 = getpatt(l, 1, None);
+    let t2 = getpatt(l, 2, None);
+    if tocharset(&t1[0], &mut st1) != 0 && tocharset(&t2[0], &mut st2) != 0 {
+        for i in 0..CHARSETSIZE {
+            st1.cs[i] |= st2.cs[i];
         }
-        1
+        newcharset(l, &st1.cs);
+    } else if nofail(t1, 0) || t2[0].tag == TFALSE {
+        lua_pushvalue_safe(l, 1);
+    } else if t1[0].tag == TFALSE {
+        lua_pushvalue_safe(l, 2);
+    } else {
+        newroot2sib(l, TCHOICE);
     }
+    1
 }
 
-unsafe extern "C-unwind" fn lp_choice(l: *mut lua_State) -> i32 {
-    unsafe {
-        let mut st1 = Charset::new();
-        let mut st2 = Charset::new();
-        let t1 = getpatt(l, 1, None);
-        let t2 = getpatt(l, 2, None);
-        if tocharset(&t1[0], &mut st1) != 0 && tocharset(&t2[0], &mut st2) != 0 {
-            for i in 0..CHARSETSIZE {
-                st1.cs[i] |= st2.cs[i];
-            }
-            newcharset(l, &st1.cs);
-        } else if nofail(t1, 0) || t2[0].tag == TFALSE {
-            lua_pushvalue(l, 1);
-        } else if t1[0].tag == TFALSE {
-            lua_pushvalue(l, 2);
-        } else {
-            newroot2sib(l, TCHOICE);
-        }
-        1
-    }
-}
-
-unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_star(l: *mut lua_State) -> i32 {
     let mut size1: i32 = 0;
-    let mut n = unsafe { luaL_checkinteger(l, 2) as i32 };
+    let mut n = luaL_checkinteger_safe(l, 2) as i32;
     let tree1 = getpatt(l, 1, Some(&mut size1));
     let u1 = size1 as usize;
     if n >= 0 {
         let tree = newtree(l, (n + 1) * (size1 + 1));
         if nullable(tree1, 0) {
-            unsafe {
-                luaL_error(l, c"loop body may accept empty string".as_ptr());
-            }
+            luaL_error_cstr(l, c"loop body may accept empty string");
         }
         let mut idx = 0usize;
         while n > 0 {
@@ -543,17 +500,17 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> i32 {
     1
 }
 
-unsafe extern "C-unwind" fn lp_and(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_and(l: *mut lua_State) -> i32 {
     newroot1sib(l, TAND);
     1
 }
 
-unsafe extern "C-unwind" fn lp_not(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_not(l: *mut lua_State) -> i32 {
     newroot1sib(l, TNOT);
     1
 }
 
-unsafe extern "C-unwind" fn lp_sub(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_sub(l: *mut lua_State) -> i32 {
     let mut st1 = Charset::new();
     let mut st2 = Charset::new();
     let mut s1: i32 = 0;
@@ -580,36 +537,33 @@ unsafe extern "C-unwind" fn lp_sub(l: *mut lua_State) -> i32 {
     1
 }
 
-unsafe extern "C-unwind" fn lp_set(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_set(l: *mut lua_State) -> i32 {
     let mut buff = [0 as LpegByte; CHARSETSIZE];
     clearset(&mut buff);
-    unsafe {
-        let mut len: usize = 0;
-        let s = luaL_checklstring(l, 1, &mut len);
-        let bytes = std::slice::from_raw_parts(s.cast::<u8>(), len);
-        for &b in bytes {
-            setchar(&mut buff, usize::from(b));
-        }
+    let bytes = luaL_checkbytes(l, 1);
+    for &b in bytes {
+        setchar(&mut buff, usize::from(b));
     }
     newcharset(l, &buff);
     1
 }
 
-unsafe extern "C-unwind" fn lp_range(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_range(l: *mut lua_State) -> i32 {
     let mut buff = [0 as LpegByte; CHARSETSIZE];
     clearset(&mut buff);
-    unsafe {
-        let top = lua_gettop(l);
-        for arg in 1..=top {
-            let mut len: usize = 0;
-            let r = luaL_checklstring(l, arg, &mut len);
-            luaL_argcheck(l, len == 2, arg, c"range must have two characters");
-            let r_bytes = std::slice::from_raw_parts(r.cast::<u8>(), 2);
-            let start = usize::from(r_bytes[0]);
-            let end = usize::from(r_bytes[1]);
-            for c in start..=end {
-                setchar(&mut buff, c);
-            }
+    let top = nlua_gettop(l);
+    for arg in 1..=top {
+        let r_bytes = luaL_checkbytes(l, arg);
+        luaL_argcheck(
+            l,
+            r_bytes.len() == 2,
+            arg,
+            c"range must have two characters",
+        );
+        let start = usize::from(r_bytes[0]);
+        let end = usize::from(r_bytes[1]);
+        for c in start..=end {
+            setchar(&mut buff, c);
         }
     }
     newcharset(l, &buff);
@@ -633,12 +587,9 @@ fn codeutftree(l: *mut lua_State, t: &mut TTree, cpu: lua_Unsigned, arg: i32) {
     t.key = fb as u16;
 }
 
-unsafe extern "C-unwind" fn lp_utfr(l: *mut lua_State) -> i32 {
-    let (from, to) = unsafe {
-        let from = luaL_checkinteger(l, 1) as lua_Unsigned;
-        let to = luaL_checkinteger(l, 2) as lua_Unsigned;
-        (from, to)
-    };
+extern "C-unwind" fn lp_utfr(l: *mut lua_State) -> i32 {
+    let from = luaL_checkinteger_safe(l, 1) as lua_Unsigned;
+    let to = luaL_checkinteger_safe(l, 2) as lua_Unsigned;
     luaL_argcheck(l, from <= to, 2, c"empty range");
     if to <= 0x7f {
         let mut buff = [0 as LpegByte; CHARSETSIZE];
@@ -657,7 +608,7 @@ unsafe extern "C-unwind" fn lp_utfr(l: *mut lua_State) -> i32 {
     1
 }
 
-unsafe extern "C-unwind" fn lp_behind(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_behind(l: *mut lua_State) -> i32 {
     let tree1 = getpatt(l, 1, None);
     let n = fixedlen(tree1, 0);
     luaL_argcheck(l, n >= 0, 1, c"pattern may not have fixed length");
@@ -668,7 +619,7 @@ unsafe extern "C-unwind" fn lp_behind(l: *mut lua_State) -> i32 {
     1
 }
 
-unsafe extern "C-unwind" fn lp_v(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_v(l: *mut lua_State) -> i32 {
     let tree = newleaf(l, TOPEN_CALL);
     luaL_argcheck(l, !lua_isnoneornil(l, 1), 1, c"non-nil value expected");
     tree[0].key = addtonewktable(l, 0, 1) as u16;
@@ -706,42 +657,40 @@ fn newemptycapkey(l: *mut lua_State, cap: LpegByte, idx: i32) -> &'static mut [T
     tree
 }
 
-unsafe extern "C-unwind" fn lp_divcapture(l: *mut lua_State) -> i32 {
-    unsafe {
-        match lua_type(l, 2) {
-            LUA_TFUNCTION => capture_aux(l, CFUNCTION, 2),
-            LUA_TTABLE => capture_aux(l, CQUERY, 2),
-            LUA_TSTRING => capture_aux(l, CSTRING, 2),
-            LUA_TNUMBER => {
-                let n = lua_tointeger(l, 2) as i32;
-                let tree = newroot1sib(l, TCAPTURE);
-                luaL_argcheck(l, 0 <= n && n <= i32::from(i16::MAX), 1, c"invalid number");
-                tree[0].cap = CNUM;
-                tree[0].key = n as u16;
-                1
-            }
-            _ => luaL_error(
-                l,
-                c"unexpected %s as 2nd operand to LPeg '/'".as_ptr(),
-                luaL_typename(l, 2).as_ptr(),
-            ),
+extern "C-unwind" fn lp_divcapture(l: *mut lua_State) -> i32 {
+    match lua_type_safe(l, 2) {
+        LUA_TFUNCTION => capture_aux(l, CFUNCTION, 2),
+        LUA_TTABLE => capture_aux(l, CQUERY, 2),
+        LUA_TSTRING => capture_aux(l, CSTRING, 2),
+        LUA_TNUMBER => {
+            let n = lua_tointeger_safe(l, 2) as i32;
+            let tree = newroot1sib(l, TCAPTURE);
+            luaL_argcheck(l, 0 <= n && n <= i32::from(i16::MAX), 1, c"invalid number");
+            tree[0].cap = CNUM;
+            tree[0].key = n as u16;
+            1
         }
+        _ => luaL_error_cstr_arg(
+            l,
+            c"unexpected %s as 2nd operand to LPeg '/'",
+            luaL_typename(l, 2),
+        ),
     }
 }
 
-unsafe extern "C-unwind" fn lp_acccapture(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_acccapture(l: *mut lua_State) -> i32 {
     capture_aux(l, CACC, 2)
 }
 
-unsafe extern "C-unwind" fn lp_substcapture(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_substcapture(l: *mut lua_State) -> i32 {
     capture_aux(l, CSUBST, 0)
 }
 
-unsafe extern "C-unwind" fn lp_tablecapture(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_tablecapture(l: *mut lua_State) -> i32 {
     capture_aux(l, CTABLE, 0)
 }
 
-unsafe extern "C-unwind" fn lp_groupcapture(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_groupcapture(l: *mut lua_State) -> i32 {
     if lua_isnoneornil(l, 2) {
         capture_aux(l, CGROUP, 0)
     } else {
@@ -749,24 +698,22 @@ unsafe extern "C-unwind" fn lp_groupcapture(l: *mut lua_State) -> i32 {
     }
 }
 
-unsafe extern "C-unwind" fn lp_foldcapture(l: *mut lua_State) -> i32 {
-    unsafe {
-        luaL_checktype(l, 2, LUA_TFUNCTION);
-        capture_aux(l, CFOLD, 2)
-    }
+extern "C-unwind" fn lp_foldcapture(l: *mut lua_State) -> i32 {
+    luaL_checktype_safe(l, 2, LUA_TFUNCTION);
+    capture_aux(l, CFOLD, 2)
 }
 
-unsafe extern "C-unwind" fn lp_simplecapture(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_simplecapture(l: *mut lua_State) -> i32 {
     capture_aux(l, CSIMPLE, 0)
 }
 
-unsafe extern "C-unwind" fn lp_poscapture(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_poscapture(l: *mut lua_State) -> i32 {
     newemptycap(l, CPOSITION, 0);
     1
 }
 
-unsafe extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> i32 {
-    let n = unsafe { luaL_checkinteger(l, 1) as i32 };
+extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> i32 {
+    let n = luaL_checkinteger_safe(l, 1) as i32;
     luaL_argcheck(
         l,
         0 < n && n <= i32::from(i16::MAX),
@@ -777,16 +724,14 @@ unsafe extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> i32 {
     1
 }
 
-unsafe extern "C-unwind" fn lp_backref(l: *mut lua_State) -> i32 {
-    unsafe {
-        luaL_checkany(l, 1);
-    }
+extern "C-unwind" fn lp_backref(l: *mut lua_State) -> i32 {
+    luaL_checkany_safe(l, 1);
     newemptycapkey(l, CBACKREF, 1);
     1
 }
 
-unsafe extern "C-unwind" fn lp_constcapture(l: *mut lua_State) -> i32 {
-    let n = unsafe { lua_gettop(l) };
+extern "C-unwind" fn lp_constcapture(l: *mut lua_State) -> i32 {
+    let n = nlua_gettop(l);
     if n == 0 {
         newleaf(l, TTRUE);
     } else if n == 1 {
@@ -812,69 +757,63 @@ unsafe extern "C-unwind" fn lp_constcapture(l: *mut lua_State) -> i32 {
     1
 }
 
-unsafe extern "C-unwind" fn lp_matchtime(l: *mut lua_State) -> i32 {
-    unsafe {
-        luaL_checktype(l, 2, LUA_TFUNCTION);
-    }
+extern "C-unwind" fn lp_matchtime(l: *mut lua_State) -> i32 {
+    luaL_checktype_safe(l, 2, LUA_TFUNCTION);
     let tree = newroot1sib(l, TRUN_TIME);
     tree[0].key = addtonewktable(l, 1, 2) as u16;
     1
 }
 
 fn getfirstrule(l: *mut lua_State, arg: i32, postab: i32) {
-    unsafe {
-        lua_rawgeti(l, arg, 1);
-        if lua_isstring(l, -1) != 0 {
-            lua_pushvalue(l, -1);
-            lua_gettable(l, arg);
-        } else {
-            lua_pushinteger(l, 1);
-            lua_insert(l, -2);
-        }
-        if !testpattern(l, -1) {
-            if lua_isnil(l, -1) {
-                luaL_error(l, c"grammar has no initial rule".as_ptr());
-            } else {
-                luaL_error(
-                    l,
-                    c"initial rule '%s' is not a pattern".as_ptr(),
-                    lua_tostring(l, -2).map_or(ptr::null(), std::ffi::CStr::as_ptr),
-                );
-            }
-        }
-        lua_pushvalue(l, -2);
-        lua_pushinteger(l, 1);
-        lua_settable(l, postab);
+    lua_rawgeti_safe(l, arg, 1);
+    if lua_isstring_safe(l, -1) {
+        lua_pushvalue_safe(l, -1);
+        lua_gettable_safe(l, arg);
+    } else {
+        lua_pushinteger_safe(l, 1);
+        lua_insert_safe(l, -2);
     }
+    if !testpattern(l, -1) {
+        if lua_isnil(l, -1) {
+            luaL_error_cstr(l, c"grammar has no initial rule");
+        } else {
+            luaL_error_opt_cstr_arg(
+                l,
+                c"initial rule '%s' is not a pattern",
+                lua_tostring(l, -2),
+            );
+        }
+    }
+    lua_pushvalue_safe(l, -2);
+    lua_pushinteger_safe(l, 1);
+    lua_settable_safe(l, postab);
 }
 
 fn collectrules(l: *mut lua_State, arg: i32, totalsize: &mut i32) -> i32 {
-    unsafe {
-        let mut n: i32 = 1;
-        let postab = lua_gettop(l) + 1;
-        lua_newtable(l);
-        getfirstrule(l, arg, postab);
-        let mut size = 3 + getsize(l, postab + 2);
-        lua_pushnil(l);
-        while lua_next(l, arg) != 0 {
-            if lua_tonumber(l, -2) == 1.0 || lua_equal(l, -2, postab + 1) != 0 {
-                lua_pop(l, 1);
-                continue;
-            }
-            if !testpattern(l, -1) {
-                luaL_error(l, c"rule '%s' is not a pattern".as_ptr(), val2str(l, -2));
-            }
-            luaL_checkstack(l, LUA_MINSTACK, c"grammar has too many rules");
-            lua_pushvalue(l, -2);
-            lua_pushinteger(l, size as lua_Integer);
-            lua_settable(l, postab);
-            size += 2 + getsize(l, -1);
-            lua_pushvalue(l, -2);
-            n += 1;
+    let mut n: i32 = 1;
+    let postab = nlua_gettop(l) + 1;
+    lua_newtable(l);
+    getfirstrule(l, arg, postab);
+    let mut size = 3 + getsize(l, postab + 2);
+    lua_pushnil_safe(l);
+    while lua_next_safe(l, arg) != 0 {
+        if lua_tonumber_safe(l, -2) == 1.0 || lua_equal_safe(l, -2, postab + 1) {
+            lua_pop(l, 1);
+            continue;
         }
-        *totalsize = size + 1;
-        n
+        if !testpattern(l, -1) {
+            luaL_error_cstr_arg(l, c"rule '%s' is not a pattern", val2str(l, -2));
+        }
+        luaL_checkstack(l, LUA_MINSTACK, c"grammar has too many rules");
+        lua_pushvalue_safe(l, -2);
+        lua_pushinteger_safe(l, size as lua_Integer);
+        lua_settable_safe(l, postab);
+        size += 2 + getsize(l, -1);
+        lua_pushvalue_safe(l, -2);
+        n += 1;
     }
+    *totalsize = size + 1;
+    n
 }
 
 fn buildgrammar(l: *mut lua_State, grammar: &mut [TTree], frule: i32, n: i32) {
@@ -925,25 +864,19 @@ fn checkloops(tree: &mut [TTree], mut idx: usize) -> bool {
 }
 
 fn verifyerror(l: *mut lua_State, passed: &[u16; MAXRULES], npassed: i32) -> i32 {
-    unsafe {
-        let mut i = npassed - 1;
-        while i >= 0 {
-            let mut j = i - 1;
-            while j >= 0 {
-                if passed[i as usize] == passed[j as usize] {
-                    lua_rawgeti(l, -1, i32::from(passed[i as usize]));
-                    return luaL_error(
-                        l,
-                        c"rule '%s' may be left recursive".as_ptr(),
-                        val2str(l, -1),
-                    );
-                }
-                j -= 1;
+    let mut i = npassed - 1;
+    while i >= 0 {
+        let mut j = i - 1;
+        while j >= 0 {
+            if passed[i as usize] == passed[j as usize] {
+                lua_rawgeti_safe(l, -1, i32::from(passed[i as usize]));
+                return luaL_error_cstr_arg(l, c"rule '%s' may be left recursive", val2str(l, -1));
             }
-            i -= 1;
+            j -= 1;
         }
-        luaL_error(l, c"too many left calls in grammar".as_ptr())
+        i -= 1;
     }
+    luaL_error_cstr(l, c"too many left calls in grammar")
 }
 
 fn verifyrule(
@@ -1010,10 +943,8 @@ fn verifygrammar(l: *mut lua_State, grammar: &mut [TTree]) {
     while grammar[rule].tag == TRULE {
         if grammar[rule].key != 0 && checkloops(grammar, sib1_idx(rule)) {
             let key = i32::from(grammar[rule].key);
-            unsafe {
-                lua_rawgeti(l, -1, key);
-                luaL_error(l, c"empty loop in rule '%s'".as_ptr(), val2str(l, -1));
-            }
+            lua_rawgeti_safe(l, -1, key);
+            luaL_error_cstr_arg(l, c"empty loop in rule '%s'", val2str(l, -1));
         }
         rule = sib2_idx(grammar, rule);
     }
@@ -1022,19 +953,16 @@ fn verifygrammar(l: *mut lua_State, grammar: &mut [TTree]) {
 
 fn initialrulename(l: *mut lua_State, grammar: &mut [TTree], frule: i32) {
     if grammar[1].key == 0 {
-        let n = unsafe {
-            let n = (lua_objlen(l, -1) + 1) as i32;
-            lua_pushvalue(l, frule);
-            lua_rawseti(l, -2, n);
-            n
-        };
+        let n = (lua_objlen_safe(l, -1) + 1) as i32;
+        lua_pushvalue_safe(l, frule);
+        lua_rawseti_safe(l, -2, n);
         grammar[1].key = n as u16;
     }
 }
 
 fn newgrammar(l: *mut lua_State, arg: i32) -> &'static mut [TTree] {
     let mut treesize: i32 = 0;
-    let frule = unsafe { lua_gettop(l) + 2 };
+    let frule = nlua_gettop(l) + 2;
     let n = collectrules(l, arg, &mut treesize);
     let g = newtree(l, treesize);
     luaL_argcheck(
@@ -1045,59 +973,46 @@ fn newgrammar(l: *mut lua_State, arg: i32) -> &'static mut [TTree] {
     );
     g[0].tag = TGRAMMAR;
     g[0].u_n = n;
-    unsafe {
-        lua_newtable(l);
-        lua_setfenv(l, -2);
-    }
+    lua_newtable(l);
+    lua_setfenv_safe(l, -2);
     buildgrammar(l, g, frule, n);
-    unsafe {
-        lua_getfenv(l, -1);
-    }
+    lua_getfenv_safe(l, -1);
     finalfix(l, frule - 1, g, Some(0), 1);
     initialrulename(l, g, frule);
     verifygrammar(l, g);
-    unsafe {
-        lua_pop(l, 1);
-        lua_insert(l, -(n * 2 + 2));
-        lua_pop(l, n * 2 + 1);
-    }
+    lua_pop(l, 1);
+    lua_insert_safe(l, -(n * 2 + 2));
+    lua_pop(l, n * 2 + 1);
     g
 }
 
 fn prepcompile(l: *mut lua_State, p: &mut Pattern, idx: i32) {
-    unsafe {
-        lua_getfenv(l, idx);
-    }
+    lua_getfenv_safe(l, idx);
     finalfix(l, 0, &mut p.tree, None, 0);
     lua_pop(l, 1);
     let size = p.tree.len() as LpegUint;
     if let Err(err) = compile(p, size) {
-        unsafe {
-            luaL_error(l, err.as_ptr());
-        }
+        luaL_error_cstr(l, err);
     }
 }
 
-unsafe extern "C-unwind" fn lp_printtree(l: *mut lua_State) -> i32 {
-    unsafe {
-        let tree = getpatt(l, 1, None);
-        let c = lua_toboolean(l, 2);
-        if c != 0 {
-            lua_getfenv(l, 1);
-            finalfix(l, 0, tree, None, 0);
-            lua_pop(l, 1);
-        }
-        luaL_error(l, c"function only implemented in debug mode".as_ptr())
+extern "C-unwind" fn lp_printtree(l: *mut lua_State) -> i32 {
+    let tree = getpatt(l, 1, None);
+    if lua_toboolean_safe(l, 2) {
+        lua_getfenv_safe(l, 1);
+        finalfix(l, 0, tree, None, 0);
+        lua_pop(l, 1);
     }
+    luaL_error_cstr(l, c"function only implemented in debug mode")
 }
 
-unsafe extern "C-unwind" fn lp_printcode(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_printcode(l: *mut lua_State) -> i32 {
     let _ = getpattern(l, 1);
-    unsafe { luaL_error(l, c"function only implemented in debug mode".as_ptr()) }
+    luaL_error_cstr(l, c"function only implemented in debug mode")
 }
 
 fn initposition(l: *mut lua_State, len: usize) -> usize {
-    let ii = unsafe { luaL_optinteger(l, 3, 1) };
+    let ii = luaL_optinteger_safe(l, 3, 1);
     if ii > 0 {
         let u = ii as usize;
         if u <= len { u - 1 } else { len }
@@ -1107,61 +1022,46 @@ fn initposition(l: *mut lua_State, len: usize) -> usize {
     }
 }
 
-unsafe extern "C-unwind" fn lp_match(l: *mut lua_State) -> i32 {
+extern "C-unwind" fn lp_match(l: *mut lua_State) -> i32 {
     let mut capture: [Capture; INITCAPSIZE] = [Capture::new(); INITCAPSIZE];
-    let mut len: usize = 0;
     getpatt(l, 1, None);
     let p = getpattern(l, 1);
     if p.code.is_empty() {
         prepcompile(l, p, 1);
     }
-    let subject = unsafe {
-        let s = luaL_checklstring(l, SUBJIDX, &mut len);
-        if s.is_null() || len == 0 {
-            &[][..]
-        } else {
-            std::slice::from_raw_parts(s.cast::<u8>(), len)
-        }
-    };
+    let subject = luaL_checkbytes(l, SUBJIDX);
+    let len = subject.len();
     let i = initposition(l, len);
-    let ptop = unsafe { lua_gettop(l) };
+    let ptop = nlua_gettop(l);
     luaL_argcheck(l, len < (MAXINDT as usize), SUBJIDX, c"subject too long");
-    unsafe {
-        lua_pushnil(l);
-        lua_pushnil(l);
-        lua_getfenv(l, 1);
-    }
+    lua_pushnil_safe(l);
+    lua_pushnil_safe(l);
+    lua_getfenv_safe(l, 1);
     let Some((r_pos, caps)) = r#match(l, subject, i, &p.code, &mut capture, ptop) else {
-        unsafe {
-            lua_pushnil(l);
-        }
+        lua_pushnil_safe(l);
         return 1;
     };
     getcaptures(l, subject, r_pos, caps, ptop)
 }
 
-unsafe extern "C-unwind" fn lp_setmax(l: *mut lua_State) -> i32 {
-    unsafe {
-        let lim = luaL_checkinteger(l, 1);
-        luaL_argcheck(l, 0 < lim && lim <= MAXLIM, 1, c"out of range");
-        lua_settop(l, 1);
-        lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
-        0
-    }
+extern "C-unwind" fn lp_setmax(l: *mut lua_State) -> i32 {
+    let lim = luaL_checkinteger_safe(l, 1);
+    luaL_argcheck(l, 0 < lim && lim <= MAXLIM, 1, c"out of range");
+    lua_settop_safe(l, 1);
+    lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
+    0
 }
 
-unsafe extern "C-unwind" fn lp_type(l: *mut lua_State) -> i32 {
-    unsafe {
-        if testpattern(l, 1) {
-            lua_pushlstring(l, c"pattern".as_ptr(), 7);
-        } else {
-            lua_pushnil(l);
-        }
-        1
+extern "C-unwind" fn lp_type(l: *mut lua_State) -> i32 {
+    if testpattern(l, 1) {
+        lua_push_bytes(l, b"pattern");
+    } else {
+        lua_pushnil_safe(l);
     }
+    1
 }
 
-pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> i32 {
+pub extern "C-unwind" fn lp_gc(l: *mut lua_State) -> i32 {
     let p = getpattern(l, 1);
     p.code = Vec::new();
     p.tree = Vec::new();
@@ -1180,184 +1080,75 @@ fn createcat(l: *mut lua_State, catname: &std::ffi::CStr, catf: fn(u8) -> bool) 
     lua_setfield(l, -2, catname);
 }
 
-unsafe extern "C-unwind" fn lp_locale(l: *mut lua_State) -> i32 {
-    unsafe {
-        if lua_isnoneornil(l, 1) {
-            lua_settop(l, 0);
-            lua_createtable(l, 0, 12);
-        } else {
-            luaL_checktype(l, 1, LUA_TTABLE);
-            lua_settop(l, 1);
-        }
-        createcat(l, c"alnum", |b| b.is_ascii_alphanumeric());
-        createcat(l, c"alpha", |b| b.is_ascii_alphabetic());
-        createcat(l, c"cntrl", |b| b.is_ascii_control());
-        createcat(l, c"digit", |b| b.is_ascii_digit());
-        createcat(l, c"graph", |b| b.is_ascii_graphic());
-        createcat(l, c"lower", |b| b.is_ascii_lowercase());
-        createcat(l, c"print", |b| matches!(b, 0x20..=0x7e));
-        createcat(l, c"punct", |b| b.is_ascii_punctuation());
-        createcat(l, c"space", |b| matches!(b, b' ' | b'\t'..=b'\r'));
-        createcat(l, c"upper", |b| b.is_ascii_uppercase());
-        createcat(l, c"xdigit", |b| b.is_ascii_hexdigit());
-        1
+extern "C-unwind" fn lp_locale(l: *mut lua_State) -> i32 {
+    if lua_isnoneornil(l, 1) {
+        lua_settop_safe(l, 0);
+        lua_createtable_safe(l, 0, 12);
+    } else {
+        luaL_checktype_safe(l, 1, LUA_TTABLE);
+        lua_settop_safe(l, 1);
     }
+    createcat(l, c"alnum", |b| b.is_ascii_alphanumeric());
+    createcat(l, c"alpha", |b| b.is_ascii_alphabetic());
+    createcat(l, c"cntrl", |b| b.is_ascii_control());
+    createcat(l, c"digit", |b| b.is_ascii_digit());
+    createcat(l, c"graph", |b| b.is_ascii_graphic());
+    createcat(l, c"lower", |b| b.is_ascii_lowercase());
+    createcat(l, c"print", |b| matches!(b, 0x20..=0x7e));
+    createcat(l, c"punct", |b| b.is_ascii_punctuation());
+    createcat(l, c"space", |b| matches!(b, b' ' | b'\t'..=b'\r'));
+    createcat(l, c"upper", |b| b.is_ascii_uppercase());
+    createcat(l, c"xdigit", |b| b.is_ascii_hexdigit());
+    1
 }
 
-const PATTREG: [luaL_Reg; 24] = [
-    luaL_Reg {
-        name: c"ptree".as_ptr(),
-        func: Some(lp_printtree),
-    },
-    luaL_Reg {
-        name: c"pcode".as_ptr(),
-        func: Some(lp_printcode),
-    },
-    luaL_Reg {
-        name: c"match".as_ptr(),
-        func: Some(lp_match),
-    },
-    luaL_Reg {
-        name: c"B".as_ptr(),
-        func: Some(lp_behind),
-    },
-    luaL_Reg {
-        name: c"V".as_ptr(),
-        func: Some(lp_v),
-    },
-    luaL_Reg {
-        name: c"C".as_ptr(),
-        func: Some(lp_simplecapture),
-    },
-    luaL_Reg {
-        name: c"Cc".as_ptr(),
-        func: Some(lp_constcapture),
-    },
-    luaL_Reg {
-        name: c"Cmt".as_ptr(),
-        func: Some(lp_matchtime),
-    },
-    luaL_Reg {
-        name: c"Cb".as_ptr(),
-        func: Some(lp_backref),
-    },
-    luaL_Reg {
-        name: c"Carg".as_ptr(),
-        func: Some(lp_argcapture),
-    },
-    luaL_Reg {
-        name: c"Cp".as_ptr(),
-        func: Some(lp_poscapture),
-    },
-    luaL_Reg {
-        name: c"Cs".as_ptr(),
-        func: Some(lp_substcapture),
-    },
-    luaL_Reg {
-        name: c"Ct".as_ptr(),
-        func: Some(lp_tablecapture),
-    },
-    luaL_Reg {
-        name: c"Cf".as_ptr(),
-        func: Some(lp_foldcapture),
-    },
-    luaL_Reg {
-        name: c"Cg".as_ptr(),
-        func: Some(lp_groupcapture),
-    },
-    luaL_Reg {
-        name: c"P".as_ptr(),
-        func: Some(lp_p),
-    },
-    luaL_Reg {
-        name: c"S".as_ptr(),
-        func: Some(lp_set),
-    },
-    luaL_Reg {
-        name: c"R".as_ptr(),
-        func: Some(lp_range),
-    },
-    luaL_Reg {
-        name: c"utfR".as_ptr(),
-        func: Some(lp_utfr),
-    },
-    luaL_Reg {
-        name: c"locale".as_ptr(),
-        func: Some(lp_locale),
-    },
-    luaL_Reg {
-        name: c"version".as_ptr(),
-        func: None,
-    },
-    luaL_Reg {
-        name: c"setmaxstack".as_ptr(),
-        func: Some(lp_setmax),
-    },
-    luaL_Reg {
-        name: c"type".as_ptr(),
-        func: Some(lp_type),
-    },
-    luaL_Reg {
-        name: ptr::null(),
-        func: None,
-    },
+const PATTREG: [(&CStr, extern "C-unwind" fn(*mut lua_State) -> i32); 22] = [
+    (c"ptree", lp_printtree),
+    (c"pcode", lp_printcode),
+    (c"match", lp_match),
+    (c"B", lp_behind),
+    (c"V", lp_v),
+    (c"C", lp_simplecapture),
+    (c"Cc", lp_constcapture),
+    (c"Cmt", lp_matchtime),
+    (c"Cb", lp_backref),
+    (c"Carg", lp_argcapture),
+    (c"Cp", lp_poscapture),
+    (c"Cs", lp_substcapture),
+    (c"Ct", lp_tablecapture),
+    (c"Cf", lp_foldcapture),
+    (c"Cg", lp_groupcapture),
+    (c"P", lp_p),
+    (c"S", lp_set),
+    (c"R", lp_range),
+    (c"utfR", lp_utfr),
+    (c"locale", lp_locale),
+    (c"setmaxstack", lp_setmax),
+    (c"type", lp_type),
 ];
 
-const METAREG: [luaL_Reg; 10] = [
-    luaL_Reg {
-        name: c"__mul".as_ptr(),
-        func: Some(lp_seq),
-    },
-    luaL_Reg {
-        name: c"__add".as_ptr(),
-        func: Some(lp_choice),
-    },
-    luaL_Reg {
-        name: c"__pow".as_ptr(),
-        func: Some(lp_star),
-    },
-    luaL_Reg {
-        name: c"__gc".as_ptr(),
-        func: Some(lp_gc),
-    },
-    luaL_Reg {
-        name: c"__len".as_ptr(),
-        func: Some(lp_and),
-    },
-    luaL_Reg {
-        name: c"__div".as_ptr(),
-        func: Some(lp_divcapture),
-    },
-    luaL_Reg {
-        name: c"__mod".as_ptr(),
-        func: Some(lp_acccapture),
-    },
-    luaL_Reg {
-        name: c"__unm".as_ptr(),
-        func: Some(lp_not),
-    },
-    luaL_Reg {
-        name: c"__sub".as_ptr(),
-        func: Some(lp_sub),
-    },
-    luaL_Reg {
-        name: ptr::null(),
-        func: None,
-    },
+const METAREG: [(&CStr, extern "C-unwind" fn(*mut lua_State) -> i32); 9] = [
+    (c"__mul", lp_seq),
+    (c"__add", lp_choice),
+    (c"__pow", lp_star),
+    (c"__gc", lp_gc),
+    (c"__len", lp_and),
+    (c"__div", lp_divcapture),
+    (c"__mod", lp_acccapture),
+    (c"__unm", lp_not),
+    (c"__sub", lp_sub),
 ];
 
 pub fn luaopen_lpeg(l: *mut lua_State) -> i32 {
     const LPEG_VERSION: &[u8] = b"LPeg 1.1.0";
-    unsafe {
-        luaL_newmetatable(l, PATTERN_T);
-        lua_pushnumber(l, lua_Number::from(MAXBACK));
-        lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
-        luaL_register(l, None, &METAREG);
-        luaL_register(l, Some(c"lpeg"), &PATTREG);
-        lua_pushvalue(l, -1);
-        lua_setfield(l, -3, c"__index");
-        lua_pushlstring(l, LPEG_VERSION.as_ptr().cast(), LPEG_VERSION.len());
-        lua_setfield(l, -2, c"version");
-        1
-    }
+    luaL_newmetatable(l, PATTERN_T);
+    lua_pushnumber_safe(l, lua_Number::from(MAXBACK));
+    lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
+    luaL_register_safe(l, None, &METAREG);
+    luaL_register_safe(l, Some(c"lpeg"), &PATTREG);
+    lua_pushvalue_safe(l, -1);
+    lua_setfield(l, -3, c"__index");
+    lua_push_bytes(l, LPEG_VERSION);
+    lua_setfield(l, -2, c"version");
+    1
 }

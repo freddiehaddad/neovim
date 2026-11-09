@@ -1,5 +1,5 @@
 //! LPeg - PEG pattern matching for Lua (`src/lpeg/`).
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 pub mod lpcap;
 pub mod lpcode;
@@ -9,7 +9,7 @@ pub mod lpvm;
 
 use std::ffi::CStr;
 
-use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
+use crate::lua::converter::{lua_Integer, lua_Number, lua_State};
 
 pub type LpegByte = u8;
 pub type LpegUint = u32;
