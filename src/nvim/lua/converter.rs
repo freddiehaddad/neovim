@@ -28,125 +28,17 @@ use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
+pub use crate::lua::ffi::*;
 use crate::memory::{Arena, arena_memdupz_opt};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use std::ffi::{CStr, c_char, c_void};
-
-pub type Boolean = bool;
-pub type Float = f64;
-pub type LuaRef = i32;
-pub(crate) const LUA_NOREF: LuaRef = -2;
-#[allow(non_camel_case_types)]
-pub type lua_State = c_void;
-#[allow(non_camel_case_types)]
-pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State) -> i32>;
-#[allow(non_camel_case_types)]
-pub type lua_Number = f64;
-#[allow(non_camel_case_types)]
-pub type lua_Integer = isize;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct luaL_Reg {
-    pub name: *const c_char,
-    pub func: lua_CFunction,
-}
-
-unsafe impl Sync for luaL_Reg {}
-
-#[repr(C)]
-pub struct luaL_Buffer {
-    pub p: *mut c_char,
-    pub lvl: i32,
-    pub lstate: *mut lua_State,
-    pub buffer: [c_char; 8192],
-}
-
-impl luaL_Buffer {
-    pub const fn new() -> Self {
-        Self {
-            p: std::ptr::null_mut(),
-            lvl: 0,
-            lstate: std::ptr::null_mut(),
-            buffer: [0; 8192],
-        }
-    }
-}
-
-impl Default for luaL_Buffer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[repr(C)]
-pub struct lua_Debug {
-    pub event: i32,
-    pub name: *const c_char,
-    pub namewhat: *const c_char,
-    pub what: *const c_char,
-    pub source: *const c_char,
-    pub currentline: i32,
-    pub nups: i32,
-    pub linedefined: i32,
-    pub lastlinedefined: i32,
-    pub short_src: [c_char; 60],
-    pub i_ci: i32,
-    pub _pad: [u8; 32],
-}
-
-impl lua_Debug {
-    pub const fn new() -> Self {
-        Self {
-            event: 0,
-            name: std::ptr::null(),
-            namewhat: std::ptr::null(),
-            what: std::ptr::null(),
-            source: std::ptr::null(),
-            currentline: 0,
-            nups: 0,
-            linedefined: 0,
-            lastlinedefined: 0,
-            short_src: [0; 60],
-            i_ci: 0,
-            _pad: [0; 32],
-        }
-    }
-}
-
-impl Default for lua_Debug {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 pub(crate) const K_NLUA_PUSH_SPECIAL: i32 = 0x01;
 const K_NLUA_PUSH_FREE_REFS: i32 = 0x02;
 
 const TYPE_IDX_VALUE: bool = true;
 const VAL_IDX_VALUE: bool = false;
-
-pub const LUA_MULTRET: i32 = -1;
-pub const LUA_REGISTRYINDEX: i32 = -10000;
-pub const LUA_GLOBALSINDEX: i32 = -10002;
-pub(crate) const LUA_MINSTACK: i32 = 20;
-
-#[cfg(feature = "vendor-bit")]
-pub(crate) const LUA_TNONE: i32 = -1;
-pub(crate) const LUA_TNIL: i32 = 0;
-pub(crate) const LUA_TBOOLEAN: i32 = 1;
-pub(crate) const LUA_TLIGHTUSERDATA: i32 = 2;
-pub(crate) const LUA_TNUMBER: i32 = 3;
-pub(crate) const LUA_TSTRING: i32 = 4;
-pub(crate) const LUA_TTABLE: i32 = 5;
-pub(crate) const LUA_TFUNCTION: i32 = 6;
-pub(crate) const LUA_TUSERDATA: i32 = 7;
-
-pub(crate) const LUA_ERRRUN: i32 = 2;
-pub(crate) const LUA_ERRMEM: i32 = 4;
-
-pub(crate) const LUAL_BUFFERSIZE: usize = if cfg!(windows) { 512 } else { 8192 };
 
 struct LuaConverterState {
     typval_conv_special: bool,
@@ -215,106 +107,6 @@ struct TVPopStackItem {
 struct ObjPopStackItem {
     obj: crate::globals::GraphPtr<Object>,
     container: bool,
-}
-
-unsafe extern "C-unwind" {
-    pub fn lua_gettop(lstate: *mut lua_State) -> i32;
-    pub fn lua_settop(lstate: *mut lua_State, idx: i32);
-    pub fn lua_pushvalue(lstate: *mut lua_State, idx: i32);
-    pub fn lua_remove(lstate: *mut lua_State, idx: i32);
-    pub fn lua_insert(lstate: *mut lua_State, idx: i32);
-    pub fn lua_replace(lstate: *mut lua_State, idx: i32);
-    pub fn lua_checkstack(lstate: *mut lua_State, sz: i32) -> i32;
-    pub fn lua_type(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_typename(lstate: *mut lua_State, tp: i32) -> *const c_char;
-    pub fn lua_equal(lstate: *mut lua_State, idx1: i32, idx2: i32) -> i32;
-    pub fn lua_rawequal(lstate: *mut lua_State, idx1: i32, idx2: i32) -> i32;
-    pub fn lua_tonumber(lstate: *mut lua_State, idx: i32) -> lua_Number;
-    pub fn lua_toboolean(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_tolstring(lstate: *mut lua_State, idx: i32, len: *mut usize) -> *const c_char;
-    pub fn lua_objlen(lstate: *mut lua_State, idx: i32) -> usize;
-    pub fn lua_tocfunction(lstate: *mut lua_State, idx: i32) -> lua_CFunction;
-    pub fn lua_topointer(lstate: *mut lua_State, idx: i32) -> *const c_void;
-    pub fn lua_pushnil(lstate: *mut lua_State);
-    pub fn lua_pushnumber(lstate: *mut lua_State, n: lua_Number);
-    pub fn lua_pushinteger(lstate: *mut lua_State, n: lua_Integer);
-    pub fn lua_pushlstring(lstate: *mut lua_State, s: *const c_char, l: usize);
-    #[link_name = "lua_pushstring"]
-    fn c_lua_pushstring(lstate: *mut lua_State, s: *const c_char);
-    pub fn lua_pushfstring(lstate: *mut lua_State, fmt: *const c_char, ...) -> *const c_char;
-    pub fn lua_pushboolean(lstate: *mut lua_State, b: i32);
-    pub fn lua_pushlightuserdata(lstate: *mut lua_State, p: *mut c_void);
-    pub fn lua_gettable(lstate: *mut lua_State, idx: i32);
-    #[link_name = "lua_getfield"]
-    fn c_lua_getfield(lstate: *mut lua_State, idx: i32, k: *const c_char);
-    pub fn lua_settable(lstate: *mut lua_State, idx: i32);
-    #[link_name = "lua_setfield"]
-    fn c_lua_setfield(lstate: *mut lua_State, idx: i32, k: *const c_char);
-    pub fn lua_rawget(lstate: *mut lua_State, idx: i32);
-    pub fn lua_rawgeti(lstate: *mut lua_State, idx: i32, n: i32);
-    pub fn lua_createtable(lstate: *mut lua_State, narr: i32, nrec: i32);
-    pub fn lua_newuserdata(lstate: *mut lua_State, sz: usize) -> *mut c_void;
-    pub fn lua_getmetatable(lstate: *mut lua_State, objindex: i32) -> i32;
-    pub fn lua_getfenv(lstate: *mut lua_State, idx: i32);
-    pub fn lua_rawset(lstate: *mut lua_State, idx: i32);
-    pub fn lua_rawseti(lstate: *mut lua_State, idx: i32, n: i32);
-    pub fn lua_setmetatable(lstate: *mut lua_State, objindex: i32) -> i32;
-    pub fn lua_setfenv(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_call(lstate: *mut lua_State, nargs: i32, nresults: i32);
-    pub fn lua_pcall(lstate: *mut lua_State, nargs: i32, nresults: i32, errfunc: i32) -> i32;
-    pub fn lua_error(lstate: *mut lua_State) -> i32;
-    pub fn lua_next(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_concat(lstate: *mut lua_State, n: i32);
-    pub fn lua_pushcclosure(lstate: *mut lua_State, fn_: lua_CFunction, n: i32);
-    pub fn lua_isnumber(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_isstring(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_iscfunction(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_isuserdata(lstate: *mut lua_State, idx: i32) -> i32;
-    pub fn lua_tointeger(lstate: *mut lua_State, idx: i32) -> lua_Integer;
-    pub fn lua_touserdata(lstate: *mut lua_State, idx: i32) -> *mut c_void;
-    pub fn luaL_newstate() -> *mut lua_State;
-    pub fn luaL_openlibs(lstate: *mut lua_State);
-    pub fn lua_close(lstate: *mut lua_State);
-    pub fn luaL_ref(lstate: *mut lua_State, t: i32) -> i32;
-    pub fn luaL_unref(lstate: *mut lua_State, t: i32, ref_: i32);
-    #[link_name = "luaL_newmetatable"]
-    fn c_luaL_newmetatable(lstate: *mut lua_State, tname: *const c_char) -> i32;
-    #[link_name = "luaL_getmetafield"]
-    fn c_luaL_getmetafield(lstate: *mut lua_State, obj: i32, e: *const c_char) -> i32;
-    #[link_name = "luaL_checkudata"]
-    fn c_luaL_checkudata(lstate: *mut lua_State, ud: i32, tname: *const c_char) -> *mut c_void;
-    #[link_name = "luaL_register"]
-    fn c_luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-    #[link_name = "luaL_checkstack"]
-    fn c_luaL_checkstack(lstate: *mut lua_State, sz: i32, msg: *const c_char);
-    pub fn luaL_checktype(lstate: *mut lua_State, narg: i32, t: i32);
-    pub fn luaL_checkany(lstate: *mut lua_State, narg: i32);
-    pub fn luaL_checklstring(lstate: *mut lua_State, numArg: i32, l: *mut usize) -> *const c_char;
-    pub fn luaL_checknumber(lstate: *mut lua_State, numArg: i32) -> lua_Number;
-    pub fn luaL_checkinteger(lstate: *mut lua_State, numArg: i32) -> lua_Integer;
-    pub fn luaL_optinteger(lstate: *mut lua_State, nArg: i32, def: lua_Integer) -> lua_Integer;
-    #[cfg(feature = "vendor-bit")]
-    #[link_name = "luaL_typerror"]
-    fn c_luaL_typerror(lstate: *mut lua_State, narg: i32, tname: *const c_char) -> i32;
-    #[link_name = "luaL_argerror"]
-    fn c_luaL_argerror(lstate: *mut lua_State, numarg: i32, extramsg: *const c_char) -> i32;
-    pub fn luaL_where(lstate: *mut lua_State, lvl: i32);
-    pub fn luaL_error(lstate: *mut lua_State, fmt: *const c_char, ...) -> i32;
-    #[link_name = "luaL_loadbuffer"]
-    fn c_luaL_loadbuffer(
-        lstate: *mut lua_State,
-        buff: *const c_char,
-        sz: usize,
-        name: *const c_char,
-    ) -> i32;
-    pub fn luaL_buffinit(lstate: *mut lua_State, B: *mut luaL_Buffer);
-    pub fn luaL_prepbuffer(B: *mut luaL_Buffer) -> *mut c_char;
-    pub fn luaL_addlstring(B: *mut luaL_Buffer, s: *const c_char, l: usize);
-    pub fn luaL_addvalue(B: *mut luaL_Buffer);
-    pub fn luaL_pushresult(B: *mut luaL_Buffer);
-    pub fn lua_getstack(lstate: *mut lua_State, level: i32, ar: *mut lua_Debug) -> i32;
-    #[link_name = "lua_getinfo"]
-    fn c_lua_getinfo(lstate: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> i32;
 }
 
 #[inline]

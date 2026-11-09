@@ -81,30 +81,12 @@ use std::mem::size_of;
 use std::ptr;
 
 use crate::api::vim::HlMessage;
+#[cfg(unix)]
+use crate::lua::ffi::pthread_exit;
+use crate::lua::ffi::{
+    luaopen_luv, luv_set_callback, luv_set_cthread, luv_set_loop, luv_set_thread, luv_set_thread_cb,
+};
 pub type LuaRetMode = i32;
-
-#[allow(non_camel_case_types)]
-type luv_CFpcall = Option<
-    unsafe extern "C-unwind" fn(
-        lstate: *mut lua_State,
-        nargs: i32,
-        nresults: i32,
-        flags: i32,
-    ) -> i32,
->;
-#[allow(non_camel_case_types)]
-type luv_CFcpcall = Option<
-    unsafe extern "C-unwind" fn(
-        lstate: *mut lua_State,
-        func: lua_CFunction,
-        ud: *mut c_void,
-        flags: i32,
-    ) -> i32,
->;
-#[allow(non_camel_case_types)]
-type luv_acquire_vm = Option<unsafe extern "C-unwind" fn() -> *mut lua_State>;
-#[allow(non_camel_case_types)]
-type luv_release_vm = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State)>;
 
 pub const K_RET_OBJECT: LuaRetMode = 0;
 pub const K_RET_NIL_BOOL: LuaRetMode = 1;
@@ -363,21 +345,6 @@ use crate::lua::converter::LUA_NOREF;
 use crate::os::os_win_console::ExitThread;
 use crate::version::MAIN_EXITFREE;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
-
-unsafe extern "C-unwind" {
-    fn luaopen_luv(lstate: *mut lua_State) -> i32;
-}
-
-unsafe extern "C" {
-    fn luv_set_loop(lstate: *mut lua_State, loop_: *mut c_void);
-    fn luv_set_callback(lstate: *mut lua_State, pcall: luv_CFpcall);
-    fn luv_set_thread(lstate: *mut lua_State, pcall: luv_CFpcall);
-    fn luv_set_cthread(lstate: *mut lua_State, cpcall: luv_CFcpcall);
-    fn luv_set_thread_cb(acquire: luv_acquire_vm, release: luv_release_vm);
-
-    #[cfg(unix)]
-    fn pthread_exit(retval: *mut c_void) -> !;
-}
 
 #[inline]
 fn put_event(mq: Option<&mut MultiQueue>, ev: Event) {
