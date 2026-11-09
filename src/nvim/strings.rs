@@ -206,22 +206,24 @@ impl OwnedSlice {
     }
 
     #[inline]
+    pub fn cstr_buf(&self) -> &[u8] {
+        self.bytes.as_deref().unwrap_or(&[])
+    }
+
+    #[inline]
     pub fn cstr_buf_mut(&mut self) -> &mut [u8] {
-        match self.bytes {
-            Some(ref mut v) => {
-                let len = CStr::from_bytes_until_nul(v).map_or(0, |s| s.to_bytes().len());
-                let n = (len + 1).min(v.len());
-                &mut v[..n]
-            }
-            None => &mut [],
-        }
+        self.bytes.as_deref_mut().unwrap_or(&mut [])
     }
 
     #[inline]
     pub fn mut_bytes(&mut self) -> &mut [u8] {
-        let buf = self.cstr_buf_mut();
-        let n = buf.len().saturating_sub(1);
-        &mut buf[..n]
+        match self.bytes {
+            Some(ref mut v) => {
+                let len = CStr::from_bytes_until_nul(v).map_or(0, |s| s.to_bytes().len());
+                &mut v[..len]
+            }
+            None => &mut [],
+        }
     }
 
     #[inline]

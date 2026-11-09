@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Code for reading and writing spell files (`src/nvim/spellfile.c`).
 
 use std::ffi::CStr;
@@ -1653,7 +1655,6 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
     let fname = fname_cstr;
     let mut rline = [0u8; MAXLINELEN];
     let mut pc_vec: Vec<u8>;
-    let mut items = [c""; MAXITEMCNT];
     let mut lnum: i32 = 0;
     let mut cur_aff = crate::globals::GraphPtr::<Affheader>::NULL;
     let mut did_postpone_prefix = false;
@@ -1717,7 +1718,8 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
             continue;
         }
 
-        let line = if spin.si_conv.vc_type != CONV_NONE {
+        let mut items: [&CStr; MAXITEMCNT] = [c""; MAXITEMCNT];
+        let line_buf: &mut [u8] = if spin.si_conv.vc_type != CONV_NONE {
             let Some(pc_bytes) =
                 string_convert(&spin.si_conv, crate::memory::bytes_until_nul(&rline), None)
             else {
@@ -1731,25 +1733,27 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 continue;
             };
             pc_vec = pc_bytes;
-            pc_vec.as_mut_ptr()
+            &mut pc_vec
         } else {
-            rline.as_mut_ptr()
+            &mut rline
         };
 
         let mut itemcnt: usize = 0;
-        let mut p = line;
+        let mut item_ranges = [(0usize, 0usize); MAXITEMCNT];
+        let mut p_idx = 0usize;
+        let line_end = crate::memory::bytes_until_nul(line_buf).len();
         loop {
-            let p_bytes = unsafe { CStr::from_ptr(p.cast()) }.to_bytes();
+            let p_bytes = &line_buf[p_idx..line_end];
             let skip_ws = p_bytes.iter().take_while(|&&b| b <= b' ').count();
-            p = p.wrapping_add(skip_ws);
-            let p_bytes = &p_bytes[skip_ws..];
+            p_idx += skip_ws;
+            let p_bytes = &line_buf[p_idx..line_end];
             if p_bytes.is_empty() || itemcnt == MAXITEMCNT {
                 break;
             }
-            let item_start = p;
+            let item_start = p_idx;
             itemcnt += 1;
             let item0_bytes = if itemcnt == 2 {
-                items[0].to_bytes()
+                &line_buf[item_ranges[0].0..item_ranges[0].1]
             } else {
                 &[]
             };
@@ -1761,14 +1765,17 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
             } else {
                 p_bytes.iter().take_while(|&&b| b > b' ').count()
             };
-            p = p.wrapping_add(item_len);
-            if item_len == p_bytes.len() {
-                items[itemcnt - 1] = unsafe { CStr::from_ptr(item_start.cast()) };
+            p_idx += item_len;
+            item_ranges[itemcnt - 1] = (item_start, p_idx);
+            if p_idx == line_end {
                 break;
             }
-            *crate::globals::GraphPtr::of(p).borrow_mut() = 0;
-            items[itemcnt - 1] = unsafe { CStr::from_ptr(item_start.cast()) };
-            p = p.wrapping_add(1);
+            line_buf[p_idx] = 0;
+            p_idx += 1;
+        }
+        for i in 0..itemcnt {
+            let (start, end) = item_ranges[i];
+            items[i] = crate::memory::bytes_as_cstr(&line_buf[start..=end]);
         }
 
         if itemcnt > 0 {
@@ -3069,11 +3076,8 @@ fn store_aff_word(
     pfxlen: i32,
 ) -> bool {
     let word_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(word_in));
-    let word = word_cstr.as_ptr().cast::<u8>();
     let afflist = crate::memory::bytes_until_nul(afflist_in);
-    let pfxlist = crate::globals::GraphPtr::<u8>::of(pfxlist_in.as_ptr())
-        .as_ptr()
-        .cast_const();
+    let pfxlist_bytes = crate::memory::bytes_until_nul(pfxlist_in);
     let mut newword = [0u8; MAXWLEN];
     let mut retval = true;
     let mut store_afflist = [0u8; MAXWLEN];
@@ -3114,7 +3118,7 @@ fn store_aff_word(
                         } else {
                             newword[0] = 0;
                         }
-                        let word_bytes = unsafe { CStr::from_ptr(word.cast()) }.to_bytes();
+                        let word_bytes = word_cstr.to_bytes();
                         let mut p_off = 0usize;
                         if let Some(ae_chop) = ae_chop {
                             let mut i = mb_charlen(ae_chop.to_bytes());
@@ -3147,7 +3151,7 @@ fn store_aff_word(
                     }
 
                     let mut use_flags = flags;
-                    let mut use_pfxlist = pfxlist;
+                    let mut use_pfx_slice = pfxlist_bytes;
                     let mut use_pfxlen = pfxlen;
                     let mut need_affix = false;
                     let mut use_condit = condit | CONDIT_COMB | CONDIT_AFF;
@@ -3196,8 +3200,7 @@ fn store_aff_word(
                                 use_pfxlen = 0;
                             }
 
-                            for &pi in
-                                unsafe { std::slice::from_raw_parts(pfxlist, pfxlen as usize) }
+                            for &pi in &pfxlist_bytes[..(pfxlen as usize).min(pfxlist_bytes.len())]
                             {
                                 if !store_afflist[..use_pfxlen as usize].contains(&pi)
                                     && !store_afflist_add(
@@ -3232,10 +3235,7 @@ fn store_aff_word(
                                 break;
                             }
 
-                            for &pi in unsafe {
-                                CStr::from_ptr(pfxlist.wrapping_add(pfxlen as usize).cast())
-                            }
-                            .to_bytes()
+                            for &pi in &pfxlist_bytes[(pfxlen as usize).min(pfxlist_bytes.len())..]
                             {
                                 if !store_afflist[use_pfxlen as usize..listlen as usize]
                                     .contains(&pi)
@@ -3252,17 +3252,15 @@ fn store_aff_word(
                             if !retval {
                                 break;
                             }
-                            use_pfxlist = store_afflist.as_ptr();
+                            use_pfx_slice = crate::memory::bytes_until_nul(&store_afflist);
                         }
                     }
 
-                    if !use_pfxlist.is_null() && ae.ae_compforbid != 0 {
-                        let plen = use_pfxlen as usize;
-                        pfx_pfxlist[..plen].copy_from_slice(unsafe {
-                            std::slice::from_raw_parts(use_pfxlist, plen)
-                        });
+                    if !use_pfx_slice.is_empty() && ae.ae_compforbid != 0 {
+                        let plen = (use_pfxlen as usize).min(use_pfx_slice.len());
+                        pfx_pfxlist[..plen].copy_from_slice(&use_pfx_slice[..plen]);
                         pfx_pfxlist[plen] = 0;
-                        use_pfxlist = pfx_pfxlist.as_ptr();
+                        use_pfx_slice = &pfx_pfxlist[..plen];
                     }
 
                     if spin
@@ -3270,8 +3268,9 @@ fn store_aff_word(
                         .is_some_and(|r| (&spin.si_nodes)[r].wn_sibling.is_some())
                     {
                         use_flags |= WF_HAS_AFF;
-                        if ah.ah_combine == 0 && !use_pfxlist.is_null() {
-                            use_pfxlist = use_pfxlist.wrapping_offset(use_pfxlen as isize);
+                        if ah.ah_combine == 0 {
+                            use_pfx_slice =
+                                &use_pfx_slice[(use_pfxlen as usize).min(use_pfx_slice.len())..];
                         }
                     }
 
@@ -3283,11 +3282,6 @@ fn store_aff_word(
                         }
                     }
 
-                    let use_pfx_slice = if use_pfxlist.is_null() {
-                        &[][..]
-                    } else {
-                        unsafe { CStr::from_ptr(use_pfxlist.cast()) }.to_bytes()
-                    };
                     if !store_word(
                         spin,
                         &newword,
@@ -3396,30 +3390,29 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             }
             rline[l] = 0;
 
-            let mut line =
-                crate::globals::GraphPtr::<u8>::of(if spin.si_conv.vc_type != CONV_NONE {
-                    let Some(pc_bytes) =
-                        string_convert(&spin.si_conv, crate::memory::bytes_until_nul(&rline), None)
-                    else {
-                        smsg!(
-                            0,
-                            gettext(c"Conversion failure for word in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            crate::memory::bytes_as_cstr(&rline),
-                        );
-                        continue;
-                    };
-                    pc_vec = pc_bytes;
-                    pc_vec.as_mut_ptr()
-                } else {
-                    rline.as_mut_ptr()
-                })
-                .as_ptr();
+            let line_buf: &[u8] = if spin.si_conv.vc_type != CONV_NONE {
+                let Some(pc_bytes) =
+                    string_convert(&spin.si_conv, crate::memory::bytes_until_nul(&rline), None)
+                else {
+                    smsg!(
+                        0,
+                        gettext(c"Conversion failure for word in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        crate::memory::bytes_as_cstr(&rline),
+                    );
+                    continue;
+                };
+                pc_vec = pc_bytes;
+                &pc_vec
+            } else {
+                &rline
+            };
+            let full_line_cstr = crate::memory::bytes_as_cstr(line_buf);
 
-            if *crate::globals::GraphPtr::of(line).borrow() == b'/' {
-                line = line.wrapping_add(1);
-                let line_bytes = unsafe { CStr::from_ptr(line.cast()) }.to_bytes();
+            if full_line_cstr.to_bytes().first() == Some(&b'/') {
+                let after_slash_cstr = &full_line_cstr[1..];
+                let line_bytes = after_slash_cstr.to_bytes();
                 if line_bytes.starts_with(b"encoding=") {
                     if spin.si_conv.vc_type != CONV_NONE {
                         smsg!(
@@ -3427,7 +3420,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                             gettext(c"Duplicate /encoding= line ignored in %s line %d: %s",),
                             fname,
                             lnum,
-                            unsafe { CStr::from_ptr(line.wrapping_sub(1).cast()) },
+                            full_line_cstr,
                         );
                     } else if did_word {
                         smsg!(
@@ -3435,11 +3428,10 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                             gettext(c"/encoding= line after word ignored in %s line %d: %s",),
                             fname,
                             lnum,
-                            unsafe { CStr::from_ptr(line.wrapping_sub(1).cast()) },
+                            full_line_cstr,
                         );
                     } else {
-                        line = line.wrapping_add(9);
-                        let line_cstr = unsafe { CStr::from_ptr(line.cast()) };
+                        let line_cstr = &after_slash_cstr[9..];
                         let enc = enc_canonize(line_cstr);
                         if !spin.si_ascii
                             && !convert_setup(
@@ -3468,23 +3460,22 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                             gettext(c"Duplicate /regions= line ignored in %s line %d: %s"),
                             fname,
                             lnum,
-                            unsafe { CStr::from_ptr(line.cast()) },
+                            after_slash_cstr,
                         );
                     } else {
-                        line = line.wrapping_add(8);
+                        let regions_cstr = &after_slash_cstr[8..];
                         if line_bytes.len() - 8 > MAXREGIONS * 2 {
                             smsg!(
                                 0,
                                 gettext(c"Too many regions in %s line %d: %s"),
                                 fname,
                                 lnum,
-                                unsafe { CStr::from_ptr(line.cast()) },
+                                regions_cstr,
                             );
                         } else {
-                            let line_bytes =
-                                unsafe { CStr::from_ptr(line.cast()) }.to_bytes_with_nul();
-                            spin.si_region_count = ((line_bytes.len() - 1) / 2) as i32;
-                            spin.si_region_name[..line_bytes.len()].copy_from_slice(line_bytes);
+                            let reg_bytes = regions_cstr.to_bytes_with_nul();
+                            spin.si_region_count = ((reg_bytes.len() - 1) / 2) as i32;
+                            spin.si_region_name[..reg_bytes.len()].copy_from_slice(reg_bytes);
                             spin.si_region = (1 << spin.si_region_count) - 1;
                         }
                     }
@@ -3496,7 +3487,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                     gettext(c"/ line ignored in %s line %d: %s"),
                     fname,
                     lnum,
-                    unsafe { CStr::from_ptr(line.wrapping_sub(1).cast()) },
+                    full_line_cstr,
                 );
                 continue;
             }
@@ -3504,10 +3495,10 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             let mut flags: i32 = 0;
             let mut regionmask = spin.si_region;
 
-            let line_bytes = unsafe { CStr::from_ptr(line.cast()) }.to_bytes();
+            let line_bytes = full_line_cstr.to_bytes();
             let word_bytes = if let Some(slash_pos) = line_bytes.iter().position(|&b| b == b'/') {
-                let p_base = line.wrapping_add(slash_pos + 1);
-                let flag_bytes = &line_bytes[slash_pos + 1..];
+                let flag_cstr = &full_line_cstr[slash_pos + 1..];
+                let flag_bytes = flag_cstr.to_bytes();
                 for (fi, &fb) in flag_bytes.iter().enumerate() {
                     if fb == b'=' {
                         flags |= WF_KEEPCAP | WF_FIXCAP;
@@ -3528,7 +3519,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                                 gettext(c"Invalid region nr in %s line %d: %s"),
                                 fname,
                                 lnum,
-                                unsafe { CStr::from_ptr(p_base.wrapping_add(fi).cast()) },
+                                &flag_cstr[fi..],
                             );
                             break;
                         }
@@ -3539,7 +3530,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                             gettext(c"Unrecognized flags in %s line %d: %s"),
                             fname,
                             lnum,
-                            unsafe { CStr::from_ptr(p_base.wrapping_add(fi).cast()) },
+                            &flag_cstr[fi..],
                         );
                         break;
                     }
@@ -4714,9 +4705,9 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     let mut write_err = false;
     let mut memtot_add = 0;
     for lnum in 1..=wcount {
-        let line = ml_get_buf(spellbuf, lnum).as_ptr().cast::<u8>();
+        let line_cstr = ml_get_buf(spellbuf, lnum);
         let len = ml_get_buf_len(spellbuf, lnum) + 1;
-        let line_slice = unsafe { std::slice::from_raw_parts(line, len as usize) };
+        let line_slice = line_cstr.to_bytes_with_nul();
         if spell_write(line_slice, &fd) == 0 {
             emsg(gettext(E_WRITE));
             write_err = true;
@@ -4976,7 +4967,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         return;
     }
 
-    let fname = crate::globals::GraphPtr::<u8>::of(if idx == 0 {
+    let fname_cstr: &CStr = if idx == 0 {
         if spell_priv_st().int_wordlist.is_none() {
             spell_priv_st().int_wordlist = vim_tempname();
             if spell_priv_st().int_wordlist.is_none() {
@@ -4985,12 +4976,10 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         }
 
         spell_priv_st()
+            .borrow_mut()
             .int_wordlist
-            .as_ref()
+            .as_deref()
             .unwrap()
-            .as_ptr()
-            .cast_mut()
-            .cast()
     } else {
         if win_s(curwin_mut()).b_p_spf.is_empty() {
             init_spellfile();
@@ -5001,7 +4990,6 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             semsg!(gettext(E_NOTSET), c"spellfile");
             return;
         }
-        let fnamebuf = fnamebuf_arr.as_mut_ptr();
 
         let mut spf = win_s(curwin_mut()).b_p_spf.as_bytes();
         let mut i: i32 = 1;
@@ -5027,12 +5015,10 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             return;
         }
 
-        fnamebuf
-    })
-    .as_ptr();
+        fnamebuf_cstr
+    };
 
-    let fname_cstr = unsafe { CStr::from_ptr(fname.cast()) };
-    let fname_opt = (!fname.is_null()).then_some(fname_cstr);
+    let fname_opt = Some(fname_cstr);
     let mut did_open = false;
     if what == SPELL_ADD_BAD || undo {
         let mut fpos_next: i64 = 0;
@@ -5091,8 +5077,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         let mut fd = CFile::open(fname_cstr, c"a");
         if fd.is_none() && new_spf && !dir_of_file_exists(fname_cstr) {
             let p = path_tail_with_sep(fname_cstr).as_ptr();
-            if p != fname.cast() {
-                let dir_len = (p as usize) - (fname as usize);
+            if p != fname_cstr.as_ptr() {
+                let dir_len = (p as usize) - (fname_cstr.as_ptr() as usize);
                 let dir_cstr = crate::memory::bytes_to_cstring(&fname_cstr.to_bytes()[..dir_len]);
                 os_mkdir(&dir_cstr, 0o755);
                 fd = CFile::open(fname_cstr, c"a");
