@@ -3049,7 +3049,7 @@ fn vim_regsub_both(
                     fe_lastline: 0,
                     fe_doesrange: false,
                     fe_evaluate: true,
-                    fe_partial: crate::globals::GraphPtr::NULL,
+                    fe_partial: crate::eval::typval::PartialId::NULL,
                     fe_selfdict: crate::globals::GraphPtr::NULL,
                     fe_basetv: crate::globals::GraphPtr::NULL,
                     fe_found_var: false,

@@ -3007,7 +3007,7 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
     let l = tv_list_alloc(functbl.len() as isize);
 
     for &fp in functbl.values() {
-        let fp_ref = crate::globals::GraphPtr::of(fp).borrow();
+        let fp_ref = fp.borrow();
         if fp_ref.uf_script_ctx.sc_sid == sid {
             let name = if let Some(ref exp) = fp_ref.uf_name_exp {
                 exp.as_c_str()

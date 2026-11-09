@@ -433,8 +433,8 @@ pub struct WinInfoInfo {
     pub w_nrwidth_line_count: i32,
     pub w_statuscol_line_count: i32,
     pub w_nrwidth_width: i32,
-    pub w_llist: crate::globals::GraphPtr<crate::quickfix::QfInfo>,
-    pub w_llist_ref: crate::globals::GraphPtr<crate::quickfix::QfInfo>,
+    pub w_llist: crate::quickfix::QfInfoId,
+    pub w_llist_ref: crate::quickfix::QfInfoId,
     pub w_status_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_winbar_click_defs: Vec<crate::mouse::StlClickDefinition>,
     pub w_statuscol_click_defs: std::collections::BTreeMap<i32, StcClicks>,
@@ -666,8 +666,8 @@ impl WinInfoInfo {
             w_nrwidth_line_count: 0,
             w_statuscol_line_count: 0,
             w_nrwidth_width: 0,
-            w_llist: crate::globals::GraphPtr::NULL,
-            w_llist_ref: crate::globals::GraphPtr::NULL,
+            w_llist: crate::quickfix::QfInfoId::NULL,
+            w_llist_ref: crate::quickfix::QfInfoId::NULL,
             w_status_click_defs: Vec::new(),
             w_winbar_click_defs: Vec::new(),
             w_statuscol_click_defs: std::collections::BTreeMap::new(),
@@ -2439,8 +2439,8 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_prev_fraction_row = oldp.w_prev_fraction_row;
     copy_jumplist(oldp, newp);
     if (flags & WSP_NEWLOC) != 0 {
-        newp.w_llist = crate::globals::GraphPtr::NULL;
-        newp.w_llist_ref = crate::globals::GraphPtr::NULL;
+        newp.w_llist = crate::quickfix::QfInfoId::NULL;
+        newp.w_llist_ref = crate::quickfix::QfInfoId::NULL;
     } else {
         copy_loclist_stack(oldp, newp);
     }

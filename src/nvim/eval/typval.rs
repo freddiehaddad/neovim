@@ -166,16 +166,108 @@ pub struct TvBlob {
     pub bv_id: BlobId,
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct PartialId(Option<std::num::NonZeroU32>);
+
+impl PartialId {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(self) -> Option<&'static TvPartial> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow()
+            .partial_arena
+            .get(idx)
+            .and_then(|s| s.as_deref())
+    }
+
+    #[inline(always)]
+    pub fn opt_mut(self) -> Option<&'static mut TvPartial> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow_mut()
+            .partial_arena
+            .get_mut(idx)
+            .and_then(|s| s.as_deref_mut())
+    }
+
+    #[inline(always)]
+    pub fn borrow(self) -> &'static TvPartial {
+        self.opt().expect("null or freed PartialId")
+    }
+
+    #[inline(always)]
+    pub fn borrow_mut(self) -> &'static mut TvPartial {
+        self.opt_mut().expect("null or freed PartialId")
+    }
+}
+
+impl From<&TvPartial> for PartialId {
+    #[inline(always)]
+    fn from(pt: &TvPartial) -> Self {
+        pt.pt_id
+    }
+}
+
+impl From<&mut TvPartial> for PartialId {
+    #[inline(always)]
+    fn from(pt: &mut TvPartial) -> Self {
+        pt.pt_id
+    }
+}
+
+impl From<Option<&TvPartial>> for PartialId {
+    #[inline(always)]
+    fn from(opt: Option<&TvPartial>) -> Self {
+        opt.map_or(Self::NULL, |pt| pt.pt_id)
+    }
+}
+
+impl From<Option<&mut TvPartial>> for PartialId {
+    #[inline(always)]
+    fn from(opt: Option<&mut TvPartial>) -> Self {
+        opt.map_or(Self::NULL, |pt| pt.pt_id)
+    }
+}
+
+impl std::ops::Deref for PartialId {
+    type Target = TvPartial;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
+
+impl std::ops::DerefMut for PartialId {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut()
+    }
+}
+
 #[repr(C)]
 pub struct TvPartial {
     pub pt_refcount: i32,
     pub pt_copy_id: i32,
     pub pt_name: Option<std::ffi::CString>,
-    pub pt_func: crate::globals::GraphPtr<UserFunc>,
+    pub pt_func: crate::eval::userfunc::UfuncId,
     pub pt_auto: bool,
     pub pt_argv: Vec<TypVal>,
     pub pt_dict: crate::globals::GraphPtr<TvDict>,
-    pub pt_arena_idx: usize,
+    pub pt_id: PartialId,
 }
 
 impl Default for TvPartial {
@@ -184,11 +276,11 @@ impl Default for TvPartial {
             pt_refcount: 0,
             pt_copy_id: 0,
             pt_name: None,
-            pt_func: crate::globals::GraphPtr::NULL,
+            pt_func: crate::eval::userfunc::UfuncId::NULL,
             pt_auto: false,
             pt_argv: Vec::new(),
             pt_dict: crate::globals::GraphPtr::NULL,
-            pt_arena_idx: usize::MAX,
+            pt_id: PartialId::NULL,
         }
     }
 }
@@ -211,7 +303,7 @@ impl Drop for TvPartial {
 pub enum CallbackData {
     None,
     Funcref(std::ffi::CString),
-    Partial(crate::globals::GraphPtr<TvPartial>),
+    Partial(PartialId),
     Lua(LuaRef),
     Expr(std::ffi::CString),
 }
@@ -230,7 +322,7 @@ impl CallbackData {
     }
 
     #[inline]
-    pub fn partial(partial: impl Into<crate::globals::GraphPtr<TvPartial>>) -> Self {
+    pub fn partial(partial: impl Into<PartialId>) -> Self {
         Self::Partial(partial.into())
     }
 
@@ -248,10 +340,10 @@ impl CallbackData {
     }
 
     #[inline]
-    pub const fn as_partial(&self) -> crate::globals::GraphPtr<TvPartial> {
+    pub const fn as_partial(&self) -> PartialId {
         match self {
             Self::Partial(p) => *p,
-            _ => crate::globals::GraphPtr::NULL,
+            _ => PartialId::NULL,
         }
     }
 
@@ -333,7 +425,7 @@ pub enum TypvalVval {
     List(crate::globals::TvListPtr),
     Dict(crate::globals::GraphPtr<TvDict>),
     Blob(BlobId),
-    Partial(crate::globals::GraphPtr<TvPartial>),
+    Partial(PartialId),
 }
 
 impl TypvalVval {
@@ -533,10 +625,10 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_partial(&self) -> crate::globals::GraphPtr<TvPartial> {
+    pub const fn v_partial(&self) -> PartialId {
         match *self {
             Self::Partial(p) => p,
-            _ => crate::globals::GraphPtr::NULL,
+            _ => PartialId::NULL,
         }
     }
 
@@ -555,7 +647,7 @@ impl TypvalVval {
             Self::List(p) => p.as_ptr() as usize,
             Self::Dict(p) => p.as_ptr() as usize,
             Self::Blob(p) => p.opt().map_or(0, |b| ptr::from_ref(b) as usize),
-            Self::Partial(p) => p.as_ptr() as usize,
+            Self::Partial(p) => p.opt().map_or(0, |pt| ptr::from_ref(pt) as usize),
             _ => 0,
         }
     }
@@ -806,7 +898,7 @@ struct Sortinfo {
     item_compare_numbers: bool,
     item_compare_float: bool,
     item_compare_func: Option<std::ffi::CString>,
-    item_compare_partial: crate::globals::GraphPtr<TvPartial>,
+    item_compare_partial: PartialId,
     item_compare_selfdict: crate::globals::GraphPtr<TvDict>,
     item_compare_func_err: bool,
     item_compare_keys_ready: bool,
@@ -821,7 +913,7 @@ impl Sortinfo {
             item_compare_numbers: false,
             item_compare_float: false,
             item_compare_func: None,
-            item_compare_partial: crate::globals::GraphPtr::NULL,
+            item_compare_partial: PartialId::NULL,
             item_compare_selfdict: crate::globals::GraphPtr::NULL,
             item_compare_func_err: false,
             item_compare_keys_ready: false,
@@ -2423,7 +2515,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
     info.item_compare_numbers = false;
     info.item_compare_float = false;
     info.item_compare_func = None;
-    info.item_compare_partial = crate::globals::GraphPtr::NULL;
+    info.item_compare_partial = PartialId::NULL;
     info.item_compare_selfdict = crate::globals::GraphPtr::NULL;
     info.item_compare_keys_ready = false;
 
@@ -3547,12 +3639,12 @@ pub fn tv_partial_alloc() -> &'static mut TvPartial {
     let st = tv_st().borrow_mut();
     let mut pt = Box::new(TvPartial::default());
     let idx = if let Some(idx) = st.free_partials.pop() {
-        pt.pt_arena_idx = idx;
+        pt.pt_id = PartialId::from_slot(idx);
         st.partial_arena[idx] = Some(pt);
         idx
     } else {
         let idx = st.partial_arena.len();
-        pt.pt_arena_idx = idx;
+        pt.pt_id = PartialId::from_slot(idx);
         st.partial_arena.push(Some(pt));
         idx
     };
@@ -3561,8 +3653,8 @@ pub fn tv_partial_alloc() -> &'static mut TvPartial {
 
 /// Free a `TvPartial` previously allocated by `tv_partial_alloc`.
 pub fn tv_partial_free(pt: &mut TvPartial) {
-    let idx = pt.pt_arena_idx;
-    if idx != usize::MAX {
+    if let Some(nz) = pt.pt_id.0 {
+        let idx = (nz.get() - 1) as usize;
         let st = tv_st().borrow_mut();
         let dropped = st.partial_arena[idx].take();
         st.free_partials.push(idx);
@@ -3953,7 +4045,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
             && pt.pt_refcount > 1
         {
             pt.pt_refcount -= 1;
-            tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::NULL);
+            tv.vval = crate::eval::typval::TypvalVval::Partial(PartialId::NULL);
             return true;
         }
     } else {
@@ -3975,7 +4067,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
         pt.pt_argv.clear();
         debug_assert!(pt.pt_refcount <= 1);
         partial_unref(Some(pt));
-        tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::NULL);
+        tv.vval = crate::eval::typval::TypvalVval::Partial(PartialId::NULL);
         debug_assert_eq!(tv.v_lock, VAR_UNLOCKED);
     }
 }

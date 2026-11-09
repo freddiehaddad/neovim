@@ -660,14 +660,10 @@ pub fn evalvars_init() {
 
     set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col - 1));
 
-    let mut vvlua_pt = TvPartial::default();
+    let vvlua_pt = crate::eval::typval::tv_partial_alloc();
     vvlua_pt.pt_name = Some(std::ffi::CString::default());
     vvlua_pt.pt_refcount = 1;
-    let vvlua_partial = Box::into_raw(Box::new(vvlua_pt));
-    set_vim_var_partial(
-        VV_LUA,
-        crate::globals::GraphPtr::of(vvlua_partial).opt_mut(),
-    );
+    set_vim_var_partial(VV_LUA, Some(vvlua_pt));
 
     set_reg_var(0);
 
@@ -2415,7 +2411,7 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
 
 pub fn set_vim_var_partial(idx: VimVarIndex, val: Option<&mut TvPartial>) {
     let tv = get_vim_var_tv(idx);
-    tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::from(val));
+    tv.vval = crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(val));
 }
 
 pub fn set_reg_var(c: i32) {

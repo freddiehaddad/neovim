@@ -301,6 +301,114 @@ impl Drop for QfList {
     }
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct QfInfoId(Option<std::num::NonZeroU32>);
+
+impl QfInfoId {
+    pub const NULL: Self = Self(None);
+    pub const QF_STACK: Self = Self(std::num::NonZeroU32::new(u32::MAX));
+
+    #[inline(always)]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(self) -> Option<&'static QfInfo> {
+        let raw = self.0?.get();
+        if raw == u32::MAX {
+            Some(&qf_st().borrow().ql_info_actual)
+        } else {
+            qf_st()
+                .borrow()
+                .llist_arena
+                .get((raw - 1) as usize)
+                .and_then(|s| s.as_deref())
+        }
+    }
+
+    #[inline(always)]
+    pub fn opt_mut(self) -> Option<&'static mut QfInfo> {
+        let raw = self.0?.get();
+        if raw == u32::MAX {
+            Some(&mut qf_st().borrow_mut().ql_info_actual)
+        } else {
+            qf_st()
+                .borrow_mut()
+                .llist_arena
+                .get_mut((raw - 1) as usize)
+                .and_then(|s| s.as_deref_mut())
+        }
+    }
+
+    #[inline(always)]
+    pub fn borrow(self) -> &'static QfInfo {
+        self.opt().expect("null or freed QfInfoId")
+    }
+
+    #[inline(always)]
+    pub fn borrow_mut(self) -> &'static mut QfInfo {
+        self.opt_mut().expect("null or freed QfInfoId")
+    }
+}
+
+impl From<&QfInfo> for QfInfoId {
+    #[inline(always)]
+    fn from(qi: &QfInfo) -> Self {
+        qi.qf_id_handle
+    }
+}
+
+impl From<&mut QfInfo> for QfInfoId {
+    #[inline(always)]
+    fn from(qi: &mut QfInfo) -> Self {
+        qi.qf_id_handle
+    }
+}
+
+impl PartialEq<QfInfo> for QfInfoId {
+    #[inline(always)]
+    fn eq(&self, other: &QfInfo) -> bool {
+        *self == other.qf_id_handle
+    }
+}
+
+impl PartialEq<&QfInfo> for QfInfoId {
+    #[inline(always)]
+    fn eq(&self, other: &&QfInfo) -> bool {
+        *self == other.qf_id_handle
+    }
+}
+
+impl PartialEq<&mut QfInfo> for QfInfoId {
+    #[inline(always)]
+    fn eq(&self, other: &&mut QfInfo) -> bool {
+        *self == other.qf_id_handle
+    }
+}
+
+impl std::ops::Deref for QfInfoId {
+    type Target = QfInfo;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
+
+impl std::ops::DerefMut for QfInfoId {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut()
+    }
+}
+
 #[repr(C)]
 pub struct QfInfo {
     pub qf_refcount: i32,
@@ -310,7 +418,7 @@ pub struct QfInfo {
     pub qf_lists: Vec<QfList>,
     pub qfl_type: Qfltype,
     pub qf_bufnr: i32,
-    pub qf_arena_idx: Option<usize>,
+    pub qf_id_handle: QfInfoId,
 }
 
 #[repr(C)]
@@ -522,7 +630,7 @@ struct QuickfixState {
     qf_last_bufref: Bufref,
     qfga: Vec<u8>,
     quickfix_busy: i32,
-    qf_delq: Vec<crate::globals::GraphPtr<QfInfo>>,
+    qf_delq: Vec<QfInfoId>,
     fmt_start_idx: Option<usize>,
     fmt_cache: Vec<Efm>,
     last_efm_cache: Option<std::ffi::CString>,
@@ -549,7 +657,7 @@ impl QuickfixState {
                 qf_lists: Vec::new(),
                 qfl_type: QFLT_QUICKFIX,
                 qf_bufnr: INVALID_QFBUFNR,
-                qf_arena_idx: None,
+                qf_id_handle: QfInfoId::QF_STACK,
             },
             last_qf_id: 0,
             qf_last_bufname: None,
@@ -1903,9 +2011,7 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
 }
 
 fn locstack_queue_delreq(qi: &mut QfInfo) {
-    qf_st()
-        .qf_delq
-        .push(crate::globals::GraphPtr::from(&mut *qi));
+    qf_st().qf_delq.push(qi.qf_id_handle);
 }
 
 pub fn qf_stack_get_bufnr() -> i32 {
@@ -1953,21 +2059,25 @@ fn ll_free_all(qi: Option<&mut QfInfo>) {
     qi.qf_refcount -= 1;
 
     if qi.qf_refcount < 1 {
-        let arena_idx = qi.qf_arena_idx;
+        let id = qi.qf_id_handle;
         wipe_qf_buffer(qi);
-        if let Some(idx) = arena_idx {
+        if let Some(nz) = id.0
+            && nz.get() != u32::MAX
+        {
+            let idx = (nz.get() - 1) as usize;
             let st = qf_st().borrow_mut();
-            st.llist_arena[idx] = None;
+            let dropped = st.llist_arena[idx].take();
             st.free_llists.push(idx);
+            drop(dropped);
         }
     }
 }
 
 pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
     if let Some(wp) = wp {
-        let llist = std::mem::replace(&mut wp.w_llist, crate::globals::GraphPtr::NULL);
+        let llist = std::mem::replace(&mut wp.w_llist, QfInfoId::NULL);
         ll_free_all(llist.opt_mut());
-        let llist_ref = std::mem::replace(&mut wp.w_llist_ref, crate::globals::GraphPtr::NULL);
+        let llist_ref = std::mem::replace(&mut wp.w_llist_ref, QfInfoId::NULL);
         ll_free_all(llist_ref.opt_mut());
     } else {
         qf_free_list_stack_items(ql_info_mut());
@@ -2140,6 +2250,7 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
     } else {
         let st = qf_st().borrow_mut();
         let idx = if let Some(idx) = st.free_llists.pop() {
+            let id = QfInfoId::from_slot(idx);
             st.llist_arena[idx] = Some(Box::new(QfInfo {
                 qf_refcount: 1,
                 qf_listcount: 0,
@@ -2148,11 +2259,12 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
                 qf_lists: Vec::new(),
                 qfl_type: 0,
                 qf_bufnr: 0,
-                qf_arena_idx: Some(idx),
+                qf_id_handle: id,
             }));
             idx
         } else {
             let idx = st.llist_arena.len();
+            let id = QfInfoId::from_slot(idx);
             st.llist_arena.push(Some(Box::new(QfInfo {
                 qf_refcount: 1,
                 qf_listcount: 0,
@@ -2161,7 +2273,7 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
                 qf_lists: Vec::new(),
                 qfl_type: 0,
                 qf_bufnr: 0,
-                qf_arena_idx: Some(idx),
+                qf_id_handle: id,
             })));
             idx
         };
@@ -2181,14 +2293,11 @@ fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> &'static mut QfInfo {
         return wp.w_llist_ref.borrow_mut();
     }
 
-    let llist_ref = std::mem::replace(&mut wp.w_llist_ref, crate::globals::GraphPtr::NULL);
+    let llist_ref = std::mem::replace(&mut wp.w_llist_ref, QfInfoId::NULL);
     ll_free_all(llist_ref.opt_mut());
 
     if wp.w_llist.is_null() {
-        wp.w_llist = crate::globals::GraphPtr::from(qf_alloc_stack(
-            QFLT_LOCATION,
-            wp.w_onebuf_opt.wo_lhi as i32,
-        ));
+        wp.w_llist = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi as i32).qf_id_handle;
     }
 
     wp.w_llist.borrow_mut()
@@ -2292,7 +2401,7 @@ pub fn copy_loclist_stack(from: &mut WinInfoInfo, to: &mut WinInfoInfo) {
     };
 
     let to_ll = qf_alloc_stack(QFLT_LOCATION, from.w_onebuf_opt.wo_lhi as i32);
-    to.w_llist = crate::globals::GraphPtr::new(to_ll);
+    to.w_llist = to_ll.qf_id_handle;
     to.w_onebuf_opt.wo_lhi = i64::from(to_ll.qf_maxcount);
     to_ll.qf_listcount = qi.qf_listcount;
 
@@ -2580,7 +2689,7 @@ fn qf_find_help_win() -> Option<&'static mut WinInfoInfo> {
 }
 
 fn win_set_loclist(wp: &mut WinInfoInfo, qi: &mut QfInfo) {
-    wp.w_llist = crate::globals::GraphPtr::from(&mut *qi);
+    wp.w_llist = qi.qf_id_handle;
     qi.qf_refcount += 1;
 }
 
@@ -2761,12 +2870,12 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
     let mut usable_win = false;
 
     let ll_ref = if newwin {
-        ptr::null_mut()
+        QfInfoId::NULL
     } else {
-        curwin_mut().w_llist_ref.as_ptr()
+        curwin_mut().w_llist_ref
     };
     if !ll_ref.is_null() {
-        usable_wp = qf_find_win_with_loclist(crate::globals::GraphPtr::of(ll_ref).borrow());
+        usable_wp = qf_find_win_with_loclist(ll_ref.borrow());
         if usable_wp.is_some() {
             usable_win = true;
         }
@@ -2784,16 +2893,12 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         || !usable_win
         || newwin
     {
-        if !qf_open_new_file_win(crate::globals::GraphPtr::of(ll_ref).opt_mut()) {
+        if !qf_open_new_file_win(ll_ref.opt_mut()) {
             return false;
         }
         *opened_window = true;
     } else if !curwin_mut().w_llist_ref.is_null() {
-        qf_goto_win_with_ll_file(
-            usable_wp,
-            qf_fnum,
-            crate::globals::GraphPtr::of(ll_ref).opt_mut(),
-        );
+        qf_goto_win_with_ll_file(usable_wp, qf_fnum, ll_ref.opt_mut());
     } else {
         qf_goto_win_with_qfl_file(qf_fnum);
     }
@@ -2808,7 +2913,7 @@ fn qf_jump_edit_buffer(
     prev_winid: i32,
     opened_window: &mut bool,
 ) -> QfStatus {
-    let qi = crate::globals::GraphPtr::from(qi_ref);
+    let qi = QfInfoId::from(qi_ref);
     let qfl = crate::globals::GraphPtr::<QfList>::from_ref(qf_get_curlist(qi.borrow_mut()));
     let old_changetick = qfl.qf_changedtick;
     let old_qf_curlist = qi.qf_curlist;
@@ -3706,7 +3811,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     reset_binding(curwin_mut());
 
     if is_ll_stack(&*qi) {
-        curwin_mut().w_llist_ref = crate::globals::GraphPtr::from(&mut *qi);
+        curwin_mut().w_llist_ref = qi.qf_id_handle;
         qi.qf_refcount += 1;
     }
 
@@ -5786,7 +5891,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         qf_lists: vec![QfList::default()],
         qfl_type: QFLT_INTERNAL,
         qf_bufnr: INVALID_QFBUFNR,
-        qf_arena_idx: None,
+        qf_id_handle: QfInfoId::NULL,
     };
 
     if qf_init_ext(
@@ -6583,11 +6688,10 @@ fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi_in: &mut QfInfo) {
 
         new_ll.qf_bufnr = qfwin.buf_mut().b_fnum;
 
-        let old_llist_ref =
-            std::mem::replace(&mut qfwin.w_llist_ref, crate::globals::GraphPtr::NULL);
+        let old_llist_ref = std::mem::replace(&mut qfwin.w_llist_ref, QfInfoId::NULL);
         ll_free_all(old_llist_ref.opt_mut());
 
-        qfwin.w_llist_ref = crate::globals::GraphPtr::new(new_ll);
+        qfwin.w_llist_ref = new_ll.qf_id_handle;
 
         if wp != qfwin {
             win_set_loclist(wp.borrow_mut(), &mut *new_ll);
@@ -6602,15 +6706,14 @@ pub fn set_errorlist(
     title: Option<&CStr>,
     what: Option<&TvDict>,
 ) -> bool {
-    let qi = crate::globals::GraphPtr::<QfInfo>::of(if let Some(ref mut wp_ref) = wp {
-        ll_get_or_alloc_list(wp_ref)
+    let qi_id = if let Some(ref mut wp_ref) = wp {
+        ll_get_or_alloc_list(wp_ref).qf_id_handle
     } else {
-        ql_info_mut()
-    })
-    .as_ptr();
+        QfInfoId::QF_STACK
+    };
 
     if action == b'f' as i32 {
-        qf_free_stack(wp, crate::globals::GraphPtr::of(qi).borrow_mut());
+        qf_free_stack(wp, qi_id.borrow_mut());
         return true;
     }
 
@@ -6624,7 +6727,7 @@ pub fn set_errorlist(
 
     incr_quickfix_busy();
 
-    let qi_mut = crate::globals::GraphPtr::of(qi).borrow_mut();
+    let qi_mut = qi_id.borrow_mut();
     let retval = if let Some(what) = what {
         qf_set_properties(qi_mut, what, action, title)
     } else {
@@ -7132,7 +7235,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         qf_update_buffer(qi, 0);
     }
 
-    let qi_ptr = crate::globals::GraphPtr::<QfInfo>::from_ref(qi);
+    let qi_ptr = qi.qf_id_handle;
     if let Some(au_name) = au_name {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,

@@ -1494,11 +1494,11 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
 
     let mut owned = false;
-    let mut partial = crate::globals::GraphPtr::<TvPartial>::NULL;
+    let mut partial = crate::eval::typval::PartialId::NULL;
     let mut func: Option<std::ffi::CString> = if argvars[0].v_type == VarType::VarFunc {
         argvars[0].vval.v_string_cstr().map(CStr::to_owned)
     } else if argvars[0].v_type == VarType::VarPartial {
-        partial = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
+        partial = argvars[0].vval.v_partial();
         Some(partial_name(partial.opt()).to_owned())
     } else if nlua_is_table_from_lua(&argvars[0]) {
         owned = true;
@@ -2445,13 +2445,13 @@ pub fn f_foreground(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFun
 /// "function()" and "funcref()" common implementation
 fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool) {
     let mut use_string = false;
-    let mut arg_pt = crate::globals::GraphPtr::<TvPartial>::NULL;
+    let mut arg_pt = crate::eval::typval::PartialId::NULL;
     let mut trans_name_owned: Option<std::ffi::CString> = None;
 
     let mut s_owned: Option<std::ffi::CString> = if argvars[0].v_type == VarType::VarFunc {
         argvars[0].vval.v_string_cstr().map(CStr::to_owned)
     } else if argvars[0].v_type == VarType::VarPartial && !argvars[0].vval.v_partial().is_null() {
-        arg_pt = crate::globals::GraphPtr::<TvPartial>::of(argvars[0].vval.v_partial());
+        arg_pt = argvars[0].vval.v_partial();
         Some(partial_name(arg_pt.opt()).to_owned())
     } else {
         use_string = true;
@@ -2588,7 +2588,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
 
                     func_ptr_ref(pt.pt_func.opt_mut());
                 } else if is_funcref {
-                    pt.pt_func = crate::globals::GraphPtr::from(find_func(trans_name));
+                    pt.pt_func = crate::eval::userfunc::UfuncId::from(find_func(trans_name));
 
                     func_ptr_ref(pt.pt_func.opt_mut());
                 } else {
@@ -2597,8 +2597,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 }
 
                 rettv.v_type = VarType::VarPartial;
-                rettv.vval =
-                    crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::new(pt));
+                rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
             } else {
                 crate::eval::typval::tv_set_string(&mut *rettv, Some(&name_cstr));
                 rettv.v_type = VarType::VarFunc;
@@ -2672,17 +2671,14 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
     } else if tv_is_func(&argvars[0]) {
         let mut fref_pt = std::mem::ManuallyDrop::new(TvPartial::default());
-        let pt = crate::globals::GraphPtr::<TvPartial>::of(
-            if argvars[0].v_type == VarType::VarPartial {
-                argvars[0].vval.v_partial().as_ptr()
-            } else {
-                fref_pt.pt_name = Some(argvars[0].vval.v_string_owned());
-                &raw mut *fref_pt
-            },
-        )
-        .as_ptr();
+        let pt_opt: Option<&mut TvPartial> = if argvars[0].v_type == VarType::VarPartial {
+            argvars[0].vval.v_partial().opt_mut()
+        } else {
+            fref_pt.pt_name = Some(argvars[0].vval.v_string_owned());
+            Some(&mut fref_pt)
+        };
 
-        if let Some(pt) = crate::globals::GraphPtr::of(pt).opt_mut() {
+        if let Some(pt) = pt_opt {
             let what = tv_get_string(&argvars[1]);
             if what.to_bytes() == b"func" || what.to_bytes() == b"name" {
                 let mut name = partial_name(Some(&*pt));

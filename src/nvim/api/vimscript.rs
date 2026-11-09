@@ -267,7 +267,7 @@ fn call_function_impl(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: crate::globals::GraphPtr::NULL,
+        fe_partial: crate::eval::typval::PartialId::NULL,
         fe_selfdict: self_dict.map_or(
             crate::globals::GraphPtr::NULL,
             crate::globals::GraphPtr::from,

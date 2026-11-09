@@ -118,7 +118,7 @@ use crate::keycodes::K_SPECIAL;
 #[derive(Clone)]
 pub enum EStackInfo {
     None,
-    Ufunc(crate::globals::GraphPtr<UserFunc>),
+    Ufunc(crate::eval::userfunc::UfuncId),
     AuCmd(std::rc::Rc<std::cell::Cell<crate::runtime::Sctx>>),
 }
 
@@ -157,7 +157,7 @@ impl Estack {
 
 #[repr(C)]
 pub struct Funccall {
-    pub fc_func: crate::globals::GraphPtr<UserFunc>,
+    pub fc_func: crate::eval::userfunc::UfuncId,
     pub fc_linenr: i32,
     pub fc_returned: i32,
     pub fc_l_vars: TvDict,
@@ -175,14 +175,14 @@ pub struct Funccall {
     pub fc_caller: crate::globals::GraphPtr<Funccall>,
     pub fc_refcount: i32,
     pub fc_copy_id: i32,
-    pub fc_ufuncs: Vec<crate::globals::GraphPtr<UserFunc>>,
+    pub fc_ufuncs: Vec<crate::eval::userfunc::UfuncId>,
     pub fc_arena_idx: usize,
 }
 
 impl Funccall {
     pub const fn new() -> Self {
         Self {
-            fc_func: crate::globals::GraphPtr::NULL,
+            fc_func: crate::eval::userfunc::UfuncId::NULL,
             fc_linenr: 0,
             fc_returned: 0,
             fc_l_vars: TvDict::new(),
@@ -199,7 +199,7 @@ impl Funccall {
             fc_prof_child: 0,
             fc_caller: crate::globals::GraphPtr::NULL,
             fc_refcount: 0,
-            fc_copy_id: 0,
+            fc_copy_id: i32::MIN,
             fc_ufuncs: Vec::new(),
             fc_arena_idx: usize::MAX,
         }
@@ -357,7 +357,7 @@ pub fn profile_reset() {
 
     let functbl = func_tbl_get();
     for &fp in functbl.values() {
-        let uf = crate::globals::GraphPtr::of(fp).borrow_mut();
+        let uf = fp.borrow_mut();
         if uf.uf_prof_initialized {
             uf.uf_profiling = 0;
             uf.uf_tm_count = 0;
@@ -638,8 +638,8 @@ fn func_dump_profile(fd: &CFile) {
 
     let mut sorttab: Vec<&UserFunc> = Vec::with_capacity(todo);
 
-    for &fp_ptr in functbl.values() {
-        let fp = crate::globals::GraphPtr::of(fp_ptr).borrow();
+    for &fp_id in functbl.values() {
+        let fp = fp_id.borrow();
         if fp.uf_prof_initialized {
             sorttab.push(fp);
 

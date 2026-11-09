@@ -9,9 +9,9 @@ use crate::eval::decode::{
     SURROGATE_LO_END, SURROGATE_LO_START,
 };
 use crate::eval::typval::{
-    Listitem, TvBlob, TvDict, TvList, TvPartial, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
-    tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first,
-    tv_list_idx_of_item, tv_list_last, tv_list_len,
+    Listitem, TvBlob, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_blob_get,
+    tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first, tv_list_idx_of_item,
+    tv_list_last, tv_list_len,
 };
 use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
@@ -108,7 +108,7 @@ pub(crate) enum MPConvStackData {
     },
     Partial {
         stage: MPConvPartialStage,
-        pt: crate::globals::GraphPtr<TvPartial>,
+        pt: crate::eval::typval::PartialId,
     },
     PartialList {
         arg: crate::globals::GraphPtr<TypVal>,

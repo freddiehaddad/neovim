@@ -336,7 +336,7 @@ fn tv_partial(tv: &TypVal) -> Option<&'static mut TvPartial> {
 
 #[inline]
 fn tv_set_partial(tv: &mut TypVal, pt: Option<&mut TvPartial>) {
-    tv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::from(pt));
+    tv.vval = crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(pt));
 }
 
 #[inline]
@@ -557,7 +557,7 @@ fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut Typ
         fe_lastline: 0,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: crate::globals::GraphPtr::NULL,
+        fe_partial: crate::eval::typval::PartialId::NULL,
         fe_selfdict: crate::globals::GraphPtr::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
@@ -808,7 +808,7 @@ pub fn call_vim_function(
     rettv: &mut TypVal,
 ) -> bool {
     let mut len = func.to_bytes().len() as i32;
-    let mut pt = crate::globals::GraphPtr::<TvPartial>::NULL;
+    let mut pt = crate::eval::typval::PartialId::NULL;
 
     if len >= 6 && func.to_bytes().starts_with(b"v:lua.") {
         func = crate::memory::CStrSubslice::advance(func, 6);
@@ -817,7 +817,7 @@ pub fn call_vim_function(
             tv_clear(&mut *rettv);
             return false;
         }
-        pt = crate::globals::GraphPtr::from(get_vim_var_partial(VV_LUA));
+        pt = crate::eval::typval::PartialId::from(get_vim_var_partial(VV_LUA));
     }
 
     rettv.v_type = VarType::VarUnknown;
@@ -828,7 +828,7 @@ pub fn call_vim_function(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: crate::globals::GraphPtr::new(pt.cast()),
+        fe_partial: pt,
         fe_selfdict: crate::globals::GraphPtr::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
@@ -2000,7 +2000,7 @@ fn eval_func(
         !evaluate,
         Some(&mut found_var),
     );
-    let partial = crate::globals::GraphPtr::from(partial_opt);
+    let partial = crate::eval::typval::PartialId::from(partial_opt);
     let deref_bytes = deref.to_bytes();
 
     let s_cstr = bytes_to_cstring(&deref_bytes[..(len as usize).min(deref_bytes.len())]);
@@ -2012,7 +2012,7 @@ fn eval_func(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: evaluate,
-        fe_partial: crate::globals::GraphPtr::new(partial.cast()),
+        fe_partial: partial,
         fe_selfdict: crate::globals::GraphPtr::NULL,
         fe_basetv: basetv.map_or(
             crate::globals::GraphPtr::NULL,
@@ -2428,12 +2428,12 @@ fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
 
 /// Make a copy of blob "tv1" and append blob "tv2".
 fn eval_addblob(tv1: &mut TypVal, tv2: &mut TypVal) {
-    let b1 = tv1.vval.v_blob_opt();
-    let b2 = tv2.vval.v_blob_opt();
     let b = tv_blob_alloc();
+    let b1 = tv1.vval.v_blob().opt();
+    let b2 = tv2.vval.v_blob().opt();
 
-    let len1 = i64::from(tv_blob_len(b1.as_deref()));
-    let len2 = i64::from(tv_blob_len(b2.as_deref()));
+    let len1 = i64::from(tv_blob_len(b1));
+    let len2 = i64::from(tv_blob_len(b2));
     let totallen = len1 + len2;
 
     if totallen >= 0 && totallen <= i64::from(i32::MAX) {
@@ -2951,7 +2951,7 @@ fn call_func_rettv(
     basetv: Option<&mut TypVal>,
     lua_funcname: Option<&CStr>,
 ) -> bool {
-    let mut pt = crate::globals::GraphPtr::<TvPartial>::NULL;
+    let mut pt = crate::eval::typval::PartialId::NULL;
     let mut functv = tv_initial_value();
     let funcname: &CStr;
     let mut is_lua = false;
@@ -2960,7 +2960,7 @@ fn call_func_rettv(
         functv = std::mem::take(rettv);
 
         if functv.v_type == VarType::VarPartial {
-            pt = crate::globals::GraphPtr::from(tv_partial(&functv));
+            pt = crate::eval::typval::PartialId::from(tv_partial(&functv));
             is_lua = is_luafunc(pt.opt());
             funcname = if is_lua {
                 lua_funcname.unwrap_or(c"")
@@ -2986,7 +2986,7 @@ fn call_func_rettv(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: evaluate,
-        fe_partial: crate::globals::GraphPtr::new(pt.cast()),
+        fe_partial: pt,
         fe_selfdict: selfdict.map_or(
             crate::globals::GraphPtr::NULL,
             crate::globals::GraphPtr::from,
@@ -3943,9 +3943,8 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
         if let Some(ref name) = pt.pt_name {
             return name.as_c_str();
         }
-        if !pt.pt_func.is_null() {
-            let uf = pt.pt_func.as_ptr();
-            return crate::globals::GraphPtr::of(uf).borrow().uf_name.as_c_str();
+        if let Some(uf) = pt.pt_func.opt() {
+            return uf.uf_name.as_c_str();
         }
     }
     c""
@@ -4894,7 +4893,7 @@ pub fn callback_call(
         return false;
     }
 
-    let partial: crate::globals::GraphPtr<TvPartial>;
+    let partial: crate::eval::typval::PartialId;
     let name: &CStr;
     match callback.cb_type() {
         K_CALLBACK_FUNCREF => {
@@ -4904,14 +4903,14 @@ pub fn callback_call(
                 if check_luafunc_name(name, false) == 0 {
                     return false;
                 }
-                partial = crate::globals::GraphPtr::from(get_vim_var_partial(VV_LUA));
+                partial = crate::eval::typval::PartialId::from(get_vim_var_partial(VV_LUA));
             } else {
                 name = funcref;
-                partial = crate::globals::GraphPtr::NULL;
+                partial = crate::eval::typval::PartialId::NULL;
             }
         }
         K_CALLBACK_PARTIAL => {
-            partial = crate::globals::GraphPtr::<TvPartial>::of(callback.data.as_partial());
+            partial = callback.data.as_partial();
             name = partial_name(partial.opt());
         }
         K_CALLBACK_LUA => {
@@ -4966,7 +4965,7 @@ pub fn callback_call(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: crate::globals::GraphPtr::new(partial.cast()),
+        fe_partial: partial,
         fe_selfdict: crate::globals::GraphPtr::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
@@ -6597,7 +6596,7 @@ pub fn eval_call_provider(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: crate::globals::GraphPtr::NULL,
+        fe_partial: crate::eval::typval::PartialId::NULL,
         fe_selfdict: crate::globals::GraphPtr::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,

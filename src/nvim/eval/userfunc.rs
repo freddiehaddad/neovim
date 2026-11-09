@@ -76,6 +76,119 @@ use std::ptr;
 
 pub type VimLFunc = Option<fn(&mut [TypVal], &mut TypVal, EvalFuncData)>;
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct UfuncId(Option<std::num::NonZeroU32>);
+
+impl UfuncId {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(self) -> Option<&'static UserFunc> {
+        let idx = (self.0?.get() - 1) as usize;
+        uf_st()
+            .borrow()
+            .ufunc_arena
+            .get(idx)
+            .and_then(|s| s.as_deref())
+    }
+
+    #[inline(always)]
+    pub fn opt_mut(self) -> Option<&'static mut UserFunc> {
+        let idx = (self.0?.get() - 1) as usize;
+        uf_st()
+            .borrow_mut()
+            .ufunc_arena
+            .get_mut(idx)
+            .and_then(|s| s.as_deref_mut())
+    }
+
+    #[inline(always)]
+    pub fn borrow(self) -> &'static UserFunc {
+        self.opt().expect("null or freed UfuncId")
+    }
+
+    #[inline(always)]
+    pub fn borrow_mut(self) -> &'static mut UserFunc {
+        self.opt_mut().expect("null or freed UfuncId")
+    }
+}
+
+impl From<&UserFunc> for UfuncId {
+    #[inline(always)]
+    fn from(fp: &UserFunc) -> Self {
+        fp.uf_id
+    }
+}
+
+impl From<&mut UserFunc> for UfuncId {
+    #[inline(always)]
+    fn from(fp: &mut UserFunc) -> Self {
+        fp.uf_id
+    }
+}
+
+impl From<Option<&UserFunc>> for UfuncId {
+    #[inline(always)]
+    fn from(opt: Option<&UserFunc>) -> Self {
+        opt.map_or(Self::NULL, |fp| fp.uf_id)
+    }
+}
+
+impl From<Option<&mut UserFunc>> for UfuncId {
+    #[inline(always)]
+    fn from(opt: Option<&mut UserFunc>) -> Self {
+        opt.map_or(Self::NULL, |fp| fp.uf_id)
+    }
+}
+
+impl PartialEq<UserFunc> for UfuncId {
+    #[inline(always)]
+    fn eq(&self, other: &UserFunc) -> bool {
+        *self == other.uf_id
+    }
+}
+
+impl PartialEq<&UserFunc> for UfuncId {
+    #[inline(always)]
+    fn eq(&self, other: &&UserFunc) -> bool {
+        *self == other.uf_id
+    }
+}
+
+impl PartialEq<&mut UserFunc> for UfuncId {
+    #[inline(always)]
+    fn eq(&self, other: &&mut UserFunc) -> bool {
+        *self == other.uf_id
+    }
+}
+
+impl std::ops::Deref for UfuncId {
+    type Target = UserFunc;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
+
+impl std::ops::DerefMut for UfuncId {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut()
+    }
+}
+
 #[repr(C)]
 pub struct UserFunc {
     pub uf_varargs: i32,
@@ -106,7 +219,7 @@ pub struct UserFunc {
     pub uf_name_exp: Option<std::ffi::CString>,
     pub uf_namelen: usize,
     pub uf_name: std::ffi::CString,
-    pub uf_arena_idx: usize,
+    pub uf_id: UfuncId,
 }
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, VAR_FIXED, VAR_SCOPE};
@@ -180,7 +293,7 @@ pub struct Funcexe {
     pub fe_lastline: Linenr,
     pub fe_doesrange: bool,
     pub fe_evaluate: bool,
-    pub fe_partial: crate::globals::GraphPtr<TvPartial>,
+    pub fe_partial: crate::eval::typval::PartialId,
     pub fe_selfdict: crate::globals::GraphPtr<TvDict>,
     pub fe_basetv: crate::globals::GraphPtr<TypVal>,
     pub fe_found_var: bool,
@@ -194,7 +307,7 @@ impl Funcexe {
             fe_lastline: 0,
             fe_doesrange: false,
             fe_evaluate: false,
-            fe_partial: crate::globals::GraphPtr::NULL,
+            fe_partial: crate::eval::typval::PartialId::NULL,
             fe_selfdict: crate::globals::GraphPtr::NULL,
             fe_basetv: crate::globals::GraphPtr::NULL,
             fe_found_var: false,
@@ -239,7 +352,7 @@ impl Drop for DeferCall {
     }
 }
 
-pub type FuncHashtab = std::collections::BTreeMap<Vec<u8>, *mut UserFunc>;
+pub type FuncHashtab = std::collections::BTreeMap<Vec<u8>, UfuncId>;
 
 struct RetainedFunccall(Box<Funccall>);
 
@@ -257,7 +370,7 @@ struct UserfuncState {
     func_nr: i32,
     get_uf_done: usize,
     get_uf_changed: i32,
-    get_uf_items: Vec<crate::globals::GraphPtr<UserFunc>>,
+    get_uf_items: Vec<UfuncId>,
     ufunc_arena: Vec<Option<Box<UserFunc>>>,
     free_ufuncs: Vec<usize>,
     funccal_arena: Vec<Option<Box<Funccall>>>,
@@ -325,7 +438,7 @@ fn func_hashtab_add(fp: &mut UserFunc) -> bool {
         crate::siemsg!(c"Duplicate key in hash table: \"%s\"", key_cstr);
         return false;
     }
-    uf_st().func_hashtab.insert(key.to_vec(), fp);
+    uf_st().func_hashtab.insert(key.to_vec(), fp.uf_id);
     uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
     true
 }
@@ -500,9 +613,7 @@ fn register_closure(fp: &mut UserFunc) {
     funccal_unref(fp.uf_scoped.opt_mut(), fp, false);
     fp.uf_scoped = uf_st().current_funccal;
     cur_funccal_mut().fc_refcount += 1;
-    cur_funccal_mut()
-        .fc_ufuncs
-        .push(crate::globals::GraphPtr::from(&mut *fp));
+    cur_funccal_mut().fc_ufuncs.push(fp.uf_id);
 }
 
 /// Return a name for a lambda in static memory.
@@ -549,7 +660,7 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
         uf_name_exp: None,
         uf_namelen: namelen,
         uf_name: name_cstr,
-        uf_arena_idx: usize::MAX,
+        uf_id: UfuncId::NULL,
     });
 
     if name.first() == Some(&K_SPECIAL) {
@@ -561,12 +672,12 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
 
     let st = uf_st().borrow_mut();
     let idx = if let Some(idx) = st.free_ufuncs.pop() {
-        fp.uf_arena_idx = idx;
+        fp.uf_id = UfuncId::from_slot(idx);
         st.ufunc_arena[idx] = Some(fp);
         idx
     } else {
         let idx = st.ufunc_arena.len();
-        fp.uf_arena_idx = idx;
+        fp.uf_id = UfuncId::from_slot(idx);
         st.ufunc_arena.push(Some(fp));
         idx
     };
@@ -677,9 +788,9 @@ pub fn get_lambda_tv(
         fp.uf_script_ctx = g_st().current_sctx;
         fp.uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
-        pt.pt_func = crate::globals::GraphPtr::from(&mut *fp);
+        pt.pt_func = fp.uf_id;
         pt.pt_refcount = 1;
-        rettv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::new(pt));
+        rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
         rettv.v_type = VarType::VarPartial;
         eval_st().eval_lavars_used = old_eval_lavars;
     }
@@ -958,7 +1069,7 @@ pub fn find_func(name: Option<&CStr>) -> Option<&'static mut UserFunc> {
         .func_hashtab
         .get(name.to_bytes())
         .copied()
-        .and_then(|p| crate::globals::GraphPtr::of(p).opt_mut())
+        .and_then(UfuncId::opt_mut)
 }
 
 #[inline]
@@ -1104,8 +1215,8 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
         return;
     }
     for slot in &mut (fc.borrow_mut().fc_ufuncs) {
-        if *slot == fp {
-            *slot = crate::globals::GraphPtr::NULL;
+        if *slot == fp.uf_id {
+            *slot = UfuncId::NULL;
         }
     }
 }
@@ -1159,8 +1270,8 @@ impl Drop for UserFunc {
 }
 
 fn free_ufunc_slot(fp: &mut UserFunc) {
-    let idx = fp.uf_arena_idx;
-    if idx != usize::MAX {
+    if let Some(nz) = fp.uf_id.0 {
+        let idx = (nz.get() - 1) as usize;
         let st = uf_st().borrow_mut();
         let dropped = st.ufunc_arena[idx].take();
         st.free_ufuncs.push(idx);
@@ -1175,7 +1286,7 @@ fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
 pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static mut Funccall {
-    let fp_ptr = crate::globals::GraphPtr::from(fp);
+    let fp_ptr = UfuncId::from(fp);
     let st = uf_st().borrow_mut();
     let mut fc_box = Box::new(Funccall::new());
     let idx = if let Some(idx) = st.free_funccals.pop() {
@@ -1236,7 +1347,7 @@ pub fn call_user_func(
     fp.uf_calls += 1;
     line_breakcheck();
 
-    let fp_ptr = crate::globals::GraphPtr::<UserFunc>::from_ref(fp);
+    let fp_ptr = fp.uf_id;
     let fc = create_funccal(Some(fp_ptr.borrow_mut()), rettv);
     fc.fc_level = g_st().ex_nesting_level;
     fc.fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(&*fp), 0);
@@ -1659,9 +1770,9 @@ pub fn free_all_functions() {
 
     loop {
         let mut restarted = false;
-        let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
-        for fp in funcs {
-            let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
+        let funcs: Vec<UfuncId> = uf_st().func_hashtab.values().copied().collect();
+        for fp_id in funcs {
+            let fp = fp_id.borrow_mut();
             if !func_name_refcount(uf2hikey(fp)) {
                 let changed = uf_st().func_hashtab_changed;
                 func_clear(fp, true);
@@ -1681,12 +1792,12 @@ pub fn free_all_functions() {
         if uf_st().func_hashtab.len() <= skipped {
             break;
         }
-        let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
-        for fp in funcs {
-            if func_name_refcount(uf2hikey(crate::globals::GraphPtr::of(fp).borrow())) {
+        let funcs: Vec<UfuncId> = uf_st().func_hashtab.values().copied().collect();
+        for fp_id in funcs {
+            if func_name_refcount(uf2hikey(fp_id.borrow())) {
                 skipped += 1;
             } else {
-                free_ufunc_slot(crate::globals::GraphPtr::of(fp).borrow_mut());
+                free_ufunc_slot(fp_id.borrow_mut());
                 skipped = 0;
                 break;
             }
@@ -1738,10 +1849,7 @@ pub fn func_call(
         funcexe.fe_firstline = curwin_mut().w_cursor.lnum;
         funcexe.fe_lastline = curwin_mut().w_cursor.lnum;
         funcexe.fe_evaluate = true;
-        funcexe.fe_partial = partial.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        );
+        funcexe.fe_partial = crate::eval::typval::PartialId::from(partial);
         funcexe.fe_selfdict = selfdict.map_or(
             crate::globals::GraphPtr::NULL,
             crate::globals::GraphPtr::from,
@@ -2439,14 +2547,14 @@ pub fn save_function_name(
 
 fn list_functions(mut regmatch: Option<&mut Regmatch>) {
     let prev_ht_changed = uf_st().func_hashtab_changed;
-    let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
+    let funcs: Vec<UfuncId> = uf_st().func_hashtab.values().copied().collect();
 
     msg_ext_set_kind(c"list_cmd");
-    for fp in funcs {
+    for fp_id in funcs {
         if g_st().got_int {
             break;
         }
-        let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
+        let fp = fp_id.borrow_mut();
         let key = uf2hikey(fp);
         let matches = if let Some(ref mut regmatch) = regmatch {
             !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key, 0)
@@ -2896,7 +3004,7 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut newlines: Vec<Option<std::ffi::CString>> = Vec::new();
     let mut varargs: i32 = 0;
     let mut flags: i32 = 0;
-    let mut fp = crate::globals::GraphPtr::<UserFunc>::NULL.as_ptr();
+    let mut fp = UfuncId::NULL;
     let mut free_fp = false;
     let mut overwrite = false;
     let mut fudi = Funcdict::new();
@@ -2956,9 +3064,9 @@ pub fn ex_function(eap: &mut Exarg) {
     macro_rules! errret_2 {
         () => {{
             if free_fp && !fp.is_null() {
-                func_clear_free(crate::globals::GraphPtr::of(fp).borrow_mut(), false);
+                func_clear_free(fp.borrow_mut(), false);
             } else if !fp.is_null() {
-                crate::globals::GraphPtr::of(fp).borrow_mut().uf_name_exp = None;
+                fp.borrow_mut().uf_name_exp = None;
             }
             errret_keep!();
         }};
@@ -3114,9 +3222,9 @@ pub fn ex_function(eap: &mut Exarg) {
             erret!();
         }
 
-        fp = find_func(Some(name_cstr)).map_or(ptr::null_mut(), ptr::from_mut);
+        fp = UfuncId::from(find_func(Some(name_cstr)));
         if !fp.is_null() {
-            let fp_ref = crate::globals::GraphPtr::of(fp).borrow_mut();
+            let fp_ref = fp.borrow_mut();
             if !eap.forceit
                 && (fp_ref.uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
                     || fp_ref.uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
@@ -3136,7 +3244,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
                 fp_ref.uf_flags |= FC_REMOVED;
 
-                fp = ptr::null_mut();
+                fp = UfuncId::NULL;
                 overwrite = true;
             } else {
                 let exp_name = fp_ref.uf_name_exp.take();
@@ -3154,7 +3262,7 @@ pub fn ex_function(eap: &mut Exarg) {
     } else {
         let mut numbuf = [0u8; NUMBUFLEN];
 
-        fp = ptr::null_mut();
+        fp = UfuncId::NULL;
         if fudi.fd_newkey.is_none() && !eap.forceit {
             emsg(gettext(E_FUNCDICT));
             erret!();
@@ -3206,7 +3314,7 @@ pub fn ex_function(eap: &mut Exarg) {
             namelen = name_bytes.len();
         }
         let name_slice = &name_bytes[..namelen.min(name_bytes.len())];
-        fp = alloc_ufunc(name_slice);
+        fp = alloc_ufunc(name_slice).uf_id;
 
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
@@ -3232,14 +3340,14 @@ pub fn ex_function(eap: &mut Exarg) {
 
         if overwrite {
             uf_st().func_hashtab.insert(name_bytes.to_vec(), fp);
-        } else if !func_hashtab_add(crate::globals::GraphPtr::of(fp).borrow_mut()) {
+        } else if !func_hashtab_add(fp.borrow_mut()) {
             free_fp = true;
             erret!();
         }
 
-        crate::globals::GraphPtr::of(fp).borrow_mut().uf_refcount = 1;
+        fp.borrow_mut().uf_refcount = 1;
     }
-    let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
+    let fp = fp.borrow_mut();
     fp.uf_args = newargs;
     fp.uf_def_args = default_args;
     fp.uf_lines = newlines;
@@ -3310,19 +3418,13 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
 pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if idx == 0 {
         uf_st().get_uf_done = 0;
-        uf_st().get_uf_items = uf_st()
-            .func_hashtab
-            .values()
-            .copied()
-            .map(crate::globals::GraphPtr::new)
-            .collect();
+        uf_st().get_uf_items = uf_st().func_hashtab.values().copied().collect();
         uf_st().get_uf_changed = uf_st().func_hashtab_changed;
     }
     if uf_st().get_uf_changed == uf_st().func_hashtab_changed
         && uf_st().get_uf_done < uf_st().get_uf_items.len()
     {
-        let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done].as_ptr();
-        let fp = crate::globals::GraphPtr::of(fp).borrow_mut();
+        let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done].borrow_mut();
         uf_st().get_uf_done += 1;
 
         if (fp.uf_flags & FC_DICT) != 0 || uf2hikey(&*fp).to_bytes().starts_with(b"<lambda>") {
@@ -3827,10 +3929,7 @@ pub fn ex_call(eap: &mut Exarg) {
         !ex_defer_inner(name, &mut arg, partial_opt.as_deref(), &mut evalarg)
     } else {
         let mut funcexe = Funcexe::new();
-        funcexe.fe_partial = partial_opt.map_or(
-            crate::globals::GraphPtr::NULL,
-            crate::globals::GraphPtr::from,
-        );
+        funcexe.fe_partial = crate::eval::typval::PartialId::from(partial_opt);
         funcexe.fe_selfdict = fudi.fd_dict;
         funcexe.fe_firstline = eap.line1;
         funcexe.fe_lastline = eap.line2;
@@ -4042,7 +4141,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
             partial_unref(Some(ret_pt));
         }
         rettv.v_type = VarType::VarPartial;
-        rettv.vval = crate::eval::typval::TypvalVval::Partial(crate::globals::GraphPtr::new(pt));
+        rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
     }
 }
 
@@ -4312,8 +4411,8 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
         if g_st().got_int {
             break;
         }
-        if !func_name_refcount(uf2hikey(crate::globals::GraphPtr::of(fp).borrow()))
-            && set_ref_in_func(None, crate::globals::GraphPtr::of(fp).opt_mut(), copy_id)
+        if !func_name_refcount(uf2hikey(fp.borrow()))
+            && set_ref_in_func(None, fp.opt_mut(), copy_id)
         {
             return true;
         }
