@@ -104,6 +104,13 @@ impl SocketWatcher {
     pub fn addr_bytes(&self) -> &[u8] {
         self.addr_cstr().to_bytes()
     }
+
+    #[inline]
+    pub fn free_tcp_addrinfo(&mut self) {
+        if unsafe { uv_handle_get_type(ptr::from_mut(self.stream_mut()).cast()) } == UV_TCP {
+            unsafe { uv_freeaddrinfo(self.tcp_addrinfo.cast()) };
+        }
+    }
 }
 
 #[repr(C, align(8))]

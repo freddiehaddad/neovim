@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Main entry point, CLI argument parsing, startup, and shutdown (`src/nvim/main.c`).
 
 use crate::api::private::helpers::{
@@ -41,9 +43,7 @@ use crate::eval::{
     K_LIST_LEN_MAY_KNOW_CONST, eval_has_provider, eval_init, garbage_collect, set_argv_var,
     timer_teardown,
 };
-use crate::event::r#loop::{
-    loop_close, loop_init, loop_poll_events, loop_queues, uv_guess_handle, uv_strerror,
-};
+use crate::event::r#loop::{loop_close, loop_init, loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{multiqueue_new_child, multiqueue_process_events};
 use crate::event::proc::proc_teardown;
 use crate::event::socket::socket_address_tcp_host_end;
@@ -61,7 +61,7 @@ use crate::keycodes::K_NOP;
 use crate::log::{
     LOGLVL_DBG, LOGLVL_INF, LOGLVL_WRN, log_get_stderr, log_init, logmsg, logmsg_str,
 };
-use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring};
+use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring_cstr};
 use crate::lua::executor::{
     K_RET_OBJECT, get_global_lstate, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
     nlua_init_defaults, nlua_pcall,
@@ -95,10 +95,13 @@ use crate::os::env::{os_homedir, os_setenv_append_path};
 #[cfg(windows)]
 use crate::os::fs::os_dup_cloexec;
 use crate::os::fs::{
-    CASE_INSENSITIVE_FILENAME, CFile, os_exepath, os_isdir, os_path_exists, os_write,
+    CASE_INSENSITIVE_FILENAME, CFile, os_exepath, os_guess_handle, os_isdir, os_path_exists,
+    os_write,
 };
 use crate::os::input::{os_breakcheck, os_isatty};
 use crate::os::lang::{init_locale, set_lang_var};
+#[cfg(unix)]
+use crate::os::signal::os_reset_sigpipe;
 use crate::os::signal::{signal_init, signal_reject_deadly, signal_stop, signal_teardown};
 use crate::os::stdpaths::{
     XDGVarType, appname_is_valid, get_appname, stdpaths_get_xdg_var, stdpaths_user_conf_subpath,
@@ -136,7 +139,9 @@ use std::io::Write;
 use std::ptr;
 
 #[cfg(windows)]
-use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_title_save};
+use crate::os::os_win_console::{
+    os_fill_windows_version, os_icon_init, os_icon_reset, os_title_reset, os_title_save,
+};
 
 pub const MAX_ARG_CMDS: usize = 10;
 
@@ -262,14 +267,11 @@ fn main_init_st() -> crate::globals::GraphPtr<MainInitState> {
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 #[cfg(windows)]
 use crate::fileio::_setmode;
-use crate::fileio::setbuf;
 #[cfg(unix)]
 use crate::fileio::tcdrain;
 #[cfg(windows)]
 use crate::fileio::{close, dup2};
 use crate::os::fs::MAXPATHL;
-#[cfg(windows)]
-use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 
 #[inline]
 fn time_msg_if_enabled(s: &std::ffi::CStr) {
@@ -352,14 +354,7 @@ fn early_init(paramp: &mut Mparm) {
 
     #[cfg(windows)]
     {
-        let mut ovi = OsVersionInfoA::new();
-        ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
-        unsafe { GetVersionExA(&mut ovi) };
-        let mut buf = Vec::with_capacity(20);
-        let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
-        let copy_len = buf.len().min(20);
-        g_st().windows_version[..copy_len].copy_from_slice(&buf[..copy_len]);
-        g_st().windows_version[19] = 0;
+        os_fill_windows_version(&mut g_st().windows_version);
     }
 
     time_msg_if_enabled(c"early init");
@@ -386,9 +381,7 @@ pub fn nvim_main() -> i32 {
     {
         use std::os::unix::ffi::OsStringExt;
 
-        unsafe {
-            crate::os::signal::signal(13 /* SIGPIPE */, 0 /* SIG_DFL */)
-        };
+        os_reset_sigpipe();
 
         let mut c_args: Vec<std::ffi::CString> = std::env::args_os()
             .map(|arg| crate::memory::bytes_to_cstring(&arg.into_vec()))
@@ -457,7 +450,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         startup_stderr_fd = os_dup_cloexec(STDERR_FILENO);
     }
 
-    let stdin_type = unsafe { uv_guess_handle(STDIN_FILENO) };
+    let stdin_type = os_guess_handle(STDIN_FILENO);
     let stdio_rpc =
         params.listen_addr.is_none() || stdin_type == UV_NAMED_PIPE || stdin_type == UV_TCP;
     if g_st().embedded_mode && stdio_rpc {
@@ -532,12 +525,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
     g_st().redrawing_disabled += 1;
 
-    unsafe {
-        setbuf(
-            crate::log::log_get_stdout().as_nonnull().as_ptr(),
-            ptr::null_mut(),
-        )
-    };
+    crate::log::log_get_stdout().set_unbuffered();
 
     g_st().full_screen = !g_st().silent_mode;
 
@@ -844,7 +832,7 @@ pub fn os_exit(mut r: i32) -> ! {
     }
     if g_st().ui_client_channel_id != 0 {
         #[cfg(unix)]
-        unsafe {
+        {
             if g_st().stdout_isatty {
                 tcdrain(STDOUT_FILENO);
             }
@@ -1316,7 +1304,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     } else if sub.eq_ignore_ascii_case(b"api-info") {
                         #[cfg(windows)]
                         {
-                            unsafe { _setmode(STDOUT_FILENO, 0x8000) };
+                            _setmode(STDOUT_FILENO, 0x8000);
                         }
                         let data = api_metadata_raw();
                         let written_bytes = os_write(STDOUT_FILENO, data.as_bytes(), false);
@@ -2329,12 +2317,7 @@ fn do_exrc_initialization() {
     lua_getfield(lstate, LUA_GLOBALSINDEX, c"require");
     lua_pushstring(lstate, c"vim._core.exrc");
     if nlua_pcall(lstate, 1, 0) != 0 {
-        let err_ptr = unsafe { lua_tolstring(lstate, -1, ptr::null_mut()) };
-        let err_cstr = if err_ptr.is_null() {
-            c""
-        } else {
-            unsafe { CStr::from_ptr(err_ptr) }
-        };
+        let err_cstr = lua_tolstring_cstr(lstate, -1);
         fprintf!(log_get_stderr(), c"%s\n", err_cstr);
     }
 }

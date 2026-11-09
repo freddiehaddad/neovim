@@ -509,6 +509,12 @@ pub fn os_chdir(path: &CStr) -> i32 {
     err
 }
 
+/// Guess the libuv handle type (`UV_TTY`, `UV_FILE`, `UV_NAMED_PIPE`, `UV_TCP`, etc.) for `fd`.
+#[inline]
+pub fn os_guess_handle(fd: i32) -> i32 {
+    unsafe { crate::event::r#loop::uv_guess_handle(fd) }
+}
+
 /// Get the current working directory into `buf` without NUL-termination (`uv_cwd`).
 #[inline]
 pub fn os_cwd(buf: &mut [u8]) -> Option<&[u8]> {
@@ -898,6 +904,11 @@ impl CFile {
         unsafe {
             crate::fileio::setvbuf(self.ptr.as_ptr(), buf.as_mut_ptr().cast(), mode, buf.len())
         }
+    }
+
+    #[inline]
+    pub fn set_unbuffered(&self) {
+        unsafe { crate::fileio::setbuf(self.ptr.as_ptr(), std::ptr::null_mut()) };
     }
 
     #[inline]

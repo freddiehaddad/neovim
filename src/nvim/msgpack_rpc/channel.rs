@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Msgpack-RPC channel transport and request/response dispatch (`src/nvim/msgpack_rpc/channel.c`).
 
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
@@ -37,7 +39,6 @@ use crate::os::input::input_blocking;
 use crate::os::os_win_console::os_detach_ui_console;
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
 use std::ffi::CStr;
-use std::ptr;
 
 pub type ClientType = i32;
 pub type ChannelStreamType = i32;
@@ -114,7 +115,7 @@ impl Drop for RequestEvent {
 
 #[repr(C)]
 pub struct RpcState {
-    pub closed: bool,
+    pub closed: std::cell::Cell<bool>,
     pub unpacker: Option<Box<Unpacker>>,
     pub has_ui: bool,
     pub next_request_id: u32,
@@ -126,7 +127,7 @@ pub struct RpcState {
 impl RpcState {
     pub const fn new() -> Self {
         Self {
-            closed: false,
+            closed: std::cell::Cell::new(false),
             unpacker: None,
             has_ui: false,
             next_request_id: 0,
@@ -258,7 +259,7 @@ pub fn rpc_start(channel: &mut Channel) {
     channel_incref(&mut *channel);
     channel.is_rpc = true;
     let rpc = &mut channel.rpc;
-    rpc.closed = false;
+    rpc.closed.set(false);
     let mut unpacker = Box::new(Unpacker::new());
     unpacker_init(&mut unpacker);
     rpc.unpacker = Some(unpacker);
@@ -282,7 +283,7 @@ pub fn rpc_start(channel: &mut Channel) {
 #[inline]
 fn find_rpc_channel_opt(id: u64) -> Option<&'static mut Channel> {
     let chan = find_channel_opt(id)?;
-    if !chan.is_rpc || chan.rpc.closed {
+    if !chan.is_rpc || chan.rpc.closed.get() {
         return None;
     }
     Some(chan)
@@ -345,8 +346,7 @@ pub fn rpc_send_call(
     };
     let mut remaining = timeout_ms;
     let mut expired = false;
-    while !frame.returned.get() && !unsafe { ptr::read_volatile(&raw const rpc.closed) } && !expired
-    {
+    while !frame.returned.get() && !rpc.closed.get() && !expired {
         let ev_ptr = channel.events;
         if !ev_ptr.is_null() && !multiqueue_empty(ev_ptr.borrow()) {
             multiqueue_process_events(ev_ptr.borrow_mut());
@@ -362,7 +362,7 @@ pub fn rpc_send_call(
     rpc.call_stack.pop();
 
     if !frame.returned.get() {
-        if unsafe { ptr::read_volatile(&raw const rpc.closed) } {
+        if rpc.closed.get() {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -635,7 +635,7 @@ pub fn request_event(mut e: RequestEvent) {
     let handler = e.handler;
     let mut error = Error::new();
 
-    if !channel.rpc.closed {
+    if !channel.rpc.closed.get() {
         let fn_call = handler.r#fn.unwrap();
         let mut result = fn_call(channel.id, e.args, &mut e.used_mem, &mut error);
         if e.r#type == MessageType::MessageTypeRequest || error.err_type != ErrorType::ErrorTypeNone
@@ -669,7 +669,7 @@ pub fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
 fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     let mut err: i32 = 0;
 
-    if channel.rpc.closed {
+    if channel.rpc.closed.get() {
         return false;
     }
 
@@ -718,7 +718,7 @@ pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) 
     if !unpacker_closed(p) {
         parse_msgpack(channel, &mut read_buf);
 
-        if !read_buf.is_empty() && !channel.rpc.closed {
+        if !read_buf.is_empty() && !channel.rpc.closed.get() {
             chan_close_on_err(channel, c"internal channel: internal error", LOGLVL_ERR);
         }
     }
@@ -751,7 +751,7 @@ fn broadcast_event(name: &CStr, args: Array) {
 fn has_undetached_rpc_chan() -> bool {
     for &chan in g_st().channels.values() {
         let ct = chan.borrow();
-        if ct.is_rpc && !ct.rpc.closed && !ct.detach {
+        if ct.is_rpc && !ct.rpc.closed.get() && !ct.detach {
             return true;
         }
     }
@@ -759,11 +759,11 @@ fn has_undetached_rpc_chan() -> bool {
 }
 
 pub fn rpc_close(channel: &mut Channel) {
-    if channel.rpc.closed {
+    if channel.rpc.closed.get() {
         return;
     }
 
-    channel.rpc.closed = true;
+    channel.rpc.closed.set(true);
 
     {
         let qc = loop_queues(&mut g_st().main_loop);
@@ -1024,7 +1024,7 @@ mod tests {
     #[test]
     fn find_call_frame_searches_stack_from_top() {
         let mut rpc = RpcState {
-            closed: false,
+            closed: std::cell::Cell::new(false),
             unpacker: None,
             has_ui: false,
             next_request_id: 1,

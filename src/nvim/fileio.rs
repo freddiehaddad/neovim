@@ -269,7 +269,8 @@ unsafe extern "C" {
     pub fn ferror(stream: *mut FILE) -> i32;
     pub fn feof(stream: *mut FILE) -> i32;
     #[cfg(unix)]
-    pub fn tcdrain(fd: i32) -> i32;
+    #[link_name = "tcdrain"]
+    fn c_tcdrain(fd: i32) -> i32;
     #[cfg(unix)]
     pub fn getppid() -> i32;
     #[cfg(unix)]
@@ -319,7 +320,8 @@ unsafe extern "C" {
     #[cfg(windows)]
     pub fn _open_osfhandle(osfhandle: isize, flags: i32) -> i32;
     #[cfg(windows)]
-    pub fn _setmode(fd: i32, mode: i32) -> i32;
+    #[link_name = "_setmode"]
+    fn c_setmode(fd: i32, mode: i32) -> i32;
     #[cfg(windows)]
     #[link_name = "_getdrive"]
     fn c_getdrive() -> i32;
@@ -398,6 +400,18 @@ pub fn vim_lseek(fd: i32, offset: Off, whence: i32) -> Off {
 #[inline]
 pub fn _getdrive() -> i32 {
     unsafe { c_getdrive() }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn _setmode(fd: i32, mode: i32) -> i32 {
+    unsafe { c_setmode(fd, mode) }
+}
+
+#[cfg(unix)]
+#[inline]
+pub fn tcdrain(fd: i32) -> i32 {
+    unsafe { c_tcdrain(fd) }
 }
 
 #[cfg(not(windows))]

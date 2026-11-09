@@ -99,6 +99,14 @@ unsafe extern "C" {
     pub fn signal(signum: i32, handler: usize) -> usize;
 }
 
+#[cfg(unix)]
+#[inline]
+pub fn os_reset_sigpipe() {
+    unsafe {
+        signal(SIGPIPE, 0 /* SIG_DFL */);
+    }
+}
+
 pub fn signal_init() {
     #[cfg(unix)]
     unsafe {

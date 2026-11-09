@@ -197,6 +197,19 @@ use crate::fileio::{_get_osfhandle, _open_osfhandle, O_RDONLY, close};
 use crate::event::r#loop::uv_tty_set_vterm_state;
 
 #[cfg(windows)]
+pub fn os_fill_windows_version(dst: &mut [u8; 20]) {
+    use std::io::Write;
+    let mut ovi = OsVersionInfoA::new();
+    ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
+    unsafe { GetVersionExA(&mut ovi) };
+    let mut buf = Vec::with_capacity(20);
+    let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
+    let copy_len = buf.len().min(20);
+    dst[..copy_len].copy_from_slice(&buf[..copy_len]);
+    dst[19] = 0;
+}
+
+#[cfg(windows)]
 pub fn os_enable_ctrl_c() {
     unsafe {
         SetConsoleCtrlHandler(std::ptr::null(), 0);

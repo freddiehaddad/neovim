@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! API Msgpack-RPC request handler lookup and dispatch wrappers (`src/nvim/api/private/dispatch.c`).
 
 use crate::api::autocmd::{
@@ -45,10 +47,10 @@ use crate::api::options::{
     nvim_option_to_object, nvim_set_option_value,
 };
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_clear_error, api_dict_to_keydict, api_free_dict, api_free_object,
-    api_free_string, api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object,
-    api_set_error, api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj,
-    integer_obj, string_obj, tabpage_obj, window_obj,
+    OBJECT_NIL, api_dict_to_keydict, api_free_dict, api_free_object, api_free_string,
+    api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object, api_set_error,
+    api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj,
+    string_obj, tabpage_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType,
@@ -100,18 +102,16 @@ use crate::ex_getln::{get_text_locked_msg, text_locked};
 use crate::highlight::{KeyDict_highlight, KeyDict_highlight_cterm};
 use crate::highlight_group::KeyDict_get_highlight;
 use crate::lua::converter::{
-    Boolean, FieldHashfn, Float, KeySetLink, LuaRef, lua_concat, lua_createtable, lua_error,
-    lua_gettop, lua_pushcclosure, lua_pushstring, lua_setfield, luaL_error, luaL_where,
-    nlua_pop_array, nlua_pop_boolean, nlua_pop_dict, nlua_pop_float,
-    nlua_pop_handle as nlua_pop_Buffer, nlua_pop_handle as nlua_pop_Tabpage,
-    nlua_pop_handle as nlua_pop_Window, nlua_pop_integer, nlua_pop_keydict, nlua_pop_lua_ref,
-    nlua_pop_object, nlua_pop_string, nlua_push_array, nlua_push_boolean, nlua_push_dict,
-    nlua_push_float, nlua_push_handle as nlua_push_Buffer, nlua_push_handle as nlua_push_Tabpage,
-    nlua_push_handle as nlua_push_Window, nlua_push_integer, nlua_push_keydict, nlua_push_object,
-    nlua_push_string,
+    Boolean, FieldHashfn, Float, KeySetLink, LuaRef, nlua_pop_array, nlua_pop_boolean,
+    nlua_pop_dict, nlua_pop_float, nlua_pop_handle as nlua_pop_Buffer,
+    nlua_pop_handle as nlua_pop_Tabpage, nlua_pop_handle as nlua_pop_Window, nlua_pop_integer,
+    nlua_pop_keydict, nlua_pop_lua_ref, nlua_pop_object, nlua_pop_string, nlua_push_array,
+    nlua_push_boolean, nlua_push_dict, nlua_push_float, nlua_push_handle as nlua_push_Buffer,
+    nlua_push_handle as nlua_push_Tabpage, nlua_push_handle as nlua_push_Window, nlua_push_integer,
+    nlua_push_keydict, nlua_push_object, nlua_push_string,
 };
 use crate::lua::xdiff::KeyDict_xdl_diff;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
+use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::shada::{
     KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
@@ -15473,58 +15473,14 @@ pub fn msgpack_rpc_get_handler_for(
     msgpack_rpc_get_handler_at(hash)
 }
 
-use crate::errors::E_FAST_API_DISABLED;
-use crate::lua::converter::lua_State;
+use crate::lua::converter::{
+    lua_State, nlua_fast_api_disabled_error, nlua_finish_api_call, nlua_gettop,
+    nlua_register_api_table,
+};
 use crate::lua::executor::{api_free_luaref, nlua_is_deferred_safe, nlua_st};
 
 const K_NLUA_PUSH_SPECIAL_CONST: i32 = 0x01;
 const K_NLUA_PUSH_FREE_REFS_CONST: i32 = 0x02;
-
-#[inline]
-extern "C-unwind" fn nlua_gettop(lstate: *mut lua_State) -> i32 {
-    unsafe { lua_gettop(lstate) }
-}
-
-#[inline]
-#[allow(improper_ctypes_definitions)]
-extern "C-unwind" fn nlua_fast_api_disabled_error(
-    lstate: *mut lua_State,
-    fn_name: &std::ffi::CStr,
-) -> i32 {
-    unsafe { luaL_error(lstate, E_FAST_API_DISABLED.as_ptr(), fn_name.as_ptr()) }
-}
-
-#[inline]
-#[allow(improper_ctypes_definitions)]
-extern "C-unwind" fn nlua_finish_api_call(
-    lstate: *mut lua_State,
-    arena: &mut Arena,
-    err: &mut Error,
-    err_param: Option<&'static std::ffi::CStr>,
-    nret: i32,
-) -> i32 {
-    arena_mem_free(arena_finish(arena));
-    if err.err_type != ErrorType::ErrorTypeNone {
-        unsafe { luaL_where(lstate, 1) };
-
-        if let Some(err_param) = err_param {
-            lua_pushstring(lstate, c"Invalid '");
-            lua_pushstring(lstate, err_param);
-            lua_pushstring(lstate, c"': ");
-        }
-        crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
-        api_clear_error(err);
-
-        unsafe { lua_concat(lstate, if err_param.is_some() { 5 } else { 2 }) };
-
-        return unsafe { lua_error(lstate) };
-    }
-    if nret < 0 {
-        unsafe { lua_gettop(lstate) }
-    } else {
-        nret
-    }
-}
 
 extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
     let mut err = Error::new();
@@ -23873,14 +23829,7 @@ pub extern "C-unwind" fn nlua_add_api_functions(lstate: *mut lua_State) {
         (c"nvim_win_text_height", nlua_api_nvim_win_text_height),
         (c"nvim_win_resize", nlua_api_nvim_win_resize),
     ];
-    unsafe {
-        lua_createtable(lstate, 0, 185);
-        for &(name, func) in API_FUNCTIONS {
-            lua_pushcclosure(lstate, Some(func), 0);
-            lua_setfield(lstate, -2, name);
-        }
-        lua_setfield(lstate, -2, c"api");
-    }
+    nlua_register_api_table(lstate, API_FUNCTIONS);
 }
 
 #[cfg(test)]

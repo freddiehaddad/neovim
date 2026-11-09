@@ -1,8 +1,10 @@
+#![forbid(unsafe_code)]
+
 //! Msgpack-RPC server address and socket watcher management (`src/nvim/msgpack_rpc/server.c`).
 
 use crate::channel::channel_from_connection;
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str, set_vim_var_string};
-use crate::event::r#loop::{uv_freeaddrinfo, uv_handle_get_type, uv_strerror};
+use crate::event::r#loop::uv_strerror;
 use crate::event::socket::{
     ADDRESS_MAX_SIZE, SocketWatcher, socket_watcher_close, socket_watcher_init,
     socket_watcher_start,
@@ -15,7 +17,6 @@ use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
 use crate::strings::format_to_buf;
 use std::ffi::CStr;
-use std::ptr;
 
 #[cfg(not(windows))]
 use crate::os::stdpaths::{XDGVarType, stdpaths_get_xdg_var};
@@ -24,8 +25,6 @@ const MAX_CONNECTIONS: i32 = 32;
 
 const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
-
-use crate::event::stream::UV_TCP;
 
 struct RpcServerState {
     watchers: Vec<crate::globals::GraphPtr<SocketWatcher>>,
@@ -231,11 +230,9 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 crate::globals::GraphPtr::of(watcher).borrow().addr_cstr(),
             );
 
-            if unsafe { uv_handle_get_type(ptr::from_mut((*watcher).stream_mut()).cast()) }
-                == UV_TCP
-            {
-                unsafe { uv_freeaddrinfo((*watcher).tcp_addrinfo.cast()) };
-            }
+            crate::globals::GraphPtr::of(watcher)
+                .borrow_mut()
+                .free_tcp_addrinfo();
 
             socket_watcher_close(crate::globals::GraphPtr::of(watcher).borrow_mut());
 

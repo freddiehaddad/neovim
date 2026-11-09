@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod channel;
 pub mod packer;
 pub mod server;

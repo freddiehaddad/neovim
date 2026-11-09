@@ -371,6 +371,88 @@ pub fn luaL_checkudata(lstate: *mut lua_State, ud: i32, tname: &CStr) -> *mut c_
 }
 
 #[inline]
+pub fn lua_createtable_safe(lstate: *mut lua_State, narr: i32, nrec: i32) {
+    unsafe { lua_createtable(lstate, narr, nrec) };
+}
+
+#[inline]
+pub fn lua_rawseti_safe(lstate: *mut lua_State, idx: i32, n: i32) {
+    unsafe { lua_rawseti(lstate, idx, n) };
+}
+
+#[inline]
+pub fn lua_tolstring_cstr(lstate: *mut lua_State, idx: i32) -> &'static CStr {
+    let ptr = unsafe { lua_tolstring(lstate, idx, std::ptr::null_mut()) };
+    if ptr.is_null() {
+        c""
+    } else {
+        unsafe { CStr::from_ptr(ptr) }
+    }
+}
+
+#[inline]
+pub fn nlua_gettop(lstate: *mut lua_State) -> i32 {
+    unsafe { lua_gettop(lstate) }
+}
+
+#[inline]
+pub fn nlua_fast_api_disabled_error(lstate: *mut lua_State, fn_name: &CStr) -> i32 {
+    unsafe {
+        luaL_error(
+            lstate,
+            crate::errors::E_FAST_API_DISABLED.as_ptr(),
+            fn_name.as_ptr(),
+        )
+    }
+}
+
+#[inline]
+pub fn nlua_finish_api_call(
+    lstate: *mut lua_State,
+    arena: &mut Arena,
+    err: &mut Error,
+    err_param: Option<&'static CStr>,
+    nret: i32,
+) -> i32 {
+    crate::memory::arena_mem_free(crate::memory::arena_finish(arena));
+    if err.err_type != ErrorType::ErrorTypeNone {
+        unsafe { luaL_where(lstate, 1) };
+
+        if let Some(err_param) = err_param {
+            lua_pushstring(lstate, c"Invalid '");
+            lua_pushstring(lstate, err_param);
+            lua_pushstring(lstate, c"': ");
+        }
+        lua_pushstring_opt(lstate, err.msg_cstr());
+        crate::api::private::helpers::api_clear_error(err);
+
+        unsafe { lua_concat(lstate, if err_param.is_some() { 5 } else { 2 }) };
+
+        return unsafe { lua_error(lstate) };
+    }
+    if nret < 0 {
+        unsafe { lua_gettop(lstate) }
+    } else {
+        nret
+    }
+}
+
+#[inline]
+pub fn nlua_register_api_table(
+    lstate: *mut lua_State,
+    api_functions: &[(&'static CStr, extern "C-unwind" fn(*mut lua_State) -> i32)],
+) {
+    unsafe {
+        lua_createtable(lstate, 0, api_functions.len() as i32);
+        for &(name, func) in api_functions {
+            lua_pushcclosure(lstate, Some(func), 0);
+            lua_setfield(lstate, -2, name);
+        }
+        lua_setfield(lstate, -2, c"api");
+    }
+}
+
+#[inline]
 #[allow(non_snake_case)]
 pub fn luaL_register(lstate: *mut lua_State, libname: Option<&CStr>, l: &[luaL_Reg]) {
     unsafe {

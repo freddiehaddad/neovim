@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 pub mod autocmd;
 pub mod buffer;
 pub mod command;

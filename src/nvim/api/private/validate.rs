@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
 use crate::memory::realloc_items;
@@ -122,10 +124,17 @@ impl NvimString {
     #[inline]
     pub fn as_opt_cstr(self) -> Option<&'static std::ffi::CStr> {
         if self.data.is_null() {
-            None
-        } else {
-            Some(unsafe { std::ffi::CStr::from_ptr(self.data.as_ptr().cast()) })
+            return None;
         }
+        let mut len = self.size;
+        if *self.data.wrapping_add(len).borrow() != 0 {
+            len = 0;
+            while *self.data.wrapping_add(len).borrow() != 0 {
+                len += 1;
+            }
+        }
+        let slice = crate::globals::GraphPtr::raw_slice(self.data.as_ptr(), len + 1);
+        Some(crate::memory::bytes_as_cstr(slice))
     }
 
     #[inline]
@@ -281,7 +290,7 @@ impl Array {
             self.items = realloc_items(self.items, self.capacity);
         }
 
-        unsafe { std::ptr::write(self.items.as_ptr().wrapping_add(self.size), value) };
+        *self.next_slot_mut() = value;
 
         self.size += 1;
     }
@@ -365,7 +374,7 @@ impl Dict {
             self.items = realloc_items(self.items, self.capacity);
         }
 
-        unsafe { std::ptr::write(self.items.as_ptr().wrapping_add(self.size), value) };
+        *self.next_slot_mut() = value;
 
         self.size += 1;
     }

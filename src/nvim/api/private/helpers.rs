@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 //! Private API helper functions (`src/nvim/api/private/helpers.c`).
 
 use crate::api::private::converter::{object_to_vim, vim_to_object};
@@ -352,18 +354,13 @@ pub fn try_enter(tstate: &mut TryState) {
     let saved_msg_list = g_st().msg_list.replace(Vec::new());
     let saved_excp = g_st().current_exception.take();
 
-    unsafe {
-        ptr::write(
-            tstate,
-            TryState {
-                current_exception: saved_excp,
-                msg_list: saved_msg_list,
-                got_int: i32::from(g_st().got_int),
-                did_throw: g_st().did_throw,
-                need_rethrow: i32::from(g_st().need_rethrow),
-                did_emsg: g_st().did_emsg,
-            },
-        )
+    *tstate = TryState {
+        current_exception: saved_excp,
+        msg_list: saved_msg_list,
+        got_int: i32::from(g_st().got_int),
+        did_throw: g_st().did_throw,
+        need_rethrow: i32::from(g_st().need_rethrow),
+        did_emsg: g_st().did_emsg,
     };
     g_st().got_int = false;
     g_st().did_throw = false;
@@ -602,6 +599,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static
     rv.opt_mut()
 }
 
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
     if window == 0 {
@@ -1306,42 +1304,54 @@ pub fn api_keydict_to_dict<T>(
         let mem = value_ptr.cast::<u8>().wrapping_add(field.ptr_off);
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
-        let val = unsafe {
-            match field_type {
-                ObjectType::ObjectTypeNil => *mem.cast::<Object>(),
-                ObjectType::ObjectTypeInteger => Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(*mem.cast::<Integer>()),
-                },
-                ObjectType::ObjectTypeFloat => Object {
-                    obj_type: ObjectType::ObjectTypeFloat,
-                    data: ObjectData::Floating(*mem.cast::<Float>()),
-                },
-                ObjectType::ObjectTypeBoolean => Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(*mem.cast::<Boolean>()),
-                },
-                ObjectType::ObjectTypeString => Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(*mem.cast::<NvimString>()),
-                },
-                ObjectType::ObjectTypeArray => Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(*mem.cast::<Array>()),
-                },
-                ObjectType::ObjectTypeDict => Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(*mem.cast::<Dict>()),
-                },
-                ObjectType::ObjectTypeBuffer
-                | ObjectType::ObjectTypeWindow
-                | ObjectType::ObjectTypeTabpage => Object {
-                    obj_type: field_type,
-                    data: ObjectData::Integer(Integer::from(*mem.cast::<ObjHandle>())),
-                },
-                ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
-                ObjectType::ObjectTypeUnset => std::process::abort(),
+        let val = match field_type {
+            ObjectType::ObjectTypeNil => {
+                *crate::globals::GraphPtr::of(mem.cast::<Object>()).borrow()
             }
+            ObjectType::ObjectTypeInteger => Object {
+                obj_type: ObjectType::ObjectTypeInteger,
+                data: ObjectData::Integer(
+                    *crate::globals::GraphPtr::of(mem.cast::<Integer>()).borrow(),
+                ),
+            },
+            ObjectType::ObjectTypeFloat => Object {
+                obj_type: ObjectType::ObjectTypeFloat,
+                data: ObjectData::Floating(
+                    *crate::globals::GraphPtr::of(mem.cast::<Float>()).borrow(),
+                ),
+            },
+            ObjectType::ObjectTypeBoolean => Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(
+                    *crate::globals::GraphPtr::of(mem.cast::<Boolean>()).borrow(),
+                ),
+            },
+            ObjectType::ObjectTypeString => Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(
+                    *crate::globals::GraphPtr::of(mem.cast::<NvimString>()).borrow(),
+                ),
+            },
+            ObjectType::ObjectTypeArray => Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(
+                    *crate::globals::GraphPtr::of(mem.cast::<Array>()).borrow(),
+                ),
+            },
+            ObjectType::ObjectTypeDict => Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(*crate::globals::GraphPtr::of(mem.cast::<Dict>()).borrow()),
+            },
+            ObjectType::ObjectTypeBuffer
+            | ObjectType::ObjectTypeWindow
+            | ObjectType::ObjectTypeTabpage => Object {
+                obj_type: field_type,
+                data: ObjectData::Integer(Integer::from(
+                    *crate::globals::GraphPtr::of(mem.cast::<ObjHandle>()).borrow(),
+                )),
+            },
+            ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
+            ObjectType::ObjectTypeUnset => std::process::abort(),
         };
 
         *rv.next_slot_mut() = KeyValuePair {

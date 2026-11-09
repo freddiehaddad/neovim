@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 //! Buffer API functions (`src/nvim/api/buffer.c`).
 
 use crate::api::deprecated::KeyDict_empty;
@@ -27,9 +29,7 @@ use crate::ex_cmds::rename_buffer;
 use crate::extmark::{Bcount, K_EXTMARK_NOOP, K_EXTMARK_UNDO, extmark_splice};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
-use crate::lua::converter::{
-    Boolean, LUA_NOREF, LuaRef, lua_State, lua_createtable, lua_push_bytes, lua_rawseti,
-};
+use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef, lua_State, lua_push_bytes};
 use crate::lua::executor::{K_RET_MULTI_STACK, nlua_call_ref};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
 use crate::mark::{K_MARK_ADJUST_API, K_MARK_ALL_NO_RESOLVE, mark_adjust_buf, mark_get};
@@ -1719,7 +1719,7 @@ fn fix_cursor_cols(
 #[inline]
 fn init_line_array(lstate: Option<&mut lua_State>, a: &mut Array, size: usize, arena: &mut Arena) {
     if let Some(lstate) = lstate {
-        unsafe { lua_createtable(lstate, size as i32, 0) };
+        crate::lua::converter::lua_createtable_safe(lstate, size as i32, 0);
     } else {
         *a = arena_array(arena, size);
     }
@@ -1745,7 +1745,7 @@ fn push_linestr(
         } else {
             lua_push_bytes(lstate, s);
         }
-        unsafe { lua_rawseti(lstate, -2, idx + 1) };
+        crate::lua::converter::lua_rawseti_safe(lstate, -2, idx + 1);
     } else {
         let mut str_val = NvimString::new();
         if !s.is_empty() {
