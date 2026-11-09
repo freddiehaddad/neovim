@@ -386,11 +386,7 @@ use crate::bufwrite::NODE_WRITABLE;
 use crate::channel::STDIN_FILENO;
 #[cfg(windows)]
 use crate::event::stream::{UV_FILE, UV_TTY};
-#[cfg(windows)]
-use crate::fileio::{_get_osfhandle, _read, _write, close};
-use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG, c_fdopen, dup};
-#[cfg(not(windows))]
-use crate::fileio::{fcntl, getuid, read, write};
+use crate::fileio::{EINTR, FILE, O_RDONLY, Off, S_IFDIR, S_IFMT, S_IFREG, iconv_t};
 #[cfg(windows)]
 use crate::memline::K_PATH_DEVICE_UNC;
 
@@ -424,6 +420,792 @@ unsafe extern "C" {
         size: usize,
         flags: i32,
     ) -> i32;
+
+    #[link_name = "fopen"]
+    pub(crate) fn c_fopen(filename: *const u8, mode: *const u8) -> *mut FILE;
+    #[link_name = "freopen"]
+    fn c_freopen(filename: *const u8, mode: *const u8, stream: *mut c_void) -> *mut c_void;
+    pub fn fclose(stream: *mut FILE) -> i32;
+    pub fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
+    pub fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
+    #[link_name = "fgets"]
+    pub(crate) fn c_fgets(s: *mut u8, n: i32, stream: *mut FILE) -> *mut u8;
+    #[link_name = "fputs"]
+    pub(crate) fn c_fputs(s: *const u8, stream: *mut FILE) -> i32;
+    pub fn fgetc(stream: *mut FILE) -> i32;
+    pub fn fputc(c: i32, stream: *mut FILE) -> i32;
+    pub fn ungetc(c: i32, stream: *mut FILE) -> i32;
+    pub fn fflush(stream: *mut FILE) -> i32;
+    pub fn setbuf(stream: *mut FILE, buffer: *mut u8);
+    pub fn setvbuf(stream: *mut FILE, buffer: *mut u8, mode: i32, size: usize) -> i32;
+    pub fn ferror(stream: *mut FILE) -> i32;
+    pub fn feof(stream: *mut FILE) -> i32;
+    #[cfg(unix)]
+    #[link_name = "tcdrain"]
+    fn c_tcdrain(fd: i32) -> i32;
+    #[cfg(unix)]
+    pub fn getppid() -> i32;
+    #[cfg(unix)]
+    pub fn getpgid(pid: i32) -> i32;
+    #[cfg(unix)]
+    pub fn getpgrp() -> i32;
+
+    #[cfg(not(windows))]
+    #[link_name = "iconv_open"]
+    fn c_iconv_open(tocode: *const u8, fromcode: *const u8) -> *mut c_void;
+    #[cfg(not(windows))]
+    pub fn iconv(
+        cd: iconv_t,
+        inbuf: *mut *const u8,
+        inbytesleft: *mut usize,
+        outbuf: *mut *mut u8,
+        outbytesleft: *mut usize,
+    ) -> usize;
+    #[cfg(not(windows))]
+    pub fn iconv_close(cd: iconv_t) -> i32;
+    #[cfg_attr(windows, link_name = "_close")]
+    #[cfg_attr(not(windows), link_name = "close")]
+    fn c_close(fd: i32) -> i32;
+    #[cfg_attr(windows, link_name = "_dup")]
+    #[cfg_attr(not(windows), link_name = "dup")]
+    fn c_dup(oldfd: i32) -> i32;
+    #[cfg_attr(windows, link_name = "_dup2")]
+    #[cfg_attr(not(windows), link_name = "dup2")]
+    fn c_dup2(oldfd: i32, newfd: i32) -> i32;
+    #[cfg_attr(windows, link_name = "_lseeki64")]
+    #[cfg_attr(not(windows), link_name = "lseek")]
+    fn c_vim_lseek(fd: i32, offset: Off, whence: i32) -> Off;
+    #[cfg_attr(windows, link_name = "_fseeki64")]
+    #[cfg_attr(not(windows), link_name = "fseeko")]
+    pub fn vim_fseek(stream: *mut FILE, offset: Off, whence: i32) -> i32;
+    #[cfg_attr(windows, link_name = "_ftelli64")]
+    #[cfg_attr(not(windows), link_name = "ftello")]
+    pub fn vim_ftell(stream: *mut FILE) -> Off;
+    #[cfg_attr(windows, link_name = "_fdopen")]
+    #[cfg_attr(not(windows), link_name = "fdopen")]
+    pub(crate) fn c_fdopen(fd: i32, mode: *const u8) -> *mut FILE;
+    #[cfg_attr(windows, link_name = "_fileno")]
+    pub fn fileno(stream: *mut FILE) -> i32;
+
+    #[cfg(windows)]
+    pub fn _get_osfhandle(fd: i32) -> isize;
+    #[cfg(windows)]
+    pub fn _open_osfhandle(osfhandle: isize, flags: i32) -> i32;
+    #[cfg(windows)]
+    #[link_name = "_setmode"]
+    fn c_setmode(fd: i32, mode: i32) -> i32;
+    #[cfg(windows)]
+    #[link_name = "_getdrive"]
+    fn c_getdrive() -> i32;
+    #[cfg(windows)]
+    pub fn _read(fd: i32, buf: *mut c_void, count: u32) -> i32;
+    #[cfg(windows)]
+    pub fn _write(fd: i32, buf: *const c_void, count: u32) -> i32;
+    #[cfg(windows)]
+    fn _umask(pmode: i32) -> i32;
+
+    #[cfg(not(windows))]
+    pub fn fcntl(fd: i32, cmd: i32, ...) -> i32;
+    #[cfg(not(windows))]
+    #[link_name = "getuid"]
+    fn c_getuid() -> u32;
+    #[cfg(not(windows))]
+    #[link_name = "getgid"]
+    fn c_getgid() -> u32;
+    #[cfg(not(windows))]
+    pub fn read(fd: i32, buf: *mut c_void, count: usize) -> isize;
+    #[cfg(not(windows))]
+    pub fn write(fd: i32, buf: *const c_void, count: usize) -> isize;
+    #[cfg(not(windows))]
+    pub fn kill(pid: i32, sig: i32) -> i32;
+    #[cfg(not(windows))]
+    pub fn umask(mask: u32) -> u32;
+    #[cfg(not(windows))]
+    pub fn readlink(path: *const u8, buf: *mut u8, bufsiz: usize) -> isize;
+    #[cfg(not(windows))]
+    fn symlink(target: *const u8, linkpath: *const u8) -> i32;
+    #[cfg(not(windows))]
+    fn opendir(name: *const u8) -> *mut c_void;
+    #[cfg(not(windows))]
+    fn closedir(dirp: *mut c_void) -> i32;
+    #[cfg(not(windows))]
+    fn dirfd(dirp: *mut c_void) -> i32;
+    #[cfg(not(windows))]
+    fn flock(fd: i32, operation: i32) -> i32;
+}
+
+#[inline]
+pub fn close(fd: i32) -> i32 {
+    unsafe { c_close(fd) }
+}
+
+#[inline]
+pub fn dup(oldfd: i32) -> i32 {
+    unsafe { c_dup(oldfd) }
+}
+
+#[inline]
+pub fn dup2(oldfd: i32, newfd: i32) -> i32 {
+    unsafe { c_dup2(oldfd, newfd) }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn os_dupfd_cloexec(fd: i32, min_fd: i32) -> i32 {
+    #[cfg(target_os = "linux")]
+    const F_DUPFD_CLOEXEC: i32 = 1030;
+    #[cfg(target_os = "macos")]
+    const F_DUPFD_CLOEXEC: i32 = 67;
+    #[cfg(target_os = "freebsd")]
+    const F_DUPFD_CLOEXEC: i32 = 17;
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
+    const F_DUPFD_CLOEXEC: i32 = 12;
+    unsafe { fcntl(fd, F_DUPFD_CLOEXEC, min_fd) }
+}
+
+#[inline]
+pub fn vim_lseek(fd: i32, offset: Off, whence: i32) -> Off {
+    unsafe { c_vim_lseek(fd, offset, whence) }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn _getdrive() -> i32 {
+    unsafe { c_getdrive() }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn _setmode(fd: i32, mode: i32) -> i32 {
+    unsafe { c_setmode(fd, mode) }
+}
+
+#[cfg(unix)]
+#[inline]
+pub fn tcdrain(fd: i32) -> i32 {
+    unsafe { c_tcdrain(fd) }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn getuid() -> u32 {
+    unsafe { c_getuid() }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn getgid() -> u32 {
+    unsafe { c_getgid() }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn os_readlink(path: &CStr, buf: &mut [u8]) -> isize {
+    unsafe { readlink(path.as_ptr().cast(), buf.as_mut_ptr(), buf.len()) }
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn os_symlink(target: &CStr, linkpath: &CStr) -> i32 {
+    unsafe { symlink(target.as_ptr().cast(), linkpath.as_ptr().cast()) }
+}
+
+#[inline]
+pub fn freopen(filename: &CStr, mode: &CStr, stream: &CFile) -> bool {
+    !unsafe {
+        c_freopen(
+            filename.as_ptr().cast(),
+            mode.as_ptr().cast(),
+            stream.as_nonnull().as_ptr().cast(),
+        )
+    }
+    .is_null()
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn call_iconv_open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
+    unsafe { c_iconv_open(tocode.as_ptr().cast(), fromcode.as_ptr().cast()) as iconv_t }
+}
+
+#[cfg(windows)]
+mod win_iconv {
+    use super::*;
+
+    const E2BIG: i32 = 7;
+    const EINVAL: i32 = 22;
+    const EILSEQ: i32 = 42;
+    const MB_ERR_INVALID_CHARS: u32 = 0x08;
+    const WC_ERR_INVALID_CHARS: u32 = 0x80;
+    const WC_NO_BEST_FIT_CHARS: u32 = 0x0400;
+
+    unsafe extern "system" {
+        fn IsValidCodePage(CodePage: u32) -> i32;
+        fn IsDBCSLeadByteEx(CodePage: u32, TestChar: u8) -> i32;
+        fn MultiByteToWideChar(
+            CodePage: u32,
+            dwFlags: u32,
+            lpMultiByteStr: *const u8,
+            cbMultiByte: i32,
+            lpWideCharStr: *mut u16,
+            cchWideChar: i32,
+        ) -> i32;
+        fn WideCharToMultiByte(
+            CodePage: u32,
+            dwFlags: u32,
+            lpWideCharStr: *const u16,
+            cchWideChar: i32,
+            lpMultiByteStr: *mut u8,
+            cbMultiByte: i32,
+            lpDefaultChar: *const u8,
+            lpUsedDefaultChar: *mut i32,
+        ) -> i32;
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum WinEnc {
+        Utf8,
+        Utf16Le,
+        Utf16Be,
+        Utf16Auto,
+        Ucs2Le,
+        Ucs2Be,
+        Ucs4Le,
+        Ucs4Be,
+        CodePage(u32),
+    }
+
+    struct WinIconvDesc {
+        from: WinEnc,
+        to: WinEnc,
+        from_resolved: Option<WinEnc>,
+    }
+
+    fn parse_win_enc(name: &str) -> Option<WinEnc> {
+        let s = name.trim().to_ascii_lowercase();
+        let s = s.split("//").next().unwrap_or(&s);
+        match s {
+            "utf-8" | "utf8" => Some(WinEnc::Utf8),
+            "utf-16le" | "utf16le" => Some(WinEnc::Utf16Le),
+            "utf-16be" | "utf16be" => Some(WinEnc::Utf16Be),
+            "utf-16" | "utf16" => Some(WinEnc::Utf16Auto),
+            "ucs-2le" | "ucs2le" => Some(WinEnc::Ucs2Le),
+            "ucs-2" | "ucs2" | "ucs-2be" | "ucs2be" | "unicode" => Some(WinEnc::Ucs2Be),
+            "ucs-4le" | "ucs4le" | "utf-32le" | "utf32le" => Some(WinEnc::Ucs4Le),
+            "ucs-4" | "ucs4" | "ucs-4be" | "ucs4be" | "utf-32" | "utf32" | "utf-32be"
+            | "utf32be" => Some(WinEnc::Ucs4Be),
+            "ascii" | "us-ascii" => Some(WinEnc::CodePage(20127)),
+            "latin1" | "iso-8859-1" => Some(WinEnc::CodePage(28591)),
+            "latin2" | "iso-8859-2" => Some(WinEnc::CodePage(28592)),
+            "latin3" | "iso-8859-3" => Some(WinEnc::CodePage(28593)),
+            "latin4" | "iso-8859-4" => Some(WinEnc::CodePage(28594)),
+            "cyrillic" | "iso-8859-5" => Some(WinEnc::CodePage(28595)),
+            "arabic" | "iso-8859-6" => Some(WinEnc::CodePage(28596)),
+            "greek" | "iso-8859-7" => Some(WinEnc::CodePage(28597)),
+            "hebrew" | "iso-8859-8" => Some(WinEnc::CodePage(28598)),
+            "latin5" | "turkish" | "iso-8859-9" => Some(WinEnc::CodePage(28599)),
+            "thai" | "iso-8859-11" => Some(WinEnc::CodePage(874)),
+            "latin7" | "iso-8859-13" => Some(WinEnc::CodePage(28603)),
+            "latin9" | "iso-8859-15" => Some(WinEnc::CodePage(28605)),
+            "koi8-r" | "koi8r" => Some(WinEnc::CodePage(20866)),
+            "koi8-u" | "koi8u" => Some(WinEnc::CodePage(21866)),
+            "macroman" | "mac" => Some(WinEnc::CodePage(10000)),
+            "sjis" | "shift-jis" | "shift_jis" | "cp932" | "932" => Some(WinEnc::CodePage(932)),
+            "euc-jp" | "eucjp" | "ujis" | "japan" => Some(WinEnc::CodePage(20932)),
+            "gbk" | "cp936" | "936" | "euc-cn" | "euccn" | "gb2312" => Some(WinEnc::CodePage(936)),
+            "gb18030" | "cp54936" => Some(WinEnc::CodePage(54936)),
+            "euc-kr" | "euckr" | "cp949" | "949" => Some(WinEnc::CodePage(949)),
+            "big5" | "cp950" | "950" => Some(WinEnc::CodePage(950)),
+            _ => {
+                let digits = s.strip_prefix("cp").unwrap_or(s);
+                if let Ok(cp) = digits.parse::<u32>()
+                    && cp > 0
+                    && unsafe { IsValidCodePage(cp) } != 0
+                {
+                    Some(WinEnc::CodePage(cp))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    enum StepResult {
+        Char(char, usize),
+        SkipBom(usize),
+        Incomplete,
+        Invalid,
+    }
+
+    fn decode_one(desc: &mut WinIconvDesc, src: &[u8]) -> StepResult {
+        let mut enc = desc.from;
+        if enc == WinEnc::Utf16Auto {
+            if let Some(res) = desc.from_resolved {
+                enc = res;
+            } else if src.len() >= 2 {
+                if src[0] == 0xFE && src[1] == 0xFF {
+                    desc.from_resolved = Some(WinEnc::Utf16Be);
+                    return StepResult::SkipBom(2);
+                } else if src[0] == 0xFF && src[1] == 0xFE {
+                    desc.from_resolved = Some(WinEnc::Utf16Le);
+                    return StepResult::SkipBom(2);
+                } else {
+                    desc.from_resolved = Some(WinEnc::Utf16Be);
+                    enc = WinEnc::Utf16Be;
+                }
+            } else {
+                return StepResult::Incomplete;
+            }
+        }
+
+        match enc {
+            WinEnc::Utf8 => match std::str::from_utf8(&src[..src.len().min(4)]) {
+                Ok(s) => {
+                    let ch = s.chars().next().unwrap();
+                    StepResult::Char(ch, ch.len_utf8())
+                }
+                Err(e) => {
+                    if e.valid_up_to() > 0 {
+                        let s = std::str::from_utf8(&src[..e.valid_up_to()]).unwrap_or("");
+                        let ch = s.chars().next().unwrap();
+                        StepResult::Char(ch, ch.len_utf8())
+                    } else if e.error_len().is_none() {
+                        StepResult::Incomplete
+                    } else {
+                        StepResult::Invalid
+                    }
+                }
+            },
+            WinEnc::Utf16Le | WinEnc::Utf16Be | WinEnc::Ucs2Le | WinEnc::Ucs2Be => {
+                if src.len() < 2 {
+                    return StepResult::Incomplete;
+                }
+                let le = matches!(enc, WinEnc::Utf16Le | WinEnc::Ucs2Le);
+                let is_ucs2 = matches!(enc, WinEnc::Ucs2Le | WinEnc::Ucs2Be);
+                let u1 = if le {
+                    u16::from_le_bytes([src[0], src[1]])
+                } else {
+                    u16::from_be_bytes([src[0], src[1]])
+                };
+                if (0xD800..=0xDBFF).contains(&u1) {
+                    if is_ucs2 {
+                        return StepResult::Invalid;
+                    }
+                    if src.len() < 4 {
+                        return StepResult::Incomplete;
+                    }
+                    let u2 = if le {
+                        u16::from_le_bytes([src[2], src[3]])
+                    } else {
+                        u16::from_be_bytes([src[2], src[3]])
+                    };
+                    if (0xDC00..=0xDFFF).contains(&u2) {
+                        let cp = 0x10000 + (((u1 - 0xD800) as u32) << 10) + ((u2 - 0xDC00) as u32);
+                        if let Some(ch) = char::from_u32(cp) {
+                            return StepResult::Char(ch, 4);
+                        }
+                    }
+                    StepResult::Invalid
+                } else if (0xDC00..=0xDFFF).contains(&u1) {
+                    StepResult::Invalid
+                } else {
+                    StepResult::Char(char::from_u32(u32::from(u1)).unwrap_or('\u{FFFD}'), 2)
+                }
+            }
+            WinEnc::Ucs4Le | WinEnc::Ucs4Be => {
+                if src.len() < 4 {
+                    return StepResult::Incomplete;
+                }
+                let b = [src[0], src[1], src[2], src[3]];
+                let u = if enc == WinEnc::Ucs4Le {
+                    u32::from_le_bytes(b)
+                } else {
+                    u32::from_be_bytes(b)
+                };
+                match char::from_u32(u) {
+                    Some(ch) => StepResult::Char(ch, 4),
+                    None => StepResult::Invalid,
+                }
+            }
+            WinEnc::CodePage(cp) => {
+                let b0 = src[0];
+                if cp == 20127 && b0 >= 0x80 {
+                    return StepResult::Invalid;
+                }
+                let mut tmp = [0u8; 4];
+                let (in_ptr, in_len, consumed) = if cp == 54936 {
+                    if b0 < 0x80 {
+                        (src.as_ptr(), 1, 1)
+                    } else if (0x81..=0xFE).contains(&b0) {
+                        if src.len() < 2 {
+                            return StepResult::Incomplete;
+                        }
+                        let b1 = src[1];
+                        if (0x40..=0xFE).contains(&b1) && b1 != 0x7F {
+                            (src.as_ptr(), 2, 2)
+                        } else if (0x30..=0x39).contains(&b1) {
+                            if src.len() < 4 {
+                                if src.len() == 3 && !(0x81..=0xFE).contains(&src[2]) {
+                                    return StepResult::Invalid;
+                                }
+                                return StepResult::Incomplete;
+                            }
+                            if (0x81..=0xFE).contains(&src[2]) && (0x30..=0x39).contains(&src[3]) {
+                                (src.as_ptr(), 4, 4)
+                            } else {
+                                return StepResult::Invalid;
+                            }
+                        } else {
+                            return StepResult::Invalid;
+                        }
+                    } else {
+                        return StepResult::Invalid;
+                    }
+                } else if cp == 20932 {
+                    if b0 < 0x80 {
+                        (src.as_ptr(), 1, 1)
+                    } else if b0 == 0x8E || (0xA1..=0xFE).contains(&b0) {
+                        if src.len() < 2 {
+                            return StepResult::Incomplete;
+                        }
+                        (src.as_ptr(), 2, 2)
+                    } else if b0 == 0x8F {
+                        if src.len() < 3 {
+                            return StepResult::Incomplete;
+                        }
+                        tmp[0] = src[1];
+                        tmp[1] = src[2] & 0x7F;
+                        (tmp.as_ptr(), 2, 3)
+                    } else {
+                        return StepResult::Invalid;
+                    }
+                } else if unsafe { IsDBCSLeadByteEx(cp, b0) } != 0 {
+                    if src.len() < 2 {
+                        return StepResult::Incomplete;
+                    }
+                    (src.as_ptr(), 2, 2)
+                } else {
+                    (src.as_ptr(), 1, 1)
+                };
+
+                let mut wide = [0u16; 2];
+                let wlen = unsafe {
+                    MultiByteToWideChar(
+                        cp,
+                        MB_ERR_INVALID_CHARS,
+                        in_ptr.cast(),
+                        in_len,
+                        wide.as_mut_ptr(),
+                        2,
+                    )
+                };
+                if wlen <= 0 {
+                    return StepResult::Invalid;
+                }
+                let mut iter = char::decode_utf16(wide[..wlen as usize].iter().copied());
+                match iter.next() {
+                    Some(Ok(ch)) => StepResult::Char(ch, consumed),
+                    _ => StepResult::Invalid,
+                }
+            }
+            WinEnc::Utf16Auto => unreachable!(),
+        }
+    }
+
+    fn encode_one(to: WinEnc, ch: char, buf: &mut [u8; 8]) -> Option<usize> {
+        match to {
+            WinEnc::Utf8 => Some(ch.encode_utf8(buf).len()),
+            WinEnc::Utf16Le | WinEnc::Utf16Be | WinEnc::Utf16Auto => {
+                let le = to == WinEnc::Utf16Le;
+                let mut w = [0u16; 2];
+                let wslice = ch.encode_utf16(&mut w);
+                for (i, &u) in wslice.iter().enumerate() {
+                    let b = if le { u.to_le_bytes() } else { u.to_be_bytes() };
+                    buf[i * 2] = b[0];
+                    buf[i * 2 + 1] = b[1];
+                }
+                Some(wslice.len() * 2)
+            }
+            WinEnc::Ucs2Le | WinEnc::Ucs2Be => {
+                let cp = ch as u32;
+                if cp > 0xFFFF {
+                    return None;
+                }
+                let b = if to == WinEnc::Ucs2Le {
+                    (cp as u16).to_le_bytes()
+                } else {
+                    (cp as u16).to_be_bytes()
+                };
+                buf[0] = b[0];
+                buf[1] = b[1];
+                Some(2)
+            }
+            WinEnc::Ucs4Le | WinEnc::Ucs4Be => {
+                let b = if to == WinEnc::Ucs4Le {
+                    (ch as u32).to_le_bytes()
+                } else {
+                    (ch as u32).to_be_bytes()
+                };
+                buf[..4].copy_from_slice(&b);
+                Some(4)
+            }
+            WinEnc::CodePage(cp) => {
+                if cp == 20127 {
+                    let u = ch as u32;
+                    if u < 0x80 {
+                        buf[0] = u as u8;
+                        return Some(1);
+                    }
+                    return None;
+                }
+                let mut wide = [0u16; 2];
+                let wlen = ch.encode_utf16(&mut wide).len() as i32;
+                if cp == 54936 || cp == 65001 {
+                    let n = unsafe {
+                        WideCharToMultiByte(
+                            cp,
+                            WC_ERR_INVALID_CHARS,
+                            wide.as_ptr(),
+                            wlen,
+                            buf.as_mut_ptr().cast(),
+                            8,
+                            ptr::null(),
+                            ptr::null_mut(),
+                        )
+                    };
+                    if n <= 0 { None } else { Some(n as usize) }
+                } else {
+                    let mut used_def: i32 = 0;
+                    let n = unsafe {
+                        WideCharToMultiByte(
+                            cp,
+                            WC_NO_BEST_FIT_CHARS,
+                            wide.as_ptr(),
+                            wlen,
+                            buf.as_mut_ptr().cast(),
+                            8,
+                            ptr::null(),
+                            &raw mut used_def,
+                        )
+                    };
+                    if n <= 0 || used_def != 0 {
+                        None
+                    } else if cp == 20932 && n == 2 && (buf[0] >= 0x80 && buf[1] < 0x80) {
+                        buf[2] = buf[1] | 0x80;
+                        buf[1] = buf[0];
+                        buf[0] = 0x8F;
+                        Some(3)
+                    } else {
+                        Some(n as usize)
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
+        let Ok(to_str) = tocode.to_str() else {
+            os_set_errno(EINVAL);
+            return -1;
+        };
+        let Ok(from_str) = fromcode.to_str() else {
+            os_set_errno(EINVAL);
+            return -1;
+        };
+        let (Some(to), Some(from)) = (parse_win_enc(to_str), parse_win_enc(from_str)) else {
+            os_set_errno(EINVAL);
+            return -1;
+        };
+        let boxed = Box::new(WinIconvDesc {
+            from,
+            to,
+            from_resolved: None,
+        });
+        Box::into_raw(boxed) as iconv_t
+    }
+
+    pub fn convert(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]) -> usize {
+        if cd == -1 || cd == 0 {
+            os_set_errno(EINVAL);
+            return usize::MAX;
+        }
+        let desc = crate::globals::GraphPtr::of(cd as *mut WinIconvDesc).borrow_mut();
+        let Some(inbuf) = inbuf else {
+            desc.from_resolved = None;
+            return 0;
+        };
+
+        while !inbuf.is_empty() {
+            match decode_one(desc, inbuf) {
+                StepResult::SkipBom(consumed) => {
+                    *inbuf = &inbuf[consumed..];
+                }
+                StepResult::Char(ch, consumed) => {
+                    let mut encoded = [0u8; 8];
+                    let Some(enc_len) = encode_one(desc.to, ch, &mut encoded) else {
+                        os_set_errno(EILSEQ);
+                        return usize::MAX;
+                    };
+                    if enc_len > outbuf.len() {
+                        os_set_errno(E2BIG);
+                        return usize::MAX;
+                    }
+                    outbuf[..enc_len].copy_from_slice(&encoded[..enc_len]);
+                    *outbuf = &mut std::mem::take(outbuf)[enc_len..];
+                    *inbuf = &inbuf[consumed..];
+                }
+                StepResult::Incomplete => {
+                    os_set_errno(EINVAL);
+                    return usize::MAX;
+                }
+                StepResult::Invalid => {
+                    os_set_errno(EILSEQ);
+                    return usize::MAX;
+                }
+            }
+        }
+
+        0
+    }
+
+    pub fn close(cd: iconv_t) -> i32 {
+        if cd != -1 && cd != 0 {
+            crate::globals::GraphPtr::of(cd as *mut WinIconvDesc).drop_box();
+        }
+        0
+    }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn call_iconv_open(tocode: &CStr, fromcode: &CStr) -> iconv_t {
+    win_iconv::open(tocode, fromcode)
+}
+
+#[inline]
+pub fn call_iconv(cd: iconv_t, inbuf: Option<&mut &[u8]>, outbuf: &mut &mut [u8]) -> usize {
+    #[cfg(windows)]
+    {
+        win_iconv::convert(cd, inbuf, outbuf)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        let mut out_ptr = crate::globals::GraphPtr::<u8>::of(outbuf.as_mut_ptr()).as_ptr();
+        let mut out_left: usize = outbuf.len();
+        let orig_out_len = out_left;
+        let ret = if let Some(inbuf) = inbuf {
+            let mut in_ptr = crate::globals::GraphPtr::<u8>::of(inbuf.as_ptr())
+                .as_ptr()
+                .cast_const();
+            let mut in_left: usize = inbuf.len();
+            let orig_in_len = in_left;
+            let r = iconv(
+                cd,
+                &raw mut in_ptr,
+                &raw mut in_left,
+                &raw mut out_ptr,
+                &raw mut out_left,
+            );
+            let in_used = orig_in_len.saturating_sub(in_left);
+            *inbuf = &inbuf[in_used..];
+            r
+        } else {
+            iconv(
+                cd,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                &raw mut out_ptr,
+                &raw mut out_left,
+            )
+        };
+        let out_used = orig_out_len.saturating_sub(out_left);
+        *outbuf = &mut std::mem::take(outbuf)[out_used..];
+        ret
+    }
+}
+
+#[inline]
+pub fn call_iconv_close(cd: iconv_t) -> i32 {
+    #[cfg(windows)]
+    {
+        win_iconv::close(cd)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        iconv_close(cd)
+    }
+}
+
+#[inline]
+pub fn call_umask(mask: u32) -> u32 {
+    #[cfg(windows)]
+    unsafe {
+        _umask(mask as i32) as u32
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        umask(mask)
+    }
+}
+
+/// Version of read() that retries when interrupted by EINTR.
+pub fn read_eintr(fd: i32, buf: &mut [u8]) -> isize {
+    loop {
+        #[cfg(windows)]
+        let ret = unsafe { _read(fd, buf.as_mut_ptr().cast(), buf.len() as u32) } as isize;
+        #[cfg(not(windows))]
+        let ret = unsafe { read(fd, buf.as_mut_ptr().cast(), buf.len()) };
+        if ret >= 0 || os_errno() != EINTR {
+            return ret;
+        }
+    }
+}
+
+/// Version of write() that retries when interrupted by EINTR.
+pub fn write_eintr(fd: i32, buf: &[u8]) -> isize {
+    let mut ret: isize = 0;
+    let bufsize = buf.len();
+
+    while (ret as usize) < bufsize {
+        let rem = &buf[ret as usize..];
+        #[cfg(windows)]
+        let wlen = unsafe { _write(fd, rem.as_ptr().cast(), rem.len() as u32) } as isize;
+        #[cfg(not(windows))]
+        let wlen = unsafe { write(fd, rem.as_ptr().cast(), rem.len()) };
+        if wlen < 0 {
+            if os_errno() != EINTR {
+                break;
+            }
+        } else {
+            ret += wlen;
+        }
+    }
+    ret
+}
+
+#[cfg(unix)]
+pub struct OsLockedDir(std::ptr::NonNull<c_void>);
+
+#[cfg(unix)]
+impl OsLockedDir {
+    pub fn open_shared(path: &CStr) -> Option<Self> {
+        const LOCK_SH: i32 = 1;
+        let dp = unsafe { opendir(path.as_ptr().cast()) };
+        let nonnull = std::ptr::NonNull::new(dp)?;
+        unsafe {
+            flock(dirfd(nonnull.as_ptr()), LOCK_SH);
+        }
+        Some(Self(nonnull))
+    }
+}
+
+#[cfg(unix)]
+impl Drop for OsLockedDir {
+    fn drop(&mut self) {
+        unsafe {
+            closedir(self.0.as_ptr());
+        }
+    }
 }
 
 #[cfg(windows)]
