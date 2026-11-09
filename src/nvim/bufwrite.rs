@@ -177,16 +177,16 @@ fn ucs2bytes(mut c: u32, out: &mut [u8], pos: &mut usize, flags: i32) -> bool {
 }
 
 fn buf_write_convert_with_iconv(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: &mut i32) -> i32 {
-    let len = *lenp;
-    let from = if *use_conv_buf {
-        ip.bw_conv_buf.as_ptr()
+    let len = *lenp as usize;
+    let from_vec;
+    let mut from_rem: &[u8] = if *use_conv_buf {
+        from_vec = ip.bw_conv_buf[..len].to_vec();
+        &from_vec
     } else {
-        ip.bw_buf.as_ptr()
+        &ip.bw_buf[..len]
     };
-    let mut from_rem = crate::globals::GraphPtr::raw_slice(from, len as usize);
     let total_to = ip.bw_conv_buf.len();
-    let mut to_rem: &mut [u8] =
-        crate::globals::GraphPtr::raw_slice_mut(ip.bw_conv_buf.as_mut_ptr(), total_to);
+    let mut to_rem: &mut [u8] = &mut ip.bw_conv_buf[..];
 
     if ip.bw_first != 0 {
         let _ = call_iconv(ip.bw_iconv_fd, None, &mut to_rem);
@@ -203,7 +203,7 @@ fn buf_write_convert_with_iconv(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: 
     *use_conv_buf = true;
     *lenp = (total_to - to_rem.len()) as i32;
 
-    len - (from_rem.len() as i32)
+    (len - from_rem.len()) as i32
 }
 
 fn buf_write_convert(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: &mut i32) -> i32 {

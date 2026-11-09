@@ -980,7 +980,6 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
         let mut tag_name = [0u8; 128 + 1];
 
         let mut fname_vec = vec![0u8; MAXPATHL + 1];
-        let fname = fname_vec.as_mut_ptr();
         let mut cmd_vec = Vec::with_capacity(CMDBUFFSIZE + 1);
         let list = tv_list_alloc(0);
 
@@ -993,10 +992,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             tag_name[len] = 0;
 
             let p = tag_full_fname(&mut tagp);
-            crate::memory::copy_bytes_to_c_buf(
-                crate::globals::GraphPtr::raw_slice_mut(fname, MAXPATHL),
-                p.as_bytes(),
-            );
+            crate::memory::copy_bytes_to_c_buf(&mut fname_vec[..MAXPATHL], p.as_bytes());
 
             let mut lnum: Linenr = 0;
             let cmd_bytes = tagp.command;

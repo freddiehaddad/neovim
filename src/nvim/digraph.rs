@@ -1903,10 +1903,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         buf[pos] = b' ';
         pos += 1;
     }
-    pos += utf_char2bytes(
-        dp.result,
-        crate::globals::GraphPtr::raw_slice_mut(buf[pos..].as_mut_ptr().cast(), 6),
-    ) as usize;
+    pos += utf_char2bytes(dp.result, &mut buf[pos..]) as usize;
     buf[pos] = 0;
     msg_outtrans(crate::memory::bytes_as_cstr(&buf), HLF_8, false);
 

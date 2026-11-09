@@ -1162,8 +1162,6 @@ pub fn call_user_func(
     let mut using_sandbox = false;
     let mut islambda = false;
     let mut numbuf = [0u8; NUMBUFLEN];
-    let mut name;
-    let mut namelen: usize;
     let mut tv_to_free: [TypVal; MAX_FUNC_ARGS] = [const { TypVal::new() }; MAX_FUNC_ARGS];
     let mut tv_to_free_len = 0usize;
     let mut wait_start: Proftime = 0;
@@ -1267,9 +1265,8 @@ pub fn call_user_func(
         let mut def_rettv: TypVal = TypVal::new();
 
         let ai = i - uf_args_len;
-        if ai < 0 {
+        let name_slice: &[u8] = if ai < 0 {
             let fa = funcarg(&*fp, i);
-            name = fa.as_ptr().cast();
             if islambda {
                 addlocal = true;
             }
@@ -1291,16 +1288,16 @@ pub fn call_user_func(
                 }
             }
 
-            namelen = fa.to_bytes().len();
+            fa.to_bytes()
         } else {
             if (fp.uf_flags & FC_NOARGS) != 0 {
                 break;
             }
-            namelen = format_to_buf!(&mut numbuf, c"%d", ai + 1) as usize;
-            name = numbuf.as_ptr();
-        }
+            let namelen = format_to_buf!(&mut numbuf, c"%d", ai + 1) as usize;
+            &numbuf[..namelen]
+        };
 
-        let v = tv_dict_item_alloc_len(crate::globals::GraphPtr::raw_slice(name, namelen));
+        let v = tv_dict_item_alloc_len(name_slice);
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
         v.di_tv = if isdefault {

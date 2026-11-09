@@ -63,7 +63,6 @@ pub use crate::os::lang::{strcoll, strerror};
 
 pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
-pub type RawCCharPtrMut = *mut c_char;
 
 pub trait SliceBaseAddr {
     fn base_addr(self) -> usize;

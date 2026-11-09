@@ -791,11 +791,7 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
 fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
     if !eap.skip {
         let mut buffer = [0u8; MAXPATHL];
-        vim_full_name(
-            eap.arg.as_opt_cstr(),
-            crate::globals::GraphPtr::raw_slice_mut(buffer.as_mut_ptr().cast(), MAXPATHL),
-            false,
-        );
+        vim_full_name(eap.arg.as_opt_cstr(), &mut buffer, false);
 
         let args = tv_list_alloc(3);
         tv_list_append_string(

@@ -134,7 +134,7 @@ impl FoldModuleState {
 
     #[inline]
     fn foldendmarker_slice(&self) -> &'static [u8] {
-        crate::globals::GraphPtr::raw_slice(self.foldendmarker.as_ptr(), self.foldendmarker.len())
+        fold_st().borrow().foldendmarker.as_slice()
     }
 }
 

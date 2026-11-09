@@ -195,7 +195,6 @@ use crate::window::{
     win_setheight,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -1971,16 +1970,8 @@ fn normal_get_additional_char(s: &mut NormalState) {
                 }
 
                 if ((s.ca.nchar_len + utf_char2len(s.c)) as usize) < s.ca.nchar_composing.len() {
-                    s.ca.nchar_len += utf_char2bytes(
-                        s.c,
-                        crate::globals::GraphPtr::raw_slice_mut(
-                            s.ca.nchar_composing
-                                .as_mut_ptr()
-                                .wrapping_add(s.ca.nchar_len as usize)
-                                .cast(),
-                            6,
-                        ),
-                    );
+                    let cur_len = s.ca.nchar_len as usize;
+                    s.ca.nchar_len += utf_char2bytes(s.c, &mut s.ca.nchar_composing[cur_len..]);
                 }
                 prev_code = s.c;
             }
@@ -3591,41 +3582,37 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
     if checkclearop(cap.oap_mut()) {
         return true;
     }
-    let mut ptr = ptr::null();
-    let mut len: usize = 0;
+    let mut word_opt: Option<(&[u8], usize)> = None;
     if g_st().visual_global.active {
         let Some((vis_cstr, vis_len)) = get_visual_text(Some(cap)) else {
             return false;
         };
-        ptr = vis_cstr.as_ptr();
-        len = vis_len;
+        word_opt = Some((vis_cstr.to_bytes_with_nul(), vis_len));
     }
-    if ptr.is_null() {
+    if word_opt.is_none() {
         let pos = curwin_mut().w_cursor;
 
         g_st().emsg_off += 1;
-        len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, None);
+        let len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, None);
         g_st().emsg_off -= 1;
         if len != 0 && curwin_mut().w_cursor.col <= pos.col {
-            ptr = ml_get_pos(&curwin_mut().w_cursor)
-                .as_ptr()
-                .cast_mut()
-                .cast_const();
+            word_opt = Some((ml_get_pos(&curwin_mut().w_cursor).to_bytes_with_nul(), len));
         }
         curwin_mut().w_cursor = pos;
     }
 
-    if ptr.is_null() {
+    let (word_buf, len) = if let Some(wl) = word_opt {
+        wl
+    } else {
         let ident = find_ident_under_cursor(FIND_IDENT, None);
         if ident.is_empty() {
             return false;
         }
-        ptr = ident.as_ptr().cast();
-        len = ident.len();
-    }
+        (ident, ident.len())
+    };
     assert!(len <= i32::MAX as usize);
     spell_add_word(
-        crate::globals::GraphPtr::raw_slice(ptr.cast::<u8>(), len),
+        &word_buf[..len.min(word_buf.len())],
         if nchar == b'w' as i32 || nchar == b'W' as i32 {
             SPELL_ADD_BAD
         } else {

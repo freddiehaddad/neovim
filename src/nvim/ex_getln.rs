@@ -95,7 +95,7 @@ use crate::mbyte::{
     utf_char2len, utf_iscomposing_first, utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{decl, incl};
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
     msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
@@ -3874,15 +3874,14 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             p = p.wrapping_add(step);
             len += 1;
         }
-        let buf = arena_alloc(&mut arena, len, false).cast::<u8>();
-        crate::globals::GraphPtr::write_bytes(buf, b'*', len);
+        let stars = vec![b'*'; len];
         let mut item = arena_array(&mut arena, 3);
         add_c(&mut item, integer_obj(0));
         add_c(
             &mut item,
-            string_obj(cstrn_as_string(crate::globals::GraphPtr::raw_slice(
-                buf, len,
-            ))),
+            string_obj(crate::api::private::helpers::arena_bytes(
+                &mut arena, &stars,
+            )),
         );
         add_c(&mut item, integer_obj(0));
         add_c(&mut content, array_obj(item));

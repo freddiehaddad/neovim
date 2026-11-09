@@ -693,10 +693,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                             if suf_bytes.is_empty() {
                                 break;
                             }
-                            let dst = crate::globals::GraphPtr::raw_slice_mut(
-                                file_path.data.wrapping_add(len).cast::<u8>(),
-                                MAXPATHL - len,
-                            );
+                            let dst = &mut file_path_vec[len..MAXPATHL];
                             file_path.size = len + copy_option_part(&mut suf_bytes, dst, c",");
                         }
                     }

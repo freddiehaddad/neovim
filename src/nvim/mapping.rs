@@ -46,7 +46,7 @@ use crate::lua::executor::{
 use crate::mbyte::{
     mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
 };
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
     msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, semsg_multiline,
@@ -1474,7 +1474,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
 
 /// Check for an abbreviation.
 pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
-    let mut ptr_arg = line_cstr.as_ptr().cast_mut().cast::<u8>();
+    let line_bytes = line_cstr.to_bytes();
     let mut tb = [0u8; MB_MAXBYTES + 4];
 
     if g_st().typebuf.tb_no_abbr_cnt != 0 {
@@ -1530,7 +1530,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
         scol = mincol;
     }
     if scol < col {
-        ptr_arg = ptr_arg.wrapping_add(scol as usize);
+        let scol_u = (scol.max(0) as usize).min(line_bytes.len());
         let mut len = col - scol;
         let mut mp_opt: Option<&Mapblock> = None;
         let first_abbr_slice = map_st().borrow_mut().first_abbr.as_slice();
@@ -1545,10 +1545,10 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 q_bytes = &q_vec;
             }
             let len_u = len as usize;
+            let abbr_slice = &line_bytes[scol_u..(scol_u + len_u).min(line_bytes.len())];
             let match_found = (cand.m_mode & g_st().state_global) != 0
                 && qlen == len
-                && &q_bytes[..len_u.min(q_bytes.len())]
-                    == crate::globals::GraphPtr::raw_slice(ptr_arg, len_u);
+                && &q_bytes[..len_u.min(q_bytes.len())] == abbr_slice;
             if match_found {
                 mp_opt = Some(cand);
                 break;
@@ -1572,13 +1572,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     if c >= ABBR_OFF {
                         c -= ABBR_OFF;
                     }
-                    let mut newlen = utf_char2bytes(
-                        c,
-                        crate::globals::GraphPtr::raw_slice_mut(
-                            tb.as_mut_ptr().wrapping_add(j).cast(),
-                            6,
-                        ),
-                    ) as usize;
+                    let mut newlen = utf_char2bytes(c, &mut tb[j..]) as usize;
                     tb[j + newlen] = 0;
                     let escaped = vim_strsave_escape_ks(&tb[j..j + newlen]);
                     let escaped_bytes = escaped.to_bytes();
@@ -2035,9 +2029,8 @@ fn mapblock_fill_dict(
         if compatible { K_FALSE } else { K_NONE },
         arena,
     );
-    let mapmode_ptr = arena_alloc(arena, 7, false).cast::<u8>();
-    let mapmode = crate::globals::GraphPtr::raw_slice_mut(mapmode_ptr, 7);
-    map_mode_to_chars(mp.m_mode, mapmode);
+    let mut mapmode = [0u8; 7];
+    map_mode_to_chars(mp.m_mode, &mut mapmode);
     let noremap_value = if compatible {
         i64::from(mp.m_noremap != 0)
     } else if mp.m_noremap == REMAP_SCRIPT {
@@ -2067,15 +2060,8 @@ fn mapblock_fill_dict(
     put_c(&mut dict, c"lhs", cstr_as_obj(Some(lhs)));
     put_c(&mut dict, c"lhsraw", cstr_as_obj(Some(&*mp.m_keys)));
     if let Some(lhsrawalt) = lhsrawalt {
-        let alt_bytes = lhsrawalt.to_bytes_with_nul();
-        let alt_arena = arena_alloc(arena, alt_bytes.len(), false);
-        let dst = crate::globals::GraphPtr::raw_slice_mut(alt_arena.cast::<u8>(), alt_bytes.len());
-        dst.copy_from_slice(alt_bytes);
-        put_c(
-            &mut dict,
-            c"lhsrawalt",
-            cstr_as_obj(Some(crate::memory::bytes_as_cstr(dst))),
-        );
+        let alt_s = crate::api::private::helpers::arena_bytes(arena, lhsrawalt.to_bytes());
+        put_c(&mut dict, c"lhsrawalt", string_obj(alt_s));
     }
     put_c(&mut dict, c"noremap", integer_obj(noremap_value));
     put_c(
@@ -2117,7 +2103,10 @@ fn mapblock_fill_dict(
     put_c(
         &mut dict,
         c"mode",
-        cstr_as_obj(Some(crate::memory::bytes_as_cstr(mapmode))),
+        string_obj(crate::api::private::helpers::arena_bytes(
+            arena,
+            crate::memory::bytes_until_nul(&mapmode),
+        )),
     );
     put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
     put_c(&mut dict, c"mode_bits", integer_obj(i64::from(mp.m_mode)));

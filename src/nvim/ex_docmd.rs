@@ -222,8 +222,8 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    RawCCharPtr, RawCCharPtrMut, del_trailing_spaces, format_to_buf, gettext, ngettext, strrep,
-    vim_strchr, vim_strsave_escaped,
+    RawCCharPtr, del_trailing_spaces, format_to_buf, gettext, ngettext, strrep, vim_strchr,
+    vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -8567,15 +8567,9 @@ fn skip_cmd_arg_mut(buf: &mut [u8]) -> usize {
     idx
 }
 
-pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
-    let p_ptr = p.as_ptr().cast_mut().cast::<u8>();
-    let len = p.to_bytes().len();
-    if rembs {
-        let buf = crate::globals::GraphPtr::raw_slice_mut(p_ptr, len + 1);
-        let idx = skip_cmd_arg_mut(buf);
-        return crate::memory::bytes_as_cstr(&buf[idx..]);
-    }
+pub fn skip_cmd_arg(p: &CStr, _rembs: bool) -> &CStr {
     let bytes = p.to_bytes();
+    let len = bytes.len();
     let mut idx = 0;
     while idx < len && !ascii_isspace(i32::from(bytes[idx])) {
         if bytes[idx] == b'\\' && idx + 1 < len {
@@ -12013,7 +12007,6 @@ pub fn eval_vars(
     mut escaped: Option<&mut bool>,
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
-    let mut result: RawCCharPtrMut;
     let mut resultbuf: Option<Vec<u8>> = None;
     let mut resultlen: usize;
     let mut valid = VALID_HEAD | VALID_PATH;
@@ -12044,8 +12037,6 @@ pub fn eval_vars(
         return None;
     }
 
-    let src: RawCCharPtrMut = src_buf[src_off..].as_mut_ptr().cast();
-
     if spec_idx == SPEC_CWORD || spec_idx == SPEC_CCWORD || spec_idx == SPEC_CEXPR {
         let find_type = if spec_idx == SPEC_CWORD {
             FIND_IDENT | FIND_STRING
@@ -12059,8 +12050,7 @@ pub fn eval_vars(
             *errormsg = Some(c"");
             return None;
         }
-        result = ident.as_ptr().cast_mut().cast();
-        resultlen = ident.len();
+        return Some(bytes_to_cstring(ident));
     } else {
         let mut result_cstr: Option<&CStr> = None;
         match spec_idx {
@@ -12230,16 +12220,18 @@ pub fn eval_vars(
             }
         }
 
-        let (result_cstr, result_from_buf) = match resultbuf.as_deref() {
-            Some(buf) => (crate::memory::bytes_as_cstr(buf), true),
-            None => (result_cstr.unwrap_or(c""), false),
+        let mut fbuf = if resultbuf.is_some() {
+            resultbuf.take().unwrap()
+        } else {
+            result_cstr.unwrap_or(c"").to_bytes_with_nul().to_vec()
         };
-        result = result_cstr.as_ptr().cast_mut();
-        resultlen = result_cstr.to_bytes().len();
-        if *crate::globals::GraphPtr::of(src.wrapping_add(*usedlen)).borrow() as u8 == b'<' {
+        resultlen = crate::memory::bytes_until_nul(&fbuf).len();
+        let mut fname_off = 0usize;
+        if src_buf.get(src_off + *usedlen) == Some(&b'<') {
             *usedlen += 1;
-            let tail_off = resultlen - path_tail(result_cstr).to_bytes().len();
-            if let Some(dot_off) = result_cstr
+            let cur_cstr = crate::memory::bytes_as_cstr(&fbuf);
+            let tail_off = resultlen - path_tail(cur_cstr).to_bytes().len();
+            if let Some(dot_off) = cur_cstr
                 .to_bytes()
                 .iter()
                 .rposition(|&b| b == b'.')
@@ -12248,12 +12240,6 @@ pub fn eval_vars(
                 resultlen = dot_off;
             }
         } else if !skip_mod {
-            let mut fbuf = if result_from_buf {
-                resultbuf.take().unwrap()
-            } else {
-                result_cstr.to_bytes_with_nul().to_vec()
-            };
-            let mut fname_off = 0usize;
             let src_bytes = crate::memory::bytes_until_nul(&src_buf[src_off..]);
             let mod_res = modify_fname(
                 src_bytes,
@@ -12269,30 +12255,24 @@ pub fn eval_vars(
                 return None;
             }
             valid |= mod_res;
-            result = fbuf.as_mut_ptr().wrapping_add(fname_off).cast();
-            resultbuf = Some(fbuf);
+        }
+        if resultlen > 0 && valid == VALID_HEAD + VALID_PATH {
+            return Some(bytes_to_cstring(
+                &fbuf[fname_off..(fname_off + resultlen).min(fbuf.len())],
+            ));
         }
     }
 
-    let ret = if resultlen == 0 || valid != VALID_HEAD + VALID_PATH {
-        if empty_is_error {
-            if valid != VALID_HEAD + VALID_PATH {
-                *errormsg = Some(gettext(
-                    c"E499: Empty file name for '%' or '#', only works with \":p:h\"",
-                ));
-            } else {
-                *errormsg = Some(gettext(c"E500: Evaluates to an empty string"));
-            }
+    if empty_is_error {
+        if valid != VALID_HEAD + VALID_PATH {
+            *errormsg = Some(gettext(
+                c"E499: Empty file name for '%' or '#', only works with \":p:h\"",
+            ));
+        } else {
+            *errormsg = Some(gettext(c"E500: Evaluates to an empty string"));
         }
-        None
-    } else {
-        Some(bytes_to_cstring(crate::globals::GraphPtr::raw_slice(
-            result.cast::<u8>(),
-            resultlen,
-        )))
-    };
-    drop(resultbuf);
-    ret
+    }
+    None
 }
 
 pub fn expand_sfile(arg: &CStr) -> Option<std::ffi::CString> {

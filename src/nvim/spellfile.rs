@@ -1332,10 +1332,7 @@ fn read_compound(fd: &CFile, slang: &mut Slang, len: i32) -> i32 {
                 pat_vec[pos] = b'\\';
                 pos += 1;
             }
-            pos += utf_char2bytes(
-                c,
-                crate::globals::GraphPtr::raw_slice_mut(pat_vec[pos..].as_mut_ptr().cast(), 6),
-            ) as usize;
+            pos += utf_char2bytes(c, &mut pat_vec[pos..]) as usize;
         }
     }
 
@@ -4017,10 +4014,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
         for i in 128..256 {
             l += utf_char2bytes(
                 spell_priv_st().spelltab.st_fold[i] as i32,
-                crate::globals::GraphPtr::raw_slice_mut(
-                    folchars.as_mut_ptr().wrapping_add(l).cast(),
-                    6,
-                ),
+                &mut folchars[l..],
             ) as usize;
         }
         put_bytes(&fd, (1 + 128 + 2 + l) as u64, 4);

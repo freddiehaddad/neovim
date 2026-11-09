@@ -1497,22 +1497,20 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
     }
 
     let l = rettv.vval.v_list_ref();
-    let buf_ptr = buf.as_mut_ptr();
-
     while maxline < 0 || i64::from(tv_list_len(Some(&*l))) < maxline {
         let mut readlen = fd.read_bytes(&mut buf[..io_size]) as isize;
 
-        let mut p = buf_ptr; // Position in buf.
-        let mut start = buf_ptr; // Start of current line.
-        while (p as usize) < (buf_ptr.wrapping_offset(readlen) as usize)
+        let mut p_idx: usize = 0; // Position in buf.
+        let mut start_idx: usize = 0; // Start of current line.
+        while (readlen > 0 && p_idx < readlen as usize)
             || (readlen <= 0 && (!prev.is_empty() || binary))
         {
-            if readlen <= 0 || *crate::globals::GraphPtr::of(p).borrow() == b'\n' {
-                let mut len = (p as usize).wrapping_sub(start as usize);
+            if readlen <= 0 || buf[p_idx] == b'\n' {
+                let mut len = p_idx.saturating_sub(start_idx);
 
                 // Finished a line.  Remove CRs before NL.
                 if readlen > 0 && !binary {
-                    let line_bytes = crate::globals::GraphPtr::raw_slice(start, len);
+                    let line_bytes = &buf[start_idx..start_idx + len];
                     while len > 0 && line_bytes[len - 1] == b'\r' {
                         len -= 1;
                     }
@@ -1526,19 +1524,16 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if prev.is_empty() {
                     debug_assert!(len < i32::MAX as usize);
 
-                    crate::eval::typval::tv_list_append_bytes(
-                        l,
-                        crate::globals::GraphPtr::raw_slice(start, len),
-                    );
+                    crate::eval::typval::tv_list_append_bytes(l, &buf[start_idx..start_idx + len]);
                 } else {
-                    prev.extend_from_slice(crate::globals::GraphPtr::raw_slice(start, len));
+                    prev.extend_from_slice(&buf[start_idx..start_idx + len]);
 
                     crate::eval::typval::tv_list_append_bytes(l, &prev);
 
                     prev.clear();
                 }
 
-                start = p.wrapping_add(1); // Step over newline.
+                start_idx = p_idx + 1; // Step over newline.
                 if maxline < 0 {
                     if i64::from(tv_list_len(Some(&*l))) > -maxline {
                         debug_assert_eq!(i64::from(tv_list_len(Some(&*l))), 1 + (-maxline));
@@ -1554,19 +1549,19 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if readlen <= 0 {
                     break;
                 }
-            } else if *crate::globals::GraphPtr::of(p).borrow() == 0 {
-                *crate::globals::GraphPtr::of(p).borrow_mut() = b'\n';
-            } else if *crate::globals::GraphPtr::of(p).borrow() == 0xbf && !binary {
+            } else if buf[p_idx] == 0 {
+                buf[p_idx] = b'\n';
+            } else if buf[p_idx] == 0xbf && !binary {
                 // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
                 // when finding the BF and check the previous two bytes.
-                let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
-                    *crate::globals::GraphPtr::of(p.wrapping_sub(1)).borrow()
+                let back1 = if p_idx >= 1 {
+                    buf[p_idx - 1]
                 } else {
                     prev.last().copied().unwrap_or(0)
                 };
-                let back2 = if (p as usize) >= (buf_ptr.wrapping_add(2) as usize) {
-                    *crate::globals::GraphPtr::of(p.wrapping_sub(2)).borrow()
-                } else if p == buf_ptr.wrapping_add(1) {
+                let back2 = if p_idx >= 2 {
+                    buf[p_idx - 2]
+                } else if p_idx == 1 {
                     prev.last().copied().unwrap_or(0)
                 } else if prev.len() >= 2 {
                     prev[prev.len() - 2]
@@ -1575,45 +1570,36 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 };
 
                 if back2 == 0xef && back1 == 0xbb {
-                    let mut dest = p.wrapping_sub(2);
-
                     // Usually a BOM is at the beginning of a file, and so at
                     // the beginning of a line; then we can just step over it.
-                    if start == dest {
-                        start = p.wrapping_add(1);
+                    if p_idx >= 2 && start_idx == p_idx - 2 {
+                        start_idx = p_idx + 1;
                     } else {
                         // have to shuffle buf to close gap
-                        let mut adjust_prevlen: usize = 0;
-
-                        if (dest as usize) < (buf_ptr as usize) {
-                            // adjust_prevlen must be 1 or 2.
-                            adjust_prevlen = (buf_ptr as usize).wrapping_sub(dest as usize);
-                            dest = buf_ptr;
-                        }
-                        let p_off = (p as usize).wrapping_sub(buf_ptr as usize) as isize;
-                        if readlen > p_off + 1 {
-                            crate::globals::GraphPtr::copy_to(
-                                p.wrapping_add(1),
-                                dest,
-                                (readlen - p_off - 1) as usize,
-                            );
+                        let (dest_idx, adjust_prevlen) = if p_idx >= 2 {
+                            (p_idx - 2, 0usize)
+                        } else {
+                            (0usize, 2 - p_idx)
+                        };
+                        let readlen_u = readlen.max(0) as usize;
+                        if readlen_u > p_idx + 1 {
+                            buf.copy_within(p_idx + 1..readlen_u, dest_idx);
                         }
                         readlen -= 3 - adjust_prevlen as isize;
                         prev.truncate(prev.len() - adjust_prevlen);
-                        p = dest.wrapping_sub(1);
+                        p_idx = dest_idx;
+                        continue;
                     }
                 }
             }
-            p = p.wrapping_add(1);
+            p_idx += 1;
         }
 
         if (maxline >= 0 && i64::from(tv_list_len(Some(&*l))) >= maxline) || readlen <= 0 {
             break;
         }
-        if (start as usize) < (p as usize) {
-            let part_len = (p as usize).wrapping_sub(start as usize);
-
-            prev.extend_from_slice(crate::globals::GraphPtr::raw_slice(start, part_len));
+        if start_idx < p_idx {
+            prev.extend_from_slice(&buf[start_idx..p_idx]);
         }
     }
 }

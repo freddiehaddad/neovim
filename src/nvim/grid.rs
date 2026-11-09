@@ -200,9 +200,9 @@ pub fn schar_from_bytes(bytes: &[u8]) -> Schar {
     let len = bytes.len();
     assert!(len < MAX_SCHAR_SIZE);
     if len <= 4 {
-        let mut sc: Schar = 0;
-        crate::globals::GraphPtr::copy_to(bytes.as_ptr(), (&raw mut sc).cast::<u8>(), len);
-        sc
+        let mut buf = [0u8; 4];
+        buf[..len].copy_from_slice(bytes);
+        u32::from_ne_bytes(buf)
     } else {
         let idx = if let Some(&existing_idx) = grid_st().glyph_cache_offsets.get(bytes) {
             existing_idx
@@ -619,57 +619,48 @@ pub fn grid_line_mirror(width: i32) {
 pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width: i32) {
     let first = *firstp;
     let last = *lastp;
+    let first_u = first as usize;
+    let last_u = last as usize;
 
-    let n = (last - first) as usize;
     let mirror = width - 1;
-    let scratch_ptr = grid_st().linebuf_scratch.as_mut_ptr();
-    let scratch_char = scratch_ptr.cast::<Schar>();
-
-    crate::globals::GraphPtr::copy_to(
-        &raw const g_st().linebuf_char[first as usize],
-        scratch_char.wrapping_add(first as usize),
-        n,
-    );
+    let scratch = &mut grid_st().borrow_mut().linebuf_scratch;
+    for (dst, &src) in scratch[first_u..last_u]
+        .iter_mut()
+        .zip(&g_st().linebuf_char[first_u..last_u])
+    {
+        *dst = src as i32;
+    }
     let mut col = first;
     while col < last {
         let rev = mirror - col;
-        if col + 1 < last
-            && *crate::globals::GraphPtr::of(scratch_char.wrapping_add((col + 1) as usize)).borrow()
-                == 0
-        {
-            g_st().linebuf_char[(rev - 1) as usize] =
-                *crate::globals::GraphPtr::of(scratch_char.wrapping_add(col as usize)).borrow();
+        if col + 1 < last && scratch[(col + 1) as usize] == 0 {
+            g_st().linebuf_char[(rev - 1) as usize] = scratch[col as usize] as Schar;
             g_st().linebuf_char[rev as usize] = 0;
             col += 1;
         } else {
-            g_st().linebuf_char[rev as usize] =
-                *crate::globals::GraphPtr::of(scratch_char.wrapping_add(col as usize)).borrow();
+            g_st().linebuf_char[rev as usize] = scratch[col as usize] as Schar;
         }
         col += 1;
     }
 
-    let scratch_attr = scratch_ptr.cast::<Sattr>();
-
-    crate::globals::GraphPtr::copy_to(
-        &raw const g_st().linebuf_attr[first as usize],
-        scratch_attr.wrapping_add(first as usize),
-        n,
-    );
+    for (dst, &src) in scratch[first_u..last_u]
+        .iter_mut()
+        .zip(&g_st().linebuf_attr[first_u..last_u])
+    {
+        *dst = src;
+    }
     for c in first..last {
-        g_st().linebuf_attr[(mirror - c) as usize] =
-            *crate::globals::GraphPtr::of(scratch_attr.wrapping_add(c as usize)).borrow();
+        g_st().linebuf_attr[(mirror - c) as usize] = scratch[c as usize] as Sattr;
     }
 
-    let scratch_vcol = scratch_ptr.cast::<Colnr>();
-
-    crate::globals::GraphPtr::copy_to(
-        &raw const g_st().linebuf_vcol[first as usize],
-        scratch_vcol.wrapping_add(first as usize),
-        n,
-    );
+    for (dst, &src) in scratch[first_u..last_u]
+        .iter_mut()
+        .zip(&g_st().linebuf_vcol[first_u..last_u])
+    {
+        *dst = src;
+    }
     for c in first..last {
-        g_st().linebuf_vcol[(mirror - c) as usize] =
-            *crate::globals::GraphPtr::of(scratch_vcol.wrapping_add(c as usize)).borrow();
+        g_st().linebuf_vcol[(mirror - c) as usize] = scratch[c as usize] as Colnr;
     }
 
     *firstp = width - *clearp;
@@ -1381,15 +1372,12 @@ pub fn get_win_by_grid_handle(handle: ObjHandle) -> Option<&'static mut WinInfoI
 
 /// Put a unicode character in a screen cell (`schar_from_char`).
 pub fn schar_from_char(mut c: i32) -> Schar {
-    let mut sc: Schar = 0;
     if c >= 0x20_0000 {
         c = 0xFFFD;
     }
-    utf_char2bytes(
-        c,
-        crate::globals::GraphPtr::raw_slice_mut((&raw mut sc).cast(), 6),
-    );
-    sc
+    let mut buf = [0u8; 4];
+    utf_char2bytes(c, &mut buf);
+    u32::from_ne_bytes(buf)
 }
 
 #[cfg(target_endian = "big")]

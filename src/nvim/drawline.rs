@@ -1585,7 +1585,10 @@ pub fn win_line(
         wlv.color_cols = if !wp.buf_mut().terminal.is_null() || wp.w_p_cc_cols.is_empty() {
             &[]
         } else {
-            crate::globals::GraphPtr::raw_slice(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len())
+            crate::globals::WinPtr::from_ref(wp)
+                .borrow()
+                .w_p_cc_cols
+                .as_slice()
         };
         let hlc = vcol_hlc(&wlv);
         advance_color_col(&mut wlv, hlc);

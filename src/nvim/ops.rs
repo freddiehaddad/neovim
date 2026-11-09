@@ -2617,8 +2617,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     curwin_mut().w_cursor = *pos;
     let ptr_line = ml_get(pos.lnum);
     let linelen = ml_get_len(pos.lnum);
-    let line_bytes =
-        crate::globals::GraphPtr::raw_slice(ptr_line.as_ptr().cast::<u8>(), linelen as usize + 1);
+    let line_bytes = ptr_line.to_bytes_with_nul();
     let mut col = pos.col;
 
     if col + i32::from(save_coladd != 0) >= linelen {
