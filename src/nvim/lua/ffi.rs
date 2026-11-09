@@ -1072,6 +1072,200 @@ pub fn nlua_exit_thread_on_oom(lstate: *mut lua_State) -> ! {
     }
 }
 
+#[inline]
+pub fn lua_gettable_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_gettable(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_rawget_safe(lstate: *mut lua_State, idx: i32) {
+    unsafe { lua_rawget(lstate, idx) };
+}
+
+#[inline]
+pub fn lua_isuserdata_safe(lstate: *mut lua_State, idx: i32) -> bool {
+    unsafe { lua_isuserdata(lstate, idx) != 0 }
+}
+
+#[inline]
+pub fn lua_touserdata_opt_typed<T>(lstate: *mut lua_State, idx: i32) -> Option<&'static mut T> {
+    let ptr = unsafe { lua_touserdata(lstate, idx) }.cast::<T>();
+    (!ptr.is_null()).then(|| unsafe { &mut *ptr })
+}
+
+#[inline]
+pub fn lua_drop_userdata<T>(lstate: *mut lua_State, idx: i32) {
+    let ptr = unsafe { lua_touserdata(lstate, idx) }.cast::<T>();
+    if !ptr.is_null() {
+        unsafe { std::ptr::drop_in_place(ptr) };
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_checkudata_drop<T>(lstate: *mut lua_State, ud: i32, tname: &std::ffi::CStr) {
+    let ptr = luaL_checkudata(lstate, ud, tname).cast::<T>();
+    if !ptr.is_null() {
+        unsafe { std::ptr::drop_in_place(ptr) };
+    }
+}
+
+#[inline]
+pub fn lua_newuserdata_opt_typed<T>(lstate: *mut lua_State, val: T) -> Option<&'static mut T> {
+    let ptr = unsafe { lua_newuserdata(lstate, size_of::<T>()) }.cast::<T>();
+    (!ptr.is_null()).then(|| unsafe {
+        ptr.write(val);
+        &mut *ptr
+    })
+}
+
+#[inline]
+pub fn lua_newuserdata_size(lstate: *mut lua_State, sz: usize) {
+    let _ = unsafe { lua_newuserdata(lstate, sz) };
+}
+
+#[inline]
+pub fn lua_pushlightuserdata_masked<T>(lstate: *mut lua_State, r: &'static T) {
+    let ptr = std::ptr::from_ref(r);
+    #[cfg(target_pointer_width = "64")]
+    let masked = ((ptr as usize) & ((1usize << 47) - 1)) as *mut c_void;
+    #[cfg(not(target_pointer_width = "64"))]
+    let masked = ptr.cast_mut().cast::<c_void>();
+    unsafe { lua_pushlightuserdata(lstate, masked) };
+}
+
+#[inline]
+pub fn lua_touserdata_eq_static<T>(lstate: *mut lua_State, idx: i32, r: &'static T) -> bool {
+    unsafe { lua_touserdata(lstate, idx) == std::ptr::from_ref(r).cast_mut().cast() }
+}
+
+#[inline]
+pub fn lua_setfuncs_with_upvalues(
+    lstate: *mut lua_State,
+    funcs: &[(
+        &'static std::ffi::CStr,
+        extern "C-unwind" fn(*mut lua_State) -> i32,
+    )],
+    nup: i32,
+) {
+    luaL_checkstack(lstate, nup, c"too many upvalues");
+    for &(name, func) in funcs {
+        for _ in 0..nup {
+            lua_pushvalue_safe(lstate, -nup);
+        }
+        lua_pushcclosure_safe(lstate, func, nup);
+        lua_setfield(lstate, -(nup + 2), name);
+    }
+    lua_pop(lstate, nup);
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_register_safe(
+    lstate: *mut lua_State,
+    libname: Option<&std::ffi::CStr>,
+    funcs: &[(
+        &'static std::ffi::CStr,
+        extern "C-unwind" fn(*mut lua_State) -> i32,
+    )],
+) {
+    let mut regs = Vec::with_capacity(funcs.len() + 1);
+    for &(name, func) in funcs {
+        regs.push(luaL_Reg {
+            name: name.as_ptr(),
+            func: Some(func),
+        });
+    }
+    regs.push(luaL_Reg {
+        name: std::ptr::null(),
+        func: None,
+    });
+    luaL_register(lstate, libname, &regs);
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_buffinit_safe(lstate: *mut lua_State, b: &mut luaL_Buffer) {
+    unsafe { luaL_buffinit(lstate, b) };
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_prepbuffer_slice(b: &mut luaL_Buffer) -> &'static mut [u8] {
+    unsafe {
+        std::slice::from_raw_parts_mut(
+            luaL_prepbuffer(b).cast::<u8>(),
+            super::converter::LUAL_BUFFERSIZE,
+        )
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_addsize(b: &mut luaL_Buffer, n: usize) {
+    b.p = b.p.wrapping_add(n);
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_pushresult_safe(b: &mut luaL_Buffer) {
+    unsafe { luaL_pushresult(b) };
+}
+
+#[inline]
+pub fn lua_pushfstring_topointer(lstate: *mut lua_State, fmt: &std::ffi::CStr, idx: i32) {
+    unsafe {
+        lua_pushfstring(lstate, fmt.as_ptr(), lua_topointer(lstate, idx));
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_two_cstrs(
+    lstate: *mut lua_State,
+    fmt: &std::ffi::CStr,
+    a: &std::ffi::CStr,
+    b: &std::ffi::CStr,
+) -> ! {
+    unsafe {
+        luaL_error(lstate, fmt.as_ptr(), a.as_ptr(), b.as_ptr());
+        unreachable!()
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_int(lstate: *mut lua_State, fmt: &std::ffi::CStr, a: i32) -> ! {
+    unsafe {
+        luaL_error(lstate, fmt.as_ptr(), a);
+        unreachable!()
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_two_ints(lstate: *mut lua_State, fmt: &std::ffi::CStr, a: i32, b: i32) -> ! {
+    unsafe {
+        luaL_error(lstate, fmt.as_ptr(), a, b);
+        unreachable!()
+    }
+}
+
+#[inline]
+#[allow(non_snake_case)]
+pub fn luaL_error_two_cstrs_int(
+    lstate: *mut lua_State,
+    fmt: &std::ffi::CStr,
+    a: &std::ffi::CStr,
+    b: &std::ffi::CStr,
+    c: i32,
+) -> ! {
+    unsafe {
+        luaL_error(lstate, fmt.as_ptr(), a.as_ptr(), b.as_ptr(), c);
+        unreachable!()
+    }
+}
+
 // Tree-sitter C API FFI types and declarations
 pub type TSSymbol = u16;
 pub type TSFieldId = u16;
