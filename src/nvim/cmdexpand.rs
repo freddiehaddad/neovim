@@ -1968,13 +1968,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     if xp.xp_numfiles == -1 {
         cmdexp().pre_incsearch_pos = xp.xp_pre_incsearch_pos;
         if ccline.input_fn != 0 && ccline.xp_context == EXPAND_COMMANDS {
-            set_cmd_context(
-                xp,
-                &mut ccline.cmdbuff_vec,
-                ccline.cmdlen,
-                ccline.cmdpos,
-                false,
-            );
+            set_cmd_context(xp, &ccline.cmdbuff_vec, ccline.cmdlen, ccline.cmdpos, false);
         } else {
             cmdexp().may_expand_pattern = (options & WILD_MAY_EXPAND_PATTERN) != 0;
             set_expand_context(xp);
@@ -3191,13 +3185,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
         return;
     }
 
-    set_cmd_context(
-        xp,
-        &mut ccline.cmdbuff_vec,
-        ccline.cmdlen,
-        ccline.cmdpos,
-        true,
-    );
+    set_cmd_context(xp, &ccline.cmdbuff_vec, ccline.cmdlen, ccline.cmdpos, true);
 }
 
 /// Sets the index of a built-in or user defined command "cmd" in eap->cmdidx.
@@ -4240,26 +4228,26 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 }
 
 /// Set the completion context in "xp" for command "str".
-pub fn set_cmd_context(
-    xp: &mut ExpandCtx,
-    str_buf: &mut [u8],
-    len: i32,
-    col: i32,
-    use_ccline: bool,
-) {
+pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, use_ccline: bool) {
     let ccline = get_cmdline_info();
-    let mut old_char: u8 = 0;
-
-    if col < len {
-        old_char = str_buf[col as usize];
-        str_buf[col as usize] = 0;
-    }
+    let truncated_buf: Option<Vec<u8>> = if col < len && (col as usize) < str_buf.len() {
+        let mut v = str_buf[..col as usize].to_vec();
+        v.push(0);
+        Some(v)
+    } else {
+        None
+    };
+    let work_slice: &[u8] = truncated_buf.as_deref().unwrap_or(str_buf);
 
     cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
     cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
 
     if use_ccline && ccline.cmdfirstc == b'=' as i32 {
-        set_context_for_expression(xp, crate::memory::bytes_as_cstr(str_buf), Cmdidx::CmdSize);
+        set_context_for_expression(
+            xp,
+            crate::memory::bytes_as_cstr(work_slice),
+            Cmdidx::CmdSize,
+        );
     } else if use_ccline && ccline.input_fn != 0 {
         xp.xp_context = ccline.xp_context;
         xp.xp_pattern = ccline.cmdbuff();
@@ -4268,30 +4256,27 @@ pub fn set_cmd_context(
             let mut context = xp.xp_context;
             set_context_for_wildcard_arg(
                 None,
-                crate::memory::bytes_as_cstr(str_buf),
+                crate::memory::bytes_as_cstr(work_slice),
                 false,
                 xp,
                 &mut context,
             );
         }
     } else {
-        let mut nextcomm = Some(crate::memory::bytes_as_cstr(str_buf));
+        let mut nextcomm = Some(crate::memory::bytes_as_cstr(work_slice));
         while let Some(comm) = nextcomm {
             nextcomm = set_one_cmd_context(xp, comm);
         }
     }
 
     xp.xp_col = col;
-
-    if col < len {
-        str_buf[col as usize] = old_char;
-    }
     xp.xp_line = crate::strings::OwnedSlice::from_bytes(str_buf);
     if !xp.xp_pattern.is_null() {
-        let base = str_buf.as_ptr() as usize;
+        let work_base = work_slice.as_ptr() as usize;
         let addr = xp.xp_pattern.addr();
-        if addr >= base && addr < base + str_buf.len() {
-            xp.xp_pattern = crate::strings::OwnedSlice::from_bytes(&str_buf[addr - base..]);
+        if addr >= work_base && addr < work_base + work_slice.len() {
+            let offset = (addr - work_base).min(str_buf.len().saturating_sub(1));
+            xp.xp_pattern = crate::strings::OwnedSlice::from_bytes(&str_buf[offset..]);
         }
     }
 }
@@ -5773,10 +5758,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let cmdline_len = pattern_cstr.to_bytes().len() as i32;
         set_cmd_context(
             &mut xpc,
-            crate::globals::GraphPtr::raw_slice_mut(
-                pattern.cast_mut().cast::<u8>(),
-                cmdline_len as usize + 1,
-            ),
+            pattern_cstr.to_bytes_with_nul(),
             cmdline_len,
             cmdline_len,
             false,
@@ -5875,9 +5857,9 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let pat = tv_get_string(&argvars[0]);
     let mut xpc: ExpandCtx = ExpandCtx::new();
 
-    let mut pat_bytes = pat.to_bytes_with_nul().to_vec();
+    let pat_bytes = pat.to_bytes_with_nul();
     let cmdline_len = (pat_bytes.len() - 1) as i32;
-    set_cmd_context(&mut xpc, &mut pat_bytes, cmdline_len, cmdline_len, false);
+    set_cmd_context(&mut xpc, pat_bytes, cmdline_len, cmdline_len, false);
     crate::eval::typval::tv_set_string(
         rettv,
         cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg.as_deref().map(CStr::to_bytes))

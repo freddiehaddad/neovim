@@ -1775,13 +1775,10 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 srch().lastc_bytelen = cap.nchar_len;
                 srch().lastc_bytes[..n].copy_from_slice(&cap.nchar_composing[..n]);
             } else {
-                srch().lastc_bytelen = utf_char2bytes(
-                    c,
-                    crate::globals::GraphPtr::raw_slice_mut(
-                        (&raw mut srch().lastc_bytes).cast(),
-                        6,
-                    ),
-                );
+                let mut ch_buf = [0u8; 6];
+                let n = utf_char2bytes(c, &mut ch_buf);
+                srch().lastc_bytelen = n;
+                srch().lastc_bytes[..n as usize].copy_from_slice(&ch_buf[..n as usize]);
             }
         }
     } else {
@@ -3143,7 +3140,7 @@ pub fn find_pattern_in_path(
         let mut curr_fname: Option<std::ffi::CString> =
             curbuf_mut().fname_opt().map(CStr::to_owned);
         let mut prev_fname: Option<std::ffi::CString> = None;
-        let mut p;
+        let mut p_idx: usize;
         let mut define_matched: bool;
         let mut regmatch: Regmatch = Regmatch::new();
         let mut incl_regmatch: Regmatch = Regmatch::new();
@@ -3152,8 +3149,8 @@ pub fn find_pattern_in_path(
         let mut did_show = false;
         let mut found = false;
         let mut i: i32;
-        let mut already = ptr::null_mut();
-        let mut startp = ptr::null_mut();
+        let mut already = false;
+        let mut startp_idx: Option<usize> = None;
         let mut curwin_save = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
         let l_g_do_tagpreview = g_st().g_do_tagpreview;
 
@@ -3225,24 +3222,10 @@ pub fn find_pattern_in_path(
         end_lnum = end_lnum.min(curbuf_mut().b_ml.ml_line_count);
         let mut lnum = start_lnum.min(end_lnum);
         get_line_and_copy(lnum, &mut file_line_vec);
-        let mut line: crate::strings::RawCCharPtrMut = file_line_vec.as_mut_ptr().cast();
-
-        let ptr_cstr = |p: *const std::ffi::c_char| -> &'static CStr {
-            if p.is_null() {
-                return c"";
-            }
-            let p_u8 = p.cast::<u8>();
-            let mut n = 0usize;
-            while *crate::globals::GraphPtr::of(p_u8.wrapping_add(n)).borrow() != 0 {
-                n += 1;
-            }
-            crate::memory::bytes_as_cstr(crate::globals::GraphPtr::raw_slice(p_u8, n + 1))
-        };
 
         loop {
-            if !incl_regmatch.regprog.is_null()
-                && vim_regexec(&mut incl_regmatch, ptr_cstr(line), 0)
-            {
+            let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
+            if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line_cstr, 0) {
                 let p_fname_opt = if curr_fname.as_deref() == curbuf_mut().fname_opt() {
                     curbuf_mut().ffname_opt()
                 } else {
@@ -3335,18 +3318,19 @@ pub fn find_pattern_in_path(
                         if let Some(ref nf) = new_fname_cstr {
                             msg_outtrans(nf, HLF_D, false);
                         } else {
-                            let line_cstr = ptr_cstr(line);
+                            let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
+                            let line_bytes = line_cstr.to_bytes();
                             if find_substr(inc_opt_cstr, b"\\zs") {
-                                p = line.wrapping_add(incl_regmatch.start_offset(0, line_cstr));
+                                p_idx = incl_regmatch.start_offset(0, line_cstr);
                                 i = incl_regmatch.span_len(0) as i32;
                             } else {
-                                p = line.wrapping_add(incl_regmatch.end_offset(0, line_cstr));
-                                let p_bytes = ptr_cstr(p).to_bytes();
+                                p_idx = incl_regmatch.end_offset(0, line_cstr);
+                                let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
                                 let skip_n = p_bytes
                                     .iter()
                                     .take_while(|&&b| !vim_isfilec(i32::from(b)))
                                     .count();
-                                p = p.wrapping_add(skip_n);
+                                p_idx += skip_n;
                                 i = p_bytes[skip_n..]
                                     .iter()
                                     .take_while(|&&b| vim_isfilec(i32::from(b)))
@@ -3355,29 +3339,23 @@ pub fn find_pattern_in_path(
 
                             if i == 0 {
                                 let end_off = incl_regmatch.end_offset(0, line_cstr);
-                                p = line.wrapping_add(end_off);
-                                i = (line_cstr.to_bytes().len() - end_off) as i32;
-                            } else if p > line {
-                                let prev_b =
-                                    *crate::globals::GraphPtr::of(p.cast::<u8>().wrapping_sub(1))
-                                        .borrow();
+                                p_idx = end_off;
+                                i = (line_bytes.len() - end_off) as i32;
+                            } else if p_idx > 0 {
+                                let prev_b = file_line_vec[p_idx - 1];
                                 if matches!(prev_b, b'"' | b'<') {
-                                    p = p.wrapping_sub(1);
+                                    p_idx -= 1;
                                     i += 1;
                                 }
-                                let next_b = *crate::globals::GraphPtr::of(
-                                    p.cast::<u8>().wrapping_add(i as usize),
-                                )
-                                .borrow();
+                                let next_b =
+                                    file_line_vec.get(p_idx + i as usize).copied().unwrap_or(0);
                                 if matches!(next_b, b'"' | b'>') {
                                     i += 1;
                                 }
                             }
+                            let span = i.max(0) as usize;
                             msg_outtrans_len(
-                                crate::globals::GraphPtr::raw_slice(
-                                    p.cast::<u8>(),
-                                    i.max(0) as usize,
-                                ),
+                                &file_line_vec[p_idx..(p_idx + span).min(file_line_vec.len())],
                                 i,
                                 HLF_D,
                                 false,
@@ -3445,29 +3423,30 @@ pub fn find_pattern_in_path(
             } else {
                 let pat_bytes = ptr_pat.to_bytes();
                 let pat_slice = &pat_bytes[..len.min(pat_bytes.len())];
-                p = line;
+                p_idx = 0;
                 loop {
                     define_matched = false;
-                    let line_cstr = ptr_cstr(line);
+                    let line_cstr = crate::memory::bytes_as_cstr(&file_line_vec);
+                    let line_bytes = line_cstr.to_bytes();
                     if !def_regmatch.regprog.is_null()
                         && vim_regexec(&mut def_regmatch, line_cstr, 0)
                     {
-                        p = line.wrapping_add(def_regmatch.end_offset(0, line_cstr));
-                        let p_bytes = ptr_cstr(p).to_bytes();
+                        p_idx = def_regmatch.end_offset(0, line_cstr);
+                        let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
                         let skip_n = p_bytes
                             .iter()
                             .take_while(|&&b| !vim_iswordc(i32::from(b)))
                             .count();
-                        p = p.wrapping_add(skip_n);
+                        p_idx += skip_n;
                         define_matched = true;
                     }
 
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
-                            startp = p.wrapping_add(crate::charset::skipwhite_len(
-                                ptr_cstr(p).to_bytes(),
-                            ));
-                            let start_bytes = ptr_cstr(startp).to_bytes();
+                            let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
+                            let sp_idx = p_idx + crate::charset::skipwhite_len(p_bytes);
+                            startp_idx = Some(sp_idx);
+                            let start_bytes = &line_bytes[sp_idx.min(line_bytes.len())..];
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(start_bytes, pat_bytes, len) == 0;
                             } else {
@@ -3483,16 +3462,12 @@ pub fn find_pattern_in_path(
                                 matched = false;
                             }
                         } else if !regmatch.regprog.is_null()
-                            && vim_regexec(
-                                &mut regmatch,
-                                line_cstr,
-                                ((p as isize) - (line as isize)) as Colnr,
-                            )
+                            && vim_regexec(&mut regmatch, line_cstr, p_idx as Colnr)
                         {
                             matched = true;
-                            startp = line.wrapping_add(regmatch.start_offset(0, line_cstr));
+                            let sp_idx = regmatch.start_offset(0, line_cstr);
+                            startp_idx = Some(sp_idx);
                             if skip_comments {
-                                let line_bytes = line_cstr.to_bytes();
                                 if (line_bytes.first() != Some(&b'#')
                                     || !crate::charset::skipwhite_slice(&line_bytes[1..])
                                         .starts_with(b"define"))
@@ -3506,8 +3481,7 @@ pub fn find_pattern_in_path(
                                     || trim_line.starts_with(b"/*")
                                     || trim_line.first() == Some(&b'*')
                                 {
-                                    let start_off = (startp as usize) - (line as usize);
-                                    let prefix = &line_bytes[..start_off.min(line_bytes.len())];
+                                    let prefix = &line_bytes[..sp_idx.min(line_bytes.len())];
                                     let mut idx = 0usize;
                                     while idx < prefix.len() {
                                         if matched
@@ -3545,38 +3519,33 @@ pub fn find_pattern_in_path(
                             stop_fpip_loop = true;
                         } else {
                             found = true;
-                            let mut aux = startp;
-                            p = startp;
+                            let mut aux_idx = startp_idx.unwrap_or(0);
+                            p_idx = aux_idx;
                             let mut skip_add = false;
-                            if compl_status_adding()
-                                && (ptr_cstr(p).to_bytes().len() as i32) >= ins_compl_len()
-                            {
-                                p = p.wrapping_add(ins_compl_len() as usize);
-                                let p_bytes = ptr_cstr(p).to_bytes();
+                            let line_bytes = crate::memory::bytes_until_nul(&file_line_vec);
+                            let p_rem = &line_bytes[p_idx.min(line_bytes.len())..];
+                            if compl_status_adding() && (p_rem.len() as i32) >= ins_compl_len() {
+                                p_idx += ins_compl_len() as usize;
+                                let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
                                 if vim_iswordp(p_bytes) {
                                     skip_add = true;
                                 } else {
-                                    p = find_word_start(p_bytes).as_ptr().cast_mut().cast();
+                                    let rem = find_word_start(p_bytes);
+                                    p_idx = line_bytes.len() - rem.len();
                                 }
                             }
                             if !skip_add {
-                                p = find_word_end(ptr_cstr(p).to_bytes())
-                                    .as_ptr()
-                                    .cast_mut()
-                                    .cast();
-                                i = ((p as isize) - (aux as isize)) as i32;
+                                let p_bytes = &line_bytes[p_idx.min(line_bytes.len())..];
+                                let rem = find_word_end(p_bytes);
+                                p_idx = line_bytes.len() - rem.len();
+                                i = (p_idx as isize - aux_idx as isize) as i32;
+                                let mut use_iobuff = false;
 
                                 if compl_status_adding() && i == ins_compl_len() {
-                                    for (idx, &b) in crate::globals::GraphPtr::raw_slice(
-                                        aux.cast::<u8>(),
-                                        i as usize,
-                                    )
-                                    .iter()
-                                    .enumerate()
-                                    {
-                                        g_st().iobuff[idx] = b;
-                                    }
-                                    g_st().iobuff[i as usize] = 0;
+                                    let i_u = i as usize;
+                                    g_st().iobuff[..i_u]
+                                        .copy_from_slice(&file_line_vec[aux_idx..aux_idx + i_u]);
+                                    g_st().iobuff[i_u] = 0;
 
                                     if depth < 0 {
                                         if lnum >= end_lnum {
@@ -3584,36 +3553,25 @@ pub fn find_pattern_in_path(
                                         } else {
                                             lnum += 1;
                                             get_line_and_copy(lnum, &mut file_line_vec);
-                                            line = file_line_vec.as_mut_ptr().cast();
                                         }
-                                    } else {
-                                        line = file_line_vec.as_mut_ptr().cast();
-                                        if vim_fgets(
-                                            &mut file_line_vec,
-                                            files[depth as usize].fp.as_ref().unwrap(),
-                                        ) {
-                                            skip_add = true;
-                                        }
+                                    } else if vim_fgets(
+                                        &mut file_line_vec,
+                                        files[depth as usize].fp.as_ref().unwrap(),
+                                    ) {
+                                        skip_add = true;
                                     }
 
                                     if !skip_add {
-                                        p = line.wrapping_add(crate::charset::skipwhite_len(
-                                            ptr_cstr(line).to_bytes(),
-                                        ));
-                                        aux = p;
-                                        already = p;
-                                        p = find_word_start(ptr_cstr(p).to_bytes())
-                                            .as_ptr()
-                                            .cast_mut()
-                                            .cast();
-                                        p = find_word_end(ptr_cstr(p).to_bytes())
-                                            .as_ptr()
-                                            .cast_mut()
-                                            .cast();
-                                        if p > aux {
-                                            if *crate::globals::GraphPtr::of(aux.cast::<u8>())
-                                                .borrow()
-                                                != b')'
+                                        let next_bytes =
+                                            crate::memory::bytes_until_nul(&file_line_vec);
+                                        p_idx = crate::charset::skipwhite_len(next_bytes);
+                                        aux_idx = p_idx;
+                                        already = true;
+                                        let rem1 = find_word_start(&next_bytes[p_idx..]);
+                                        let rem2 = find_word_end(rem1);
+                                        p_idx = next_bytes.len() - rem2.len();
+                                        if p_idx > aux_idx {
+                                            if file_line_vec[aux_idx] != b')'
                                                 && g_st().iobuff[(i - 1) as usize] != TAB
                                             {
                                                 if g_st().iobuff[(i - 1) as usize] != b' ' {
@@ -3630,25 +3588,20 @@ pub fn find_pattern_in_path(
                                                     i += 1;
                                                 }
                                             }
-                                            let mut copy_len =
-                                                ((p as isize) - (aux as isize)) as usize;
+                                            let mut copy_len = p_idx - aux_idx;
                                             if copy_len >= IOSIZE - (i as usize) {
                                                 copy_len = IOSIZE - (i as usize) - 1;
                                             }
-                                            for (idx, &b) in crate::globals::GraphPtr::raw_slice(
-                                                aux.cast::<u8>(),
-                                                copy_len,
-                                            )
-                                            .iter()
-                                            .enumerate()
-                                            {
-                                                g_st().iobuff[i as usize + idx] = b;
-                                            }
+                                            let dst_start = i as usize;
+                                            g_st().iobuff[dst_start..dst_start + copy_len]
+                                                .copy_from_slice(
+                                                    &file_line_vec[aux_idx..aux_idx + copy_len],
+                                                );
                                             i += copy_len as i32;
                                             cont_s_ipos = true;
                                         }
                                         g_st().iobuff[i as usize] = 0;
-                                        aux = g_st().iobuff.as_mut_ptr().cast();
+                                        use_iobuff = true;
 
                                         if i == ins_compl_len() {
                                             skip_add = true;
@@ -3657,22 +3610,35 @@ pub fn find_pattern_in_path(
                                 }
 
                                 if !skip_add {
-                                    let add_r = ins_compl_add_infercase(
-                                        crate::globals::GraphPtr::raw_slice(
-                                            aux.cast::<u8>(),
-                                            i.max(0) as usize,
-                                        ),
-                                        i,
-                                        opt_vars().p_ic,
+                                    let len_u = i.max(0) as usize;
+                                    let fname_short =
                                         if curr_fname.as_deref() == curbuf_mut().fname_opt() {
                                             None
                                         } else {
                                             path_try_shorten_fname(curr_fname.as_deref())
-                                        },
-                                        dir,
-                                        cont_s_ipos,
-                                        0,
-                                    );
+                                        };
+                                    let add_r = if use_iobuff {
+                                        let word = g_st().iobuff[..len_u].to_vec();
+                                        ins_compl_add_infercase(
+                                            &word,
+                                            i,
+                                            opt_vars().p_ic,
+                                            fname_short,
+                                            dir,
+                                            cont_s_ipos,
+                                            0,
+                                        )
+                                    } else {
+                                        ins_compl_add_infercase(
+                                            &file_line_vec[aux_idx..aux_idx + len_u],
+                                            i,
+                                            opt_vars().p_ic,
+                                            fname_short,
+                                            dir,
+                                            cont_s_ipos,
+                                            0,
+                                        )
+                                    };
                                     if add_r == Some(true) {
                                         dir = FORWARD;
                                     } else if add_r == Some(false) {
@@ -3795,8 +3761,7 @@ pub fn find_pattern_in_path(
                             }
                             if !stop_fpip_loop {
                                 if action != ACTION_SHOW {
-                                    curwin_mut().w_cursor.col =
-                                        ((startp as isize) - (line as isize)) as Colnr;
+                                    curwin_mut().w_cursor.col = startp_idx.unwrap_or(0) as Colnr;
                                     curwin_mut().w_set_curswant = true;
                                 }
 
@@ -3815,7 +3780,7 @@ pub fn find_pattern_in_path(
 
                     matched = false;
                     if stop_fpip_loop {
-                        already = ptr::null_mut();
+                        already = false;
                         // break outer loop too
                         depth_displayed = i32::MIN;
                         break;
@@ -3823,16 +3788,16 @@ pub fn find_pattern_in_path(
                     if def_regmatch.regprog.is_null()
                         && action == ACTION_EXPAND
                         && !compl_status_sol()
-                        && !startp.is_null()
-                        && *crate::globals::GraphPtr::of(startp).borrow() != 0
+                        && let Some(sp_idx) = startp_idx
+                        && file_line_vec.get(sp_idx).copied().unwrap_or(0) != 0
                         && {
-                            let start_cstr = ptr_cstr(startp);
+                            let start_cstr = crate::memory::bytes_as_cstr(&file_line_vec[sp_idx..]);
                             let step = utfc_ptr2len(start_cstr) as usize;
                             start_cstr.to_bytes().len() > step
                         }
                     {
-                        let start_cstr = ptr_cstr(startp);
-                        p = startp.wrapping_add(utfc_ptr2len(start_cstr) as usize);
+                        let start_cstr = crate::memory::bytes_as_cstr(&file_line_vec[sp_idx..]);
+                        p_idx = sp_idx + (utfc_ptr2len(start_cstr) as usize);
                         continue;
                     }
                     break;
@@ -3849,14 +3814,13 @@ pub fn find_pattern_in_path(
                 break;
             }
 
-            while depth >= 0 && already.is_null() && {
-                let eof = vim_fgets(
+            while depth >= 0
+                && !already
+                && vim_fgets(
                     &mut file_line_vec,
                     files[depth as usize].fp.as_ref().unwrap(),
-                );
-                line = file_line_vec.as_mut_ptr().cast();
-                eof
-            } {
+                )
+            {
                 files[depth as usize].fp = None;
                 old_files -= 1;
                 files[old_files as usize].name = files[depth as usize].name.take();
@@ -3880,15 +3844,14 @@ pub fn find_pattern_in_path(
                     i -= 1;
                     file_line_vec[i as usize] = 0;
                 }
-            } else if already.is_null() {
+            } else if !already {
                 lnum += 1;
                 if lnum > end_lnum {
                     break;
                 }
                 get_line_and_copy(lnum, &mut file_line_vec);
-                line = file_line_vec.as_mut_ptr().cast();
             }
-            already = ptr::null_mut();
+            already = false;
         }
 
         for idx in 0..=depth {

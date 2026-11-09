@@ -1067,6 +1067,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
         }
 
         let mut sortbuf1_vec = vec![0u8; maxlen as usize + 1];
+        let mut sortbuf2_vec = vec![0u8; maxlen as usize + 1];
 
         let mut match_continue = false;
         let mut next_is_unmatch = false;
@@ -1076,7 +1077,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
             let get_lnum = eap.line1 + i;
 
             let s_cstr = ml_get(get_lnum);
-            let s = s_cstr.as_ptr().cast_mut();
+            let s_bytes = s_cstr.to_bytes();
             let len = ml_get_len(get_lnum);
 
             let mut start_col: Colnr = 0;
@@ -1091,18 +1092,13 @@ pub fn ex_uniq(eap: &mut Exarg) {
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
             }
-            let mut save_c: u8 = 0;
-            if end_col > 0 {
-                save_c =
-                    *crate::globals::GraphPtr::of(s.wrapping_add(end_col as usize).cast::<u8>())
-                        .borrow();
-                *crate::globals::GraphPtr::of(s.wrapping_add(end_col as usize)).borrow_mut() = NUL;
-            }
+            let sc_u = (start_col.max(0) as usize).min(s_bytes.len());
+            let ec_u = (end_col.max(start_col) as usize).min(s_bytes.len());
+            let sub_len = ec_u - sc_u;
+            sortbuf2_vec[..sub_len].copy_from_slice(&s_bytes[sc_u..ec_u]);
+            sortbuf2_vec[sub_len] = 0;
 
-            let s_sub_cstr = crate::memory::bytes_as_cstr(crate::globals::GraphPtr::raw_slice(
-                s.wrapping_add(start_col as usize).cast::<u8>(),
-                (end_col - start_col).max(0) as usize + 1,
-            ));
+            let s_sub_cstr = crate::memory::bytes_as_cstr(&sortbuf2_vec[..=sub_len]);
             let mut is_match = if i > 0 {
                 string_compare(s_sub_cstr, crate::memory::bytes_as_cstr(&sortbuf1_vec)) == 0
             } else {
@@ -1151,11 +1147,6 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 match_continue = false;
                 let s_bytes = s_sub_cstr.to_bytes_with_nul();
                 sortbuf1_vec[..s_bytes.len()].copy_from_slice(s_bytes);
-            }
-
-            if end_col > 0 {
-                *crate::globals::GraphPtr::of(s.wrapping_add(end_col as usize).cast::<u8>())
-                    .borrow_mut() = save_c;
             }
 
             if delete_lnum > 0 {
@@ -3819,10 +3810,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             delimiter = i32::from(ptr_first_byte(cmd, eap));
             cmd = cmd.wrapping_add(1);
             pat.data = crate::globals::GraphPtr::new(cmd.cast());
+            let cmd_off = (cmd as usize).saturating_sub(cmd_base);
             let cmd_len = ptr_cstr!(cmd, eap).to_bytes().len();
-            let cmd_slice = crate::globals::GraphPtr::raw_slice_mut(cmd.cast::<u8>(), cmd_len + 1);
             let off = skip_regexp_ex(
-                cmd_slice,
+                &mut eap.arg_cstr_buf_mut()[cmd_off..cmd_off + cmd_len + 1],
                 delimiter,
                 i32::from(opt_vars().p_magic),
                 None,
@@ -3840,9 +3831,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
 
         let p = cmd;
+        let sub_off_start = (cmd as usize).saturating_sub(cmd_base);
         let sub_len = ptr_cstr!(cmd, eap).to_bytes().len();
-        let sub_slice = crate::globals::GraphPtr::raw_slice_mut(cmd.cast::<u8>(), sub_len + 1);
-        let sub_off = skip_substitute(sub_slice, delimiter);
+        let sub_off = skip_substitute(
+            &mut eap.arg_cstr_buf_mut()[sub_off_start..sub_off_start + sub_len + 1],
+            delimiter,
+        );
         cmd = cmd.wrapping_add(sub_off);
         let sub_cstr = ptr_cstr!(p, eap).to_owned();
         sub = sub_cstr.as_ptr().cast_mut();
@@ -4014,7 +4008,6 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             let mut prev_matchcol: Colnr = MAXCOL;
             let mut new_start = SubBuf::new();
             let mut new_start_size: usize = 0;
-            let mut new_end;
             let mut did_sub = false;
             let mut nmatch_tl: Linenr = 0;
             let mut do_again: bool;
@@ -4317,23 +4310,13 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             copy_len + (tmp.size - regmatch.endpos[0].col as usize) + sublen + 1,
                         );
 
-                        crate::globals::GraphPtr::copy_to(
-                            sub_firstline
-                                .as_slice()
-                                .as_ptr()
-                                .wrapping_add(copycol as usize),
-                            new_start
-                                .as_mut_slice()
-                                .as_mut_ptr()
-                                .wrapping_add(new_start.size),
-                            copy_len,
-                        );
+                        let cc = copycol as usize;
+                        let ns_size = new_start.size;
+                        new_start.as_mut_slice()[ns_size..ns_size + copy_len]
+                            .copy_from_slice(&sub_firstline.as_slice()[cc..cc + copy_len]);
                         new_start.size += copy_len;
 
-                        new_end = new_start
-                            .as_mut_slice()
-                            .as_mut_ptr()
-                            .wrapping_add(new_start.size);
+                        let new_end_idx = new_start.size;
 
                         if new_start_size - copy_len < sublen {
                             sublen = new_start_size - copy_len - 1;
@@ -4344,13 +4327,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         g_st().textlock += 1;
                         let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
-                        let new_end_slice =
-                            crate::globals::GraphPtr::raw_slice_mut(new_end, sublen);
                         let mut n = vim_regsub_multi(
                             &mut regmatch,
                             rel_lnum,
                             sub_cstr,
-                            new_end_slice,
+                            &mut new_start.as_mut_slice()[new_end_idx..new_end_idx + sublen],
                             REGSUB_COPY
                                 | REGSUB_BACKSLASH
                                 | if opt_vars().p_magic { REGSUB_MAGIC } else { 0 },
@@ -4392,32 +4373,27 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         let lnum_before_newlines = lnum;
 
-                        let mut p1 = new_end;
-                        while *crate::globals::GraphPtr::of(p1).borrow() != 0 {
-                            let p1_b0 = *crate::globals::GraphPtr::of(p1).borrow();
-                            let p1_b1 = *crate::globals::GraphPtr::of(p1.wrapping_add(1)).borrow();
+                        let mut p1_idx = new_end_idx;
+                        while new_start.as_slice()[p1_idx] != 0 {
+                            let p1_b0 = new_start.as_slice()[p1_idx];
+                            let p1_b1 = new_start.as_slice()[p1_idx + 1];
                             if p1_b0 == b'\\' && p1_b1 != 0 {
                                 sublen -= 1;
-                                n = new_start.size
-                                    - ((p1 as isize) - (new_start.as_slice().as_ptr() as isize))
-                                        as usize;
-                                crate::globals::GraphPtr::copy_to(p1.wrapping_add(1), p1, n + 1);
+                                n = new_start.size - p1_idx;
+                                new_start
+                                    .as_mut_slice()
+                                    .copy_within(p1_idx + 1..p1_idx + 1 + n + 1, p1_idx);
                                 new_start.size -= 1;
-                                p1 = p1.wrapping_add(1);
+                                p1_idx += 1;
                             } else if p1_b0 == CAR as u8 {
                                 if u_inssub(lnum) {
-                                    let plen =
-                                        (((p1 as isize) - (new_start.as_slice().as_ptr() as isize))
-                                            + 1) as Colnr;
+                                    let plen = (p1_idx + 1) as Colnr;
 
-                                    *crate::globals::GraphPtr::of(p1).borrow_mut() = 0;
+                                    new_start.as_mut_slice()[p1_idx] = 0;
 
                                     ml_append(
                                         lnum - 1,
-                                        crate::globals::GraphPtr::raw_slice(
-                                            (new_start.as_slice().as_ptr().cast_mut()).cast::<u8>(),
-                                            (plen as usize).saturating_sub(1),
-                                        ),
+                                        &new_start.as_slice()[..(plen as usize).saturating_sub(1)],
                                         plen,
                                         false,
                                     );
@@ -4437,22 +4413,18 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     curwin_mut().w_cursor.lnum += 1;
                                     n = new_start.size - plen as usize;
 
-                                    crate::globals::GraphPtr::copy_to(
-                                        p1.wrapping_add(1),
-                                        new_start.as_mut_slice().as_mut_ptr(),
-                                        n + 1,
-                                    );
+                                    new_start
+                                        .as_mut_slice()
+                                        .copy_within(p1_idx + 1..p1_idx + 1 + n + 1, 0);
                                     new_start.size = n;
-                                    p1 = new_start.as_mut_slice().as_mut_ptr();
+                                    p1_idx = 0;
                                 } else {
-                                    p1 = p1.wrapping_add(1);
+                                    p1_idx += 1;
                                 }
                             } else {
-                                let p1_off =
-                                    (p1 as usize) - (new_start.as_slice().as_ptr() as usize);
-                                p1 = p1.wrapping_add(utfc_ptr2len(
-                                    &new_start.as_slice()[p1_off.min(new_start.as_slice().len())..],
-                                ) as usize);
+                                p1_idx += utfc_ptr2len(
+                                    &new_start.as_slice()[p1_idx.min(new_start.as_slice().len())..],
+                                ) as usize;
                             }
                         }
                         let new_endcol = new_start.size as Colnr;
@@ -4513,16 +4485,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             &sub_firstline.as_slice()
                                 [(copycol as usize).min(sub_firstline.as_slice().len())..],
                         )
-                        .to_bytes_with_nul();
+                        .to_bytes_with_nul()
+                        .to_vec();
 
-                        crate::globals::GraphPtr::copy_to(
-                            tail.as_ptr(),
-                            new_start
-                                .as_mut_slice()
-                                .as_mut_ptr()
-                                .wrapping_add(new_start.size),
-                            tail.len(),
-                        );
+                        let ns_size = new_start.size;
+                        new_start.as_mut_slice()[ns_size..ns_size + tail.len()]
+                            .copy_from_slice(&tail);
 
                         new_start.size += sub_firstline.size - copycol as usize;
                         matchcol = sub_firstline.size as Colnr - matchcol;

@@ -1021,10 +1021,7 @@ fn ins_compl_infercase_gettext<'a>(
             gap.reserve(IOSIZE);
             gap.extend_from_slice(&iobuff[..p_idx]);
         } else {
-            p_idx += utf_char2bytes(
-                wca[i as usize],
-                crate::globals::GraphPtr::raw_slice_mut(iobuff[p_idx..].as_mut_ptr().cast(), 6),
-            ) as usize;
+            p_idx += utf_char2bytes(wca[i as usize], &mut iobuff[p_idx..]) as usize;
             i += 1;
         }
     }
@@ -5298,7 +5295,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
     let compl_len = get_compl_len();
     let preinsert = ins_compl_has_preinsert();
     let shown = compl_opt(insexp().compl_shown_idx).unwrap();
-    let mut cp_str = shown.cp_str.data;
+    let mut cp_slice = shown.cp_str.as_bytes();
     let mut cp_str_len = shown.cp_str.size;
     let leader_len = ins_compl_leader_len();
     let has_multiple = shown.cp_str.cstr_bytes().contains(&b'\n');
@@ -5307,10 +5304,10 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         if let Some(pref) = find_common_prefix(&mut cp_str_len, false)
             .or_else(|| find_common_prefix(&mut cp_str_len, true))
         {
-            cp_str = crate::globals::GraphPtr::new(pref.as_ptr().cast_mut());
+            cp_slice = &pref[..cp_str_len.min(pref.len())];
         } else {
             let shown = compl_opt(insexp().compl_shown_idx).unwrap();
-            cp_str = shown.cp_str.data;
+            cp_slice = shown.cp_str.as_bytes();
             cp_str_len = shown.cp_str.size;
         }
     } else if !insexp().cpt_sources_array.is_empty() {
@@ -5318,17 +5315,17 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         if cpt_idx >= 0 && insexp().compl_col >= 0 {
             let startcol = insexp().cpt_sources_array[cpt_idx as usize].cs_startcol;
             if startcol >= 0 && startcol < insexp().compl_col {
-                let skip = insexp().compl_col - startcol;
-                if (skip as usize) <= cp_str_len {
-                    cp_str_len -= skip as usize;
-                    cp_str = cp_str.wrapping_add(skip as usize);
+                let skip = (insexp().compl_col - startcol) as usize;
+                if skip <= cp_str_len {
+                    cp_str_len -= skip;
+                    cp_slice = &cp_slice[skip.min(cp_slice.len())..];
                 }
             }
         }
     }
 
     if compl_len < cp_str_len as i32 {
-        let cp_slice = crate::globals::GraphPtr::raw_slice(cp_str.as_ptr(), cp_str_len);
+        let cp_slice = &cp_slice[..cp_str_len.min(cp_slice.len())];
         let skip = (compl_len.max(0) as usize).min(cp_slice.len());
         if has_multiple {
             ins_compl_expand_multiple(&cp_slice[skip..]);
@@ -5750,7 +5747,6 @@ fn ins_compl_use_match(c: i32) -> bool {
 }
 
 fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -> bool {
-    let line = line_cstr.as_ptr().cast_mut();
     let line_bytes = line_cstr.to_bytes();
     if (insexp().compl_cont_status & CONT_SOL) != 0 || ctrl_x_mode_path_defines() {
         if !compl_status_adding() {
@@ -5765,10 +5761,9 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
             insexp().compl_col += startcol;
             insexp().compl_length = curs_col - startcol;
         }
-        let pat_bytes = crate::globals::GraphPtr::raw_slice(
-            line.wrapping_add(insexp().compl_col as usize).cast::<u8>(),
-            insexp().compl_length.max(0) as usize,
-        );
+        let col_u = (insexp().compl_col.max(0) as usize).min(line_bytes.len());
+        let len_u = insexp().compl_length.max(0) as usize;
+        let pat_bytes = &line_bytes[col_u..(col_u + len_u).min(line_bytes.len())];
         if opt_vars().p_ic {
             insexp().compl_pattern = str_foldcase(pat_bytes, None);
         } else {
@@ -5791,10 +5786,9 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
             prefixlen = 0;
         }
 
-        let word_slice = crate::globals::GraphPtr::raw_slice(
-            line.wrapping_add(insexp().compl_col as usize).cast::<u8>(),
-            insexp().compl_length.max(0) as usize,
-        );
+        let col_u = (insexp().compl_col.max(0) as usize).min(line_bytes.len());
+        let len_u = insexp().compl_length.max(0) as usize;
+        let word_slice = &line_bytes[col_u..(col_u + len_u).min(line_bytes.len())];
         let n = quote_meta(None, word_slice) + prefixlen;
         let mut pat_vec: Vec<u8> = vec![0; n];
         pat_vec[..prefixlen].copy_from_slice(&prefix[..prefixlen]);
@@ -5834,21 +5828,17 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
             startcol += 1;
             insexp().compl_col += startcol;
             insexp().compl_length = curs_col - startcol;
+            let col_u = (insexp().compl_col.max(0) as usize).min(line_bytes.len());
             if insexp().compl_length == 1 {
                 let mut pat_vec = [0u8; 7];
                 pat_vec[..2].copy_from_slice(b"\\<");
-                let word_slice = crate::globals::GraphPtr::raw_slice(
-                    line.wrapping_add(insexp().compl_col as usize).cast::<u8>(),
-                    1,
-                );
+                let word_slice = &line_bytes[col_u..(col_u + 1).min(line_bytes.len())];
                 let qlen = quote_meta(Some(&mut pat_vec[2..]), word_slice) - 1;
                 pat_vec[2 + qlen..2 + qlen + 2].copy_from_slice(b"\\k");
                 set_compl_pattern_bytes(&pat_vec[..4 + qlen]);
             } else {
-                let word_slice = crate::globals::GraphPtr::raw_slice(
-                    line.wrapping_add(insexp().compl_col as usize).cast::<u8>(),
-                    insexp().compl_length.max(0) as usize,
-                );
+                let len_u = insexp().compl_length.max(0) as usize;
+                let word_slice = &line_bytes[col_u..(col_u + len_u).min(line_bytes.len())];
                 let n = quote_meta(None, word_slice) + 2;
                 let mut pat_vec: Vec<u8> = vec![0; n];
                 pat_vec[..2].copy_from_slice(b"\\<");
@@ -5931,10 +5921,7 @@ fn get_cmdline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     let pat_len = compl_pattern_len();
     set_cmd_context(
         &mut insexp().compl_xp,
-        crate::globals::GraphPtr::raw_slice_mut(
-            pat_cstr.as_ptr().cast_mut().cast::<u8>(),
-            pat_len + 1,
-        ),
+        pat_cstr.to_bytes_with_nul(),
         pat_len as i32,
         curs_col,
         false,
@@ -5947,8 +5934,9 @@ fn get_cmdline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     {
         insexp().compl_col = curs_col;
     } else {
-        insexp().compl_col =
-            ((insexp().compl_xp.xp_pattern).offset_from(pat_cstr.as_ptr()) as isize) as Colnr;
+        insexp().compl_col = ((insexp().compl_xp.xp_pattern)
+            .offset_from(pat_cstr.to_bytes_with_nul()) as isize)
+            as Colnr;
     }
     insexp().compl_length = curs_col - insexp().compl_col;
 
