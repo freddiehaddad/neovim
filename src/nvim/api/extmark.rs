@@ -716,7 +716,7 @@ pub fn nvim_buf_set_extmark(
         col: 0,
         pos: K_VPOS_END_OF_LINE,
         data: DecorVirtTextData::empty(),
-        next: None,
+        next: crate::decoration::DecorVirtId::NULL,
     };
     let mut virt_lines = DecorVirtText {
         flags: K_VTIS_LINES,
@@ -726,7 +726,7 @@ pub fn nvim_buf_set_extmark(
         col: 0,
         pos: K_VPOS_END_OF_LINE,
         data: DecorVirtTextData::empty_lines(),
-        next: None,
+        next: crate::decoration::DecorVirtId::NULL,
     };
     let mut url: Option<std::ffi::CString> = None;
     let mut has_hl = false;
@@ -1163,7 +1163,7 @@ pub fn nvim_buf_set_extmark(
                     c,
                     line2,
                     col2,
-                    decor_put_vt(virt_text, None),
+                    decor_put_vt(virt_text, crate::decoration::DecorVirtId::NULL),
                     true,
                 );
             }
@@ -1174,7 +1174,7 @@ pub fn nvim_buf_set_extmark(
                     c,
                     line2,
                     col2,
-                    decor_put_vt(virt_lines, None),
+                    decor_put_vt(virt_lines, crate::decoration::DecorVirtId::NULL),
                     true,
                 );
             }
@@ -1205,17 +1205,15 @@ pub fn nvim_buf_set_extmark(
             }
 
             let mut decor_flags: u32 = 0;
-            let mut decor_alloc = crate::globals::GraphPtr::<DecorVirtText>::NULL;
+            let mut decor_alloc = crate::decoration::DecorVirtId::NULL;
             if !virt_text.data.virt_text().is_empty() {
                 if virt_text.pos == K_VPOS_INLINE {
                     decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
                 }
-                decor_alloc =
-                    crate::globals::GraphPtr::from(decor_put_vt(virt_text, decor_alloc.opt_mut()));
+                decor_alloc = decor_put_vt(virt_text, decor_alloc);
             }
             if !virt_lines.data.virt_lines().is_empty() {
-                decor_alloc =
-                    crate::globals::GraphPtr::from(decor_put_vt(virt_lines, decor_alloc.opt_mut()));
+                decor_alloc = decor_put_vt(virt_lines, decor_alloc);
                 decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
             }
 
@@ -1272,7 +1270,7 @@ pub fn nvim_buf_set_extmark(
                 }
                 decor.data = DecorInlineData::Ext(DecorExt {
                     sh_idx: decor_indexed,
-                    vt: crate::globals::GraphPtr::new(decor_alloc.cast()),
+                    vt: decor_alloc,
                 });
             } else {
                 decor.data = DecorInlineData::Hl(hl);

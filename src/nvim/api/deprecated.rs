@@ -303,15 +303,15 @@ pub fn nvim_buf_set_virtual_text(
             col: 0,
             pos: K_VPOS_END_OF_LINE,
             data: DecorVirtTextData::VirtText(virt_text),
-            next: None,
+            next: crate::decoration::DecorVirtId::NULL,
         },
-        None,
+        crate::decoration::DecorVirtId::NULL,
     );
 
     let decor = DecorInline {
         data: DecorInlineData::Ext(DecorExt {
             sh_idx: DECOR_ID_INVALID,
-            vt: crate::globals::GraphPtr::from(&mut *vt),
+            vt,
         }),
     };
 

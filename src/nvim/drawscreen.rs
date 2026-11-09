@@ -175,7 +175,7 @@ struct DrawscreenState {
     default_grid_resizing: bool,
     still_may_intro: bool,
     win_update_recursive: bool,
-    suspended_virt_text: DecorVirtText,
+    suspended_virt_text: crate::decoration::DecorVirtId,
 }
 
 impl DrawscreenState {
@@ -189,16 +189,7 @@ impl DrawscreenState {
             default_grid_resizing: false,
             still_may_intro: true,
             win_update_recursive: false,
-            suspended_virt_text: DecorVirtText {
-                flags: 0,
-                hl_mode: 0,
-                priority: DECOR_PRIORITY_BASE,
-                width: 0,
-                col: 0,
-                pos: K_VPOS_WIN_COL,
-                data: DecorVirtTextData::empty(),
-                next: None,
-            },
+            suspended_virt_text: crate::decoration::DecorVirtId::NULL,
         }
     }
 }
@@ -1447,15 +1438,23 @@ fn win_update(wp: &mut WinInfoInfo) {
     if let Some(term) = buf.terminal.opt()
         && terminal_suspended(term)
     {
-        if ds_st().suspended_virt_text.data.virt_text().is_empty() {
-            ds_st()
-                .suspended_virt_text
-                .data
-                .virt_text_mut()
-                .push(VirtTextChunk {
-                    text: Some(c"[Process suspended]".to_owned()),
-                    hl_id: -1,
-                });
+        if ds_st().suspended_virt_text.is_null() {
+            let mut vt = DecorVirtText {
+                flags: 0,
+                hl_mode: 0,
+                priority: DECOR_PRIORITY_BASE,
+                width: 0,
+                col: 0,
+                pos: K_VPOS_WIN_COL,
+                data: DecorVirtTextData::empty(),
+                next: crate::decoration::DecorVirtId::NULL,
+            };
+            vt.data.virt_text_mut().push(VirtTextChunk {
+                text: Some(c"[Process suspended]".to_owned()),
+                hl_id: -1,
+            });
+            ds_st().suspended_virt_text =
+                crate::decoration::decor_put_vt(vt, crate::decoration::DecorVirtId::NULL);
         }
         decor_range_add_virt(
             &mut g_st().borrow_mut().decor_state,
@@ -1463,7 +1462,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             0,
             buf.b_ml.ml_line_count - 1,
             0,
-            &mut ds_st().borrow_mut().suspended_virt_text,
+            ds_st().suspended_virt_text,
             false,
         );
     }

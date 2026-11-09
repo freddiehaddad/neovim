@@ -96,7 +96,7 @@ pub const DECOR_HIGHLIGHT_INLINE_INIT: DecorHighlightInline = DecorHighlightInli
 #[derive(Clone, Copy)]
 pub struct DecorExt {
     pub sh_idx: u32,
-    pub vt: crate::globals::GraphPtr<crate::decoration::DecorVirtText>,
+    pub vt: crate::decoration::DecorVirtId,
 }
 
 impl DecorExt {
@@ -135,7 +135,7 @@ impl DecorInlineData {
             Self::Ext(ext) => ext,
             Self::Hl(_) => DecorExt {
                 sh_idx: u32::MAX,
-                vt: crate::globals::GraphPtr::NULL,
+                vt: crate::decoration::DecorVirtId::NULL,
             },
         }
     }

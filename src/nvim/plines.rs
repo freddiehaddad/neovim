@@ -303,9 +303,11 @@ fn inline_virt_text_width(
             break;
         } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
             let decor = mt_decor(mark);
-            for vt in crate::decoration::virt_text_iter_mut(
-                decor.is_ext().then(|| decor.data.ext().vt_opt()).flatten(),
-            ) {
+            for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
+                decor.data.ext().vt
+            } else {
+                crate::decoration::DecorVirtId::NULL
+            }) {
                 if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
                     width += vt.width;
                 }
@@ -470,9 +472,11 @@ pub fn charsize_regular(
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
                     let decor = mt_decor(mark);
-                    for vt in crate::decoration::virt_text_iter_mut(
-                        decor.is_ext().then(|| decor.data.ext().vt_opt()).flatten(),
-                    ) {
+                    for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
+                        decor.data.ext().vt
+                    } else {
+                        crate::decoration::DecorVirtId::NULL
+                    }) {
                         if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
                             if mt_right(mark) {
                                 csarg.cur_text_width_right += vt.width;

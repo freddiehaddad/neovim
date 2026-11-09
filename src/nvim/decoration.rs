@@ -118,11 +118,36 @@ pub struct DecorRangeUI {
     pub pos: VirtTextPos,
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct DecorVirtId(pub u32);
+
+impl DecorVirtId {
+    pub const NULL: Self = Self(DECOR_ID_INVALID);
+
+    #[inline]
+    pub const fn is_null(self) -> bool {
+        self.0 == DECOR_ID_INVALID
+    }
+
+    #[inline]
+    pub fn opt_mut(self) -> Option<&'static mut DecorVirtText> {
+        (!self.is_null()).then(|| &mut decor_st().borrow_mut().virt_items[self.0 as usize])
+    }
+}
+
+impl Default for DecorVirtId {
+    #[inline]
+    fn default() -> Self {
+        Self::NULL
+    }
+}
+
 #[derive(Clone)]
 pub enum DecorRangeData {
     Sh(DecorSignHighlight),
-    Vt(crate::globals::GraphPtr<DecorVirtText>),
-    VirtLines(crate::globals::GraphPtr<DecorVirtText>),
+    Vt(DecorVirtId),
+    VirtLines(DecorVirtId),
     Ui(DecorRangeUI),
 }
 
@@ -152,7 +177,7 @@ impl DecorRangeData {
 
     #[inline]
     pub fn vt_opt(&self) -> Option<&'static mut DecorVirtText> {
-        match self {
+        match *self {
             Self::Vt(vt) | Self::VirtLines(vt) => vt.opt_mut(),
             _ => None,
         }
@@ -184,9 +209,8 @@ impl Drop for DecorRange {
     fn drop(&mut self) {
         if self.owned
             && let DecorRangeData::Vt(vt) | DecorRangeData::VirtLines(vt) = self.data
-            && !vt.is_null()
         {
-            crate::globals::GraphPtr::of(vt.as_ptr()).drop_box();
+            decor_free_vt(vt);
         }
     }
 }
@@ -374,19 +398,17 @@ pub struct DecorVirtText {
     pub col: i32,
     pub pos: VirtTextPos,
     pub data: DecorVirtTextData,
-    pub next: Option<Box<DecorVirtText>>,
+    pub next: DecorVirtId,
 }
 
 impl DecorVirtText {
     #[inline]
     pub fn next_opt(&mut self) -> Option<&'static mut DecorVirtText> {
-        self.next
-            .as_deref_mut()
-            .map(|n| crate::globals::GraphPtr::from(&*n).borrow_mut())
+        self.next.opt_mut()
     }
 }
 
-pub struct VirtTextMutIter(crate::globals::GraphPtr<DecorVirtText>);
+pub struct VirtTextMutIter(DecorVirtId);
 
 impl Iterator for VirtTextMutIter {
     type Item = &'static mut DecorVirtText;
@@ -394,32 +416,33 @@ impl Iterator for VirtTextMutIter {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.0.opt_mut()?;
-        self.0 = cur.next_opt().into();
+        self.0 = cur.next;
         Some(cur)
     }
 }
 
-pub struct VirtTextPtrIter(crate::globals::GraphPtr<DecorVirtText>);
+pub struct VirtTextPtrIter(DecorVirtId);
 
 impl Iterator for VirtTextPtrIter {
-    type Item = &'static mut DecorVirtText;
+    type Item = (DecorVirtId, &'static mut DecorVirtText);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
-        self.0 = cur.next_opt().into();
-        Some(cur)
+        let id = self.0;
+        let cur = id.opt_mut()?;
+        self.0 = cur.next;
+        Some((id, cur))
     }
 }
 
 #[inline]
-pub fn virt_text_iter_mut(start: Option<&'static mut DecorVirtText>) -> VirtTextMutIter {
-    VirtTextMutIter(start.into())
+pub fn virt_text_iter_mut(start: DecorVirtId) -> VirtTextMutIter {
+    VirtTextMutIter(start)
 }
 
 #[inline]
-pub fn virt_text_iter_ptr(start: Option<&'static mut DecorVirtText>) -> VirtTextPtrIter {
-    VirtTextPtrIter(start.into())
+pub fn virt_text_iter_ptr(start: DecorVirtId) -> VirtTextPtrIter {
+    VirtTextPtrIter(start)
 }
 
 use crate::extmark::{
@@ -451,7 +474,9 @@ pub struct SignItem<'a> {
 
 struct DecorationModuleState {
     decor_freelist: u32,
-    to_free_virt: Vec<crate::globals::GraphPtr<DecorVirtText>>,
+    virt_items: Vec<DecorVirtText>,
+    virt_freelist: DecorVirtId,
+    to_free_virt: Vec<DecorVirtId>,
     to_free_sh: u32,
     sign_add_id: i32,
 }
@@ -460,6 +485,8 @@ impl DecorationModuleState {
     const fn new() -> Self {
         Self {
             decor_freelist: u32::MAX,
+            virt_items: Vec::new(),
+            virt_freelist: DecorVirtId::NULL,
             to_free_virt: Vec::new(),
             to_free_sh: u32::MAX,
             sign_add_id: 0,
@@ -478,7 +505,7 @@ fn decor_st() -> crate::globals::GraphPtr<DecorationModuleState> {
 #[inline]
 fn mt_decor_virt(mark: MTKey) -> Option<&'static mut DecorVirtText> {
     if (mark.flags & MT_FLAG_DECOR_EXT) != 0 {
-        mark.decor_data.ext().vt_opt()
+        mark.decor_data.ext().vt.opt_mut()
     } else {
         None
     }
@@ -539,7 +566,7 @@ pub fn bufhl_add_hl_pos_offset(
 
 pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: DecorInline) {
     if decor.is_ext() {
-        for vt in virt_text_iter_mut(decor.data.ext().vt_opt()) {
+        for vt in virt_text_iter_mut(decor.data.ext().vt) {
             let below = (vt.flags & K_VTIS_LINES) != 0 && (vt.flags & K_VTLINES_ABOVE) == 0;
             let vt_lnum = row1 + 1 + i32::from(below);
             redraw_buf_line_later(buf, vt_lnum, true);
@@ -604,12 +631,33 @@ pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     }
 }
 
-pub fn decor_put_vt(
-    mut vt: DecorVirtText,
-    next: Option<&'static mut DecorVirtText>,
-) -> &'static mut DecorVirtText {
-    vt.next = next.map(|n| crate::globals::GraphPtr::of(n).into_box());
-    Box::leak(Box::new(vt))
+pub fn decor_put_vt(mut vt: DecorVirtText, next: DecorVirtId) -> DecorVirtId {
+    vt.next = next;
+    let fl = decor_st().virt_freelist;
+    if !fl.is_null() {
+        decor_st().virt_freelist = decor_st().virt_items.as_slice()[fl.0 as usize].next;
+        decor_st().virt_items.as_mut_slice()[fl.0 as usize] = vt;
+        fl
+    } else {
+        let pos = decor_st().virt_items.len() as u32;
+        decor_st().virt_items.push(vt);
+        DecorVirtId(pos)
+    }
+}
+
+fn decor_free_vt(first: DecorVirtId) {
+    let mut cur = first;
+    while let Some(vt) = cur.opt_mut() {
+        let next = vt.next;
+        vt.data = DecorVirtTextData::empty();
+        vt.flags = 0;
+        if next.is_null() {
+            vt.next = decor_st().virt_freelist;
+            decor_st().virt_freelist = first;
+            break;
+        }
+        cur = next;
+    }
 }
 
 pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
@@ -729,9 +777,7 @@ pub fn decor_free(decor: DecorInline) {
             idx = sh.next;
         }
     } else {
-        if !vt.is_null() {
-            crate::globals::GraphPtr::of(vt.as_ptr()).drop_box();
-        }
+        decor_free_vt(vt);
         decor_free_sh(idx);
     }
 }
@@ -806,8 +852,8 @@ pub fn decor_extconceal_char(
 
 pub fn decor_check_to_be_deleted() {
     assert!(!g_st().decor_state.running_decor_provider);
-    for vt in decor_st().to_free_virt.drain(..) {
-        crate::globals::GraphPtr::of(vt.as_ptr()).drop_box();
+    while let Some(vt) = decor_st().to_free_virt.pop() {
+        decor_free_vt(vt);
     }
     decor_free_sh(decor_st().to_free_sh);
     decor_st().to_free_sh = DECOR_ID_INVALID;
@@ -903,7 +949,7 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
 
 pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     match decor.data {
-        DecorRangeData::Vt(vt) => vt.pos,
+        DecorRangeData::Vt(vt) => vt.opt_mut().unwrap().pos,
         DecorRangeData::Ui(ui) => ui.pos,
         _ => K_VPOS_END_OF_LINE,
     }
@@ -1001,12 +1047,12 @@ fn decor_range_add_from_inline(
 ) {
     if decor.is_ext() {
         let vt_start = if state.conceal_only {
-            None
+            DecorVirtId::NULL
         } else {
-            decor.data.ext().vt_opt()
+            decor.data.ext().vt
         };
-        for vt in virt_text_iter_ptr(vt_start) {
-            decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
+        for (vt_id, _) in virt_text_iter_ptr(vt_start) {
+            decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt_id, owned);
         }
         let mut idx = decor.data.ext().sh_idx;
         while idx != DECOR_ID_INVALID {
@@ -1072,12 +1118,12 @@ pub fn decor_range_add_virt(
     start_col: i32,
     end_row: i32,
     end_col: i32,
-    vt: &'static mut DecorVirtText,
+    vt_id: DecorVirtId,
     owned: bool,
 ) {
+    let vt = vt_id.opt_mut().unwrap();
     let is_lines = (vt.flags & K_VTIS_LINES) != 0;
     let priority = vt.priority;
-    let vt_ptr = crate::globals::GraphPtr::<DecorVirtText>::from_ref(vt);
     let range = DecorRange {
         start_row,
         start_col,
@@ -1087,9 +1133,9 @@ pub fn decor_range_add_virt(
         priority_internal: DecorPriorityInternal::from(priority) << 16,
         owned,
         data: if is_lines {
-            DecorRangeData::VirtLines(vt_ptr)
+            DecorRangeData::VirtLines(vt_id)
         } else {
-            DecorRangeData::Vt(vt_ptr)
+            DecorRangeData::Vt(vt_id)
         },
         attr_id: 0,
         draw_col: -10,
@@ -1830,7 +1876,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     let mut priority: i32 = -1;
 
     if decor.is_ext() {
-        for vt in virt_text_iter_ptr(decor.data.ext().vt_opt()) {
+        for (_, vt) in virt_text_iter_ptr(decor.data.ext().vt) {
             if (vt.flags & K_VTIS_LINES) != 0 {
                 virt_lines = Some(vt);
             } else {
@@ -1994,7 +2040,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 pub fn decor_type_flags(decor: DecorInline) -> u16 {
     if decor.is_ext() {
         let mut type_flags: u16 = K_EXTMARK_NONE;
-        for vt in virt_text_iter_mut(decor.data.ext().vt_opt()) {
+        for vt in virt_text_iter_mut(decor.data.ext().vt) {
             type_flags |= if (vt.flags & K_VTIS_LINES) != 0 {
                 K_EXTMARK_VIRT_LINES
             } else {
