@@ -332,3 +332,128 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
         }
     }
 }
+
+#[repr(C)]
+pub struct UvSyncOutput {
+    write_loop: [u64; 256],
+    output_handle: [u64; 80],
+}
+
+impl UvSyncOutput {
+    pub const fn new() -> Self {
+        Self {
+            write_loop: [0; 256],
+            output_handle: [0; 80],
+        }
+    }
+
+    #[inline]
+    fn loop_ptr(&mut self) -> *mut uv_loop_t {
+        self.write_loop.as_mut_ptr().cast()
+    }
+
+    #[inline]
+    fn handle_ptr(&mut self) -> *mut uv_handle_t {
+        self.output_handle.as_mut_ptr().cast()
+    }
+
+    pub fn init_loop(&mut self) {
+        debug_assert!(unsafe { crate::event::r#loop::uv_loop_size() } <= size_of::<[u64; 256]>());
+        debug_assert!(
+            unsafe { crate::event::r#loop::uv_handle_size(UV_NAMED_PIPE) }
+                .max(unsafe { crate::event::r#loop::uv_handle_size(UV_TTY) })
+                <= size_of::<[u64; 80]>()
+        );
+        unsafe { uv_loop_init(self.loop_ptr()) };
+    }
+
+    pub fn init_tty(&mut self, fd: i32) -> i32 {
+        unsafe { crate::event::r#loop::uv_tty_init(self.loop_ptr(), self.handle_ptr(), fd, 0) }
+    }
+
+    #[cfg(not(windows))]
+    pub fn set_tty_mode(&mut self, mode: i32) -> i32 {
+        unsafe { crate::event::r#loop::uv_tty_set_mode(self.handle_ptr(), mode) }
+    }
+
+    pub fn init_pipe(&mut self) -> i32 {
+        unsafe { uv_pipe_init(self.loop_ptr(), self.handle_ptr(), 0) }
+    }
+
+    pub fn open_pipe(&mut self, fd: i32) -> i32 {
+        unsafe { uv_pipe_open(self.handle_ptr(), fd) }
+    }
+
+    pub fn stop_and_close(&mut self) {
+        unsafe {
+            crate::event::r#loop::uv_tty_reset_mode();
+            uv_close(self.handle_ptr(), None);
+            uv_run(self.loop_ptr(), crate::event::r#loop::UV_RUN_DEFAULT);
+            if uv_loop_close(self.loop_ptr()) != 0 {
+                std::process::abort();
+            }
+        }
+    }
+
+    pub fn is_closing(&mut self) -> bool {
+        unsafe { uv_is_closing(self.handle_ptr()) != 0 }
+    }
+
+    pub fn get_winsize(&mut self, width: &mut i32, height: &mut i32) -> bool {
+        unsafe { crate::event::r#loop::uv_tty_get_winsize(self.handle_ptr(), width, height) == 0 }
+    }
+
+    pub fn write_bufs(&mut self, bufs: &[crate::event::wstream::uv_buf_t]) -> i32 {
+        let mut req = [0u64; 64];
+        let ret = unsafe {
+            crate::event::r#loop::uv_write(
+                req.as_mut_ptr().cast(),
+                self.handle_ptr(),
+                bufs.as_ptr(),
+                bufs.len() as u32,
+                None,
+            )
+        };
+        unsafe { uv_run(self.loop_ptr(), crate::event::r#loop::UV_RUN_DEFAULT) };
+        ret
+    }
+}
+
+impl Default for UvSyncOutput {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub fn stream_get_stty_erase(in_fd: i32, stream: &mut Stream) -> Option<u8> {
+    #[cfg(unix)]
+    {
+        let _ = stream;
+        let mut t = crate::os::pty_proc_unix::termios::new();
+        if unsafe { crate::os::pty_proc_unix::tcgetattr(in_fd, &raw mut t) } != -1 {
+            Some(t.c_cc[crate::os::pty_proc_unix::VERASE])
+        } else {
+            None
+        }
+    }
+    #[cfg(windows)]
+    {
+        let _ = in_fd;
+        let uv_ptr = &raw mut stream.uv;
+        let mut dw_mode: u32 = 0;
+        if unsafe { crate::event::r#loop::uv_handle_get_type(uv_ptr.cast()) } == UV_TTY {
+            let tty_handle = unsafe {
+                *uv_ptr
+                    .cast::<u8>()
+                    .wrapping_add(uv_handle_size(UV_STREAM))
+                    .cast::<crate::os::os_win_console::HANDLE>()
+            };
+            if unsafe { GetConsoleMode(tty_handle, &raw mut dw_mode) } != 0
+                && (dw_mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0
+            {
+                return Some(0x7f);
+            }
+        }
+        None
+    }
+}

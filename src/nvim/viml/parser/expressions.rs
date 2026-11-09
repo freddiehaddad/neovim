@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Vimscript expression lexer and parser (`src/nvim/viml/parser/expressions.c`).
 
 use crate::charset::{

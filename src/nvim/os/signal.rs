@@ -107,6 +107,21 @@ pub fn os_reset_sigpipe() {
     }
 }
 
+#[cfg(unix)]
+pub fn os_suspend_process() {
+    #[cfg(target_os = "linux")]
+    const SIGSTOP: i32 = 19;
+    #[cfg(not(target_os = "linux"))]
+    const SIGSTOP: i32 = 17;
+    unsafe {
+        let ppid = crate::fileio::getppid();
+        if crate::fileio::getpgid(ppid) == crate::fileio::getpgrp() {
+            crate::fileio::kill(ppid, SIGSTOP);
+        }
+        crate::fileio::kill(0, SIGSTOP);
+    }
+}
+
 pub fn signal_init() {
     #[cfg(unix)]
     unsafe {

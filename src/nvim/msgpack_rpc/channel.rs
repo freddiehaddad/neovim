@@ -16,7 +16,7 @@ use crate::channel::{
     channel_incref,
 };
 use crate::eval::typval::Callback;
-use crate::event::r#loop::{loop_poll_events, loop_queues, uv_strerror};
+use crate::event::r#loop::{VolatileBool, loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{
     Event, MultiQueue, event_create_oneshot, multiqueue_empty, multiqueue_free,
     multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
@@ -115,7 +115,7 @@ impl Drop for RequestEvent {
 
 #[repr(C)]
 pub struct RpcState {
-    pub closed: std::cell::Cell<bool>,
+    pub closed: VolatileBool,
     pub unpacker: Option<Box<Unpacker>>,
     pub has_ui: bool,
     pub next_request_id: u32,
@@ -127,7 +127,7 @@ pub struct RpcState {
 impl RpcState {
     pub const fn new() -> Self {
         Self {
-            closed: std::cell::Cell::new(false),
+            closed: VolatileBool::new(false),
             unpacker: None,
             has_ui: false,
             next_request_id: 0,
@@ -1024,7 +1024,7 @@ mod tests {
     #[test]
     fn find_call_frame_searches_stack_from_top() {
         let mut rpc = RpcState {
-            closed: std::cell::Cell::new(false),
+            closed: VolatileBool::new(false),
             unpacker: None,
             has_ui: false,
             next_request_id: 1,

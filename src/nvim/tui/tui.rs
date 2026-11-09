@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
 use crate::api::private::helpers::{
@@ -12,24 +13,17 @@ use crate::charset::getdigits_int;
 use crate::cursor_shape::{
     CursorShape, Cursorentry, SHAPE_IDX_COUNT, SHAPE_IDX_N, shape_table_mut,
 };
-use crate::event::r#loop::uv_sleep;
-#[cfg(unix)]
-use crate::event::r#loop::uv_tty_set_mode;
 use crate::event::r#loop::{
-    Loop, UV_RUN_DEFAULT, loop_poll_events, loop_purge, loop_queues, loop_size, uv_chdir, uv_close,
-    uv_handle_t, uv_is_closing, uv_loop_close, uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open,
-    uv_run, uv_strerror, uv_timer_init, uv_timer_start, uv_timer_t, uv_tty_init, uv_write,
+    Loop, VolatileBool, loop_poll_events, loop_purge, loop_queues, loop_size, uv_sleep_safe,
+    uv_strerror,
 };
-#[cfg(windows)]
-use crate::event::r#loop::{uv_handle_get_type, uv_handle_size};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
 };
-use crate::event::stream::stream_set_blocking;
-#[cfg(windows)]
-use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY};
+use crate::event::stream::{UvSyncOutput, stream_get_stty_erase, stream_set_blocking};
+use crate::event::time::UvRawTimer;
 use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
@@ -46,6 +40,7 @@ use crate::os::env::os_setenv;
 use crate::os::env::{os_env_exists, os_getenv_cstr};
 #[cfg(not(windows))]
 use crate::os::fs::UV_EINTR;
+use crate::os::fs::os_chdir;
 use crate::os::input::os_isatty;
 use crate::os::time::os_hrtime;
 use crate::tui::input::{
@@ -63,7 +58,7 @@ use std::ffi::CStr;
 use std::ptr;
 
 #[cfg(windows)]
-use crate::os::os_win_console::{GetConsoleMode, HANDLE, os_tty_guess_term};
+use crate::os::os_win_console::os_tty_guess_term;
 use crate::tui::terminfo::*;
 
 use crate::msgpack_rpc::packer::Integer;
@@ -99,10 +94,6 @@ const DEL: u8 = 0x7f;
 use crate::event::r#loop::UV_TTY_MODE_NORMAL;
 #[cfg(unix)]
 const UV_TTY_MODE_IO: i32 = 2;
-#[cfg(target_os = "linux")]
-const SIGSTOP: i32 = 19;
-#[cfg(all(unix, not(target_os = "linux")))]
-const SIGSTOP: i32 = 17;
 
 const LINUXSET0C: &[u8] = b"\x1b[?0c";
 const LINUXSET1C: &[u8] = b"\x1b[?1c";
@@ -148,13 +139,12 @@ pub struct TUIData {
     pub buf: [u8; OUTBUF_SIZE],
     pub bufpos: usize,
     pub input: TermInput,
-    pub write_loop: [u64; 256],
+    pub sync_out: UvSyncOutput,
     pub ti: TerminfoEntry,
     pub term: Option<std::ffi::CString>,
-    pub output_handle: [u64; 80],
     pub out_isatty: bool,
     pub winch_handle: SignalWatcher,
-    pub startup_delay_timer: [u64; 32],
+    pub startup_delay_timer: UvRawTimer<TUIData>,
     pub grid: UGrid,
     pub invalid_regions: Vec<Rect>,
     pub row: i32,
@@ -200,7 +190,7 @@ pub struct TUIData {
     pub can_set_title: bool,
     pub can_set_underline_color: bool,
     pub can_resize_screen: bool,
-    pub stopped: bool,
+    pub stopped: VolatileBool,
     pub width: i32,
     pub height: i32,
     pub rgb: bool,
@@ -215,13 +205,12 @@ impl TUIData {
             buf: [0; OUTBUF_SIZE],
             bufpos: 0,
             input: TermInput::new(),
-            write_loop: [0; 256],
+            sync_out: UvSyncOutput::new(),
             ti: TerminfoEntry::new(),
             term: None,
-            output_handle: [0; 80],
             out_isatty: false,
             winch_handle: SignalWatcher::new(),
-            startup_delay_timer: [0; 32],
+            startup_delay_timer: UvRawTimer::new(),
             grid: UGrid::default(),
             invalid_regions: Vec::new(),
             row: 0,
@@ -279,7 +268,7 @@ impl TUIData {
             can_set_title: false,
             can_set_underline_color: false,
             can_resize_screen: false,
-            stopped: false,
+            stopped: VolatileBool::new(false),
             width: 0,
             height: 0,
             rgb: false,
@@ -314,11 +303,6 @@ fn tui_st() -> crate::globals::GraphPtr<TuiModuleState> {
     TUI_MOD_STATE.handle()
 }
 
-#[cfg(unix)]
-use crate::fileio::{getpgid, getpgrp, getppid, kill};
-
-use crate::event::r#loop::{uv_tty_get_winsize, uv_tty_reset_mode};
-
 use crate::api::ui::{K_LINE_FLAG_WRAP, MAX_SCHAR_SIZE};
 use crate::channel::STDOUT_FILENO;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
@@ -327,9 +311,9 @@ use crate::eval::funcs::{
     HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
 };
 use crate::highlight::{HL_ALTFONT, HL_BG_INDEXED, HL_FG_INDEXED};
-#[cfg(unix)]
-use crate::os::pty_proc_unix as unix_termios;
 use crate::os::signal::SIGWINCH;
+#[cfg(unix)]
+use crate::os::signal::os_suspend_process;
 
 #[inline]
 fn tui_input(tui: &mut TUIData) -> &'static mut TermInput {
@@ -343,24 +327,9 @@ fn tui_loop(tui: &mut TUIData) -> &'static mut Loop {
 }
 
 #[inline]
-fn tui_write_loop(tui: &mut TUIData) -> &'static mut uv_loop_t {
-    unsafe { &mut *tui.write_loop.as_mut_ptr().cast::<uv_loop_t>() }
-}
-
-#[inline]
-fn tui_output_handle(tui: &mut TUIData) -> &'static mut uv_handle_t {
-    unsafe { &mut *tui.output_handle.as_mut_ptr().cast::<uv_handle_t>() }
-}
-
-#[inline]
 fn tui_winch_handle(tui: &mut TUIData) -> &'static mut SignalWatcher {
     let ptr = crate::globals::GraphPtr::<SignalWatcher>::from_ref(&tui.winch_handle);
     ptr.borrow_mut()
-}
-
-#[inline]
-fn tui_startup_delay_timer(tui: &mut TUIData) -> &'static mut uv_timer_t {
-    unsafe { &mut *tui.startup_delay_timer.as_mut_ptr().cast::<uv_timer_t>() }
 }
 
 #[inline]
@@ -375,27 +344,23 @@ pub fn tui_start(
     term: &mut Option<std::ffi::CString>,
     rgb: &mut bool,
 ) {
-    unsafe {
-        signal_watcher_init(tui.loop_.borrow_mut(), tui_winch_handle(tui));
-        tui.winch_handle.data = crate::globals::GraphPtr::from(&mut *tui);
-        signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
+    signal_watcher_init(tui.loop_.borrow_mut(), tui_winch_handle(tui));
+    tui.winch_handle.data = crate::globals::GraphPtr::from(&mut *tui);
+    signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
 
-        tui.grid.cells.clear();
-        tui_terminal_start(tui);
+    tui.grid.cells.clear();
+    tui_terminal_start(tui);
 
-        let tui_ptr = crate::globals::GraphPtr::<TUIData>::from_ref(&*tui);
-        let loop_ptr = tui.loop_.as_ptr().cast();
-        let timer: *mut uv_timer_t = tui_startup_delay_timer(tui);
-        uv_timer_init(loop_ptr, timer);
-        *timer.cast::<*mut TUIData>() = tui_ptr.as_ptr();
-        uv_timer_start(timer, Some(after_startup_cb), 100, 0);
+    let tui_ptr = crate::globals::GraphPtr::<TUIData>::from_ref(&*tui);
+    tui.startup_delay_timer
+        .init(tui.loop_.borrow_mut(), tui_ptr.borrow_mut());
+    tui.startup_delay_timer.start(after_startup_cb, 100, 0);
 
-        loop_poll_events(&mut g_st().main_loop, 1);
-        *width = tui_ptr.width;
-        *height = tui_ptr.height;
-        *term = tui_ptr.term.clone();
-        *rgb = tui_ptr.rgb;
-    }
+    loop_poll_events(&mut g_st().main_loop, 1);
+    *width = tui_ptr.width;
+    *height = tui_ptr.height;
+    *term = tui_ptr.term.clone();
+    *rgb = tui_ptr.rgb;
 }
 
 fn tui_request_term_mode(tui: &mut TUIData, mode: TermMode) {
@@ -937,17 +902,9 @@ fn terminfo_start(tui: &mut TUIData) {
     tui_query_kitty_keyboard(tui);
     tui_query_bg_color_noflush(tui);
 
-    let write_loop = tui_write_loop(tui);
-    let output_handle = tui_output_handle(tui);
-    debug_assert!(unsafe { crate::event::r#loop::uv_loop_size() } <= size_of::<[u64; 256]>());
-    debug_assert!(
-        unsafe { crate::event::r#loop::uv_handle_size(crate::event::stream::UV_NAMED_PIPE) }
-            .max(unsafe { crate::event::r#loop::uv_handle_size(crate::event::stream::UV_TTY) })
-            <= size_of::<[u64; 80]>()
-    );
-    unsafe { uv_loop_init(write_loop) };
+    tui.sync_out.init_loop();
     if tui.out_isatty {
-        let ret = unsafe { uv_tty_init(write_loop, output_handle, tui.out_fd, 0) };
+        let ret = tui.sync_out.init_tty(tui.out_fd);
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -964,7 +921,7 @@ fn terminfo_start(tui: &mut TUIData) {
             let mut retry_count = 10;
             let mut ret;
             loop {
-                ret = unsafe { uv_tty_set_mode(output_handle, UV_TTY_MODE_IO) };
+                ret = tui.sync_out.set_tty_mode(UV_TTY_MODE_IO);
                 if ret == UV_EINTR && retry_count > 0 {
                     retry_count -= 1;
                 } else {
@@ -984,7 +941,7 @@ fn terminfo_start(tui: &mut TUIData) {
             }
         }
     } else {
-        let ret = unsafe { uv_pipe_init(write_loop, output_handle, 0) };
+        let ret = tui.sync_out.init_pipe();
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -996,7 +953,7 @@ fn terminfo_start(tui: &mut TUIData) {
                 uv_strerror(ret),
             );
         }
-        let ret = unsafe { uv_pipe_open(output_handle, tui.out_fd) };
+        let ret = tui.sync_out.open_pipe(tui.out_fd);
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -1056,12 +1013,7 @@ fn terminfo_stop(tui: &mut TUIData) {
     }
 
     flush_buf(tui, FlushBufFinish::FlushBufFinal);
-    unsafe { uv_tty_reset_mode() };
-    unsafe { uv_close(tui_output_handle(tui), None) };
-    unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
-    if unsafe { uv_loop_close(tui_write_loop(tui)) } != 0 {
-        std::process::abort();
-    }
+    tui.sync_out.stop_and_close();
     tui.ti = TerminfoEntry::new();
     tui.term = None;
 }
@@ -1077,11 +1029,8 @@ fn tui_terminal_start(tui: &mut TUIData) {
     tinput_start(&mut *input);
 }
 
-unsafe extern "C" fn after_startup_cb(handle: *mut uv_timer_t) {
-    unsafe {
-        let tui = &mut **handle.cast::<*mut TUIData>();
-        tui_terminal_after_startup(tui);
-    }
+fn after_startup_cb(tui: &mut TUIData) {
+    tui_terminal_after_startup(tui);
 }
 
 fn tui_terminal_after_startup(tui: &mut TUIData) {
@@ -1090,7 +1039,7 @@ fn tui_terminal_after_startup(tui: &mut TUIData) {
 }
 
 pub fn tui_stop(tui: &mut TUIData) {
-    if unsafe { uv_is_closing(tui_output_handle(tui)) } != 0 {
+    if tui.sync_out.is_closing() {
         if log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
@@ -1101,7 +1050,7 @@ pub fn tui_stop(tui: &mut TUIData) {
                 c"TUI already stopped (race?)",
             );
         }
-        tui.stopped = true;
+        tui.stopped.set(true);
         return;
     }
 
@@ -1116,10 +1065,7 @@ pub fn tui_stop(tui: &mut TUIData) {
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining: i64 = timeout_ms;
     let mut expired = false;
-    while !(unsafe { ptr::read_volatile(&raw const tui.stopped) }
-        || unsafe { ptr::read_volatile(&raw const rs.did_eof) })
-        && !expired
-    {
+    while !(tui.stopped.get() || rs.did_eof_volatile()) && !expired {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
@@ -1130,7 +1076,7 @@ pub fn tui_stop(tui: &mut TUIData) {
             expired = remaining <= 0;
         }
     }
-    if !tui.stopped
+    if !tui.stopped.get()
         && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS
         && log_st().g_min_log_level <= LOGLVL_WRN
     {
@@ -1143,18 +1089,18 @@ pub fn tui_stop(tui: &mut TUIData) {
             c"TUI: timed out waiting for DA1 response",
         );
     }
-    tui.stopped = true;
+    tui.stopped.set(true);
 
     tui_terminal_stop(tui);
     stream_set_blocking(input.in_fd, true);
     tinput_destroy(&mut *input);
     signal_watcher_stop(&mut *tui_winch_handle(tui));
     signal_watcher_close(&mut *tui_winch_handle(tui));
-    unsafe { uv_close(tui_startup_delay_timer(tui), None) };
+    tui.startup_delay_timer.close();
 }
 
 fn tui_stop_cb(tui: &mut TUIData) {
-    tui.stopped = true;
+    tui.stopped.set(true);
 }
 
 fn tui_terminal_stop(tui: &mut TUIData) {
@@ -1163,7 +1109,7 @@ fn tui_terminal_stop(tui: &mut TUIData) {
 }
 
 pub fn tui_is_stopped(tui: &TUIData) -> bool {
-    tui.stopped
+    tui.stopped.get()
 }
 
 pub fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
@@ -1820,32 +1766,30 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
 
 pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) {
     #[cfg(unix)]
-    unsafe {
-        if tui.out_isatty && tui.is_starting && !g_st().stdin_isatty {
-            let ret = uv_tty_set_mode(tui_output_handle(tui), UV_TTY_MODE_NORMAL);
-            if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
-                logmsg!(
-                    LOGLVL_ERR,
-                    None,
-                    Some(c"tui_mode_change"),
-                    1413,
-                    true,
-                    c"uv_tty_set_mode failed: %s",
-                    uv_strerror(ret),
-                );
-            }
-            let ret = uv_tty_set_mode(tui_output_handle(tui), UV_TTY_MODE_IO);
-            if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
-                logmsg!(
-                    LOGLVL_ERR,
-                    None,
-                    Some(c"tui_mode_change"),
-                    1417,
-                    true,
-                    c"uv_tty_set_mode failed: %s",
-                    uv_strerror(ret),
-                );
-            }
+    if tui.out_isatty && tui.is_starting && !g_st().stdin_isatty {
+        let ret = tui.sync_out.set_tty_mode(UV_TTY_MODE_NORMAL);
+        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+            logmsg!(
+                LOGLVL_ERR,
+                None,
+                Some(c"tui_mode_change"),
+                1413,
+                true,
+                c"uv_tty_set_mode failed: %s",
+                uv_strerror(ret),
+            );
+        }
+        let ret = tui.sync_out.set_tty_mode(UV_TTY_MODE_IO);
+        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+            logmsg!(
+                LOGLVL_ERR,
+                None,
+                Some(c"tui_mode_change"),
+                1417,
+                true,
+                c"uv_tty_set_mode failed: %s",
+                uv_strerror(ret),
+            );
         }
     }
     tui_set_mode(tui, mode_idx as ModeShape);
@@ -1966,7 +1910,7 @@ pub fn tui_visual_bell(tui: &mut TUIData) {
         out(tui, b"\x1b[?5h");
 
         flush_buf(tui, FlushBufFinish::FlushBufFinal);
-        unsafe { uv_sleep(100) };
+        uv_sleep_safe(100);
 
         out(tui, b"\x1b[?5l");
     }
@@ -1997,17 +1941,8 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
         out(tui, content.as_bytes());
         return;
     }
-    let mut req = [0u64; 64];
-    let buf = uv_buf_t::from_slice(content.as_bytes());
-    let ret = unsafe {
-        uv_write(
-            req.as_mut_ptr().cast(),
-            tui_output_handle(tui),
-            &raw const buf,
-            1,
-            None,
-        )
-    };
+    let buf = [uv_buf_t::from_slice(content.as_bytes())];
+    let ret = tui.sync_out.write_bufs(&buf);
     if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
@@ -2019,7 +1954,6 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
             uv_strerror(ret),
         );
     }
-    unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
 }
 
 pub fn tui_flush(tui: &mut TUIData) {
@@ -2144,25 +2078,19 @@ pub fn tui_suspend(tui: &mut TUIData) {
 
 #[cfg(unix)]
 fn tui_suspend_cb(tui: &mut TUIData) {
-    unsafe {
-        let input = tui_input(tui);
-        tui_terminal_stop(tui);
-        stream_set_blocking(input.in_fd, true);
+    let input = tui_input(tui);
+    tui_terminal_stop(tui);
+    stream_set_blocking(input.in_fd, true);
 
-        let ppid = getppid();
-        if getpgid(ppid) == getpgrp() {
-            kill(ppid, SIGSTOP);
-        }
-        kill(0, SIGSTOP);
+    os_suspend_process();
 
-        tui_terminal_start(tui);
-        tui_terminal_after_startup(tui);
-        if tui.mouse_enabled_save {
-            tui_mouse_on(tui);
-        }
-        stream_set_blocking(input.in_fd, false);
-        ui_client_attach(tui.width, tui.height, tui.term.as_deref(), tui.rgb);
+    tui_terminal_start(tui);
+    tui_terminal_after_startup(tui);
+    if tui.mouse_enabled_save {
+        tui_mouse_on(tui);
     }
+    stream_set_blocking(input.in_fd, false);
+    ui_client_attach(tui.width, tui.height, tui.term.as_deref(), tui.rgb);
 }
 
 pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
@@ -2267,7 +2195,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
 }
 
 pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
-    let err = unsafe { uv_chdir(path.data.as_ptr().cast()) };
+    let err = os_chdir(path.as_cstr());
     if err != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
@@ -2422,9 +2350,7 @@ pub fn tui_guess_size(tui: &mut TUIData) {
     let mut height: i32 = 0;
 
     let mut got_size = false;
-    if tui.out_isatty
-        && unsafe { uv_tty_get_winsize(tui_output_handle(tui), &mut width, &mut height) } == 0
-    {
+    if tui.out_isatty && tui.sync_out.get_winsize(&mut width, &mut height) {
         got_size = true;
     }
 
@@ -2876,7 +2802,6 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
         return;
     }
 
-    let mut req = [0u64; 64];
     let mut pre = [0u8; 32];
     let mut post = [0u8; 32];
     let mut pre_len = 0usize;
@@ -2933,15 +2858,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
             nbufs -= 1;
         }
         if nbufs > 0 {
-            let ret = unsafe {
-                uv_write(
-                    req.as_mut_ptr().cast(),
-                    tui_output_handle(tui),
-                    bufs.as_ptr(),
-                    nbufs as u32,
-                    None,
-                )
-            };
+            let ret = tui.sync_out.write_bufs(&bufs[..nbufs]);
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
@@ -2953,51 +2870,28 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
                     uv_strerror(ret),
                 );
             }
-            unsafe { uv_run(tui_write_loop(tui), UV_RUN_DEFAULT) };
         }
     }
     tui.bufpos = 0;
 }
 
 fn tui_init_stty_erase(input: &mut TermInput) {
-    #[cfg(unix)]
-    {
-        let mut t = unix_termios::termios::new();
-        if unsafe { unix_termios::tcgetattr(input.in_fd, &raw mut t) } != -1 {
-            tui_st().stty_erase_buf[0] = t.c_cc[unix_termios::VERASE];
-            tui_st().stty_erase_buf[1] = 0;
-            if log_st().g_min_log_level <= LOGLVL_DBG {
-                let erase_cstr =
-                    CStr::from_bytes_until_nul(&tui_st().borrow().stty_erase_buf).unwrap_or(c"");
-                logmsg!(
-                    LOGLVL_DBG,
-                    None,
-                    Some(c"tui_get_stty_erase"),
-                    2684,
-                    true,
-                    c"stty/termios:erase=%s",
-                    erase_cstr,
-                );
-            }
-        }
-    }
-    #[cfg(windows)]
-    {
-        let uv_ptr = &raw mut input.read_stream.s.uv;
-        let mut dw_mode: u32 = 0;
-        if unsafe { uv_handle_get_type(uv_ptr.cast()) } == UV_TTY {
-            let tty_handle = unsafe {
-                *uv_ptr
-                    .cast::<u8>()
-                    .wrapping_add(uv_handle_size(UV_STREAM))
-                    .cast::<HANDLE>()
-            };
-            if unsafe { GetConsoleMode(tty_handle, &raw mut dw_mode) } != 0
-                && (dw_mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0
-            {
-                tui_st().stty_erase_buf[0] = DEL;
-                tui_st().stty_erase_buf[1] = 0;
-            }
+    if let Some(erase_ch) = stream_get_stty_erase(input.in_fd, &mut input.read_stream.s) {
+        tui_st().stty_erase_buf[0] = erase_ch;
+        tui_st().stty_erase_buf[1] = 0;
+        #[cfg(unix)]
+        if log_st().g_min_log_level <= LOGLVL_DBG {
+            let erase_cstr =
+                CStr::from_bytes_until_nul(&tui_st().borrow().stty_erase_buf).unwrap_or(c"");
+            logmsg!(
+                LOGLVL_DBG,
+                None,
+                Some(c"tui_get_stty_erase"),
+                2684,
+                true,
+                c"stty/termios:erase=%s",
+                erase_cstr,
+            );
         }
     }
 }

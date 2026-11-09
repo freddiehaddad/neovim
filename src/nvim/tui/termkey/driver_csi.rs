@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! CSI / SS3 / DCS / OSC / APC driver for libtermkey (`src/nvim/tui/termkey/driver-csi.c`).
 
 use crate::tui::termkey::driver_ti::{

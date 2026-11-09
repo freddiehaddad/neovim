@@ -1192,6 +1192,27 @@ pub fn os_read(fd: i32, ret_eof: &mut bool, ret_buf: &mut [u8], non_blocking: bo
     read_bytes as isize
 }
 
+#[cfg(unix)]
+pub fn os_readv_two_slices(
+    fd: i32,
+    ret_eof: &mut bool,
+    buf1: &mut [u8],
+    buf2: &mut [u8],
+    non_blocking: bool,
+) -> isize {
+    let mut iov = [
+        iovec {
+            iov_base: buf1.as_mut_ptr().cast::<c_void>(),
+            iov_len: buf1.len(),
+        },
+        iovec {
+            iov_base: buf2.as_mut_ptr().cast::<c_void>(),
+            iov_len: buf2.len(),
+        },
+    ];
+    os_readv(fd, ret_eof, &mut iov, non_blocking)
+}
+
 /// Read from a file to multiple buffers at once.
 #[cfg(unix)]
 pub fn os_readv(fd: i32, ret_eof: &mut bool, iov_slice: &mut [iovec], non_blocking: bool) -> isize {

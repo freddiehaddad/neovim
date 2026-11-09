@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Terminfo driver for libtermkey (`src/nvim/tui/termkey/driver-ti.c`).
 
 use std::ffi::CStr;

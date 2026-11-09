@@ -135,3 +135,72 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
         }
     }
 }
+
+#[repr(C)]
+pub struct UvRawTimer<T> {
+    handle: [u64; 32],
+    data: *mut T,
+    cb: Option<fn(&mut T)>,
+}
+
+impl<T> UvRawTimer<T> {
+    pub const fn new() -> Self {
+        Self {
+            handle: [0; 32],
+            data: std::ptr::null_mut(),
+            cb: None,
+        }
+    }
+
+    pub fn init(&mut self, loop_: &mut Loop, data: &mut T) {
+        self.data = std::ptr::from_mut(data);
+        let th: *mut uv_timer_t = (&raw mut self.handle).cast();
+        let self_ptr: *mut Self = self;
+        unsafe {
+            uv_timer_init((&raw mut *loop_).cast(), th);
+            *th.cast::<*mut Self>() = self_ptr;
+        }
+    }
+
+    pub fn start(&mut self, cb: fn(&mut T), timeout: u64, repeat: u64) {
+        self.cb = Some(cb);
+        let th: *mut uv_timer_t = (&raw mut self.handle).cast();
+        unsafe {
+            uv_timer_start(th, Some(uv_raw_timer_cb::<T>), timeout, repeat);
+        }
+    }
+
+    pub fn stop(&mut self) {
+        let th: *mut uv_timer_t = (&raw mut self.handle).cast();
+        unsafe {
+            uv_timer_stop(th);
+        }
+    }
+
+    pub fn close(&mut self) {
+        let th: *mut uv_handle_t = (&raw mut self.handle).cast();
+        unsafe {
+            uv_close(th, None);
+        }
+    }
+
+    pub fn due_in(&mut self) -> u64 {
+        let th: *mut uv_timer_t = (&raw mut self.handle).cast();
+        unsafe { crate::event::r#loop::uv_timer_get_due_in(th) }
+    }
+}
+
+impl<T> Default for UvRawTimer<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+unsafe extern "C" fn uv_raw_timer_cb<T>(handle: *mut uv_timer_t) {
+    unsafe {
+        let timer = &mut **handle.cast::<*mut UvRawTimer<T>>();
+        if let Some(cb) = timer.cb {
+            cb(&mut *timer.data);
+        }
+    }
+}

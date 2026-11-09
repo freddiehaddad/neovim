@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! Core libtermkey state machine and key formatting (`src/nvim/tui/termkey/termkey.c`).
 
 use crate::mbyte::{utf_char2len, utf_char2slice};

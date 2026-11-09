@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
 use crate::mbyte::{Vimconv, string_convert_slice};

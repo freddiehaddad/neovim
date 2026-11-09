@@ -1,16 +1,16 @@
+#![forbid(unsafe_code)]
 //! Terminal input stream and key event handling (`src/nvim/tui/input.c`).
 
 use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
 use crate::api::private::validate::{Array, NvimString};
-use crate::event::r#loop::{
-    Loop, loop_schedule_fast, uv_close, uv_timer_init, uv_timer_start, uv_timer_stop, uv_timer_t,
-};
+use crate::event::r#loop::{Loop, loop_schedule_fast};
 use crate::event::multiqueue::Event;
 use crate::event::rstream::{
     RStream, rstream_available, rstream_consume, rstream_init_fd, rstream_may_close, rstream_start,
     rstream_stop,
 };
 use crate::event::stream::StreamCbData;
+use crate::event::time::UvRawTimer;
 use crate::globals::*;
 use crate::main_init::os_exit;
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -76,8 +76,8 @@ pub struct TermInput {
     pub key_encoding: KeyEncoding,
     pub ttimeoutlen: OptInt,
     pub tk: Option<TermKey>,
-    pub timer_handle: [u64; 32],
-    pub bg_query_timer: [u64; 32],
+    pub timer_handle: UvRawTimer<TermInput>,
+    pub bg_query_timer: UvRawTimer<TermInput>,
     pub loop_: crate::globals::GraphPtr<Loop>,
     pub read_stream: RStream,
     pub tui_data: crate::globals::GraphPtr<TUIData>,
@@ -95,8 +95,8 @@ impl TermInput {
             key_encoding: K_KEY_ENCODING_LEGACY,
             ttimeoutlen: 0,
             tk: None,
-            timer_handle: [0; 32],
-            bg_query_timer: [0; 32],
+            timer_handle: UvRawTimer::new(),
+            bg_query_timer: UvRawTimer::new(),
             loop_: crate::globals::GraphPtr::NULL,
             read_stream: RStream::new(),
             tui_data: crate::globals::GraphPtr::NULL,
@@ -140,8 +140,6 @@ static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> =
 fn tui_inp_st() -> crate::globals::GraphPtr<TuiInputModuleState> {
     TUI_INP_STATE.handle()
 }
-
-use crate::event::r#loop::uv_timer_get_due_in;
 
 #[inline]
 const fn kitty_key_name(key: i32) -> Option<&'static str> {
@@ -251,26 +249,14 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
     let curflags = termkey_get_canonflags(input.tk_mut());
     termkey_set_canonflags(input.tk_mut(), curflags | TERMKEY_CANON_DELBS);
 
-    {
-        let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-        unsafe { uv_timer_init((&raw mut *loop_).cast(), th) };
-        unsafe {
-            *th.cast::<*mut TermInput>() = input;
-        }
-
-        let bg_th: *mut uv_timer_t = (&raw mut input.bg_query_timer).cast();
-        unsafe { uv_timer_init((&raw mut *loop_).cast(), bg_th) };
-        unsafe {
-            *bg_th.cast::<*mut TermInput>() = input;
-        }
-    }
+    let input_ptr = crate::globals::GraphPtr::<TermInput>::from_ref(&*input);
+    input.timer_handle.init(loop_, input_ptr.borrow_mut());
+    input.bg_query_timer.init(loop_, input_ptr.borrow_mut());
 }
 
 pub fn tinput_destroy(input: &mut TermInput) {
-    {
-        unsafe { uv_close((&raw mut input.timer_handle).cast(), None) };
-        unsafe { uv_close((&raw mut input.bg_query_timer).cast(), None) };
-    }
+    input.timer_handle.close();
+    input.bg_query_timer.close();
     rstream_may_close(&mut input.read_stream);
     input.tk = None;
     input.loop_ = crate::globals::GraphPtr::NULL;
@@ -285,13 +271,9 @@ pub fn tinput_start(input: &mut TermInput) {
 }
 
 pub fn tinput_stop(input: &mut TermInput) {
-    unsafe {
-        rstream_stop(&mut input.read_stream);
-        {
-            uv_timer_stop((&raw mut input.timer_handle).cast());
-            uv_timer_stop((&raw mut input.bg_query_timer).cast());
-        }
-    }
+    rstream_stop(&mut input.read_stream);
+    input.timer_handle.stop();
+    input.bg_query_timer.stop();
 }
 
 pub fn tinput_done_event() {
@@ -550,34 +532,29 @@ fn tk_getkeys(input: &mut TermInput, force: bool) {
     }
 
     if input.ttimeout && input.ttimeoutlen >= 0 {
-        let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-        unsafe { uv_timer_stop(th) };
-        unsafe { uv_timer_start(th, Some(tinput_timer_cb), input.ttimeoutlen as u64, 0) };
+        input.timer_handle.stop();
+        input
+            .timer_handle
+            .start(tinput_timer_cb, input.ttimeoutlen as u64, 0);
     } else {
         tk_getkeys(input, true);
     }
 }
 
-unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
-    unsafe {
-        let input = &mut **handle.cast::<*mut TermInput>();
-        let rs = &raw mut input.read_stream;
-        let size = rstream_available(&mut *rs);
-        if size != 0 {
-            let bytes = (*rs).read_slice();
-            let consumed = handle_raw_buffer(input, true, bytes);
-            rstream_consume(&mut *rs, consumed);
-        }
-        tk_getkeys(input, true);
-        tinput_flush(input);
+fn tinput_timer_cb(input: &mut TermInput) {
+    let rs = crate::globals::GraphPtr::<RStream>::from_ref(&input.read_stream);
+    let size = rstream_available(rs.borrow_mut());
+    if size != 0 {
+        let bytes = rs.read_slice();
+        let consumed = handle_raw_buffer(input, true, bytes);
+        rstream_consume(rs.borrow_mut(), consumed);
     }
+    tk_getkeys(input, true);
+    tinput_flush(input);
 }
 
-unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
-    unsafe {
-        let input = &mut **handle.cast::<*mut TermInput>();
-        tui_query_bg_color(input.tui_data.borrow_mut());
-    }
+fn bg_query_timer_cb(input: &mut TermInput) {
+    tui_query_bg_color(input.tui_data.borrow_mut());
 }
 
 fn handle_focus_event(input: &mut TermInput, bytes: &[u8]) -> usize {
@@ -783,11 +760,10 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                     }
                 }
                 if args[0] == 997 {
-                    let bg_th: *mut uv_timer_t = (&raw mut input.bg_query_timer).cast();
-                    if unsafe { uv_timer_get_due_in(bg_th) } > 0 {
+                    if input.bg_query_timer.due_in() > 0 {
                         return;
                     }
-                    unsafe { uv_timer_start(bg_th, Some(bg_query_timer_cb), 100, 0) };
+                    input.bg_query_timer.start(bg_query_timer_cb, 100, 0);
                 }
             }
         }
@@ -878,9 +854,10 @@ pub(crate) fn tinput_read_cb(bytes: &[u8], input: &mut TermInput, eof: bool) -> 
         } else {
             0
         };
-        let th: *mut uv_timer_t = (&raw mut input.timer_handle).cast();
-        unsafe { uv_timer_stop(th) };
-        unsafe { uv_timer_start(th, Some(tinput_timer_cb), u64::from(ms as u32), 0) };
+        input.timer_handle.stop();
+        input
+            .timer_handle
+            .start(tinput_timer_cb, u64::from(ms as u32), 0);
     }
 
     consumed

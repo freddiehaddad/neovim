@@ -1,16 +1,14 @@
+#![forbid(unsafe_code)]
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
-
-#[cfg(unix)]
-use std::ffi::c_void;
 
 use crate::fileio::O_RDONLY;
 use crate::memory::ARENA_BLOCK_SIZE;
+#[cfg(unix)]
+use crate::os::fs::os_readv_two_slices;
 use crate::os::fs::{
     O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, UV_EINVAL, UV_EIO, UV_ENOTSUP,
     UV_EROFS, os_close, os_file_mkdir, os_fsync, os_open, os_open_stdin_fd, os_read, os_write,
 };
-#[cfg(unix)]
-use crate::os::fs::{iovec, os_readv};
 
 pub const K_FILE_READ_ONLY: i32 = 1;
 pub const K_FILE_CREATE: i32 = 2;
@@ -260,18 +258,13 @@ pub fn file_read(fp: &mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
             if fp.eof || (called_read && fp.non_blocking) {
                 break;
             }
-            let write_ptr = unsafe { fp.buffer.as_mut_ptr().add(fp.write_pos) };
-            let mut iov = [
-                iovec {
-                    iov_base: ret_buf[buf_pos..].as_mut_ptr().cast::<c_void>(),
-                    iov_len: read_remaining,
-                },
-                iovec {
-                    iov_base: write_ptr.cast::<c_void>(),
-                    iov_len: ARENA_BLOCK_SIZE,
-                },
-            ];
-            let r_ret = os_readv(fp.fd, &mut fp.eof, &mut iov, fp.non_blocking);
+            let r_ret = os_readv_two_slices(
+                fp.fd,
+                &mut fp.eof,
+                &mut ret_buf[buf_pos..buf_pos + read_remaining],
+                &mut fp.buffer[fp.write_pos..fp.write_pos + ARENA_BLOCK_SIZE],
+                fp.non_blocking,
+            );
             if r_ret > 0 {
                 let r_usize = r_ret as usize;
                 if r_usize > read_remaining {

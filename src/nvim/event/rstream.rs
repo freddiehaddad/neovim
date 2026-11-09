@@ -59,6 +59,11 @@ impl RStream {
         let len = self.write_pos.saturating_sub(self.read_pos);
         &self.buffer[self.read_pos..self.read_pos + len]
     }
+
+    #[inline]
+    pub fn did_eof_volatile(&self) -> bool {
+        unsafe { ptr::read_volatile(&raw const self.did_eof) }
+    }
 }
 
 use crate::event::r#loop::{uv_fs_read, uv_idle_start, uv_idle_stop, uv_read_start, uv_read_stop};

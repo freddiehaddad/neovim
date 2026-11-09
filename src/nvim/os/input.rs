@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! OS input handling (`src/nvim/os/input.c`).
 
 use crate::api::private::validate::NvimString;
@@ -5,7 +6,7 @@ use crate::autocmd::{
     EVENT_CURSORHOLD, EVENT_CURSORHOLDI, PROF_YES, apply_autocmds, trigger_cursorhold,
 };
 use crate::eval::vars::{VV_USERACTIVE, set_vim_var_nr};
-use crate::event::r#loop::{loop_poll_events, main_loop_events, main_loop_ptr, uv_guess_handle};
+use crate::event::r#loop::{loop_poll_events, main_loop_events, main_loop_ptr};
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
@@ -317,7 +318,7 @@ pub fn veryfast_breakcheck() {
 
 /// Test whether a file descriptor refers to a terminal.
 pub fn os_isatty(fd: i32) -> bool {
-    unsafe { uv_guess_handle(fd) == UV_TTY }
+    crate::os::fs::os_guess_handle(fd) == UV_TTY
 }
 
 pub fn input_available() -> usize {

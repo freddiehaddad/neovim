@@ -410,6 +410,42 @@ pub fn os_title_reset() {
 }
 
 #[cfg(windows)]
+unsafe extern "system" {
+    fn GetConsoleOutputCP() -> u32;
+    fn GetConsoleCP() -> u32;
+    fn SetConsoleOutputCP(wCodePageID: u32) -> i32;
+    fn SetConsoleCP(wCodePageID: u32) -> i32;
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn os_get_console_output_cp() -> u32 {
+    unsafe { GetConsoleOutputCP() }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn os_get_console_cp() -> u32 {
+    unsafe { GetConsoleCP() }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn os_set_console_output_cp(cp: u32) {
+    unsafe {
+        SetConsoleOutputCP(cp);
+    }
+}
+
+#[cfg(windows)]
+#[inline]
+pub fn os_set_console_cp(cp: u32) {
+    unsafe {
+        SetConsoleCP(cp);
+    }
+}
+
+#[cfg(windows)]
 pub fn os_tty_guess_term(out_fd: i32) -> &'static std::ffi::CStr {
     unsafe {
         let mut conemu_buf = [0u8; 16];
