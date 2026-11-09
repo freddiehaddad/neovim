@@ -410,7 +410,7 @@ fn was_banned(su: &mut Suginfo, word: &[u8]) -> bool {
     su.su_banned.contains(crate::memory::bytes_until_nul(word))
 }
 
-fn can_be_compound(sp: &Trystate, slang: &mut Slang, compflags: &mut [u8], flag: i32) -> bool {
+fn can_be_compound(sp: &Trystate, slang: &Slang, compflags: &mut [u8], flag: i32) -> bool {
     let flags_cstr = if sp.ts_complen == sp.ts_compsplit {
         &slang.sl_compstartflags
     } else {
@@ -429,7 +429,7 @@ fn can_be_compound(sp: &Trystate, slang: &mut Slang, compflags: &mut [u8], flag:
     }
     true
 }
-fn score_wordcount_adj(slang: &mut Slang, score: i32, word: &[u8], split: bool) -> i32 {
+fn score_wordcount_adj(slang: &Slang, score: i32, word: &[u8], split: bool) -> i32 {
     let Some(&wc_count) = slang.sl_wordcount.get(crate::memory::bytes_until_nul(word)) else {
         return score;
     };
@@ -1060,95 +1060,502 @@ fn try_deeper(su: &Suginfo, stack: &[Trystate; MAXWLEN], depth: usize, add: i32)
     depth < MAXWLEN - 1 && stack[depth].ts_score + add < su.su_maxscore
 }
 fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN], soundfold: bool) {
-    let fword = fword_buf.as_mut_ptr();
-    {
-        let mut tword: [u8; MAXWLEN] = [0; MAXWLEN];
-        let mut stack: [Trystate; MAXWLEN] = [Trystate::default(); MAXWLEN];
-        let mut preword: [u8; MAXWLEN * 3] = [0; MAXWLEN * 3];
-        let mut compflags: [u8; MAXWLEN] = [0; MAXWLEN];
-        let mut byts;
-        let fbyts;
-        let pbyts;
-        let mut idxs;
-        let fidxs;
-        let pidxs;
-        let mut c: i32;
-        let mut c2: i32;
-        let mut c3: i32;
-        let mut n: i32;
-        let mut arridx: Idx;
-        let mut fl: i32;
-        let mut tl: i32;
-        let mut repextra: i32 = 0;
-        let slang = lp.lp_slang.borrow_mut();
-        let mut goodword_ends: bool;
-        let mut breakcheckcount: i32 = 1000;
-        let mut depth: isize = 0;
-        stack[0] = Trystate::default();
-        stack[0].ts_curi = 1;
-        if soundfold {
-            fbyts = slang.sl_sbyts.as_mut_ptr();
+    let mut tword: [u8; MAXWLEN] = [0; MAXWLEN];
+    let mut stack: [Trystate; MAXWLEN] = [Trystate::default(); MAXWLEN];
+    let mut preword: [u8; MAXWLEN * 3] = [0; MAXWLEN * 3];
+    let mut compflags: [u8; MAXWLEN] = [0; MAXWLEN];
+    let mut byts: &[u8];
+    let fbyts: &[u8];
+    let pbyts: &[u8];
+    let mut idxs: &[Idx];
+    let fidxs: &[Idx];
+    let pidxs: &[Idx];
+    let mut c: i32;
+    let mut c2: i32;
+    let mut c3: i32;
+    let mut n: i32;
+    let mut arridx: Idx;
+    let mut fl: i32;
+    let mut tl: i32;
+    let mut repextra: i32 = 0;
+    let slang = lp.lp_slang.borrow_mut();
+    let mut goodword_ends: bool;
+    let mut breakcheckcount: i32 = 1000;
+    let mut depth: isize = 0;
+    stack[0] = Trystate::default();
+    stack[0].ts_curi = 1;
+    if soundfold {
+        fbyts = &slang.sl_sbyts;
+        byts = fbyts;
+        fidxs = &slang.sl_sidxs;
+        idxs = fidxs;
+        pbyts = &[];
+        pidxs = &[];
+        stack[0].ts_prefixdepth = PFD_NOPREFIX;
+        stack[0].ts_state = SugState::StateStart;
+    } else {
+        fbyts = &slang.sl_fbyts;
+        fidxs = &slang.sl_fidxs;
+        if !slang.sl_pbyts.is_empty() {
+            pbyts = &slang.sl_pbyts;
+            pidxs = &slang.sl_pidxs;
+            byts = pbyts;
+            idxs = pidxs;
+            stack[0].ts_prefixdepth = PFD_PREFIXTREE;
+            stack[0].ts_state = SugState::StateNoprefix;
+        } else {
+            pbyts = &[];
+            pidxs = &[];
             byts = fbyts;
-            fidxs = slang.sl_sidxs.as_mut_ptr();
             idxs = fidxs;
-            pbyts = ptr::null_mut();
-            pidxs = ptr::null_mut();
             stack[0].ts_prefixdepth = PFD_NOPREFIX;
             stack[0].ts_state = SugState::StateStart;
-        } else {
-            fbyts = slang.sl_fbyts.as_mut_ptr();
-            fidxs = slang.sl_fidxs.as_mut_ptr();
-            if !slang.sl_pbyts.is_empty() {
-                pbyts = slang.sl_pbyts.as_mut_ptr();
-                pidxs = slang.sl_pidxs.as_mut_ptr();
-                byts = pbyts;
-                idxs = pidxs;
-                stack[0].ts_prefixdepth = PFD_PREFIXTREE;
-                stack[0].ts_state = SugState::StateNoprefix;
-            } else {
-                pbyts = ptr::null_mut();
-                pidxs = ptr::null_mut();
-                byts = fbyts;
-                idxs = fidxs;
-                stack[0].ts_prefixdepth = PFD_NOPREFIX;
-                stack[0].ts_state = SugState::StateStart;
-            }
         }
-        let mut time_limit: Proftime = 0;
-        if sps_st().spell_suggest_timeout > 0 {
-            time_limit = profile_setlimit(sps_st().spell_suggest_timeout);
-        }
-        while depth >= 0 && !g_st().got_int {
-            let mut udepth = depth as usize;
-            let state = stack[udepth].ts_state;
-            match state {
-                SugState::StateStart | SugState::StateNoprefix => {
-                    arridx = stack[udepth].ts_arridx;
-                    let mut len = i32::from(
-                        *crate::globals::GraphPtr::of(byts.wrapping_add(arridx as usize)).borrow(),
-                    );
-                    arridx += stack[udepth].ts_curi as Idx;
-                    if stack[udepth].ts_prefixdepth == PFD_PREFIXTREE {
-                        n = 0;
-                        while n < len
-                            && *crate::globals::GraphPtr::of(
-                                byts.wrapping_add((arridx + n) as usize),
-                            )
-                            .borrow()
-                                == 0
-                        {
-                            n += 1;
+    }
+    let mut time_limit: Proftime = 0;
+    if sps_st().spell_suggest_timeout > 0 {
+        time_limit = profile_setlimit(sps_st().spell_suggest_timeout);
+    }
+    while depth >= 0 && !g_st().got_int {
+        let mut udepth = depth as usize;
+        let state = stack[udepth].ts_state;
+        match state {
+            SugState::StateStart | SugState::StateNoprefix => {
+                arridx = stack[udepth].ts_arridx;
+                let mut len = i32::from(byts[arridx as usize]);
+                arridx += stack[udepth].ts_curi as Idx;
+                if stack[udepth].ts_prefixdepth == PFD_PREFIXTREE {
+                    n = 0;
+                    while n < len && byts[(arridx + n) as usize] == 0 {
+                        n += 1;
+                    }
+                    stack[udepth].ts_curi += n as i16;
+                    let was_noprefix = stack[udepth].ts_state == SugState::StateNoprefix;
+                    stack[udepth].ts_state = SugState::StateEndnul;
+                    stack[udepth].ts_save_badflags = su.su_badflags as u8;
+                    if udepth < MAXWLEN - 1 && (byts[arridx as usize] == 0 || was_noprefix) {
+                        n = nofold_len(
+                            &*fword_buf,
+                            stack[udepth].ts_fidx as i32,
+                            su.su_badptr.to_bytes(),
+                        );
+                        let badptr_bytes = su.su_badptr.as_bytes();
+                        let bad_slice =
+                            &badptr_bytes[..(su.su_badlen.max(0) as usize).min(badptr_bytes.len())];
+                        let n_usize = (n.max(0) as usize).min(bad_slice.len());
+                        let flags = badword_captype(&bad_slice[..n_usize]);
+                        su.su_badflags = badword_captype(&bad_slice[n_usize..]);
+                        go_deeper(&mut stack, udepth, 0);
+                        depth += 1;
+                        udepth = depth as usize;
+                        stack[udepth].ts_prefixdepth = (udepth - 1) as u8;
+                        byts = fbyts;
+                        idxs = fidxs;
+                        stack[udepth].ts_arridx = 0;
+                        tword[stack[udepth].ts_twordlen as usize] = 0;
+                        make_case_word(
+                            &tword[stack[udepth].ts_splitoff as usize..],
+                            &mut preword[stack[udepth].ts_prewordlen as usize..],
+                            flags,
+                        );
+                        stack[udepth].ts_prewordlen =
+                            crate::memory::bytes_until_nul(&preword).len() as u8;
+                        stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
+                    }
+                    continue;
+                }
+                if stack[udepth].ts_curi as i32 > len || byts[arridx as usize] != 0 {
+                    stack[udepth].ts_state = SugState::StateEndnul;
+                    stack[udepth].ts_save_badflags = su.su_badflags as u8;
+                    continue;
+                }
+                stack[udepth].ts_curi += 1;
+                let mut flags = idxs[arridx as usize];
+                if (flags & WF_NOSUGGEST) != 0 {
+                    continue;
+                }
+                let fbyte = fword_buf[stack[udepth].ts_fidx as usize];
+                let fword_ends = fbyte == 0
+                    || if soundfold {
+                        ascii_iswhite(i32::from(fbyte))
+                    } else {
+                        !spell_iswordp(&fword_buf[stack[udepth].ts_fidx as usize..], curwin_mut())
+                    };
+                tword[stack[udepth].ts_twordlen as usize] = 0;
+                if stack[udepth].ts_prefixdepth <= PFD_NOTSPECIAL
+                    && (stack[udepth].ts_flags & TSF_PREFIXOK) == 0
+                    && !pbyts.is_empty()
+                {
+                    n = stack[stack[udepth].ts_prefixdepth as usize].ts_arridx;
+                    len = i32::from(pbyts[n as usize]);
+                    n += 1;
+                    c = 0;
+                    while c < len && pbyts[(n + c) as usize] == 0 {
+                        c += 1;
+                    }
+                    if c > 0 {
+                        c = valid_word_prefix(
+                            c,
+                            n,
+                            flags,
+                            crate::memory::bytes_as_cstr(
+                                &tword[stack[udepth].ts_splitoff as usize..],
+                            ),
+                            slang,
+                            false,
+                        );
+                        if c == 0 {
+                            continue;
                         }
-                        stack[udepth].ts_curi += n as i16;
-                        let was_noprefix = stack[udepth].ts_state == SugState::StateNoprefix;
-                        stack[udepth].ts_state = SugState::StateEndnul;
-                        stack[udepth].ts_save_badflags = su.su_badflags as u8;
-                        if udepth < MAXWLEN - 1
-                            && (*crate::globals::GraphPtr::of(byts.wrapping_add(arridx as usize))
-                                .borrow()
-                                == 0
-                                || was_noprefix)
+                        if (c & WF_RAREPFX) != 0 {
+                            flags |= WF_RARE;
+                        }
+                        stack[udepth].ts_flags |= TSF_PREFIXOK;
+                    }
+                }
+                goodword_ends = !(stack[udepth].ts_complen == stack[udepth].ts_compsplit
+                    && fword_ends
+                    && (flags & WF_NEEDCOMP) != 0);
+                let mut p_off: Option<usize> = None;
+                let mut compound_ok = true;
+                if stack[udepth].ts_complen > stack[udepth].ts_compsplit {
+                    if slang.sl_nobreak {
+                        let split_len =
+                            (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize;
+                        let sf_off = stack[udepth].ts_splitfidx as usize;
+                        let so_off = stack[udepth].ts_splitoff as usize;
+                        if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
+                            == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
+                            && fword_buf[sf_off..sf_off + split_len]
+                                == tword[so_off..so_off + split_len]
                         {
+                            preword[stack[udepth].ts_prewordlen as usize] = 0;
+                            let newscore = score_wordcount_adj(
+                                slang,
+                                stack[udepth].ts_score,
+                                &preword[stack[udepth].ts_prewordlen as usize..],
+                                stack[udepth].ts_prewordlen > 0,
+                            );
+                            if newscore <= su.su_maxscore {
+                                add_suggestion(
+                                    su,
+                                    false,
+                                    &preword,
+                                    stack[udepth].ts_splitfidx as i32 - repextra,
+                                    newscore,
+                                    0,
+                                    false,
+                                    lp.lp_sallang.opt_mut(),
+                                    false,
+                                );
+                            }
+                            continue;
+                        }
+                    } else {
+                        if ((flags as u32) >> 24) == 0
+                            || i32::from(stack[udepth].ts_twordlen - stack[udepth].ts_splitoff)
+                                < slang.sl_compminlen
+                        {
+                            continue;
+                        }
+                        if slang.sl_compminlen > 0
+                            && mb_charlen(
+                                crate::memory::bytes_as_cstr(
+                                    &tword[stack[udepth].ts_splitoff as usize..],
+                                )
+                                .to_bytes(),
+                            ) < slang.sl_compminlen
+                        {
+                            continue;
+                        }
+                        compflags[stack[udepth].ts_complen as usize] = ((flags as u32) >> 24) as u8;
+                        compflags[stack[udepth].ts_complen as usize + 1] = 0;
+                        let pw_off = stack[udepth].ts_prewordlen as usize;
+                        let tw_off = stack[udepth].ts_splitoff as usize;
+                        let tw_len =
+                            (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize;
+                        preword[pw_off..pw_off + tw_len]
+                            .copy_from_slice(&tword[tw_off..tw_off + tw_len]);
+                        preword[pw_off + tw_len] = 0;
+                        if match_checkcompoundpattern(
+                            &preword,
+                            stack[udepth].ts_prewordlen as i32,
+                            &slang.sl_comppat,
+                        ) {
+                            compound_ok = false;
+                        }
+                        if compound_ok {
+                            let mut p_slice = crate::memory::bytes_until_nul(&preword);
+                            while !crate::charset::skiptowhite_slice(p_slice).is_empty() {
+                                p_slice = crate::charset::skipwhite_slice(
+                                    crate::charset::skiptowhite_slice(p_slice),
+                                );
+                            }
+                            if fword_ends
+                                && !can_compound(
+                                    slang,
+                                    p_slice,
+                                    &compflags[stack[udepth].ts_compsplit as usize..],
+                                )
+                            {
+                                compound_ok = false;
+                            }
+                        }
+                        let mut p_idx = stack[udepth].ts_prewordlen as usize;
+                        mb_cptr_back(&preword, &mut p_idx);
+                        p_off = Some(p_idx);
+                    }
+                }
+                if soundfold {
+                    let pw_off = stack[udepth].ts_prewordlen as usize;
+                    let tw_off = stack[udepth].ts_splitoff as usize;
+                    let tw_bytes =
+                        crate::memory::bytes_as_cstr(&tword[tw_off..]).to_bytes_with_nul();
+                    preword[pw_off..pw_off + tw_bytes.len()].copy_from_slice(tw_bytes);
+                } else if (flags & WF_KEEPCAP) != 0 {
+                    find_keepcap_word(
+                        slang,
+                        &tword[stack[udepth].ts_splitoff as usize..],
+                        &mut preword[stack[udepth].ts_prewordlen as usize..],
+                    );
+                } else {
+                    c = su.su_badflags;
+                    if (c & WF_ALLCAP) != 0
+                        && su.su_badlen
+                            == crate::mbyte::utfc_slice2len(su.su_badptr.to_bytes()) as i32
+                    {
+                        c = WF_ONECAP;
+                    }
+                    c |= flags;
+                    if let Some(off) = p_off
+                        && spell_iswordp_nmw(
+                            crate::memory::bytes_until_nul(&preword[off..]),
+                            curwin_mut(),
+                        )
+                    {
+                        c &= !WF_ONECAP;
+                    }
+                    make_case_word(
+                        &tword[stack[udepth].ts_splitoff as usize..],
+                        &mut preword[stack[udepth].ts_prewordlen as usize..],
+                        c,
+                    );
+                }
+                if !soundfold {
+                    if (flags & WF_BANNED) != 0 {
+                        add_banned(su, &preword[stack[udepth].ts_prewordlen as usize..]);
+                        continue;
+                    }
+                    if (stack[udepth].ts_complen == stack[udepth].ts_compsplit
+                        && was_banned(su, &preword[stack[udepth].ts_prewordlen as usize..]))
+                        || was_banned(su, &preword)
+                    {
+                        if slang.sl_compprog.is_none() {
+                            continue;
+                        }
+                        goodword_ends = false;
+                    }
+                }
+                let mut newscore: i32 = 0;
+                if !soundfold {
+                    if (flags & WF_REGION) != 0
+                        && (((flags as u32) >> 16) & (lp.lp_region as u32)) == 0
+                    {
+                        newscore += SCORE_REGION;
+                    }
+                    if (flags & WF_RARE) != 0 {
+                        newscore += SCORE_RARE;
+                    }
+                    if !spell_valid_case(
+                        su.su_badflags,
+                        captype(&preword[stack[udepth].ts_prewordlen as usize..]),
+                    ) {
+                        newscore += SCORE_ICASE;
+                    }
+                }
+                if fword_ends
+                    && goodword_ends
+                    && stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry
+                    && compound_ok
+                {
+                    if soundfold {
+                        add_sound_suggest(su, &preword, stack[udepth].ts_score, lp);
+                    } else if stack[udepth].ts_fidx > 0 {
+                        let mut p_idx = stack[udepth].ts_fidx as usize;
+                        mb_cptr_back(&*fword_buf, &mut p_idx);
+                        if !spell_iswordp(&fword_buf[p_idx..], curwin_mut()) && preword[0] != 0 {
+                            let mut pw_idx = crate::memory::bytes_until_nul(&preword).len();
+                            mb_cptr_back(&preword, &mut pw_idx);
+                            if spell_iswordp(&preword[pw_idx..], curwin_mut()) {
+                                newscore += SCORE_NONWORD;
+                            }
+                        }
+                        let score = score_wordcount_adj(
+                            slang,
+                            stack[udepth].ts_score + newscore,
+                            &preword[stack[udepth].ts_prewordlen as usize..],
+                            stack[udepth].ts_prewordlen > 0,
+                        );
+                        if score <= su.su_maxscore {
+                            add_suggestion(
+                                su,
+                                false,
+                                &preword,
+                                stack[udepth].ts_fidx as i32 - repextra,
+                                score,
+                                0,
+                                false,
+                                lp.lp_sallang.opt_mut(),
+                                false,
+                            );
+                            if (su.su_badflags & WF_MIXCAP) != 0 {
+                                c = captype(&preword);
+                                if c == 0 || c == WF_ALLCAP {
+                                    make_case_word(
+                                        &tword[stack[udepth].ts_splitoff as usize..],
+                                        &mut preword[stack[udepth].ts_prewordlen as usize..],
+                                        if c == 0 { WF_ALLCAP } else { 0 },
+                                    );
+                                    add_suggestion(
+                                        su,
+                                        false,
+                                        &preword,
+                                        stack[udepth].ts_fidx as i32 - repextra,
+                                        score + SCORE_ICASE,
+                                        0,
+                                        false,
+                                        lp.lp_sallang.opt_mut(),
+                                        false,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                if (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry || fword_ends)
+                    && stack[udepth].ts_tcharlen == 0
+                {
+                    let try_split =
+                        (stack[udepth].ts_fidx as i32 - repextra) < su.su_badlen && !soundfold;
+                    let mut try_compound = false;
+                    if !soundfold
+                        && !slang.sl_nocompoundsugs
+                        && slang.sl_compprog.is_some()
+                        && ((flags as u32) >> 24) != 0
+                        && (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as i32
+                            >= slang.sl_compminlen
+                        && (slang.sl_compminlen == 0
+                            || mb_charlen(
+                                crate::memory::bytes_as_cstr(
+                                    &tword[stack[udepth].ts_splitoff as usize..],
+                                )
+                                .to_bytes(),
+                            ) >= slang.sl_compminlen)
+                        && (slang.sl_compsylmax < MAXWLEN as i32
+                            || i32::from(stack[udepth].ts_complen + 1 - stack[udepth].ts_compsplit)
+                                < slang.sl_compmax)
+                        && can_be_compound(
+                            &stack[udepth],
+                            slang,
+                            &mut compflags,
+                            ((flags as u32) >> 24) as i32,
+                        )
+                    {
+                        try_compound = true;
+                        compflags[stack[udepth].ts_complen as usize] = ((flags as u32) >> 24) as u8;
+                        compflags[stack[udepth].ts_complen as usize + 1] = 0;
+                    }
+                    if slang.sl_nobreak && !slang.sl_nocompoundsugs {
+                        try_compound = true;
+                    } else if !fword_ends
+                        && try_compound
+                        && (stack[udepth].ts_flags & TSF_DIDSPLIT) == 0
+                    {
+                        try_compound = false;
+                        stack[udepth].ts_flags |= TSF_DIDSPLIT;
+                        stack[udepth].ts_curi -= 1;
+                        compflags[stack[udepth].ts_complen as usize] = 0;
+                    } else {
+                        stack[udepth].ts_flags &= !TSF_DIDSPLIT;
+                    }
+                    if try_split || try_compound {
+                        if !try_compound && (!fword_ends || !goodword_ends) {
+                            if stack[udepth].ts_complen == stack[udepth].ts_compsplit
+                                && (flags & WF_NEEDCOMP) != 0
+                            {
+                                continue;
+                            }
+                            let mut p_slice = crate::memory::bytes_until_nul(&preword);
+                            while !crate::charset::skiptowhite_slice(p_slice).is_empty() {
+                                p_slice = crate::charset::skipwhite_slice(
+                                    crate::charset::skiptowhite_slice(p_slice),
+                                );
+                            }
+                            if stack[udepth].ts_complen > stack[udepth].ts_compsplit
+                                && !can_compound(
+                                    slang,
+                                    p_slice,
+                                    &compflags[stack[udepth].ts_compsplit as usize..],
+                                )
+                            {
+                                continue;
+                            }
+                            if slang.sl_nosplitsugs {
+                                newscore += SCORE_SPLIT_NO;
+                            } else {
+                                newscore += SCORE_SPLIT;
+                            }
+                            newscore = score_wordcount_adj(
+                                slang,
+                                newscore,
+                                &preword[stack[udepth].ts_prewordlen as usize..],
+                                true,
+                            );
+                        }
+                        if try_deeper(su, &stack, udepth, newscore) {
+                            go_deeper(&mut stack, udepth, newscore);
+                            stack[udepth].ts_save_badflags = su.su_badflags as u8;
+                            stack[udepth].ts_state = SugState::StateSplitundo;
+                            depth += 1;
+                            udepth = depth as usize;
+                            let mut preword_len = crate::memory::bytes_until_nul(&preword).len();
+                            if !try_compound && !fword_ends {
+                                preword[preword_len] = b' ';
+                                preword_len += 1;
+                                preword[preword_len] = 0;
+                            }
+                            stack[udepth].ts_prewordlen = preword_len as u8;
+                            stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
+                            stack[udepth].ts_splitfidx = stack[udepth].ts_fidx;
+                            if ((!try_compound
+                                && !spell_iswordp_nmw(
+                                    &fword_buf[stack[udepth].ts_fidx as usize..],
+                                    curwin_mut(),
+                                ))
+                                || fword_ends)
+                                && fword_buf[stack[udepth].ts_fidx as usize] != 0
+                                && goodword_ends
+                            {
+                                let fidx = stack[udepth].ts_fidx as usize;
+                                let l = utfc_ptr2len(&fword_buf[fidx..]);
+                                if fword_ends {
+                                    let pw_off = stack[udepth].ts_prewordlen as usize;
+                                    let l_usize = l as usize;
+                                    preword[pw_off..pw_off + l_usize]
+                                        .copy_from_slice(&fword_buf[fidx..fidx + l_usize]);
+                                    stack[udepth].ts_prewordlen += l as u8;
+                                    preword[stack[udepth].ts_prewordlen as usize] = 0;
+                                } else {
+                                    stack[udepth].ts_score -= SCORE_SPLIT - SCORE_SUBST;
+                                }
+                                stack[udepth].ts_fidx += l as u8;
+                            }
+                            if try_compound {
+                                stack[udepth].ts_complen += 1;
+                            } else {
+                                stack[udepth].ts_compsplit = stack[udepth].ts_complen;
+                            }
+                            stack[udepth].ts_prefixdepth = PFD_NOPREFIX;
                             n = nofold_len(
                                 &*fword_buf,
                                 stack[udepth].ts_fidx as i32,
@@ -1158,1050 +1565,516 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             let bad_slice = &badptr_bytes
                                 [..(su.su_badlen.max(0) as usize).min(badptr_bytes.len())];
                             let n_usize = (n.max(0) as usize).min(bad_slice.len());
-                            let flags = badword_captype(&bad_slice[..n_usize]);
                             su.su_badflags = badword_captype(&bad_slice[n_usize..]);
-                            go_deeper(&mut stack, udepth, 0);
-                            depth += 1;
-                            udepth = depth as usize;
-                            stack[udepth].ts_prefixdepth = (udepth - 1) as u8;
-                            byts = fbyts;
-                            idxs = fidxs;
                             stack[udepth].ts_arridx = 0;
-                            tword[stack[udepth].ts_twordlen as usize] = 0;
-                            make_case_word(
-                                &tword[stack[udepth].ts_splitoff as usize..],
-                                &mut preword[stack[udepth].ts_prewordlen as usize..],
-                                flags,
-                            );
-                            stack[udepth].ts_prewordlen =
-                                crate::memory::bytes_until_nul(&preword).len() as u8;
-                            stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
-                        }
-                        continue;
-                    }
-                    if stack[udepth].ts_curi as i32 > len
-                        || *crate::globals::GraphPtr::of(byts.wrapping_add(arridx as usize))
-                            .borrow()
-                            != 0
-                    {
-                        stack[udepth].ts_state = SugState::StateEndnul;
-                        stack[udepth].ts_save_badflags = su.su_badflags as u8;
-                        continue;
-                    }
-                    stack[udepth].ts_curi += 1;
-                    let mut flags =
-                        *crate::globals::GraphPtr::of(idxs.wrapping_add(arridx as usize)).borrow();
-                    if (flags & WF_NOSUGGEST) != 0 {
-                        continue;
-                    }
-                    let fbyte = fword_buf[stack[udepth].ts_fidx as usize];
-                    let fword_ends = fbyte == 0
-                        || if soundfold {
-                            ascii_iswhite(i32::from(fbyte))
-                        } else {
-                            !spell_iswordp(
-                                &fword_buf[stack[udepth].ts_fidx as usize..],
-                                curwin_mut(),
-                            )
-                        };
-                    tword[stack[udepth].ts_twordlen as usize] = 0;
-                    if stack[udepth].ts_prefixdepth <= PFD_NOTSPECIAL
-                        && (stack[udepth].ts_flags & TSF_PREFIXOK) == 0
-                        && !pbyts.is_null()
-                    {
-                        n = stack[stack[udepth].ts_prefixdepth as usize].ts_arridx;
-                        len = i32::from(
-                            *crate::globals::GraphPtr::of(pbyts.wrapping_add(n as usize)).borrow(),
-                        );
-                        n += 1;
-                        c = 0;
-                        while c < len
-                            && *crate::globals::GraphPtr::of(pbyts.wrapping_add((n + c) as usize))
-                                .borrow()
-                                == 0
-                        {
-                            c += 1;
-                        }
-                        if c > 0 {
-                            c = valid_word_prefix(
-                                c,
-                                n,
-                                flags,
-                                crate::memory::bytes_as_cstr(
-                                    &tword[stack[udepth].ts_splitoff as usize..],
-                                ),
-                                slang,
-                                false,
-                            );
-                            if c == 0 {
-                                continue;
-                            }
-                            if (c & WF_RAREPFX) != 0 {
-                                flags |= WF_RARE;
-                            }
-                            stack[udepth].ts_flags |= TSF_PREFIXOK;
-                        }
-                    }
-                    goodword_ends = !(stack[udepth].ts_complen == stack[udepth].ts_compsplit
-                        && fword_ends
-                        && (flags & WF_NEEDCOMP) != 0);
-                    let mut p_off: Option<usize> = None;
-                    let mut compound_ok = true;
-                    if stack[udepth].ts_complen > stack[udepth].ts_compsplit {
-                        if slang.sl_nobreak {
-                            let split_len =
-                                (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize;
-                            let sf_off = stack[udepth].ts_splitfidx as usize;
-                            let so_off = stack[udepth].ts_splitoff as usize;
-                            if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
-                                == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
-                                && fword_buf[sf_off..sf_off + split_len]
-                                    == tword[so_off..so_off + split_len]
-                            {
-                                preword[stack[udepth].ts_prewordlen as usize] = 0;
-                                let newscore = score_wordcount_adj(
-                                    slang,
-                                    stack[udepth].ts_score,
-                                    &preword[stack[udepth].ts_prewordlen as usize..],
-                                    stack[udepth].ts_prewordlen > 0,
-                                );
-                                if newscore <= su.su_maxscore {
-                                    add_suggestion(
-                                        su,
-                                        false,
-                                        &preword,
-                                        stack[udepth].ts_splitfidx as i32 - repextra,
-                                        newscore,
-                                        0,
-                                        false,
-                                        lp.lp_sallang.opt_mut(),
-                                        false,
-                                    );
-                                }
-                                continue;
-                            }
-                        } else {
-                            if ((flags as u32) >> 24) == 0
-                                || i32::from(stack[udepth].ts_twordlen - stack[udepth].ts_splitoff)
-                                    < slang.sl_compminlen
-                            {
-                                continue;
-                            }
-                            if slang.sl_compminlen > 0
-                                && mb_charlen(
-                                    crate::memory::bytes_as_cstr(
-                                        &tword[stack[udepth].ts_splitoff as usize..],
-                                    )
-                                    .to_bytes(),
-                                ) < slang.sl_compminlen
-                            {
-                                continue;
-                            }
-                            compflags[stack[udepth].ts_complen as usize] =
-                                ((flags as u32) >> 24) as u8;
-                            compflags[stack[udepth].ts_complen as usize + 1] = 0;
-                            let pw_off = stack[udepth].ts_prewordlen as usize;
-                            let tw_off = stack[udepth].ts_splitoff as usize;
-                            let tw_len =
-                                (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as usize;
-                            preword[pw_off..pw_off + tw_len]
-                                .copy_from_slice(&tword[tw_off..tw_off + tw_len]);
-                            preword[pw_off + tw_len] = 0;
-                            if match_checkcompoundpattern(
-                                &preword,
-                                stack[udepth].ts_prewordlen as i32,
-                                &slang.sl_comppat,
-                            ) {
-                                compound_ok = false;
-                            }
-                            if compound_ok {
-                                let mut p_slice = crate::memory::bytes_until_nul(&preword);
-                                while !crate::charset::skiptowhite_slice(p_slice).is_empty() {
-                                    p_slice = crate::charset::skipwhite_slice(
-                                        crate::charset::skiptowhite_slice(p_slice),
-                                    );
-                                }
-                                if fword_ends
-                                    && !can_compound(
-                                        slang,
-                                        p_slice,
-                                        &compflags[stack[udepth].ts_compsplit as usize..],
-                                    )
-                                {
-                                    compound_ok = false;
-                                }
-                            }
-                            let mut p_idx = stack[udepth].ts_prewordlen as usize;
-                            mb_cptr_back(&preword, &mut p_idx);
-                            p_off = Some(p_idx);
-                        }
-                    }
-                    if soundfold {
-                        let pw_off = stack[udepth].ts_prewordlen as usize;
-                        let tw_off = stack[udepth].ts_splitoff as usize;
-                        let tw_bytes =
-                            crate::memory::bytes_as_cstr(&tword[tw_off..]).to_bytes_with_nul();
-                        preword[pw_off..pw_off + tw_bytes.len()].copy_from_slice(tw_bytes);
-                    } else if (flags & WF_KEEPCAP) != 0 {
-                        find_keepcap_word(
-                            slang,
-                            &tword[stack[udepth].ts_splitoff as usize..],
-                            &mut preword[stack[udepth].ts_prewordlen as usize..],
-                        );
-                    } else {
-                        c = su.su_badflags;
-                        if (c & WF_ALLCAP) != 0
-                            && su.su_badlen
-                                == crate::mbyte::utfc_slice2len(su.su_badptr.to_bytes()) as i32
-                        {
-                            c = WF_ONECAP;
-                        }
-                        c |= flags;
-                        if let Some(off) = p_off
-                            && spell_iswordp_nmw(
-                                crate::memory::bytes_until_nul(&preword[off..]),
-                                curwin_mut(),
-                            )
-                        {
-                            c &= !WF_ONECAP;
-                        }
-                        make_case_word(
-                            &tword[stack[udepth].ts_splitoff as usize..],
-                            &mut preword[stack[udepth].ts_prewordlen as usize..],
-                            c,
-                        );
-                    }
-                    if !soundfold {
-                        if (flags & WF_BANNED) != 0 {
-                            add_banned(su, &preword[stack[udepth].ts_prewordlen as usize..]);
-                            continue;
-                        }
-                        if (stack[udepth].ts_complen == stack[udepth].ts_compsplit
-                            && was_banned(su, &preword[stack[udepth].ts_prewordlen as usize..]))
-                            || was_banned(su, &preword)
-                        {
-                            if slang.sl_compprog.is_none() {
-                                continue;
-                            }
-                            goodword_ends = false;
-                        }
-                    }
-                    let mut newscore: i32 = 0;
-                    if !soundfold {
-                        if (flags & WF_REGION) != 0
-                            && (((flags as u32) >> 16) & (lp.lp_region as u32)) == 0
-                        {
-                            newscore += SCORE_REGION;
-                        }
-                        if (flags & WF_RARE) != 0 {
-                            newscore += SCORE_RARE;
-                        }
-                        if !spell_valid_case(
-                            su.su_badflags,
-                            captype(&preword[stack[udepth].ts_prewordlen as usize..]),
-                        ) {
-                            newscore += SCORE_ICASE;
-                        }
-                    }
-                    if fword_ends
-                        && goodword_ends
-                        && stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry
-                        && compound_ok
-                    {
-                        if soundfold {
-                            add_sound_suggest(su, &preword, stack[udepth].ts_score, lp);
-                        } else if stack[udepth].ts_fidx > 0 {
-                            let mut p_idx = stack[udepth].ts_fidx as usize;
-                            mb_cptr_back(&*fword_buf, &mut p_idx);
-                            if !spell_iswordp(&fword_buf[p_idx..], curwin_mut()) && preword[0] != 0
-                            {
-                                let mut pw_idx = crate::memory::bytes_until_nul(&preword).len();
-                                mb_cptr_back(&preword, &mut pw_idx);
-                                if spell_iswordp(&preword[pw_idx..], curwin_mut()) {
-                                    newscore += SCORE_NONWORD;
-                                }
-                            }
-                            let score = score_wordcount_adj(
-                                slang,
-                                stack[udepth].ts_score + newscore,
-                                &preword[stack[udepth].ts_prewordlen as usize..],
-                                stack[udepth].ts_prewordlen > 0,
-                            );
-                            if score <= su.su_maxscore {
-                                add_suggestion(
-                                    su,
-                                    false,
-                                    &preword,
-                                    stack[udepth].ts_fidx as i32 - repextra,
-                                    score,
-                                    0,
-                                    false,
-                                    lp.lp_sallang.opt_mut(),
-                                    false,
-                                );
-                                if (su.su_badflags & WF_MIXCAP) != 0 {
-                                    c = captype(&preword);
-                                    if c == 0 || c == WF_ALLCAP {
-                                        make_case_word(
-                                            &tword[stack[udepth].ts_splitoff as usize..],
-                                            &mut preword[stack[udepth].ts_prewordlen as usize..],
-                                            if c == 0 { WF_ALLCAP } else { 0 },
-                                        );
-                                        add_suggestion(
-                                            su,
-                                            false,
-                                            &preword,
-                                            stack[udepth].ts_fidx as i32 - repextra,
-                                            score + SCORE_ICASE,
-                                            0,
-                                            false,
-                                            lp.lp_sallang.opt_mut(),
-                                            false,
-                                        );
-                                    }
-                                }
+                            if !pbyts.is_empty() {
+                                byts = pbyts;
+                                idxs = pidxs;
+                                stack[udepth].ts_prefixdepth = PFD_PREFIXTREE;
+                                stack[udepth].ts_state = SugState::StateNoprefix;
                             }
                         }
                     }
-                    if (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry || fword_ends)
+                }
+            }
+            SugState::StateSplitundo => {
+                su.su_badflags = stack[udepth].ts_save_badflags as i32;
+                stack[udepth].ts_state = SugState::StateStart;
+                byts = fbyts;
+                idxs = fidxs;
+            }
+            SugState::StateEndnul | SugState::StatePlain => {
+                let mut goto_del = false;
+                if state == SugState::StateEndnul {
+                    su.su_badflags = stack[udepth].ts_save_badflags as i32;
+                    if fword_buf[stack[udepth].ts_fidx as usize] == 0
                         && stack[udepth].ts_tcharlen == 0
                     {
-                        let try_split =
-                            (stack[udepth].ts_fidx as i32 - repextra) < su.su_badlen && !soundfold;
-                        let mut try_compound = false;
-                        if !soundfold
-                            && !slang.sl_nocompoundsugs
-                            && slang.sl_compprog.is_some()
-                            && ((flags as u32) >> 24) != 0
-                            && (stack[udepth].ts_twordlen - stack[udepth].ts_splitoff) as i32
-                                >= slang.sl_compminlen
-                            && (slang.sl_compminlen == 0
-                                || mb_charlen(
-                                    crate::memory::bytes_as_cstr(
-                                        &tword[stack[udepth].ts_splitoff as usize..],
-                                    )
-                                    .to_bytes(),
-                                ) >= slang.sl_compminlen)
-                            && (slang.sl_compsylmax < MAXWLEN as i32
-                                || i32::from(
-                                    stack[udepth].ts_complen + 1 - stack[udepth].ts_compsplit,
-                                ) < slang.sl_compmax)
-                            && can_be_compound(
-                                &stack[udepth],
-                                slang,
-                                &mut compflags,
-                                ((flags as u32) >> 24) as i32,
-                            )
-                        {
-                            try_compound = true;
-                            compflags[stack[udepth].ts_complen as usize] =
-                                ((flags as u32) >> 24) as u8;
-                            compflags[stack[udepth].ts_complen as usize + 1] = 0;
-                        }
-                        if slang.sl_nobreak && !slang.sl_nocompoundsugs {
-                            try_compound = true;
-                        } else if !fword_ends
-                            && try_compound
-                            && (stack[udepth].ts_flags & TSF_DIDSPLIT) == 0
-                        {
-                            try_compound = false;
-                            stack[udepth].ts_flags |= TSF_DIDSPLIT;
-                            stack[udepth].ts_curi -= 1;
-                            compflags[stack[udepth].ts_complen as usize] = 0;
-                        } else {
-                            stack[udepth].ts_flags &= !TSF_DIDSPLIT;
-                        }
-                        if try_split || try_compound {
-                            if !try_compound && (!fword_ends || !goodword_ends) {
-                                if stack[udepth].ts_complen == stack[udepth].ts_compsplit
-                                    && (flags & WF_NEEDCOMP) != 0
-                                {
-                                    continue;
-                                }
-                                let mut p_slice = crate::memory::bytes_until_nul(&preword);
-                                while !crate::charset::skiptowhite_slice(p_slice).is_empty() {
-                                    p_slice = crate::charset::skipwhite_slice(
-                                        crate::charset::skiptowhite_slice(p_slice),
-                                    );
-                                }
-                                if stack[udepth].ts_complen > stack[udepth].ts_compsplit
-                                    && !can_compound(
-                                        slang,
-                                        p_slice,
-                                        &compflags[stack[udepth].ts_compsplit as usize..],
-                                    )
-                                {
-                                    continue;
-                                }
-                                if slang.sl_nosplitsugs {
-                                    newscore += SCORE_SPLIT_NO;
-                                } else {
-                                    newscore += SCORE_SPLIT;
-                                }
-                                newscore = score_wordcount_adj(
-                                    slang,
-                                    newscore,
-                                    &preword[stack[udepth].ts_prewordlen as usize..],
-                                    true,
-                                );
-                            }
-                            if try_deeper(su, &stack, udepth, newscore) {
-                                go_deeper(&mut stack, udepth, newscore);
-                                stack[udepth].ts_save_badflags = su.su_badflags as u8;
-                                stack[udepth].ts_state = SugState::StateSplitundo;
-                                depth += 1;
-                                udepth = depth as usize;
-                                let mut preword_len =
-                                    crate::memory::bytes_until_nul(&preword).len();
-                                if !try_compound && !fword_ends {
-                                    preword[preword_len] = b' ';
-                                    preword_len += 1;
-                                    preword[preword_len] = 0;
-                                }
-                                stack[udepth].ts_prewordlen = preword_len as u8;
-                                stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
-                                stack[udepth].ts_splitfidx = stack[udepth].ts_fidx;
-                                if ((!try_compound
-                                    && !spell_iswordp_nmw(
-                                        &fword_buf[stack[udepth].ts_fidx as usize..],
-                                        curwin_mut(),
-                                    ))
-                                    || fword_ends)
-                                    && fword_buf[stack[udepth].ts_fidx as usize] != 0
-                                    && goodword_ends
-                                {
-                                    let l =
-                                        utfc_ptr2len(&fword_buf[stack[udepth].ts_fidx as usize..]);
-                                    if fword_ends {
-                                        crate::globals::GraphPtr::copy_to(
-                                            fword.wrapping_add(stack[udepth].ts_fidx as usize),
-                                            preword
-                                                .as_mut_ptr()
-                                                .wrapping_add(stack[udepth].ts_prewordlen as usize),
-                                            l as usize,
-                                        );
-                                        stack[udepth].ts_prewordlen += l as u8;
-                                        preword[stack[udepth].ts_prewordlen as usize] = 0;
-                                    } else {
-                                        stack[udepth].ts_score -= SCORE_SPLIT - SCORE_SUBST;
-                                    }
-                                    stack[udepth].ts_fidx += l as u8;
-                                }
-                                if try_compound {
-                                    stack[udepth].ts_complen += 1;
-                                } else {
-                                    stack[udepth].ts_compsplit = stack[udepth].ts_complen;
-                                }
-                                stack[udepth].ts_prefixdepth = PFD_NOPREFIX;
-                                n = nofold_len(
-                                    &*fword_buf,
-                                    stack[udepth].ts_fidx as i32,
-                                    su.su_badptr.to_bytes(),
-                                );
-                                let badptr_bytes = su.su_badptr.as_bytes();
-                                let bad_slice = &badptr_bytes
-                                    [..(su.su_badlen.max(0) as usize).min(badptr_bytes.len())];
-                                let n_usize = (n.max(0) as usize).min(bad_slice.len());
-                                su.su_badflags = badword_captype(&bad_slice[n_usize..]);
-                                stack[udepth].ts_arridx = 0;
-                                if !pbyts.is_null() {
-                                    byts = pbyts;
-                                    idxs = pidxs;
-                                    stack[udepth].ts_prefixdepth = PFD_PREFIXTREE;
-                                    stack[udepth].ts_state = SugState::StateNoprefix;
-                                }
-                            }
-                        }
+                        stack[udepth].ts_state = SugState::StateDel;
+                        goto_del = true;
+                    } else {
+                        stack[udepth].ts_state = SugState::StatePlain;
                     }
                 }
-                SugState::StateSplitundo => {
-                    su.su_badflags = stack[udepth].ts_save_badflags as i32;
-                    stack[udepth].ts_state = SugState::StateStart;
-                    byts = fbyts;
-                    idxs = fidxs;
-                }
-                SugState::StateEndnul | SugState::StatePlain => {
-                    let mut goto_del = false;
-                    if state == SugState::StateEndnul {
-                        su.su_badflags = stack[udepth].ts_save_badflags as i32;
-                        if fword_buf[stack[udepth].ts_fidx as usize] == 0
-                            && stack[udepth].ts_tcharlen == 0
-                        {
-                            stack[udepth].ts_state = SugState::StateDel;
-                            goto_del = true;
-                        } else {
-                            stack[udepth].ts_state = SugState::StatePlain;
-                        }
-                    }
-                    if !goto_del {
-                        arridx = stack[udepth].ts_arridx;
-                        if stack[udepth].ts_curi as i32
-                            > i32::from(
-                                *crate::globals::GraphPtr::of(byts.wrapping_add(arridx as usize))
-                                    .borrow(),
-                            )
-                        {
-                            stack[udepth].ts_state =
-                                if stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry {
-                                    SugState::StateDel
-                                } else {
-                                    SugState::StateFinal
-                                };
-                        } else {
-                            arridx += stack[udepth].ts_curi as Idx;
-                            stack[udepth].ts_curi += 1;
-                            c = i32::from(
-                                *crate::globals::GraphPtr::of(byts.wrapping_add(arridx as usize))
-                                    .borrow(),
-                            );
-                            let newscore = if c
-                                == i32::from(fword_buf[stack[udepth].ts_fidx as usize])
-                                || (stack[udepth].ts_tcharlen > 0
-                                    && stack[udepth].ts_isdiff != DIFF_NONE)
-                            {
-                                0
+                if !goto_del {
+                    arridx = stack[udepth].ts_arridx;
+                    if stack[udepth].ts_curi as i32 > i32::from(byts[arridx as usize]) {
+                        stack[udepth].ts_state =
+                            if stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry {
+                                SugState::StateDel
                             } else {
-                                SCORE_SUBST
+                                SugState::StateFinal
                             };
-                            if (newscore == 0
-                                || (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry
-                                    && ((stack[udepth].ts_flags & TSF_DIDDEL) == 0
-                                        || c != i32::from(
-                                            fword_buf[stack[udepth].ts_delidx as usize],
-                                        ))))
-                                && try_deeper(su, &stack, udepth, newscore)
-                            {
-                                go_deeper(&mut stack, udepth, newscore);
-                                depth += 1;
-                                udepth = depth as usize;
-                                if fword_buf[stack[udepth].ts_fidx as usize] != 0 {
-                                    stack[udepth].ts_fidx += 1;
-                                }
-                                let twl = stack[udepth].ts_twordlen as usize;
-                                tword[twl] = c as u8;
-                                stack[udepth].ts_twordlen += 1;
-                                stack[udepth].ts_arridx = *crate::globals::GraphPtr::of(
-                                    idxs.wrapping_add(arridx as usize),
-                                )
-                                .borrow();
-                                if newscore == SCORE_SUBST {
-                                    stack[udepth].ts_isdiff = DIFF_YES;
-                                }
-                                if stack[udepth].ts_tcharlen == 0 {
-                                    stack[udepth].ts_tcharidx = 0;
-                                    stack[udepth].ts_tcharlen = utf_byte2len(c) as u8;
-                                    stack[udepth].ts_fcharstart = stack[udepth].ts_fidx - 1;
-                                    stack[udepth].ts_isdiff =
-                                        if newscore != 0 { DIFF_YES } else { DIFF_NONE };
-                                } else if stack[udepth].ts_isdiff == DIFF_INSERT
-                                    && stack[udepth].ts_fidx > 0
-                                {
-                                    stack[udepth].ts_fidx -= 1;
-                                }
-                                stack[udepth].ts_tcharidx += 1;
-                                if stack[udepth].ts_tcharidx == stack[udepth].ts_tcharlen {
-                                    if stack[udepth].ts_isdiff == DIFF_YES {
-                                        let fw_off = stack[udepth].ts_fcharstart as usize;
-                                        stack[udepth].ts_fidx = stack[udepth].ts_fcharstart
-                                            + utfc_ptr2len(&fword_buf[fw_off..]) as u8;
-                                        let tw_off = (stack[udepth].ts_twordlen
-                                            - stack[udepth].ts_tcharlen)
-                                            as usize;
-                                        let tw_c = utf_ptr2char(&tword[tw_off..]);
-                                        let fw_c = utf_ptr2char(&fword_buf[fw_off..]);
-                                        if utf_iscomposing_legacy(tw_c)
-                                            && utf_iscomposing_legacy(fw_c)
-                                        {
-                                            stack[udepth].ts_score -= SCORE_SUBST - SCORE_SUBCOMP;
-                                        } else if !soundfold
-                                            && slang.sl_has_map
-                                            && similar_chars(slang, tw_c, fw_c)
-                                        {
-                                            stack[udepth].ts_score -= SCORE_SUBST - SCORE_SIMILAR;
-                                        }
-                                    } else if stack[udepth].ts_isdiff == DIFF_INSERT
-                                        && stack[udepth].ts_twordlen > stack[udepth].ts_tcharlen
-                                    {
-                                        let mut p_idx = (stack[udepth].ts_twordlen
-                                            - stack[udepth].ts_tcharlen)
-                                            as usize;
-                                        c = utf_ptr2char(&tword[p_idx..]);
-                                        if utf_iscomposing_legacy(c) {
-                                            stack[udepth].ts_score -= SCORE_INS - SCORE_INSCOMP;
-                                        } else {
-                                            mb_cptr_back(&tword, &mut p_idx);
-                                            if c == utf_ptr2char(&tword[p_idx..]) {
-                                                stack[udepth].ts_score -= SCORE_INS - SCORE_INSDUP;
-                                            }
-                                        }
-                                    }
-                                    stack[udepth].ts_tcharlen = 0;
-                                }
-                            }
-                        }
-                    }
-                }
-                SugState::StateDel | SugState::StateInsPrep => {
-                    let mut do_ins_prep = true;
-                    if state == SugState::StateDel {
-                        if stack[udepth].ts_tcharlen > 0 {
-                            stack[udepth].ts_state = SugState::StateFinal;
-                            do_ins_prep = false;
+                    } else {
+                        arridx += stack[udepth].ts_curi as Idx;
+                        stack[udepth].ts_curi += 1;
+                        c = i32::from(byts[arridx as usize]);
+                        let newscore = if c == i32::from(fword_buf[stack[udepth].ts_fidx as usize])
+                            || (stack[udepth].ts_tcharlen > 0
+                                && stack[udepth].ts_isdiff != DIFF_NONE)
+                        {
+                            0
                         } else {
-                            stack[udepth].ts_state = SugState::StateInsPrep;
-                            stack[udepth].ts_curi = 1;
-                            let newscore = if soundfold
-                                && stack[udepth].ts_fidx == 0
-                                && fword_buf[stack[udepth].ts_fidx as usize] == b'*'
-                            {
-                                2 * SCORE_DEL / 3
-                            } else {
-                                SCORE_DEL
-                            };
-                            if fword_buf[stack[udepth].ts_fidx as usize] != 0
-                                && try_deeper(su, &stack, udepth, newscore)
-                            {
-                                go_deeper(&mut stack, udepth, newscore);
-                                let old_fidx = stack[udepth].ts_fidx;
-                                depth += 1;
-                                udepth = depth as usize;
-                                stack[udepth].ts_flags |= TSF_DIDDEL;
-                                stack[udepth].ts_delidx = old_fidx;
-                                c = utf_ptr2char(&fword_buf[old_fidx as usize..]);
-                                stack[udepth].ts_fidx +=
-                                    utfc_ptr2len(&fword_buf[old_fidx as usize..]) as u8;
-                                if utf_iscomposing_legacy(c) {
-                                    stack[udepth].ts_score -= SCORE_DEL - SCORE_DELCOMP;
-                                } else if c
-                                    == utf_ptr2char(&fword_buf[stack[udepth].ts_fidx as usize..])
-                                {
-                                    stack[udepth].ts_score -= SCORE_DEL - SCORE_DELDUP;
-                                }
-                                do_ins_prep = false;
-                            }
-                        }
-                    }
-                    if do_ins_prep {
-                        if (stack[udepth].ts_flags & TSF_DIDDEL) != 0 {
-                            stack[udepth].ts_state = SugState::StateSwap;
-                        } else {
-                            n = stack[udepth].ts_arridx;
-                            loop {
-                                if stack[udepth].ts_curi as i32
-                                    > i32::from(
-                                        *crate::globals::GraphPtr::of(
-                                            byts.wrapping_add(n as usize),
-                                        )
-                                        .borrow(),
-                                    )
-                                {
-                                    stack[udepth].ts_state = SugState::StateSwap;
-                                    break;
-                                }
-                                if *crate::globals::GraphPtr::of(
-                                    byts.wrapping_add((n + stack[udepth].ts_curi as i32) as usize),
-                                )
-                                .borrow()
-                                    != 0
-                                {
-                                    stack[udepth].ts_state = SugState::StateIns;
-                                    break;
-                                }
-                                stack[udepth].ts_curi += 1;
-                            }
-                        }
-                    }
-                }
-                SugState::StateIns => {
-                    n = stack[udepth].ts_arridx;
-                    if stack[udepth].ts_curi as i32
-                        > i32::from(
-                            *crate::globals::GraphPtr::of(byts.wrapping_add(n as usize)).borrow(),
-                        )
-                    {
-                        stack[udepth].ts_state = SugState::StateSwap;
-                        continue;
-                    }
-                    n += stack[udepth].ts_curi as i32;
-                    stack[udepth].ts_curi += 1;
-                    if byts == slang.sl_fbyts.as_mut_ptr() && n >= slang.sl_fbyts.len() as i32 {
-                        g_st().got_int = true;
-                        continue;
-                    }
-                    c = i32::from(
-                        *crate::globals::GraphPtr::of(byts.wrapping_add(n as usize)).borrow(),
-                    );
-                    let newscore =
-                        if soundfold && stack[udepth].ts_twordlen == 0 && c == b'*' as i32 {
-                            2 * SCORE_INS / 3
-                        } else {
-                            SCORE_INS
+                            SCORE_SUBST
                         };
-                    if c != i32::from(fword_buf[stack[udepth].ts_fidx as usize])
-                        && try_deeper(su, &stack, udepth, newscore)
-                    {
-                        go_deeper(&mut stack, udepth, newscore);
-                        depth += 1;
-                        udepth = depth as usize;
-                        let twl = stack[udepth].ts_twordlen as usize;
-                        tword[twl] = c as u8;
-                        stack[udepth].ts_twordlen += 1;
-                        stack[udepth].ts_arridx =
-                            *crate::globals::GraphPtr::of(idxs.wrapping_add(n as usize)).borrow();
-                        fl = utf_byte2len(c);
-                        if fl > 1 {
-                            stack[udepth].ts_tcharlen = fl as u8;
-                            stack[udepth].ts_tcharidx = 1;
-                            stack[udepth].ts_isdiff = DIFF_INSERT;
-                        }
-                        if fl == 1
-                            && stack[udepth].ts_twordlen >= 2
-                            && tword[stack[udepth].ts_twordlen as usize - 2] as i32 == c
+                        if (newscore == 0
+                            || (stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry
+                                && ((stack[udepth].ts_flags & TSF_DIDDEL) == 0
+                                    || c != i32::from(
+                                        fword_buf[stack[udepth].ts_delidx as usize],
+                                    ))))
+                            && try_deeper(su, &stack, udepth, newscore)
                         {
-                            stack[udepth].ts_score -= SCORE_INS - SCORE_INSDUP;
+                            go_deeper(&mut stack, udepth, newscore);
+                            depth += 1;
+                            udepth = depth as usize;
+                            if fword_buf[stack[udepth].ts_fidx as usize] != 0 {
+                                stack[udepth].ts_fidx += 1;
+                            }
+                            let twl = stack[udepth].ts_twordlen as usize;
+                            tword[twl] = c as u8;
+                            stack[udepth].ts_twordlen += 1;
+                            stack[udepth].ts_arridx = idxs[arridx as usize];
+                            if newscore == SCORE_SUBST {
+                                stack[udepth].ts_isdiff = DIFF_YES;
+                            }
+                            if stack[udepth].ts_tcharlen == 0 {
+                                stack[udepth].ts_tcharidx = 0;
+                                stack[udepth].ts_tcharlen = utf_byte2len(c) as u8;
+                                stack[udepth].ts_fcharstart = stack[udepth].ts_fidx - 1;
+                                stack[udepth].ts_isdiff =
+                                    if newscore != 0 { DIFF_YES } else { DIFF_NONE };
+                            } else if stack[udepth].ts_isdiff == DIFF_INSERT
+                                && stack[udepth].ts_fidx > 0
+                            {
+                                stack[udepth].ts_fidx -= 1;
+                            }
+                            stack[udepth].ts_tcharidx += 1;
+                            if stack[udepth].ts_tcharidx == stack[udepth].ts_tcharlen {
+                                if stack[udepth].ts_isdiff == DIFF_YES {
+                                    let fw_off = stack[udepth].ts_fcharstart as usize;
+                                    stack[udepth].ts_fidx = stack[udepth].ts_fcharstart
+                                        + utfc_ptr2len(&fword_buf[fw_off..]) as u8;
+                                    let tw_off = (stack[udepth].ts_twordlen
+                                        - stack[udepth].ts_tcharlen)
+                                        as usize;
+                                    let tw_c = utf_ptr2char(&tword[tw_off..]);
+                                    let fw_c = utf_ptr2char(&fword_buf[fw_off..]);
+                                    if utf_iscomposing_legacy(tw_c) && utf_iscomposing_legacy(fw_c)
+                                    {
+                                        stack[udepth].ts_score -= SCORE_SUBST - SCORE_SUBCOMP;
+                                    } else if !soundfold
+                                        && slang.sl_has_map
+                                        && similar_chars(slang, tw_c, fw_c)
+                                    {
+                                        stack[udepth].ts_score -= SCORE_SUBST - SCORE_SIMILAR;
+                                    }
+                                } else if stack[udepth].ts_isdiff == DIFF_INSERT
+                                    && stack[udepth].ts_twordlen > stack[udepth].ts_tcharlen
+                                {
+                                    let mut p_idx = (stack[udepth].ts_twordlen
+                                        - stack[udepth].ts_tcharlen)
+                                        as usize;
+                                    c = utf_ptr2char(&tword[p_idx..]);
+                                    if utf_iscomposing_legacy(c) {
+                                        stack[udepth].ts_score -= SCORE_INS - SCORE_INSCOMP;
+                                    } else {
+                                        mb_cptr_back(&tword, &mut p_idx);
+                                        if c == utf_ptr2char(&tword[p_idx..]) {
+                                            stack[udepth].ts_score -= SCORE_INS - SCORE_INSDUP;
+                                        }
+                                    }
+                                }
+                                stack[udepth].ts_tcharlen = 0;
+                            }
                         }
                     }
                 }
-                SugState::StateSwap => {
-                    let fidx = stack[udepth].ts_fidx as usize;
-                    let p = fword.wrapping_add(fidx);
-                    c = fword_buf[fidx] as i32;
-                    if c == 0 {
+            }
+            SugState::StateDel | SugState::StateInsPrep => {
+                let mut do_ins_prep = true;
+                if state == SugState::StateDel {
+                    if stack[udepth].ts_tcharlen > 0 {
                         stack[udepth].ts_state = SugState::StateFinal;
-                        continue;
-                    }
-                    if !soundfold && !spell_iswordp(&fword_buf[fidx..], curwin_mut()) {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                        continue;
-                    }
-                    n = utf_ptr2len(&fword_buf[fidx..]);
-                    c = utf_ptr2char(&fword_buf[fidx..]);
-                    if fword_buf[fidx + n as usize] == 0 {
-                        c2 = 0;
-                    } else if !soundfold
-                        && !spell_iswordp(&fword_buf[fidx + n as usize..], curwin_mut())
-                    {
-                        c2 = c;
+                        do_ins_prep = false;
                     } else {
-                        c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
-                    }
-                    if c2 == 0 {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                        continue;
-                    }
-                    if c == c2 {
-                        stack[udepth].ts_state = SugState::StateSwap3;
-                        continue;
-                    }
-                    if try_deeper(su, &stack, udepth, SCORE_SWAP) {
-                        go_deeper(&mut stack, udepth, SCORE_SWAP);
-                        stack[udepth].ts_state = SugState::StateUnswap;
-                        let old_fidx = stack[udepth].ts_fidx;
-                        depth += 1;
-                        udepth = depth as usize;
-                        fl = utf_char2len(c2);
-                        crate::globals::GraphPtr::copy_to(
-                            p.wrapping_add(n as usize),
-                            p,
-                            fl as usize,
-                        );
-                        utf_char2bytes(
-                            c,
-                            crate::globals::GraphPtr::raw_slice_mut(
-                                p.wrapping_add(fl as usize).cast(),
-                                6,
-                            ),
-                        );
-                        stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
-                    } else {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                    }
-                }
-                SugState::StateUnswap | SugState::StateSwap3 => {
-                    if state == SugState::StateUnswap {
-                        let fidx = stack[udepth].ts_fidx as usize;
-                        let p = fword.wrapping_add(fidx);
-                        n = utfc_ptr2len(&fword_buf[fidx..]);
-                        c = utf_ptr2char(&fword_buf[fidx + n as usize..]);
-                        crate::globals::GraphPtr::copy_to(
-                            p,
-                            p.wrapping_add(utfc_ptr2len(&fword_buf[fidx + n as usize..]) as usize),
-                            n as usize,
-                        );
-                        utf_char2bytes(c, crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6));
-                    }
-                    let fidx = stack[udepth].ts_fidx as usize;
-                    let p = fword.wrapping_add(fidx);
-                    n = utf_ptr2len(&fword_buf[fidx..]);
-                    c = utf_ptr2char(&fword_buf[fidx..]);
-                    fl = utf_ptr2len(&fword_buf[fidx + n as usize..]);
-                    c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
-                    if !soundfold
-                        && !spell_iswordp(&fword_buf[fidx + (n + fl) as usize..], curwin_mut())
-                    {
-                        c3 = c;
-                    } else {
-                        c3 = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
-                    }
-                    if c == c3 || c3 == 0 {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                        continue;
-                    }
-                    if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
-                        go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = SugState::StateUnswap3;
-                        let old_fidx = stack[udepth].ts_fidx;
-                        depth += 1;
-                        udepth = depth as usize;
-                        tl = utf_char2len(c3);
-                        crate::globals::GraphPtr::copy_to(
-                            p.wrapping_add((n + fl) as usize),
-                            p,
-                            tl as usize,
-                        );
-                        utf_char2bytes(
-                            c2,
-                            crate::globals::GraphPtr::raw_slice_mut(
-                                p.wrapping_add(tl as usize).cast(),
-                                6,
-                            ),
-                        );
-                        utf_char2bytes(
-                            c,
-                            crate::globals::GraphPtr::raw_slice_mut(
-                                p.wrapping_add((fl + tl) as usize).cast(),
-                                6,
-                            ),
-                        );
-                        stack[udepth].ts_fidxtry = old_fidx + (n + fl + tl) as u8;
-                    } else {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                    }
-                }
-                SugState::StateUnswap3 => {
-                    let fidx = stack[udepth].ts_fidx as usize;
-                    let mut p = fword.wrapping_add(fidx);
-                    n = utfc_ptr2len(&fword_buf[fidx..]);
-                    c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
-                    fl = utfc_ptr2len(&fword_buf[fidx + n as usize..]);
-                    c = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
-                    tl = utfc_ptr2len(&fword_buf[fidx + (n + fl) as usize..]);
-                    crate::globals::GraphPtr::copy_to(
-                        p,
-                        p.wrapping_add((fl + tl) as usize),
-                        n as usize,
-                    );
-                    utf_char2bytes(c, crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6));
-                    utf_char2bytes(
-                        c2,
-                        crate::globals::GraphPtr::raw_slice_mut(
-                            p.wrapping_add(tl as usize).cast(),
-                            6,
-                        ),
-                    );
-                    p = p.wrapping_add(tl as usize);
-                    if !soundfold && !spell_iswordp(&fword_buf[fidx + tl as usize..], curwin_mut())
-                    {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                        continue;
-                    }
-                    if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
-                        go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = SugState::StateUnrot3l;
-                        let old_fidx = stack[udepth].ts_fidx;
-                        let of_idx = old_fidx as usize;
-                        depth += 1;
-                        udepth = depth as usize;
-                        p = fword.wrapping_add(of_idx);
-                        n = utf_ptr2len(&fword_buf[of_idx..]);
-                        c = utf_ptr2char(&fword_buf[of_idx..]);
-                        fl = utf_ptr2len(&fword_buf[of_idx + n as usize..]);
-                        fl += utf_ptr2len(&fword_buf[of_idx + (n + fl) as usize..]);
-                        crate::globals::GraphPtr::copy_to(
-                            p.wrapping_add(n as usize),
-                            p,
-                            fl as usize,
-                        );
-                        utf_char2bytes(
-                            c,
-                            crate::globals::GraphPtr::raw_slice_mut(
-                                p.wrapping_add(fl as usize).cast(),
-                                6,
-                            ),
-                        );
-                        stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
-                    } else {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                    }
-                }
-                SugState::StateUnrot3l => {
-                    let fidx = stack[udepth].ts_fidx as usize;
-                    let mut p = fword.wrapping_add(fidx);
-                    n = utfc_ptr2len(&fword_buf[fidx..]);
-                    n += utfc_ptr2len(&fword_buf[fidx + n as usize..]);
-                    c = utf_ptr2char(&fword_buf[fidx + n as usize..]);
-                    tl = utfc_ptr2len(&fword_buf[fidx + n as usize..]);
-                    crate::globals::GraphPtr::copy_to(p, p.wrapping_add(tl as usize), n as usize);
-                    utf_char2bytes(c, crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6));
-                    if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
-                        go_deeper(&mut stack, udepth, SCORE_SWAP3);
-                        stack[udepth].ts_state = SugState::StateUnrot3r;
-                        let old_fidx = stack[udepth].ts_fidx;
-                        let of_idx = old_fidx as usize;
-                        depth += 1;
-                        udepth = depth as usize;
-                        p = fword.wrapping_add(of_idx);
-                        n = utf_ptr2len(&fword_buf[of_idx..]);
-                        n += utf_ptr2len(&fword_buf[of_idx + n as usize..]);
-                        c = utf_ptr2char(&fword_buf[of_idx + n as usize..]);
-                        tl = utf_ptr2len(&fword_buf[of_idx + n as usize..]);
-                        crate::globals::GraphPtr::copy_to(
-                            p,
-                            p.wrapping_add(tl as usize),
-                            n as usize,
-                        );
-                        utf_char2bytes(c, crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6));
-                        stack[udepth].ts_fidxtry = old_fidx + (n + tl) as u8;
-                    } else {
-                        stack[udepth].ts_state = SugState::StateRepIni;
-                    }
-                }
-                SugState::StateUnrot3r | SugState::StateRepIni | SugState::StateRep => {
-                    let mut do_rep = true;
-                    if state != SugState::StateRep {
-                        if state == SugState::StateUnrot3r {
-                            let fidx = stack[udepth].ts_fidx as usize;
-                            let p = fword.wrapping_add(fidx);
-                            c = utf_ptr2char(&fword_buf[fidx..]);
-                            tl = utfc_ptr2len(&fword_buf[fidx..]);
-                            n = utfc_ptr2len(&fword_buf[fidx + tl as usize..]);
-                            n += utfc_ptr2len(&fword_buf[fidx + (tl + n) as usize..]);
-                            crate::globals::GraphPtr::copy_to(
-                                p.wrapping_add(tl as usize),
-                                p,
-                                n as usize,
-                            );
-                            utf_char2bytes(
-                                c,
-                                crate::globals::GraphPtr::raw_slice_mut(
-                                    p.wrapping_add(n as usize).cast(),
-                                    6,
-                                ),
-                            );
-                        }
-                        if (lp.lp_replang.is_null() && !soundfold)
-                            || stack[udepth].ts_score + SCORE_REP >= su.su_maxscore
-                            || stack[udepth].ts_fidx < stack[udepth].ts_fidxtry
+                        stack[udepth].ts_state = SugState::StateInsPrep;
+                        stack[udepth].ts_curi = 1;
+                        let newscore = if soundfold
+                            && stack[udepth].ts_fidx == 0
+                            && fword_buf[stack[udepth].ts_fidx as usize] == b'*'
                         {
+                            2 * SCORE_DEL / 3
+                        } else {
+                            SCORE_DEL
+                        };
+                        if fword_buf[stack[udepth].ts_fidx as usize] != 0
+                            && try_deeper(su, &stack, udepth, newscore)
+                        {
+                            go_deeper(&mut stack, udepth, newscore);
+                            let old_fidx = stack[udepth].ts_fidx;
+                            depth += 1;
+                            udepth = depth as usize;
+                            stack[udepth].ts_flags |= TSF_DIDDEL;
+                            stack[udepth].ts_delidx = old_fidx;
+                            c = utf_ptr2char(&fword_buf[old_fidx as usize..]);
+                            stack[udepth].ts_fidx +=
+                                utfc_ptr2len(&fword_buf[old_fidx as usize..]) as u8;
+                            if utf_iscomposing_legacy(c) {
+                                stack[udepth].ts_score -= SCORE_DEL - SCORE_DELCOMP;
+                            } else if c
+                                == utf_ptr2char(&fword_buf[stack[udepth].ts_fidx as usize..])
+                            {
+                                stack[udepth].ts_score -= SCORE_DEL - SCORE_DELDUP;
+                            }
+                            do_ins_prep = false;
+                        }
+                    }
+                }
+                if do_ins_prep {
+                    if (stack[udepth].ts_flags & TSF_DIDDEL) != 0 {
+                        stack[udepth].ts_state = SugState::StateSwap;
+                    } else {
+                        n = stack[udepth].ts_arridx;
+                        loop {
+                            if stack[udepth].ts_curi as i32 > i32::from(byts[n as usize]) {
+                                stack[udepth].ts_state = SugState::StateSwap;
+                                break;
+                            }
+                            if byts[(n + stack[udepth].ts_curi as i32) as usize] != 0 {
+                                stack[udepth].ts_state = SugState::StateIns;
+                                break;
+                            }
+                            stack[udepth].ts_curi += 1;
+                        }
+                    }
+                }
+            }
+            SugState::StateIns => {
+                n = stack[udepth].ts_arridx;
+                if stack[udepth].ts_curi as i32 > i32::from(byts[n as usize]) {
+                    stack[udepth].ts_state = SugState::StateSwap;
+                    continue;
+                }
+                n += stack[udepth].ts_curi as i32;
+                stack[udepth].ts_curi += 1;
+                if ptr::eq(byts.as_ptr(), slang.sl_fbyts.as_ptr())
+                    && n >= slang.sl_fbyts.len() as i32
+                {
+                    g_st().got_int = true;
+                    continue;
+                }
+                c = i32::from(byts[n as usize]);
+                let newscore = if soundfold && stack[udepth].ts_twordlen == 0 && c == b'*' as i32 {
+                    2 * SCORE_INS / 3
+                } else {
+                    SCORE_INS
+                };
+                if c != i32::from(fword_buf[stack[udepth].ts_fidx as usize])
+                    && try_deeper(su, &stack, udepth, newscore)
+                {
+                    go_deeper(&mut stack, udepth, newscore);
+                    depth += 1;
+                    udepth = depth as usize;
+                    let twl = stack[udepth].ts_twordlen as usize;
+                    tword[twl] = c as u8;
+                    stack[udepth].ts_twordlen += 1;
+                    stack[udepth].ts_arridx = idxs[n as usize];
+                    fl = utf_byte2len(c);
+                    if fl > 1 {
+                        stack[udepth].ts_tcharlen = fl as u8;
+                        stack[udepth].ts_tcharidx = 1;
+                        stack[udepth].ts_isdiff = DIFF_INSERT;
+                    }
+                    if fl == 1
+                        && stack[udepth].ts_twordlen >= 2
+                        && tword[stack[udepth].ts_twordlen as usize - 2] as i32 == c
+                    {
+                        stack[udepth].ts_score -= SCORE_INS - SCORE_INSDUP;
+                    }
+                }
+            }
+            SugState::StateSwap => {
+                let fidx = stack[udepth].ts_fidx as usize;
+                c = fword_buf[fidx] as i32;
+                if c == 0 {
+                    stack[udepth].ts_state = SugState::StateFinal;
+                    continue;
+                }
+                if !soundfold && !spell_iswordp(&fword_buf[fidx..], curwin_mut()) {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                    continue;
+                }
+                n = utf_ptr2len(&fword_buf[fidx..]);
+                c = utf_ptr2char(&fword_buf[fidx..]);
+                if fword_buf[fidx + n as usize] == 0 {
+                    c2 = 0;
+                } else if !soundfold
+                    && !spell_iswordp(&fword_buf[fidx + n as usize..], curwin_mut())
+                {
+                    c2 = c;
+                } else {
+                    c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                }
+                if c2 == 0 {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                    continue;
+                }
+                if c == c2 {
+                    stack[udepth].ts_state = SugState::StateSwap3;
+                    continue;
+                }
+                if try_deeper(su, &stack, udepth, SCORE_SWAP) {
+                    go_deeper(&mut stack, udepth, SCORE_SWAP);
+                    stack[udepth].ts_state = SugState::StateUnswap;
+                    let old_fidx = stack[udepth].ts_fidx;
+                    depth += 1;
+                    udepth = depth as usize;
+                    fl = utf_char2len(c2);
+                    let n_u = n as usize;
+                    let fl_u = fl as usize;
+                    fword_buf.copy_within(fidx + n_u..fidx + n_u + fl_u, fidx);
+                    utf_char2bytes(c, &mut fword_buf[fidx + fl_u..fidx + fl_u + 6]);
+                    stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
+                } else {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                }
+            }
+            SugState::StateUnswap | SugState::StateSwap3 => {
+                if state == SugState::StateUnswap {
+                    let fidx = stack[udepth].ts_fidx as usize;
+                    n = utfc_ptr2len(&fword_buf[fidx..]);
+                    c = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                    let n_u = n as usize;
+                    let dst_off = utfc_ptr2len(&fword_buf[fidx + n_u..]) as usize;
+                    fword_buf.copy_within(fidx..fidx + n_u, fidx + dst_off);
+                    utf_char2bytes(c, &mut fword_buf[fidx..fidx + 6]);
+                }
+                let fidx = stack[udepth].ts_fidx as usize;
+                n = utf_ptr2len(&fword_buf[fidx..]);
+                c = utf_ptr2char(&fword_buf[fidx..]);
+                fl = utf_ptr2len(&fword_buf[fidx + n as usize..]);
+                c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                if !soundfold
+                    && !spell_iswordp(&fword_buf[fidx + (n + fl) as usize..], curwin_mut())
+                {
+                    c3 = c;
+                } else {
+                    c3 = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
+                }
+                if c == c3 || c3 == 0 {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                    continue;
+                }
+                if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
+                    go_deeper(&mut stack, udepth, SCORE_SWAP3);
+                    stack[udepth].ts_state = SugState::StateUnswap3;
+                    let old_fidx = stack[udepth].ts_fidx;
+                    depth += 1;
+                    udepth = depth as usize;
+                    tl = utf_char2len(c3);
+                    let nfl_u = (n + fl) as usize;
+                    let tl_u = tl as usize;
+                    let fl_tl_u = (fl + tl) as usize;
+                    fword_buf.copy_within(fidx + nfl_u..fidx + nfl_u + tl_u, fidx);
+                    utf_char2bytes(c2, &mut fword_buf[fidx + tl_u..fidx + tl_u + 6]);
+                    utf_char2bytes(c, &mut fword_buf[fidx + fl_tl_u..fidx + fl_tl_u + 6]);
+                    stack[udepth].ts_fidxtry = old_fidx + (n + fl + tl) as u8;
+                } else {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                }
+            }
+            SugState::StateUnswap3 => {
+                let fidx = stack[udepth].ts_fidx as usize;
+                n = utfc_ptr2len(&fword_buf[fidx..]);
+                c2 = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                fl = utfc_ptr2len(&fword_buf[fidx + n as usize..]);
+                c = utf_ptr2char(&fword_buf[fidx + (n + fl) as usize..]);
+                tl = utfc_ptr2len(&fword_buf[fidx + (n + fl) as usize..]);
+                let n_u = n as usize;
+                let tl_u = tl as usize;
+                let fl_tl_u = (fl + tl) as usize;
+                fword_buf.copy_within(fidx..fidx + n_u, fidx + fl_tl_u);
+                utf_char2bytes(c, &mut fword_buf[fidx..fidx + 6]);
+                utf_char2bytes(c2, &mut fword_buf[fidx + tl_u..fidx + tl_u + 6]);
+                if !soundfold && !spell_iswordp(&fword_buf[fidx + tl_u..], curwin_mut()) {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                    continue;
+                }
+                if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
+                    go_deeper(&mut stack, udepth, SCORE_SWAP3);
+                    stack[udepth].ts_state = SugState::StateUnrot3l;
+                    let old_fidx = stack[udepth].ts_fidx;
+                    let of_idx = old_fidx as usize;
+                    depth += 1;
+                    udepth = depth as usize;
+                    n = utf_ptr2len(&fword_buf[of_idx..]);
+                    c = utf_ptr2char(&fword_buf[of_idx..]);
+                    fl = utf_ptr2len(&fword_buf[of_idx + n as usize..]);
+                    fl += utf_ptr2len(&fword_buf[of_idx + (n + fl) as usize..]);
+                    let n_u = n as usize;
+                    let fl_u = fl as usize;
+                    fword_buf.copy_within(of_idx + n_u..of_idx + n_u + fl_u, of_idx);
+                    utf_char2bytes(c, &mut fword_buf[of_idx + fl_u..of_idx + fl_u + 6]);
+                    stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
+                } else {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                }
+            }
+            SugState::StateUnrot3l => {
+                let fidx = stack[udepth].ts_fidx as usize;
+                n = utfc_ptr2len(&fword_buf[fidx..]);
+                n += utfc_ptr2len(&fword_buf[fidx + n as usize..]);
+                c = utf_ptr2char(&fword_buf[fidx + n as usize..]);
+                tl = utfc_ptr2len(&fword_buf[fidx + n as usize..]);
+                let n_u = n as usize;
+                let tl_u = tl as usize;
+                fword_buf.copy_within(fidx..fidx + n_u, fidx + tl_u);
+                utf_char2bytes(c, &mut fword_buf[fidx..fidx + 6]);
+                if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
+                    go_deeper(&mut stack, udepth, SCORE_SWAP3);
+                    stack[udepth].ts_state = SugState::StateUnrot3r;
+                    let old_fidx = stack[udepth].ts_fidx;
+                    let of_idx = old_fidx as usize;
+                    depth += 1;
+                    udepth = depth as usize;
+                    n = utf_ptr2len(&fword_buf[of_idx..]);
+                    n += utf_ptr2len(&fword_buf[of_idx + n as usize..]);
+                    c = utf_ptr2char(&fword_buf[of_idx + n as usize..]);
+                    tl = utf_ptr2len(&fword_buf[of_idx + n as usize..]);
+                    let n_u = n as usize;
+                    let tl_u = tl as usize;
+                    fword_buf.copy_within(of_idx..of_idx + n_u, of_idx + tl_u);
+                    utf_char2bytes(c, &mut fword_buf[of_idx..of_idx + 6]);
+                    stack[udepth].ts_fidxtry = old_fidx + (n + tl) as u8;
+                } else {
+                    stack[udepth].ts_state = SugState::StateRepIni;
+                }
+            }
+            SugState::StateUnrot3r | SugState::StateRepIni | SugState::StateRep => {
+                let mut do_rep = true;
+                if state != SugState::StateRep {
+                    if state == SugState::StateUnrot3r {
+                        let fidx = stack[udepth].ts_fidx as usize;
+                        c = utf_ptr2char(&fword_buf[fidx..]);
+                        tl = utfc_ptr2len(&fword_buf[fidx..]);
+                        n = utfc_ptr2len(&fword_buf[fidx + tl as usize..]);
+                        n += utfc_ptr2len(&fword_buf[fidx + (tl + n) as usize..]);
+                        let tl_u = tl as usize;
+                        let n_u = n as usize;
+                        fword_buf.copy_within(fidx + tl_u..fidx + tl_u + n_u, fidx);
+                        utf_char2bytes(c, &mut fword_buf[fidx + n_u..fidx + n_u + 6]);
+                    }
+                    if (lp.lp_replang.is_null() && !soundfold)
+                        || stack[udepth].ts_score + SCORE_REP >= su.su_maxscore
+                        || stack[udepth].ts_fidx < stack[udepth].ts_fidxtry
+                    {
+                        stack[udepth].ts_state = SugState::StateFinal;
+                        do_rep = false;
+                    } else {
+                        let first_byte = fword_buf[stack[udepth].ts_fidx as usize] as usize;
+                        stack[udepth].ts_curi = if soundfold {
+                            slang.sl_repsal_first[first_byte]
+                        } else {
+                            lp.lp_replang.sl_rep_first[first_byte]
+                        };
+                        if stack[udepth].ts_curi < 0 {
                             stack[udepth].ts_state = SugState::StateFinal;
                             do_rep = false;
                         } else {
-                            let first_byte = fword_buf[stack[udepth].ts_fidx as usize] as usize;
-                            stack[udepth].ts_curi = if soundfold {
-                                slang.sl_repsal_first[first_byte]
-                            } else {
-                                lp.lp_replang.sl_rep_first[first_byte]
-                            };
-                            if stack[udepth].ts_curi < 0 {
-                                stack[udepth].ts_state = SugState::StateFinal;
-                                do_rep = false;
-                            } else {
-                                stack[udepth].ts_state = SugState::StateRep;
-                            }
-                        }
-                    }
-                    if do_rep {
-                        let fidx_cur = stack[udepth].ts_fidx as usize;
-                        let gap = if soundfold {
-                            &slang.sl_repsal
-                        } else {
-                            &lp.lp_replang.sl_rep
-                        };
-                        while (stack[udepth].ts_curi as usize) < gap.len() {
-                            let curi = stack[udepth].ts_curi;
-                            stack[udepth].ts_curi += 1;
-                            let ftp = &gap[curi as usize];
-                            if ftp.ft_from.to_bytes().first().copied().unwrap_or(0)
-                                != fword_buf[fidx_cur]
-                            {
-                                stack[udepth].ts_curi = gap.len() as i16;
-                                break;
-                            }
-                            if crate::memory::bytes_until_nul(&fword_buf[fidx_cur..])
-                                .starts_with(ftp.ft_from.as_bytes())
-                                && try_deeper(su, &stack, udepth, SCORE_REP)
-                            {
-                                go_deeper(&mut stack, udepth, SCORE_REP);
-                                stack[udepth].ts_state = SugState::StateRepUndo;
-                                let old_fidx = stack[udepth].ts_fidx;
-                                depth += 1;
-                                udepth = depth as usize;
-                                let fidx = old_fidx as usize;
-                                fl = ftp.ft_from.as_bytes().len() as i32;
-                                tl = ftp.ft_to.as_bytes().len() as i32;
-                                if fl != tl {
-                                    let tail_len = crate::memory::bytes_as_cstr(
-                                        &fword_buf[fidx + fl as usize..],
-                                    )
-                                    .to_bytes()
-                                    .len();
-                                    fword_buf.copy_within(
-                                        fidx + fl as usize..=fidx + fl as usize + tail_len,
-                                        fidx + tl as usize,
-                                    );
-                                    repextra += tl - fl;
-                                }
-                                fword_buf[fidx..fidx + tl as usize]
-                                    .copy_from_slice(ftp.ft_to.to_bytes());
-                                stack[udepth].ts_fidxtry = old_fidx + tl as u8;
-                                stack[udepth].ts_tcharlen = 0;
-                                break;
-                            }
-                        }
-                        if (stack[udepth].ts_curi as usize) >= gap.len()
-                            && stack[udepth].ts_state == SugState::StateRep
-                        {
-                            stack[udepth].ts_state = SugState::StateFinal;
+                            stack[udepth].ts_state = SugState::StateRep;
                         }
                     }
                 }
-                SugState::StateRepUndo => {
+                if do_rep {
+                    let fidx_cur = stack[udepth].ts_fidx as usize;
                     let gap = if soundfold {
                         &slang.sl_repsal
                     } else {
                         &lp.lp_replang.sl_rep
                     };
-                    let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
-                    fl = ftp.ft_from.as_bytes().len() as i32;
-                    tl = ftp.ft_to.as_bytes().len() as i32;
-                    let fidx = stack[udepth].ts_fidx as usize;
-                    if fl != tl {
-                        let tail_len =
-                            crate::memory::bytes_as_cstr(&fword_buf[fidx + tl as usize..])
-                                .to_bytes()
-                                .len();
-                        fword_buf.copy_within(
-                            fidx + tl as usize..=fidx + tl as usize + tail_len,
-                            fidx + fl as usize,
-                        );
-                        repextra -= tl - fl;
-                    }
-                    fword_buf[fidx..fidx + fl as usize].copy_from_slice(ftp.ft_from.to_bytes());
-                    stack[udepth].ts_state = SugState::StateRep;
-                }
-                SugState::StateFinal => {
-                    depth -= 1;
-                    if depth >= 0 && stack[depth as usize].ts_prefixdepth == PFD_PREFIXTREE {
-                        byts = pbyts;
-                        idxs = pidxs;
-                    }
-                    breakcheckcount -= 1;
-                    if breakcheckcount == 0 {
-                        os_breakcheck();
-                        breakcheckcount = 1000;
-                        if sps_st().spell_suggest_timeout > 0 && profile_passed_limit(time_limit) {
-                            g_st().got_int = true;
+                    while (stack[udepth].ts_curi as usize) < gap.len() {
+                        let curi = stack[udepth].ts_curi;
+                        stack[udepth].ts_curi += 1;
+                        let ftp = &gap[curi as usize];
+                        if ftp.ft_from.to_bytes().first().copied().unwrap_or(0)
+                            != fword_buf[fidx_cur]
+                        {
+                            stack[udepth].ts_curi = gap.len() as i16;
+                            break;
                         }
+                        if crate::memory::bytes_until_nul(&fword_buf[fidx_cur..])
+                            .starts_with(ftp.ft_from.as_bytes())
+                            && try_deeper(su, &stack, udepth, SCORE_REP)
+                        {
+                            go_deeper(&mut stack, udepth, SCORE_REP);
+                            stack[udepth].ts_state = SugState::StateRepUndo;
+                            let old_fidx = stack[udepth].ts_fidx;
+                            depth += 1;
+                            udepth = depth as usize;
+                            let fidx = old_fidx as usize;
+                            fl = ftp.ft_from.as_bytes().len() as i32;
+                            tl = ftp.ft_to.as_bytes().len() as i32;
+                            if fl != tl {
+                                let tail_len =
+                                    crate::memory::bytes_as_cstr(&fword_buf[fidx + fl as usize..])
+                                        .to_bytes()
+                                        .len();
+                                fword_buf.copy_within(
+                                    fidx + fl as usize..=fidx + fl as usize + tail_len,
+                                    fidx + tl as usize,
+                                );
+                                repextra += tl - fl;
+                            }
+                            fword_buf[fidx..fidx + tl as usize]
+                                .copy_from_slice(ftp.ft_to.to_bytes());
+                            stack[udepth].ts_fidxtry = old_fidx + tl as u8;
+                            stack[udepth].ts_tcharlen = 0;
+                            break;
+                        }
+                    }
+                    if (stack[udepth].ts_curi as usize) >= gap.len()
+                        && stack[udepth].ts_state == SugState::StateRep
+                    {
+                        stack[udepth].ts_state = SugState::StateFinal;
+                    }
+                }
+            }
+            SugState::StateRepUndo => {
+                let gap = if soundfold {
+                    &slang.sl_repsal
+                } else {
+                    &lp.lp_replang.sl_rep
+                };
+                let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
+                fl = ftp.ft_from.as_bytes().len() as i32;
+                tl = ftp.ft_to.as_bytes().len() as i32;
+                let fidx = stack[udepth].ts_fidx as usize;
+                if fl != tl {
+                    let tail_len = crate::memory::bytes_as_cstr(&fword_buf[fidx + tl as usize..])
+                        .to_bytes()
+                        .len();
+                    fword_buf.copy_within(
+                        fidx + tl as usize..=fidx + tl as usize + tail_len,
+                        fidx + fl as usize,
+                    );
+                    repextra -= tl - fl;
+                }
+                fword_buf[fidx..fidx + fl as usize].copy_from_slice(ftp.ft_from.to_bytes());
+                stack[udepth].ts_state = SugState::StateRep;
+            }
+            SugState::StateFinal => {
+                depth -= 1;
+                if depth >= 0 && stack[depth as usize].ts_prefixdepth == PFD_PREFIXTREE {
+                    byts = pbyts;
+                    idxs = pidxs;
+                }
+                breakcheckcount -= 1;
+                if breakcheckcount == 0 {
+                    os_breakcheck();
+                    breakcheckcount = 1000;
+                    if sps_st().spell_suggest_timeout > 0 && profile_passed_limit(time_limit) {
+                        g_st().got_int = true;
                     }
                 }
             }
@@ -2216,7 +2089,7 @@ fn go_deeper(stack: &mut [Trystate; MAXWLEN], depth: usize, score_add: i32) {
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-fn find_keepcap_word(slang: &mut Slang, fword: &[u8], kword: &mut [u8]) {
+fn find_keepcap_word(slang: &Slang, fword: &[u8], kword: &mut [u8]) {
     let mut uword: [u8; MAXWLEN] = [0; MAXWLEN];
     let mut arridx: [Idx; MAXWLEN] = [0; MAXWLEN];
     let mut round: [i32; MAXWLEN] = [0; MAXWLEN];
@@ -2669,7 +2542,7 @@ fn soundfold_find(slang: &mut Slang, word: &[u8]) -> i32 {
     }
     wordnr
 }
-fn similar_chars(slang: &mut Slang, c1: i32, c2: i32) -> bool {
+fn similar_chars(slang: &Slang, c1: i32, c2: i32) -> bool {
     let m1 = if c1 >= 256 {
         slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
     } else if c1 >= 0 {

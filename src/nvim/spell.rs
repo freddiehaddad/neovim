@@ -861,18 +861,15 @@ pub fn match_checkcompoundpattern(ptr: &[u8], wlen: i32, gap: &[std::ffi::CStrin
     }
     false
 }
-pub fn can_compound(slang: &mut Slang, word: &[u8], flags: &[u8]) -> bool {
+pub fn can_compound(slang: &Slang, word: &[u8], flags: &[u8]) -> bool {
     let mut uflags: [u8; MAXWLEN * 2] = [0; MAXWLEN * 2];
     if slang.sl_compprog.is_none() {
         return false;
     }
     let flags_bytes = crate::memory::bytes_until_nul(flags);
-    let mut p = (&raw mut uflags).cast::<u8>();
+    let mut p_idx = 0usize;
     for &b in flags_bytes {
-        p = p.wrapping_add(utf_char2bytes(
-            i32::from(b),
-            crate::globals::GraphPtr::raw_slice_mut(p.cast(), 6),
-        ) as usize);
+        p_idx += utf_char2bytes(i32::from(b), &mut uflags[p_idx..p_idx + 6]) as usize;
     }
     if !vim_regexec_prog(
         slang.sl_compprog.as_deref(),
@@ -887,7 +884,7 @@ pub fn can_compound(slang: &mut Slang, word: &[u8], flags: &[u8]) -> bool {
     }
     true
 }
-pub fn match_compoundrule(slang: &mut Slang, compflags: &[u8]) -> bool {
+pub fn match_compoundrule(slang: &Slang, compflags: &[u8]) -> bool {
     let Some(ref rules) = slang.sl_comprules else {
         return false;
     };
@@ -928,7 +925,7 @@ pub fn valid_word_prefix(
     arridx: i32,
     flags: i32,
     word: &std::ffi::CStr,
-    slang: &mut Slang,
+    slang: &Slang,
     cond_req: bool,
 ) -> i32 {
     let prefid = ((flags as u32) >> 24) as i32;
@@ -1536,7 +1533,7 @@ pub fn init_syl_tab(slang: &mut Slang) -> bool {
     slang.sl_syllable = Some(std::ffi::CString::new(prefix).unwrap());
     true
 }
-fn count_syllables(slang: &mut Slang, word: &[u8]) -> i32 {
+fn count_syllables(slang: &Slang, word: &[u8]) -> i32 {
     let Some(ref sl_syllable) = slang.sl_syllable else {
         return 0;
     };
@@ -2132,10 +2129,7 @@ pub fn spell_casefold(wp: &WinInfoInfo, str_: &[u8], out: &mut [u8]) -> bool {
         } else {
             c = spell_tofold(c);
         }
-        outi += utf_char2bytes(
-            c,
-            crate::globals::GraphPtr::raw_slice_mut(out[outi..].as_mut_ptr().cast(), 6),
-        ) as usize;
+        outi += utf_char2bytes(c, &mut out[outi..]) as usize;
     }
     out[outi] = 0;
     true
@@ -2305,10 +2299,7 @@ pub fn allcap_copy(word: &[u8], out: &mut [u8]) {
         if pos + MB_MAXBYTES > max_len {
             break;
         }
-        pos += utf_char2bytes(
-            c,
-            crate::globals::GraphPtr::raw_slice_mut(out[pos..].as_mut_ptr().cast(), 6),
-        ) as usize;
+        pos += utf_char2bytes(c, &mut out[pos..]) as usize;
     }
     out[pos] = 0;
 }
@@ -2383,10 +2374,7 @@ fn spell_soundfold_sofo(slang: &mut Slang, inword: &[u8], res: &mut [u8; MAXWLEN
                 .map_or(NUL as i32, |&(_, v)| v);
         }
         if c != NUL as i32 && c != prevc {
-            ri += utf_char2bytes(
-                c,
-                crate::globals::GraphPtr::raw_slice_mut(res[ri..].as_mut_ptr().cast(), 6),
-            ) as usize;
+            ri += utf_char2bytes(c, &mut res[ri..]) as usize;
             if ri + MB_MAXBYTES > MAXWLEN {
                 break;
             }
@@ -2629,10 +2617,7 @@ fn spell_soundfold_wsal(slang: &mut Slang, inword: &[u8], res: &mut [u8; MAXWLEN
     }
     let mut l: usize = 0;
     for &wc in wres.iter().take(reslen) {
-        l += utf_char2bytes(
-            wc,
-            crate::globals::GraphPtr::raw_slice_mut(res[l..].as_mut_ptr().cast(), 6),
-        ) as usize;
+        l += utf_char2bytes(wc, &mut res[l..]) as usize;
         if l + MB_MAXBYTES > MAXWLEN {
             break;
         }

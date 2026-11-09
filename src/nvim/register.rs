@@ -1116,23 +1116,13 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
         {
             let last_old = *curr_reg.y_array.last().unwrap();
             let first_new = new_reg.y_array[0];
-            let mut pnew = vec![0u8; last_old.size + first_new.size + 1];
-
-            crate::globals::GraphPtr::copy_to(
-                last_old.data.cast::<u8>(),
-                pnew.as_mut_ptr(),
-                last_old.size,
-            );
-
-            crate::globals::GraphPtr::copy_to(
-                first_new.data.cast::<u8>(),
-                pnew.as_mut_ptr().wrapping_add(last_old.size),
-                first_new.size + 1,
-            );
+            let mut pnew = Vec::with_capacity(last_old.size + first_new.size);
+            pnew.extend_from_slice(last_old.as_bytes());
+            pnew.extend_from_slice(first_new.as_bytes());
 
             let last_slot = curr_reg.y_array.last_mut().unwrap();
             api_clear_string(last_slot);
-            *last_slot = cbuf_to_string(&pnew[..last_old.size + first_new.size]);
+            *last_slot = cbuf_to_string(&pnew);
             api_clear_string(&mut new_reg.y_array[0]);
             y_idx = 1;
         } else {
@@ -1412,7 +1402,7 @@ pub fn do_put(
     let y_size: usize;
     let mut y_width: i32 = 0;
     let mut vcol: Colnr = 0;
-    let y_array;
+    let y_array: &[NvimString];
     let mut expr_y_array: Vec<NvimString> = Vec::new();
     let mut y_allocated = true;
     let mut nr_lines: Linenr = 0;
@@ -1569,10 +1559,10 @@ pub fn do_put(
                 }
             }
             y_size = expr_y_array.len();
-            y_array = expr_y_array.as_mut_ptr();
+            y_array = &expr_y_array;
         } else {
             y_size = 1;
-            y_array = &raw mut insert_string;
+            y_array = std::slice::from_ref(&insert_string);
         }
         if has_event(EVENT_TEXTPUTPRE) {
             put_do_autocmd(regname, None, Some(&insert_string), false, dir);
@@ -1603,17 +1593,12 @@ pub fn do_put(
         y_width = reg_ref.y_width;
         y_size = reg_ref.y_array.len();
         y_allocated = reg_ref.y_allocated;
-        y_array = reg_ref.y_array.as_mut_ptr();
+        y_array = &reg_ref.y_array;
     }
 
     'end: {
         if !curbuf_mut().terminal.is_null() {
-            let y_slice = if y_size == 0 {
-                &[][..]
-            } else {
-                crate::globals::GraphPtr::raw_slice(y_array, y_size)
-            };
-            terminal_paste(count, y_slice);
+            terminal_paste(count, y_array);
             break 'end;
         }
 
@@ -1623,31 +1608,20 @@ pub fn do_put(
                 if !u_save_cursor() {
                     break 'end;
                 }
-                let curline = get_cursor_line_ptr().as_ptr().cast_mut();
                 let p_cstr = get_cursor_pos_ptr();
-                let mut p = p_cstr.as_ptr().cast_mut();
-                let p_orig = p;
+                let p_slice = p_cstr.to_bytes();
                 let plen = get_cursor_pos_len() as usize;
-                if dir == FORWARD && plen > 0 {
-                    p = p.wrapping_add(utfc_ptr2len(p_cstr) as usize);
-                }
-                split_pos = ((p as usize) - (curline as usize)) as Colnr;
+                let adv = if dir == FORWARD && plen > 0 {
+                    utfc_ptr2len(p_cstr) as usize
+                } else {
+                    0
+                };
+                split_pos = curwin_mut().w_cursor.col + (adv as Colnr);
 
-                let tail_len = plen - ((p as usize) - (p_orig as usize));
-                let mut tail_vec: Vec<u8> = Vec::with_capacity(tail_len + 1);
-
-                tail_vec.extend_from_slice(crate::globals::GraphPtr::raw_slice(
-                    p.cast::<u8>(),
-                    tail_len,
-                ));
-
-                tail_vec.push(0);
-                ml_append(
-                    curwin_mut().w_cursor.lnum,
-                    crate::memory::bytes_until_nul(&tail_vec),
-                    0,
-                    false,
-                );
+                let tail_start = adv.min(p_slice.len());
+                let tail_end = plen.min(p_slice.len());
+                let tail_vec = p_slice[tail_start..tail_end].to_vec();
+                ml_append(curwin_mut().w_cursor.lnum, &tail_vec, 0, false);
 
                 let line_slice = crate::cursor::get_cursor_line_slice();
                 let split_u = (split_pos as usize).min(line_slice.len());
@@ -1801,7 +1775,7 @@ pub fn do_put(
             curwin_mut().w_cursor.coladd = 0;
             bd.textcol = 0;
 
-            for i in 0..y_size {
+            for (i, &y_item) in y_array.iter().enumerate() {
                 let mut spaces: i32 = 0;
                 let mut lines_appended: i32 = 0;
 
@@ -1817,7 +1791,8 @@ pub fn do_put(
                     lines_appended = 1;
                 }
                 let oldp_cstr = get_cursor_line_ptr();
-                let oldp = oldp_cstr.as_ptr().cast_mut();
+                let oldp_bytes = oldp_cstr.to_bytes();
+                let oldp_with_nul = oldp_cstr.to_bytes_with_nul();
                 let oldlen = get_cursor_line_len();
 
                 let mut csarg = CharsizeArg::new();
@@ -1837,11 +1812,11 @@ pub fn do_put(
                     vcol += incr;
                     ci = cli.next;
                 }
-                let mut ptr_ = oldp.wrapping_add(ci.offset_from(oldp_cstr));
-                bd.textcol = ci.offset_from(oldp_cstr) as Colnr;
+                let text_off = ci.offset_from(oldp_cstr);
+                bd.textcol = text_off as Colnr;
 
                 let shortline = (vcol < col)
-                    || (vcol == col && *crate::globals::GraphPtr::of(ptr_).borrow() == 0);
+                    || (vcol == col && oldp_with_nul.get(text_off).copied().unwrap_or(0) == 0);
 
                 if vcol < col {
                     bd.startspaces = col - vcol;
@@ -1850,27 +1825,19 @@ pub fn do_put(
                     bd.startspaces = incr - bd.endspaces;
                     bd.textcol -= 1;
                     delcount = 1;
-                    bd.textcol -=
-                        crate::mbyte::utf_head_off_slice(oldp_cstr.to_bytes(), bd.textcol as usize);
-                    if *crate::globals::GraphPtr::of(oldp.wrapping_add(bd.textcol as usize))
-                        .borrow() as u8
-                        != TAB as u8
-                    {
+                    bd.textcol -= crate::mbyte::utf_head_off_slice(oldp_bytes, bd.textcol as usize);
+                    if oldp_bytes.get(bd.textcol as usize).copied().unwrap_or(0) != TAB as u8 {
                         delcount = 0;
                         bd.endspaces = 0;
                     }
                 }
 
-                let yanklen = crate::globals::GraphPtr::of(y_array.wrapping_add(i))
-                    .borrow()
-                    .size as i32;
+                let yanklen = y_item.size as i32;
 
                 if (flags & PUT_BLOCK_INNER) == 0 {
                     spaces = y_width + 1;
 
-                    let y_data = crate::globals::GraphPtr::of(y_array.wrapping_add(i))
-                        .borrow()
-                        .as_cstr();
+                    let y_data = y_item.as_cstr();
                     cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, y_data);
 
                     ci = utf_ptr2_str_char_info(y_data);
@@ -1896,63 +1863,40 @@ pub fn do_put(
                     + (bd.startspaces as usize)
                     + (bd.endspaces as usize);
                 let mut newp_vec = vec![0u8; totlen + (oldlen as usize) + 1];
-                let newp = newp_vec.as_mut_ptr();
+                let mut ptr_idx = bd.textcol as usize;
 
-                ptr_ = newp.cast();
+                newp_vec[..ptr_idx].copy_from_slice(&oldp_with_nul[..ptr_idx]);
 
-                crate::globals::GraphPtr::copy_to(oldp, ptr_, bd.textcol as usize);
+                let start_sp = bd.startspaces as usize;
+                newp_vec[ptr_idx..ptr_idx + start_sp].fill(b' ');
+                ptr_idx += start_sp;
 
-                ptr_ = ptr_.wrapping_add(bd.textcol as usize);
-
-                crate::globals::GraphPtr::write_bytes(
-                    ptr_.cast::<u8>(),
-                    b' ',
-                    bd.startspaces as usize,
-                );
-
-                ptr_ = ptr_.wrapping_add(bd.startspaces as usize);
-
+                let y_bytes = y_item.as_bytes();
+                let y_len = yanklen as usize;
                 for j in 0..count {
-                    crate::globals::GraphPtr::copy_to(
-                        crate::globals::GraphPtr::of(y_array.wrapping_add(i))
-                            .borrow()
-                            .data
-                            .as_ptr(),
-                        ptr_.cast::<u8>(),
-                        yanklen as usize,
-                    );
-
-                    ptr_ = ptr_.wrapping_add(yanklen as usize);
+                    newp_vec[ptr_idx..ptr_idx + y_len].copy_from_slice(&y_bytes[..y_len]);
+                    ptr_idx += y_len;
 
                     if (j < count - 1 || !shortline) && spaces > 0 {
-                        crate::globals::GraphPtr::write_bytes(
-                            ptr_.cast::<u8>(),
-                            b' ',
-                            spaces as usize,
-                        );
-
-                        ptr_ = ptr_.wrapping_add(spaces as usize);
+                        let sp = spaces as usize;
+                        newp_vec[ptr_idx..ptr_idx + sp].fill(b' ');
+                        ptr_idx += sp;
                     } else {
                         totlen -= spaces as usize;
                     }
                 }
 
-                crate::globals::GraphPtr::write_bytes(
-                    ptr_.cast::<u8>(),
-                    b' ',
-                    bd.endspaces as usize,
-                );
-
-                ptr_ = ptr_.wrapping_add(bd.endspaces as usize);
+                let end_sp = bd.endspaces as usize;
+                newp_vec[ptr_idx..ptr_idx + end_sp].fill(b' ');
+                ptr_idx += end_sp;
 
                 let columns = oldlen - bd.textcol - delcount + 1;
                 assert!(columns >= 0);
 
-                crate::globals::GraphPtr::copy_to(
-                    oldp.wrapping_add((bd.textcol + delcount) as usize),
-                    ptr_,
-                    columns as usize,
-                );
+                let tail_start = (bd.textcol + delcount) as usize;
+                let cols_u = columns as usize;
+                newp_vec[ptr_idx..ptr_idx + cols_u]
+                    .copy_from_slice(&oldp_with_nul[tail_start..tail_start + cols_u]);
 
                 ml_replace(
                     curwin_mut().w_cursor.lnum,
@@ -2000,7 +1944,7 @@ pub fn do_put(
                 curwin_mut().w_cursor.lnum = lnum;
             }
         } else {
-            let yanklen = crate::globals::GraphPtr::of(y_array).borrow().size as i32;
+            let yanklen = y_array[0].size as i32;
 
             if y_type == MotionType::MtCharWise {
                 if dir == FORWARD && gchar_cursor() != 0 {
@@ -2044,8 +1988,10 @@ pub fn do_put(
                     emsg(gettext(E_RESULTING_TEXT_TOO_LONG));
                 } else {
                     totlen = (count as usize) * (yanklen as usize);
+                    let y_bytes = y_array[0].as_bytes();
+                    let y_len = yanklen as usize;
                     loop {
-                        let oldp = ml_get(lnum).as_ptr().cast_mut();
+                        let oldp_with_nul = ml_get(lnum).to_bytes_with_nul();
                         let oldlen = ml_get_len(lnum);
                         if lnum > start_lnum {
                             let mut pos = CursorPos {
@@ -2067,33 +2013,22 @@ pub fn do_put(
                             continue;
                         }
                         let mut newp_vec = vec![0u8; totlen + (oldlen as usize) + 1];
-                        let newp = newp_vec.as_mut_ptr();
+                        let col_u = col as usize;
+                        newp_vec[..col_u].copy_from_slice(&oldp_with_nul[..col_u]);
 
-                        crate::globals::GraphPtr::copy_to(oldp.cast::<u8>(), newp, col as usize);
-
-                        let mut ptr_ = newp.wrapping_add(col as usize);
+                        let mut ptr_idx = col_u;
                         for _ in 0..(count as usize) {
-                            crate::globals::GraphPtr::copy_to(
-                                crate::globals::GraphPtr::of(y_array)
-                                    .borrow()
-                                    .data
-                                    .cast::<u8>(),
-                                ptr_,
-                                yanklen as usize,
-                            );
-
-                            ptr_ = ptr_.wrapping_add(yanklen as usize);
+                            newp_vec[ptr_idx..ptr_idx + y_len].copy_from_slice(&y_bytes[..y_len]);
+                            ptr_idx += y_len;
                         }
 
-                        crate::globals::GraphPtr::copy_to(
-                            oldp.wrapping_add(col as usize).cast::<u8>(),
-                            ptr_,
-                            ((oldlen - col) as usize) + 1,
-                        );
+                        let rem_len = ((oldlen - col) as usize) + 1;
+                        newp_vec[ptr_idx..ptr_idx + rem_len]
+                            .copy_from_slice(&oldp_with_nul[col_u..col_u + rem_len]);
 
                         ml_replace(lnum, crate::memory::bytes_until_nul(&newp_vec), true);
 
-                        let prev_idx = ((ptr_ as usize) - (newp as usize)).saturating_sub(1);
+                        let prev_idx = ptr_idx.saturating_sub(1);
                         first_byte_off = crate::mbyte::utf_head_off_slice(&newp_vec, prev_idx);
                         drop(newp_vec);
 
@@ -2145,10 +2080,7 @@ pub fn do_put(
                         if y_type == MotionType::MtCharWise {
                             lnum = new_cursor.lnum;
                             let line_slice = crate::memline::ml_get_slice(lnum);
-                            let last_y =
-                                crate::globals::GraphPtr::of(y_array.wrapping_add(y_size - 1))
-                                    .borrow()
-                                    .as_bytes();
+                            let last_y = y_array[y_size - 1].as_bytes();
                             let mut append_vec: Vec<u8> = Vec::with_capacity(
                                 last_y.len() + line_slice.len() - col as usize + 1,
                             );
@@ -2160,7 +2092,7 @@ pub fn do_put(
                             drop(append_vec);
 
                             let old_slice = crate::memline::ml_get_slice(lnum);
-                            let first_y = crate::globals::GraphPtr::of(y_array).borrow().as_bytes();
+                            let first_y = y_array[0].as_bytes();
                             let mut newp_vec =
                                 Vec::with_capacity((col as usize) + (yanklen as usize) + 1);
                             newp_vec.extend_from_slice(&old_slice[..col as usize]);
@@ -2175,14 +2107,7 @@ pub fn do_put(
 
                         while i < y_size {
                             if y_type != MotionType::MtCharWise || i < y_size - 1 {
-                                if !ml_append(
-                                    lnum,
-                                    crate::globals::GraphPtr::of(y_array.wrapping_add(i))
-                                        .borrow_mut()
-                                        .cstr_bytes(),
-                                    0,
-                                    false,
-                                ) {
+                                if !ml_append(lnum, y_array[i].cstr_bytes(), 0, false) {
                                     break 'error;
                                 }
                                 new_lnum += 1;
@@ -2222,17 +2147,11 @@ pub fn do_put(
                         if y_type == MotionType::MtCharWise
                             || (y_type == MotionType::MtLineWise && (flags & PUT_LINE_SPLIT) != 0)
                         {
-                            for k in 0..(y_size - 1) {
-                                totsize += (crate::globals::GraphPtr::of(y_array.wrapping_add(k))
-                                    .borrow()
-                                    .size as Bcount)
-                                    + 1;
+                            for item in &y_array[..(y_size - 1)] {
+                                totsize += (item.size as Bcount) + 1;
                             }
 
-                            lastsize =
-                                crate::globals::GraphPtr::of(y_array.wrapping_add(y_size - 1))
-                                    .borrow()
-                                    .size as i32;
+                            lastsize = y_array[y_size - 1].size as i32;
 
                             totsize += lastsize as Bcount;
                         }
@@ -2312,8 +2231,7 @@ pub fn do_put(
                 }
 
                 curbuf_mut().b_op_end.lnum = new_lnum;
-                let last_item =
-                    *crate::globals::GraphPtr::of(y_array.wrapping_add(y_size - 1)).borrow();
+                let last_item = y_array[y_size - 1];
                 col = ((last_item.size as Colnr) - lendiff).max(0);
                 if col > 1 {
                     curbuf_mut().b_op_end.col = col - 1;
