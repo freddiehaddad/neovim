@@ -88,7 +88,7 @@ pub fn gc_dict_at(idx: usize) -> &'static mut TvDict {
 
 #[inline]
 pub fn gc_free_dict_at(idx: usize) {
-    crate::globals::GraphPtr::of(gc_st().gc_dicts[idx].as_ptr()).drop_box();
+    crate::eval::typval::tv_dict_free_slot(gc_st().gc_dicts[idx].borrow_mut());
 }
 
 #[inline]

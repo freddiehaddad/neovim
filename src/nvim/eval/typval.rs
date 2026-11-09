@@ -768,6 +768,7 @@ pub struct Dictitem {
     pub di_tv: TypVal,
     pub di_flags: u8,
     pub di_key: Vec<u8>,
+    pub di_arena_idx: usize,
 }
 
 impl Dictitem {
@@ -776,6 +777,7 @@ impl Dictitem {
             di_tv: tv_initial_value(),
             di_flags: 0,
             di_key: Vec::new(),
+            di_arena_idx: usize::MAX,
         }
     }
 
@@ -811,6 +813,7 @@ pub struct TvDict {
     pub dv_gc_idx: Option<usize>,
     pub watchers: Vec<DictWatcher>,
     pub lua_table_ref: i32,
+    pub dv_arena_idx: usize,
 }
 
 impl TvDict {
@@ -825,6 +828,7 @@ impl TvDict {
             dv_gc_idx: None,
             watchers: Vec::new(),
             lua_table_ref: LUA_NOREF,
+            dv_arena_idx: usize::MAX,
         }
     }
 }
@@ -975,6 +979,10 @@ pub(crate) struct TypvalModuleState {
     free_blobs: Vec<usize>,
     partial_arena: Vec<Option<Box<TvPartial>>>,
     free_partials: Vec<usize>,
+    dictitem_arena: Vec<Option<Box<Dictitem>>>,
+    free_dictitems: Vec<usize>,
+    dict_arena: Vec<Option<Box<TvDict>>>,
+    free_dicts: Vec<usize>,
 }
 
 impl TypvalModuleState {
@@ -989,6 +997,10 @@ impl TypvalModuleState {
             free_blobs: Vec::new(),
             partial_arena: Vec::new(),
             free_partials: Vec::new(),
+            dictitem_arena: Vec::new(),
+            free_dictitems: Vec::new(),
+            dict_arena: Vec::new(),
+            free_dicts: Vec::new(),
         }
     }
 }
@@ -3032,15 +3044,34 @@ pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
     let mut key_vec = Vec::with_capacity(key.len() + 1);
     key_vec.extend_from_slice(key);
     key_vec.push(0);
-    Box::leak(Box::new(Dictitem {
-        di_tv: TypVal {
-            v_type: VarType::VarUnknown,
-            v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Number(0),
-        },
-        di_flags: DI_FLAGS_ALLOC,
-        di_key: key_vec,
-    }))
+    let st = tv_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_dictitems.pop() {
+        st.dictitem_arena[idx] = Some(Box::new(Dictitem {
+            di_tv: TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(0),
+            },
+            di_flags: DI_FLAGS_ALLOC,
+            di_key: key_vec,
+            di_arena_idx: idx,
+        }));
+        idx
+    } else {
+        let idx = st.dictitem_arena.len();
+        st.dictitem_arena.push(Some(Box::new(Dictitem {
+            di_tv: TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(0),
+            },
+            di_flags: DI_FLAGS_ALLOC,
+            di_key: key_vec,
+            di_arena_idx: idx,
+        })));
+        idx
+    };
+    st.dictitem_arena[idx].as_deref_mut().unwrap()
 }
 
 /// Allocate a dictionary item.
@@ -3050,11 +3081,16 @@ pub fn tv_dict_item_alloc(key: &CStr) -> &'static mut Dictitem {
 
 /// Free a dictionary item, also clearing the value.
 pub fn tv_dict_item_free(item_in: &mut Dictitem) {
-    let mut item = crate::globals::GraphPtr::from(item_in);
-    if (item.di_flags & DI_FLAGS_ALLOC) != 0 {
-        crate::globals::GraphPtr::of(item.as_ptr()).drop_box();
+    if (item_in.di_flags & DI_FLAGS_ALLOC) != 0 {
+        let idx = item_in.di_arena_idx;
+        if idx != usize::MAX {
+            let st = tv_st().borrow_mut();
+            let dropped = st.dictitem_arena[idx].take();
+            st.free_dictitems.push(idx);
+            drop(dropped);
+        }
     } else {
-        tv_clear(&mut item.di_tv);
+        tv_clear(&mut item_in.di_tv);
     }
 }
 
@@ -3077,21 +3113,51 @@ pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
 
 /// Allocate an empty dictionary.
 pub fn tv_dict_alloc() -> &'static mut TvDict {
-    let d = Box::leak(Box::new(TvDict {
-        dv_lock: VAR_UNLOCKED,
-        dv_scope: VAR_NO_SCOPE,
-        dv_refcount: 0,
-        dv_copy_id: 0,
-        dv_hashtab: crate::hashtab::Hashtab::new(),
-        dv_copydict: crate::globals::GraphPtr::NULL,
-        dv_gc_idx: None,
-        watchers: Vec::new(),
-        lua_table_ref: LUA_NOREF,
-    }));
-
+    let st = tv_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_dicts.pop() {
+        st.dict_arena[idx] = Some(Box::new(TvDict {
+            dv_lock: VAR_UNLOCKED,
+            dv_scope: VAR_NO_SCOPE,
+            dv_refcount: 0,
+            dv_copy_id: 0,
+            dv_hashtab: crate::hashtab::Hashtab::new(),
+            dv_copydict: crate::globals::GraphPtr::NULL,
+            dv_gc_idx: None,
+            watchers: Vec::new(),
+            lua_table_ref: LUA_NOREF,
+            dv_arena_idx: idx,
+        }));
+        idx
+    } else {
+        let idx = st.dict_arena.len();
+        st.dict_arena.push(Some(Box::new(TvDict {
+            dv_lock: VAR_UNLOCKED,
+            dv_scope: VAR_NO_SCOPE,
+            dv_refcount: 0,
+            dv_copy_id: 0,
+            dv_hashtab: crate::hashtab::Hashtab::new(),
+            dv_copydict: crate::globals::GraphPtr::NULL,
+            dv_gc_idx: None,
+            watchers: Vec::new(),
+            lua_table_ref: LUA_NOREF,
+            dv_arena_idx: idx,
+        })));
+        idx
+    };
+    let d = st.dict_arena[idx].as_deref_mut().unwrap();
     gc_register_dict(d);
-
     d
+}
+
+/// Free a heap-allocated `TvDict` slot in the arena.
+pub fn tv_dict_free_slot(d: &mut TvDict) {
+    let idx = d.dv_arena_idx;
+    if idx != usize::MAX {
+        let st = tv_st().borrow_mut();
+        let dropped = st.dict_arena[idx].take();
+        st.free_dicts.push(idx);
+        drop(dropped);
+    }
 }
 
 /// Free items contained in a dictionary.
@@ -3118,11 +3184,8 @@ pub fn tv_dict_free(d_in: &mut TvDict) {
     if tv_st().tv_in_free_unref_items {
         return;
     }
-    let d = crate::globals::GraphPtr::from(d_in);
-
-    tv_list_dict_free_dict_inner(d.borrow_mut());
-
-    crate::globals::GraphPtr::of(d.as_ptr()).drop_box();
+    tv_list_dict_free_dict_inner(d_in);
+    tv_dict_free_slot(d_in);
 }
 
 #[inline]

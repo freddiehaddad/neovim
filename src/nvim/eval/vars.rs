@@ -331,35 +331,18 @@ const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: u8) -> VimVar 
             },
             di_flags: 0,
             di_key: Vec::new(),
+            di_arena_idx: usize::MAX,
         },
         vv_flags: flags,
     }
 }
 
 const fn empty_dict() -> TvDict {
-    TvDict {
-        dv_lock: 0,
-        dv_scope: 0,
-        dv_refcount: 0,
-        dv_copy_id: 0,
-        dv_hashtab: Hashtab::new(),
-        dv_copydict: crate::globals::GraphPtr::NULL,
-        dv_gc_idx: None,
-        watchers: Vec::new(),
-        lua_table_ref: 0,
-    }
+    TvDict::new()
 }
 
 const fn empty_scope_var() -> ScopeDictDictItem {
-    ScopeDictDictItem {
-        di_tv: TypVal {
-            v_type: VarType::VarUnknown,
-            v_lock: 0,
-            vval: TypvalVval::Number(0),
-        },
-        di_flags: 0,
-        di_key: Vec::new(),
-    }
+    ScopeDictDictItem::new()
 }
 
 struct VarsModuleState {
@@ -2791,7 +2774,7 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
             v.di_tv.v_type = VarType::VarUnknown;
         }
         if (v.di_flags & DI_FLAGS_ALLOC) != 0 {
-            crate::globals::GraphPtr::of(v).drop_box();
+            crate::eval::typval::tv_dict_item_free(v);
         } else if free_val {
             tv_clear(&mut v.di_tv);
         }
