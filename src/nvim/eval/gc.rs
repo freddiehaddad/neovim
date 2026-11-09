@@ -103,5 +103,5 @@ pub fn gc_list_at(idx: usize) -> &'static mut TvList {
 
 #[inline]
 pub fn gc_free_list_at(idx: usize) {
-    crate::globals::GraphPtr::of(gc_st().gc_lists[idx].as_ptr()).drop_box();
+    crate::eval::typval::tv_list_free_slot(gc_st().gc_lists[idx].borrow_mut());
 }

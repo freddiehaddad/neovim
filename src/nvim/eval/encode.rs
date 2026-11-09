@@ -1658,6 +1658,7 @@ mod tests {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::from_cstr(c"c"),
             },
+            li_arena_idx: usize::MAX,
         };
         let mut li1 = Listitem {
             li_next: crate::globals::ListitemPtr::from(&mut li2),
@@ -1667,6 +1668,7 @@ mod tests {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::from_cstr(c"a\nb"),
             },
+            li_arena_idx: usize::MAX,
         };
         li2.li_prev = crate::globals::ListitemPtr::from(&mut li1);
         let list = TvList {
@@ -1682,6 +1684,7 @@ mod tests {
             lv_copy_id: 0,
             lv_lock: 0,
             lua_table_ref: -2,
+            lv_arena_idx: usize::MAX,
         };
         {
             let buf = encode_vim_list_to_buf(Some(&list)).unwrap();

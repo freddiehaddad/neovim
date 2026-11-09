@@ -680,6 +680,7 @@ pub struct Listitem {
     pub li_next: crate::globals::ListitemPtr,
     pub li_prev: crate::globals::ListitemPtr,
     pub li_tv: TypVal,
+    pub li_arena_idx: usize,
 }
 
 impl Listitem {
@@ -688,6 +689,7 @@ impl Listitem {
             li_next: crate::globals::ListitemPtr::NULL,
             li_prev: crate::globals::ListitemPtr::NULL,
             li_tv: tv_initial_value(),
+            li_arena_idx: usize::MAX,
         }
     }
 
@@ -723,6 +725,7 @@ pub struct TvList {
     pub lv_copy_id: i32,
     pub lv_lock: i32,
     pub lua_table_ref: i32,
+    pub lv_arena_idx: usize,
 }
 
 impl TvList {
@@ -740,6 +743,7 @@ impl TvList {
             lv_copy_id: 0,
             lv_lock: 0,
             lua_table_ref: LUA_NOREF,
+            lv_arena_idx: usize::MAX,
         }
     }
 
@@ -983,6 +987,10 @@ pub(crate) struct TypvalModuleState {
     free_dictitems: Vec<usize>,
     dict_arena: Vec<Option<Box<TvDict>>>,
     free_dicts: Vec<usize>,
+    listitem_arena: Vec<Option<Box<Listitem>>>,
+    free_listitems: Vec<usize>,
+    list_arena: Vec<Option<Box<TvList>>>,
+    free_lists: Vec<usize>,
 }
 
 impl TypvalModuleState {
@@ -1001,6 +1009,10 @@ impl TypvalModuleState {
             free_dictitems: Vec::new(),
             dict_arena: Vec::new(),
             free_dicts: Vec::new(),
+            listitem_arena: Vec::new(),
+            free_listitems: Vec::new(),
+            list_arena: Vec::new(),
+            free_lists: Vec::new(),
         }
     }
 }
@@ -1314,15 +1326,47 @@ pub const fn tv_initial_value() -> TypVal {
 
 /// Allocate a list item.
 fn tv_list_item_alloc() -> &'static mut Listitem {
-    Box::leak(Box::new(Listitem {
-        li_next: crate::globals::ListitemPtr::NULL,
-        li_prev: crate::globals::ListitemPtr::NULL,
-        li_tv: TypVal {
-            v_type: VarType::VarUnknown,
-            v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Number(0),
-        },
-    }))
+    let st = tv_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_listitems.pop() {
+        st.listitem_arena[idx] = Some(Box::new(Listitem {
+            li_next: crate::globals::ListitemPtr::NULL,
+            li_prev: crate::globals::ListitemPtr::NULL,
+            li_tv: TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(0),
+            },
+            li_arena_idx: idx,
+        }));
+        idx
+    } else {
+        let idx = st.listitem_arena.len();
+        st.listitem_arena.push(Some(Box::new(Listitem {
+            li_next: crate::globals::ListitemPtr::NULL,
+            li_prev: crate::globals::ListitemPtr::NULL,
+            li_tv: TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(0),
+            },
+            li_arena_idx: idx,
+        })));
+        idx
+    };
+    st.listitem_arena[idx].as_deref_mut().unwrap()
+}
+
+#[inline]
+fn free_listitem_slot(item: &mut Listitem) {
+    let idx = item.li_arena_idx;
+    if idx != usize::MAX {
+        let st = tv_st().borrow_mut();
+        let dropped = st.listitem_arena[idx].take();
+        st.free_listitems.push(idx);
+        drop(dropped);
+    } else {
+        tv_clear(&mut item.li_tv);
+    }
 }
 
 /// Remove a list item from a List and free it.
@@ -1334,8 +1378,7 @@ pub fn tv_list_item_remove(
     let next_item = item.li_next;
 
     tv_list_drop_items(l, item.borrow_mut(), item.borrow_mut());
-
-    crate::globals::GraphPtr::of(item.as_ptr()).drop_box();
+    free_listitem_slot(item.borrow_mut());
 
     next_item.opt_mut()
 }
@@ -1369,23 +1412,57 @@ fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn tv_list_alloc(_len: isize) -> &'static mut TvList {
-    let list = Box::leak(Box::new(TvList {
-        lv_first: crate::globals::ListitemPtr::NULL,
-        lv_last: crate::globals::ListitemPtr::NULL,
-        lv_watch: Vec::new(),
-        lv_idx_item: crate::globals::ListitemPtr::NULL,
-        lv_copylist: crate::globals::TvListPtr::NULL,
-        lv_gc_idx: None,
-        lv_refcount: 0,
-        lv_len: 0,
-        lv_idx: 0,
-        lv_copy_id: 0,
-        lv_lock: 0,
-        lua_table_ref: LUA_NOREF,
-    }));
-
+    let st = tv_st().borrow_mut();
+    let idx = if let Some(idx) = st.free_lists.pop() {
+        st.list_arena[idx] = Some(Box::new(TvList {
+            lv_first: crate::globals::ListitemPtr::NULL,
+            lv_last: crate::globals::ListitemPtr::NULL,
+            lv_watch: Vec::new(),
+            lv_idx_item: crate::globals::ListitemPtr::NULL,
+            lv_copylist: crate::globals::TvListPtr::NULL,
+            lv_gc_idx: None,
+            lv_refcount: 0,
+            lv_len: 0,
+            lv_idx: 0,
+            lv_copy_id: 0,
+            lv_lock: 0,
+            lua_table_ref: LUA_NOREF,
+            lv_arena_idx: idx,
+        }));
+        idx
+    } else {
+        let idx = st.list_arena.len();
+        st.list_arena.push(Some(Box::new(TvList {
+            lv_first: crate::globals::ListitemPtr::NULL,
+            lv_last: crate::globals::ListitemPtr::NULL,
+            lv_watch: Vec::new(),
+            lv_idx_item: crate::globals::ListitemPtr::NULL,
+            lv_copylist: crate::globals::TvListPtr::NULL,
+            lv_gc_idx: None,
+            lv_refcount: 0,
+            lv_len: 0,
+            lv_idx: 0,
+            lv_copy_id: 0,
+            lv_lock: 0,
+            lua_table_ref: LUA_NOREF,
+            lv_arena_idx: idx,
+        })));
+        idx
+    };
+    let list = st.list_arena[idx].as_deref_mut().unwrap();
     gc_register_list(list);
     list
+}
+
+/// Free a heap-allocated `TvList` slot in the arena.
+pub fn tv_list_free_slot(l: &mut TvList) {
+    let idx = l.lv_arena_idx;
+    if idx != usize::MAX {
+        let st = tv_st().borrow_mut();
+        let dropped = st.list_arena[idx].take();
+        st.free_lists.push(idx);
+        drop(dropped);
+    }
 }
 
 /// Initialize a static list with 10 items.
@@ -1426,7 +1503,7 @@ pub fn tv_list_free_contents(l: &mut TvList) {
     let mut item = l.lv_first;
     while !item.is_null() {
         l.lv_first = item.li_next;
-        crate::globals::GraphPtr::of(item.as_ptr()).drop_box();
+        free_listitem_slot(item.borrow_mut());
         item = l.lv_first;
     }
     l.lv_len = 0;
@@ -1445,11 +1522,9 @@ pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
     let Some(l_ref) = l else {
         return;
     };
-    let l_ptr = crate::globals::GraphPtr::from(l_ref);
 
-    tv_list_free_contents(l_ptr.borrow_mut());
-
-    crate::globals::GraphPtr::of(l_ptr.as_ptr()).drop_box();
+    tv_list_free_contents(l_ref);
+    tv_list_free_slot(l_ref);
 }
 
 /// Unreference a list.
@@ -1498,7 +1573,7 @@ pub fn tv_list_remove_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &m
     let mut li = item;
     loop {
         let nli = li.li_next;
-        crate::globals::GraphPtr::of(li.as_ptr()).drop_box();
+        free_listitem_slot(li.borrow_mut());
         if li == item2 {
             break;
         }
@@ -1688,7 +1763,7 @@ pub fn tv_list_copy(
         let ni = tv_list_item_alloc();
         if deep {
             if !var_item_copy(conv, &mut item.li_tv, &mut ni.li_tv, deep, copy_id) {
-                crate::globals::GraphPtr::of(ni).drop_box();
+                free_listitem_slot(ni);
                 tv_list_unref(Some(copy));
                 return None;
             }
@@ -1870,7 +1945,7 @@ pub fn tv_list_flatten(
                 tv_list_flatten(list, sub_first.opt_mut(), sub_len, maxdepth - 1);
             }
 
-            crate::globals::GraphPtr::of(item_ptr).drop_box();
+            free_listitem_slot(crate::globals::GraphPtr::of(item_ptr).borrow_mut());
         }
 
         done += 1;
@@ -2197,7 +2272,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         let mut item_ptr = crate::globals::GraphPtr::from(item);
         tv_list_drop_items(l, item_ptr.borrow_mut(), item_ptr.borrow_mut());
         *rettv = std::mem::replace(&mut item_ptr.li_tv, tv_initial_value());
-        crate::globals::GraphPtr::of(item_ptr.as_ptr()).drop_box();
+        free_listitem_slot(item_ptr.borrow_mut());
     } else {
         let end = tv_get_number_chk(&argvars[2], Some(&mut error));
         if error {
