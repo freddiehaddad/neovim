@@ -305,11 +305,19 @@ impl SearchModuleState {
     }
 }
 
-static SEARCH_STATE: GlobalState<SearchModuleState> = GlobalState::new(SearchModuleState::new());
+thread_local! {
+    static SEARCH_STATE: std::cell::RefCell<SearchModuleState> =
+        const { std::cell::RefCell::new(SearchModuleState::new()) };
+}
 
 #[inline(always)]
-fn srch() -> crate::globals::GraphPtr<SearchModuleState> {
-    SEARCH_STATE.handle()
+fn with_srch<R>(f: impl FnOnce(&SearchModuleState) -> R) -> R {
+    SEARCH_STATE.with(|s| f(&s.borrow()))
+}
+
+#[inline(always)]
+fn with_srch_mut<R>(f: impl FnOnce(&mut SearchModuleState) -> R) -> R {
+    SEARCH_STATE.with(|s| f(&mut s.borrow_mut()))
 }
 
 #[inline(always)]
@@ -340,17 +348,29 @@ pub fn search_regcomp(
     mut magic: bool,
     regmatch: &mut Regmmatch,
 ) -> bool {
+    let owned_pat: Option<CString>;
+    let mut pat_from_spat: Option<usize> = None;
     let mut pat_ref = pat_cstr;
     {
         g_st().rc_did_emsg = false;
 
         if pat_cstr.is_empty() {
-            let i = if pat_use == RE_LAST {
-                srch().last_idx
-            } else {
-                pat_use
-            };
-            if srch().spats[i as usize].pat.is_none() {
+            let (spat_idx, has_pat, cloned_pat, plen, pmagic, no_scs) = with_srch(|s| {
+                let i = if pat_use == RE_LAST {
+                    s.last_idx
+                } else {
+                    pat_use
+                } as usize;
+                (
+                    i,
+                    s.spats[i].pat.is_some(),
+                    s.spats[i].pat.clone(),
+                    s.spats[i].patlen(),
+                    s.spats[i].magic,
+                    s.spats[i].no_scs,
+                )
+            });
+            if !has_pat {
                 if pat_use == RE_SUBST {
                     emsg(tr(E_NOPRESUB));
                 } else {
@@ -359,13 +379,12 @@ pub fn search_regcomp(
                 g_st().rc_did_emsg = true;
                 return false;
             }
-            pat_ref = srch().borrow_mut().spats[i as usize]
-                .pat
-                .as_deref()
-                .unwrap_or(c"");
-            patlen = srch().spats[i as usize].patlen();
-            magic = srch().spats[i as usize].magic;
-            g_st().search_global.no_smartcase = srch().spats[i as usize].no_scs;
+            pat_from_spat = Some(spat_idx);
+            owned_pat = cloned_pat;
+            pat_ref = owned_pat.as_deref().unwrap_or(c"");
+            patlen = plen;
+            magic = pmagic;
+            g_st().search_global.no_smartcase = no_scs;
         } else if (options & SEARCH_HIS) != 0 {
             let pat_bytes = pat_ref.to_bytes();
             add_to_history(
@@ -380,7 +399,7 @@ pub fn search_regcomp(
             *used_pat = pat_ref.to_owned();
         }
 
-        srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl
+        let mr = if curwin_mut().w_onebuf_opt.wo_rl
             && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
         {
             Some(reverse_text(pat_ref.to_bytes()))
@@ -389,12 +408,17 @@ pub fn search_regcomp(
             let pat_slice = &pat_bytes[..patlen.min(pat_bytes.len())];
             Some(CString::new(pat_slice).unwrap_or_default())
         };
+        with_srch_mut(|s| s.mr_pattern = mr);
 
         if (options & SEARCH_KEEP) == 0 && (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) == 0 {
-            if pat_save == RE_SEARCH || pat_save == RE_BOTH {
+            if (pat_save == RE_SEARCH || pat_save == RE_BOTH)
+                && pat_from_spat != Some(RE_SEARCH as usize)
+            {
                 save_re_pat(RE_SEARCH, pat_ref, patlen, i32::from(magic));
             }
-            if pat_save == RE_SUBST || pat_save == RE_BOTH {
+            if (pat_save == RE_SUBST || pat_save == RE_BOTH)
+                && pat_from_spat != Some(RE_SUBST as usize)
+            {
                 save_re_pat(RE_SUBST, pat_ref, patlen, i32::from(magic));
             }
         }
@@ -410,29 +434,33 @@ pub fn search_regcomp(
 }
 
 /// Get search pattern used by `search_regcomp()`.
-pub fn get_search_pat() -> Option<&'static CStr> {
-    srch().borrow_mut().mr_pattern.as_deref()
+pub fn get_search_pat() -> Option<CString> {
+    with_srch(|s| s.mr_pattern.clone())
 }
 
 pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
     let pat = pat_cstr.as_ptr();
     let i = idx as usize;
-    if srch().spats[i]
-        .pat_ptr()
-        .is_some_and(|s| ptr::eq(s.as_ptr(), pat))
-    {
+    if with_srch(|s| {
+        s.spats[i]
+            .pat_ptr()
+            .is_some_and(|p| ptr::eq(p.as_ptr(), pat))
+    }) {
         return;
     }
 
     let pat_bytes = pat_cstr.to_bytes();
     let new_pat = CString::new(&pat_bytes[..patlen.min(pat_bytes.len())]).unwrap_or_default();
-    free_spat(&mut srch().spats[i]);
-    srch().spats[i].pat = Some(new_pat);
-    srch().spats[i].magic = magic != 0;
-    srch().spats[i].no_scs = g_st().search_global.no_smartcase;
-    srch().spats[i].timestamp = os_time();
-    srch().spats[i].additional_data = None;
-    srch().last_idx = idx;
+    let now = os_time();
+    with_srch_mut(|s| {
+        free_spat(&mut s.spats[i]);
+        s.spats[i].pat = Some(new_pat);
+        s.spats[i].magic = magic != 0;
+        s.spats[i].no_scs = g_st().search_global.no_smartcase;
+        s.spats[i].timestamp = now;
+        s.spats[i].additional_data = None;
+        s.last_idx = idx;
+    });
     if opt_vars().p_hls {
         redraw_all_later(UPD_SOME_VALID);
     }
@@ -440,34 +468,41 @@ pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
 }
 
 pub fn save_search_patterns() {
-    let prev = srch().save_level;
-    srch().save_level += 1;
-    if prev != 0 {
-        return;
-    }
+    with_srch_mut(|s| {
+        let prev = s.save_level;
+        s.save_level += 1;
+        if prev != 0 {
+            return;
+        }
 
-    for i in 0..2 {
-        srch().saved_spats[i] = srch().spats[i].clone();
-    }
-    srch().saved_mr_pattern = srch().mr_pattern.clone();
-    srch().saved_spats_last_idx = srch().last_idx;
-    srch().saved_spats_no_hlsearch = g_st().search_global.no_hlsearch;
+        for i in 0..2 {
+            s.saved_spats[i] = s.spats[i].clone();
+        }
+        s.saved_mr_pattern = s.mr_pattern.clone();
+        s.saved_spats_last_idx = s.last_idx;
+        s.saved_spats_no_hlsearch = g_st().search_global.no_hlsearch;
+    });
 }
 
 pub fn restore_search_patterns() {
-    srch().save_level -= 1;
-    if srch().save_level != 0 {
-        return;
-    }
+    let Some(no_hlsearch) = with_srch_mut(|s| {
+        s.save_level -= 1;
+        if s.save_level != 0 {
+            return None;
+        }
 
-    for i in 0..2 {
-        free_spat(&mut srch().spats[i]);
-        srch().spats[i] = std::mem::replace(&mut srch().saved_spats[i], EMPTY_SEARCH_PATTERN);
-    }
+        for i in 0..2 {
+            free_spat(&mut s.spats[i]);
+            s.spats[i] = std::mem::replace(&mut s.saved_spats[i], EMPTY_SEARCH_PATTERN);
+        }
+        s.mr_pattern = s.saved_mr_pattern.take();
+        s.last_idx = s.saved_spats_last_idx;
+        Some(s.saved_spats_no_hlsearch)
+    }) else {
+        return;
+    };
     set_vv_searchforward();
-    srch().mr_pattern = srch().saved_mr_pattern.take();
-    srch().last_idx = srch().saved_spats_last_idx;
-    set_no_hlsearch(srch().saved_spats_no_hlsearch);
+    set_no_hlsearch(no_hlsearch);
 }
 
 #[inline(always)]
@@ -477,48 +512,67 @@ fn free_spat(spat: &mut SearchPattern) {
 }
 
 pub fn free_search_patterns() {
-    free_spat(&mut srch().spats[0]);
-    free_spat(&mut srch().spats[1]);
-    srch().spats = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
-    srch().mr_pattern = None;
+    with_srch_mut(|s| {
+        free_spat(&mut s.spats[0]);
+        free_spat(&mut s.spats[1]);
+        s.spats = [EMPTY_SEARCH_PATTERN, EMPTY_SEARCH_PATTERN];
+        s.mr_pattern = None;
+    });
 }
 
 pub fn save_last_search_pattern() {
-    srch().did_save_last_search_spat += 1;
-    if srch().did_save_last_search_spat != 1 {
-        return;
-    }
+    with_srch_mut(|s| {
+        s.did_save_last_search_spat += 1;
+        if s.did_save_last_search_spat != 1 {
+            return;
+        }
 
-    srch().saved_last_search_spat = srch().spats[RE_SEARCH as usize].clone();
-    srch().saved_last_idx = srch().last_idx;
-    srch().saved_no_hlsearch = g_st().search_global.no_hlsearch;
+        s.saved_last_search_spat = s.spats[RE_SEARCH as usize].clone();
+        s.saved_last_idx = s.last_idx;
+        s.saved_no_hlsearch = g_st().search_global.no_hlsearch;
+    });
 }
 
 pub fn restore_last_search_pattern() {
-    srch().did_save_last_search_spat -= 1;
-    if srch().did_save_last_search_spat > 0 {
-        return;
-    }
-    if srch().did_save_last_search_spat != 0 {
-        iemsg(c"restore_last_search_pattern() called more often than save_last_search_pattern()");
-        return;
-    }
+    let outcome = with_srch_mut(|s| {
+        s.did_save_last_search_spat -= 1;
+        if s.did_save_last_search_spat > 0 {
+            return Ok(None);
+        }
+        if s.did_save_last_search_spat != 0 {
+            return Err(());
+        }
 
-    srch().spats[RE_SEARCH as usize] =
-        std::mem::replace(&mut srch().saved_last_search_spat, EMPTY_SEARCH_PATTERN);
-    set_vv_searchforward();
-    srch().last_idx = srch().saved_last_idx;
-    set_no_hlsearch(srch().saved_no_hlsearch);
+        s.spats[RE_SEARCH as usize] =
+            std::mem::replace(&mut s.saved_last_search_spat, EMPTY_SEARCH_PATTERN);
+        s.last_idx = s.saved_last_idx;
+        Ok(Some(s.saved_no_hlsearch))
+    });
+    match outcome {
+        Ok(Some(no_hlsearch)) => {
+            set_vv_searchforward();
+            set_no_hlsearch(no_hlsearch);
+        }
+        Ok(None) => {}
+        Err(()) => {
+            iemsg(
+                c"restore_last_search_pattern() called more often than save_last_search_pattern()",
+            );
+        }
+    }
 }
 
 fn save_incsearch_state() {
-    srch().saved_search_match_endcol = g_st().search_global.match_endcol;
-    srch().saved_search_match_lines = g_st().search_global.match_lines;
+    with_srch_mut(|s| {
+        s.saved_search_match_endcol = g_st().search_global.match_endcol;
+        s.saved_search_match_lines = g_st().search_global.match_lines;
+    });
 }
 
 fn restore_incsearch_state() {
-    g_st().search_global.match_endcol = srch().saved_search_match_endcol;
-    g_st().search_global.match_lines = srch().saved_search_match_lines;
+    let (endcol, lines) = with_srch(|s| (s.saved_search_match_endcol, s.saved_search_match_lines));
+    g_st().search_global.match_endcol = endcol;
+    g_st().search_global.match_lines = lines;
 }
 
 pub fn ignorecase(pat: &CStr) -> bool {
@@ -580,81 +634,84 @@ pub fn pat_has_uppercase(pat: &CStr) -> bool {
     false
 }
 
-pub fn last_csearch() -> &'static CStr {
-    CStr::from_bytes_until_nul(&srch().borrow_mut().lastc_bytes).unwrap_or(c"")
+pub fn last_csearch() -> crate::strings::InlineCStr<{ MAX_SCHAR_SIZE + 1 }> {
+    with_srch(|s| crate::strings::InlineCStr(s.lastc_bytes))
 }
 
 pub fn last_csearch_forward() -> i32 {
-    i32::from(srch().lastcdir == FORWARD)
+    with_srch(|s| i32::from(s.lastcdir == FORWARD))
 }
 
 pub fn last_csearch_until() -> i32 {
-    i32::from(srch().last_t_cmd)
+    with_srch(|s| i32::from(s.last_t_cmd))
 }
 
 pub fn set_last_csearch(c: i32, s: &[u8]) {
     let bytes = crate::memory::bytes_until_nul(s);
     let len = bytes.len().min(MAX_SCHAR_SIZE);
-    srch().lastc[0] = c as u8;
-    srch().lastc_bytelen = len as i32;
-    srch().lastc_bytes = [0; MAX_SCHAR_SIZE + 1];
-    if len != 0 {
-        srch().lastc_bytes[..len].copy_from_slice(&bytes[..len]);
-    }
+    with_srch_mut(|st| {
+        st.lastc[0] = c as u8;
+        st.lastc_bytelen = len as i32;
+        st.lastc_bytes = [0; MAX_SCHAR_SIZE + 1];
+        if len != 0 {
+            st.lastc_bytes[..len].copy_from_slice(&bytes[..len]);
+        }
+    });
 }
 
 pub fn set_csearch_direction(cdir: Direction) {
-    srch().lastcdir = cdir;
+    with_srch_mut(|s| s.lastcdir = cdir);
 }
 
 pub fn set_csearch_until(t_cmd: i32) {
-    srch().last_t_cmd = t_cmd != 0;
+    with_srch_mut(|s| s.last_t_cmd = t_cmd != 0);
 }
 
-pub fn last_search_pat() -> Option<&'static CStr> {
-    srch().borrow_mut().spats[srch().borrow_mut().last_idx as usize].pat_ptr()
+pub fn last_search_pat() -> Option<CString> {
+    with_srch(|s| s.spats[s.last_idx as usize].pat.clone())
 }
 
 pub fn reset_search_dir() {
-    srch().spats[0].off.dir = b'/';
+    with_srch_mut(|s| s.spats[0].off.dir = b'/');
     set_vv_searchforward();
 }
 
 pub fn set_last_search_pat(s: Option<&CStr>, idx: i32, magic: i32, setlast: bool) {
-    {
-        let i = idx as usize;
-        free_spat(&mut srch().spats[i]);
-        if let Some(s) = s.filter(|s| !s.is_empty()) {
-            srch().spats[i].pat = Some(s.to_owned());
-        } else {
-            srch().spats[i].pat = None;
-        }
-        srch().spats[i].timestamp = os_time();
-        srch().spats[i].additional_data = None;
-        srch().spats[i].magic = magic != 0;
-        srch().spats[i].no_scs = false;
-        srch().spats[i].off.dir = b'/';
-        set_vv_searchforward();
-        srch().spats[i].off.line = false;
-        srch().spats[i].off.end = false;
-        srch().spats[i].off.off = 0;
+    let i = idx as usize;
+    let new_pat = s.filter(|s| !s.is_empty()).map(CStr::to_owned);
+    let now = os_time();
+    with_srch_mut(|st| {
+        free_spat(&mut st.spats[i]);
+        st.spats[i].pat = new_pat;
+        st.spats[i].timestamp = now;
+        st.spats[i].additional_data = None;
+        st.spats[i].magic = magic != 0;
+        st.spats[i].no_scs = false;
+        st.spats[i].off.dir = b'/';
+        st.spats[i].off.line = false;
+        st.spats[i].off.end = false;
+        st.spats[i].off.off = 0;
         if setlast {
-            srch().last_idx = idx;
+            st.last_idx = idx;
         }
-        if srch().save_level != 0 {
-            free_spat(&mut srch().saved_spats[i]);
-            srch().saved_spats[i] = srch().spats[0].clone();
-            srch().saved_spats[i].pat = srch().spats[i].pat.clone();
-            srch().saved_spats_last_idx = srch().last_idx;
+        if st.save_level != 0 {
+            free_spat(&mut st.saved_spats[i]);
+            st.saved_spats[i] = st.spats[0].clone();
+            st.saved_spats[i].pat = st.spats[i].pat.clone();
+            st.saved_spats_last_idx = st.last_idx;
         }
-        if opt_vars().p_hls && idx == srch().last_idx && !g_st().search_global.no_hlsearch {
-            redraw_all_later(UPD_SOME_VALID);
-        }
+    });
+    set_vv_searchforward();
+    let is_last = with_srch(|s| idx == s.last_idx);
+    if opt_vars().p_hls && is_last && !g_st().search_global.no_hlsearch {
+        redraw_all_later(UPD_SOME_VALID);
     }
 }
 
 pub fn last_pat_prog(regmatch: &mut Regmmatch) {
-    if srch().spats[srch().last_idx as usize].pat.is_none() {
+    let (has_pat, last_idx) =
+        with_srch(|s| (s.spats[s.last_idx as usize].pat.is_some(), s.last_idx));
+    if !has_pat {
         regmatch.free_prog();
         return;
     }
@@ -664,7 +721,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
         0,
         None,
         0,
-        srch().last_idx,
+        last_idx,
         SEARCH_KEEP,
         opt_vars().p_magic,
         regmatch,
@@ -1162,13 +1219,13 @@ pub fn searchit(
 }
 
 pub fn set_search_direction(cdir: i32) {
-    srch().spats[0].off.dir = cdir as u8;
+    with_srch_mut(|s| s.spats[0].off.dir = cdir as u8);
 }
 
 fn set_vv_searchforward() {
     set_vim_var_nr(
         VV_SEARCHFORWARD,
-        Varnumber::from(srch().spats[0].off.dir == b'/'),
+        Varnumber::from(with_srch(|s| s.spats[0].off.dir == b'/')),
     );
 }
 
@@ -1305,21 +1362,23 @@ pub fn do_search(
 
     g_st().search_global.cmdlen = 0;
 
-    if srch().spats[0].off.line
+    if with_srch(|s| s.spats[0].off.line)
         && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LINEOFF)
     {
-        srch().spats[0].off.line = false;
-        srch().spats[0].off.off = 0;
+        with_srch_mut(|s| {
+            s.spats[0].off.line = false;
+            s.spats[0].off.off = 0;
+        });
     }
 
-    let old_off = srch().spats[0].off;
+    let old_off = with_srch(|s| s.spats[0].off);
 
     let mut pos = curwin_mut().w_cursor;
 
     if dirc == 0 {
-        dirc = i32::from(srch().spats[0].off.dir);
+        dirc = i32::from(with_srch(|s| s.spats[0].off.dir));
     } else {
-        srch().spats[0].off.dir = dirc as u8;
+        with_srch_mut(|s| s.spats[0].off.dir = dirc as u8);
         set_vv_searchforward();
     }
     if (options & SEARCH_REV) != 0 {
@@ -1355,18 +1414,23 @@ pub fn do_search(
         searchstrlen = patlen;
 
         if cur_pat_first == 0 || i32::from(cur_pat_first) == search_delim {
-            if srch().spats[RE_SEARCH as usize].pat.is_none() {
-                if srch().spats[RE_SUBST as usize].pat.is_none() {
+            let (has_search, has_subst, subst_pat, subst_len) = with_srch(|s| {
+                (
+                    s.spats[RE_SEARCH as usize].pat.is_some(),
+                    s.spats[RE_SUBST as usize].pat.is_some(),
+                    s.spats[RE_SUBST as usize].pat.clone(),
+                    s.spats[RE_SUBST as usize].patlen(),
+                )
+            });
+            if !has_search {
+                if !has_subst {
                     emsg(tr(E_NOPREVRE));
                     retval = 0;
                     success = false;
                     break;
                 }
-                searchstr_cstr = srch().spats[RE_SUBST as usize]
-                    .pat
-                    .clone()
-                    .unwrap_or_default();
-                searchstrlen = srch().spats[RE_SUBST as usize].patlen();
+                searchstr_cstr = subst_pat.unwrap_or_default();
+                searchstrlen = subst_len;
             } else {
                 searchstr_cstr = CString::default();
                 searchstrlen = 0;
@@ -1376,15 +1440,17 @@ pub fn do_search(
         if cur_pat_first != 0 {
             let prev_searchstr = searchstr_cstr.clone();
             let prev_searchstrlen = searchstrlen;
-            let (cmdlen_add, parsed_searchstr) = parse_search_pattern_offset(
-                &mut pat_buf,
-                &mut pat_off,
-                &mut patlen,
-                search_delim,
-                options,
-                &mut had_copy,
-                &mut srch().spats[0].off,
-            );
+            let (cmdlen_add, parsed_searchstr) = with_srch_mut(|s| {
+                parse_search_pattern_offset(
+                    &mut pat_buf,
+                    &mut pat_off,
+                    &mut patlen,
+                    search_delim,
+                    options,
+                    &mut had_copy,
+                    &mut s.spats[0].off,
+                )
+            });
             g_st().search_global.cmdlen += cmdlen_add;
             if parsed_searchstr.as_bytes().is_empty() {
                 searchstr_cstr = prev_searchstr;
@@ -1407,24 +1473,20 @@ pub fn do_search(
             msg_start();
             msg_ext_set_kind(c"search_cmd");
 
-            if !g_st().cmd_silent
-                && (srch().spats[0].off.line
-                    || srch().spats[0].off.end
-                    || srch().spats[0].off.off != 0)
-            {
+            let off0 = with_srch(|s| s.spats[0].off);
+            if !g_st().cmd_silent && (off0.line || off0.end || off0.off != 0) {
                 off_buf[off_len] = dirc as u8;
                 off_len += 1;
-                if srch().spats[0].off.end {
+                if off0.end {
                     off_buf[off_len] = b'e';
                     off_len += 1;
-                } else if !srch().spats[0].off.line {
+                } else if !off0.line {
                     off_buf[off_len] = b's';
                     off_len += 1;
                 }
                 off_buf[off_len] = 0;
-                if srch().spats[0].off.off != 0 || srch().spats[0].off.line {
-                    let n =
-                        format_to_buf!(&mut off_buf[off_len..], c"%+lld", srch().spats[0].off.off,);
+                if off0.off != 0 || off0.line {
+                    let n = format_to_buf!(&mut off_buf[off_len..], c"%+lld", off0.off);
                     if n > 0 {
                         off_len += n as usize;
                     }
@@ -1432,11 +1494,13 @@ pub fn do_search(
             }
 
             let (p_bytes, plen) = if searchstr_cstr.as_bytes().is_empty() {
-                let len = srch().spats[0].patlen();
-                let bytes = srch().spats[0].pat.as_ref().map_or(Vec::new(), |s| {
-                    s.as_bytes()[..len.min(s.as_bytes().len())].to_vec()
-                });
-                (bytes, len)
+                with_srch(|s| {
+                    let len = s.spats[0].patlen();
+                    let bytes = s.spats[0].pat.as_ref().map_or(Vec::new(), |p| {
+                        p.as_bytes()[..len.min(p.as_bytes().len())].to_vec()
+                    });
+                    (bytes, len)
+                })
             } else {
                 let bytes = searchstr_cstr.as_bytes();
                 (
@@ -1515,9 +1579,10 @@ pub fn do_search(
             }
         }
 
-        if !srch().spats[0].off.line && srch().spats[0].off.off != 0 && pos.col < MAXCOL - 2 {
-            if srch().spats[0].off.off > 0 {
-                c = srch().spats[0].off.off;
+        let off0 = with_srch(|s| s.spats[0].off);
+        if !off0.line && off0.off != 0 && pos.col < MAXCOL - 2 {
+            if off0.off > 0 {
+                c = off0.off;
                 while c != 0 {
                     if decl(&mut pos) == -1 {
                         break;
@@ -1529,7 +1594,7 @@ pub fn do_search(
                     pos.col = MAXCOL;
                 }
             } else {
-                c = srch().spats[0].off.off;
+                c = off0.off;
                 while c != 0 {
                     if incl(&mut pos) == -1 {
                         break;
@@ -1556,7 +1621,7 @@ pub fn do_search(
             &searchstr_cstr,
             searchstrlen,
             count,
-            i32::from(srch().spats[0].off.end) * SEARCH_END
+            i32::from(off0.end) * SEARCH_END
                 + (options
                     & (SEARCH_KEEP
                         + SEARCH_PEEK
@@ -1583,7 +1648,8 @@ pub fn do_search(
             success = false;
             break;
         }
-        if srch().spats[0].off.end && oap.is_some() {
+        let off0 = with_srch(|s| s.spats[0].off);
+        if off0.end && oap.is_some() {
             oap.as_deref_mut().unwrap().inclusive = true;
         }
         retval = 1;
@@ -1594,9 +1660,10 @@ pub fn do_search(
 
         if (options & SEARCH_NOOF) == 0 || pat_buf.get(pat_off) == Some(&b';') {
             let org_pos = pos;
+            let off0 = with_srch(|s| s.spats[0].off);
 
-            if srch().spats[0].off.line {
-                c = i64::from(pos.lnum) + srch().spats[0].off.off;
+            if off0.line {
+                c = i64::from(pos.lnum) + off0.off;
                 if c < 1 {
                     pos.lnum = 1;
                 } else if c > i64::from(curbuf_mut().b_ml.ml_line_count) {
@@ -1608,7 +1675,7 @@ pub fn do_search(
 
                 retval = 2;
             } else if pos.col < MAXCOL - 2 {
-                c = srch().spats[0].off.off;
+                c = off0.off;
                 if c > 0 {
                     while c > 0 {
                         c -= 1;
@@ -1674,7 +1741,7 @@ pub fn do_search(
     }
 
     if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
-        srch().spats[0].off = old_off;
+        with_srch_mut(|s| s.spats[0].off = old_off);
     }
 
     retval
@@ -1767,31 +1834,35 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
 
     if c != i32::from(NUL) {
         if g_st().key_stuffed == 0 {
-            srch().lastc[0] = c as u8;
             set_csearch_direction(dir);
             set_csearch_until(i32::from(t_cmd));
-            if cap.nchar_len != 0 {
-                let n = cap.nchar_len as usize;
-                srch().lastc_bytelen = cap.nchar_len;
-                srch().lastc_bytes[..n].copy_from_slice(&cap.nchar_composing[..n]);
-            } else {
-                let mut ch_buf = [0u8; 6];
-                let n = utf_char2bytes(c, &mut ch_buf);
-                srch().lastc_bytelen = n;
-                srch().lastc_bytes[..n as usize].copy_from_slice(&ch_buf[..n as usize]);
-            }
+            with_srch_mut(|s| {
+                s.lastc[0] = c as u8;
+                if cap.nchar_len != 0 {
+                    let n = cap.nchar_len as usize;
+                    s.lastc_bytelen = cap.nchar_len;
+                    s.lastc_bytes[..n].copy_from_slice(&cap.nchar_composing[..n]);
+                } else {
+                    let mut ch_buf = [0u8; 6];
+                    let n = utf_char2bytes(c, &mut ch_buf);
+                    s.lastc_bytelen = n;
+                    s.lastc_bytes[..n as usize].copy_from_slice(&ch_buf[..n as usize]);
+                }
+            });
         }
     } else {
-        if srch().lastc[0] == 0 && srch().lastc_bytelen <= 1 {
+        let Some((new_dir, new_t_cmd, new_c)) = with_srch(|s| {
+            if s.lastc[0] == 0 && s.lastc_bytelen <= 1 {
+                return None;
+            }
+            let new_dir = if dir != 0 { -s.lastcdir } else { s.lastcdir };
+            Some((new_dir, s.last_t_cmd, i32::from(s.lastc[0])))
+        }) else {
             return false;
-        }
-        dir = if dir != 0 {
-            -srch().lastcdir
-        } else {
-            srch().lastcdir
         };
-        t_cmd = srch().last_t_cmd;
-        c = i32::from(srch().lastc[0]);
+        dir = new_dir;
+        t_cmd = new_t_cmd;
+        c = new_c;
 
         if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_SCOLON)
             && count == 1
@@ -1806,6 +1877,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
     let p_bytes = get_cursor_line_slice();
     let mut col = curwin_mut().w_cursor.col;
     let len = get_cursor_line_len();
+    let (lastc_bytelen, lastc_bytes) = with_srch(|s| (s.lastc_bytelen, s.lastc_bytes));
 
     while count > 0 {
         count -= 1;
@@ -1823,12 +1895,11 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 col -= crate::mbyte::utf_head_off_slice(p_bytes, (col - 1) as usize) + 1;
             }
             let rem = p_bytes.get(col as usize..).unwrap_or(&[]);
-            if srch().lastc_bytelen <= 1 {
+            if lastc_bytelen <= 1 {
                 if i32::from(rem.first().copied().unwrap_or(0)) == c && stop {
                     break;
                 }
-            } else if rem.starts_with(&srch().lastc_bytes[..srch().lastc_bytelen as usize]) && stop
-            {
+            } else if rem.starts_with(&lastc_bytes[..lastc_bytelen as usize]) && stop {
                 break;
             }
             stop = true;
@@ -1838,7 +1909,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
     if t_cmd {
         col -= dir;
         if dir < 0 {
-            col += srch().lastc_bytelen - 1;
+            col += lastc_bytelen - 1;
         } else {
             col -= crate::mbyte::utf_head_off_slice(p_bytes, col as usize);
         }
@@ -2585,9 +2656,13 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         }
     }
 
+    let (last_pat, last_patlen) = with_srch(|s| {
+        let idx = s.last_idx as usize;
+        (s.spats[idx].pat.clone(), s.spats[idx].patlen())
+    });
     let zero_width = is_zero_width(
-        srch().spats[srch().last_idx as usize].pat_ptr(),
-        srch().spats[srch().last_idx as usize].patlen(),
+        last_pat.as_deref(),
+        last_patlen,
         true,
         curwin_mut().w_cursor,
         FORWARD,
@@ -2625,10 +2700,8 @@ pub fn current_search(count: i32, forward: bool) -> bool {
             &mut pos,
             Some(&mut end_pos),
             if dir { FORWARD } else { BACKWARD },
-            srch().spats[srch().last_idx as usize]
-                .pat_ptr()
-                .unwrap_or(c""),
-            srch().spats[srch().last_idx as usize].patlen(),
+            last_pat.as_deref().unwrap_or(c""),
+            last_patlen,
             if i != 0 { count } else { 1 },
             SEARCH_KEEP | flags,
             RE_SEARCH,
@@ -2716,13 +2789,11 @@ fn is_zero_width(
 
         let pattern_cstr = match pattern_opt {
             Some(p) => p.to_owned(),
-            None => {
-                patternlen = srch().spats[srch().last_idx as usize].patlen();
-                srch().spats[srch().last_idx as usize]
-                    .pat
-                    .clone()
-                    .unwrap_or_default()
-            }
+            None => with_srch(|s| {
+                let idx = s.last_idx as usize;
+                patternlen = s.spats[idx].patlen();
+                s.spats[idx].pat.clone().unwrap_or_default()
+            }),
         };
 
         if !search_regcomp(
@@ -2879,55 +2950,67 @@ fn update_search_stat(
 
     *stat = Searchstat::default();
 
-    if dirc == 0 && !recompute && !empty_pos(srch().stat_lastpos) {
-        stat.cur = srch().stat_cur;
-        stat.cnt = srch().stat_cnt;
-        stat.exact_match = srch().stat_exact_match;
-        stat.incomplete = srch().stat_incomplete;
-        stat.last_maxcount = srch().stat_last_maxcount;
+    if dirc == 0 && !recompute && !empty_pos(with_srch(|s| s.stat_lastpos)) {
+        with_srch(|s| {
+            stat.cur = s.stat_cur;
+            stat.cnt = s.stat_cnt;
+            stat.exact_match = s.stat_exact_match;
+            stat.incomplete = s.stat_incomplete;
+            stat.last_maxcount = s.stat_last_maxcount;
+        });
         return;
     }
-    srch().stat_last_maxcount = maxcount;
-    let wraparound = (dirc == b'?' as i32 && lt(srch().stat_lastpos, p))
-        || (dirc == b'/' as i32 && lt(p, srch().stat_lastpos));
+    with_srch_mut(|s| s.stat_last_maxcount = maxcount);
+    let stat_lastpos = with_srch(|s| s.stat_lastpos);
+    let wraparound = (dirc == b'?' as i32 && lt(stat_lastpos, p))
+        || (dirc == b'/' as i32 && lt(p, stat_lastpos));
 
-    if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(curbuf_mut())
-        && srch().stat_lastpat.is_some()
-        && srch().stat_lastpat.as_deref() == srch().spats[srch().last_idx as usize].pat.as_deref()
-        && equalpos(srch().stat_lastpos, cursor_pos)
-        && srch().stat_lbuf == g_st().curbuf)
-        || wraparound
-        || srch().stat_cur < 0
-        || (maxcount > 0 && srch().stat_cur > maxcount)
-        || recompute
-    {
-        srch().stat_cur = 0;
-        srch().stat_cnt = 0;
-        srch().stat_exact_match = false;
-        srch().stat_incomplete = 0;
-        srch().stat_lastpos = CursorPos {
-            lnum: 0,
-            col: 0,
-            coladd: 0,
-        };
-        srch().stat_lbuf = g_st().curbuf;
+    let chgtick = buf_get_changedtick(curbuf_mut());
+    let valid_cache = with_srch(|s| {
+        i64::from(s.stat_chgtick) == chgtick
+            && s.stat_lastpat.is_some()
+            && s.stat_lastpat.as_deref() == s.spats[s.last_idx as usize].pat.as_deref()
+            && equalpos(s.stat_lastpos, cursor_pos)
+            && s.stat_lbuf == g_st().curbuf
+            && !wraparound
+            && s.stat_cur >= 0
+            && (maxcount <= 0 || s.stat_cur <= maxcount)
+            && !recompute
+    });
+    if !valid_cache {
+        with_srch_mut(|s| {
+            s.stat_cur = 0;
+            s.stat_cnt = 0;
+            s.stat_exact_match = false;
+            s.stat_incomplete = 0;
+            s.stat_lastpos = CursorPos {
+                lnum: 0,
+                col: 0,
+                coladd: 0,
+            };
+            s.stat_lbuf = g_st().curbuf;
+        });
     }
 
-    if equalpos(srch().stat_lastpos, cursor_pos)
+    if equalpos(with_srch(|s| s.stat_lastpos), cursor_pos)
         && !wraparound
-        && (if dirc == 0 || dirc == b'/' as i32 {
-            srch().stat_cur < srch().stat_cnt
-        } else {
-            srch().stat_cur > 1
+        && with_srch(|s| {
+            if dirc == 0 || dirc == b'/' as i32 {
+                s.stat_cur < s.stat_cnt
+            } else {
+                s.stat_cur > 1
+            }
         })
     {
-        srch().stat_cur += if dirc == 0 {
-            0
-        } else if dirc == b'/' as i32 {
-            1
-        } else {
-            -1
-        };
+        with_srch_mut(|s| {
+            s.stat_cur += if dirc == 0 {
+                0
+            } else if dirc == b'/' as i32 {
+                1
+            } else {
+                -1
+            };
+        });
     } else {
         let mut start: Proftime = 0;
         let mut done_search = false;
@@ -2940,11 +3023,12 @@ fn update_search_stat(
         if timeout > 0 {
             start = profile_setlimit(i64::from(timeout));
         }
+        let mut lastpos = with_srch(|s| s.stat_lastpos);
         while !g_st().got_int
             && searchit(
                 Some(curwin_mut()),
                 curbuf_mut(),
-                &mut srch().stat_lastpos,
+                &mut lastpos,
                 Some(&mut endpos),
                 FORWARD,
                 c"",
@@ -2956,39 +3040,52 @@ fn update_search_stat(
                 None,
             ) != 0
         {
+            with_srch_mut(|s| s.stat_lastpos = lastpos);
             done_search = true;
             if timeout > 0 && profile_passed_limit(start) {
-                srch().stat_incomplete = 1;
+                with_srch_mut(|s| s.stat_incomplete = 1);
                 break;
             }
-            srch().stat_cnt += 1;
-            if ltoreq(srch().stat_lastpos, p) {
-                srch().stat_cur = srch().stat_cnt;
-                if lt(p, endpos) {
-                    srch().stat_exact_match = true;
-                }
+            let cnt = with_srch_mut(|s| {
+                s.stat_cnt += 1;
+                s.stat_cnt
+            });
+            if ltoreq(lastpos, p) {
+                with_srch_mut(|s| {
+                    s.stat_cur = cnt;
+                    if lt(p, endpos) {
+                        s.stat_exact_match = true;
+                    }
+                });
             }
             fast_breakcheck();
-            if maxcount > 0 && srch().stat_cnt > maxcount {
-                srch().stat_incomplete = 2;
+            if maxcount > 0 && cnt > maxcount {
+                with_srch_mut(|s| s.stat_incomplete = 2);
                 break;
             }
         }
+        with_srch_mut(|s| s.stat_lastpos = lastpos);
         if g_st().got_int {
-            srch().stat_cur = -1;
+            with_srch_mut(|s| s.stat_cur = -1);
         }
         if done_search {
-            srch().stat_lastpat = srch().spats[srch().last_idx as usize].pat.clone();
-            srch().stat_chgtick = buf_get_changedtick(curbuf_mut()) as i32;
-            srch().stat_lbuf = g_st().curbuf;
-            srch().stat_lastpos = p;
+            let chgtick = buf_get_changedtick(curbuf_mut()) as i32;
+            with_srch_mut(|s| {
+                let last_idx = s.last_idx as usize;
+                s.stat_lastpat = s.spats[last_idx].pat.clone();
+                s.stat_chgtick = chgtick;
+                s.stat_lbuf = g_st().curbuf;
+                s.stat_lastpos = p;
+            });
         }
     }
-    stat.cur = srch().stat_cur;
-    stat.cnt = srch().stat_cnt;
-    stat.exact_match = srch().stat_exact_match;
-    stat.incomplete = srch().stat_incomplete;
-    stat.last_maxcount = srch().stat_last_maxcount;
+    with_srch(|s| {
+        stat.cur = s.stat_cur;
+        stat.cnt = s.stat_cnt;
+        stat.exact_match = s.stat_exact_match;
+        stat.incomplete = s.stat_incomplete;
+        stat.last_maxcount = s.stat_last_maxcount;
+    });
     opt_vars().p_ws = save_ws;
 }
 
@@ -3069,13 +3166,18 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if pat_cstr.is_empty() {
             do_update = false;
         } else {
-            srch().spats[srch().last_idx as usize].pat = Some(pat_cstr);
+            with_srch_mut(|s| {
+                let idx = s.last_idx as usize;
+                s.spats[idx].pat = Some(pat_cstr);
+            });
         }
     }
     if do_update
-        && srch().spats[srch().last_idx as usize]
-            .pat_ptr()
-            .is_some_and(|s| !s.is_empty())
+        && with_srch(|s| {
+            s.spats[s.last_idx as usize]
+                .pat_ptr()
+                .is_some_and(|p| !p.is_empty())
+        })
     {
         let cursor_pos = pos;
         update_search_stat(
@@ -3961,11 +4063,11 @@ fn show_pat_in_path(
 }
 
 pub fn get_search_pattern(pat: &mut SearchPattern) {
-    *pat = srch().spats[0].clone();
+    *pat = with_srch(|s| s.spats[0].clone());
 }
 
 pub fn get_substitute_pattern(pat: &mut SearchPattern) {
-    *pat = srch().spats[1].clone();
+    *pat = with_srch(|s| s.spats[1].clone());
     pat.off = SearchOffset {
         dir: 0,
         line: false,
@@ -3974,57 +4076,56 @@ pub fn get_substitute_pattern(pat: &mut SearchPattern) {
     };
 }
 
-pub fn get_search_pattern_ptr(substitute: bool) -> Option<&'static CStr> {
-    srch().borrow_mut().spats[if substitute {
-        RE_SUBST as usize
-    } else {
-        RE_SEARCH as usize
-    }]
-    .pat_ptr()
-}
-
 pub fn get_search_pattern_timestamp(substitute: bool) -> Timestamp {
-    srch().spats[if substitute {
-        RE_SUBST as usize
-    } else {
-        RE_SEARCH as usize
-    }]
-    .timestamp
+    with_srch(|s| {
+        s.spats[if substitute {
+            RE_SUBST as usize
+        } else {
+            RE_SEARCH as usize
+        }]
+        .timestamp
+    })
 }
 
 pub fn search_pattern_cleared(substitute: bool) -> bool {
-    srch().spats[if substitute {
-        RE_SUBST as usize
-    } else {
-        RE_SEARCH as usize
-    }]
-    .pat
-    .is_none()
+    with_srch(|s| {
+        s.spats[if substitute {
+            RE_SUBST as usize
+        } else {
+            RE_SEARCH as usize
+        }]
+        .pat
+        .is_none()
+    })
 }
 
 pub fn set_search_pattern(pat: SearchPattern) {
-    free_spat(&mut srch().spats[0]);
-    srch().spats[0] = pat;
+    with_srch_mut(|s| {
+        free_spat(&mut s.spats[0]);
+        s.spats[0] = pat;
+    });
     set_vv_searchforward();
 }
 
 pub fn set_substitute_pattern(pat: SearchPattern) {
-    free_spat(&mut srch().spats[1]);
-    srch().spats[1] = pat;
-    srch().spats[1].off = SearchOffset {
-        dir: 0,
-        line: false,
-        end: false,
-        off: 0,
-    };
+    with_srch_mut(|s| {
+        free_spat(&mut s.spats[1]);
+        s.spats[1] = pat;
+        s.spats[1].off = SearchOffset {
+            dir: 0,
+            line: false,
+            end: false,
+            off: 0,
+        };
+    });
 }
 
 pub fn set_last_used_pattern(is_substitute_pattern: bool) {
-    srch().last_idx = i32::from(is_substitute_pattern);
+    with_srch_mut(|s| s.last_idx = i32::from(is_substitute_pattern));
 }
 
 pub fn search_was_last_used() -> bool {
-    srch().last_idx == 0
+    with_srch(|s| s.last_idx == 0)
 }
 
 #[cfg(test)]

@@ -43,8 +43,8 @@ use crate::input::{
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, Cmdarg, K_AINSERT_SPAN, K_AMOTION, K_AVISUAL_SPAN, K_KEY_INS_FLUSH,
     atom_cmd_spec, atom_composite_active, atom_composite_queued, atom_did_global_op,
-    atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_st, atom_suppress,
-    atom_visual_reset, atom_visual_span,
+    atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress, atom_visual_reset,
+    atom_visual_span, with_atom,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
@@ -129,39 +129,39 @@ struct McInsSaved {
 }
 
 struct McInsSpan {
-    origin: CmdOrigin,
-    regions: Vec<u32>,
-    active: bool,
-    first: bool,
-    frame: u64,
-    done_len: usize,
-    region: u32,
-    vsel: Option<std::ffi::CString>,
+    origin: std::cell::Cell<CmdOrigin>,
+    regions: std::cell::RefCell<Vec<u32>>,
+    active: std::cell::Cell<bool>,
+    first: std::cell::Cell<bool>,
+    frame: std::cell::Cell<u64>,
+    done_len: std::cell::Cell<usize>,
+    region: std::cell::Cell<u32>,
+    vsel: std::cell::RefCell<Option<std::ffi::CString>>,
 }
 
 struct McStart {
-    time: Timestamp,
-    ctx: Context,
+    time: std::cell::Cell<Timestamp>,
+    ctx: std::cell::RefCell<Context>,
 }
 
 struct McursorState {
     mc_ins_span: McInsSpan,
     mc_start: McStart,
-    mc_vsel_buf: ObjHandle,
-    mc_ins_joined: bool,
-    mc_cursors: Vec<Context>,
-    ns_mc: u32,
-    ns_vcur: u32,
-    ns_vsel: u32,
-    ns_last: u32,
-    ns_session: u32,
+    mc_vsel_buf: std::cell::Cell<ObjHandle>,
+    mc_ins_joined: std::cell::Cell<bool>,
+    mc_cursors: std::cell::RefCell<Vec<Context>>,
+    ns_mc: std::cell::Cell<u32>,
+    ns_vcur: std::cell::Cell<u32>,
+    ns_vsel: std::cell::Cell<u32>,
+    ns_last: std::cell::Cell<u32>,
+    ns_session: std::cell::Cell<u32>,
 }
 
 impl McursorState {
     const fn new() -> Self {
         Self {
             mc_ins_span: McInsSpan {
-                origin: CmdOrigin {
+                origin: std::cell::Cell::new(CmdOrigin {
                     buf: crate::buffer::Bufref {
                         br_buf: crate::globals::BufPtr::NULL,
                         br_fnum: 0,
@@ -172,56 +172,53 @@ impl McursorState {
                     mcursor: 0,
                     tick: 0,
                     maptick: 0,
-                },
-                regions: Vec::new(),
-                active: false,
-                first: false,
-                frame: 0,
-                done_len: 0,
-                region: 0,
-                vsel: None,
+                }),
+                regions: std::cell::RefCell::new(Vec::new()),
+                active: std::cell::Cell::new(false),
+                first: std::cell::Cell::new(false),
+                frame: std::cell::Cell::new(0),
+                done_len: std::cell::Cell::new(0),
+                region: std::cell::Cell::new(0),
+                vsel: std::cell::RefCell::new(None),
             },
             mc_start: McStart {
-                time: 0,
-                ctx: CONTEXT_INIT,
+                time: std::cell::Cell::new(0),
+                ctx: std::cell::RefCell::new(CONTEXT_INIT),
             },
-            mc_vsel_buf: 0,
-            mc_ins_joined: false,
-            mc_cursors: Vec::new(),
-            ns_mc: 0,
-            ns_vcur: 0,
-            ns_vsel: 0,
-            ns_last: 0,
-            ns_session: 0,
+            mc_vsel_buf: std::cell::Cell::new(0),
+            mc_ins_joined: std::cell::Cell::new(false),
+            mc_cursors: std::cell::RefCell::new(Vec::new()),
+            ns_mc: std::cell::Cell::new(0),
+            ns_vcur: std::cell::Cell::new(0),
+            ns_vsel: std::cell::Cell::new(0),
+            ns_last: std::cell::Cell::new(0),
+            ns_session: std::cell::Cell::new(0),
         }
     }
 }
 
-static MC_STATE: GlobalState<McursorState> = GlobalState::new(McursorState::new());
-
-#[inline]
-fn mc_st() -> crate::globals::GraphPtr<McursorState> {
-    MC_STATE.handle()
+thread_local! {
+    static MC_STATE: McursorState = const { McursorState::new() };
 }
 
 #[inline]
-fn cursors() -> &'static [Context] {
-    &mc_st().borrow_mut().mc_cursors
+fn with_mc<R>(f: impl FnOnce(&McursorState) -> R) -> R {
+    MC_STATE.with(f)
 }
 
 #[inline]
-fn cursors_mut() -> &'static mut Vec<Context> {
-    &mut mc_st().borrow_mut().mc_cursors
+fn cursors_len() -> usize {
+    with_mc(|st| st.mc_cursors.borrow().len())
 }
 
 #[inline]
-fn ins_regions() -> &'static [u32] {
-    &mc_st().borrow_mut().mc_ins_span.regions
+fn cursors_is_empty() -> bool {
+    with_mc(|st| st.mc_cursors.borrow().is_empty())
 }
 
 #[inline]
-fn ins_regions_mut() -> &'static mut Vec<u32> {
-    &mut mc_st().borrow_mut().mc_ins_span.regions
+fn cursor_clone(idx: usize) -> Context {
+    with_mc(|st| st.mc_cursors.borrow()[idx].clone())
 }
 
 pub fn mc_init() {
@@ -229,46 +226,62 @@ pub fn mc_init() {
 }
 
 fn mc_ns() -> u32 {
-    if mc_st().ns_mc == 0 {
-        mc_st().ns_mc = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor")) as u32;
+    let cur = with_mc(|st| st.ns_mc.get());
+    if cur == 0 {
+        let id = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor")) as u32;
+        with_mc(|st| st.ns_mc.set(id));
+        id
+    } else {
+        cur
     }
-    mc_st().ns_mc
 }
 
 fn mc_vcur_ns() -> u32 {
-    if mc_st().ns_vcur == 0 {
-        mc_st().ns_vcur =
-            nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.cursor")) as u32;
+    let cur = with_mc(|st| st.ns_vcur.get());
+    if cur == 0 {
+        let id = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.cursor")) as u32;
+        with_mc(|st| st.ns_vcur.set(id));
+        id
+    } else {
+        cur
     }
-    mc_st().ns_vcur
 }
 
 fn mc_vsel_ns() -> u32 {
-    if mc_st().ns_vsel == 0 {
-        mc_st().ns_vsel =
-            nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.visual")) as u32;
+    let cur = with_mc(|st| st.ns_vsel.get());
+    if cur == 0 {
+        let id = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.visual")) as u32;
+        with_mc(|st| st.ns_vsel.set(id));
+        id
+    } else {
+        cur
     }
-    mc_st().ns_vsel
 }
 
 fn mc_last_ns() -> u32 {
-    if mc_st().ns_last == 0 {
-        mc_st().ns_last =
-            nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.last")) as u32;
+    let cur = with_mc(|st| st.ns_last.get());
+    if cur == 0 {
+        let id = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.last")) as u32;
+        with_mc(|st| st.ns_last.set(id));
+        id
+    } else {
+        cur
     }
-    mc_st().ns_last
 }
 
 fn mc_session_ns() -> u32 {
-    if mc_st().ns_session == 0 {
-        mc_st().ns_session =
-            nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor._session")) as u32;
+    let cur = with_mc(|st| st.ns_session.get());
+    if cur == 0 {
+        let id = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor._session")) as u32;
+        with_mc(|st| st.ns_session.set(id));
+        id
+    } else {
+        cur
     }
-    mc_st().ns_session
 }
 
 pub fn mc_showcmd(buf: &mut [u8]) -> usize {
-    let count = cursors().len();
+    let count = cursors_len();
     if count == 0 {
         if !buf.is_empty() {
             buf[0] = 0;
@@ -363,11 +376,11 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
 }
 
 fn mc_execute(cursoridx: usize, atomidx: usize) {
-    let mut ctx = cursors()[cursoridx].clone();
-    let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
-        let a = &atom_st().borrow_mut().g_atoms.as_slice()[atomidx];
+    let mut ctx = cursor_clone(cursoridx);
+    let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = with_atom(|st| {
+        let a = &st.g_atoms.borrow()[atomidx];
         (a.keys.clone(), a.r#type, a.spec.cmd, a.spec.cmd2, a.remap)
-    };
+    });
 
     if !handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
         return;
@@ -384,8 +397,9 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     let swap_regs = atom_type != K_AMOTION;
     let mut regs_ts: Timestamp = 0;
     if swap_regs {
-        if reg_max_ts(false) >= mc_st().mc_start.time {
-            ctx_load(&mut mc_st().mc_start.ctx, K_CTX_REGS, 0);
+        if reg_max_ts(false) >= with_mc(|st| st.mc_start.time.get()) {
+            let mut start_ctx = with_mc(|st| st.mc_start.ctx.borrow().clone());
+            ctx_load(&mut start_ctx, K_CTX_REGS, 0);
         }
         if !ctx.regs.is_empty() {
             ctx_load(&mut ctx, K_CTX_REGS, K_CTX_MERGE_REG);
@@ -436,7 +450,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     );
 
     if atom_type == K_AINSERT_SPAN
-        && mc_st().mc_ins_span.first
+        && with_mc(|st| st.mc_ins_span.first.get())
         && g_st().did_beep != beeps
         && buf_get_changedtick(curbuf_mut()) == tick
     {
@@ -455,7 +469,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
 
     let wrote_regs = swap_regs && reg_max_ts(false) != regs_ts;
 
-    if cursoridx >= cursors().len() {
+    if cursoridx >= cursors_len() {
         return;
     }
     if !extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, &mut ctx.pos) {
@@ -463,7 +477,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
     }
 
     if wrote_regs {
-        ctx.regs = shada_encode_regs(false, mc_st().mc_start.time);
+        ctx.regs = shada_encode_regs(false, with_mc(|st| st.mc_start.time.get()));
     }
     ctx_save(
         &mut ctx,
@@ -478,30 +492,32 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         ctx.pos = curbuf_mut().b_last_insert.mark;
     }
     mc_mark_upd(curbuf_mut(), &mut ctx.mark, ctx.pos);
-    cursors_mut()[cursoridx] = ctx;
+    with_mc(|st| st.mc_cursors.borrow_mut()[cursoridx] = ctx);
 }
 
 fn mc_cascade() {
-    assert!(!atom_st().g_atoms.is_empty());
-    let origin = atom_st().g_atoms.as_slice()[0].origin;
+    let (origin, mut edits, atoms_len) = with_atom(|st| {
+        let g_atoms = st.g_atoms.borrow();
+        assert!(!g_atoms.is_empty());
+        let origin = g_atoms[0].origin;
+        let edits = g_atoms.iter().any(|a| a.r#type != K_AMOTION);
+        (origin, edits, g_atoms.len())
+    });
+    let _ = &mut edits;
     let mcursor = if origin.buf.br_buf == g_st().curbuf {
         origin.mcursor
     } else {
         0
     };
-    assert!(!cursors().is_empty());
+    assert!(!cursors_is_empty());
     assert!(!mc_replaying());
 
     g_st().got_int = false;
 
-    let mut edits = false;
-    for i in 0..atom_st().g_atoms.len() {
-        edits |= atom_st().g_atoms.as_slice()[i].r#type != K_AMOTION;
-    }
     if edits {
         mc_cleanup(true, None, 0);
-        if cursors().is_empty() {
-            atom_st().g_atoms.clear();
+        if cursors_is_empty() {
+            with_atom(|st| st.g_atoms.borrow_mut().clear());
             return;
         }
     }
@@ -515,27 +531,28 @@ fn mc_cascade() {
     let mut sb = McSandbox::new();
     mc_sandbox_enter(&mut sb, edits);
 
-    'outer: for ai in 0..atom_st().g_atoms.len() {
-        let atom = &mut (&mut atom_st().g_atoms)[ai];
-        if !atom.origin.buf.br_buf.is_null()
-            && (!bufref_valid(Some(&atom.origin.buf)) || atom.origin.buf.br_buf != g_st().curbuf)
+    'outer: for ai in 0..atoms_len {
+        let atom_origin = with_atom(|st| st.g_atoms.borrow()[ai].origin);
+        if !atom_origin.buf.br_buf.is_null()
+            && (!bufref_valid(Some(&atom_origin.buf)) || atom_origin.buf.br_buf != g_st().curbuf)
         {
             continue;
         }
         let mut ci = 0;
-        while ci < cursors().len() {
+        while ci < cursors_len() {
             line_breakcheck();
             if g_st().got_int {
                 break 'outer;
             }
-            if mcursor == 0 || cursors()[ci].mark != mcursor {
+            let cur_mark = with_mc(|st| st.mc_cursors.borrow()[ci].mark);
+            if mcursor == 0 || cur_mark != mcursor {
                 mc_execute(ci, ai);
             }
             ci += 1;
         }
     }
 
-    atom_st().g_atoms.clear();
+    with_atom(|st| st.g_atoms.borrow_mut().clear());
     let bufnr = sb.primary.buf;
     mc_sandbox_leave(&mut sb);
 
@@ -551,32 +568,29 @@ fn mc_cascade() {
 pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     if (map_edit || (follow && map_moved && !g_st().visual_global.active))
         && !atom_composite_queued()
-        && atom_st().g_atoms.is_empty()
+        && with_atom(|st| st.g_atoms.borrow().is_empty())
         && atom_composite_active()
         && mc_buf_has_cursors(curbuf_mut())
     {
         atom_lhs_replay_queue();
     }
-    if mc_buf_has_cursors(curbuf_mut()) && !atom_st().g_atoms.is_empty() {
-        let mut has_edit = map_edit;
-        let mut i = 0;
-        while !has_edit && i < atom_st().g_atoms.len() {
-            has_edit = atom_st().g_atoms.as_slice()[i].r#type != K_AMOTION;
-            i += 1;
-        }
+    if mc_buf_has_cursors(curbuf_mut()) && with_atom(|st| !st.g_atoms.borrow().is_empty()) {
+        let has_edit =
+            map_edit || with_atom(|st| st.g_atoms.borrow().iter().any(|a| a.r#type != K_AMOTION));
         if has_edit || follow || g_st().visual_global.active {
             mc_cascade();
         } else {
-            atom_st().g_atoms.clear();
+            with_atom(|st| st.g_atoms.borrow_mut().clear());
         }
     }
 }
 
 fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
-    let had_cursors = !cursors().is_empty();
+    let len = cursors_len();
+    let had_cursors = len != 0;
     let mut n = 0;
-    for i in 0..cursors().len() {
-        let mut ctx = cursors()[i].clone();
+    for i in 0..len {
+        let mut ctx = cursor_clone(i);
         let Some(buf) = handle_get_buffer_opt(ctx.buf) else {
             ctx_free(&mut ctx);
             continue;
@@ -596,26 +610,28 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
             extmark_del_id(buf, mc_ns(), ctx.mark);
             ctx_free(&mut ctx);
         } else {
-            cursors_mut()[n] = ctx;
+            with_mc(|st| st.mc_cursors.borrow_mut()[n] = ctx);
             n += 1;
         }
     }
-    cursors_mut().truncate(n);
+    with_mc(|st| st.mc_cursors.borrow_mut().truncate(n));
     if n == 0 && had_cursors {
-        ctx_free(&mut mc_st().mc_start.ctx);
-        mc_st().mc_start.time = 0;
+        with_mc(|st| {
+            ctx_free(&mut st.mc_start.ctx.borrow_mut());
+            st.mc_start.time.set(0);
+        });
         mc_lua_enable(false);
     }
 }
 
 pub fn mc_ins_join() {
     if !mc_replaying() {
-        mc_st().mc_ins_joined = true;
+        with_mc(|st| st.mc_ins_joined.set(true));
     }
 }
 
 pub fn mc_ins_replay_can_join() -> bool {
-    !mc_replaying() || mc_st().mc_ins_joined
+    !mc_replaying() || with_mc(|st| st.mc_ins_joined.get())
 }
 
 pub fn mc_ins_cascade_start(
@@ -627,22 +643,26 @@ pub fn mc_ins_cascade_start(
     if mc_replaying() {
         return;
     }
-    mc_st().mc_ins_span.vsel = vsel;
-    mc_st().mc_ins_joined = false;
-    mc_st().mc_ins_span.active = cascade && mc_buf_has_cursors(curbuf_mut());
-    mc_st().mc_ins_span.first = true;
-    mc_st().mc_ins_span.frame = root_frame;
-    mc_st().mc_ins_span.done_len = 0;
-    mc_st().mc_ins_span.origin = origin;
-    mc_st().mc_ins_span.region = 0;
+    let active = cascade && mc_buf_has_cursors(curbuf_mut());
+    with_mc(|st| {
+        *st.mc_ins_span.vsel.borrow_mut() = vsel;
+        st.mc_ins_joined.set(false);
+        st.mc_ins_span.active.set(active);
+        st.mc_ins_span.first.set(true);
+        st.mc_ins_span.frame.set(root_frame);
+        st.mc_ins_span.done_len.set(0);
+        st.mc_ins_span.origin.set(origin);
+        st.mc_ins_span.region.set(0);
+    });
     mc_ins_regions_clear();
 
-    if mc_st().mc_ins_span.active {
+    if active {
         let mut lo = curwin_mut().w_cursor.lnum;
         let mut hi = curwin_mut().w_cursor.lnum;
-        for ctx in cursors() {
+        for i in 0..cursors_len() {
+            let ctx = cursor_clone(i);
             let mut pos = INIT_POS;
-            if mc_ctx_resolve(ctx, &mut pos) {
+            if mc_ctx_resolve(&ctx, &mut pos) {
                 lo = lo.min(pos.lnum);
                 hi = hi.max(pos.lnum);
             }
@@ -678,7 +698,7 @@ fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
     atom.r#type = K_AINSERT_SPAN;
     atom.keys = Some(keys);
     atom.text = text;
-    atom.origin = mc_st().mc_ins_span.origin;
+    atom.origin = with_mc(|st| st.mc_ins_span.origin.get());
     atom_push_raw(cascade, &mut atom);
     if cascade {
         let saved = mc_ins_save_state();
@@ -686,13 +706,13 @@ fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
         mc_cascade();
         unblock_autocmds();
         mc_ins_restore_state(&saved);
-        mc_st().mc_ins_joined = false;
+        with_mc(|st| st.mc_ins_joined.set(false));
     }
-    mc_st().mc_ins_span.first = false;
+    with_mc(|st| st.mc_ins_span.first.set(false));
 }
 
 fn mc_ins_regions_clear() {
-    while let Some(id) = ins_regions_mut().pop() {
+    while let Some(id) = with_mc(|st| st.mc_ins_span.regions.borrow_mut().pop()) {
         extmark_del_id(curbuf_mut(), mc_session_ns(), id);
     }
 }
@@ -723,21 +743,25 @@ fn mc_region_mark_set(mark: &mut u32, pos: CursorPos) {
 }
 
 fn mc_ins_preview_rebase() {
-    mc_region_mark_set(&mut mc_st().mc_ins_span.region, curwin_mut().w_cursor);
+    let mut region = with_mc(|st| st.mc_ins_span.region.get());
+    mc_region_mark_set(&mut region, curwin_mut().w_cursor);
+    with_mc(|st| st.mc_ins_span.region.set(region));
     mc_ins_regions_clear();
-    for i in 0..cursors().len() {
-        let ctx = &cursors()[i];
+    let origin_mcursor = with_mc(|st| st.mc_ins_span.origin.get().mcursor);
+    for i in 0..cursors_len() {
+        let ctx = cursor_clone(i);
         let mut pos = INIT_POS;
         let mut mark = 0;
-        if mc_ctx_resolve(ctx, &mut pos) && ctx.mark != mc_st().mc_ins_span.origin.mcursor {
+        if mc_ctx_resolve(&ctx, &mut pos) && ctx.mark != origin_mcursor {
             mc_region_mark_set(&mut mark, pos);
-            ins_regions_mut().push(mark);
+            with_mc(|st| st.mc_ins_span.regions.borrow_mut().push(mark));
         }
     }
 }
 
 fn mc_ins_region_first() -> MTPair {
-    for &id in ins_regions() {
+    let regions = with_mc(|st| st.mc_ins_span.regions.borrow().clone());
+    for id in regions {
         let p = extmark_from_id(curbuf_mut(), mc_session_ns(), id);
         if p.start.id != 0 {
             return p;
@@ -813,10 +837,11 @@ fn mc_ins_preview_set(new_text: &NvimString) {
     let save_cmod_flags = g_st().cmdmod.cmod_flags;
     g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
     set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_TRUE_CONST);
-    for i in 0..ins_regions().len() {
+    let regions = with_mc(|st| st.mc_ins_span.regions.borrow().clone());
+    for region_id in regions {
         let mut rs = INIT_POS;
         let mut re = INIT_POS;
-        if !mc_region_mark_range(ins_regions()[i], &mut rs, &mut re) {
+        if !mc_region_mark_range(region_id, &mut rs, &mut re) {
             continue;
         }
         mc_ins_preview_replace(rs, re, new_text);
@@ -849,16 +874,20 @@ fn mc_ins_keys_nonliteral(keys: &[u8]) -> bool {
 }
 
 pub fn mc_ins_cascade_restart() {
-    if !mc_st().mc_ins_span.active
+    if !with_mc(|st| st.mc_ins_span.active.get())
         || mc_replaying()
         || (g_st().state_global & MODE_INSERT) == 0
         || !mc_buf_has_cursors(curbuf_mut())
-        || !atom_st().g_atoms.is_empty()
+        || with_atom(|st| !st.g_atoms.borrow().is_empty())
     {
         return;
     }
     let ins = redo_keys(None);
-    mc_st().mc_ins_span.done_len = ins.as_ref().map_or(0, |s| s.as_bytes().len());
+    with_mc(|st| {
+        st.mc_ins_span
+            .done_len
+            .set(ins.as_ref().map_or(0, |s| s.as_bytes().len()));
+    });
     mc_ins_preview_rebase();
 }
 
@@ -867,15 +896,15 @@ pub fn mc_ins_replaying() -> bool {
 }
 
 pub fn mc_ins_cascading() -> bool {
-    mc_st().mc_ins_span.active
+    with_mc(|st| st.mc_ins_span.active.get())
 }
 
 pub fn mc_ins_cascaded(root_frame: u64) -> bool {
-    !mc_st().mc_ins_span.first && mc_st().mc_ins_span.frame == root_frame
+    with_mc(|st| !st.mc_ins_span.first.get() && st.mc_ins_span.frame.get() == root_frame)
 }
 
 pub fn mc_ins_cascade() {
-    if !mc_st().mc_ins_span.active
+    if !with_mc(|st| st.mc_ins_span.active.get())
         || mc_replaying()
         || (g_st().state_global & MODE_INSERT) == 0
         || !mc_buf_has_cursors(curbuf_mut())
@@ -887,31 +916,36 @@ pub fn mc_ins_cascade() {
     let mut end = INIT_POS;
     let ins_cstr = redo_keys(None);
     let ins = NvimString::from_opt_cstr(ins_cstr.as_deref());
+    let (first, done_len, region) = with_mc(|st| {
+        (
+            st.mc_ins_span.first.get(),
+            st.mc_ins_span.done_len.get(),
+            st.mc_ins_span.region.get(),
+        )
+    });
 
-    if mc_st().mc_ins_span.first {
+    if first {
         if !g_st().ins_global.did_ai && !ins.data.is_null() && ins.size > 0 {
             let mut keys: Vec<u8> = Vec::new();
             let mut skip = 0;
-            if let Some(vsel) = mc_st().mc_ins_span.vsel.take() {
+            if let Some(vsel) = with_mc(|st| st.mc_ins_span.vsel.borrow_mut().take()) {
                 assert!(ins.as_bytes().starts_with(b"1v"));
                 keys.extend_from_slice(vsel.to_bytes());
                 skip = 2;
             }
             keys.extend_from_slice(&ins.as_bytes()[skip..]);
             keys.push(ESC);
-            mc_st().mc_ins_span.done_len = ins.size;
+            with_mc(|st| st.mc_ins_span.done_len.set(ins.size));
             mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), None);
             mc_ins_preview_rebase();
         }
-    } else if !ins.data.is_null() && ins.size < mc_st().mc_ins_span.done_len {
+    } else if !ins.data.is_null() && ins.size < done_len {
         mc_ins_cascade_restart();
-    } else if ins.size > mc_st().mc_ins_span.done_len
-        && mc_ins_keys_nonliteral(&ins.as_bytes()[mc_st().mc_ins_span.done_len..])
-    {
+    } else if ins.size > done_len && mc_ins_keys_nonliteral(&ins.as_bytes()[done_len..]) {
         if !ins_compl_active() && !pum_visible() {
             mc_ins_span_flush(&ins, false);
         }
-    } else if mc_region_mark_range(mc_st().mc_ins_span.region, &mut start, &mut end) {
+    } else if mc_region_mark_range(region, &mut start, &mut end) {
         let text = ml_region_text(crate::globals::curbuf_mut(), start, end);
         let mut update = true;
         let fp = mc_ins_region_first();
@@ -923,7 +957,8 @@ pub fn mc_ins_cascade() {
             update = cur != text;
         }
         if update && (ins_compl_active() || pum_visible()) {
-            for &id in ins_regions() {
+            let regions = with_mc(|st| st.mc_ins_span.regions.borrow().clone());
+            for id in regions {
                 let mut rs = INIT_POS;
                 let mut re = INIT_POS;
                 if !mc_region_mark_range(id, &mut rs, &mut re) {
@@ -953,7 +988,7 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
     {
         mc_ins_preview_set(&empty);
     }
-    let done = mc_st().mc_ins_span.done_len;
+    let done = with_mc(|st| st.mc_ins_span.done_len.get());
     let ins_bytes = ins.as_bytes();
     let dlen = ins_bytes.len() - done;
     let mut keys: Vec<u8> = Vec::with_capacity(dlen + 2);
@@ -969,7 +1004,7 @@ fn mc_ins_span_flush(ins: &NvimString, commit: bool) {
     } else {
         None
     };
-    mc_st().mc_ins_span.done_len = ins.size;
+    with_mc(|st| st.mc_ins_span.done_len.set(ins.size));
     mc_ins_span_push(std::ffi::CString::new(keys).unwrap(), text);
     if !commit {
         mc_ins_preview_rebase();
@@ -988,9 +1023,10 @@ fn mc_reg_read(reg: i32) -> std::ffi::CString {
 }
 
 fn mc_reg_gather() {
-    if cursors().is_empty() || g_st().exiting {
+    if cursors_is_empty() || g_st().exiting {
         return;
     }
+    let start_time = with_mc(|st| st.mc_start.time.get());
     let mut gather = [false; MC_REGS.len()];
     let mut any = false;
     let mut i = 0;
@@ -1001,7 +1037,7 @@ fn mc_reg_gather() {
         } else {
             op_reg_index(r)
         };
-        if idx >= 0 && get_y_register(idx).timestamp >= mc_st().mc_start.time {
+        if idx >= 0 && get_y_register(idx).timestamp >= start_time {
             gather[i] = true;
             any = true;
         }
@@ -1013,11 +1049,12 @@ fn mc_reg_gather() {
 
     let mut primary = CONTEXT_INIT;
     primary.pos = curwin_mut().w_cursor;
-    primary.regs = shada_encode_regs(false, mc_st().mc_start.time);
+    primary.regs = shada_encode_regs(false, start_time);
 
-    let mut order: Vec<&mut Context> = Vec::new();
-    order.push(&mut primary);
-    for ctx in cursors_mut().iter_mut() {
+    let mut order: Vec<Context> = Vec::new();
+    order.push(primary);
+    for idx in 0..cursors_len() {
+        let ctx = cursor_clone(idx);
         if !ctx.regs.is_empty() && handle_get_buffer(ctx.buf).is_some_and(|b| g_st().curbuf == b) {
             order.push(ctx);
         }
@@ -1036,8 +1073,8 @@ fn mc_reg_gather() {
     ctx_save(&mut save, K_CTX_REGS);
 
     let mut joined: [Vec<u8>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
-    for ctx in order {
-        ctx_load(ctx, K_CTX_REGS, 0);
+    for mut ctx in order {
+        ctx_load(&mut ctx, K_CTX_REGS, 0);
         let mut idx = 0;
         while MC_REGS[idx] != 0 {
             if gather[idx] {
@@ -1053,7 +1090,6 @@ fn mc_reg_gather() {
             idx += 1;
         }
     }
-    drop(primary);
     ctx_load(&mut save, K_CTX_REGS, 0);
     ctx_free(&mut save);
 
@@ -1078,11 +1114,11 @@ fn mc_reg_gather() {
 }
 
 pub fn mc_vsel_clear() {
-    if let Some(buf) = handle_get_buffer_opt(mc_st().mc_vsel_buf) {
+    let vsel_buf = with_mc(|st| st.mc_vsel_buf.replace(0));
+    if let Some(buf) = handle_get_buffer_opt(vsel_buf) {
         extmark_clear(buf, mc_vsel_ns(), 0, 0, MAXLNUM, MAXCOL);
         extmark_clear(buf, mc_vcur_ns(), 0, 0, MAXLNUM, MAXCOL);
     }
-    mc_st().mc_vsel_buf = 0;
 }
 
 fn mc_vsel_mark(start_lnum: Linenr, start_col: Colnr, end_lnum: Linenr, end_col: Colnr) {
@@ -1104,7 +1140,7 @@ fn mc_vsel_mark(start_lnum: Linenr, start_col: Colnr, end_lnum: Linenr, end_col:
         true,
         false,
     );
-    mc_st().mc_vsel_buf = curbuf_mut().b_fnum;
+    with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum));
 }
 
 pub fn mc_vsel_refresh() {
@@ -1123,13 +1159,14 @@ pub fn mc_vsel_refresh() {
     block_on_key();
     g_st().emsg_silent += 1;
 
-    for i in 0..cursors().len() {
+    for i in 0..cursors_len() {
+        let mut ctx = cursor_clone(i);
         let mut pos = INIT_POS;
-        if !mc_ctx_resolve(&cursors()[i], &mut pos) {
+        if !mc_ctx_resolve(&ctx, &mut pos) {
             continue;
         }
-        cursors_mut()[i].pos = pos;
-        let mut ctx = cursors()[i].clone();
+        ctx.pos = pos;
+        with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = pos);
         ctx_load(&mut ctx, K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS, 0);
         check_cursor(curwin_mut());
         g_st().visual_global.active = false;
@@ -1188,7 +1225,7 @@ pub fn mc_vsel_refresh() {
             true,
             true,
         );
-        mc_st().mc_vsel_buf = curbuf_mut().b_fnum;
+        with_mc(|st| st.mc_vsel_buf.set(curbuf_mut().b_fnum));
         g_st().visual_global.active = false;
     }
 
@@ -1204,25 +1241,30 @@ pub fn mc_undo_time() {
 }
 
 pub fn mc_ins_commit() -> bool {
-    let active = mc_st().mc_ins_span.active;
-    let ins_cascaded = active && !mc_st().mc_ins_span.first;
-    mc_st().mc_ins_span.active = false;
-    mc_st().mc_ins_span.vsel = None;
+    let (active, ins_cascaded) = with_mc(|st| {
+        let active = st.mc_ins_span.active.replace(false);
+        let ins_cascaded = active && !st.mc_ins_span.first.get();
+        *st.mc_ins_span.vsel.borrow_mut() = None;
+        (active, ins_cascaded)
+    });
 
     if ins_cascaded && let Some(ins_cstr) = redo_keys(None) {
         let ins = NvimString::from_cstr(&ins_cstr);
-        if ins.size > mc_st().mc_ins_span.done_len && ins.as_bytes().last() == Some(&ESC) {
+        if ins.size > with_mc(|st| st.mc_ins_span.done_len.get())
+            && ins.as_bytes().last() == Some(&ESC)
+        {
             mc_ins_span_flush(&ins, true);
         }
     }
 
-    if mc_st().mc_ins_span.region != 0 {
-        extmark_del_id(curbuf_mut(), mc_session_ns(), mc_st().mc_ins_span.region);
-        mc_st().mc_ins_span.region = 0;
+    let region = with_mc(|st| st.mc_ins_span.region.replace(0));
+    if region != 0 {
+        extmark_del_id(curbuf_mut(), mc_session_ns(), region);
     }
     mc_ins_regions_clear();
 
-    if active && buf_get_changedtick(curbuf_mut()) == mc_st().mc_ins_span.origin.tick {
+    let origin = with_mc(|st| st.mc_ins_span.origin.get());
+    if active && buf_get_changedtick(curbuf_mut()) == origin.tick {
         u_forget_unchanged(curbuf_mut());
     }
 
@@ -1231,26 +1273,35 @@ pub fn mc_ins_commit() -> bool {
     }
     curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
     curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
-    for i in 0..cursors().len() {
+    for i in 0..cursors_len() {
+        let ctx = cursor_clone(i);
         let mut pos = INIT_POS;
-        if !mc_ctx_resolve(&cursors()[i], &mut pos) {
+        if !mc_ctx_resolve(&ctx, &mut pos) {
             continue;
         }
-        let mut mark = cursors()[i].mark;
-        if mark == mc_st().mc_ins_span.origin.mcursor {
+        let mut mark = ctx.mark;
+        if mark == origin.mcursor {
             pos = curwin_mut().w_cursor;
         } else if pos.col > 0 {
             dec(&mut pos);
         }
         mc_mark_upd(curbuf_mut(), &mut mark, pos);
-        cursors_mut()[i].pos = pos;
-        cursors_mut()[i].mark = mark;
+        with_mc(|st| {
+            let mut cursors = st.mc_cursors.borrow_mut();
+            cursors[i].pos = pos;
+            cursors[i].mark = mark;
+        });
     }
     true
 }
 
 pub fn mc_buf_has_cursors(buf: &mut FileBuf) -> bool {
-    cursors().iter().any(|ctx| ctx.buf == buf.b_fnum)
+    with_mc(|st| {
+        st.mc_cursors
+            .borrow()
+            .iter()
+            .any(|ctx| ctx.buf == buf.b_fnum)
+    })
 }
 
 pub fn mc_following() -> bool {
@@ -1281,7 +1332,7 @@ fn mc_lua_enable(enable: bool) {
 }
 
 pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
-    if cursors().is_empty() {
+    if cursors_is_empty() {
         return 0;
     }
     let mut itr: MarkTreeIter = MarkTreeIter::new();
@@ -1334,7 +1385,7 @@ fn mc_zq_target(
     step: CursorPos,
     search: bool,
     motion_type: i32,
-    ctx: Option<&mut Context>,
+    ctx_idx: Option<usize>,
 ) -> Visualinfo {
     let save = curbuf_mut().b_visual;
     let save_mode_eval = curbuf_mut().b_visual_mode_eval;
@@ -1358,9 +1409,9 @@ fn mc_zq_target(
         };
     }
     curbuf_mut().b_visual_mode_eval = curbuf_mut().b_visual.vi_mode;
-    if let Some(ctx) = ctx {
+    if let Some(idx) = ctx_idx {
         curwin_mut().w_cursor = step;
-        ctx_save(ctx, K_CTX_VISUAL);
+        with_mc(|st| ctx_save(&mut st.mc_cursors.borrow_mut()[idx], K_CTX_VISUAL));
     }
     let target = curbuf_mut().b_visual;
     curbuf_mut().b_visual = save;
@@ -1639,20 +1690,25 @@ pub fn mc_toggle(buf: &mut FileBuf, pos: CursorPos, end_follow: bool, on: TriSta
     }
 }
 
-pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> Option<&'static mut Context> {
+pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> Option<usize> {
     let existing = mc_mark_at(buf, pos, 0);
     if existing != 0 {
-        for ctx in cursors_mut().iter_mut() {
-            if ctx.buf == buf.b_fnum && ctx.mark == existing {
-                return Some(ctx);
-            }
+        let found = with_mc(|st| {
+            st.mc_cursors
+                .borrow()
+                .iter()
+                .position(|ctx| ctx.buf == buf.b_fnum && ctx.mark == existing)
+        });
+        if found.is_some() {
+            return found;
         }
     }
-    let count = cursors().len();
+    let count = cursors_len();
     let mut mark: u32 = 0;
     mc_mark_upd(buf, &mut mark, pos);
-    if cursors().len() > count {
-        cursors_mut().last_mut()
+    let new_len = cursors_len();
+    if new_len > count {
+        Some(new_len - 1)
     } else {
         None
     }
@@ -1672,16 +1728,18 @@ pub fn mc_on_extmark_set(buf: &mut FileBuf, ns_id: u32, mut id: u32, pos: Cursor
     }
     mc_mark_upd(&mut *buf, &mut id, pos);
     atom_visual_reset();
-    if cursors().is_empty() {
-        mc_st().mc_start.time = os_realtime() as Timestamp;
-        ctx_save(&mut mc_st().mc_start.ctx, K_CTX_REGS);
+    if cursors_is_empty() {
+        with_mc(|st| {
+            st.mc_start.time.set(os_realtime() as Timestamp);
+            ctx_save(&mut st.mc_start.ctx.borrow_mut(), K_CTX_REGS);
+        });
         mc_lua_enable(true);
     }
     let mut ctx = CONTEXT_INIT;
     ctx.buf = buf.b_fnum;
     ctx.pos = pos;
     ctx.mark = id;
-    cursors_mut().push(ctx);
+    with_mc(|st| st.mc_cursors.borrow_mut().push(ctx));
 }
 
 pub fn mc_buf_clear(buf: &mut FileBuf) {
@@ -1697,23 +1755,25 @@ pub fn mc_buf_free(buf: &mut FileBuf) {
         return;
     }
     mc_cleanup(false, None, 0);
-    if mc_st().mc_vsel_buf == buf.b_fnum {
-        mc_st().mc_vsel_buf = 0;
-    }
+    with_mc(|st| {
+        if st.mc_vsel_buf.get() == buf.b_fnum {
+            st.mc_vsel_buf.set(0);
+        }
+    });
 }
 
 pub fn mc_ns_clearing(buf: &mut FileBuf, ns_id: u32) {
     if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
         return;
     }
-    for i in 0..cursors().len() {
-        let (ctx_buf, ctx_mark, mut pos) = {
-            let ctx = &cursors()[i];
+    for i in 0..cursors_len() {
+        let (ctx_buf, ctx_mark, mut pos) = with_mc(|st| {
+            let ctx = &st.mc_cursors.borrow()[i];
             (ctx.buf, ctx.mark, ctx.pos)
-        };
+        });
         if ctx_buf == buf.b_fnum && ctx_mark != 0 {
             extmark_get_pos(buf, mc_ns(), ctx_mark, &mut pos);
-            cursors_mut()[i].pos = pos;
+            with_mc(|st| st.mc_cursors.borrow_mut()[i].pos = pos);
         }
     }
 }
@@ -1723,11 +1783,20 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
         return;
     }
 
-    let others = cursors().iter().any(|ctx| {
+    let mut others = false;
+    for idx in 0..cursors_len() {
+        let (ctx_buf, ctx_mark) = with_mc(|st| {
+            let ctx = &st.mc_cursors.borrow()[idx];
+            (ctx.buf, ctx.mark)
+        });
         let mut pos = INIT_POS;
-        ctx.buf != buf.b_fnum
-            || (ctx.mark != 0 && extmark_get_pos(buf, mc_ns(), ctx.mark, &mut pos))
-    });
+        if ctx_buf != buf.b_fnum
+            || (ctx_mark != 0 && extmark_get_pos(buf, mc_ns(), ctx_mark, &mut pos))
+        {
+            others = true;
+            break;
+        }
+    }
     if !others {
         mc_reg_gather();
     }
@@ -1746,11 +1815,11 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
                 false,
             );
         }
-        for idx in 0..cursors().len() {
-            let (ctx_buf, ctx_pos) = {
-                let ctx = &cursors()[idx];
+        for idx in 0..cursors_len() {
+            let (ctx_buf, ctx_pos) = with_mc(|st| {
+                let ctx = &st.mc_cursors.borrow()[idx];
                 (ctx.buf, ctx.pos)
-            };
+            });
             if ctx_buf != buf.b_fnum {
                 continue;
             }
@@ -1759,16 +1828,18 @@ pub fn mc_ns_cleared(buf: &mut FileBuf, ns_id: u32) {
         }
     }
     mc_cleanup(false, None, 0);
-    if cursors().is_empty() {
-        atom_st().g_atoms = Vec::new();
+    if cursors_is_empty() {
+        with_atom(|st| *st.g_atoms.borrow_mut() = Vec::new());
     }
 }
 
 pub fn mc_free_all() {
-    while let Some(mut ctx) = cursors_mut().pop() {
+    while let Some(mut ctx) = with_mc(|st| st.mc_cursors.borrow_mut().pop()) {
         ctx_free(&mut ctx);
     }
-    *cursors_mut() = Vec::new();
-    *ins_regions_mut() = Vec::new();
-    ctx_free(&mut mc_st().mc_start.ctx);
+    with_mc(|st| {
+        *st.mc_cursors.borrow_mut() = Vec::new();
+        *st.mc_ins_span.regions.borrow_mut() = Vec::new();
+        ctx_free(&mut st.mc_start.ctx.borrow_mut());
+    });
 }

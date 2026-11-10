@@ -755,7 +755,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                         emsg(gettext(E_NOPREVRE));
                         break 'sortend;
                     };
-                    regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
+                    regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
                 } else {
                     let pat_cstr =
                         crate::memory::bytes_as_cstr(&eap.arg_cstr_buf_mut()[p_idx + 1..]);
@@ -1036,7 +1036,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                         emsg(gettext(E_NOPREVRE));
                         break 'uniqend;
                     };
-                    regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
+                    regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
                 } else {
                     let pat_cstr =
                         crate::memory::bytes_as_cstr(&eap.arg_cstr_buf_mut()[p_idx + 1..]);

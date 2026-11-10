@@ -4771,7 +4771,7 @@ pub fn optval_free_read(opt_idx: OptIndex, value: Object) {
 pub fn optval_free(o: Object) {
     match o.obj_type {
         ObjectType::ObjectTypeString => {
-            if o.data.string().data.as_ptr() != EMPTY_STRING_OPTION.as_ptr().cast() {
+            if o.data.string().data.as_ptr().cast_const() != EMPTY_STRING_OPTION.as_ptr() {
                 api_free_string(o.data.string());
             }
         }

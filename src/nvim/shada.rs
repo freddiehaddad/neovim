@@ -81,9 +81,9 @@ use crate::register::{
     op_reg_set, reg_empty,
 };
 use crate::search::{
-    AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_ptr,
-    get_search_pattern_timestamp, get_substitute_pattern, search_pattern_cleared,
-    search_was_last_used, set_last_used_pattern, set_search_pattern, set_substitute_pattern,
+    AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_timestamp,
+    get_substitute_pattern, search_pattern_cleared, search_was_last_used, set_last_used_pattern,
+    set_search_pattern, set_substitute_pattern,
 };
 use crate::strings::{gettext, vim_strchr};
 use std::cmp::Ordering;
@@ -2342,7 +2342,7 @@ fn add_search_pattern(
     if pat.pat.is_some() {
         let is_last_used = is_substitute_pattern ^ search_last_used;
         *ret_pse = ShadaEntry {
-            can_free_entry: false,
+            can_free_entry: true,
             entry_type: ShadaEntryType::SDItemSearchPattern,
             timestamp: pat.timestamp,
             data: ShadaEntryData::SearchPattern(KeyDict__shada_search_pat {
@@ -2367,7 +2367,7 @@ fn add_search_pattern(
                 is_last_used,
                 is_substitute_pattern,
                 highlighted: is_last_used && search_highlighted,
-                pat: cstr_as_string(get_search_pattern_ptr(is_substitute_pattern)),
+                pat: crate::api::private::helpers::cstr_to_string(pat.pat.as_deref()),
                 search_backward: !is_substitute_pattern && pat.off.dir == b'?',
             }),
             additional_data: pat.additional_data,

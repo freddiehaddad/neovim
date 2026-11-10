@@ -5142,7 +5142,7 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
             emsg(gettext(E_NOPREVRE));
             return;
         };
-        regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
+        regmatch.set_prog(vim_regcomp(&last_pat, RE_MAGIC));
     }
 
     regmatch.rmm_ic = opt_vars().p_ic;

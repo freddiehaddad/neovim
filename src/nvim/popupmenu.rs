@@ -153,6 +153,7 @@ const K_ZINDEX_CMDLINE_POPUP_MENU: i32 = 250;
 
 const K_OPT_COT_FLAG_PREVIEW: u32 = 0x1000;
 
+#[derive(Clone, Copy)]
 struct PopupmenuState {
     array: crate::globals::GraphPtr<Pumitem>,
     size: i32,
@@ -223,11 +224,48 @@ impl PopupmenuState {
     }
 }
 
-static PUM: GlobalState<PopupmenuState> = GlobalState::new(PopupmenuState::new());
+thread_local! {
+    static PUM: std::cell::Cell<PopupmenuState> =
+        const { std::cell::Cell::new(PopupmenuState::new()) };
+}
+
+struct PumGuard {
+    state: PopupmenuState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for PumGuard {
+    type Target = PopupmenuState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for PumGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for PumGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            PUM.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn pum() -> crate::globals::GraphPtr<PopupmenuState> {
-    PUM.handle()
+fn pum() -> PumGuard {
+    PumGuard {
+        state: PUM.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 use crate::api::private::helpers::cstr_to_string;

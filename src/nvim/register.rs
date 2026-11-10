@@ -890,10 +890,11 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
             Some(last_cmd)
         }
         x if x == i32::from(b'/') => {
-            if last_search_pat().is_none() && errmsg {
+            let last_pat = last_search_pat();
+            if last_pat.is_none() && errmsg {
                 emsg(gettext(E_NOPREVRE));
             }
-            Some(last_search_pat().map(|s| s.to_bytes_with_nul().to_vec()))
+            Some(last_pat.map(std::ffi::CString::into_bytes_with_nul))
         }
         x if x == i32::from(b'.') => {
             let v = cstr_to_vec(get_last_insert_save());
@@ -2472,13 +2473,13 @@ pub fn ex_display(eap: &mut Exarg) {
         }
     }
 
-    if last_search_pat().is_some()
+    if let Some(last_pat) = last_search_pat()
         && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'/')))
         && !g_st().got_int
-        && !message_filtered(last_search_pat().unwrap_or(c""))
+        && !message_filtered(&last_pat)
     {
         msg_puts(c"\n  c  \"/   ");
-        dis_msg(last_search_pat(), false);
+        dis_msg(Some(&last_pat), false);
     }
 
     if let Some(el) = &reg_st().expr_line

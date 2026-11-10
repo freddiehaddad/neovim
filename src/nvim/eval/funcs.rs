@@ -2924,7 +2924,7 @@ pub fn f_getcharpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 /// "getcharsearch()" function
 pub fn f_getcharsearch(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let dict = tv_dict_alloc_ret(rettv);
-    tv_dict_add_str(dict, c"char", Some(last_csearch()));
+    tv_dict_add_str(dict, c"char", Some(&last_csearch()));
     tv_dict_add_nr(dict, c"forward", Varnumber::from(last_csearch_forward()));
     tv_dict_add_nr(dict, c"until", Varnumber::from(last_csearch_until()));
 }
