@@ -2470,6 +2470,9 @@ fn check_swap_exists_action() {
 #[cfg(test)]
 pub(crate) fn ensure_test_editor_init() {
     static INIT: std::sync::Once = std::sync::Once::new();
+    thread_local! {
+        static THREAD_VARS_INIT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
     INIT.call_once(|| {
         g_st().headless_mode = true;
         g_st().silent_mode = true;
@@ -2477,6 +2480,7 @@ pub(crate) fn ensure_test_editor_init() {
         estack_init();
         cmdline_init();
         eval_init();
+        THREAD_VARS_INIT.set(true);
         init_path(c"nvim");
         init_normal_cmds();
         highlight_init();
@@ -2492,6 +2496,11 @@ pub(crate) fn ensure_test_editor_init() {
         set_init_2(true);
         crate::highlight_group::init_highlight(true, false);
     });
+    if !THREAD_VARS_INIT.get() {
+        eval_init();
+        init_path(c"nvim");
+        THREAD_VARS_INIT.set(true);
+    }
 }
 
 #[cfg(test)]

@@ -1,7 +1,6 @@
 //! User defined function support (`src/nvim/eval/userfunc.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED, PROF_YES, apply_autocmds,
 };
@@ -98,18 +97,13 @@ impl UfuncId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static UserFunc> {
         let idx = (self.0?.get() - 1) as usize;
-        uf_st()
-            .borrow()
-            .ufunc_arena
-            .get(idx)
-            .and_then(|s| s.as_deref())
+        uf_arenas().ufunc_arena.get(idx).and_then(|s| s.as_deref())
     }
 
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut UserFunc> {
         let idx = (self.0?.get() - 1) as usize;
-        uf_st()
-            .borrow_mut()
+        uf_arenas()
             .ufunc_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -358,44 +352,16 @@ pub type FuncHashtab = std::collections::BTreeMap<Vec<u8>, UfuncId>;
 
 struct RetainedFunccall(Box<Funccall>);
 
-struct UserfuncState {
-    func_hashtab: FuncHashtab,
-    func_hashtab_changed: i32,
-    funcargs: Vec<crate::globals::GraphPtr<TypVal>>,
-    current_funccal: crate::globals::GraphPtr<Funccall>,
-    previous_funccal: Vec<RetainedFunccall>,
-    funccal_stack: Vec<crate::globals::GraphPtr<Funccall>>,
-    lambda_name: [u8; 8 + NUMBUFLEN],
-    lambda_no: i32,
-    made_copy: i32,
-    call_depth: i32,
-    func_nr: i32,
-    get_uf_done: usize,
-    get_uf_changed: i32,
-    get_uf_items: Vec<UfuncId>,
+pub(crate) struct UserfuncArenas {
     ufunc_arena: Vec<Option<Box<UserFunc>>>,
     free_ufuncs: Vec<usize>,
     funccal_arena: Vec<Option<Box<Funccall>>>,
     free_funccals: Vec<usize>,
 }
 
-impl UserfuncState {
-    const fn new() -> Self {
+impl UserfuncArenas {
+    pub(crate) const fn new() -> Self {
         Self {
-            func_hashtab: std::collections::BTreeMap::new(),
-            func_hashtab_changed: 0,
-            funcargs: Vec::new(),
-            current_funccal: crate::globals::GraphPtr::NULL,
-            previous_funccal: Vec::new(),
-            funccal_stack: Vec::new(),
-            lambda_name: [0; 8 + NUMBUFLEN],
-            lambda_no: 0,
-            made_copy: 0,
-            call_depth: 0,
-            func_nr: 0,
-            get_uf_done: 0,
-            get_uf_changed: 0,
-            get_uf_items: Vec::new(),
             ufunc_arena: Vec::new(),
             free_ufuncs: Vec::new(),
             funccal_arena: Vec::new(),
@@ -404,11 +370,54 @@ impl UserfuncState {
     }
 }
 
-static UF_STATE: GlobalState<UserfuncState> = GlobalState::new(UserfuncState::new());
+struct UserfuncState {
+    func_hashtab_changed: std::cell::Cell<i32>,
+    current_funccal: std::cell::Cell<crate::globals::GraphPtr<Funccall>>,
+    lambda_no: std::cell::Cell<i32>,
+    made_copy: std::cell::Cell<i32>,
+    call_depth: std::cell::Cell<i32>,
+    func_nr: std::cell::Cell<i32>,
+    get_uf_done: std::cell::Cell<usize>,
+    get_uf_changed: std::cell::Cell<i32>,
+}
+
+impl UserfuncState {
+    const fn new() -> Self {
+        Self {
+            func_hashtab_changed: std::cell::Cell::new(0),
+            current_funccal: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            lambda_no: std::cell::Cell::new(0),
+            made_copy: std::cell::Cell::new(0),
+            call_depth: std::cell::Cell::new(0),
+            func_nr: std::cell::Cell::new(0),
+            get_uf_done: std::cell::Cell::new(0),
+            get_uf_changed: std::cell::Cell::new(0),
+        }
+    }
+}
+
+thread_local! {
+    static UF_STATE: UserfuncState = const { UserfuncState::new() };
+    static FUNC_HASHTAB: std::cell::RefCell<FuncHashtab> = const {
+        std::cell::RefCell::new(std::collections::BTreeMap::new())
+    };
+    static FUNCARGS: std::cell::RefCell<Vec<crate::globals::GraphPtr<TypVal>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static PREVIOUS_FUNCCAL: std::cell::RefCell<Vec<RetainedFunccall>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static FUNCCAL_STACK: std::cell::RefCell<Vec<crate::globals::GraphPtr<Funccall>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static GET_UF_ITEMS: std::cell::RefCell<Vec<UfuncId>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
 
 #[inline]
-fn uf_st() -> crate::globals::GraphPtr<UserfuncState> {
-    UF_STATE.handle()
+fn uf_arenas() -> &'static mut UserfuncArenas {
+    &mut g_st().borrow_mut().uf_arenas
 }
 
 const E_FUNCEXTS: &CStr = c"E122: Function %s already exists, add ! to replace it";
@@ -436,12 +445,15 @@ fn uf2hikey(fp: &UserFunc) -> &CStr {
 fn func_hashtab_add(fp: &mut UserFunc) -> bool {
     let key_cstr = uf2hikey(fp);
     let key = key_cstr.to_bytes();
-    if uf_st().func_hashtab.contains_key(key) {
+    if FUNC_HASHTAB.with(|c| c.borrow().contains_key(key)) {
         crate::siemsg!(c"Duplicate key in hash table: \"%s\"", key_cstr);
         return false;
     }
-    uf_st().func_hashtab.insert(key.to_vec(), fp.uf_id);
-    uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
+    FUNC_HASHTAB.with(|c| c.borrow_mut().insert(key.to_vec(), fp.uf_id));
+    UF_STATE.with(|s| {
+        s.func_hashtab_changed
+            .set(s.func_hashtab_changed.get().wrapping_add(1));
+    });
     true
 }
 
@@ -450,9 +462,14 @@ fn funcarg(fp: &UserFunc, j: i32) -> &std::ffi::CStr {
     (&fp.uf_args)[j as usize].as_c_str()
 }
 
-/// Return the function hash table.
-pub fn func_tbl_get() -> &'static mut FuncHashtab {
-    &mut uf_st().borrow_mut().func_hashtab
+/// Return the keys of the function hash table.
+pub fn func_tbl_keys() -> Vec<Vec<u8>> {
+    FUNC_HASHTAB.with(|c| c.borrow().keys().cloned().collect())
+}
+
+/// Return the values of the function hash table.
+pub fn func_tbl_values() -> Vec<UfuncId> {
+    FUNC_HASHTAB.with(|c| c.borrow().values().copied().collect())
 }
 
 /// Get one function argument.
@@ -609,24 +626,23 @@ fn get_function_args(
 
 /// Register function "fp" as using "current_funccal" as its scope.
 fn register_closure(fp: &mut UserFunc) {
-    if fp.uf_scoped == uf_st().current_funccal {
+    if fp.uf_scoped == UF_STATE.with(|s| s.current_funccal.get()) {
         return;
     }
     funccal_unref(fp.uf_scoped.opt_mut(), fp, false);
-    fp.uf_scoped = uf_st().current_funccal;
+    fp.uf_scoped = UF_STATE.with(|s| s.current_funccal.get());
     cur_funccal_mut().fc_refcount += 1;
     cur_funccal_mut().fc_ufuncs.push(fp.uf_id);
 }
 
-/// Return a name for a lambda in static memory.
-fn get_lambda_name() -> NvimString {
-    uf_st().lambda_no += 1;
-    let size = crate::strings::format_to_buf_safelen!(
-        &mut uf_st().lambda_name,
-        c"<lambda>%d",
-        uf_st().lambda_no
-    );
-    NvimString::from_bytes_len(&uf_st().lambda_name, size)
+/// Return a name for a lambda.
+fn get_lambda_name() -> std::ffi::CString {
+    let no = UF_STATE.with(|s| {
+        let next = s.lambda_no.get() + 1;
+        s.lambda_no.set(next);
+        next
+    });
+    std::ffi::CString::new(format!("<lambda>{no}")).unwrap()
 }
 
 /// Allocate a `UserFunc` for a function called `name`.
@@ -672,7 +688,7 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
         fp.uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
     }
 
-    let st = uf_st().borrow_mut();
+    let st = uf_arenas();
     let idx = if let Some(idx) = st.free_ufuncs.pop() {
         fp.uf_id = UfuncId::from_slot(idx);
         st.ufunc_arena[idx] = Some(fp);
@@ -771,7 +787,9 @@ pub fn get_lambda_tv(
         fp.uf_args = newargs;
         fp.uf_def_args = Vec::new();
         fp.uf_lines = newlines;
-        if !uf_st().current_funccal.is_null() && eval_st().eval_lavars_used == Some(true) {
+        if !UF_STATE.with(|s| s.current_funccal.get()).is_null()
+            && eval_st().eval_lavars_used == Some(true)
+        {
             flags |= FC_CLOSURE;
             register_closure(&mut *fp);
         } else {
@@ -943,18 +961,22 @@ pub fn get_func_tv(
         let mut i = 0usize;
 
         if get_vim_var_nr(VV_TESTING) != 0 {
-            while (i as i32) < argcount {
-                uf_st()
-                    .funcargs
-                    .push(crate::globals::GraphPtr::from(&mut argvars[i]));
-                i += 1;
-            }
+            FUNCARGS.with(|c| {
+                let mut fa = c.borrow_mut();
+                while (i as i32) < argcount {
+                    fa.push(crate::globals::GraphPtr::from(&mut argvars[i]));
+                    i += 1;
+                }
+            });
         }
         ret = call_func(name, len, rettv, argcount, &mut argvars, funcexe);
 
         if i > 0 {
-            let new_len = uf_st().funcargs.len().saturating_sub(i);
-            uf_st().funcargs.truncate(new_len);
+            FUNCARGS.with(|c| {
+                let mut fa = c.borrow_mut();
+                let new_len = fa.len().saturating_sub(i);
+                fa.truncate(new_len);
+            });
         }
     } else if !aborting() && evaluate {
         if argcount == MAX_FUNC_ARGS as i32 {
@@ -1067,10 +1089,8 @@ pub fn get_func_arity(
 /// Find a function by name, return pointer to it in ufuncs.
 pub fn find_func(name: Option<&CStr>) -> Option<&'static mut UserFunc> {
     let name = name?;
-    uf_st()
-        .func_hashtab
-        .get(name.to_bytes())
-        .copied()
+    FUNC_HASHTAB
+        .with(|c| c.borrow().get(name.to_bytes()).copied())
         .and_then(UfuncId::opt_mut)
 }
 
@@ -1155,7 +1175,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     let may_free_fc = fc.fc_refcount <= 0;
     let mut free_fc = true;
 
-    uf_st().current_funccal = fc.fc_caller;
+    UF_STATE.with(|s| s.current_funccal.set(fc.fc_caller));
 
     if may_free_fc && fc.fc_l_vars.dv_refcount == DO_NOT_FREE_CNT {
         vars_clear(&mut fc.fc_l_vars.dv_hashtab);
@@ -1193,25 +1213,27 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     let fc_idx = fc.fc_arena_idx;
     if free_fc {
         if fc_idx != usize::MAX {
-            let st = uf_st().borrow_mut();
+            let st = uf_arenas();
             let dropped = st.funccal_arena[fc_idx].take();
             st.free_funccals.push(fc_idx);
             drop(dropped);
         }
     } else {
         fc.fc_caller = crate::globals::GraphPtr::NULL;
-        let st = uf_st().borrow_mut();
+        let st = uf_arenas();
         if let Some(fc_box) = st.funccal_arena[fc_idx].take() {
             st.free_funccals.push(fc_idx);
-            st.previous_funccal.push(RetainedFunccall(fc_box));
+            PREVIOUS_FUNCCAL.with(|c| c.borrow_mut().push(RetainedFunccall(fc_box)));
         }
 
         if g_st().want_garbage_collect {
-            uf_st().made_copy = 0;
+            UF_STATE.with(|s| s.made_copy.set(0));
         } else {
-            uf_st().made_copy += 1;
-            if uf_st().made_copy >= ((4096 * 1024) / std::mem::size_of::<Funccall>()) as i32 {
-                uf_st().made_copy = 0;
+            UF_STATE.with(|s| s.made_copy.set(s.made_copy.get() + (1)));
+            if UF_STATE.with(|s| s.made_copy.get())
+                >= ((4096 * 1024) / std::mem::size_of::<Funccall>()) as i32
+            {
+                UF_STATE.with(|s| s.made_copy.set(0));
                 g_st().want_garbage_collect = true;
             }
         }
@@ -1228,17 +1250,21 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
 
     fc.fc_refcount -= 1;
 
-    if (if force {
+    if if force {
         fc.fc_refcount <= 0
     } else {
         !fc_referenced(fc.borrow())
-    }) && let Some(pos) = uf_st()
-        .previous_funccal
-        .iter()
-        .position(|item| fc == &raw const *item.0)
-    {
-        uf_st().previous_funccal.remove(pos);
-        return;
+    } {
+        let removed = PREVIOUS_FUNCCAL.with(|c| {
+            let mut v = c.borrow_mut();
+            v.iter()
+                .position(|item| fc == &raw const *item.0)
+                .map(|pos| v.remove(pos))
+        });
+        if let Some(removed) = removed {
+            drop(removed);
+            return;
+        }
     }
     for slot in &mut (fc.borrow_mut().fc_ufuncs) {
         if *slot == fp.uf_id {
@@ -1250,8 +1276,14 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
 /// Remove the function from the function hashtable.
 fn func_remove(fp: &mut UserFunc) -> bool {
     let key = uf2hikey(fp).to_bytes();
-    if uf_st().func_hashtab.remove(key).is_some() {
-        uf_st().func_hashtab_changed = uf_st().func_hashtab_changed.wrapping_add(1);
+    if FUNC_HASHTAB.with(|c| c.borrow_mut().remove(key)).is_some() {
+        UF_STATE.with(|s| {
+            s.func_hashtab_changed.set(
+                UF_STATE
+                    .with(|s| s.func_hashtab_changed.get())
+                    .wrapping_add(1),
+            )
+        });
         true
     } else {
         false
@@ -1298,7 +1330,7 @@ impl Drop for UserFunc {
 fn free_ufunc_slot(fp: &mut UserFunc) {
     if let Some(nz) = fp.uf_id.0 {
         let idx = (nz.get() - 1) as usize;
-        let st = uf_st().borrow_mut();
+        let st = uf_arenas();
         let dropped = st.ufunc_arena[idx].take();
         st.free_ufuncs.push(idx);
         drop(dropped);
@@ -1310,10 +1342,10 @@ fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
     free_ufunc_slot(fp_in);
 }
 
-/// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
+/// Allocate a `Funccall`, link it in `UF_STATE.with(|s| s.current_funccal.get())` and fill in `fp` and `rettv`.
 pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static mut Funccall {
     let fp_ptr = UfuncId::from(fp);
-    let st = uf_st().borrow_mut();
+    let st = uf_arenas();
     let mut fc_box = Box::new(Funccall::new());
     let idx = if let Some(idx) = st.free_funccals.pop() {
         fc_box.fc_arena_idx = idx;
@@ -1326,8 +1358,11 @@ pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static
         idx
     };
     let fc = st.funccal_arena[idx].as_deref_mut().unwrap();
-    fc.fc_caller = st.current_funccal;
-    st.current_funccal = crate::globals::GraphPtr::from(&mut *fc);
+    fc.fc_caller = UF_STATE.with(|s| s.current_funccal.get());
+    UF_STATE.with(|s| {
+        s.current_funccal
+            .set(crate::globals::GraphPtr::from(&mut *fc))
+    });
     fc.fc_func = fp_ptr;
     func_ptr_ref(fp_ptr.opt_mut());
     fc.fc_rettv = crate::globals::GraphPtr::from(rettv);
@@ -1360,7 +1395,7 @@ pub fn call_user_func(
     let mut did_save_redo = false;
     let mut save_redo = RedoState::new();
 
-    if i64::from(uf_st().call_depth) >= opt_vars().p_mfd {
+    if i64::from(UF_STATE.with(|s| s.call_depth.get())) >= opt_vars().p_mfd {
         emsg(gettext(
             c"E132: Function call depth is higher than 'maxfuncdepth'",
         ));
@@ -1368,7 +1403,7 @@ pub fn call_user_func(
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         return;
     }
-    uf_st().call_depth += 1;
+    UF_STATE.with(|s| s.call_depth.set(s.call_depth.get() + (1)));
     save_search_patterns();
     if !ins_compl_active() {
         save_redobuff(&mut save_redo);
@@ -1604,7 +1639,7 @@ pub fn call_user_func(
         );
     }
 
-    handle_defer_one(uf_st().current_funccal.borrow_mut());
+    handle_defer_one(UF_STATE.with(|s| s.current_funccal.get()).borrow_mut());
 
     g_st().redrawing_disabled -= 1;
 
@@ -1685,7 +1720,7 @@ pub fn call_user_func(
     }
 
     g_st().did_emsg |= save_did_emsg;
-    uf_st().call_depth -= 1;
+    UF_STATE.with(|s| s.call_depth.set(s.call_depth.get() - (1)));
     cleanup_function_call(fc);
     for tv in tv_to_free.iter_mut().take(tv_to_free_len) {
         tv_clear(tv);
@@ -1765,45 +1800,50 @@ fn call_user_func_check(
 
 /// Save the current function call pointer, and set it to NULL.
 pub fn save_funccal() {
-    uf_st().funccal_stack.push(uf_st().current_funccal);
-    uf_st().current_funccal = crate::globals::GraphPtr::NULL;
+    FUNCCAL_STACK.with(|c| {
+        c.borrow_mut()
+            .push(UF_STATE.with(|s| s.current_funccal.get()))
+    });
+    UF_STATE.with(|s| s.current_funccal.set(crate::globals::GraphPtr::NULL));
 }
 
 pub fn restore_funccal() {
-    if let Some(top) = uf_st().funccal_stack.pop() {
-        uf_st().current_funccal = top;
+    if let Some(top) = FUNCCAL_STACK.with(|c| c.borrow_mut().pop()) {
+        UF_STATE.with(|s| s.current_funccal.set(top));
     } else {
         iemsg(c"INTERNAL: restore_funccal()");
     }
 }
 
 pub fn get_current_funccal() -> Option<&'static mut Funccall> {
-    uf_st().current_funccal.opt_mut()
+    UF_STATE.with(|s| s.current_funccal.get()).opt_mut()
 }
 
 pub fn set_current_funccal(fc: Option<&mut Funccall>) {
-    uf_st().current_funccal = crate::globals::GraphPtr::from(fc);
+    UF_STATE.with(|s| s.current_funccal.set(crate::globals::GraphPtr::from(fc)));
 }
 
 pub fn free_all_functions() {
-    while !uf_st().current_funccal.is_null() {
+    while !UF_STATE.with(|s| s.current_funccal.get()).is_null() {
         tv_clear(cur_funccal_mut().rettv_mut());
-        cleanup_function_call(uf_st().current_funccal.borrow_mut());
-        if uf_st().current_funccal.is_null() && !uf_st().funccal_stack.is_empty() {
+        cleanup_function_call(UF_STATE.with(|s| s.current_funccal.get()).borrow_mut());
+        if UF_STATE.with(|s| s.current_funccal.get()).is_null()
+            && !FUNCCAL_STACK.with(|c| c.borrow().is_empty())
+        {
             restore_funccal();
         }
     }
-    uf_st().funccal_stack = Vec::new();
+    FUNCCAL_STACK.with(|c| c.borrow_mut().clear());
 
     loop {
         let mut restarted = false;
-        let funcs: Vec<UfuncId> = uf_st().func_hashtab.values().copied().collect();
+        let funcs = func_tbl_values();
         for fp_id in funcs {
             let fp = fp_id.borrow_mut();
             if !func_name_refcount(uf2hikey(fp)) {
-                let changed = uf_st().func_hashtab_changed;
+                let changed = UF_STATE.with(|s| s.func_hashtab_changed.get());
                 func_clear(fp, true);
-                if changed != uf_st().func_hashtab_changed {
+                if changed != UF_STATE.with(|s| s.func_hashtab_changed.get()) {
                     restarted = true;
                     break;
                 }
@@ -1816,10 +1856,10 @@ pub fn free_all_functions() {
 
     let mut skipped = 0usize;
     loop {
-        if uf_st().func_hashtab.len() <= skipped {
+        if FUNC_HASHTAB.with(|c| c.borrow().len()) <= skipped {
             break;
         }
-        let funcs: Vec<UfuncId> = uf_st().func_hashtab.values().copied().collect();
+        let funcs = func_tbl_values();
         for fp_id in funcs {
             if func_name_refcount(uf2hikey(fp_id.borrow())) {
                 skipped += 1;
@@ -1831,9 +1871,9 @@ pub fn free_all_functions() {
         }
     }
     if skipped == 0 {
-        uf_st().func_hashtab = std::collections::BTreeMap::new();
+        FUNC_HASHTAB.with(|c| c.borrow_mut().clear());
     }
-    uf_st().get_uf_items = Vec::new();
+    GET_UF_ITEMS.with(|c| c.borrow_mut().clear());
 }
 
 /// Checks if a builtin function with the given name exists.
@@ -2211,7 +2251,7 @@ pub fn printable_func_name(fp: &mut UserFunc) -> &CStr {
 }
 
 fn function_list_modified(prev_ht_changed: i32) -> bool {
-    if prev_ht_changed != uf_st().func_hashtab_changed {
+    if prev_ht_changed != UF_STATE.with(|s| s.func_hashtab_changed.get()) {
         emsg(gettext(E_FUNCTION_LIST_WAS_MODIFIED));
         return true;
     }
@@ -2219,7 +2259,7 @@ fn function_list_modified(prev_ht_changed: i32) -> bool {
 }
 
 fn list_func_head(fp: &mut UserFunc, indent: bool, force: bool) -> bool {
-    let prev_ht_changed = uf_st().func_hashtab_changed;
+    let prev_ht_changed = UF_STATE.with(|s| s.func_hashtab_changed.get());
 
     msg_start();
 
@@ -2570,8 +2610,8 @@ pub fn save_function_name(
 }
 
 fn list_functions(mut regmatch: Option<&mut Regmatch>) {
-    let prev_ht_changed = uf_st().func_hashtab_changed;
-    let funcs: Vec<UfuncId> = uf_st().func_hashtab.values().copied().collect();
+    let prev_ht_changed = UF_STATE.with(|s| s.func_hashtab_changed.get());
+    let funcs = func_tbl_values();
 
     msg_ext_set_kind(c"list_cmd");
     for fp_id in funcs {
@@ -2651,7 +2691,7 @@ fn list_one_function(
         return None;
     };
 
-    let prev_ht_changed = uf_st().func_hashtab_changed;
+    let prev_ht_changed = UF_STATE.with(|s| s.func_hashtab_changed.get());
 
     msg_ext_set_kind(c"list_cmd");
     if !list_func_head(&mut *fp, !eap.forceit, eap.forceit) {
@@ -3184,7 +3224,7 @@ pub fn ex_function(eap: &mut Exarg) {
         } else if p_bytes.starts_with(b"closure") {
             flags |= FC_CLOSURE;
             p_cstr = &p_cstr[7..];
-            if uf_st().current_funccal.is_null() {
+            if UF_STATE.with(|s| s.current_funccal.get()).is_null() {
                 emsg_funcname(
                     c"E932: Closure function should not be at top level: %s",
                     name_owned.as_deref().unwrap_or(c""),
@@ -3299,8 +3339,8 @@ pub fn ex_function(eap: &mut Exarg) {
             erret!();
         }
 
-        uf_st().func_nr += 1;
-        namelen = format_to_buf!(&mut numbuf, c"%d", uf_st().func_nr) as usize;
+        UF_STATE.with(|s| s.func_nr.set(s.func_nr.get() + (1)));
+        namelen = format_to_buf!(&mut numbuf, c"%d", UF_STATE.with(|s| s.func_nr.get())) as usize;
         let nm = bytes_to_cstring(&numbuf[..namelen]);
         name_owned = Some(nm);
     }
@@ -3363,7 +3403,7 @@ pub fn ex_function(eap: &mut Exarg) {
         }
 
         if overwrite {
-            uf_st().func_hashtab.insert(name_bytes.to_vec(), fp);
+            FUNC_HASHTAB.with(|c| c.borrow_mut().insert(name_bytes.to_vec(), fp));
         } else if !func_hashtab_add(fp.borrow_mut()) {
             free_fp = true;
             erret!();
@@ -3441,15 +3481,20 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
 /// function names.
 pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if idx == 0 {
-        uf_st().get_uf_done = 0;
-        uf_st().get_uf_items = uf_st().func_hashtab.values().copied().collect();
-        uf_st().get_uf_changed = uf_st().func_hashtab_changed;
+        UF_STATE.with(|s| s.get_uf_done.set(0));
+        GET_UF_ITEMS.with(|c| *c.borrow_mut() = func_tbl_values());
+        UF_STATE.with(|s| {
+            s.get_uf_changed
+                .set(UF_STATE.with(|s| s.func_hashtab_changed.get()))
+        });
     }
-    if uf_st().get_uf_changed == uf_st().func_hashtab_changed
-        && uf_st().get_uf_done < uf_st().get_uf_items.len()
+    if UF_STATE.with(|s| s.get_uf_changed.get()) == UF_STATE.with(|s| s.func_hashtab_changed.get())
+        && UF_STATE.with(|s| s.get_uf_done.get()) < GET_UF_ITEMS.with(|c| c.borrow().len())
     {
-        let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done].borrow_mut();
-        uf_st().get_uf_done += 1;
+        let fp = GET_UF_ITEMS
+            .with(|c| c.borrow()[UF_STATE.with(|s| s.get_uf_done.get())])
+            .borrow_mut();
+        UF_STATE.with(|s| s.get_uf_done.set(s.get_uf_done.get() + (1)));
 
         if (fp.uf_flags & FC_DICT) != 0 || uf2hikey(&*fp).to_bytes().starts_with(b"<lambda>") {
             return Some(c"");
@@ -3628,7 +3673,7 @@ pub fn ex_return(eap: &mut Exarg) {
     let mut rettv: TypVal = TypVal::new();
     let mut returning = false;
 
-    if uf_st().current_funccal.is_null() {
+    if UF_STATE.with(|s| s.current_funccal.get()).is_null() {
         emsg(gettext(c"E133: :return not inside a function"));
         return;
     }
@@ -3729,7 +3774,7 @@ fn ex_defer_inner(
     let mut partial_argc = 0;
     let mut argcount = 0;
 
-    if uf_st().current_funccal.is_null() {
+    if UF_STATE.with(|s| s.current_funccal.get()).is_null() {
         semsg!(gettext(E_STR_NOT_INSIDE_FUNCTION), c"defer",);
         return false;
     }
@@ -3877,11 +3922,11 @@ impl Iterator for FunccalScopedMutIter {
 }
 
 pub fn invoke_all_defer() {
-    for fc in FunccalCallerMutIter(uf_st().current_funccal) {
+    for fc in FunccalCallerMutIter(UF_STATE.with(|s| s.current_funccal.get())) {
         handle_defer_one(fc);
     }
 
-    for &top in uf_st().funccal_stack.iter().rev() {
+    for top in FUNCCAL_STACK.with(|c| c.borrow().iter().rev().copied().collect::<Vec<_>>()) {
         for fc2 in FunccalCallerMutIter(top) {
             handle_defer_one(fc2);
         }
@@ -4194,14 +4239,29 @@ pub fn free_unref_funccal(copy_id: i32, testing: i32) -> bool {
     let mut did_free_funccal = false;
 
     let mut i = 0usize;
-    while i < uf_st().previous_funccal.len() {
-        let fc = &*uf_st().borrow_mut().previous_funccal.as_slice()[i].0;
-        if can_free_funccal(fc, copy_id) {
-            uf_st().previous_funccal.remove(i);
-            did_free = true;
-            did_free_funccal = true;
-        } else {
-            i += 1;
+    loop {
+        let removed = PREVIOUS_FUNCCAL.with(|c| {
+            let mut v = c.borrow_mut();
+            if i >= v.len() {
+                return None;
+            }
+            let fc = &*v[i].0;
+            if can_free_funccal(fc, copy_id) {
+                Some(Ok(v.remove(i)))
+            } else {
+                Some(Err(()))
+            }
+        });
+        match removed {
+            None => break,
+            Some(Ok(item)) => {
+                drop(item);
+                did_free = true;
+                did_free_funccal = true;
+            }
+            Some(Err(())) => {
+                i += 1;
+            }
         }
     }
     if did_free_funccal {
@@ -4211,7 +4271,7 @@ pub fn free_unref_funccal(copy_id: i32, testing: i32) -> bool {
 }
 
 pub fn get_funccal() -> Option<&'static mut Funccall> {
-    let mut funccal = uf_st().current_funccal.as_ptr();
+    let mut funccal = UF_STATE.with(|s| s.current_funccal.get()).as_ptr();
     if g_st().debug_backtrace_level > 0 {
         for i in 0..g_st().debug_backtrace_level {
             if let Some(temp_funccal) = crate::globals::GraphPtr::of(funccal)
@@ -4230,7 +4290,7 @@ pub fn get_funccal() -> Option<&'static mut Funccall> {
 
 #[inline]
 fn get_funccal_for_vars_opt() -> Option<&'static mut Funccall> {
-    if uf_st().current_funccal.is_null() {
+    if UF_STATE.with(|s| s.current_funccal.get()).is_null() {
         return None;
     }
     let funccal = get_funccal()?;
@@ -4262,7 +4322,9 @@ pub fn get_funccal_args_var() -> Option<&'static mut Dictitem> {
 }
 
 pub fn list_func_vars(first: &mut i32) {
-    if !uf_st().current_funccal.is_null() && cur_funccal_mut().fc_l_vars.dv_refcount > 0 {
+    if !UF_STATE.with(|s| s.current_funccal.get()).is_null()
+        && cur_funccal_mut().fc_l_vars.dv_refcount > 0
+    {
         list_hashtable_vars(
             &mut cur_funccal_mut().fc_l_vars.dv_hashtab,
             c"l:",
@@ -4273,7 +4335,7 @@ pub fn list_func_vars(first: &mut i32) {
 }
 
 pub fn get_current_funccal_dict(ht: &Hashtab) -> Option<&'static mut TvDict> {
-    if !uf_st().current_funccal.is_null()
+    if !UF_STATE.with(|s| s.current_funccal.get()).is_null()
         && ptr::eq(ht, &raw const cur_funccal_mut().fc_l_vars.dv_hashtab)
     {
         return cur_funccal_mut().fc_l_vars.opt_mut();
@@ -4285,17 +4347,19 @@ pub fn find_hi_in_scoped_ht(
     name: &CStr,
     pht: &mut Option<&'static mut Hashtab>,
 ) -> Option<&'static mut Hashitem> {
-    if uf_st().current_funccal.is_null() || cur_funccal_mut().fc_func.uf_scoped.is_null() {
+    if UF_STATE.with(|s| s.current_funccal.get()).is_null()
+        || cur_funccal_mut().fc_func.uf_scoped.is_null()
+    {
         return None;
     }
 
-    let old_current_funccal = uf_st().current_funccal;
+    let old_current_funccal = UF_STATE.with(|s| s.current_funccal.get());
     let mut hi = crate::globals::GraphPtr::<Hashitem>::NULL;
     let namelen = name.to_bytes().len();
     let mut varname_opt: Option<&CStr> = None;
 
-    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped;
-    while !uf_st().current_funccal.is_null() {
+    UF_STATE.with(|s| s.current_funccal.set(cur_funccal_mut().fc_func.uf_scoped));
+    while !UF_STATE.with(|s| s.current_funccal.get()).is_null() {
         let ht = find_var_ht(name, namelen, &mut varname_opt);
         if let Some(ht_ref) = ht
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
@@ -4314,12 +4378,15 @@ pub fn find_hi_in_scoped_ht(
             }
         }
         let next_scoped = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
-        if uf_st().current_funccal == next_scoped {
+        if UF_STATE.with(|s| s.current_funccal.get()) == next_scoped {
             break;
         }
-        uf_st().current_funccal = crate::globals::GraphPtr::new(next_scoped);
+        UF_STATE.with(|s| {
+            s.current_funccal
+                .set(crate::globals::GraphPtr::new(next_scoped))
+        });
     }
-    uf_st().current_funccal = old_current_funccal;
+    UF_STATE.with(|s| s.current_funccal.set(old_current_funccal));
 
     hi.opt_mut()
 }
@@ -4327,16 +4394,18 @@ pub fn find_hi_in_scoped_ht(
 pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'static mut Dictitem> {
     let name_cstr = crate::memory::bytes_to_cstring(name_slice);
     let namelen = name_slice.len();
-    if uf_st().current_funccal.is_null() || cur_funccal_mut().fc_func.uf_scoped.is_null() {
+    if UF_STATE.with(|s| s.current_funccal.get()).is_null()
+        || cur_funccal_mut().fc_func.uf_scoped.is_null()
+    {
         return None;
     }
 
     let mut v: Option<&'static mut Dictitem> = None;
-    let old_current_funccal = uf_st().current_funccal;
+    let old_current_funccal = UF_STATE.with(|s| s.current_funccal.get());
     let mut varname_opt: Option<&CStr> = None;
 
-    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped;
-    while !uf_st().current_funccal.is_null() {
+    UF_STATE.with(|s| s.current_funccal.set(cur_funccal_mut().fc_func.uf_scoped));
+    while !UF_STATE.with(|s| s.current_funccal.get()).is_null() {
         let ht = find_var_ht(&name_cstr, namelen, &mut varname_opt);
         if let Some(ht_ref) = ht
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
@@ -4355,28 +4424,33 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
             }
         }
         let next_scoped = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
-        if uf_st().current_funccal == next_scoped {
+        if UF_STATE.with(|s| s.current_funccal.get()) == next_scoped {
             break;
         }
-        uf_st().current_funccal = crate::globals::GraphPtr::new(next_scoped);
+        UF_STATE.with(|s| {
+            s.current_funccal
+                .set(crate::globals::GraphPtr::new(next_scoped))
+        });
     }
-    uf_st().current_funccal = old_current_funccal;
+    UF_STATE.with(|s| s.current_funccal.set(old_current_funccal));
 
     v
 }
 
 pub fn set_ref_in_previous_funccal(copy_id: i32) -> bool {
-    for item in uf_st().previous_funccal.as_mut_slice() {
-        let fc = &mut *item.0;
-        fc.fc_copy_id = copy_id + 1;
-        if set_ref_in_ht(Some(&mut fc.fc_l_vars.dv_hashtab), copy_id + 1, None)
-            || set_ref_in_ht(Some(&mut fc.fc_l_avars.dv_hashtab), copy_id + 1, None)
-            || set_ref_in_list_items(fc.fc_l_varlist.opt_mut(), copy_id + 1, None)
-        {
-            return true;
+    PREVIOUS_FUNCCAL.with(|c| {
+        for item in c.borrow_mut().iter_mut() {
+            let fc = &mut *item.0;
+            fc.fc_copy_id = copy_id + 1;
+            if set_ref_in_ht(Some(&mut fc.fc_l_vars.dv_hashtab), copy_id + 1, None)
+                || set_ref_in_ht(Some(&mut fc.fc_l_avars.dv_hashtab), copy_id + 1, None)
+                || set_ref_in_list_items(fc.fc_l_varlist.opt_mut(), copy_id + 1, None)
+            {
+                return true;
+            }
         }
-    }
-    false
+        false
+    })
 }
 
 /// Set `copy_id` in the arguments of the deferred functions of `fc`.
@@ -4409,13 +4483,13 @@ fn set_ref_in_funccal(fc: &mut Funccall, copy_id: i32) -> bool {
 }
 
 pub fn set_ref_in_call_stack(copy_id: i32) -> bool {
-    for fc in FunccalCallerMutIter(uf_st().current_funccal) {
+    for fc in FunccalCallerMutIter(UF_STATE.with(|s| s.current_funccal.get())) {
         if set_ref_in_funccal(fc, copy_id) {
             return true;
         }
     }
 
-    for &top in uf_st().funccal_stack.iter().rev() {
+    for top in FUNCCAL_STACK.with(|c| c.borrow().iter().rev().copied().collect::<Vec<_>>()) {
         for fc2 in FunccalCallerMutIter(top) {
             if set_ref_in_funccal(fc2, copy_id) {
                 return true;
@@ -4427,7 +4501,7 @@ pub fn set_ref_in_call_stack(copy_id: i32) -> bool {
 }
 
 pub fn set_ref_in_functions(copy_id: i32) -> bool {
-    for &fp in uf_st().func_hashtab.values() {
+    for fp in func_tbl_values() {
         if g_st().got_int {
             break;
         }
@@ -4441,7 +4515,8 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
 }
 
 pub fn set_ref_in_func_args(copy_id: i32) -> bool {
-    for &tv in &uf_st().funcargs {
+    let args = FUNCARGS.with(|c| c.borrow().clone());
+    for tv in args {
         if set_ref_in_item(tv.borrow_mut(), copy_id, None, None) {
             return true;
         }
@@ -4493,7 +4568,7 @@ pub fn register_luafunc(ref_: LuaRef) -> &'static std::ffi::CStr {
 
 #[inline]
 pub fn cur_funccal_mut() -> &'static mut Funccall {
-    uf_st().current_funccal.borrow_mut()
+    UF_STATE.with(|s| s.current_funccal.get()).borrow_mut()
 }
 #[cfg(test)]
 mod tests {

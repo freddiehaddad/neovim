@@ -310,79 +310,38 @@ pub struct GetListLineCookie {
     li: crate::eval::typval::ListitemId,
 }
 
-#[derive(Clone, Copy)]
 struct EvalFuncsState {
-    inputsecret_flag: bool,
-    has_wsl: TriState,
-    rand_gx: u32,
-    rand_gy: u32,
-    rand_gz: u32,
-    rand_gw: u32,
-    rand_initialized: bool,
-    get_func_name_intidx: i32,
-    get_expr_name_intidx: i32,
+    inputsecret_flag: std::cell::Cell<bool>,
+    has_wsl: std::cell::Cell<TriState>,
+    rand_gx: std::cell::Cell<u32>,
+    rand_gy: std::cell::Cell<u32>,
+    rand_gz: std::cell::Cell<u32>,
+    rand_gw: std::cell::Cell<u32>,
+    rand_initialized: std::cell::Cell<bool>,
+    get_func_name_intidx: std::cell::Cell<i32>,
+    get_expr_name_intidx: std::cell::Cell<i32>,
 }
 
 impl EvalFuncsState {
     const fn new() -> Self {
         Self {
-            inputsecret_flag: false,
-            has_wsl: K_NONE,
-            rand_gx: 0,
-            rand_gy: 0,
-            rand_gz: 0,
-            rand_gw: 0,
-            rand_initialized: false,
-            get_func_name_intidx: -1,
-            get_expr_name_intidx: -1,
+            inputsecret_flag: std::cell::Cell::new(false),
+            has_wsl: std::cell::Cell::new(K_NONE),
+            rand_gx: std::cell::Cell::new(0),
+            rand_gy: std::cell::Cell::new(0),
+            rand_gz: std::cell::Cell::new(0),
+            rand_gw: std::cell::Cell::new(0),
+            rand_initialized: std::cell::Cell::new(false),
+            get_func_name_intidx: std::cell::Cell::new(-1),
+            get_expr_name_intidx: std::cell::Cell::new(-1),
         }
     }
 }
 
 thread_local! {
-    static FUNCS_STATE: std::cell::Cell<EvalFuncsState> =
-        const { std::cell::Cell::new(EvalFuncsState::new()) };
+    static FUNCS_STATE: EvalFuncsState = const { EvalFuncsState::new() };
     static GA_USERINPUT: std::cell::RefCell<Vec<Tasave>> =
         const { std::cell::RefCell::new(Vec::new()) };
-}
-
-struct FuncsGuard {
-    state: EvalFuncsState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for FuncsGuard {
-    type Target = EvalFuncsState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for FuncsGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for FuncsGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            FUNCS_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn funcs_st() -> FuncsGuard {
-    FuncsGuard {
-        state: FUNCS_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 const PTY_IGNORED_ENV_VARS: &[&CStr] = &[
@@ -475,24 +434,27 @@ fn proc_is_stopped(proc_: &mut Proc) -> bool {
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
 /// or user defined function names.
-pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        funcs_st().get_func_name_intidx = -1;
+        FUNCS_STATE.with(|s| s.get_func_name_intidx.set(-1));
     }
-    if funcs_st().get_func_name_intidx < 0
+    if FUNCS_STATE.with(|s| s.get_func_name_intidx.get()) < 0
         && let Some(name) = get_user_func_name(xp, idx)
     {
         if !name.is_empty()
             && name.to_bytes()[0] != b'<'
             && xp.xp_pattern.as_bytes().starts_with(b"g:")
         {
-            return Some(cat_prefix_varname(b'g' as i32, Some(name)));
+            return Some(xp.set_item(cat_prefix_varname(b'g' as i32, Some(name))));
         }
         return Some(name);
     }
 
-    funcs_st().get_func_name_intidx += 1;
-    let fdef = eval_func_def_at(funcs_st().get_func_name_intidx);
+    FUNCS_STATE.with(|s| {
+        s.get_func_name_intidx
+            .set(s.get_func_name_intidx.get() + (1))
+    });
+    let fdef = eval_func_def_at(FUNCS_STATE.with(|s| s.get_func_name_intidx.get()));
     let key_cstr = fdef.name?;
     let key_bytes = key_cstr.to_bytes();
     let key_len = key_bytes.len();
@@ -510,17 +472,20 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal or
 /// user defined variable or function names.
-pub fn get_expr_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_expr_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        funcs_st().get_expr_name_intidx = -1;
+        FUNCS_STATE.with(|s| s.get_expr_name_intidx.set(-1));
     }
-    if funcs_st().get_expr_name_intidx < 0
-        && let Some(name) = get_function_name(xp, idx)
+    if FUNCS_STATE.with(|s| s.get_expr_name_intidx.get()) < 0
+        && let Some(name) = get_function_name(xp, idx).map(|s| s.to_owned())
     {
-        return Some(name);
+        return Some(xp.set_item(name));
     }
-    funcs_st().get_expr_name_intidx += 1;
-    get_user_var_name(xp, funcs_st().get_expr_name_intidx)
+    FUNCS_STATE.with(|s| {
+        s.get_expr_name_intidx
+            .set(s.get_expr_name_intidx.get() + (1))
+    });
+    get_user_var_name(xp, FUNCS_STATE.with(|s| s.get_expr_name_intidx.get()))
 }
 
 const INTERNAL_FUNC_NAME_MAP: &[(&[u8], i32)] = &[
@@ -3777,7 +3742,7 @@ fn eval_has_static_feature(name: &[u8]) -> bool {
 }
 
 fn has_wsl() -> bool {
-    if funcs_st().has_wsl == K_NONE {
+    if FUNCS_STATE.with(|s| s.has_wsl.get()) == K_NONE {
         let mut err = Error::new();
         let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
         let o = nlua_exec(
@@ -3793,9 +3758,12 @@ fn has_wsl() -> bool {
             &mut err,
         );
         debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
-        funcs_st().has_wsl = if luaret_truthy(o) { K_TRUE } else { K_FALSE };
+        FUNCS_STATE.with(|s| {
+            s.has_wsl
+                .set(if luaret_truthy(o) { K_TRUE } else { K_FALSE })
+        });
     }
-    funcs_st().has_wsl == K_TRUE
+    FUNCS_STATE.with(|s| s.has_wsl.get()) == K_TRUE
 }
 
 /// "highlightID(name)" function
@@ -4029,12 +3997,22 @@ pub fn f_indexof(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "input()" function
 pub fn f_input(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    get_user_input(argvars, rettv, false, funcs_st().inputsecret_flag);
+    get_user_input(
+        argvars,
+        rettv,
+        false,
+        FUNCS_STATE.with(|s| s.inputsecret_flag.get()),
+    );
 }
 
 /// "inputdialog()" function
 pub fn f_inputdialog(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    get_user_input(argvars, rettv, true, funcs_st().inputsecret_flag);
+    get_user_input(
+        argvars,
+        rettv,
+        true,
+        FUNCS_STATE.with(|s| s.inputsecret_flag.get()),
+    );
 }
 
 /// "inputlist()" function
@@ -4089,10 +4067,10 @@ pub fn f_inputsave(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFunc
 /// "inputsecret()" function
 pub fn f_inputsecret(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData) {
     g_st().cmdline_star += 1;
-    funcs_st().inputsecret_flag = true;
+    FUNCS_STATE.with(|s| s.inputsecret_flag.set(true));
     f_input(argvars, rettv, fptr);
     g_st().cmdline_star -= 1;
-    funcs_st().inputsecret_flag = false;
+    FUNCS_STATE.with(|s| s.inputsecret_flag.set(false));
 }
 
 /// "interrupt()" function
@@ -5864,22 +5842,30 @@ pub fn f_rand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let result: u32;
 
     if argvars[0].v_type == VarType::VarUnknown {
-        if !funcs_st().rand_initialized {
+        if !FUNCS_STATE.with(|s| s.rand_initialized.get()) {
             let mut x: u32 = 0;
             init_srand(&mut x);
-            funcs_st().rand_gx = splitmix32(&mut x);
-            funcs_st().rand_gy = splitmix32(&mut x);
-            funcs_st().rand_gz = splitmix32(&mut x);
-            funcs_st().rand_gw = splitmix32(&mut x);
-            funcs_st().rand_initialized = true;
+            FUNCS_STATE.with(|s| s.rand_gx.set(splitmix32(&mut x)));
+            FUNCS_STATE.with(|s| s.rand_gy.set(splitmix32(&mut x)));
+            FUNCS_STATE.with(|s| s.rand_gz.set(splitmix32(&mut x)));
+            FUNCS_STATE.with(|s| s.rand_gw.set(splitmix32(&mut x)));
+            FUNCS_STATE.with(|s| s.rand_initialized.set(true));
         }
-        let mut st = funcs_st();
-        let (mut gx, mut gy, mut gz, mut gw) = (st.rand_gx, st.rand_gy, st.rand_gz, st.rand_gw);
+        let (mut gx, mut gy, mut gz, mut gw) = FUNCS_STATE.with(|s| {
+            (
+                s.rand_gx.get(),
+                s.rand_gy.get(),
+                s.rand_gz.get(),
+                s.rand_gw.get(),
+            )
+        });
         result = shuffle_xoshiro128starstar(&mut gx, &mut gy, &mut gz, &mut gw);
-        st.rand_gx = gx;
-        st.rand_gy = gy;
-        st.rand_gz = gz;
-        st.rand_gw = gw;
+        FUNCS_STATE.with(|s| {
+            s.rand_gx.set(gx);
+            s.rand_gy.set(gy);
+            s.rand_gz.set(gz);
+            s.rand_gw.set(gw);
+        });
     } else if argvars[0].v_type == VarType::VarList {
         let mut l = argvars[0].vval.v_list_opt();
         if tv_list_len(l.as_deref()) != 4 {

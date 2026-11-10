@@ -313,182 +313,180 @@ const E_SETTING_V_STR_TO_VALUE_WITH_WRONG_TYPE: &CStr =
 const E_MISSING_END_MARKER_STR: &CStr = c"E990: Missing end marker '%s'";
 const E_CANNOT_USE_HEREDOC_HERE: &CStr = c"E991: Cannot use =<< here";
 
-#[repr(C)]
-struct VimVar {
+#[derive(Clone, Copy)]
+struct VimVarMeta {
     vv_name: &'static CStr,
     vv_type: VarType,
-    vv_di: crate::eval::typval::DictitemId,
     vv_flags: u8,
 }
 
-const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: u8) -> VimVar {
-    VimVar {
+const fn make_vimvar(name: &'static CStr, v_type: VarType, flags: u8) -> VimVarMeta {
+    VimVarMeta {
         vv_name: name,
         vv_type: v_type,
-        vv_di: crate::eval::typval::DictitemId::NULL,
         vv_flags: flags,
     }
 }
 
-struct VarsModuleState {
-    globvars_var: crate::eval::typval::DictitemId,
-    globvardict: crate::eval::typval::DictId,
-    compat_hashtab: Hashtab,
-    vimvars_var: crate::eval::typval::DictitemId,
-    vimvardict: crate::eval::typval::DictId,
-    vimvars: [VimVar; VV_LEN],
-    varnamebuf: Vec<u8>,
-    redir_lval: Option<Lval>,
-    redir_buf: Vec<u8>,
-    redir_endp: Option<std::ffi::CString>,
-    redir_varname: Option<std::ffi::CString>,
-    gdone: usize,
-    bdone: usize,
-    wdone: usize,
-    tdone: usize,
-    vidx: usize,
-    hi_idx: usize,
+const VIMVARS_META: [VimVarMeta; VV_LEN] = [
+    make_vimvar(c"count", VarType::VarNumber, VV_RO),
+    make_vimvar(c"count1", VarType::VarNumber, VV_RO),
+    make_vimvar(c"prevcount", VarType::VarNumber, VV_RO),
+    make_vimvar(c"errmsg", VarType::VarString, 0),
+    make_vimvar(c"warningmsg", VarType::VarString, 0),
+    make_vimvar(c"statusmsg", VarType::VarString, 0),
+    make_vimvar(c"shell_error", VarType::VarNumber, VV_RO),
+    make_vimvar(c"this_session", VarType::VarString, 0),
+    make_vimvar(c"version", VarType::VarNumber, VV_COMPAT + VV_RO),
+    make_vimvar(c"lnum", VarType::VarNumber, VV_RO_SBX),
+    make_vimvar(c"termrequest", VarType::VarString, VV_RO),
+    make_vimvar(c"termresponse", VarType::VarString, VV_RO),
+    make_vimvar(c"fname", VarType::VarString, VV_RO),
+    make_vimvar(c"lang", VarType::VarString, VV_RO),
+    make_vimvar(c"lc_time", VarType::VarString, VV_RO),
+    make_vimvar(c"ctype", VarType::VarString, VV_RO),
+    make_vimvar(c"charconvert_from", VarType::VarString, VV_RO),
+    make_vimvar(c"charconvert_to", VarType::VarString, VV_RO),
+    make_vimvar(c"fname_in", VarType::VarString, VV_RO),
+    make_vimvar(c"fname_out", VarType::VarString, VV_RO),
+    make_vimvar(c"fname_new", VarType::VarString, VV_RO),
+    make_vimvar(c"fname_diff", VarType::VarString, VV_RO),
+    make_vimvar(c"cmdarg", VarType::VarString, VV_RO),
+    make_vimvar(c"foldstart", VarType::VarNumber, VV_RO_SBX),
+    make_vimvar(c"foldend", VarType::VarNumber, VV_RO_SBX),
+    make_vimvar(c"folddashes", VarType::VarString, VV_RO_SBX),
+    make_vimvar(c"foldlevel", VarType::VarNumber, VV_RO_SBX),
+    make_vimvar(c"progname", VarType::VarString, VV_RO),
+    make_vimvar(c"servername", VarType::VarString, VV_RO),
+    make_vimvar(c"dying", VarType::VarNumber, VV_RO),
+    make_vimvar(c"exception", VarType::VarString, VV_RO),
+    make_vimvar(c"throwpoint", VarType::VarString, VV_RO),
+    make_vimvar(c"register", VarType::VarString, VV_RO),
+    make_vimvar(c"cmdbang", VarType::VarNumber, VV_RO),
+    make_vimvar(c"insertmode", VarType::VarString, VV_RO),
+    make_vimvar(c"val", VarType::VarUnknown, VV_RO),
+    make_vimvar(c"key", VarType::VarUnknown, VV_RO),
+    make_vimvar(c"profiling", VarType::VarNumber, VV_RO),
+    make_vimvar(c"fcs_reason", VarType::VarString, VV_RO),
+    make_vimvar(c"fcs_choice", VarType::VarString, 0),
+    make_vimvar(c"beval_bufnr", VarType::VarNumber, VV_RO),
+    make_vimvar(c"beval_winnr", VarType::VarNumber, VV_RO),
+    make_vimvar(c"beval_winid", VarType::VarNumber, VV_RO),
+    make_vimvar(c"beval_lnum", VarType::VarNumber, VV_RO),
+    make_vimvar(c"beval_col", VarType::VarNumber, VV_RO),
+    make_vimvar(c"beval_text", VarType::VarString, VV_RO),
+    make_vimvar(c"scrollstart", VarType::VarString, 0),
+    make_vimvar(c"swapname", VarType::VarString, VV_RO),
+    make_vimvar(c"swapchoice", VarType::VarString, 0),
+    make_vimvar(c"swapcommand", VarType::VarString, VV_RO),
+    make_vimvar(c"char", VarType::VarString, 0),
+    make_vimvar(c"mouse_win", VarType::VarNumber, 0),
+    make_vimvar(c"mouse_winid", VarType::VarNumber, 0),
+    make_vimvar(c"mouse_lnum", VarType::VarNumber, 0),
+    make_vimvar(c"mouse_col", VarType::VarNumber, 0),
+    make_vimvar(c"operator", VarType::VarString, VV_RO),
+    make_vimvar(c"searchforward", VarType::VarNumber, 0),
+    make_vimvar(c"hlsearch", VarType::VarNumber, 0),
+    make_vimvar(c"oldfiles", VarType::VarList, 0),
+    make_vimvar(c"windowid", VarType::VarNumber, VV_RO_SBX),
+    make_vimvar(c"progpath", VarType::VarString, VV_RO),
+    make_vimvar(c"completed_item", VarType::VarDict, 0),
+    make_vimvar(c"option_new", VarType::VarString, VV_RO),
+    make_vimvar(c"option_old", VarType::VarString, VV_RO),
+    make_vimvar(c"option_oldlocal", VarType::VarString, VV_RO),
+    make_vimvar(c"option_oldglobal", VarType::VarString, VV_RO),
+    make_vimvar(c"option_command", VarType::VarString, VV_RO),
+    make_vimvar(c"option_type", VarType::VarString, VV_RO),
+    make_vimvar(c"errors", VarType::VarList, 0),
+    make_vimvar(c"false", VarType::VarBool, VV_RO),
+    make_vimvar(c"true", VarType::VarBool, VV_RO),
+    make_vimvar(c"null", VarType::VarSpecial, VV_RO),
+    make_vimvar(c"numbermax", VarType::VarNumber, VV_RO),
+    make_vimvar(c"numbermin", VarType::VarNumber, VV_RO),
+    make_vimvar(c"numbersize", VarType::VarNumber, VV_RO),
+    make_vimvar(c"vim_did_enter", VarType::VarNumber, VV_RO),
+    make_vimvar(c"testing", VarType::VarNumber, 0),
+    make_vimvar(c"t_number", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_string", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_func", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_list", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_dict", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_float", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_bool", VarType::VarNumber, VV_RO),
+    make_vimvar(c"t_blob", VarType::VarNumber, VV_RO),
+    make_vimvar(c"event", VarType::VarDict, VV_RO),
+    make_vimvar(c"versionlong", VarType::VarNumber, VV_RO),
+    make_vimvar(c"echospace", VarType::VarNumber, VV_RO),
+    make_vimvar(c"argf", VarType::VarList, VV_RO),
+    make_vimvar(c"argv", VarType::VarList, VV_RO),
+    make_vimvar(c"collate", VarType::VarString, VV_RO),
+    make_vimvar(c"exiting", VarType::VarNumber, VV_RO),
+    make_vimvar(c"maxcol", VarType::VarNumber, VV_RO),
+    make_vimvar(c"stacktrace", VarType::VarList, VV_RO),
+    make_vimvar(c"vim_did_init", VarType::VarNumber, VV_RO),
+    make_vimvar(c"stderr", VarType::VarNumber, VV_RO),
+    make_vimvar(c"msgpack_types", VarType::VarDict, VV_RO),
+    make_vimvar(c"_null_string", VarType::VarString, VV_RO),
+    make_vimvar(c"_null_list", VarType::VarList, VV_RO),
+    make_vimvar(c"_null_dict", VarType::VarDict, VV_RO),
+    make_vimvar(c"_null_blob", VarType::VarBlob, VV_RO),
+    make_vimvar(c"lua", VarType::VarPartial, VV_RO),
+    make_vimvar(c"relnum", VarType::VarNumber, VV_RO),
+    make_vimvar(c"virtnum", VarType::VarNumber, VV_RO),
+    make_vimvar(c"starttime", VarType::VarNumber, VV_RO),
+    make_vimvar(c"exitreason", VarType::VarString, VV_RO),
+    make_vimvar(c"useractive", VarType::VarNumber, VV_RO),
+    make_vimvar(c"startreason", VarType::VarString, VV_RO),
+    make_vimvar(c"cascading", VarType::VarBool, VV_RO),
+];
+
+struct VarsState {
+    vv_di: [std::cell::Cell<crate::eval::typval::DictitemId>; VV_LEN],
+    globvars_var: std::cell::Cell<crate::eval::typval::DictitemId>,
+    globvardict: std::cell::Cell<crate::eval::typval::DictId>,
+    vimvars_var: std::cell::Cell<crate::eval::typval::DictitemId>,
+    vimvardict: std::cell::Cell<crate::eval::typval::DictId>,
+    compat_dict: std::cell::Cell<crate::eval::typval::DictId>,
+    redir_active: std::cell::Cell<bool>,
+    gdone: std::cell::Cell<usize>,
+    bdone: std::cell::Cell<usize>,
+    wdone: std::cell::Cell<usize>,
+    tdone: std::cell::Cell<usize>,
+    vidx: std::cell::Cell<usize>,
+    hi_idx: std::cell::Cell<usize>,
 }
 
-impl VarsModuleState {
+impl VarsState {
     const fn new() -> Self {
         Self {
-            globvars_var: crate::eval::typval::DictitemId::NULL,
-            globvardict: crate::eval::typval::DictId::NULL,
-            compat_hashtab: Hashtab::new(),
-            vimvars_var: crate::eval::typval::DictitemId::NULL,
-            vimvardict: crate::eval::typval::DictId::NULL,
-            vimvars: [
-                make_vimvar(c"count", VarType::VarNumber, VV_RO),
-                make_vimvar(c"count1", VarType::VarNumber, VV_RO),
-                make_vimvar(c"prevcount", VarType::VarNumber, VV_RO),
-                make_vimvar(c"errmsg", VarType::VarString, 0),
-                make_vimvar(c"warningmsg", VarType::VarString, 0),
-                make_vimvar(c"statusmsg", VarType::VarString, 0),
-                make_vimvar(c"shell_error", VarType::VarNumber, VV_RO),
-                make_vimvar(c"this_session", VarType::VarString, 0),
-                make_vimvar(c"version", VarType::VarNumber, VV_COMPAT + VV_RO),
-                make_vimvar(c"lnum", VarType::VarNumber, VV_RO_SBX),
-                make_vimvar(c"termrequest", VarType::VarString, VV_RO),
-                make_vimvar(c"termresponse", VarType::VarString, VV_RO),
-                make_vimvar(c"fname", VarType::VarString, VV_RO),
-                make_vimvar(c"lang", VarType::VarString, VV_RO),
-                make_vimvar(c"lc_time", VarType::VarString, VV_RO),
-                make_vimvar(c"ctype", VarType::VarString, VV_RO),
-                make_vimvar(c"charconvert_from", VarType::VarString, VV_RO),
-                make_vimvar(c"charconvert_to", VarType::VarString, VV_RO),
-                make_vimvar(c"fname_in", VarType::VarString, VV_RO),
-                make_vimvar(c"fname_out", VarType::VarString, VV_RO),
-                make_vimvar(c"fname_new", VarType::VarString, VV_RO),
-                make_vimvar(c"fname_diff", VarType::VarString, VV_RO),
-                make_vimvar(c"cmdarg", VarType::VarString, VV_RO),
-                make_vimvar(c"foldstart", VarType::VarNumber, VV_RO_SBX),
-                make_vimvar(c"foldend", VarType::VarNumber, VV_RO_SBX),
-                make_vimvar(c"folddashes", VarType::VarString, VV_RO_SBX),
-                make_vimvar(c"foldlevel", VarType::VarNumber, VV_RO_SBX),
-                make_vimvar(c"progname", VarType::VarString, VV_RO),
-                make_vimvar(c"servername", VarType::VarString, VV_RO),
-                make_vimvar(c"dying", VarType::VarNumber, VV_RO),
-                make_vimvar(c"exception", VarType::VarString, VV_RO),
-                make_vimvar(c"throwpoint", VarType::VarString, VV_RO),
-                make_vimvar(c"register", VarType::VarString, VV_RO),
-                make_vimvar(c"cmdbang", VarType::VarNumber, VV_RO),
-                make_vimvar(c"insertmode", VarType::VarString, VV_RO),
-                make_vimvar(c"val", VarType::VarUnknown, VV_RO),
-                make_vimvar(c"key", VarType::VarUnknown, VV_RO),
-                make_vimvar(c"profiling", VarType::VarNumber, VV_RO),
-                make_vimvar(c"fcs_reason", VarType::VarString, VV_RO),
-                make_vimvar(c"fcs_choice", VarType::VarString, 0),
-                make_vimvar(c"beval_bufnr", VarType::VarNumber, VV_RO),
-                make_vimvar(c"beval_winnr", VarType::VarNumber, VV_RO),
-                make_vimvar(c"beval_winid", VarType::VarNumber, VV_RO),
-                make_vimvar(c"beval_lnum", VarType::VarNumber, VV_RO),
-                make_vimvar(c"beval_col", VarType::VarNumber, VV_RO),
-                make_vimvar(c"beval_text", VarType::VarString, VV_RO),
-                make_vimvar(c"scrollstart", VarType::VarString, 0),
-                make_vimvar(c"swapname", VarType::VarString, VV_RO),
-                make_vimvar(c"swapchoice", VarType::VarString, 0),
-                make_vimvar(c"swapcommand", VarType::VarString, VV_RO),
-                make_vimvar(c"char", VarType::VarString, 0),
-                make_vimvar(c"mouse_win", VarType::VarNumber, 0),
-                make_vimvar(c"mouse_winid", VarType::VarNumber, 0),
-                make_vimvar(c"mouse_lnum", VarType::VarNumber, 0),
-                make_vimvar(c"mouse_col", VarType::VarNumber, 0),
-                make_vimvar(c"operator", VarType::VarString, VV_RO),
-                make_vimvar(c"searchforward", VarType::VarNumber, 0),
-                make_vimvar(c"hlsearch", VarType::VarNumber, 0),
-                make_vimvar(c"oldfiles", VarType::VarList, 0),
-                make_vimvar(c"windowid", VarType::VarNumber, VV_RO_SBX),
-                make_vimvar(c"progpath", VarType::VarString, VV_RO),
-                make_vimvar(c"completed_item", VarType::VarDict, 0),
-                make_vimvar(c"option_new", VarType::VarString, VV_RO),
-                make_vimvar(c"option_old", VarType::VarString, VV_RO),
-                make_vimvar(c"option_oldlocal", VarType::VarString, VV_RO),
-                make_vimvar(c"option_oldglobal", VarType::VarString, VV_RO),
-                make_vimvar(c"option_command", VarType::VarString, VV_RO),
-                make_vimvar(c"option_type", VarType::VarString, VV_RO),
-                make_vimvar(c"errors", VarType::VarList, 0),
-                make_vimvar(c"false", VarType::VarBool, VV_RO),
-                make_vimvar(c"true", VarType::VarBool, VV_RO),
-                make_vimvar(c"null", VarType::VarSpecial, VV_RO),
-                make_vimvar(c"numbermax", VarType::VarNumber, VV_RO),
-                make_vimvar(c"numbermin", VarType::VarNumber, VV_RO),
-                make_vimvar(c"numbersize", VarType::VarNumber, VV_RO),
-                make_vimvar(c"vim_did_enter", VarType::VarNumber, VV_RO),
-                make_vimvar(c"testing", VarType::VarNumber, 0),
-                make_vimvar(c"t_number", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_string", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_func", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_list", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_dict", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_float", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_bool", VarType::VarNumber, VV_RO),
-                make_vimvar(c"t_blob", VarType::VarNumber, VV_RO),
-                make_vimvar(c"event", VarType::VarDict, VV_RO),
-                make_vimvar(c"versionlong", VarType::VarNumber, VV_RO),
-                make_vimvar(c"echospace", VarType::VarNumber, VV_RO),
-                make_vimvar(c"argf", VarType::VarList, VV_RO),
-                make_vimvar(c"argv", VarType::VarList, VV_RO),
-                make_vimvar(c"collate", VarType::VarString, VV_RO),
-                make_vimvar(c"exiting", VarType::VarNumber, VV_RO),
-                make_vimvar(c"maxcol", VarType::VarNumber, VV_RO),
-                make_vimvar(c"stacktrace", VarType::VarList, VV_RO),
-                make_vimvar(c"vim_did_init", VarType::VarNumber, VV_RO),
-                make_vimvar(c"stderr", VarType::VarNumber, VV_RO),
-                make_vimvar(c"msgpack_types", VarType::VarDict, VV_RO),
-                make_vimvar(c"_null_string", VarType::VarString, VV_RO),
-                make_vimvar(c"_null_list", VarType::VarList, VV_RO),
-                make_vimvar(c"_null_dict", VarType::VarDict, VV_RO),
-                make_vimvar(c"_null_blob", VarType::VarBlob, VV_RO),
-                make_vimvar(c"lua", VarType::VarPartial, VV_RO),
-                make_vimvar(c"relnum", VarType::VarNumber, VV_RO),
-                make_vimvar(c"virtnum", VarType::VarNumber, VV_RO),
-                make_vimvar(c"starttime", VarType::VarNumber, VV_RO),
-                make_vimvar(c"exitreason", VarType::VarString, VV_RO),
-                make_vimvar(c"useractive", VarType::VarNumber, VV_RO),
-                make_vimvar(c"startreason", VarType::VarString, VV_RO),
-                make_vimvar(c"cascading", VarType::VarBool, VV_RO),
-            ],
-            varnamebuf: Vec::new(),
-            redir_lval: None,
-            redir_buf: Vec::new(),
-            redir_endp: None,
-            redir_varname: None,
-            gdone: 0,
-            bdone: 0,
-            wdone: 0,
-            tdone: 0,
-            vidx: 0,
-            hi_idx: 0,
+            vv_di: [const { std::cell::Cell::new(crate::eval::typval::DictitemId::NULL) }; VV_LEN],
+            globvars_var: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            globvardict: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
+            vimvars_var: std::cell::Cell::new(crate::eval::typval::DictitemId::NULL),
+            vimvardict: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
+            compat_dict: std::cell::Cell::new(crate::eval::typval::DictId::NULL),
+            redir_active: std::cell::Cell::new(false),
+            gdone: std::cell::Cell::new(0),
+            bdone: std::cell::Cell::new(0),
+            wdone: std::cell::Cell::new(0),
+            tdone: std::cell::Cell::new(0),
+            vidx: std::cell::Cell::new(0),
+            hi_idx: std::cell::Cell::new(0),
         }
     }
 }
 
-static VARS_STATE: GlobalState<VarsModuleState> = GlobalState::new(VarsModuleState::new());
-
-#[inline]
-fn vars_st() -> crate::globals::GraphPtr<VarsModuleState> {
-    VARS_STATE.handle()
+thread_local! {
+    static VARS_STATE: VarsState = const { VarsState::new() };
+    static REDIR_BUF: std::cell::RefCell<Vec<u8>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static REDIR_ENDP: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static REDIR_VARNAME: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
 }
 
 const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
@@ -535,32 +533,44 @@ use crate::api::private::helpers::integer_obj;
 
 #[inline]
 fn get_globvars_var() -> &'static mut ScopeDictDictItem {
-    let mut id = vars_st().globvars_var;
+    let mut id = VARS_STATE.with(|s| s.globvars_var.get());
     if id.is_null() {
         id = crate::eval::typval::tv_dict_item_alloc_static().di_id;
-        vars_st().globvars_var = id;
+        VARS_STATE.with(|s| s.globvars_var.set(id));
     }
     id.borrow_mut()
 }
 
 #[inline]
 fn get_vimvars_var() -> &'static mut ScopeDictDictItem {
-    let mut id = vars_st().vimvars_var;
+    let mut id = VARS_STATE.with(|s| s.vimvars_var.get());
     if id.is_null() {
         id = crate::eval::typval::tv_dict_item_alloc_static().di_id;
-        vars_st().vimvars_var = id;
+        VARS_STATE.with(|s| s.vimvars_var.set(id));
     }
     id.borrow_mut()
 }
 
 #[inline]
+fn get_compat_ht() -> &'static mut Hashtab {
+    let mut id = VARS_STATE.with(|s| s.compat_dict.get());
+    if id.is_null() {
+        let d = crate::eval::typval::tv_dict_alloc_static();
+        d.dv_refcount = DO_NOT_FREE_CNT;
+        id = d.dv_id;
+        VARS_STATE.with(|s| s.compat_dict.set(id));
+    }
+    &mut id.borrow_mut().dv_hashtab
+}
+
+#[inline]
 fn vimvar_di(idx: usize) -> &'static mut Dictitem {
-    let mut id = vars_st().vimvars[idx].vv_di;
+    let mut id = VARS_STATE.with(|s| s.vv_di[idx].get());
     if id.is_null() {
         let di = crate::eval::typval::tv_dict_item_alloc_static();
-        di.di_tv.v_type = vars_st().vimvars[idx].vv_type;
+        di.di_tv.v_type = VIMVARS_META[idx].vv_type;
         id = di.di_id;
-        vars_st().vimvars[idx].vv_di = id;
+        VARS_STATE.with(|s| s.vv_di[idx].set(id));
     }
     id.borrow_mut()
 }
@@ -569,11 +579,11 @@ pub fn evalvars_init() {
     init_var_dict(&mut *get_globvar_dict(), get_globvars_var(), VAR_DEF_SCOPE);
     init_var_dict(&mut *get_vimvar_dict(), get_vimvars_var(), VAR_SCOPE);
     get_vimvar_dict().dv_lock = VAR_FIXED;
-    hash_clear(&mut vars_st().compat_hashtab);
+    hash_clear(get_compat_ht());
 
-    for i in 0..VV_LEN {
-        let vv_flags = vars_st().vimvars[i].vv_flags;
-        let vv_name = vars_st().vimvars[i].vv_name;
+    for (i, vv) in VIMVARS_META.iter().enumerate() {
+        let vv_flags = vv.vv_flags;
+        let vv_name = vv.vv_name;
         let di = vimvar_di(i);
         if (vv_flags & VV_RO) != 0 {
             di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
@@ -590,7 +600,7 @@ pub fn evalvars_init() {
             hash_add(&mut get_vimvar_dict().dv_hashtab, di);
         }
         if (vv_flags & VV_COMPAT) != 0 {
-            hash_add(&mut vars_st().compat_hashtab, di);
+            hash_add(get_compat_ht(), di);
         }
     }
     let vim_version = Varnumber::from(min_vim_version());
@@ -690,7 +700,7 @@ pub fn evalvars_clear() {
     partial_unref(get_vim_var_partial(VV_LUA));
     set_vim_var_partial(VV_LUA, None);
     hash_clear(&mut get_vimvar_dict().dv_hashtab);
-    hash_clear(&mut vars_st().compat_hashtab);
+    hash_clear(get_compat_ht());
 
     vars_clear(&mut *get_globvar_ht());
 
@@ -2033,7 +2043,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
         if d.is_null() {
             if ht == get_globvar_ht() {
                 d = get_globvar_dict().dv_id;
-            } else if ht == &vars_st().compat_hashtab {
+            } else if ht == get_compat_ht() {
                 d = get_vimvar_dict().dv_id;
             } else if let Some(di) = find_var_in_ht(
                 ht.borrow_mut(),
@@ -2171,12 +2181,12 @@ pub fn del_menutrans_vars() {
 }
 
 pub fn get_globvar_dict() -> &'static mut TvDict {
-    let mut id = vars_st().globvardict;
+    let mut id = VARS_STATE.with(|s| s.globvardict.get());
     if id.is_null() {
         let d = crate::eval::typval::tv_dict_alloc_static();
         d.dv_refcount = DO_NOT_FREE_CNT;
         id = d.dv_id;
-        vars_st().globvardict = id;
+        VARS_STATE.with(|s| s.globvardict.set(id));
     }
     id.borrow_mut()
 }
@@ -2186,12 +2196,12 @@ pub fn get_globvar_ht() -> &'static mut Hashtab {
 }
 
 pub fn get_vimvar_dict() -> &'static mut TvDict {
-    let mut id = vars_st().vimvardict;
+    let mut id = VARS_STATE.with(|s| s.vimvardict.get());
     if id.is_null() {
         let d = crate::eval::typval::tv_dict_alloc_static();
         d.dv_refcount = DO_NOT_FREE_CNT;
         id = d.dv_id;
-        vars_st().vimvardict = id;
+        VARS_STATE.with(|s| s.vimvardict.set(id));
     }
     id.borrow_mut()
 }
@@ -2203,7 +2213,7 @@ pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut TypVal) {
 }
 
 pub fn get_vim_var_name(idx: VimVarIndex) -> &'static std::ffi::CStr {
-    vars_st().vimvars[idx as usize].vv_name
+    VIMVARS_META[idx as usize].vv_name
 }
 
 pub fn get_vim_var_tv(idx: VimVarIndex) -> &'static mut TypVal {
@@ -2231,105 +2241,103 @@ pub fn get_vim_var_partial(idx: VimVarIndex) -> Option<&'static mut TvPartial> {
 }
 
 /// Function to concatenate a prefix and a variable name.
-pub fn cat_prefix_varname(prefix: i32, name: Option<&CStr>) -> &'static CStr {
-    let name_bytes = name.map_or(&[0][..], CStr::to_bytes_with_nul);
-    vars_st().varnamebuf.clear();
-    vars_st().varnamebuf.reserve(name_bytes.len() + 2);
-    vars_st().varnamebuf.push(prefix as u8);
-    vars_st().varnamebuf.push(b':');
-    vars_st().varnamebuf.extend_from_slice(name_bytes);
-    crate::memory::bytes_as_cstr(&vars_st().borrow_mut().varnamebuf)
+pub fn cat_prefix_varname(prefix: i32, name: Option<&CStr>) -> std::ffi::CString {
+    let name_bytes = name.map_or(&[][..], CStr::to_bytes);
+    let mut buf = Vec::with_capacity(name_bytes.len() + 2);
+    buf.push(prefix as u8);
+    buf.push(b':');
+    buf.extend_from_slice(name_bytes);
+    std::ffi::CString::new(buf).unwrap_or_default()
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
-pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        vars_st().gdone = 0;
-        vars_st().bdone = 0;
-        vars_st().wdone = 0;
-        vars_st().vidx = 0;
-        vars_st().tdone = 0;
+        VARS_STATE.with(|s| s.gdone.set(0));
+        VARS_STATE.with(|s| s.bdone.set(0));
+        VARS_STATE.with(|s| s.wdone.set(0));
+        VARS_STATE.with(|s| s.vidx.set(0));
+        VARS_STATE.with(|s| s.tdone.set(0));
     }
 
-    if vars_st().gdone < get_globvar_ht().ht_used {
+    if VARS_STATE.with(|s| s.gdone.get()) < get_globvar_ht().ht_used {
         let arr = get_globvar_ht().ht_array.as_slice();
-        if vars_st().gdone == 0 {
-            vars_st().hi_idx = 0;
+        if VARS_STATE.with(|s| s.gdone.get()) == 0 {
+            VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
-            vars_st().hi_idx += 1;
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        vars_st().gdone += 1;
-        while hashitem_empty(&arr[vars_st().hi_idx]) {
-            vars_st().hi_idx += 1;
+        VARS_STATE.with(|s| s.gdone.set(s.gdone.get() + (1)));
+        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        let hi_key = arr[vars_st().hi_idx].key_cstr();
+        let hi_key = arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr();
         if xp.xp_pattern.as_bytes().starts_with(b"g:") {
-            return Some(cat_prefix_varname(b'g' as i32, hi_key));
+            return Some(xp.set_item(cat_prefix_varname(b'g' as i32, hi_key)));
         }
         return hi_key;
     }
 
     let ht = &prevwin_curwin().w_buffer.b_vars().dv_hashtab;
-    if vars_st().bdone < ht.ht_used {
+    if VARS_STATE.with(|s| s.bdone.get()) < ht.ht_used {
         let arr = ht.ht_array.as_slice();
-        if vars_st().bdone == 0 {
-            vars_st().hi_idx = 0;
+        if VARS_STATE.with(|s| s.bdone.get()) == 0 {
+            VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
-            vars_st().hi_idx += 1;
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        vars_st().bdone += 1;
-        while hashitem_empty(&arr[vars_st().hi_idx]) {
-            vars_st().hi_idx += 1;
+        VARS_STATE.with(|s| s.bdone.set(s.bdone.get() + (1)));
+        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        return Some(cat_prefix_varname(
+        return Some(xp.set_item(cat_prefix_varname(
             b'b' as i32,
-            arr[vars_st().hi_idx].key_cstr(),
-        ));
+            arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr(),
+        )));
     }
 
     let ht = &prevwin_curwin().w_vars().dv_hashtab;
-    if vars_st().wdone < ht.ht_used {
+    if VARS_STATE.with(|s| s.wdone.get()) < ht.ht_used {
         let arr = ht.ht_array.as_slice();
-        if vars_st().wdone == 0 {
-            vars_st().hi_idx = 0;
+        if VARS_STATE.with(|s| s.wdone.get()) == 0 {
+            VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
-            vars_st().hi_idx += 1;
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        vars_st().wdone += 1;
-        while hashitem_empty(&arr[vars_st().hi_idx]) {
-            vars_st().hi_idx += 1;
+        VARS_STATE.with(|s| s.wdone.set(s.wdone.get() + (1)));
+        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        return Some(cat_prefix_varname(
+        return Some(xp.set_item(cat_prefix_varname(
             b'w' as i32,
-            arr[vars_st().hi_idx].key_cstr(),
-        ));
+            arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr(),
+        )));
     }
 
     let ht = &curtab_mut().tp_vars().dv_hashtab;
-    if vars_st().tdone < ht.ht_used {
+    if VARS_STATE.with(|s| s.tdone.get()) < ht.ht_used {
         let arr = ht.ht_array.as_slice();
-        if vars_st().tdone == 0 {
-            vars_st().hi_idx = 0;
+        if VARS_STATE.with(|s| s.tdone.get()) == 0 {
+            VARS_STATE.with(|s| s.hi_idx.set(0));
         } else {
-            vars_st().hi_idx += 1;
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        vars_st().tdone += 1;
-        while hashitem_empty(&arr[vars_st().hi_idx]) {
-            vars_st().hi_idx += 1;
+        VARS_STATE.with(|s| s.tdone.set(s.tdone.get() + (1)));
+        while hashitem_empty(&arr[VARS_STATE.with(|s| s.hi_idx.get())]) {
+            VARS_STATE.with(|s| s.hi_idx.set(s.hi_idx.get() + (1)));
         }
-        return Some(cat_prefix_varname(
+        return Some(xp.set_item(cat_prefix_varname(
             b't' as i32,
-            arr[vars_st().hi_idx].key_cstr(),
-        ));
+            arr[VARS_STATE.with(|s| s.hi_idx.get())].key_cstr(),
+        )));
     }
 
-    if vars_st().vidx < VV_LEN {
-        let v = vars_st().vidx as VimVarIndex;
-        vars_st().vidx += 1;
-        return Some(cat_prefix_varname(b'v' as i32, Some(get_vim_var_name(v))));
+    if VARS_STATE.with(|s| s.vidx.get()) < VV_LEN {
+        let v = VARS_STATE.with(|s| s.vidx.get()) as VimVarIndex;
+        VARS_STATE.with(|s| s.vidx.set(s.vidx.get() + (1)));
+        return Some(xp.set_item(cat_prefix_varname(b'v' as i32, Some(get_vim_var_name(v)))));
     }
 
-    vars_st().varnamebuf = Vec::new();
     None
 }
 
@@ -2671,9 +2679,9 @@ fn find_var_ht_dict<'a>(
         }
         *varname = Some(name_in);
 
-        let hi = hash_find_len(&vars_st().compat_hashtab, name_slice);
+        let hi = hash_find_len(get_compat_ht(), name_slice);
         if !hashitem_empty(hi) {
-            return Some(&mut vars_st().borrow_mut().compat_hashtab);
+            return Some(get_compat_ht());
         }
 
         if let Some(local_d) = get_funccal_local_dict() {
@@ -3512,44 +3520,30 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
     }
 
     let name_cstr = name.to_owned();
-    vars_st().redir_varname = Some(name_cstr);
-    vars_st().redir_lval = Some(Lval::new());
-    let lval_ptr =
-        crate::globals::GraphPtr::<Lval>::of(vars_st().redir_lval.as_mut().unwrap()).as_ptr();
+    REDIR_VARNAME.with(|c| *c.borrow_mut() = Some(name_cstr.clone()));
+    VARS_STATE.with(|s| s.redir_active.set(true));
+    REDIR_BUF.with(|c| c.borrow_mut().clear());
 
-    vars_st().redir_buf.clear();
-
-    let vn_cstr = vars_st().borrow_mut().redir_varname.as_deref().unwrap();
-    vars_st().borrow_mut().redir_endp = get_lval(
-        vn_cstr,
+    let mut lval = Lval::new();
+    let endp_opt = get_lval(
+        &name_cstr,
         None,
-        crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
+        &mut lval,
         false,
         false,
         0,
         FNE_CHECK_START,
     )
     .map(CStr::to_owned);
-    if vars_st()
-        .redir_endp
-        .as_deref()
-        .is_none_or(|s| !s.to_bytes().is_empty())
-        || crate::globals::GraphPtr::of(lval_ptr)
-            .borrow_mut()
-            .ll_name
-            .is_none()
-    {
-        if let Some(endp) = vars_st()
-            .borrow()
-            .redir_endp
-            .as_deref()
-            .filter(|s| !s.to_bytes().is_empty())
-        {
+    REDIR_ENDP.with(|c| *c.borrow_mut() = endp_opt.clone());
+
+    if endp_opt.as_deref().is_none_or(|s| !s.to_bytes().is_empty()) || lval.ll_name.is_none() {
+        if let Some(endp) = endp_opt.as_deref().filter(|s| !s.to_bytes().is_empty()) {
             semsg!(gettext(E_TRAILING_ARG), endp);
         } else {
             semsg!(gettext(E_INVARG2), name);
         }
-        vars_st().redir_endp = None;
+        REDIR_ENDP.with(|c| *c.borrow_mut() = None);
         var_redir_stop();
         return false;
     }
@@ -3561,30 +3555,15 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         v_lock: 0,
         vval: TypvalVval::from_cstr(c""),
     };
-    let endp_owned = vars_st().redir_endp.clone();
-    let endp_cstr = endp_owned.as_deref().unwrap_or(c"");
+    let endp_cstr = endp_opt.as_deref().unwrap_or(c"");
     if append {
-        set_var_lval(
-            crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
-            endp_cstr,
-            &mut tv,
-            true,
-            false,
-            Some(c"."),
-        );
+        set_var_lval(&mut lval, endp_cstr, &mut tv, true, false, Some(c"."));
     } else {
-        set_var_lval(
-            crate::globals::GraphPtr::of(lval_ptr).borrow_mut(),
-            endp_cstr,
-            &mut tv,
-            true,
-            false,
-            Some(c"="),
-        );
+        set_var_lval(&mut lval, endp_cstr, &mut tv, true, false, Some(c"="));
     }
-    *crate::globals::GraphPtr::of(lval_ptr).borrow_mut() = Lval::new();
+    drop(lval);
     if g_st().called_emsg > called_emsg_before {
-        vars_st().redir_endp = None;
+        REDIR_ENDP.with(|c| *c.borrow_mut() = None);
         var_redir_stop();
         return false;
     }
@@ -3594,64 +3573,45 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
 
 /// Append `value` to the variable set by var_redir_start().
 pub fn var_redir_str(value: &[u8]) {
-    if vars_st().redir_lval.is_none() {
+    if !VARS_STATE.with(|s| s.redir_active.get()) {
         return;
     }
 
     if !value.is_empty() {
-        vars_st().redir_buf.extend_from_slice(value);
+        REDIR_BUF.with(|c| c.borrow_mut().extend_from_slice(value));
     }
 }
 
 /// Stop redirecting command output to a variable.
 pub fn var_redir_stop() {
-    let rl = &raw mut vars_st().redir_lval;
-    if let Some(ref mut lval) = *crate::globals::GraphPtr::of(rl).borrow_mut() {
-        let lval_ptr = crate::globals::GraphPtr::<Lval>::from_ref(lval);
-        if vars_st().redir_endp.is_some() {
-            vars_st().redir_buf.push(0);
+    if VARS_STATE.with(|s| s.redir_active.get()) {
+        if REDIR_ENDP.with(|c| c.borrow().is_some()) {
+            let mut buf = REDIR_BUF.with(|c| std::mem::take(&mut *c.borrow_mut()));
+            buf.push(0);
             let mut tv = TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&vars_st().redir_buf)),
+                vval: TypvalVval::from_cstr(crate::memory::bytes_as_cstr(&buf)),
             };
-            let vn_cstr = vars_st()
-                .borrow_mut()
-                .redir_varname
-                .as_deref()
-                .unwrap_or(c"");
+            let vn_owned = REDIR_VARNAME.with(|c| c.borrow().clone());
+            let vn_cstr = vn_owned.as_deref().unwrap_or(c"");
 
-            vars_st().redir_endp = get_lval(
-                vn_cstr,
-                None,
-                lval_ptr.borrow_mut(),
-                false,
-                false,
-                0,
-                FNE_CHECK_START,
-            )
-            .map(CStr::to_owned);
+            let mut lval = Lval::new();
+            let endp_owned = get_lval(vn_cstr, None, &mut lval, false, false, 0, FNE_CHECK_START)
+                .map(CStr::to_owned);
+            REDIR_ENDP.with(|c| *c.borrow_mut() = endp_owned.clone());
 
-            let endp_owned = vars_st().redir_endp.clone();
             if let Some(ref endp) = endp_owned
-                && lval_ptr.ll_name.is_some()
+                && lval.ll_name.is_some()
             {
-                set_var_lval(
-                    lval_ptr.borrow_mut(),
-                    endp,
-                    &mut tv,
-                    false,
-                    false,
-                    Some(c"."),
-                );
+                set_var_lval(&mut lval, endp, &mut tv, false, false, Some(c"."));
             }
         }
 
-        vars_st().redir_buf = Vec::new();
-
-        *crate::globals::GraphPtr::of(rl).borrow_mut() = None;
+        REDIR_BUF.with(|c| *c.borrow_mut() = Vec::new());
+        VARS_STATE.with(|s| s.redir_active.set(false));
     }
-    vars_st().redir_varname = None;
+    REDIR_VARNAME.with(|c| *c.borrow_mut() = None);
 }
 
 /// "gettabvar()" function.

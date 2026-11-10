@@ -23,7 +23,7 @@ use crate::eval::typval::{
     tv_dict_copy, tv_get_number_chk, tv_get_string, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_string, tv_list_append_tv,
 };
-use crate::eval::userfunc::{UserFunc, func_tbl_get, restore_funccal, save_funccal};
+use crate::eval::userfunc::{UserFunc, func_tbl_values, restore_funccal, save_funccal};
 use crate::eval::vars::{SID_STR, Scid, new_script_vars};
 use crate::eval::{eval_to_number, get_copy_id};
 #[cfg(windows)]
@@ -1692,7 +1692,7 @@ pub fn load_plugins() {
 
         let rtp_cstr: &CStr = rtp_copy_owned
             .as_deref()
-            .unwrap_or_else(|| opt_vars().borrow().p_rtp.as_cstr());
+            .unwrap_or_else(|| opt_vars().p_rtp.as_cstr());
         source_in_path_vim_lua(rtp_cstr, plugin_pattern, DIP_ALL | DIP_NOAFTER);
         if has_time_fd() {
             time_msg(c"loading rtp plugins", None);
@@ -3037,10 +3037,10 @@ pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
 }
 
 fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
-    let functbl = func_tbl_get();
+    let functbl = func_tbl_values();
     let l = tv_list_alloc(functbl.len() as isize);
 
-    for &fp in functbl.values() {
+    for fp in functbl {
         let fp_ref = fp.borrow();
         if fp_ref.uf_script_ctx.sc_sid == sid {
             let name = if let Some(ref exp) = fp_ref.uf_name_exp {

@@ -17,7 +17,7 @@ use crate::buffer::{
 use crate::cursor::{Colnr, CursorPos, check_cursor, check_pos, equalpos};
 use crate::eval::encode::encode_vim_list_to_buf;
 use crate::eval::typval::{TypVal, VarType, tv_clear};
-use crate::eval::userfunc::func_tbl_get;
+use crate::eval::userfunc::func_tbl_keys;
 use crate::eval::vars::{
     VV_COUNT, VV_COUNT1, VV_PREVCOUNT, get_vim_var_nr, set_vim_var_nr, vars_clear,
 };
@@ -389,8 +389,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
         ctx.funcs = Array::new();
         let mut err = Error::new();
 
-        let ht = func_tbl_get();
-        for name_bytes in ht.keys() {
+        for name_bytes in &func_tbl_keys() {
             let islambda = name_bytes.starts_with(b"<lambda>");
             let isscript = !name_bytes.is_empty() && name_bytes[0] == K_SPECIAL;
 

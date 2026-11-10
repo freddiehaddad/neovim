@@ -26,7 +26,7 @@ use crate::eval::typval::{
     tv_list_check_range_index_one, tv_list_check_range_index_two, tv_list_concat, tv_list_copy,
     tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_free, tv_list_free_contents,
     tv_list_join, tv_list_last, tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret,
-    tv_list_slice_or_index, tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv_st, tv2bool,
+    tv_list_slice_or_index, tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool,
     value_check_lock,
 };
 use crate::eval::vars::{
@@ -4246,7 +4246,7 @@ pub fn garbage_collect(testing: bool) -> bool {
 fn free_unref_items(copy_id: i32) -> i32 {
     let mut did_free = false;
 
-    tv_st().tv_in_free_unref_items = true;
+    crate::eval::typval::set_tv_in_free_unref_items(true);
 
     for idx in (0..gc_dicts_len()).rev() {
         let dd_ref = gc_dict_at(idx);
@@ -4285,7 +4285,7 @@ fn free_unref_items(copy_id: i32) -> i32 {
         }
     }
 
-    tv_st().tv_in_free_unref_items = false;
+    crate::eval::typval::set_tv_in_free_unref_items(false);
     i32::from(did_free)
 }
 

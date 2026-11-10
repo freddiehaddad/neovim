@@ -86,18 +86,13 @@ impl BlobId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static TvBlob> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow()
-            .blob_arena
-            .get(idx)
-            .and_then(|s| s.as_deref())
+        tv_arenas().blob_arena.get(idx).and_then(|s| s.as_deref())
     }
 
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut TvBlob> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow_mut()
+        tv_arenas()
             .blob_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -186,8 +181,7 @@ impl PartialId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static TvPartial> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow()
+        tv_arenas()
             .partial_arena
             .get(idx)
             .and_then(|s| s.as_deref())
@@ -196,8 +190,7 @@ impl PartialId {
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut TvPartial> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow_mut()
+        tv_arenas()
             .partial_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -700,8 +693,7 @@ impl ListitemId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static Listitem> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow()
+        tv_arenas()
             .listitem_arena
             .get(idx)
             .and_then(|s| s.as_deref())
@@ -710,8 +702,7 @@ impl ListitemId {
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut Listitem> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow_mut()
+        tv_arenas()
             .listitem_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -873,18 +864,13 @@ impl ListId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static TvList> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow()
-            .list_arena
-            .get(idx)
-            .and_then(|s| s.as_deref())
+        tv_arenas().list_arena.get(idx).and_then(|s| s.as_deref())
     }
 
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut TvList> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow_mut()
+        tv_arenas()
             .list_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -1066,8 +1052,7 @@ impl DictitemId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static Dictitem> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow()
+        tv_arenas()
             .dictitem_arena
             .get(idx)
             .and_then(|s| s.as_deref())
@@ -1076,8 +1061,7 @@ impl DictitemId {
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut Dictitem> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow_mut()
+        tv_arenas()
             .dictitem_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -1242,18 +1226,13 @@ impl DictId {
     #[inline(always)]
     pub fn opt(self) -> Option<&'static TvDict> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow()
-            .dict_arena
-            .get(idx)
-            .and_then(|s| s.as_deref())
+        tv_arenas().dict_arena.get(idx).and_then(|s| s.as_deref())
     }
 
     #[inline(always)]
     pub fn opt_mut(self) -> Option<&'static mut TvDict> {
         let idx = (self.0?.get() - 1) as usize;
-        tv_st()
-            .borrow_mut()
+        tv_arenas()
             .dict_arena
             .get_mut(idx)
             .and_then(|s| s.as_deref_mut())
@@ -1506,9 +1485,7 @@ impl ListSortItem {
     }
 }
 
-pub(crate) struct TypvalModuleState {
-    pub(crate) tv_in_free_unref_items: bool,
-    tv_equal_recurse_limit: i32,
+pub(crate) struct TypvalArenas {
     dict_numbuf: [u8; NUMBUFLEN],
     mybuf_chk: [u8; NUMBUFLEN],
     mybuf: [u8; NUMBUFLEN],
@@ -1526,11 +1503,9 @@ pub(crate) struct TypvalModuleState {
     free_lists: Vec<usize>,
 }
 
-impl TypvalModuleState {
-    const fn new() -> Self {
+impl TypvalArenas {
+    pub(crate) const fn new() -> Self {
         Self {
-            tv_in_free_unref_items: false,
-            tv_equal_recurse_limit: 0,
             dict_numbuf: [0; NUMBUFLEN],
             mybuf_chk: [0; NUMBUFLEN],
             mybuf: [0; NUMBUFLEN],
@@ -1550,12 +1525,32 @@ impl TypvalModuleState {
     }
 }
 
-static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
-    crate::globals::GlobalState::new(TypvalModuleState::new());
+struct TypvalState {
+    tv_in_free_unref_items: std::cell::Cell<bool>,
+    tv_equal_recurse_limit: std::cell::Cell<i32>,
+}
+
+impl TypvalState {
+    const fn new() -> Self {
+        Self {
+            tv_in_free_unref_items: std::cell::Cell::new(false),
+            tv_equal_recurse_limit: std::cell::Cell::new(0),
+        }
+    }
+}
+
+thread_local! {
+    static TV_STATE: TypvalState = const { TypvalState::new() };
+}
 
 #[inline]
-pub(crate) fn tv_st() -> crate::globals::GraphPtr<TypvalModuleState> {
-    TV_STATE.handle()
+pub(crate) fn set_tv_in_free_unref_items(val: bool) {
+    TV_STATE.with(|s| s.tv_in_free_unref_items.set(val));
+}
+
+#[inline]
+fn tv_arenas() -> &'static mut TypvalArenas {
+    &mut g_st().borrow_mut().tv_arenas
 }
 
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =
@@ -1859,7 +1854,7 @@ pub const fn tv_initial_value() -> TypVal {
 
 /// Allocate a list item.
 pub(crate) fn tv_list_item_alloc() -> &'static mut Listitem {
-    let st = tv_st().borrow_mut();
+    let st = tv_arenas();
     let idx = if let Some(idx) = st.free_listitems.pop() {
         let id = ListitemId::from_slot(idx);
         st.listitem_arena[idx] = Some(Box::new(Listitem {
@@ -1895,7 +1890,7 @@ pub(crate) fn tv_list_item_alloc() -> &'static mut Listitem {
 fn free_listitem_slot(item: &mut Listitem) {
     if let Some(nz) = item.li_id.0 {
         let idx = (nz.get() - 1) as usize;
-        let st = tv_st().borrow_mut();
+        let st = tv_arenas();
         let dropped = st.listitem_arena[idx].take();
         st.free_listitems.push(idx);
         drop(dropped);
@@ -1944,7 +1939,7 @@ fn tv_list_watch_fix(l: &mut TvList, item: &Listitem) {
 }
 
 fn tv_list_alloc_slot(refcount: i32) -> &'static mut TvList {
-    let st = tv_st().borrow_mut();
+    let st = tv_arenas();
     let idx = if let Some(idx) = st.free_lists.pop() {
         let id = ListId::from_slot(idx);
         st.list_arena[idx] = Some(Box::new(TvList {
@@ -2010,7 +2005,7 @@ pub fn unref_var_list(l: &mut TvList) {
 pub fn tv_list_free_slot(l: &mut TvList) {
     if let Some(nz) = l.lv_id.0 {
         let idx = (nz.get() - 1) as usize;
-        let st = tv_st().borrow_mut();
+        let st = tv_arenas();
         let dropped = st.list_arena[idx].take();
         st.free_lists.push(idx);
         drop(dropped);
@@ -2049,7 +2044,7 @@ pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
     let Some(l_ref) = l else {
         return;
     };
-    if tv_st().tv_in_free_unref_items && l_ref.lv_gc_idx.is_some() {
+    if TV_STATE.with(|s| s.tv_in_free_unref_items.get()) && l_ref.lv_gc_idx.is_some() {
         return;
     }
 
@@ -3628,7 +3623,7 @@ pub fn tv_dict_watcher_notify(
 }
 
 fn tv_dict_item_alloc_slot(key_vec: Vec<u8>, flags: u8) -> &'static mut Dictitem {
-    let st = tv_st().borrow_mut();
+    let st = tv_arenas();
     let idx = if let Some(idx) = st.free_dictitems.pop() {
         let id = DictitemId::from_slot(idx);
         st.dictitem_arena[idx] = Some(Box::new(Dictitem {
@@ -3682,7 +3677,7 @@ pub fn tv_dict_item_alloc(key: &CStr) -> &'static mut Dictitem {
 pub fn tv_dict_item_free_slot(item_in: &mut Dictitem) {
     if let Some(nz) = item_in.di_id.0 {
         let idx = (nz.get() - 1) as usize;
-        let st = tv_st().borrow_mut();
+        let st = tv_arenas();
         let dropped = st.dictitem_arena[idx].take();
         st.free_dictitems.push(idx);
         drop(dropped);
@@ -3716,7 +3711,7 @@ pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
 }
 
 fn tv_dict_alloc_slot() -> &'static mut TvDict {
-    let st = tv_st().borrow_mut();
+    let st = tv_arenas();
     let idx = if let Some(idx) = st.free_dicts.pop() {
         let id = DictId::from_slot(idx);
         st.dict_arena[idx] = Some(Box::new(TvDict {
@@ -3768,7 +3763,7 @@ pub fn tv_dict_alloc_static() -> &'static mut TvDict {
 pub fn tv_dict_free_slot(d: &mut TvDict) {
     if let Some(nz) = d.dv_id.0 {
         let idx = (nz.get() - 1) as usize;
-        let st = tv_st().borrow_mut();
+        let st = tv_arenas();
         let dropped = st.dict_arena[idx].take();
         st.free_dicts.push(idx);
         drop(dropped);
@@ -3796,7 +3791,7 @@ pub fn tv_dict_free_contents(d: &mut TvDict) {
 
 /// Free a dictionary, including all items it contains.
 pub fn tv_dict_free(d_in: &mut TvDict) {
-    if tv_st().tv_in_free_unref_items && d_in.dv_gc_idx.is_some() {
+    if TV_STATE.with(|s| s.tv_in_free_unref_items.get()) && d_in.dv_gc_idx.is_some() {
         return;
     }
     tv_list_dict_free_dict_inner(d_in);
@@ -3905,7 +3900,7 @@ pub fn tv_dict_get_cstring(d: Option<&TvDict>, key: &std::ffi::CStr) -> Option<s
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string<'a>(d: Option<&'a TvDict>, key: &CStr) -> Option<&'a std::ffi::CStr> {
-    tv_dict_get_string_buf(d, key, &mut tv_st().borrow_mut().dict_numbuf)
+    tv_dict_get_string_buf(d, key, &mut tv_arenas().dict_numbuf)
 }
 
 /// Get a string item from a dictionary.
@@ -4270,7 +4265,7 @@ pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
 
 /// Allocate an empty blob.
 pub fn tv_blob_alloc() -> &'static mut TvBlob {
-    let st = tv_st().borrow_mut();
+    let st = tv_arenas();
     let idx = if let Some(idx) = st.free_blobs.pop() {
         let id = BlobId::from_slot(idx);
         st.blob_arena[idx] = Some(Box::new(TvBlob {
@@ -4302,7 +4297,7 @@ pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
             && let Some(nz) = b_ref.bv_id.0
         {
             let idx = (nz.get() - 1) as usize;
-            let st = tv_st().borrow_mut();
+            let st = tv_arenas();
             let dropped = st.blob_arena[idx].take();
             st.free_blobs.push(idx);
             drop(dropped);
@@ -4312,7 +4307,7 @@ pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
 
 /// Allocate a `TvPartial` in the module arena.
 pub fn tv_partial_alloc() -> &'static mut TvPartial {
-    let st = tv_st().borrow_mut();
+    let st = tv_arenas();
     let mut pt = Box::new(TvPartial::default());
     let idx = if let Some(idx) = st.free_partials.pop() {
         pt.pt_id = PartialId::from_slot(idx);
@@ -4331,7 +4326,7 @@ pub fn tv_partial_alloc() -> &'static mut TvPartial {
 pub fn tv_partial_free(pt: &mut TvPartial) {
     if let Some(nz) = pt.pt_id.0 {
         let idx = (nz.get() - 1) as usize;
-        let st = tv_st().borrow_mut();
+        let st = tv_arenas();
         let dropped = st.partial_arena[idx].take();
         st.free_partials.push(idx);
         drop(dropped);
@@ -5253,10 +5248,13 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 
     let cur_cnt = RECURSIVE_CNT.load(std::sync::atomic::Ordering::Relaxed);
     if cur_cnt == 0 {
-        tv_st().tv_equal_recurse_limit = 1000;
+        TV_STATE.with(|s| s.tv_equal_recurse_limit.set(1000));
     }
-    if cur_cnt >= tv_st().tv_equal_recurse_limit {
-        tv_st().tv_equal_recurse_limit -= 1;
+    if cur_cnt >= TV_STATE.with(|s| s.tv_equal_recurse_limit.get()) {
+        TV_STATE.with(|s| {
+            s.tv_equal_recurse_limit
+                .set(s.tv_equal_recurse_limit.get() - (1))
+        });
         return true;
     }
 
@@ -5758,12 +5756,12 @@ pub fn tv_get_string_buf_chk<'a>(
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string_chk(tv: &TypVal) -> Option<&std::ffi::CStr> {
-    tv_get_string_buf_chk(tv, &mut tv_st().borrow_mut().mybuf_chk)
+    tv_get_string_buf_chk(tv, &mut tv_arenas().mybuf_chk)
 }
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string(tv: &TypVal) -> &std::ffi::CStr {
-    tv_get_string_buf(tv, &mut tv_st().borrow_mut().mybuf)
+    tv_get_string_buf(tv, &mut tv_arenas().mybuf)
 }
 
 /// Get the string value of a "stringish" Vimscript object.

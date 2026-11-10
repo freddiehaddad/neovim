@@ -4,7 +4,7 @@
 use crate::debugger::ex_breakadd;
 use crate::errors::E_NOTOPEN;
 use crate::eval::typval::TypVal;
-use crate::eval::userfunc::{DeferCall, UserFunc, func_tbl_get, get_current_funccal};
+use crate::eval::userfunc::{DeferCall, UserFunc, func_tbl_values, get_current_funccal};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
 use crate::ex_docmd::Exarg;
@@ -344,8 +344,7 @@ pub fn profile_reset() {
         }
     }
 
-    let functbl = func_tbl_get();
-    for &fp in functbl.values() {
+    for fp in func_tbl_values() {
         let uf = fp.borrow_mut();
         if uf.uf_prof_initialized {
             uf.uf_profiling = 0;
@@ -622,7 +621,7 @@ pub fn func_line_end(fcp: &mut Funccall) {
 }
 
 fn func_dump_profile(fd: &CFile) {
-    let functbl = func_tbl_get();
+    let functbl = func_tbl_values();
     let todo = functbl.len();
     if todo == 0 {
         return;
@@ -630,7 +629,7 @@ fn func_dump_profile(fd: &CFile) {
 
     let mut sorttab: Vec<&UserFunc> = Vec::with_capacity(todo);
 
-    for &fp_id in functbl.values() {
+    for fp_id in functbl {
         let fp = fp_id.borrow();
         if fp.uf_prof_initialized {
             sorttab.push(fp);
