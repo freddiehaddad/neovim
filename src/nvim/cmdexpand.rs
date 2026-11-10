@@ -1765,20 +1765,18 @@ enum BreakptExpandWhat {
     Profdel,
 }
 
+#[derive(Clone, Copy)]
 struct CmdexpandState {
     cmd_showtail: bool,
     may_expand_pattern: bool,
     pre_incsearch_pos: CursorPos,
-    compl_match_array: Vec<Pumitem>,
     compl_startcol: i32,
     compl_selected: i32,
-    cmdline_orig: Option<Vec<u8>>,
     filetype_expand_what: FiletypeExpandWhat,
     breakpt_expand_what: BreakptExpandWhat,
     healthcheck_names: Object,
     healthcheck_last_gen: u32,
     arg1_lua_names: Object,
-    arg1_lua_last_xp_line: Option<CString>,
     arg1_lua_last_gen: u32,
     first_match: i32,
 }
@@ -1793,10 +1791,8 @@ impl CmdexpandState {
                 col: 0,
                 coladd: 0,
             },
-            compl_match_array: Vec::new(),
             compl_startcol: 0,
             compl_selected: 0,
-            cmdline_orig: None,
             filetype_expand_what: FiletypeExpandWhat::All,
             breakpt_expand_what: BreakptExpandWhat::Add,
             healthcheck_names: Object {
@@ -1808,18 +1804,63 @@ impl CmdexpandState {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
             },
-            arg1_lua_last_xp_line: None,
             arg1_lua_last_gen: 0,
             first_match: 0,
         }
     }
 }
 
-static CMDEXP_STATE: GlobalState<CmdexpandState> = GlobalState::new(CmdexpandState::new());
+thread_local! {
+    static CMDEXP_STATE: std::cell::Cell<CmdexpandState> = const {
+        std::cell::Cell::new(CmdexpandState::new())
+    };
+    static COMPL_MATCH_ARRAY: std::cell::RefCell<Vec<Pumitem>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static CMDLINE_ORIG: std::cell::RefCell<Option<Vec<u8>>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static ARG1_LUA_LAST_XP_LINE: std::cell::RefCell<Option<CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+struct CmdexpGuard {
+    state: CmdexpandState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for CmdexpGuard {
+    type Target = CmdexpandState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for CmdexpGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for CmdexpGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            CMDEXP_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn cmdexp() -> crate::globals::GraphPtr<CmdexpandState> {
-    CMDEXP_STATE.handle()
+fn cmdexp() -> CmdexpGuard {
+    CmdexpGuard {
+        state: CMDEXP_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 use crate::mbyte::utfc_slice2len;
@@ -2053,7 +2094,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         let cmdbuff = ccline.cmdbuff();
         let slice = cmdbuff.slice(ccline.cmdlen as usize);
         let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
-        cmdexp().cmdline_orig = Some(slice[..len].to_vec());
+        CMDLINE_ORIG.with(|cell| *cell.borrow_mut() = Some(slice[..len].to_vec()));
     }
 
     if let Some(ref p_str) = p
@@ -2139,7 +2180,7 @@ fn cmdline_pum_create(
             pum_comp_idx: None,
         });
     }
-    cmdexp().compl_match_array = items;
+    COMPL_MATCH_ARRAY.with(|cell| *cell.borrow_mut() = items);
 
     let pat_cstr = xp.xp_pattern.as_cstr();
     let tail_off = if showtail {
@@ -2159,7 +2200,11 @@ fn cmdline_pum_create(
 }
 
 pub fn cmdline_pum_display(changed_array: bool) {
-    let arr = &mut cmdexp().compl_match_array;
+    let (ptr, len) = COMPL_MATCH_ARRAY.with(|cell| {
+        let mut arr = cell.borrow_mut();
+        (arr.as_mut_ptr(), arr.len())
+    });
+    let arr = crate::globals::GraphPtr::new(ptr).ptr_slice_mut(len);
     pum_display(
         arr,
         cmdexp().compl_selected,
@@ -2170,14 +2215,13 @@ pub fn cmdline_pum_display(changed_array: bool) {
 
 /// Returns true if the cmdline completion popup menu is being displayed.
 pub fn cmdline_pum_active() -> bool {
-    let arr = &cmdexp().compl_match_array;
-    pum_visible() && !arr.is_empty()
+    pum_visible() && COMPL_MATCH_ARRAY.with(|cell| !cell.borrow().is_empty())
 }
 
 /// Remove the cmdline completion popup menu (if present), free the list of items.
 pub fn cmdline_pum_remove(defer_redraw: bool) {
     pum_undisplay(!defer_redraw);
-    cmdexp().compl_match_array = Vec::new();
+    COMPL_MATCH_ARRAY.with(|cell| cell.borrow_mut().clear());
 }
 
 pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
@@ -2495,8 +2539,8 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
     }
 
     if opt_vars().p_wmnu {
-        let arr = &cmdexp().compl_match_array;
-        if !arr.is_empty() {
+        let has_arr = COMPL_MATCH_ARRAY.with(|cell| !cell.borrow().is_empty());
+        if has_arr {
             cmdexp().compl_selected = findex;
             cmdline_pum_display(false);
         } else if cmdline_compl_use_pum(true) {
@@ -2681,8 +2725,7 @@ pub fn expand_one(
         xp.xp_numfiles = -1;
         xp.xp_orig = None;
 
-        let arr = &cmdexp().compl_match_array;
-        if !arr.is_empty() {
+        if COMPL_MATCH_ARRAY.with(|cell| !cell.borrow().is_empty()) {
             cmdline_pum_remove(false);
         }
     }
@@ -2760,7 +2803,7 @@ pub fn expand_cleanup(xp: &mut ExpandCtx) {
 }
 
 pub fn clear_cmdline_orig() {
-    cmdexp().cmdline_orig = None;
+    CMDLINE_ORIG.with(|cell| *cell.borrow_mut() = None);
 }
 
 /// Display one line of completion matches.
@@ -4525,13 +4568,15 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
     let prompt_id = get_cmdline_last_prompt_id();
     let xp_line_bytes = xp.xp_line.as_bytes();
 
-    if cmdexp()
-        .arg1_lua_last_xp_line
-        .as_ref()
-        .is_none_or(|s| s.as_bytes() != xp_line_bytes)
-        || cmdexp().arg1_lua_last_gen != prompt_id
-    {
-        cmdexp().arg1_lua_last_xp_line = Some(xp.xp_line.to_cstring());
+    let line_changed = ARG1_LUA_LAST_XP_LINE.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .is_none_or(|s| s.as_bytes() != xp_line_bytes)
+    });
+    if line_changed || cmdexp().arg1_lua_last_gen != prompt_id {
+        ARG1_LUA_LAST_XP_LINE.with(|cell| {
+            *cell.borrow_mut() = Some(xp.xp_line.to_cstring());
+        });
         let mut args_items = [
             Object {
                 obj_type: ObjectType::ObjectTypeString,
@@ -5888,11 +5933,11 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     if xpc.xp_files.capacity() == 0 {
         return;
     }
-    let orig_ptr = &cmdexp().cmdline_orig;
-    let orig_ref = orig_ptr.as_ref();
-
     let retdict = rettv.vval.v_dict().borrow_mut();
-    let mut ret = tv_dict_add_str_len(retdict, c"cmdline_orig", orig_ref.map(Vec::as_slice));
+    let mut ret = CMDLINE_ORIG.with(|cell| {
+        let orig = cell.borrow();
+        tv_dict_add_str_len(retdict, c"cmdline_orig", orig.as_deref())
+    });
     if ret {
         ret = tv_dict_add_nr(retdict, c"pum_visible", i64::from(pum_visible()));
     }

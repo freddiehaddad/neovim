@@ -4,7 +4,7 @@ use crate::highlight::{HLF_COUNT, RgbValue};
 
 use std::ptr;
 
-use crate::decoration::{DecorSignHighlight, DecorState, NS};
+use crate::decoration::{DecorSignHighlight, DecorState, DecorVirtText, NS};
 use crate::ex_docmd::Cmdmod;
 
 use crate::api::ui::NO_SCREEN;
@@ -352,6 +352,8 @@ pub struct EditorState {
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,
     pub decor_items: Vec<DecorSignHighlight>,
+    pub virt_items: Vec<DecorVirtText>,
+    pub ex_error_buf: [u8; MSG_BUF_LEN],
     pub diff_context: i32,
     pub diff_foldcolumn: i32,
     pub diff_need_scrollbind: bool,
@@ -794,6 +796,8 @@ impl EditorState {
             ctx_win_vec: Vec::new(),
             decor_state: DecorState::new(),
             decor_items: Vec::new(),
+            virt_items: Vec::new(),
+            ex_error_buf: [0; MSG_BUF_LEN],
             diff_context: 6,
             diff_foldcolumn: 2,
             diff_need_scrollbind: false,

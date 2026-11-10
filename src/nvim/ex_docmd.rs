@@ -77,7 +77,7 @@ use crate::eval::typval::{
     tv_list_append_string, tv_list_copy, tv_list_find_str, tv_list_free,
 };
 use crate::eval::userfunc::{
-    MSG_BUF_LEN, current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
+    current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
     func_breakpoint, func_dbg_tick, func_has_abort, func_has_ended, func_level, func_name,
 };
 use crate::eval::vars::{
@@ -612,14 +612,13 @@ use crate::errors::*;
 
 const COMMAND_COUNT: i32 = 564;
 
+#[derive(Clone, Copy)]
 struct ExDocmdState {
     quitmore: i32,
     cmdline_call_depth: i32,
-    prev_dir: Option<std::ffi::CString>,
     filetype_detect: TriState,
     filetype_plugin: TriState,
     filetype_indent: TriState,
-    ex_error_buf: [u8; MSG_BUF_LEN],
 }
 
 impl ExDocmdState {
@@ -627,20 +626,58 @@ impl ExDocmdState {
         Self {
             quitmore: 0,
             cmdline_call_depth: 0,
-            prev_dir: None,
             filetype_detect: K_NONE,
             filetype_plugin: K_NONE,
             filetype_indent: K_NONE,
-            ex_error_buf: [0; MSG_BUF_LEN],
         }
     }
 }
 
-static DOCMD_STATE: GlobalState<ExDocmdState> = GlobalState::new(ExDocmdState::new());
+thread_local! {
+    static DOCMD_STATE: std::cell::Cell<ExDocmdState> = const {
+        std::cell::Cell::new(ExDocmdState::new())
+    };
+    static PREV_DIR: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+struct DocmdGuard {
+    state: ExDocmdState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for DocmdGuard {
+    type Target = ExDocmdState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for DocmdGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for DocmdGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            DOCMD_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn docmd_st() -> crate::globals::GraphPtr<ExDocmdState> {
-    DOCMD_STATE.handle()
+fn docmd_st() -> DocmdGuard {
+    DocmdGuard {
+        state: DOCMD_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 struct Wcmd {
@@ -10777,16 +10814,25 @@ fn ex_read(eap: &mut Exarg) {
 }
 
 pub fn free_cd_dir() {
-    docmd_st().prev_dir = None;
+    PREV_DIR.with(|cell| *cell.borrow_mut() = None);
     g_st().globaldir = None;
 }
 
-fn get_prevdir(scope: CdScope) -> &'static mut Option<std::ffi::CString> {
+fn get_prevdir(scope: CdScope) -> Option<std::ffi::CString> {
     match scope {
-        K_CD_SCOPE_TABPAGE => &mut curtab_mut().tp_prevdir,
-        K_CD_SCOPE_BUFFER => &mut curbuf_mut().b_prevdir,
-        K_CD_SCOPE_WINDOW => &mut curwin_mut().w_prevdir,
-        _ => &mut docmd_st().borrow_mut().prev_dir,
+        K_CD_SCOPE_TABPAGE => curtab_mut().tp_prevdir.clone(),
+        K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir.clone(),
+        K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir.clone(),
+        _ => PREV_DIR.with(|cell| cell.borrow().clone()),
+    }
+}
+
+fn set_prevdir(scope: CdScope, dir: Option<std::ffi::CString>) {
+    match scope {
+        K_CD_SCOPE_TABPAGE => curtab_mut().tp_prevdir = dir,
+        K_CD_SCOPE_BUFFER => curbuf_mut().b_prevdir = dir,
+        K_CD_SCOPE_WINDOW => curwin_mut().w_prevdir = dir,
+        _ => PREV_DIR.with(|cell| *cell.borrow_mut() = dir),
     }
 }
 
@@ -10804,7 +10850,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     if scope < K_CD_SCOPE_GLOBAL {
         let pdir = get_prevdir(scope);
         if g_st().globaldir.is_none() && pdir.is_some() {
-            g_st().globaldir = pdir.clone();
+            g_st().globaldir = pdir;
         }
     }
 
@@ -10860,11 +10906,11 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
 
     let prev_dir_cstr: Option<std::ffi::CString>;
     if new_dir_cstr.to_bytes() == b"-" {
-        let Some(ref prev) = *get_prevdir(scope) else {
+        let Some(prev) = get_prevdir(scope) else {
             let _ = emsg(gettext(c"E186: No previous directory"));
             return false;
         };
-        prev_dir_cstr = Some(prev.clone());
+        prev_dir_cstr = Some(prev);
         new_dir_cstr = prev_dir_cstr.as_deref().unwrap();
     }
 
@@ -10897,8 +10943,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
     }
     drop(new_dir_owned);
 
-    let pp = get_prevdir(scope);
-    *pp = pdir;
+    set_prevdir(scope, pdir);
 
     post_chdir(scope, dir_differs && !bcd_active);
     if bcd_active {
@@ -12424,9 +12469,8 @@ fn ex_filetype(eap: &mut Exarg) {
 }
 
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
-    let mut st = docmd_st();
-    let _ = format_to_buf!(&mut st.ex_error_buf, gettext(msg), arg);
-    crate::memory::bytes_as_cstr(&st.borrow().ex_error_buf)
+    let _ = format_to_buf!(&mut g_st().ex_error_buf, gettext(msg), arg);
+    crate::memory::bytes_as_cstr(&g_st().borrow().ex_error_buf)
 }
 
 pub fn filetype_plugin_enable() {

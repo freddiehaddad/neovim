@@ -133,7 +133,7 @@ impl DecorVirtId {
 
     #[inline]
     pub fn opt_mut(self) -> Option<&'static mut DecorVirtText> {
-        (!self.is_null()).then(|| &mut decor_st().borrow_mut().virt_items[self.0 as usize])
+        (!self.is_null()).then(|| &mut g_st().borrow_mut().virt_items[self.0 as usize])
     }
 }
 
@@ -473,34 +473,70 @@ pub struct SignItem<'a> {
     pub id: u32,
 }
 
-struct DecorationModuleState {
+#[derive(Clone, Copy)]
+struct DecorationCopyState {
     decor_freelist: u32,
-    virt_items: Vec<DecorVirtText>,
     virt_freelist: DecorVirtId,
-    to_free_virt: Vec<DecorVirtId>,
     to_free_sh: u32,
     sign_add_id: i32,
 }
 
-impl DecorationModuleState {
+impl DecorationCopyState {
     const fn new() -> Self {
         Self {
             decor_freelist: u32::MAX,
-            virt_items: Vec::new(),
             virt_freelist: DecorVirtId::NULL,
-            to_free_virt: Vec::new(),
             to_free_sh: u32::MAX,
             sign_add_id: 0,
         }
     }
 }
 
-static DECOR_MOD_STATE: GlobalState<DecorationModuleState> =
-    GlobalState::new(DecorationModuleState::new());
+thread_local! {
+    static DECOR_MOD_STATE: std::cell::Cell<DecorationCopyState> = const {
+        std::cell::Cell::new(DecorationCopyState::new())
+    };
+    static TO_FREE_VIRT: std::cell::RefCell<Vec<DecorVirtId>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+struct DecorGuard {
+    state: DecorationCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for DecorGuard {
+    type Target = DecorationCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for DecorGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for DecorGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            DECOR_MOD_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn decor_st() -> crate::globals::GraphPtr<DecorationModuleState> {
-    DECOR_MOD_STATE.handle()
+fn decor_st() -> DecorGuard {
+    DecorGuard {
+        state: DECOR_MOD_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 #[inline]
@@ -636,12 +672,12 @@ pub fn decor_put_vt(mut vt: DecorVirtText, next: DecorVirtId) -> DecorVirtId {
     vt.next = next;
     let fl = decor_st().virt_freelist;
     if !fl.is_null() {
-        decor_st().virt_freelist = decor_st().virt_items.as_slice()[fl.0 as usize].next;
-        decor_st().virt_items.as_mut_slice()[fl.0 as usize] = vt;
+        decor_st().virt_freelist = g_st().virt_items.as_slice()[fl.0 as usize].next;
+        g_st().virt_items.as_mut_slice()[fl.0 as usize] = vt;
         fl
     } else {
-        let pos = decor_st().virt_items.len() as u32;
-        decor_st().virt_items.push(vt);
+        let pos = g_st().virt_items.len() as u32;
+        g_st().virt_items.push(vt);
         DecorVirtId(pos)
     }
 }
@@ -766,7 +802,7 @@ pub fn decor_free(decor: DecorInline) {
 
     if g_st().decor_state.running_decor_provider {
         if !vt.is_null() {
-            decor_st().to_free_virt.push(vt);
+            TO_FREE_VIRT.with(|cell| cell.borrow_mut().push(vt));
         }
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut g_st().decor_items)[idx as usize];
@@ -853,7 +889,7 @@ pub fn decor_extconceal_char(
 
 pub fn decor_check_to_be_deleted() {
     assert!(!g_st().decor_state.running_decor_provider);
-    while let Some(vt) = decor_st().to_free_virt.pop() {
+    while let Some(vt) = TO_FREE_VIRT.with(|cell| cell.borrow_mut().pop()) {
         decor_free_vt(vt);
     }
     decor_free_sh(decor_st().to_free_sh);
