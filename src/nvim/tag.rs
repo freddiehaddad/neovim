@@ -156,7 +156,7 @@ impl Default for Tagname {
 
 impl Drop for Tagname {
     fn drop(&mut self) {
-        tag_st().tag_fnames.clear();
+        tag_st(|st| st.tag_fnames.borrow_mut().clear());
     }
 }
 
@@ -312,23 +312,23 @@ impl FindtagsState {
 }
 
 struct TagModuleState {
-    nofile_fname: Option<std::ffi::CString>,
-    tagmatchname: Option<std::ffi::CString>,
-    ptag_entry: Taggy,
-    tfu_in_use: bool,
-    tag_fnames: Vec<std::ffi::CString>,
-    do_tag_max_num_matches: i32,
-    do_tag_matches: Vec<Vec<u8>>,
-    do_tag_flags: i32,
-    tag_listfiles_extra: Vec<(std::ffi::CString, std::ffi::CString)>,
+    nofile_fname: std::cell::RefCell<Option<std::ffi::CString>>,
+    tagmatchname: std::cell::RefCell<Option<std::ffi::CString>>,
+    ptag_entry: std::cell::RefCell<Taggy>,
+    tfu_in_use: std::cell::Cell<bool>,
+    tag_fnames: std::cell::RefCell<Vec<std::ffi::CString>>,
+    do_tag_max_num_matches: std::cell::Cell<i32>,
+    do_tag_matches: std::cell::RefCell<Vec<Vec<u8>>>,
+    do_tag_flags: std::cell::Cell<i32>,
+    tag_listfiles_extra: std::cell::RefCell<Vec<(std::ffi::CString, std::ffi::CString)>>,
 }
 
 impl TagModuleState {
     const fn new() -> Self {
         Self {
-            nofile_fname: None,
-            tagmatchname: None,
-            ptag_entry: Taggy {
+            nofile_fname: std::cell::RefCell::new(None),
+            tagmatchname: std::cell::RefCell::new(None),
+            ptag_entry: std::cell::RefCell::new(Taggy {
                 tagname: None,
                 fmark: Fmark {
                     mark: CursorPos {
@@ -347,22 +347,24 @@ impl TagModuleState {
                 cur_match: 0,
                 cur_fnum: 0,
                 user_data: None,
-            },
-            tfu_in_use: false,
-            tag_fnames: Vec::new(),
-            do_tag_max_num_matches: 0,
-            do_tag_matches: Vec::new(),
-            do_tag_flags: 0,
-            tag_listfiles_extra: Vec::new(),
+            }),
+            tfu_in_use: std::cell::Cell::new(false),
+            tag_fnames: std::cell::RefCell::new(Vec::new()),
+            do_tag_max_num_matches: std::cell::Cell::new(0),
+            do_tag_matches: std::cell::RefCell::new(Vec::new()),
+            do_tag_flags: std::cell::Cell::new(0),
+            tag_listfiles_extra: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
 
-static TAG_STATE: GlobalState<TagModuleState> = GlobalState::new(TagModuleState::new());
+std::thread_local! {
+    static TAG_STATE: TagModuleState = const { TagModuleState::new() };
+}
 
 #[inline]
-fn tag_st() -> crate::globals::GraphPtr<TagModuleState> {
-    TAG_STATE.handle()
+fn tag_st<R>(f: impl FnOnce(&TagModuleState) -> R) -> R {
+    TAG_STATE.with(f)
 }
 
 use crate::charset::toupper_asc;
@@ -421,11 +423,11 @@ pub fn do_tag(
         let mut use_tfu = true;
         let mut tofree: Option<std::ffi::CString> = None;
         if type_ == DT_FREE {
-            tag_st().do_tag_matches.clear();
+            tag_st(|st| st.do_tag_matches.borrow_mut().clear());
             return;
         }
 
-        if tag_st().tfu_in_use {
+        if tag_st(|st| st.tfu_in_use.get()) {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
             return;
         }
@@ -440,16 +442,21 @@ pub fn do_tag(
             use_tfu = false;
         }
 
-        let prev_num_matches = tag_st().do_tag_matches.len() as i32;
-        tag_st().nofile_fname = None;
+        let prev_num_matches = tag_st(|st| {
+            *st.nofile_fname.borrow_mut() = None;
+            st.do_tag_matches.borrow().len() as i32
+        });
 
         'end_do_tag: {
             if !opt_vars().p_tgst && !tag.is_empty() {
                 use_tagstack = false;
                 new_tag = true;
                 if g_st().g_do_tagpreview != 0 {
-                    tagstack_clear_entry(&mut tag_st().ptag_entry);
-                    tag_st().ptag_entry.tagname = Some(tag.to_owned());
+                    tag_st(|st| {
+                        let mut ptag = st.ptag_entry.borrow_mut();
+                        tagstack_clear_entry(&mut ptag);
+                        ptag.tagname = Some(tag.to_owned());
+                    });
                 }
             } else {
                 use_tagstack = g_st().g_do_tagpreview == 0;
@@ -462,18 +469,20 @@ pub fn do_tag(
                         || type_ == DT_LTAG)
                 {
                     if g_st().g_do_tagpreview != 0 {
-                        if tag_st()
-                            .ptag_entry
-                            .tagname
-                            .as_ref()
-                            .is_some_and(|t| t.to_bytes() == tag.to_bytes())
-                        {
-                            cur_match = tag_st().ptag_entry.cur_match;
-                            cur_fnum = tag_st().ptag_entry.cur_fnum;
-                        } else {
-                            tagstack_clear_entry(&mut tag_st().ptag_entry);
-                            tag_st().ptag_entry.tagname = Some(tag.to_owned());
-                        }
+                        tag_st(|st| {
+                            let mut ptag = st.ptag_entry.borrow_mut();
+                            if ptag
+                                .tagname
+                                .as_ref()
+                                .is_some_and(|t| t.to_bytes() == tag.to_bytes())
+                            {
+                                cur_match = ptag.cur_match;
+                                cur_fnum = ptag.cur_fnum;
+                            } else {
+                                tagstack_clear_entry(&mut ptag);
+                                ptag.tagname = Some(tag.to_owned());
+                            }
+                        });
                     } else {
                         while tagstackidx < tagstacklen {
                             tagstacklen -= 1;
@@ -501,7 +510,7 @@ pub fn do_tag(
                     new_tag = true;
                 } else {
                     if if g_st().g_do_tagpreview != 0 {
-                        tag_st().ptag_entry.tagname.is_none()
+                        tag_st(|st| st.ptag_entry.borrow().tagname.is_none())
                     } else {
                         tagstacklen == 0
                     } {
@@ -550,15 +559,18 @@ pub fn do_tag(
                             fold_open_cursor();
                         }
 
-                        tag_st().do_tag_matches.clear();
+                        tag_st(|st| st.do_tag_matches.borrow_mut().clear());
                         tag_freematch();
                         break 'end_do_tag;
                     }
 
                     if type_ == DT_TAG || type_ == DT_LTAG {
                         if g_st().g_do_tagpreview != 0 {
-                            cur_match = tag_st().ptag_entry.cur_match;
-                            cur_fnum = tag_st().ptag_entry.cur_fnum;
+                            tag_st(|st| {
+                                let ptag = st.ptag_entry.borrow();
+                                cur_match = ptag.cur_match;
+                                cur_fnum = ptag.cur_fnum;
+                            });
                         } else {
                             save_pos = true;
                             tagstackidx += count - 1;
@@ -579,8 +591,11 @@ pub fn do_tag(
                         prevtagstackidx = tagstackidx;
 
                         if g_st().g_do_tagpreview != 0 {
-                            cur_match = tag_st().ptag_entry.cur_match;
-                            cur_fnum = tag_st().ptag_entry.cur_fnum;
+                            tag_st(|st| {
+                                let ptag = st.ptag_entry.borrow();
+                                cur_match = ptag.cur_match;
+                                cur_fnum = ptag.cur_fnum;
+                            });
                         } else {
                             tagstackidx -= 1;
                             if tagstackidx < 0 {
@@ -609,8 +624,11 @@ pub fn do_tag(
 
                 if g_st().g_do_tagpreview != 0 {
                     if type_ != DT_SELECT && type_ != DT_JUMP {
-                        tag_st().ptag_entry.cur_match = cur_match;
-                        tag_st().ptag_entry.cur_fnum = cur_fnum;
+                        tag_st(|st| {
+                            let mut ptag = st.ptag_entry.borrow_mut();
+                            ptag.cur_match = cur_match;
+                            ptag.cur_fnum = cur_fnum;
+                        });
                     }
                 } else {
                     saved_fmark = curwin_mut().w_tagstack[tagstackidx as usize].fmark.clone();
@@ -644,58 +662,60 @@ pub fn do_tag(
                         .clone();
                     tofree.as_deref().unwrap_or(c"")
                 } else if g_st().g_do_tagpreview != 0 {
-                    tofree = tag_st().ptag_entry.tagname.clone();
+                    tofree = tag_st(|st| st.ptag_entry.borrow().tagname.clone());
                     tofree.as_deref().unwrap_or(c"")
                 } else {
                     tag
                 };
 
-                let other_name = tag_st()
-                    .tagmatchname
-                    .as_ref()
-                    .is_none_or(|m| m.to_bytes() != name_cstr.to_bytes());
-                if new_tag
-                    || (cur_match >= tag_st().do_tag_matches.len() as i32
-                        && tag_st().do_tag_max_num_matches != MAXCOL)
-                    || other_name
-                {
+                let (other_name, matches_len, max_matches) = tag_st(|st| {
+                    (
+                        st.tagmatchname
+                            .borrow()
+                            .as_ref()
+                            .is_none_or(|m| m.to_bytes() != name_cstr.to_bytes()),
+                        st.do_tag_matches.borrow().len() as i32,
+                        st.do_tag_max_num_matches.get(),
+                    )
+                });
+                if new_tag || (cur_match >= matches_len && max_matches != MAXCOL) || other_name {
                     if other_name {
-                        tag_st().tagmatchname = Some(name_cstr.to_owned());
+                        let owned_name = name_cstr.to_owned();
+                        tag_st(|st| *st.tagmatchname.borrow_mut() = Some(owned_name));
                     }
 
                     if type_ == DT_SELECT || type_ == DT_JUMP || type_ == DT_LTAG {
                         cur_match = MAXCOL - 1;
                     }
-                    tag_st().do_tag_max_num_matches = if type_ == DT_TAG {
+                    let max_num = if type_ == DT_TAG {
                         MAXCOL
                     } else {
                         cur_match + 1
                     };
 
-                    if !no_regexp && name_cstr.to_bytes().first() == Some(&b'/') {
-                        tag_st().do_tag_flags = TAG_REGEXP;
+                    let mut flags = if !no_regexp && name_cstr.to_bytes().first() == Some(&b'/') {
                         name_cstr = &name_cstr[1..];
+                        TAG_REGEXP
                     } else {
-                        tag_st().do_tag_flags = TAG_NOIC;
-                    }
+                        TAG_NOIC
+                    };
 
                     if verbose {
-                        tag_st().do_tag_flags |= TAG_VERBOSE;
+                        flags |= TAG_VERBOSE;
                     }
                     if !use_tfu {
-                        tag_st().do_tag_flags |= TAG_NO_TAGFUNC;
+                        flags |= TAG_NO_TAGFUNC;
                     }
+                    tag_st(|st| {
+                        st.do_tag_max_num_matches.set(max_num);
+                        st.do_tag_flags.set(flags);
+                    });
 
                     let mut new_matches: Vec<Vec<u8>> = Vec::new();
-                    if find_tags(
-                        name_cstr,
-                        &mut new_matches,
-                        tag_st().do_tag_flags,
-                        tag_st().do_tag_max_num_matches,
-                        buf_ffname,
-                    ) && (new_matches.len() as i32) < tag_st().do_tag_max_num_matches
+                    if find_tags(name_cstr, &mut new_matches, flags, max_num, buf_ffname)
+                        && (new_matches.len() as i32) < max_num
                     {
-                        tag_st().do_tag_max_num_matches = MAXCOL;
+                        tag_st(|st| st.do_tag_max_num_matches.set(MAXCOL));
                     }
 
                     if tagstack != (&raw mut curwin_mut().w_tagstack).cast::<Taggy>() {
@@ -707,8 +727,8 @@ pub fn do_tag(
 
                     if !new_tag && !other_name {
                         let mut idx: usize = 0;
-
-                        for old_match in &tag_st().do_tag_matches {
+                        let old_matches = tag_st(|st| st.do_tag_matches.borrow().clone());
+                        for old_match in &old_matches {
                             let mut tagp = Tagptrs::default();
                             parse_match(old_match, &mut tagp);
                             for i in idx..new_matches.len() {
@@ -726,10 +746,10 @@ pub fn do_tag(
                             }
                         }
                     }
-                    tag_st().do_tag_matches = new_matches;
+                    tag_st(|st| *st.do_tag_matches.borrow_mut() = new_matches);
                 }
 
-                let do_tag_num_matches = tag_st().do_tag_matches.len() as i32;
+                let do_tag_num_matches = tag_st(|st| st.do_tag_matches.borrow().len() as i32);
                 if do_tag_num_matches <= 0 {
                     if verbose {
                         semsg!(gettext(E_TAG_NOT_FOUND_STR), name_cstr);
@@ -739,11 +759,12 @@ pub fn do_tag(
                     if type_ == DT_TAG && !tag.is_empty() {
                         cur_match = if count > 0 { count - 1 } else { 0 };
                     } else if type_ == DT_SELECT || (type_ == DT_JUMP && do_tag_num_matches > 1) {
+                        let matches_snapshot = tag_st(|st| st.do_tag_matches.borrow().clone());
                         select_tag_match(
                             (eap.is_some()).then(|| eap.unwrap()),
                             new_tag,
                             use_tagstack,
-                            &tag_st().do_tag_matches,
+                            &matches_snapshot,
                             name_cstr,
                         );
                         if use_tagstack {
@@ -752,7 +773,8 @@ pub fn do_tag(
                         }
                         break;
                     } else if type_ == DT_LTAG {
-                        if !add_llist_tags(tag, &tag_st().do_tag_matches) {
+                        let matches_snapshot = tag_st(|st| st.do_tag_matches.borrow().clone());
+                        if !add_llist_tags(tag, &matches_snapshot) {
                             break 'end_do_tag;
                         }
                         cur_match = 0;
@@ -760,7 +782,7 @@ pub fn do_tag(
 
                     if cur_match >= do_tag_num_matches {
                         if (type_ == DT_NEXT || type_ == DT_FIRST)
-                            && tag_st().nofile_fname.is_none()
+                            && tag_st(|st| st.nofile_fname.borrow().is_none())
                         {
                             if do_tag_num_matches == 1 {
                                 emsg(gettext(c"E427: There is only one matching tag"));
@@ -771,15 +793,16 @@ pub fn do_tag(
                         }
                         cur_match = do_tag_num_matches - 1;
                     }
+                    let cur_match_vec =
+                        tag_st(|st| st.do_tag_matches.borrow()[cur_match as usize].clone());
                     if use_tagstack {
                         let mut tagp2 = Tagptrs::default();
 
                         curwin_mut().w_tagstack[tagstackidx as usize].cur_match = cur_match;
                         curwin_mut().w_tagstack[tagstackidx as usize].cur_fnum = cur_fnum;
 
-                        let do_tag_matches = &tag_st().do_tag_matches;
                         if use_tfu
-                            && parse_match(&do_tag_matches[cur_match as usize], &mut tagp2)
+                            && parse_match(&cur_match_vec, &mut tagp2)
                             && let Some(ud_slice) = tagp2.user_data
                         {
                             curwin_mut().w_tagstack[tagstackidx as usize].user_data =
@@ -788,18 +811,20 @@ pub fn do_tag(
 
                         tagstackidx += 1;
                     } else if g_st().g_do_tagpreview != 0 {
-                        tag_st().ptag_entry.cur_match = cur_match;
-                        tag_st().ptag_entry.cur_fnum = cur_fnum;
+                        tag_st(|st| {
+                            let mut ptag = st.ptag_entry.borrow_mut();
+                            ptag.cur_match = cur_match;
+                            ptag.cur_fnum = cur_fnum;
+                        });
                     }
 
-                    if let Some(ref nf) = tag_st().nofile_fname
+                    if let Some(nf) = tag_st(|st| st.nofile_fname.borrow().clone())
                         && error_cur_match != cur_match
                     {
-                        smsg!(0, gettext(c"File \"%s\" does not exist"), nf,);
+                        smsg!(0, gettext(c"File \"%s\" does not exist"), &nf,);
                     }
 
-                    let cur_match_slice =
-                        &tag_st().borrow_mut().do_tag_matches.as_slice()[cur_match as usize];
+                    let cur_match_slice = cur_match_vec.as_slice();
                     let ic = ((cur_match_slice[0] as usize) & MT_IC_OFF) != 0;
                     if type_ != DT_TAG
                         && type_ != DT_SELECT
@@ -807,7 +832,7 @@ pub fn do_tag(
                         && (do_tag_num_matches > 1 || ic)
                         && !skip_msg
                     {
-                        let more_str = if tag_st().do_tag_max_num_matches != MAXCOL {
+                        let more_str = if tag_st(|st| st.do_tag_max_num_matches.get()) != MAXCOL {
                             gettext(c" or more")
                         } else {
                             c""
@@ -855,7 +880,7 @@ pub fn do_tag(
                     if i.is_none() {
                         if (type_ == DT_PREV && cur_match > 0)
                             || ((type_ == DT_TAG || type_ == DT_NEXT || type_ == DT_FIRST)
-                                && (tag_st().do_tag_max_num_matches != MAXCOL
+                                && (tag_st(|st| st.do_tag_max_num_matches.get()) != MAXCOL
                                     || cur_match < do_tag_num_matches - 1))
                         {
                             error_cur_match = cur_match;
@@ -870,9 +895,10 @@ pub fn do_tag(
                             }
                             continue;
                         }
+                        let nf = tag_st(|st| st.nofile_fname.borrow().clone());
                         semsg!(
                             gettext(c"E429: File \"%s\" does not exist"),
-                            tag_st().nofile_fname.as_deref().unwrap_or(c""),
+                            nf.as_deref().unwrap_or(c""),
                         );
                     } else if use_tagstack && tagstackidx > curwin_mut().w_tagstacklen {
                         tagstackidx = curwin_mut().w_tagstackidx;
@@ -920,7 +946,8 @@ fn select_tag_match(
             parse_match(m_vec, &mut tagp);
 
             let cur = !new_tag
-                && ((g_st().g_do_tagpreview != 0 && i == tag_st().ptag_entry.cur_match)
+                && ((g_st().g_do_tagpreview != 0
+                    && i == tag_st(|st| st.ptag_entry.borrow().cur_match))
                     || (use_tagstack
                         && i == curwin_mut().w_tagstack[tagstackidx as usize].cur_match));
 
@@ -1079,7 +1106,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
 
 /// Free cached tags.
 pub fn tag_freematch() {
-    tag_st().tagmatchname = None;
+    tag_st(|st| *st.tagmatchname.borrow_mut() = None);
 }
 
 /// Print the tag stack.
@@ -1550,13 +1577,12 @@ fn findtags_apply_tfu(
         let use_tfu = (st.flags & TAG_NO_TAGFUNC) == 0;
 
         if !use_tfu
-            || tag_st().tfu_in_use
             || curbuf_mut().b_p_tfu.cb_type() == K_CALLBACK_NONE_CONST
+            || tag_st(|st| st.tfu_in_use.replace(true))
         {
             return None;
         }
 
-        tag_st().tfu_in_use = true;
         let retval = find_tagfunc_tags(
             pat,
             &mut st.ga_match[0],
@@ -1564,7 +1590,7 @@ fn findtags_apply_tfu(
             st.flags,
             buf_ffname,
         );
-        tag_st().tfu_in_use = false;
+        tag_st(|st| st.tfu_in_use.set(false));
 
         retval
     }
@@ -2310,9 +2336,8 @@ pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
     for fname in fnames {
         let mut tag_fname = fname.clone().into_bytes_with_nul();
         simplify_filename(&mut tag_fname);
-        tag_st()
-            .tag_fnames
-            .push(crate::memory::cstring_until_nul(&tag_fname));
+        let cstr = crate::memory::cstring_until_nul(&tag_fname);
+        tag_st(|st| st.tag_fnames.borrow_mut().push(cstr));
 
         if !all {
             break;
@@ -2323,12 +2348,12 @@ pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
 }
 
 pub fn free_tag_stuff() {
-    tag_st().tag_fnames = Vec::new();
+    tag_st(|st| *st.tag_fnames.borrow_mut() = Vec::new());
     if !(curwin_ptr()).is_null() {
         do_tag(None, c"", DT_FREE, 0, false, false);
     }
     tag_freematch();
-    tagstack_clear_entry(&mut tag_st().ptag_entry);
+    tag_st(|st| tagstack_clear_entry(&mut st.ptag_entry.borrow_mut()));
 }
 
 /// Get the next name of a tag file from the tag file list.
@@ -2341,7 +2366,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
 
     if curbuf_mut().b_help {
         if first != 0 {
-            tag_st().tag_fnames.clear();
+            tag_st(|st| st.tag_fnames.borrow_mut().clear());
             do_in_runtimepath(
                 c"doc/tags doc/tags-??",
                 DIP_ALL,
@@ -2349,7 +2374,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             );
         }
 
-        let len = tag_st().tag_fnames.len() as i32;
+        let len = tag_st(|st| st.tag_fnames.borrow().len() as i32);
         if tnp.tn_hf_idx >= len {
             if tnp.tn_hf_idx > len || opt_vars().p_hf.is_empty() {
                 return false;
@@ -2365,18 +2390,21 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             simplify_filename(buf);
 
             let buf_bytes = crate::memory::bytes_until_nul(buf);
-            if tag_st()
-                .tag_fnames
-                .iter()
-                .any(|entry| entry.as_bytes() == buf_bytes)
-            {
+            if tag_st(|st| {
+                st.tag_fnames
+                    .borrow()
+                    .iter()
+                    .any(|entry| entry.as_bytes() == buf_bytes)
+            }) {
                 return false;
             }
         } else {
-            crate::memory::copy_bytes_to_c_buf(
-                buf,
-                tag_st().tag_fnames.as_slice()[tnp.tn_hf_idx as usize].as_bytes(),
-            );
+            tag_st(|st| {
+                crate::memory::copy_bytes_to_c_buf(
+                    buf,
+                    st.tag_fnames.borrow()[tnp.tn_hf_idx as usize].as_bytes(),
+                );
+            });
             tnp.tn_hf_idx += 1;
         }
         return true;
@@ -2625,7 +2653,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
         let mut fname_opt_ref = Some(fname_cstr_ref);
         if !os_path_exists(fname_cstr_ref) && !has_autocmd(EVENT_BUFREADCMD, fname_opt_ref, None) {
             retval = None;
-            tag_st().nofile_fname = tofree_fname.take();
+            let taken = tofree_fname.take();
+            tag_st(|st| *st.nofile_fname.borrow_mut() = taken);
             break 'erret;
         }
 
@@ -2981,13 +3010,8 @@ pub fn tagstack_clear_entry(item: &mut Taggy) {
     item.user_data = None;
 }
 
-pub fn tag_listfiles_extra(idx: usize) -> Option<(&'static CStr, &'static CStr)> {
-    tag_st()
-        .borrow_mut()
-        .tag_listfiles_extra
-        .as_slice()
-        .get(idx)
-        .map(|(k, f)| (k.as_c_str(), f.as_c_str()))
+pub fn tag_listfiles_extra(idx: usize) -> Option<(std::ffi::CString, std::ffi::CString)> {
+    tag_st(|st| st.tag_listfiles_extra.borrow().get(idx).cloned())
 }
 
 pub fn expand_tags(
@@ -3017,7 +3041,7 @@ pub fn expand_tags(
         )
     };
     file.clear();
-    tag_st().tag_listfiles_extra.clear();
+    tag_st(|st| st.tag_listfiles_extra.borrow_mut().clear());
     if ret {
         file.reserve_exact(raw_matches.len());
         if tagnames {
@@ -3025,9 +3049,12 @@ pub fn expand_tags(
                 file.push(crate::memory::cstring_until_nul(&m));
             }
         } else {
-            tag_st()
-                .tag_listfiles_extra
-                .reserve_exact(raw_matches.len());
+            let matches_len = raw_matches.len();
+            tag_st(|st| {
+                st.tag_listfiles_extra
+                    .borrow_mut()
+                    .reserve_exact(matches_len)
+            });
             for m in raw_matches {
                 let mut t_p = Tagptrs::default();
                 parse_match(&m, &mut t_p);
@@ -3043,7 +3070,11 @@ pub fn expand_tags(
                 };
                 let kind_cstr = crate::memory::bytes_to_cstring(kind_bytes);
                 let fname_cstr = crate::memory::bytes_to_cstring(t_p.fname);
-                tag_st().tag_listfiles_extra.push((kind_cstr, fname_cstr));
+                tag_st(|st| {
+                    st.tag_listfiles_extra
+                        .borrow_mut()
+                        .push((kind_cstr, fname_cstr))
+                });
             }
         }
     }
@@ -3310,7 +3341,7 @@ fn tagstack_set_curidx(wp: &mut WinInfoInfo, curidx: i32) {
 
 /// Set the tag stack entries of the specified window.
 pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: i32) -> bool {
-    if tag_st().tfu_in_use {
+    if tag_st(|st| st.tfu_in_use.get()) {
         emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC));
         return false;
     }

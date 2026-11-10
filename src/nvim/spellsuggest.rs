@@ -356,28 +356,30 @@ struct Limitscore {
     score: i32,
 }
 struct SpellSuggestState {
-    spell_suggest_timeout: i64,
-    sps_flags: i32,
-    sps_limit: i32,
-    expr_busy: bool,
+    spell_suggest_timeout: std::cell::Cell<i64>,
+    sps_flags: std::cell::Cell<i32>,
+    sps_limit: std::cell::Cell<i32>,
+    expr_busy: std::cell::Cell<bool>,
 }
 
 impl SpellSuggestState {
     const fn new() -> Self {
         Self {
-            spell_suggest_timeout: 5000,
-            sps_flags: SPS_BEST,
-            sps_limit: 9999,
-            expr_busy: false,
+            spell_suggest_timeout: std::cell::Cell::new(5000),
+            sps_flags: std::cell::Cell::new(SPS_BEST),
+            sps_limit: std::cell::Cell::new(9999),
+            expr_busy: std::cell::Cell::new(false),
         }
     }
 }
 
-static SPS_STATE: GlobalState<SpellSuggestState> = GlobalState::new(SpellSuggestState::new());
+std::thread_local! {
+    static SPS_STATE: SpellSuggestState = const { SpellSuggestState::new() };
+}
 
 #[inline]
-fn sps_st() -> crate::globals::GraphPtr<SpellSuggestState> {
-    SPS_STATE.handle()
+fn sps_st<R>(f: impl FnOnce(&SpellSuggestState) -> R) -> R {
+    SPS_STATE.with(f)
 }
 #[inline]
 const fn rescore(word_score: i32, sound_score: i32) -> i32 {
@@ -552,8 +554,10 @@ pub fn spell_check_sps(value: &CStr, ret_flags: &mut i32, ret_limit: &mut i32) -
 }
 /// Apply validated 'spellsuggest' flags and suggestion limit.
 pub fn spell_apply_sps(flags: i32, limit: i32) {
-    sps_st().sps_flags = flags;
-    sps_st().sps_limit = limit;
+    sps_st(|st| {
+        st.sps_flags.set(flags);
+        st.sps_limit.set(limit);
+    });
 }
 fn select_spell_suggestion(sug: &mut Suginfo) {
     let mut items_tv = TypVal {
@@ -586,7 +590,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             tv_dict_add_str_len(&mut *d, c"extra", Some(&badptr_bytes[..org_len]));
         }
         tv_dict_add_nr(&mut *d, c"score", stp.st_score as i64);
-        if (sps_st().sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
+        if (sps_st(|st| st.sps_flags.get()) & (SPS_DOUBLE | SPS_BEST)) != 0 {
             tv_dict_add_nr(&mut *d, c"altscore", stp.st_altscore as i64);
             tv_dict_add_bool(
                 &mut *d,
@@ -688,9 +692,11 @@ pub fn spell_suggest(count: i32) {
         let line_len = line_vec.len();
         line_vec.push(0);
         let line_cstr = crate::memory::bytes_as_cstr(&line_vec);
-        sps_st().spell_suggest_timeout = 5000;
+        let limit = sps_st(|st| {
+            st.spell_suggest_timeout.set(5000);
+            st.sps_limit.get().min(g_st().rows_global - 2)
+        });
         let mut sug = Suginfo::default();
-        let limit = sps_st().sps_limit.min(g_st().rows_global - 2);
         let cursor_col = (curwin_mut().w_cursor.col as usize).min(line_len);
         spell_find_suggest(
             &line_cstr[cursor_col..],
@@ -871,18 +877,18 @@ fn spell_find_suggest(
         let buf_cstr = crate::memory::bytes_as_cstr(&buf);
         let buf_bytes = buf_cstr.to_bytes();
         if buf_bytes.starts_with(b"expr:") {
-            if !sps_st().expr_busy {
-                sps_st().expr_busy = true;
+            if !sps_st(|st| st.expr_busy.replace(true)) {
                 spell_suggest_expr(su, crate::memory::bytes_as_cstr(&buf[5..]));
-                sps_st().expr_busy = false;
+                sps_st(|st| st.expr_busy.set(false));
             }
         } else if buf_bytes.starts_with(b"file:") {
             spell_suggest_file(su, crate::memory::bytes_as_cstr(&buf[5..]));
         } else if let Some(rest) = buf_bytes.strip_prefix(b"timeout:") {
-            sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(rest) as i32 as i64;
+            let timeout = crate::charset::parse_i64_prefix(rest) as i32 as i64;
+            sps_st(|st| st.spell_suggest_timeout.set(timeout));
         } else if !did_intern {
             spell_suggest_intern(su, interactive);
-            if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
+            if (sps_st(|st| st.sps_flags.get()) & SPS_DOUBLE) != 0 {
                 do_combine = true;
             }
             did_intern = true;
@@ -978,11 +984,12 @@ fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
     suggest_load_files();
     suggest_try_special(su);
     suggest_try_change(su);
-    if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
+    let flags = sps_st(|st| st.sps_flags.get());
+    if (flags & SPS_DOUBLE) != 0 {
         score_comp_sal(su);
     }
-    if (sps_st().sps_flags & SPS_FAST) == 0 {
-        if (sps_st().sps_flags & SPS_BEST) != 0 {
+    if (flags & SPS_FAST) == 0 {
+        if (flags & SPS_BEST) != 0 {
             rescore_suggestions(su);
         }
         suggest_try_soundalike_prep();
@@ -1005,8 +1012,9 @@ fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
         let _ = vgetc();
         g_st().got_int = false;
     }
-    if (sps_st().sps_flags & SPS_DOUBLE) == 0 && !su.su_ga.is_empty() {
-        if (sps_st().sps_flags & SPS_BEST) != 0 {
+    let flags = sps_st(|st| st.sps_flags.get());
+    if (flags & SPS_DOUBLE) == 0 && !su.su_ga.is_empty() {
+        if (flags & SPS_BEST) != 0 {
             rescore_suggestions(su);
         }
         check_suggestions(su, false);
@@ -1113,8 +1121,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
         }
     }
     let mut time_limit: Proftime = 0;
-    if sps_st().spell_suggest_timeout > 0 {
-        time_limit = profile_setlimit(sps_st().spell_suggest_timeout);
+    let timeout = sps_st(|st| st.spell_suggest_timeout.get());
+    if timeout > 0 {
+        time_limit = profile_setlimit(timeout);
     }
     while depth >= 0 && !g_st().got_int {
         let mut udepth = depth as usize;
@@ -2073,7 +2082,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 if breakcheckcount == 0 {
                     os_breakcheck();
                     breakcheckcount = 1000;
-                    if sps_st().spell_suggest_timeout > 0 && profile_passed_limit(time_limit) {
+                    if sps_st(|st| st.spell_suggest_timeout.get()) > 0
+                        && profile_passed_limit(time_limit)
+                    {
                         g_st().got_int = true;
                     }
                 }
@@ -2429,7 +2440,7 @@ fn add_sound_suggest(su: &mut Suginfo, goodword: &[u8], score: i32, lp: &Langp) 
                     &theword
                 }
             };
-            if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
+            if (sps_st(|st| st.sps_flags.get()) & SPS_DOUBLE) != 0 {
                 if score <= su.su_maxscore {
                     add_suggestion(
                         su,

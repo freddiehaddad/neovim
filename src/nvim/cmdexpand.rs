@@ -2780,9 +2780,9 @@ fn showmatches_oneline(
             msg_outtrans(&matches[j as usize], HLF_D, false);
             if let Some((kind_str, fname_str)) = crate::tag::tag_listfiles_extra(j as usize) {
                 msg_advance(maxlen + 1);
-                msg_puts(kind_str);
+                msg_puts(&kind_str);
                 msg_advance(maxlen + 3);
-                msg_outtrans_long(fname_str, HLF_D);
+                msg_outtrans_long(&fname_str, HLF_D);
             }
             break;
         }

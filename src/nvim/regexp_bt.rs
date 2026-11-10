@@ -129,28 +129,30 @@ pub(super) struct Backpos {
 }
 
 struct RegexpBtState {
-    bl_minval: i64,
-    bl_maxval: i64,
-    reg_program: Vec<u8>,
-    regcode_idx: usize,
+    bl_minval: std::cell::Cell<i64>,
+    bl_maxval: std::cell::Cell<i64>,
+    reg_program: std::cell::RefCell<Vec<u8>>,
+    regcode_idx: std::cell::Cell<usize>,
 }
 
 impl RegexpBtState {
     const fn new() -> Self {
         Self {
-            bl_minval: 0,
-            bl_maxval: 0,
-            reg_program: Vec::new(),
-            regcode_idx: JUST_CALC_SIZE,
+            bl_minval: std::cell::Cell::new(0),
+            bl_maxval: std::cell::Cell::new(0),
+            reg_program: std::cell::RefCell::new(Vec::new()),
+            regcode_idx: std::cell::Cell::new(JUST_CALC_SIZE),
         }
     }
 }
 
-static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::new());
+std::thread_local! {
+    static BT_STATE: RegexpBtState = const { RegexpBtState::new() };
+}
 
 #[inline(always)]
-fn bt_st() -> crate::globals::GraphPtr<RegexpBtState> {
-    BT_STATE.handle()
+fn bt_st<R>(f: impl FnOnce(&RegexpBtState) -> R) -> R {
+    BT_STATE.with(f)
 }
 
 #[inline(always)]
@@ -244,22 +246,26 @@ fn use_multibytecode(c: i32) -> bool {
 }
 
 fn regc(b: i32) {
-    if bt_st().regcode_idx == JUST_CALC_SIZE {
+    let idx = bt_st(|st| st.regcode_idx.get());
+    if idx == JUST_CALC_SIZE {
         re_st().regsize += 1;
     } else {
-        let idx = bt_st().regcode_idx;
-        bt_st().reg_program[idx] = b as u8;
-        bt_st().regcode_idx = idx + 1;
+        bt_st(|st| {
+            st.reg_program.borrow_mut()[idx] = b as u8;
+            st.regcode_idx.set(idx + 1);
+        });
     }
 }
 
 fn regmbc(c: i32) {
-    if bt_st().regcode_idx == JUST_CALC_SIZE {
+    let idx = bt_st(|st| st.regcode_idx.get());
+    if idx == JUST_CALC_SIZE {
         re_st().regsize += i64::from(utf_char2len(c));
     } else {
-        let idx = bt_st().regcode_idx;
-        let len = crate::mbyte::utf_char2slice(c, &mut bt_st().reg_program[idx..]);
-        bt_st().regcode_idx = idx + len;
+        bt_st(|st| {
+            let len = crate::mbyte::utf_char2slice(c, &mut st.reg_program.borrow_mut()[idx..]);
+            st.regcode_idx.set(idx + len);
+        });
     }
 }
 
@@ -709,15 +715,17 @@ fn reg_equi_class(c: i32) {
 }
 
 fn regnode(op: i32) -> Option<usize> {
-    let ret = bt_st().regcode_idx;
+    let ret = bt_st(|st| st.regcode_idx.get());
     if ret == JUST_CALC_SIZE {
         re_st().regsize += 3;
     } else {
-        let prog = &mut bt_st().reg_program;
-        prog[ret] = op as u8;
-        prog[ret + 1] = NUL;
-        prog[ret + 2] = NUL;
-        bt_st().regcode_idx = ret + 3;
+        bt_st(|st| {
+            let mut prog = st.reg_program.borrow_mut();
+            prog[ret] = op as u8;
+            prog[ret + 1] = NUL;
+            prog[ret + 2] = NUL;
+            st.regcode_idx.set(ret + 3);
+        });
     }
     Some(ret)
 }
@@ -752,25 +760,27 @@ fn regtail(p: Option<usize>, val: Option<usize>) {
     }
     let val = val.unwrap();
     let mut scan = p;
-    loop {
-        let temp = regnext(&bt_st().reg_program, Some(scan));
-        let Some(t) = temp else {
-            break;
+    bt_st(|st| {
+        let mut prog = st.reg_program.borrow_mut();
+        loop {
+            let temp = regnext(&prog, Some(scan));
+            let Some(t) = temp else {
+                break;
+            };
+            scan = t;
+        }
+        let offset = if op_fn(&prog, Some(scan)) == BACK {
+            (scan as isize - val as isize) as i32
+        } else {
+            (val as isize - scan as isize) as i32
         };
-        scan = t;
-    }
-    let offset = if op_fn(&bt_st().reg_program, Some(scan)) == BACK {
-        (scan as isize - val as isize) as i32
-    } else {
-        (val as isize - scan as isize) as i32
-    };
-    if offset > 0xffff {
-        re_st().reg_toolong = 1;
-    } else {
-        let prog = &mut bt_st().reg_program;
-        prog[scan + 1] = (((offset as u32) >> 8) & 0o377) as u8;
-        prog[scan + 2] = (offset & 0o377) as u8;
-    }
+        if offset > 0xffff {
+            re_st().reg_toolong = 1;
+        } else {
+            prog[scan + 1] = (((offset as u32) >> 8) & 0o377) as u8;
+            prog[scan + 2] = (offset & 0o377) as u8;
+        }
+    });
 }
 
 fn regoptail(p: Option<usize>, val: Option<usize>) {
@@ -780,7 +790,7 @@ fn regoptail(p: Option<usize>, val: Option<usize>) {
     if p == JUST_CALC_SIZE {
         return;
     }
-    let op = op_fn(&bt_st().reg_program, Some(p));
+    let op = bt_st(|st| op_fn(&st.reg_program.borrow(), Some(p)));
     if op != BRANCH && !(BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&op) {
         return;
     }
@@ -788,51 +798,57 @@ fn regoptail(p: Option<usize>, val: Option<usize>) {
 }
 
 fn reginsert(op: i32, opnd: Option<usize>) {
-    if bt_st().regcode_idx == JUST_CALC_SIZE {
+    let end = bt_st(|st| st.regcode_idx.get());
+    if end == JUST_CALC_SIZE {
         re_st().regsize += 3;
         return;
     }
     let opnd = opnd.unwrap();
-    let end = bt_st().regcode_idx;
-    bt_st().regcode_idx = end + 3;
-    let prog = &mut bt_st().reg_program;
-    prog.copy_within(opnd..end, opnd + 3);
-    prog[opnd] = op as u8;
-    prog[opnd + 1] = NUL;
-    prog[opnd + 2] = NUL;
+    bt_st(|st| {
+        st.regcode_idx.set(end + 3);
+        let mut prog = st.reg_program.borrow_mut();
+        prog.copy_within(opnd..end, opnd + 3);
+        prog[opnd] = op as u8;
+        prog[opnd + 1] = NUL;
+        prog[opnd + 2] = NUL;
+    });
 }
 
 fn reginsert_nr(op: i32, val: i64, opnd: Option<usize>) {
-    if bt_st().regcode_idx == JUST_CALC_SIZE {
+    let end = bt_st(|st| st.regcode_idx.get());
+    if end == JUST_CALC_SIZE {
         re_st().regsize += 7;
         return;
     }
     let opnd = opnd.unwrap();
-    let end = bt_st().regcode_idx;
-    bt_st().regcode_idx = end + 7;
-    let prog = &mut bt_st().reg_program;
-    prog.copy_within(opnd..end, opnd + 7);
-    prog[opnd] = op as u8;
-    prog[opnd + 1] = NUL;
-    prog[opnd + 2] = NUL;
-    re_put_uint32(prog, opnd + 3, val as u32);
+    bt_st(|st| {
+        st.regcode_idx.set(end + 7);
+        let mut prog = st.reg_program.borrow_mut();
+        prog.copy_within(opnd..end, opnd + 7);
+        prog[opnd] = op as u8;
+        prog[opnd + 1] = NUL;
+        prog[opnd + 2] = NUL;
+        re_put_uint32(&mut prog, opnd + 3, val as u32);
+    });
 }
 
 fn reginsert_limits(op: i32, minval: i64, maxval: i64, opnd: Option<usize>) {
-    if bt_st().regcode_idx == JUST_CALC_SIZE {
+    let end = bt_st(|st| st.regcode_idx.get());
+    if end == JUST_CALC_SIZE {
         re_st().regsize += 11;
         return;
     }
     let opnd = opnd.unwrap();
-    let end = bt_st().regcode_idx;
-    bt_st().regcode_idx = end + 11;
-    let prog = &mut bt_st().reg_program;
-    prog.copy_within(opnd..end, opnd + 11);
-    prog[opnd] = op as u8;
-    prog[opnd + 1] = NUL;
-    prog[opnd + 2] = NUL;
-    let place = re_put_uint32(prog, opnd + 3, minval as u32);
-    let place = re_put_uint32(prog, place, maxval as u32);
+    let place = bt_st(|st| {
+        st.regcode_idx.set(end + 11);
+        let mut prog = st.reg_program.borrow_mut();
+        prog.copy_within(opnd..end, opnd + 11);
+        prog[opnd] = op as u8;
+        prog[opnd + 1] = NUL;
+        prog[opnd + 2] = NUL;
+        let place = re_put_uint32(&mut prog, opnd + 3, minval as u32);
+        re_put_uint32(&mut prog, place, maxval as u32)
+    });
     regtail(Some(opnd), Some(place));
 }
 
@@ -1194,14 +1210,16 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                         br = ret;
                         while br != lastnode {
                             let br_idx = br.unwrap();
-                            if op_fn(&bt_st().reg_program, br) == BRANCH {
+                            let is_branch =
+                                bt_st(|st| op_fn(&st.reg_program.borrow(), br) == BRANCH);
+                            if is_branch {
                                 regtail(br, lastbranch);
                                 if re_st().reg_toolong != 0 {
                                     return None;
                                 }
                                 br = Some(operand_idx(br_idx));
                             } else {
-                                br = regnext(&bt_st().reg_program, br);
+                                br = bt_st(|st| regnext(&st.reg_program.borrow(), br));
                             }
                         }
                     }
@@ -1273,10 +1291,13 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             if ret == Some(JUST_CALC_SIZE) {
                                 re_st().regsize += 2;
                             } else {
-                                let idx = bt_st().regcode_idx;
-                                bt_st().reg_program[idx] = c as u8;
-                                bt_st().reg_program[idx + 1] = cmp as u8;
-                                bt_st().regcode_idx = idx + 2;
+                                bt_st(|st| {
+                                    let idx = st.regcode_idx.get();
+                                    let mut prog = st.reg_program.borrow_mut();
+                                    prog[idx] = c as u8;
+                                    prog[idx + 1] = cmp as u8;
+                                    st.regcode_idx.set(idx + 2);
+                                });
                             }
                             return ret;
                         } else if (c == b'l' as i32 || c == b'c' as i32 || c == b'v' as i32)
@@ -1321,10 +1342,12 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             if ret == Some(JUST_CALC_SIZE) {
                                 re_st().regsize += 5;
                             } else {
-                                let st = bt_st().borrow_mut();
-                                let idx = re_put_uint32(&mut st.reg_program, st.regcode_idx, n);
-                                st.reg_program[idx] = cmp as u8;
-                                st.regcode_idx = idx + 1;
+                                bt_st(|st| {
+                                    let mut prog = st.reg_program.borrow_mut();
+                                    let idx = re_put_uint32(&mut prog, st.regcode_idx.get(), n);
+                                    prog[idx] = cmp as u8;
+                                    st.regcode_idx.set(idx + 1);
+                                });
                             }
                             return ret;
                         }
@@ -1453,9 +1476,11 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                     if re_st().regparse_byte() == b'n' {
                         if let Some(ret_idx) = ret
                             && ret_idx != JUST_CALC_SIZE
-                            && bt_st().reg_program[ret_idx] == ANYOF as u8
+                            && bt_st(|st| st.reg_program.borrow()[ret_idx] == ANYOF as u8)
                         {
-                            bt_st().reg_program[ret_idx] = (ANYOF + ADD_NL) as u8;
+                            bt_st(|st| {
+                                st.reg_program.borrow_mut()[ret_idx] = (ANYOF + ADD_NL) as u8
+                            });
                             *flagp |= HASNL;
                         }
                         re_st().regparse_off += 1;
@@ -2018,7 +2043,7 @@ fn reg(paren: i32, flagp: &mut i32) -> Option<usize> {
     br = ret;
     while br.is_some() {
         regoptail(br, ender);
-        br = regnext(&bt_st().reg_program, br);
+        br = bt_st(|st| regnext(&st.reg_program.borrow(), br));
     }
 
     if paren != REG_NOPAREN && getchr() != magic_fn(b')' as i32) {
@@ -2078,16 +2103,19 @@ pub(super) fn bt_regcomp(expr: &CStr, re_flags: i32) -> Option<BtRegprog> {
     init_class_tab();
 
     regcomp_start(expr, re_flags);
-    bt_st().regcode_idx = JUST_CALC_SIZE;
+    bt_st(|st| st.regcode_idx.set(JUST_CALC_SIZE));
     regc(REGMAGIC);
     reg(REG_NOPAREN, &mut flags)?;
 
-    bt_st().reg_program = vec![0u8; re_st().regsize as usize];
+    let regsize = re_st().regsize as usize;
+    bt_st(|st| {
+        *st.reg_program.borrow_mut() = vec![0u8; regsize];
+        st.regcode_idx.set(0);
+    });
     regcomp_start(expr, re_flags);
-    bt_st().regcode_idx = 0;
     regc(REGMAGIC);
     if reg(REG_NOPAREN, &mut flags).is_none() || re_st().reg_toolong != 0 {
-        bt_st().reg_program.clear();
+        bt_st(|st| st.reg_program.borrow_mut().clear());
         if re_st().reg_toolong != 0 {
             emsg(tr(c"E339: Pattern too long"));
             g_st().rc_did_emsg = true;
@@ -2102,7 +2130,7 @@ pub(super) fn bt_regcomp(expr: &CStr, re_flags: i32) -> Option<BtRegprog> {
         regmust_off: None,
         regmlen: 0,
         reghasz: re_st().re_has_z as u8,
-        program: std::mem::take(&mut bt_st().reg_program),
+        program: bt_st(|st| std::mem::take(&mut *st.reg_program.borrow_mut())),
     };
     if (flags & HASNL) != 0 {
         r.regflags |= RF_HASNL;
@@ -3334,8 +3362,10 @@ fn regmatch(
                     }
                     BRACE_LIMITS => {
                         if op_fn(prog, next) == BRACE_SIMPLE {
-                            bt_st().bl_minval = operand_min(prog, scan_idx);
-                            bt_st().bl_maxval = operand_max(prog, scan_idx);
+                            bt_st(|st| {
+                                st.bl_minval.set(operand_min(prog, scan_idx));
+                                st.bl_maxval.set(operand_max(prog, scan_idx));
+                            });
                         } else if op_fn(prog, next) >= BRACE_COMPLEX
                             && op_fn(prog, next) < BRACE_COMPLEX + 10
                         {
@@ -3405,8 +3435,10 @@ fn regmatch(
                             rst.minval = if op == STAR { 0 } else { 1 };
                             rst.maxval = i64::from(MAX_LIMIT);
                         } else {
-                            rst.minval = bt_st().bl_minval;
-                            rst.maxval = bt_st().bl_maxval;
+                            bt_st(|st| {
+                                rst.minval = st.bl_minval.get();
+                                rst.maxval = st.bl_maxval.get();
+                            });
                         }
 
                         rst.count = i64::from(regrepeat(prog, operand_idx(scan_idx), rst.maxval));
