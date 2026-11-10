@@ -72,24 +72,10 @@ const DICT_INIT: Dict = Dict {
     capacity: 0,
 };
 
-struct ApiUiState {
-    connected_uis: std::collections::BTreeMap<u64, Box<RemoteUI>>,
-}
-
-impl ApiUiState {
-    const fn new() -> Self {
-        Self {
-            connected_uis: std::collections::BTreeMap::new(),
-        }
-    }
-}
-
-static API_UI_STATE: crate::globals::GlobalState<ApiUiState> =
-    crate::globals::GlobalState::new(ApiUiState::new());
-
-#[inline]
-fn api_ui_st() -> crate::globals::GraphPtr<ApiUiState> {
-    API_UI_STATE.handle()
+thread_local! {
+    static CONNECTED_UIS: std::cell::RefCell<std::collections::BTreeMap<u64, Box<RemoteUI>>> = const {
+        std::cell::RefCell::new(std::collections::BTreeMap::new())
+    };
 }
 
 use crate::msgpack_rpc::packer::{mpack_w2, mpack_w2_at};
@@ -100,12 +86,12 @@ fn buf_pos(ui: &RemoteUI) -> usize {
 }
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
-    let ui = api_ui_st()
-        .borrow_mut()
-        .connected_uis
-        .get_mut(&chan_id)
-        .map(|b| &mut **b);
-    if ui.is_none() {
+    let ui_ptr = CONNECTED_UIS.with(|cell| {
+        cell.borrow_mut()
+            .get_mut(&chan_id)
+            .map(|b| crate::globals::GraphPtr::from(&mut **b))
+    });
+    if ui_ptr.is_none() {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -113,7 +99,7 @@ fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI>
             chan_id as i64,
         );
     }
-    ui
+    ui_ptr.map(|p| p.borrow_mut())
 }
 
 fn mpack_array_dyn16(buf: &mut PackerBuffer) -> usize {
@@ -150,7 +136,7 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
         push_call(ui, c"error_exit", args);
         ui_flush_buf(ui, false);
     }
-    let mut ui_box = api_ui_st().connected_uis.remove(&channel_id);
+    let mut ui_box = CONNECTED_UIS.with(|cell| cell.borrow_mut().remove(&channel_id));
     let ui_detached = ui_box.as_deref_mut().unwrap_or(ui);
     ui_detach_impl(ui_detached, channel_id);
     if let Some(chan) = find_channel_opt(channel_id) {
@@ -191,11 +177,13 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
 // DLLEXPORT size_t ui_detach_others(uint64_t keep_chan);
 pub fn ui_detach_others(keep_chan: u64) -> usize {
     let mut chans = Vec::<u64>::new();
-    for &chan in api_ui_st().connected_uis.keys() {
-        if chan != keep_chan {
-            chans.push(chan);
+    CONNECTED_UIS.with(|cell| {
+        for &chan in cell.borrow().keys() {
+            if chan != keep_chan {
+                chans.push(chan);
+            }
         }
-    }
+    });
 
     let mut detached: usize = 0;
     for chan in chans {
@@ -213,7 +201,7 @@ pub fn ui_detach_others(keep_chan: u64) -> usize {
 
 // DLLEXPORT void remote_ui_free_all_mem(void);
 pub fn remote_ui_free_all_mem() {
-    api_ui_st().connected_uis.clear();
+    CONNECTED_UIS.with(|cell| cell.borrow_mut().clear());
 }
 
 /// Wait until UI has connected.
@@ -255,7 +243,7 @@ pub fn nvim_ui_attach(
     options: Dict,
     err: &mut Error,
 ) {
-    if api_ui_st().connected_uis.contains_key(&channel_id) {
+    if CONNECTED_UIS.with(|cell| cell.borrow().contains_key(&channel_id)) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -327,17 +315,16 @@ pub fn nvim_ui_attach(
 
     ui.hl_id = 0;
     ui.client_col = -1;
-    api_ui_st().connected_uis.insert(channel_id, ui_box);
-    let ui: &mut RemoteUI = api_ui_st()
-        .borrow_mut()
-        .connected_uis
-        .get_mut(&channel_id)
-        .unwrap();
     ui.packer = PackerBuffer {
         anydata: crate::msgpack_rpc::packer::PackerData::Ui(channel_id),
         ..PackerBuffer::new()
     };
     ui.wildmenu_active = false;
+    let ui_ptr = crate::globals::GraphPtr::from(&mut *ui_box);
+    CONNECTED_UIS.with(|cell| {
+        cell.borrow_mut().insert(channel_id, ui_box);
+    });
+    let ui: &mut RemoteUI = ui_ptr.borrow_mut();
 
     g_st().current_ui = channel_id;
     ui_attach_impl(ui, channel_id);
@@ -399,7 +386,7 @@ pub fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
 
 /// Checks that a UI is attached on channel `channel_id`.
 pub fn remote_ui_attached(channel_id: u64) -> bool {
-    api_ui_st().connected_uis.contains_key(&channel_id)
+    CONNECTED_UIS.with(|cell| cell.borrow().contains_key(&channel_id))
 }
 
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
@@ -423,7 +410,14 @@ pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8], err: &mut Error) {
 /// channel-stored `addr` (which may be e.g. a tunnel to that address: |remote-ssh|).
 // DLLEXPORT void remote_ui_restart(String listen_addr, bool reuse_addr);
 pub fn remote_ui_restart(listen_addr: NvimString, reuse_addr: bool) {
-    for ui in api_ui_st().connected_uis.values_mut() {
+    let ui_ptrs: Vec<crate::globals::GraphPtr<RemoteUI>> = CONNECTED_UIS.with(|cell| {
+        cell.borrow_mut()
+            .values_mut()
+            .map(|b| crate::globals::GraphPtr::from(&mut **b))
+            .collect()
+    });
+    for ui_ptr in ui_ptrs {
+        let ui = ui_ptr.borrow_mut();
         let chan = find_channel_opt(ui.channel_id).unwrap();
         let addr = chan.addr.as_deref();
         let mut cfg_items: [KeyValuePair; 2] = [KeyValuePair::new(); 2];

@@ -357,28 +357,14 @@ impl Drop for Terminal {
     }
 }
 
-struct TerminalModuleState {
-    refresh_timer: TimeWatcher,
-    refresh_pending: bool,
-    invalidated_terminals: Vec<crate::globals::GraphPtr<Terminal>>,
-}
-
-impl TerminalModuleState {
-    const fn new() -> Self {
-        Self {
-            refresh_timer: TimeWatcher::new(),
-            refresh_pending: false,
-            invalidated_terminals: Vec::new(),
-        }
-    }
-}
-
-static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> =
-    crate::globals::GlobalState::new(TerminalModuleState::new());
-
-#[inline]
-fn term_st() -> crate::globals::GraphPtr<TerminalModuleState> {
-    TERM_MOD_STATE.handle()
+thread_local! {
+    static REFRESH_TIMER: std::cell::RefCell<TimeWatcher> = const {
+        std::cell::RefCell::new(TimeWatcher::new())
+    };
+    static REFRESH_PENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static INVALIDATED_TERMINALS: std::cell::RefCell<Vec<crate::globals::GraphPtr<Terminal>>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
 }
 
 static VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
@@ -413,9 +399,12 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
 fn invalidate_terminal_add(term: &mut Terminal) {
     let term_ptr = &raw mut *term;
     let term_gp = crate::globals::GraphPtr::new(term_ptr);
-    if !term_st().invalidated_terminals.contains(&term_gp) {
-        term_st().invalidated_terminals.push(term_gp);
-    }
+    INVALIDATED_TERMINALS.with(|cell| {
+        let mut list = cell.borrow_mut();
+        if !list.contains(&term_gp) {
+            list.push(term_gp);
+        }
+    });
 }
 
 #[inline]
@@ -424,13 +413,8 @@ const fn vterm_key_function(n: i32) -> VTermKey {
 }
 
 #[inline]
-fn refresh_timer_ptr() -> &'static mut TimeWatcher {
-    &mut term_st().borrow_mut().refresh_timer
-}
-
-#[inline]
 fn refresh_timer_events_mut() -> &'static mut MultiQueue {
-    refresh_timer_ptr().events.borrow_mut()
+    REFRESH_TIMER.with(|cell| cell.borrow().events).borrow_mut()
 }
 
 #[inline]
@@ -678,25 +662,30 @@ fn on_apc(frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
 }
 
 pub fn terminal_init() {
-    let timer = refresh_timer_ptr();
-    time_watcher_init(
-        &mut g_st().main_loop,
-        &mut *timer,
-        TimeWatcherData::TerminalRefresh,
-    );
-    timer.events = crate::globals::GraphPtr::from(multiqueue_new_child(
+    let events = crate::globals::GraphPtr::from(multiqueue_new_child(
         loop_queues(&mut g_st().main_loop).events.borrow_mut(),
     ));
+    REFRESH_TIMER.with(|cell| {
+        let mut timer = cell.borrow_mut();
+        time_watcher_init(
+            &mut g_st().main_loop,
+            &mut timer,
+            TimeWatcherData::TerminalRefresh,
+        );
+        timer.events = events;
+    });
 }
 
 pub fn terminal_teardown() {
-    let timer = refresh_timer_ptr();
-    time_watcher_stop(&mut *timer);
-    if let Some(events) = timer.events.opt_mut() {
-        multiqueue_free(events);
-    }
-    time_watcher_close(&mut *timer);
-    term_st().invalidated_terminals = Vec::new();
+    REFRESH_TIMER.with(|cell| {
+        let mut timer = cell.borrow_mut();
+        time_watcher_stop(&mut timer);
+        if let Some(events) = timer.events.opt_mut() {
+            multiqueue_free(events);
+        }
+        time_watcher_close(&mut timer);
+    });
+    INVALIDATED_TERMINALS.with(|cell| cell.borrow_mut().clear());
 }
 
 fn term_output_callback(s: &[u8], term: Option<&mut Terminal>) {
@@ -1400,15 +1389,19 @@ pub fn terminal_destroy(chan: &mut crate::channel::Channel) {
     }
 
     if term_ref.refcount == 0 {
-        if let Some(pos) = term_st()
-            .invalidated_terminals
-            .iter()
-            .position(|&t| t == term)
-        {
+        let removed = INVALIDATED_TERMINALS.with(|cell| {
+            let mut list = cell.borrow_mut();
+            if let Some(pos) = list.iter().position(|&t| t == term) {
+                list.swap_remove(pos);
+                true
+            } else {
+                false
+            }
+        });
+        if removed {
             block_autocmds();
             refresh_terminal(term_ref);
             unblock_autocmds();
-            term_st().invalidated_terminals.swap_remove(pos);
         }
 
         chan.term = crate::globals::GraphPtr::NULL;
@@ -2237,9 +2230,11 @@ fn invalidate_terminal(term: &mut Terminal, start_row: i32, end_row: i32) {
     }
 
     invalidate_terminal_add(term);
-    if !term_st().refresh_pending {
-        time_watcher_start(&mut *refresh_timer_ptr(), REFRESH_DELAY, 0);
-        term_st().refresh_pending = true;
+    if !REFRESH_PENDING.get() {
+        REFRESH_TIMER.with(|cell| {
+            time_watcher_start(&mut cell.borrow_mut(), REFRESH_DELAY, 0);
+        });
+        REFRESH_PENDING.set(true);
     }
 }
 
@@ -2322,13 +2317,13 @@ fn refresh_cursor(term: &mut Terminal, cursor_visible: &mut bool) {
 }
 
 pub(crate) fn refresh_timer_cb() {
-    term_st().refresh_pending = false;
+    REFRESH_PENDING.set(false);
     if g_st().exiting {
         return;
     }
 
     block_autocmds();
-    let to_refresh = std::mem::take(&mut term_st().invalidated_terminals);
+    let to_refresh = INVALIDATED_TERMINALS.with(|cell| std::mem::take(&mut *cell.borrow_mut()));
 
     for term_ptr in to_refresh {
         let term = term_ptr.borrow_mut();
