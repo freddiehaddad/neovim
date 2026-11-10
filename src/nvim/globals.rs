@@ -34,7 +34,6 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::VisualState;
 use crate::os::fs::{MAXPATHL, NvimStats};
 use crate::popupmenu::PumWant;
-use crate::quickfix::QfInfo;
 use crate::regexp::RegExtmatch;
 use crate::runtime::Sctx;
 use crate::state::{MODE_MAX_LENGTH, MODE_NORMAL};
@@ -332,9 +331,6 @@ pub struct EditorState {
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,
-    pub ql_info_actual: QfInfo,
-    pub llist_arena: Vec<Option<Box<QfInfo>>>,
-    pub free_llists: Vec<usize>,
     pub ccline: CmdlineInfo,
     pub(crate) tv_arenas: crate::eval::typval::TypvalArenas,
     pub(crate) uf_arenas: crate::eval::userfunc::UserfuncArenas,
@@ -781,9 +777,6 @@ impl EditorState {
             on_print: Callback::NONE,
             ctx_win_vec: Vec::new(),
             decor_state: DecorState::new(),
-            ql_info_actual: QfInfo::new_stack(),
-            llist_arena: Vec::new(),
-            free_llists: Vec::new(),
             ccline: CmdlineInfo::new(),
             tv_arenas: crate::eval::typval::TypvalArenas::new(),
             uf_arenas: crate::eval::userfunc::UserfuncArenas::new(),
