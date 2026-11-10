@@ -49,25 +49,21 @@ pub struct KeyDict_empty {
 }
 
 struct ApiDeprecatedState {
-    out_line_buf: Vec<u8>,
-    err_line_buf: Vec<u8>,
+    out_line_buf: std::cell::RefCell<Vec<u8>>,
+    err_line_buf: std::cell::RefCell<Vec<u8>>,
 }
 
 impl ApiDeprecatedState {
     const fn new() -> Self {
         Self {
-            out_line_buf: Vec::new(),
-            err_line_buf: Vec::new(),
+            out_line_buf: std::cell::RefCell::new(Vec::new()),
+            err_line_buf: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
 
-static API_DEP_STATE: crate::globals::GlobalState<ApiDeprecatedState> =
-    crate::globals::GlobalState::new(ApiDeprecatedState::new());
-
-#[inline]
-fn api_dep_st() -> crate::globals::GraphPtr<ApiDeprecatedState> {
-    API_DEP_STATE.handle()
+std::thread_local! {
+    static API_DEP_STATE: ApiDeprecatedState = const { ApiDeprecatedState::new() };
 }
 
 /// @deprecated Use nvim_exec2() instead.
@@ -1140,11 +1136,13 @@ fn push_char(line_buf: &mut Vec<u8>, c: u8, to_err: bool) {
 }
 
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
-    let line_buf = if to_err {
-        &mut api_dep_st().err_line_buf
-    } else {
-        &mut api_dep_st().out_line_buf
-    };
+    let mut line_buf = API_DEP_STATE.with(|st| {
+        if to_err {
+            std::mem::take(&mut *st.err_line_buf.borrow_mut())
+        } else {
+            std::mem::take(&mut *st.out_line_buf.borrow_mut())
+        }
+    });
 
     msg_ext_no_fast();
     g_st().no_wait_return += 1;
@@ -1152,12 +1150,19 @@ fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
         if g_st().got_int {
             break;
         }
-        push_char(line_buf, b, to_err);
+        push_char(&mut line_buf, b, to_err);
     }
     if writeln {
-        push_char(line_buf, b'\n', to_err);
+        push_char(&mut line_buf, b'\n', to_err);
     }
     g_st().no_wait_return -= 1;
+    API_DEP_STATE.with(|st| {
+        if to_err {
+            *st.err_line_buf.borrow_mut() = line_buf;
+        } else {
+            *st.out_line_buf.borrow_mut() = line_buf;
+        }
+    });
     msg_end();
 }
 

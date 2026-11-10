@@ -27,32 +27,28 @@ const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
 struct RpcServerState {
-    watchers: Vec<crate::globals::GraphPtr<SocketWatcher>>,
-    server_addr_count: u32,
+    watchers: std::cell::RefCell<Vec<crate::globals::GraphPtr<SocketWatcher>>>,
+    server_addr_count: std::cell::Cell<u32>,
 }
 
 impl RpcServerState {
     const fn new() -> Self {
         Self {
-            watchers: Vec::new(),
-            server_addr_count: 0,
+            watchers: std::cell::RefCell::new(Vec::new()),
+            server_addr_count: std::cell::Cell::new(0),
         }
     }
 }
 
-static SERVER_STATE: crate::globals::GlobalState<RpcServerState> =
-    crate::globals::GlobalState::new(RpcServerState::new());
-
-#[inline]
-fn srv_st() -> crate::globals::GraphPtr<RpcServerState> {
-    SERVER_STATE.handle()
+std::thread_local! {
+    static SERVER_STATE: RpcServerState = const { RpcServerState::new() };
 }
 
 pub fn server_init(listen_addr: Option<&CStr>) -> bool {
     let mut ok = true;
     let mut owned_addr: Option<std::ffi::CString> = None;
     let mut user_arg: TriState = K_TRUE;
-    srv_st().watchers = Vec::new();
+    SERVER_STATE.with(|st| st.watchers.borrow_mut().clear());
 
     if listen_addr.is_none_or(|s| s.to_bytes().is_empty()) {
         if os_env_exists(ENV_LISTEN, true) {
@@ -106,24 +102,29 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
 }
 
 fn set_vservername() {
-    let default_server = srv_st()
-        .watchers
-        .first()
-        .map(|&first| first.borrow().addr_cstr());
-    set_vim_var_string(VV_SEND_SERVER, default_server, -1);
+    let default_server = SERVER_STATE.with(|st| {
+        st.watchers
+            .borrow()
+            .first()
+            .map(|&first| first.borrow().addr_cstr().to_owned())
+    });
+    set_vim_var_string(VV_SEND_SERVER, default_server.as_deref(), -1);
 }
 
 pub fn server_teardown() {
-    for &watcher in &srv_st().watchers {
+    let watchers = SERVER_STATE.with(|st| std::mem::take(&mut *st.watchers.borrow_mut()));
+    for watcher in watchers {
         socket_watcher_close(watcher.borrow_mut());
     }
-    srv_st().watchers = Vec::new();
 }
 
 pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     let mut fmt: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
-    let cur_count = srv_st().server_addr_count;
-    srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
+    let cur_count = SERVER_STATE.with(|st| {
+        let c = st.server_addr_count.get();
+        st.server_addr_count.set(c.wrapping_add(1));
+        c
+    });
 
     #[cfg(windows)]
     let r = {
@@ -171,7 +172,8 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
 
 pub fn server_owns_pipe_address(address: &CStr) -> bool {
     let path = fix_fname(Some(address));
-    for &watcher in &srv_st().watchers {
+    let watchers = SERVER_STATE.with(|st| st.watchers.borrow().clone());
+    for watcher in watchers {
         let addr = fix_fname(Some(watcher.addr_cstr()));
         if path == addr {
             return true;
@@ -210,25 +212,28 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
         return result;
     }
 
-    let w = &mut srv_st().watchers;
-    for &existing in w.iter() {
-        if watcher.addr_bytes() == existing.borrow().addr_bytes() {
-            logmsg!(
-                LOGLVL_ERR,
-                None,
-                Some(c"server_start"),
-                184,
-                true,
-                c"Already listening on %s",
-                watcher.addr_cstr(),
-            );
+    let already_listening = SERVER_STATE.with(|st| {
+        st.watchers
+            .borrow()
+            .iter()
+            .any(|&existing| watcher.addr_bytes() == existing.borrow().addr_bytes())
+    });
+    if already_listening {
+        logmsg!(
+            LOGLVL_ERR,
+            None,
+            Some(c"server_start"),
+            184,
+            true,
+            c"Already listening on %s",
+            watcher.addr_cstr(),
+        );
 
-            watcher.free_tcp_addrinfo();
+        watcher.free_tcp_addrinfo();
 
-            socket_watcher_close(Box::leak(watcher));
+        socket_watcher_close(Box::leak(watcher));
 
-            return 2;
-        }
+        return 2;
     }
 
     result = socket_watcher_start(&mut watcher, MAX_CONNECTIONS);
@@ -250,7 +255,11 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
         return result;
     }
 
-    w.push(crate::globals::GraphPtr::from(Box::leak(watcher)));
+    SERVER_STATE.with(|st| {
+        st.watchers
+            .borrow_mut()
+            .push(crate::globals::GraphPtr::from(Box::leak(watcher)));
+    });
 
     if get_vim_var_str(VV_SEND_SERVER).to_bytes().is_empty() {
         set_vservername();
@@ -267,11 +276,13 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
     let addr_bytes = addr_cstr.to_bytes();
 
-    let w = &mut srv_st().watchers;
-    let Some(idx) = w
-        .iter()
-        .position(|&watcher| addr_bytes == watcher.addr_bytes())
-    else {
+    let watcher_opt = SERVER_STATE.with(|st| {
+        let mut w = st.watchers.borrow_mut();
+        w.iter()
+            .position(|&watcher| addr_bytes == watcher.addr_bytes())
+            .map(|idx| w.swap_remove(idx))
+    });
+    let Some(watcher) = watcher_opt else {
         logmsg!(
             LOGLVL_WRN,
             None,
@@ -284,8 +295,6 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
         return false;
     };
 
-    let watcher = w.swap_remove(idx);
-
     socket_watcher_close(watcher.borrow_mut());
 
     if !keep_vservername && Some(addr_bytes) == Some(get_vim_var_str(VV_SEND_SERVER).to_bytes()) {
@@ -296,11 +305,13 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
 }
 
 pub fn server_address_list() -> Vec<std::ffi::CString> {
-    srv_st()
-        .watchers
-        .iter()
-        .map(|&watcher| watcher.addr_cstr().to_owned())
-        .collect()
+    SERVER_STATE.with(|st| {
+        st.watchers
+            .borrow()
+            .iter()
+            .map(|&watcher| watcher.addr_cstr().to_owned())
+            .collect()
+    })
 }
 
 pub(crate) fn connection_cb(watcher: &mut SocketWatcher, result: i32) {

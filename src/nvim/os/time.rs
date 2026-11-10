@@ -26,27 +26,8 @@ pub struct Tm {
 }
 
 #[cfg(unix)]
-struct OsTimeState {
-    tz_cache: [u8; 64],
-}
-
-#[cfg(unix)]
-impl OsTimeState {
-    const fn new() -> Self {
-        Self {
-            tz_cache: [0u8; 64],
-        }
-    }
-}
-
-#[cfg(unix)]
-static OSTIME_STATE: crate::globals::GlobalState<OsTimeState> =
-    crate::globals::GlobalState::new(OsTimeState::new());
-
-#[cfg(unix)]
-#[inline]
-fn ostime_st() -> crate::globals::GraphPtr<OsTimeState> {
-    OSTIME_STATE.handle()
+std::thread_local! {
+    static TZ_CACHE: std::cell::Cell<[u8; 64]> = const { std::cell::Cell::new([0u8; 64]) };
 }
 
 unsafe extern "C" {
@@ -187,13 +168,14 @@ pub fn os_localtime_r<'a>(clock: &time_t, result: &'a mut Tm) -> Option<&'a mut 
         let mut tz_buf = [0u8; 64];
         let tz_cstr = os_getenv_buf(c"TZ", &mut tz_buf);
         let tz_bytes = tz_cstr.map_or(&[][..], std::ffi::CStr::to_bytes);
-        let cache = &mut ostime_st().tz_cache;
+        let mut cache = TZ_CACHE.get();
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);
         if cache_len != cmp_len || cache[..cache_len] != tz_bytes[..cmp_len] {
             tzset();
             cache.fill(0);
             cache[..cmp_len].copy_from_slice(&tz_bytes[..cmp_len]);
+            TZ_CACHE.set(cache);
         }
         localtime_r(clock, result).as_mut()
     }

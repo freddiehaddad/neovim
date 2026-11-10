@@ -279,29 +279,36 @@ impl TUIData {
 }
 
 struct TuiModuleState {
-    cursor_style_enabled: bool,
-    stty_erase_buf: [u8; 2],
-    stty_erase_inited: bool,
-    urls: Vec<std::ffi::CString>,
+    cursor_style_enabled: std::cell::Cell<bool>,
+    stty_erase_buf: std::cell::Cell<[u8; 2]>,
+    stty_erase_inited: std::cell::Cell<bool>,
+    urls: std::cell::RefCell<Vec<std::ffi::CString>>,
 }
 
 impl TuiModuleState {
     const fn new() -> Self {
         Self {
-            cursor_style_enabled: false,
-            stty_erase_buf: [0, 0],
-            stty_erase_inited: false,
-            urls: Vec::new(),
+            cursor_style_enabled: std::cell::Cell::new(false),
+            stty_erase_buf: std::cell::Cell::new([0, 0]),
+            stty_erase_inited: std::cell::Cell::new(false),
+            urls: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
 
-static TUI_MOD_STATE: GlobalState<TuiModuleState> = GlobalState::new(TuiModuleState::new());
-
-#[inline]
-fn tui_st() -> crate::globals::GraphPtr<TuiModuleState> {
-    TUI_MOD_STATE.handle()
+std::thread_local! {
+    static TUI_MOD_STATE: TuiModuleState = const { TuiModuleState::new() };
 }
+
+static SINGLE_BYTE_SLICES: [[u8; 1]; 256] = {
+    let mut table = [[0u8; 1]; 256];
+    let mut i = 0;
+    while i < 256 {
+        table[i][0] = i as u8;
+        i += 1;
+    }
+    table
+};
 
 use crate::api::ui::{K_LINE_FLAG_WRAP, MAX_SCHAR_SIZE};
 use crate::channel::STDOUT_FILENO;
@@ -1113,7 +1120,7 @@ pub fn tui_is_stopped(tui: &TUIData) -> bool {
 }
 
 pub fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
-    tui_st().urls = Vec::new();
+    TUI_MOD_STATE.with(|st| st.urls.borrow_mut().clear());
 
     drop(tui);
 }
@@ -1334,10 +1341,12 @@ fn update_attrs(tui: &mut TUIData, attr_id: i32) {
 
     if tui.url != attrs.url {
         if attrs.url >= 0 {
-            let url_str =
-                tui_st().borrow_mut().urls.as_slice()[attrs.url as usize].to_string_lossy();
-            let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
-            let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
+            let formatted = TUI_MOD_STATE.with(|st| {
+                let urls = st.urls.borrow();
+                let url_str = urls[attrs.url as usize].to_string_lossy();
+                let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
+                format!("\x1b]8;id={id};{url_str}\x1b\\")
+            });
             out(tui, formatted.as_bytes());
         } else {
             out(tui, b"\x1b]8;;\x1b\\");
@@ -1674,7 +1683,7 @@ fn decode_cursor_entry(args: Dict) -> Cursorentry {
 }
 
 pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array) {
-    tui_st().cursor_style_enabled = guicursor_enabled;
+    TUI_MOD_STATE.with(|st| st.cursor_style_enabled.set(guicursor_enabled));
     if !guicursor_enabled {
         tui_cursor_reset_style(tui);
         return;
@@ -1725,7 +1734,7 @@ pub fn tui_mouse_off(tui: &mut TUIData) {
 }
 
 fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
-    if !tui_st().cursor_style_enabled {
+    if !TUI_MOD_STATE.with(|st| st.cursor_style_enabled.get()) {
         tui_cursor_reset_style(tui);
         return;
     }
@@ -1870,14 +1879,15 @@ pub fn tui_add_url(_tui: &mut TUIData, url: NvimString) -> i32 {
     }
 
     let url_bytes = url.cstr_bytes();
-    if let Some(pos) = tui_st().urls.iter().position(|u| u.as_bytes() == url_bytes) {
-        return pos as i32;
-    }
-    let idx = tui_st().urls.len() as i32;
-    tui_st()
-        .urls
-        .push(crate::memory::bytes_to_cstring(url_bytes));
-    idx
+    TUI_MOD_STATE.with(|st| {
+        let mut urls = st.urls.borrow_mut();
+        if let Some(pos) = urls.iter().position(|u| u.as_bytes() == url_bytes) {
+            return pos as i32;
+        }
+        let idx = urls.len() as i32;
+        urls.push(crate::memory::bytes_to_cstring(url_bytes));
+        idx
+    })
 }
 
 pub fn tui_hl_attr_define(
@@ -2877,12 +2887,11 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
 
 fn tui_init_stty_erase(input: &mut TermInput) {
     if let Some(erase_ch) = stream_get_stty_erase(input.in_fd, &mut input.read_stream.s) {
-        tui_st().stty_erase_buf[0] = erase_ch;
-        tui_st().stty_erase_buf[1] = 0;
+        let buf = [erase_ch, 0];
+        TUI_MOD_STATE.with(|st| st.stty_erase_buf.set(buf));
         #[cfg(unix)]
         if log_st().g_min_log_level <= LOGLVL_DBG {
-            let erase_cstr =
-                CStr::from_bytes_until_nul(&tui_st().borrow().stty_erase_buf).unwrap_or(c"");
+            let erase_cstr = CStr::from_bytes_until_nul(&buf).unwrap_or(c"");
             logmsg!(
                 LOGLVL_DBG,
                 None,
@@ -2901,11 +2910,11 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
     value: Option<&'a CStr>,
     input: &mut TermInput,
 ) -> Option<&'a [u8]> {
-    if !tui_st().stty_erase_inited {
-        tui_st().stty_erase_inited = true;
+    if !TUI_MOD_STATE.with(|st| st.stty_erase_inited.get()) {
+        TUI_MOD_STATE.with(|st| st.stty_erase_inited.set(true));
         tui_init_stty_erase(input);
     }
-    let erase_byte = tui_st().stty_erase_buf[0];
+    let erase_byte = TUI_MOD_STATE.with(|st| st.stty_erase_buf.get()[0]);
 
     if name == "key_backspace" {
         if log_st().g_min_log_level <= LOGLVL_DBG {
@@ -2920,7 +2929,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
             );
         }
         if erase_byte != 0 {
-            return Some(&tui_st().borrow_mut().stty_erase_buf[..1]);
+            return Some(&SINGLE_BYTE_SLICES[erase_byte as usize]);
         }
     } else if name == "key_dc" {
         if log_st().g_min_log_level <= LOGLVL_DBG {

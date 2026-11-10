@@ -59,26 +59,9 @@ struct TSLuaTree {
     tree: *const TSTree,
 }
 
-struct TreesitterModuleState {
-    langs: std::collections::BTreeMap<Vec<u8>, *mut TSLanguage>,
-    input_buf: [u8; BUFSIZE],
-}
-
-impl TreesitterModuleState {
-    const fn new() -> Self {
-        Self {
-            langs: std::collections::BTreeMap::new(),
-            input_buf: [0; BUFSIZE],
-        }
-    }
-}
-
-static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> =
-    crate::globals::GlobalState::new(TreesitterModuleState::new());
-
-#[inline]
-fn ts_st() -> crate::globals::GraphPtr<TreesitterModuleState> {
-    TS_STATE.handle()
+std::thread_local! {
+    static TS_LANGS: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, *mut TSLanguage>> =
+        const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
 }
 
 static PARSER_META: [(&CStr, extern "C-unwind" fn(*mut lua_State) -> i32); 8] = [
@@ -164,13 +147,13 @@ static QUERY_META: [(&CStr, extern "C-unwind" fn(*mut lua_State) -> i32); 5] = [
 
 #[inline]
 fn langs_has(lang_name: Option<&[u8]>) -> bool {
-    lang_name.is_some_and(|name| ts_st().langs.contains_key(name))
+    lang_name.is_some_and(|name| TS_LANGS.with_borrow(|langs| langs.contains_key(name)))
 }
 
 #[inline]
 fn langs_get(lang_name: Option<&[u8]>) -> *mut TSLanguage {
     lang_name
-        .and_then(|name| ts_st().langs.get(name).copied())
+        .and_then(|name| TS_LANGS.with_borrow(|langs| langs.get(name).copied()))
         .unwrap_or(ptr::null_mut())
 }
 
@@ -279,9 +262,9 @@ fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
         return luaL_error_str(lstate, &msg);
     }
 
-    ts_st()
-        .langs
-        .insert(lang_name.to_bytes().to_vec(), lang.cast_mut());
+    TS_LANGS.with_borrow_mut(|langs| {
+        langs.insert(lang_name.to_bytes().to_vec(), lang.cast_mut());
+    });
 
     lua_pushboolean_safe(lstate, true);
     1
@@ -289,7 +272,7 @@ fn add_language(lstate: *mut lua_State, is_wasm: bool) -> i32 {
 
 extern "C-unwind" fn tslua_remove_lang(lstate: *mut lua_State) -> i32 {
     let lang_name = luaL_checkstring(lstate, 1);
-    let present = ts_st().langs.remove(lang_name.to_bytes()).is_some();
+    let present = TS_LANGS.with_borrow_mut(|langs| langs.remove(lang_name.to_bytes()).is_some());
     lua_pushboolean_safe(lstate, present);
     1
 }
@@ -430,17 +413,15 @@ extern "C-unwind" fn parser_tostring(lstate: *mut lua_State) -> i32 {
     1
 }
 
-fn input_cb(bp: &mut FileBuf, position: TSPoint) -> (&'static [u8], u32) {
-    let buf = &mut ts_st().borrow_mut().input_buf;
-
+fn input_cb(bp: &mut FileBuf, position: TSPoint, buf: &mut [u8; BUFSIZE]) -> u32 {
     if (position.row as Linenr) >= bp.b_ml.ml_line_count {
-        return (&[], 0);
+        return 0;
     }
     let lnum = (position.row as Linenr) + 1;
     let len = ml_get_buf_len(bp, lnum) as usize;
     let col = position.column as usize;
     if col > len {
-        return (&[], 0);
+        return 0;
     }
     let tocopy = (len - col).min(BUFSIZE);
 
@@ -460,7 +441,7 @@ fn input_cb(bp: &mut FileBuf, position: TSPoint) -> (&'static [u8], u32) {
         buf[tocopy] = b'\n';
         bytes_read += 1;
     }
-    (&buf[..bytes_read as usize], bytes_read)
+    bytes_read
 }
 
 fn push_ranges(lstate: *mut lua_State, ranges: &[TSRange], include_bytes: bool) {

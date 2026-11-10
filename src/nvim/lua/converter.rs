@@ -40,24 +40,8 @@ const K_NLUA_PUSH_FREE_REFS: i32 = 0x02;
 const TYPE_IDX_VALUE: bool = true;
 const VAL_IDX_VALUE: bool = false;
 
-struct LuaConverterState {
-    typval_conv_special: bool,
-}
-
-impl LuaConverterState {
-    const fn new() -> Self {
-        Self {
-            typval_conv_special: false,
-        }
-    }
-}
-
-static LUACONV_STATE: crate::globals::GlobalState<LuaConverterState> =
-    crate::globals::GlobalState::new(LuaConverterState::new());
-
-#[inline]
-fn luaconv_st() -> crate::globals::GraphPtr<LuaConverterState> {
-    LUACONV_STATE.handle()
+std::thread_local! {
+    static TYPVAL_CONV_SPECIAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[repr(C)]
@@ -511,7 +495,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
 
 #[inline]
 fn lua_conv_nil(lstate: *mut lua_State) {
-    if luaconv_st().typval_conv_special {
+    if TYPVAL_CONV_SPECIAL.get() {
         lua_pushnil_safe(lstate);
     } else {
         nlua_pushref(lstate, crate::globals::nlua_global_refs_mut().nil_ref);
@@ -520,7 +504,7 @@ fn lua_conv_nil(lstate: *mut lua_State) {
 
 #[inline]
 fn lua_conv_empty_dict(lstate: *mut lua_State) {
-    if luaconv_st().typval_conv_special {
+    if TYPVAL_CONV_SPECIAL.get() {
         nlua_create_typed_table(lstate, 0, 0, ObjectType::ObjectTypeDict);
     } else {
         lua_createtable_safe(lstate, 0, 0);
@@ -971,7 +955,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
 
 /// Convert Vimscript `TypVal` to Lua value (`nlua_push_typval`).
 pub fn nlua_push_typval(lstate: *mut lua_State, tv: &mut TypVal, flags: i32) -> bool {
-    luaconv_st().typval_conv_special = (flags & K_NLUA_PUSH_SPECIAL) != 0;
+    TYPVAL_CONV_SPECIAL.set((flags & K_NLUA_PUSH_SPECIAL) != 0);
     let initial_size = nlua_gettop(lstate);
 
     if !encode_vim_to_lua(lstate, tv) {

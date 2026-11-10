@@ -1660,7 +1660,8 @@ fn command_line_scan(parmp: &mut Mparm) {
             {
                 to_slash_if_needed(&mut p_vec);
                 if p_vec[0] == b'~' && p_vec.get(1) == Some(&b'/') {
-                    let h_bytes = os_homedir().map_or(&[][..], CStr::to_bytes);
+                    let homedir = os_homedir();
+                    let h_bytes = homedir.as_deref().map_or(&[][..], CStr::to_bytes);
                     let p_bytes = &p_vec[1..p_vec.len() - 1];
                     let mut expanded = Vec::with_capacity(h_bytes.len() + p_bytes.len() + 1);
                     expanded.extend_from_slice(h_bytes);

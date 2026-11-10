@@ -48,26 +48,9 @@ const MAX_ENVPATHLEN: usize = if cfg!(windows) {
     i32::MAX as usize
 };
 
-struct EnvModuleState {
-    homedir: Option<std::ffi::CString>,
-    homedir_buf: [u8; MAXPATHL],
-}
-
-impl EnvModuleState {
-    const fn new() -> Self {
-        Self {
-            homedir: None,
-            homedir_buf: [0; MAXPATHL],
-        }
-    }
-}
-
-static ENV_STATE: crate::globals::GlobalState<EnvModuleState> =
-    crate::globals::GlobalState::new(EnvModuleState::new());
-
-#[inline]
-fn env_st() -> crate::globals::GraphPtr<EnvModuleState> {
-    ENV_STATE.handle()
+std::thread_local! {
+    static HOMEDIR: std::cell::RefCell<Option<std::ffi::CString>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 use crate::version::{default_vim_dir, default_vimruntime_dir};
@@ -372,31 +355,29 @@ pub fn os_get_hostname(hostname: &mut [u8]) {
 
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
 #[cfg(windows)]
-pub fn os_homedir() -> Option<&'static CStr> {
-    let Some(ref hd) = env_st().borrow_mut().homedir else {
+pub fn os_homedir() -> Option<std::ffi::CString> {
+    let hd = HOMEDIR.with_borrow(|h| h.clone());
+    if hd.is_none() {
         emsg(c"os_homedir failed: homedir not initialized");
-        return None;
-    };
-    Some(hd.as_c_str())
+    }
+    hd
 }
 
-fn os_uv_homedir() -> Option<&'static CStr> {
+fn os_uv_homedir() -> Option<std::ffi::CString> {
     unsafe {
-        let mut st = env_st();
-        st.homedir_buf[0] = 0;
+        let mut homedir_buf = [0u8; MAXPATHL];
         let mut homedir_size = MAXPATHL;
-        let ret_value = uv_os_homedir(st.homedir_buf.as_mut_ptr().cast(), &mut homedir_size);
+        let ret_value = uv_os_homedir(homedir_buf.as_mut_ptr().cast(), &mut homedir_size);
         if ret_value == 0 && homedir_size < MAXPATHL {
-            return Some(crate::memory::bytes_as_cstr(&st.borrow().homedir_buf));
+            return Some(crate::memory::bytes_as_cstr(&homedir_buf).to_owned());
         }
-        st.homedir_buf[0] = 0;
         None
     }
 }
 
 /// Sets `homedir` to the "real", resolved user home directory.
 pub fn init_homedir() {
-    env_st().homedir = None;
+    HOMEDIR.with_borrow_mut(|h| *h = None);
 
     let mut var = os_getenv_cstr(c"HOME");
 
@@ -419,7 +400,7 @@ pub fn init_homedir() {
             }
         }
         if var.is_none() {
-            var = os_uv_homedir().map(CStr::to_owned);
+            var = os_uv_homedir();
         }
 
         if let Some(ref cur_var) = var
@@ -449,7 +430,7 @@ pub fn init_homedir() {
     #[cfg(not(windows))]
     {
         if var.is_none() {
-            var = os_uv_homedir().map(CStr::to_owned);
+            var = os_uv_homedir();
         }
 
         if let Some(ref cur_var) = var
@@ -466,12 +447,13 @@ pub fn init_homedir() {
     }
 
     if let Some(ref v) = var {
-        env_st().homedir = to_slash_save(Some(v));
+        let saved = to_slash_save(Some(v));
+        HOMEDIR.with_borrow_mut(|h| *h = saved);
     }
 }
 
 pub fn free_homedir() {
-    env_st().homedir = None;
+    HOMEDIR.with_borrow_mut(|h| *h = None);
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
@@ -594,7 +576,7 @@ pub fn expand_env_esc(
                 || vim_ispathsep(i32::from(src_bytes[1]))
                 || matches!(src_bytes[1], b' ' | b',' | b'\t' | b'\n')
             {
-                var_cstr = env_st().homedir.clone();
+                var_cstr = HOMEDIR.with_borrow(|h| h.clone());
                 tail_off = 1;
             } else {
                 #[cfg(not(windows))]
@@ -801,7 +783,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
 
         #[cfg(windows)]
         if name_bytes == b"HOME" {
-            return env_st().homedir.clone();
+            return HOMEDIR.with_borrow(|h| h.clone());
         }
 
         #[cfg(windows)]
@@ -927,7 +909,7 @@ pub fn home_replace(
         return dlen.min(dstlen - 1);
     }
 
-    let homedir_owned = env_st().homedir.clone();
+    let homedir_owned = HOMEDIR.with_borrow(|h| h.clone());
     let homedir_opt = homedir_owned.as_deref();
     let dirlen = homedir_opt.map_or(0, |s| s.to_bytes().len());
 

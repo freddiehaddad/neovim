@@ -25,12 +25,9 @@ impl OsUsersState {
     }
 }
 
-static USERS_STATE: crate::globals::GlobalState<OsUsersState> =
-    crate::globals::GlobalState::new(OsUsersState::new());
-
-#[inline]
-fn users_st() -> crate::globals::GraphPtr<OsUsersState> {
-    USERS_STATE.handle()
+std::thread_local! {
+    static USERS_STATE: std::cell::RefCell<OsUsersState> =
+        const { std::cell::RefCell::new(OsUsersState::new()) };
 }
 
 #[cfg(all(
@@ -247,43 +244,48 @@ pub fn os_get_userdir(name: Option<&CStr>) -> Option<CString> {
 /// # Safety
 /// Must only be called during exit cleanup.
 pub fn free_users() {
-    users_st().users = Vec::new();
+    USERS_STATE.with_borrow_mut(|st| st.users.clear());
 }
 
 fn init_users() {
-    if users_st().lazy_init_done {
+    if USERS_STATE.with_borrow(|st| st.lazy_init_done) {
         return;
     }
-    users_st().lazy_init_done = true;
-    users_st().users = collect_usernames();
+    let collected = collect_usernames();
+    USERS_STATE.with_borrow_mut(|st| {
+        st.lazy_init_done = true;
+        st.users = collected;
+    });
 }
 
 /// Obtain username at `idx` for `ExpandGeneric()` (`get_users`).
 ///
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
-pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_users(xp: &mut crate::os::env::ExpandCtx, idx: i32) -> Option<&CStr> {
     let i = usize::try_from(idx).ok()?;
     init_users();
-    users_st().borrow_mut().users.get(i).map(CString::as_c_str)
+    let user = USERS_STATE.with_borrow(|st| st.users.get(i).cloned())?;
+    Some(xp.set_item(user))
 }
 
 /// Check whether `name` matches a cached username (`match_user`).
 pub fn match_user(target: &[u8]) -> i32 {
     init_users();
-    let users = &users_st().users;
-    let mut result = 0;
+    USERS_STATE.with_borrow(|st| {
+        let mut result = 0;
 
-    for entry_cstr in users {
-        let entry = entry_cstr.as_bytes();
-        if entry == target {
-            return 2;
+        for entry_cstr in &st.users {
+            let entry = entry_cstr.as_bytes();
+            if entry == target {
+                return 2;
+            }
+            if entry.starts_with(target) {
+                result = 1;
+            }
         }
-        if entry.starts_with(target) {
-            result = 1;
-        }
-    }
-    result
+        result
+    })
 }
 
 #[cfg(test)]

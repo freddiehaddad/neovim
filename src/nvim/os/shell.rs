@@ -114,12 +114,9 @@ impl ShellModuleState {
     }
 }
 
-static SH_STATE: crate::globals::GlobalState<ShellModuleState> =
-    crate::globals::GlobalState::new(ShellModuleState::new());
-
-#[inline]
-fn sh_st() -> crate::globals::GraphPtr<ShellModuleState> {
-    SH_STATE.handle()
+std::thread_local! {
+    static SH_STATE: std::cell::RefCell<ShellModuleState> =
+        const { std::cell::RefCell::new(ShellModuleState::new()) };
 }
 
 #[cfg(windows)]
@@ -433,11 +430,12 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
     } else {
         let mut check_spaces = false;
-        if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
+        let did_find_nul = SH_STATE.with_borrow(|st| st.did_find_nul);
+        if shell_style == STYLE_PRINT && !did_find_nul {
             buffer_vec[len] = 0;
             if len != 0 && (crate::memory::bytes_until_nul(&buffer_vec).len() as i32) < (len as i32)
             {
-                sh_st().did_find_nul = true;
+                SH_STATE.with_borrow_mut(|st| st.did_find_nul = true);
             } else {
                 check_spaces = true;
             }
@@ -890,43 +888,53 @@ pub(crate) fn system_data_cb(buf: &[u8], dbuf: &mut Vec<u8>, _eof: bool) -> usiz
 }
 
 fn out_data_decide_throttle(size: usize) -> bool {
-    if size == 0 {
-        let previous_decision = sh_st().throttle_visit > 0;
-        sh_st().throttle_started = 0;
-        sh_st().throttle_received = 0;
-        sh_st().throttle_visit = 0;
-        return previous_decision;
-    }
-
-    sh_st().throttle_received += size;
-    if sh_st().throttle_received < OUT_DATA_THRESHOLD
-        || (sh_st().throttle_started == 0 && sh_st().throttle_received < size + 1000)
-    {
-        return false;
-    } else if sh_st().throttle_visit == 0 {
-        sh_st().throttle_started = os_hrtime();
-    } else {
-        let since = os_hrtime() - sh_st().throttle_started;
-        if since < (sh_st().throttle_visit as u64) * (NS_PER_SEC / 10) {
-            return true;
+    let mut pulse_msg = [0u8; 4];
+    let mut first_visit = false;
+    let should_pulse = SH_STATE.with_borrow_mut(|st| {
+        if size == 0 {
+            let previous_decision = st.throttle_visit > 0;
+            st.throttle_started = 0;
+            st.throttle_received = 0;
+            st.throttle_visit = 0;
+            return Err(previous_decision);
         }
-        if since > 3 * NS_PER_SEC {
-            sh_st().throttle_received = 0;
-            sh_st().throttle_visit = 0;
-            return false;
-        }
-    }
 
-    sh_st().throttle_visit += 1;
-    let tick = sh_st().throttle_visit % 4;
-    sh_st().throttle_pulse_msg[0] = if tick > 0 { b'.' } else { b' ' };
-    sh_st().throttle_pulse_msg[1] = if tick > 1 { b'.' } else { b' ' };
-    sh_st().throttle_pulse_msg[2] = if tick > 2 { b'.' } else { b' ' };
-    if sh_st().throttle_visit == 1 {
+        st.throttle_received += size;
+        if st.throttle_received < OUT_DATA_THRESHOLD
+            || (st.throttle_started == 0 && st.throttle_received < size + 1000)
+        {
+            return Err(false);
+        } else if st.throttle_visit == 0 {
+            st.throttle_started = os_hrtime();
+        } else {
+            let since = os_hrtime() - st.throttle_started;
+            if since < (st.throttle_visit as u64) * (NS_PER_SEC / 10) {
+                return Err(true);
+            }
+            if since > 3 * NS_PER_SEC {
+                st.throttle_received = 0;
+                st.throttle_visit = 0;
+                return Err(false);
+            }
+        }
+
+        st.throttle_visit += 1;
+        let tick = st.throttle_visit % 4;
+        st.throttle_pulse_msg[0] = if tick > 0 { b'.' } else { b' ' };
+        st.throttle_pulse_msg[1] = if tick > 1 { b'.' } else { b' ' };
+        st.throttle_pulse_msg[2] = if tick > 2 { b'.' } else { b' ' };
+        pulse_msg = st.throttle_pulse_msg;
+        first_visit = st.throttle_visit == 1;
+        Ok(())
+    });
+    if let Err(res) = should_pulse {
+        return res;
+    }
+    if first_visit {
         msg_puts(c"...\n");
     }
     msg_putchar(b'\r' as i32);
-    msg_puts(std::ffi::CStr::from_bytes_until_nul(&sh_st().throttle_pulse_msg).unwrap_or(c""));
+    msg_puts(std::ffi::CStr::from_bytes_until_nul(&pulse_msg).unwrap_or(c""));
     msg_putchar(b'\r' as i32);
     ui_flush();
     true
@@ -934,34 +942,34 @@ fn out_data_decide_throttle(size: usize) -> bool {
 
 fn out_data_ring(output: Option<&[u8]>) {
     let Some(output) = output else {
-        let len = sh_st().last_skipped_len;
-        let ring_slice = &sh_st().borrow().last_skipped[..len];
+        let (ring_buf, len) = SH_STATE.with_borrow(|st| (st.last_skipped, st.last_skipped_len));
         let mut count = len;
-        out_data_append_to_screen(ring_slice, &mut count, STDOUT_FILENO, true);
+        out_data_append_to_screen(&ring_buf[..len], &mut count, STDOUT_FILENO, true);
         return;
     };
 
-    if output.is_empty() {
-        sh_st().last_skipped_len = 0;
-        return;
-    }
-
-    let size = output.len();
-    if size >= MAX_CHUNK_SIZE {
-        let start = size - MAX_CHUNK_SIZE;
-        sh_st().last_skipped.copy_from_slice(&output[start..]);
-        sh_st().last_skipped_len = MAX_CHUNK_SIZE;
-    } else {
-        let keep_len = sh_st().last_skipped_len.min(MAX_CHUNK_SIZE - size);
-        let keep_start = sh_st().last_skipped_len - keep_len;
-        if keep_start != 0 {
-            sh_st()
-                .last_skipped
-                .copy_within(keep_start..keep_start + keep_len, 0);
+    SH_STATE.with_borrow_mut(|st| {
+        if output.is_empty() {
+            st.last_skipped_len = 0;
+            return;
         }
-        sh_st().last_skipped[keep_len..keep_len + size].copy_from_slice(output);
-        sh_st().last_skipped_len = keep_len + size;
-    }
+
+        let size = output.len();
+        if size >= MAX_CHUNK_SIZE {
+            let start = size - MAX_CHUNK_SIZE;
+            st.last_skipped.copy_from_slice(&output[start..]);
+            st.last_skipped_len = MAX_CHUNK_SIZE;
+        } else {
+            let keep_len = st.last_skipped_len.min(MAX_CHUNK_SIZE - size);
+            let keep_start = st.last_skipped_len - keep_len;
+            if keep_start != 0 {
+                st.last_skipped
+                    .copy_within(keep_start..keep_start + keep_len, 0);
+            }
+            st.last_skipped[keep_len..keep_len + size].copy_from_slice(output);
+            st.last_skipped_len = keep_len + size;
+        }
+    });
 }
 
 pub fn out_data_event(str_copy: Vec<u8>, fd: i32) {

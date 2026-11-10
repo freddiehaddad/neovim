@@ -1504,25 +1504,21 @@ pub fn api_set_sctx(channel_id: u64) -> Sctx {
 }
 
 struct ApiMetadataState {
-    mem_for_metadata: ArenaMem,
-    metadata_obj: Object,
+    mem_for_metadata: std::cell::Cell<ArenaMem>,
+    metadata_obj: std::cell::Cell<Object>,
 }
 
 impl ApiMetadataState {
     const fn new() -> Self {
         Self {
-            mem_for_metadata: ArenaMem::NULL,
-            metadata_obj: OBJECT_NIL,
+            mem_for_metadata: std::cell::Cell::new(ArenaMem::NULL),
+            metadata_obj: std::cell::Cell::new(OBJECT_NIL),
         }
     }
 }
 
-static API_META_STATE: crate::globals::GlobalState<ApiMetadataState> =
-    crate::globals::GlobalState::new(ApiMetadataState::new());
-
-#[inline]
-fn api_meta_st() -> crate::globals::GraphPtr<ApiMetadataState> {
-    API_META_STATE.handle()
+std::thread_local! {
+    static API_META_STATE: ApiMetadataState = const { ApiMetadataState::new() };
 }
 
 struct ApiFunctionMeta {
@@ -4278,17 +4274,20 @@ pub fn api_get_packed_metadata() -> &'static [u8] {
 }
 
 pub fn api_metadata() -> Object {
-    if api_meta_st().metadata_obj.obj_type == ObjectType::ObjectTypeNil {
-        let mut arena = Arena::new();
-        let mut err = Error::new();
-        let packed = api_get_packed_metadata();
-        api_meta_st().metadata_obj = unpack(packed, &mut arena, &mut err);
-        if error_set(&err) || api_meta_st().metadata_obj.obj_type != ObjectType::ObjectTypeDict {
-            std::process::abort();
+    API_META_STATE.with(|st| {
+        if st.metadata_obj.get().obj_type == ObjectType::ObjectTypeNil {
+            let mut arena = Arena::new();
+            let mut err = Error::new();
+            let packed = api_get_packed_metadata();
+            let obj = unpack(packed, &mut arena, &mut err);
+            if error_set(&err) || obj.obj_type != ObjectType::ObjectTypeDict {
+                std::process::abort();
+            }
+            st.metadata_obj.set(obj);
+            st.mem_for_metadata.set(arena_finish(&mut arena));
         }
-        api_meta_st().mem_for_metadata = arena_finish(&mut arena);
-    }
-    api_meta_st().metadata_obj
+        st.metadata_obj.get()
+    })
 }
 
 pub fn api_metadata_raw() -> NvimString {

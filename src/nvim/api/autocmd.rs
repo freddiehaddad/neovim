@@ -118,22 +118,8 @@ pub struct KeyDict_exec_autocmds {
     pub data: Object,
 }
 
-struct ApiAutocmdState {
-    next_autocmd_id: i64,
-}
-
-impl ApiAutocmdState {
-    const fn new() -> Self {
-        Self { next_autocmd_id: 1 }
-    }
-}
-
-static API_AU_STATE: crate::globals::GlobalState<ApiAutocmdState> =
-    crate::globals::GlobalState::new(ApiAutocmdState::new());
-
-#[inline]
-fn api_au_st() -> crate::globals::GraphPtr<ApiAutocmdState> {
-    API_AU_STATE.handle()
+std::thread_local! {
+    static NEXT_AUTOCMD_ID: std::cell::Cell<i64> = const { std::cell::Cell::new(1) };
 }
 
 #[inline]
@@ -881,8 +867,8 @@ pub fn nvim_create_autocmd(
             break 'body;
         }
 
-        autocmd_id = api_au_st().next_autocmd_id;
-        api_au_st().next_autocmd_id += 1;
+        autocmd_id = NEXT_AUTOCMD_ID.get();
+        NEXT_AUTOCMD_ID.set(autocmd_id + 1);
 
         for i in 0..event_array.size {
             let event_str = event_array[i];

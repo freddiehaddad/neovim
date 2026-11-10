@@ -95,13 +95,9 @@ impl WinConsoleState {
 }
 
 #[cfg(windows)]
-static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> =
-    crate::globals::GlobalState::new(WinConsoleState::new());
-
-#[cfg(windows)]
-#[inline]
-fn wincon_st() -> crate::globals::GraphPtr<WinConsoleState> {
-    WINCON_STATE.handle()
+std::thread_local! {
+    static WINCON_STATE: std::cell::RefCell<WinConsoleState> =
+        const { std::cell::RefCell::new(WinConsoleState::new()) };
 }
 
 #[cfg(windows)]
@@ -237,7 +233,7 @@ pub fn os_open_conin_fd() -> i32 {
 
 #[cfg(windows)]
 pub fn os_clear_hwnd() {
-    wincon_st().H_WND = std::ptr::null_mut();
+    WINCON_STATE.with_borrow_mut(|st| st.H_WND = std::ptr::null_mut());
 }
 
 #[cfg(windows)]
@@ -283,16 +279,16 @@ pub fn os_swap_to_hidden_console() {
         AllocConsole();
         ShowWindow(GetConsoleWindow(), SW_HIDE);
         os_reattach_console_stdio();
-        wincon_st().CONSOLE_INHERITED = false;
+        WINCON_STATE.with_borrow_mut(|st| st.CONSOLE_INHERITED = false);
     }
 }
 
 #[cfg(windows)]
 pub fn os_attach_parent_console() {
     unsafe {
-        wincon_st().CONSOLE_INHERITED =
-            !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
-        if !wincon_st().CONSOLE_INHERITED {
+        let inherited = !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
+        WINCON_STATE.with_borrow_mut(|st| st.CONSOLE_INHERITED = inherited);
+        if !inherited {
             logmsg!(
                 LOGLVL_INF,
                 None,
@@ -311,42 +307,32 @@ pub fn os_attach_parent_console() {
 
 #[cfg(windows)]
 pub fn os_detach_ui_console(stdio_ui: bool) {
-    if stdio_ui || (wincon_st().CONSOLE_INHERITED && ui_active() == 0) {
+    let inherited = WINCON_STATE.with_borrow(|st| st.CONSOLE_INHERITED);
+    if stdio_ui || (inherited && ui_active() == 0) {
         os_swap_to_hidden_console();
     }
 }
 
 #[cfg(windows)]
 pub fn os_icon_reset() {
-    if wincon_st().H_WND.is_null() {
+    let (h_wnd, h_small, h_big) =
+        WINCON_STATE.with_borrow(|st| (st.H_WND, st.H_ORIG_ICON_SMALL, st.H_ORIG_ICON));
+    if h_wnd.is_null() {
         return;
     }
-    if !wincon_st().H_ORIG_ICON_SMALL.is_null() {
-        unsafe {
-            SendMessageA(
-                wincon_st().H_WND,
-                WM_SETICON,
-                ICON_SMALL,
-                wincon_st().H_ORIG_ICON_SMALL as LPARAM,
-            )
-        };
+    if !h_small.is_null() {
+        unsafe { SendMessageA(h_wnd, WM_SETICON, ICON_SMALL, h_small as LPARAM) };
     }
-    if !wincon_st().H_ORIG_ICON.is_null() {
-        unsafe {
-            SendMessageA(
-                wincon_st().H_WND,
-                WM_SETICON,
-                ICON_BIG,
-                wincon_st().H_ORIG_ICON as LPARAM,
-            )
-        };
+    if !h_big.is_null() {
+        unsafe { SendMessageA(h_wnd, WM_SETICON, ICON_BIG, h_big as LPARAM) };
     }
 }
 
 #[cfg(windows)]
 pub fn os_icon_init() {
-    wincon_st().H_WND = unsafe { GetConsoleWindow() };
-    if wincon_st().H_WND.is_null() {
+    let h_wnd = unsafe { GetConsoleWindow() };
+    WINCON_STATE.with_borrow_mut(|st| st.H_WND = h_wnd);
+    if h_wnd.is_null() {
         return;
     }
 
@@ -375,38 +361,31 @@ pub fn os_icon_init() {
                     LR_LOADFROMFILE | LR_LOADMAP3DCOLORS,
                 )
             };
-            wincon_st().H_ORIG_ICON_SMALL = unsafe {
-                SendMessageA(
-                    wincon_st().H_WND,
-                    WM_SETICON,
-                    ICON_SMALL,
-                    h_vim_icon as LPARAM,
-                )
-            } as HICON;
-            wincon_st().H_ORIG_ICON = unsafe {
-                SendMessageA(
-                    wincon_st().H_WND,
-                    WM_SETICON,
-                    ICON_BIG,
-                    h_vim_icon as LPARAM,
-                )
-            } as HICON;
+            let orig_small =
+                unsafe { SendMessageA(h_wnd, WM_SETICON, ICON_SMALL, h_vim_icon as LPARAM) }
+                    as HICON;
+            let orig_big =
+                unsafe { SendMessageA(h_wnd, WM_SETICON, ICON_BIG, h_vim_icon as LPARAM) } as HICON;
+            WINCON_STATE.with_borrow_mut(|st| {
+                st.H_ORIG_ICON_SMALL = orig_small;
+                st.H_ORIG_ICON = orig_big;
+            });
         }
     }
 }
 
 #[cfg(windows)]
 pub fn os_title_save() {
-    unsafe {
-        GetConsoleTitleA(wincon_st().ORIG_TITLE.as_mut_ptr(), 256);
-    }
+    WINCON_STATE.with_borrow_mut(|st| unsafe {
+        GetConsoleTitleA(st.ORIG_TITLE.as_mut_ptr(), 256);
+    });
 }
 
 #[cfg(windows)]
 pub fn os_title_reset() {
-    unsafe {
-        SetConsoleTitleA(wincon_st().ORIG_TITLE.as_ptr());
-    }
+    WINCON_STATE.with_borrow(|st| unsafe {
+        SetConsoleTitleA(st.ORIG_TITLE.as_ptr());
+    });
 }
 
 #[cfg(windows)]

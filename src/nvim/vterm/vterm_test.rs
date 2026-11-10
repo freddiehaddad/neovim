@@ -117,12 +117,9 @@ impl VTermTestState {
     }
 }
 
-static VT_TEST_STATE: crate::globals::GlobalState<VTermTestState> =
-    crate::globals::GlobalState::new(VTermTestState::new());
-
-#[inline]
-fn vtt_st() -> crate::globals::GraphPtr<VTermTestState> {
-    VT_TEST_STATE.handle()
+std::thread_local! {
+    static VT_TEST_STATE: std::cell::RefCell<VTermTestState> =
+        const { std::cell::RefCell::new(VTermTestState::new()) };
 }
 
 static TEST_OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
@@ -335,7 +332,7 @@ pub fn state_putglyph(
     pos: VTermPos,
     _user: Option<&mut VTermScreen>,
 ) -> i32 {
-    if !vtt_st().want_state_putglyph {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_state_putglyph) {
         return 1;
     }
     let mut out = b"putglyph ".to_vec();
@@ -367,9 +364,12 @@ pub fn state_movecursor<T>(
     _visible: i32,
     _user: Option<&mut T>,
 ) -> i32 {
-    vtt_st().state_pos = pos;
+    let want = VT_TEST_STATE.with_borrow_mut(|st| {
+        st.state_pos = pos;
+        st.want_state_movecursor
+    });
     let mut out = Vec::new();
-    if vtt_st().want_state_movecursor {
+    if want {
         let _ = writeln!(out, "movecursor {},{}", pos.row, pos.col);
     }
     append_test_output(&out);
@@ -382,7 +382,7 @@ pub fn state_scrollrect(
     rightward: i32,
     _user: Option<&mut VTermScreen>,
 ) -> i32 {
-    if !vtt_st().want_state_scrollrect {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_state_scrollrect) {
         return 0;
     }
     let mut out = Vec::new();
@@ -396,7 +396,7 @@ pub fn state_scrollrect(
 }
 
 pub fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: Option<&mut T>) -> i32 {
-    if !vtt_st().want_state_moverect {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_state_moverect) {
         return 0;
     }
     let mut out = Vec::new();
@@ -455,7 +455,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
 }
 
 pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: Option<&mut T>) -> i32 {
-    if !vtt_st().want_state_settermprop {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_state_settermprop) {
         return 1;
     }
     let mut out = Vec::new();
@@ -497,7 +497,7 @@ pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: Option
 }
 
 pub fn state_erase(rect: VTermRect, selective: i32, _user: Option<&mut VTermScreen>) -> i32 {
-    if !vtt_st().want_state_erase {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_state_erase) {
         return 1;
     }
     let mut out = Vec::new();
@@ -516,29 +516,28 @@ pub fn state_setpenattr(
     val: &mut VTermValue,
     _user: Option<&mut VTermScreen>,
 ) -> i32 {
-    match attr {
-        VTERM_ATTR_BOLD => vtt_st().state_pen.bold = val.boolean(),
-        VTERM_ATTR_UNDERLINE => vtt_st().state_pen.underline = val.number(),
-        VTERM_ATTR_ITALIC => vtt_st().state_pen.italic = val.boolean(),
-        VTERM_ATTR_BLINK => vtt_st().state_pen.blink = val.boolean(),
-        VTERM_ATTR_REVERSE => vtt_st().state_pen.reverse = val.boolean(),
-        VTERM_ATTR_CONCEAL => vtt_st().state_pen.conceal = val.boolean(),
-        VTERM_ATTR_STRIKE => vtt_st().state_pen.strike = val.boolean(),
-        VTERM_ATTR_FONT => vtt_st().state_pen.font = val.number(),
-        VTERM_ATTR_SMALL => vtt_st().state_pen.small = val.boolean(),
-        VTERM_ATTR_BASELINE => vtt_st().state_pen.baseline = val.number(),
-        VTERM_ATTR_DIM => vtt_st().state_pen.dim = val.boolean(),
-        VTERM_ATTR_OVERLINE => vtt_st().state_pen.overline = val.boolean(),
-        VTERM_ATTR_FOREGROUND => vtt_st().state_pen.foreground = val.color(),
-        VTERM_ATTR_BACKGROUND => vtt_st().state_pen.background = val.color(),
-        VTERM_N_ATTRS => return 0,
+    VT_TEST_STATE.with_borrow_mut(|st| match attr {
+        VTERM_ATTR_BOLD => st.state_pen.bold = val.boolean(),
+        VTERM_ATTR_UNDERLINE => st.state_pen.underline = val.number(),
+        VTERM_ATTR_ITALIC => st.state_pen.italic = val.boolean(),
+        VTERM_ATTR_BLINK => st.state_pen.blink = val.boolean(),
+        VTERM_ATTR_REVERSE => st.state_pen.reverse = val.boolean(),
+        VTERM_ATTR_CONCEAL => st.state_pen.conceal = val.boolean(),
+        VTERM_ATTR_STRIKE => st.state_pen.strike = val.boolean(),
+        VTERM_ATTR_FONT => st.state_pen.font = val.number(),
+        VTERM_ATTR_SMALL => st.state_pen.small = val.boolean(),
+        VTERM_ATTR_BASELINE => st.state_pen.baseline = val.number(),
+        VTERM_ATTR_DIM => st.state_pen.dim = val.boolean(),
+        VTERM_ATTR_OVERLINE => st.state_pen.overline = val.boolean(),
+        VTERM_ATTR_FOREGROUND => st.state_pen.foreground = val.color(),
+        VTERM_ATTR_BACKGROUND => st.state_pen.background = val.color(),
         _ => {}
-    }
-    1
+    });
+    if attr == VTERM_N_ATTRS { 0 } else { 1 }
 }
 
 pub fn state_sb_clear(_user: Option<&mut VTermScreen>) -> i32 {
-    if !vtt_st().want_state_scrollback {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_state_scrollback) {
         return 1;
     }
     append_test_output(b"sb_clear\n");
@@ -546,7 +545,7 @@ pub fn state_sb_clear(_user: Option<&mut VTermScreen>) -> i32 {
 }
 
 pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: Option<&mut Terminal>) -> i32 {
-    if !vtt_st().want_screen_scrollback {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_screen_scrollback) {
         return 1;
     }
     let cols = cells.len() as i32;
@@ -566,7 +565,7 @@ pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: Option<&mut Terminal
 }
 
 pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: Option<&mut Terminal>) -> i32 {
-    if !vtt_st().want_screen_scrollback {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_screen_scrollback) {
         return 0;
     }
     let cols = cells.len() as i32;
@@ -585,7 +584,7 @@ pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: Option<&mut Termi
 }
 
 pub fn screen_sb_clear(_user: Option<&mut Terminal>) -> i32 {
-    if !vtt_st().want_screen_scrollback {
+    if !VT_TEST_STATE.with_borrow(|st| st.want_screen_scrollback) {
         return 1;
     }
     append_test_output(b"sb_clear\n");
@@ -988,25 +987,27 @@ mod tests {
 
     fn init() -> &'static mut VTerm {
         crate::option_vars::opt_vars().p_emoji = true;
-        vtt_st().state_pos = VTermPos { row: 0, col: 0 };
-        vtt_st().want_state_putglyph = false;
-        vtt_st().want_state_movecursor = false;
-        vtt_st().want_state_erase = false;
-        vtt_st().want_state_scrollrect = false;
-        vtt_st().want_state_moverect = false;
-        vtt_st().want_state_settermprop = false;
-        vtt_st().want_state_scrollback = false;
-        vtt_st().want_screen_scrollback = false;
         let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
         let vt = crate::globals::GraphPtr::of(cell.get()).borrow_mut();
-        vtt_st().test_vt = Some(cell);
+        VT_TEST_STATE.with_borrow_mut(|st| {
+            st.state_pos = VTermPos { row: 0, col: 0 };
+            st.want_state_putglyph = false;
+            st.want_state_movecursor = false;
+            st.want_state_erase = false;
+            st.want_state_scrollrect = false;
+            st.want_state_moverect = false;
+            st.want_state_settermprop = false;
+            st.want_state_scrollback = false;
+            st.want_screen_scrollback = false;
+            st.test_vt = Some(cell);
+        });
         vterm_output_set_callback(vt, Some(term_output), None);
         vterm_set_utf8(vt, 1);
         vt
     }
 
     fn vterm_free(_vt: &mut VTerm) {
-        vtt_st().test_vt = None;
+        VT_TEST_STATE.with_borrow_mut(|st| st.test_vt = None);
     }
 
     fn wantparser(vt: &mut VTerm) {
@@ -1021,13 +1022,17 @@ mod tests {
         vterm_state_reset(state, 1);
 
         let fb = opts.f.then_some(&FALLBACK_CBS);
-        vtt_st().want_state_scrollback = opts.b;
-        vtt_st().want_state_erase = opts.e;
+        VT_TEST_STATE.with_borrow_mut(|st| {
+            st.want_state_scrollback = opts.b;
+            st.want_state_erase = opts.e;
+        });
         vterm_state_set_unrecognised_fallbacks(state, fb, None);
-        vtt_st().want_state_putglyph = opts.g;
-        vtt_st().want_state_moverect = opts.m;
-        vtt_st().want_state_settermprop = opts.p;
-        vtt_st().want_state_scrollrect = opts.s;
+        VT_TEST_STATE.with_borrow_mut(|st| {
+            st.want_state_putglyph = opts.g;
+            st.want_state_moverect = opts.m;
+            st.want_state_settermprop = opts.p;
+            st.want_state_scrollrect = opts.s;
+        });
         state
     }
 
@@ -1037,10 +1042,12 @@ mod tests {
         if opts.a {
             vterm_screen_enable_altscreen(screen, 1);
         }
-        vtt_st().want_screen_scrollback = opts.b;
-        vtt_st().want_state_movecursor = opts.c;
-        vtt_st().want_state_moverect = opts.m;
-        vtt_st().want_state_settermprop = opts.p;
+        VT_TEST_STATE.with_borrow_mut(|st| {
+            st.want_screen_scrollback = opts.b;
+            st.want_state_movecursor = opts.c;
+            st.want_state_moverect = opts.m;
+            st.want_state_settermprop = opts.p;
+        });
         if opts.r {
             vterm_screen_enable_reflow(screen, true);
         }
@@ -1050,7 +1057,9 @@ mod tests {
     fn reset(state: Option<&mut VTermStateFull>, screen: Option<&mut VTermScreen>) {
         if let Some(state) = state {
             vterm_state_reset(state, 1);
-            vterm_state_get_cursorpos(state, &mut vtt_st().state_pos);
+            let mut pos = VTermPos { row: 0, col: 0 };
+            vterm_state_get_cursorpos(state, &mut pos);
+            VT_TEST_STATE.with_borrow_mut(|st| st.state_pos = pos);
         }
         if let Some(screen) = screen {
             vterm_screen_reset(screen, 1);

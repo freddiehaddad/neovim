@@ -143,6 +143,7 @@ pub struct ExpandCtx {
     pub xp_files_info: Vec<Option<std::ffi::CString>>,
     pub xp_line: crate::strings::OwnedSlice,
     pub xp_buf: [u8; EXPAND_BUF_LEN],
+    pub xp_item: Option<std::ffi::CString>,
     pub xp_search_dir: i32,
     pub xp_pre_incsearch_pos: CursorPos,
 }
@@ -176,6 +177,7 @@ impl ExpandCtx {
             xp_files_info: Vec::new(),
             xp_line: crate::strings::OwnedSlice::NULL,
             xp_buf: [0; EXPAND_BUF_LEN],
+            xp_item: None,
             xp_search_dir: 0,
             xp_pre_incsearch_pos: CursorPos {
                 lnum: 0,
@@ -183,6 +185,12 @@ impl ExpandCtx {
                 coladd: 0,
             },
         }
+    }
+
+    #[inline]
+    pub fn set_item(&mut self, item: std::ffi::CString) -> &CStr {
+        self.xp_item = Some(item);
+        self.xp_item.as_deref().unwrap()
     }
 }
 

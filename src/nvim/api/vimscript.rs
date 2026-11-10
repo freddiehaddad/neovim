@@ -42,25 +42,21 @@ pub struct KeyDict_exec_opts {
 use crate::eval::funcs::MAX_FUNC_ARGS;
 
 struct ApiVimscriptState {
-    eval_recursive: i32,
-    call_func_recursive: i32,
+    eval_recursive: std::cell::Cell<i32>,
+    call_func_recursive: std::cell::Cell<i32>,
 }
 
 impl ApiVimscriptState {
     const fn new() -> Self {
         Self {
-            eval_recursive: 0,
-            call_func_recursive: 0,
+            eval_recursive: std::cell::Cell::new(0),
+            call_func_recursive: std::cell::Cell::new(0),
         }
     }
 }
 
-static API_VIMS_STATE: crate::globals::GlobalState<ApiVimscriptState> =
-    crate::globals::GlobalState::new(ApiVimscriptState::new());
-
-#[inline]
-fn api_vims_st() -> crate::globals::GraphPtr<ApiVimscriptState> {
-    API_VIMS_STATE.handle()
+std::thread_local! {
+    static API_VIMS_STATE: ApiVimscriptState = const { ApiVimscriptState::new() };
 }
 
 use crate::api::private::helpers::cstr_to_string;
@@ -182,13 +178,14 @@ pub fn nvim_command(cmd: NvimString, err: &mut Error) {
 pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
     let mut rv = nil_obj();
 
-    if api_vims_st().eval_recursive == 0 {
+    let eval_rec = API_VIMS_STATE.with(|st| st.eval_recursive.get());
+    if eval_rec == 0 {
         g_st().force_abort = false;
         g_st().suppress_errthrow = false;
         g_st().did_throw = false;
         g_st().did_emsg = 0;
     }
-    api_vims_st().eval_recursive += 1;
+    API_VIMS_STATE.with(|st| st.eval_recursive.set(eval_rec + 1));
 
     let mut rettv: TypVal = TypVal::new();
     let mut tstate = TryState::new();
@@ -220,7 +217,7 @@ pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object
     }
 
     tv_clear(&mut rettv);
-    api_vims_st().eval_recursive -= 1;
+    API_VIMS_STATE.with(|st| st.eval_recursive.set(st.eval_recursive.get() - 1));
 
     rv
 }
@@ -251,13 +248,14 @@ fn call_function_impl(
         i += 1;
     }
 
-    if api_vims_st().call_func_recursive == 0 {
+    let call_rec = API_VIMS_STATE.with(|st| st.call_func_recursive.get());
+    if call_rec == 0 {
         g_st().force_abort = false;
         g_st().suppress_errthrow = false;
         g_st().did_throw = false;
         g_st().did_emsg = 0;
     }
-    api_vims_st().call_func_recursive += 1;
+    API_VIMS_STATE.with(|st| st.call_func_recursive.set(call_rec + 1));
 
     let mut rettv: TypVal = TypVal::new();
     let lnum = curwin_mut().w_cursor.lnum;
@@ -292,7 +290,7 @@ fn call_function_impl(
     }
 
     tv_clear(&mut rettv);
-    api_vims_st().call_func_recursive -= 1;
+    API_VIMS_STATE.with(|st| st.call_func_recursive.set(st.call_func_recursive.get() - 1));
 
     while i > 0 {
         i -= 1;

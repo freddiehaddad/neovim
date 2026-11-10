@@ -246,8 +246,7 @@ mod unix_impl {
         revents: i16,
     }
 
-    static TERMIOS_DEFAULT: crate::globals::GlobalState<termios> =
-        crate::globals::GlobalState::new(termios::ZERO);
+    static TERMIOS_DEFAULT: std::sync::OnceLock<termios> = std::sync::OnceLock::new();
 
     use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
     use crate::fileio::{close, dup, fcntl, kill};
@@ -278,10 +277,11 @@ mod unix_impl {
     /// @returns zero on success, or negative error code
     pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
         unsafe {
-            let termios_default_ptr = TERMIOS_DEFAULT.as_ptr();
-            if (*termios_default_ptr).c_cflag == 0 {
-                init_termios(&mut *termios_default_ptr);
-            }
+            let termios_default = TERMIOS_DEFAULT.get_or_init(|| {
+                let mut t = termios::ZERO;
+                init_termios(&mut t);
+                t
+            });
 
             let proc_ = crate::globals::GraphPtr::<Proc>::of(&mut *ptyproc).as_ptr();
             let hdr = proc_;
@@ -320,7 +320,7 @@ mod unix_impl {
             let pid = forkpty(
                 &raw mut master,
                 ptr::null_mut(),
-                termios_default_ptr.cast_const(),
+                &raw const *termios_default,
                 &raw const (*ptail).winsize,
             );
 

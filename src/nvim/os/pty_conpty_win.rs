@@ -19,9 +19,6 @@ pub type HPCON = *mut c_void;
 pub type HRESULT = i32;
 
 #[cfg(windows)]
-use crate::extmark::TriState;
-
-#[cfg(windows)]
 const PIPE_ACCESS_INBOUND: DWORD = 0x0000_0001;
 #[cfg(windows)]
 const PIPE_ACCESS_OUTBOUND: DWORD = 0x0000_0002;
@@ -178,41 +175,22 @@ pub type ResizePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON, COORD) 
 pub type ClosePseudoConsoleFn = Option<unsafe extern "system" fn(HPCON)>;
 
 #[cfg(windows)]
-struct ConptyModuleState {
+#[derive(Clone, Copy)]
+struct ConptyFns {
     #[allow(non_snake_case)]
-    pCreatePseudoConsole: CreatePseudoConsoleFn,
+    pCreatePseudoConsole:
+        unsafe extern "system" fn(COORD, HANDLE, HANDLE, DWORD, *mut HPCON) -> HRESULT,
     #[allow(non_snake_case)]
-    pResizePseudoConsole: ResizePseudoConsoleFn,
+    pResizePseudoConsole: unsafe extern "system" fn(HPCON, COORD) -> HRESULT,
     #[allow(non_snake_case)]
-    pClosePseudoConsole: ClosePseudoConsoleFn,
-    #[allow(non_snake_case)]
-    HAS_CONPTY: TriState,
-    #[allow(non_snake_case)]
-    CONPTY_COUNT: i32,
+    pClosePseudoConsole: unsafe extern "system" fn(HPCON),
 }
 
 #[cfg(windows)]
-impl ConptyModuleState {
-    const fn new() -> Self {
-        Self {
-            pCreatePseudoConsole: None,
-            pResizePseudoConsole: None,
-            pClosePseudoConsole: None,
-            HAS_CONPTY: K_NONE,
-            CONPTY_COUNT: 0,
-        }
-    }
-}
+static CONPTY_FNS: std::sync::OnceLock<Option<ConptyFns>> = std::sync::OnceLock::new();
 
 #[cfg(windows)]
-static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> =
-    crate::globals::GlobalState::new(ConptyModuleState::new());
-
-#[cfg(windows)]
-#[inline]
-fn conpty_st() -> crate::globals::GraphPtr<ConptyModuleState> {
-    CONPTY_STATE.handle()
-}
+static CONPTY_COUNT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
 #[cfg(windows)]
 #[link(name = "kernel32")]
@@ -258,72 +236,76 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
-use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
-#[cfg(windows)]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]
 pub fn os_has_conpty_working() -> bool {
-    if conpty_st().HAS_CONPTY == K_NONE {
-        conpty_st().HAS_CONPTY = os_dyn_conpty_init();
-    }
-    conpty_st().HAS_CONPTY == K_TRUE
+    conpty_fns().is_some()
 }
 
 #[cfg(windows)]
-pub fn os_dyn_conpty_init() -> TriState {
-    let mut conpty_lib = UvLib {
-        _opaque: [std::ptr::null_mut(); 4],
-    };
+fn conpty_fns() -> Option<ConptyFns> {
+    *CONPTY_FNS.get_or_init(|| {
+        let mut conpty_lib = UvLib {
+            _opaque: [std::ptr::null_mut(); 4],
+        };
 
-    if unsafe { uv_dlopen(c"conpty.dll".as_ptr(), &mut conpty_lib) } == 0 {
-        logmsg!(
-            LOGLVL_INF,
-            None,
-            Some(c"os_dyn_conpty_init"),
-            31,
-            true,
-            c"Loaded new ConPTY from conpty.dll",
-        );
-    } else {
-        unsafe { uv_dlclose(&mut conpty_lib) };
-        if unsafe { uv_dlopen(c"kernel32.dll".as_ptr(), &mut conpty_lib) } != 0 {
+        if unsafe { uv_dlopen(c"conpty.dll".as_ptr(), &mut conpty_lib) } == 0 {
+            logmsg!(
+                LOGLVL_INF,
+                None,
+                Some(c"os_dyn_conpty_init"),
+                31,
+                true,
+                c"Loaded new ConPTY from conpty.dll",
+            );
+        } else {
             unsafe { uv_dlclose(&mut conpty_lib) };
-            return K_FALSE;
+            if unsafe { uv_dlopen(c"kernel32.dll".as_ptr(), &mut conpty_lib) } != 0 {
+                unsafe { uv_dlclose(&mut conpty_lib) };
+                return None;
+            }
+            logmsg!(
+                LOGLVL_INF,
+                None,
+                Some(c"os_dyn_conpty_init"),
+                40,
+                true,
+                c"Loaded system ConPTY from kernel32.dll",
+            );
         }
-        logmsg!(
-            LOGLVL_INF,
-            None,
-            Some(c"os_dyn_conpty_init"),
-            40,
-            true,
-            c"Loaded system ConPTY from kernel32.dll",
-        );
-    }
 
-    let entries: [(&CStr, *mut *mut c_void); 3] = [
-        (
-            c"CreatePseudoConsole",
-            std::ptr::addr_of_mut!(conpty_st().pCreatePseudoConsole).cast::<*mut c_void>(),
-        ),
-        (
-            c"ResizePseudoConsole",
-            std::ptr::addr_of_mut!(conpty_st().pResizePseudoConsole).cast::<*mut c_void>(),
-        ),
-        (
-            c"ClosePseudoConsole",
-            std::ptr::addr_of_mut!(conpty_st().pClosePseudoConsole).cast::<*mut c_void>(),
-        ),
-    ];
+        let mut create_fn: CreatePseudoConsoleFn = None;
+        let mut resize_fn: ResizePseudoConsoleFn = None;
+        let mut close_fn: ClosePseudoConsoleFn = None;
+        let entries: [(&CStr, *mut *mut c_void); 3] = [
+            (
+                c"CreatePseudoConsole",
+                std::ptr::addr_of_mut!(create_fn).cast::<*mut c_void>(),
+            ),
+            (
+                c"ResizePseudoConsole",
+                std::ptr::addr_of_mut!(resize_fn).cast::<*mut c_void>(),
+            ),
+            (
+                c"ClosePseudoConsole",
+                std::ptr::addr_of_mut!(close_fn).cast::<*mut c_void>(),
+            ),
+        ];
 
-    for (name, ptr) in entries {
-        if unsafe { uv_dlsym(&mut conpty_lib, name.as_ptr(), ptr) } != 0 {
-            unsafe { uv_dlclose(&mut conpty_lib) };
-            return K_FALSE;
+        for (name, ptr) in entries {
+            if unsafe { uv_dlsym(&mut conpty_lib, name.as_ptr(), ptr) } != 0 {
+                unsafe { uv_dlclose(&mut conpty_lib) };
+                return None;
+            }
         }
-    }
 
-    K_TRUE
+        Some(ConptyFns {
+            pCreatePseudoConsole: create_fn?,
+            pResizePseudoConsole: resize_fn?,
+            pClosePseudoConsole: close_fn?,
+        })
+    })
 }
 
 #[cfg(windows)]
@@ -345,7 +327,7 @@ pub fn os_conpty_init(
     let mode = PIPE_ACCESS_INBOUND | PIPE_ACCESS_OUTBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE;
 
     let pid = os_get_pid();
-    let count = conpty_st().CONPTY_COUNT;
+    let count = CONPTY_COUNT.load(std::sync::atomic::Ordering::Relaxed);
     let in_pipe_cstr = CString::new(format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}")).unwrap();
     let in_pipe_ptr = in_pipe_cstr.as_ptr().cast();
     *in_name = Some(in_pipe_cstr);
@@ -396,7 +378,7 @@ pub fn os_conpty_init(
             Y: height as i16,
         };
         let hr = unsafe {
-            (conpty_st().pCreatePseudoConsole.unwrap_unchecked())(
+            (conpty_fns().unwrap().pCreatePseudoConsole)(
                 size,
                 in_read,
                 out_write,
@@ -445,7 +427,7 @@ pub fn os_conpty_init(
             break 'init;
         }
 
-        conpty_st().CONPTY_COUNT += 1;
+        CONPTY_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if in_read != INVALID_HANDLE_VALUE {
             unsafe { CloseHandle(in_read) };
         }
@@ -520,8 +502,7 @@ pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
             X: width as i16,
             Y: height as i16,
         };
-        if unsafe { (conpty_st().pResizePseudoConsole.unwrap_unchecked())(conpty_object.pty, size) }
-            != S_OK
+        if unsafe { (conpty_fns().unwrap().pResizePseudoConsole)(conpty_object.pty, size) } != S_OK
         {
             logmsg!(
                 LOGLVL_ERR,
@@ -543,9 +524,9 @@ impl Drop for Conpty {
             unsafe { DeleteProcThreadAttributeList(self.si_ex.lpAttributeList) };
         }
         if !self.pty.is_null()
-            && let Some(close_fn) = conpty_st().pClosePseudoConsole
+            && let Some(fns) = conpty_fns()
         {
-            unsafe { close_fn(self.pty) };
+            unsafe { (fns.pClosePseudoConsole)(self.pty) };
         }
     }
 }
