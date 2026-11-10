@@ -291,74 +291,39 @@ type RuntimeSearchPath = Vec<SearchPathItem>;
 
 static RUNTIME_SEARCH_PATH_THREAD: Mutex<RuntimeSearchPath> = Mutex::new(Vec::new());
 
-#[derive(Clone, Copy)]
-struct RuntimeCopyState {
-    last_current_sid_seq: i32,
-    last_current_sid: Scid,
-    runtime_search_path_valid: bool,
-    runtime_search_path_valid_thread: bool,
-    runtime_expand_flags: i32,
+struct RuntimeState {
+    last_current_sid_seq: std::cell::Cell<i32>,
+    last_current_sid: std::cell::Cell<Scid>,
+    runtime_search_path_valid: std::cell::Cell<bool>,
+    runtime_search_path_valid_thread: std::cell::Cell<bool>,
+    runtime_expand_flags: std::cell::Cell<i32>,
 }
 
-impl RuntimeCopyState {
+impl RuntimeState {
     const fn new() -> Self {
         Self {
-            last_current_sid_seq: 0,
-            last_current_sid: 0,
-            runtime_search_path_valid: false,
-            runtime_search_path_valid_thread: false,
-            runtime_expand_flags: 0,
+            last_current_sid_seq: std::cell::Cell::new(0),
+            last_current_sid: std::cell::Cell::new(0),
+            runtime_search_path_valid: std::cell::Cell::new(false),
+            runtime_search_path_valid_thread: std::cell::Cell::new(false),
+            runtime_expand_flags: std::cell::Cell::new(0),
         }
     }
 }
 
 thread_local! {
-    static RT_STATE: std::cell::Cell<RuntimeCopyState> = const {
-        std::cell::Cell::new(RuntimeCopyState::new())
+    static RT_STATE: RuntimeState = const { RuntimeState::new() };
+    static EXESTACK: std::cell::RefCell<Vec<Estack>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static SCRIPT_ITEMS: std::cell::RefCell<Vec<Scriptitem>> = const {
+        std::cell::RefCell::new(Vec::new())
     };
     static GA_LOADED: std::cell::RefCell<Vec<std::ffi::CString>> = const {
         std::cell::RefCell::new(Vec::new())
     };
     static RUNTIME_SEARCH_PATH: std::cell::RefCell<std::rc::Rc<RuntimeSearchPath>> =
         std::cell::RefCell::new(std::rc::Rc::new(Vec::new()));
-}
-
-struct RtGuard {
-    state: RuntimeCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for RtGuard {
-    type Target = RuntimeCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for RtGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for RtGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            RT_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn rt_st() -> RtGuard {
-    RtGuard {
-        state: RT_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
@@ -368,13 +333,30 @@ use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-pub fn script_item(id: Scid) -> &'static mut Scriptitem {
-    &mut g_st().borrow_mut().script_items[(id - 1) as usize]
+pub fn with_script_item<R>(id: Scid, f: impl FnOnce(&Scriptitem) -> R) -> R {
+    SCRIPT_ITEMS.with(|c| f(&c.borrow()[(id - 1) as usize]))
+}
+
+#[inline]
+pub fn with_script_item_mut<R>(id: Scid, f: impl FnOnce(&mut Scriptitem) -> R) -> R {
+    SCRIPT_ITEMS.with(|c| f(&mut c.borrow_mut()[(id - 1) as usize]))
+}
+
+#[inline]
+pub fn script_item_name(id: Scid) -> Option<std::ffi::CString> {
+    with_script_item(id, |si| si.sn_name.clone())
+}
+
+#[inline]
+pub fn script_item_vars(
+    id: Scid,
+) -> (crate::eval::typval::DictitemId, crate::eval::typval::DictId) {
+    with_script_item(id, |si| (si.sn_vars.sv_var, si.sn_vars.sv_dict))
 }
 
 #[inline]
 pub fn script_items_len() -> Scid {
-    g_st().script_items.len() as Scid
+    SCRIPT_ITEMS.with(|c| c.borrow().len() as Scid)
 }
 
 #[inline]
@@ -383,134 +365,199 @@ pub fn script_id_valid(id: Scid) -> bool {
 }
 
 #[inline]
-pub fn sourcing_name() -> Option<&'static CStr> {
-    g_st().borrow_mut().exestack.last().unwrap().name_cstr()
+pub fn sourcing_name() -> Option<std::ffi::CString> {
+    EXESTACK.with(|c| c.borrow().last().and_then(|e| e.es_name.clone()))
 }
 
 #[inline]
 pub fn sourcing_lnum() -> Linenr {
-    g_st().exestack.last().unwrap().es_lnum
+    EXESTACK.with(|c| c.borrow().last().map_or(0, |e| e.es_lnum))
 }
 
 #[inline]
 pub fn set_sourcing_lnum(lnum: Linenr) {
-    g_st().exestack.last_mut().unwrap().es_lnum = lnum;
+    EXESTACK.with(|c| c.borrow_mut().last_mut().unwrap().es_lnum = lnum);
+}
+
+#[inline]
+pub fn estack_len() -> usize {
+    EXESTACK.with(|c| c.borrow().len())
+}
+
+#[inline]
+pub fn estack_is_empty() -> bool {
+    EXESTACK.with(|c| c.borrow().is_empty())
+}
+
+#[inline]
+pub fn estack_top_clone() -> Estack {
+    EXESTACK.with(|c| c.borrow().last().unwrap().clone())
+}
+
+#[inline]
+pub fn estack_push_entry(entry: Estack) {
+    EXESTACK.with(|c| c.borrow_mut().push(entry));
+}
+
+#[inline]
+pub fn estack_pop_raw() {
+    EXESTACK.with(|c| {
+        let _ = c.borrow_mut().pop();
+    });
+}
+
+#[inline]
+pub fn estack_set_top_info(name: Option<std::ffi::CString>, info: crate::profile::EStackInfo) {
+    EXESTACK.with(|c| {
+        let mut stack = c.borrow_mut();
+        let entry = stack.last_mut().unwrap();
+        entry.es_name = name;
+        entry.es_info = info;
+    });
+}
+
+#[inline]
+pub fn estack_cleanup() {
+    EXESTACK.with(|c| {
+        let mut stack = c.borrow_mut();
+        if stack.capacity() - stack.len() > 500 {
+            let keep = stack.len() + (stack.len() / 2).max(50);
+            stack.shrink_to(keep);
+        }
+    });
 }
 
 /// Initialize the execution stack.
 pub fn estack_init() {
-    g_st().exestack.reserve(10);
-    g_st().exestack.push(Estack {
-        es_type: ETYPE_TOP,
-        es_name: None,
-        es_lnum: 0,
-        es_info: crate::profile::EStackInfo::None,
+    EXESTACK.with(|c| {
+        let mut stack = c.borrow_mut();
+        stack.reserve(10);
+        stack.push(Estack {
+            es_type: ETYPE_TOP,
+            es_name: None,
+            es_lnum: 0,
+            es_info: crate::profile::EStackInfo::None,
+        });
     });
 }
 
 /// Add an item to the execution stack.
-pub fn estack_push(type_: Etype, name: Option<&CStr>, lnum: Linenr) -> &'static mut Estack {
-    g_st().exestack.push(Estack {
-        es_type: type_,
-        es_name: name.map(CStr::to_owned),
-        es_lnum: lnum,
-        es_info: crate::profile::EStackInfo::None,
+pub fn estack_push(type_: Etype, name: Option<&CStr>, lnum: Linenr) {
+    EXESTACK.with(|c| {
+        c.borrow_mut().push(Estack {
+            es_type: type_,
+            es_name: name.map(CStr::to_owned),
+            es_lnum: lnum,
+            es_info: crate::profile::EStackInfo::None,
+        });
     });
-    g_st().borrow_mut().exestack.last_mut().unwrap()
 }
 
 /// Add a user function to the execution stack.
 pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
-    let name: &CStr = if let Some(ref exp) = ufunc.uf_name_exp {
-        exp
+    let name_owned = if let Some(ref exp) = ufunc.uf_name_exp {
+        exp.clone()
     } else {
-        &ufunc.uf_name
+        ufunc.uf_name.clone()
     };
-    let entry = estack_push(ETYPE_UFUNC, Some(name), lnum);
-    entry.es_info = crate::profile::EStackInfo::Ufunc(ufunc.into());
+    let ufunc_id = ufunc.into();
+    EXESTACK.with(|c| {
+        c.borrow_mut().push(Estack {
+            es_type: ETYPE_UFUNC,
+            es_name: Some(name_owned),
+            es_lnum: lnum,
+            es_info: crate::profile::EStackInfo::Ufunc(ufunc_id),
+        });
+    });
 }
 
 /// Take an item off of the execution stack.
 pub fn estack_pop() {
-    if g_st().exestack.len() > 1 {
-        g_st().exestack.pop();
-    }
+    EXESTACK.with(|c| {
+        let mut stack = c.borrow_mut();
+        if stack.len() > 1 {
+            stack.pop();
+        }
+    });
 }
 
 /// Get the current value for <sfile> as an owned `CString`.
 pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
-    let last_entry = g_st().borrow_mut().exestack.last().unwrap();
-    if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
-        return last_entry.es_name.clone();
-    }
+    EXESTACK.with(|c| {
+        let stack = c.borrow();
+        let last_entry = stack.last().unwrap();
+        if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
+            return last_entry.es_name.clone();
+        }
 
-    if which == ESTACK_SCRIPT {
-        for entry in g_st().exestack.iter().rev() {
-            if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
-                let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                    entry.es_info.ufunc().unwrap().uf_script_ctx
+        if which == ESTACK_SCRIPT {
+            for entry in stack.iter().rev() {
+                if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
+                    let def_ctx = if entry.es_type == ETYPE_UFUNC {
+                        entry.es_info.ufunc().unwrap().uf_script_ctx
+                    } else {
+                        entry.es_info.aucmd_sctx()
+                    };
+                    return if def_ctx.sc_sid > 0 {
+                        script_item_name(def_ctx.sc_sid)
+                    } else {
+                        None
+                    };
+                } else if entry.es_type == ETYPE_SCRIPT {
+                    return entry.es_name.clone();
+                }
+            }
+            return None;
+        }
+
+        let mut buf: Vec<u8> = Vec::new();
+        let mut last_type = ETYPE_SCRIPT;
+        let es_len = stack.len();
+        for (idx, entry) in stack.iter().enumerate() {
+            if let Some(ref entry_name) = entry.es_name {
+                let mut type_name = static_cstr_as_string(c"");
+                let es_name = cstr_as_string(Some(entry_name));
+                if entry.es_type != last_type {
+                    match entry.es_type {
+                        ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
+                        ETYPE_UFUNC => type_name = static_cstr_as_string(c"function "),
+                        _ => {}
+                    }
+                    last_type = entry.es_type;
+                }
+                let lnum = if idx == es_len - 1 {
+                    if which == ESTACK_STACK {
+                        last_entry.es_lnum
+                    } else {
+                        0
+                    }
                 } else {
-                    entry.es_info.aucmd_sctx()
+                    entry.es_lnum
                 };
-                return if def_ctx.sc_sid > 0 {
-                    script_item(def_ctx.sc_sid).name_cstr().map(CStr::to_owned)
-                } else {
-                    None
-                };
-            } else if entry.es_type == ETYPE_SCRIPT {
-                return entry.es_name.clone();
+
+                if !type_name.data.is_null() && type_name.size > 0 {
+                    buf.extend_from_slice(type_name.as_bytes());
+                }
+                if !es_name.data.is_null() && es_name.size > 0 {
+                    buf.extend_from_slice(es_name.as_bytes());
+                }
+                if lnum != 0 {
+                    let mut lnum_buf = [0u8; 32];
+                    let n = format_to_buf_safelen!(&mut lnum_buf, c"[%d]", lnum);
+                    buf.extend_from_slice(&lnum_buf[..n]);
+                }
+                if idx != es_len - 1 {
+                    buf.extend_from_slice(b"..");
+                }
             }
         }
-        return None;
-    }
 
-    let mut buf: Vec<u8> = Vec::new();
-    let mut last_type = ETYPE_SCRIPT;
-    let es_len = g_st().exestack.len();
-    for (idx, entry) in g_st().exestack.iter().enumerate() {
-        if let Some(ref entry_name) = entry.es_name {
-            let mut type_name = static_cstr_as_string(c"");
-            let es_name = cstr_as_string(Some(entry_name));
-            if entry.es_type != last_type {
-                match entry.es_type {
-                    ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
-                    ETYPE_UFUNC => type_name = static_cstr_as_string(c"function "),
-                    _ => {}
-                }
-                last_type = entry.es_type;
-            }
-            let lnum = if idx == es_len - 1 {
-                if which == ESTACK_STACK {
-                    sourcing_lnum()
-                } else {
-                    0
-                }
-            } else {
-                entry.es_lnum
-            };
-
-            if !type_name.data.is_null() && type_name.size > 0 {
-                buf.extend_from_slice(type_name.as_bytes());
-            }
-            if !es_name.data.is_null() && es_name.size > 0 {
-                buf.extend_from_slice(es_name.as_bytes());
-            }
-            if lnum != 0 {
-                let mut lnum_buf = [0u8; 32];
-                let n = format_to_buf_safelen!(&mut lnum_buf, c"[%d]", lnum);
-                buf.extend_from_slice(&lnum_buf[..n]);
-            }
-            if idx != es_len - 1 {
-                buf.extend_from_slice(b"..");
-            }
+        if buf.is_empty() {
+            None
+        } else {
+            Some(bytes_to_cstring(&buf))
         }
-    }
-
-    if buf.is_empty() {
-        None
-    } else {
-        Some(bytes_to_cstring(&buf))
-    }
+    })
 }
 
 fn stacktrace_push_item(
@@ -541,9 +588,10 @@ fn stacktrace_push_item(
 
 /// Create the stacktrace from `exestack`.
 pub fn stacktrace_create() -> &'static mut TvList {
-    let l = tv_list_alloc(g_st().exestack.len() as isize);
+    let entries = EXESTACK.with(|c| c.borrow().clone());
+    let l = tv_list_alloc(entries.len() as isize);
 
-    for entry in &g_st().exestack {
+    for entry in &entries {
         let mut lnum = entry.es_lnum;
 
         if entry.es_type == ETYPE_SCRIPT {
@@ -618,12 +666,13 @@ pub fn ex_runtime(eap: &mut Exarg) {
 /// Set the completion context for the :runtime command.
 pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
     let p_rem = crate::charset::skiptowhite_slice(arg.to_bytes());
-    rt_st().runtime_expand_flags = if !p_rem.is_empty() {
+    let flags = if !p_rem.is_empty() {
         let len = arg.to_bytes().len() - p_rem.len();
         get_runtime_cmd_flags(&mut arg, len)
     } else {
         0
     };
+    RT_STATE.with(|s| s.runtime_expand_flags.set(flags));
     let mut arg_cstr = arg;
     loop {
         let step = crate::charset::skiptowhite_esc_len(arg_cstr.to_bytes());
@@ -631,8 +680,8 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
         if p.to_bytes().is_empty() {
             break;
         }
-        if rt_st().runtime_expand_flags == 0 {
-            rt_st().runtime_expand_flags = DIP_ALL;
+        if RT_STATE.with(|s| s.runtime_expand_flags.get()) == 0 {
+            RT_STATE.with(|s| s.runtime_expand_flags.set(DIP_ALL));
         }
         arg_cstr = crate::charset::skipwhite(p);
     }
@@ -1215,7 +1264,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 }
 
 pub fn did_set_runtimepackpath(_args: &mut Optset) -> Option<&'static CStr> {
-    rt_st().runtime_search_path_valid = false;
+    RT_STATE.with(|s| s.runtime_search_path_valid.set(false));
     None
 }
 
@@ -1223,7 +1272,7 @@ pub fn runtime_search_path_validate() {
     if !nlua_is_deferred_safe() {
         return;
     }
-    if !rt_st().runtime_search_path_valid {
+    if !RT_STATE.with(|s| s.runtime_search_path_valid.get()) {
         let new_path = std::rc::Rc::new(runtime_search_path_build());
         let old_path =
             RUNTIME_SEARCH_PATH.with(|cell| std::mem::replace(&mut *cell.borrow_mut(), new_path));
@@ -1231,13 +1280,16 @@ pub fn runtime_search_path_validate() {
             msg_ext_ui_flush();
         }
         drop(old_path);
-        rt_st().runtime_search_path_valid = true;
+        RT_STATE.with(|s| s.runtime_search_path_valid.set(true));
         update_runtime_search_path_thread(true);
     }
 }
 
 pub fn update_runtime_search_path_thread(force: bool) {
-    if !force && !(rt_st().runtime_search_path_valid && !rt_st().runtime_search_path_valid_thread) {
+    if !force
+        && !(RT_STATE.with(|s| s.runtime_search_path_valid.get())
+            && !RT_STATE.with(|s| s.runtime_search_path_valid_thread.get()))
+    {
         return;
     }
 
@@ -1247,7 +1299,7 @@ pub fn update_runtime_search_path_thread(force: bool) {
         .unwrap_or_else(|e| e.into_inner());
     *thread_path = cloned;
     drop(thread_path);
-    rt_st().runtime_search_path_valid_thread = true;
+    RT_STATE.with(|s| s.runtime_search_path_valid_thread.set(true));
 }
 
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
@@ -1458,16 +1510,16 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         new_rtp_vec.push(0);
         let new_rtp = NvimString::from_bytes_len(&new_rtp_vec, new_rtp_size);
 
-        let was_valid = rt_st().runtime_search_path_valid;
+        let was_valid = RT_STATE.with(|s| s.runtime_search_path_valid.get());
         set_option_value_give_err(K_OPT_RUNTIMEPATH, string_obj(new_rtp), 0);
 
-        debug_assert!(!rt_st().runtime_search_path_valid);
+        debug_assert!(!RT_STATE.with(|s| s.runtime_search_path_valid.get()));
         if was_valid && !is_pack {
             RUNTIME_SEARCH_PATH.with(|cell| {
                 let mut rc = cell.borrow_mut();
                 if let Some(rsp) = std::rc::Rc::get_mut(&mut *rc) {
-                    rt_st().runtime_search_path_valid = true;
-                    rt_st().runtime_search_path_valid_thread = false;
+                    RT_STATE.with(|s| s.runtime_search_path_valid.set(true));
+                    RT_STATE.with(|s| s.runtime_search_path_valid_thread.set(false));
 
                     let idx1 = rsp
                         .iter()
@@ -1929,13 +1981,13 @@ pub fn expand_runtime_cmd(pat: &std::ffi::CStr, matches: &mut Vec<std::ffi::CStr
     expand_rtdir_int(
         pat,
         pat_len,
-        rt_st().runtime_expand_flags,
+        RT_STATE.with(|s| s.runtime_expand_flags.get()),
         true,
         matches,
         &[c""],
     );
 
-    if rt_st().runtime_expand_flags == 0 {
+    if RT_STATE.with(|s| s.runtime_expand_flags.get()) == 0 {
         let where_values = [c"START", c"OPT", c"PACK", c"ALL"];
         let pat_slice = pat.to_bytes();
         for wv in &where_values {
@@ -2396,40 +2448,39 @@ fn concat_continued_line(ga: &mut Vec<u8>, slice: &[u8]) -> bool {
 }
 
 /// Create a new script item and allocate script-local vars.
-pub fn new_script_item(
-    name: Option<std::ffi::CString>,
-    sid_out: &mut Scid,
-) -> &'static mut Scriptitem {
-    rt_st().last_current_sid += 1;
-    let sid = rt_st().last_current_sid;
-    {
-        *sid_out = sid;
-    }
-    while (g_st().script_items.len() as Scid) < sid {
-        g_st().script_items.push(Scriptitem {
-            sn_vars: new_script_vars(),
-            sn_name: None,
-            sn_lua: false,
-            sn_prof_on: false,
-            sn_pr_force: false,
-            sn_pr_child: 0,
-            sn_pr_nest: 0,
-            sn_pr_count: 0,
-            sn_pr_total: 0,
-            sn_pr_self: 0,
-            sn_pr_start: 0,
-            sn_pr_children: 0,
-            sn_prl_ga: Vec::new(),
-            sn_prl_start: 0,
-            sn_prl_children: 0,
-            sn_prl_wait: 0,
-            sn_prl_idx: 0,
-            sn_prl_execed: 0,
-        });
-    }
-    let item = script_item(sid);
-    item.sn_name = name;
-    item
+pub fn new_script_item(name: Option<std::ffi::CString>, sid_out: &mut Scid) {
+    let sid = RT_STATE.with(|s| {
+        let next = s.last_current_sid.get() + 1;
+        s.last_current_sid.set(next);
+        next
+    });
+    *sid_out = sid;
+    SCRIPT_ITEMS.with(|c| {
+        let mut items = c.borrow_mut();
+        while (items.len() as Scid) < sid {
+            items.push(Scriptitem {
+                sn_vars: new_script_vars(),
+                sn_name: None,
+                sn_lua: false,
+                sn_prof_on: false,
+                sn_pr_force: false,
+                sn_pr_child: 0,
+                sn_pr_nest: 0,
+                sn_pr_count: 0,
+                sn_pr_total: 0,
+                sn_pr_self: 0,
+                sn_pr_start: 0,
+                sn_pr_children: 0,
+                sn_prl_ga: Vec::new(),
+                sn_prl_start: 0,
+                sn_prl_children: 0,
+                sn_prl_wait: 0,
+                sn_prl_idx: 0,
+                sn_prl_execed: 0,
+            });
+        }
+        items[(sid - 1) as usize].sn_name = name;
+    });
 }
 
 fn do_source_buffer_init(
@@ -2495,7 +2546,7 @@ pub fn do_source_str(str_ptr: &std::ffi::CStr, traceback_name_in: &std::ffi::CSt
     let mut traceback_name = traceback_name_in;
     let slnum = sourcing_lnum();
     let mut sname_buf = [0u8; 256];
-    if let Some(sname) = sourcing_name() {
+    if let Some(ref sname) = sourcing_name() {
         format_to_buf!(
             &mut sname_buf,
             c"%s called at %s:%d",
@@ -2530,7 +2581,7 @@ fn do_source_ext(
     let mut firstline: Option<std::ffi::CString> = None;
     let mut retval = false;
     let save_debug_break_level = g_st().debug_break_level;
-    let mut si = crate::globals::GraphPtr::<Scriptitem>::NULL;
+    let mut has_si = false;
     let mut wait_start: Proftime = 0;
     let mut trigger_source_post = false;
 
@@ -2701,52 +2752,56 @@ fn do_source_ext(
 
         let save_current_sctx = g_st().current_sctx;
 
-        rt_st().last_current_sid_seq += 1;
-        g_st().current_sctx.sc_seq = rt_st().last_current_sid_seq;
+        RT_STATE.with(|s| {
+            s.last_current_sid_seq
+                .set(s.last_current_sid_seq.get() + (1))
+        });
+        g_st().current_sctx.sc_seq = RT_STATE.with(|s| s.last_current_sid_seq.get());
 
         if sid > 0 {
-            si = crate::globals::GraphPtr::<Scriptitem>::of(script_item(sid));
+            has_si = true;
         } else if str_opt.is_none() {
-            si = crate::globals::GraphPtr::<Scriptitem>::of(new_script_item(
-                Some(fname_exp_owned.clone()),
-                &mut sid,
-            ));
-            si.sn_lua = path_with_extension(fname_exp_owned.as_c_str(), c"lua");
+            new_script_item(Some(fname_exp_owned.clone()), &mut sid);
+            has_si = true;
+            let is_lua = path_with_extension(fname_exp_owned.as_c_str(), c"lua");
+            with_script_item_mut(sid, |si| si.sn_lua = is_lua);
             if let Some(ref mut ret_sid_ref) = ret_sid {
                 **ret_sid_ref = sid;
             }
         }
-        debug_assert_eq!(!si.is_null(), str_opt.is_none());
+        debug_assert_eq!(has_si, str_opt.is_none());
 
         if str_opt.is_none() || !script_is_lua(g_st().current_sctx.sc_sid) {
             g_st().current_sctx.sc_sid = sid;
             g_st().current_sctx.sc_lnum = 0;
         }
 
+        let si_name = if has_si { script_item_name(sid) } else { None };
         estack_push(
             ETYPE_SCRIPT,
-            if !si.is_null() {
-                si.name_cstr()
+            if has_si {
+                si_name.as_deref()
             } else {
                 Some(&fname_exp_owned)
             },
             0,
         );
 
-        if l_do_profiling == PROF_YES && !si.is_null() {
-            let si_mut = si.borrow_mut();
-            let mut forceit = false;
-            if !si_mut.sn_prof_on
-                && has_profiling(true, si_mut.name_cstr().unwrap_or(c""), Some(&mut forceit))
-            {
-                profile_init(si_mut);
-                si_mut.sn_pr_force = forceit;
-            }
-            if si_mut.sn_prof_on {
-                si_mut.sn_pr_count += 1;
-                si_mut.sn_pr_start = profile_start();
-                si_mut.sn_pr_children = profile_zero();
-            }
+        if l_do_profiling == PROF_YES && has_si {
+            with_script_item_mut(sid, |si_mut| {
+                let mut forceit = false;
+                if !si_mut.sn_prof_on
+                    && has_profiling(true, si_mut.name_cstr().unwrap_or(c""), Some(&mut forceit))
+                {
+                    profile_init(si_mut);
+                    si_mut.sn_pr_force = forceit;
+                }
+                if si_mut.sn_prof_on {
+                    si_mut.sn_pr_count += 1;
+                    si_mut.sn_pr_start = profile_start();
+                    si_mut.sn_pr_children = profile_zero();
+                }
+            });
         }
 
         cookie.conv.vc_type = CONV_NONE;
@@ -2797,7 +2852,7 @@ fn do_source_ext(
                     .is_some_and(|f| path_with_extension(f, c"lua")))
         {
             nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
-        } else if !si.is_null() && si.sn_lua {
+        } else if has_si && with_script_item(sid, |si| si.sn_lua) {
             nlua_exec_file(&fname_exp_owned);
         } else {
             firstline = getsourceline(0, &mut cookie, 0, true);
@@ -2823,15 +2878,16 @@ fn do_source_ext(
         }
         retval = true;
 
-        if l_do_profiling == PROF_YES && !si.is_null() {
-            let si_mut = script_item(g_st().current_sctx.sc_sid);
-            if si_mut.sn_prof_on {
-                si_mut.sn_pr_start = profile_end(si_mut.sn_pr_start);
-                si_mut.sn_pr_start = profile_sub_wait(wait_start, si_mut.sn_pr_start);
-                si_mut.sn_pr_total = profile_add(si_mut.sn_pr_total, si_mut.sn_pr_start);
-                si_mut.sn_pr_self =
-                    profile_self(si_mut.sn_pr_self, si_mut.sn_pr_start, si_mut.sn_pr_children);
-            }
+        if l_do_profiling == PROF_YES && has_si {
+            with_script_item_mut(g_st().current_sctx.sc_sid, |si_mut| {
+                if si_mut.sn_prof_on {
+                    si_mut.sn_pr_start = profile_end(si_mut.sn_pr_start);
+                    si_mut.sn_pr_start = profile_sub_wait(wait_start, si_mut.sn_pr_start);
+                    si_mut.sn_pr_total = profile_add(si_mut.sn_pr_total, si_mut.sn_pr_start);
+                    si_mut.sn_pr_self =
+                        profile_self(si_mut.sn_pr_self, si_mut.sn_pr_start, si_mut.sn_pr_children);
+                }
+            });
         }
 
         if g_st().got_int {
@@ -2841,7 +2897,7 @@ fn do_source_ext(
         if opt_vars().p_verbose > 1 {
             verbose_enter();
             smsg!(0, gettext(c"finished sourcing %s"), fname_cstr_or_empty);
-            if let Some(sname) = sourcing_name() {
+            if let Some(ref sname) = sourcing_name() {
                 smsg!(0, gettext(c"continuing in %s"), sname);
             }
             verbose_leave();
@@ -2912,17 +2968,19 @@ pub fn script_is_lua(sid: Scid) -> bool {
     if !script_id_valid(sid) {
         return false;
     }
-    script_item(sid).sn_lua
+    with_script_item(sid, |si| si.sn_lua)
 }
 
 /// Find an already loaded script "name".
 pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
     let mut sid = script_items_len();
     while sid > 0 {
-        let si = script_item(sid);
-        if let Some(ref sn) = si.sn_name
-            && path_equal(sn, name, K_PATH_CMP_LITERAL)
-        {
+        let matched = with_script_item(sid, |si| {
+            si.sn_name
+                .as_ref()
+                .is_some_and(|sn| path_equal(sn, name, K_PATH_CMP_LITERAL))
+        });
+        if matched {
             return sid;
         }
         sid -= 1;
@@ -2937,8 +2995,9 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
             emsg(gettext(E_INVARG));
         } else {
             if eap.addr_count > 0 {
-                eap.arg =
-                    crate::strings::OwnedSlice::from_opt_cstr(script_item(eap.line2).name_cstr());
+                eap.arg = crate::strings::OwnedSlice::from_opt_cstr(
+                    script_item_name(eap.line2).as_deref(),
+                );
             } else {
                 expand_env(eap.arg.as_cstr(), g_st().name_buff_bytes_mut());
                 to_slash(g_st().name_buff_bytes_mut());
@@ -2952,8 +3011,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
     msg_ext_set_kind(c"list_cmd");
     let mut i = 1;
     while i <= script_items_len() && !g_st().got_int {
-        let si = script_item(i);
-        if let Some(ref sn) = si.sn_name {
+        if let Some(sn) = script_item_name(i) {
             home_replace(
                 None,
                 Some(sn.as_c_str()),
@@ -2999,11 +3057,11 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
             }
             SID_STR => gettext(c"anonymous :source"),
             _ => {
-                if let Some(sname) = script_item(script_ctx.sc_sid).name_cstr() {
+                if let Some(sname) = script_item_name(script_ctx.sc_sid) {
                     if home_replace {
-                        return Cow::Owned(home_replace_save(None, Some(sname)));
+                        return Cow::Owned(home_replace_save(None, Some(&sname)));
                     } else {
-                        return Cow::Borrowed(sname);
+                        return Cow::Owned(sname);
                     }
                 } else {
                     format_to_buf!(
@@ -3021,7 +3079,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
 
 pub fn free_scriptnames() {
     profile_reset();
-    g_st().script_items = Vec::new();
+    SCRIPT_ITEMS.with(|c| *c.borrow_mut() = Vec::new());
 }
 
 pub fn free_autoload_scriptnames() {
@@ -3097,9 +3155,10 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
     let mut i = if sid > 0 { sid } else { 1 };
     while (i == sid || sid <= 0) && i <= Varnumber::from(script_items_len()) {
-        let si = script_item(i as Scid);
+        let (sn_opt, sv_dict) =
+            with_script_item(i as Scid, |si| (si.sn_name.clone(), si.sn_vars.sv_dict));
 
-        if let Some(ref sn) = si.sn_name
+        if let Some(ref sn) = sn_opt
             && (!filterpat || vim_regexec(&mut regmatch, sn, 0))
         {
             let d = tv_dict_alloc();
@@ -3110,8 +3169,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             tv_dict_add_bool(&mut *d, c"autoload", K_FALSE);
 
             if sid > 0 {
-                let var_dict =
-                    tv_dict_copy(None, si.sn_vars.sv_dict.opt_mut(), true, get_copy_id());
+                let var_dict = tv_dict_copy(None, sv_dict.opt_mut(), true, get_copy_id());
                 tv_dict_add_dict(&mut *d, c"variables", var_dict);
                 tv_dict_add_list(
                     &mut *d,

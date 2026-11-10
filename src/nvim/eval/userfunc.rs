@@ -1566,12 +1566,12 @@ pub fn call_user_func(
     }
 
     estack_push_ufunc(&mut *fp, 1);
-    let estack_len_before = g_st().exestack.len() as i32;
+    let estack_len_before = crate::runtime::estack_len() as i32;
     if opt_vars().p_verbose >= 12 {
         g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
-        smsg!(0, gettext(c"calling %s"), sourcing_name());
+        smsg!(0, gettext(c"calling %s"), sourcing_name().as_deref());
         if opt_vars().p_verbose >= 14 {
             msg_puts(c"(");
             for (i, arg_tv) in argvars.iter_mut().take(argcount as usize).enumerate() {
@@ -1678,12 +1678,12 @@ pub fn call_user_func(
         verbose_enter_scroll();
 
         if aborting() {
-            smsg!(0, gettext(c"%s aborted"), sourcing_name());
+            smsg!(0, gettext(c"%s aborted"), sourcing_name().as_deref());
         } else if fc.fc_rettv.v_type == VarType::VarNumber {
             smsg!(
                 0,
                 gettext(c"%s returning #%lld"),
-                sourcing_name(),
+                sourcing_name().as_deref(),
                 fc.fc_rettv.vval.v_number(),
             );
         } else {
@@ -1697,7 +1697,12 @@ pub fn call_user_func(
             } else {
                 tf.as_c_str()
             };
-            smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
+            smsg!(
+                0,
+                gettext(c"%s returning %s"),
+                sourcing_name().as_deref(),
+                s
+            );
         }
         msg_puts(c"\n");
 
@@ -1715,11 +1720,11 @@ pub fn call_user_func(
         g_st().sandbox -= 1;
     }
 
-    if opt_vars().p_verbose >= 12 && sourcing_name().is_some() {
+    if opt_vars().p_verbose >= 12 && sourcing_name().as_deref().is_some() {
         g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
-        smsg!(0, gettext(c"continuing in %s"), sourcing_name());
+        smsg!(0, gettext(c"continuing in %s"), sourcing_name().as_deref());
         msg_puts(c"\n");
 
         verbose_leave_scroll();
@@ -3364,7 +3369,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 if slen > plen
                     && path_equal(
                         p_slash,
-                        &sname[(slen - plen) as usize..],
+                        &sname.as_c_str()[(slen - plen) as usize..],
                         K_PATH_CMP_LITERAL,
                     )
                 {

@@ -4150,10 +4150,7 @@ pub fn garbage_collect(testing: bool) -> bool {
         g_st().garbage_collect_at_exit = false;
     }
 
-    if g_st().exestack.capacity() - g_st().exestack.len() > 500 {
-        let keep = g_st().exestack.len() + (g_st().exestack.len() / 2).max(50);
-        g_st().exestack.shrink_to(keep);
-    }
+    crate::runtime::estack_cleanup();
 
     let copy_id = get_copy_id();
 
@@ -6595,7 +6592,7 @@ pub fn eval_call_provider(
 
     let new_scope = CallerScope {
         script_ctx: g_st().current_sctx,
-        es_entry: g_st().exestack.last().unwrap().clone(),
+        es_entry: crate::runtime::estack_top_clone(),
         autocmd_fname: g_st().autocmd_fname.clone(),
         autocmd_match: g_st().autocmd_match.clone(),
         autocmd_fname_full: g_st().autocmd_fname_full,

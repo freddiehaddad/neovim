@@ -473,70 +473,29 @@ pub struct SignItem<'a> {
     pub id: u32,
 }
 
-#[derive(Clone, Copy)]
-struct DecorationCopyState {
-    decor_freelist: u32,
-    virt_freelist: DecorVirtId,
-    to_free_sh: u32,
-    sign_add_id: i32,
+struct DecorationState {
+    decor_freelist: std::cell::Cell<u32>,
+    virt_freelist: std::cell::Cell<DecorVirtId>,
+    to_free_sh: std::cell::Cell<u32>,
+    sign_add_id: std::cell::Cell<i32>,
 }
 
-impl DecorationCopyState {
+impl DecorationState {
     const fn new() -> Self {
         Self {
-            decor_freelist: u32::MAX,
-            virt_freelist: DecorVirtId::NULL,
-            to_free_sh: u32::MAX,
-            sign_add_id: 0,
+            decor_freelist: std::cell::Cell::new(u32::MAX),
+            virt_freelist: std::cell::Cell::new(DecorVirtId::NULL),
+            to_free_sh: std::cell::Cell::new(u32::MAX),
+            sign_add_id: std::cell::Cell::new(0),
         }
     }
 }
 
 thread_local! {
-    static DECOR_MOD_STATE: std::cell::Cell<DecorationCopyState> = const {
-        std::cell::Cell::new(DecorationCopyState::new())
-    };
+    static DECOR_MOD_STATE: DecorationState = const { DecorationState::new() };
     static TO_FREE_VIRT: std::cell::RefCell<Vec<DecorVirtId>> = const {
         std::cell::RefCell::new(Vec::new())
     };
-}
-
-struct DecorGuard {
-    state: DecorationCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for DecorGuard {
-    type Target = DecorationCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for DecorGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for DecorGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            DECOR_MOD_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn decor_st() -> DecorGuard {
-    DecorGuard {
-        state: DECOR_MOD_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 #[inline]
@@ -655,10 +614,15 @@ pub fn decor_redraw_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: DecorSignHig
 }
 
 pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
-    if decor_st().decor_freelist != u32::MAX {
-        let pos = decor_st().decor_freelist;
-        decor_st().decor_freelist =
-            g_st().decor_items.as_slice()[decor_st().decor_freelist as usize].next;
+    if DECOR_MOD_STATE.with(|s| s.decor_freelist.get()) != u32::MAX {
+        let pos = DECOR_MOD_STATE.with(|s| s.decor_freelist.get());
+        DECOR_MOD_STATE.with(|s| {
+            s.decor_freelist.set(
+                g_st().decor_items.as_slice()
+                    [DECOR_MOD_STATE.with(|s| s.decor_freelist.get()) as usize]
+                    .next,
+            )
+        });
         g_st().decor_items.as_mut_slice()[pos as usize] = item;
         pos
     } else {
@@ -670,9 +634,12 @@ pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
 
 pub fn decor_put_vt(mut vt: DecorVirtText, next: DecorVirtId) -> DecorVirtId {
     vt.next = next;
-    let fl = decor_st().virt_freelist;
+    let fl = DECOR_MOD_STATE.with(|s| s.virt_freelist.get());
     if !fl.is_null() {
-        decor_st().virt_freelist = g_st().virt_items.as_slice()[fl.0 as usize].next;
+        DECOR_MOD_STATE.with(|s| {
+            s.virt_freelist
+                .set(g_st().virt_items.as_slice()[fl.0 as usize].next)
+        });
         g_st().virt_items.as_mut_slice()[fl.0 as usize] = vt;
         fl
     } else {
@@ -689,8 +656,8 @@ fn decor_free_vt(first: DecorVirtId) {
         vt.data = DecorVirtTextData::empty();
         vt.flags = 0;
         if next.is_null() {
-            vt.next = decor_st().virt_freelist;
-            decor_st().virt_freelist = first;
+            vt.next = DECOR_MOD_STATE.with(|s| s.virt_freelist.get());
+            DECOR_MOD_STATE.with(|s| s.virt_freelist.set(first));
             break;
         }
         cur = next;
@@ -747,8 +714,8 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
 
 pub fn buf_put_decor_sh(buf: &mut FileBuf, sh: &mut DecorSignHighlight, row1: i32, row2: i32) {
     if (sh.flags & K_SHIS_SIGN) != 0 {
-        sh.sign_add_id = decor_st().sign_add_id;
-        decor_st().sign_add_id += 1;
+        sh.sign_add_id = DECOR_MOD_STATE.with(|s| s.sign_add_id.get());
+        DECOR_MOD_STATE.with(|s| s.sign_add_id.set(s.sign_add_id.get() + (1)));
         if sh.text[0] != 0 {
             buf_signcols_count_range(&mut *buf, row1, row2, 1, K_FALSE);
             may_force_numberwidth_recompute(buf, false);
@@ -807,8 +774,8 @@ pub fn decor_free(decor: DecorInline) {
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut g_st().decor_items)[idx as usize];
             if sh.next == DECOR_ID_INVALID {
-                sh.next = decor_st().to_free_sh;
-                decor_st().to_free_sh = ext.sh_idx;
+                sh.next = DECOR_MOD_STATE.with(|s| s.to_free_sh.get());
+                DECOR_MOD_STATE.with(|s| s.to_free_sh.set(ext.sh_idx));
                 break;
             }
             idx = sh.next;
@@ -827,8 +794,8 @@ fn decor_free_sh(first_idx: u32) {
         sh.flags = 0;
         sh.url = None;
         if sh.next == DECOR_ID_INVALID {
-            sh.next = decor_st().decor_freelist;
-            decor_st().decor_freelist = first_idx;
+            sh.next = DECOR_MOD_STATE.with(|s| s.decor_freelist.get());
+            DECOR_MOD_STATE.with(|s| s.decor_freelist.set(first_idx));
             break;
         }
         idx = sh.next;
@@ -892,8 +859,8 @@ pub fn decor_check_to_be_deleted() {
     while let Some(vt) = TO_FREE_VIRT.with(|cell| cell.borrow_mut().pop()) {
         decor_free_vt(vt);
     }
-    decor_free_sh(decor_st().to_free_sh);
-    decor_st().to_free_sh = DECOR_ID_INVALID;
+    decor_free_sh(DECOR_MOD_STATE.with(|s| s.to_free_sh.get()));
+    DECOR_MOD_STATE.with(|s| s.to_free_sh.set(DECOR_ID_INVALID));
     g_st().decor_state.win = crate::globals::WinPtr::NULL;
 }
 

@@ -74,7 +74,7 @@ use crate::os::env::os_getenv_cstr;
 use crate::os::env::{ExpandCtx, home_replace_save};
 use crate::os::fileio::{FileDescriptor, file_close, file_open_stdin, file_read};
 use crate::path::fix_fname;
-use crate::profile::{Proftime, Scriptitem, time_msg, time_pop, time_push};
+use crate::profile::{Proftime, time_msg, time_pop, time_push};
 use crate::runtime::{
     Sctx, cmd_source_buffer, find_script_by_name, new_script_item, runtime_get_named_thread,
     runtime_search_path_validate, script_is_lua,
@@ -2370,11 +2370,8 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
     {
         let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
-            let mut si = crate::globals::GraphPtr::<Scriptitem>::of(new_script_item(
-                Some(source_path),
-                &mut sid,
-            ));
-            si.sn_lua = true;
+            new_script_item(Some(source_path), &mut sid);
+            crate::runtime::with_script_item_mut(sid, |si| si.sn_lua = true);
         }
         current.sc_sid = sid;
         current.sc_seq = -1;

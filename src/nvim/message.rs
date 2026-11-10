@@ -441,7 +441,7 @@ use crate::keycodes::{k_second, k_third};
 
 #[inline]
 fn have_sourcing_info() -> bool {
-    !g_st().exestack.is_empty()
+    !crate::runtime::estack_is_empty()
 }
 
 /// Returns true if the given integer message-id was previously generated.
@@ -1039,14 +1039,14 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         && other_sourcing_name()
     {
         let tofree = estack_sfile(ESTACK_NONE);
-        if let Some(ref tf) = tofree {
-            sname = tf.as_c_str();
+        if let Some(tf) = tofree {
+            sname = tf;
         }
 
         let p = gettext(c"Error in %s:");
         let buf_len = sname.to_bytes().len() + p.to_bytes().len() + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
-        format_to_buf!(&mut buf_vec[..], p, sname);
+        format_to_buf!(&mut buf_vec[..], p, &sname);
         return Some(crate::memory::cstring_until_nul(&buf_vec));
     }
     None
@@ -3196,7 +3196,7 @@ fn inc_msg_scrolled() {
             let size = format_to_buf_safelen!(
                 &mut tofree_vec,
                 gettext(c"%s line %lld"),
-                sname,
+                &sname,
                 i64::from(sourcing_lnum()),
             );
             NvimString::from_bytes_len(&tofree_vec, size)

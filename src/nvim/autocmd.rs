@@ -2376,7 +2376,11 @@ pub fn autocmd_register(
         ac.handler = AutoCmdHandler::Fn(cb);
     }
     ac.script_ctx = g_st().current_sctx;
-    let sourcing_lnum = g_st().exestack.last().map_or(0, |top| top.es_lnum);
+    let sourcing_lnum = if crate::runtime::estack_is_empty() {
+        0
+    } else {
+        crate::runtime::sourcing_lnum()
+    };
     ac.script_ctx.sc_lnum += sourcing_lnum;
     nlua_set_sctx(&mut ac.script_ctx);
     ac.once = once;
@@ -3171,8 +3175,6 @@ pub fn is_autocmd_blocked() -> bool {
 }
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
-    let entry = g_st().borrow_mut().exestack.last_mut().unwrap();
-
     let acs_len = AUTOCMDS.with(|a| a[apc.event as usize].borrow().len());
     assert!(apc.ausize <= acs_len);
     let mut i = apc.auidx;
@@ -3220,8 +3222,10 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 verbose_leave();
             }
 
-            entry.es_name = Some(name_cstr);
-            entry.es_info = crate::profile::EStackInfo::AuCmd(apc.script_ctx.clone());
+            crate::runtime::estack_set_top_info(
+                Some(name_cstr),
+                crate::profile::EStackInfo::AuCmd(apc.script_ctx.clone()),
+            );
         }
 
         apc.lastpat = Some(ap);
@@ -3231,8 +3235,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
         return;
     }
 
-    entry.es_name = None;
-    entry.es_info = crate::profile::EStackInfo::None;
+    crate::runtime::estack_set_top_info(None, crate::profile::EStackInfo::None);
 
     apc.lastpat = None;
     apc.auidx = usize::MAX;

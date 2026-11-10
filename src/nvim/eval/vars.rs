@@ -69,7 +69,7 @@ use crate::os::env::{
     vim_unsetenv_ext,
 };
 use crate::register::{K_GREG_EXPR_SRC, get_reg_contents_str, write_reg_contents};
-use crate::runtime::{Scriptvar, new_script_item, script_autoload, script_item};
+use crate::runtime::{Scriptvar, new_script_item, script_autoload, script_item_vars};
 use crate::search::set_search_direction;
 use crate::strings::{concat_str, gettext};
 use crate::version::{highest_patch, min_vim_version};
@@ -509,13 +509,8 @@ pub fn tv_list_locked(l: Option<&TvList>) -> VarLockStatus {
 }
 
 #[inline]
-fn script_sv(id: Scid) -> &'static mut Scriptvar {
-    &mut script_item(id).sn_vars
-}
-
-#[inline]
 fn script_vars_ht(id: Scid) -> &'static mut Hashtab {
-    &mut script_sv(id).sv_dict.dv_hashtab
+    &mut script_item_vars(id).1.borrow_mut().dv_hashtab
 }
 
 #[inline]
@@ -2629,7 +2624,7 @@ pub fn find_var_in_ht(
 ) -> Option<&'static mut Dictitem> {
     if varname_len == 0 {
         let id = match htname as u8 {
-            b's' => script_sv(g_st().current_sctx.sc_sid).sv_var,
+            b's' => script_item_vars(g_st().current_sctx.sc_sid).0,
             b'g' => get_globvars_var().di_id,
             b'v' => get_vimvars_var().di_id,
             b'b' => curbuf_mut().b_bufvar,
@@ -2723,7 +2718,7 @@ fn find_var_ht_dict<'a>(
             if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
                 new_script_item(None, &mut g_st().current_sctx.sc_sid);
             }
-            dict_ptr = script_sv(g_st().current_sctx.sc_sid).sv_dict;
+            dict_ptr = script_item_vars(g_st().current_sctx.sc_sid).1;
         }
         _ => {}
     }

@@ -2497,6 +2497,7 @@ pub(crate) fn ensure_test_editor_init() {
         crate::highlight_group::init_highlight(true, false);
     });
     if !THREAD_VARS_INIT.get() {
+        estack_init();
         eval_init();
         init_path(c"nvim");
         THREAD_VARS_INIT.set(true);

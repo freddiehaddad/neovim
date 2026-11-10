@@ -208,8 +208,8 @@ use crate::register::{
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
     estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
-    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, source_breakpoint, source_dbg_tick,
-    source_finished, source_level, source_runtime, sourcing_name,
+    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, set_sourcing_lnum, source_breakpoint,
+    source_dbg_tick, source_finished, source_level, source_runtime, sourcing_lnum, sourcing_name,
 };
 use crate::search::{
     do_search, find_pattern_in_path, restore_last_search_pattern, save_last_search_pattern,
@@ -612,72 +612,31 @@ use crate::errors::*;
 
 const COMMAND_COUNT: i32 = 564;
 
-#[derive(Clone, Copy)]
 struct ExDocmdState {
-    quitmore: i32,
-    cmdline_call_depth: i32,
-    filetype_detect: TriState,
-    filetype_plugin: TriState,
-    filetype_indent: TriState,
+    quitmore: std::cell::Cell<i32>,
+    cmdline_call_depth: std::cell::Cell<i32>,
+    filetype_detect: std::cell::Cell<TriState>,
+    filetype_plugin: std::cell::Cell<TriState>,
+    filetype_indent: std::cell::Cell<TriState>,
 }
 
 impl ExDocmdState {
     const fn new() -> Self {
         Self {
-            quitmore: 0,
-            cmdline_call_depth: 0,
-            filetype_detect: K_NONE,
-            filetype_plugin: K_NONE,
-            filetype_indent: K_NONE,
+            quitmore: std::cell::Cell::new(0),
+            cmdline_call_depth: std::cell::Cell::new(0),
+            filetype_detect: std::cell::Cell::new(K_NONE),
+            filetype_plugin: std::cell::Cell::new(K_NONE),
+            filetype_indent: std::cell::Cell::new(K_NONE),
         }
     }
 }
 
 thread_local! {
-    static DOCMD_STATE: std::cell::Cell<ExDocmdState> = const {
-        std::cell::Cell::new(ExDocmdState::new())
-    };
+    static DOCMD_STATE: ExDocmdState = const { ExDocmdState::new() };
     static PREV_DIR: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
-}
-
-struct DocmdGuard {
-    state: ExDocmdState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for DocmdGuard {
-    type Target = ExDocmdState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for DocmdGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for DocmdGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            DOCMD_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn docmd_st() -> DocmdGuard {
-    DocmdGuard {
-        state: DOCMD_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 struct Wcmd {
@@ -4909,11 +4868,6 @@ const CMDIDXS2: [[u8; 26]; 26] = [
     ],
 ];
 
-#[inline]
-fn sourcing_lnum_ptr() -> &'static mut Linenr {
-    &mut g_st().borrow_mut().exestack.last_mut().unwrap().es_lnum
-}
-
 fn save_dbg_stuff(dsp: &mut DbgStuff) {
     dsp.trylevel = g_st().trylevel;
     g_st().trylevel = 0;
@@ -4999,21 +4953,21 @@ fn msg_verbose_cmd(lnum: Linenr, cmd: &CStr) {
 
 /// Start executing an Ex command line.
 fn do_cmdline_start() -> bool {
-    debug_assert!(docmd_st().cmdline_call_depth >= 0);
-    if docmd_st().cmdline_call_depth >= 200
-        && OptInt::from(docmd_st().cmdline_call_depth) >= opt_vars().p_mfd
+    debug_assert!(DOCMD_STATE.with(|s| s.cmdline_call_depth.get()) >= 0);
+    if DOCMD_STATE.with(|s| s.cmdline_call_depth.get()) >= 200
+        && OptInt::from(DOCMD_STATE.with(|s| s.cmdline_call_depth.get())) >= opt_vars().p_mfd
     {
         return false;
     }
-    docmd_st().cmdline_call_depth += 1;
+    DOCMD_STATE.with(|s| s.cmdline_call_depth.set(s.cmdline_call_depth.get() + (1)));
     start_batch_changes();
     true
 }
 
 /// End executing an Ex command line.
 fn do_cmdline_end() {
-    docmd_st().cmdline_call_depth -= 1;
-    debug_assert!(docmd_st().cmdline_call_depth >= 0);
+    DOCMD_STATE.with(|s| s.cmdline_call_depth.set(s.cmdline_call_depth.get() - (1)));
+    debug_assert!(DOCMD_STATE.with(|s| s.cmdline_call_depth.get()) >= 0);
     end_batch_changes();
 }
 
@@ -5041,6 +4995,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
         let mut cstack = Cstack::default();
         let mut current_line: i32 = 0;
         let mut fname_opt: Option<&CStr> = None;
+        let sname_owned: Option<std::ffi::CString>;
         let mut breakpoint = crate::globals::GraphPtr::<Linenr>::NULL.as_ptr();
         let mut dbg_tick = crate::globals::GraphPtr::<i32>::NULL.as_ptr();
         let mut debug_saved = DbgStuff::new();
@@ -5065,7 +5020,8 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             breakpoint = func_breakpoint(fcp);
             dbg_tick = func_dbg_tick(fcp);
         } else if let Some(sp) = fgetline.as_source() {
-            fname_opt = sourcing_name();
+            sname_owned = sourcing_name();
+            fname_opt = sname_owned.as_deref();
             breakpoint = source_breakpoint(sp);
             dbg_tick = source_dbg_tick(sp);
         }
@@ -5128,21 +5084,21 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
                     && *crate::globals::GraphPtr::of(dbg_tick).borrow() != g_st().debug_tick
                 {
                     *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
-                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, *sourcing_lnum_ptr());
+                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, sourcing_lnum());
                     *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
                 }
 
                 let wp = &cmd_loop_cookie.lines[current_line as usize];
                 next_cmdline = Some(wp.line.as_c_str());
-                *sourcing_lnum_ptr() = wp.lnum;
+                set_sourcing_lnum(wp.lnum);
 
                 if !breakpoint.is_null()
                     && *crate::globals::GraphPtr::of(breakpoint).borrow() != 0
-                    && *crate::globals::GraphPtr::of(breakpoint).borrow() <= *sourcing_lnum_ptr()
+                    && *crate::globals::GraphPtr::of(breakpoint).borrow() <= sourcing_lnum()
                 {
-                    dbg_breakpoint(fname_opt, *sourcing_lnum_ptr());
+                    dbg_breakpoint(fname_opt, sourcing_lnum());
                     *crate::globals::GraphPtr::of(breakpoint).borrow_mut() =
-                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, *sourcing_lnum_ptr());
+                        dbg_find_breakpoint(fgetline.is_source(), fname_cstr, sourcing_lnum());
                     *crate::globals::GraphPtr::of(dbg_tick).borrow_mut() = g_st().debug_tick;
                 }
                 if g_st().do_profiling == PROF_YES {
@@ -5251,10 +5207,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
             if (opt_vars().p_verbose >= 15 && sourcing_name().is_some())
                 || opt_vars().p_verbose >= 16
             {
-                msg_verbose_cmd(
-                    *sourcing_lnum_ptr(),
-                    crate::memory::bytes_as_cstr(&cmdline_buf),
-                );
+                msg_verbose_cmd(sourcing_lnum(), crate::memory::bytes_as_cstr(&cmdline_buf));
             }
 
             RECURSIVE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -5336,7 +5289,7 @@ pub fn do_cmdline(cmdline: Option<&CStr>, fgetline: LineGetter, flags: i32) -> b
 
             if cstack.cs_looplevel == 0 {
                 if let Some(wp) = cmd_loop_cookie.lines.last() {
-                    *sourcing_lnum_ptr() = wp.lnum;
+                    set_sourcing_lnum(wp.lnum);
                     cmd_loop_cookie.lines.clear();
                 }
                 current_line = 0;
@@ -5572,7 +5525,7 @@ pub fn get_loop_line(
     g_st().key_typed = false;
     cp.current_line += 1;
     let wp = &lines[cp.current_line as usize];
-    *sourcing_lnum_ptr() = wp.lnum;
+    set_sourcing_lnum(wp.lnum);
     Some(wp.line.clone())
 }
 
@@ -5580,7 +5533,7 @@ pub fn get_loop_line(
 fn store_loop_line(lines: &mut Vec<Wcmd>, line: &CStr) {
     lines.push(Wcmd {
         line: line.to_owned(),
-        lnum: *sourcing_lnum_ptr(),
+        lnum: sourcing_lnum(),
     });
 }
 
@@ -6392,8 +6345,9 @@ fn do_one_cmd(
     ea.line2 = 1;
     g_st().ex_nesting_level += 1;
 
-    if docmd_st().quitmore != 0 && !fgetline.is_func() && !fgetline.is_autocmd() {
-        docmd_st().quitmore -= 1;
+    if DOCMD_STATE.with(|s| s.quitmore.get()) != 0 && !fgetline.is_func() && !fgetline.is_autocmd()
+    {
+        DOCMD_STATE.with(|s| s.quitmore.set(s.quitmore.get() - (1)));
     }
 
     let save_cmdmod = std::mem::take(&mut g_st().cmdmod);
@@ -9019,7 +8973,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
         && ac > 1
         && !g_st().arg_had_last
         && n > 0
-        && docmd_st().quitmore == 0
+        && DOCMD_STATE.with(|s| s.quitmore.get()) == 0
     {
         if message {
             if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
@@ -9050,7 +9004,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
                 ),
                 n,
             );
-            docmd_st().quitmore = 2;
+            DOCMD_STATE.with(|s| s.quitmore.set(2));
         }
         return false;
     }
@@ -12241,15 +12195,15 @@ pub fn eval_vars(
                 result_cstr = resultbuf.as_deref().map(crate::memory::bytes_as_cstr);
             }
             SPEC_SLNUM => {
-                if sourcing_name().is_none() || *sourcing_lnum_ptr() == 0 {
+                if sourcing_name().is_none() || sourcing_lnum() == 0 {
                     *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM));
                     return None;
                 }
-                let _ = format_to_buf!(&mut strbuf, c"%d", *sourcing_lnum_ptr());
+                let _ = format_to_buf!(&mut strbuf, c"%d", sourcing_lnum());
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             SPEC_SFLNUM => {
-                let sflnum = g_st().current_sctx.sc_lnum + *sourcing_lnum_ptr();
+                let sflnum = g_st().current_sctx.sc_lnum + sourcing_lnum();
                 if sflnum == 0 {
                     *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM));
                     return None;
@@ -12386,13 +12340,13 @@ fn ex_filetype(eap: &mut Exarg) {
         let _ = smsg!(
             0,
             c"filetype detection:%s  plugin:%s  indent:%s",
-            if docmd_st().filetype_detect == K_TRUE {
+            if DOCMD_STATE.with(|s| s.filetype_detect.get()) == K_TRUE {
                 c"ON"
             } else {
                 c"OFF"
             },
-            if docmd_st().filetype_plugin == K_TRUE {
-                if docmd_st().filetype_detect == K_TRUE {
+            if DOCMD_STATE.with(|s| s.filetype_plugin.get()) == K_TRUE {
+                if DOCMD_STATE.with(|s| s.filetype_detect.get()) == K_TRUE {
                     c"ON"
                 } else {
                     c"(on)"
@@ -12400,8 +12354,8 @@ fn ex_filetype(eap: &mut Exarg) {
             } else {
                 c"OFF"
             },
-            if docmd_st().filetype_indent == K_TRUE {
-                if docmd_st().filetype_detect == K_TRUE {
+            if DOCMD_STATE.with(|s| s.filetype_indent.get()) == K_TRUE {
+                if DOCMD_STATE.with(|s| s.filetype_detect.get()) == K_TRUE {
                     c"ON"
                 } else {
                     c"(on)"
@@ -12433,16 +12387,16 @@ fn ex_filetype(eap: &mut Exarg) {
     }
 
     if (arg).as_bytes() == b"on" || (arg).as_bytes() == b"detect" {
-        if (arg).first_byte() == b'o' || docmd_st().filetype_detect != K_TRUE {
+        if (arg).first_byte() == b'o' || DOCMD_STATE.with(|s| s.filetype_detect.get()) != K_TRUE {
             source_runtime(FILETYPE_FILE, DIP_ALL);
-            docmd_st().filetype_detect = K_TRUE;
+            DOCMD_STATE.with(|s| s.filetype_detect.set(K_TRUE));
             if plugin {
                 source_runtime(FTPLUGIN_FILE, DIP_ALL);
-                docmd_st().filetype_plugin = K_TRUE;
+                DOCMD_STATE.with(|s| s.filetype_plugin.set(K_TRUE));
             }
             if indent {
                 source_runtime(INDENT_FILE, DIP_ALL);
-                docmd_st().filetype_indent = K_TRUE;
+                DOCMD_STATE.with(|s| s.filetype_indent.set(K_TRUE));
             }
         }
         if (arg).first_byte() == b'd' {
@@ -12453,15 +12407,15 @@ fn ex_filetype(eap: &mut Exarg) {
         if plugin || indent {
             if plugin {
                 source_runtime(FTPLUGOF_FILE, DIP_ALL);
-                docmd_st().filetype_plugin = K_FALSE;
+                DOCMD_STATE.with(|s| s.filetype_plugin.set(K_FALSE));
             }
             if indent {
                 source_runtime(INDOFF_FILE, DIP_ALL);
-                docmd_st().filetype_indent = K_FALSE;
+                DOCMD_STATE.with(|s| s.filetype_indent.set(K_FALSE));
             }
         } else {
             source_runtime(FTOFF_FILE, DIP_ALL);
-            docmd_st().filetype_detect = K_FALSE;
+            DOCMD_STATE.with(|s| s.filetype_detect.set(K_FALSE));
         }
     } else {
         let _ = semsg!(gettext(E_INVARG2), arg);
@@ -12474,20 +12428,20 @@ pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ff
 }
 
 pub fn filetype_plugin_enable() {
-    if docmd_st().filetype_plugin == K_NONE {
+    if DOCMD_STATE.with(|s| s.filetype_plugin.get()) == K_NONE {
         source_runtime(FTPLUGIN_FILE, DIP_ALL);
-        docmd_st().filetype_plugin = K_TRUE;
+        DOCMD_STATE.with(|s| s.filetype_plugin.set(K_TRUE));
     }
-    if docmd_st().filetype_indent == K_NONE {
+    if DOCMD_STATE.with(|s| s.filetype_indent.get()) == K_NONE {
         source_runtime(INDENT_FILE, DIP_ALL);
-        docmd_st().filetype_indent = K_TRUE;
+        DOCMD_STATE.with(|s| s.filetype_indent.set(K_TRUE));
     }
 }
 
 pub fn filetype_maybe_enable() {
-    if docmd_st().filetype_detect == K_NONE {
+    if DOCMD_STATE.with(|s| s.filetype_detect.get()) == K_NONE {
         source_runtime(FILETYPE_FILE, DIP_ALL);
-        docmd_st().filetype_detect = K_TRUE;
+        DOCMD_STATE.with(|s| s.filetype_detect.set(K_TRUE));
     }
 }
 

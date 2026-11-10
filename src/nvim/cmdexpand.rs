@@ -91,7 +91,7 @@ use crate::regexp::{
 };
 use crate::runtime::{
     DIP_OPT, DIP_START, ExpandPackAddDir, expand_rtdir, expand_runtime_cmd, script_id_valid,
-    script_item, set_context_in_runtime_cmd,
+    script_item_name, set_context_in_runtime_cmd,
 };
 use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
@@ -1765,55 +1765,52 @@ enum BreakptExpandWhat {
     Profdel,
 }
 
-#[derive(Clone, Copy)]
 struct CmdexpandState {
-    cmd_showtail: bool,
-    may_expand_pattern: bool,
-    pre_incsearch_pos: CursorPos,
-    compl_startcol: i32,
-    compl_selected: i32,
-    filetype_expand_what: FiletypeExpandWhat,
-    breakpt_expand_what: BreakptExpandWhat,
-    healthcheck_names: Object,
-    healthcheck_last_gen: u32,
-    arg1_lua_names: Object,
-    arg1_lua_last_gen: u32,
-    first_match: i32,
+    cmd_showtail: std::cell::Cell<bool>,
+    may_expand_pattern: std::cell::Cell<bool>,
+    pre_incsearch_pos: std::cell::Cell<CursorPos>,
+    compl_startcol: std::cell::Cell<i32>,
+    compl_selected: std::cell::Cell<i32>,
+    filetype_expand_what: std::cell::Cell<FiletypeExpandWhat>,
+    breakpt_expand_what: std::cell::Cell<BreakptExpandWhat>,
+    healthcheck_names: std::cell::Cell<Object>,
+    healthcheck_last_gen: std::cell::Cell<u32>,
+    arg1_lua_names: std::cell::Cell<Object>,
+    arg1_lua_last_gen: std::cell::Cell<u32>,
+    first_match: std::cell::Cell<i32>,
 }
 
 impl CmdexpandState {
     const fn new() -> Self {
         Self {
-            cmd_showtail: false,
-            may_expand_pattern: false,
-            pre_incsearch_pos: CursorPos {
+            cmd_showtail: std::cell::Cell::new(false),
+            may_expand_pattern: std::cell::Cell::new(false),
+            pre_incsearch_pos: std::cell::Cell::new(CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
-            },
-            compl_startcol: 0,
-            compl_selected: 0,
-            filetype_expand_what: FiletypeExpandWhat::All,
-            breakpt_expand_what: BreakptExpandWhat::Add,
-            healthcheck_names: Object {
+            }),
+            compl_startcol: std::cell::Cell::new(0),
+            compl_selected: std::cell::Cell::new(0),
+            filetype_expand_what: std::cell::Cell::new(FiletypeExpandWhat::All),
+            breakpt_expand_what: std::cell::Cell::new(BreakptExpandWhat::Add),
+            healthcheck_names: std::cell::Cell::new(Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
-            },
-            healthcheck_last_gen: 0,
-            arg1_lua_names: Object {
+            }),
+            healthcheck_last_gen: std::cell::Cell::new(0),
+            arg1_lua_names: std::cell::Cell::new(Object {
                 obj_type: ObjectType::ObjectTypeNil,
                 data: ObjectData::Integer(0),
-            },
-            arg1_lua_last_gen: 0,
-            first_match: 0,
+            }),
+            arg1_lua_last_gen: std::cell::Cell::new(0),
+            first_match: std::cell::Cell::new(0),
         }
     }
 }
 
 thread_local! {
-    static CMDEXP_STATE: std::cell::Cell<CmdexpandState> = const {
-        std::cell::Cell::new(CmdexpandState::new())
-    };
+    static CMDEXP_STATE: CmdexpandState = const { CmdexpandState::new() };
     static COMPL_MATCH_ARRAY: std::cell::RefCell<std::rc::Rc<[Pumitem]>> = {
         std::cell::RefCell::new(std::rc::Rc::from([]))
     };
@@ -1823,44 +1820,6 @@ thread_local! {
     static ARG1_LUA_LAST_XP_LINE: std::cell::RefCell<Option<CString>> = const {
         std::cell::RefCell::new(None)
     };
-}
-
-struct CmdexpGuard {
-    state: CmdexpandState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for CmdexpGuard {
-    type Target = CmdexpandState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for CmdexpGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for CmdexpGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            CMDEXP_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn cmdexp() -> CmdexpGuard {
-    CmdexpGuard {
-        state: CMDEXP_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 use crate::mbyte::utfc_slice2len;
@@ -2015,18 +1974,21 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         || type_arg == WILD_PUM_WANT;
 
     if xp.xp_numfiles == -1 {
-        cmdexp().pre_incsearch_pos = xp.xp_pre_incsearch_pos;
+        CMDEXP_STATE.with(|s| s.pre_incsearch_pos.set(xp.xp_pre_incsearch_pos));
         if ccline.input_fn != 0 && ccline.xp_context == EXPAND_COMMANDS {
             set_cmd_context(xp, &ccline.cmdbuff_vec, ccline.cmdlen, ccline.cmdpos, false);
         } else {
-            cmdexp().may_expand_pattern = (options & WILD_MAY_EXPAND_PATTERN) != 0;
+            CMDEXP_STATE.with(|s| {
+                s.may_expand_pattern
+                    .set((options & WILD_MAY_EXPAND_PATTERN) != 0)
+            });
             set_expand_context(xp);
-            cmdexp().may_expand_pattern = false;
+            CMDEXP_STATE.with(|s| s.may_expand_pattern.set(false));
         }
         if xp.xp_context == EXPAND_LUA {
             nlua_expand_pat(xp);
         }
-        cmdexp().cmd_showtail = expand_showtail(xp);
+        CMDEXP_STATE.with(|s| s.cmd_showtail.set(expand_showtail(xp)));
     }
 
     if xp.xp_context == EXPAND_UNSUCCESSFUL {
@@ -2192,10 +2154,16 @@ fn cmdline_pum_create(
     let endpos_addr = xp.xp_pattern.addr().wrapping_add(tail_off);
     let cmdbuff_addr = ccline.cmdbuff().addr();
     if ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null() {
-        cmdexp().compl_startcol = ((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32;
+        CMDEXP_STATE.with(|s| {
+            s.compl_startcol
+                .set(((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32)
+        });
     } else {
-        cmdexp().compl_startcol =
-            cmd_screencol(((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32);
+        CMDEXP_STATE.with(|s| {
+            s.compl_startcol.set(cmd_screencol(
+                ((endpos_addr as isize) - (cmdbuff_addr as isize)) as i32,
+            ))
+        });
     }
 }
 
@@ -2203,9 +2171,9 @@ pub fn cmdline_pum_display(changed_array: bool) {
     let arr = COMPL_MATCH_ARRAY.with(|cell| cell.borrow().clone());
     pum_display(
         arr,
-        cmdexp().compl_selected,
+        CMDEXP_STATE.with(|s| s.compl_selected.get()),
         changed_array,
-        cmdexp().compl_startcol,
+        CMDEXP_STATE.with(|s| s.compl_startcol.get()),
     );
 }
 
@@ -2312,19 +2280,19 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     }
     let mut clen = wildmenu_match_len(xp, show_match(matches, match_idx as usize, showtail)) + 3;
     if match_idx == 0 {
-        cmdexp().first_match = 0;
-    } else if match_idx < cmdexp().first_match {
-        cmdexp().first_match = match_idx;
+        CMDEXP_STATE.with(|s| s.first_match.set(0));
+    } else if match_idx < CMDEXP_STATE.with(|s| s.first_match.get()) {
+        CMDEXP_STATE.with(|s| s.first_match.set(match_idx));
         add_left = true;
     } else {
-        for i in cmdexp().first_match..match_idx {
+        for i in CMDEXP_STATE.with(|s| s.first_match.get())..match_idx {
             clen += wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2;
         }
-        if cmdexp().first_match > 0 {
+        if CMDEXP_STATE.with(|s| s.first_match.get()) > 0 {
             clen += 2;
         }
         if clen > g_st().columns_global {
-            cmdexp().first_match = match_idx;
+            CMDEXP_STATE.with(|s| s.first_match.set(match_idx));
             clen = 2;
             let mut i = match_idx;
             while i < num_matches {
@@ -2340,15 +2308,19 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         }
     }
     if add_left {
-        while cmdexp().first_match > 0 {
+        while CMDEXP_STATE.with(|s| s.first_match.get()) > 0 {
             clen += wildmenu_match_len(
                 xp,
-                show_match(matches, (cmdexp().first_match - 1) as usize, showtail),
+                show_match(
+                    matches,
+                    (CMDEXP_STATE.with(|s| s.first_match.get()) - 1) as usize,
+                    showtail,
+                ),
             ) + 2;
             if clen >= g_st().columns_global {
                 break;
             }
-            cmdexp().first_match -= 1;
+            CMDEXP_STATE.with(|s| s.first_match.set(s.first_match.get() - (1)));
         }
     }
 
@@ -2357,7 +2329,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     let attr = win_hl_attr(curwin_mut(), group);
 
     let mut len: usize;
-    if cmdexp().first_match == 0 {
+    if CMDEXP_STATE.with(|s| s.first_match.get()) == 0 {
         buf_vec[0] = 0;
         len = 0;
     } else {
@@ -2369,7 +2341,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
     let mut selstart_idx: Option<usize> = None;
     let mut selend_idx: usize = 0;
 
-    let mut i = cmdexp().first_match;
+    let mut i = CMDEXP_STATE.with(|s| s.first_match.get());
     while clen + wildmenu_match_len(xp, show_match(matches, i as usize, showtail)) + 2
         < g_st().columns_global
     {
@@ -2537,17 +2509,17 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
     if opt_vars().p_wmnu {
         let has_arr = COMPL_MATCH_ARRAY.with(|cell| !cell.borrow().is_empty());
         if has_arr {
-            cmdexp().compl_selected = findex;
+            CMDEXP_STATE.with(|s| s.compl_selected.set(findex));
             cmdline_pum_display(false);
         } else if cmdline_compl_use_pum(true) {
             cmdline_pum_create(
                 &*get_cmdline_info(),
                 xp,
                 &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
-                cmdexp().cmd_showtail,
+                CMDEXP_STATE.with(|s| s.cmd_showtail.get()),
                 false,
             );
-            cmdexp().compl_selected = findex;
+            CMDEXP_STATE.with(|s| s.compl_selected.set(findex));
             pum_clear();
             cmdline_pum_display(true);
         } else {
@@ -2555,7 +2527,7 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
                 xp,
                 &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
                 findex,
-                cmdexp().cmd_showtail,
+                CMDEXP_STATE.with(|s| s.cmd_showtail.get()),
             );
         }
     }
@@ -2875,7 +2847,7 @@ fn show_pum_matches(
     cmdline_unchanged: bool,
 ) {
     cmdline_pum_create(ccline, xp, matches, showtail, cmdline_unchanged);
-    cmdexp().compl_selected = if noselect { -1 } else { 0 };
+    CMDEXP_STATE.with(|s| s.compl_selected.set(if noselect { -1 } else { 0 }));
     pum_clear();
     cmdline_pum_display(true);
 }
@@ -2911,7 +2883,7 @@ pub fn showmatches(
         showtail = expand_showtail(xp);
         &temp_matches
     } else {
-        showtail = cmdexp().cmd_showtail;
+        showtail = CMDEXP_STATE.with(|s| s.cmd_showtail.get());
         &xp.xp_files.as_slice()[..xp.xp_numfiles as usize]
     };
 
@@ -3211,7 +3183,7 @@ pub fn set_expand_context(xp: &mut ExpandCtx) {
     let ccline = get_cmdline_info();
 
     if (ccline.cmdfirstc == b'/' as i32 || ccline.cmdfirstc == b'?' as i32)
-        && cmdexp().may_expand_pattern
+        && CMDEXP_STATE.with(|s| s.may_expand_pattern.get())
     {
         xp.xp_context = EXPAND_PATTERN_IN_BUF;
         xp.xp_search_dir = if ccline.cmdfirstc == b'/' as i32 {
@@ -3594,11 +3566,11 @@ fn set_context_in_breakadd_cmd(xp: &mut ExpandCtx, arg: &CStr, cmdidx: Cmdidx) {
     xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg);
 
     if cmdidx == Cmdidx::CmdBreakadd {
-        cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
+        CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
     } else if cmdidx == Cmdidx::CmdBreakdel {
-        cmdexp().breakpt_expand_what = BreakptExpandWhat::Del;
+        CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Del));
     } else {
-        cmdexp().breakpt_expand_what = BreakptExpandWhat::Profdel;
+        CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Profdel));
     }
 
     let bytes = arg.to_bytes();
@@ -3652,7 +3624,7 @@ fn set_context_in_filetype_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     let arg_slice = crate::strings::OwnedSlice::from_cstr(arg);
     xp.xp_context = EXPAND_FILETYPECMD;
     xp.xp_pattern = arg_slice.clone();
-    cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
+    CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
 
     let mut p = arg_slice.skipwhite();
     if p.is_empty() {
@@ -3681,11 +3653,11 @@ fn set_context_in_filetype_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     }
 
     if (val & EXPAND_FILETYPECMD_PLUGIN) != 0 && (val & EXPAND_FILETYPECMD_INDENT) != 0 {
-        cmdexp().filetype_expand_what = FiletypeExpandWhat::OnOff;
+        CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::OnOff));
     } else if (val & EXPAND_FILETYPECMD_PLUGIN) != 0 {
-        cmdexp().filetype_expand_what = FiletypeExpandWhat::Indent;
+        CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::Indent));
     } else if (val & EXPAND_FILETYPECMD_INDENT) != 0 {
-        cmdexp().filetype_expand_what = FiletypeExpandWhat::Plugin;
+        CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::Plugin));
     }
 
     xp.xp_pattern = p;
@@ -3700,13 +3672,10 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
     let mut dummy: i32 = 0;
     let mut patlen: i32 = 0;
     let mut magic = opt_vars().p_magic;
-    let retval = parse_pattern_and_range(
-        &mut cmdexp().pre_incsearch_pos,
-        &mut dummy,
-        &mut skiplen,
-        &mut patlen,
-        &mut magic,
-    );
+    let mut pos = CMDEXP_STATE.with(|s| s.pre_incsearch_pos.get());
+    let retval =
+        parse_pattern_and_range(&mut pos, &mut dummy, &mut skiplen, &mut patlen, &mut magic);
+    CMDEXP_STATE.with(|s| s.pre_incsearch_pos.set(pos));
     g_st().emsg_off -= 1;
 
     if !retval || ccline.cmdpos <= skiplen || ccline.cmdpos > skiplen + patlen {
@@ -3808,14 +3777,14 @@ fn set_context_by_cmdname<'a>(
         }
         Cmdidx::CmdGlobal | Cmdidx::CmdVglobal => {
             let nextcmd = find_cmd_after_global_cmd(arg_cstr);
-            if nextcmd.is_none() && cmdexp().may_expand_pattern {
+            if nextcmd.is_none() && CMDEXP_STATE.with(|s| s.may_expand_pattern.get()) {
                 set_context_with_pattern(xp);
             }
             return nextcmd;
         }
         Cmdidx::CmdAnd | Cmdidx::CmdSubstitute => {
             let nextcmd = find_cmd_after_substitute_cmd(arg_cstr);
-            if nextcmd.is_none() && cmdexp().may_expand_pattern {
+            if nextcmd.is_none() && CMDEXP_STATE.with(|s| s.may_expand_pattern.get()) {
                 set_context_with_pattern(xp);
             }
             return nextcmd;
@@ -4288,8 +4257,8 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, u
     };
     let work_slice: &[u8] = truncated_buf.as_deref().unwrap_or(str_buf);
 
-    cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
-    cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
+    CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
+    CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
 
     if use_ccline && ccline.cmdfirstc == b'=' as i32 {
         set_context_for_expression(
@@ -4463,19 +4432,19 @@ fn get_filetypecmd_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     }
 
     let i = idx as usize;
-    if cmdexp().filetype_expand_what == FiletypeExpandWhat::All && i < 5 {
+    if CMDEXP_STATE.with(|s| s.filetype_expand_what.get()) == FiletypeExpandWhat::All && i < 5 {
         const OPTS_ALL: [&CStr; 5] = [c"detect", c"indent", c"plugin", c"on", c"off"];
         return Some(OPTS_ALL[i]);
     }
-    if cmdexp().filetype_expand_what == FiletypeExpandWhat::Plugin && i < 3 {
+    if CMDEXP_STATE.with(|s| s.filetype_expand_what.get()) == FiletypeExpandWhat::Plugin && i < 3 {
         const OPTS_PLUGIN: [&CStr; 3] = [c"plugin", c"on", c"off"];
         return Some(OPTS_PLUGIN[i]);
     }
-    if cmdexp().filetype_expand_what == FiletypeExpandWhat::Indent && i < 3 {
+    if CMDEXP_STATE.with(|s| s.filetype_expand_what.get()) == FiletypeExpandWhat::Indent && i < 3 {
         const OPTS_INDENT: [&CStr; 3] = [c"indent", c"on", c"off"];
         return Some(OPTS_INDENT[i]);
     }
-    if cmdexp().filetype_expand_what == FiletypeExpandWhat::OnOff && i < 2 {
+    if CMDEXP_STATE.with(|s| s.filetype_expand_what.get()) == FiletypeExpandWhat::OnOff && i < 2 {
         const OPTS_ONOFF: [&CStr; 2] = [c"on", c"off"];
         return Some(OPTS_ONOFF[i]);
     }
@@ -4488,9 +4457,9 @@ fn get_breakadd_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         const OPTS: [&CStr; 4] = [c"expr", c"file", c"func", c"here"];
         let i = idx as usize;
 
-        if cmdexp().breakpt_expand_what == BreakptExpandWhat::Add {
+        if CMDEXP_STATE.with(|s| s.breakpt_expand_what.get()) == BreakptExpandWhat::Add {
             return Some(OPTS[i]);
-        } else if cmdexp().breakpt_expand_what == BreakptExpandWhat::Del {
+        } else if CMDEXP_STATE.with(|s| s.breakpt_expand_what.get()) == BreakptExpandWhat::Del {
             if idx <= 2 {
                 return Some(OPTS[i + 1]);
             }
@@ -4507,8 +4476,8 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         return None;
     }
 
-    let si = script_item(idx + 1);
-    home_replace(None, (*si).name_cstr(), g_st().name_buff_bytes_mut(), true);
+    let sname = script_item_name(idx + 1);
+    home_replace(None, sname.as_deref(), g_st().name_buff_bytes_mut(), true);
     Some(g_st().name_buff_cstr())
 }
 
@@ -4529,7 +4498,9 @@ fn get_mapclear_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 /// Completion for |:checkhealth| command.
 fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     let prompt_id = get_cmdline_last_prompt_id();
-    if cmdexp().healthcheck_last_gen != prompt_id || cmdexp().healthcheck_last_gen == 0 {
+    if CMDEXP_STATE.with(|s| s.healthcheck_last_gen.get()) != prompt_id
+        || CMDEXP_STATE.with(|s| s.healthcheck_last_gen.get()) == 0
+    {
         let a = Array::new();
         let mut err = Error::new();
         let code = c"return vim.health._complete()";
@@ -4542,16 +4513,24 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             &mut err,
         );
         api_clear_error(&mut err);
-        api_free_object(cmdexp().healthcheck_names);
-        cmdexp().healthcheck_names = res;
-        cmdexp().healthcheck_last_gen = prompt_id;
+        api_free_object(CMDEXP_STATE.with(|s| s.healthcheck_names.get()));
+        CMDEXP_STATE.with(|s| s.healthcheck_names.set(res));
+        CMDEXP_STATE.with(|s| s.healthcheck_last_gen.set(prompt_id));
     }
 
-    if cmdexp().healthcheck_names.obj_type == ObjectType::ObjectTypeArray
+    if CMDEXP_STATE.with(|s| s.healthcheck_names.get()).obj_type == ObjectType::ObjectTypeArray
         && idx >= 0
-        && (idx as usize) < cmdexp().healthcheck_names.data.array().size
+        && (idx as usize)
+            < CMDEXP_STATE
+                .with(|s| s.healthcheck_names.get())
+                .data
+                .array()
+                .size
     {
-        let item = cmdexp().healthcheck_names.data.array()[idx as usize];
+        let item = CMDEXP_STATE
+            .with(|s| s.healthcheck_names.get())
+            .data
+            .array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
             return Some(item.data.string().as_cstr());
         }
@@ -4569,7 +4548,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
             .as_ref()
             .is_none_or(|s| s.as_bytes() != xp_line_bytes)
     });
-    if line_changed || cmdexp().arg1_lua_last_gen != prompt_id {
+    if line_changed || CMDEXP_STATE.with(|s| s.arg1_lua_last_gen.get()) != prompt_id {
         ARG1_LUA_LAST_XP_LINE.with(|cell| {
             *cell.borrow_mut() = Some(xp.xp_line.to_cstring());
         });
@@ -4598,16 +4577,21 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
             &mut err,
         );
         api_clear_error(&mut err);
-        api_free_object(cmdexp().arg1_lua_names);
-        cmdexp().arg1_lua_names = res;
-        cmdexp().arg1_lua_last_gen = prompt_id;
+        api_free_object(CMDEXP_STATE.with(|s| s.arg1_lua_names.get()));
+        CMDEXP_STATE.with(|s| s.arg1_lua_names.set(res));
+        CMDEXP_STATE.with(|s| s.arg1_lua_last_gen.set(prompt_id));
     }
 
-    if cmdexp().arg1_lua_names.obj_type == ObjectType::ObjectTypeArray
+    if CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).obj_type == ObjectType::ObjectTypeArray
         && idx >= 0
-        && (idx as usize) < cmdexp().arg1_lua_names.data.array().size
+        && (idx as usize)
+            < CMDEXP_STATE
+                .with(|s| s.arg1_lua_names.get())
+                .data
+                .array()
+                .size
     {
-        let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
+        let item = CMDEXP_STATE.with(|s| s.arg1_lua_names.get()).data.array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
             return Some(item.data.string().as_cstr());
         }
@@ -5864,10 +5848,10 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     ((xpc.xp_pattern).offset_from(pattern_start) as isize) as usize;
             }
             EXPAND_FILETYPECMD => {
-                cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
+                CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
             }
             EXPAND_BREAKPOINT => {
-                cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
+                CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
             }
             _ => {}
         }
@@ -6104,7 +6088,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
     if has_range {
         cur_match_pos.lnum = g_st().search_global.first_line;
     } else {
-        cur_match_pos = cmdexp().pre_incsearch_pos;
+        cur_match_pos = CMDEXP_STATE.with(|s| s.pre_incsearch_pos.get());
     }
 
     let search_flags = SEARCH_OPT

@@ -14,7 +14,9 @@ use crate::message::{emsg, semsg};
 use crate::os::env::{ExpandCtx, expand_env_save_opt};
 use crate::os::fs::CFile;
 use crate::os::time::os_hrtime;
-use crate::runtime::{get_scriptname, script_id_valid, script_item, sourcing_lnum};
+use crate::runtime::{
+    get_scriptname, script_id_valid, sourcing_lnum, with_script_item, with_script_item_mut,
+};
 use std::ffi::{CStr, CString};
 
 pub type Proftime = u64;
@@ -324,24 +326,25 @@ pub const fn profile_cmp(tm1: Proftime, tm2: Proftime) -> i32 {
 /// Reset all profiling information (`profile_reset`).
 pub fn profile_reset() {
     for id in 1..=crate::runtime::script_items_len() {
-        let si = &mut *script_item(id);
-        if si.sn_prof_on {
-            si.sn_prof_on = false;
-            si.sn_pr_force = false;
-            si.sn_pr_child = profile_zero();
-            si.sn_pr_nest = 0;
-            si.sn_pr_count = 0;
-            si.sn_pr_total = profile_zero();
-            si.sn_pr_self = profile_zero();
-            si.sn_pr_start = profile_zero();
-            si.sn_pr_children = profile_zero();
-            si.sn_prl_ga = Vec::new();
-            si.sn_prl_start = profile_zero();
-            si.sn_prl_children = profile_zero();
-            si.sn_prl_wait = profile_zero();
-            si.sn_prl_idx = -1;
-            si.sn_prl_execed = 0;
-        }
+        with_script_item_mut(id, |si| {
+            if si.sn_prof_on {
+                si.sn_prof_on = false;
+                si.sn_pr_force = false;
+                si.sn_pr_child = profile_zero();
+                si.sn_pr_nest = 0;
+                si.sn_pr_count = 0;
+                si.sn_pr_total = profile_zero();
+                si.sn_pr_self = profile_zero();
+                si.sn_pr_start = profile_zero();
+                si.sn_pr_children = profile_zero();
+                si.sn_prl_ga = Vec::new();
+                si.sn_prl_start = profile_zero();
+                si.sn_prl_children = profile_zero();
+                si.sn_prl_wait = profile_zero();
+                si.sn_prl_idx = -1;
+                si.sn_prl_execed = 0;
+            }
+        });
     }
 
     for fp in func_tbl_values() {
@@ -461,7 +464,7 @@ pub fn prof_input_end() {
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
     if g_st().current_sctx.sc_sid > 0 {
-        script_item(g_st().current_sctx.sc_sid).sn_pr_force
+        with_script_item(g_st().current_sctx.sc_sid, |si| si.sn_pr_force)
     } else {
         false
     }
@@ -705,14 +708,15 @@ pub fn profile_init(si: &mut Scriptitem) {
 pub fn script_prof_save(tm: &mut Proftime) {
     {
         if script_id_valid(g_st().current_sctx.sc_sid) {
-            let si = &mut *script_item(g_st().current_sctx.sc_sid);
-            if si.sn_prof_on {
-                let prev_nest = si.sn_pr_nest;
-                si.sn_pr_nest += 1;
-                if prev_nest == 0 {
-                    si.sn_pr_child = profile_start();
+            with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+                if si.sn_prof_on {
+                    let prev_nest = si.sn_pr_nest;
+                    si.sn_pr_nest += 1;
+                    if prev_nest == 0 {
+                        si.sn_pr_child = profile_start();
+                    }
                 }
-            }
+            });
         }
     }
     {
@@ -726,75 +730,77 @@ pub fn script_prof_restore(tm: &Proftime) {
         return;
     }
 
-    let si = &mut *script_item(g_st().current_sctx.sc_sid);
-    if si.sn_prof_on {
-        si.sn_pr_nest -= 1;
-        if si.sn_pr_nest == 0 {
-            let elapsed = profile_sub_wait(*tm, profile_end(si.sn_pr_child));
-            si.sn_pr_child = elapsed;
-            si.sn_pr_children = profile_add(si.sn_pr_children, elapsed);
-            si.sn_prl_children = profile_add(si.sn_prl_children, elapsed);
+    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+        if si.sn_prof_on {
+            si.sn_pr_nest -= 1;
+            if si.sn_pr_nest == 0 {
+                let elapsed = profile_sub_wait(*tm, profile_end(si.sn_pr_child));
+                si.sn_pr_child = elapsed;
+                si.sn_pr_children = profile_add(si.sn_pr_children, elapsed);
+                si.sn_prl_children = profile_add(si.sn_prl_children, elapsed);
+            }
         }
-    }
+    });
 }
 
 fn script_dump_profile(fd: &CFile) {
     let mut iobuf = [0u8; IOSIZE];
     for id in 1..=crate::runtime::script_items_len() {
-        let si = script_item(id);
-        if si.sn_prof_on {
-            let si_name = si.name_cstr();
-            fprintf!(fd, c"SCRIPT  %s\n", si_name.unwrap_or(c""));
-            if si.sn_pr_count == 1 {
-                fprintf!(fd, c"Sourced 1 time\n");
-            } else {
-                fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
-            }
-            fprintf!(fd, c"Total time: %s\n", &profile_msg(si.sn_pr_total));
-            fprintf!(fd, c" Self time: %s\n", &profile_msg(si.sn_pr_self));
-            fprintf!(fd, c"\n");
-            fprintf!(fd, c"count  total (s)   self (s)\n");
+        with_script_item(id, |si| {
+            if si.sn_prof_on {
+                let si_name = si.name_cstr();
+                fprintf!(fd, c"SCRIPT  %s\n", si_name.unwrap_or(c""));
+                if si.sn_pr_count == 1 {
+                    fprintf!(fd, c"Sourced 1 time\n");
+                } else {
+                    fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
+                }
+                fprintf!(fd, c"Total time: %s\n", &profile_msg(si.sn_pr_total));
+                fprintf!(fd, c" Self time: %s\n", &profile_msg(si.sn_pr_self));
+                fprintf!(fd, c"\n");
+                fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            if let Some(sfd) = CFile::open(si_name.unwrap_or(c""), c"r") {
-                let mut i: i32 = 0;
-                loop {
-                    if vim_fgets(&mut iobuf, &sfd) {
-                        break;
-                    }
-                    if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL as u8 {
-                        let mut n = IOSIZE - 2;
-                        while n > 0 && (iobuf[n] & 0xc0) == 0x80 {
-                            n -= 1;
+                if let Some(sfd) = CFile::open(si_name.unwrap_or(c""), c"r") {
+                    let mut i: i32 = 0;
+                    loop {
+                        if vim_fgets(&mut iobuf, &sfd) {
+                            break;
                         }
-                        iobuf[n] = NL as u8;
-                        iobuf[n + 1] = 0;
-                    }
-                    if (i as usize) < si.sn_prl_ga.len() {
-                        let pp = &(&si.sn_prl_ga)[i as usize];
-                        if pp.snp_count > 0 {
-                            fprintf!(fd, c"%5d ", pp.snp_count);
-                            if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
-                                fprintf!(fd, c"           ");
-                            } else {
-                                fprintf!(fd, c"%s ", &profile_msg(pp.sn_prl_total));
+                        if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL as u8 {
+                            let mut n = IOSIZE - 2;
+                            while n > 0 && (iobuf[n] & 0xc0) == 0x80 {
+                                n -= 1;
                             }
-                            fprintf!(fd, c"%s ", &profile_msg(pp.sn_prl_self));
+                            iobuf[n] = NL as u8;
+                            iobuf[n + 1] = 0;
+                        }
+                        if (i as usize) < si.sn_prl_ga.len() {
+                            let pp = &(&si.sn_prl_ga)[i as usize];
+                            if pp.snp_count > 0 {
+                                fprintf!(fd, c"%5d ", pp.snp_count);
+                                if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
+                                    fprintf!(fd, c"           ");
+                                } else {
+                                    fprintf!(fd, c"%s ", &profile_msg(pp.sn_prl_total));
+                                }
+                                fprintf!(fd, c"%s ", &profile_msg(pp.sn_prl_self));
+                            } else {
+                                fprintf!(fd, c"                            ");
+                            }
                         } else {
                             fprintf!(fd, c"                            ");
                         }
-                    } else {
-                        fprintf!(fd, c"                            ");
+                        if let Ok(line_cstr) = CStr::from_bytes_until_nul(&iobuf) {
+                            fprintf!(fd, c"%s", line_cstr);
+                        }
+                        i += 1;
                     }
-                    if let Ok(line_cstr) = CStr::from_bytes_until_nul(&iobuf) {
-                        fprintf!(fd, c"%s", line_cstr);
-                    }
-                    i += 1;
+                } else {
+                    fprintf!(fd, c"Cannot open file!\n");
                 }
-            } else {
-                fprintf!(fd, c"Cannot open file!\n");
+                fprintf!(fd, c"\n");
             }
-            fprintf!(fd, c"\n");
-        }
+        });
     }
 }
 
@@ -817,25 +823,26 @@ pub fn script_line_start() {
     if !script_id_valid(g_st().current_sctx.sc_sid) {
         return;
     }
-    let si = script_item(g_st().current_sctx.sc_sid);
     let slnum = sourcing_lnum();
-    if si.sn_prof_on && slnum >= 1 {
-        si.sn_prl_idx = slnum - 1;
-        if si.sn_prl_ga.len() < slnum as usize {
-            si.sn_prl_ga.resize(
-                slnum as usize,
-                SnPrl {
-                    snp_count: 0,
-                    sn_prl_total: profile_zero(),
-                    sn_prl_self: profile_zero(),
-                },
-            );
+    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+        if si.sn_prof_on && slnum >= 1 {
+            si.sn_prl_idx = slnum - 1;
+            if si.sn_prl_ga.len() < slnum as usize {
+                si.sn_prl_ga.resize(
+                    slnum as usize,
+                    SnPrl {
+                        snp_count: 0,
+                        sn_prl_total: profile_zero(),
+                        sn_prl_self: profile_zero(),
+                    },
+                );
+            }
+            si.sn_prl_execed = 0;
+            si.sn_prl_start = profile_start();
+            si.sn_prl_children = profile_zero();
+            si.sn_prl_wait = profile_get_wait();
         }
-        si.sn_prl_execed = 0;
-        si.sn_prl_start = profile_start();
-        si.sn_prl_children = profile_zero();
-        si.sn_prl_wait = profile_get_wait();
-    }
+    });
 }
 
 /// Called when actually executing a script line (`script_line_exec`).
@@ -843,10 +850,11 @@ pub fn script_line_exec() {
     if !script_id_valid(g_st().current_sctx.sc_sid) {
         return;
     }
-    let si = &mut *script_item(g_st().current_sctx.sc_sid);
-    if si.sn_prof_on && si.sn_prl_idx >= 0 {
-        si.sn_prl_execed = 1;
-    }
+    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+        if si.sn_prof_on && si.sn_prl_idx >= 0 {
+            si.sn_prl_execed = 1;
+        }
+    });
 }
 
 /// Called when done with a script line (`script_line_end`).
@@ -854,18 +862,19 @@ pub fn script_line_end() {
     if !script_id_valid(g_st().current_sctx.sc_sid) {
         return;
     }
-    let si = script_item(g_st().current_sctx.sc_sid);
-    if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
-        if si.sn_prl_execed != 0 {
-            let prl_idx = si.sn_prl_idx as usize;
-            let pp = &mut (&mut si.sn_prl_ga)[prl_idx];
-            pp.snp_count += 1;
-            si.sn_prl_start = profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
-            pp.sn_prl_total = profile_add(pp.sn_prl_total, si.sn_prl_start);
-            pp.sn_prl_self = profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
+    with_script_item_mut(g_st().current_sctx.sc_sid, |si| {
+        if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
+            if si.sn_prl_execed != 0 {
+                let prl_idx = si.sn_prl_idx as usize;
+                let pp = &mut si.sn_prl_ga[prl_idx];
+                pp.snp_count += 1;
+                si.sn_prl_start = profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
+                pp.sn_prl_total = profile_add(pp.sn_prl_total, si.sn_prl_start);
+                pp.sn_prl_self = profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
+            }
+            si.sn_prl_idx = -1;
         }
-        si.sn_prl_idx = -1;
-    }
+    });
 }
 
 /// Saves the previous time before doing something that could nest (`time_push`).
