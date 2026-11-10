@@ -48,11 +48,11 @@ use std::ffi::{CStr, CString};
 pub(crate) const UI_CLIENT_STDIN_FD: i32 = 3;
 use crate::highlight::KEYSET_OPTIDX_HIGHLIGHT_URL;
 
+#[derive(Clone, Copy)]
 struct UiClientState {
-    tui: Option<Box<TUIData>>,
+    tui: crate::globals::GraphPtr<TUIData>,
     tui_width: i32,
     tui_height: i32,
-    tui_term: Option<std::ffi::CString>,
     tui_rgb: bool,
     restart_args: Array,
     restart_pending: bool,
@@ -62,10 +62,9 @@ struct UiClientState {
 impl UiClientState {
     const fn new() -> Self {
         Self {
-            tui: None,
+            tui: crate::globals::GraphPtr::NULL,
             tui_width: 0,
             tui_height: 0,
-            tui_term: None,
             tui_rgb: false,
             restart_args: ARRAY_INIT,
             restart_pending: false,
@@ -74,16 +73,55 @@ impl UiClientState {
     }
 }
 
-static UIC_STATE: GlobalState<UiClientState> = GlobalState::new(UiClientState::new());
+thread_local! {
+    static UIC_STATE: std::cell::Cell<UiClientState> =
+        const { std::cell::Cell::new(UiClientState::new()) };
+    static UIC_TUI_TERM: std::cell::RefCell<Option<std::ffi::CString>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+struct UicGuard {
+    state: UiClientState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for UicGuard {
+    type Target = UiClientState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for UicGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for UicGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            UIC_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn uic_st() -> crate::globals::GraphPtr<UiClientState> {
-    UIC_STATE.handle()
+fn uic_st() -> UicGuard {
+    UicGuard {
+        state: UIC_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 #[inline]
 fn tui_ptr() -> &'static mut TUIData {
-    uic_st().borrow_mut().tui.as_deref_mut().unwrap()
+    uic_st().tui.borrow_mut()
 }
 
 pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
@@ -290,10 +328,10 @@ pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
     if let Some(addr) = server_addr {
         set_chan_addr(addr);
     }
-    uic_st().tui = Some(Box::new(TUIData::new()));
+    uic_st().tui = crate::globals::GraphPtr::from(Box::leak(Box::new(TUIData::new())));
     let mut tui_width = uic_st().tui_width;
     let mut tui_height = uic_st().tui_height;
-    let mut tui_term = uic_st().tui_term.take();
+    let mut tui_term = UIC_TUI_TERM.with(|t| t.borrow_mut().take());
     let mut tui_rgb = uic_st().tui_rgb;
     tui_start(
         tui_ptr(),
@@ -304,14 +342,9 @@ pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
     );
     uic_st().tui_width = tui_width;
     uic_st().tui_height = tui_height;
-    uic_st().tui_term = tui_term;
     uic_st().tui_rgb = tui_rgb;
-    ui_client_attach(
-        uic_st().tui_width,
-        uic_st().tui_height,
-        uic_st().tui_term.as_deref(),
-        uic_st().tui_rgb,
-    );
+    ui_client_attach(tui_width, tui_height, tui_term.as_deref(), tui_rgb);
+    UIC_TUI_TERM.with(|t| *t.borrow_mut() = tui_term);
 
     if os_env_exists(c"NVIM_LOG_FILE", true) {
         logmsg!(
@@ -497,10 +530,11 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
 
     g_st().ui_client_channel_id = chan;
     set_chan_addr(&server_addr);
+    let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
     ui_client_attach(
         uic_st().tui_width,
         uic_st().tui_height,
-        uic_st().tui_term.as_deref(),
+        term.as_deref(),
         uic_st().tui_rgb,
     );
 
@@ -626,10 +660,11 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
     };
 
     g_st().ui_client_channel_id = chan_id;
+    let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
     ui_client_attach(
         uic_st().tui_width,
         uic_st().tui_height,
-        uic_st().tui_term.as_deref(),
+        term.as_deref(),
         uic_st().tui_rgb,
     );
 
@@ -662,7 +697,10 @@ pub fn ui_client_event_error_exit(args: Array) {
 }
 
 pub fn ui_client_free_all_mem() {
-    tui_free_all_mem(uic_st().tui.take());
+    let tui = uic_st().tui;
+    uic_st().tui = crate::globals::GraphPtr::NULL;
+    tui.drop_box();
+    tui_free_all_mem(None);
     g_st().grid_line_buf_char = Vec::new();
     g_st().grid_line_buf_attr = Vec::new();
 }

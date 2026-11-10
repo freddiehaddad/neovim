@@ -20,7 +20,7 @@ use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
 use crate::eval::userfunc::{FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc};
 use crate::event::r#loop::{
     loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_equal_safe,
-    uv_thread_self_safe, uv_thread_t,
+    uv_thread_self_safe,
 };
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
@@ -300,13 +300,14 @@ pub struct ExDocmdCookie {
     got_line: bool,
 }
 
+static MAIN_THREAD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[derive(Clone, Copy)]
 pub(crate) struct LuaExecutorState {
     pub(crate) active_lstate: *mut lua_State,
     in_fast_callback: i32,
     global_lstate: *mut lua_State,
     require_ref: LuaRef,
-    main_thread: uv_thread_t,
-    expand_result_array: Vec<std::ffi::CString>,
 }
 
 impl LuaExecutorState {
@@ -316,17 +317,54 @@ impl LuaExecutorState {
             in_fast_callback: 0,
             global_lstate: ptr::null_mut(),
             require_ref: LUA_REFNIL,
-            main_thread: 0,
-            expand_result_array: Vec::new(),
         }
     }
 }
 
-static NLUA_STATE: GlobalState<LuaExecutorState> = GlobalState::new(LuaExecutorState::new());
+thread_local! {
+    static NLUA_STATE: std::cell::Cell<LuaExecutorState> =
+        const { std::cell::Cell::new(LuaExecutorState::new()) };
+    static NLUA_EXPAND_RESULTS: std::cell::RefCell<Vec<std::ffi::CString>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+pub(crate) struct NluaGuard {
+    state: LuaExecutorState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for NluaGuard {
+    type Target = LuaExecutorState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for NluaGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for NluaGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            NLUA_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-pub(crate) fn nlua_st() -> crate::globals::GraphPtr<LuaExecutorState> {
-    NLUA_STATE.handle()
+pub(crate) fn nlua_st() -> NluaGuard {
+    NluaGuard {
+        state: NLUA_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
@@ -1154,7 +1192,7 @@ pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
     luv_set_thread_cb_safe(nlua_thread_acquire_vm, nlua_common_free_all_mem);
     nlua_st().global_lstate = lstate;
     nlua_st().active_lstate = lstate;
-    nlua_st().main_thread = uv_thread_self_safe();
+    MAIN_THREAD.store(uv_thread_self_safe(), std::sync::atomic::Ordering::Relaxed);
     nlua_init_argv(lstate, argv, lua_arg0);
 }
 
@@ -1164,7 +1202,10 @@ extern "C-unwind" fn nlua_thread_acquire_vm() -> *mut lua_State {
 
 fn nlua_init_state(thread: bool) -> *mut lua_State {
     let self_ = uv_thread_self_safe();
-    if uv_thread_equal_safe(nlua_st().main_thread, self_) {
+    if uv_thread_equal_safe(
+        MAIN_THREAD.load(std::sync::atomic::Ordering::Relaxed),
+        self_,
+    ) {
         runtime_search_path_validate();
     }
 
@@ -2166,7 +2207,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     if !error_set(&err) && prefix_len <= patlen {
         let completions = nlua_pop_array(lstate, &mut arena, &mut err);
         if !error_set(&err) {
-            nlua_st().expand_result_array = Vec::with_capacity(completions.size);
+            let mut results = Vec::with_capacity(completions.size);
 
             let mut all_strings = true;
             for i in 0..completions.size {
@@ -2175,10 +2216,9 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
                     all_strings = false;
                     break;
                 }
-                nlua_st()
-                    .expand_result_array
-                    .push(crate::memory::bytes_to_cstring(v.data.string().as_bytes()));
+                results.push(crate::memory::bytes_to_cstring(v.data.string().as_bytes()));
             }
+            NLUA_EXPAND_RESULTS.with(|r| *r.borrow_mut() = results);
 
             if all_strings {
                 xp.xp_pattern = xp.xp_pattern.offset_in(&xp.xp_line, prefix_len);
@@ -2189,12 +2229,12 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     }
 
     if !status {
-        nlua_st().expand_result_array.clear();
+        NLUA_EXPAND_RESULTS.with(|r| r.borrow_mut().clear());
     }
 }
 
 pub fn nlua_expand_get_matches(results: &mut Vec<std::ffi::CString>) -> bool {
-    *results = std::mem::take(&mut nlua_st().expand_result_array);
+    *results = NLUA_EXPAND_RESULTS.with(|r| std::mem::take(&mut *r.borrow_mut()));
     !results.is_empty()
 }
 
