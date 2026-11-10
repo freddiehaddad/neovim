@@ -3612,7 +3612,7 @@ macro_rules! opt_var {
 
 macro_rules! opt_flags {
     ($field:ident) => {
-        Some(|| &mut OPT_VARS.handle().borrow_mut().$field)
+        Some(|| &mut opt_vars().$field)
     };
 }
 
@@ -3620,13 +3620,14 @@ macro_rules! opt_def_var {
     ($idx:literal) => {
         Some(|| {
             OptVar::DefVal(crate::globals::GraphPtr::from(
-                &mut OPTIONS.handle().borrow_mut()[$idx].def_val,
+                &mut g_st().borrow_mut().options[$idx].def_val,
             ))
         })
     };
 }
 
-static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
+pub(crate) const fn init_options() -> [Vimoption; 379] {
+    [
     Vimoption { fullname: c"aleph", shortname: Some(c"al"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_def_var!(0), flags_var: None, scope_idx: [0, -1, -1, -1], immutable: true, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(224) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"allowrevins", shortname: Some(c"ari"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ari), flags_var: None, scope_idx: [1, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"ambiwidth", shortname: Some(c"ambw"), flags: K_OPT_FLAG_REDR_ALL|K_OPT_FLAG_UIOPTION, opt_type: ObjectType::ObjectTypeString, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_ambw), flags_var: None, scope_idx: [2, -1, -1, -1], immutable: false, values: &OPT_AMBW_VALUES, schema: &[], opt_validate_cb: opt_cb!(crate::optionstr::validate_str_generic), opt_did_set_cb: opt_cb!(crate::optionstr::did_set_ambiwidth), opt_expand_cb: opt_cb!(crate::optionstr::expand_set_str_generic), def_val: cstr_def_val!(c"single"), script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
@@ -4045,12 +4046,13 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
     Vimoption { fullname: c"writeany", shortname: Some(c"wa"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wa), flags_var: None, scope_idx: [264, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(false) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"writebackup", shortname: Some(c"wb"), flags: 0, opt_type: ObjectType::ObjectTypeBoolean, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wb), flags_var: None, scope_idx: [265, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeBoolean, data: ObjectData::Boolean(true) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
     Vimoption { fullname: c"writedelay", shortname: Some(c"wd"), flags: 0, opt_type: ObjectType::ObjectTypeInteger, scope_flags: (1 << K_OPT_SCOPE_GLOBAL) as u8, var: opt_var!(p_wd), flags_var: None, scope_idx: [266, -1, -1, -1], immutable: false, values: &[], schema: &[], opt_validate_cb: None, opt_did_set_cb: None, opt_expand_cb: None, def_val: Object { obj_type: ObjectType::ObjectTypeInteger, data: ObjectData::Integer(0) }, script_ctx: Sctx { sc_sid: 0, sc_seq: 0, sc_lnum: 0, sc_chan: 0 } },
-]);
+    ]
+}
 
 /// Return information for option at `opt_idx` (`get_option`).
 pub fn get_option(opt_idx: OptIndex) -> &'static mut Vimoption {
     assert!(opt_idx != K_OPT_INVALID);
-    &mut OPTIONS.handle().borrow_mut()[opt_idx as usize]
+    &mut g_st().borrow_mut().options[opt_idx as usize]
 }
 
 const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
@@ -6814,7 +6816,7 @@ pub fn get_findfunc() -> &'static mut Callback {
     if curbuf_mut().b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
         &mut curbuf_mut().b_p_ffu
     } else {
-        &mut opt_vars().borrow_mut().p_ffu
+        &mut opt_vars().p_ffu
     }
 }
 

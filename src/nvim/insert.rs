@@ -1926,7 +1926,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
     if !is_special_ins(c)
         && utf_char2len(c) == 1
         && !has_event(EVENT_INSERTCHARPRE)
-        && !test_disable_char_avail.get()
+        && !test_disable_char_avail.load(std::sync::atomic::Ordering::Relaxed)
         && vpeekc() != NUL as i32
         && (g_st().state_global & REPLACE_FLAG) == 0
         && !cindent_on()

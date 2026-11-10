@@ -11,6 +11,7 @@ use crate::api::ui::NO_SCREEN;
 use crate::arglist::Alist;
 use crate::buffer::{Bufref, FileBuf, MAXLNUM, SEA_NONE};
 use crate::channel::Channel;
+use crate::cmdexpand::CmdlineInfo;
 use crate::context::CtxWin;
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::drawscreen::WinExtmark;
@@ -50,40 +51,19 @@ pub(crate) const PROF_NONE: i32 = 0;
 use crate::event::r#loop::Loop;
 
 #[repr(transparent)]
-pub struct GlobalState<T>(std::cell::UnsafeCell<T>);
+struct GlobalState<T>(std::cell::UnsafeCell<T>);
 
 unsafe impl<T> Sync for GlobalState<T> {}
 
 impl<T> GlobalState<T> {
     #[inline(always)]
-    pub const fn new(val: T) -> Self {
+    const fn new(val: T) -> Self {
         Self(std::cell::UnsafeCell::new(val))
     }
 
     #[inline(always)]
-    pub const fn as_ptr(&self) -> *mut T {
-        (&raw const self.0).cast::<T>().cast_mut()
-    }
-
-    #[inline(always)]
-    pub const fn handle(&'static self) -> GraphPtr<T> {
+    const fn handle(&'static self) -> GraphPtr<T> {
         GraphPtr((&raw const self.0).cast::<T>().cast_mut())
-    }
-
-    #[inline(always)]
-    pub const fn get(&self) -> T
-    where
-        T: Copy,
-    {
-        unsafe { *(&raw const self.0).cast::<T>() }
-    }
-
-    #[inline(always)]
-    pub const fn set(&self, val: T)
-    where
-        T: Copy,
-    {
-        unsafe { *(&raw const self.0).cast::<T>().cast_mut() = val }
     }
 }
 
@@ -107,7 +87,7 @@ pub struct EditorState {
     pub dollar_vcol: Colnr,
     pub edit_submode: Option<&'static std::ffi::CStr>,
     pub edit_submode_pre: Option<&'static std::ffi::CStr>,
-    pub edit_submode_extra: Option<&'static std::ffi::CStr>,
+    pub edit_submode_extra: Option<std::ffi::CString>,
     pub edit_submode_highl: Hlf,
     pub cmdmsg_rl: bool,
     pub msg_col: i32,
@@ -364,6 +344,11 @@ pub struct EditorState {
     pub ql_info_actual: QfInfo,
     pub llist_arena: Vec<Option<Box<QfInfo>>>,
     pub free_llists: Vec<usize>,
+    pub ccline: CmdlineInfo,
+    pub(crate) tv_arenas: crate::eval::typval::TypvalArenas,
+    pub(crate) uf_arenas: crate::eval::userfunc::UserfuncArenas,
+    pub(crate) opt_vars: crate::option_vars::OptionVars,
+    pub(crate) options: [crate::optionstr::Vimoption; 379],
     pub diff_context: i32,
     pub diff_foldcolumn: i32,
     pub diff_need_scrollbind: bool,
@@ -815,6 +800,11 @@ impl EditorState {
             ql_info_actual: QfInfo::new_stack(),
             llist_arena: Vec::new(),
             free_llists: Vec::new(),
+            ccline: CmdlineInfo::new(),
+            tv_arenas: crate::eval::typval::TypvalArenas::new(),
+            uf_arenas: crate::eval::userfunc::UserfuncArenas::new(),
+            opt_vars: crate::option_vars::OptionVars::new(),
+            options: crate::option::init_options(),
             diff_context: 6,
             diff_foldcolumn: 2,
             diff_need_scrollbind: false,
@@ -848,7 +838,9 @@ impl EditorState {
             disable_fold_update: 0,
             default_grid: SCREEN_GRID_INIT,
             default_gridview: GridView {
-                target: GraphPtr::new(unsafe { &raw mut (*EDITOR_STATE.as_ptr()).default_grid }),
+                target: GraphPtr::new(unsafe {
+                    &raw mut (*EDITOR_STATE.handle().as_ptr()).default_grid
+                }),
                 row_offset: 0,
                 col_offset: 0,
             },
@@ -954,7 +946,7 @@ impl EditorState {
     }
 }
 
-pub static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());
+static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());
 
 #[inline(always)]
 pub fn g_st() -> GraphPtr<EditorState> {
@@ -963,21 +955,22 @@ pub fn g_st() -> GraphPtr<EditorState> {
 
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static curwin: GlobalState<WinPtr> = GlobalState::new(WinPtr::NULL);
+pub static curwin: std::sync::atomic::AtomicPtr<WinInfoInfo> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 #[inline(always)]
 pub fn curwin_mut() -> &'static mut WinInfoInfo {
-    curwin.get().borrow_mut()
+    curwin_ptr().borrow_mut()
 }
 
 #[inline(always)]
 pub fn curwin_ptr() -> WinPtr {
-    curwin.get()
+    GraphPtr::new(curwin.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 #[inline(always)]
 pub fn set_curwin(wp: impl Into<WinPtr>) {
-    curwin.set(wp.into());
+    curwin.store(wp.into().as_ptr(), std::sync::atomic::Ordering::Relaxed);
 }
 
 #[inline(always)]
@@ -1463,7 +1456,7 @@ pub type FramePtr = GraphPtr<Frame>;
 
 #[inline(always)]
 pub fn curwin_handle() -> WinPtr {
-    curwin.get()
+    curwin_ptr()
 }
 
 #[inline(always)]
@@ -1686,32 +1679,32 @@ pub fn frame_iter_ptr(start: FramePtr) -> FramePtrIter {
 
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static starting: GlobalState<i32> = GlobalState::new(NO_SCREEN);
+pub static starting: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(NO_SCREEN);
 
 #[inline(always)]
 pub fn starting_val() -> i32 {
-    starting.get()
+    starting.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 #[inline(always)]
 pub fn set_starting(v: i32) {
-    starting.set(v);
+    starting.store(v, std::sync::atomic::Ordering::Relaxed);
 }
 
 pub const ESCAPE_CHARS: &std::ffi::CStr = c" \t\\\"|";
 pub const NO_LINES_MSG: &std::ffi::CStr = c"--No lines in buffer--";
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static display_tick: GlobalState<Disptick> = GlobalState::new(0);
+pub static display_tick: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[inline(always)]
 pub fn display_tick_val() -> Disptick {
-    display_tick.get()
+    display_tick.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 #[inline(always)]
 pub fn inc_display_tick() {
-    display_tick.set(display_tick.get() + 1);
+    display_tick.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 #[inline(always)]
 pub fn has_time_fd() -> bool {
@@ -1854,7 +1847,8 @@ pub const fn hlf_name_ptr(idx: usize) -> Option<&'static std::ffi::CStr> {
 }
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static test_disable_char_avail: GlobalState<bool> = GlobalState::new(false);
+pub static test_disable_char_avail: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [c"NW", c"NE", c"SW", c"SE"];
 
 #[cfg(test)]
@@ -1891,7 +1885,7 @@ mod tests {
             assert_eq!({ g_st().columns_global }, 80);
             assert_eq!({ g_st().dollar_vcol }, -1);
             assert_eq!({ g_st().t_colors }, 256);
-            assert_eq!(starting.get(), 2);
+            assert_eq!(starting_val(), 2);
             assert_eq!({ g_st().state_global }, 0x01);
             assert_eq!({ g_st().visual_global.mode }, b'v' as i32);
             assert_eq!({ g_st().search_global.last_line }, 0x7fffffff);

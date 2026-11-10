@@ -34,11 +34,13 @@ pub fn gc_register_dict(d: &mut TvDict) {
 
 #[inline]
 pub fn gc_unregister_dict(idx: usize) {
-    let moved_opt = GC_STATE.with(|st| {
+    let Ok(moved_opt) = GC_STATE.try_with(|st| {
         let mut dicts = st.gc_dicts.borrow_mut();
         dicts.swap_remove(idx);
         dicts.get(idx).copied()
-    });
+    }) else {
+        return;
+    };
     if let Some(mut moved) = moved_opt {
         moved.dv_gc_idx = Some(idx);
     }
@@ -47,7 +49,7 @@ pub fn gc_unregister_dict(idx: usize) {
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 #[allow(non_upper_case_globals)]
-pub static gc_first_list: crate::globals::GlobalState<usize> = crate::globals::GlobalState::new(0);
+pub static gc_first_list: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
@@ -57,21 +59,29 @@ pub fn gc_register_list(l: &mut TvList) {
         lists.push(l.lv_id);
         l.lv_gc_idx = Some(idx);
     });
-    gc_first_list.set(std::ptr::from_mut(l) as usize);
+    gc_first_list.store(
+        std::ptr::from_mut(l) as usize,
+        std::sync::atomic::Ordering::Relaxed,
+    );
 }
 
 #[inline]
 pub fn gc_unregister_list(idx: usize) {
-    let (moved_opt, last_opt) = GC_STATE.with(|st| {
+    let Ok((moved_opt, last_opt)) = GC_STATE.try_with(|st| {
         let mut lists = st.gc_lists.borrow_mut();
         lists.swap_remove(idx);
         (lists.get(idx).copied(), lists.last().copied())
-    });
+    }) else {
+        return;
+    };
     if let Some(mut moved) = moved_opt {
         moved.lv_gc_idx = Some(idx);
     }
 
-    gc_first_list.set(last_opt.map_or(0, |id| id.as_ptr() as usize));
+    gc_first_list.store(
+        last_opt.map_or(0, |id| id.as_ptr() as usize),
+        std::sync::atomic::Ordering::Relaxed,
+    );
 }
 
 #[inline]

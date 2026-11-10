@@ -839,7 +839,8 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                     if wp.w_briopt_list > 0 {
                         INDENT_STATE.with_borrow_mut(|st| st.prev_list += wp.w_briopt_list);
                     } else {
-                        let mut span = regmatch.span_bytes(0);
+                        let span_vec = regmatch.span_bytes(0);
+                        let mut span = span_vec.as_slice();
                         let mut indent: i32 = 0;
                         while !span.is_empty() {
                             indent += win_chartabsize(wp, span, indent);

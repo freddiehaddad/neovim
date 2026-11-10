@@ -941,7 +941,7 @@ pub fn readfile(
             } else if opt_vars().p_fencs.is_empty() {
                 fenc_owned = Some(curbuf_mut().b_p_fenc.as_cstr().to_owned());
             } else {
-                fenc_next = opt_vars().borrow().p_fencs.as_bytes();
+                fenc_next = opt_vars().p_fencs.as_bytes();
                 fenc_owned = Some(next_fenc(&mut fenc_next));
             }
 

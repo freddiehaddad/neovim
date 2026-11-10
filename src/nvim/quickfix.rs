@@ -1674,7 +1674,7 @@ fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    let bnr = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as i32;
+    let bnr = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as i32;
     if buflist_findnr(bnr).is_none() {
         return QfStatus::Fail;
     }
@@ -1686,7 +1686,7 @@ fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    fields.enr = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as i32;
+    fields.enr = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as i32;
     QfStatus::Ok
 }
 
@@ -1694,7 +1694,7 @@ fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    fields.lnum = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as Linenr;
+    fields.lnum = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as Linenr;
     QfStatus::Ok
 }
 
@@ -1702,7 +1702,7 @@ fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    fields.end_lnum = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as Linenr;
+    fields.end_lnum = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as Linenr;
     QfStatus::Ok
 }
 
@@ -1710,7 +1710,7 @@ fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    fields.col = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as i32;
+    fields.col = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as i32;
     QfStatus::Ok
 }
 
@@ -1718,7 +1718,7 @@ fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    fields.end_col = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as i32;
+    fields.end_col = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as i32;
     QfStatus::Ok
 }
 
@@ -1748,7 +1748,7 @@ fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if len >= fields.errmsg.len() {
         fields.errmsg.resize(len + 1, 0);
     }
-    crate::memory::copy_bytes_to_c_buf(&mut fields.errmsg[..len + 1], span);
+    crate::memory::copy_bytes_to_c_buf(&mut fields.errmsg[..len + 1], &span);
     QfStatus::Ok
 }
 
@@ -1770,7 +1770,7 @@ fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
         return QfStatus::Fail;
     }
     fields.col = 0;
-    for &b in rmp.span_bytes(midx) {
+    for &b in &rmp.span_bytes(midx) {
         fields.col += 1;
         if b == TAB {
             fields.col += 7;
@@ -1786,7 +1786,7 @@ fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     if rmp.startp[midx].is_null() {
         return QfStatus::Fail;
     }
-    fields.col = crate::charset::parse_i64_prefix(rmp.startp[midx].as_bytes()) as i32;
+    fields.col = rmp.startp[midx].with_bytes(crate::charset::parse_i64_prefix) as i32;
     fields.use_viscol = true;
     QfStatus::Ok
 }
@@ -1810,7 +1810,7 @@ fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfS
     let span = rmp.span_bytes(midx);
     let len = span.len();
     let dsize = (crate::memory::bytes_until_nul(&fields.module).len() + len + 1).min(CMDBUFFSIZE);
-    crate::memory::append_bytes_to_c_buf(&mut fields.module[..dsize], span);
+    crate::memory::append_bytes_to_c_buf(&mut fields.module[..dsize], &span);
     QfStatus::Ok
 }
 
@@ -4523,10 +4523,10 @@ pub fn ex_make(eap: &mut Exarg) {
             gefm_owned = curbuf_mut().b_p_gefm.to_owned();
             &gefm_owned
         } else {
-            opt_vars().borrow().p_gefm.as_cstr()
+            opt_vars().p_gefm.as_cstr()
         }
     } else {
-        opt_vars().borrow().p_efm.as_cstr()
+        opt_vars().p_efm.as_cstr()
     };
 
     let newlist = eap.cmdidx != Cmdidx::CmdGrepadd && eap.cmdidx != Cmdidx::CmdLgrepadd;
@@ -5097,7 +5097,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
     let res = qf_init(
         wp.opt_mut(),
         Some(&p_ef),
-        opt_vars().borrow().p_efm.as_cstr(),
+        opt_vars().p_efm.as_cstr(),
         i32::from(eap.cmdidx != Cmdidx::CmdCaddfile && eap.cmdidx != Cmdidx::CmdLaddfile),
         Some(&qf_cmdtitle(eap.cmdline_cstr())),
         Some(&enc),
@@ -5895,7 +5895,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         return false;
     }
 
-    let mut errorformat = opt_vars().borrow().p_efm.as_cstr();
+    let mut errorformat = opt_vars().p_efm.as_cstr();
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string_is_null() {
             return false;
@@ -6553,7 +6553,7 @@ fn qf_setprop_items_from_lines(
     action: i32,
 ) -> bool {
     let efm_owned: std::ffi::CString;
-    let mut errorformat = opt_vars().borrow().p_efm.as_cstr();
+    let mut errorformat = opt_vars().p_efm.as_cstr();
     let mut retval = false;
 
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {

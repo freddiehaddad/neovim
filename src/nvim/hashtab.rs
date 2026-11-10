@@ -62,7 +62,7 @@ impl Hashtab {
     #[inline]
     pub fn array_ptr(&self) -> &'static mut Hashitem {
         let ptr = if self.ht_array.is_empty() {
-            EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>()
+            EMPTY_HASHARRAY.as_ptr().cast_mut()
         } else {
             self.ht_array.as_ptr().cast_mut()
         };
@@ -116,14 +116,11 @@ impl Default for Hashtab {
     }
 }
 
-static EMPTY_HASHARRAY: crate::globals::GlobalState<[Hashitem; HT_INIT_SIZE]> =
-    crate::globals::GlobalState::new(
-        [Hashitem {
-            hi_hash: 0,
-            hi_removed: false,
-            hi_di: crate::eval::typval::DictitemId::NULL,
-        }; HT_INIT_SIZE],
-    );
+static EMPTY_HASHARRAY: [Hashitem; HT_INIT_SIZE] = [Hashitem {
+    hi_hash: 0,
+    hi_removed: false,
+    hi_di: crate::eval::typval::DictitemId::NULL,
+}; HT_INIT_SIZE];
 
 #[inline]
 pub fn hashitem_empty(hi: &Hashitem) -> bool {
@@ -155,7 +152,9 @@ pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> &'static mut Hashitem {
 /// Find item for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
 pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hashitem {
     let arr = if ht.ht_array.is_empty() {
-        &mut EMPTY_HASHARRAY.handle().borrow_mut()[..]
+        crate::globals::GraphPtr::from_ref(&EMPTY_HASHARRAY)
+            .borrow_mut()
+            .as_mut_slice()
     } else {
         crate::globals::GraphPtr::from_ref(&ht.ht_array)
             .borrow_mut()
@@ -221,8 +220,8 @@ pub fn hash_add_item(
 ) {
     let mut hi = crate::globals::GraphPtr::from(hi_in);
     if ht.ht_array.is_empty() {
-        let offset = (hi.as_ptr() as usize - EMPTY_HASHARRAY.as_ptr() as usize)
-            / std::mem::size_of::<Hashitem>();
+        let base = EMPTY_HASHARRAY.as_ptr() as usize;
+        let offset = (hi.as_ptr() as usize - base) / std::mem::size_of::<Hashitem>();
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
         hi = crate::globals::GraphPtr::new(&raw mut ht.ht_array[offset]);
     }

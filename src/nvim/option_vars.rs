@@ -8,8 +8,6 @@ use crate::regexp::Regprog;
 use crate::syntax::{IdlCache, Keyentry, SynCluster, SynTime, Synpat, Synstate};
 use crate::window::K_WIN_OPT_COUNT;
 
-use crate::globals::GlobalState;
-
 #[repr(C)]
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct OptString(Option<std::ffi::CString>);
@@ -1026,11 +1024,9 @@ impl OptionVars {
     }
 }
 
-pub static OPT_VARS: GlobalState<OptionVars> = GlobalState::new(OptionVars::new());
-
 #[inline(always)]
-pub fn opt_vars() -> crate::globals::GraphPtr<OptionVars> {
-    OPT_VARS.handle()
+pub fn opt_vars() -> &'static mut OptionVars {
+    &mut crate::globals::g_st().borrow_mut().opt_vars
 }
 
 pub static BUF_OPT_IDX: [OptIndex; 93] = [

@@ -908,124 +908,121 @@ pub fn mb_idx_back(bytes: &[u8], idx: &mut usize) {
 }
 
 pub trait AsMbyteSlice {
-    fn as_char_bytes(&self) -> &[u8];
-    fn as_cluster_bytes(&self) -> &[u8];
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R;
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R;
 }
 
 impl AsMbyteSlice for &[u8] {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        self
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self)
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        self
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self)
     }
 }
 
 impl AsMbyteSlice for &mut [u8] {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        self
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self)
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        self
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self)
     }
 }
 
 impl<const N: usize> AsMbyteSlice for &[u8; N] {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        *self
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(*self)
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        *self
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(*self)
     }
 }
 
 impl<const N: usize> AsMbyteSlice for &mut [u8; N] {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        *self
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(*self)
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        *self
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(*self)
     }
 }
 
 impl AsMbyteSlice for &CStr {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        self.to_bytes()
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.to_bytes())
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        self.to_bytes()
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.to_bytes())
     }
 }
 
 impl AsMbyteSlice for crate::strings::OwnedSlice {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        self.as_bytes()
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_bytes())
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        self.as_bytes()
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_bytes())
     }
 }
 
 impl AsMbyteSlice for &crate::strings::OwnedSlice {
     #[inline]
-    fn as_char_bytes(&self) -> &[u8] {
-        self.as_bytes()
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_bytes())
     }
     #[inline]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        self.as_bytes()
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        f(self.as_bytes())
     }
 }
 
 impl AsMbyteSlice for crate::regexp::RegLineSlice {
     #[inline(always)]
-    fn as_char_bytes(&self) -> &[u8] {
-        let b = self.as_bytes();
-        if !b.is_empty() {
-            if b[0] < 0x80 {
-                &b[..1]
-            } else {
-                &b[..b.len().min(MB_MAXCHAR as usize)]
-            }
+    fn with_char_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        let b0 = self.first_byte();
+        if b0 == 0 {
+            f(&[])
+        } else if b0 < 0x80 {
+            f(&[b0])
         } else {
-            &[]
+            self.with_bytes(|b| f(&b[..b.len().min(MB_MAXCHAR as usize)]))
         }
     }
     #[inline(always)]
-    fn as_cluster_bytes(&self) -> &[u8] {
-        let b = self.as_bytes();
-        if !b.is_empty() {
-            if b[0] < 0x80 && b.get(1).is_none_or(|&b1| b1 < 0x80) {
-                &b[..1]
-            } else {
-                &b[..b.len().min(64)]
-            }
+    fn with_cluster_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        let b0 = self.first_byte();
+        if b0 == 0 {
+            f(&[])
+        } else if b0 < 0x80 && self.second_byte() < 0x80 {
+            f(&[b0])
         } else {
-            &[]
+            self.with_bytes(|b| f(&b[..b.len().min(64)]))
         }
     }
 }
 
 #[inline]
 pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
-    let bytes = bytes.as_char_bytes();
-    let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
-    if slice.is_empty() {
-        return CharInfo { value: 0, len: 1 };
-    }
-    utf_slice2_char_info(slice)
+    bytes.with_char_bytes(|bytes| {
+        let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
+        if slice.is_empty() {
+            return CharInfo { value: 0, len: 1 };
+        }
+        utf_slice2_char_info(slice)
+    })
 }
 
 #[inline]
@@ -1364,13 +1361,11 @@ pub fn mb_cslice2char_adv(s: &mut &[u8]) -> i32 {
 }
 
 pub fn ptr2cells(bytes: impl AsMbyteSlice) -> i32 {
-    let bytes = bytes.as_cluster_bytes();
-    slice2cells(crate::memory::bytes_until_nul(bytes))
+    bytes.with_cluster_bytes(|bytes| slice2cells(crate::memory::bytes_until_nul(bytes)))
 }
 
 pub fn utf_ptr2cells(bytes: impl AsMbyteSlice) -> i32 {
-    let bytes = bytes.as_cluster_bytes();
-    utf_slice2cells(crate::memory::bytes_until_nul(bytes))
+    bytes.with_cluster_bytes(|bytes| utf_slice2cells(crate::memory::bytes_until_nul(bytes)))
 }
 
 pub fn utf_slice2_char_info_impl(bytes: &[u8]) -> i32 {
@@ -1447,9 +1442,10 @@ pub fn mb_string2cells_len(bytes: &[u8]) -> usize {
 }
 
 pub fn utf_ptr2char(bytes: impl AsMbyteSlice) -> i32 {
-    let bytes = bytes.as_char_bytes();
-    let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
-    utf_slice2char(slice)
+    bytes.with_char_bytes(|bytes| {
+        let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
+        utf_slice2char(slice)
+    })
 }
 
 fn utf_safe_read_char_adv(s: &mut &[u8]) -> i32 {
@@ -1514,15 +1510,16 @@ pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
 
 #[inline(always)]
 pub fn utf_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
-    let bytes = bytes.as_char_bytes();
-    if let Some(&b0) = bytes.first()
-        && b0 != 0
-        && b0 < 0x80
-    {
-        return 1;
-    }
-    let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
-    utf_slice2len(slice) as i32
+    bytes.with_char_bytes(|bytes| {
+        if let Some(&b0) = bytes.first()
+            && b0 != 0
+            && b0 < 0x80
+        {
+            return 1;
+        }
+        let slice = crate::memory::bytes_until_nul(&bytes[..bytes.len().min(MB_MAXCHAR as usize)]);
+        utf_slice2len(slice) as i32
+    })
 }
 
 pub fn utf_byte2len(b: i32) -> i32 {
@@ -1560,15 +1557,16 @@ pub fn utf_ptr2len_len(bytes: &[u8], size: i32) -> i32 {
 
 #[inline(always)]
 pub fn utfc_ptr2len(bytes: impl AsMbyteSlice) -> i32 {
-    let bytes = bytes.as_cluster_bytes();
-    if let Some(&b0) = bytes.first()
-        && b0 != 0
-        && b0 < 0x80
-        && bytes.get(1).is_none_or(|&b1| b1 < 0x80)
-    {
-        return 1;
-    }
-    utfc_slice2len(crate::memory::bytes_until_nul(bytes)) as i32
+    bytes.with_cluster_bytes(|bytes| {
+        if let Some(&b0) = bytes.first()
+            && b0 != 0
+            && b0 < 0x80
+            && bytes.get(1).is_none_or(|&b1| b1 < 0x80)
+        {
+            return 1;
+        }
+        utfc_slice2len(crate::memory::bytes_until_nul(bytes)) as i32
+    })
 }
 
 pub fn utfc_slice2len(bytes: &[u8]) -> usize {

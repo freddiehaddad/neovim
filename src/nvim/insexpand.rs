@@ -322,7 +322,7 @@ impl Compl {
 impl Drop for Compl {
     fn drop(&mut self) {
         if !self.cp_str.data.is_null() && (self.cp_flags & CP_ORIGINAL_TEXT) == 0 {
-            COMPL_STRINGS_HT.with(|cell| {
+            let _ = COMPL_STRINGS_HT.try_with(|cell| {
                 let mut ht = cell.borrow_mut();
                 if !ht.is_empty() {
                     let key = self.cp_str.cstr_bytes();

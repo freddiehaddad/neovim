@@ -3336,20 +3336,22 @@ pub fn find_pattern_in_path(
 
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
                     find_file_name_in_path(
-                        incl_regmatch.span_bytes(0),
+                        &incl_regmatch.span_bytes(0),
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
                         p_fname_opt,
                     )
                 } else {
-                    file_name_in_line(
-                        incl_regmatch.endp[0].as_bytes(),
-                        0,
-                        FNAME_EXP | FNAME_INCL | FNAME_REL,
-                        1,
-                        p_fname_opt,
-                        None,
-                    )
+                    incl_regmatch.endp[0].with_bytes(|endp_bytes| {
+                        file_name_in_line(
+                            endp_bytes,
+                            0,
+                            FNAME_EXP | FNAME_INCL | FNAME_REL,
+                            1,
+                            p_fname_opt,
+                            None,
+                        )
+                    })
                 }
                 .map(|cstr| {
                     let mut v: Vec<u8> = cstr.into_bytes_with_nul();

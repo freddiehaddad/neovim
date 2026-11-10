@@ -112,8 +112,17 @@ pub(crate) const CSI_ARG_MISSING: i32 = ((1u32 << 31) - 1) as i32;
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 #[allow(non_upper_case_globals)]
-pub static vterm_primary_device_attr: crate::globals::GlobalState<[u8; 9]> =
-    crate::globals::GlobalState::new(*b"61;22;52\0");
+pub static vterm_primary_device_attr: [std::sync::atomic::AtomicU8; 9] = [
+    std::sync::atomic::AtomicU8::new(b'6'),
+    std::sync::atomic::AtomicU8::new(b'1'),
+    std::sync::atomic::AtomicU8::new(b';'),
+    std::sync::atomic::AtomicU8::new(b'2'),
+    std::sync::atomic::AtomicU8::new(b'2'),
+    std::sync::atomic::AtomicU8::new(b';'),
+    std::sync::atomic::AtomicU8::new(b'5'),
+    std::sync::atomic::AtomicU8::new(b'2'),
+    std::sync::atomic::AtomicU8::new(0),
+];
 
 #[repr(C)]
 pub struct VTermStateFallbacks {
@@ -1542,8 +1551,9 @@ fn on_csi(
             // DA - ECMA-48 8.3.24
             let val = csi_arg_or(first_arg, 0);
             if val == 0 {
-                let da_slice =
-                    crate::globals::GraphPtr::of(vterm_primary_device_attr.as_ptr()).borrow();
+                let da_slice = vterm_primary_device_attr
+                    .each_ref()
+                    .map(|b| b.load(std::sync::atomic::Ordering::Relaxed));
                 let end = da_slice
                     .iter()
                     .position(|&b| b == 0)

@@ -159,14 +159,15 @@ pub fn win_chartabsize(
     p: impl crate::mbyte::AsMbyteSlice,
     col: Colnr,
 ) -> i32 {
-    let p = p.as_cluster_bytes();
-    if p.first().copied() == Some(TAB as u8)
-        && (!wp.w_onebuf_opt.wo_list || wp.w_p_lcs_chars.tab1 != 0)
-    {
-        let buf = wp.buf_mut();
-        return tabstop_padding(col, buf.b_p_ts, &buf.b_p_vts_array);
-    }
-    crate::mbyte::ptr2cells(p)
+    p.with_cluster_bytes(|p| {
+        if p.first().copied() == Some(TAB as u8)
+            && (!wp.w_onebuf_opt.wo_list || wp.w_p_lcs_chars.tab1 != 0)
+        {
+            let buf = wp.buf_mut();
+            return tabstop_padding(col, buf.b_p_ts, &buf.b_p_vts_array);
+        }
+        crate::mbyte::ptr2cells(p)
+    })
 }
 
 pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {

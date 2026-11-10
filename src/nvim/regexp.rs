@@ -382,8 +382,10 @@ const REG_LINE_SLOTS: usize = 64;
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct RegLineSlice {
-    slot: u16,
+    slot: u8,
     is_some: bool,
+    b0: u8,
+    b1: u8,
     off: u32,
     addr: usize,
 }
@@ -404,6 +406,8 @@ impl Eq for RegLineSlice {}
 pub const REG_LINE_NULL: RegLineSlice = RegLineSlice {
     slot: 0,
     is_some: false,
+    b0: 0,
+    b1: 0,
     off: 0,
     addr: 0,
 };
@@ -420,55 +424,65 @@ impl RegLineSlice {
     }
 
     #[inline(always)]
-    fn raw_slot_bytes(self) -> &'static [u8] {
+    pub const fn first_byte(self) -> u8 {
+        self.b0
+    }
+
+    #[inline(always)]
+    pub const fn second_byte(self) -> u8 {
+        self.b1
+    }
+
+    #[inline(always)]
+    pub const fn is_empty(self) -> bool {
+        self.b0 == 0
+    }
+
+    #[inline(always)]
+    pub fn with_raw_bytes<R>(self, f: impl FnOnce(&[u8]) -> R) -> R {
         if !self.is_some {
-            return &[];
+            return f(&[]);
         }
-        let b = &re_st().borrow().line_slots[self.slot as usize];
-        let start = (self.off as usize).min(b.len());
-        &b[start..]
+        LINE_SLOTS.with(|cell| {
+            let slots = cell.borrow();
+            let b = &slots.line_slots[self.slot as usize];
+            let start = (self.off as usize).min(b.len());
+            f(&b[start..])
+        })
     }
 
     #[inline(always)]
-    pub fn first_byte(self) -> u8 {
-        self.raw_slot_bytes().first().copied().unwrap_or(0)
-    }
-
-    #[inline(always)]
-    pub fn is_empty(self) -> bool {
-        self.first_byte() == 0
-    }
-
-    #[inline(always)]
-    pub fn as_bytes(self) -> &'static [u8] {
+    pub fn with_bytes<R>(self, f: impl FnOnce(&[u8]) -> R) -> R {
         if !self.is_some {
-            return &[];
+            return f(&[]);
         }
-        let b = &re_st().borrow().line_slots[self.slot as usize];
-        let end = b.len().saturating_sub(1);
-        let start = (self.off as usize).min(end);
-        &b[start..end]
+        LINE_SLOTS.with(|cell| {
+            let slots = cell.borrow();
+            let b = &slots.line_slots[self.slot as usize];
+            let end = b.len().saturating_sub(1);
+            let start = (self.off as usize).min(end);
+            f(&b[start..end])
+        })
     }
 
     #[inline(always)]
-    pub fn unwrap_or(self, default: &'static [u8]) -> &'static [u8] {
-        if self.is_some {
-            self.raw_slot_bytes()
-        } else {
-            default
-        }
+    pub fn with_cstr<R>(self, f: impl FnOnce(&CStr) -> R) -> R {
+        self.with_raw_bytes(|b| f(CStr::from_bytes_until_nul(b).unwrap_or(c"")))
     }
 
     #[inline(always)]
-    pub fn as_cstr(self) -> &'static CStr {
-        let b = self.raw_slot_bytes();
-        CStr::from_bytes_until_nul(b).unwrap_or(c"")
+    pub fn with_slice<R>(self, len: usize, f: impl FnOnce(&[u8]) -> R) -> R {
+        self.with_raw_bytes(|b| f(&b[..len.min(b.len())]))
     }
 
     #[inline(always)]
-    pub fn slice(self, len: usize) -> &'static [u8] {
-        let b = self.raw_slot_bytes();
-        &b[..len.min(b.len())]
+    pub fn with_span<R>(self, end: Self, f: impl FnOnce(&[u8]) -> R) -> R {
+        self.with_slice(end.offset_from(self), f)
+    }
+
+    #[inline(always)]
+    pub fn span_to_cstring(self, end: Self) -> Option<std::ffi::CString> {
+        self.with_span(end, cstring_from_bytes)
     }
 
     #[inline(always)]
@@ -476,17 +490,31 @@ impl RegLineSlice {
         if !self.is_some {
             return REG_LINE_NULL;
         }
-        let b = &re_st().borrow().line_slots[self.slot as usize];
-        let max_off = b.len().saturating_sub(1);
-        let cur_off = self.off as usize;
-        let new_off = (cur_off + n).min(max_off);
-        let delta = new_off.saturating_sub(cur_off);
-        Self {
-            slot: self.slot,
-            is_some: true,
-            off: new_off as u32,
-            addr: self.addr.wrapping_add(delta),
+        if n == 0 || self.b0 == 0 {
+            return self;
         }
+        LINE_SLOTS.with(|cell| {
+            let slots = cell.borrow();
+            let b = &slots.line_slots[self.slot as usize];
+            let max_off = b.len().saturating_sub(1);
+            let cur_off = self.off as usize;
+            let new_off = (cur_off + n).min(max_off);
+            let delta = new_off.saturating_sub(cur_off);
+            let b0 = b.get(new_off).copied().unwrap_or(0);
+            let b1 = if b0 != 0 {
+                b.get(new_off + 1).copied().unwrap_or(0)
+            } else {
+                0
+            };
+            Self {
+                slot: self.slot,
+                is_some: true,
+                b0,
+                b1,
+                off: new_off as u32,
+                addr: self.addr.wrapping_add(delta),
+            }
+        })
     }
 
     #[inline(always)]
@@ -505,11 +533,6 @@ impl RegLineSlice {
     }
 
     #[inline(always)]
-    pub fn span_to(self, end: Self) -> &'static [u8] {
-        self.slice(end.offset_from(self))
-    }
-
-    #[inline(always)]
     pub const fn before(self, other: Self) -> bool {
         self.is_some && other.is_some && self.addr < other.addr
     }
@@ -519,18 +542,29 @@ impl RegLineSlice {
 pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
     let bytes = s.to_bytes_with_nul();
     let addr = s.as_ptr() as usize;
-    let mut st = re_st();
-    let cur = st.cur_line_slot;
-    if st.line_slot_addrs[cur] != addr || st.line_slots[cur].as_slice() != bytes {
-        let next = (cur + 1) % REG_LINE_SLOTS;
-        st.cur_line_slot = next;
-        st.line_slot_addrs[next] = addr;
-        st.line_slots[next].clear();
-        st.line_slots[next].extend_from_slice(bytes);
-    }
+    let b0 = bytes.first().copied().unwrap_or(0);
+    let b1 = if b0 != 0 {
+        bytes.get(1).copied().unwrap_or(0)
+    } else {
+        0
+    };
+    let slot = LINE_SLOTS.with(|cell| {
+        let mut st = cell.borrow_mut();
+        let cur = st.cur_line_slot;
+        if st.line_slot_addrs[cur] != addr || st.line_slots[cur].as_slice() != bytes {
+            let next = (cur + 1) % REG_LINE_SLOTS;
+            st.cur_line_slot = next;
+            st.line_slot_addrs[next] = addr;
+            st.line_slots[next].clear();
+            st.line_slots[next].extend_from_slice(bytes);
+        }
+        st.cur_line_slot as u8
+    });
     RegLineSlice {
-        slot: st.cur_line_slot as u16,
+        slot,
         is_some: true,
+        b0,
+        b1,
         off: 0,
         addr,
     }
@@ -571,8 +605,8 @@ impl Regmatch {
     }
 
     #[inline(always)]
-    pub fn span_bytes(&self, idx: usize) -> &[u8] {
-        self.startp[idx].span_to(self.endp[idx])
+    pub fn span_bytes(&self, idx: usize) -> Vec<u8> {
+        self.startp[idx].with_span(self.endp[idx], <[u8]>::to_vec)
     }
 
     #[inline(always)]
@@ -692,6 +726,12 @@ pub(super) struct NfaRegprog {
     pub nstate: i32,
     pub listbuf: [Vec<NfaThread>; 2],
     pub state: Vec<NfaState>,
+}
+
+impl Drop for NfaRegprog {
+    fn drop(&mut self) {
+        return_nfa_listbuf(&mut self.listbuf);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -901,6 +941,7 @@ pub(super) struct MultiPos {
 }
 
 impl MultiPos {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             start_lnum: 0,
@@ -919,6 +960,7 @@ pub(super) struct LinePos {
 }
 
 impl LinePos {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             start: REG_LINE_NULL,
@@ -928,6 +970,7 @@ impl LinePos {
 }
 
 impl Default for LinePos {
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
@@ -940,6 +983,7 @@ pub(super) struct RegSubList {
 }
 
 impl RegSubList {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             multi_arr: [MultiPos::new(); NSUBEXP],
@@ -968,22 +1012,36 @@ impl RegSubList {
     }
 
     #[inline(always)]
-    pub(super) fn copy_first(&mut self, other: &Self) {
+    pub(super) fn copy_first_multi(&mut self, other: &Self) {
         self.multi_arr[0] = other.multi_arr[0];
+    }
+
+    #[inline(always)]
+    pub(super) fn copy_first_line(&mut self, other: &Self) {
         self.line_arr[0] = other.line_arr[0];
     }
 
     #[inline(always)]
-    pub(super) fn copy_n(&mut self, other: &Self, n: usize) {
+    pub(super) fn copy_n_multi(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
         self.multi_arr[..n].copy_from_slice(&other.multi_arr[..n]);
+    }
+
+    #[inline(always)]
+    pub(super) fn copy_n_line(&mut self, other: &Self, n: usize) {
+        let n = n.min(NSUBEXP);
         self.line_arr[..n].copy_from_slice(&other.line_arr[..n]);
     }
 
     #[inline(always)]
-    pub(super) fn copy_range_from_1(&mut self, other: &Self, n: usize) {
+    pub(super) fn copy_range_from_1_multi(&mut self, other: &Self, n: usize) {
         let n = n.min(NSUBEXP);
         self.multi_arr[1..n].copy_from_slice(&other.multi_arr[1..n]);
+    }
+
+    #[inline(always)]
+    pub(super) fn copy_range_from_1_line(&mut self, other: &Self, n: usize) {
+        let n = n.min(NSUBEXP);
         self.line_arr[1..n].copy_from_slice(&other.line_arr[1..n]);
     }
 }
@@ -1003,6 +1061,7 @@ pub(super) struct Regsub {
 }
 
 impl Regsub {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             in_use: 0,
@@ -1020,6 +1079,7 @@ pub(super) struct Regsubs {
 }
 
 impl Regsubs {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             norm: Regsub::new(),
@@ -1037,6 +1097,7 @@ pub(super) struct NfaPim {
 }
 
 impl NfaPim {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             result: 0,
@@ -1048,6 +1109,7 @@ impl NfaPim {
 }
 
 impl Default for NfaPim {
+    #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
@@ -1062,6 +1124,7 @@ pub(super) struct NfaThread {
 }
 
 impl NfaThread {
+    #[inline(always)]
     pub(super) const fn new() -> Self {
         Self {
             state: None,
@@ -1482,155 +1545,15 @@ static DECOMP_TABLE: [Decomp; 0xfb4f - 0xfb20 + 1] = [
     }, // 0xfb4f       alef-lamed
 ];
 
-// Global work variables
-pub(super) struct RegexpState {
-    pub(super) reg_prev_sub: Option<std::ffi::CString>,
-    pub(super) class_tab: [i16; 256],
-    pub(super) init_class_tab_done: bool,
-    pub(super) regparse_base: Vec<u8>,
-    pub(super) regparse_off: usize,
-    pub(super) regnpar: i32,
-    pub(super) wants_nfa: bool,
-    pub(super) regnzpar: i32,
-    pub(super) re_has_z: i32,
-    pub(super) regflags: u32,
-    pub(super) had_eol: bool,
-    pub(super) reg_magic: RegMagic,
-    pub(super) reg_string: i32,
-    pub(super) reg_strict: i32,
-    pub(super) curchr: i32,
-    pub(super) prevchr: i32,
-    pub(super) prevprevchr: i32,
-    pub(super) nextchr: i32,
-    pub(super) prevchr_len: i32,
-    pub(super) at_start: i32,
-    pub(super) prev_at_start: i32,
-    pub(super) peekchr_after_slash: i32,
-    pub(super) reg_cpo_lit: i32,
-    pub(super) reg_tofree: Vec<u8>,
-    pub(super) rex: Regexec,
-    pub(super) rex_in_use: bool,
-    pub(super) can_f_submatch: bool,
-    pub(super) rsm: Regsubmatch,
-    pub(super) reg_startzp: [RegLineSlice; NSUBEXP],
-    pub(super) reg_endzp: [RegLineSlice; NSUBEXP],
-    pub(super) reg_startzpos: [Lpos; NSUBEXP],
-    pub(super) reg_endzpos: [Lpos; NSUBEXP],
-    pub(super) eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING],
-    pub(super) regsub_nesting: usize,
-    pub(super) had_endbrace: [u8; NSUBEXP],
-    pub(super) num_complex_braces: i32,
-    pub(super) regsize: i64,
-    pub(super) reg_toolong: i32,
-    pub(super) bt_reg_parse_depth: i32,
-    pub(super) brace_min: [i64; 10],
-    pub(super) brace_max: [i64; 10],
-    pub(super) brace_count: [i32; 10],
-    pub(super) one_exactly: bool,
-    pub(super) regstack: Vec<u64>,
-    backpos: Vec<Backpos>,
-    pub(super) behind_pos: Regsave,
-    pub(super) nfa_re_flags: i32,
-    pub(super) post_vec: Vec<i32>,
-    pub(super) nfa_reg_parse_depth: i32,
-    pub(super) nstate: i32,
-    pub(super) istate: i32,
-    pub(super) nfa_endp: Option<SaveSe>,
-    pub(super) nfa_ll_index: usize,
-    pub(super) regexp_engine: i32,
-    pub(super) line_slots: [Vec<u8>; REG_LINE_SLOTS],
-    pub(super) line_slot_addrs: [usize; REG_LINE_SLOTS],
-    pub(super) cur_line_slot: usize,
+struct RegLineSlots {
+    line_slots: [Vec<u8>; REG_LINE_SLOTS],
+    line_slot_addrs: [usize; REG_LINE_SLOTS],
+    cur_line_slot: usize,
 }
 
-impl RegexpState {
+impl RegLineSlots {
     const fn new() -> Self {
         Self {
-            reg_prev_sub: None,
-            class_tab: [0; 256],
-            init_class_tab_done: false,
-            regparse_base: Vec::new(),
-            regparse_off: 0,
-            regnpar: 0,
-            wants_nfa: false,
-            regnzpar: 0,
-            re_has_z: 0,
-            regflags: 0,
-            had_eol: false,
-            reg_magic: 0,
-            reg_string: 0,
-            reg_strict: 0,
-            curchr: 0,
-            prevchr: 0,
-            prevprevchr: 0,
-            nextchr: 0,
-            prevchr_len: 0,
-            at_start: 0,
-            prev_at_start: 0,
-            peekchr_after_slash: 0,
-            reg_cpo_lit: 0,
-            reg_tofree: Vec::new(),
-            rex: Regexec {
-                reg_match: crate::globals::GraphPtr::NULL,
-                reg_mmatch: crate::globals::GraphPtr::NULL,
-                reg_startpos: crate::globals::GraphPtr::NULL,
-                reg_endpos: crate::globals::GraphPtr::NULL,
-                reg_win: crate::globals::WinPtr::NULL,
-                reg_buf: crate::globals::BufPtr::NULL,
-                reg_firstlnum: 0,
-                reg_maxline: 0,
-                reg_line_lbr: false,
-                lnum: 0,
-                line: REG_LINE_NULL,
-                input: REG_LINE_NULL,
-                need_clear_subexpr: false,
-                need_clear_zsubexpr: false,
-                reg_ic: false,
-                reg_icombine: false,
-                reg_nobreak: false,
-                reg_maxcol: 0,
-                nfa_has_zend: false,
-                nfa_has_backref: false,
-                nfa_nsubexpr: 0,
-                nfa_listid: 0,
-                nfa_alt_listid: 0,
-                nfa_has_zsubexpr: false,
-            },
-            rex_in_use: false,
-            can_f_submatch: false,
-            rsm: Regsubmatch {
-                sm_match: crate::globals::GraphPtr::NULL,
-                sm_mmatch: crate::globals::GraphPtr::NULL,
-                sm_firstlnum: 0,
-                sm_maxline: 0,
-                sm_line_lbr: 0,
-            },
-            reg_startzp: [REG_LINE_NULL; NSUBEXP],
-            reg_endzp: [REG_LINE_NULL; NSUBEXP],
-            reg_startzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
-            reg_endzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
-            eval_result: [const { None }; MAX_REGSUB_NESTING],
-            regsub_nesting: 0,
-            had_endbrace: [0; NSUBEXP],
-            num_complex_braces: 0,
-            regsize: 0,
-            reg_toolong: 0,
-            bt_reg_parse_depth: 0,
-            brace_min: [0; 10],
-            brace_max: [0; 10],
-            brace_count: [0; 10],
-            one_exactly: false,
-            regstack: Vec::new(),
-            backpos: Vec::new(),
-            behind_pos: Regsave::new(),
-            nfa_re_flags: 0,
-            post_vec: Vec::new(),
-            nfa_reg_parse_depth: 0,
-            nstate: 0,
-            istate: 0,
-            nfa_endp: None,
-            nfa_ll_index: 0,
-            regexp_engine: 0,
             line_slots: [const { Vec::new() }; REG_LINE_SLOTS],
             line_slot_addrs: [0; REG_LINE_SLOTS],
             cur_line_slot: 0,
@@ -1638,16 +1561,347 @@ impl RegexpState {
     }
 }
 
-pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpState::new());
+pub(super) struct RegexecState {
+    pub reg_match: std::cell::Cell<crate::globals::GraphPtr<Regmatch>>,
+    pub reg_mmatch: std::cell::Cell<crate::globals::GraphPtr<Regmmatch>>,
+    pub reg_startpos: std::cell::Cell<crate::globals::GraphPtr<[Lpos; NSUBEXP]>>,
+    pub reg_endpos: std::cell::Cell<crate::globals::GraphPtr<[Lpos; NSUBEXP]>>,
+    pub reg_win: std::cell::Cell<crate::globals::WinPtr>,
+    pub reg_buf: std::cell::Cell<crate::globals::BufPtr>,
+    pub reg_firstlnum: std::cell::Cell<Linenr>,
+    pub reg_maxline: std::cell::Cell<Linenr>,
+    pub reg_line_lbr: std::cell::Cell<bool>,
+    pub lnum: std::cell::Cell<Linenr>,
+    pub line: std::cell::Cell<RegLineSlice>,
+    pub input: std::cell::Cell<RegLineSlice>,
+    pub need_clear_subexpr: std::cell::Cell<bool>,
+    pub need_clear_zsubexpr: std::cell::Cell<bool>,
+    pub reg_ic: std::cell::Cell<bool>,
+    pub reg_icombine: std::cell::Cell<bool>,
+    pub reg_nobreak: std::cell::Cell<bool>,
+    pub reg_maxcol: std::cell::Cell<Colnr>,
+    pub nfa_has_zend: std::cell::Cell<bool>,
+    pub nfa_has_backref: std::cell::Cell<bool>,
+    pub nfa_nsubexpr: std::cell::Cell<i32>,
+    pub nfa_listid: std::cell::Cell<i32>,
+    pub nfa_alt_listid: std::cell::Cell<i32>,
+    pub nfa_has_zsubexpr: std::cell::Cell<bool>,
+}
+
+impl RegexecState {
+    const fn new() -> Self {
+        Self {
+            reg_match: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            reg_mmatch: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            reg_startpos: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            reg_endpos: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            reg_win: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            reg_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
+            reg_firstlnum: std::cell::Cell::new(0),
+            reg_maxline: std::cell::Cell::new(0),
+            reg_line_lbr: std::cell::Cell::new(false),
+            lnum: std::cell::Cell::new(0),
+            line: std::cell::Cell::new(REG_LINE_NULL),
+            input: std::cell::Cell::new(REG_LINE_NULL),
+            need_clear_subexpr: std::cell::Cell::new(false),
+            need_clear_zsubexpr: std::cell::Cell::new(false),
+            reg_ic: std::cell::Cell::new(false),
+            reg_icombine: std::cell::Cell::new(false),
+            reg_nobreak: std::cell::Cell::new(false),
+            reg_maxcol: std::cell::Cell::new(0),
+            nfa_has_zend: std::cell::Cell::new(false),
+            nfa_has_backref: std::cell::Cell::new(false),
+            nfa_nsubexpr: std::cell::Cell::new(0),
+            nfa_listid: std::cell::Cell::new(0),
+            nfa_alt_listid: std::cell::Cell::new(0),
+            nfa_has_zsubexpr: std::cell::Cell::new(false),
+        }
+    }
+
+    pub(super) fn snapshot(&self) -> Regexec {
+        Regexec {
+            reg_match: self.reg_match.get(),
+            reg_mmatch: self.reg_mmatch.get(),
+            reg_startpos: self.reg_startpos.get(),
+            reg_endpos: self.reg_endpos.get(),
+            reg_win: self.reg_win.get(),
+            reg_buf: self.reg_buf.get(),
+            reg_firstlnum: self.reg_firstlnum.get(),
+            reg_maxline: self.reg_maxline.get(),
+            reg_line_lbr: self.reg_line_lbr.get(),
+            lnum: self.lnum.get(),
+            line: self.line.get(),
+            input: self.input.get(),
+            need_clear_subexpr: self.need_clear_subexpr.get(),
+            need_clear_zsubexpr: self.need_clear_zsubexpr.get(),
+            reg_ic: self.reg_ic.get(),
+            reg_icombine: self.reg_icombine.get(),
+            reg_nobreak: self.reg_nobreak.get(),
+            reg_maxcol: self.reg_maxcol.get(),
+            nfa_has_zend: self.nfa_has_zend.get(),
+            nfa_has_backref: self.nfa_has_backref.get(),
+            nfa_nsubexpr: self.nfa_nsubexpr.get(),
+            nfa_listid: self.nfa_listid.get(),
+            nfa_alt_listid: self.nfa_alt_listid.get(),
+            nfa_has_zsubexpr: self.nfa_has_zsubexpr.get(),
+        }
+    }
+
+    pub(super) fn restore(&self, snap: &Regexec) {
+        self.reg_match.set(snap.reg_match);
+        self.reg_mmatch.set(snap.reg_mmatch);
+        self.reg_startpos.set(snap.reg_startpos);
+        self.reg_endpos.set(snap.reg_endpos);
+        self.reg_win.set(snap.reg_win);
+        self.reg_buf.set(snap.reg_buf);
+        self.reg_firstlnum.set(snap.reg_firstlnum);
+        self.reg_maxline.set(snap.reg_maxline);
+        self.reg_line_lbr.set(snap.reg_line_lbr);
+        self.lnum.set(snap.lnum);
+        self.line.set(snap.line);
+        self.input.set(snap.input);
+        self.need_clear_subexpr.set(snap.need_clear_subexpr);
+        self.need_clear_zsubexpr.set(snap.need_clear_zsubexpr);
+        self.reg_ic.set(snap.reg_ic);
+        self.reg_icombine.set(snap.reg_icombine);
+        self.reg_nobreak.set(snap.reg_nobreak);
+        self.reg_maxcol.set(snap.reg_maxcol);
+        self.nfa_has_zend.set(snap.nfa_has_zend);
+        self.nfa_has_backref.set(snap.nfa_has_backref);
+        self.nfa_nsubexpr.set(snap.nfa_nsubexpr);
+        self.nfa_listid.set(snap.nfa_listid);
+        self.nfa_alt_listid.set(snap.nfa_alt_listid);
+        self.nfa_has_zsubexpr.set(snap.nfa_has_zsubexpr);
+    }
+
+    #[inline(always)]
+    pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
+        self.reg_mmatch.get().borrow_mut()
+    }
+    #[inline(always)]
+    pub fn match_mut(&self) -> &'static mut Regmatch {
+        self.reg_match.get().borrow_mut()
+    }
+    #[inline(always)]
+    pub fn buf_mut(&self) -> &'static mut FileBuf {
+        self.reg_buf.get().borrow_mut()
+    }
+    #[inline(always)]
+    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+        self.reg_win.get().borrow_mut()
+    }
+    #[inline(always)]
+    pub fn load_line(&self, lnum: Linenr) {
+        self.line.set(reg_line_from_opt_cstr(reg_getline(lnum)));
+    }
+    #[inline(always)]
+    pub fn input_col(&self) -> Colnr {
+        self.input_off() as Colnr
+    }
+    #[inline(always)]
+    pub fn input_off(&self) -> usize {
+        self.input.get().offset_from(self.line.get())
+    }
+    #[inline(always)]
+    pub fn startpos_slice_mut(&self) -> &'static mut [Lpos] {
+        self.reg_startpos.get().borrow_mut()
+    }
+    #[inline(always)]
+    pub fn endpos_slice_mut(&self) -> &'static mut [Lpos] {
+        self.reg_endpos.get().borrow_mut()
+    }
+}
+
+pub(super) struct RegexpState {
+    pub(super) rex: RegexecState,
+    pub(super) regparse_off: std::cell::Cell<usize>,
+    pub(super) regnpar: std::cell::Cell<i32>,
+    pub(super) wants_nfa: std::cell::Cell<bool>,
+    pub(super) regnzpar: std::cell::Cell<i32>,
+    pub(super) re_has_z: std::cell::Cell<i32>,
+    pub(super) regflags: std::cell::Cell<u32>,
+    pub(super) had_eol: std::cell::Cell<bool>,
+    pub(super) reg_magic: std::cell::Cell<RegMagic>,
+    pub(super) reg_string: std::cell::Cell<i32>,
+    pub(super) reg_strict: std::cell::Cell<i32>,
+    pub(super) curchr: std::cell::Cell<i32>,
+    pub(super) prevchr: std::cell::Cell<i32>,
+    pub(super) prevprevchr: std::cell::Cell<i32>,
+    pub(super) nextchr: std::cell::Cell<i32>,
+    pub(super) prevchr_len: std::cell::Cell<i32>,
+    pub(super) at_start: std::cell::Cell<i32>,
+    pub(super) prev_at_start: std::cell::Cell<i32>,
+    pub(super) peekchr_after_slash: std::cell::Cell<i32>,
+    pub(super) reg_cpo_lit: std::cell::Cell<i32>,
+    pub(super) rex_in_use: std::cell::Cell<bool>,
+    pub(super) can_f_submatch: std::cell::Cell<bool>,
+    pub(super) rsm: std::cell::Cell<Regsubmatch>,
+    pub(super) reg_startzp: [std::cell::Cell<RegLineSlice>; NSUBEXP],
+    pub(super) reg_endzp: [std::cell::Cell<RegLineSlice>; NSUBEXP],
+    pub(super) reg_startzpos: [std::cell::Cell<Lpos>; NSUBEXP],
+    pub(super) reg_endzpos: [std::cell::Cell<Lpos>; NSUBEXP],
+    pub(super) regsub_nesting: std::cell::Cell<usize>,
+    pub(super) had_endbrace: [std::cell::Cell<u8>; NSUBEXP],
+    pub(super) num_complex_braces: std::cell::Cell<i32>,
+    pub(super) regsize: std::cell::Cell<i64>,
+    pub(super) reg_toolong: std::cell::Cell<i32>,
+    pub(super) bt_reg_parse_depth: std::cell::Cell<i32>,
+    pub(super) brace_min: [std::cell::Cell<i64>; 10],
+    pub(super) brace_max: [std::cell::Cell<i64>; 10],
+    pub(super) brace_count: [std::cell::Cell<i32>; 10],
+    pub(super) one_exactly: std::cell::Cell<bool>,
+    pub(super) behind_pos: std::cell::Cell<Regsave>,
+    pub(super) nfa_re_flags: std::cell::Cell<i32>,
+    pub(super) nfa_reg_parse_depth: std::cell::Cell<i32>,
+    pub(super) nstate: std::cell::Cell<i32>,
+    pub(super) istate: std::cell::Cell<i32>,
+    pub(super) nfa_endp: std::cell::Cell<Option<SaveSe>>,
+    pub(super) nfa_ll_index: std::cell::Cell<usize>,
+    pub(super) regexp_engine: std::cell::Cell<i32>,
+}
+
+impl RegexpState {
+    const fn new() -> Self {
+        Self {
+            rex: RegexecState::new(),
+            regparse_off: std::cell::Cell::new(0),
+            regnpar: std::cell::Cell::new(0),
+            wants_nfa: std::cell::Cell::new(false),
+            regnzpar: std::cell::Cell::new(0),
+            re_has_z: std::cell::Cell::new(0),
+            regflags: std::cell::Cell::new(0),
+            had_eol: std::cell::Cell::new(false),
+            reg_magic: std::cell::Cell::new(0),
+            reg_string: std::cell::Cell::new(0),
+            reg_strict: std::cell::Cell::new(0),
+            curchr: std::cell::Cell::new(0),
+            prevchr: std::cell::Cell::new(0),
+            prevprevchr: std::cell::Cell::new(0),
+            nextchr: std::cell::Cell::new(0),
+            prevchr_len: std::cell::Cell::new(0),
+            at_start: std::cell::Cell::new(0),
+            prev_at_start: std::cell::Cell::new(0),
+            peekchr_after_slash: std::cell::Cell::new(0),
+            reg_cpo_lit: std::cell::Cell::new(0),
+            rex_in_use: std::cell::Cell::new(false),
+            can_f_submatch: std::cell::Cell::new(false),
+            rsm: std::cell::Cell::new(Regsubmatch::new()),
+            reg_startzp: [const { std::cell::Cell::new(REG_LINE_NULL) }; NSUBEXP],
+            reg_endzp: [const { std::cell::Cell::new(REG_LINE_NULL) }; NSUBEXP],
+            reg_startzpos: [const { std::cell::Cell::new(Lpos { lnum: 0, col: 0 }) }; NSUBEXP],
+            reg_endzpos: [const { std::cell::Cell::new(Lpos { lnum: 0, col: 0 }) }; NSUBEXP],
+            regsub_nesting: std::cell::Cell::new(0),
+            had_endbrace: [const { std::cell::Cell::new(0) }; NSUBEXP],
+            num_complex_braces: std::cell::Cell::new(0),
+            regsize: std::cell::Cell::new(0),
+            reg_toolong: std::cell::Cell::new(0),
+            bt_reg_parse_depth: std::cell::Cell::new(0),
+            brace_min: [const { std::cell::Cell::new(0) }; 10],
+            brace_max: [const { std::cell::Cell::new(0) }; 10],
+            brace_count: [const { std::cell::Cell::new(0) }; 10],
+            one_exactly: std::cell::Cell::new(false),
+            behind_pos: std::cell::Cell::new(Regsave::new()),
+            nfa_re_flags: std::cell::Cell::new(0),
+            nfa_reg_parse_depth: std::cell::Cell::new(0),
+            nstate: std::cell::Cell::new(0),
+            istate: std::cell::Cell::new(0),
+            nfa_endp: std::cell::Cell::new(None),
+            nfa_ll_index: std::cell::Cell::new(0),
+            regexp_engine: std::cell::Cell::new(0),
+        }
+    }
+}
+
+struct CachedRegprog {
+    expr: Vec<u8>,
+    re_flags: i32,
+    engine: i32,
+    cpo_lit: bool,
+    chartab: [u64; 4],
+    had_eol: bool,
+    prog: Regprog,
+}
+
+thread_local! {
+    pub(super) static RE_STATE: RegexpState = const { RegexpState::new() };
+    static LAST_REGPROG: std::cell::RefCell<Option<CachedRegprog>> = const {
+        std::cell::RefCell::new(None)
+    };
+    pub(super) static REGPARSE_BASE: std::cell::RefCell<Vec<u8>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static LINE_SLOTS: std::cell::RefCell<RegLineSlots> = const {
+        std::cell::RefCell::new(RegLineSlots::new())
+    };
+    pub(super) static REG_PREV_SUB: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+    pub(super) static EVAL_RESULT: [std::cell::RefCell<Option<std::ffi::CString>>; MAX_REGSUB_NESTING] = const {
+        [const { std::cell::RefCell::new(None) }; MAX_REGSUB_NESTING]
+    };
+    pub(super) static BACKPOS: std::cell::RefCell<Vec<Backpos>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    pub(super) static POST_VEC: std::cell::RefCell<Vec<i32>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+#[inline]
+pub(super) fn set_regparse_base(s: &CStr) {
+    REGPARSE_BASE.with(|cell| {
+        let mut b = cell.borrow_mut();
+        b.clear();
+        b.extend_from_slice(s.to_bytes());
+    });
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ReSt;
 
 #[inline(always)]
-pub(super) fn re_st() -> crate::globals::GraphPtr<RegexpState> {
-    RE_STATE.handle()
+pub(super) const fn re_st() -> ReSt {
+    ReSt
+}
+
+impl ReSt {
+    #[inline(always)]
+    pub fn with_regparse_bytes<R>(self, f: impl FnOnce(&[u8]) -> R) -> R {
+        RE_STATE.with(|s| s.with_regparse_bytes(f))
+    }
+    #[inline(always)]
+    pub fn regparse_byte(self) -> u8 {
+        RE_STATE.with(RegexpState::regparse_byte)
+    }
+    #[inline(always)]
+    pub fn regparse_byte_at(self, idx: usize) -> u8 {
+        RE_STATE.with(|s| s.regparse_byte_at(idx))
+    }
+    #[inline(always)]
+    pub fn regparse_mb_adv(self) {
+        RE_STATE.with(RegexpState::regparse_mb_adv);
+    }
+    #[inline(always)]
+    pub fn regparse_prev_char(self) {
+        RE_STATE.with(RegexpState::regparse_prev_char);
+    }
+    #[inline(always)]
+    pub fn regparse_get_char_class(self) -> i32 {
+        RE_STATE.with(RegexpState::regparse_get_char_class)
+    }
+    #[inline(always)]
+    pub fn regparse_get_equi_class(self) -> i32 {
+        RE_STATE.with(RegexpState::regparse_get_equi_class)
+    }
+    #[inline(always)]
+    pub fn regparse_get_coll_element(self) -> i32 {
+        RE_STATE.with(RegexpState::regparse_get_coll_element)
+    }
 }
 
 #[inline(always)]
-pub(super) fn reg_prev_sub_ref() -> Option<&'static CStr> {
-    re_st().borrow_mut().reg_prev_sub.as_deref()
+pub(super) fn reg_prev_sub_ref() -> Option<std::ffi::CString> {
+    REG_PREV_SUB.with(|c| c.borrow().clone())
 }
 
 use crate::eval::partial_name;
@@ -1693,7 +1947,7 @@ pub(super) const fn toggle_magic(x: i32) -> i32 {
 
 #[inline(always)]
 pub(super) fn reg_multi() -> bool {
-    re_st().rex.reg_match.is_null()
+    RE_STATE.with(|s| s.rex.reg_match.get()).is_null()
 }
 
 /// Return NOT_MULTI if c is not a "multi" operator.
@@ -1763,66 +2017,66 @@ pub(super) fn get_char_class(rem: &mut &[u8]) -> i32 {
     CLASS_NONE
 }
 
-pub(super) fn init_class_tab() {
-    if re_st().init_class_tab_done {
-        return;
-    }
-    for i in 0..256usize {
-        let val = if (b'0' as usize..=b'7' as usize).contains(&i) {
+pub(super) const RI_CLASS_TAB: [i16; 256] = {
+    let mut tab = [0i16; 256];
+    let mut i = 0usize;
+    while i < 256 {
+        let val = if i >= b'0' as usize && i <= b'7' as usize {
             RI_DIGIT + RI_HEX + RI_OCTAL + RI_WORD
-        } else if (b'8' as usize..=b'9' as usize).contains(&i) {
+        } else if i >= b'8' as usize && i <= b'9' as usize {
             RI_DIGIT + RI_HEX + RI_WORD
-        } else if (b'a' as usize..=b'f' as usize).contains(&i) {
+        } else if i >= b'a' as usize && i <= b'f' as usize {
             RI_HEX + RI_WORD + RI_HEAD + RI_ALPHA + RI_LOWER
-        } else if (b'g' as usize..=b'z' as usize).contains(&i) {
+        } else if i >= b'g' as usize && i <= b'z' as usize {
             RI_WORD + RI_HEAD + RI_ALPHA + RI_LOWER
-        } else if (b'A' as usize..=b'F' as usize).contains(&i) {
+        } else if i >= b'A' as usize && i <= b'F' as usize {
             RI_HEX + RI_WORD + RI_HEAD + RI_ALPHA + RI_UPPER
-        } else if (b'G' as usize..=b'Z' as usize).contains(&i) {
+        } else if i >= b'G' as usize && i <= b'Z' as usize {
             RI_WORD + RI_HEAD + RI_ALPHA + RI_UPPER
         } else if i == b'_' as usize {
             RI_WORD + RI_HEAD
         } else {
             0
         };
-        re_st().class_tab[i] = val;
+        tab[i] = val;
+        i += 1;
     }
-    re_st().class_tab[b' ' as usize] |= RI_WHITE;
-    re_st().class_tab[b'\t' as usize] |= RI_WHITE;
-    re_st().init_class_tab_done = true;
-}
+    tab[b' ' as usize] |= RI_WHITE;
+    tab[b'\t' as usize] |= RI_WHITE;
+    tab
+};
 
 #[inline(always)]
 pub(super) fn ri_digit(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_DIGIT) != 0
 }
 #[inline(always)]
 pub(super) fn ri_hex(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEX) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_HEX) != 0
 }
 #[inline(always)]
 pub(super) fn ri_octal(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_OCTAL) != 0
 }
 #[inline(always)]
 pub(super) fn ri_word(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_WORD) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_WORD) != 0
 }
 #[inline(always)]
 pub(super) fn ri_head(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_HEAD) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_HEAD) != 0
 }
 #[inline(always)]
 pub(super) fn ri_alpha(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_ALPHA) != 0
 }
 #[inline(always)]
 pub(super) fn ri_lower(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_LOWER) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_LOWER) != 0
 }
 #[inline(always)]
 pub(super) fn ri_upper(c: i32) -> bool {
-    (0..0x100).contains(&c) && (re_st().class_tab[c as usize] & RI_UPPER) != 0
+    (0..0x100).contains(&c) && (RI_CLASS_TAB[c as usize] & RI_UPPER) != 0
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
@@ -1859,8 +2113,10 @@ pub(super) fn get_coll_element(rem: &mut &[u8]) -> i32 {
 }
 
 pub(super) fn get_cpo_flags() {
-    re_st().reg_cpo_lit =
-        (crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL)) as i32;
+    RE_STATE.with(|s| {
+        s.reg_cpo_lit
+            .set((crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL)) as i32)
+    });
 }
 
 /// Skip over a `[]` range in a byte slice.
@@ -1890,7 +2146,8 @@ pub(super) fn skip_anyof_slice(bytes: &[u8]) -> &[u8] {
         } else if b0 == b'\\'
             && let Some(&b1) = rem.get(1)
             && (REGEXP_INRANGE.to_bytes().contains(&b1)
-                || (re_st().reg_cpo_lit == 0 && REGEXP_ABBR.to_bytes().contains(&b1)))
+                || (RE_STATE.with(|s| s.reg_cpo_lit.get()) == 0
+                    && REGEXP_ABBR.to_bytes().contains(&b1)))
         {
             rem = &rem[2..];
         } else if b0 == b'[' {
@@ -2088,189 +2345,213 @@ pub fn skip_regexp_ex(
 }
 
 pub(super) fn initchr(str_: &CStr) {
-    re_st().regparse_base.clear();
-    re_st().regparse_base.extend_from_slice(str_.to_bytes());
-    re_st().regparse_off = 0;
-    re_st().prevchr_len = 0;
-    re_st().nextchr = -1;
-    re_st().prevchr = -1;
-    re_st().prevprevchr = -1;
-    re_st().curchr = -1;
-    re_st().at_start = 1;
-    re_st().prev_at_start = 0;
+    set_regparse_base(str_);
+    RE_STATE.with(|s| s.regparse_off.set(0));
+    RE_STATE.with(|s| s.prevchr_len.set(0));
+    RE_STATE.with(|s| s.nextchr.set(-1));
+    RE_STATE.with(|s| s.prevchr.set(-1));
+    RE_STATE.with(|s| s.prevprevchr.set(-1));
+    RE_STATE.with(|s| s.curchr.set(-1));
+    RE_STATE.with(|s| s.at_start.set(1));
+    RE_STATE.with(|s| s.prev_at_start.set(0));
 }
 
 pub(super) fn save_parse_state(ps: &mut ParseState) {
-    ps.regparse_off = re_st().regparse_off;
-    ps.prevchr_len = re_st().prevchr_len;
-    ps.curchr = re_st().curchr;
-    ps.prevchr = re_st().prevchr;
-    ps.prevprevchr = re_st().prevprevchr;
-    ps.nextchr = re_st().nextchr;
-    ps.at_start = re_st().at_start;
-    ps.prev_at_start = re_st().prev_at_start;
-    ps.regnpar = re_st().regnpar;
+    RE_STATE.with(|re_s| {
+        ps.regparse_off = re_s.regparse_off.get();
+        ps.prevchr_len = re_s.prevchr_len.get();
+        ps.curchr = re_s.curchr.get();
+        ps.prevchr = re_s.prevchr.get();
+        ps.prevprevchr = re_s.prevprevchr.get();
+        ps.nextchr = re_s.nextchr.get();
+        ps.at_start = re_s.at_start.get();
+        ps.prev_at_start = re_s.prev_at_start.get();
+        ps.regnpar = re_s.regnpar.get();
+    })
 }
 
 pub(super) fn restore_parse_state(ps: &mut ParseState) {
-    re_st().regparse_off = ps.regparse_off;
-    re_st().prevchr_len = ps.prevchr_len;
-    re_st().curchr = ps.curchr;
-    re_st().prevchr = ps.prevchr;
-    re_st().prevprevchr = ps.prevprevchr;
-    re_st().nextchr = ps.nextchr;
-    re_st().at_start = ps.at_start;
-    re_st().prev_at_start = ps.prev_at_start;
-    re_st().regnpar = ps.regnpar;
+    RE_STATE.with(|re_s| {
+        re_s.regparse_off.set(ps.regparse_off);
+        re_s.prevchr_len.set(ps.prevchr_len);
+        re_s.curchr.set(ps.curchr);
+        re_s.prevchr.set(ps.prevchr);
+        re_s.prevprevchr.set(ps.prevprevchr);
+        re_s.nextchr.set(ps.nextchr);
+        re_s.at_start.set(ps.at_start);
+        re_s.prev_at_start.set(ps.prev_at_start);
+        re_s.regnpar.set(ps.regnpar);
+    })
 }
 
 pub(super) fn peekchr() -> i32 {
-    if re_st().curchr != -1 {
-        return re_st().curchr;
-    }
+    RE_STATE.with(|re_s| {
+        if re_s.curchr.get() != -1 {
+            return re_s.curchr.get();
+        }
 
-    re_st().curchr = re_st().regparse_byte() as i32;
-    match re_st().curchr as u8 {
-        b'.' | b'[' | b'~' => {
-            if re_st().reg_magic >= MAGIC_ON {
-                re_st().curchr = magic_fn(re_st().curchr);
-            }
-        }
-        b'(' | b')' | b'{' | b'%' | b'+' | b'=' | b'?' | b'@' | b'!' | b'&' | b'|' | b'<'
-        | b'>' | b'#' | b'"' | b'\'' | b',' | b'-' | b':' | b';' | b'`' | b'/' => {
-            if re_st().reg_magic == MAGIC_ALL {
-                re_st().curchr = magic_fn(re_st().curchr);
-            }
-        }
-        b'*' => {
-            if re_st().reg_magic >= MAGIC_ON
-                && re_st().at_start == 0
-                && !(re_st().prev_at_start != 0 && re_st().prevchr == magic_fn(b'^' as i32))
-                && (re_st().peekchr_after_slash != 0
-                    || (re_st().prevchr != magic_fn(b'(' as i32)
-                        && re_st().prevchr != magic_fn(b'&' as i32)
-                        && re_st().prevchr != magic_fn(b'|' as i32)))
-            {
-                re_st().curchr = magic_fn(b'*' as i32);
-            }
-        }
-        b'^' => {
-            if re_st().reg_magic >= MAGIC_OFF
-                && (re_st().at_start != 0
-                    || re_st().reg_magic == MAGIC_ALL
-                    || re_st().prevchr == magic_fn(b'(' as i32)
-                    || re_st().prevchr == magic_fn(b'|' as i32)
-                    || re_st().prevchr == magic_fn(b'&' as i32)
-                    || re_st().prevchr == magic_fn(b'n' as i32)
-                    || (no_magic(re_st().prevchr) == b'(' as i32
-                        && re_st().prevprevchr == magic_fn(b'%' as i32)))
-            {
-                re_st().curchr = magic_fn(b'^' as i32);
-                re_st().at_start = 1;
-                re_st().prev_at_start = 0;
-            }
-        }
-        b'$' => {
-            if re_st().reg_magic >= MAGIC_OFF {
-                let re_ref = re_st().borrow();
-                let mut p_bytes = &re_ref.regparse_bytes()[1..];
-                let mut is_magic_all = re_ref.reg_magic == MAGIC_ALL;
-
-                while let Some(&next_b) = p_bytes.get(1) {
-                    if p_bytes[0] != b'\\'
-                        || !matches!(next_b, b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z')
-                    {
-                        break;
-                    }
-                    if next_b == b'v' {
-                        is_magic_all = true;
-                    } else if matches!(next_b, b'm' | b'M' | b'V') {
-                        is_magic_all = false;
-                    }
-                    p_bytes = &p_bytes[2..];
+        re_s.curchr.set(re_st().regparse_byte() as i32);
+        match re_s.curchr.get() as u8 {
+            b'.' | b'[' | b'~' => {
+                if re_s.reg_magic.get() >= MAGIC_ON {
+                    re_s.curchr.set(magic_fn(re_s.curchr.get()));
                 }
-                let p_b = p_bytes.first().copied().unwrap_or(0);
-                if p_b == NUL
-                    || (p_b == b'\\'
-                        && p_bytes
-                            .get(1)
-                            .is_some_and(|&b| matches!(b, b'|' | b'&' | b')' | b'n')))
-                    || (is_magic_all && matches!(p_b, b'|' | b'&' | b')'))
-                    || re_st().reg_magic == MAGIC_ALL
+            }
+            b'(' | b')' | b'{' | b'%' | b'+' | b'=' | b'?' | b'@' | b'!' | b'&' | b'|' | b'<'
+            | b'>' | b'#' | b'"' | b'\'' | b',' | b'-' | b':' | b';' | b'`' | b'/' => {
+                if re_s.reg_magic.get() == MAGIC_ALL {
+                    re_s.curchr.set(magic_fn(re_s.curchr.get()));
+                }
+            }
+            b'*' => {
+                if re_s.reg_magic.get() >= MAGIC_ON
+                    && re_s.at_start.get() == 0
+                    && !(re_s.prev_at_start.get() != 0
+                        && re_s.prevchr.get() == magic_fn(b'^' as i32))
+                    && (re_s.peekchr_after_slash.get() != 0
+                        || (re_s.prevchr.get() != magic_fn(b'(' as i32)
+                            && re_s.prevchr.get() != magic_fn(b'&' as i32)
+                            && re_s.prevchr.get() != magic_fn(b'|' as i32)))
                 {
-                    re_st().curchr = magic_fn(b'$' as i32);
+                    re_s.curchr.set(magic_fn(b'*' as i32));
+                }
+            }
+            b'^' => {
+                if re_s.reg_magic.get() >= MAGIC_OFF
+                    && (re_s.at_start.get() != 0
+                        || re_s.reg_magic.get() == MAGIC_ALL
+                        || re_s.prevchr.get() == magic_fn(b'(' as i32)
+                        || re_s.prevchr.get() == magic_fn(b'|' as i32)
+                        || re_s.prevchr.get() == magic_fn(b'&' as i32)
+                        || re_s.prevchr.get() == magic_fn(b'n' as i32)
+                        || (no_magic(re_s.prevchr.get()) == b'(' as i32
+                            && re_s.prevprevchr.get() == magic_fn(b'%' as i32)))
+                {
+                    re_s.curchr.set(magic_fn(b'^' as i32));
+                    re_s.at_start.set(1);
+                    re_s.prev_at_start.set(0);
+                }
+            }
+            b'$' => {
+                if re_s.reg_magic.get() >= MAGIC_OFF {
+                    let is_eol = re_st().with_regparse_bytes(|rb| {
+                        let mut p_bytes = &rb[1..];
+                        let mut is_magic_all = re_s.reg_magic.get() == MAGIC_ALL;
+
+                        while let Some(&next_b) = p_bytes.get(1) {
+                            if p_bytes[0] != b'\\'
+                                || !matches!(next_b, b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z')
+                            {
+                                break;
+                            }
+                            if next_b == b'v' {
+                                is_magic_all = true;
+                            } else if matches!(next_b, b'm' | b'M' | b'V') {
+                                is_magic_all = false;
+                            }
+                            p_bytes = &p_bytes[2..];
+                        }
+                        let p_b = p_bytes.first().copied().unwrap_or(0);
+                        p_b == NUL
+                            || (p_b == b'\\'
+                                && p_bytes
+                                    .get(1)
+                                    .is_some_and(|&b| matches!(b, b'|' | b'&' | b')' | b'n')))
+                            || (is_magic_all && matches!(p_b, b'|' | b'&' | b')'))
+                            || re_s.reg_magic.get() == MAGIC_ALL
+                    });
+                    if is_eol {
+                        re_s.curchr.set(magic_fn(b'$' as i32));
+                    }
+                }
+            }
+            b'\\' => {
+                let c = i32::from(re_st().regparse_byte_at(1));
+                if c == NUL as i32 {
+                    re_s.curchr.set(b'\\' as i32);
+                } else if c <= b'~' as i32 && META_FLAGS[c as usize] != 0 {
+                    re_s.curchr.set(-1);
+                    re_s.prev_at_start.set(re_s.at_start.get());
+                    re_s.at_start.set(0);
+                    re_s.regparse_off.set(re_s.regparse_off.get() + (1));
+                    re_s.peekchr_after_slash
+                        .set(re_s.peekchr_after_slash.get() + (1));
+                    let _ = peekchr();
+                    re_s.regparse_off.set(re_s.regparse_off.get() - (1));
+                    re_s.peekchr_after_slash
+                        .set(re_s.peekchr_after_slash.get() - (1));
+                    RE_STATE.with(|s| s.curchr.set(toggle_magic(re_s.curchr.get())));
+                } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
+                    re_s.curchr.set(backslash_trans(c));
+                } else if re_s.reg_magic.get() == MAGIC_NONE
+                    && (c == b'$' as i32 || c == b'^' as i32)
+                {
+                    re_s.curchr.set(toggle_magic(c));
+                } else {
+                    re_s.curchr.set(if c >= 0x80 {
+                        re_st().with_regparse_bytes(|rb| utf_ptr2char(&rb[1..]))
+                    } else {
+                        c
+                    });
+                }
+            }
+            _ => {
+                if re_s.curchr.get() >= 0x80 {
+                    RE_STATE.with(|s| {
+                        s.curchr
+                            .set(re_st().with_regparse_bytes(|rb| utf_ptr2char(rb)))
+                    });
                 }
             }
         }
-        b'\\' => {
-            let c = i32::from(re_st().regparse_byte_at(1));
-            if c == NUL as i32 {
-                re_st().curchr = b'\\' as i32;
-            } else if c <= b'~' as i32 && META_FLAGS[c as usize] != 0 {
-                re_st().curchr = -1;
-                re_st().prev_at_start = re_st().at_start;
-                re_st().at_start = 0;
-                re_st().regparse_off += 1;
-                re_st().peekchr_after_slash += 1;
-                let _ = peekchr();
-                re_st().regparse_off -= 1;
-                re_st().peekchr_after_slash -= 1;
-                re_st().curchr = toggle_magic(re_st().curchr);
-            } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
-                re_st().curchr = backslash_trans(c);
-            } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as i32 || c == b'^' as i32) {
-                re_st().curchr = toggle_magic(c);
-            } else {
-                re_st().curchr = if c >= 0x80 {
-                    utf_ptr2char(&re_st().regparse_bytes()[1..])
-                } else {
-                    c
-                };
-            }
-        }
-        _ => {
-            if re_st().curchr >= 0x80 {
-                re_st().curchr = utf_ptr2char(re_st().regparse_bytes());
-            }
-        }
-    }
 
-    re_st().curchr
+        re_s.curchr.get()
+    })
 }
 
 pub(super) fn skipchr() {
-    if re_st().regparse_byte() == b'\\' {
-        re_st().prevchr_len = 1;
-    } else {
-        re_st().prevchr_len = 0;
-    }
-    let next_b = re_st().regparse_byte_at(re_st().prevchr_len as usize);
-    if next_b != NUL {
-        if next_b < 0x80 {
-            re_st().prevchr_len += 1;
+    RE_STATE.with(|re_s| {
+        if re_st().regparse_byte() == b'\\' {
+            re_s.prevchr_len.set(1);
         } else {
-            let off = re_st().prevchr_len as usize;
-            re_st().prevchr_len += utf_ptr2len(&re_st().regparse_bytes()[off..]);
+            re_s.prevchr_len.set(0);
         }
-    }
-    re_st().regparse_off += re_st().prevchr_len as usize;
-    re_st().prev_at_start = re_st().at_start;
-    re_st().at_start = 0;
-    re_st().prevprevchr = re_st().prevchr;
-    re_st().prevchr = re_st().curchr;
-    re_st().curchr = re_st().nextchr;
-    re_st().nextchr = -1;
+        let next_b = re_st().regparse_byte_at(re_s.prevchr_len.get() as usize);
+        if next_b != NUL {
+            if next_b < 0x80 {
+                re_s.prevchr_len.set(re_s.prevchr_len.get() + (1));
+            } else {
+                let off = re_s.prevchr_len.get() as usize;
+                re_s.prevchr_len.set(
+                    re_s.prevchr_len.get()
+                        + re_st().with_regparse_bytes(|rb| utf_ptr2len(&rb[off..])),
+                );
+            }
+        }
+        RE_STATE.with(|s| {
+            s.regparse_off
+                .set(s.regparse_off.get() + (re_s.prevchr_len.get() as usize))
+        });
+        re_s.prev_at_start.set(re_s.at_start.get());
+        re_s.at_start.set(0);
+        re_s.prevprevchr.set(re_s.prevchr.get());
+        re_s.prevchr.set(re_s.curchr.get());
+        re_s.curchr.set(re_s.nextchr.get());
+        re_s.nextchr.set(-1);
+    })
 }
 
 pub(super) fn skipchr_keepstart() {
-    let as_ = re_st().prev_at_start;
-    let pr = re_st().prevchr;
-    let prpr = re_st().prevprevchr;
+    RE_STATE.with(|re_s| {
+        let as_ = re_s.prev_at_start.get();
+        let pr = re_s.prevchr.get();
+        let prpr = re_s.prevprevchr.get();
 
-    skipchr();
-    re_st().at_start = as_;
-    re_st().prevchr = pr;
-    re_st().prevprevchr = prpr;
+        skipchr();
+        re_s.at_start.set(as_);
+        re_s.prevchr.set(pr);
+        re_s.prevprevchr.set(prpr);
+    })
 }
 
 pub(super) fn getchr() -> i32 {
@@ -2280,12 +2561,17 @@ pub(super) fn getchr() -> i32 {
 }
 
 pub(super) fn ungetchr() {
-    re_st().nextchr = re_st().curchr;
-    re_st().curchr = re_st().prevchr;
-    re_st().prevchr = re_st().prevprevchr;
-    re_st().at_start = re_st().prev_at_start;
-    re_st().prev_at_start = 0;
-    re_st().regparse_off -= re_st().prevchr_len as usize;
+    RE_STATE.with(|re_s| {
+        re_s.nextchr.set(re_s.curchr.get());
+        re_s.curchr.set(re_s.prevchr.get());
+        re_s.prevchr.set(re_s.prevprevchr.get());
+        re_s.at_start.set(re_s.prev_at_start.get());
+        re_s.prev_at_start.set(0);
+        RE_STATE.with(|s| {
+            s.regparse_off
+                .set(s.regparse_off.get() - (re_s.prevchr_len.get() as usize))
+        });
+    })
 }
 
 pub(super) fn gethexchrs(maxinputlen: i32) -> i64 {
@@ -2298,7 +2584,7 @@ pub(super) fn gethexchrs(maxinputlen: i32) -> i64 {
         }
         nr <<= 4;
         nr |= i64::from(hex2nr(c));
-        re_st().regparse_off += 1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
         i += 1;
     }
     if i == 0 { -1 } else { nr }
@@ -2313,8 +2599,8 @@ pub(super) fn getdecchrs() -> i64 {
             break;
         }
         nr = nr.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
-        re_st().regparse_off += 1;
-        re_st().curchr = -1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
+        RE_STATE.with(|s| s.curchr.set(-1));
         i += 1;
     }
     if i == 0 { -1 } else { nr }
@@ -2330,7 +2616,7 @@ pub(super) fn getoctchrs() -> i64 {
         }
         nr <<= 3;
         nr |= i64::from(hex2nr(c as i32));
-        re_st().regparse_off += 1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
         i += 1;
     }
     if i == 0 { -1 } else { nr }
@@ -2339,31 +2625,27 @@ pub(super) fn getoctchrs() -> i64 {
 pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     let mut reverse = false;
     if re_st().regparse_byte() == b'-' {
-        re_st().regparse_off += 1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
         reverse = true;
     }
     let first_char_b = re_st().regparse_byte();
     {
-        let adv = {
-            let re_ref = re_st().borrow();
-            let start_bytes = re_ref.regparse_bytes();
+        let adv = re_st().with_regparse_bytes(|start_bytes| {
             let mut rem = start_bytes;
             *minval = getdigits_int(&mut rem, false, 0);
             start_bytes.len() - rem.len()
-        };
-        re_st().regparse_off += adv;
+        });
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (adv)));
     }
     if re_st().regparse_byte() == b',' {
-        re_st().regparse_off += 1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
         if ascii_isdigit(re_st().regparse_byte() as i32) {
-            let adv = {
-                let re_ref = re_st().borrow();
-                let start_bytes = re_ref.regparse_bytes();
+            let adv = re_st().with_regparse_bytes(|start_bytes| {
                 let mut rem = start_bytes;
                 *maxval = getdigits_int(&mut rem, false, MAX_LIMIT);
                 start_bytes.len() - rem.len()
-            };
-            re_st().regparse_off += adv;
+            });
+            RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (adv)));
         } else {
             *maxval = MAX_LIMIT;
         }
@@ -2373,12 +2655,12 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
         *maxval = MAX_LIMIT;
     }
     if re_st().regparse_byte() == b'\\' {
-        re_st().regparse_off += 1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
     }
     if re_st().regparse_byte() != b'}' {
         semsg!(
             tr(c"E554: Syntax error in %s{...}"),
-            if re_st().reg_magic == MAGIC_ALL {
+            if RE_STATE.with(|s| s.reg_magic.get()) == MAGIC_ALL {
                 c""
             } else {
                 c"\\"
@@ -2396,61 +2678,75 @@ pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
 
 #[inline(always)]
 pub(super) fn reg_breakcheck() {
-    if !re_st().rex.reg_nobreak {
+    if !RE_STATE.with(|s| s.rex.reg_nobreak.get()) {
         fast_breakcheck();
     }
 }
 
 pub(super) fn reg_iswordc(c: i32) -> bool {
-    vim_iswordc_buf(c, re_st().rex.buf_mut())
+    vim_iswordc_buf(c, RE_STATE.with(|s| s.rex.buf_mut()))
 }
 
+#[inline(always)]
 fn reg_getline_bounds(lnum: Linenr, submatch: bool) -> (Linenr, Linenr) {
-    if submatch {
-        (re_st().rsm.sm_firstlnum + lnum, re_st().rsm.sm_maxline)
-    } else {
-        (re_st().rex.reg_firstlnum + lnum, re_st().rex.reg_maxline)
-    }
+    RE_STATE.with(|s| {
+        if submatch {
+            let rsm = s.rsm.get();
+            (rsm.sm_firstlnum + lnum, rsm.sm_maxline)
+        } else {
+            (s.rex.reg_firstlnum.get() + lnum, s.rex.reg_maxline.get())
+        }
+    })
 }
 
 pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
-    let (firstlnum, maxline) = reg_getline_bounds(lnum, false);
-    if firstlnum < 1 {
-        return None;
-    }
-    if lnum > maxline {
-        return Some(c"");
-    }
-    Some(ml_get_buf(re_st().rex.buf_mut(), firstlnum))
+    RE_STATE.with(|s| {
+        let firstlnum = s.rex.reg_firstlnum.get() + lnum;
+        if firstlnum < 1 {
+            return None;
+        }
+        if lnum > s.rex.reg_maxline.get() {
+            return Some(c"");
+        }
+        Some(ml_get_buf(s.rex.buf_mut(), firstlnum))
+    })
 }
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
-    let (firstlnum, maxline) = reg_getline_bounds(lnum, false);
-    if firstlnum < 1 || lnum > maxline {
-        return 0;
-    }
-    ml_get_buf_len(re_st().rex.buf_mut(), firstlnum)
+    RE_STATE.with(|s| {
+        let firstlnum = s.rex.reg_firstlnum.get() + lnum;
+        if firstlnum < 1 || lnum > s.rex.reg_maxline.get() {
+            return 0;
+        }
+        ml_get_buf_len(s.rex.buf_mut(), firstlnum)
+    })
 }
 
 pub(super) fn reg_prev_class() -> i32 {
-    let off = re_st().rex.input_off();
+    let off = RE_STATE.with(|s| s.rex.input_off());
     if off > 0 {
-        let line_bytes = re_st().rex.line.unwrap_or(&[]);
-        let prev_off = off - 1;
-        let head_off = prev_off - crate::mbyte::utf_head_off_slice(line_bytes, prev_off) as usize;
-        return mb_get_class_tab(&line_bytes[head_off..], &re_st().rex.buf_mut().b_chartab);
+        return RE_STATE.with(|s| {
+            s.rex.line.get().with_raw_bytes(|line_bytes| {
+                let prev_off = off - 1;
+                let head_off =
+                    prev_off - crate::mbyte::utf_head_off_slice(line_bytes, prev_off) as usize;
+                mb_get_class_tab(&line_bytes[head_off..], &s.rex.buf_mut().b_chartab)
+            })
+        });
     }
     -1
 }
 
 pub(super) fn reg_match_visual() -> bool {
-    let wp = if re_st().rex.reg_win.is_null() {
+    let wp = if RE_STATE.with(|s| s.rex.reg_win.get()).is_null() {
         curwin_ptr().as_ptr()
     } else {
-        re_st().rex.reg_win.as_ptr()
+        RE_STATE.with(|s| s.rex.reg_win.get()).as_ptr()
     };
     let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
-    if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
+    if RE_STATE.with(|s| s.rex.reg_buf.get()) != g_st().curbuf
+        || g_st().visual_global.start.lnum == 0
+        || !reg_multi()
     {
         return false;
     }
@@ -2479,12 +2775,12 @@ pub(super) fn reg_match_visual() -> bool {
         )
     };
 
-    let lnum = re_st().rex.lnum + re_st().rex.reg_firstlnum;
+    let lnum = RE_STATE.with(|s| s.rex.lnum.get()) + RE_STATE.with(|s| s.rex.reg_firstlnum.get());
     if lnum < top.lnum || lnum > bot.lnum {
         return false;
     }
 
-    let col = re_st().rex.input_col();
+    let col = RE_STATE.with(|s| s.rex.input_col());
     if mode == b'v' as i32 {
         if (lnum == top.lnum && col < top.col)
             || (lnum == bot.lnum
@@ -2525,16 +2821,26 @@ pub(super) fn reg_match_visual() -> bool {
             end = MAXCOL;
         }
 
-        let cur_lnum = re_st().rex.lnum;
-        re_st().rex.load_line(cur_lnum);
-        re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
+        let cur_lnum = RE_STATE.with(|s| s.rex.lnum.get());
+        RE_STATE.with(|s| s.rex.load_line(cur_lnum));
+        RE_STATE.with(|s| {
+            s.rex.input.set(
+                RE_STATE
+                    .with(|s| s.rex.line.get())
+                    .wrapping_add(col as usize),
+            )
+        });
 
-        let cols = win_linetabsize(
-            &mut *wp,
-            re_st().rex.reg_firstlnum + re_st().rex.lnum,
-            re_st().rex.line.as_cstr(),
-            col,
-        );
+        let cols = RE_STATE.with(|s| {
+            s.rex.line.get().with_cstr(|cs| {
+                win_linetabsize(
+                    &mut *wp,
+                    s.rex.reg_firstlnum.get() + s.rex.lnum.get(),
+                    cs,
+                    col,
+                )
+            })
+        });
         if cols < start || cols > end - Colnr::from(opt_vars().p_sel.first_byte() == b'e') {
             return false;
         }
@@ -2544,9 +2850,9 @@ pub(super) fn reg_match_visual() -> bool {
 
 pub(super) fn prog_magic_wrong() -> bool {
     let prog = if reg_multi() {
-        &re_st().rex.mmatch_mut().regprog
+        &RE_STATE.with(|s| s.rex.mmatch_mut()).regprog
     } else {
-        &re_st().rex.match_mut().regprog
+        &RE_STATE.with(|s| s.rex.match_mut()).regprog
     };
     if prog.bt_magic_wrong() {
         emsg(tr(E_RE_CORR));
@@ -2556,41 +2862,51 @@ pub(super) fn prog_magic_wrong() -> bool {
 }
 
 pub(super) fn cleanup_subexpr() {
-    if !re_st().rex.need_clear_subexpr {
+    if !RE_STATE.with(|s| s.rex.need_clear_subexpr.get()) {
         return;
     }
     if reg_multi() {
         let uninit_pos = Lpos { lnum: -1, col: -1 };
-        re_st().rex.startpos_slice_mut().fill(uninit_pos);
-        re_st().rex.endpos_slice_mut().fill(uninit_pos);
+        RE_STATE
+            .with(|s| s.rex.startpos_slice_mut())
+            .fill(uninit_pos);
+        RE_STATE.with(|s| s.rex.endpos_slice_mut()).fill(uninit_pos);
     } else {
-        let m = re_st().rex.match_mut();
+        let m = RE_STATE.with(|s| s.rex.match_mut());
         m.startp.fill(REG_LINE_NULL);
         m.endp.fill(REG_LINE_NULL);
     }
-    re_st().rex.need_clear_subexpr = false;
+    RE_STATE.with(|s| s.rex.need_clear_subexpr.set(false));
 }
 
 pub(super) fn cleanup_zsubexpr() {
-    if !re_st().rex.need_clear_zsubexpr {
+    if !RE_STATE.with(|s| s.rex.need_clear_zsubexpr.get()) {
         return;
     }
     if reg_multi() {
         let uninit_pos = Lpos { lnum: -1, col: -1 };
-        re_st().reg_startzpos = [uninit_pos; NSUBEXP];
-        re_st().reg_endzpos = [uninit_pos; NSUBEXP];
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                s.reg_startzpos[i].set(uninit_pos);
+                s.reg_endzpos[i].set(uninit_pos);
+            }
+        });
     } else {
-        re_st().reg_startzp = [REG_LINE_NULL; NSUBEXP];
-        re_st().reg_endzp = [REG_LINE_NULL; NSUBEXP];
+        RE_STATE.with(|s| {
+            for i in 0..NSUBEXP {
+                s.reg_startzp[i].set(REG_LINE_NULL);
+                s.reg_endzp[i].set(REG_LINE_NULL);
+            }
+        });
     }
-    re_st().rex.need_clear_zsubexpr = false;
+    RE_STATE.with(|s| s.rex.need_clear_zsubexpr.set(false));
 }
 
 pub(super) fn reg_nextline() {
-    re_st().rex.lnum += 1;
-    let cur_lnum = re_st().rex.lnum;
-    re_st().rex.load_line(cur_lnum);
-    re_st().rex.input = re_st().rex.line;
+    RE_STATE.with(|s| s.rex.lnum.set(s.rex.lnum.get() + (1)));
+    let cur_lnum = RE_STATE.with(|s| s.rex.lnum.get());
+    RE_STATE.with(|s| s.rex.load_line(cur_lnum));
+    RE_STATE.with(|s| s.rex.input.set(RE_STATE.with(|s| s.rex.line.get())));
     reg_breakcheck();
 }
 
@@ -2606,21 +2922,6 @@ pub(super) fn match_with_backref(
 
     *bytelen = 0;
     loop {
-        if re_st().reg_tofree.is_empty()
-            || re_st().rex.line.addr() != re_st().reg_tofree.as_ptr() as usize
-        {
-            let line_bytes = re_st().rex.line.as_cstr().to_bytes_with_nul().to_vec();
-            let len = line_bytes.len() - 1 + 51;
-            let off = re_st().rex.input_off();
-            if re_st().reg_tofree.len() < len {
-                re_st().reg_tofree.resize(len, 0);
-            }
-            re_st().reg_tofree[..line_bytes.len()].copy_from_slice(&line_bytes);
-            re_st().rex.line =
-                reg_line_from_cstr(crate::memory::bytes_as_cstr(&re_st().reg_tofree));
-            re_st().rex.input = re_st().rex.line.wrapping_add(off);
-        }
-
         let p_cstr = reg_getline(clnum).unwrap();
         let p_bytes = p_cstr.to_bytes_with_nul();
 
@@ -2630,22 +2931,22 @@ pub(super) fn match_with_backref(
             reg_getline_len(clnum) - ccol
         };
 
-        let input_bytes = re_st().rex.input.as_bytes();
-        if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
-            || (re_st().rex.reg_ic
-                && mb_strnicmp(
-                    &p_bytes[ccol as usize..],
-                    re_st().rex.input.as_bytes(),
-                    len as usize,
-                ) != 0)
-        {
+        let no_match = RE_STATE.with(|s| {
+            let reg_ic = s.rex.reg_ic.get();
+            s.rex.input.get().with_bytes(|input_bytes| {
+                (!reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
+                    || (reg_ic
+                        && mb_strnicmp(&p_bytes[ccol as usize..], input_bytes, len as usize) != 0)
+            })
+        });
+        if no_match {
             return RegAction::NoMatch;
         }
         *bytelen += len;
         if clnum == end_lnum {
             break;
         }
-        if re_st().rex.lnum >= re_st().rex.reg_maxline {
+        if RE_STATE.with(|s| s.rex.lnum.get()) >= RE_STATE.with(|s| s.rex.reg_maxline.get()) {
             return RegAction::NoMatch;
         }
 
@@ -2685,7 +2986,7 @@ fn mb_decompose(c: i32, c1: &mut i32, c2: &mut i32, c3: &mut i32) {
 pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
     let s1_b = crate::memory::bytes_until_nul(s1);
     let s2_b = crate::memory::bytes_until_nul(s2);
-    let mut result = if !re_st().rex.reg_ic {
+    let mut result = if !RE_STATE.with(|s| s.rex.reg_ic.get()) {
         let max_n = *n as usize;
         if s1_b.len() < max_n && s1_b.len() == s2_b.len() {
             s1_b.cmp(s2_b) as i32
@@ -2728,7 +3029,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         r
     };
 
-    if result != 0 && re_st().rex.reg_icombine {
+    if result != 0 && RE_STATE.with(|s| s.rex.reg_icombine.get()) {
         let mut rem1 = s1_b;
         let mut rem2 = s2_b;
         let mut c1: i32 = 0;
@@ -2742,12 +3043,15 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
             c1 = mb_ptr2char_adv(&mut rem1);
             c2 = mb_ptr2char_adv(&mut rem2);
 
-            if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
+            if c1 != c2 && (!RE_STATE.with(|s| s.rex.reg_ic.get()) || utf_fold(c1) != utf_fold(c2))
+            {
                 mb_decompose(c1, &mut c11, &mut junk, &mut junk2);
                 mb_decompose(c2, &mut c12, &mut junk, &mut junk2);
                 c1 = c11;
                 c2 = c12;
-                if c11 != c12 && (!re_st().rex.reg_ic || utf_fold(c11) != utf_fold(c12)) {
+                if c11 != c12
+                    && (!RE_STATE.with(|s| s.rex.reg_ic.get()) || utf_fold(c11) != utf_fold(c12))
+                {
                     break;
                 }
             }
@@ -2764,7 +3068,7 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 #[inline(always)]
 pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_ptr = s.as_ptr();
-    if !re_st().rex.reg_ic {
+    if !RE_STATE.with(|s| s.rex.reg_ic.get()) {
         return vim_strchr(s, c).map(|found| (found.as_ptr() as usize) - (s_ptr as usize));
     }
 
@@ -2819,7 +3123,7 @@ pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi
             newsublen -= tildelen;
             let postfixlen = newsublen - prefixlen;
             let prev_sub_ref = reg_prev_sub_ref();
-            let reg_prev_sublen = prev_sub_ref.map_or(0, |s| s.to_bytes().len());
+            let reg_prev_sublen = prev_sub_ref.as_ref().map_or(0, |s| s.to_bytes().len());
             let tmpsublen = prefixlen + reg_prev_sublen + postfixlen;
 
             if tmpsublen > 0
@@ -2863,7 +3167,7 @@ pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi
     }
 
     if !preview {
-        re_st().reg_prev_sub = if newsublen == 0 {
+        let new_prev = if newsublen == 0 {
             None
         } else {
             let cur_slice: &[u8] = match newsub_vec {
@@ -2872,6 +3176,7 @@ pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi
             };
             cstring_from_bytes(cur_slice)
         };
+        REG_PREV_SUB.with(|c| *c.borrow_mut() = new_prev);
     }
 
     newsub_vec.map(|v| crate::memory::cstring_until_nul(&v))
@@ -2891,14 +3196,13 @@ pub(crate) fn fill_submatch_list(
 
     let mut li = listarg.vval.v_list().lv_first;
     for i in 0..10 {
-        let s = re_st().rsm.match_mut().startp[i];
-        let e = re_st().rsm.match_mut().endp[i];
+        let s = RE_STATE.with(|s| s.rsm.get()).match_mut().startp[i];
+        let e = RE_STATE.with(|s| s.rsm.get()).match_mut().endp[i];
         let li_mut = li.borrow_mut();
         if s.is_null() || e.is_null() {
             tv_set_string(&mut li_mut.li_tv, None);
         } else {
-            let bytes = s.span_to(e);
-            let cs = cstring_from_bytes(bytes).unwrap_or_default();
+            let cs = s.span_to_cstring(e).unwrap_or_default();
 
             tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
         }
@@ -2916,23 +3220,27 @@ pub fn vim_regsub(
     flags: i32,
 ) -> i32 {
     let mut rex_save = Regexec::new();
-    let rex_in_use_save = re_st().rex_in_use;
+    let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
-    if re_st().rex_in_use {
-        rex_save = re_st().rex;
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        rex_save = RE_STATE.with(|s| s.rex.snapshot());
     }
-    re_st().rex_in_use = true;
+    RE_STATE.with(|s| s.rex_in_use.set(true));
 
-    re_st().rex.reg_match = crate::globals::GraphPtr::from(&mut *rmp);
-    re_st().rex.reg_mmatch = crate::globals::GraphPtr::NULL;
-    re_st().rex.reg_maxline = 0;
-    re_st().rex.reg_buf = g_st().curbuf;
-    re_st().rex.reg_line_lbr = true;
+    RE_STATE.with(|s| {
+        s.rex
+            .reg_match
+            .set(crate::globals::GraphPtr::from(&mut *rmp))
+    });
+    RE_STATE.with(|s| s.rex.reg_mmatch.set(crate::globals::GraphPtr::NULL));
+    RE_STATE.with(|s| s.rex.reg_maxline.set(0));
+    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
+    RE_STATE.with(|s| s.rex.reg_line_lbr.set(true));
     let result = vim_regsub_both(Some(source), expr, dest, flags);
 
-    re_st().rex_in_use = rex_in_use_save;
-    if re_st().rex_in_use {
-        re_st().rex = rex_save;
+    RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        RE_STATE.with(|s| s.rex.restore(&rex_save));
     }
 
     result
@@ -2946,24 +3254,32 @@ pub fn vim_regsub_multi(
     flags: i32,
 ) -> i32 {
     let mut rex_save = Regexec::new();
-    let rex_in_use_save = re_st().rex_in_use;
+    let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
-    if re_st().rex_in_use {
-        rex_save = re_st().rex;
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        rex_save = RE_STATE.with(|s| s.rex.snapshot());
     }
-    re_st().rex_in_use = true;
+    RE_STATE.with(|s| s.rex_in_use.set(true));
 
-    re_st().rex.reg_match = crate::globals::GraphPtr::NULL;
-    re_st().rex.reg_mmatch = crate::globals::GraphPtr::from(&mut *rmp);
-    re_st().rex.reg_buf = g_st().curbuf;
-    re_st().rex.reg_firstlnum = lnum;
-    re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
-    re_st().rex.reg_line_lbr = false;
+    RE_STATE.with(|s| s.rex.reg_match.set(crate::globals::GraphPtr::NULL));
+    RE_STATE.with(|s| {
+        s.rex
+            .reg_mmatch
+            .set(crate::globals::GraphPtr::from(&mut *rmp))
+    });
+    RE_STATE.with(|s| s.rex.reg_buf.set(g_st().curbuf));
+    RE_STATE.with(|s| s.rex.reg_firstlnum.set(lnum));
+    RE_STATE.with(|s| {
+        s.rex
+            .reg_maxline
+            .set(curbuf_mut().b_ml.ml_line_count - lnum)
+    });
+    RE_STATE.with(|s| s.rex.reg_line_lbr.set(false));
     let result = vim_regsub_both(Some(source), None, dest, flags);
 
-    re_st().rex_in_use = rex_in_use_save;
-    if re_st().rex_in_use {
-        re_st().rex = rex_save;
+    RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        RE_STATE.with(|s| s.rex.restore(&rex_save));
     }
 
     result
@@ -2989,46 +3305,52 @@ fn vim_regsub_both(
     if prog_magic_wrong() {
         return 0;
     }
-    if re_st().regsub_nesting == MAX_REGSUB_NESTING {
+    if RE_STATE.with(|s| s.regsub_nesting.get()) == MAX_REGSUB_NESTING {
         emsg(tr(E_SUBSTITUTE_NESTING_TOO_DEEP));
         return 0;
     }
-    let nested = re_st().regsub_nesting;
-    let eval_slot = &mut re_st().eval_result[nested];
+    let nested = RE_STATE.with(|s| s.regsub_nesting.get());
     let max_dst = dest.len();
     let mut dest_slice = copy.then_some(dest);
     let mut dst_off = 0usize;
 
     if expr.is_some() || source.is_some_and(|s| s.to_bytes().starts_with(b"\\=")) {
         if copy {
-            if let Some(ref eval_cstr) = *eval_slot {
-                let eval_bytes = eval_cstr.to_bytes_with_nul();
-                let eval_len = eval_bytes.len() - 1;
-                if eval_len < max_dst {
-                    if let Some(ref mut out) = dest_slice {
-                        out[..eval_bytes.len()].copy_from_slice(eval_bytes);
+            EVAL_RESULT.with(|er| {
+                let mut slot = er[nested].borrow_mut();
+                if let Some(ref eval_cstr) = *slot {
+                    let eval_bytes = eval_cstr.to_bytes_with_nul();
+                    let eval_len = eval_bytes.len() - 1;
+                    if eval_len < max_dst {
+                        if let Some(ref mut out) = dest_slice {
+                            out[..eval_bytes.len()].copy_from_slice(eval_bytes);
+                        }
+                        dst_off += eval_len;
+                        *slot = None;
                     }
-                    dst_off += eval_len;
-                    *eval_slot = None;
                 }
-            }
+            });
         } else {
-            let prev_can_f_submatch = re_st().can_f_submatch;
+            let prev_can_f_submatch = RE_STATE.with(|s| s.can_f_submatch.get());
             let mut rsm_save = Regsubmatch::new();
 
-            *eval_slot = None;
+            EVAL_RESULT.with(|er| *er[nested].borrow_mut() = None);
 
-            if re_st().can_f_submatch {
-                rsm_save = re_st().rsm;
+            if RE_STATE.with(|s| s.can_f_submatch.get()) {
+                rsm_save = RE_STATE.with(|s| s.rsm.get());
             }
-            re_st().can_f_submatch = true;
-            re_st().rsm.sm_match = re_st().rex.reg_match;
-            re_st().rsm.sm_mmatch = re_st().rex.reg_mmatch;
-            re_st().rsm.sm_firstlnum = re_st().rex.reg_firstlnum;
-            re_st().rsm.sm_maxline = re_st().rex.reg_maxline;
-            re_st().rsm.sm_line_lbr = i32::from(re_st().rex.reg_line_lbr);
+            RE_STATE.with(|s| s.can_f_submatch.set(true));
+            RE_STATE.with(|s| {
+                s.rsm.set(Regsubmatch {
+                    sm_match: RE_STATE.with(|s| s.rex.reg_match.get()),
+                    sm_mmatch: RE_STATE.with(|s| s.rex.reg_mmatch.get()),
+                    sm_firstlnum: RE_STATE.with(|s| s.rex.reg_firstlnum.get()),
+                    sm_maxline: RE_STATE.with(|s| s.rex.reg_maxline.get()),
+                    sm_line_lbr: i32::from(RE_STATE.with(|s| s.rex.reg_line_lbr.get())),
+                });
+            });
 
-            re_st().regsub_nesting += 1;
+            RE_STATE.with(|s| s.regsub_nesting.set(s.regsub_nesting.get() + (1)));
 
             if let Some(expr) = expr {
                 let mut argv: [TypVal; 2] = [const { TypVal::new() }; 2];
@@ -3059,11 +3381,12 @@ fn vim_regsub_both(
                     call_func(s, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
                 if rettv.v_type == VarType::VarUnknown {
-                    *eval_slot = None;
+                    EVAL_RESULT.with(|er| *er[nested].borrow_mut() = None);
                 } else {
                     let mut buf = [0u8; NUMBUFLEN];
                     if let Some(s) = tv_get_string_buf_chk(&rettv, &mut buf) {
-                        *eval_slot = Some(s.to_owned());
+                        let owned = s.to_owned();
+                        EVAL_RESULT.with(|er| *er[nested].borrow_mut() = Some(owned));
                     }
                 }
                 tv_clear(&mut rettv);
@@ -3072,22 +3395,27 @@ fn vim_regsub_both(
                     unref_var_list(match_list);
                 }
             } else if let Some(src) = source {
-                *eval_slot =
-                    eval_to_string(crate::memory::CStrSubslice::advance(src, 2), true, false);
+                let val = eval_to_string(crate::memory::CStrSubslice::advance(src, 2), true, false);
+                EVAL_RESULT.with(|er| *er[nested].borrow_mut() = val);
             }
-            re_st().regsub_nesting -= 1;
+            RE_STATE.with(|s| s.regsub_nesting.set(s.regsub_nesting.get() - (1)));
 
-            if let Some(eval_cstr) = eval_slot.take() {
+            let eval_cstr_opt = EVAL_RESULT.with(|er| er[nested].borrow_mut().take());
+            if let Some(eval_cstr) = eval_cstr_opt {
                 let mut eval_bytes = eval_cstr.into_bytes_with_nul();
                 let mut had_backslash = false;
                 let eval_len = eval_bytes.len().saturating_sub(1);
                 let mut s_idx = 0usize;
                 while s_idx < eval_len {
-                    if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
+                    if eval_bytes[s_idx] == NL as u8
+                        && RE_STATE.with(|s| s.rsm.get()).sm_line_lbr == 0
+                    {
                         eval_bytes[s_idx] = CAR as u8;
                     } else if eval_bytes[s_idx] == b'\\' && s_idx + 1 < eval_len {
                         s_idx += 1;
-                        if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
+                        if eval_bytes[s_idx] == NL as u8
+                            && RE_STATE.with(|s| s.rsm.get()).sm_line_lbr == 0
+                        {
                             eval_bytes[s_idx] = CAR as u8;
                         }
                         had_backslash = true;
@@ -3102,12 +3430,12 @@ fn vim_regsub_both(
                         .to_owned()
                 };
                 dst_off += final_cstr.to_bytes().len();
-                *eval_slot = Some(final_cstr);
+                EVAL_RESULT.with(|er| *er[nested].borrow_mut() = Some(final_cstr));
             }
 
-            re_st().can_f_submatch = prev_can_f_submatch;
-            if re_st().can_f_submatch {
-                re_st().rsm = rsm_save;
+            RE_STATE.with(|s| s.can_f_submatch.set(prev_can_f_submatch));
+            if RE_STATE.with(|s| s.can_f_submatch.get()) {
+                RE_STATE.with(|s| s.rsm.set(rsm_save));
             }
         }
     } else if let Some(src) = source {
@@ -3249,25 +3577,28 @@ fn vim_regsub_both(
             } else {
                 let mut s: RegLineSlice;
                 if reg_multi() {
-                    clnum = re_st().rex.mmatch_mut().startpos[no as usize].lnum;
-                    if clnum < 0 || re_st().rex.mmatch_mut().endpos[no as usize].lnum < 0 {
+                    clnum = RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].lnum;
+                    if clnum < 0
+                        || RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum < 0
+                    {
                         s = REG_LINE_NULL;
                     } else {
                         let line_ptr = reg_line_from_opt_cstr(reg_getline(clnum));
                         s = line_ptr.wrapping_add(
-                            re_st().rex.mmatch_mut().startpos[no as usize].col as usize,
+                            RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].col
+                                as usize,
                         );
-                        if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
-                            len = re_st().rex.mmatch_mut().endpos[no as usize].col
-                                - re_st().rex.mmatch_mut().startpos[no as usize].col;
+                        if RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum == clnum {
+                            len = RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].col
+                                - RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].col;
                         } else {
                             len = reg_getline_len(clnum)
-                                - re_st().rex.mmatch_mut().startpos[no as usize].col;
+                                - RE_STATE.with(|s| s.rex.mmatch_mut()).startpos[no as usize].col;
                         }
                     }
                 } else {
-                    let start_no = re_st().rex.match_mut().startp[no as usize];
-                    let end_no = re_st().rex.match_mut().endp[no as usize];
+                    let start_no = RE_STATE.with(|s| s.rex.match_mut()).startp[no as usize];
+                    let end_no = RE_STATE.with(|s| s.rex.match_mut()).endp[no as usize];
                     if start_no.is_null() || end_no.is_null() {
                         s = REG_LINE_NULL;
                     } else {
@@ -3279,7 +3610,9 @@ fn vim_regsub_both(
                     loop {
                         if len == 0 {
                             if reg_multi() {
-                                if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
+                                if RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum
+                                    == clnum
+                                {
                                     break;
                                 }
                                 if let Some(ref mut out) = dest_slice {
@@ -3292,8 +3625,11 @@ fn vim_regsub_both(
                                 dst_off += 1;
                                 clnum += 1;
                                 s = reg_line_from_opt_cstr(reg_getline(clnum));
-                                if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
-                                    len = re_st().rex.mmatch_mut().endpos[no as usize].col;
+                                if RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize].lnum
+                                    == clnum
+                                {
+                                    len = RE_STATE.with(|s| s.rex.mmatch_mut()).endpos[no as usize]
+                                        .col;
                                 } else {
                                     len = reg_getline_len(clnum);
                                 }
@@ -3367,26 +3703,27 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
     }
     let _ = ml_get_buf_len;
     Some(crate::memline::ml_get_buf_slice(
-        re_st().rex.buf_mut(),
+        RE_STATE.with(|s| s.rex.buf_mut()),
         firstlnum,
     ))
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
-    if !re_st().can_f_submatch || no < 0 {
+    if !RE_STATE.with(|s| s.can_f_submatch.get()) || no < 0 {
         return None;
     }
     let no = no as usize;
 
-    if re_st().rsm.sm_match.is_null() {
-        let mut lnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
-        let end_lnum = re_st().rsm.mmatch_mut().endpos[no].lnum;
+    if RE_STATE.with(|s| s.rsm.get()).sm_match.is_null() {
+        let mut lnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].lnum;
+        let end_lnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].lnum;
         if lnum < 0 || end_lnum < 0 {
             return None;
         }
         let first_line = reg_getline_submatch_slice(lnum)?;
-        let scol = (re_st().rsm.mmatch_mut().startpos[no].col as usize).min(first_line.len());
-        let ecol = re_st().rsm.mmatch_mut().endpos[no].col as usize;
+        let scol = (RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].col as usize)
+            .min(first_line.len());
+        let ecol = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].col as usize;
         let mut buf: Vec<u8> = Vec::new();
         if end_lnum == lnum {
             let end_idx = ecol.min(first_line.len());
@@ -3406,32 +3743,32 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
         }
         Some(crate::memory::bytes_to_cstring(&buf))
     } else {
-        let s = re_st().rsm.match_mut().startp[no];
-        let e = re_st().rsm.match_mut().endp[no];
+        let s = RE_STATE.with(|s| s.rsm.get()).match_mut().startp[no];
+        let e = RE_STATE.with(|s| s.rsm.get()).match_mut().endp[no];
         if s.is_null() || e.is_null() {
             None
         } else {
-            cstring_from_bytes(s.span_to(e))
+            s.span_to_cstring(e)
         }
     }
 }
 
 pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
-    if !re_st().can_f_submatch || no < 0 {
+    if !RE_STATE.with(|s| s.can_f_submatch.get()) || no < 0 {
         return None;
     }
     let no = no as usize;
     let list: &'static mut TvList;
 
-    if re_st().rsm.sm_match.is_null() {
-        let slnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
-        let elnum = re_st().rsm.mmatch_mut().endpos[no].lnum;
+    if RE_STATE.with(|s| s.rsm.get()).sm_match.is_null() {
+        let slnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].lnum;
+        let elnum = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].lnum;
         if slnum < 0 || elnum < 0 {
             return None;
         }
 
-        let scol = re_st().rsm.mmatch_mut().startpos[no].col;
-        let ecol = re_st().rsm.mmatch_mut().endpos[no].col;
+        let scol = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().startpos[no].col;
+        let ecol = RE_STATE.with(|s| s.rsm.get()).mmatch_mut().endpos[no].col;
 
         list = tv_list_alloc((elnum - slnum + 1) as isize);
 
@@ -3456,13 +3793,13 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
             );
         }
     } else {
-        let s = re_st().rsm.match_mut().startp[no];
-        let e = re_st().rsm.match_mut().endp[no];
+        let s = RE_STATE.with(|s| s.rsm.get()).match_mut().startp[no];
+        let e = RE_STATE.with(|s| s.rsm.get()).match_mut().endp[no];
         if s.is_null() || e.is_null() {
             return None;
         }
         list = tv_list_alloc(1);
-        tv_list_append_string(list, Some(s.as_cstr()), e.offset_from(s) as isize);
+        s.with_cstr(|cs| tv_list_append_string(list, Some(cs), e.offset_from(s) as isize));
     }
 
     tv_list_ref(Some(list));
@@ -3475,17 +3812,26 @@ pub(super) fn init_regexec_multi(
     buf: &mut FileBuf,
     lnum: Linenr,
 ) {
-    re_st().rex.reg_match = crate::globals::GraphPtr::NULL;
-    re_st().rex.reg_mmatch = crate::globals::GraphPtr::from(&mut *rmp);
-    re_st().rex.reg_buf = crate::globals::BufPtr::from(buf);
-    re_st().rex.reg_win = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
-    re_st().rex.reg_firstlnum = lnum;
-    re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
-    re_st().rex.reg_line_lbr = false;
-    re_st().rex.reg_ic = rmp.rmm_ic;
-    re_st().rex.reg_icombine = false;
-    re_st().rex.reg_nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
-    re_st().rex.reg_maxcol = rmp.rmm_maxcol;
+    let maxline = buf.b_ml.ml_line_count - lnum;
+    let rmm_ic = rmp.rmm_ic;
+    let nobreak = (rmp.regprog.re_flags() & (RE_NOBREAK as u32)) != 0;
+    let maxcol = rmp.rmm_maxcol;
+    let rmp_ptr = crate::globals::GraphPtr::from(&mut *rmp);
+    let buf_ptr = crate::globals::BufPtr::from(buf);
+    let win_ptr = win.map_or(crate::globals::WinPtr::NULL, crate::globals::WinPtr::from);
+    RE_STATE.with(|s| {
+        s.rex.reg_match.set(crate::globals::GraphPtr::NULL);
+        s.rex.reg_mmatch.set(rmp_ptr);
+        s.rex.reg_buf.set(buf_ptr);
+        s.rex.reg_win.set(win_ptr);
+        s.rex.reg_firstlnum.set(lnum);
+        s.rex.reg_maxline.set(maxline);
+        s.rex.reg_line_lbr.set(false);
+        s.rex.reg_ic.set(rmm_ic);
+        s.rex.reg_icombine.set(false);
+        s.rex.reg_nobreak.set(nobreak);
+        s.rex.reg_maxcol.set(maxcol);
+    });
 }
 
 pub(super) fn get_char_class_bits(slice: &[u8], newl: &mut bool) -> i32 {
@@ -3558,34 +3904,40 @@ pub(super) fn get_char_class_bits(slice: &[u8], newl: &mut bool) -> i32 {
 }
 
 pub(super) fn regcomp_start(expr: &CStr, re_flags: i32) {
-    initchr(expr);
-    if (re_flags & RE_MAGIC) != 0 {
-        re_st().reg_magic = MAGIC_ON;
-    } else {
-        re_st().reg_magic = MAGIC_OFF;
-    }
-    re_st().reg_string = re_flags & RE_STRING;
-    re_st().reg_strict = re_flags & RE_STRICT;
-    get_cpo_flags();
+    RE_STATE.with(|re_s| {
+        initchr(expr);
+        if (re_flags & RE_MAGIC) != 0 {
+            re_s.reg_magic.set(MAGIC_ON);
+        } else {
+            re_s.reg_magic.set(MAGIC_OFF);
+        }
+        re_s.reg_string.set(re_flags & RE_STRING);
+        re_s.reg_strict.set(re_flags & RE_STRICT);
+        get_cpo_flags();
 
-    re_st().num_complex_braces = 0;
-    re_st().regnpar = 1;
-    re_st().had_endbrace = [0; NSUBEXP];
-    re_st().regnzpar = 1;
-    re_st().re_has_z = 0;
-    re_st().regsize = 0;
-    re_st().reg_toolong = 0;
-    re_st().bt_reg_parse_depth = 0;
-    re_st().regflags = 0;
-    re_st().had_eol = false;
+        re_s.num_complex_braces.set(0);
+        re_s.regnpar.set(1);
+        RE_STATE.with(|s| {
+            for c in &s.had_endbrace {
+                c.set(0);
+            }
+        });
+        re_s.regnzpar.set(1);
+        re_s.re_has_z.set(0);
+        re_s.regsize.set(0);
+        re_s.reg_toolong.set(0);
+        re_s.bt_reg_parse_depth.set(0);
+        re_s.regflags.set(0);
+        re_s.had_eol.set(false);
+    })
 }
 
 pub(super) fn seen_endbrace(refnum: i32) -> bool {
-    if re_st().had_endbrace[refnum as usize] == 0 {
-        let has_lookbehind = re_st()
-            .regparse_bytes()
-            .windows(3)
-            .any(|w| w[0] == b'@' && w[1] == b'<' && (w[2] == b'!' || w[2] == b'='));
+    if RE_STATE.with(|s| s.had_endbrace[refnum as usize].get()) == 0 {
+        let has_lookbehind = re_st().with_regparse_bytes(|rb| {
+            rb.windows(3)
+                .any(|w| w[0] == b'@' && w[1] == b'<' && (w[2] == b'!' || w[2] == b'='))
+        });
         if !has_lookbehind {
             emsg(tr(c"E65: Illegal back reference"));
             g_st().rc_did_emsg = true;
@@ -3598,7 +3950,7 @@ pub(super) fn seen_endbrace(refnum: i32) -> bool {
 pub(super) fn coll_get_char() -> i32 {
     let mut nr: i64 = -1;
     let ch = re_st().regparse_byte();
-    re_st().regparse_off += 1;
+    RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() + (1)));
     match ch {
         b'd' => nr = getdecchrs(),
         b'o' => nr = getoctchrs(),
@@ -3608,7 +3960,7 @@ pub(super) fn coll_get_char() -> i32 {
         _ => {}
     }
     if nr < 0 {
-        re_st().regparse_off -= 1;
+        RE_STATE.with(|s| s.regparse_off.set(s.regparse_off.get() - (1)));
         nr = i64::from(b'\\');
     }
     if nr > i64::from(i32::MAX) {
@@ -3618,14 +3970,15 @@ pub(super) fn coll_get_char() -> i32 {
 }
 
 pub fn vim_regcomp_had_eol() -> bool {
-    re_st().had_eol
+    RE_STATE.with(|s| s.had_eol.get())
 }
 
 /// Compile a regular expression into internal code.
 pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+    RE_STATE.with(|re_s| {
     let mut expr = expr_arg;
 
-    re_st().regexp_engine = opt_vars().p_re as i32;
+    re_s.regexp_engine.set(opt_vars().p_re as i32);
 
     let expr_bytes = expr.to_bytes();
     if expr_bytes.starts_with(b"\\%#=") {
@@ -3634,34 +3987,62 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
             || newengine == BACKTRACKING_ENGINE
             || newengine == NFA_ENGINE
         {
-            re_st().regexp_engine = newengine;
+            re_s.regexp_engine.set(newengine);
             expr = crate::memory::CStrSubslice::advance(expr, 5);
         } else {
             emsg(tr(
                 c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used ",
             ));
-            re_st().regexp_engine = AUTOMATIC_ENGINE;
+            re_s.regexp_engine.set(AUTOMATIC_ENGINE);
         }
     }
 
-    re_st().rex.reg_buf = g_st().curbuf;
+    re_s.rex.reg_buf.set(g_st().curbuf);
+
+    let engine = re_s.regexp_engine.get();
+    let cpo_lit = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL);
+    let chartab = curbuf_mut().b_chartab;
+    let can_cache = g_st().reg_do_extmatch == 0
+        && opt_vars().p_verbose == 0
+        && !expr.to_bytes().contains(&b'[');
+    if can_cache {
+        let cached = LAST_REGPROG.with(|cell| {
+            let borrow = cell.borrow();
+            if let Some(ref c) = *borrow
+                && std::rc::Rc::strong_count(&c.prog.0) == 1
+                && c.re_flags == re_flags
+                && c.engine == engine
+                && c.cpo_lit == cpo_lit
+                && c.chartab == chartab
+                && c.expr.as_slice() == expr.to_bytes()
+            {
+                Some((c.prog.clone(), c.had_eol))
+            } else {
+                None
+            }
+        });
+        if let Some((prog, had_eol)) = cached {
+            re_s.had_eol.set(had_eol);
+            return Some(Box::new(prog));
+        }
+    }
 
     let called_emsg_before = g_st().called_emsg;
-    let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
+    let mut prog_opt = if engine != BACKTRACKING_ENGINE {
         nfa_regcomp(
             expr,
             re_flags
-                + if re_st().regexp_engine == AUTOMATIC_ENGINE {
+                + if engine == AUTOMATIC_ENGINE {
                     RE_AUTO
                 } else {
                     0
                 },
         )
         .map(|mut nfa| {
-            nfa.re_engine = re_st().regexp_engine as u32;
+            nfa.re_engine = re_s.regexp_engine.get() as u32;
             Regprog::new(
                 nfa.regflags,
-                re_st().regexp_engine as u32,
+                re_s.regexp_engine.get() as u32,
                 re_flags as u32,
                 RegProgEngine::Nfa(nfa),
             )
@@ -3670,7 +4051,7 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
         bt_regcomp(expr, re_flags).map(|bt| {
             Regprog::new(
                 bt.regflags,
-                re_st().regexp_engine as u32,
+                re_s.regexp_engine.get() as u32,
                 re_flags as u32,
                 RegProgEngine::Bt(bt),
             )
@@ -3678,22 +4059,40 @@ pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
     };
 
     if prog_opt.is_none()
-        && re_st().regexp_engine == AUTOMATIC_ENGINE
+        && re_s.regexp_engine.get() == AUTOMATIC_ENGINE
         && g_st().called_emsg == called_emsg_before
     {
-        re_st().regexp_engine = BACKTRACKING_ENGINE;
+        re_s.regexp_engine.set(BACKTRACKING_ENGINE);
         report_re_switch(expr);
         prog_opt = bt_regcomp(expr, re_flags).map(|bt| {
             Regprog::new(
                 bt.regflags,
-                re_st().regexp_engine as u32,
+                re_s.regexp_engine.get() as u32,
                 re_flags as u32,
                 RegProgEngine::Bt(bt),
             )
         });
     }
 
+    if let Some(ref prog) = prog_opt
+        && can_cache
+        && g_st().called_emsg == called_emsg_before
+    {
+        LAST_REGPROG.with(|cell| {
+            *cell.borrow_mut() = Some(CachedRegprog {
+                expr: expr.to_bytes().to_vec(),
+                re_flags,
+                engine,
+                cpo_lit,
+                chartab,
+                had_eol: re_s.had_eol.get(),
+                prog: prog.clone(),
+            });
+        });
+    }
+
     prog_opt.map(Box::new)
+    })
 }
 
 #[inline(always)]
@@ -3702,11 +4101,11 @@ pub fn vim_regcomp_box(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
 }
 
 pub fn free_regexp_stuff() {
-    re_st().regstack = Vec::new();
-    re_st().backpos = Vec::new();
-    re_st().reg_tofree = Vec::new();
-    re_st().reg_prev_sub = None;
-    re_st().post_vec = Vec::new();
+    free_bt_regstack();
+    LAST_REGPROG.with(|c| *c.borrow_mut() = None);
+    BACKPOS.with(|c| *c.borrow_mut() = Vec::new());
+    REG_PREV_SUB.with(|c| *c.borrow_mut() = None);
+    POST_VEC.with(|c| *c.borrow_mut() = Vec::new());
 }
 
 fn report_re_switch(pat: &CStr) {
@@ -3744,7 +4143,7 @@ fn exec_regmmatch_multi(
 
 fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> bool {
     let mut rex_save = Regexec::new();
-    let rex_in_use_save = re_st().rex_in_use;
+    let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
     if rmp.regprog.re_in_use() {
         emsg(tr(E_RECURSIVE));
@@ -3752,13 +4151,13 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
     }
     rmp.regprog.set_re_in_use(true);
 
-    if re_st().rex_in_use {
-        rex_save = re_st().rex;
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        rex_save = RE_STATE.with(|s| s.rex.snapshot());
     }
-    re_st().rex_in_use = true;
+    RE_STATE.with(|s| s.rex_in_use.set(true));
 
-    re_st().rex.reg_startpos = crate::globals::GraphPtr::NULL;
-    re_st().rex.reg_endpos = crate::globals::GraphPtr::NULL;
+    RE_STATE.with(|s| s.rex.reg_startpos.set(crate::globals::GraphPtr::NULL));
+    RE_STATE.with(|s| s.rex.reg_endpos.set(crate::globals::GraphPtr::NULL));
 
     let mut result = exec_regmatch_nl(rmp, line, col, nl);
     rmp.regprog.set_re_in_use(false);
@@ -3780,9 +4179,9 @@ fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: b
         opt_vars().p_re = save_p_re;
     }
 
-    re_st().rex_in_use = rex_in_use_save;
-    if re_st().rex_in_use {
-        re_st().rex = rex_save;
+    RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        RE_STATE.with(|s| s.rex.restore(&rex_save));
     }
 
     result > 0
@@ -3820,7 +4219,7 @@ pub fn vim_regexec_multi(
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
     let mut rex_save = Regexec::new();
-    let rex_in_use_save = re_st().rex_in_use;
+    let rex_in_use_save = RE_STATE.with(|s| s.rex_in_use.get());
 
     if rmp.regprog.re_in_use() {
         emsg(tr(E_RECURSIVE));
@@ -3828,10 +4227,10 @@ pub fn vim_regexec_multi(
     }
     rmp.regprog.set_re_in_use(true);
 
-    if re_st().rex_in_use {
-        rex_save = re_st().rex;
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        rex_save = RE_STATE.with(|s| s.rex.snapshot());
     }
-    re_st().rex_in_use = true;
+    RE_STATE.with(|s| s.rex_in_use.set(true));
 
     let mut result = exec_regmmatch_multi(
         rmp,
@@ -3867,105 +4266,72 @@ pub fn vim_regexec_multi(
         opt_vars().p_re = save_p_re;
     }
 
-    re_st().rex_in_use = rex_in_use_save;
-    if re_st().rex_in_use {
-        re_st().rex = rex_save;
+    RE_STATE.with(|s| s.rex_in_use.set(rex_in_use_save));
+    if RE_STATE.with(|s| s.rex_in_use.get()) {
+        RE_STATE.with(|s| s.rex.restore(&rex_save));
     }
 
     if result <= 0 { 0 } else { result }
 }
 
-impl Regexec {
-    #[inline(always)]
-    pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        self.reg_mmatch.borrow_mut()
-    }
-    #[inline(always)]
-    pub fn match_mut(&self) -> &'static mut Regmatch {
-        self.reg_match.borrow_mut()
-    }
-    #[inline(always)]
-    pub fn buf_mut(&self) -> &'static mut FileBuf {
-        self.reg_buf.borrow_mut()
-    }
-    #[inline(always)]
-    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        self.reg_win.borrow_mut()
-    }
-    #[inline(always)]
-    pub fn load_line(&mut self, lnum: Linenr) {
-        self.line = reg_line_from_opt_cstr(reg_getline(lnum));
-    }
-    #[inline(always)]
-    pub fn input_col(&self) -> Colnr {
-        self.input_off() as Colnr
-    }
-    #[inline(always)]
-    pub fn input_off(&self) -> usize {
-        self.input.offset_from(self.line)
-    }
-    #[inline(always)]
-    pub fn startpos_slice_mut(&self) -> &'static mut [Lpos] {
-        self.reg_startpos.borrow_mut()
-    }
-    #[inline(always)]
-    pub fn endpos_slice_mut(&self) -> &'static mut [Lpos] {
-        self.reg_endpos.borrow_mut()
-    }
-}
-
 impl RegexpState {
     #[inline(always)]
-    pub fn regparse_bytes(&self) -> &[u8] {
-        self.regparse_base.get(self.regparse_off..).unwrap_or(&[])
+    pub fn with_regparse_bytes<R>(&self, f: impl FnOnce(&[u8]) -> R) -> R {
+        REGPARSE_BASE.with(|cell| {
+            let base = cell.borrow();
+            f(base.get(self.regparse_off.get()..).unwrap_or(&[]))
+        })
     }
     #[inline(always)]
     pub fn regparse_byte(&self) -> u8 {
-        self.regparse_bytes().first().copied().unwrap_or(0)
+        self.with_regparse_bytes(|b| b.first().copied().unwrap_or(0))
     }
     #[inline(always)]
     pub fn regparse_byte_at(&self, idx: usize) -> u8 {
-        self.regparse_bytes().get(idx).copied().unwrap_or(0)
+        self.with_regparse_bytes(|b| b.get(idx).copied().unwrap_or(0))
     }
     #[inline(always)]
-    pub fn regparse_mb_adv(&mut self) {
-        let step = utfc_ptr2len(self.regparse_bytes()) as usize;
-        self.regparse_off += step;
+    pub fn regparse_mb_adv(&self) {
+        let step = self.with_regparse_bytes(|b| utfc_ptr2len(b)) as usize;
+        self.regparse_off.set(self.regparse_off.get() + step);
     }
     #[inline(always)]
-    pub fn regparse_prev_char(&mut self) {
-        let base = &self.regparse_base;
-        self.regparse_off -=
-            1 + crate::mbyte::utf_head_off_slice(base, self.regparse_off - 1) as usize;
+    pub fn regparse_prev_char(&self) {
+        let off = self.regparse_off.get();
+        let step = REGPARSE_BASE.with(|cell| {
+            let base = cell.borrow();
+            1 + crate::mbyte::utf_head_off_slice(&base, off - 1) as usize
+        });
+        self.regparse_off.set(off - step);
     }
     #[inline(always)]
-    pub fn regparse_get_char_class(&mut self) -> i32 {
-        let bytes = self.regparse_bytes();
-        let bytes_len = bytes.len();
-        let mut rem = bytes;
-        let res = get_char_class(&mut rem);
-        let rem_len = rem.len();
-        self.regparse_off += bytes_len - rem_len;
+    pub fn regparse_get_char_class(&self) -> i32 {
+        let (res, adv) = self.with_regparse_bytes(|bytes| {
+            let mut rem = bytes;
+            let res = get_char_class(&mut rem);
+            (res, bytes.len() - rem.len())
+        });
+        self.regparse_off.set(self.regparse_off.get() + adv);
         res
     }
     #[inline(always)]
-    pub fn regparse_get_equi_class(&mut self) -> i32 {
-        let bytes = self.regparse_bytes();
-        let bytes_len = bytes.len();
-        let mut rem = bytes;
-        let res = get_equi_class(&mut rem);
-        let rem_len = rem.len();
-        self.regparse_off += bytes_len - rem_len;
+    pub fn regparse_get_equi_class(&self) -> i32 {
+        let (res, adv) = self.with_regparse_bytes(|bytes| {
+            let mut rem = bytes;
+            let res = get_equi_class(&mut rem);
+            (res, bytes.len() - rem.len())
+        });
+        self.regparse_off.set(self.regparse_off.get() + adv);
         res
     }
     #[inline(always)]
-    pub fn regparse_get_coll_element(&mut self) -> i32 {
-        let bytes = self.regparse_bytes();
-        let bytes_len = bytes.len();
-        let mut rem = bytes;
-        let res = get_coll_element(&mut rem);
-        let rem_len = rem.len();
-        self.regparse_off += bytes_len - rem_len;
+    pub fn regparse_get_coll_element(&self) -> i32 {
+        let (res, adv) = self.with_regparse_bytes(|bytes| {
+            let mut rem = bytes;
+            let res = get_coll_element(&mut rem);
+            (res, bytes.len() - rem.len())
+        });
+        self.regparse_off.set(self.regparse_off.get() + adv);
         res
     }
 }

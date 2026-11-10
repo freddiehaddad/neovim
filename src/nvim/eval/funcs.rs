@@ -5119,7 +5119,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                         crate::eval::typval::tv_set_string_len(
                             &mut li1.li_tv,
-                            Some(regmatch.span_bytes(0)),
+                            Some(&regmatch.span_bytes(0)),
                         );
 
                         li3.li_tv.vval = crate::eval::typval::TypvalVval::Number(
@@ -5140,11 +5140,13 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             if regmatch.endp[i].is_null() {
                                 tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
                             } else {
-                                tv_list_append_string(
-                                    rettv.vval.v_list_ref(),
-                                    Some(regmatch.startp[i].as_cstr()),
-                                    regmatch.span_len(i) as isize,
-                                );
+                                regmatch.startp[i].with_cstr(|cs| {
+                                    tv_list_append_string(
+                                        rettv.vval.v_list_ref(),
+                                        Some(cs),
+                                        regmatch.span_len(i) as isize,
+                                    );
+                                });
                             }
                         }
                     }
@@ -5154,7 +5156,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         } else {
                             crate::eval::typval::tv_set_string_len(
                                 &mut *rettv,
-                                Some(regmatch.span_bytes(0)),
+                                Some(&regmatch.span_bytes(0)),
                             );
                         }
                     }
@@ -5224,8 +5226,7 @@ fn get_matches_in_str(
         let match_end = rmp.end_offset(0, str_cstr);
         tv_dict_add_nr(&mut *d, c"byteidx", match_start as Varnumber);
 
-        tv_dict_add_str_len(&mut *d, c"text", Some(rmp.span_bytes(0)));
-
+        tv_dict_add_str_len(&mut *d, c"text", Some(&rmp.span_bytes(0)));
         if submatches {
             let sml = tv_list_alloc((NSUBEXP - 1) as isize);
             tv_dict_add_list(&mut *d, c"submatches", Some(sml));
@@ -5233,11 +5234,9 @@ fn get_matches_in_str(
                 if rmp.endp[i].is_null() {
                     tv_list_append_string(&mut *sml, Some(c""), 0);
                 } else {
-                    tv_list_append_string(
-                        &mut *sml,
-                        Some(rmp.startp[i].as_cstr()),
-                        rmp.span_len(i) as isize,
-                    );
+                    rmp.startp[i].with_cstr(|cs| {
+                        tv_list_append_string(&mut *sml, Some(cs), rmp.span_len(i) as isize);
+                    });
                 }
             }
         }

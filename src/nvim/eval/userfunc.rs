@@ -1090,7 +1090,9 @@ pub fn get_func_arity(
 pub fn find_func(name: Option<&CStr>) -> Option<&'static mut UserFunc> {
     let name = name?;
     FUNC_HASHTAB
-        .with(|c| c.borrow().get(name.to_bytes()).copied())
+        .try_with(|c| c.borrow().get(name.to_bytes()).copied())
+        .ok()
+        .flatten()
         .and_then(UfuncId::opt_mut)
 }
 
@@ -1255,12 +1257,15 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
     } else {
         !fc_referenced(fc.borrow())
     } {
-        let removed = PREVIOUS_FUNCCAL.with(|c| {
-            let mut v = c.borrow_mut();
-            v.iter()
-                .position(|item| fc == &raw const *item.0)
-                .map(|pos| v.remove(pos))
-        });
+        let removed = PREVIOUS_FUNCCAL
+            .try_with(|c| {
+                let mut v = c.borrow_mut();
+                v.iter()
+                    .position(|item| fc == &raw const *item.0)
+                    .map(|pos| v.remove(pos))
+            })
+            .ok()
+            .flatten();
         if let Some(removed) = removed {
             drop(removed);
             return;
@@ -1276,13 +1281,15 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
 /// Remove the function from the function hashtable.
 fn func_remove(fp: &mut UserFunc) -> bool {
     let key = uf2hikey(fp).to_bytes();
-    if FUNC_HASHTAB.with(|c| c.borrow_mut().remove(key)).is_some() {
-        UF_STATE.with(|s| {
-            s.func_hashtab_changed.set(
-                UF_STATE
-                    .with(|s| s.func_hashtab_changed.get())
-                    .wrapping_add(1),
-            )
+    if FUNC_HASHTAB
+        .try_with(|c| c.borrow_mut().remove(key))
+        .ok()
+        .flatten()
+        .is_some()
+    {
+        let _ = UF_STATE.try_with(|s| {
+            s.func_hashtab_changed
+                .set(s.func_hashtab_changed.get().wrapping_add(1))
         });
         true
     } else {
@@ -3612,10 +3619,14 @@ pub fn func_unref(name: Option<&CStr>) {
         return;
     }
 
-    let fp = find_func(Some(name));
+    let Ok(fp) = FUNC_HASHTAB.try_with(|c| c.borrow().get(name.to_bytes()).copied()) else {
+        return;
+    };
+    let fp = fp.and_then(UfuncId::opt_mut);
     if fp.is_none()
         && name.to_bytes().first().is_some_and(u8::is_ascii_digit)
         && !mem_st().entered_free_all_mem
+        && !g_st().exiting
     {
         internal_error(c"func_unref()");
         std::process::abort();

@@ -1819,7 +1819,7 @@ pub fn vpeekc_any() -> i32 {
 
 /// Call `vpeekc()` without causing anything to be mapped.
 pub fn char_avail() -> bool {
-    if test_disable_char_avail.get() {
+    if test_disable_char_avail.load(std::sync::atomic::Ordering::Relaxed) {
         return false;
     }
     g_st().no_mapping += 1;
