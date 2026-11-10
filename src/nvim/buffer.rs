@@ -160,8 +160,6 @@ impl Default for Bufref {
     }
 }
 
-pub type ChangedtickDictItem = crate::eval::typval::Dictitem;
-
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct BufSigncols {
@@ -217,7 +215,7 @@ pub struct FileBuf {
     pub file_id_valid: bool,
     pub file_id: FileID,
     pub b_changed: i32,
-    pub changedtick_di: ChangedtickDictItem,
+    pub changedtick_di: crate::eval::typval::DictitemId,
     pub b_last_changedtick: i64,
     pub b_last_changedtick_i: i64,
     pub b_last_changedtick_pum: i64,
@@ -431,7 +429,7 @@ pub struct FileBuf {
     pub b_start_fenc: Option<std::ffi::CString>,
     pub b_bad_char: i32,
     pub b_start_bomb: bool,
-    pub b_bufvar: crate::eval::typval::ScopeDictDictItem,
+    pub b_bufvar: crate::eval::typval::DictitemId,
     pub b_may_swap: bool,
     pub b_did_warn: bool,
     pub b_help: bool,
@@ -505,7 +503,7 @@ impl FileBuf {
                 device_id: 0,
             },
             b_changed: 0,
-            changedtick_di: ChangedtickDictItem::new(),
+            changedtick_di: crate::eval::typval::DictitemId::NULL,
             b_last_changedtick: 0,
             b_last_changedtick_i: 0,
             b_last_changedtick_pum: 0,
@@ -724,7 +722,7 @@ impl FileBuf {
             b_start_fenc: None,
             b_bad_char: 0,
             b_start_bomb: false,
-            b_bufvar: crate::eval::typval::ScopeDictDictItem::new(),
+            b_bufvar: crate::eval::typval::DictitemId::NULL,
             b_may_swap: false,
             b_did_warn: false,
             b_help: false,
@@ -763,7 +761,10 @@ impl FileBuf {
     }
 
     pub fn alloc() -> &'static mut Self {
-        Box::leak(Box::new(Self::new()))
+        let mut b = Box::new(Self::new());
+        b.changedtick_di = crate::eval::typval::tv_dict_item_alloc_static().di_id;
+        b.b_bufvar = crate::eval::typval::tv_dict_item_alloc_static().di_id;
+        Box::leak(b)
     }
 
     #[inline]
@@ -1820,6 +1821,12 @@ impl Drop for FileBuf {
         clear_fmark(&mut self.b_last_change, 0);
         clear_fmark(&mut self.b_prompt_start, 0);
         self.b_changelistlen = 0;
+        if let Some(cdi) = self.changedtick_di.opt_mut() {
+            crate::eval::typval::tv_dict_item_free_slot(cdi);
+        }
+        if let Some(bv) = self.b_bufvar.opt_mut() {
+            crate::eval::typval::tv_dict_item_free_slot(bv);
+        }
     }
 }
 fn free_buffer(buf: &mut FileBuf) {
@@ -2845,13 +2852,7 @@ fn buf_init_changedtick(buf: &mut FileBuf) {
         vval: TypvalVval::Number(buf_get_changedtick(buf)),
     };
     buf.changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-    tv_dict_add(
-        &mut *buf.b_vars(),
-        crate::globals::GraphPtr::of(
-            (&raw mut buf.changedtick_di).cast::<crate::eval::typval::Dictitem>(),
-        )
-        .borrow_mut(),
-    );
+    tv_dict_add(&mut *buf.b_vars(), buf.changedtick_di.borrow_mut());
 }
 
 /// Add a file name to the buffer list.
@@ -5000,10 +5001,7 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
 
     let changedtick_di = tv_dict_find(Some(&*buf.b_vars()), c"changedtick", 11);
     debug_assert!(changedtick_di.is_some());
-    debug_assert!(std::ptr::eq(
-        changedtick_di.unwrap(),
-        (&raw mut buf.changedtick_di).cast::<crate::eval::typval::Dictitem>()
-    ));
+    debug_assert_eq!(changedtick_di.unwrap().di_id, buf.changedtick_di);
     debug_assert!(buf.changedtick_di.di_tv.v_type == VarType::VarNumber);
     debug_assert!(buf.changedtick_di.di_tv.v_lock == VAR_FIXED);
     debug_assert!(buf.changedtick_di.di_flags == (DI_FLAGS_RO | DI_FLAGS_FIX));

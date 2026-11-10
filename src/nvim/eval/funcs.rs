@@ -4376,7 +4376,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut on_stderr = CallbackReader::none();
     let mut on_exit = Callback::NONE;
     let mut cwd_opt: Option<&CStr> = None;
-    let mut job_env = crate::globals::GraphPtr::<Dictitem>::NULL;
+    let mut job_env = crate::eval::typval::DictitemId::NULL;
 
     if argvars[1].v_type == VarType::VarDict {
         job_opts = argvars[1].vval.v_dict();
@@ -4438,7 +4438,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
         }
 
-        job_env = crate::globals::GraphPtr::from(tv_dict_find(job_opts_ref, c"env", 3));
+        job_env = crate::eval::typval::DictitemId::from(tv_dict_find(job_opts_ref, c"env", 3));
 
         if !job_env.is_null() && job_env.di_tv.v_type != VarType::VarDict {
             semsg!(gettext(E_INVARG2), c"env");

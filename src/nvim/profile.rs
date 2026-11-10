@@ -3,7 +3,7 @@
 
 use crate::debugger::ex_breakadd;
 use crate::errors::E_NOTOPEN;
-use crate::eval::typval::{Dictitem, TypVal};
+use crate::eval::typval::TypVal;
 use crate::eval::userfunc::{DeferCall, UserFunc, func_tbl_get, get_current_funccal};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 use crate::event::r#loop::uv_err_name;
@@ -160,9 +160,9 @@ pub struct Funccall {
     pub fc_linenr: i32,
     pub fc_returned: i32,
     pub fc_l_vars: crate::eval::typval::DictId,
-    pub fc_l_vars_var: Dictitem,
+    pub fc_l_vars_var: crate::eval::typval::DictitemId,
     pub fc_l_avars: crate::eval::typval::DictId,
-    pub fc_l_avars_var: Dictitem,
+    pub fc_l_avars_var: crate::eval::typval::DictitemId,
     pub fc_l_varlist: crate::eval::typval::ListId,
     pub fc_rettv: crate::globals::GraphPtr<TypVal>,
     pub fc_breakpoint: i32,
@@ -184,9 +184,9 @@ impl Funccall {
             fc_linenr: 0,
             fc_returned: 0,
             fc_l_vars: crate::eval::typval::DictId::NULL,
-            fc_l_vars_var: Dictitem::new(),
+            fc_l_vars_var: crate::eval::typval::DictitemId::NULL,
             fc_l_avars: crate::eval::typval::DictId::NULL,
-            fc_l_avars_var: Dictitem::new(),
+            fc_l_avars_var: crate::eval::typval::DictitemId::NULL,
             fc_l_varlist: crate::eval::typval::ListId::NULL,
             fc_rettv: crate::globals::GraphPtr::NULL,
             fc_breakpoint: 0,

@@ -410,7 +410,7 @@ pub struct WinInfoInfo {
     pub w_briopt_list: i32,
     pub w_briopt_vcol: i32,
     pub w_scbind_pos: i32,
-    pub w_winvar: crate::eval::typval::ScopeDictDictItem,
+    pub w_winvar: crate::eval::typval::DictitemId,
     pub w_pcmark: CursorPos,
     pub w_prev_pcmark: CursorPos,
     pub w_jumplist: [crate::mark::Xfmark; 100],
@@ -639,7 +639,7 @@ impl WinInfoInfo {
             w_briopt_list: 0,
             w_briopt_vcol: 0,
             w_scbind_pos: 1,
-            w_winvar: crate::eval::typval::ScopeDictDictItem::new(),
+            w_winvar: crate::eval::typval::DictitemId::NULL,
             w_pcmark: ZERO_POS,
             w_prev_pcmark: ZERO_POS,
             w_jumplist: [const { crate::mark::Xfmark::ZERO }; 100],
@@ -719,7 +719,7 @@ pub struct TabPageInfo {
     pub tp_diff_invalid: i32,
     pub tp_diff_update: i32,
     pub tp_snapshot: [Option<Box<SnapshotFrame>>; 3],
-    pub tp_winvar: crate::eval::typval::ScopeDictDictItem,
+    pub tp_winvar: crate::eval::typval::DictitemId,
     pub tp_localdir: Option<std::ffi::CString>,
     pub tp_prevdir: Option<std::ffi::CString>,
 }
@@ -778,7 +778,7 @@ impl TabPageInfo {
             tp_diff_invalid: 1,
             tp_diff_update: 0,
             tp_snapshot: [None, None, None],
-            tp_winvar: crate::eval::typval::ScopeDictDictItem::new(),
+            tp_winvar: crate::eval::typval::DictitemId::NULL,
             tp_localdir: None,
             tp_prevdir: None,
         }
@@ -4941,7 +4941,8 @@ fn alloc_tabpage() -> &'static mut TabPageInfo {
     tp.handle = win_st().last_tp_handle;
     g_st().tabpage_handles.insert(tp.handle, tp.into());
 
-    init_var_dict(tv_dict_alloc(), &mut tp.tp_winvar, VAR_SCOPE);
+    tp.tp_winvar = crate::eval::typval::tv_dict_item_alloc_static().di_id;
+    init_var_dict(tv_dict_alloc(), tp.tp_winvar.borrow_mut(), VAR_SCOPE);
     tp.tp_ch_used = opt_vars().p_ch;
 
     &mut *tp
@@ -4954,9 +4955,12 @@ impl Drop for TabPageInfo {
         for idx in 0..SNAP_COUNT {
             clear_snapshot(self, idx as i32);
         }
-        if !self.tp_winvar.di_tv.vval.v_dict().is_null() {
-            vars_clear(&mut self.tp_vars().dv_hashtab);
-            unref_var_dict(&mut *self.tp_vars());
+        if let Some(tp_winvar) = self.tp_winvar.opt_mut() {
+            if !tp_winvar.di_tv.vval.v_dict().is_null() {
+                vars_clear(&mut self.tp_vars().dv_hashtab);
+                unref_var_dict(&mut *self.tp_vars());
+            }
+            crate::eval::typval::tv_dict_item_free_slot(tp_winvar);
         }
         if g_st().lastused_tabpage == self {
             g_st().lastused_tabpage = crate::globals::TabpagePtr::NULL;
@@ -5919,7 +5923,8 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
 
     grid_assign_handle(&mut new_wp.w_grid_alloc);
 
-    init_var_dict(tv_dict_alloc(), &mut new_wp.w_winvar, VAR_SCOPE);
+    new_wp.w_winvar = crate::eval::typval::tv_dict_item_alloc_static().di_id;
+    init_var_dict(tv_dict_alloc(), new_wp.w_winvar.borrow_mut(), VAR_SCOPE);
 
     block_autocmds();
     if !hidden {
@@ -6066,6 +6071,9 @@ impl Drop for WinInfoInfo {
         self.w_prevdir = None;
 
         free_jumplist(self);
+        if let Some(w_winvar) = self.w_winvar.opt_mut() {
+            crate::eval::typval::tv_dict_item_free_slot(w_winvar);
+        }
     }
 }
 

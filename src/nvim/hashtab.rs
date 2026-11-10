@@ -14,7 +14,7 @@ const PERTURB_SHIFT: usize = 5;
 pub struct Hashitem {
     pub hi_hash: HashVal,
     pub hi_removed: bool,
-    pub hi_di: crate::globals::GraphPtr<crate::eval::typval::Dictitem>,
+    pub hi_di: crate::eval::typval::DictitemId,
 }
 
 impl Hashitem {
@@ -105,7 +105,7 @@ impl Hashtab {
         self.ht_used -= 1;
         self.ht_changed += 1;
         hi.hi_removed = true;
-        hi.hi_di = crate::globals::GraphPtr::NULL;
+        hi.hi_di = crate::eval::typval::DictitemId::NULL;
         hash_may_resize(self, 0);
     }
 }
@@ -121,7 +121,7 @@ static EMPTY_HASHARRAY: crate::globals::GlobalState<[Hashitem; HT_INIT_SIZE]> =
         [Hashitem {
             hi_hash: 0,
             hi_removed: false,
-            hi_di: crate::globals::GraphPtr::NULL,
+            hi_di: crate::eval::typval::DictitemId::NULL,
         }; HT_INIT_SIZE],
     );
 
@@ -233,7 +233,7 @@ pub fn hash_add_item(
         ht.ht_filled += 1;
     }
     hi_ref.hi_removed = false;
-    hi_ref.hi_di = crate::globals::GraphPtr::from(&mut *di);
+    hi_ref.hi_di = di.di_id;
     hi_ref.hi_hash = hash;
 
     hash_may_resize(ht, 0);
@@ -245,7 +245,7 @@ pub fn hash_remove(ht: &mut Hashtab, hi: &mut Hashitem) {
     ht.ht_used -= 1;
     ht.ht_changed += 1;
     hi_ref.hi_removed = true;
-    hi_ref.hi_di = crate::globals::GraphPtr::NULL;
+    hi_ref.hi_di = crate::eval::typval::DictitemId::NULL;
     hash_may_resize(ht, 0);
 }
 
@@ -362,6 +362,9 @@ mod tests {
 
     #[test]
     fn hash_init_insert_lookup_resize_and_remove() {
+        let _guard = crate::globals::TEST_GLOBAL_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let mut ht_val = Hashtab::new();
         let keys: Vec<CString> = (0..50)
             .map(|i| CString::new(format!("key_{i}")).unwrap())
@@ -371,29 +374,26 @@ mod tests {
             let ht = &mut ht_val;
             assert_eq!(ht.ht_used, 0);
 
-            let items: Vec<*mut crate::eval::typval::Dictitem> = keys
+            let items: Vec<crate::eval::typval::DictitemId> = keys
                 .iter()
-                .map(|k| &raw mut *crate::eval::typval::tv_dict_item_alloc(k.as_c_str()))
+                .map(|k| crate::eval::typval::tv_dict_item_alloc(k.as_c_str()).di_id)
                 .collect();
 
             for &di in &items {
-                assert!(hash_add(ht, crate::globals::GraphPtr::of(di).borrow_mut()));
+                assert!(hash_add(ht, di.borrow_mut()));
             }
             assert_eq!(ht.ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
             let first_di = items[0];
-            assert!(!hash_add(
-                ht,
-                crate::globals::GraphPtr::of(first_di).borrow_mut()
-            ));
+            assert!(!hash_add(ht, first_di.borrow_mut()));
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_c_str());
                 assert!(!hashitem_empty(hi));
                 assert_eq!(hi.key_cstr(), Some(k.as_c_str()));
-                assert_eq!(hi.hi_di.as_ptr(), di);
+                assert_eq!(hi.hi_di, di);
             }
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
@@ -410,9 +410,7 @@ mod tests {
             ));
 
             for di in items {
-                crate::eval::typval::tv_dict_item_free(
-                    crate::globals::GraphPtr::of(di).borrow_mut(),
-                );
+                crate::eval::typval::tv_dict_item_free(di.borrow_mut());
             }
         }
     }

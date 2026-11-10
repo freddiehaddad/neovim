@@ -1041,12 +1041,149 @@ impl Drop for TvList {
     }
 }
 
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct DictitemId(pub Option<std::num::NonZeroU32>);
+
+impl DictitemId {
+    pub const NULL: Self = Self(None);
+
+    #[inline(always)]
+    pub const fn from_slot(idx: usize) -> Self {
+        Self(std::num::NonZeroU32::new((idx as u32) + 1))
+    }
+
+    #[inline(always)]
+    pub fn from_ref(di: &mut Dictitem) -> Self {
+        di.di_id
+    }
+
+    #[inline(always)]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline(always)]
+    pub fn opt(self) -> Option<&'static Dictitem> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow()
+            .dictitem_arena
+            .get(idx)
+            .and_then(|s| s.as_deref())
+    }
+
+    #[inline(always)]
+    pub fn opt_mut(self) -> Option<&'static mut Dictitem> {
+        let idx = (self.0?.get() - 1) as usize;
+        tv_st()
+            .borrow_mut()
+            .dictitem_arena
+            .get_mut(idx)
+            .and_then(|s| s.as_deref_mut())
+    }
+
+    #[inline(always)]
+    pub fn borrow(self) -> &'static Dictitem {
+        self.opt().expect("null or freed DictitemId")
+    }
+
+    #[inline(always)]
+    pub fn borrow_mut(self) -> &'static mut Dictitem {
+        self.opt_mut().expect("null or freed DictitemId")
+    }
+
+    #[inline(always)]
+    pub fn as_ptr(self) -> *mut Dictitem {
+        self.opt_mut().map_or(ptr::null_mut(), ptr::from_mut)
+    }
+}
+
+impl From<&Dictitem> for DictitemId {
+    #[inline(always)]
+    fn from(di: &Dictitem) -> Self {
+        di.di_id
+    }
+}
+
+impl From<&mut Dictitem> for DictitemId {
+    #[inline(always)]
+    fn from(di: &mut Dictitem) -> Self {
+        di.di_id
+    }
+}
+
+impl From<Option<&Dictitem>> for DictitemId {
+    #[inline(always)]
+    fn from(opt: Option<&Dictitem>) -> Self {
+        opt.map_or(Self::NULL, |di| di.di_id)
+    }
+}
+
+impl From<Option<&mut Dictitem>> for DictitemId {
+    #[inline(always)]
+    fn from(opt: Option<&mut Dictitem>) -> Self {
+        opt.map_or(Self::NULL, |di| di.di_id)
+    }
+}
+
+impl PartialEq<Dictitem> for DictitemId {
+    #[inline(always)]
+    fn eq(&self, other: &Dictitem) -> bool {
+        self.0.is_some() && *self == other.di_id
+    }
+}
+
+impl PartialEq<&Dictitem> for DictitemId {
+    #[inline(always)]
+    fn eq(&self, other: &&Dictitem) -> bool {
+        self.0.is_some() && *self == other.di_id
+    }
+}
+
+impl PartialEq<&mut Dictitem> for DictitemId {
+    #[inline(always)]
+    fn eq(&self, other: &&mut Dictitem) -> bool {
+        self.0.is_some() && *self == other.di_id
+    }
+}
+
+impl PartialEq<*const Dictitem> for DictitemId {
+    #[inline(always)]
+    fn eq(&self, other: &*const Dictitem) -> bool {
+        ptr::eq(self.as_ptr().cast_const(), *other)
+    }
+}
+
+impl PartialEq<*mut Dictitem> for DictitemId {
+    #[inline(always)]
+    fn eq(&self, other: &*mut Dictitem) -> bool {
+        ptr::eq(self.as_ptr(), *other)
+    }
+}
+
+impl std::ops::Deref for DictitemId {
+    type Target = Dictitem;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.borrow()
+    }
+}
+
+impl std::ops::DerefMut for DictitemId {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.borrow_mut()
+    }
+}
+
 #[repr(C)]
 pub struct Dictitem {
     pub di_tv: TypVal,
     pub di_flags: u8,
     pub di_key: Vec<u8>,
-    pub di_arena_idx: usize,
+    pub di_id: DictitemId,
 }
 
 impl Dictitem {
@@ -1055,7 +1192,7 @@ impl Dictitem {
             di_tv: tv_initial_value(),
             di_flags: 0,
             di_key: Vec::new(),
-            di_arena_idx: usize::MAX,
+            di_id: DictitemId::NULL,
         }
     }
 
@@ -3490,35 +3627,33 @@ pub fn tv_dict_watcher_notify(
     }
 }
 
-/// Allocate a dictionary item.
-pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
-    let mut key_vec = Vec::with_capacity(key.len() + 1);
-    key_vec.extend_from_slice(key);
-    key_vec.push(0);
+fn tv_dict_item_alloc_slot(key_vec: Vec<u8>, flags: u8) -> &'static mut Dictitem {
     let st = tv_st().borrow_mut();
     let idx = if let Some(idx) = st.free_dictitems.pop() {
+        let id = DictitemId::from_slot(idx);
         st.dictitem_arena[idx] = Some(Box::new(Dictitem {
             di_tv: TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             },
-            di_flags: DI_FLAGS_ALLOC,
+            di_flags: flags,
             di_key: key_vec,
-            di_arena_idx: idx,
+            di_id: id,
         }));
         idx
     } else {
         let idx = st.dictitem_arena.len();
+        let id = DictitemId::from_slot(idx);
         st.dictitem_arena.push(Some(Box::new(Dictitem {
             di_tv: TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             },
-            di_flags: DI_FLAGS_ALLOC,
+            di_flags: flags,
             di_key: key_vec,
-            di_arena_idx: idx,
+            di_id: id,
         })));
         idx
     };
@@ -3526,20 +3661,38 @@ pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
 }
 
 /// Allocate a dictionary item.
+pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
+    let mut key_vec = Vec::with_capacity(key.len() + 1);
+    key_vec.extend_from_slice(key);
+    key_vec.push(0);
+    tv_dict_item_alloc_slot(key_vec, DI_FLAGS_ALLOC)
+}
+
+/// Allocate a static dictionary item (without `DI_FLAGS_ALLOC`).
+pub fn tv_dict_item_alloc_static() -> &'static mut Dictitem {
+    tv_dict_item_alloc_slot(Vec::new(), 0)
+}
+
+/// Allocate a dictionary item.
 pub fn tv_dict_item_alloc(key: &CStr) -> &'static mut Dictitem {
     tv_dict_item_alloc_len(key.to_bytes())
+}
+
+/// Free a dictionary item slot in `dictitem_arena`.
+pub fn tv_dict_item_free_slot(item_in: &mut Dictitem) {
+    if let Some(nz) = item_in.di_id.0 {
+        let idx = (nz.get() - 1) as usize;
+        let st = tv_st().borrow_mut();
+        let dropped = st.dictitem_arena[idx].take();
+        st.free_dictitems.push(idx);
+        drop(dropped);
+    }
 }
 
 /// Free a dictionary item, also clearing the value.
 pub fn tv_dict_item_free(item_in: &mut Dictitem) {
     if (item_in.di_flags & DI_FLAGS_ALLOC) != 0 {
-        let idx = item_in.di_arena_idx;
-        if idx != usize::MAX {
-            let st = tv_st().borrow_mut();
-            let dropped = st.dictitem_arena[idx].take();
-            st.free_dictitems.push(idx);
-            drop(dropped);
-        }
+        tv_dict_item_free_slot(item_in);
     } else {
         tv_clear(&mut item_in.di_tv);
     }

@@ -17,7 +17,7 @@ use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, ScopeDictDictItem, TvList, TypVal, TypvalVval, VAR_LOCKED, VarType, Varnumber,
+    EvalFuncData, TvList, TypVal, TypvalVval, VAR_LOCKED, VarType, Varnumber,
     tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_get_number_chk, tv_get_string, tv_list_alloc, tv_list_alloc_ret,
@@ -201,14 +201,14 @@ const O_NOINHERIT: i32 = 0x0080;
 
 #[repr(C)]
 pub struct Scriptvar {
-    pub sv_var: ScopeDictDictItem,
+    pub sv_var: crate::eval::typval::DictitemId,
     pub sv_dict: crate::eval::typval::DictId,
 }
 
 impl Scriptvar {
     pub const fn new() -> Self {
         Self {
-            sv_var: ScopeDictDictItem::new(),
+            sv_var: crate::eval::typval::DictitemId::NULL,
             sv_dict: crate::eval::typval::DictId::NULL,
         }
     }
@@ -223,6 +223,9 @@ impl Drop for Scriptvar {
             } else {
                 crate::eval::typval::tv_dict_free_slot(dict);
             }
+        }
+        if let Some(var) = self.sv_var.opt_mut() {
+            crate::eval::typval::tv_dict_item_free_slot(var);
         }
     }
 }

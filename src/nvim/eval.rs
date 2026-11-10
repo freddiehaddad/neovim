@@ -1063,8 +1063,8 @@ fn get_lval_dict_item<'a>(
     lp.ll_dict = lp.tv_mut().vval.v_dict();
 
     lp.ll_di = tv_dict_find(lp.ll_dict.opt(), key, len as isize).map_or(
-        crate::globals::GraphPtr::NULL,
-        crate::globals::GraphPtr::from,
+        crate::eval::typval::DictitemId::NULL,
+        crate::eval::typval::DictitemId::from,
     );
 
     if let Some(rettv) = rettv.as_deref()
