@@ -155,7 +155,6 @@ const K_OPT_COT_FLAG_PREVIEW: u32 = 0x1000;
 
 #[derive(Clone, Copy)]
 struct PopupmenuState {
-    array: crate::globals::GraphPtr<Pumitem>,
     size: i32,
     selected: i32,
     first: i32,
@@ -183,7 +182,6 @@ struct PopupmenuState {
 impl PopupmenuState {
     const fn new() -> Self {
         Self {
-            array: crate::globals::GraphPtr::NULL,
             size: 0,
             selected: 0,
             first: 0,
@@ -208,25 +206,23 @@ impl PopupmenuState {
             invalid: false,
         }
     }
-
-    #[inline]
-    fn items(&self) -> &'static [Pumitem] {
-        if self.array.is_null() || self.size <= 0 {
-            &[]
-        } else {
-            self.array.ptr_slice(self.size as usize)
-        }
-    }
-
-    #[inline]
-    fn item(&self, idx: i32) -> &'static Pumitem {
-        &self.items()[idx as usize]
-    }
 }
 
 thread_local! {
     static PUM: std::cell::Cell<PopupmenuState> =
         const { std::cell::Cell::new(PopupmenuState::new()) };
+    static PUM_ITEMS: std::cell::RefCell<Option<std::rc::Rc<[Pumitem]>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[inline]
+fn pum_has_items() -> bool {
+    PUM_ITEMS.with(|c| c.borrow().is_some())
+}
+
+#[inline]
+fn pum_item(idx: i32) -> Pumitem {
+    PUM_ITEMS.with(|c| c.borrow().as_ref().unwrap()[idx as usize].clone())
 }
 
 struct PumGuard {
@@ -274,7 +270,11 @@ fn pum_compute_size() {
     pum().base_width = 0;
     pum().kind_width = 0;
     pum().extra_width = 0;
-    for item in pum().items() {
+    let Some(items) = PUM_ITEMS.with(|c| c.borrow().clone()) else {
+        return;
+    };
+    let size = (pum().size.max(0) as usize).min(items.len());
+    for item in &items[..size] {
         if let Some(ref text) = item.pum_text {
             let w = vim_strsize(text);
             if pum().base_width < w {
@@ -465,8 +465,12 @@ fn pum_border_width() -> i32 {
 }
 
 /// Show the popup menu with items `items` (`pum_display`).
-pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cmd_startcol: i32) {
-    let array = crate::globals::GraphPtr::<Pumitem>::of(items.as_mut_ptr()).as_ptr();
+pub fn pum_display(
+    items: std::rc::Rc<[Pumitem]>,
+    selected: i32,
+    array_changed: bool,
+    cmd_startcol: i32,
+) {
     let size = items.len() as i32;
     let mut redo_count: i32 = 0;
 
@@ -609,7 +613,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
             return;
         }
 
-        pum().array = crate::globals::GraphPtr::new(array);
+        PUM_ITEMS.with(|c| *c.borrow_mut() = Some(items.clone()));
         pum().size = size;
 
         if pum().external {
@@ -779,19 +783,19 @@ fn pum_align_order(order: &mut [i32; 3]) {
 }
 
 #[inline]
-fn pum_get_item(index: i32, type_: i32) -> Option<&'static std::ffi::CStr> {
-    let item = pum().item(index);
+fn pum_get_item(index: i32, type_: i32) -> Option<std::ffi::CString> {
+    let item = pum_item(index);
     match type_ {
-        CPT_ABBR => item.text_cstr(),
-        CPT_KIND => item.kind_cstr(),
-        CPT_MENU => item.extra_cstr(),
+        CPT_ABBR => item.pum_text,
+        CPT_KIND => item.pum_kind,
+        CPT_MENU => item.pum_extra,
         _ => None,
     }
 }
 
 #[inline]
 fn pum_user_attr_combine(idx: i32, type_: i32, attr: i32) -> i32 {
-    let item = pum().item(idx);
+    let item = pum_item(idx);
     let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
     let u = user_attr[type_ as usize];
     if u > 0 {
@@ -1018,7 +1022,7 @@ pub fn pum_redraw() {
                         pum_compute_text_attrs(
                             crate::memory::bytes_as_cstr(&st_bytes),
                             hlf,
-                            pum().item(idx).pum_user_abbr_hlattr,
+                            pum_item(idx).pum_user_abbr_hlattr,
                         )
                     } else {
                         None
@@ -1351,7 +1355,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
     let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
 
     if use_float
-        && (pum().selected < 0 || pum().item(pum().selected).pum_info.is_none())
+        && (pum().selected < 0 || pum_item(pum().selected).pum_info.is_none())
         && let Some(wp) = win_float_find(K_WIN_INFO)
     {
         wp.w_config.hide = true;
@@ -1390,7 +1394,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
         }
         pum().first = pum().first.min(pum().size - pum().height);
 
-        if pum().item(pum().selected).pum_info.is_some()
+        if pum_item(pum().selected).pum_info.is_some()
             && g_st().rows_global > 10
             && repeat <= 1
             && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
@@ -1457,9 +1461,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     let mut lnum: Linenr = 0;
                     let mut max_info_width: i32 = 0;
 
+                    let sel_item = pum_item(pum().selected);
                     pum_preview_set_text(
                         curwin_mut(),
-                        pum().item(pum().selected).info_cstr().map(CStr::to_bytes),
+                        sel_item.info_cstr().map(CStr::to_bytes),
                         &mut lnum,
                         &mut max_info_width,
                     );
@@ -1545,7 +1550,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 /// Undisplay the popup menu (`pum_undisplay`).
 pub fn pum_undisplay(immediate: bool) {
     pum().is_visible = false;
-    pum().array = crate::globals::GraphPtr::NULL;
+    PUM_ITEMS.with(|c| *c.borrow_mut() = None);
     g_st().must_redraw_pum = false;
 
     if immediate {
@@ -1751,8 +1756,7 @@ fn pum_select_mouse_pos() {
 
     if idx < 0 || idx >= pum().height {
         pum().selected = -1;
-    } else if pum()
-        .item(idx)
+    } else if pum_item(idx)
         .pum_text
         .as_ref()
         .is_some_and(|s| !s.to_bytes().is_empty())
@@ -1796,7 +1800,6 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 
     let mut idx: usize = 0;
     let mut array_vec: Vec<Pumitem> = vec![Pumitem::new(); pum().size as usize];
-    let array = array_vec.as_mut_ptr();
 
     for mp in &menu.children {
         let mut s: Option<&CStr> = None;
@@ -1811,7 +1814,8 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
         }
     }
 
-    pum().array = crate::globals::GraphPtr::new(array);
+    let array_rc: std::rc::Rc<[Pumitem]> = array_vec.into();
+    PUM_ITEMS.with(|c| *c.borrow_mut() = Some(array_rc.clone()));
     pum_compute_size();
     pum().scrollbar = 0;
     pum().height = pum().size;
@@ -1833,7 +1837,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 
         let c = vgetc();
 
-        if c == ESC || c == CTRL_C_CONST || pum().array.is_null() {
+        if c == ESC || c == CTRL_C_CONST || !pum_has_items() {
             break;
         } else if c == CAR || c == NL {
             pum_execute_menu(menu, mode);
@@ -1841,7 +1845,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
         } else if c == b'k' as i32 || c == K_UP || c == K_MOUSEUP {
             while pum().selected > 0 {
                 pum().selected -= 1;
-                if array_vec[pum().selected as usize]
+                if array_rc[pum().selected as usize]
                     .pum_text
                     .as_ref()
                     .is_some_and(|s| !s.to_bytes().is_empty())
@@ -1852,7 +1856,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
         } else if c == b'j' as i32 || c == K_DOWN || c == K_MOUSEDOWN {
             while pum().selected < pum().size - 1 {
                 pum().selected += 1;
-                if array_vec[pum().selected as usize]
+                if array_rc[pum().selected as usize]
                     .pum_text
                     .as_ref()
                     .is_some_and(|s| !s.to_bytes().is_empty())

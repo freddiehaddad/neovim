@@ -960,7 +960,7 @@ pub fn showmode() -> i32 {
                 } else {
                     (g_st().rows_global - g_st().msg_row) * g_st().columns_global - 3
                 };
-                if let Some(extra) = g_st().edit_submode_extra {
+                if let Some(ref extra) = g_st().edit_submode_extra {
                     length -= vim_strsize(extra);
                 }
                 if length > 0 {
@@ -973,14 +973,14 @@ pub fn showmode() -> i32 {
                         }
                         msg_puts_hl(submode, hl_id, false);
                     }
-                    if let Some(extra) = g_st().edit_submode_extra {
+                    if let Some(extra) = g_st().edit_submode_extra.clone() {
                         msg_puts_hl(c" ", hl_id, false);
                         let sub_id = if g_st().edit_submode_highl < HLF_COUNT {
                             g_st().edit_submode_highl
                         } else {
                             hl_id
                         };
-                        msg_puts_hl(extra, sub_id, false);
+                        msg_puts_hl(&extra, sub_id, false);
                     }
                 }
             } else {

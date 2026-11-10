@@ -1814,8 +1814,8 @@ thread_local! {
     static CMDEXP_STATE: std::cell::Cell<CmdexpandState> = const {
         std::cell::Cell::new(CmdexpandState::new())
     };
-    static COMPL_MATCH_ARRAY: std::cell::RefCell<Vec<Pumitem>> = const {
-        std::cell::RefCell::new(Vec::new())
+    static COMPL_MATCH_ARRAY: std::cell::RefCell<std::rc::Rc<[Pumitem]>> = {
+        std::cell::RefCell::new(std::rc::Rc::from([]))
     };
     static CMDLINE_ORIG: std::cell::RefCell<Option<Vec<u8>>> = const {
         std::cell::RefCell::new(None)
@@ -2180,7 +2180,7 @@ fn cmdline_pum_create(
             pum_comp_idx: None,
         });
     }
-    COMPL_MATCH_ARRAY.with(|cell| *cell.borrow_mut() = items);
+    COMPL_MATCH_ARRAY.with(|cell| *cell.borrow_mut() = items.into());
 
     let pat_cstr = xp.xp_pattern.as_cstr();
     let tail_off = if showtail {
@@ -2200,11 +2200,7 @@ fn cmdline_pum_create(
 }
 
 pub fn cmdline_pum_display(changed_array: bool) {
-    let (ptr, len) = COMPL_MATCH_ARRAY.with(|cell| {
-        let mut arr = cell.borrow_mut();
-        (arr.as_mut_ptr(), arr.len())
-    });
-    let arr = crate::globals::GraphPtr::new(ptr).ptr_slice_mut(len);
+    let arr = COMPL_MATCH_ARRAY.with(|cell| cell.borrow().clone());
     pum_display(
         arr,
         cmdexp().compl_selected,
@@ -2221,7 +2217,7 @@ pub fn cmdline_pum_active() -> bool {
 /// Remove the cmdline completion popup menu (if present), free the list of items.
 pub fn cmdline_pum_remove(defer_redraw: bool) {
     pum_undisplay(!defer_redraw);
-    COMPL_MATCH_ARRAY.with(|cell| cell.borrow_mut().clear());
+    COMPL_MATCH_ARRAY.with(|cell| *cell.borrow_mut() = std::rc::Rc::from([]));
 }
 
 pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
