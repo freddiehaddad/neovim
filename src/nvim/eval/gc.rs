@@ -5,39 +5,41 @@
 use crate::eval::typval::{DictId, ListId, TvDict, TvList};
 
 struct GcModuleState {
-    gc_dicts: Vec<DictId>,
-    gc_lists: Vec<ListId>,
+    gc_dicts: std::cell::RefCell<Vec<DictId>>,
+    gc_lists: std::cell::RefCell<Vec<ListId>>,
 }
 
 impl GcModuleState {
     const fn new() -> Self {
         Self {
-            gc_dicts: Vec::new(),
-            gc_lists: Vec::new(),
+            gc_dicts: std::cell::RefCell::new(Vec::new()),
+            gc_lists: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
 
-static GC_STATE: crate::globals::GlobalState<GcModuleState> =
-    crate::globals::GlobalState::new(GcModuleState::new());
-
-#[inline]
-fn gc_st() -> crate::globals::GraphPtr<GcModuleState> {
-    GC_STATE.handle()
+std::thread_local! {
+    static GC_STATE: GcModuleState = const { GcModuleState::new() };
 }
 
 #[inline]
 pub fn gc_register_dict(d: &mut TvDict) {
-    let idx = gc_st().gc_dicts.len();
-    gc_st().gc_dicts.push(d.dv_id);
-    d.dv_gc_idx = Some(idx);
+    GC_STATE.with(|st| {
+        let mut dicts = st.gc_dicts.borrow_mut();
+        let idx = dicts.len();
+        dicts.push(d.dv_id);
+        d.dv_gc_idx = Some(idx);
+    });
 }
 
 #[inline]
 pub fn gc_unregister_dict(idx: usize) {
-    gc_st().gc_dicts.swap_remove(idx);
-    if idx < gc_st().gc_dicts.len() {
-        let mut moved = gc_st().gc_dicts.as_slice()[idx];
+    let moved_opt = GC_STATE.with(|st| {
+        let mut dicts = st.gc_dicts.borrow_mut();
+        dicts.swap_remove(idx);
+        dicts.get(idx).copied()
+    });
+    if let Some(mut moved) = moved_opt {
         moved.dv_gc_idx = Some(idx);
     }
 }
@@ -49,49 +51,59 @@ pub static gc_first_list: crate::globals::GlobalState<usize> = crate::globals::G
 
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
-    let idx = gc_st().gc_lists.len();
-    gc_st().gc_lists.push(l.lv_id);
-    l.lv_gc_idx = Some(idx);
+    GC_STATE.with(|st| {
+        let mut lists = st.gc_lists.borrow_mut();
+        let idx = lists.len();
+        lists.push(l.lv_id);
+        l.lv_gc_idx = Some(idx);
+    });
     gc_first_list.set(std::ptr::from_mut(l) as usize);
 }
 
 #[inline]
 pub fn gc_unregister_list(idx: usize) {
-    gc_st().gc_lists.swap_remove(idx);
-    if idx < gc_st().gc_lists.len() {
-        let mut moved = gc_st().gc_lists.as_slice()[idx];
+    let (moved_opt, last_opt) = GC_STATE.with(|st| {
+        let mut lists = st.gc_lists.borrow_mut();
+        lists.swap_remove(idx);
+        (lists.get(idx).copied(), lists.last().copied())
+    });
+    if let Some(mut moved) = moved_opt {
         moved.lv_gc_idx = Some(idx);
     }
 
-    gc_first_list.set(gc_st().gc_lists.last().map_or(0, |id| id.as_ptr() as usize));
+    gc_first_list.set(last_opt.map_or(0, |id| id.as_ptr() as usize));
 }
 
 #[inline]
 pub fn gc_dicts_len() -> usize {
-    gc_st().gc_dicts.len()
+    GC_STATE.with(|st| st.gc_dicts.borrow().len())
 }
 
 #[inline]
 pub fn gc_dict_at(idx: usize) -> &'static mut TvDict {
-    gc_st().gc_dicts[idx].borrow_mut()
+    let id = GC_STATE.with(|st| st.gc_dicts.borrow()[idx]);
+    id.borrow_mut()
 }
 
 #[inline]
 pub fn gc_free_dict_at(idx: usize) {
-    crate::eval::typval::tv_dict_free_slot(gc_st().gc_dicts[idx].borrow_mut());
+    let id = GC_STATE.with(|st| st.gc_dicts.borrow()[idx]);
+    crate::eval::typval::tv_dict_free_slot(id.borrow_mut());
 }
 
 #[inline]
 pub fn gc_lists_len() -> usize {
-    gc_st().gc_lists.len()
+    GC_STATE.with(|st| st.gc_lists.borrow().len())
 }
 
 #[inline]
 pub fn gc_list_at(idx: usize) -> &'static mut TvList {
-    gc_st().gc_lists[idx].borrow_mut()
+    let id = GC_STATE.with(|st| st.gc_lists.borrow()[idx]);
+    id.borrow_mut()
 }
 
 #[inline]
 pub fn gc_free_list_at(idx: usize) {
-    crate::eval::typval::tv_list_free_slot(gc_st().gc_lists[idx].borrow_mut());
+    let id = GC_STATE.with(|st| st.gc_lists.borrow()[idx]);
+    crate::eval::typval::tv_list_free_slot(id.borrow_mut());
 }

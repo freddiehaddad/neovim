@@ -80,22 +80,8 @@ impl Default for SaveVEvent {
     }
 }
 
-struct StateModuleState {
-    was_safe: bool,
-}
-
-impl StateModuleState {
-    const fn new() -> Self {
-        Self { was_safe: false }
-    }
-}
-
-static STATE_MOD_STATE: crate::globals::GlobalState<StateModuleState> =
-    crate::globals::GlobalState::new(StateModuleState::new());
-
-#[inline]
-fn state_mod_st() -> crate::globals::GraphPtr<StateModuleState> {
-    STATE_MOD_STATE.handle()
+std::thread_local! {
+    static WAS_SAFE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 pub fn state_enter<S: EditorState>(s: &mut S) {
@@ -367,7 +353,7 @@ fn is_safe_now() -> bool {
 pub fn may_trigger_safestate(safe: bool) {
     let is_safe = safe && is_safe_now();
 
-    if state_mod_st().was_safe != is_safe && log_st().g_min_log_level <= LOGLVL_DBG {
+    if WAS_SAFE.get() != is_safe && log_st().g_min_log_level <= LOGLVL_DBG {
         let msg: &CStr = if is_safe {
             c"SafeState: Start triggering"
         } else {
@@ -386,11 +372,11 @@ pub fn may_trigger_safestate(safe: bool) {
     if is_safe {
         apply_autocmds(EVENT_SAFESTATE, None, None, false, curbuf_opt_mut());
     }
-    state_mod_st().was_safe = is_safe;
+    WAS_SAFE.set(is_safe);
 }
 
 pub fn state_no_longer_safe(reason: Option<&CStr>) {
-    if state_mod_st().was_safe
+    if WAS_SAFE.get()
         && let Some(reason) = reason
         && log_st().g_min_log_level <= LOGLVL_DBG
     {
@@ -404,11 +390,11 @@ pub fn state_no_longer_safe(reason: Option<&CStr>) {
             reason,
         );
     }
-    state_mod_st().was_safe = false;
+    WAS_SAFE.set(false);
 }
 
 pub fn get_was_safe_state() -> bool {
-    state_mod_st().was_safe
+    WAS_SAFE.get()
 }
 
 #[cfg(test)]

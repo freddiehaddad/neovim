@@ -1052,14 +1052,28 @@ pub fn find_file_in_path_option(
             did_findfile_init: bool,
             file_to_findlen: usize,
         }
-        static FF_OPT_STATE: GlobalState<FindFilePathOptState> =
-            GlobalState::new(FindFilePathOptState {
-                dir: Vec::new(),
-                dir_off: 0,
-                did_findfile_init: false,
-                file_to_findlen: 0,
-            });
-        let mut ff_opt = FF_OPT_STATE.handle();
+        std::thread_local! {
+            static FF_OPT_STATE: std::cell::RefCell<FindFilePathOptState> =
+                const {
+                    std::cell::RefCell::new(FindFilePathOptState {
+                        dir: Vec::new(),
+                        dir_off: 0,
+                        did_findfile_init: false,
+                        file_to_findlen: 0,
+                    })
+                };
+        }
+        let mut ff_opt = FF_OPT_STATE.with(|cell| {
+            std::mem::replace(
+                &mut *cell.borrow_mut(),
+                FindFilePathOptState {
+                    dir: Vec::new(),
+                    dir_off: 0,
+                    did_findfile_init: false,
+                    file_to_findlen: 0,
+                },
+            )
+        });
         let mut file_name: Option<std::ffi::CString> = None;
 
         if rel_fname_opt.is_some_and(|rf| path_with_url(rf.to_bytes())) {
@@ -1068,6 +1082,7 @@ pub fn find_file_in_path_option(
 
         if first {
             if len == 0 {
+                FF_OPT_STATE.with(|cell| *cell.borrow_mut() = ff_opt);
                 return None;
             }
 
@@ -1110,10 +1125,12 @@ pub fn find_file_in_path_option(
         if vim_isAbsName(ftf_bytes) || rel_to_curdir || is_mswin_abs {
             if first {
                 if path_with_url(ftf_bytes) {
-                    return Some(
+                    let res = Some(
                         std::ffi::CString::new(&ftf_bytes[..ff_opt.file_to_findlen])
                             .unwrap_or_default(),
                     );
+                    FF_OPT_STATE.with(|cell| *cell.borrow_mut() = ff_opt);
+                    return res;
                 }
 
                 let rel_fnamelen = rel_fname_opt.map_or(0, |s| s.to_bytes().len());
@@ -1150,10 +1167,12 @@ pub fn find_file_in_path_option(
                                 || ((find_what == FindFileWhat::Dir) == os_isdir(nb_cstr)))
                         {
                             let slen = simplify_filename(g_st().name_buff_bytes_mut());
-                            return Some(
+                            let res = Some(
                                 std::ffi::CString::new(&g_st().name_buff_bytes_mut()[..slen])
                                     .unwrap_or_default(),
                             );
+                            FF_OPT_STATE.with(|cell| *cell.borrow_mut() = ff_opt);
+                            return res;
                         }
                         if suf_bytes.is_empty() {
                             break;
@@ -1213,6 +1232,8 @@ pub fn find_file_in_path_option(
                 }
             }
         }
+
+        FF_OPT_STATE.with(|cell| *cell.borrow_mut() = ff_opt);
 
         if file_name.is_none() && (options & FNAME_MESS) != 0 {
             if first {

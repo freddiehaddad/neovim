@@ -2512,6 +2512,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
 }
 
 pub fn do_check_cursorbind() {
+    #[derive(Clone, Copy)]
     struct MoveCursorbindState {
         prev_curwin: crate::globals::WinPtr,
         prev_curbuf: crate::globals::BufPtr,
@@ -2534,26 +2535,26 @@ pub fn do_check_cursorbind() {
         }
     }
 
-    static MOVE_CB_STATE: GlobalState<MoveCursorbindState> =
-        GlobalState::new(MoveCursorbindState::new());
-
-    #[inline]
-    fn move_cb_st() -> crate::globals::GraphPtr<MoveCursorbindState> {
-        MOVE_CB_STATE.handle()
+    std::thread_local! {
+        static MOVE_CB_STATE: std::cell::Cell<MoveCursorbindState> =
+            const { std::cell::Cell::new(MoveCursorbindState::new()) };
     }
 
     debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());
-    if move_cb_st().prev_curwin == curwin_ptr()
-        && move_cb_st().prev_curbuf == g_st().curbuf
-        && buf_get_changedtick(curbuf_mut()) == move_cb_st().prev_changedtick
-        && equalpos(curwin_mut().w_cursor, move_cb_st().prev_cursor)
+    let prev = MOVE_CB_STATE.get();
+    if prev.prev_curwin == curwin_ptr()
+        && prev.prev_curbuf == g_st().curbuf
+        && buf_get_changedtick(curbuf_mut()) == prev.prev_changedtick
+        && equalpos(curwin_mut().w_cursor, prev.prev_cursor)
     {
         return;
     }
-    move_cb_st().prev_curwin = crate::globals::curwin_ptr();
-    move_cb_st().prev_curbuf = g_st().curbuf;
-    move_cb_st().prev_changedtick = buf_get_changedtick(curbuf_mut());
-    move_cb_st().prev_cursor = curwin_mut().w_cursor;
+    MOVE_CB_STATE.set(MoveCursorbindState {
+        prev_curwin: crate::globals::curwin_ptr(),
+        prev_curbuf: g_st().curbuf,
+        prev_changedtick: buf_get_changedtick(curbuf_mut()),
+        prev_cursor: curwin_mut().w_cursor,
+    });
 
     let line = curwin_mut().w_cursor.lnum;
     let col = curwin_mut().w_cursor.col;

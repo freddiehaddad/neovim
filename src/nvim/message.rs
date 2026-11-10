@@ -13,7 +13,7 @@ use crate::charset::{
     ascii_iswhite, ascii2cells, char2cells, is_special, to_special, transchar_buf,
     transchar_byte_buf, vim_isprintc, vim_strsize,
 };
-use crate::dialog::{dlg_st, prompt_for_input};
+use crate::dialog::{clone_confirm_buttons, clone_confirm_msg, has_confirm_msg, prompt_for_input};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_later, set_must_redraw,
 };
@@ -2748,6 +2748,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
         crate::memory::bytes_until_nul(&str_in[..max_u])
     };
     {
+        let mut confirm_buttons_buf: Vec<u8>;
         let mut s_slice: &[u8] = str_slice;
         let mut sb_slice: &[u8] = str_slice;
         let mut sb_col = g_st().msg_col;
@@ -2834,9 +2835,8 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                         && !g_st().msg_no_more
                     {
                         if do_more_prompt(NUL as i32) {
-                            s_slice = crate::memory::bytes_until_nul(
-                                &dlg_st().borrow_mut().confirm_buttons,
-                            );
+                            confirm_buttons_buf = clone_confirm_buttons();
+                            s_slice = crate::memory::bytes_until_nul(&confirm_buttons_buf);
                             sb_slice = s_slice;
                         }
                         if g_st().quit_more {
@@ -3634,7 +3634,7 @@ pub fn repeat_message() {
     if g_st().state_global == MODE_ASKMORE {
         msg_moremsg(true);
         g_st().msg_row = g_st().rows_global - 1;
-    } else if (g_st().state_global & MODE_CMDLINE) != 0 && dlg_st().confirm_msg.is_some() {
+    } else if (g_st().state_global & MODE_CMDLINE) != 0 && has_confirm_msg() {
         display_confirm_msg();
         g_st().msg_row = g_st().rows_global - 1;
     } else if g_st().state_global == MODE_EXTERNCMD {
@@ -4017,7 +4017,7 @@ pub fn msg_advance(mut col: i32) {
 /// Display the ":confirm" message.  Also called from do_dialog() and when screen resized.
 pub fn display_confirm_msg() {
     msg_st().confirm_msg_used += 1;
-    if let Some(ref msg) = dlg_st().confirm_msg {
+    if let Some(msg) = clone_confirm_msg() {
         msg_ext_set_kind(c"confirm");
         msg_puts_hl(msg.as_c_str(), HLF_M, false);
     }

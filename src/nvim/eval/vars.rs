@@ -495,12 +495,14 @@ const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
     c"nil", c"boolean", c"integer", c"float", c"string", c"array", c"map", c"ext",
 ];
 
-static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[crate::eval::typval::ListId; NUM_MSGPACK_TYPES]> =
-    GlobalState::new([crate::eval::typval::ListId::NULL; NUM_MSGPACK_TYPES]);
+std::thread_local! {
+    static EVAL_MSGPACK_TYPE_LISTS: std::cell::Cell<[crate::eval::typval::ListId; NUM_MSGPACK_TYPES]> =
+        const { std::cell::Cell::new([crate::eval::typval::ListId::NULL; NUM_MSGPACK_TYPES]) };
+}
 
 #[inline]
 pub(crate) fn eval_msgpack_type_list(idx: usize) -> Option<&'static mut TvList> {
-    EVAL_MSGPACK_TYPE_LISTS.handle()[idx].opt_mut()
+    EVAL_MSGPACK_TYPE_LISTS.get()[idx].opt_mut()
 }
 
 #[inline]
@@ -610,7 +612,9 @@ pub fn evalvars_init() {
             v_lock: 0,
             vval: TypvalVval::List(type_list.lv_id),
         };
-        EVAL_MSGPACK_TYPE_LISTS.handle()[i] = type_list.lv_id;
+        let mut mp_lists = EVAL_MSGPACK_TYPE_LISTS.get();
+        mp_lists[i] = type_list.lv_id;
+        EVAL_MSGPACK_TYPE_LISTS.set(mp_lists);
         if !tv_dict_add(&mut *msgpack_types_dict, di) {
             std::process::abort();
         }

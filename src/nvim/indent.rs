@@ -115,11 +115,9 @@ impl IndentModuleState {
     }
 }
 
-static INDENT_STATE: GlobalState<IndentModuleState> = GlobalState::new(IndentModuleState::new());
-
-#[inline]
-fn ind_st() -> crate::globals::GraphPtr<IndentModuleState> {
-    INDENT_STATE.handle()
+std::thread_local! {
+    static INDENT_STATE: std::cell::RefCell<IndentModuleState> =
+        const { std::cell::RefCell::new(IndentModuleState::new()) };
 }
 
 #[inline]
@@ -789,51 +787,57 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     let buf_tick = buf_get_changedtick(wp.buf_mut());
     let flp_val = get_flp_value(wp.buf_mut());
     let line_bytes = &line[..line.iter().position(|&b| b == 0).unwrap_or(line.len())];
-    if ind_st().prev_fnum != buf_fnum
-        || ind_st().prev_ts != buf_p_ts
-        || ind_st().prev_vts.as_slice() != wp.buf_mut().b_p_vts_array.as_slice()
-        || ind_st().prev_tick != buf_tick
-        || ind_st().prev_listopt != wp.w_briopt_list
-        || ind_st().prev_no_ts != no_ts
-        || ind_st().prev_dy_uhex != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
-        || ind_st().prev_flp.as_deref() != Some(&flp_val)
-        || ind_st()
-            .prev_line
-            .as_deref()
-            .is_none_or(|c| c.to_bytes() != line_bytes)
-    {
-        ind_st().prev_fnum = buf_fnum;
-        ind_st().prev_line = Some(std::ffi::CString::new(line_bytes).unwrap_or_default());
-        ind_st().prev_ts = buf_p_ts;
-        ind_st().prev_vts.clone_from(&wp.buf_mut().b_p_vts_array);
-        if wp.w_briopt_vcol == 0 {
+    let need_recalc = INDENT_STATE.with_borrow(|st| {
+        st.prev_fnum != buf_fnum
+            || st.prev_ts != buf_p_ts
+            || st.prev_vts.as_slice() != wp.buf_mut().b_p_vts_array.as_slice()
+            || st.prev_tick != buf_tick
+            || st.prev_listopt != wp.w_briopt_list
+            || st.prev_no_ts != no_ts
+            || st.prev_dy_uhex != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
+            || st.prev_flp.as_deref() != Some(&flp_val)
+            || st
+                .prev_line
+                .as_deref()
+                .is_none_or(|c| c.to_bytes() != line_bytes)
+    });
+    if need_recalc {
+        let new_line = std::ffi::CString::new(line_bytes).unwrap_or_default();
+        let new_indent = if wp.w_briopt_vcol == 0 {
             if no_ts {
-                ind_st().prev_indent = indent_size_no_ts(line_bytes);
+                indent_size_no_ts(line_bytes)
             } else {
-                ind_st().prev_indent =
-                    indent_size_ts(line_bytes, buf_p_ts, &wp.buf_mut().b_p_vts_array);
+                indent_size_ts(line_bytes, buf_p_ts, &wp.buf_mut().b_p_vts_array)
             }
-        }
-        ind_st().prev_tick = buf_tick;
-        ind_st().prev_listopt = wp.w_briopt_list;
-        ind_st().prev_list = 0;
-        ind_st().prev_no_ts = no_ts;
-        ind_st().prev_dy_uhex = opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX;
-        ind_st().prev_flp = Some(flp_val.to_owned());
+        } else {
+            INDENT_STATE.with_borrow(|st| st.prev_indent)
+        };
+        let new_flp = flp_val.to_owned();
+        INDENT_STATE.with_borrow_mut(|st| {
+            st.prev_fnum = buf_fnum;
+            st.prev_line = Some(new_line.clone());
+            st.prev_ts = buf_p_ts;
+            st.prev_vts.clone_from(&wp.buf_mut().b_p_vts_array);
+            st.prev_indent = new_indent;
+            st.prev_tick = buf_tick;
+            st.prev_listopt = wp.w_briopt_list;
+            st.prev_list = 0;
+            st.prev_no_ts = no_ts;
+            st.prev_dy_uhex = opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX;
+            st.prev_flp = Some(new_flp.clone());
+        });
 
         if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
-            let flp_cstr = ind_st().borrow_mut().prev_flp.as_deref().unwrap();
-            let line_cstr = ind_st().borrow_mut().prev_line.as_deref().unwrap();
             let mut regmatch = Regmatch::new();
             regmatch.set_prog(vim_regcomp(
-                flp_cstr,
+                &new_flp,
                 RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT,
             ));
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = false;
-                if vim_regexec(&mut regmatch, line_cstr, 0) {
+                if vim_regexec(&mut regmatch, &new_line, 0) {
                     if wp.w_briopt_list > 0 {
-                        ind_st().prev_list += wp.w_briopt_list;
+                        INDENT_STATE.with_borrow_mut(|st| st.prev_list += wp.w_briopt_list);
                     } else {
                         let mut span = regmatch.span_bytes(0);
                         let mut indent: i32 = 0;
@@ -842,7 +846,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                             let step = crate::mbyte::utfc_slice2len(span);
                             span = &span[step.min(span.len())..];
                         }
-                        ind_st().prev_indent = indent;
+                        INDENT_STATE.with_borrow_mut(|st| st.prev_indent = indent);
                     }
                 }
                 regmatch.free_prog();
@@ -851,16 +855,16 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     }
 
     let mut bri = if wp.w_briopt_vcol != 0 {
-        ind_st().prev_list = 0;
+        INDENT_STATE.with_borrow_mut(|st| st.prev_list = 0);
         wp.w_briopt_vcol
     } else {
-        ind_st().prev_indent + wp.w_briopt_shift
+        INDENT_STATE.with_borrow(|st| st.prev_indent) + wp.w_briopt_shift
     };
 
     bri += win_col_off2(wp);
 
     if wp.w_briopt_list > 0 {
-        bri += ind_st().prev_list;
+        bri += INDENT_STATE.with_borrow(|st| st.prev_list);
     }
 
     if wp.w_briopt_sbr {

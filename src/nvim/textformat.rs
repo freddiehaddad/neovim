@@ -151,24 +151,8 @@ pub struct InsState {
     pub o_lnum: Linenr,
 }
 
-struct TextformatState {
-    did_add_space: bool,
-}
-
-impl TextformatState {
-    const fn new() -> Self {
-        Self {
-            did_add_space: false,
-        }
-    }
-}
-
-static TF_STATE: crate::globals::GlobalState<TextformatState> =
-    crate::globals::GlobalState::new(TextformatState::new());
-
-#[inline]
-fn tf_st() -> crate::globals::GraphPtr<TextformatState> {
-    TF_STATE.handle()
+std::thread_local! {
+    static DID_ADD_SPACE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[inline]
@@ -774,7 +758,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
                 crate::memory::bytes_until_nul(&pline),
                 true,
             );
-            tf_st().did_add_space = true;
+            DID_ADD_SPACE.set(true);
         } else {
             check_auto_format(false);
         }
@@ -785,13 +769,13 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
 pub fn check_auto_format(end_insert: bool) {
-    if !tf_st().did_add_space {
+    if !DID_ADD_SPACE.get() {
         return;
     }
 
     let cc = gchar_cursor();
     if !whitechar(cc) {
-        tf_st().did_add_space = false;
+        DID_ADD_SPACE.set(false);
     } else {
         let mut c = b' ' as i32;
         if !end_insert {
@@ -801,7 +785,7 @@ pub fn check_auto_format(end_insert: bool) {
         }
         if c != 0 {
             del_char(false);
-            tf_st().did_add_space = false;
+            DID_ADD_SPACE.set(false);
         }
     }
 }

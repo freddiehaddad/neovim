@@ -35,25 +35,34 @@ pub(crate) const VIM_DISCARDALL: i32 = 6;
 const HAS_HOTKEY_LEN: usize = 30;
 const HOTK_LEN: usize = 4;
 
-pub(crate) struct DialogModuleState {
-    pub(crate) confirm_msg: Option<std::ffi::CString>,
-    pub(crate) confirm_buttons: Vec<u8>,
+struct DialogModuleState {
+    confirm_msg: std::cell::RefCell<Option<std::ffi::CString>>,
+    confirm_buttons: std::cell::RefCell<Vec<u8>>,
 }
 
 impl DialogModuleState {
     const fn new() -> Self {
         Self {
-            confirm_msg: None,
-            confirm_buttons: Vec::new(),
+            confirm_msg: std::cell::RefCell::new(None),
+            confirm_buttons: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
 
-static DLG_STATE: GlobalState<DialogModuleState> = GlobalState::new(DialogModuleState::new());
+std::thread_local! {
+    static DLG_STATE: DialogModuleState = const { DialogModuleState::new() };
+}
 
-#[inline]
-pub(crate) fn dlg_st() -> crate::globals::GraphPtr<DialogModuleState> {
-    DLG_STATE.handle()
+pub(crate) fn has_confirm_msg() -> bool {
+    DLG_STATE.with(|st| st.confirm_msg.borrow().is_some())
+}
+
+pub(crate) fn clone_confirm_msg() -> Option<std::ffi::CString> {
+    DLG_STATE.with(|st| st.confirm_msg.borrow().clone())
+}
+
+pub(crate) fn clone_confirm_buttons() -> Vec<u8> {
+    DLG_STATE.with(|st| st.confirm_buttons.borrow().clone())
 }
 
 fn copy_char(from: &[u8], to: &mut [u8], lowercase: bool) -> usize {
@@ -112,7 +121,7 @@ fn console_dialog_alloc(
         button_len += 2;
     }
 
-    dlg_st().confirm_msg = Some(if ui_has(K_UI_MESSAGES) {
+    let msg_cstr = if ui_has(K_UI_MESSAGES) {
         message.to_owned()
     } else {
         let mut v = Vec::with_capacity(msg_bytes.len() + 2);
@@ -120,9 +129,11 @@ fn console_dialog_alloc(
         v.extend_from_slice(msg_bytes);
         v.push(b'\n');
         std::ffi::CString::new(v).unwrap_or_default()
+    };
+    DLG_STATE.with(|st| {
+        *st.confirm_msg.borrow_mut() = Some(msg_cstr);
+        *st.confirm_buttons.borrow_mut() = vec![0u8; button_len];
     });
-
-    dlg_st().confirm_buttons = vec![0u8; button_len];
 
     vec![0u8; lenhotkey]
 }
@@ -143,74 +154,67 @@ fn copy_confirm_hotkeys(
     let mut idx = 0usize;
     let mut pos = 0usize;
 
-    while pos < btn_bytes.len() {
-        let b = btn_bytes[pos];
-        if b == DLG_BUTTON_SEP {
-            dlg_st().confirm_buttons[msg_pos] = b',';
-            dlg_st().confirm_buttons[msg_pos + 1] = b' ';
-            msg_pos += 2;
+    DLG_STATE.with(|st| {
+        let mut confirm_buttons = st.confirm_buttons.borrow_mut();
+        while pos < btn_bytes.len() {
+            let b = btn_bytes[pos];
+            if b == DLG_BUTTON_SEP {
+                confirm_buttons[msg_pos] = b',';
+                confirm_buttons[msg_pos + 1] = b' ';
+                msg_pos += 2;
 
-            hk_pos += hotkeys[hk_pos..].iter().position(|&x| x == 0).unwrap_or(0);
-            let nlen = copy_char(
-                btn_bytes.get(pos + 1..).unwrap_or(&[]),
-                &mut hotkeys[hk_pos..],
-                true,
-            );
-            hotkeys[hk_pos + nlen] = 0;
-
-            if default_button_idx != 0 {
-                default_button_idx -= 1;
-            }
-
-            if idx < HAS_HOTKEY_LEN - 1 {
-                idx += 1;
-                if !has_hotkey[idx] {
-                    first_hotkey = true;
-                }
-            }
-        } else if b == DLG_HOTKEY_CHAR || first_hotkey {
-            if b == DLG_HOTKEY_CHAR {
-                pos += 1;
-            }
-            first_hotkey = false;
-            if btn_bytes.get(pos) == Some(&DLG_HOTKEY_CHAR) {
-                dlg_st().confirm_buttons[msg_pos] = DLG_HOTKEY_CHAR;
-                msg_pos += 1;
-            } else if pos < btn_bytes.len() {
-                dlg_st().confirm_buttons[msg_pos] =
-                    if default_button_idx == 1 { b'[' } else { b'(' };
-                msg_pos += 1;
-                let clen = copy_char(
-                    &btn_bytes[pos..],
-                    &mut dlg_st().confirm_buttons[msg_pos..],
-                    false,
+                hk_pos += hotkeys[hk_pos..].iter().position(|&x| x == 0).unwrap_or(0);
+                let nlen = copy_char(
+                    btn_bytes.get(pos + 1..).unwrap_or(&[]),
+                    &mut hotkeys[hk_pos..],
+                    true,
                 );
+                hotkeys[hk_pos + nlen] = 0;
+
+                if default_button_idx != 0 {
+                    default_button_idx -= 1;
+                }
+
+                if idx < HAS_HOTKEY_LEN - 1 {
+                    idx += 1;
+                    if !has_hotkey[idx] {
+                        first_hotkey = true;
+                    }
+                }
+            } else if b == DLG_HOTKEY_CHAR || first_hotkey {
+                if b == DLG_HOTKEY_CHAR {
+                    pos += 1;
+                }
+                first_hotkey = false;
+                if btn_bytes.get(pos) == Some(&DLG_HOTKEY_CHAR) {
+                    confirm_buttons[msg_pos] = DLG_HOTKEY_CHAR;
+                    msg_pos += 1;
+                } else if pos < btn_bytes.len() {
+                    confirm_buttons[msg_pos] = if default_button_idx == 1 { b'[' } else { b'(' };
+                    msg_pos += 1;
+                    let clen = copy_char(&btn_bytes[pos..], &mut confirm_buttons[msg_pos..], false);
+                    msg_pos += clen;
+                    confirm_buttons[msg_pos] = if default_button_idx == 1 { b']' } else { b')' };
+                    msg_pos += 1;
+
+                    let hlen = copy_char(&btn_bytes[pos..], &mut hotkeys[hk_pos..], true);
+                    hotkeys[hk_pos + hlen] = 0;
+                }
+            } else {
+                let clen = copy_char(&btn_bytes[pos..], &mut confirm_buttons[msg_pos..], false);
                 msg_pos += clen;
-                dlg_st().confirm_buttons[msg_pos] =
-                    if default_button_idx == 1 { b']' } else { b')' };
-                msg_pos += 1;
-
-                let hlen = copy_char(&btn_bytes[pos..], &mut hotkeys[hk_pos..], true);
-                hotkeys[hk_pos + hlen] = 0;
             }
-        } else {
-            let clen = copy_char(
-                &btn_bytes[pos..],
-                &mut dlg_st().confirm_buttons[msg_pos..],
-                false,
-            );
-            msg_pos += clen;
+
+            if pos >= btn_bytes.len() {
+                break;
+            }
+            pos += crate::mbyte::utf_slice2len(&btn_bytes[pos..]).max(1);
         }
 
-        if pos >= btn_bytes.len() {
-            break;
-        }
-        pos += crate::mbyte::utf_slice2len(&btn_bytes[pos..]).max(1);
-    }
-
-    dlg_st().confirm_buttons[msg_pos] = b':';
-    dlg_st().confirm_buttons[msg_pos + 1] = b' ';
-    dlg_st().confirm_buttons[msg_pos + 2] = 0;
+        confirm_buttons[msg_pos] = b':';
+        confirm_buttons[msg_pos + 1] = b' ';
+        confirm_buttons[msg_pos + 2] = 0;
+    });
 }
 
 fn msg_show_console_dialog(message: &CStr, buttons: &CStr, dfltbutton: i32) -> Vec<u8> {
@@ -350,8 +354,8 @@ pub fn do_dialog(
             break;
         }
 
-        let btn_cstr =
-            CStr::from_bytes_until_nul(&dlg_st().borrow_mut().confirm_buttons).unwrap_or(c"");
+        let btn_vec = clone_confirm_buttons();
+        let btn_cstr = CStr::from_bytes_until_nul(&btn_vec).unwrap_or(c"");
         let mut c = prompt_for_input(Some(btn_cstr), HLF_M, true, None);
         match c {
             CAR | 0 => {
@@ -395,7 +399,7 @@ pub fn do_dialog(
     }
 
     drop(hotkeys_vec);
-    dlg_st().confirm_msg = None;
+    DLG_STATE.with(|st| *st.confirm_msg.borrow_mut() = None);
 
     g_st().msg_silent = save_msg_silent;
     g_st().state_global = old_state;

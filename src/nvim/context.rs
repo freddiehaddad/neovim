@@ -218,28 +218,25 @@ pub const CONTEXT_INIT: Context = Context {
 };
 
 struct ContextModuleState {
-    ctx_switch_depth: i32,
-    ctx_saved_curwin: ObjHandle,
-    ctx_did_chdir: bool,
-    ctx_marks_ns_id: u32,
+    ctx_switch_depth: std::cell::Cell<i32>,
+    ctx_saved_curwin: std::cell::Cell<ObjHandle>,
+    ctx_did_chdir: std::cell::Cell<bool>,
+    ctx_marks_ns_id: std::cell::Cell<u32>,
 }
 
 impl ContextModuleState {
     const fn new() -> Self {
         Self {
-            ctx_switch_depth: 0,
-            ctx_saved_curwin: 0,
-            ctx_did_chdir: false,
-            ctx_marks_ns_id: 0,
+            ctx_switch_depth: std::cell::Cell::new(0),
+            ctx_saved_curwin: std::cell::Cell::new(0),
+            ctx_did_chdir: std::cell::Cell::new(false),
+            ctx_marks_ns_id: std::cell::Cell::new(0),
         }
     }
 }
 
-static CTX_STATE: GlobalState<ContextModuleState> = GlobalState::new(ContextModuleState::new());
-
-#[inline]
-fn ctx_st() -> crate::globals::GraphPtr<ContextModuleState> {
-    CTX_STATE.handle()
+std::thread_local! {
+    static CTX_STATE: ContextModuleState = const { ContextModuleState::new() };
 }
 
 #[inline]
@@ -271,11 +268,12 @@ pub fn handle_get_window_opt(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
 }
 
 fn ctx_marks_ns() -> u32 {
-    if ctx_st().ctx_marks_ns_id == 0 {
-        ctx_st().ctx_marks_ns_id =
-            nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
+    let mut id = CTX_STATE.with(|st| st.ctx_marks_ns_id.get());
+    if id == 0 {
+        id = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
+        CTX_STATE.with(|st| st.ctx_marks_ns_id.set(id));
     }
-    ctx_st().ctx_marks_ns_id
+    id
 }
 
 fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [Option<&mut CursorPos>; 6] {
@@ -596,8 +594,8 @@ fn ctx_localdirs_restore(
     mut tp: Option<&mut TabPageInfo>,
     persist: bool,
 ) {
-    let did_chdir = ctx_st().ctx_did_chdir;
-    ctx_st().ctx_did_chdir = persist && did_chdir;
+    let did_chdir = CTX_STATE.with(|st| st.ctx_did_chdir.get());
+    CTX_STATE.with(|st| st.ctx_did_chdir.set(persist && did_chdir));
 
     if let Some(dirs_win) = handle_get_window_opt(cs.cs_new_curwin) {
         dirs_win.w_localdir = cs.cs_w_localdir.take();
@@ -675,7 +673,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
     if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
         let dirs_tab = for_all_tabpages_mut().find(|tp| tp.handle == cs.cs_dirs_tab);
         ctx_localdirs_restore(&mut *cs, None, dirs_tab, false);
-    } else if cs.cs_cwd.is_some() && !ctx_st().ctx_did_chdir {
+    } else if cs.cs_cwd.is_some() && !CTX_STATE.with(|st| st.ctx_did_chdir.get()) {
         g_st().globaldir = cs.cs_globaldir.take();
     }
     cs.cs_globaldir = None;
@@ -683,7 +681,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
     if cs.cs_apply_acd {
         do_autochdir();
     } else if let Some(ref cs_cwd) = cs.cs_cwd
-        && ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || !ctx_st().ctx_did_chdir)
+        && ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || !CTX_STATE.with(|st| st.ctx_did_chdir.get()))
     {
         os_chdir(cs_cwd);
         shorten_fnames(true);
@@ -692,7 +690,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
 }
 
 pub fn ctx_did_chdir() {
-    ctx_st().ctx_did_chdir = true;
+    CTX_STATE.with(|st| st.ctx_did_chdir.set(true));
 }
 
 pub fn is_ctx_win(win: &WinInfoInfo) -> bool {
@@ -777,10 +775,11 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
 }
 
 pub fn ctx_saved_curwin() -> Option<&'static mut WinInfoInfo> {
-    if ctx_st().ctx_saved_curwin == 0 {
+    let saved = CTX_STATE.with(|st| st.ctx_saved_curwin.get());
+    if saved == 0 {
         None
     } else {
-        win_find_by_handle(ctx_st().ctx_saved_curwin)
+        win_find_by_handle(saved)
     }
 }
 
@@ -806,8 +805,7 @@ pub fn ctx_switch(
         K_CTX_SWITCH_DIRS
     };
     cs.cs_ctxwin_idx = -1;
-    cs.cs_did_chdir = ctx_st().ctx_did_chdir;
-    ctx_st().ctx_did_chdir = false;
+    cs.cs_did_chdir = CTX_STATE.with(|st| st.ctx_did_chdir.replace(false));
     if cs.cs_mode == K_CTX_SWITCH_DIRS {
         wp = curwin_ptr();
     }
@@ -884,10 +882,13 @@ pub fn ctx_switch(
     set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.opt_mut());
 
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
-        if ctx_st().ctx_switch_depth == 0 {
-            ctx_st().ctx_saved_curwin = cs.cs_curwin;
-        }
-        ctx_st().ctx_switch_depth += 1;
+        CTX_STATE.with(|st| {
+            let depth = st.ctx_switch_depth.get();
+            if depth == 0 {
+                st.ctx_saved_curwin.set(cs.cs_curwin);
+            }
+            st.ctx_switch_depth.set(depth + 1);
+        });
     }
     if (flags & K_CTX_VALIDATE) != 0 {
         check_cursor(curwin_mut());
@@ -982,10 +983,13 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         unblock_autocmds();
     }
     ctx_dirs_restore(cs);
-    if cs.cs_ctxwin_idx < 0 && ctx_st().ctx_did_chdir {
+    if cs.cs_ctxwin_idx < 0 && CTX_STATE.with(|st| st.ctx_did_chdir.get()) {
         update_cwd(K_CD_CAUSE_WINDOW);
     }
-    ctx_st().ctx_did_chdir = ctx_st().ctx_did_chdir || cs.cs_did_chdir;
+    CTX_STATE.with(|st| {
+        st.ctx_did_chdir
+            .set(st.ctx_did_chdir.get() || cs.cs_did_chdir)
+    });
     if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
         if let Some(wp) = win_find_by_handle(cs.cs_target_win)
             && !equalpos(cs.cs_target_old_pos, wp.w_cursor)
@@ -998,11 +1002,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         }
     }
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
-        assert!(ctx_st().ctx_switch_depth > 0);
-        ctx_st().ctx_switch_depth -= 1;
-        if ctx_st().ctx_switch_depth == 0 {
-            ctx_st().ctx_saved_curwin = 0;
-        }
+        CTX_STATE.with(|st| {
+            let depth = st.ctx_switch_depth.get();
+            assert!(depth > 0);
+            st.ctx_switch_depth.set(depth - 1);
+            if depth - 1 == 0 {
+                st.ctx_saved_curwin.set(0);
+            }
+        });
     }
 }
 

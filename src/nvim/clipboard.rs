@@ -23,29 +23,25 @@ const K_OPT_CB_FLAG_UNNAMEDPLUS: u32 = 0x02;
 const CTRL_V: u8 = 0x16;
 
 struct ClipboardModuleState {
-    batch_change_count: i32,
-    clipboard_delay_update: bool,
-    clipboard_needs_update: bool,
-    clipboard_didwarn: bool,
+    batch_change_count: std::cell::Cell<i32>,
+    clipboard_delay_update: std::cell::Cell<bool>,
+    clipboard_needs_update: std::cell::Cell<bool>,
+    clipboard_didwarn: std::cell::Cell<bool>,
 }
 
 impl ClipboardModuleState {
     const fn new() -> Self {
         Self {
-            batch_change_count: 0,
-            clipboard_delay_update: false,
-            clipboard_needs_update: false,
-            clipboard_didwarn: false,
+            batch_change_count: std::cell::Cell::new(0),
+            clipboard_delay_update: std::cell::Cell::new(false),
+            clipboard_needs_update: std::cell::Cell::new(false),
+            clipboard_didwarn: std::cell::Cell::new(false),
         }
     }
 }
 
-static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> =
-    crate::globals::GlobalState::new(ClipboardModuleState::new());
-
-#[inline]
-fn clip_st() -> crate::globals::GraphPtr<ClipboardModuleState> {
-    CLIP_STATE.handle()
+std::thread_local! {
+    static CLIP_STATE: ClipboardModuleState = const { ClipboardModuleState::new() };
 }
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
@@ -66,11 +62,13 @@ pub fn adjust_clipboard_name(
     }
 
     if !eval_has_provider(b"clipboard", false) {
-        if clip_st().batch_change_count <= 1
-            && !quiet
-            && (!clip_st().clipboard_didwarn || (explicit_cb_reg && redirecting() == 0))
-        {
-            clip_st().clipboard_didwarn = true;
+        let should_warn = CLIP_STATE.with(|st| {
+            st.batch_change_count.get() <= 1
+                && !quiet
+                && (!st.clipboard_didwarn.get() || (explicit_cb_reg && redirecting() == 0))
+        });
+        if should_warn {
+            CLIP_STATE.with(|st| st.clipboard_didwarn.set(true));
             msg(MSG_NO_CLIP, 0);
         }
         return None;
@@ -88,14 +86,20 @@ pub fn adjust_clipboard_name(
             K_OPT_CB_FLAG_UNNAMEDPLUS
         };
         if writing && (flags & match_flag) != 0 {
-            clip_st().clipboard_needs_update = false;
+            CLIP_STATE.with(|st| st.clipboard_needs_update.set(false));
         }
         Some(target)
     } else {
-        if writing && clip_st().clipboard_delay_update {
-            clip_st().clipboard_needs_update = true;
+        let (delay_update, needs_update) = CLIP_STATE.with(|st| {
+            (
+                st.clipboard_delay_update.get(),
+                st.clipboard_needs_update.get(),
+            )
+        });
+        if writing && delay_update {
+            CLIP_STATE.with(|st| st.clipboard_needs_update.set(true));
             return None;
-        } else if !writing && clip_st().clipboard_needs_update {
+        } else if !writing && needs_update {
             return None;
         }
 
@@ -262,22 +266,32 @@ pub fn set_clipboard(mut name: i32, reg: &Yankreg) {
 
 /// Defer clipboard updates during batch operations (`start_batch_changes`).
 pub fn start_batch_changes() {
-    clip_st().batch_change_count += 1;
-    if clip_st().batch_change_count > 1 {
-        return;
-    }
-    clip_st().clipboard_delay_update = true;
+    CLIP_STATE.with(|st| {
+        let c = st.batch_change_count.get() + 1;
+        st.batch_change_count.set(c);
+        if c <= 1 {
+            st.clipboard_delay_update.set(true);
+        }
+    });
 }
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
 pub fn end_batch_changes() {
-    clip_st().batch_change_count -= 1;
-    if clip_st().batch_change_count > 0 {
-        return;
-    }
-    clip_st().clipboard_delay_update = false;
-    if clip_st().clipboard_needs_update {
-        clip_st().clipboard_needs_update = false;
+    let flush = CLIP_STATE.with(|st| {
+        let c = st.batch_change_count.get() - 1;
+        st.batch_change_count.set(c);
+        if c > 0 {
+            return false;
+        }
+        st.clipboard_delay_update.set(false);
+        if st.clipboard_needs_update.get() {
+            st.clipboard_needs_update.set(false);
+            true
+        } else {
+            false
+        }
+    });
+    if flush {
         set_clipboard(0, get_y_previous());
     }
 }
@@ -289,11 +303,11 @@ mod tests {
     #[test]
     fn batch_changes_nesting_toggles_delay_flag() {
         start_batch_changes();
-        assert!(clip_st().clipboard_delay_update);
+        assert!(CLIP_STATE.with(|st| st.clipboard_delay_update.get()));
         start_batch_changes();
         end_batch_changes();
-        assert!(clip_st().clipboard_delay_update);
+        assert!(CLIP_STATE.with(|st| st.clipboard_delay_update.get()));
         end_batch_changes();
-        assert!(!clip_st().clipboard_delay_update);
+        assert!(!CLIP_STATE.with(|st| st.clipboard_delay_update.get()));
     }
 }

@@ -121,27 +121,23 @@ pub const K_PATH_CMP_EXPAND: PathCmpFlags = 1 << 1;
 pub const K_PATH_CMP_FULL: PathCmpFlags = 1 << 2;
 
 struct PathModuleState {
-    scandir_count: i32,
-    stardepth: i32,
-    expand_recursive: bool,
+    scandir_count: std::cell::Cell<i32>,
+    stardepth: std::cell::Cell<i32>,
+    expand_recursive: std::cell::Cell<bool>,
 }
 
 impl PathModuleState {
     const fn new() -> Self {
         Self {
-            scandir_count: 0,
-            stardepth: 0,
-            expand_recursive: false,
+            scandir_count: std::cell::Cell::new(0),
+            stardepth: std::cell::Cell::new(0),
+            expand_recursive: std::cell::Cell::new(false),
         }
     }
 }
 
-static PATH_STATE: crate::globals::GlobalState<PathModuleState> =
-    crate::globals::GlobalState::new(PathModuleState::new());
-
-#[inline]
-fn path_st() -> crate::globals::GraphPtr<PathModuleState> {
-    PATH_STATE.handle()
+std::thread_local! {
+    static PATH_STATE: PathModuleState = const { PathModuleState::new() };
 }
 
 #[cfg(windows)]
@@ -500,17 +496,17 @@ pub fn path_has_wildcard(bytes: &[u8], all: bool) -> bool {
 
 fn scandir_next_with_dots(dir: Option<&mut Directory>) -> Option<&std::ffi::CStr> {
     let Some(dir) = dir else {
-        path_st().scandir_count = 0;
+        PATH_STATE.with(|st| st.scandir_count.set(0));
         return None;
     };
 
-    path_st().scandir_count += 1;
-    if path_st().scandir_count == 1 || path_st().scandir_count == 2 {
-        return Some(if path_st().scandir_count == 1 {
-            c"."
-        } else {
-            c".."
-        });
+    let c = PATH_STATE.with(|st| {
+        let next = st.scandir_count.get() + 1;
+        st.scandir_count.set(next);
+        next
+    });
+    if c == 1 || c == 2 {
+        return Some(if c == 1 { c"." } else { c".." });
     }
     os_scandir_next(dir)
 }
@@ -529,7 +525,7 @@ fn do_path_expand(
     let start_len = gap.len();
     let mut starstar = false;
 
-    if path_st().stardepth > 0 && (flags & EW_NOBREAK) == 0 {
+    if PATH_STATE.with(|st| st.stardepth.get()) > 0 && (flags & EW_NOBREAK) == 0 {
         os_breakcheck();
         if g_st().got_int {
             return 0;
@@ -629,16 +625,16 @@ fn do_path_expand(
     let mut len = s_idx;
     let path_end_cstr = &path[path_idx..];
     if !didstar
-        && path_st().stardepth < 100
+        && PATH_STATE.with(|st| st.stardepth.get()) < 100
         && starstar
         && e_pos - s_idx == 2
         && path_bytes.get(path_idx) == Some(&b'/')
     {
         format_to_buf!(&mut buf_vec[s_idx..], c"%s", &path_end_cstr[1..]);
-        path_st().stardepth += 1;
+        PATH_STATE.with(|st| st.stardepth.set(st.stardepth.get() + 1));
         let sub_path = crate::memory::cstring_until_nul(&buf_vec);
         do_path_expand(gap, &sub_path, len, flags, true);
-        path_st().stardepth -= 1;
+        PATH_STATE.with(|st| st.stardepth.set(st.stardepth.get() - 1));
     }
 
     buf_vec[s_idx] = 0;
@@ -674,21 +670,21 @@ fn do_path_expand(
                     continue;
                 }
 
-                if starstar && path_st().stardepth < 100 {
+                if starstar && PATH_STATE.with(|st| st.stardepth.get()) < 100 {
                     format_to_buf!(&mut buf_vec[len..], c"/**%s", path_end_cstr);
-                    path_st().stardepth += 1;
+                    PATH_STATE.with(|st| st.stardepth.set(st.stardepth.get() + 1));
                     let sub_path = crate::memory::cstring_until_nul(&buf_vec);
                     do_path_expand(gap, &sub_path, len + 1, flags, true);
-                    path_st().stardepth -= 1;
+                    PATH_STATE.with(|st| st.stardepth.set(st.stardepth.get() - 1));
                 }
 
                 format_to_buf!(&mut buf_vec[len..], c"%s", path_end_cstr);
                 if path_has_wildcard(path_end_cstr.to_bytes(), false) {
-                    if path_st().stardepth < 100 {
-                        path_st().stardepth += 1;
+                    if PATH_STATE.with(|st| st.stardepth.get()) < 100 {
+                        PATH_STATE.with(|st| st.stardepth.set(st.stardepth.get() + 1));
                         let sub_path = crate::memory::cstring_until_nul(&buf_vec);
                         do_path_expand(gap, &sub_path, len + 1, flags, false);
-                        path_st().stardepth -= 1;
+                        PATH_STATE.with(|st| st.stardepth.set(st.stardepth.get() - 1));
                     }
                 } else {
                     let mut file_info: FileInfo = FileInfo::new();
@@ -1121,7 +1117,7 @@ pub fn gen_expand_wildcards_vec(
     };
     let path_option = path_option_owned.as_c_str();
 
-    if path_st().expand_recursive {
+    if PATH_STATE.with(|st| st.expand_recursive.get()) {
         #[cfg(unix)]
         {
             return os_expand_wildcards(pat, file, flags);
@@ -1142,7 +1138,7 @@ pub fn gen_expand_wildcards_vec(
         }
     }
 
-    path_st().expand_recursive = true;
+    PATH_STATE.with(|st| st.expand_recursive.set(true));
 
     for &pat_item in pat {
         if g_st().got_int {
@@ -1156,7 +1152,7 @@ pub fn gen_expand_wildcards_vec(
         if vim_backtick(p_bytes) {
             add_pat = expand_backtick(file, p_bytes, flags);
             if add_pat == -1 {
-                path_st().expand_recursive = false;
+                PATH_STATE.with(|st| st.expand_recursive.set(false));
                 file.clear();
                 return false;
             }
@@ -1173,7 +1169,7 @@ pub fn gen_expand_wildcards_vec(
                         drop(p_owned);
                         file.clear();
                         let res = os_expand_wildcards(pat, file, flags | EW_KEEPDOLLAR);
-                        path_st().expand_recursive = false;
+                        PATH_STATE.with(|st| st.expand_recursive.set(false));
                         return res;
                     }
                 }
@@ -1192,14 +1188,14 @@ pub fn gen_expand_wildcards_vec(
                                     .get(2)
                                     .is_some_and(|&b| vim_ispathsep(i32::from(b))))))
                 {
-                    path_st().expand_recursive = false;
+                    PATH_STATE.with(|st| st.expand_recursive.set(false));
                     add_pat = expand_in_path(file, p_cstr, flags);
-                    path_st().expand_recursive = true;
+                    PATH_STATE.with(|st| st.expand_recursive.set(true));
                     did_expand_in_path = true;
                 } else {
-                    path_st().expand_recursive = false;
+                    PATH_STATE.with(|st| st.expand_recursive.set(false));
                     let tmp_add_pat = path_expand(file, p_cstr, flags);
-                    path_st().expand_recursive = true;
+                    PATH_STATE.with(|st| st.expand_recursive.set(true));
                     debug_assert!(tmp_add_pat <= i32::MAX as usize);
                     add_pat = tmp_add_pat as i32;
                 }
@@ -1216,14 +1212,14 @@ pub fn gen_expand_wildcards_vec(
         }
 
         if did_expand_in_path && !file.is_empty() && (flags & (EW_PATH | EW_CDPATH)) != 0 {
-            path_st().expand_recursive = false;
+            PATH_STATE.with(|st| st.expand_recursive.set(false));
             uniquefy_paths(file, p_cstr, path_option);
-            path_st().expand_recursive = true;
+            PATH_STATE.with(|st| st.expand_recursive.set(true));
         }
         drop(p_owned);
     }
 
-    path_st().expand_recursive = false;
+    PATH_STATE.with(|st| st.expand_recursive.set(false));
 
     (flags & EW_EMPTYOK) != 0 || !file.is_empty()
 }

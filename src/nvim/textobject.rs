@@ -29,22 +29,8 @@ use crate::regexp::MAXCOL;
 
 const K_CPO_ENDOFSENT: i32 = b'J' as i32;
 
-struct TextobjectState {
-    cls_bigword: bool,
-}
-
-impl TextobjectState {
-    const fn new() -> Self {
-        Self { cls_bigword: false }
-    }
-}
-
-static TOBJ_STATE: crate::globals::GlobalState<TextobjectState> =
-    crate::globals::GlobalState::new(TextobjectState::new());
-
-#[inline]
-fn tobj_st() -> crate::globals::GraphPtr<TextobjectState> {
-    TOBJ_STATE.handle()
+std::thread_local! {
+    static CLS_BIGWORD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Find the start of the next sentence, searching in the direction specified
@@ -321,7 +307,7 @@ fn cls() -> i32 {
 
     c = utf_class(c);
 
-    if c != 0 && tobj_st().cls_bigword {
+    if c != 0 && CLS_BIGWORD.get() {
         return 1;
     }
     c
@@ -330,7 +316,7 @@ fn cls() -> i32 {
 /// Move forward `count` words (`fwd_word`).
 pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
     curwin_mut().w_cursor.coladd = 0;
-    tobj_st().cls_bigword = bigword;
+    CLS_BIGWORD.set(bigword);
     while {
         count -= 1;
         count >= 0
@@ -377,7 +363,7 @@ pub fn fwd_word(mut count: i32, bigword: bool, eol: bool) -> bool {
 /// Move backward `count` words (`bck_word`).
 pub fn bck_word(mut count: i32, bigword: bool, mut stop: bool) -> bool {
     curwin_mut().w_cursor.coladd = 0;
-    tobj_st().cls_bigword = bigword;
+    CLS_BIGWORD.set(bigword);
     while {
         count -= 1;
         count >= 0
@@ -421,7 +407,7 @@ pub fn bck_word(mut count: i32, bigword: bool, mut stop: bool) -> bool {
 /// Move to the end of the word (`end_word`).
 pub fn end_word(mut count: i32, bigword: bool, mut stop: bool, empty: bool) -> bool {
     curwin_mut().w_cursor.coladd = 0;
-    tobj_st().cls_bigword = bigword;
+    CLS_BIGWORD.set(bigword);
 
     if opt_vars().p_sel.first_byte() == b'e'
         && g_st().visual_global.active
@@ -477,7 +463,7 @@ pub fn end_word(mut count: i32, bigword: bool, mut stop: bool, empty: bool) -> b
 /// Move back to the end of the word (`bckend_word`).
 pub fn bckend_word(mut count: i32, bigword: bool, eol: bool) -> bool {
     curwin_mut().w_cursor.coladd = 0;
-    tobj_st().cls_bigword = bigword;
+    CLS_BIGWORD.set(bigword);
     while {
         count -= 1;
         count >= 0
@@ -582,7 +568,7 @@ pub fn current_word(oap: &mut Oparg, mut count: i32, include: bool, bigword: boo
     let mut inclusive = true;
     let mut include_white = false;
 
-    tobj_st().cls_bigword = bigword;
+    CLS_BIGWORD.set(bigword);
     clearpos(&mut start_pos);
 
     if g_st().visual_global.active
