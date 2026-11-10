@@ -45,7 +45,7 @@ use crate::spell::{
     WF_NEEDCOMP, WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, captype,
     clear_spell_chartab, close_spellbuf, count_common_word, init_spell_chartab, init_syl_tab,
     onecap_copy, open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug,
-    spell_casefold, spell_enc, spell_priv_st, spell_soundfold, spell_toupper, with_spell_ext,
+    spell_casefold, spell_enc, spell_soundfold, spell_toupper, with_spell_ext, with_spell_priv,
 };
 use crate::spellsuggest::{Fromto, Idx, Salitem, Slang, Spelltab};
 use crate::strings::{format_to_buf, gettext, strerror, vim_strchr};
@@ -4022,7 +4022,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
         let mut l: usize = 0;
         for i in 128..256 {
             l += utf_char2bytes(
-                spell_priv_st().spelltab.st_fold[i] as i32,
+                with_spell_priv(|s| s.spelltab.get()).st_fold[i] as i32,
                 &mut folchars[l..],
             ) as usize;
         }
@@ -4031,10 +4031,10 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
         spell_putc(128, &fd);
         for i in 128..256 {
             let mut flags: i32 = 0;
-            if spell_priv_st().spelltab.st_isw[i] {
+            if with_spell_priv(|s| s.spelltab.get()).st_isw[i] {
                 flags |= CF_WORD as i32;
             }
-            if spell_priv_st().spelltab.st_isu[i] {
+            if with_spell_priv(|s| s.spelltab.get()).st_isu[i] {
                 flags |= CF_UPPER as i32;
             }
             spell_putc(flags, &fd);
@@ -5225,20 +5225,22 @@ fn set_spell_charflags(flags_in: &[u8], cnt: i32, fol: &[u8]) {
 }
 
 fn set_spell_finish(new_st: &mut Spelltab) -> bool {
-    if spell_priv_st().did_set_spelltab {
+    if with_spell_priv(|s| s.did_set_spelltab.get()) {
         for i in 0..256 {
-            if spell_priv_st().spelltab.st_isw[i] != new_st.st_isw[i]
-                || spell_priv_st().spelltab.st_isu[i] != new_st.st_isu[i]
-                || spell_priv_st().spelltab.st_fold[i] != new_st.st_fold[i]
-                || spell_priv_st().spelltab.st_upper[i] != new_st.st_upper[i]
+            if with_spell_priv(|s| s.spelltab.get()).st_isw[i] != new_st.st_isw[i]
+                || with_spell_priv(|s| s.spelltab.get()).st_isu[i] != new_st.st_isu[i]
+                || with_spell_priv(|s| s.spelltab.get()).st_fold[i] != new_st.st_fold[i]
+                || with_spell_priv(|s| s.spelltab.get()).st_upper[i] != new_st.st_upper[i]
             {
                 emsg(gettext(c"E763: Word characters differ between spell files"));
                 return false;
             }
         }
     } else {
-        spell_priv_st().spelltab = *new_st;
-        spell_priv_st().did_set_spelltab = true;
+        with_spell_priv(|s| {
+            s.spelltab.set(*new_st);
+            s.did_set_spelltab.set(true);
+        });
     }
 
     true

@@ -134,70 +134,69 @@ enum SbClear {
     SbClearCmdlineDone = 3,
 }
 
-#[derive(Clone, Copy)]
 struct MessageState {
-    confirm_msg_used: i32,
-    msg_hist_temp_idx: Option<usize>,
-    msg_hist_len: i32,
-    msg_hist_max: i32,
-    msg_hit_enter: bool,
-    msg_wait: i32,
-    progress_msg_target: i32,
-    verbose_did_open: bool,
-    keep_msg_more: bool,
-    msg_ext_id: MsgID,
-    msg_ext_chunks: Array,
-    msg_ext_last_attr: Sattr,
-    msg_ext_last_hl_id: i32,
-    msg_ext_history: bool,
-    msg_ext_append: bool,
-    msg_grid_pos_at_flush: i32,
-    msg_special_case_for_lua_print: bool,
-    msg_id_next: i64,
-    is_multihl: i32,
-    msg_keep_entered: i32,
-    last_sourcing_lnum: i32,
-    msg_source_recursive: bool,
-    do_clear_hist_temp: bool,
-    redir_col: i32,
-    do_clear_sb_text: SbClear,
-    do_more_prompt_entered: bool,
-    showmode_clear: bool,
+    confirm_msg_used: std::cell::Cell<i32>,
+    msg_hist_temp_idx: std::cell::Cell<Option<usize>>,
+    msg_hist_len: std::cell::Cell<i32>,
+    msg_hist_max: std::cell::Cell<i32>,
+    msg_hit_enter: std::cell::Cell<bool>,
+    msg_wait: std::cell::Cell<i32>,
+    progress_msg_target: std::cell::Cell<i32>,
+    verbose_did_open: std::cell::Cell<bool>,
+    keep_msg_more: std::cell::Cell<bool>,
+    msg_ext_id: std::cell::Cell<MsgID>,
+    msg_ext_chunks: std::cell::Cell<Array>,
+    msg_ext_last_attr: std::cell::Cell<Sattr>,
+    msg_ext_last_hl_id: std::cell::Cell<i32>,
+    msg_ext_history: std::cell::Cell<bool>,
+    msg_ext_append: std::cell::Cell<bool>,
+    msg_grid_pos_at_flush: std::cell::Cell<i32>,
+    msg_special_case_for_lua_print: std::cell::Cell<bool>,
+    msg_id_next: std::cell::Cell<i64>,
+    is_multihl: std::cell::Cell<i32>,
+    msg_keep_entered: std::cell::Cell<i32>,
+    last_sourcing_lnum: std::cell::Cell<i32>,
+    msg_source_recursive: std::cell::Cell<bool>,
+    do_clear_hist_temp: std::cell::Cell<bool>,
+    redir_col: std::cell::Cell<i32>,
+    do_clear_sb_text: std::cell::Cell<SbClear>,
+    do_more_prompt_entered: std::cell::Cell<bool>,
+    showmode_clear: std::cell::Cell<bool>,
 }
 
 impl MessageState {
     const fn new() -> Self {
         Self {
-            confirm_msg_used: 0,
-            msg_hist_temp_idx: None,
-            msg_hist_len: 0,
-            msg_hist_max: 500,
-            msg_hit_enter: true,
-            msg_wait: 0,
-            progress_msg_target: PROGRESS_TARGET_CMD,
-            verbose_did_open: false,
-            keep_msg_more: false,
-            msg_ext_id: Object {
+            confirm_msg_used: std::cell::Cell::new(0),
+            msg_hist_temp_idx: std::cell::Cell::new(None),
+            msg_hist_len: std::cell::Cell::new(0),
+            msg_hist_max: std::cell::Cell::new(500),
+            msg_hit_enter: std::cell::Cell::new(true),
+            msg_wait: std::cell::Cell::new(0),
+            progress_msg_target: std::cell::Cell::new(PROGRESS_TARGET_CMD),
+            verbose_did_open: std::cell::Cell::new(false),
+            keep_msg_more: std::cell::Cell::new(false),
+            msg_ext_id: std::cell::Cell::new(Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(1),
-            },
-            msg_ext_chunks: Array::new(),
-            msg_ext_last_attr: -1,
-            msg_ext_last_hl_id: 0,
-            msg_ext_history: false,
-            msg_ext_append: false,
-            msg_grid_pos_at_flush: 0,
-            msg_special_case_for_lua_print: false,
-            msg_id_next: 1,
-            is_multihl: 0,
-            msg_keep_entered: 0,
-            last_sourcing_lnum: 0,
-            msg_source_recursive: false,
-            do_clear_hist_temp: true,
-            redir_col: 0,
-            do_clear_sb_text: SbClear::SbClearNone,
-            do_more_prompt_entered: false,
-            showmode_clear: false,
+            }),
+            msg_ext_chunks: std::cell::Cell::new(Array::new()),
+            msg_ext_last_attr: std::cell::Cell::new(-1),
+            msg_ext_last_hl_id: std::cell::Cell::new(0),
+            msg_ext_history: std::cell::Cell::new(false),
+            msg_ext_append: std::cell::Cell::new(false),
+            msg_grid_pos_at_flush: std::cell::Cell::new(0),
+            msg_special_case_for_lua_print: std::cell::Cell::new(false),
+            msg_id_next: std::cell::Cell::new(1),
+            is_multihl: std::cell::Cell::new(0),
+            msg_keep_entered: std::cell::Cell::new(0),
+            last_sourcing_lnum: std::cell::Cell::new(0),
+            msg_source_recursive: std::cell::Cell::new(false),
+            do_clear_hist_temp: std::cell::Cell::new(true),
+            redir_col: std::cell::Cell::new(0),
+            do_clear_sb_text: std::cell::Cell::new(SbClear::SbClearNone),
+            do_more_prompt_entered: std::cell::Cell::new(false),
+            showmode_clear: std::cell::Cell::new(false),
         }
     }
 }
@@ -229,48 +228,8 @@ impl MessageExtState {
 }
 
 thread_local! {
-    static MSG_STATE: std::cell::Cell<MessageState> =
-        const { std::cell::Cell::new(MessageState::new()) };
+    static MSG_STATE: MessageState = const { MessageState::new() };
     static MSG_EXT: MessageExtState = const { MessageExtState::new() };
-}
-
-struct MsgGuard {
-    state: MessageState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for MsgGuard {
-    type Target = MessageState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for MsgGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for MsgGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            MSG_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn msg_st() -> MsgGuard {
-    MsgGuard {
-        state: MSG_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 #[inline]
@@ -446,7 +405,7 @@ fn have_sourcing_info() -> bool {
 
 /// Returns true if the given integer message-id was previously generated.
 pub fn msg_id_exists(id: i64) -> bool {
-    id > 0 && id < msg_st().msg_id_next
+    id > 0 && id < MSG_STATE.with(|s| s.msg_id_next.get())
 }
 
 fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
@@ -466,7 +425,7 @@ fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
 pub fn msg_grid_set_pos(row: i32, scrolled: bool) {
     if !g_st().msg_grid.throttled {
         ui_ext_msg_set_pos(row, scrolled);
-        msg_st().msg_grid_pos_at_flush = row;
+        MSG_STATE.with(|s| s.msg_grid_pos_at_flush.set(row));
     }
     g_st().msg_grid_pos = row;
     if crate::grid::grid_allocated(&g_st().msg_grid) {
@@ -680,8 +639,8 @@ pub fn msg_multihl(
     raw_for_lua_print: bool,
 ) -> MsgID {
     if id.obj_type == ObjectType::ObjectTypeNil {
-        let next_id = msg_st().msg_id_next;
-        msg_st().msg_id_next += 1;
+        let next_id = MSG_STATE.with(|s| s.msg_id_next.get());
+        MSG_STATE.with(|s| s.msg_id_next.set(s.msg_id_next.get() + (1)));
         id = Object {
             obj_type: ObjectType::ObjectTypeInteger,
             data: ObjectData::Integer(next_id),
@@ -695,7 +654,7 @@ pub fn msg_multihl(
     // don't display progress message in cmd when target doesn't have cmd
     if kind.is_some_and(|k| k.to_bytes() == b"progress") {
         do_autocmd_progress(id, hl_msg, msg_data.as_deref_mut());
-        if (msg_st().progress_msg_target & PROGRESS_TARGET_CMD) == 0 {
+        if (MSG_STATE.with(|s| s.progress_msg_target.get()) & PROGRESS_TARGET_CMD) == 0 {
             *needs_msg_clear = true;
             return id;
         }
@@ -715,17 +674,17 @@ pub fn msg_multihl(
         msg_ext_set_kind(kind_cstr);
     }
     if raw_for_lua_print {
-        msg_st().msg_special_case_for_lua_print = true;
+        MSG_STATE.with(|s| s.msg_special_case_for_lua_print.set(true));
         assert!(active_msg.len() == 1);
         let chunk = &active_msg[0];
         printf!(c"%.*s\n", chunk.text.size as i32, chunk.text,);
     }
 
     g_st().msg_ext_skip_flush = true;
-    msg_st().msg_ext_id = id;
+    MSG_STATE.with(|s| s.msg_ext_id.set(id));
 
     for chunk in active_msg {
-        msg_st().is_multihl += 1;
+        MSG_STATE.with(|s| s.is_multihl.set(s.is_multihl.get() + (1)));
         if err {
             emsg_multiline(chunk.text.as_cstr(), kind.unwrap_or(c""), chunk.hl_id, true);
         } else {
@@ -749,17 +708,19 @@ pub fn msg_multihl(
     }
 
     g_st().msg_ext_skip_flush = false;
-    msg_st().is_multihl = 0;
+    MSG_STATE.with(|s| s.is_multihl.set(0));
     g_st().no_wait_return -= 1;
     msg_end();
 
     // Release the id: it belongs to this message, and a String id only borrows the caller's storage
     // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
-    let next_id = msg_st().msg_id_next;
-    msg_st().msg_ext_id = Object {
-        obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(next_id),
-    };
+    let next_id = MSG_STATE.with(|s| s.msg_id_next.get());
+    MSG_STATE.with(|s| {
+        s.msg_ext_id.set(Object {
+            obj_type: ObjectType::ObjectTypeInteger,
+            data: ObjectData::Integer(next_id),
+        })
+    });
     id
 }
 
@@ -784,14 +745,14 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
         // It is possible that displaying a messages causes a problem (e.g.,
         // when redrawing the window), which causes another message, etc..    To
         // break this loop, limit the recursiveness to 3 levels.
-        if msg_st().msg_keep_entered >= 3 {
+        if MSG_STATE.with(|s| s.msg_keep_entered.get()) >= 3 {
             return true;
         }
-        msg_st().msg_keep_entered += 1;
+        MSG_STATE.with(|s| s.msg_keep_entered.set(s.msg_keep_entered.get() + (1)));
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
         let keep_msg_ptr = g_st().keep_msg.as_ref().map_or(ptr::null(), |k| k.as_ptr());
-        if msg_st().is_multihl == 0
+        if MSG_STATE.with(|s| s.is_multihl.get()) == 0
             && (s.as_ptr() != keep_msg_ptr
                 || (s.to_bytes().first().copied().unwrap_or(0) != b'<'
                     && with_msg_ext(|ext| {
@@ -803,7 +764,7 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
             msg_hist_add(s.to_bytes(), -1, hl_id);
         }
 
-        if msg_st().is_multihl == 0 {
+        if MSG_STATE.with(|s| s.is_multihl.get()) == 0 {
             msg_start();
         }
         // Truncate the message if needed.
@@ -828,7 +789,7 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
             msg_clr_eos();
         }
         let mut retval = true;
-        if msg_st().is_multihl == 0 {
+        if MSG_STATE.with(|s| s.is_multihl.get()) == 0 {
             retval = msg_end();
         }
 
@@ -844,7 +805,7 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
         g_st().need_fileinfo = false;
 
         drop(buf);
-        msg_st().msg_keep_entered -= 1;
+        MSG_STATE.with(|s| s.msg_keep_entered.set(s.msg_keep_entered.get() - (1)));
         retval
     }
 }
@@ -1016,7 +977,7 @@ pub fn trunc_string(s: Option<&[u8]>, out: &mut [u8], room_in: i32) {
 /// for the next error message;
 pub fn reset_last_sourcing() {
     with_msg_ext(|ext| *ext.last_sourcing_name.borrow_mut() = None);
-    msg_st().last_sourcing_lnum = 0;
+    MSG_STATE.with(|s| s.last_sourcing_lnum.set(0));
 }
 
 /// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
@@ -1057,7 +1018,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
     let sname = sourcing_name();
     let slnum = sourcing_lnum();
     if sname.is_some()
-        && (other_sourcing_name() || slnum != msg_st().last_sourcing_lnum)
+        && (other_sourcing_name() || slnum != MSG_STATE.with(|s| s.last_sourcing_lnum.get()))
         && slnum != 0
     {
         let p = gettext(c"line %4d:");
@@ -1073,10 +1034,10 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
 /// Remember the file name and line number, so that for the next error the info
 /// is only displayed if it changed.
 pub fn msg_source(hl_id: i32) {
-    if msg_st().msg_source_recursive {
+    if MSG_STATE.with(|s| s.msg_source_recursive.get()) {
         return;
     }
-    msg_st().msg_source_recursive = true;
+    MSG_STATE.with(|s| s.msg_source_recursive.set(true));
 
     g_st().no_wait_return += 1;
     if let Some(p) = get_emsg_source() {
@@ -1085,7 +1046,7 @@ pub fn msg_source(hl_id: i32) {
     }
     if let Some(p) = get_emsg_lnum() {
         msg(p.as_c_str(), HLF_N);
-        msg_st().last_sourcing_lnum = sourcing_lnum();
+        MSG_STATE.with(|s| s.last_sourcing_lnum.set(sourcing_lnum()));
     }
 
     let sname = sourcing_name();
@@ -1100,7 +1061,7 @@ pub fn msg_source(hl_id: i32) {
     }
     g_st().no_wait_return -= 1;
 
-    msg_st().msg_source_recursive = false;
+    MSG_STATE.with(|s| s.msg_source_recursive.set(false));
 }
 
 /// @return  true if not giving error messages right now:
@@ -1138,7 +1099,13 @@ pub fn emsg_multiline(
         if g_st().emsg_off == 0
             || crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32)
         {
-            if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &mut ignore) {
+            if cause_errthrow(
+                s,
+                multiline,
+                MSG_STATE.with(|s| s.is_multihl.get()) > 1,
+                severe,
+                &mut ignore,
+            ) {
                 if !ignore {
                     g_st().did_emsg += 1;
                 }
@@ -1572,21 +1539,21 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
 }
 
 fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
-    if msg_st().do_clear_hist_temp {
+    if MSG_STATE.with(|s| s.do_clear_hist_temp.get()) {
         msg_hist_clear_temp();
-        msg_st().do_clear_hist_temp = false;
+        MSG_STATE.with(|s| s.do_clear_hist_temp.set(false));
     }
 
     if g_st().msg_hist_off || g_st().msg_silent != 0 {
         return;
     }
 
-    let temp_idx = msg_st().msg_hist_temp_idx;
+    let temp_idx = MSG_STATE.with(|s| s.msg_hist_temp_idx.get());
     if temp_idx.is_none() {
         let len = with_msg_ext(|ext| ext.msg_hist.borrow().len());
-        msg_st().msg_hist_temp_idx = Some(len);
+        MSG_STATE.with(|s| s.msg_hist_temp_idx.set(Some(len)));
     }
-    let append = msg_st().msg_ext_append;
+    let append = MSG_STATE.with(|s| s.msg_ext_append.get());
     with_msg_ext(|ext| {
         let kind = ext.msg_ext_kind.borrow().clone();
         ext.msg_hist.borrow_mut().push_back(MessageHistoryEntry {
@@ -1597,32 +1564,38 @@ fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
         });
     });
 
-    msg_st().msg_hist_len += i32::from(!temp);
-    msg_st().msg_ext_history = true;
+    MSG_STATE.with(|s| {
+        s.msg_hist_len
+            .set(s.msg_hist_len.get() + (i32::from(!temp)))
+    });
+    MSG_STATE.with(|s| s.msg_ext_history.set(true));
 
-    msg_hist_clear(msg_st().msg_hist_max);
+    msg_hist_clear(MSG_STATE.with(|s| s.msg_hist_max.get()));
 }
 
 /// Delete oldest messages from the history until there are "keep" messages.
 pub fn msg_hist_clear(keep: i32) {
-    while msg_st().msg_hist_len > keep
+    while MSG_STATE.with(|s| s.msg_hist_len.get()) > keep
         || (keep == 0 && with_msg_ext(|ext| !ext.msg_hist.borrow().is_empty()))
     {
         if let Some(entry) = with_msg_ext(|ext| ext.msg_hist.borrow_mut().pop_front()) {
-            msg_st().msg_hist_len -= i32::from(!entry.temp);
-            if let Some(idx) = msg_st().msg_hist_temp_idx {
-                msg_st().msg_hist_temp_idx = Some(idx.saturating_sub(1));
+            MSG_STATE.with(|s| {
+                s.msg_hist_len
+                    .set(s.msg_hist_len.get() - (i32::from(!entry.temp)))
+            });
+            if let Some(idx) = MSG_STATE.with(|s| s.msg_hist_temp_idx.get()) {
+                MSG_STATE.with(|s| s.msg_hist_temp_idx.set(Some(idx.saturating_sub(1))));
             }
         }
     }
     if with_msg_ext(|ext| ext.msg_hist.borrow().is_empty()) {
-        msg_st().msg_hist_temp_idx = None;
+        MSG_STATE.with(|s| s.msg_hist_temp_idx.set(None));
     }
 }
 
 pub fn msg_hist_clear_temp() {
-    let temp_idx = msg_st().msg_hist_temp_idx;
-    msg_st().msg_hist_temp_idx = None;
+    let temp_idx = MSG_STATE.with(|s| s.msg_hist_temp_idx.get());
+    MSG_STATE.with(|s| s.msg_hist_temp_idx.set(None));
     if let Some(start_idx) = temp_idx {
         with_msg_ext(|ext| {
             let mut hist = ext.msg_hist.borrow_mut();
@@ -1661,15 +1634,18 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
     let v: OptKeyDict_mopt = opt_keyset(opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
 
-    msg_st().msg_hit_enter = v.hit_enter;
-    msg_st().msg_wait = v.wait as i32;
-    msg_st().progress_msg_target = if crate::memory::bytes_until_nul(&v.progress) == b"c" {
-        PROGRESS_TARGET_CMD
-    } else {
-        0
-    };
-    msg_st().msg_hist_max = v.history as i32;
-    msg_hist_clear(msg_st().msg_hist_max);
+    MSG_STATE.with(|s| s.msg_hit_enter.set(v.hit_enter));
+    MSG_STATE.with(|s| s.msg_wait.set(v.wait as i32));
+    MSG_STATE.with(|s| {
+        s.progress_msg_target
+            .set(if crate::memory::bytes_until_nul(&v.progress) == b"c" {
+                PROGRESS_TARGET_CMD
+            } else {
+                0
+            })
+    });
+    MSG_STATE.with(|s| s.msg_hist_max.set(v.history as i32));
+    msg_hist_clear(MSG_STATE.with(|s| s.msg_hist_max.get()));
     None
 }
 
@@ -1688,12 +1664,14 @@ pub fn ex_messages(eap: &mut Exarg) {
     let mut entries = Array::new();
     let hist_len = with_msg_ext(|ext| ext.msg_hist.borrow().len());
     let mut idx = if eap.skip {
-        msg_st().msg_hist_temp_idx.unwrap_or(hist_len)
+        MSG_STATE
+            .with(|s| s.msg_hist_temp_idx.get())
+            .unwrap_or(hist_len)
     } else {
         0
     };
     let mut skip = if eap.addr_count != 0 {
-        msg_st().msg_hist_len - eap.line2
+        MSG_STATE.with(|s| s.msg_hist_len.get()) - eap.line2
     } else {
         0
     };
@@ -1853,7 +1831,7 @@ pub fn wait_return(redraw: i32) {
             g_st().cmdline_row = g_st().rows_global - 1;
         }
 
-        if msg_st().msg_hit_enter {
+        if MSG_STATE.with(|s| s.msg_hit_enter.get()) {
             hit_return_msg(true);
 
             loop {
@@ -1947,7 +1925,7 @@ pub fn wait_return(redraw: i32) {
             }
         } else {
             c = CAR;
-            do_sleep(i64::from(msg_st().msg_wait), true);
+            do_sleep(i64::from(MSG_STATE.with(|s| s.msg_wait.get())), true);
         }
     }
     g_st().redir_off = false;
@@ -2020,7 +1998,7 @@ pub fn set_keep_msg(s: Option<&std::ffi::CStr>, hl_id: i32) {
     } else {
         g_st().keep_msg = None;
     }
-    msg_st().keep_msg_more = false;
+    MSG_STATE.with(|s| s.keep_msg_more.set(false));
     g_st().keep_msg_hl_id = hl_id;
 }
 
@@ -2035,7 +2013,7 @@ pub fn msgmore(n: i32) {
         return;
     }
 
-    if g_st().keep_msg.is_some() && !msg_st().keep_msg_more {
+    if g_st().keep_msg.is_some() && !MSG_STATE.with(|s| s.keep_msg_more.get()) {
         return;
     }
 
@@ -2064,7 +2042,7 @@ pub fn msgmore(n: i32) {
         let msg_cstr = crate::memory::bytes_as_cstr(g_st().borrow_mut().msg_buf_bytes_mut());
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
-            msg_st().keep_msg_more = true;
+            MSG_STATE.with(|s| s.keep_msg_more.set(true));
         }
     }
 }
@@ -2072,8 +2050,8 @@ pub fn msgmore(n: i32) {
 pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
     msg_ext_ui_flush();
     with_msg_ext(|ext| *ext.msg_ext_kind.borrow_mut() = Some(msg_kind.to_owned()));
-    if !msg_st().msg_ext_append {
-        msg_st().redir_col = 0;
+    if !MSG_STATE.with(|s| s.msg_ext_append.get()) {
+        MSG_STATE.with(|s| s.redir_col.set(0));
     }
 
     if msg_kind.to_bytes() == b"list_cmd" {
@@ -2083,7 +2061,7 @@ pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
 
 pub fn msg_ext_set_append(append: bool) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_append = append;
+    MSG_STATE.with(|s| s.msg_ext_append.set(append));
 }
 
 pub fn msg_ext_set_trigger(trigger: &std::ffi::CStr) {
@@ -2129,7 +2107,8 @@ pub fn msg_start() {
         g_st().msg_row = g_st().cmdline_row;
         g_st().msg_col = 0;
     } else if (g_st().msg_didout || opt_vars().p_ch == 0) && !ui_has(K_UIMESSAGES) {
-        if ((opt_vars().p_ch == 0 && !g_st().msg_didout) || msg_st().msg_special_case_for_lua_print)
+        if ((opt_vars().p_ch == 0 && !g_st().msg_didout)
+            || MSG_STATE.with(|s| s.msg_special_case_for_lua_print.get()))
             && msg_use_printf() != 0
         {
             msg_puts_display(b"\n", 1, 0, 0);
@@ -2139,7 +2118,7 @@ pub fn msg_start() {
         did_return = true;
         g_st().cmdline_row = g_st().msg_row;
     }
-    msg_st().msg_special_case_for_lua_print = false;
+    MSG_STATE.with(|s| s.msg_special_case_for_lua_print.set(false));
     if !g_st().msg_didany || g_st().lines_left < 0 {
         msg_starthere();
     }
@@ -2773,7 +2752,7 @@ pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
     }
     g_st().msg_didany = true;
 
-    if msg_use_printf() != 0 && !msg_st().msg_special_case_for_lua_print {
+    if msg_use_printf() != 0 && !MSG_STATE.with(|s| s.msg_special_case_for_lua_print.get()) {
         let saved_msg_col = g_st().msg_col;
         msg_puts_printf(slice, len);
         if g_st().headless_mode {
@@ -2790,15 +2769,15 @@ pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
 }
 
 fn msg_ext_emit_chunk() {
-    if msg_st().msg_ext_last_attr == -1 {
+    if MSG_STATE.with(|s| s.msg_ext_last_attr.get()) == -1 {
         return;
     }
     let mut chunk = Array::new();
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
+        data: ObjectData::Integer(MSG_STATE.with(|s| s.msg_ext_last_attr.get()) as Integer),
     });
-    msg_st().msg_ext_last_attr = -1;
+    MSG_STATE.with(|s| s.msg_ext_last_attr.set(-1));
     let text = with_msg_ext(|ext| {
         let s = crate::api::private::helpers::cbuf_to_string(&ext.msg_ext_last_chunk.borrow());
         *ext.msg_ext_last_chunk.borrow_mut() = Vec::new();
@@ -2810,11 +2789,15 @@ fn msg_ext_emit_chunk() {
     });
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(msg_st().msg_ext_last_hl_id as Integer),
+        data: ObjectData::Integer(MSG_STATE.with(|s| s.msg_ext_last_hl_id.get()) as Integer),
     });
-    msg_st().msg_ext_chunks.push(Object {
-        obj_type: ObjectType::ObjectTypeArray,
-        data: ObjectData::Array(chunk),
+    MSG_STATE.with(|s| {
+        let mut chunks = s.msg_ext_chunks.get();
+        chunks.push(Object {
+            obj_type: ObjectType::ObjectTypeArray,
+            data: ObjectData::Array(chunk),
+        });
+        s.msg_ext_chunks.set(chunks);
     });
 }
 
@@ -2837,10 +2820,10 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
         g_st().did_wait_return = false;
 
         if ui_has(K_UIMESSAGES) {
-            if attr != msg_st().msg_ext_last_attr {
+            if attr != MSG_STATE.with(|s| s.msg_ext_last_attr.get()) {
                 msg_ext_emit_chunk();
-                msg_st().msg_ext_last_attr = attr;
-                msg_st().msg_ext_last_hl_id = hl_id;
+                MSG_STATE.with(|s| s.msg_ext_last_attr.set(attr));
+                MSG_STATE.with(|s| s.msg_ext_last_hl_id.set(hl_id));
             }
             if !str_slice.is_empty() {
                 with_msg_ext(|ext| {
@@ -3097,7 +3080,7 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 pub fn msg_scroll_flush() {
     if g_st().msg_grid.throttled {
         g_st().msg_grid.throttled = false;
-        let pos_delta = msg_st().msg_grid_pos_at_flush - g_st().msg_grid_pos;
+        let pos_delta = MSG_STATE.with(|s| s.msg_grid_pos_at_flush.get()) - g_st().msg_grid_pos;
         assert!(pos_delta >= 0);
         let delta = (g_st().msg_scrolled - g_st().msg_scrolled_at_flush).min(g_st().msg_grid.rows);
 
@@ -3138,7 +3121,7 @@ pub fn msg_scroll_flush() {
     }
     g_st().msg_scrolled_at_flush = g_st().msg_scrolled;
     g_st().msg_grid_scroll_discount = 0;
-    msg_st().msg_grid_pos_at_flush = g_st().msg_grid_pos;
+    MSG_STATE.with(|s| s.msg_grid_pos_at_flush.set(g_st().msg_grid_pos));
 }
 
 pub fn msg_reset_scroll() {
@@ -3217,18 +3200,18 @@ fn store_sb_text<'a>(
     sb_col: &mut i32,
     finish: i32,
 ) {
-    if msg_st().do_clear_sb_text == SbClear::SbClearAll
-        || msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
+    if MSG_STATE.with(|s| s.do_clear_sb_text.get()) == SbClear::SbClearAll
+        || MSG_STATE.with(|s| s.do_clear_sb_text.get()) == SbClear::SbClearCmdlineDone
     {
-        clear_sb_text(msg_st().do_clear_sb_text == SbClear::SbClearAll);
+        clear_sb_text(MSG_STATE.with(|s| s.do_clear_sb_text.get()) == SbClear::SbClearAll);
         msg_sb_eol();
-        if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
+        if MSG_STATE.with(|s| s.do_clear_sb_text.get()) == SbClear::SbClearCmdlineDone
             && sb_str.len() > s.len()
             && sb_str[0] == b'\n'
         {
             *sb_str = &sb_str[1..];
         }
-        msg_st().do_clear_sb_text = SbClear::SbClearNone;
+        MSG_STATE.with(|s| s.do_clear_sb_text.set(SbClear::SbClearNone));
     }
 
     if sb_str.len() > s.len() {
@@ -3259,23 +3242,23 @@ fn store_sb_text<'a>(
 /// Finished showing messages, clear the scroll-back text on the next message.
 pub fn may_clear_sb_text() {
     msg_ext_ui_flush();
-    msg_st().do_clear_sb_text = SbClear::SbClearAll;
-    msg_st().do_clear_hist_temp = true;
+    MSG_STATE.with(|s| s.do_clear_sb_text.set(SbClear::SbClearAll));
+    MSG_STATE.with(|s| s.do_clear_hist_temp.set(true));
 }
 
 /// Starting to edit the command line: do not clear messages now.
 pub fn sb_text_start_cmdline() {
-    if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineBusy {
+    if MSG_STATE.with(|s| s.do_clear_sb_text.get()) == SbClear::SbClearCmdlineBusy {
         sb_text_restart_cmdline();
     } else {
         msg_sb_eol();
-        msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
+        MSG_STATE.with(|s| s.do_clear_sb_text.set(SbClear::SbClearCmdlineBusy));
     }
 }
 
 /// Redrawing the command line: clear the last unfinished line.
 pub fn sb_text_restart_cmdline() {
-    msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
+    MSG_STATE.with(|s| s.do_clear_sb_text.set(SbClear::SbClearCmdlineBusy));
 
     let len = with_msg_ext(|ext| {
         let chunks = ext.msgchunks.borrow();
@@ -3296,7 +3279,7 @@ pub fn sb_text_restart_cmdline() {
 
 /// Ending to edit the command line: clear old lines but the last one later.
 pub fn sb_text_end_cmdline() {
-    msg_st().do_clear_sb_text = SbClear::SbClearCmdlineDone;
+    MSG_STATE.with(|s| s.do_clear_sb_text.set(SbClear::SbClearCmdlineDone));
 }
 
 /// Clear any text remembered for scrolling back.
@@ -3465,12 +3448,12 @@ fn do_more_prompt(typed_char: i32) -> bool {
         (g_st().headless_mode && !g_st().embedded_mode && ui_active() == 0) || input_unanswerable();
 
     if no_need_more
-        || msg_st().do_more_prompt_entered
+        || MSG_STATE.with(|s| s.do_more_prompt_entered.get())
         || (g_st().state_global == MODE_HITRETURN && typed_char == 0)
     {
         return false;
     }
-    msg_st().do_more_prompt_entered = true;
+    MSG_STATE.with(|s| s.do_more_prompt_entered.set(true));
 
     if typed_char == b'G' as i32 {
         let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
@@ -3527,13 +3510,13 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left = 999999;
                 }
                 0x3a /* ':' */ => {
-                    if msg_st().confirm_msg_used == 0 {
+                    if MSG_STATE.with(|s| s.confirm_msg_used.get()) == 0 {
                         typeahead_noflush(b':' as i32);
                         g_st().cmdline_row = g_st().rows_global - 1;
                         g_st().skip_redraw = true;
                         g_st().need_wait_return = false;
                     }
-                    if msg_st().confirm_msg_used != 0 {
+                    if MSG_STATE.with(|s| s.confirm_msg_used.get()) != 0 {
                         retval = true;
                     } else {
                         g_st().got_int = true;
@@ -3542,7 +3525,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left = g_st().rows_global - 1;
                 }
                 0x71 /* 'q' */ | CTRL_C_CONST | ESC => {
-                    if msg_st().confirm_msg_used != 0 {
+                    if MSG_STATE.with(|s| s.confirm_msg_used.get()) != 0 {
                         retval = true;
                     } else {
                         g_st().got_int = true;
@@ -3712,7 +3695,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
         g_st().msg_col = 0;
     }
 
-    msg_st().do_more_prompt_entered = false;
+    MSG_STATE.with(|s| s.do_more_prompt_entered.set(false));
     retval
 }
 
@@ -3834,7 +3817,7 @@ pub fn msg_end() -> bool {
 /// Clear "msg_ext_chunks" before flushing so that ui_flush() does not re-emit
 /// the same message recursively.
 fn msg_ext_init_chunks() -> Array {
-    let tofree = std::mem::take(&mut msg_st().msg_ext_chunks);
+    let tofree = MSG_STATE.with(|s| s.msg_ext_chunks.replace(Array::new()));
     g_st().msg_col = 0;
     tofree
 }
@@ -3848,7 +3831,7 @@ pub fn msg_ext_ui_flush() {
     }
 
     msg_ext_emit_chunk();
-    if msg_st().msg_ext_chunks.size > 0 {
+    if MSG_STATE.with(|s| s.msg_ext_chunks.get()).size > 0 {
         let tofree = msg_ext_init_chunks();
         let (kind_cstr, trigger_cstr) = with_msg_ext(|ext| {
             (
@@ -3863,12 +3846,12 @@ pub fn msg_ext_ui_flush() {
             kind_str,
             tofree,
             g_st().msg_ext_overwrite,
-            msg_st().msg_ext_history,
-            msg_st().msg_ext_append,
-            msg_st().msg_ext_id,
+            MSG_STATE.with(|s| s.msg_ext_history.get()),
+            MSG_STATE.with(|s| s.msg_ext_append.get()),
+            MSG_STATE.with(|s| s.msg_ext_id.get()),
             trigger_str,
         );
-        if msg_st().msg_ext_history {
+        if MSG_STATE.with(|s| s.msg_ext_history.get()) {
             api_free_array(tofree);
         } else {
             // Add to history as temporary message for "g<".
@@ -3887,30 +3870,32 @@ pub fn msg_ext_ui_flush() {
             msg_hist_add_multihl(msg, true);
         }
         g_st().msg_ext_overwrite = false;
-        msg_st().msg_ext_history = false;
-        msg_st().msg_ext_append = false;
+        MSG_STATE.with(|s| s.msg_ext_history.set(false));
+        MSG_STATE.with(|s| s.msg_ext_append.set(false));
         g_st().msg_ext_fast = true;
         with_msg_ext(|ext| *ext.msg_ext_kind.borrow_mut() = None);
-        let next_id = {
-            let mut st = msg_st();
-            if st.msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
-                && st.msg_ext_id.data.integer() == st.msg_id_next
+        let next_id = MSG_STATE.with(|st| {
+            let ext_id = st.msg_ext_id.get();
+            if ext_id.obj_type == ObjectType::ObjectTypeInteger
+                && ext_id.data.integer() == st.msg_id_next.get()
             {
-                st.msg_id_next += 1;
+                st.msg_id_next.set(st.msg_id_next.get() + 1);
             }
-            st.msg_id_next
-        };
-        msg_st().msg_ext_id = Object {
-            obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(next_id),
-        };
+            st.msg_id_next.get()
+        });
+        MSG_STATE.with(|s| {
+            s.msg_ext_id.set(Object {
+                obj_type: ObjectType::ObjectTypeInteger,
+                data: ObjectData::Integer(next_id),
+            })
+        });
     }
 }
 
 pub fn msg_ext_flush_showmode() {
-    let has_last_attr = msg_st().msg_ext_last_attr != -1;
-    if ui_has(K_UIMESSAGES) && (has_last_attr || msg_st().showmode_clear) {
-        msg_st().showmode_clear = has_last_attr;
+    let has_last_attr = MSG_STATE.with(|s| s.msg_ext_last_attr.get()) != -1;
+    if ui_has(K_UIMESSAGES) && (has_last_attr || MSG_STATE.with(|s| s.showmode_clear.get())) {
+        MSG_STATE.with(|s| s.showmode_clear.set(has_last_attr));
         msg_ext_emit_chunk();
         let tofree = msg_ext_init_chunks();
         ui_call_msg_showmode(tofree);
@@ -3953,7 +3938,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
 
         if redirecting() != 0 {
             if !matches!(slice[0], b'\n' | b'\r') {
-                while msg_st().redir_col < g_st().msg_col {
+                while MSG_STATE.with(|s| s.redir_col.get()) < g_st().msg_col {
                     if !g_st().capture_ga.is_null() {
                         g_st().capture_ga.push(b' ');
                     }
@@ -3969,7 +3954,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
                             vf.puts(c" ");
                         }
                     });
-                    msg_st().redir_col += 1;
+                    MSG_STATE.with(|s| s.redir_col.set(s.redir_col.get() + (1)));
                 }
             }
 
@@ -3998,17 +3983,17 @@ fn redir_write(str_: &[u8], maxlen: isize) {
                     }
                 });
                 if matches!(b, b'\r' | b'\n') {
-                    msg_st().redir_col = 0;
+                    MSG_STATE.with(|s| s.redir_col.set(0));
                 } else if i32::from(b) == TAB {
-                    let rc = msg_st().redir_col;
-                    msg_st().redir_col = rc + 8 - rc % 8;
+                    let rc = MSG_STATE.with(|s| s.redir_col.get());
+                    MSG_STATE.with(|s| s.redir_col.set(rc + 8 - rc % 8));
                 } else {
-                    msg_st().redir_col += 1;
+                    MSG_STATE.with(|s| s.redir_col.set(s.redir_col.get() + (1)));
                 }
             }
 
             if g_st().msg_silent != 0 {
-                g_st().msg_col = msg_st().redir_col;
+                g_st().msg_col = MSG_STATE.with(|s| s.redir_col.get());
             }
         }
     }
@@ -4074,15 +4059,17 @@ pub fn verbose_leave_scroll() {
 /// Called when 'verbosefile' is set: stop writing to the file.
 pub fn verbose_stop() {
     with_msg_ext(|ext| *ext.verbose_fd.borrow_mut() = None);
-    msg_st().verbose_did_open = false;
+    MSG_STATE.with(|s| s.verbose_did_open.set(false));
 }
 
 /// Open the file 'verbosefile'.
 ///
 /// @return  FAIL or OK.
 pub fn verbose_open() -> bool {
-    if with_msg_ext(|ext| ext.verbose_fd.borrow().is_none()) && !msg_st().verbose_did_open {
-        msg_st().verbose_did_open = true;
+    if with_msg_ext(|ext| ext.verbose_fd.borrow().is_none())
+        && !MSG_STATE.with(|s| s.verbose_did_open.get())
+    {
+        MSG_STATE.with(|s| s.verbose_did_open.set(true));
 
         let opened = CFile::open(opt_vars().p_vfile.as_cstr(), c"a");
         let is_none = opened.is_none();
@@ -4144,12 +4131,12 @@ pub fn msg_advance(mut col: i32) {
 
 /// Display the ":confirm" message.  Also called from do_dialog() and when screen resized.
 pub fn display_confirm_msg() {
-    msg_st().confirm_msg_used += 1;
+    MSG_STATE.with(|s| s.confirm_msg_used.set(s.confirm_msg_used.get() + (1)));
     if let Some(msg) = clone_confirm_msg() {
         msg_ext_set_kind(c"confirm");
         msg_puts_hl(msg.as_c_str(), HLF_M, false);
     }
-    msg_st().confirm_msg_used -= 1;
+    MSG_STATE.with(|s| s.confirm_msg_used.set(s.confirm_msg_used.get() - (1)));
 }
 
 /// Only for legacy UI (`!ui_has(K_UIMESSAGES)`): Pause to display a message for `ms` milliseconds.

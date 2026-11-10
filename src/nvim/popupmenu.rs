@@ -153,64 +153,62 @@ const K_ZINDEX_CMDLINE_POPUP_MENU: i32 = 250;
 
 const K_OPT_COT_FLAG_PREVIEW: u32 = 0x1000;
 
-#[derive(Clone, Copy)]
 struct PopupmenuState {
-    size: i32,
-    selected: i32,
-    first: i32,
-    height: i32,
-    width: i32,
-    base_width: i32,
-    kind_width: i32,
-    extra_width: i32,
-    scrollbar: i32,
-    rl: bool,
-    anchor_grid: i32,
-    row: i32,
-    col: i32,
-    win_row_offset: i32,
-    win_col_offset: i32,
-    left_col: i32,
-    right_col: i32,
-    above: bool,
-    is_visible: bool,
-    is_drawn: bool,
-    external: bool,
-    invalid: bool,
+    size: std::cell::Cell<i32>,
+    selected: std::cell::Cell<i32>,
+    first: std::cell::Cell<i32>,
+    height: std::cell::Cell<i32>,
+    width: std::cell::Cell<i32>,
+    base_width: std::cell::Cell<i32>,
+    kind_width: std::cell::Cell<i32>,
+    extra_width: std::cell::Cell<i32>,
+    scrollbar: std::cell::Cell<i32>,
+    rl: std::cell::Cell<bool>,
+    anchor_grid: std::cell::Cell<i32>,
+    row: std::cell::Cell<i32>,
+    col: std::cell::Cell<i32>,
+    win_row_offset: std::cell::Cell<i32>,
+    win_col_offset: std::cell::Cell<i32>,
+    left_col: std::cell::Cell<i32>,
+    right_col: std::cell::Cell<i32>,
+    above: std::cell::Cell<bool>,
+    is_visible: std::cell::Cell<bool>,
+    is_drawn: std::cell::Cell<bool>,
+    external: std::cell::Cell<bool>,
+    invalid: std::cell::Cell<bool>,
 }
 
 impl PopupmenuState {
     const fn new() -> Self {
         Self {
-            size: 0,
-            selected: 0,
-            first: 0,
-            height: 0,
-            width: 0,
-            base_width: 0,
-            kind_width: 0,
-            extra_width: 0,
-            scrollbar: 0,
-            rl: false,
-            anchor_grid: 0,
-            row: 0,
-            col: 0,
-            win_row_offset: 0,
-            win_col_offset: 0,
-            left_col: 0,
-            right_col: 0,
-            above: false,
-            is_visible: false,
-            is_drawn: false,
-            external: false,
-            invalid: false,
+            size: std::cell::Cell::new(0),
+            selected: std::cell::Cell::new(0),
+            first: std::cell::Cell::new(0),
+            height: std::cell::Cell::new(0),
+            width: std::cell::Cell::new(0),
+            base_width: std::cell::Cell::new(0),
+            kind_width: std::cell::Cell::new(0),
+            extra_width: std::cell::Cell::new(0),
+            scrollbar: std::cell::Cell::new(0),
+            rl: std::cell::Cell::new(false),
+            anchor_grid: std::cell::Cell::new(0),
+            row: std::cell::Cell::new(0),
+            col: std::cell::Cell::new(0),
+            win_row_offset: std::cell::Cell::new(0),
+            win_col_offset: std::cell::Cell::new(0),
+            left_col: std::cell::Cell::new(0),
+            right_col: std::cell::Cell::new(0),
+            above: std::cell::Cell::new(false),
+            is_visible: std::cell::Cell::new(false),
+            is_drawn: std::cell::Cell::new(false),
+            external: std::cell::Cell::new(false),
+            invalid: std::cell::Cell::new(false),
         }
     }
 }
 
 thread_local! {
-    static PUM: std::cell::Cell<PopupmenuState> =
-        const { std::cell::Cell::new(PopupmenuState::new()) };
+    static PUM: PopupmenuState = const { PopupmenuState::new() };
     static PUM_ITEMS: std::cell::RefCell<Option<std::rc::Rc<[Pumitem]>>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -225,72 +223,33 @@ fn pum_item(idx: i32) -> Pumitem {
     PUM_ITEMS.with(|c| c.borrow().as_ref().unwrap()[idx as usize].clone())
 }
 
-struct PumGuard {
-    state: PopupmenuState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for PumGuard {
-    type Target = PopupmenuState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for PumGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for PumGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            PUM.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn pum() -> PumGuard {
-    PumGuard {
-        state: PUM.with(std::cell::Cell::get),
-        mutated: false,
-    }
-}
-
 use crate::api::private::helpers::cstr_to_string;
 
 fn pum_compute_size() {
-    pum().base_width = 0;
-    pum().kind_width = 0;
-    pum().extra_width = 0;
+    PUM.with(|s| s.base_width.set(0));
+    PUM.with(|s| s.kind_width.set(0));
+    PUM.with(|s| s.extra_width.set(0));
     let Some(items) = PUM_ITEMS.with(|c| c.borrow().clone()) else {
         return;
     };
-    let size = (pum().size.max(0) as usize).min(items.len());
+    let size = (PUM.with(|s| s.size.get()).max(0) as usize).min(items.len());
     for item in &items[..size] {
         if let Some(ref text) = item.pum_text {
             let w = vim_strsize(text);
-            if pum().base_width < w {
-                pum().base_width = w;
+            if PUM.with(|s| s.base_width.get()) < w {
+                PUM.with(|s| s.base_width.set(w));
             }
         }
         if let Some(ref kind) = item.pum_kind {
             let w = vim_strsize(kind) + 1;
-            if pum().kind_width < w {
-                pum().kind_width = w;
+            if PUM.with(|s| s.kind_width.get()) < w {
+                PUM.with(|s| s.kind_width.set(w));
             }
         }
         if let Some(ref extra) = item.pum_extra {
             let w = vim_strsize(extra) + 1;
-            if pum().extra_width < w {
-                pum().extra_width = w;
+            if PUM.with(|s| s.extra_width.get()) < w {
+                PUM.with(|s| s.extra_width.set(w));
             }
         }
     }
@@ -307,15 +266,15 @@ fn pum_compute_vertical_placement(
 ) {
     let context_lines: i32;
 
-    pum().height = size.min(PUM_DEF_HEIGHT);
-    if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
-        pum().height = opt_vars().p_ph as i32;
+    PUM.with(|s| s.height.set(size.min(PUM_DEF_HEIGHT)));
+    if opt_vars().p_ph > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph {
+        PUM.with(|s| s.height.set(opt_vars().p_ph as i32));
     }
 
-    if pum_win_row + 2 + pum_border_size >= below_row - pum().height
+    if pum_win_row + 2 + pum_border_size >= below_row - PUM.with(|s| s.height.get())
         && pum_win_row - above_row > (below_row - above_row) / 2
     {
-        pum().above = true;
+        PUM.with(|s| s.above.set(true));
 
         if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
             context_lines = 0;
@@ -327,26 +286,32 @@ fn pum_compute_vertical_placement(
         }
 
         if pum_win_row >= size + context_lines {
-            pum().row = pum_win_row - size - context_lines;
-            pum().height = size;
+            PUM.with(|s| s.row.set(pum_win_row - size - context_lines));
+            PUM.with(|s| s.height.set(size));
         } else {
-            pum().row = 0;
-            pum().height = pum_win_row - context_lines;
+            PUM.with(|s| s.row.set(0));
+            PUM.with(|s| s.height.set(pum_win_row - context_lines));
         }
-        if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
-            pum().row += pum().height - (opt_vars().p_ph as i32);
-            pum().height = opt_vars().p_ph as i32;
+        if opt_vars().p_ph > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph {
+            PUM.with(|s| {
+                s.row
+                    .set(s.row.get() + (PUM.with(|s| s.height.get()) - (opt_vars().p_ph as i32)))
+            });
+            PUM.with(|s| s.height.set(opt_vars().p_ph as i32));
         }
 
-        if pum_border_size > 0 && pum_border_size + pum().row + pum().height >= pum_win_row {
-            if pum().row < 2 {
-                pum().height -= pum_border_size;
+        if pum_border_size > 0
+            && pum_border_size + PUM.with(|s| s.row.get()) + PUM.with(|s| s.height.get())
+                >= pum_win_row
+        {
+            if PUM.with(|s| s.row.get()) < 2 {
+                PUM.with(|s| s.height.set(s.height.get() - (pum_border_size)));
             } else {
-                pum().row -= pum_border_size;
+                PUM.with(|s| s.row.set(s.row.get() - (pum_border_size)));
             }
         }
     } else {
-        pum().above = false;
+        PUM.with(|s| s.above.set(false));
 
         if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
             context_lines = 0;
@@ -358,20 +323,28 @@ fn pum_compute_vertical_placement(
             context_lines = 3.min(cline_visible_offset);
         }
 
-        pum().row = pum_win_row + context_lines;
-        pum().height = (below_row - pum().row).min(size);
-        if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
-            pum().height = opt_vars().p_ph as i32;
+        PUM.with(|s| s.row.set(pum_win_row + context_lines));
+        PUM.with(|s| {
+            s.height
+                .set((below_row - PUM.with(|s| s.row.get())).min(size))
+        });
+        if opt_vars().p_ph > 0 && i64::from(PUM.with(|s| s.height.get())) > opt_vars().p_ph {
+            PUM.with(|s| s.height.set(opt_vars().p_ph as i32));
         }
 
-        if pum().row + pum().height + pum_border_size >= g_st().cmdline_row {
-            pum().height -= pum_border_size;
+        if PUM.with(|s| s.row.get()) + PUM.with(|s| s.height.get()) + pum_border_size
+            >= g_st().cmdline_row
+        {
+            PUM.with(|s| s.height.set(s.height.get() - (pum_border_size)));
         }
     }
 
-    if above_row > 0 && pum().row < above_row && pum().height > above_row {
-        pum().row = above_row;
-        pum().height = pum_win_row - above_row;
+    if above_row > 0
+        && PUM.with(|s| s.row.get()) < above_row
+        && PUM.with(|s| s.height.get()) > above_row
+    {
+        PUM.with(|s| s.row.set(above_row));
+        PUM.with(|s| s.height.set(pum_win_row - above_row));
     }
 }
 
@@ -388,13 +361,17 @@ fn set_pum_width_aligned_with_cursor(mut width: i32, available_width: i32) -> bo
         end_padding = false;
     }
 
-    pum().width = width
-        + if end_padding && i64::from(width) >= opt_vars().p_pw {
-            1
-        } else {
-            0
-        };
-    available_width >= pum().width
+    PUM.with(|s| {
+        s.width.set(
+            width
+                + if end_padding && i64::from(width) >= opt_vars().p_pw {
+                    1
+                } else {
+                    0
+                },
+        )
+    });
+    available_width >= PUM.with(|s| s.width.get())
 }
 
 /// Calculate horizontal placement for popup menu (`pum_compute_horizontal_placement`).
@@ -410,45 +387,61 @@ fn pum_compute_horizontal_placement(
         } else {
             0
         });
-    let desired_width = pum().base_width + pum().kind_width + pum().extra_width;
-    let mut available_width = if pum().rl {
-        cursor_col - pum().scrollbar + 1 - border_width
+    let desired_width = PUM.with(|s| s.base_width.get())
+        + PUM.with(|s| s.kind_width.get())
+        + PUM.with(|s| s.extra_width.get());
+    let mut available_width = if PUM.with(|s| s.rl.get()) {
+        cursor_col - PUM.with(|s| s.scrollbar.get()) + 1 - border_width
     } else {
-        max_col - cursor_col - pum().scrollbar - border_width
+        max_col - cursor_col - PUM.with(|s| s.scrollbar.get()) - border_width
     };
 
-    pum().col = cursor_col;
+    PUM.with(|s| s.col.set(cursor_col));
     if set_pum_width_aligned_with_cursor(desired_width, available_width) {
         return;
     }
 
     if i64::from(available_width) > opt_vars().p_pw {
-        pum().width = available_width;
+        PUM.with(|s| s.width.set(available_width));
         return;
     }
 
-    if pum().rl {
-        available_width = max_col - pum().scrollbar - border_width;
+    if PUM.with(|s| s.rl.get()) {
+        available_width = max_col - PUM.with(|s| s.scrollbar.get()) - border_width;
     } else {
         available_width += cursor_col;
     }
 
     if i64::from(available_width) > opt_vars().p_pw {
-        pum().width = (opt_vars().p_pw as i32) + 1;
-        if pum().rl {
-            pum().col = pum().width + pum().scrollbar + border_width;
+        PUM.with(|s| s.width.set((opt_vars().p_pw as i32) + 1));
+        if PUM.with(|s| s.rl.get()) {
+            PUM.with(|s| {
+                s.col.set(
+                    PUM.with(|s| s.width.get()) + PUM.with(|s| s.scrollbar.get()) + border_width,
+                )
+            });
         } else {
-            pum().col = max_col - pum().width - pum().scrollbar - border_width;
+            PUM.with(|s| {
+                s.col.set(
+                    max_col
+                        - PUM.with(|s| s.width.get())
+                        - PUM.with(|s| s.scrollbar.get())
+                        - border_width,
+                )
+            });
         }
         return;
     }
 
-    if pum().rl {
-        pum().col = max_col - 1;
+    if PUM.with(|s| s.rl.get()) {
+        PUM.with(|s| s.col.set(max_col - 1));
     } else {
-        pum().col = 0;
+        PUM.with(|s| s.col.set(0));
     }
-    pum().width = max_col - pum().scrollbar - border_width;
+    PUM.with(|s| {
+        s.width
+            .set(max_col - PUM.with(|s| s.scrollbar.get()) - border_width)
+    });
 }
 
 #[inline]
@@ -474,17 +467,23 @@ pub fn pum_display(
     let size = items.len() as i32;
     let mut redo_count: i32 = 0;
 
-    if !pum().is_visible {
-        pum().external = ui_has(K_UIPOPUPMENU_CONST)
-            || ((g_st().state_global & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
+    if !PUM.with(|s| s.is_visible.get()) {
+        PUM.with(|s| {
+            s.external.set(
+                ui_has(K_UIPOPUPMENU_CONST)
+                    || ((g_st().state_global & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST)),
+            )
+        });
     }
 
-    pum().rl = (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl;
+    PUM.with(|s| {
+        s.rl.set((g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl)
+    });
 
     let border_width = pum_border_width();
     loop {
-        pum().is_visible = true;
-        pum().is_drawn = true;
+        PUM.with(|s| s.is_visible.set(true));
+        PUM.with(|s| s.is_drawn.set(true));
         validate_cursor_col(curwin_mut());
         let mut above_row: i32 = 0;
         let mut below_row = g_st()
@@ -498,8 +497,8 @@ pub fn pum_display(
         } else {
             curwin_ptr().as_ptr()
         };
-        pum().win_row_offset = 0;
-        pum().win_col_offset = 0;
+        PUM.with(|s| s.win_row_offset.set(0));
+        PUM.with(|s| s.win_col_offset.set(0));
 
         let mut pum_win_row: i32;
         let mut cursor_col: i32;
@@ -515,11 +514,13 @@ pub fn pum_display(
             };
             cursor_col = cmdline_win_ref.map_or(0, |cw| cw.w_config._cmdline_offset) + cmd_startcol;
             cursor_col %= cmdline_win_ref.map_or(g_st().columns_global, |cw| cw.w_view_width);
-            pum().anchor_grid = if ui_has(K_UICMDLINE) {
-                -1
-            } else {
-                DEFAULT_GRID_HANDLE
-            };
+            PUM.with(|s| {
+                s.anchor_grid.set(if ui_has(K_UICMDLINE) {
+                    -1
+                } else {
+                    DEFAULT_GRID_HANDLE
+                })
+            });
         } else {
             pum_win_row = curwin_mut().w_wrow;
             let mut wcol = curwin_mut().w_wcol;
@@ -529,7 +530,7 @@ pub fn pum_display(
                     wcol = 0;
                 }
             }
-            if pum().rl {
+            if PUM.with(|s| s.rl.get()) {
                 cursor_col = curwin_mut().w_view_width - wcol - 1;
             } else {
                 cursor_col = wcol;
@@ -537,7 +538,7 @@ pub fn pum_display(
         }
 
         if let Some(target_win) = crate::globals::GraphPtr::of(target_win).opt() {
-            pum().anchor_grid = target_win.w_grid.target.handle;
+            PUM.with(|s| s.anchor_grid.set(target_win.w_grid.target.handle));
 
             pum_win_row += target_win.w_grid.row_offset;
 
@@ -549,16 +550,16 @@ pub fn pum_display(
                 cursor_col += target_win.w_wincol;
 
                 if !ui_has(K_UIMULTIGRID) {
-                    pum().anchor_grid = DEFAULT_GRID_HANDLE;
+                    PUM.with(|s| s.anchor_grid.set(DEFAULT_GRID_HANDLE));
                 } else {
-                    pum().win_row_offset = target_win.w_winrow;
+                    PUM.with(|s| s.win_row_offset.set(target_win.w_winrow));
 
-                    pum().win_col_offset = target_win.w_wincol;
+                    PUM.with(|s| s.win_col_offset.set(target_win.w_wincol));
                 }
             }
         }
 
-        if pum().external {
+        if PUM.with(|s| s.external.get()) {
             if array_changed {
                 let mut arena = Arena::new();
                 let mut arr = arena_array(&mut arena, size as usize);
@@ -573,9 +574,9 @@ pub fn pum_display(
                 ui_call_popupmenu_show(
                     arr,
                     i64::from(selected),
-                    i64::from(pum_win_row - pum().win_row_offset),
-                    i64::from(cursor_col - pum().win_col_offset),
-                    i64::from(pum().anchor_grid),
+                    i64::from(pum_win_row - PUM.with(|s| s.win_row_offset.get())),
+                    i64::from(cursor_col - PUM.with(|s| s.win_col_offset.get())),
+                    i64::from(PUM.with(|s| s.anchor_grid.get())),
                 );
                 arena_mem_free(arena_finish(&mut arena));
             } else {
@@ -609,20 +610,28 @@ pub fn pum_display(
             border_width,
         );
 
-        if border_width == 0 && (pum().height < 1 || (pum().height == 1 && size > 1)) {
+        if border_width == 0
+            && (PUM.with(|s| s.height.get()) < 1 || (PUM.with(|s| s.height.get()) == 1 && size > 1))
+        {
             return;
         }
 
         PUM_ITEMS.with(|c| *c.borrow_mut() = Some(items.clone()));
-        pum().size = size;
+        PUM.with(|s| s.size.set(size));
 
-        if pum().external {
+        if PUM.with(|s| s.external.get()) {
             return;
         }
 
         pum_compute_size();
 
-        pum().scrollbar = if pum().height < size { 1 } else { 0 };
+        PUM.with(|s| {
+            s.scrollbar.set(if PUM.with(|s| s.height.get()) < size {
+                1
+            } else {
+                0
+            })
+        });
 
         pum_compute_horizontal_placement(
             crate::globals::GraphPtr::of(target_win).opt(),
@@ -750,7 +759,7 @@ fn pum_grid_puts_with_attrs(
     while off < max_off {
         let cur_cstr = &text_cstr[off..];
         let char_len = utfc_ptr2len(cur_cstr.to_bytes());
-        let attr_idx = if pum().rl {
+        let attr_idx = if PUM.with(|s| s.rl.get()) {
             col_start + cells - col - 1
         } else {
             col - col_start
@@ -812,7 +821,7 @@ pub fn pum_redraw() {
     let attr_thumb = win_hl_attr(curwin_mut(), HLF_PST);
     let mut thumb_pos: i32 = 0;
     let mut thumb_height: i32 = 1;
-    let fcs_trunc: Schar = if pum().rl {
+    let fcs_trunc: Schar = if PUM.with(|s| s.rl.get()) {
         curwin_mut().w_p_fcs_chars.truncrl
     } else {
         curwin_mut().w_p_fcs_chars.trunc
@@ -821,20 +830,20 @@ pub fn pum_redraw() {
     const HLFS_NORM: [Hlf; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
     const HLFS_SEL: [Hlf; 3] = [HLF_PSI, HLF_PSK, HLF_PSX];
 
-    let mut grid_width = pum().width;
+    let mut grid_width = PUM.with(|s| s.width.get());
     let mut col_off: i32 = 0;
     let mut extra_space = false;
-    if pum().rl {
-        col_off = pum().width - 1;
+    if PUM.with(|s| s.rl.get()) {
+        col_off = PUM.with(|s| s.width.get()) - 1;
         debug_assert!((g_st().state_global & MODE_CMDLINE) == 0);
         let win_end_col = curwin_mut().w_wincol + curwin_mut().w_view_width;
-        if pum().col < win_end_col - 1 {
+        if PUM.with(|s| s.col.get()) < win_end_col - 1 {
             grid_width += 1;
             extra_space = true;
         }
     } else {
         let min_col: i32 = 0;
-        if pum().col > min_col {
+        if PUM.with(|s| s.col.get()) > min_col {
             grid_width += 1;
             col_off = 1;
             extra_space = true;
@@ -881,7 +890,7 @@ pub fn pum_redraw() {
             fconfig.border_attr[i] = attr;
         }
         api_clear_error(&mut err);
-        if pum().scrollbar != 0 {
+        if PUM.with(|s| s.scrollbar.get()) != 0 {
             let bchars = &fconfig.border_chars[3];
             let blen = bchars.iter().position(|&b| b == 0).unwrap_or(bchars.len());
             border_char = crate::grid::schar_from_bytes(&bchars[..blen]);
@@ -889,37 +898,37 @@ pub fn pum_redraw() {
         }
     }
 
-    if pum().scrollbar > 0 && (!fconfig.border || fconfig.shadow) {
+    if PUM.with(|s| s.scrollbar.get()) > 0 && (!fconfig.border || fconfig.shadow) {
         grid_width += 1;
-        if pum().rl {
+        if PUM.with(|s| s.rl.get()) {
             col_off += 1;
         }
     }
     g_st().pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
     grid_assign_handle(&mut g_st().pum_grid);
 
-    pum().left_col = pum().col - col_off;
-    pum().right_col = pum().left_col + grid_width;
+    PUM.with(|s| s.left_col.set(PUM.with(|s| s.col.get()) - col_off));
+    PUM.with(|s| s.right_col.set(PUM.with(|s| s.left_col.get()) + grid_width));
     let moved = ui_comp_put_grid(
         &mut g_st().pum_grid,
-        pum().row,
-        pum().left_col,
-        pum().height + border_width,
+        PUM.with(|s| s.row.get()),
+        PUM.with(|s| s.left_col.get()),
+        PUM.with(|s| s.height.get()) + border_width,
         grid_width + border_width,
         false,
         true,
     );
-    let invalid_grid = moved || pum().invalid;
-    pum().invalid = false;
+    let invalid_grid = moved || PUM.with(|s| s.invalid.get());
+    PUM.with(|s| s.invalid.set(false));
     g_st().must_redraw_pum = false;
 
     if !crate::grid::grid_allocated(&g_st().pum_grid)
-        || g_st().pum_grid.rows != pum().height + border_width
+        || g_st().pum_grid.rows != PUM.with(|s| s.height.get()) + border_width
         || g_st().pum_grid.cols != grid_width + border_width
     {
         grid_alloc(
             &mut g_st().pum_grid,
-            pum().height + border_width,
+            PUM.with(|s| s.height.get()) + border_width,
             grid_width + border_width,
             !invalid_grid,
             false,
@@ -936,7 +945,7 @@ pub fn pum_redraw() {
         pum_pos_ui_flush(true);
     }
 
-    let scroll_range = pum().size - pum().height;
+    let scroll_range = PUM.with(|s| s.size.get()) - PUM.with(|s| s.height.get());
     if fconfig.border {
         grid_draw_border(&mut g_st().pum_grid, &mut fconfig, None, 0, None, 0);
         if !fconfig.shadow {
@@ -945,19 +954,22 @@ pub fn pum_redraw() {
         }
     }
 
-    pum().first = pum().first.min(scroll_range);
+    PUM.with(|s| s.first.set(PUM.with(|s| s.first.get()).min(scroll_range)));
 
-    if pum().scrollbar != 0 {
-        thumb_height = pum().height * pum().height / pum().size;
+    if PUM.with(|s| s.scrollbar.get()) != 0 {
+        thumb_height = PUM.with(|s| s.height.get()) * PUM.with(|s| s.height.get())
+            / PUM.with(|s| s.size.get());
         if thumb_height == 0 {
             thumb_height = 1;
         }
-        thumb_pos = (pum().first * (pum().height - thumb_height) + scroll_range / 2) / scroll_range;
+        thumb_pos = (PUM.with(|s| s.first.get()) * (PUM.with(|s| s.height.get()) - thumb_height)
+            + scroll_range / 2)
+            / scroll_range;
     }
 
-    for i in 0..pum().height {
-        let idx = i + pum().first;
-        let selected = idx == pum().selected;
+    for i in 0..PUM.with(|s| s.height.get()) {
+        let idx = i + PUM.with(|s| s.first.get());
+        let selected = idx == PUM.with(|s| s.selected.get());
         let hlfs = if selected { &HLFS_SEL } else { &HLFS_NORM };
         let trunc_attr = win_hl_attr(curwin_mut(), if selected { HLF_PSI } else { HLF_PNI });
         let mut hlf = hlfs[0];
@@ -967,7 +979,7 @@ pub fn pum_redraw() {
         screengrid_line_start(&mut g_st().pum_grid, row, 0);
 
         if extra_space {
-            if pum().rl {
+            if PUM.with(|s| s.rl.get()) {
                 grid_line_puts(col_off + 1, c" ", 1, attr);
             } else {
                 grid_line_puts(col_off - 1, c" ", 1, attr);
@@ -978,7 +990,11 @@ pub fn pum_redraw() {
         let mut totwidth: i32 = 0;
         let mut need_fcs_trunc = false;
         let mut order = [0_i32; 3];
-        let items_width_array = [pum().base_width, pum().kind_width, pum().extra_width];
+        let items_width_array = [
+            PUM.with(|s| s.base_width.get()),
+            PUM.with(|s| s.kind_width.get()),
+            PUM.with(|s| s.extra_width.get()),
+        ];
         pum_align_order(&mut order);
         let basic_width = items_width_array[order[0] as usize];
         let last_isabbr = order[2] == CPT_ABBR;
@@ -1007,13 +1023,13 @@ pub fn pum_redraw() {
                     let w = crate::mbyte::slice2cells(&item_bytes[p_idx..]);
                     if item_bytes[p_idx] != 0
                         && item_bytes[p_idx] != TAB
-                        && totwidth + w <= pum().width
+                        && totwidth + w <= PUM.with(|s| s.width.get())
                     {
                         width += w;
                         p_idx += crate::mbyte::utfc_slice2len(&item_bytes[p_idx..]).max(1);
                         continue;
                     }
-                    let width_limit = pum().width;
+                    let width_limit = PUM.with(|s| s.width.get());
 
                     let seg_cstr = crate::memory::bytes_to_cstring(&item_bytes[seg_start..p_idx]);
                     let mut st_bytes = transstr(seg_cstr.as_bytes(), true).into_bytes_with_nul();
@@ -1028,7 +1044,7 @@ pub fn pum_redraw() {
                         None
                     };
 
-                    if pum().rl {
+                    if PUM.with(|s| s.rl.get()) {
                         let st_slice = &st_bytes[..st_bytes.len().saturating_sub(1)];
                         let mut rt_bytes = reverse_text(st_slice).into_bytes_with_nul();
                         let mut rt_idx = 0usize;
@@ -1107,7 +1123,7 @@ pub fn pum_redraw() {
                         break;
                     }
 
-                    if pum().rl {
+                    if PUM.with(|s| s.rl.get()) {
                         grid_line_puts(grid_col - 1, c"  ", 2, attr);
                         grid_col -= 2;
                     } else {
@@ -1132,12 +1148,12 @@ pub fn pum_redraw() {
             if j == 2
                 || (next_isempty
                     && (j == 1 || (j == 0 && pum_get_item(idx, order[j + 2]).is_none())))
-                || basic_width + n >= pum().width
+                || basic_width + n >= PUM.with(|s| s.width.get())
             {
                 break;
             }
 
-            if pum().rl {
+            if PUM.with(|s| s.rl.get()) {
                 grid_line_fill(
                     col_off - basic_width - n + 1,
                     grid_col + 1,
@@ -1157,8 +1173,8 @@ pub fn pum_redraw() {
             totwidth = basic_width + n;
         }
 
-        if pum().rl {
-            let lcol = col_off - pum().width + 1;
+        if PUM.with(|s| s.rl.get()) {
+            let lcol = col_off - PUM.with(|s| s.width.get()) + 1;
             grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
             if need_fcs_trunc {
                 g_st().linebuf_char[lcol as usize] = if fcs_trunc != 0 {
@@ -1167,15 +1183,17 @@ pub fn pum_redraw() {
                     schar_from_ascii(b'<')
                 };
                 g_st().linebuf_attr[lcol as usize] = trunc_attr;
-                if pum().width > 1 && g_st().linebuf_char[(lcol + 1) as usize] == 0 {
+                if PUM.with(|s| s.width.get()) > 1 && g_st().linebuf_char[(lcol + 1) as usize] == 0
+                {
                     g_st().linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
                 }
             }
         } else {
-            let rcol = col_off + pum().width;
+            let rcol = col_off + PUM.with(|s| s.width.get());
             grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
             if need_fcs_trunc {
-                if pum().width > 1 && g_st().linebuf_char[(rcol - 1) as usize] == 0 {
+                if PUM.with(|s| s.width.get()) > 1 && g_st().linebuf_char[(rcol - 1) as usize] == 0
+                {
                     g_st().linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
                 }
                 g_st().linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
@@ -1187,9 +1205,14 @@ pub fn pum_redraw() {
             }
         }
 
-        if pum().scrollbar > 0 {
+        if PUM.with(|s| s.scrollbar.get()) > 0 {
             let thumb = i >= thumb_pos && i < thumb_pos + thumb_height;
-            let scrollbar_col = col_off + if pum().rl { -pum().width } else { pum().width };
+            let scrollbar_col = col_off
+                + if PUM.with(|s| s.rl.get()) {
+                    -PUM.with(|s| s.width.get())
+                } else {
+                    PUM.with(|s| s.width.get())
+                };
             let use_border_style = has_border && !fconfig.shadow;
             grid_line_put_schar(
                 scrollbar_col,
@@ -1278,9 +1301,12 @@ fn pum_preview_set_text(
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
 fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
     let border_width = pum_border_width();
-    let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
+    let col = PUM.with(|s| s.col.get())
+        + PUM.with(|s| s.width.get())
+        + 1
+        + border_width.max(PUM.with(|s| s.scrollbar.get()));
     let right_extra = g_st().columns_global - col;
-    let left_extra = pum().col - 2;
+    let left_extra = PUM.with(|s| s.col.get()) - 2;
 
     let max_extra = right_extra.max(left_extra);
     if max_extra < 10 {
@@ -1293,21 +1319,21 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
         wp.w_config.col = f64::from(col - 1);
     } else if left_extra > width {
         wp.w_config.width = width;
-        wp.w_config.col = f64::from(pum().col - wp.w_config.width - 1);
+        wp.w_config.col = f64::from(PUM.with(|s| s.col.get()) - wp.w_config.width - 1);
     } else {
         let place_in_right = right_extra > left_extra;
         wp.w_config.width = max_extra;
         wp.w_config.col = f64::from(if place_in_right {
             col - 1
         } else {
-            pum().col - wp.w_config.width - 1
+            PUM.with(|s| s.col.get()) - wp.w_config.width - 1
         });
     }
     wp.w_config.anchor = 0;
     let count = wp.buf_mut().b_ml.ml_line_count;
     wp.w_view_width = wp.w_config.width;
     wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().rows_global);
-    wp.w_config.row = f64::from(pum().row);
+    wp.w_config.row = f64::from(PUM.with(|s| s.row.get()));
     wp.w_config.hide = false;
     let cfg = wp.w_config.clone();
     win_config_float(&mut *wp, cfg);
@@ -1316,7 +1342,7 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
 pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut WinInfoInfo> {
-    if !pum().is_visible || !compl_match_curr_select(selected) {
+    if !PUM.with(|s| s.is_visible.get()) || !compl_match_curr_select(selected) {
         return None;
     }
     block_autocmds();
@@ -1346,16 +1372,17 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
 /// Set the index of the currently selected item (`pum_set_selected`).
 fn pum_set_selected(n: i32, repeat: i32) -> bool {
     let mut resized = false;
-    let mut context = pum().height / 2;
-    let prev_selected = pum().selected;
+    let mut context = PUM.with(|s| s.height.get()) / 2;
+    let prev_selected = PUM.with(|s| s.selected.get());
 
-    pum().selected = n;
-    let scroll_offset = pum().selected - pum().height;
+    PUM.with(|s| s.selected.set(n));
+    let scroll_offset = PUM.with(|s| s.selected.get()) - PUM.with(|s| s.height.get());
     let cur_cot_flags = get_cot_flags();
     let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
 
     if use_float
-        && (pum().selected < 0 || pum_item(pum().selected).pum_info.is_none())
+        && (PUM.with(|s| s.selected.get()) < 0
+            || pum_item(PUM.with(|s| s.selected.get())).pum_info.is_none())
         && let Some(wp) = win_float_find(K_WIN_INFO)
     {
         wp.w_config.hide = true;
@@ -1363,38 +1390,62 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
         win_config_float(wp, cfg);
     }
 
-    if pum().selected >= 0 && pum().selected < pum().size {
-        if pum().first > pum().selected - 4 {
-            if pum().first > pum().selected - 2 {
-                pum().first -= pum().height - 2;
-                if pum().first < 0 {
-                    pum().first = 0;
-                } else if pum().first > pum().selected {
-                    pum().first = pum().selected;
+    if PUM.with(|s| s.selected.get()) >= 0
+        && PUM.with(|s| s.selected.get()) < PUM.with(|s| s.size.get())
+    {
+        if PUM.with(|s| s.first.get()) > PUM.with(|s| s.selected.get()) - 4 {
+            if PUM.with(|s| s.first.get()) > PUM.with(|s| s.selected.get()) - 2 {
+                PUM.with(|s| {
+                    s.first
+                        .set(s.first.get() - (PUM.with(|s| s.height.get()) - 2))
+                });
+                if PUM.with(|s| s.first.get()) < 0 {
+                    PUM.with(|s| s.first.set(0));
+                } else if PUM.with(|s| s.first.get()) > PUM.with(|s| s.selected.get()) {
+                    PUM.with(|s| s.first.set(PUM.with(|s| s.selected.get())));
                 }
             } else {
-                pum().first = pum().selected;
+                PUM.with(|s| s.first.set(PUM.with(|s| s.selected.get())));
             }
-        } else if pum().first < scroll_offset + 5 {
-            if pum().first < scroll_offset + 3 {
-                pum().first = (pum().first + pum().height - 2).max(scroll_offset + 1);
+        } else if PUM.with(|s| s.first.get()) < scroll_offset + 5 {
+            if PUM.with(|s| s.first.get()) < scroll_offset + 3 {
+                PUM.with(|s| {
+                    s.first.set(
+                        (PUM.with(|s| s.first.get()) + PUM.with(|s| s.height.get()) - 2)
+                            .max(scroll_offset + 1),
+                    )
+                });
             } else {
-                pum().first = scroll_offset + 1;
+                PUM.with(|s| s.first.set(scroll_offset + 1));
             }
         }
 
         context = context.min(3);
 
-        if pum().height > 2 {
-            if pum().first > pum().selected - context {
-                pum().first = (pum().selected - context).max(0);
-            } else if pum().first < pum().selected + context - pum().height + 1 {
-                pum().first = pum().selected + context - pum().height + 1;
+        if PUM.with(|s| s.height.get()) > 2 {
+            if PUM.with(|s| s.first.get()) > PUM.with(|s| s.selected.get()) - context {
+                PUM.with(|s| {
+                    s.first
+                        .set((PUM.with(|s| s.selected.get()) - context).max(0))
+                });
+            } else if PUM.with(|s| s.first.get())
+                < PUM.with(|s| s.selected.get()) + context - PUM.with(|s| s.height.get()) + 1
+            {
+                PUM.with(|s| {
+                    s.first.set(
+                        PUM.with(|s| s.selected.get()) + context - PUM.with(|s| s.height.get()) + 1,
+                    )
+                });
             }
         }
-        pum().first = pum().first.min(pum().size - pum().height);
+        PUM.with(|s| {
+            s.first.set(
+                PUM.with(|s| s.first.get())
+                    .min(PUM.with(|s| s.size.get()) - PUM.with(|s| s.height.get())),
+            )
+        });
 
-        if pum_item(pum().selected).pum_info.is_some()
+        if pum_item(PUM.with(|s| s.selected.get())).pum_info.is_some()
             && g_st().rows_global > 10
             && repeat <= 1
             && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
@@ -1461,7 +1512,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     let mut lnum: Linenr = 0;
                     let mut max_info_width: i32 = 0;
 
-                    let sel_item = pum_item(pum().selected);
+                    let sel_item = pum_item(PUM.with(|s| s.selected.get()));
                     pum_preview_set_text(
                         curwin_mut(),
                         sel_item.info_cstr().map(CStr::to_bytes),
@@ -1479,7 +1530,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 
                     curbuf_mut().b_changed = 0;
                     curbuf_mut().b_p_ma = false;
-                    if pum().selected != prev_selected {
+                    if PUM.with(|s| s.selected.get()) != prev_selected {
                         curwin_mut().w_topline = 1;
                     } else if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
                         curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
@@ -1515,13 +1566,13 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                             update_topline(curwin_mut());
                         }
 
-                        let save_pum_is_drawn = pum().is_drawn;
+                        let save_pum_is_drawn = PUM.with(|s| s.is_drawn.get());
 
-                        pum().is_visible = false;
-                        pum().is_drawn = false;
+                        PUM.with(|s| s.is_visible.set(false));
+                        PUM.with(|s| s.is_drawn.set(false));
                         update_screen();
-                        pum().is_visible = true;
-                        pum().is_drawn = save_pum_is_drawn;
+                        PUM.with(|s| s.is_visible.set(true));
+                        PUM.with(|s| s.is_drawn.set(save_pum_is_drawn));
 
                         if !resized && win_valid(curwin_save.opt()) {
                             g_st().no_u_sync += 1;
@@ -1529,11 +1580,11 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                             g_st().no_u_sync -= 1;
                         }
 
-                        pum().is_visible = false;
-                        pum().is_drawn = false;
+                        PUM.with(|s| s.is_visible.set(false));
+                        PUM.with(|s| s.is_drawn.set(false));
                         update_screen();
-                        pum().is_visible = true;
-                        pum().is_drawn = save_pum_is_drawn;
+                        PUM.with(|s| s.is_visible.set(true));
+                        PUM.with(|s| s.is_drawn.set(save_pum_is_drawn));
                     }
                 }
             }
@@ -1549,7 +1600,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 
 /// Undisplay the popup menu (`pum_undisplay`).
 pub fn pum_undisplay(immediate: bool) {
-    pum().is_visible = false;
+    PUM.with(|s| s.is_visible.set(false));
     PUM_ITEMS.with(|c| *c.borrow_mut() = None);
     g_st().must_redraw_pum = false;
 
@@ -1559,8 +1610,8 @@ pub fn pum_undisplay(immediate: bool) {
 }
 
 pub fn pum_check_clear() {
-    if !pum().is_visible && pum().is_drawn {
-        if pum().external {
+    if !PUM.with(|s| s.is_visible.get()) && PUM.with(|s| s.is_drawn.get()) {
+        if PUM.with(|s| s.external.get()) {
             ui_call_popupmenu_hide();
         } else {
             ui_comp_remove_grid(&mut g_st().pum_grid);
@@ -1570,34 +1621,34 @@ pub fn pum_check_clear() {
             }
             grid_free(&mut g_st().pum_grid);
         }
-        pum().is_drawn = false;
-        pum().external = false;
+        PUM.with(|s| s.is_drawn.set(false));
+        PUM.with(|s| s.external.set(false));
         win_float_close(K_WIN_INFO);
     }
 }
 
 /// Clear the popup menu (`pum_clear`).
 pub fn pum_clear() {
-    pum().first = 0;
+    PUM.with(|s| s.first.set(0));
 }
 
 /// Return true if the popup menu is displayed (`pum_visible`).
 pub fn pum_visible() -> bool {
-    pum().is_visible
+    PUM.with(|s| s.is_visible.get())
 }
 
 /// Return true if the popup menu is displayed and drawn on the grid (`pum_drawn`).
 pub fn pum_drawn() -> bool {
-    pum_visible() && !pum().external
+    pum_visible() && !PUM.with(|s| s.external.get())
 }
 
 /// Screen was cleared, need to redraw next time (`pum_invalidate`).
 pub fn pum_invalidate() {
-    pum().invalid = true;
+    PUM.with(|s| s.invalid.set(true));
 }
 
 pub fn pum_ext_select_item(item: i32, insert: bool, finish: bool) {
-    if !pum_visible() || item < -1 || item >= pum().size {
+    if !pum_visible() || item < -1 || item >= PUM.with(|s| s.size.get()) {
         return;
     }
     g_st().pum_want.active = true;
@@ -1608,13 +1659,13 @@ pub fn pum_ext_select_item(item: i32, insert: bool, finish: bool) {
 
 /// Gets the height of the menu (`pum_get_height`).
 pub fn pum_get_height() -> i32 {
-    if pum().external {
+    if PUM.with(|s| s.external.get()) {
         let ui_pum_height = ui_pum_get_height();
         if ui_pum_height != 0 {
             return ui_pum_height;
         }
     }
-    pum().height
+    PUM.with(|s| s.height.get())
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
@@ -1627,20 +1678,20 @@ pub fn pum_set_event_info(dict: &mut TvDict) {
     let mut r: f64 = 0.0;
     let mut c: f64 = 0.0;
     if !ui_pum_get_pos(&mut w, &mut h, &mut r, &mut c) {
-        w = f64::from(pum().width);
-        h = f64::from(pum().height);
-        r = f64::from(pum().row);
-        c = f64::from(pum().col);
+        w = f64::from(PUM.with(|s| s.width.get()));
+        h = f64::from(PUM.with(|s| s.height.get()));
+        r = f64::from(PUM.with(|s| s.row.get()));
+        c = f64::from(PUM.with(|s| s.col.get()));
     }
     tv_dict_add_float(dict, c"height", h);
     tv_dict_add_float(dict, c"width", w);
     tv_dict_add_float(dict, c"row", r);
     tv_dict_add_float(dict, c"col", c);
-    tv_dict_add_nr(dict, c"size", i64::from(pum().size));
+    tv_dict_add_nr(dict, c"size", i64::from(PUM.with(|s| s.size.get())));
     tv_dict_add_bool(
         dict,
         c"scrollbar",
-        if pum().scrollbar != 0 {
+        if PUM.with(|s| s.scrollbar.get()) != 0 {
             K_BOOL_VAR_TRUE_CONST
         } else {
             K_BOOL_VAR_FALSE_CONST
@@ -1656,8 +1707,8 @@ fn pum_position_at_mouse(min_width: i32) {
     let mut grid = g_st().mouse_grid;
     let mut row = g_st().mouse_row;
     let mut col = g_st().mouse_col;
-    pum().win_row_offset = 0;
-    pum().win_col_offset = 0;
+    PUM.with(|s| s.win_row_offset.set(0));
+    PUM.with(|s| s.win_col_offset.set(0));
 
     if ui_has(K_UIMULTIGRID) && grid == 0 {
         mouse_find_win_outer(&mut grid, &mut row, &mut col);
@@ -1667,8 +1718,8 @@ fn pum_position_at_mouse(min_width: i32) {
     {
         row += wp.w_winrow;
         col += wp.w_wincol;
-        pum().win_row_offset = wp.w_winrow;
-        pum().win_col_offset = wp.w_wincol;
+        PUM.with(|s| s.win_row_offset.set(wp.w_winrow));
+        PUM.with(|s| s.win_col_offset.set(wp.w_wincol));
 
         if wp.w_view_height > 0 || wp.w_view_width > 0 {
             max_row = (g_st().rows_global - wp.w_winrow).max(wp.w_winrow + wp.w_view_height);
@@ -1676,51 +1727,80 @@ fn pum_position_at_mouse(min_width: i32) {
         }
     }
     if g_st().pum_grid.handle != 0 && grid == g_st().pum_grid.handle {
-        row += pum().row;
-        col += pum().left_col;
+        row += PUM.with(|s| s.row.get());
+        col += PUM.with(|s| s.left_col.get());
     } else {
-        pum().anchor_grid = grid;
+        PUM.with(|s| s.anchor_grid.set(grid));
     }
 
     let border_width = pum_border_width();
     let border_height = border_width;
-    if max_row - row > pum().size + border_height || max_row - row > row - min_row {
-        pum().above = false;
-        pum().row = row + 1;
-        if pum().height + border_height > max_row - pum().row {
-            pum().height = max_row - pum().row - border_height;
+    if max_row - row > PUM.with(|s| s.size.get()) + border_height || max_row - row > row - min_row {
+        PUM.with(|s| s.above.set(false));
+        PUM.with(|s| s.row.set(row + 1));
+        if PUM.with(|s| s.height.get()) + border_height > max_row - PUM.with(|s| s.row.get()) {
+            PUM.with(|s| {
+                s.height
+                    .set(max_row - PUM.with(|s| s.row.get()) - border_height)
+            });
         }
     } else {
-        pum().above = true;
-        pum().row = row - pum().size - border_height;
-        if pum().row < min_row {
-            pum().height += pum().row - min_row;
-            pum().row = min_row;
+        PUM.with(|s| s.above.set(true));
+        PUM.with(|s| s.row.set(row - PUM.with(|s| s.size.get()) - border_height));
+        if PUM.with(|s| s.row.get()) < min_row {
+            PUM.with(|s| {
+                s.height
+                    .set(s.height.get() + (PUM.with(|s| s.row.get()) - min_row))
+            });
+            PUM.with(|s| s.row.set(min_row));
         }
     }
 
-    if pum().rl {
-        if col - min_col + 1 >= pum().base_width + border_width
+    if PUM.with(|s| s.rl.get()) {
+        if col - min_col + 1 >= PUM.with(|s| s.base_width.get()) + border_width
             || col - min_col + 1 > min_width + border_width
         {
-            pum().col = col;
+            PUM.with(|s| s.col.set(col));
         } else {
-            pum().col =
-                min_col + (pum().base_width + border_width).min(min_width + border_width) - 1;
+            PUM.with(|s| {
+                s.col.set(
+                    min_col
+                        + (PUM.with(|s| s.base_width.get()) + border_width)
+                            .min(min_width + border_width)
+                        - 1,
+                )
+            });
         }
-        pum().width = pum().col - min_col + 1 - border_width;
+        PUM.with(|s| {
+            s.width
+                .set(PUM.with(|s| s.col.get()) - min_col + 1 - border_width)
+        });
     } else {
-        if max_col - col >= pum().base_width + border_width
+        if max_col - col >= PUM.with(|s| s.base_width.get()) + border_width
             || max_col - col > min_width + border_width
         {
-            pum().col = col;
+            PUM.with(|s| s.col.set(col));
         } else {
-            pum().col = max_col - (pum().base_width + border_width).min(min_width + border_width);
+            PUM.with(|s| {
+                s.col.set(
+                    max_col
+                        - (PUM.with(|s| s.base_width.get()) + border_width)
+                            .min(min_width + border_width),
+                )
+            });
         }
-        pum().width = max_col - pum().col - border_width;
+        PUM.with(|s| {
+            s.width
+                .set(max_col - PUM.with(|s| s.col.get()) - border_width)
+        });
     }
 
-    pum().width = pum().width.min(pum().base_width + 1);
+    PUM.with(|s| {
+        s.width.set(
+            PUM.with(|s| s.width.get())
+                .min(PUM.with(|s| s.base_width.get()) + 1),
+        )
+    });
 }
 
 /// Select the pum entry at the mouse position (`pum_select_mouse_pos`).
@@ -1736,32 +1816,35 @@ fn pum_select_mouse_pos() {
     if grid == g_st().pum_grid.handle {
         let border_offset = if pum_border_width() == 2 { 1 } else { 0 };
         let item = row - border_offset;
-        pum().selected = if item >= 0 && item < pum().height {
-            item
-        } else {
-            -1
-        };
+        PUM.with(|s| {
+            s.selected
+                .set(if item >= 0 && item < PUM.with(|s| s.height.get()) {
+                    item
+                } else {
+                    -1
+                })
+        });
         return;
     }
 
-    if grid != pum().anchor_grid
-        || col < pum().left_col - pum().win_col_offset
-        || col >= pum().right_col - pum().win_col_offset
+    if grid != PUM.with(|s| s.anchor_grid.get())
+        || col < PUM.with(|s| s.left_col.get()) - PUM.with(|s| s.win_col_offset.get())
+        || col >= PUM.with(|s| s.right_col.get()) - PUM.with(|s| s.win_col_offset.get())
     {
-        pum().selected = -1;
+        PUM.with(|s| s.selected.set(-1));
         return;
     }
 
-    let idx = row - (pum().row - pum().win_row_offset);
+    let idx = row - (PUM.with(|s| s.row.get()) - PUM.with(|s| s.win_row_offset.get()));
 
-    if idx < 0 || idx >= pum().height {
-        pum().selected = -1;
+    if idx < 0 || idx >= PUM.with(|s| s.height.get()) {
+        PUM.with(|s| s.selected.set(-1));
     } else if pum_item(idx)
         .pum_text
         .as_ref()
         .is_some_and(|s| !s.to_bytes().is_empty())
     {
-        pum().selected = idx;
+        PUM.with(|s| s.selected.set(idx));
     }
 }
 
@@ -1772,7 +1855,7 @@ fn pum_execute_menu(menu: &mut Vimmenu, mode: i32) {
         if (mp.modes & mp.enabled & mode) != 0 {
             let cur_idx = idx;
             idx += 1;
-            if cur_idx == pum().selected {
+            if cur_idx == PUM.with(|s| s.selected.get()) {
                 let ea: Exarg = Exarg::new();
                 execute_menu(&ea, mp, -1);
                 break;
@@ -1784,22 +1867,22 @@ fn pum_execute_menu(menu: &mut Vimmenu, mode: i32) {
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
 pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     pum_undisplay(true);
-    pum().size = 0;
+    PUM.with(|s| s.size.set(0));
     let mode = get_menu_mode_flag();
 
     for mp in &menu.children {
         if menu_is_separator(mp.dname.as_bytes()) || (mp.modes & mp.enabled & mode) != 0 {
-            pum().size += 1;
+            PUM.with(|s| s.size.set(s.size.get() + (1)));
         }
     }
 
-    if pum().size <= 0 {
+    if PUM.with(|s| s.size.get()) <= 0 {
         emsg(gettext(E_MENU_ONLY_EXISTS_IN_ANOTHER_MODE));
         return;
     }
 
     let mut idx: usize = 0;
-    let mut array_vec: Vec<Pumitem> = vec![Pumitem::new(); pum().size as usize];
+    let mut array_vec: Vec<Pumitem> = vec![Pumitem::new(); PUM.with(|s| s.size.get()) as usize];
 
     for mp in &menu.children {
         let mut s: Option<&CStr> = None;
@@ -1817,20 +1900,20 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     let array_rc: std::rc::Rc<[Pumitem]> = array_vec.into();
     PUM_ITEMS.with(|c| *c.borrow_mut() = Some(array_rc.clone()));
     pum_compute_size();
-    pum().scrollbar = 0;
-    pum().height = pum().size;
-    pum().rl = curwin_mut().w_onebuf_opt.wo_rl;
+    PUM.with(|s| s.scrollbar.set(0));
+    PUM.with(|s| s.height.set(PUM.with(|s| s.size.get())));
+    PUM.with(|s| s.rl.set(curwin_mut().w_onebuf_opt.wo_rl));
     pum_position_at_mouse(20);
 
-    pum().selected = -1;
-    pum().first = 0;
+    PUM.with(|s| s.selected.set(-1));
+    PUM.with(|s| s.first.set(0));
     if !opt_vars().p_mousemev {
         ui_call_option_set(NvimString::from_cstr(c"mousemoveevent"), boolean_obj(true));
     }
 
     loop {
-        pum().is_visible = true;
-        pum().is_drawn = true;
+        PUM.with(|s| s.is_visible.set(true));
+        PUM.with(|s| s.is_drawn.set(true));
         g_st().pum_grid.zindex = K_ZINDEX_CMDLINE_POPUP_MENU;
         pum_redraw();
         setcursor_mayforce(curwin_mut(), true);
@@ -1843,9 +1926,9 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
             pum_execute_menu(menu, mode);
             break;
         } else if c == b'k' as i32 || c == K_UP || c == K_MOUSEUP {
-            while pum().selected > 0 {
-                pum().selected -= 1;
-                if array_rc[pum().selected as usize]
+            while PUM.with(|s| s.selected.get()) > 0 {
+                PUM.with(|s| s.selected.set(s.selected.get() - (1)));
+                if array_rc[PUM.with(|s| s.selected.get()) as usize]
                     .pum_text
                     .as_ref()
                     .is_some_and(|s| !s.to_bytes().is_empty())
@@ -1854,9 +1937,9 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
                 }
             }
         } else if c == b'j' as i32 || c == K_DOWN || c == K_MOUSEDOWN {
-            while pum().selected < pum().size - 1 {
-                pum().selected += 1;
-                if array_rc[pum().selected as usize]
+            while PUM.with(|s| s.selected.get()) < PUM.with(|s| s.size.get()) - 1 {
+                PUM.with(|s| s.selected.set(s.selected.get() + (1)));
+                if array_rc[PUM.with(|s| s.selected.get()) as usize]
                     .pum_text
                     .as_ref()
                     .is_some_and(|s| !s.to_bytes().is_empty())
@@ -1871,7 +1954,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
             pum_select_mouse_pos();
         } else if c == K_LEFTMOUSE || c == K_LEFTMOUSE_NM || c == K_RIGHTRELEASE {
             pum_select_mouse_pos();
-            if pum().selected >= 0 {
+            if PUM.with(|s| s.selected.get()) >= 0 {
                 pum_execute_menu(menu, mode);
                 break;
             }
@@ -1913,20 +1996,28 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: bool) {
 pub fn pum_pos_ui_flush(force: bool) {
     if force
         || (ui_has(K_UIMULTIGRID)
-            && pum().is_drawn
-            && !pum().external
+            && PUM.with(|s| s.is_drawn.get())
+            && !PUM.with(|s| s.external.get())
             && g_st().pum_grid.handle != 0
             && g_st().pum_grid.pending_comp_index_update)
     {
-        let anchor = if pum().above { c"SW" } else { c"NW" };
-        let row_off = if pum().above { -pum().height } else { 0 };
+        let anchor = if PUM.with(|s| s.above.get()) {
+            c"SW"
+        } else {
+            c"NW"
+        };
+        let row_off = if PUM.with(|s| s.above.get()) {
+            -PUM.with(|s| s.height.get())
+        } else {
+            0
+        };
         ui_call_win_float_pos(
             i64::from(g_st().pum_grid.handle),
             -1,
             cstr_as_string(Some(anchor)),
-            i64::from(pum().anchor_grid),
-            f64::from(pum().row - row_off - pum().win_row_offset),
-            f64::from(pum().left_col - pum().win_col_offset),
+            i64::from(PUM.with(|s| s.anchor_grid.get())),
+            f64::from(PUM.with(|s| s.row.get()) - row_off - PUM.with(|s| s.win_row_offset.get())),
+            f64::from(PUM.with(|s| s.left_col.get()) - PUM.with(|s| s.win_col_offset.get())),
             false,
             i64::from(g_st().pum_grid.zindex),
             g_st().pum_grid.comp_index as i64,

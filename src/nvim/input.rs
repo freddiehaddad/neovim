@@ -236,48 +236,47 @@ enum MapResult {
     MapResultNomatch = 3,
 }
 
-#[derive(Clone, Copy)]
 struct InputModuleState {
-    curscript: i32,
-    ungot: UngotKey,
-    on_key_ignore_len: usize,
-    on_key_blocked: i32,
-    typeahead_char: i32,
-    block_redo: bool,
-    key_noremap: i32,
-    last_recorded_len: usize,
-    no_reduce_keys: i32,
-    gotchars_state: GotcharsState,
-    updatescript_count: i32,
-    showcmd_state: GotcharsState,
-    last_vgetc_recorded_len: usize,
-    vgetorpeek_tc: i32,
+    curscript: std::cell::Cell<i32>,
+    ungot: std::cell::Cell<UngotKey>,
+    on_key_ignore_len: std::cell::Cell<usize>,
+    on_key_blocked: std::cell::Cell<i32>,
+    typeahead_char: std::cell::Cell<i32>,
+    block_redo: std::cell::Cell<bool>,
+    key_noremap: std::cell::Cell<i32>,
+    last_recorded_len: std::cell::Cell<usize>,
+    no_reduce_keys: std::cell::Cell<i32>,
+    gotchars_state: std::cell::Cell<GotcharsState>,
+    updatescript_count: std::cell::Cell<i32>,
+    showcmd_state: std::cell::Cell<GotcharsState>,
+    last_vgetc_recorded_len: std::cell::Cell<usize>,
+    vgetorpeek_tc: std::cell::Cell<i32>,
 }
 
 impl InputModuleState {
     const fn new() -> Self {
         Self {
-            curscript: -1,
-            ungot: UngotKey {
+            curscript: std::cell::Cell::new(-1),
+            ungot: std::cell::Cell::new(UngotKey {
                 c: -1,
                 mod_mask: 0,
                 mouse_grid: 0,
                 mouse_row: 0,
                 mouse_col: 0,
                 stuffed: false,
-            },
-            on_key_ignore_len: 0,
-            on_key_blocked: 0,
-            typeahead_char: 0,
-            block_redo: false,
-            key_noremap: 0,
-            last_recorded_len: 0,
-            no_reduce_keys: 0,
-            gotchars_state: GotcharsState::new(),
-            updatescript_count: 0,
-            showcmd_state: GotcharsState::new(),
-            last_vgetc_recorded_len: 0,
-            vgetorpeek_tc: 0,
+            }),
+            on_key_ignore_len: std::cell::Cell::new(0),
+            on_key_blocked: std::cell::Cell::new(0),
+            typeahead_char: std::cell::Cell::new(0),
+            block_redo: std::cell::Cell::new(false),
+            key_noremap: std::cell::Cell::new(0),
+            last_recorded_len: std::cell::Cell::new(0),
+            no_reduce_keys: std::cell::Cell::new(0),
+            gotchars_state: std::cell::Cell::new(GotcharsState::new()),
+            updatescript_count: std::cell::Cell::new(0),
+            showcmd_state: std::cell::Cell::new(GotcharsState::new()),
+            last_vgetc_recorded_len: std::cell::Cell::new(0),
+            vgetorpeek_tc: std::cell::Cell::new(0),
         }
     }
 }
@@ -307,48 +306,8 @@ impl InputExtState {
 }
 
 thread_local! {
-    static INP_STATE: std::cell::Cell<InputModuleState> =
-        const { std::cell::Cell::new(InputModuleState::new()) };
+    static INP_STATE: InputModuleState = const { InputModuleState::new() };
     static INP_EXT: InputExtState = const { InputExtState::new() };
-}
-
-struct InpGuard {
-    state: InputModuleState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for InpGuard {
-    type Target = InputModuleState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for InpGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for InpGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            INP_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn inp_st() -> InpGuard {
-    InpGuard {
-        state: INP_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 #[inline]
@@ -397,8 +356,8 @@ pub fn get_recorded() -> std::ffi::CString {
     let mut bytes: Vec<u8> = with_inp_ext(|ext| std::mem::take(&mut *ext.recordbuff.borrow_mut()));
     let mut len = bytes.len();
 
-    if len >= inp_st().last_recorded_len {
-        len -= inp_st().last_recorded_len;
+    if len >= INP_STATE.with(|s| s.last_recorded_len.get()) {
+        len -= INP_STATE.with(|s| s.last_recorded_len.get());
         bytes.truncate(len);
     }
 
@@ -589,14 +548,14 @@ pub fn stuff_empty() -> bool {
     })
 }
 
-/// Returns true if `inp_st().readbuf1` is empty.
+/// Returns true if `INP_STATE.with(|s| s.readbuf1.get())` is empty.
 pub fn readbuf1_empty() -> bool {
     with_inp_ext(|ext| ext.readbuf1.borrow().keys.is_empty())
 }
 
 /// Set a typeahead character that won't be flushed.
 pub fn typeahead_noflush(c: i32) {
-    inp_st().typeahead_char = c;
+    INP_STATE.with(|s| s.typeahead_char.set(c));
 }
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
@@ -647,11 +606,11 @@ pub fn flush_buffers(flush_typeahead: FlushBuffers) {
 
 /// Hides keys from `vim.on_key()` callbacks.
 pub fn block_on_key() {
-    inp_st().on_key_blocked += 1;
+    INP_STATE.with(|s| s.on_key_blocked.set(s.on_key_blocked.get() + (1)));
 }
 
 pub fn unblock_on_key() {
-    inp_st().on_key_blocked -= 1;
+    INP_STATE.with(|s| s.on_key_blocked.set(s.on_key_blocked.get() - (1)));
 }
 
 /// Flush map and typeahead buffers and give a warning for an error.
@@ -665,7 +624,7 @@ pub fn beep_flush() {
 /// Starts capturing a new change.
 pub fn redo_new(spec: CmdSpec) {
     assert!(spec.body.is_empty());
-    if inp_st().block_redo {
+    if INP_STATE.with(|s| s.block_redo.get()) {
         return;
     }
 
@@ -686,7 +645,7 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
         atom_redo_prepped();
     }
     redo_new(spec.without_body());
-    if inp_st().block_redo {
+    if INP_STATE.with(|s| s.block_redo.get()) {
         return;
     }
     with_inp_ext(|ext| redo_chars(&spec, &mut ext.redobuff.borrow_mut().cur.body, arg_meta));
@@ -699,7 +658,7 @@ pub fn prep_redo_visual(keys: &[u8], spec: CmdSpec) {
     stored.count = 0;
     atom_redo_prepped();
     redo_new(stored);
-    if inp_st().block_redo {
+    if INP_STATE.with(|s| s.block_redo.get()) {
         return;
     }
     with_inp_ext(|ext| {
@@ -714,7 +673,7 @@ pub fn prep_redo_visual(keys: &[u8], spec: CmdSpec) {
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
 pub fn redo_cancel() {
-    if inp_st().block_redo {
+    if INP_STATE.with(|s| s.block_redo.get()) {
         return;
     }
 
@@ -743,7 +702,7 @@ pub fn restore_redobuff(save_redo: &mut RedoState) {
 
 /// Append `s` to the redo buffer.
 pub fn redo_append_str(s: &[u8]) {
-    if !inp_st().block_redo && !s.is_empty() {
+    if !INP_STATE.with(|s| s.block_redo.get()) && !s.is_empty() {
         with_inp_ext(|ext| ext.redobuff.borrow_mut().cur.body.extend_from_slice(s));
     }
 }
@@ -785,9 +744,9 @@ pub fn sb_add_lit(buf: &mut Vec<u8>, str_bytes: &[u8]) {
     }
 }
 
-/// Append to redo literally; no-op if `inp_st().block_redo` is set.
+/// Append to redo literally; no-op if `INP_STATE.with(|s| s.block_redo.get())` is set.
 pub fn redo_append_lit(s: &[u8]) {
-    if inp_st().block_redo {
+    if INP_STATE.with(|s| s.block_redo.get()) {
         return;
     }
     with_inp_ext(|ext| sb_add_lit(&mut ext.redobuff.borrow_mut().cur.body, s));
@@ -809,7 +768,7 @@ pub fn sb_add_spec(buf: &mut Vec<u8>, rem: &[u8]) {
 
 /// Append `s` to the redo buffer.
 pub fn redo_append_spec(s: &[u8]) {
-    if inp_st().block_redo {
+    if INP_STATE.with(|s| s.block_redo.get()) {
         return;
     }
     with_inp_ext(|ext| sb_add_spec(&mut ext.redobuff.borrow_mut().cur.body, s));
@@ -817,7 +776,7 @@ pub fn redo_append_spec(s: &[u8]) {
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
 pub fn redo_append_char(c: i32) {
-    if !inp_st().block_redo {
+    if !INP_STATE.with(|s| s.block_redo.get()) {
         with_inp_ext(|ext| sb_add_char(&mut ext.redobuff.borrow_mut().cur.body, c));
     }
 }
@@ -956,12 +915,12 @@ pub fn start_redo_ins() -> bool {
     }
 
     with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), &rem));
-    inp_st().block_redo = true;
+    INP_STATE.with(|s| s.block_redo.set(true));
     true
 }
 
 pub fn stop_redo_ins() {
-    inp_st().block_redo = false;
+    INP_STATE.with(|s| s.block_redo.set(false));
 }
 
 fn init_typebuf() {
@@ -979,7 +938,7 @@ fn init_typebuf() {
 
 /// Returns true when keys cannot be remapped.
 pub fn noremap_keys() -> bool {
-    (inp_st().key_noremap & ((RM_NONE | RM_SCRIPT) as i32)) != 0
+    (INP_STATE.with(|s| s.key_noremap.get()) & ((RM_NONE | RM_SCRIPT) as i32)) != 0
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
@@ -1092,7 +1051,7 @@ pub fn requeue_key(c: i32, modifiers: i32, extra_consumed: i32, recorded: bool) 
     buf[len] = 0;
     ins_typebuf(
         CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-        inp_st().key_noremap,
+        INP_STATE.with(|s| s.key_noremap.get()),
         0,
         !g_st().key_typed,
         g_st().cmd_silent,
@@ -1233,37 +1192,51 @@ fn gotchars_add_byte(state: &mut GotcharsState, byte: u8) -> bool {
 
 fn gotchars(chars: &[u8]) {
     for &b in chars {
-        if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
+        if !INP_STATE.with(|s| {
+            let mut gs = s.gotchars_state.get();
+            let ok = gotchars_add_byte(&mut gs, b);
+            s.gotchars_state.set(gs);
+            ok
+        }) {
             continue;
         }
 
-        let buflen = inp_st().gotchars_state.buflen;
+        let buflen = INP_STATE.with(|s| s.gotchars_state.get()).buflen;
         for i in 0..buflen {
-            updatescript(inp_st().gotchars_state.buf[i] as i32);
+            updatescript(INP_STATE.with(|s| s.gotchars_state.get()).buf[i] as i32);
         }
 
-        if buflen > inp_st().on_key_ignore_len {
-            let ignore_len = inp_st().on_key_ignore_len;
-            let gotchars_buf = inp_st().gotchars_state.buf;
+        if buflen > INP_STATE.with(|s| s.on_key_ignore_len.get()) {
+            let ignore_len = INP_STATE.with(|s| s.on_key_ignore_len.get());
+            let gotchars_buf = INP_STATE.with(|s| s.gotchars_state.get()).buf;
             let chunk = &gotchars_buf[ignore_len..buflen];
             with_inp_ext(|ext| ext.on_key_buf.borrow_mut().extend_from_slice(chunk));
-            inp_st().on_key_ignore_len = 0;
+            INP_STATE.with(|s| s.on_key_ignore_len.set(0));
         } else {
-            inp_st().on_key_ignore_len -= buflen;
+            INP_STATE.with(|s| {
+                s.on_key_ignore_len
+                    .set(s.on_key_ignore_len.get() - (buflen))
+            });
         }
 
         if g_st().reg_recording != 0 {
-            let gotchars_buf = inp_st().gotchars_state.buf;
+            let gotchars_buf = INP_STATE.with(|s| s.gotchars_state.get()).buf;
             let chunk = &gotchars_buf[..buflen];
             with_inp_ext(|ext| ext.recordbuff.borrow_mut().extend_from_slice(chunk));
-            let rec_len = inp_st().last_recorded_len.wrapping_add(buflen);
-            inp_st().last_recorded_len = rec_len;
+            let rec_len = INP_STATE
+                .with(|s| s.last_recorded_len.get())
+                .wrapping_add(buflen);
+            INP_STATE.with(|s| s.last_recorded_len.set(rec_len));
         }
 
-        let gotchars_buf = inp_st().gotchars_state.buf;
+        let gotchars_buf = INP_STATE.with(|s| s.gotchars_state.get()).buf;
         atom_typed_add(&gotchars_buf[..buflen]);
 
-        inp_st().gotchars_state.buflen = 0;
+        INP_STATE.with(|s| {
+            let mut gs = s.gotchars_state.get();
+            gs.buflen = 0;
+            s.gotchars_state.set(gs);
+        });
     }
 
     may_sync_undo();
@@ -1274,7 +1247,7 @@ fn gotchars(chars: &[u8]) {
 /// Record an `<Ignore>` key.
 pub fn gotchars_ignore() {
     let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
-    inp_st().on_key_ignore_len += 3;
+    INP_STATE.with(|s| s.on_key_ignore_len.set(s.on_key_ignore_len.get() + (3)));
     gotchars(&nop_buf);
 }
 
@@ -1292,8 +1265,10 @@ fn ungetchars(len: i32, recorded: bool) {
             let new_len = rb.len() - len_u;
             rb.truncate(new_len);
         });
-        let rec_len = inp_st().last_recorded_len.wrapping_sub(len_u);
-        inp_st().last_recorded_len = rec_len;
+        let rec_len = INP_STATE
+            .with(|s| s.last_recorded_len.get())
+            .wrapping_sub(len_u);
+        INP_STATE.with(|s| s.last_recorded_len.set(rec_len));
     }
     atom_typed_del(len_u);
     let trim = with_inp_ext(|ext| {
@@ -1303,14 +1278,17 @@ fn ungetchars(len: i32, recorded: bool) {
         okb.truncate(new_len);
         trim
     });
-    inp_st().on_key_ignore_len += len_u - trim;
+    INP_STATE.with(|s| {
+        s.on_key_ignore_len
+            .set(s.on_key_ignore_len.get() + (len_u - trim))
+    });
 }
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
 pub fn may_sync_undo() {
     if ((g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) == 0
         || g_st().ins_global.moved != K_INS_NONE)
-        && inp_st().curscript < 0
+        && INP_STATE.with(|s| s.curscript.get()) < 0
     {
         u_sync(false);
     }
@@ -1338,7 +1316,7 @@ fn free_typebuf() {
 }
 
 fn save_typebuf() {
-    let cur_idx = inp_st().curscript;
+    let cur_idx = INP_STATE.with(|s| s.curscript.get());
     assert!(cur_idx >= 0);
     init_typebuf();
     let prev_cnt = g_st().typebuf.tb_change_cnt;
@@ -1351,7 +1329,7 @@ fn save_typebuf() {
 }
 
 fn can_get_ungot() -> bool {
-    let ungot = inp_st().ungot;
+    let ungot = INP_STATE.with(|s| s.ungot.get());
     ungot.c != -1 && (ungot.stuffed || stuff_empty())
 }
 
@@ -1361,8 +1339,12 @@ pub fn save_typeahead(tp: &mut Tasave) {
     tp.save_typebuf = std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
     g_st().typebuf.tb_change_cnt = prev_cnt;
     alloc_typebuf();
-    tp.ungot = inp_st().ungot;
-    inp_st().ungot.c = -1;
+    tp.ungot = INP_STATE.with(|s| s.ungot.get());
+    INP_STATE.with(|s| {
+        let mut u = s.ungot.get();
+        u.c = -1;
+        s.ungot.set(u);
+    });
 
     with_inp_ext(|ext| {
         tp.save_readbuf1 = std::mem::replace(&mut *ext.readbuf1.borrow_mut(), StuffBuf::new());
@@ -1374,7 +1356,7 @@ pub fn save_typeahead(tp: &mut Tasave) {
 pub fn restore_typeahead(tp: &mut Tasave) {
     free_typebuf();
     g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, Typebuf::ZERO);
-    inp_st().ungot = tp.ungot;
+    INP_STATE.with(|s| s.ungot.set(tp.ungot));
 
     with_inp_ext(|ext| {
         *ext.readbuf1.borrow_mut() = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
@@ -1385,7 +1367,7 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 /// Open a new script file for the `":source!"` command.
 pub fn openscript(name: &CStr, directly: bool) {
     {
-        if inp_st().curscript + 1 == NSCRIPT as i32 {
+        if INP_STATE.with(|s| s.curscript.get()) + 1 == NSCRIPT as i32 {
             emsg(gettext(E_NESTING));
             return;
         }
@@ -1398,9 +1380,9 @@ pub fn openscript(name: &CStr, directly: bool) {
             return;
         }
 
-        inp_st().curscript += 1;
+        INP_STATE.with(|s| s.curscript.set(s.curscript.get() + (1)));
         expand_env(name, g_st().name_buff_bytes_mut());
-        let cur_idx = inp_st().curscript as usize;
+        let cur_idx = INP_STATE.with(|s| s.curscript.get()) as usize;
         let error = with_inp_ext(|ext| {
             file_open(
                 &mut ext.scriptin.borrow_mut()[cur_idx],
@@ -1411,7 +1393,7 @@ pub fn openscript(name: &CStr, directly: bool) {
         });
         if error != 0 {
             semsg!(gettext(E_NOTOPEN_2), name, uv_strerror(error));
-            inp_st().curscript -= 1;
+            INP_STATE.with(|s| s.curscript.set(s.curscript.get() - (1)));
             return;
         }
         save_typebuf();
@@ -1428,12 +1410,12 @@ pub fn openscript(name: &CStr, directly: bool) {
             g_st().restart_edit = 0;
             g_st().finish_op = false;
 
-            let oldcurscript = inp_st().curscript;
+            let oldcurscript = INP_STATE.with(|s| s.curscript.get());
             loop {
                 update_topline_cursor();
                 normal_cmd(&mut oa, false);
                 vpeekc();
-                if inp_st().curscript < oldcurscript {
+                if INP_STATE.with(|s| s.curscript.get()) < oldcurscript {
                     break;
                 }
             }
@@ -1447,7 +1429,7 @@ pub fn openscript(name: &CStr, directly: bool) {
 }
 
 fn closescript() {
-    let cur_idx = inp_st().curscript;
+    let cur_idx = INP_STATE.with(|s| s.curscript.get());
     assert!(cur_idx >= 0);
     free_typebuf();
     with_inp_ext(|ext| {
@@ -1457,18 +1439,18 @@ fn closescript() {
         );
         file_close(&mut ext.scriptin.borrow_mut()[cur_idx as usize], false);
     });
-    inp_st().curscript -= 1;
+    INP_STATE.with(|s| s.curscript.set(s.curscript.get() - (1)));
 }
 
 pub fn close_all_scripts() {
-    while inp_st().curscript >= 0 {
+    while INP_STATE.with(|s| s.curscript.get()) >= 0 {
         closescript();
     }
 }
 
 pub fn open_scriptin(scriptin_name: &CStr) -> bool {
-    assert!(inp_st().curscript == -1);
-    inp_st().curscript += 1;
+    assert!(INP_STATE.with(|s| s.curscript.get()) == -1);
+    INP_STATE.with(|s| s.curscript.set(s.curscript.get() + (1)));
 
     let error = with_inp_ext(|ext| {
         let mut scriptin = ext.scriptin.borrow_mut();
@@ -1495,7 +1477,7 @@ pub fn open_scriptin(scriptin_name: &CStr) -> bool {
             let slice = &errbuf[..(n as usize).min(errbuf.len() - 1)];
             let _ = std::io::Write::write_all(&mut std::io::stderr(), slice);
         }
-        inp_st().curscript -= 1;
+        INP_STATE.with(|s| s.curscript.set(s.curscript.get() - (1)));
         return false;
     }
     save_typebuf();
@@ -1505,7 +1487,7 @@ pub fn open_scriptin(scriptin_name: &CStr) -> bool {
 
 /// Return true when reading keys from a script file.
 pub fn using_script() -> i32 {
-    i32::from(inp_st().curscript >= 0)
+    i32::from(INP_STATE.with(|s| s.curscript.get()) >= 0)
 }
 
 /// Called just before doing a blocking wait.
@@ -1525,12 +1507,12 @@ fn updatescript(c: i32) {
     let idle = c == 0;
     if idle
         || (opt_vars().p_uc > 0 && {
-            inp_st().updatescript_count += 1;
-            (inp_st().updatescript_count as OptInt) >= opt_vars().p_uc
+            INP_STATE.with(|s| s.updatescript_count.set(s.updatescript_count.get() + (1)));
+            (INP_STATE.with(|s| s.updatescript_count.get()) as OptInt) >= opt_vars().p_uc
         })
     {
         ml_sync_all(i32::from(idle), 1, opt_vars().p_fs || idle);
-        inp_st().updatescript_count = 0;
+        INP_STATE.with(|s| s.updatescript_count.set(0));
     }
 }
 
@@ -1559,18 +1541,27 @@ fn add_byte_to_showcmd(byte: u8) {
         return;
     }
 
-    if !gotchars_add_byte(&mut inp_st().showcmd_state, byte) {
+    if !INP_STATE.with(|s| {
+        let mut ss = s.showcmd_state.get();
+        let ok = gotchars_add_byte(&mut ss, byte);
+        s.showcmd_state.set(ss);
+        ok
+    }) {
         return;
     }
 
-    let buflen = inp_st().showcmd_state.buflen;
-    inp_st().showcmd_state.buf[buflen] = NUL as u8;
-    inp_st().showcmd_state.buflen = 0;
+    let buflen = INP_STATE.with(|s| s.showcmd_state.get()).buflen;
+    INP_STATE.with(|s| {
+        let mut ss = s.showcmd_state.get();
+        ss.buf[buflen] = NUL as u8;
+        ss.buflen = 0;
+        s.showcmd_state.set(ss);
+    });
 
     let mut modifiers: i32 = 0;
     let mut c: i32 = NUL;
 
-    let buf_copy = inp_st().showcmd_state.buf;
+    let buf_copy = INP_STATE.with(|s| s.showcmd_state.get()).buf;
     let mut rem = &buf_copy[..buflen];
     if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] == KS_MODIFIER && rem[2] != 0 {
         modifiers = i32::from(rem[2]);
@@ -1617,23 +1608,27 @@ pub fn vgetc() -> i32 {
     }
 
     if can_get_ungot() {
-        c = inp_st().ungot.c;
-        inp_st().ungot.c = -1;
-        g_st().mod_mask = inp_st().ungot.mod_mask;
-        g_st().mouse_grid = inp_st().ungot.mouse_grid;
-        g_st().mouse_row = inp_st().ungot.mouse_row;
-        g_st().mouse_col = inp_st().ungot.mouse_col;
+        c = INP_STATE.with(|s| s.ungot.get()).c;
+        INP_STATE.with(|s| {
+            let mut u = s.ungot.get();
+            u.c = -1;
+            s.ungot.set(u);
+        });
+        g_st().mod_mask = INP_STATE.with(|s| s.ungot.get()).mod_mask;
+        g_st().mouse_grid = INP_STATE.with(|s| s.ungot.get()).mouse_grid;
+        g_st().mouse_row = INP_STATE.with(|s| s.ungot.get()).mouse_row;
+        g_st().mouse_col = INP_STATE.with(|s| s.ungot.get()).mouse_col;
     } else {
         g_st().mod_mask = 0;
         g_st().vgetc_mod_mask = 0;
         g_st().vgetc_char = 0;
 
-        let rec_len = {
-            let st = inp_st();
+        let rec_len = INP_STATE.with(|st| {
             st.last_recorded_len
-                .wrapping_sub(st.last_vgetc_recorded_len)
-        };
-        inp_st().last_recorded_len = rec_len;
+                .get()
+                .wrapping_sub(st.last_vgetc_recorded_len.get())
+        });
+        INP_STATE.with(|s| s.last_recorded_len.set(rec_len));
 
         loop {
             let mut did_inc = false;
@@ -1688,7 +1683,7 @@ pub fn vgetc() -> i32 {
                 requeue_key(c, 0, 3, true);
                 ins_typebuf(
                     ESC_STR,
-                    inp_st().key_noremap,
+                    INP_STATE.with(|s| s.key_noremap.get()),
                     0,
                     !g_st().key_typed,
                     g_st().cmd_silent,
@@ -1752,8 +1747,8 @@ pub fn vgetc() -> i32 {
             break;
         }
 
-        let rec_len = inp_st().last_recorded_len;
-        inp_st().last_vgetc_recorded_len = rec_len;
+        let rec_len = INP_STATE.with(|s| s.last_recorded_len.get());
+        INP_STATE.with(|s| s.last_vgetc_recorded_len.set(rec_len));
     }
 
     g_st().may_garbage_collect = false;
@@ -1763,7 +1758,7 @@ pub fn vgetc() -> i32 {
         b.push(0);
         b
     });
-    if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, &mut on_key_buf) {
+    if INP_STATE.with(|s| s.on_key_blocked.get()) == 0 && nlua_exec_on_key(c, &mut on_key_buf) {
         if c == K_COMMAND {
             let _ = getcmdkeycmd(NUL, 0, false);
         } else if c == K_LUA {
@@ -1803,7 +1798,7 @@ pub fn plain_vgetc() -> i32 {
 /// Check if a character is available, such that `vgetc()` will not block.
 pub fn vpeekc() -> i32 {
     if can_get_ungot() {
-        return inp_st().ungot.c;
+        return INP_STATE.with(|s| s.ungot.get()).c;
     }
     vgetorpeek(false)
 }
@@ -1871,7 +1866,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
     g_st().allow_keys += 1;
     block_on_key();
     if !simplify {
-        inp_st().no_reduce_keys += 1;
+        INP_STATE.with(|s| s.no_reduce_keys.set(s.no_reduce_keys.get() + (1)));
     }
     atom_payload_start();
     loop {
@@ -1911,7 +1906,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
     g_st().allow_keys -= 1;
     unblock_on_key();
     if !simplify {
-        inp_st().no_reduce_keys -= 1;
+        INP_STATE.with(|s| s.no_reduce_keys.set(s.no_reduce_keys.get() - (1)));
     }
 
     if cursor_flag == b'h' {
@@ -2036,7 +2031,8 @@ fn at_ins_compl_key() -> bool {
 }
 
 fn check_simplify_modifier(max_offset: i32) -> i32 {
-    if (g_st().state_global & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
+    if (g_st().state_global & MODE_TERMINAL) != 0 || INP_STATE.with(|s| s.no_reduce_keys.get()) > 0
+    {
         return 0;
     }
 
@@ -2461,14 +2457,16 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
 
 /// Unget one character (can only be done once!).
 pub fn vungetc(c: i32) {
-    inp_st().ungot = UngotKey {
-        c,
-        mod_mask: g_st().mod_mask,
-        mouse_grid: g_st().mouse_grid,
-        mouse_row: g_st().mouse_row,
-        mouse_col: g_st().mouse_col,
-        stuffed: g_st().key_stuffed != 0,
-    };
+    INP_STATE.with(|s| {
+        s.ungot.set(UngotKey {
+            c,
+            mod_mask: g_st().mod_mask,
+            mouse_grid: g_st().mouse_grid,
+            mouse_row: g_st().mouse_row,
+            mouse_col: g_st().mouse_col,
+            stuffed: g_st().key_stuffed != 0,
+        })
+    });
 }
 
 /// When peeking and not getting a character, `reg_executing` cannot be cleared yet.
@@ -2506,10 +2504,10 @@ fn vgetorpeek(advance: bool) -> i32 {
     start_stuff();
     check_end_reg_executing(advance);
     loop {
-        if inp_st().typeahead_char != 0 {
-            c = inp_st().typeahead_char;
+        if INP_STATE.with(|s| s.typeahead_char.get()) != 0 {
+            c = INP_STATE.with(|s| s.typeahead_char.get());
             if advance {
-                inp_st().typeahead_char = 0;
+                INP_STATE.with(|s| s.typeahead_char.set(0));
             }
         } else {
             c = read_readbuffers(advance);
@@ -2578,7 +2576,10 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 g_st().key_typed = true;
                                 gotchars(&[c as u8]);
                             }
-                            inp_st().key_noremap = i32::from(g_st().typebuf.tb_noremap[tb_off]);
+                            INP_STATE.with(|s| {
+                                s.key_noremap
+                                    .set(i32::from(g_st().typebuf.tb_noremap[tb_off]))
+                            });
                             del_typebuf(1, 0);
                         }
                         break;
@@ -2705,13 +2706,14 @@ fn vgetorpeek(advance: bool) -> i32 {
                     }
 
                     c = if (g_st().state_global & MODE_CMDLINE) != 0
-                        || (g_st().cmdwin_type > 0 && inp_st().vgetorpeek_tc == ESC)
+                        || (g_st().cmdwin_type > 0
+                            && INP_STATE.with(|s| s.vgetorpeek_tc.get()) == ESC)
                     {
                         CTRL_C_CONST
                     } else {
                         ESC
                     };
-                    inp_st().vgetorpeek_tc = c;
+                    INP_STATE.with(|s| s.vgetorpeek_tc.set(c));
 
                     if advance {
                         g_st().typebuf_was_empty = true;
@@ -2892,9 +2894,9 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
     }
 
     let mut read_size: isize = -1;
-    while inp_st().curscript >= 0 && read_size <= 0 && !g_st().ignore_script {
+    while INP_STATE.with(|s| s.curscript.get()) >= 0 && read_size <= 0 && !g_st().ignore_script {
         let mut script_char = [0u8; 1];
-        let cur_idx = inp_st().curscript as usize;
+        let cur_idx = INP_STATE.with(|s| s.curscript.get()) as usize;
         if g_st().got_int || {
             read_size = with_inp_ext(|ext| {
                 file_read(&mut ext.scriptin.borrow_mut()[cur_idx], &mut script_char)
@@ -3176,7 +3178,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
         return;
     }
 
-    let need_redo = !inp_st().block_redo;
+    let need_redo = !INP_STATE.with(|s| s.block_redo.get());
     let need_record = g_st().reg_recording != 0 && !is_internal_call(channel_id);
 
     if !need_redo && !need_record {

@@ -194,26 +194,25 @@ impl std::ops::DerefMut for OwnedSlang {
 
 pub const E_FORMAT: &std::ffi::CStr = c"E759: Format error in spell file";
 
-#[derive(Clone, Copy)]
 pub(crate) struct SpellPrivateState {
-    pub(crate) spelltab: Spelltab,
-    pub(crate) did_set_spelltab: bool,
-    parse_spelllang_recursive: bool,
-    spell_expand_need_cap: bool,
+    pub(crate) spelltab: std::cell::Cell<Spelltab>,
+    pub(crate) did_set_spelltab: std::cell::Cell<bool>,
+    parse_spelllang_recursive: std::cell::Cell<bool>,
+    spell_expand_need_cap: std::cell::Cell<bool>,
 }
 
 impl SpellPrivateState {
     const fn new() -> Self {
         Self {
-            spelltab: Spelltab {
+            spelltab: std::cell::Cell::new(Spelltab {
                 st_isw: [false; 256],
                 st_isu: [false; 256],
                 st_fold: [0; 256],
                 st_upper: [0; 256],
-            },
-            did_set_spelltab: false,
-            parse_spelllang_recursive: false,
-            spell_expand_need_cap: false,
+            }),
+            did_set_spelltab: std::cell::Cell::new(false),
+            parse_spelllang_recursive: std::cell::Cell::new(false),
+            spell_expand_need_cap: std::cell::Cell::new(false),
         }
     }
 }
@@ -237,48 +236,13 @@ impl SpellExtState {
 }
 
 thread_local! {
-    static SPELL_PRIV_STATE: std::cell::Cell<SpellPrivateState> =
-        const { std::cell::Cell::new(SpellPrivateState::new()) };
+    static SPELL_PRIV_STATE: SpellPrivateState = const { SpellPrivateState::new() };
     static SPELL_EXT_STATE: SpellExtState = const { SpellExtState::new() };
 }
 
-pub(crate) struct SpellPrivGuard {
-    state: SpellPrivateState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for SpellPrivGuard {
-    type Target = SpellPrivateState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for SpellPrivGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for SpellPrivGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            SPELL_PRIV_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
 #[inline]
-pub(crate) fn spell_priv_st() -> SpellPrivGuard {
-    SpellPrivGuard {
-        state: SPELL_PRIV_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
+pub(crate) fn with_spell_priv<R>(f: impl FnOnce(&SpellPrivateState) -> R) -> R {
+    SPELL_PRIV_STATE.with(f)
 }
 
 #[inline]
@@ -290,7 +254,7 @@ pub fn spell_isupper(c: i32) -> bool {
     if c >= 128 {
         mb_isupper(c)
     } else if c >= 0 {
-        spell_priv_st().spelltab.st_isu[c as usize]
+        SPELL_PRIV_STATE.with(|s| s.spelltab.get()).st_isu[c as usize]
     } else {
         false
     }
@@ -300,7 +264,7 @@ pub fn spell_tofold(c: i32) -> i32 {
     if c >= 128 {
         utf_fold(c)
     } else if c >= 0 {
-        spell_priv_st().spelltab.st_fold[c as usize] as i32
+        SPELL_PRIV_STATE.with(|s| s.spelltab.get()).st_fold[c as usize] as i32
     } else {
         c
     }
@@ -310,7 +274,7 @@ pub fn spell_toupper(c: i32) -> i32 {
     if c >= 128 {
         mb_toupper(c)
     } else if c >= 0 {
-        spell_priv_st().spelltab.st_upper[c as usize] as i32
+        SPELL_PRIV_STATE.with(|s| s.spelltab.get()).st_upper[c as usize] as i32
     } else {
         c
     }
@@ -1638,10 +1602,10 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
         br_buf_free_count: 0,
     };
     set_bufref(&mut bufref, wp.w_buffer.opt_mut());
-    if spell_priv_st().parse_spelllang_recursive {
+    if SPELL_PRIV_STATE.with(|s| s.parse_spelllang_recursive.get()) {
         return None;
     }
-    spell_priv_st().parse_spelllang_recursive = true;
+    SPELL_PRIV_STATE.with(|s| s.parse_spelllang_recursive.set(true));
     let mut ga: Vec<Langp> = Vec::with_capacity(2);
     clear_midword(wp);
     let w_s = wp.w_s_ptr();
@@ -1931,7 +1895,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
         w_s.b_langp = ga;
         redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     }
-    spell_priv_st().parse_spelllang_recursive = false;
+    SPELL_PRIV_STATE.with(|s| s.parse_spelllang_recursive.set(false));
     ret_msg
 }
 fn clear_midword(wp: &mut WinInfoInfo) {
@@ -2088,18 +2052,21 @@ pub fn clear_spell_chartab(sp: &mut Spelltab) {
     }
 }
 pub fn init_spell_chartab() {
-    let mut st = spell_priv_st();
-    st.did_set_spelltab = false;
-    clear_spell_chartab(&mut st.spelltab);
-    for i in 128..256 {
-        let f = utf_fold(i as i32);
-        let u = mb_toupper(i as i32);
-        let isu = mb_isupper(i as i32);
-        st.spelltab.st_isu[i] = isu;
-        st.spelltab.st_isw[i] = isu || mb_islower(i as i32);
-        st.spelltab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
-        st.spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
-    }
+    SPELL_PRIV_STATE.with(|st| {
+        st.did_set_spelltab.set(false);
+        let mut tab = st.spelltab.get();
+        clear_spell_chartab(&mut tab);
+        for i in 128..256 {
+            let f = utf_fold(i as i32);
+            let u = mb_toupper(i as i32);
+            let isu = mb_isupper(i as i32);
+            tab.st_isu[i] = isu;
+            tab.st_isw[i] = isu || mb_islower(i as i32);
+            tab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
+            tab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
+        }
+        st.spelltab.set(tab);
+    });
 }
 pub fn spell_iswordp(bytes: &[u8], wp: &WinInfoInfo) -> bool {
     spell_iswordp_slice(bytes, wp)
@@ -2135,7 +2102,7 @@ pub fn spell_iswordp_slice(bytes: &[u8], wp: &WinInfoInfo) -> bool {
     if c > 255 {
         return spell_mb_isword_class(mb_get_class(s_bytes), wp);
     }
-    c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
+    c >= 0 && SPELL_PRIV_STATE.with(|s| s.spelltab.get()).st_isw[c as usize]
 }
 pub fn spell_iswordp_nmw(bytes: &[u8], wp: &WinInfoInfo) -> bool {
     spell_iswordp_nmw_slice(bytes, wp)
@@ -2149,7 +2116,7 @@ pub fn spell_iswordp_nmw_slice(bytes: &[u8], wp: &WinInfoInfo) -> bool {
     if c > 255 {
         return spell_mb_isword_class(mb_get_class(p_bytes), wp);
     }
-    c >= 0 && spell_priv_st().spelltab.st_isw[c as usize]
+    c >= 0 && SPELL_PRIV_STATE.with(|s| s.spelltab.get()).st_isw[c as usize]
 }
 fn spell_mb_isword_class(cl: i32, wp: &WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
@@ -2172,7 +2139,7 @@ fn spell_iswordp_w(p: &[i32], wp: &WinInfoInfo) -> bool {
     if cs > 255 {
         return spell_mb_isword_class(utf_class(cs), wp);
     }
-    cs >= 0 && spell_priv_st().spelltab.st_isw[cs as usize]
+    cs >= 0 && SPELL_PRIV_STATE.with(|s| s.spelltab.get()).st_isw[cs as usize]
 }
 pub fn spell_casefold(wp: &WinInfoInfo, str_: &[u8], out: &mut [u8]) -> bool {
     let slice = crate::memory::bytes_until_nul(str_);
@@ -3136,11 +3103,21 @@ pub fn spell_word_start(startcol: i32) -> i32 {
     col
 }
 pub fn spell_expand_check_cap(col: Colnr) {
-    spell_priv_st().spell_expand_need_cap =
-        check_need_cap(curwin_mut(), curwin_mut().w_cursor.lnum, col);
+    SPELL_PRIV_STATE.with(|s| {
+        s.spell_expand_need_cap.set(check_need_cap(
+            curwin_mut(),
+            curwin_mut().w_cursor.lnum,
+            col,
+        ))
+    });
 }
 pub fn expand_spelling(_lnum: Linenr, pat: &std::ffi::CStr, matches: &mut Vec<std::ffi::CString>) {
-    *matches = spell_suggest_list(pat, 100, spell_priv_st().spell_expand_need_cap, true);
+    *matches = spell_suggest_list(
+        pat,
+        100,
+        SPELL_PRIV_STATE.with(|s| s.spell_expand_need_cap.get()),
+        true,
+    );
 }
 pub fn valid_spelllang(val: &std::ffi::CStr) -> bool {
     valid_name(val.to_bytes(), b".-_,@")
