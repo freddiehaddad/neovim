@@ -488,9 +488,8 @@ const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: &CStr =
     c"E1543: Cannot have more than a hundred quickfix/location lists";
 const W_ARABIC: &CStr = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'";
 
+#[derive(Clone, Copy)]
 struct OptionModuleState {
-    p_term: Option<std::ffi::CString>,
-    p_ttytype: Option<std::ffi::CString>,
     p_et_nobin: bool,
     p_ml_nobin: bool,
     p_tw_nobin: OptInt,
@@ -500,7 +499,6 @@ struct OptionModuleState {
     p_sts_nopaste: OptInt,
     p_tw_nopaste: OptInt,
     p_wm_nopaste: OptInt,
-    p_vsts_nopaste: Option<std::ffi::CString>,
     old_p_paste: bool,
     save_sm: bool,
     save_sta: bool,
@@ -517,8 +515,6 @@ struct OptionModuleState {
 impl OptionModuleState {
     const fn new() -> Self {
         Self {
-            p_term: None,
-            p_ttytype: None,
             p_et_nobin: false,
             p_ml_nobin: false,
             p_tw_nobin: 0,
@@ -528,7 +524,6 @@ impl OptionModuleState {
             p_sts_nopaste: 0,
             p_tw_nopaste: 0,
             p_wm_nopaste: 0,
-            p_vsts_nopaste: None,
             old_p_paste: false,
             save_sm: false,
             save_sta: false,
@@ -544,11 +539,57 @@ impl OptionModuleState {
     }
 }
 
-static OPT_STATE: GlobalState<OptionModuleState> = GlobalState::new(OptionModuleState::new());
+thread_local! {
+    static OPT_STATE: std::cell::Cell<OptionModuleState> = const {
+        std::cell::Cell::new(OptionModuleState::new())
+    };
+    static P_TERM: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static P_TTYTYPE: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static P_VSTS_NOPASTE: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+struct OptGuard {
+    state: OptionModuleState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for OptGuard {
+    type Target = OptionModuleState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for OptGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for OptGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            OPT_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn opt_st() -> crate::globals::GraphPtr<OptionModuleState> {
-    OPT_STATE.handle()
+fn opt_st() -> OptGuard {
+    OptGuard {
+        state: OPT_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 const P_BIN_DEP_OPTS: &[i32] = &[
@@ -1065,8 +1106,8 @@ pub fn free_all_options() {
     free_tagfunc_option();
     free_findfunc_option();
     g_st().fenc_default = None;
-    opt_st().p_term = None;
-    opt_st().p_ttytype = None;
+    P_TERM.with(|cell| *cell.borrow_mut() = None);
+    P_TTYTYPE.with(|cell| *cell.borrow_mut() = None);
 }
 
 /// Initialize the options, part two: After getting Rows and Columns.
@@ -2856,8 +2897,10 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
             opt_st().p_sts_nopaste = opt_vars().p_sts;
             opt_st().p_tw_nopaste = opt_vars().p_tw;
             opt_st().p_wm_nopaste = opt_vars().p_wm;
-            opt_st().p_vsts_nopaste =
-                (!opt_vars().p_vsts.is_empty()).then(|| opt_vars().p_vsts.to_owned());
+            P_VSTS_NOPASTE.with(|cell| {
+                *cell.borrow_mut() =
+                    (!opt_vars().p_vsts.is_empty()).then(|| opt_vars().p_vsts.to_owned());
+            });
         }
 
         for buf in for_all_buffers_mut() {
@@ -2913,10 +2956,11 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
         opt_vars().p_sts = opt_st().p_sts_nopaste;
         opt_vars().p_tw = opt_st().p_tw_nopaste;
         opt_vars().p_wm = opt_st().p_wm_nopaste;
-        opt_vars().p_vsts = opt_st()
-            .p_vsts_nopaste
-            .as_deref()
-            .map_or_else(OptString::new, OptString::from_cstr);
+        opt_vars().p_vsts = P_VSTS_NOPASTE.with(|cell| {
+            cell.borrow()
+                .as_deref()
+                .map_or_else(OptString::new, OptString::from_cstr)
+        });
     }
 
     opt_st().old_p_paste = opt_vars().p_paste;
@@ -3506,9 +3550,9 @@ pub fn get_tty_option(name: &[u8]) -> Object {
             cstr_to_obj(Some(crate::memory::bytes_as_cstr(&value)))
         }
     } else if name == b"term" {
-        cstr_to_obj(Some(opt_st().p_term.as_deref().unwrap_or(c"nvim")))
+        P_TERM.with(|cell| cstr_to_obj(Some(cell.borrow().as_deref().unwrap_or(c"nvim"))))
     } else if name == b"ttytype" {
-        cstr_to_obj(Some(opt_st().p_ttytype.as_deref().unwrap_or(c"nvim")))
+        P_TTYTYPE.with(|cell| cstr_to_obj(Some(cell.borrow().as_deref().unwrap_or(c"nvim"))))
     } else if is_tty_option(name) {
         cstr_to_obj(Some(c""))
     } else {
@@ -3518,12 +3562,12 @@ pub fn get_tty_option(name: &[u8]) -> Object {
 
 pub fn set_tty_option(name: &std::ffi::CStr, value: Option<std::ffi::CString>) -> bool {
     if Some(name.to_bytes()) == Some(b"term") {
-        opt_st().p_term = value;
+        P_TERM.with(|cell| *cell.borrow_mut() = value);
         return true;
     }
 
     if Some(name.to_bytes()) == Some(b"ttytype") {
-        opt_st().p_ttytype = value;
+        P_TTYTYPE.with(|cell| *cell.borrow_mut() = value);
         return true;
     }
 
@@ -7054,7 +7098,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             } else {
                 buf.b_p_vsts_array.clear();
             }
-            buf.b_p_vsts_nopaste = opt_st().p_vsts_nopaste.clone();
+            buf.b_p_vsts_nopaste = P_VSTS_NOPASTE.with(|cell| cell.borrow().clone());
             buf.b_p_com = CStrOptionSlot::from_option_cstr(opt_vars().p_com.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
             buf.b_p_cms = CStrOptionSlot::from_option_cstr(opt_vars().p_cms.as_cstr());

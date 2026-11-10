@@ -197,27 +197,22 @@ pub const EMPTY_YANKREG: Yankreg = Yankreg {
     additional_data: None,
 };
 
-struct RegisterModuleState {
-    expr_line: Option<std::ffi::CString>,
+#[derive(Clone, Copy)]
+struct RegisterCopyState {
     get_expr_line_nested: i32,
     execreg_lastc: i32,
-    y_regs: [Yankreg; NUM_REGISTERS],
-    y_previous: crate::globals::GraphPtr<Yankreg>,
-    empty_reg: Yankreg,
+    y_previous: Option<usize>,
     do_record_regname: i32,
     textyankpost_recursive: bool,
     put_autocmd_recursive: bool,
 }
 
-impl RegisterModuleState {
+impl RegisterCopyState {
     const fn new() -> Self {
         Self {
-            expr_line: None,
             get_expr_line_nested: 0,
             execreg_lastc: 0,
-            y_regs: [const { EMPTY_YANKREG }; NUM_REGISTERS],
-            y_previous: crate::globals::GraphPtr::NULL,
-            empty_reg: EMPTY_YANKREG,
+            y_previous: None,
             do_record_regname: 0,
             textyankpost_recursive: false,
             put_autocmd_recursive: false,
@@ -225,11 +220,51 @@ impl RegisterModuleState {
     }
 }
 
-static REG_STATE: GlobalState<RegisterModuleState> = GlobalState::new(RegisterModuleState::new());
+thread_local! {
+    static REG_STATE: std::cell::Cell<RegisterCopyState> = const {
+        std::cell::Cell::new(RegisterCopyState::new())
+    };
+    static EXPR_LINE: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+struct RegGuard {
+    state: RegisterCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for RegGuard {
+    type Target = RegisterCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for RegGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for RegGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            REG_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn reg_st() -> crate::globals::GraphPtr<RegisterModuleState> {
-    REG_STATE.handle()
+fn reg_st() -> RegGuard {
+    RegGuard {
+        state: REG_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 #[inline]
@@ -301,20 +336,16 @@ fn copy_string_global(s: NvimString) -> NvimString {
 }
 
 pub fn get_unname_register() -> i32 {
-    if reg_st().y_previous.is_null() {
-        -1
-    } else {
-        ((reg_st().y_previous.as_ptr() as usize - reg_st().y_regs.as_ptr() as usize)
-            / std::mem::size_of::<Yankreg>()) as i32
-    }
+    reg_st().y_previous.map_or(-1, |idx| idx as i32)
 }
 
 pub fn get_y_register(reg: i32) -> &'static mut Yankreg {
-    &mut reg_st().borrow_mut().y_regs[reg as usize]
+    &mut g_st().borrow_mut().y_regs[reg as usize]
 }
 
 pub fn get_y_previous() -> &'static mut Yankreg {
-    reg_st().y_previous.borrow_mut()
+    let idx = reg_st().y_previous.unwrap_or(0);
+    &mut g_st().borrow_mut().y_regs[idx]
 }
 
 pub fn get_expr_register() -> i32 {
@@ -328,11 +359,11 @@ pub fn get_expr_register() -> i32 {
 }
 
 pub fn set_expr_line(new_line: Option<std::ffi::CString>) {
-    reg_st().expr_line = new_line;
+    EXPR_LINE.with(|cell| *cell.borrow_mut() = new_line);
 }
 
 pub fn get_expr_line() -> Option<std::ffi::CString> {
-    let expr_copy = reg_st().expr_line.clone()?;
+    let expr_copy = EXPR_LINE.with(|cell| cell.borrow().clone())?;
     if reg_st().get_expr_line_nested >= 10 {
         return Some(expr_copy);
     }
@@ -344,7 +375,7 @@ pub fn get_expr_line() -> Option<std::ffi::CString> {
 }
 
 pub fn get_expr_line_src() -> Option<std::ffi::CString> {
-    reg_st().expr_line.clone()
+    EXPR_LINE.with(|cell| cell.borrow().clone())
 }
 
 pub fn valid_yank_reg(regname: i32, writing: bool) -> bool {
@@ -381,7 +412,9 @@ pub fn op_reg_iter<'a>(
     *name = get_register_name(idx as i32) as u8;
     let iter_reg = &regs[idx];
     *reg = Some(iter_reg);
-    *is_unnamed = reg_st().y_previous == iter_reg;
+    *is_unnamed = reg_st()
+        .y_previous
+        .is_some_and(|prev_idx| ptr::eq(iter_reg, &g_st().y_regs[prev_idx]));
     idx += 1;
     while idx < NUM_SAVED_REGISTERS {
         if !reg_empty(&regs[idx]) {
@@ -398,7 +431,7 @@ pub fn op_global_reg_iter(
     reg: &mut Option<&'static Yankreg>,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
-    op_reg_iter(iter, &reg_st().borrow_mut().y_regs, name, reg, is_unnamed)
+    op_reg_iter(iter, &g_st().borrow_mut().y_regs, name, reg, is_unnamed)
 }
 
 pub fn reg_max_ts(clipboard: bool) -> Timestamp {
@@ -432,10 +465,10 @@ pub fn op_reg_set(name: u8, reg: Yankreg, is_unnamed: bool) -> bool {
         return false;
     }
     let idx = i as usize;
-    reg_st().y_regs[idx] = reg;
+    g_st().y_regs[idx] = reg;
 
     if is_unnamed {
-        reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[idx]);
+        reg_st().y_previous = Some(idx);
     }
     true
 }
@@ -445,7 +478,7 @@ pub fn op_reg_get(name: u8) -> Option<&'static Yankreg> {
     if i == -1 {
         return None;
     }
-    Some(&reg_st().borrow_mut().y_regs[i as usize])
+    Some(&g_st().borrow_mut().y_regs[i as usize])
 }
 
 pub fn op_reg_set_previous(name: u8) -> bool {
@@ -453,7 +486,7 @@ pub fn op_reg_set_previous(name: u8) -> bool {
     if i == -1 {
         return false;
     }
-    reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[i as usize]);
+    reg_st().y_previous = Some(i as usize);
     true
 }
 
@@ -478,15 +511,15 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
         return reg.unwrap();
     } else if mode == YankRegMode::Put && (regname == i32::from(b'*') || regname == i32::from(b'+'))
     {
-        return &mut reg_st().borrow_mut().empty_reg;
+        return &mut g_st().borrow_mut().empty_reg;
     } else if mode != YankRegMode::Yank
         && (regname == 0
             || regname == i32::from(b'"')
             || regname == i32::from(b'*')
             || regname == i32::from(b'+'))
-        && !reg_st().y_previous.is_null()
+        && let Some(prev_idx) = reg_st().y_previous
     {
-        return reg_st().y_previous.borrow_mut();
+        return &mut g_st().borrow_mut().y_regs[prev_idx];
     }
 
     let mut i = op_reg_index(regname);
@@ -495,9 +528,9 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
     }
     let idx = i as usize;
     if mode == YankRegMode::Yank {
-        reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[idx]);
+        reg_st().y_previous = Some(idx);
     }
-    &mut reg_st().borrow_mut().y_regs[idx]
+    &mut g_st().borrow_mut().y_regs[idx]
 }
 
 pub fn yank_register_mline(regname: i32, reg: &mut Option<&'static mut Yankreg>) -> bool {
@@ -970,7 +1003,7 @@ pub fn cmdline_paste_reg(regname: i32, literally_arg: bool, remcr: bool) -> bool
 }
 
 pub fn shift_delete_registers(y_append: bool) {
-    let regs = &mut reg_st().y_regs;
+    let regs = &mut g_st().y_regs;
     regs[9] = EMPTY_YANKREG;
     let mut n = 9;
     while n > 1 {
@@ -978,12 +1011,12 @@ pub fn shift_delete_registers(y_append: bool) {
         n -= 1;
     }
     if !y_append {
-        reg_st().y_previous = crate::globals::GraphPtr::from(&mut regs[1]);
+        reg_st().y_previous = Some(1);
     }
 }
 
 pub fn clear_registers() {
-    reg_st().y_regs.fill_with(|| EMPTY_YANKREG);
+    g_st().y_regs.fill_with(|| EMPTY_YANKREG);
 }
 
 fn yank_copy_line(
@@ -2346,7 +2379,6 @@ pub fn ex_display(eap: &mut Exarg) {
     g_st().msg_ext_skip_flush = true;
     msg_puts_title(gettext(c"\nType Name Content"));
 
-    let regs = (&raw mut reg_st().y_regs).cast::<Yankreg>();
     let mut i: i32 = -1;
     while i < (NUM_REGISTERS as i32) && !g_st().got_int {
         let name = get_register_name(i);
@@ -2361,30 +2393,30 @@ pub fn ex_display(eap: &mut Exarg) {
             _ => i32::from(b'b'),
         };
 
-        let mut yb = if i == -1 {
-            if !reg_st().y_previous.is_null() {
-                reg_st().y_previous.as_ptr()
-            } else {
-                regs
-            }
+        let yb_idx = if i == -1 {
+            reg_st().y_previous.unwrap_or(0)
         } else {
-            regs.wrapping_add(i as usize)
+            i as usize
         };
 
         let mut cb_target: Option<&'static mut Yankreg> = None;
         get_clipboard(name, &mut cb_target, true);
-        if let Some(cb_reg) = cb_target {
-            yb = cb_reg;
-        }
+        let yb_ref: &Yankreg = if let Some(cb_reg) = cb_target {
+            cb_reg
+        } else {
+            &g_st().borrow_mut().y_regs[yb_idx]
+        };
 
         if name == mb_tolower(g_st().redir_reg)
-            || (g_st().redir_reg == i32::from(b'"') && reg_st().y_previous == yb)
+            || (g_st().redir_reg == i32::from(b'"')
+                && reg_st()
+                    .y_previous
+                    .is_some_and(|prev_idx| ptr::eq(yb_ref, &g_st().y_regs[prev_idx])))
         {
             i += 1;
             continue;
         }
 
-        let yb_ref = crate::globals::GraphPtr::of(yb).borrow();
         if yb_ref.y_allocated {
             let mut do_show = false;
             for item in &yb_ref.y_array {
@@ -2482,13 +2514,13 @@ pub fn ex_display(eap: &mut Exarg) {
         dis_msg(Some(&last_pat), false);
     }
 
-    if let Some(el) = &reg_st().expr_line
+    if let Some(el) = EXPR_LINE.with(|cell| cell.borrow().clone())
         && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'=')))
         && !g_st().got_int
-        && !message_filtered(el)
+        && !message_filtered(&el)
     {
         msg_puts(c"\n  c  \"=   ");
-        dis_msg(Some(el), false);
+        dis_msg(Some(&el), false);
     }
     g_st().msg_ext_skip_flush = false;
 }
@@ -2834,15 +2866,21 @@ pub fn write_reg_contents_ex(
 
     if name == i32::from(b'=') {
         let mut out: Vec<u8> = Vec::new();
-        if must_append && let Some(el) = &reg_st().expr_line {
-            out.extend_from_slice(el.as_bytes());
+        if must_append {
+            EXPR_LINE.with(|cell| {
+                if let Some(el) = cell.borrow().as_ref() {
+                    out.extend_from_slice(el.as_bytes());
+                }
+            });
         }
         let end = str_slice
             .iter()
             .position(|&b| b == 0)
             .unwrap_or(str_slice.len());
         out.extend_from_slice(&str_slice[..end]);
-        reg_st().expr_line = Some(std::ffi::CString::new(out).unwrap_or_default());
+        EXPR_LINE.with(|cell| {
+            *cell.borrow_mut() = Some(std::ffi::CString::new(out).unwrap_or_default());
+        });
         return;
     }
 
