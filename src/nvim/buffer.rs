@@ -888,43 +888,42 @@ struct Bufmatch {
     match_: std::ffi::CString,
 }
 
+const NO_POSITION: Fmark = Fmark {
+    mark: CursorPos {
+        lnum: 1,
+        col: 0,
+        coladd: 0,
+    },
+    fnum: 0,
+    timestamp: 0,
+    view: INIT_FMARKV,
+    additional_data: None,
+};
+
 struct BufferModuleState {
-    buf_free_count: i32,
-    top_file_num: i32,
-    no_position: Fmark,
-    lasttitle: Option<std::ffi::CString>,
-    lasticon: Option<std::ffi::CString>,
-    modelines_entered: i32,
+    buf_free_count: std::cell::Cell<i32>,
+    top_file_num: std::cell::Cell<i32>,
+    modelines_entered: std::cell::Cell<i32>,
 }
 
 impl BufferModuleState {
     const fn new() -> Self {
         Self {
-            buf_free_count: 0,
-            top_file_num: 1,
-            no_position: Fmark {
-                mark: CursorPos {
-                    lnum: 1,
-                    col: 0,
-                    coladd: 0,
-                },
-                fnum: 0,
-                timestamp: 0,
-                view: INIT_FMARKV,
-                additional_data: None,
-            },
-            lasttitle: None,
-            lasticon: None,
-            modelines_entered: 0,
+            buf_free_count: std::cell::Cell::new(0),
+            top_file_num: std::cell::Cell::new(1),
+            modelines_entered: std::cell::Cell::new(0),
         }
     }
 }
 
-static BUF_STATE: GlobalState<BufferModuleState> = GlobalState::new(BufferModuleState::new());
-
-#[inline]
-fn buf_st() -> crate::globals::GraphPtr<BufferModuleState> {
-    BUF_STATE.handle()
+thread_local! {
+    static BUF_STATE: BufferModuleState = const { BufferModuleState::new() };
+    static LASTTITLE: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static LASTICON: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
 }
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
@@ -985,7 +984,7 @@ pub fn calc_percentage(part: i64, whole: i64) -> i32 {
 
 /// Return the highest possible buffer number.
 pub fn get_highest_fnum() -> i32 {
-    buf_st().top_file_num - 1
+    BUF_STATE.with(|s| s.top_file_num.get()) - 1
 }
 
 /// Read data from buffer for retrying.
@@ -1299,14 +1298,14 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 pub fn set_bufref(bufref: &mut Bufref, buf: Option<&mut FileBuf>) {
     bufref.br_buf = buf.map_or(crate::globals::BufPtr::NULL, crate::globals::BufPtr::from);
     bufref.br_fnum = bufref.buf_opt().map_or(0, |b| b.b_fnum);
-    bufref.br_buf_free_count = buf_st().buf_free_count;
+    bufref.br_buf_free_count = BUF_STATE.with(|s| s.buf_free_count.get());
 }
 
 /// Return true if `bufref->br_buf` points to the same buffer as when
 /// `set_bufref()` was called and it is a valid buffer.
 pub fn bufref_valid(bufref: Option<&Bufref>) -> bool {
     let bufref = bufref.unwrap();
-    if bufref.br_buf_free_count == buf_st().buf_free_count {
+    if bufref.br_buf_free_count == BUF_STATE.with(|s| s.buf_free_count.get()) {
         true
     } else {
         buf_valid_handle(bufref.br_buf)
@@ -1834,7 +1833,7 @@ fn free_buffer(buf: &mut FileBuf) {
     let buf_ref = buf_ptr.borrow_mut();
     g_st().buffer_handles.remove(&buf_ref.b_fnum);
 
-    buf_st().buf_free_count += 1;
+    BUF_STATE.with(|s| s.buf_free_count.set(s.buf_free_count.get() + (1)));
 
     free_buffer_stuff(buf_ref, K_BFF_CLEAR_WIN_INFO);
 
@@ -2958,15 +2957,15 @@ pub fn buflist_new(
         }
         g_st().lastbuf = (buf).into();
 
-        buf_ref.b_fnum = buf_st().top_file_num;
-        buf_st().top_file_num += 1;
+        buf_ref.b_fnum = BUF_STATE.with(|s| s.top_file_num.get());
+        BUF_STATE.with(|s| s.top_file_num.set(s.top_file_num.get() + (1)));
         g_st().buffer_handles.insert(buf_ref.b_fnum, buf.into());
-        if buf_st().top_file_num < 0 {
+        if BUF_STATE.with(|s| s.top_file_num.get()) < 0 {
             emsg(gettext(c"W14: Warning: List of file names overflow"));
             if g_st().emsg_silent == 0 && !g_st().in_assert_fails {
                 msg_delay(3001, true);
             }
-            buf_st().top_file_num = 1;
+            BUF_STATE.with(|s| s.top_file_num.set(1));
         }
 
         buf_copy_options(buf_ref, BCO_ALWAYS);
@@ -3143,14 +3142,20 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         return false;
     }
 
-    let mut fm = crate::globals::GraphPtr::<Fmark>::NULL;
+    let mut saved_fm: Option<Fmark> = None;
     let col: Colnr;
     let mut restore_view = false;
     if lnum == 0 {
         let fm_ref = buflist_findfmark(buf_ref);
         lnum = fm_ref.mark.lnum;
         col = fm_ref.mark.col;
-        fm = crate::globals::GraphPtr::<Fmark>::of(fm_ref);
+        saved_fm = Some(Fmark {
+            mark: fm_ref.mark,
+            fnum: fm_ref.fnum,
+            timestamp: fm_ref.timestamp,
+            view: fm_ref.view,
+            additional_data: None,
+        });
         restore_view = true;
     } else {
         col = 0;
@@ -3202,7 +3207,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
             curwin_mut().w_set_curswant = true;
         }
         if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 && restore_view {
-            mark_view_restore(fm.opt());
+            mark_view_restore(saved_fm.as_ref());
         }
         return true;
     }
@@ -3212,7 +3217,14 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
 
 fn buflist_getfpos() {
     let fm = buflist_findfmark(curbuf_mut());
-    let fpos = &fm.mark;
+    let fpos = fm.mark;
+    let saved_fm = Fmark {
+        mark: fm.mark,
+        fnum: fm.fnum,
+        timestamp: fm.timestamp,
+        view: fm.view,
+        additional_data: None,
+    };
     curwin_mut().w_cursor.lnum = fpos.lnum;
     check_cursor_lnum(curwin_mut());
 
@@ -3226,7 +3238,7 @@ fn buflist_getfpos() {
     }
 
     if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
-        mark_view_restore(Some(&*fm));
+        mark_view_restore(Some(&saved_fm));
     }
 }
 
@@ -3685,11 +3697,11 @@ pub fn get_winopts(buf: &mut FileBuf) {
 }
 
 /// Find the mark for the buffer `buf` for the current window.
-pub fn buflist_findfmark(buf: &mut FileBuf) -> &'static mut Fmark {
+pub fn buflist_findfmark(buf: &mut FileBuf) -> &Fmark {
     if let Some(wip) = find_wininfo(buf, false, false) {
-        &mut wip.wi_mark
+        &wip.wi_mark
     } else {
-        &mut buf_st().borrow_mut().no_position
+        &NO_POSITION
     }
 }
 
@@ -4213,8 +4225,8 @@ pub fn maketitle() {
     g_st().need_maketitle = false;
     if !opt_vars().p_title
         && !opt_vars().p_icon
-        && buf_st().lasttitle.is_none()
-        && buf_st().lasticon.is_none()
+        && LASTTITLE.with(|c| c.borrow().is_none())
+        && LASTICON.with(|c| c.borrow().is_none())
     {
         return;
     }
@@ -4277,7 +4289,7 @@ pub fn maketitle() {
             }
         }
     }
-    let mut mustset = value_change(title_cstr.as_deref(), &mut buf_st().lasttitle);
+    let mut mustset = LASTTITLE.with(|c| value_change(title_cstr.as_deref(), &mut c.borrow_mut()));
 
     if opt_vars().p_icon {
         if !opt_vars().p_iconstring.is_empty() {
@@ -4319,7 +4331,7 @@ pub fn maketitle() {
         }
     }
 
-    mustset |= value_change(icon_cstr.as_deref(), &mut buf_st().lasticon);
+    mustset |= LASTICON.with(|c| value_change(icon_cstr.as_deref(), &mut c.borrow_mut()));
 
     if mustset {
         resettitle();
@@ -4345,15 +4357,15 @@ fn value_change(str_: Option<&CStr>, last: &mut Option<std::ffi::CString>) -> bo
 
 /// Set current window title.
 pub fn resettitle() {
-    let lasticon = buf_st().lasticon.clone();
-    let lasttitle = buf_st().lasttitle.clone();
+    let lasticon = LASTICON.with(|c| c.borrow().clone());
+    let lasttitle = LASTTITLE.with(|c| c.borrow().clone());
     ui_call_set_icon(cstr_as_string(lasticon.as_deref()));
     ui_call_set_title(cstr_as_string(lasttitle.as_deref()));
 }
 
 pub fn free_titles() {
-    buf_st().lasttitle = None;
-    buf_st().lasticon = None;
+    LASTTITLE.with(|c| *c.borrow_mut() = None);
+    LASTICON.with(|c| *c.borrow_mut() = None);
 }
 
 /// Get relative cursor position in window into `buf[]`.
@@ -4648,11 +4660,11 @@ pub fn do_modelines(flags: i32) {
         return;
     }
 
-    if buf_st().modelines_entered != 0 {
+    if BUF_STATE.with(|s| s.modelines_entered.get()) != 0 {
         return;
     }
 
-    buf_st().modelines_entered += 1;
+    BUF_STATE.with(|s| s.modelines_entered.set(s.modelines_entered.get() + (1)));
     let mut lnum = 1;
     while curbuf_mut().b_p_ml && lnum <= curbuf_mut().b_ml.ml_line_count && lnum <= nmlines {
         if !chk_modeline(lnum, flags) {
@@ -4672,7 +4684,7 @@ pub fn do_modelines(flags: i32) {
         }
         lnum -= 1;
     }
-    buf_st().modelines_entered -= 1;
+    BUF_STATE.with(|s| s.modelines_entered.set(s.modelines_entered.get() - (1)));
 }
 
 fn chk_modeline(lnum: Linenr, flags: i32) -> bool {

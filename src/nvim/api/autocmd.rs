@@ -13,11 +13,10 @@ use crate::api::private::validate::{
 };
 use crate::autocmd::{
     AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, AuEvent, BUFLOCAL_PAT_LEN, NUM_EVENTS,
-    apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
-    aucmd_span_pattern_slice, augroup_add, augroup_del, augroup_del_by_id, augroup_exists,
-    augroup_find, augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal,
-    aupat_normalize_buflocal_pat, autocmd_delete_id, autocmd_register, do_autocmd_event,
-    event_name2nr_str, event_nr2name,
+    apply_autocmds_group, aucmd_del_for_event_and_group, aucmd_span_pattern_slice, augroup_add,
+    augroup_del, augroup_del_by_id, augroup_exists, augroup_find, augroup_name,
+    aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat, autocmd_delete_id,
+    autocmd_register, do_autocmd_event, event_name2nr_str, event_nr2name, with_autocmds_for_event,
 };
 use crate::buffer::do_modelines;
 use crate::eval::typval::{
@@ -203,7 +202,7 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
             } else {
                 augroup_name(au_group)
             };
-            if !augroup_exists(name) {
+            if !augroup_exists(name.as_deref()) {
                 api_err_int(err, c"group", i64::from(au_group));
                 return AUGROUP_ERROR;
             }
@@ -374,7 +373,7 @@ pub fn nvim_get_autocmds(
                 } else {
                     augroup_name(group)
                 };
-                if !augroup_exists(name) {
+                if !augroup_exists(name.as_deref()) {
                     api_err_int(err, c"group", opts.group.data.integer());
                     break 'body;
                 }
@@ -555,145 +554,157 @@ pub fn nvim_get_autocmds(
                 continue;
             }
 
-            let acs = au_get_autocmds_for_event(event as AuEvent);
-            for ac in acs {
-                let Some(ref ap) = ac.pat else {
-                    continue;
-                };
-                if id != -1 && ac.id != i64::from(id) {
-                    continue;
-                }
-                if group != 0 && ap.group != group {
-                    continue;
-                }
-
-                if pattern_filter_count > 0 {
-                    let mut passed = false;
-                    for &raw_pat in &pattern_filters[..pattern_filter_count] {
-                        let Some(raw_cstr) = raw_pat else {
-                            continue;
-                        };
-                        let mut pat_cstr = raw_cstr;
-                        let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
-                        let pat_bytes = pat_cstr.to_bytes();
-                        if aupat_is_buflocal(pat_bytes) {
-                            aupat_normalize_buflocal_pat(
-                                &mut pattern_buflocal,
-                                pat_bytes,
-                                aupat_get_buflocal_nr(pat_bytes),
-                            );
-                            pat_cstr = CStr::from_bytes_until_nul(&pattern_buflocal).unwrap_or(c"");
-                        }
-                        if ap.pat.as_bytes() == pat_cstr.to_bytes() {
-                            passed = true;
-                            break;
-                        }
-                    }
-                    if !passed {
+            with_autocmds_for_event(event as AuEvent, |acs| {
+                for ac in acs {
+                    let Some(ref ap) = ac.pat else {
+                        continue;
+                    };
+                    if id != -1 && ac.id != i64::from(id) {
                         continue;
                     }
-                }
+                    if group != 0 && ap.group != group {
+                        continue;
+                    }
 
-                let mut autocmd_info = arena_dict(arena, 12);
+                    if pattern_filter_count > 0 {
+                        let mut passed = false;
+                        for &raw_pat in &pattern_filters[..pattern_filter_count] {
+                            let Some(raw_cstr) = raw_pat else {
+                                continue;
+                            };
+                            let mut pat_cstr = raw_cstr;
+                            let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
+                            let pat_bytes = pat_cstr.to_bytes();
+                            if aupat_is_buflocal(pat_bytes) {
+                                aupat_normalize_buflocal_pat(
+                                    &mut pattern_buflocal,
+                                    pat_bytes,
+                                    aupat_get_buflocal_nr(pat_bytes),
+                                );
+                                pat_cstr =
+                                    CStr::from_bytes_until_nul(&pattern_buflocal).unwrap_or(c"");
+                            }
+                            if ap.pat.as_bytes() == pat_cstr.to_bytes() {
+                                passed = true;
+                                break;
+                            }
+                        }
+                        if !passed {
+                            continue;
+                        }
+                    }
 
-                if ap.group != AUGROUP_DEFAULT {
-                    put_c(
-                        &mut autocmd_info,
-                        c"group",
-                        integer_obj(i64::from(ap.group)),
-                    );
-                    put_c(
-                        &mut autocmd_info,
-                        c"group_name",
-                        string_obj(cstr_as_string(augroup_name(ap.group))),
-                    );
-                }
+                    let mut autocmd_info = arena_dict(arena, 12);
 
-                if ac.id > 0 {
-                    put_c(&mut autocmd_info, c"id", integer_obj(ac.id));
-                }
-
-                if let Some(desc) = &ac.desc {
-                    put_c(
-                        &mut autocmd_info,
-                        c"desc",
-                        string_obj(cstr_as_string(Some(desc))),
-                    );
-                }
-
-                match &mut ac.handler {
-                    crate::autocmd::AutoCmdHandler::Cmd(cmd) => {
+                    if ap.group != AUGROUP_DEFAULT {
                         put_c(
                             &mut autocmd_info,
-                            c"command",
-                            string_obj(cstr_as_string(Some(cmd.as_c_str()))),
+                            c"group",
+                            integer_obj(i64::from(ap.group)),
+                        );
+                        let gname = augroup_name(ap.group);
+                        put_c(
+                            &mut autocmd_info,
+                            c"group_name",
+                            crate::api::private::helpers::cstr_to_arena_obj(
+                                arena,
+                                gname.as_deref(),
+                            ),
                         );
                     }
-                    crate::autocmd::AutoCmdHandler::Fn(cb) => {
-                        put_c(&mut autocmd_info, c"command", string_obj(NvimString::new()));
 
-                        match cb.cb_type() {
-                            K_CALLBACK_LUA => {
-                                let luaref = cb.data.as_luaref();
-                                if nlua_ref_is_function(luaref) {
+                    if ac.id > 0 {
+                        put_c(&mut autocmd_info, c"id", integer_obj(ac.id));
+                    }
+
+                    if let Some(desc) = &ac.desc {
+                        put_c(
+                            &mut autocmd_info,
+                            c"desc",
+                            crate::api::private::helpers::cstr_to_arena_obj(arena, Some(desc)),
+                        );
+                    }
+
+                    match &mut ac.handler {
+                        crate::autocmd::AutoCmdHandler::Cmd(cmd) => {
+                            put_c(
+                                &mut autocmd_info,
+                                c"command",
+                                crate::api::private::helpers::cstr_to_arena_obj(
+                                    arena,
+                                    Some(cmd.as_c_str()),
+                                ),
+                            );
+                        }
+                        crate::autocmd::AutoCmdHandler::Fn(cb) => {
+                            put_c(&mut autocmd_info, c"command", string_obj(NvimString::new()));
+
+                            match cb.cb_type() {
+                                K_CALLBACK_LUA => {
+                                    let luaref = cb.data.as_luaref();
+                                    if nlua_ref_is_function(luaref) {
+                                        put_c(
+                                            &mut autocmd_info,
+                                            c"callback",
+                                            luaref_obj(api_new_luaref(luaref)),
+                                        );
+                                    }
+                                }
+                                K_CALLBACK_FUNCREF | K_CALLBACK_PARTIAL => {
+                                    let cb_str = callback_to_string(cb);
                                     put_c(
                                         &mut autocmd_info,
                                         c"callback",
-                                        luaref_obj(api_new_luaref(luaref)),
+                                        string_obj(crate::api::private::helpers::arena_string(
+                                            arena,
+                                            cstr_as_string(Some(&*cb_str)),
+                                        )),
                                     );
                                 }
-                            }
-                            K_CALLBACK_FUNCREF | K_CALLBACK_PARTIAL => {
-                                let cb_str = callback_to_string(cb);
-                                put_c(
-                                    &mut autocmd_info,
-                                    c"callback",
-                                    string_obj(crate::api::private::helpers::arena_string(
-                                        arena,
-                                        cstr_as_string(Some(&*cb_str)),
-                                    )),
-                                );
-                            }
-                            _ => {
-                                std::process::abort();
+                                _ => {
+                                    std::process::abort();
+                                }
                             }
                         }
+                        crate::autocmd::AutoCmdHandler::None => {
+                            std::process::abort();
+                        }
                     }
-                    crate::autocmd::AutoCmdHandler::None => {
-                        std::process::abort();
-                    }
-                }
 
-                put_c(
-                    &mut autocmd_info,
-                    c"pattern",
-                    string_obj(cstr_as_string(Some(&*ap.pat))),
-                );
-                put_c(
-                    &mut autocmd_info,
-                    c"event",
-                    string_obj(cstr_as_string(Some(event_nr2name(event as AuEvent)))),
-                );
-                put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
-
-                if ap.buflocal_nr != 0 {
-                    put_c(&mut autocmd_info, c"buflocal", boolean_obj(true));
                     put_c(
                         &mut autocmd_info,
-                        c"buf",
-                        integer_obj(i64::from(ap.buflocal_nr)),
+                        c"pattern",
+                        crate::api::private::helpers::cstr_to_arena_obj(arena, Some(&*ap.pat)),
                     );
                     put_c(
                         &mut autocmd_info,
-                        c"buffer",
-                        integer_obj(i64::from(ap.buflocal_nr)),
+                        c"event",
+                        crate::api::private::helpers::cstr_to_arena_obj(
+                            arena,
+                            Some(event_nr2name(event as AuEvent)),
+                        ),
                     );
-                } else {
-                    put_c(&mut autocmd_info, c"buflocal", boolean_obj(false));
-                }
+                    put_c(&mut autocmd_info, c"once", boolean_obj(ac.once));
 
-                autocmd_list.push(dict_obj(autocmd_info));
-            }
+                    if ap.buflocal_nr != 0 {
+                        put_c(&mut autocmd_info, c"buflocal", boolean_obj(true));
+                        put_c(
+                            &mut autocmd_info,
+                            c"buf",
+                            integer_obj(i64::from(ap.buflocal_nr)),
+                        );
+                        put_c(
+                            &mut autocmd_info,
+                            c"buffer",
+                            integer_obj(i64::from(ap.buflocal_nr)),
+                        );
+                    } else {
+                        put_c(&mut autocmd_info, c"buflocal", boolean_obj(false));
+                    }
+
+                    autocmd_list.push(dict_obj(autocmd_info));
+                }
+            });
         }
     }
 
@@ -1134,7 +1145,7 @@ pub fn nvim_exec_autocmds(
             } else {
                 augroup_name(au_group)
             };
-            if !augroup_exists(name) {
+            if !augroup_exists(name.as_deref()) {
                 api_err_int(err, c"group", i64::from(au_group));
                 return;
             }

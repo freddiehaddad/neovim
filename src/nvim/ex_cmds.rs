@@ -2803,7 +2803,7 @@ pub fn do_ecmd(
             }
 
             if (oldbuf && newlnum == ECMD_LASTL) || newlnum == ECMD_LAST {
-                let pos = &mut buflist_findfmark(buf.borrow_mut()).mark;
+                let pos = buflist_findfmark(buf.borrow_mut()).mark;
                 newlnum = pos.lnum;
                 solcol = pos.col;
             }
