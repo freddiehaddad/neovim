@@ -7,7 +7,7 @@ use crate::event::r#loop::{
 #[cfg(windows)]
 use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
-use crate::log::{LOGLVL_DBG, LOGLVL_WRN, log_st, logmsg};
+use crate::log::{LOGLVL_DBG, LOGLVL_WRN, logmsg, min_log_level};
 use std::ffi::c_void;
 
 pub const UV_NAMED_PIPE: i32 = 7;
@@ -252,7 +252,7 @@ pub fn stream_may_close(stream: &mut Stream) {
     if stream.closed {
         return;
     }
-    if log_st().g_min_log_level <= LOGLVL_DBG {
+    if min_log_level() <= LOGLVL_DBG {
         logmsg!(
             LOGLVL_DBG,
             None,

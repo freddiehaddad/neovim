@@ -28,7 +28,7 @@ use crate::extmark::K_TRUE;
 use crate::fold::fold_update;
 use crate::globals::*;
 use crate::keycodes::{KeyChord, MOD_MASK_TABLE, vim_strsave_escape_ks};
-use crate::log::log_st;
+use crate::log::{min_log_level, set_min_log_level};
 use crate::lua::base64::luaopen_base64;
 use crate::lua::converter::{
     LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TSTRING, lua_Integer, lua_State, lua_concat_safe,
@@ -617,9 +617,9 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
         flags |= CMOD_SILENT;
     }
 
-    let save_min_log_level = log_st().g_min_log_level;
+    let save_min_log_level = min_log_level();
     if log_level >= 0 {
-        log_st().g_min_log_level = log_level;
+        set_min_log_level(log_level);
     }
     let save_cmdmod = std::mem::take(&mut g_st().cmdmod);
     g_st().cmdmod.cmod_flags = flags;
@@ -670,7 +670,7 @@ extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
     undo_cmdmod(&mut g_st().cmdmod);
     g_st().cmdmod = save_cmdmod;
     if log_level >= 0 {
-        log_st().g_min_log_level = save_min_log_level;
+        set_min_log_level(save_min_log_level);
     }
 
     if status != 0 {

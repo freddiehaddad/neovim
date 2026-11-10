@@ -172,24 +172,8 @@ const OPCHARS: [[u8; 3]; 31] = [
     [b'z', b'q', 0],                      // OP_MCURSOR
 ];
 
-struct OpsModuleState {
-    addsub_hexupper: bool,
-}
-
-impl OpsModuleState {
-    const fn new() -> Self {
-        Self {
-            addsub_hexupper: false,
-        }
-    }
-}
-
-static OPS_STATE: crate::globals::GlobalState<OpsModuleState> =
-    crate::globals::GlobalState::new(OpsModuleState::new());
-
-#[inline]
-fn ops_st() -> crate::globals::GraphPtr<OpsModuleState> {
-    OPS_STATE.handle()
+std::thread_local! {
+    static ADDSUB_HEXUPPER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[inline]
@@ -2864,7 +2848,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         while todel > 0 {
             todel -= 1;
             if c < 0x100 && ascii_isalpha(c) {
-                ops_st().addsub_hexupper = ascii_isupper(c);
+                ADDSUB_HEXUPPER.set(ascii_isupper(c));
             }
             del_char(false);
             c = gchar_cursor();
@@ -2907,7 +2891,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             buf2len = format_to_buf!(&mut buf2, c"%llu", n as u64);
         } else if pre == b'0' as i32 {
             buf2len = format_to_buf!(&mut buf2, c"%llo", n as u64);
-        } else if ops_st().addsub_hexupper {
+        } else if ADDSUB_HEXUPPER.get() {
             buf2len = format_to_buf!(&mut buf2, c"%llX", n as u64);
         } else {
             buf2len = format_to_buf!(&mut buf2, c"%llx", n as u64);

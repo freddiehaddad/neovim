@@ -118,25 +118,26 @@ pub(crate) const K_CHANNEL_PART_RPC_CONST: ChannelPart = 3;
 pub(crate) const K_CHANNEL_STDIN_PIPE_CONST: ChannelStdinMode = 0;
 
 struct ChannelModuleState {
-    did_stdio: bool,
-    next_chan_id: u64,
+    did_stdio: std::cell::Cell<bool>,
+    next_chan_id: std::cell::Cell<u64>,
 }
 
 impl ChannelModuleState {
     const fn new() -> Self {
         Self {
-            did_stdio: false,
-            next_chan_id: CHAN_STDERR + 1,
+            did_stdio: std::cell::Cell::new(false),
+            next_chan_id: std::cell::Cell::new(CHAN_STDERR + 1),
         }
     }
 }
 
-static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> =
-    crate::globals::GlobalState::new(ChannelModuleState::new());
+std::thread_local! {
+    static CHAN_STATE: ChannelModuleState = const { ChannelModuleState::new() };
+}
 
 #[inline]
-fn chan_st() -> crate::globals::GraphPtr<ChannelModuleState> {
-    CHAN_STATE.handle()
+fn chan_st<R>(f: impl FnOnce(&ChannelModuleState) -> R) -> R {
+    CHAN_STATE.with(f)
 }
 
 #[repr(C)]
@@ -205,7 +206,7 @@ pub fn channel_close(
     error: Option<&mut Option<&'static CStr>>,
 ) -> bool {
     let Some(chan) = find_channel_opt(id) else {
-        if id < chan_st().next_chan_id {
+        if id < chan_st(|st| st.next_chan_id.get()) {
             return true;
         }
         if let Some(err) = error {
@@ -323,9 +324,11 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
     } else if r#type == K_CHANNEL_STREAM_STDERR {
         CHAN_STDERR
     } else {
-        let id = chan_st().next_chan_id;
-        chan_st().next_chan_id += 1;
-        id
+        chan_st(|st| {
+            let id = st.next_chan_id.get();
+            st.next_chan_id.set(id + 1);
+            id
+        })
     };
     assert!(id <= (i64::MAX as u64));
 
@@ -397,8 +400,12 @@ pub fn free_channel_event(chan: Option<&mut Channel>) {
 }
 
 fn channel_destroy_early(chan: &mut Channel) {
-    chan_st().next_chan_id -= 1;
-    if chan.id != chan_st().next_chan_id {
+    let next_id = chan_st(|st| {
+        let id = st.next_chan_id.get() - 1;
+        st.next_chan_id.set(id);
+        id
+    });
+    if chan.id != next_id {
         std::process::abort();
     }
     let _ = g_st().channels.remove(&chan.id);
@@ -652,11 +659,10 @@ pub fn channel_from_stdio(
         return 0;
     }
 
-    if chan_st().did_stdio {
+    if chan_st(|st| st.did_stdio.replace(true)) {
         *error = Some(gettext(c"channel was already open"));
         return 0;
     }
-    chan_st().did_stdio = true;
 
     let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
     let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);

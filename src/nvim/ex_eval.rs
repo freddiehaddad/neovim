@@ -186,22 +186,8 @@ impl Default for ExceptionState {
     }
 }
 
-struct ExEvalModuleState {
-    cause_abort: bool,
-}
-
-impl ExEvalModuleState {
-    const fn new() -> Self {
-        Self { cause_abort: false }
-    }
-}
-
-static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> =
-    crate::globals::GlobalState::new(ExEvalModuleState::new());
-
-#[inline]
-fn exeval_st() -> crate::globals::GraphPtr<ExEvalModuleState> {
-    EXEVAL_STATE.handle()
+std::thread_local! {
+    static CAUSE_ABORT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[inline]
@@ -224,7 +210,7 @@ pub fn aborting() -> bool {
 }
 
 pub fn update_force_abort() {
-    if exeval_st().cause_abort {
+    if CAUSE_ABORT.get() {
         g_st().force_abort = true;
     }
 }
@@ -249,11 +235,11 @@ pub fn cause_errthrow(
     }
 
     if g_st().did_emsg == 0 {
-        exeval_st().cause_abort = g_st().force_abort;
+        CAUSE_ABORT.set(g_st().force_abort);
         g_st().force_abort = false;
     }
 
-    if ((g_st().trylevel == 0 && !exeval_st().cause_abort) || g_st().emsg_silent != 0)
+    if ((g_st().trylevel == 0 && !CAUSE_ABORT.get()) || g_st().emsg_silent != 0)
         && !g_st().did_throw
     {
         return false;
@@ -264,7 +250,7 @@ pub fn cause_errthrow(
         return true;
     }
 
-    exeval_st().cause_abort = true;
+    CAUSE_ABORT.set(true);
 
     if g_st().did_throw {
         if g_st()
@@ -320,8 +306,7 @@ pub fn free_global_msglist() {
 }
 
 pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: Option<&CStr>) {
-    if exeval_st().cause_abort {
-        exeval_st().cause_abort = false;
+    if CAUSE_ABORT.replace(false) {
         g_st().force_abort = true;
     }
 
@@ -1409,8 +1394,7 @@ pub fn enter_cleanup(csp: &mut ExCleanup) {
         } else {
             csp.exception = None;
             if g_st().did_emsg != 0 {
-                g_st().force_abort |= exeval_st().cause_abort;
-                exeval_st().cause_abort = false;
+                g_st().force_abort |= CAUSE_ABORT.replace(false);
             }
         }
         g_st().did_emsg = 0;
@@ -1445,7 +1429,7 @@ pub fn leave_cleanup(csp: &mut ExCleanup) {
         if (pending & CSTP_THROW) != 0 {
             g_st().current_exception = csp.exception.take();
         } else if (pending & CSTP_ERROR) != 0 {
-            exeval_st().cause_abort = g_st().force_abort;
+            CAUSE_ABORT.set(g_st().force_abort);
             g_st().force_abort = false;
         }
 

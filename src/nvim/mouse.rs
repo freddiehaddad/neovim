@@ -148,54 +148,56 @@ impl Default for StlClickDefinition {
 }
 
 struct MouseModuleState {
-    orig_topline: Linenr,
-    orig_topfill: i32,
-    got_click: bool,
-    dragwin: crate::globals::WinPtr,
-    in_tab_line: bool,
-    orig_cursor: CursorPos,
-    status_line_offset: i32,
-    sep_line_offset: i32,
-    on_status_line: bool,
-    on_sep_line: bool,
-    on_winbar: bool,
-    on_statuscol: bool,
-    prev_row: i32,
-    prev_col: i32,
-    did_drag: i32,
+    orig_topline: std::cell::Cell<Linenr>,
+    orig_topfill: std::cell::Cell<i32>,
+    got_click: std::cell::Cell<bool>,
+    dragwin: std::cell::Cell<crate::globals::WinPtr>,
+    in_tab_line: std::cell::Cell<bool>,
+    orig_cursor: std::cell::Cell<CursorPos>,
+    status_line_offset: std::cell::Cell<i32>,
+    sep_line_offset: std::cell::Cell<i32>,
+    on_status_line: std::cell::Cell<bool>,
+    on_sep_line: std::cell::Cell<bool>,
+    on_winbar: std::cell::Cell<bool>,
+    on_statuscol: std::cell::Cell<bool>,
+    prev_row: std::cell::Cell<i32>,
+    prev_col: std::cell::Cell<i32>,
+    did_drag: std::cell::Cell<i32>,
 }
 
 impl MouseModuleState {
     const fn new() -> Self {
         Self {
-            orig_topline: 0,
-            orig_topfill: 0,
-            got_click: false,
-            dragwin: crate::globals::WinPtr::NULL,
-            in_tab_line: false,
-            orig_cursor: CursorPos {
+            orig_topline: std::cell::Cell::new(0),
+            orig_topfill: std::cell::Cell::new(0),
+            got_click: std::cell::Cell::new(false),
+            dragwin: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            in_tab_line: std::cell::Cell::new(false),
+            orig_cursor: std::cell::Cell::new(CursorPos {
                 lnum: 0,
                 col: 0,
                 coladd: 0,
-            },
-            status_line_offset: 0,
-            sep_line_offset: 0,
-            on_status_line: false,
-            on_sep_line: false,
-            on_winbar: false,
-            on_statuscol: false,
-            prev_row: -1,
-            prev_col: -1,
-            did_drag: 0,
+            }),
+            status_line_offset: std::cell::Cell::new(0),
+            sep_line_offset: std::cell::Cell::new(0),
+            on_status_line: std::cell::Cell::new(false),
+            on_sep_line: std::cell::Cell::new(false),
+            on_winbar: std::cell::Cell::new(false),
+            on_statuscol: std::cell::Cell::new(false),
+            prev_row: std::cell::Cell::new(-1),
+            prev_col: std::cell::Cell::new(-1),
+            did_drag: std::cell::Cell::new(0),
         }
     }
 }
 
-static MOUSE_STATE: GlobalState<MouseModuleState> = GlobalState::new(MouseModuleState::new());
+std::thread_local! {
+    static MOUSE_STATE: MouseModuleState = const { MouseModuleState::new() };
+}
 
 #[inline]
-fn mouse_st() -> crate::globals::GraphPtr<MouseModuleState> {
-    MOUSE_STATE.handle()
+fn mouse_st<R>(f: impl FnOnce(&MouseModuleState) -> R) -> R {
+    MOUSE_STATE.with(f)
 }
 
 /// Get class of a character for selection: same class means same word.
@@ -373,7 +375,7 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     );
 
     tv_clear(&mut rettv);
-    mouse_st().got_click = false;
+    mouse_st(|st| st.got_click.set(false));
 }
 
 /// Translate window coordinates to buffer position without any side effects.
@@ -501,7 +503,7 @@ fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
         ui_flush();
     }
     show_popupmenu();
-    mouse_st().got_click = false;
+    mouse_st(|st| st.got_click.set(false));
     jump_flags
 }
 
@@ -541,16 +543,17 @@ pub fn do_mouse(
     }
 
     if is_click {
-        mouse_st().got_click = true;
-        mouse_st().in_tab_line = false;
+        mouse_st(|st| {
+            st.got_click.set(true);
+            st.in_tab_line.set(false);
+        });
     } else {
-        if !mouse_st().got_click {
+        if !mouse_st(|st| st.got_click.get()) {
             return false;
         }
         if !is_drag {
-            mouse_st().got_click = false;
-            if mouse_st().in_tab_line {
-                mouse_st().in_tab_line = false;
+            mouse_st(|st| st.got_click.set(false));
+            if mouse_st(|st| st.in_tab_line.replace(false)) {
                 return false;
             }
         }
@@ -564,7 +567,7 @@ pub fn do_mouse(
             stuffnum_readbuff(count);
         }
         stuffchar_readbuff(CTRL_T_CONST);
-        mouse_st().got_click = false;
+        mouse_st(|st| st.got_click.set(false));
         if (g_st().state_global & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
@@ -664,7 +667,7 @@ pub fn do_mouse(
     if !g_st().tab_page_click_defs.is_empty() {
         if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && firstwin_mut().w_winrow > 0 {
             if is_drag {
-                if mouse_st().in_tab_line {
+                if mouse_st(|st| st.in_tab_line.get()) {
                     move_tab_to_mouse();
                 }
                 return false;
@@ -672,7 +675,7 @@ pub fn do_mouse(
 
             if is_click && g_st().mouse_col < g_st().columns_global {
                 let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
-                mouse_st().in_tab_line = true;
+                mouse_st(|st| st.in_tab_line.set(true));
 
                 match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].type_ {
                     K_STL_CLICK_DISABLED => {}
@@ -706,7 +709,7 @@ pub fn do_mouse(
                 }
             }
             return true;
-        } else if is_drag && mouse_st().in_tab_line {
+        } else if is_drag && mouse_st(|st| st.in_tab_line.get()) {
             move_tab_to_mouse();
             return false;
         }
@@ -719,7 +722,7 @@ pub fn do_mouse(
             && let Some(wp) = wp
             && !bt_quickfix(wp.buf_opt())
         {
-            mouse_st().got_click = false;
+            mouse_st(|st| st.got_click.set(false));
             if (g_st().state_global & MODE_INSERT) == 0 {
                 pos.coladd = 0;
 
@@ -783,7 +786,7 @@ pub fn do_mouse(
     }
 
     if !is_drag && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
-        mouse_st().got_click = false;
+        mouse_st(|st| st.got_click.set(false));
         oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
     }
 
@@ -1047,13 +1050,13 @@ pub fn do_mouse(
         } else {
             do_cmdline_cmd(c".ll");
         }
-        mouse_st().got_click = false;
+        mouse_st(|st| st.got_click.set(false));
     } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
         if (g_st().state_global & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
         stuffchar_readbuff(CTRL_RSB_CONST);
-        mouse_st().got_click = false;
+        mouse_st(|st| st.got_click.set(false));
         if (g_st().state_global & MODE_INSERT) == 0 {
             exec_stuffed(None);
         }
@@ -1079,10 +1082,10 @@ pub fn do_mouse(
     {
         if is_click || !g_st().visual_global.active {
             if g_st().visual_global.active {
-                mouse_st().orig_cursor = g_st().visual_global.start;
+                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.start));
             } else {
                 g_st().visual_global.start = curwin_mut().w_cursor;
-                mouse_st().orig_cursor = g_st().visual_global.start;
+                mouse_st(|st| st.orig_cursor.set(g_st().visual_global.start));
                 g_st().visual_global.active = true;
                 g_st().visual_global.reselect = 1;
                 may_start_select(b'o' as i32);
@@ -1133,7 +1136,7 @@ pub fn do_mouse(
                 }
             }
             if pos.is_none() && (is_click || is_drag) {
-                if lt(curwin_mut().w_cursor, mouse_st().orig_cursor) {
+                if lt(curwin_mut().w_cursor, mouse_st(|st| st.orig_cursor.get())) {
                     find_start_of_word(&mut curwin_mut().w_cursor);
                     find_end_of_word(&mut g_st().visual_global.start);
                 } else {
@@ -1366,7 +1369,7 @@ fn mouse_model_popup() -> bool {
 
 /// Reset the window being dragged. To be called when switching tab page.
 pub fn reset_dragwin() {
-    mouse_st().dragwin = crate::globals::WinPtr::NULL;
+    mouse_st(|st| st.dragwin.set(crate::globals::WinPtr::NULL));
 }
 
 #[inline]
@@ -1409,37 +1412,46 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     g_st().mouse_past_eol = false;
 
     if (flags & MOUSE_RELEASED) != 0 {
-        if !mouse_st().dragwin.is_null() && mouse_st().did_drag == 0 {
-            flags &= !(MOUSE_FOCUS | MOUSE_DID_MOVE);
-        }
-        mouse_st().dragwin = crate::globals::WinPtr::NULL;
-        mouse_st().did_drag = 0;
+        mouse_st(|st| {
+            if !st.dragwin.get().is_null() && st.did_drag.get() == 0 {
+                flags &= !(MOUSE_FOCUS | MOUSE_DID_MOVE);
+            }
+            st.dragwin.set(crate::globals::WinPtr::NULL);
+            st.did_drag.set(0);
+        });
     }
 
     if (flags & MOUSE_DID_MOVE) != 0
-        && mouse_st().prev_row == g_st().mouse_row
-        && mouse_st().prev_col == g_st().mouse_col
+        && mouse_st(|st| {
+            st.prev_row.get() == g_st().mouse_row && st.prev_col.get() == g_st().mouse_col
+        })
     {
-        return jump_to_mouse_retnomove(
-            flags,
-            mouse_st().status_line_offset,
-            mouse_st().sep_line_offset,
-            mouse_st().on_winbar,
-            mouse_st().on_statuscol,
-        );
+        let (stl_off, sep_off, winbar, stcol) = mouse_st(|st| {
+            (
+                st.status_line_offset.get(),
+                st.sep_line_offset.get(),
+                st.on_winbar.get(),
+                st.on_statuscol.get(),
+            )
+        });
+        return jump_to_mouse_retnomove(flags, stl_off, sep_off, winbar, stcol);
     }
 
-    mouse_st().prev_row = g_st().mouse_row;
-    mouse_st().prev_col = g_st().mouse_col;
+    mouse_st(|st| {
+        st.prev_row.set(g_st().mouse_row);
+        st.prev_col.set(g_st().mouse_col);
+    });
 
     if (flags & MOUSE_SETPOS) != 0 {
-        return jump_to_mouse_retnomove(
-            flags,
-            mouse_st().status_line_offset,
-            mouse_st().sep_line_offset,
-            mouse_st().on_winbar,
-            mouse_st().on_statuscol,
-        );
+        let (stl_off, sep_off, winbar, stcol) = mouse_st(|st| {
+            (
+                st.status_line_offset.get(),
+                st.sep_line_offset.get(),
+                st.on_winbar.get(),
+                st.on_statuscol.get(),
+            )
+        });
+        return jump_to_mouse_retnomove(flags, stl_off, sep_off, winbar, stcol);
     }
 
     if row < 0 || col < 0 {
@@ -1451,14 +1463,14 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     };
 
     let below_window = grid == DEFAULT_GRID_HANDLE && row + wp.w_winbar_height >= wp.w_height;
-    mouse_st().on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;
-    mouse_st().on_sep_line =
+    let mut on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;
+    let mut on_sep_line =
         grid == DEFAULT_GRID_HANDLE && col >= wp.w_width && col - wp.w_width + 1 == 1;
-    mouse_st().on_winbar = row < 0 && row + wp.w_winbar_height >= 0;
-    mouse_st().on_statuscol = !below_window
-        && !mouse_st().on_status_line
-        && !mouse_st().on_sep_line
-        && !mouse_st().on_winbar
+    let on_winbar = row < 0 && row + wp.w_winbar_height >= 0;
+    let on_statuscol = !below_window
+        && !on_status_line
+        && !on_sep_line
+        && !on_winbar
         && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl {
             col >= wp.w_view_width - win_col_off(wp)
@@ -1466,13 +1478,20 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
             col < win_col_off(wp)
         });
 
-    if mouse_st().on_status_line && mouse_st().on_sep_line {
+    if on_status_line && on_sep_line {
         if stl_connected(&mut *wp) {
-            mouse_st().on_sep_line = false;
+            on_sep_line = false;
         } else {
-            mouse_st().on_status_line = false;
+            on_status_line = false;
         }
     }
+
+    mouse_st(|st| {
+        st.on_status_line.set(on_status_line);
+        st.on_sep_line.set(on_sep_line);
+        st.on_winbar.set(on_winbar);
+        st.on_statuscol.set(on_statuscol);
+    });
 
     if keep_focus {
         row = g_st().mouse_row;
@@ -1487,47 +1506,53 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
     let mut vcol: Colnr = 0;
     let mut mouse_fold_flags: i32 = 0;
     if !keep_focus {
-        if mouse_st().on_winbar {
+        if on_winbar {
             return IN_OTHER_WIN | MOUSE_WINBAR;
         }
 
-        if !mouse_st().on_statuscol {
+        if !on_statuscol {
             let fdc = win_fdccol_count(&mut *wp);
-            mouse_st().dragwin = crate::globals::WinPtr::NULL;
+            let mut dragwin = crate::globals::WinPtr::NULL;
 
-            if below_window {
-                mouse_st().status_line_offset = row + wp.w_winbar_height - wp.w_height + 1;
-                mouse_st().dragwin = crate::globals::WinPtr::new(wp);
+            let mut status_line_offset = if below_window {
+                dragwin = crate::globals::WinPtr::new(wp);
+                row + wp.w_winbar_height - wp.w_height + 1
             } else {
-                mouse_st().status_line_offset = 0;
-            }
+                0
+            };
 
-            if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width {
-                mouse_st().sep_line_offset = col - wp.w_width + 1;
-                mouse_st().dragwin = crate::globals::WinPtr::new(wp);
+            let mut sep_line_offset = if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width {
+                dragwin = crate::globals::WinPtr::new(wp);
+                col - wp.w_width + 1
             } else {
-                mouse_st().sep_line_offset = 0;
-            }
+                0
+            };
 
-            if mouse_st().status_line_offset != 0 && mouse_st().sep_line_offset != 0 {
+            if status_line_offset != 0 && sep_line_offset != 0 {
                 if stl_connected(&mut *wp) {
-                    mouse_st().sep_line_offset = 0;
+                    sep_line_offset = 0;
                 } else {
-                    mouse_st().status_line_offset = 0;
+                    status_line_offset = 0;
                 }
             }
 
+            mouse_st(|st| {
+                st.dragwin.set(dragwin);
+                st.status_line_offset.set(status_line_offset);
+                st.sep_line_offset.set(sep_line_offset);
+            });
+
             let stop_visual = g_st().visual_global.active
                 && (wp.w_buffer != curwin_mut().w_buffer
-                    || (mouse_st().status_line_offset == 0
-                        && mouse_st().sep_line_offset == 0
+                    || (status_line_offset == 0
+                        && sep_line_offset == 0
                         && (if wp.w_onebuf_opt.wo_rl {
                             col < wp.w_view_width - fdc
                         } else {
                             col >= fdc
                         })
                         && (flags & MOUSE_MAY_STOP_VIS) != 0));
-            if mouse_st().status_line_offset == 0 && mouse_st().sep_line_offset == 0 {
+            if status_line_offset == 0 && sep_line_offset == 0 {
                 resolved = crate::globals::GraphPtr::<WinInfoInfo>::of(&wp);
                 g_st().mouse_past_bottom = mouse_resolve(
                     &mut *wp,
@@ -1543,47 +1568,48 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 redraw_curbuf_later(UPD_INVERTED);
             }
 
-            if mouse_st().dragwin.is_null() || (flags & MOUSE_RELEASED) != 0 {
+            if mouse_st(|st| st.dragwin.get().is_null()) || (flags & MOUSE_RELEASED) != 0 {
                 win_enter(wp, true);
             }
             if curwin_ptr() != old_curwin {
                 set_mouse_topline(curwin_mut());
             }
-            if mouse_st().status_line_offset != 0 {
+            if mouse_st(|st| st.status_line_offset.get()) != 0 {
                 if curwin_ptr() == old_curwin {
                     return IN_STATUS_LINE;
                 }
                 return IN_STATUS_LINE | CURSOR_MOVED;
             }
-            if mouse_st().sep_line_offset != 0 {
+            if mouse_st(|st| st.sep_line_offset.get()) != 0 {
                 if curwin_ptr() == old_curwin {
                     return IN_SEP_LINE;
                 }
                 return IN_SEP_LINE | CURSOR_MOVED;
             }
         }
-    } else if mouse_st().status_line_offset != 0 {
+    } else if mouse_st(|st| st.status_line_offset.get()) != 0 {
         if which_button == MOUSE_LEFT
-            && let Some(dragwin) = mouse_st().dragwin.opt_mut()
+            && let Some(dragwin) = mouse_st(|st| st.dragwin.get()).opt_mut()
         {
-            let count =
-                row - dragwin.w_winrow - dragwin.w_height + 1 - mouse_st().status_line_offset;
+            let count = row - dragwin.w_winrow - dragwin.w_height + 1
+                - mouse_st(|st| st.status_line_offset.get());
             win_drag_status_line(dragwin, count);
-            mouse_st().did_drag |= count;
+            mouse_st(|st| st.did_drag.set(st.did_drag.get() | count));
         }
         return IN_STATUS_LINE;
-    } else if mouse_st().sep_line_offset != 0 && which_button == MOUSE_LEFT {
-        if let Some(dragwin) = mouse_st().dragwin.opt_mut() {
-            let count = col - dragwin.w_wincol - dragwin.w_width + 1 - mouse_st().sep_line_offset;
+    } else if mouse_st(|st| st.sep_line_offset.get()) != 0 && which_button == MOUSE_LEFT {
+        if let Some(dragwin) = mouse_st(|st| st.dragwin.get()).opt_mut() {
+            let count = col - dragwin.w_wincol - dragwin.w_width + 1
+                - mouse_st(|st| st.sep_line_offset.get());
             win_drag_vsep_line(dragwin, count);
-            mouse_st().did_drag |= count;
+            mouse_st(|st| st.did_drag.set(st.did_drag.get() | count));
         }
         return IN_SEP_LINE;
-    } else if mouse_st().on_status_line && which_button == MOUSE_RIGHT {
+    } else if on_status_line && which_button == MOUSE_RIGHT {
         return IN_STATUS_LINE;
-    } else if mouse_st().on_winbar && which_button == MOUSE_RIGHT {
+    } else if on_winbar && which_button == MOUSE_RIGHT {
         return IN_OTHER_WIN | MOUSE_WINBAR;
-    } else if mouse_st().on_statuscol && which_button == MOUSE_RIGHT {
+    } else if on_statuscol && which_button == MOUSE_RIGHT {
         return IN_OTHER_WIN | MOUSE_STATUSCOL;
     } else {
         if (flags & MOUSE_MAY_STOP_VIS) != 0 {
@@ -1708,7 +1734,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         *inclusive = false;
     }
 
-    let mut count = if mouse_st().on_statuscol {
+    let mut count = if mouse_st(|st| st.on_statuscol.get()) {
         IN_OTHER_WIN | MOUSE_STATUSCOL
     } else {
         IN_BUFFER
@@ -2056,8 +2082,10 @@ pub fn setmouse() {
 }
 
 fn set_mouse_topline(wp: &mut WinInfoInfo) {
-    mouse_st().orig_topline = wp.w_topline;
-    mouse_st().orig_topfill = wp.w_topfill;
+    mouse_st(|st| {
+        st.orig_topline.set(wp.w_topline);
+        st.orig_topfill.set(wp.w_topfill);
+    });
 }
 
 /// Return length of line "lnum" for horizontal scrolling.

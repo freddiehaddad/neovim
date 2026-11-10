@@ -15,7 +15,7 @@ use crate::input::{
 };
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::keycodes::get_special_key_name;
-use crate::log::{LOGLVL_DBG, log_st, logmsg};
+use crate::log::{LOGLVL_DBG, logmsg, min_log_level};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::format_to_buf;
@@ -127,7 +127,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                 may_sync_undo();
             }
 
-            if log_st().g_min_log_level <= LOGLVL_DBG {
+            if min_log_level() <= LOGLVL_DBG {
                 let keyname = if key == K_EVENT {
                     c"K_EVENT"
                 } else {
@@ -353,7 +353,7 @@ fn is_safe_now() -> bool {
 pub fn may_trigger_safestate(safe: bool) {
     let is_safe = safe && is_safe_now();
 
-    if WAS_SAFE.get() != is_safe && log_st().g_min_log_level <= LOGLVL_DBG {
+    if WAS_SAFE.get() != is_safe && min_log_level() <= LOGLVL_DBG {
         let msg: &CStr = if is_safe {
             c"SafeState: Start triggering"
         } else {
@@ -378,7 +378,7 @@ pub fn may_trigger_safestate(safe: bool) {
 pub fn state_no_longer_safe(reason: Option<&CStr>) {
     if WAS_SAFE.get()
         && let Some(reason) = reason
-        && log_st().g_min_log_level <= LOGLVL_DBG
+        && min_log_level() <= LOGLVL_DBG
     {
         logmsg!(
             LOGLVL_DBG,

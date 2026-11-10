@@ -26,7 +26,7 @@ use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
 use crate::context::{CONTEXT_INIT, K_CTX_COUNT, ctx_free, ctx_load, ctx_save};
-use crate::cursor_shape::{cursor_get_mode_idx, mode_style_array, shape_table_mut};
+use crate::cursor_shape::{cursor_get_mode_idx, mode_style_array, shape_table_entry};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::event::multiqueue::{Event, multiqueue_free, multiqueue_put_event};
 use crate::ex_getln::cmdline_ui_flush;
@@ -102,71 +102,74 @@ impl Drop for UIEventCallback {
 }
 
 struct UiState {
-    uis: Vec<crate::globals::GraphPtr<RemoteUI>>,
-    ui_ext: [bool; K_UIEXT_COUNT],
-    ui_mode_idx: i32,
-    cursor_row: i32,
-    cursor_col: i32,
-    pending_cursor_update: bool,
-    busy: i32,
-    pending_mode_info_update: bool,
-    pending_mode_update: bool,
-    cursor_grid_handle: ObjHandle,
-    ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback>,
-    ui_cb_ext: [bool; K_UIEXT_COUNT],
-    has_mouse: bool,
-    pending_has_mouse: Option<bool>,
-    pending_default_colors: bool,
-    beep_count: i32,
-    beep_start_time: u64,
-    ui_flush_was_busy: bool,
-    ui_flush_cursor_was_obscured: bool,
+    uis: std::cell::RefCell<Vec<crate::globals::GraphPtr<RemoteUI>>>,
+    ui_ext: std::cell::Cell<[bool; K_UIEXT_COUNT]>,
+    ui_mode_idx: std::cell::Cell<i32>,
+    cursor_row: std::cell::Cell<i32>,
+    cursor_col: std::cell::Cell<i32>,
+    pending_cursor_update: std::cell::Cell<bool>,
+    busy: std::cell::Cell<i32>,
+    pending_mode_info_update: std::cell::Cell<bool>,
+    pending_mode_update: std::cell::Cell<bool>,
+    cursor_grid_handle: std::cell::Cell<ObjHandle>,
+    ui_event_cbs: std::cell::RefCell<std::collections::BTreeMap<u32, UIEventCallback>>,
+    ui_cb_ext: std::cell::Cell<[bool; K_UIEXT_COUNT]>,
+    has_mouse: std::cell::Cell<bool>,
+    pending_has_mouse: std::cell::Cell<Option<bool>>,
+    pending_default_colors: std::cell::Cell<bool>,
+    beep_count: std::cell::Cell<i32>,
+    beep_start_time: std::cell::Cell<u64>,
+    ui_flush_was_busy: std::cell::Cell<bool>,
+    ui_flush_cursor_was_obscured: std::cell::Cell<bool>,
     #[cfg(debug_assertions)]
-    uilog_seen: usize,
+    uilog_seen: std::cell::Cell<usize>,
     #[cfg(debug_assertions)]
-    uilog_last_event: Option<&'static std::ffi::CStr>,
+    uilog_last_event: std::cell::Cell<Option<&'static std::ffi::CStr>>,
 }
 
 impl UiState {
     const fn new() -> Self {
         Self {
-            uis: Vec::new(),
-            ui_ext: [false; K_UIEXT_COUNT],
-            ui_mode_idx: SHAPE_IDX_N,
-            cursor_row: 0,
-            cursor_col: 0,
-            pending_cursor_update: false,
-            busy: 0,
-            pending_mode_info_update: false,
-            pending_mode_update: false,
-            cursor_grid_handle: DEFAULT_GRID_HANDLE,
-            ui_event_cbs: std::collections::BTreeMap::new(),
-            ui_cb_ext: [false; K_UIEXT_COUNT],
-            has_mouse: false,
-            pending_has_mouse: None,
-            pending_default_colors: false,
-            beep_count: 0,
-            beep_start_time: 0,
-            ui_flush_was_busy: false,
-            ui_flush_cursor_was_obscured: false,
+            uis: std::cell::RefCell::new(Vec::new()),
+            ui_ext: std::cell::Cell::new([false; K_UIEXT_COUNT]),
+            ui_mode_idx: std::cell::Cell::new(SHAPE_IDX_N),
+            cursor_row: std::cell::Cell::new(0),
+            cursor_col: std::cell::Cell::new(0),
+            pending_cursor_update: std::cell::Cell::new(false),
+            busy: std::cell::Cell::new(0),
+            pending_mode_info_update: std::cell::Cell::new(false),
+            pending_mode_update: std::cell::Cell::new(false),
+            cursor_grid_handle: std::cell::Cell::new(DEFAULT_GRID_HANDLE),
+            ui_event_cbs: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            ui_cb_ext: std::cell::Cell::new([false; K_UIEXT_COUNT]),
+            has_mouse: std::cell::Cell::new(false),
+            pending_has_mouse: std::cell::Cell::new(None),
+            pending_default_colors: std::cell::Cell::new(false),
+            beep_count: std::cell::Cell::new(0),
+            beep_start_time: std::cell::Cell::new(0),
+            ui_flush_was_busy: std::cell::Cell::new(false),
+            ui_flush_cursor_was_obscured: std::cell::Cell::new(false),
             #[cfg(debug_assertions)]
-            uilog_seen: 0,
+            uilog_seen: std::cell::Cell::new(0),
             #[cfg(debug_assertions)]
-            uilog_last_event: None,
+            uilog_last_event: std::cell::Cell::new(None),
         }
     }
 }
 
-static UI_STATE: GlobalState<UiState> = GlobalState::new(UiState::new());
+std::thread_local! {
+    static UI_STATE: UiState = const { UiState::new() };
+}
 
 #[inline]
-fn ui_state() -> crate::globals::GraphPtr<UiState> {
-    UI_STATE.handle()
+fn ui_state<R>(f: impl FnOnce(&UiState) -> R) -> R {
+    UI_STATE.with(f)
 }
 
 #[inline]
 fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
-    ui_state().borrow_mut().uis.iter().map(|&p| p.borrow_mut())
+    let ptrs = ui_state(|st| st.uis.borrow().clone());
+    ptrs.into_iter().map(|p| p.borrow_mut())
 }
 
 pub fn ui_init() {
@@ -176,9 +179,10 @@ pub fn ui_init() {
 }
 
 pub fn ui_free_all_mem() {
-    let cbs_ptr = &mut ui_state().ui_event_cbs;
-    cbs_ptr.clear();
-    ui_state().uis = Vec::new();
+    ui_state(|st| {
+        st.ui_event_cbs.borrow_mut().clear();
+        *st.uis.borrow_mut() = Vec::new();
+    });
 
     if let Some(events) = g_st().resize_events.opt_mut() {
         multiqueue_free(events);
@@ -218,8 +222,7 @@ pub fn ui_override() -> bool {
 }
 
 pub fn ui_active() -> usize {
-    let uis_ptr = &ui_state().uis;
-    uis_ptr.len()
+    ui_state(|st| st.uis.borrow().len())
 }
 
 pub fn ui_refresh() {
@@ -240,21 +243,26 @@ pub fn ui_refresh() {
         }
     }
 
-    ui_state().cursor_row = 0;
-    ui_state().cursor_col = 0;
-    ui_state().pending_cursor_update = true;
-
-    let had_message = ui_state().ui_ext[K_UIMESSAGES];
+    let (had_message, ui_cb_ext) = ui_state(|st| {
+        st.cursor_row.set(0);
+        st.cursor_col.set(0);
+        st.pending_cursor_update.set(true);
+        (st.ui_ext.get()[K_UIMESSAGES], st.ui_cb_ext.get())
+    });
 
     for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
-        let val = widget | ui_state().ui_cb_ext[i];
-        ui_state().ui_ext[i] = val;
+        let val = widget | ui_cb_ext[i];
+        ui_state(|st| {
+            let mut ext = st.ui_ext.get();
+            ext[i] = val;
+            st.ui_ext.set(ext);
+        });
         if i < K_UIGLOBAL_COUNT {
             ui_call_option_set(cstr_as_string(Some(UI_EXT_NAMES[i])), boolean_obj(val));
         }
     }
 
-    if had_message != ui_state().ui_ext[K_UIMESSAGES] {
+    if had_message != ui_state(|st| st.ui_ext.get()[K_UIMESSAGES]) {
         if g_st().ui_refresh_cmdheight {
             set_option_value(
                 K_OPT_CMDHEIGHT,
@@ -288,9 +296,9 @@ pub fn ui_refresh() {
     opt_vars().p_lz = save_p_lz;
 
     ui_mode_info_set();
-    ui_state().pending_mode_update = true;
+    ui_state(|st| st.pending_mode_update.set(true));
     ui_cursor_shape();
-    ui_state().pending_has_mouse = None;
+    ui_state(|st| st.pending_has_mouse.set(None));
 }
 
 pub fn ui_pum_get_height() -> i32 {
@@ -331,15 +339,14 @@ pub fn ui_schedule_refresh() {
 }
 
 pub fn ui_default_colors_set() {
-    ui_state().pending_default_colors = true;
+    ui_state(|st| st.pending_default_colors.set(true));
     if starting_val() == 0 {
         ui_may_set_default_colors();
     }
 }
 
 fn ui_may_set_default_colors() {
-    if ui_state().pending_default_colors {
-        ui_state().pending_default_colors = false;
+    if ui_state(|st| st.pending_default_colors.replace(false)) {
         ui_call_default_colors_set(
             Integer::from(g_st().normal_fg),
             Integer::from(g_st().normal_bg),
@@ -351,16 +358,23 @@ fn ui_may_set_default_colors() {
 }
 
 pub fn ui_busy_start() {
-    let prev = ui_state().busy;
-    ui_state().busy += 1;
+    let prev = ui_state(|st| {
+        let p = st.busy.get();
+        st.busy.set(p + 1);
+        p
+    });
     if prev == 0 {
         ui_call_busy_start();
     }
 }
 
 pub fn ui_busy_stop() {
-    ui_state().busy -= 1;
-    if ui_state().busy == 0 {
+    let b = ui_state(|st| {
+        let b = st.busy.get() - 1;
+        st.busy.set(b);
+        b
+    });
+    if b == 0 {
         ui_call_busy_stop();
     }
 }
@@ -374,14 +388,17 @@ pub fn vim_beep(val: u32) {
 
     if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & K_OPT_BO_FLAG_ALL) == 0 {
         let now = os_hrtime();
-        if ui_state().beep_start_time == 0
-            || now.wrapping_sub(ui_state().beep_start_time) > 500_000_000
-        {
-            ui_state().beep_count = 0;
-            ui_state().beep_start_time = now;
-        }
-        ui_state().beep_count += 1;
-        if ui_state().beep_count <= 3 {
+        let count = ui_state(|st| {
+            let start = st.beep_start_time.get();
+            if start == 0 || now.wrapping_sub(start) > 500_000_000 {
+                st.beep_count.set(0);
+                st.beep_start_time.set(now);
+            }
+            let c = st.beep_count.get() + 1;
+            st.beep_count.set(c);
+            c
+        });
+        if count <= 3 {
             if opt_vars().p_vb {
                 ui_call_visual_bell();
             } else {
@@ -403,13 +420,11 @@ pub fn do_autocmd_uienter_all() {
 }
 
 pub fn ui_can_attach_more() -> bool {
-    let uis_ptr = &ui_state().uis;
-    uis_ptr.len() < MAX_UI_COUNT
+    ui_state(|st| st.uis.borrow().len()) < MAX_UI_COUNT
 }
 
 pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
-    let uis_ptr = &mut ui_state().uis;
-    if uis_ptr.len() >= MAX_UI_COUNT {
+    if ui_state(|st| st.uis.borrow().len()) >= MAX_UI_COUNT {
         std::process::abort();
     }
     if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] && g_st().ui_client_channel_id == 0
@@ -417,7 +432,8 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
         ui_comp_attach(ui);
     }
 
-    uis_ptr.push(crate::globals::GraphPtr::from(&mut *ui));
+    let ui_ptr = crate::globals::GraphPtr::from(&mut *ui);
+    ui_state(|st| st.uis.borrow_mut().push(ui_ptr));
     ui_refresh_options();
     resettitle();
 
@@ -443,16 +459,19 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
 }
 
 pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
-    let uis_ptr = &mut ui_state().uis;
-    if uis_ptr.len() > MAX_UI_COUNT {
-        std::process::abort();
-    }
-    let Some(shift_index) = uis_ptr.iter().position(|&u| u == ui) else {
-        std::process::abort();
-    };
-    uis_ptr.remove(shift_index);
+    let is_empty = ui_state(|st| {
+        let mut uis = st.uis.borrow_mut();
+        if uis.len() > MAX_UI_COUNT {
+            std::process::abort();
+        }
+        let Some(shift_index) = uis.iter().position(|&u| u == ui) else {
+            std::process::abort();
+        };
+        uis.remove(shift_index);
+        uis.is_empty()
+    });
 
-    if !uis_ptr.is_empty() && !g_st().exiting {
+    if !is_empty && !g_st().exiting {
         ui_schedule_refresh();
     }
 
@@ -517,7 +536,7 @@ pub fn ui_line(
         );
         ui_call_flush();
         os_sleep(opt_vars().p_wd.unsigned_abs());
-        ui_state().pending_cursor_update = true;
+        ui_state(|st| st.pending_cursor_update.set(true));
     }
 }
 
@@ -526,34 +545,38 @@ pub fn ui_cursor_goto(new_row: i32, new_col: i32) {
 }
 
 pub fn ui_grid_cursor_goto(grid_handle: ObjHandle, new_row: i32, new_col: i32) {
-    if new_row == ui_state().cursor_row
-        && new_col == ui_state().cursor_col
-        && grid_handle == ui_state().cursor_grid_handle
-    {
-        return;
-    }
-    ui_state().cursor_row = new_row;
-    ui_state().cursor_col = new_col;
-    ui_state().cursor_grid_handle = grid_handle;
-    ui_state().pending_cursor_update = true;
+    ui_state(|st| {
+        if new_row == st.cursor_row.get()
+            && new_col == st.cursor_col.get()
+            && grid_handle == st.cursor_grid_handle.get()
+        {
+            return;
+        }
+        st.cursor_row.set(new_row);
+        st.cursor_col.set(new_col);
+        st.cursor_grid_handle.set(grid_handle);
+        st.pending_cursor_update.set(true);
+    });
 }
 
 pub fn ui_check_cursor_grid(grid_handle: ObjHandle) {
-    if ui_state().cursor_grid_handle == grid_handle {
-        ui_state().pending_cursor_update = true;
-    }
+    ui_state(|st| {
+        if st.cursor_grid_handle.get() == grid_handle {
+            st.pending_cursor_update.set(true);
+        }
+    });
 }
 
 pub fn ui_mode_info_set() {
-    ui_state().pending_mode_info_update = true;
+    ui_state(|st| st.pending_mode_info_update.set(true));
 }
 
 pub fn ui_current_row() -> i32 {
-    ui_state().cursor_row
+    ui_state(|st| st.cursor_row.get())
 }
 
 pub fn ui_current_col() -> i32 {
-    ui_state().cursor_col
+    ui_state(|st| st.cursor_col.get())
 }
 
 pub fn ui_flush() {
@@ -566,13 +589,11 @@ pub fn ui_flush() {
         && curwin_mut().w_floating
         && curwin_mut().w_config.hide
     {
-        if !ui_state().ui_flush_was_busy {
+        if !ui_state(|st| st.ui_flush_was_busy.replace(true)) {
             ui_call_busy_start();
-            ui_state().ui_flush_was_busy = true;
         }
-    } else if ui_state().ui_flush_was_busy {
+    } else if ui_state(|st| st.ui_flush_was_busy.replace(false)) {
         ui_call_busy_stop();
-        ui_state().ui_flush_was_busy = false;
     }
 
     win_ui_flush(false);
@@ -582,47 +603,62 @@ pub fn ui_flush() {
     }
     msg_scroll_flush();
 
-    if ui_state().pending_cursor_update {
+    if ui_state(|st| st.pending_cursor_update.get()) {
+        let (grid_handle, row, col) = ui_state(|st| {
+            (
+                st.cursor_grid_handle.get(),
+                st.cursor_row.get(),
+                st.cursor_col.get(),
+            )
+        });
         ui_call_grid_cursor_goto(
-            Integer::from(ui_state().cursor_grid_handle),
-            Integer::from(ui_state().cursor_row),
-            Integer::from(ui_state().cursor_col),
+            Integer::from(grid_handle),
+            Integer::from(row),
+            Integer::from(col),
         );
-        ui_state().pending_cursor_update = false;
+        ui_state(|st| st.pending_cursor_update.set(false));
         win_ui_flush(false);
     }
-    if ui_state().pending_mode_info_update {
+    if ui_state(|st| st.pending_mode_info_update.get()) {
         let mut arena = Arena::new();
         let style = mode_style_array(&mut arena);
         let enabled = !opt_vars().p_guicursor.is_empty();
         ui_call_mode_info_set(enabled, style);
         arena_mem_free(arena_finish(&mut arena));
-        ui_state().pending_mode_info_update = false;
+        ui_state(|st| st.pending_mode_info_update.set(false));
     }
 
     let cursor_obscured = ui_cursor_is_behind_floatwin();
-    if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured
-        || ui_state().pending_mode_update)
-        && starting_val() == 0
-    {
+    let (was_obscured, pending_mode, mode_idx) = ui_state(|st| {
+        (
+            st.ui_flush_cursor_was_obscured.get(),
+            st.pending_mode_update.get(),
+            st.ui_mode_idx.get(),
+        )
+    });
+    if (cursor_obscured != was_obscured || pending_mode) && starting_val() == 0 {
         let idx = if cursor_obscured {
             SHAPE_IDX_R
         } else {
-            ui_state().ui_mode_idx
+            mode_idx
         };
-        let full_name = (*shape_table_mut())[idx as usize].full_name;
+        let full_name = shape_table_entry(idx as usize).full_name;
         ui_call_mode_change(cstr_as_string(Some(full_name)), Integer::from(idx));
-        ui_state().pending_mode_update = false;
-        ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
+        ui_state(|st| {
+            st.pending_mode_update.set(false);
+            st.ui_flush_cursor_was_obscured.set(cursor_obscured);
+        });
     }
 
-    if ui_state().pending_has_mouse != Some(ui_state().has_mouse) {
-        if ui_state().has_mouse {
+    let (pending_has_mouse, has_mouse) =
+        ui_state(|st| (st.pending_has_mouse.get(), st.has_mouse.get()));
+    if pending_has_mouse != Some(has_mouse) {
+        if has_mouse {
             ui_call_mouse_on();
         } else {
             ui_call_mouse_off();
         }
-        ui_state().pending_has_mouse = Some(ui_state().has_mouse);
+        ui_state(|st| st.pending_has_mouse.set(Some(has_mouse)));
     }
     ui_call_flush();
 
@@ -632,7 +668,7 @@ pub fn ui_flush() {
 }
 
 pub fn ui_check_mouse() {
-    ui_state().has_mouse = false;
+    ui_state(|st| st.has_mouse.set(false));
     if opt_vars().p_mouse.is_empty() {
         return;
     }
@@ -655,7 +691,7 @@ pub fn ui_check_mouse() {
     };
 
     if ui_mouse_has(checkfor) {
-        ui_state().has_mouse = true;
+        ui_state(|st| st.has_mouse.set(true));
     }
 }
 
@@ -681,10 +717,12 @@ pub fn ui_cursor_shape_no_check_conceal() {
         return;
     }
     let new_mode_idx = cursor_get_mode_idx();
-    if new_mode_idx != ui_state().ui_mode_idx {
-        ui_state().ui_mode_idx = new_mode_idx;
-        ui_state().pending_mode_update = true;
-    }
+    ui_state(|st| {
+        if new_mode_idx != st.ui_mode_idx.get() {
+            st.ui_mode_idx.set(new_mode_idx);
+            st.pending_mode_update.set(true);
+        }
+    });
 }
 
 pub fn ui_cursor_shape() {
@@ -713,11 +751,11 @@ fn ui_cursor_is_behind_floatwin() -> bool {
 }
 
 pub fn ui_has(ext: UIExtension) -> bool {
-    ui_state().ui_ext[ext as usize]
+    ui_state(|st| st.ui_ext.get()[ext as usize])
 }
 
 pub fn ui_array(arena: &mut Arena) -> Array {
-    let mut all_uis = arena_array(arena, ui_state().uis.len());
+    let mut all_uis = arena_array(arena, ui_state(|st| st.uis.borrow().len()));
 
     for ui in ui_iter_mut() {
         let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
@@ -830,10 +868,15 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
     let mut handled = false;
     let fast = g_st().msg_ext_fast && name == c"msg_show";
-    let cbs_ptr = &ui_state().ui_event_cbs;
-    let entries: Vec<(u32, LuaRef)> = cbs_ptr.iter().map(|(&k, v)| (k, v.cb)).collect();
+    let entries: Vec<(u32, LuaRef)> = ui_state(|st| {
+        st.ui_event_cbs
+            .borrow()
+            .iter()
+            .map(|(&k, v)| (k, v.cb))
+            .collect()
+    });
     for (ns_id, cb_ref) in entries {
-        if !cbs_ptr.contains_key(&ns_id) {
+        if !ui_state(|st| st.ui_event_cbs.borrow().contains_key(&ns_id)) {
             continue;
         }
         g_st().ui_event_ns_id = ns_id;
@@ -871,17 +914,19 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 }
 
 fn ui_cb_update_ext() {
-    ui_state().ui_cb_ext = [false; K_UIEXT_COUNT];
-
-    let cbs_ptr = &ui_state().ui_event_cbs;
-    for i in 0..K_UIGLOBAL_COUNT {
-        for event_cb in cbs_ptr.values() {
-            if event_cb.ext_widgets[i] {
-                ui_state().ui_cb_ext[i] = true;
-                break;
+    ui_state(|st| {
+        let mut cb_ext = [false; K_UIEXT_COUNT];
+        let cbs = st.ui_event_cbs.borrow();
+        for (i, ext) in cb_ext.iter_mut().enumerate().take(K_UIGLOBAL_COUNT) {
+            for event_cb in cbs.values() {
+                if event_cb.ext_widgets[i] {
+                    *ext = true;
+                    break;
+                }
             }
         }
-    }
+        st.ui_cb_ext.set(cb_ext);
+    });
 }
 
 pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; K_UIGLOBAL_COUNT]) {
@@ -894,26 +939,33 @@ pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; K_UIGLOBAL_COUNT])
         event_cb.ext_widgets[K_UICMDLINE] = true;
     }
 
-    ui_state().ui_event_cbs.insert(ns_id, event_cb);
+    ui_state(|st| {
+        st.ui_event_cbs.borrow_mut().insert(ns_id, event_cb);
+    });
 
     ui_cb_update_ext();
     ui_refresh();
 }
 
 pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
-    let cbs_ptr = &mut ui_state().ui_event_cbs;
-    let should_remove = if let Some(item) = cbs_ptr.get_mut(&ns_id) {
-        if !checkerr {
-            true
+    let should_remove = ui_state(|st| {
+        let mut cbs = st.ui_event_cbs.borrow_mut();
+        let should_remove = if let Some(item) = cbs.get_mut(&ns_id) {
+            if !checkerr {
+                true
+            } else {
+                item.errors += 1;
+                item.errors > CB_MAX_ERROR
+            }
         } else {
-            item.errors += 1;
-            item.errors > CB_MAX_ERROR
+            false
+        };
+        if should_remove {
+            cbs.remove(&ns_id);
         }
-    } else {
-        false
-    };
+        should_remove
+    });
     if should_remove {
-        cbs_ptr.remove(&ns_id);
         ui_cb_update_ext();
         ui_refresh();
         if checkerr {
@@ -932,10 +984,20 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
             return;
         }
 
-        if ui_state().uilog_last_event == Some(funname) {
-            ui_state().uilog_seen += 1;
-        } else {
-            if ui_state().uilog_seen > 0 {
+        let (same, seen, last_event) = ui_state(|st| {
+            let last = st.uilog_last_event.get();
+            if last == Some(funname) {
+                let s = st.uilog_seen.get() + 1;
+                st.uilog_seen.set(s);
+                (true, s, last)
+            } else {
+                let s = st.uilog_seen.replace(0);
+                st.uilog_last_event.set(Some(funname));
+                (false, s, last)
+            }
+        });
+        if !same {
+            if seen > 0 {
                 logmsg!(
                     LOGLVL_DBG,
                     Some(c"UI: "),
@@ -943,13 +1005,11 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
                     -1,
                     true,
                     c"%s (+%zu times...)",
-                    ui_state().uilog_last_event,
-                    ui_state().uilog_seen,
+                    last_event,
+                    seen,
                 );
             }
             logmsg!(LOGLVL_DBG, Some(c"UI: "), None, -1, true, c"%s", funname,);
-            ui_state().uilog_seen = 0;
-            ui_state().uilog_last_event = Some(funname);
         }
     }
 }

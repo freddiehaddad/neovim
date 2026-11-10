@@ -126,36 +126,6 @@ impl VolatileBool {
     }
 }
 
-#[repr(C, align(8))]
-pub struct UvMutex([u8; 128]);
-
-impl UvMutex {
-    pub const fn new() -> Self {
-        Self([0; 128])
-    }
-
-    #[inline]
-    pub fn init_recursive(&mut self) {
-        unsafe { uv_mutex_init_recursive((&raw mut self.0).cast()) };
-    }
-
-    #[inline]
-    pub fn lock(&mut self) {
-        unsafe { uv_mutex_lock((&raw mut self.0).cast()) };
-    }
-
-    #[inline]
-    pub fn unlock(&mut self) {
-        unsafe { uv_mutex_unlock((&raw mut self.0).cast()) };
-    }
-}
-
-impl Default for UvMutex {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[inline]
 pub fn loop_print_all_handles(loop_: &mut uv_loop_t, file: &crate::os::fs::CFile) {
     unsafe { uv_print_all_handles(&raw mut *loop_, file.as_nonnull().as_ptr()) };
@@ -219,7 +189,6 @@ unsafe extern "C" {
     pub fn uv_walk(loop_: *mut uv_loop_t, walk_cb: uv_walk_cb, arg: *mut c_void);
 
     pub fn uv_mutex_init(handle: *mut uv_mutex_t) -> i32;
-    pub fn uv_mutex_init_recursive(handle: *mut c_void) -> i32;
     pub fn uv_mutex_destroy(handle: *mut uv_mutex_t);
     pub fn uv_mutex_lock(handle: *mut uv_mutex_t);
     pub fn uv_mutex_unlock(handle: *mut uv_mutex_t);

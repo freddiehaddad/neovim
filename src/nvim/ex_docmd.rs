@@ -7302,15 +7302,15 @@ pub fn parse_cmd_address(
 
                     eap.cmd = eap.cmd.wrapping_add(1);
                     if !eap.skip {
-                        let mut fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
-                        if !mark_check(fm1.as_deref_mut(), errormsg) {
+                        let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
+                        if !mark_check(fm1.as_ref(), errormsg) {
                             break 'theend;
                         }
 
                         eap.line1 = fm1.unwrap().mark.lnum;
 
-                        let mut fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
-                        if !mark_check(fm2.as_deref_mut(), errormsg) {
+                        let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
+                        if !mark_check(fm2.as_ref(), errormsg) {
                             break 'theend;
                         }
 
@@ -7827,7 +7827,7 @@ pub fn get_address(
                         } else {
                             K_MARK_BUF_LOCAL
                         };
-                        let mut fm = mark_get(
+                        let fm = mark_get(
                             curbuf_mut(),
                             curwin_mut(),
                             None,
@@ -7836,10 +7836,10 @@ pub fn get_address(
                         );
                         cmd_cur = Some(crate::memory::CStrSubslice::advance(after_quote, 1));
                         if fm.as_ref().is_some_and(|f| f.fnum != curbuf_mut().b_fnum) {
-                            mark_move_to(fm, 0);
+                            mark_move_to(fm.as_ref(), 0);
                             lnum = curwin_mut().w_cursor.lnum;
                         } else {
-                            if !mark_check(fm.as_deref_mut(), errormsg) {
+                            if !mark_check(fm.as_ref(), errormsg) {
                                 cmd_cur = None;
                                 break 'error;
                             }

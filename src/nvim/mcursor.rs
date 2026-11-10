@@ -48,7 +48,7 @@ use crate::input_cmdatom::{
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
-use crate::log::{LOGLVL_DBG, log_st, logmsg};
+use crate::log::{LOGLVL_DBG, logmsg, min_log_level};
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::REMAP_NONE;
 use crate::mark::mark_get_visual;
@@ -790,7 +790,7 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
         &mut err,
     );
     if err.err_type != ErrorType::ErrorTypeNone {
-        if log_st().g_min_log_level <= LOGLVL_DBG {
+        if min_log_level() <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 None,

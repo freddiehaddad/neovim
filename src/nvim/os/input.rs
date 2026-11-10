@@ -50,48 +50,50 @@ const CTRL_C_CONST_CONST_CONST: u8 = 3;
 const BREAKCHECK_SKIP: i32 = 1000;
 
 struct OsInputState {
-    input_buffer: [u8; INPUT_BUFFER_SIZE],
-    input_read_pos: usize,
-    input_write_pos: usize,
-    blocking: bool,
-    cursorhold_time: u64,
-    cursorhold_tb_change_cnt: i32,
-    breakcheck_count: i32,
-    orig_num_clicks: i32,
-    orig_mouse_code: i32,
-    orig_mouse_grid: i32,
-    orig_mouse_col: i32,
-    orig_mouse_row: i32,
-    orig_mouse_time: u64,
-    push_event_key_idx: usize,
+    input_buffer: std::cell::RefCell<[u8; INPUT_BUFFER_SIZE]>,
+    input_read_pos: std::cell::Cell<usize>,
+    input_write_pos: std::cell::Cell<usize>,
+    blocking: std::cell::Cell<bool>,
+    cursorhold_time: std::cell::Cell<u64>,
+    cursorhold_tb_change_cnt: std::cell::Cell<i32>,
+    breakcheck_count: std::cell::Cell<i32>,
+    orig_num_clicks: std::cell::Cell<i32>,
+    orig_mouse_code: std::cell::Cell<i32>,
+    orig_mouse_grid: std::cell::Cell<i32>,
+    orig_mouse_col: std::cell::Cell<i32>,
+    orig_mouse_row: std::cell::Cell<i32>,
+    orig_mouse_time: std::cell::Cell<u64>,
+    push_event_key_idx: std::cell::Cell<usize>,
 }
 
 impl OsInputState {
     const fn new() -> Self {
         Self {
-            input_buffer: [0; INPUT_BUFFER_SIZE],
-            input_read_pos: 0,
-            input_write_pos: 0,
-            blocking: false,
-            cursorhold_time: 0,
-            cursorhold_tb_change_cnt: 0,
-            breakcheck_count: 0,
-            orig_num_clicks: 0,
-            orig_mouse_code: 0,
-            orig_mouse_grid: 0,
-            orig_mouse_col: 0,
-            orig_mouse_row: 0,
-            orig_mouse_time: 0,
-            push_event_key_idx: 0,
+            input_buffer: std::cell::RefCell::new([0; INPUT_BUFFER_SIZE]),
+            input_read_pos: std::cell::Cell::new(0),
+            input_write_pos: std::cell::Cell::new(0),
+            blocking: std::cell::Cell::new(false),
+            cursorhold_time: std::cell::Cell::new(0),
+            cursorhold_tb_change_cnt: std::cell::Cell::new(0),
+            breakcheck_count: std::cell::Cell::new(0),
+            orig_num_clicks: std::cell::Cell::new(0),
+            orig_mouse_code: std::cell::Cell::new(0),
+            orig_mouse_grid: std::cell::Cell::new(0),
+            orig_mouse_col: std::cell::Cell::new(0),
+            orig_mouse_row: std::cell::Cell::new(0),
+            orig_mouse_time: std::cell::Cell::new(0),
+            push_event_key_idx: std::cell::Cell::new(0),
         }
     }
 }
 
-static OSI_STATE: GlobalState<OsInputState> = GlobalState::new(OsInputState::new());
+std::thread_local! {
+    static OSI_STATE: OsInputState = const { OsInputState::new() };
+}
 
 #[inline]
-fn osi_st() -> crate::globals::GraphPtr<OsInputState> {
-    OSI_STATE.handle()
+fn osi_st<R>(f: impl FnOnce(&OsInputState) -> R) -> R {
+    OSI_STATE.with(f)
 }
 
 fn parse_mouse_coords(s: &[u8]) -> Option<(i32, i32, usize)> {
@@ -155,8 +157,10 @@ fn create_cursorhold_event(events_enabled: bool) {
 }
 
 fn reset_cursorhold_wait(tb_change_cnt: i32) {
-    osi_st().cursorhold_time = 0;
-    osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
+    osi_st(|st| {
+        st.cursorhold_time.set(0);
+        st.cursorhold_tb_change_cnt.set(tb_change_cnt);
+    });
 }
 
 /// Reads OS input into `out_buf`, and consumes pending events while waiting (if `ms != 0`).
@@ -171,7 +175,7 @@ pub fn input_get(
     }
     let maxlen = out_buf.as_ref().map_or(0, |s| s.len() as i32);
     // This check is needed so that feeding typeahead from RPC can prevent CursorHold.
-    if tb_change_cnt != osi_st().cursorhold_tb_change_cnt {
+    if tb_change_cnt != osi_st(|st| st.cursorhold_tb_change_cnt.get()) {
         reset_cursorhold_wait(tb_change_cnt);
     }
 
@@ -180,9 +184,11 @@ pub fn input_get(
     {
         reset_cursorhold_wait(tb_change_cnt);
         let to_read = out_slice.len().min(input_available());
-        let rpos = osi_st().input_read_pos;
-        out_slice[..to_read].copy_from_slice(&osi_st().input_buffer[rpos..rpos + to_read]);
-        osi_st().input_read_pos = rpos + to_read;
+        osi_st(|st| {
+            let rpos = st.input_read_pos.get();
+            out_slice[..to_read].copy_from_slice(&st.input_buffer.borrow()[rpos..rpos + to_read]);
+            st.input_read_pos.set(rpos + to_read);
+        });
         debug_assert!(to_read <= i32::MAX as usize);
         return to_read as i32;
     }
@@ -198,15 +204,20 @@ pub fn input_get(
         }
     } else {
         let wait_start = os_hrtime();
-        osi_st().cursorhold_time = osi_st()
-            .cursorhold_time
-            .min((opt_vars().p_ut as u64) * 1_000_000);
+        let ch_time = osi_st(|st| {
+            let t = st
+                .cursorhold_time
+                .get()
+                .min((opt_vars().p_ut as u64) * 1_000_000);
+            st.cursorhold_time.set(t);
+            t
+        });
         let delay_pending = ins_compl_autocomplete_pending()
             && opt_vars().p_acl > 0
             && g_st().typebuf.tb_len == 0
             && !ins_compl_active()
             && (get_real_state() & MODE_INSERT) != 0;
-        let mut wait_time = opt_vars().p_ut - ((osi_st().cursorhold_time / 1_000_000) as i64);
+        let mut wait_time = opt_vars().p_ut - ((ch_time / 1_000_000) as i64);
         if delay_pending {
             let delay_left = opt_vars().p_acl - ins_compl_autocomplete_elapsed();
             wait_time = delay_left.max(0).min(wait_time);
@@ -239,7 +250,8 @@ pub fn input_get(
                 inbuf_poll(-1, events);
             }
         } else {
-            osi_st().cursorhold_time += os_hrtime() - wait_start;
+            let elapsed = os_hrtime() - wait_start;
+            osi_st(|st| st.cursorhold_time.set(st.cursorhold_time.get() + elapsed));
         }
     }
 
@@ -255,9 +267,11 @@ pub fn input_get(
     {
         reset_cursorhold_wait(tb_change_cnt);
         let to_read = out_slice.len().min(input_available());
-        let rpos = osi_st().input_read_pos;
-        out_slice[..to_read].copy_from_slice(&osi_st().input_buffer[rpos..rpos + to_read]);
-        osi_st().input_read_pos = rpos + to_read;
+        osi_st(|st| {
+            let rpos = st.input_read_pos.get();
+            out_slice[..to_read].copy_from_slice(&st.input_buffer.borrow()[rpos..rpos + to_read]);
+            st.input_read_pos.set(rpos + to_read);
+        });
         debug_assert!(to_read <= i32::MAX as usize);
         return to_read as i32;
     }
@@ -289,9 +303,17 @@ pub fn os_breakcheck() {
 /// Check for CTRL-C pressed, but only once in a while.
 #[inline]
 pub fn line_breakcheck() {
-    osi_st().breakcheck_count += 1;
-    if osi_st().breakcheck_count >= BREAKCHECK_SKIP {
-        osi_st().breakcheck_count = 0;
+    let do_check = osi_st(|st| {
+        let c = st.breakcheck_count.get() + 1;
+        if c >= BREAKCHECK_SKIP {
+            st.breakcheck_count.set(0);
+            true
+        } else {
+            st.breakcheck_count.set(c);
+            false
+        }
+    });
+    if do_check {
         os_breakcheck();
     }
 }
@@ -299,9 +321,17 @@ pub fn line_breakcheck() {
 /// Like line_breakcheck() but check 10 times less often.
 #[inline]
 pub fn fast_breakcheck() {
-    osi_st().breakcheck_count += 1;
-    if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 10 {
-        osi_st().breakcheck_count = 0;
+    let do_check = osi_st(|st| {
+        let c = st.breakcheck_count.get() + 1;
+        if c >= BREAKCHECK_SKIP * 10 {
+            st.breakcheck_count.set(0);
+            true
+        } else {
+            st.breakcheck_count.set(c);
+            false
+        }
+    });
+    if do_check {
         os_breakcheck();
     }
 }
@@ -309,9 +339,17 @@ pub fn fast_breakcheck() {
 /// Like line_breakcheck() but check 100 times less often.
 #[inline]
 pub fn veryfast_breakcheck() {
-    osi_st().breakcheck_count += 1;
-    if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 100 {
-        osi_st().breakcheck_count = 0;
+    let do_check = osi_st(|st| {
+        let c = st.breakcheck_count.get() + 1;
+        if c >= BREAKCHECK_SKIP * 100 {
+            st.breakcheck_count.set(0);
+            true
+        } else {
+            st.breakcheck_count.set(c);
+            false
+        }
+    });
+    if do_check {
         os_breakcheck();
     }
 }
@@ -322,40 +360,45 @@ pub fn os_isatty(fd: i32) -> bool {
 }
 
 pub fn input_available() -> usize {
-    osi_st()
-        .input_write_pos
-        .saturating_sub(osi_st().input_read_pos)
+    osi_st(|st| {
+        st.input_write_pos
+            .get()
+            .saturating_sub(st.input_read_pos.get())
+    })
 }
 
 fn input_space() -> usize {
-    INPUT_BUFFER_SIZE.saturating_sub(osi_st().input_write_pos)
+    INPUT_BUFFER_SIZE.saturating_sub(osi_st(|st| st.input_write_pos.get()))
 }
 
 pub fn input_enqueue_raw(data: &[u8]) {
-    let st = osi_st().borrow_mut();
-    if st.input_read_pos > 0 {
-        let available = st.input_write_pos.saturating_sub(st.input_read_pos);
-        st.input_buffer
-            .copy_within(st.input_read_pos..st.input_write_pos, 0);
-        st.input_read_pos = 0;
-        st.input_write_pos = available;
-    }
+    osi_st(|st| {
+        let mut buf = st.input_buffer.borrow_mut();
+        let rpos = st.input_read_pos.get();
+        let mut wpos = st.input_write_pos.get();
+        if rpos > 0 {
+            let available = wpos.saturating_sub(rpos);
+            buf.copy_within(rpos..wpos, 0);
+            st.input_read_pos.set(0);
+            wpos = available;
+            st.input_write_pos.set(wpos);
+        }
 
-    let to_write = data
-        .len()
-        .min(INPUT_BUFFER_SIZE.saturating_sub(st.input_write_pos));
-    let wpos = st.input_write_pos;
-    st.input_buffer[wpos..wpos + to_write].copy_from_slice(&data[..to_write]);
-    st.input_write_pos = wpos + to_write;
+        let to_write = data.len().min(INPUT_BUFFER_SIZE.saturating_sub(wpos));
+        buf[wpos..wpos + to_write].copy_from_slice(&data[..to_write]);
+        st.input_write_pos.set(wpos + to_write);
+    });
 }
 
 pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     g_st().current_ui = chan_id;
 
-    if osi_st().input_read_pos == osi_st().input_write_pos {
-        osi_st().input_read_pos = 0;
-        osi_st().input_write_pos = 0;
-    }
+    osi_st(|st| {
+        if st.input_read_pos.get() == st.input_write_pos.get() {
+            st.input_read_pos.set(0);
+            st.input_write_pos.set(0);
+        }
+    });
 
     let key_bytes = keys.as_bytes();
     if !key_bytes.is_empty() {
@@ -412,9 +455,11 @@ fn check_multiclick(code: i32, grid: i32, row: i32, col: i32, skip_event: &mut b
         return 0;
     }
 
-    let no_move = osi_st().orig_mouse_grid == grid
-        && osi_st().orig_mouse_col == col
-        && osi_st().orig_mouse_row == row;
+    let no_move = osi_st(|st| {
+        st.orig_mouse_grid.get() == grid
+            && st.orig_mouse_col.get() == col
+            && st.orig_mouse_row.get() == row
+    });
     let mut is_click = false;
     let mut is_drag = false;
     let _ = get_mouse_button(code, &mut is_click, &mut is_drag);
@@ -427,36 +472,38 @@ fn check_multiclick(code: i32, grid: i32, row: i32, col: i32, skip_event: &mut b
     if is_click {
         // For click events the number of clicks is updated.
         let mouse_time = os_hrtime(); // time of current mouse click (ns)
-        let timediff = mouse_time.wrapping_sub(osi_st().orig_mouse_time);
         let mouset = (opt_vars().p_mouset as u64).wrapping_mul(1_000_000);
-        if code == osi_st().orig_mouse_code
-            && no_move
-            && timediff < mouset
-            && osi_st().orig_num_clicks != 4
-        {
-            osi_st().orig_num_clicks += 1;
-        } else {
-            osi_st().orig_num_clicks = 1;
-        }
-        osi_st().orig_mouse_code = code;
-        osi_st().orig_mouse_time = mouse_time;
+        osi_st(|st| {
+            let timediff = mouse_time.wrapping_sub(st.orig_mouse_time.get());
+            let clicks = st.orig_num_clicks.get();
+            if code == st.orig_mouse_code.get() && no_move && timediff < mouset && clicks != 4 {
+                st.orig_num_clicks.set(clicks + 1);
+            } else {
+                st.orig_num_clicks.set(1);
+            }
+            st.orig_mouse_code.set(code);
+            st.orig_mouse_time.set(mouse_time);
+        });
     } else if !no_move {
         // For drag and release events the number of clicks is kept.
         // However, if the mouse has moved, the next click should reset the click count.
-        osi_st().orig_mouse_code = code;
+        osi_st(|st| st.orig_mouse_code.set(code));
     }
 
-    osi_st().orig_mouse_grid = grid;
-    osi_st().orig_mouse_col = col;
-    osi_st().orig_mouse_row = row;
+    let num_clicks = osi_st(|st| {
+        st.orig_mouse_grid.set(grid);
+        st.orig_mouse_col.set(col);
+        st.orig_mouse_row.set(row);
+        st.orig_num_clicks.get()
+    });
 
     let mut modifiers: u8 = 0;
     if code != KE_MOUSEMOVE {
-        if osi_st().orig_num_clicks == 2 {
+        if num_clicks == 2 {
             modifiers |= MOD_MASK_2CLICK;
-        } else if osi_st().orig_num_clicks == 3 {
+        } else if num_clicks == 3 {
             modifiers |= MOD_MASK_3CLICK;
-        } else if osi_st().orig_num_clicks == 4 {
+        } else if num_clicks == 4 {
             modifiers |= MOD_MASK_4CLICK;
         }
     }
@@ -562,7 +609,7 @@ pub fn input_enqueue_mouse(code: i32, mut modifier: u8, grid: i32, row: i32, col
 
 /// @return true if the main loop is blocked and waiting for input.
 pub fn input_blocking() -> bool {
-    osi_st().blocking
+    osi_st(|st| st.blocking.get())
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
@@ -582,7 +629,7 @@ fn inbuf_poll(ms: i32, events_opt: Option<&MultiQueue>) -> bool {
 
     if !events_opt.is_some_and(|ev| std::ptr::eq(ev, main_loop_events())) {
         // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
-        osi_st().blocking = true;
+        osi_st(|st| st.blocking.set(true));
         multiqueue_process_events(g_st().ch_before_blocking_events.borrow_mut());
     }
 
@@ -599,7 +646,7 @@ fn inbuf_poll(ms: i32, events_opt: Option<&MultiQueue>) -> bool {
         }
     }
 
-    osi_st().blocking = false;
+    osi_st(|st| st.blocking.set(false));
 
     if g_st().do_profiling == PROF_YES {
         prof_input_end();
@@ -635,32 +682,34 @@ fn process_ctrl_c() {
         return;
     }
 
-    let st = osi_st().borrow_mut();
-    let rpos = st.input_read_pos;
-    let wpos = st.input_write_pos;
-    let available = wpos.saturating_sub(rpos);
-    let mut i = available as isize - 1;
-    while i >= 0 {
-        let idx = rpos + (i as usize);
-        let c = st.input_buffer[idx];
-        if c == CTRL_C_CONST_CONST_CONST
-            || (c == b'C'
-                && i >= 3
-                && st.input_buffer[idx - 3] == K_SPECIAL
-                && st.input_buffer[idx - 2] == KS_MODIFIER
-                && st.input_buffer[idx - 1] == MOD_MASK_CTRL)
-        {
-            st.input_buffer[idx] = CTRL_C_CONST_CONST_CONST;
-            g_st().got_int = true;
-            break;
+    osi_st(|st| {
+        let mut buf = st.input_buffer.borrow_mut();
+        let rpos = st.input_read_pos.get();
+        let wpos = st.input_write_pos.get();
+        let available = wpos.saturating_sub(rpos);
+        let mut i = available as isize - 1;
+        while i >= 0 {
+            let idx = rpos + (i as usize);
+            let c = buf[idx];
+            if c == CTRL_C_CONST_CONST_CONST
+                || (c == b'C'
+                    && i >= 3
+                    && buf[idx - 3] == K_SPECIAL
+                    && buf[idx - 2] == KS_MODIFIER
+                    && buf[idx - 1] == MOD_MASK_CTRL)
+            {
+                buf[idx] = CTRL_C_CONST_CONST_CONST;
+                g_st().got_int = true;
+                break;
+            }
+            i -= 1;
         }
-        i -= 1;
-    }
 
-    if g_st().got_int && i > 0 {
-        // Remove all unprocessed input (typeahead) before the CTRL-C.
-        st.input_read_pos = rpos + (i as usize);
-    }
+        if g_st().got_int && i > 0 {
+            // Remove all unprocessed input (typeahead) before the CTRL-C.
+            st.input_read_pos.set(rpos + (i as usize));
+        }
+    });
 }
 
 /// Pushes bytes from the "event" key sequence (KE_EVENT) partially between calls to input_get when
@@ -669,14 +718,18 @@ fn push_event_key(buf: &mut [u8]) -> i32 {
     const KEY: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_EVENT];
     let mut buf_idx: usize = 0;
 
-    while buf_idx < buf.len() {
-        buf[buf_idx] = KEY[osi_st().push_event_key_idx];
-        buf_idx += 1;
-        osi_st().push_event_key_idx = (osi_st().push_event_key_idx + 1) % 3;
-        if osi_st().push_event_key_idx == 0 {
-            break;
+    osi_st(|st| {
+        while buf_idx < buf.len() {
+            let key_idx = st.push_event_key_idx.get();
+            buf[buf_idx] = KEY[key_idx];
+            buf_idx += 1;
+            let next_idx = (key_idx + 1) % 3;
+            st.push_event_key_idx.set(next_idx);
+            if next_idx == 0 {
+                break;
+            }
         }
-    }
+    });
 
     buf_idx as i32
 }
@@ -696,15 +749,18 @@ mod tests {
 
     #[test]
     fn input_enqueue_raw_and_push_event_key_work() {
-        osi_st().input_read_pos = 0;
-        osi_st().input_write_pos = 0;
+        osi_st(|st| {
+            st.input_read_pos.set(0);
+            st.input_write_pos.set(0);
+        });
         assert_eq!(input_available(), 0);
         input_enqueue_raw(b"abc");
         assert_eq!(input_available(), 3);
-        osi_st().input_read_pos = 0;
-        osi_st().input_write_pos = 0;
-
-        osi_st().push_event_key_idx = 0;
+        osi_st(|st| {
+            st.input_read_pos.set(0);
+            st.input_write_pos.set(0);
+            st.push_event_key_idx.set(0);
+        });
         let mut buf = [0u8; 3];
         assert_eq!(push_event_key(&mut buf[..2]), 2);
         assert_eq!(buf[0], K_SPECIAL);

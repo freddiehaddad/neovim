@@ -6,7 +6,7 @@
 //! <https://lwn.net/Articles/780556/>
 
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
-use crate::event::r#loop::{UvMutex, loop_print_all_handles, uv_strerror};
+use crate::event::r#loop::{loop_print_all_handles, uv_strerror};
 use crate::fileio::{EOF, fprintf};
 use crate::globals::*;
 use crate::memory::mem_st;
@@ -19,42 +19,45 @@ use crate::path::{concat_fnames_cstr, path_tail};
 use crate::strings::strerror;
 use std::ffi::CStr;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 pub const LOGLVL_DBG: i32 = 1;
 pub const LOGLVL_INF: i32 = 2;
 pub const LOGLVL_WRN: i32 = 3;
 pub const LOGLVL_ERR: i32 = 4;
 
-pub(crate) struct LogModuleState {
-    pub(crate) g_min_log_level: i32,
+static G_MIN_LOG_LEVEL: AtomicI32 = AtomicI32::new(LOGLVL_WRN);
+static DID_LOG_INIT: AtomicBool = AtomicBool::new(false);
+static DID_MSG: AtomicBool = AtomicBool::new(false);
+
+std::thread_local! {
+    static LOG_RECURSIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+struct LogInnerState {
     log_file_path: [u8; MAXPATHL + 1],
-    did_log_init: bool,
-    mutex: UvMutex,
-    recursive: bool,
-    did_msg: bool,
     instance_name: [u8; 32],
 }
 
-impl LogModuleState {
+impl LogInnerState {
     const fn new() -> Self {
         Self {
-            g_min_log_level: LOGLVL_WRN,
             log_file_path: [0; MAXPATHL + 1],
-            did_log_init: false,
-            mutex: UvMutex::new(),
-            recursive: false,
-            did_msg: false,
             instance_name: [0; 32],
         }
     }
 }
 
-static LOG_STATE: crate::globals::GlobalState<LogModuleState> =
-    crate::globals::GlobalState::new(LogModuleState::new());
+static LOG_STATE: std::sync::Mutex<LogInnerState> = std::sync::Mutex::new(LogInnerState::new());
 
 #[inline]
-pub(crate) fn log_st() -> crate::globals::GraphPtr<LogModuleState> {
-    LOG_STATE.handle()
+pub(crate) fn min_log_level() -> i32 {
+    G_MIN_LOG_LEVEL.load(Ordering::Relaxed)
+}
+
+#[inline]
+pub(crate) fn set_min_log_level(lvl: i32) {
+    G_MIN_LOG_LEVEL.store(lvl, Ordering::Relaxed);
 }
 
 pub fn log_get_stdout() -> CFile {
@@ -131,8 +134,9 @@ fn log_try_create(fname: &CStr) -> bool {
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 fn log_path_init() {
     let size = MAXPATHL + 1;
-    expand_env(c"$NVIM_LOG_FILE", &mut log_st().log_file_path[..size - 1]);
-    let path_cstr = CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
+    let mut path_buf = [0u8; MAXPATHL + 1];
+    expand_env(c"$NVIM_LOG_FILE", &mut path_buf[..size - 1]);
+    let path_cstr = CStr::from_bytes_until_nul(&path_buf).unwrap_or(c"");
     let user_set = path_cstr.to_bytes() != b"$NVIM_LOG_FILE";
 
     if !user_set
@@ -154,25 +158,24 @@ fn log_path_init() {
         drop(loghome);
 
         let defaultpath = stdpaths_user_state_subpath(c"logs/nvim.log", 0, true);
-        let mut len =
-            crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, defaultpath.as_bytes());
+        let mut len = crate::memory::copy_bytes_to_c_buf(&mut path_buf, defaultpath.as_bytes());
         drop(defaultpath);
 
-        let cur_cstr =
-            CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
+        let cur_cstr = CStr::from_bytes_until_nul(&path_buf).unwrap_or(c"");
         if len >= size || !log_try_create(cur_cstr) {
             if !user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT", cur_cstr, 1);
             }
-            len = crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, b"nvim.log");
+            len = crate::memory::copy_bytes_to_c_buf(&mut path_buf, b"nvim.log");
         }
-        let cur_cstr =
-            CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
+        let cur_cstr = CStr::from_bytes_until_nul(&path_buf).unwrap_or(c"");
         if len >= size || !log_try_create(cur_cstr) {
-            log_st().log_file_path[0] = 0;
+            path_buf[0] = 0;
+            LOG_STATE.lock().unwrap().log_file_path = path_buf;
             return;
         }
         os_setenv(c"NVIM_LOG_FILE", cur_cstr, 1);
+        LOG_STATE.lock().unwrap().log_file_path = path_buf;
         if log_dir_failure != 0 {
             let err_str = uv_strerror(log_dir_failure);
             let failed_s = match failed_dir {
@@ -194,29 +197,22 @@ fn log_path_init() {
                 CStr::from_bytes_until_nul(&msg).unwrap_or(c""),
             );
         }
+    } else {
+        LOG_STATE.lock().unwrap().log_file_path = path_buf;
     }
 }
 
 pub fn log_init() {
-    log_st().mutex.init_recursive();
     log_path_init();
-    log_st().did_log_init = true;
-}
-
-pub fn log_lock() {
-    log_st().mutex.lock();
-}
-
-pub fn log_unlock() {
-    log_st().mutex.unlock();
+    DID_LOG_INIT.store(true, Ordering::Relaxed);
 }
 
 pub fn log_should_log(log_level: i32) -> bool {
-    if !log_st().did_log_init {
+    if !DID_LOG_INIT.load(Ordering::Relaxed) {
         g_st().g_stats.log_skip += 1;
         return false;
     }
-    log_level >= log_st().g_min_log_level
+    log_level >= min_log_level()
 }
 
 pub fn logmsg_str(
@@ -227,11 +223,11 @@ pub fn logmsg_str(
     eol: bool,
     msg: &CStr,
 ) -> bool {
-    if !log_st().did_log_init {
+    if !DID_LOG_INIT.load(Ordering::Relaxed) {
         g_st().g_stats.log_skip += 1;
         return false;
     }
-    if log_level < log_st().g_min_log_level {
+    if log_level < min_log_level() {
         return false;
     }
 
@@ -251,10 +247,8 @@ pub fn logmsg_str(
         std::process::abort();
     }
 
-    log_lock();
-    if log_st().recursive {
-        if !log_st().did_msg {
-            log_st().did_msg = true;
+    if LOG_RECURSIVE.get() {
+        if !DID_MSG.swap(true, Ordering::Relaxed) {
             msg_schedule_semsg!(
                 c"E5430: %s:%d: recursive log!",
                 func_name.or(context).unwrap_or(c""),
@@ -262,31 +256,33 @@ pub fn logmsg_str(
             );
         }
         g_st().g_stats.log_skip += 1;
-        log_unlock();
         return false;
     }
-    log_st().recursive = true;
-    let log_file = open_log_file();
-    let ret = do_log_to_file_str(&log_file, log_level, context, func_name, line_num, eol, msg);
+    LOG_RECURSIVE.set(true);
+    let mut st = LOG_STATE.lock().unwrap();
+    let log_file = open_log_file_inner(&mut st);
+    let ret = do_log_to_file_str(
+        &mut st, &log_file, log_level, context, func_name, line_num, eol, msg,
+    );
     drop(log_file);
-    log_st().recursive = false;
-    log_unlock();
+    drop(st);
+    LOG_RECURSIVE.set(false);
     ret
 }
 
 pub fn log_uv_handles(loop_: &mut crate::event::r#loop::uv_loop_t) {
-    log_lock();
-    let log_file = open_log_file();
+    let mut st = LOG_STATE.lock().unwrap();
+    let log_file = open_log_file_inner(&mut st);
     loop_print_all_handles(loop_, &log_file);
     drop(log_file);
-    log_unlock();
 }
 
 /// Open the log file for appending.
 ///
 /// @return Log file, or `stderr` on failure
-pub fn open_log_file() -> CFile {
-    let path_cstr = CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
+fn open_log_file_inner(st: &mut LogInnerState) -> CFile {
+    let path_buf = st.log_file_path;
+    let path_cstr = CStr::from_bytes_until_nul(&path_buf).unwrap_or(c"");
     let mut errnum: i32 = 0;
     if !path_cstr.to_bytes().is_empty() {
         if let Some(f) = CFile::open_libc(path_cstr, c"a") {
@@ -301,6 +297,7 @@ pub fn open_log_file() -> CFile {
     let mut msg = Vec::with_capacity(128);
     let _ = write!(msg, "failed to open $NVIM_LOG_FILE ({err_s}): {path_s}\0");
     do_log_to_file_str(
+        st,
         &stderr,
         LOGLVL_ERR,
         None,
@@ -313,6 +310,7 @@ pub fn open_log_file() -> CFile {
 }
 
 fn do_log_to_file_str(
+    st: &mut LogInnerState,
     log_file: &CFile,
     log_level: i32,
     context: Option<&CStr>,
@@ -336,7 +334,7 @@ fn do_log_to_file_str(
     let millis = os_gettimeofday_ms();
 
     let ui = g_st().ui_client_channel_id != 0;
-    let first_byte = log_st().instance_name[0];
+    let first_byte = st.instance_name[0];
     let regen = ui || first_byte == 0 || first_byte == b'?';
 
     if regen {
@@ -360,12 +358,12 @@ fn do_log_to_file_str(
             let _ = write!(formatted, "{prefix}.{pid:<5}");
         }
         let copy_len = formatted.len().min(31);
-        log_st().instance_name[..copy_len].copy_from_slice(&formatted[..copy_len]);
-        log_st().instance_name[copy_len] = 0;
+        st.instance_name[..copy_len].copy_from_slice(&formatted[..copy_len]);
+        st.instance_name[copy_len] = 0;
     }
 
     let level_cstr = LOG_LEVELS[log_level as usize];
-    let inst_name = log_st().instance_name;
+    let inst_name = st.instance_name;
     let name_cstr = CStr::from_bytes_until_nul(&inst_name).unwrap_or(c"");
     let date_time_cstr = CStr::from_bytes_until_nul(&date_time).unwrap_or(c"");
     let rv = if let Some(func_name) = func_name

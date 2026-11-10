@@ -200,26 +200,6 @@ const INIT_XFMARK: Xfmark = Xfmark {
     fname: None,
 };
 
-struct MarkModuleState {
-    pos_to_mark_fms: Fmark,
-}
-
-impl MarkModuleState {
-    const fn new() -> Self {
-        Self {
-            pos_to_mark_fms: INIT_FMARK,
-        }
-    }
-}
-
-static MARK_STATE: crate::globals::GlobalState<MarkModuleState> =
-    crate::globals::GlobalState::new(MarkModuleState::new());
-
-#[inline]
-fn mark_st() -> crate::globals::GraphPtr<MarkModuleState> {
-    MARK_STATE.handle()
-}
-
 #[inline]
 pub const fn mark_global_index(name: u8) -> i32 {
     if name.is_ascii_uppercase() {
@@ -510,7 +490,7 @@ pub fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<&'static mut Fmark> {
+pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<Fmark> {
     let wp = win.as_ptr();
     cleanup_jumplist(win, true);
 
@@ -552,16 +532,16 @@ pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<&'sta
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        return Some(&mut crate::globals::GraphPtr::of(wp).borrow_mut().w_jumplist[idx].fmark);
+        return Some(
+            crate::globals::GraphPtr::of(wp).borrow().w_jumplist[idx]
+                .fmark
+                .clone(),
+        );
     }
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-pub fn get_changelist(
-    buf: &mut FileBuf,
-    win: &mut WinInfoInfo,
-    count: i32,
-) -> Option<&'static mut Fmark> {
+pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> Option<Fmark> {
     if buf.b_changelistlen == 0 {
         return None;
     }
@@ -584,8 +564,7 @@ pub fn get_changelist(
     let cur_fnum = curbuf_mut().b_fnum;
     let fm = &mut buf.b_changelist[n as usize];
     fm.fnum = cur_fnum;
-    let fmp = crate::globals::GraphPtr::<Fmark>::from_ref(fm);
-    Some(fmp.borrow_mut())
+    Some(fm.clone())
 }
 
 /// Get a named mark (`mark_get`).
@@ -595,8 +574,8 @@ pub fn mark_get(
     fmp: Option<&mut Fmark>,
     flag: MarkGet,
     name: i32,
-) -> Option<&'static mut Fmark> {
-    let mut fm: Option<&'static mut Fmark> = None;
+) -> Option<Fmark> {
+    let mut fm: Option<Fmark> = None;
     if ascii_isupper(name) || ascii_isdigit(name) {
         let xfm = mark_get_global(flag != K_MARK_ALL_NO_RESOLVE, name);
 
@@ -612,16 +591,14 @@ pub fn mark_get(
             ));
         }
 
-        fm = Some(&mut xfm.fmark);
+        fm = Some(xfm.fmark.clone());
     } else if name > 0 && name < NMARK_LOCAL_MAX {
         fm = mark_get_local(buf, win, name);
     }
     if let Some(fmp) = fmp
         && let Some(ref fm_ref) = fm
     {
-        *fmp = (*fm_ref).clone();
-        let ptr = crate::globals::GraphPtr::<Fmark>::from_ref(fmp);
-        return Some(ptr.borrow_mut());
+        *fmp = fm_ref.clone();
     }
     fm
 }
@@ -643,50 +620,45 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> &'static mut Xfmark {
 }
 
 /// Get a local mark (`mark_get_local`).
-pub fn mark_get_local(
-    buf: &mut FileBuf,
-    win: &mut WinInfoInfo,
-    name: i32,
-) -> Option<&'static mut Fmark> {
+pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Option<Fmark> {
     let fnum = buf.b_fnum;
-    let mark = crate::globals::GraphPtr::<Fmark>::of(if ascii_islower(name) {
-        &raw mut buf.b_namedm[(name - b'a' as i32) as usize]
+    let mut mark = if ascii_islower(name) {
+        let idx = (name - b'a' as i32) as usize;
+        buf.b_namedm[idx].fnum = fnum;
+        Some(buf.b_namedm[idx].clone())
     } else if name == b'[' as i32 {
-        pos_to_mark(buf, None, buf.b_op_start)
+        Some(pos_to_mark(buf, None, buf.b_op_start))
     } else if name == b']' as i32 {
-        pos_to_mark(buf, None, buf.b_op_end)
+        Some(pos_to_mark(buf, None, buf.b_op_end))
     } else if name == b'<' as i32 || name == b'>' as i32 {
-        mark_get_visual(buf, name).map_or(ptr::null_mut(), ptr::from_mut)
+        mark_get_visual(buf, name)
     } else if name == b'\'' as i32 || name == b'`' as i32 {
-        pos_to_mark(buf, None, win.w_pcmark)
+        Some(pos_to_mark(buf, None, win.w_pcmark))
     } else if name == b'"' as i32 {
-        &raw mut buf.b_last_cursor
+        buf.b_last_cursor.fnum = fnum;
+        Some(buf.b_last_cursor.clone())
     } else if name == b'^' as i32 {
-        &raw mut buf.b_last_insert
+        buf.b_last_insert.fnum = fnum;
+        Some(buf.b_last_insert.clone())
     } else if name == b'.' as i32 {
-        &raw mut buf.b_last_change
+        buf.b_last_change.fnum = fnum;
+        Some(buf.b_last_change.clone())
     } else if name == b':' as i32 && bt_prompt(Some(&*buf)) {
-        &raw mut buf.b_prompt_start
+        buf.b_prompt_start.fnum = fnum;
+        Some(buf.b_prompt_start.clone())
     } else {
-        mark_get_motion(&mut *buf, win, name).map_or(ptr::null_mut(), ptr::from_mut)
-    })
-    .as_ptr();
+        mark_get_motion(&mut *buf, win, name)
+    };
 
-    if let Some(mark_ref) = crate::globals::GraphPtr::of(mark).opt_mut() {
+    if let Some(ref mut mark_ref) = mark {
         mark_ref.fnum = fnum;
-        Some(mark_ref)
-    } else {
-        None
     }
+    mark
 }
 
 /// Get marks that are actually motions (`mark_get_motion`).
-pub fn mark_get_motion(
-    buf: &mut FileBuf,
-    win: &mut WinInfoInfo,
-    name: i32,
-) -> Option<&'static mut Fmark> {
-    let mut mark: Option<&'static mut Fmark> = None;
+pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> Option<Fmark> {
+    let mut mark: Option<Fmark> = None;
     let pos = curwin_mut().w_cursor;
     let slcb = g_st().listcmd_busy;
     g_st().listcmd_busy = true;
@@ -723,11 +695,11 @@ pub fn mark_get_motion(
 }
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
-pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> Option<&'static mut Fmark> {
+pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> Option<Fmark> {
     if name == b'<' as i32 || name == b'>' as i32 {
         let startp = buf.b_visual.vi_start;
         let endp = buf.b_visual.vi_end;
-        let mark =
+        let mut mark =
             if ((name == b'<' as i32) == lt(startp, endp) || endp.lnum == 0) && startp.lnum != 0 {
                 pos_to_mark(&*buf, None, startp)
             } else {
@@ -744,10 +716,15 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> Option<&'static mut Fmar
 }
 
 /// Wrap a `CursorPos` into an `Fmark` (`pos_to_mark`).
-pub fn pos_to_mark<'a>(buf: &FileBuf, fmp: Option<&'a mut Fmark>, pos: CursorPos) -> &'a mut Fmark {
-    let fm = fmp.unwrap_or(&mut mark_st().borrow_mut().pos_to_mark_fms);
-    fm.fnum = buf.b_fnum;
-    fm.mark = pos;
+pub fn pos_to_mark(buf: &FileBuf, fmp: Option<&mut Fmark>, pos: CursorPos) -> Fmark {
+    let fm = Fmark {
+        mark: pos,
+        fnum: buf.b_fnum,
+        ..INIT_FMARK
+    };
+    if let Some(fmp) = fmp {
+        *fmp = fm.clone();
+    }
     fm
 }
 
@@ -765,10 +742,10 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
 }
 
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
-pub fn mark_move_to(mut fm: Option<&mut Fmark>, flags: MarkMove) -> MarkMoveRes {
+pub fn mark_move_to(fm: Option<&Fmark>, flags: MarkMove) -> MarkMoveRes {
     let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
     let mut errormsg: Option<&'static CStr> = None;
-    if !mark_check(fm.as_deref_mut(), &mut errormsg) {
+    if !mark_check(fm, &mut errormsg) {
         if let Some(err) = errormsg {
             emsg(err);
         }
@@ -846,11 +823,7 @@ pub fn mark_view_make(wp: &WinInfoInfo, pos: CursorPos) -> Fmarkv {
 }
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
-pub fn getnextmark(
-    startpos: &mut CursorPos,
-    dir: i32,
-    begin_line: i32,
-) -> Option<&'static mut Fmark> {
+pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> Option<Fmark> {
     let mut result_idx: Option<usize> = None;
     let mut pos = *startpos;
 
@@ -877,7 +850,7 @@ pub fn getnextmark(
         }
     }
 
-    result_idx.map(|i| &mut curbuf_mut().b_namedm[i])
+    result_idx.map(|i| curbuf_mut().b_namedm[i].clone())
 }
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
@@ -938,18 +911,19 @@ fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &mut FileBuf) {
 }
 
 /// Check the position in `fm` is valid (`mark_check`).
-pub fn mark_check(mut fm: Option<&mut Fmark>, errormsg: &mut Option<&'static CStr>) -> bool {
-    if fm.is_none() {
+pub fn mark_check(fm: Option<&Fmark>, errormsg: &mut Option<&'static CStr>) -> bool {
+    let Some(fm) = fm else {
         *errormsg = Some(gettext(E_UMARK));
         return false;
-    } else if fm.as_deref_mut().unwrap().mark.lnum <= 0 {
-        if fm.as_deref_mut().unwrap().mark.lnum == 0 {
+    };
+    if fm.mark.lnum <= 0 {
+        if fm.mark.lnum == 0 {
             *errormsg = Some(gettext(E_MARKNOTSET));
         }
         return false;
     }
-    if fm.as_deref_mut().unwrap().fnum == curbuf_mut().b_fnum
-        && !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), fm.unwrap(), errormsg)
+    if fm.fnum == curbuf_mut().b_fnum
+        && !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), fm, errormsg)
     {
         return false;
     }
@@ -959,7 +933,7 @@ pub fn mark_check(mut fm: Option<&mut Fmark>, errormsg: &mut Option<&'static CSt
 /// Check if a mark line number is greater than the buffer line count (`mark_check_line_bounds`).
 pub fn mark_check_line_bounds(
     buf: Option<&FileBuf>,
-    fm: &mut Fmark,
+    fm: &Fmark,
     errormsg: &mut Option<&'static CStr>,
 ) -> bool {
     if let Some(buf) = buf

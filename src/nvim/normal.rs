@@ -5154,38 +5154,34 @@ fn nv_brackets(cap: &mut Cmdarg) {
     } else if cap.nchar == b'p' as i32 || cap.nchar == b'P' as i32 {
         nv_put_opt(cap, true);
     } else if cap.nchar == b'\'' as i32 || cap.nchar == b'`' as i32 {
-        let mut fm = crate::globals::GraphPtr::<Fmark>::of(pos_to_mark(
-            curbuf_mut(),
-            None,
-            curwin_mut().w_cursor,
-        ));
-        let mut prev_fm = fm;
+        let mut fm = Some(pos_to_mark(curbuf_mut(), None, curwin_mut().w_cursor));
+        let mut prev_fm: Option<Fmark> = None;
         let mut n = cap.count1;
         while n > 0 {
-            prev_fm = fm;
+            prev_fm = fm.clone();
+            let mut cur_mark = fm.as_ref().unwrap().mark;
             fm = getnextmark(
-                &mut (fm.borrow_mut().mark),
+                &mut cur_mark,
                 if cap.cmdchar == b'[' as i32 {
                     BACKWARD
                 } else {
                     FORWARD
                 },
                 i32::from(cap.nchar == b'\'' as i32),
-            )
-            .into();
-            if fm.is_null() {
+            );
+            if fm.is_none() {
                 break;
             }
             n -= 1;
         }
-        if fm.is_null() {
-            fm = crate::globals::GraphPtr::<Fmark>::of(prev_fm);
+        if fm.is_none() {
+            fm = prev_fm;
         }
         let mut flags = K_MARK_CONTEXT;
         if cap.nchar == b'\'' as i32 {
             flags |= K_MARK_BEGIN_LINE;
         }
-        nv_mark_move_to(cap, flags, fm.opt_mut());
+        nv_mark_move_to(cap, flags, fm.as_ref());
     } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
         do_mouse(
             Some(cap.oap_mut()),
@@ -5751,7 +5747,7 @@ fn n_swapchar(cap: &mut Cmdarg) {
     }
 }
 
-fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: Option<&mut Fmark>) -> MarkMoveRes {
+fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: Option<&Fmark>) -> MarkMoveRes {
     let res = mark_move_to(fm, flags);
     if (res & K_MARK_MOVE_FAILED) != 0 {
         clearop(cap.oap_mut());
@@ -5856,7 +5852,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
     }
 
     let fm = mark_get(curbuf_mut(), curwin_mut(), None, K_MARK_ALL, name);
-    let move_res = nv_mark_move_to(cap, flags, fm);
+    let move_res = nv_mark_move_to(cap, flags, fm.as_ref());
 
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;
@@ -5899,7 +5895,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         get_jumplist(crate::globals::curwin_handle(), cap.count1)
     };
 
-    if let Some(fm) = fm {
+    if let Some(ref fm) = fm {
         move_res = nv_mark_move_to(cap, flags, Some(fm));
     } else if cap.cmdchar == b'g' as i32 {
         if curbuf_mut().b_changelistlen == 0 {

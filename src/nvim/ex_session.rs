@@ -52,22 +52,8 @@ const K_OPT_SSOP_FLAG_TABPAGES: u32 = 0x8000;
 const K_OPT_SSOP_FLAG_TERMINAL: u32 = 0x10000;
 const K_OPT_SSOP_FLAG_SKIPRTP: u32 = 0x20000;
 
-struct ExSessionState {
-    did_lcd: bool,
-}
-
-impl ExSessionState {
-    const fn new() -> Self {
-        Self { did_lcd: false }
-    }
-}
-
-static EXSES_STATE: crate::globals::GlobalState<ExSessionState> =
-    crate::globals::GlobalState::new(ExSessionState::new());
-
-#[inline]
-fn exses_st() -> crate::globals::GraphPtr<ExSessionState> {
-    EXSES_STATE.handle()
+std::thread_local! {
+    static DID_LCD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[inline]
@@ -256,7 +242,7 @@ fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
         && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
         && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
         && !opt_vars().p_acd
-        && !exses_st().did_lcd
+        && !DID_LCD.get()
     {
         return buf.sfname_opt();
     }
@@ -483,7 +469,7 @@ fn put_view(
         {
             return false;
         }
-        exses_st().did_lcd = true;
+        DID_LCD.set(true);
     }
 
     true
@@ -658,7 +644,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 {
                     return false;
                 }
-                exses_st().did_lcd = true;
+                DID_LCD.set(true);
             }
         }
 
@@ -734,7 +720,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 {
                     return false;
                 }
-                exses_st().did_lcd = true;
+                DID_LCD.set(true);
             }
 
             let mut wp = tab_firstwin;
@@ -945,7 +931,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         view_session = true;
     }
 
-    exses_st().did_lcd = false;
+    DID_LCD.set(false);
 
     let fname: &CStr;
     if eap.cmdidx == Cmdidx::CmdMkview && {

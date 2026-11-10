@@ -5219,7 +5219,7 @@ fn syntime_report() {
             break;
         }
 
-        msg_puts(profile_msg(p.total));
+        msg_puts(&profile_msg(p.total));
         msg_puts(c" ");
         msg_advance(13);
         msg_outnum(p.count);
@@ -5228,10 +5228,10 @@ fn syntime_report() {
         msg_outnum(p.match_);
         msg_puts(c" ");
         msg_advance(26);
-        msg_puts(profile_msg(p.slowest));
+        msg_puts(&profile_msg(p.slowest));
         msg_puts(c" ");
         msg_advance(38);
-        msg_puts(profile_msg(p.average));
+        msg_puts(&profile_msg(p.average));
         msg_puts(c" ");
         msg_advance(50);
         msg_outtrans(highlight_group_name(p.id - 1), 0, false);
@@ -5253,7 +5253,7 @@ fn syntime_report() {
     }
     if !g_st().got_int {
         msg_puts(c"\n");
-        msg_puts(profile_msg(total_total));
+        msg_puts(&profile_msg(total_total));
         msg_advance(13);
         msg_outnum(total_count);
         msg_puts(c"\n");

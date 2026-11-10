@@ -10,7 +10,7 @@ use crate::event::stream::{
     uv_stream_t,
 };
 use crate::event::wstream::uv_buf_t;
-use crate::log::{LOGLVL_DBG, log_st, logmsg};
+use crate::log::{LOGLVL_DBG, logmsg, min_log_level};
 use crate::memory::ARENA_BLOCK_SIZE;
 use crate::os::fs::{UV_ENOBUFS, UV_EOF};
 use std::ptr;
@@ -150,7 +150,7 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
             } else if cnt == UV_EOF as isize && uv_handle_get_type(uvstream.cast()) == UV_TTY {
                 invoke_read_cb(&mut *stream, true);
             } else {
-                if log_st().g_min_log_level <= LOGLVL_DBG {
+                if min_log_level() <= LOGLVL_DBG {
                     let err_code = cnt as i32;
                     logmsg!(
                         LOGLVL_DBG,

@@ -112,27 +112,28 @@ impl Proc {
 pub type PtyProc = Proc;
 
 struct ProcModuleState {
-    proc_is_tearing_down: bool,
-    exit_need_delay: i32,
-    exit_delay_status: i32,
+    proc_is_tearing_down: std::cell::Cell<bool>,
+    exit_need_delay: std::cell::Cell<i32>,
+    exit_delay_status: std::cell::Cell<i32>,
 }
 
 impl ProcModuleState {
     const fn new() -> Self {
         Self {
-            proc_is_tearing_down: false,
-            exit_need_delay: 0,
-            exit_delay_status: 0,
+            proc_is_tearing_down: std::cell::Cell::new(false),
+            exit_need_delay: std::cell::Cell::new(0),
+            exit_delay_status: std::cell::Cell::new(0),
         }
     }
 }
 
-static PROC_STATE: crate::globals::GlobalState<ProcModuleState> =
-    crate::globals::GlobalState::new(ProcModuleState::new());
+std::thread_local! {
+    static PROC_STATE: ProcModuleState = const { ProcModuleState::new() };
+}
 
 #[inline]
-fn proc_st() -> crate::globals::GraphPtr<ProcModuleState> {
-    PROC_STATE.handle()
+fn proc_st<R>(f: impl FnOnce(&ProcModuleState) -> R) -> R {
+    PROC_STATE.with(f)
 }
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
@@ -272,7 +273,7 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
 pub fn proc_teardown(loop_in: &mut Loop) {
     let loop_ = crate::globals::GraphPtr::<Loop>::of(loop_in).as_ptr();
     unsafe {
-        proc_st().proc_is_tearing_down = true;
+        proc_st(|st| st.proc_is_tearing_down.set(true));
         let qc = &raw mut *loop_queues(&mut *loop_);
         let children = (*qc).children.clone();
         for mut proc_ in children {
@@ -447,7 +448,7 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
 }
 
 fn proc_close(proc_: &mut Proc) {
-    if proc_st().proc_is_tearing_down
+    if proc_st(|st| st.proc_is_tearing_down.get())
         && proc_.closed
         && (proc_.detach || proc_.r#type == K_PROC_TYPE_PTY)
     {
@@ -484,7 +485,7 @@ fn flush_stream(proc_in: &mut Proc, is_err: bool) {
         let limit_bytes = if cfg!(windows) {
             true
         } else {
-            (*proc_).r#type != K_PROC_TYPE_PTY || proc_st().proc_is_tearing_down
+            (*proc_).r#type != K_PROC_TYPE_PTY || proc_st(|st| st.proc_is_tearing_down.get())
         };
         if limit_bytes {
             let mut system_buffer_size: i32 = 0;
@@ -522,13 +523,13 @@ fn flush_stream(proc_in: &mut Proc, is_err: bool) {
 }
 
 pub fn proc_close_handles(proc_: &mut Proc) {
-    proc_st().exit_need_delay += 1;
+    proc_st(|st| st.exit_need_delay.set(st.exit_need_delay.get() + 1));
     flush_stream(proc_, false);
     flush_stream(proc_, true);
 
     proc_close_streams(proc_);
     proc_close(proc_);
-    proc_st().exit_need_delay -= 1;
+    proc_st(|st| st.exit_need_delay.set(st.exit_need_delay.get() - 1));
 }
 
 unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
@@ -537,16 +538,16 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
         let exit_timer = loop_exit_delay_timer(&mut *mloop);
         uv_timer_stop(exit_timer);
         let qc = loop_queues(&mut *mloop);
-        let status = proc_st().exit_delay_status;
+        let status = proc_st(|st| st.exit_delay_status.get());
         multiqueue_put_event(qc.fast_events.borrow_mut(), Event::ProcExit(status));
     }
 }
 
 pub fn exit_event(status: i32) {
-    if proc_st().exit_need_delay != 0 {
+    if proc_st(|st| st.exit_need_delay.get()) != 0 {
         let mloop = main_loop_ptr();
         let exit_timer = loop_exit_delay_timer(&mut *mloop);
-        proc_st().exit_delay_status = status;
+        proc_st(|st| st.exit_delay_status.set(status));
         unsafe { uv_timer_start(exit_timer, Some(exit_delay_cb), 0, 0) };
         return;
     }

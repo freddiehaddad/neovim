@@ -83,30 +83,44 @@ const fn entry(
     }
 }
 
-static SHAPE_TABLE: GlobalState<[Cursorentry; SHAPE_IDX_COUNT]> = GlobalState::new([
-    entry(c"normal", 700, 400, 250, c"n", SHAPE_BOTH),
-    entry(c"visual", 700, 400, 250, c"v", SHAPE_BOTH),
-    entry(c"insert", 700, 400, 250, c"i", SHAPE_BOTH),
-    entry(c"replace", 700, 400, 250, c"r", SHAPE_BOTH),
-    entry(c"cmdline_normal", 700, 400, 250, c"c", SHAPE_BOTH),
-    entry(c"cmdline_insert", 700, 400, 250, c"ci", SHAPE_BOTH),
-    entry(c"cmdline_replace", 700, 400, 250, c"cr", SHAPE_BOTH),
-    entry(c"operator", 700, 400, 250, c"o", SHAPE_BOTH),
-    entry(c"visual_select", 700, 400, 250, c"ve", SHAPE_BOTH),
-    entry(c"cmdline_hover", 0, 0, 0, c"e", SHAPE_MOUSE),
-    entry(c"statusline_hover", 0, 0, 0, c"s", SHAPE_MOUSE),
-    entry(c"statusline_drag", 0, 0, 0, c"sd", SHAPE_MOUSE),
-    entry(c"vsep_hover", 0, 0, 0, c"vs", SHAPE_MOUSE),
-    entry(c"vsep_drag", 0, 0, 0, c"vd", SHAPE_MOUSE),
-    entry(c"more", 0, 0, 0, c"m", SHAPE_MOUSE),
-    entry(c"more_lastline", 0, 0, 0, c"ml", SHAPE_MOUSE),
-    entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR),
-    entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR),
-]);
+std::thread_local! {
+    static SHAPE_TABLE: std::cell::Cell<[Cursorentry; SHAPE_IDX_COUNT]> = const {
+        std::cell::Cell::new([
+            entry(c"normal", 700, 400, 250, c"n", SHAPE_BOTH),
+            entry(c"visual", 700, 400, 250, c"v", SHAPE_BOTH),
+            entry(c"insert", 700, 400, 250, c"i", SHAPE_BOTH),
+            entry(c"replace", 700, 400, 250, c"r", SHAPE_BOTH),
+            entry(c"cmdline_normal", 700, 400, 250, c"c", SHAPE_BOTH),
+            entry(c"cmdline_insert", 700, 400, 250, c"ci", SHAPE_BOTH),
+            entry(c"cmdline_replace", 700, 400, 250, c"cr", SHAPE_BOTH),
+            entry(c"operator", 700, 400, 250, c"o", SHAPE_BOTH),
+            entry(c"visual_select", 700, 400, 250, c"ve", SHAPE_BOTH),
+            entry(c"cmdline_hover", 0, 0, 0, c"e", SHAPE_MOUSE),
+            entry(c"statusline_hover", 0, 0, 0, c"s", SHAPE_MOUSE),
+            entry(c"statusline_drag", 0, 0, 0, c"sd", SHAPE_MOUSE),
+            entry(c"vsep_hover", 0, 0, 0, c"vs", SHAPE_MOUSE),
+            entry(c"vsep_drag", 0, 0, 0, c"vd", SHAPE_MOUSE),
+            entry(c"more", 0, 0, 0, c"m", SHAPE_MOUSE),
+            entry(c"more_lastline", 0, 0, 0, c"ml", SHAPE_MOUSE),
+            entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR),
+            entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR),
+        ])
+    };
+}
 
 #[inline]
-pub fn shape_table_mut() -> &'static mut [Cursorentry; SHAPE_IDX_COUNT] {
-    SHAPE_TABLE.handle().borrow_mut()
+pub fn shape_table_entry(idx: usize) -> Cursorentry {
+    SHAPE_TABLE.with(|t| t.get()[idx])
+}
+
+#[inline]
+pub fn shape_table_with_mut<R>(f: impl FnOnce(&mut [Cursorentry; SHAPE_IDX_COUNT]) -> R) -> R {
+    SHAPE_TABLE.with(|t| {
+        let mut tbl = t.get();
+        let res = f(&mut tbl);
+        t.set(tbl);
+        res
+    })
 }
 
 #[inline]
@@ -121,8 +135,7 @@ fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
-fn clear_shape_table() {
-    let tbl = shape_table_mut();
+fn clear_shape_table(tbl: &mut [Cursorentry; SHAPE_IDX_COUNT]) {
     for entry in tbl.iter_mut() {
         entry.shape = CursorShape::ShapeBlock;
         entry.blinkwait = 0;
@@ -133,10 +146,10 @@ fn clear_shape_table() {
     }
 }
 
-/// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
+/// Converts the shape table into an `Array` of `Dict`s (`mode_style_array`).
 pub fn mode_style_array(arena: &mut Arena) -> Array {
     let mut all = arena_array(arena, SHAPE_IDX_COUNT);
-    let tbl = shape_table_mut();
+    let tbl = SHAPE_TABLE.with(std::cell::Cell::get);
 
     for cur in tbl.iter() {
         let is_cursor = (cur.used_for & SHAPE_CURSOR) != 0;
@@ -268,14 +281,15 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
 pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
     let mut idx: usize = 0;
     let mut found_ve = false;
-    let tbl = shape_table_mut();
+    let mut tbl = SHAPE_TABLE.with(std::cell::Cell::get);
     let guicursor_owned = opt_vars().p_guicursor.to_owned();
     let guicursor = guicursor_owned.as_bytes();
 
     for round in 1..=2 {
         if round == 2 || guicursor.is_empty() {
-            clear_shape_table();
+            clear_shape_table(&mut tbl);
             if guicursor.is_empty() {
+                SHAPE_TABLE.with(|t| t.set(tbl));
                 ui_mode_info_set();
                 return None;
             }
@@ -444,6 +458,7 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
         tbl[SHAPE_IDX_VE].id = v_entry.id;
         tbl[SHAPE_IDX_VE].id_lm = v_entry.id_lm;
     }
+    SHAPE_TABLE.with(|t| t.set(tbl));
     ui_mode_info_set();
     None
 }
@@ -452,7 +467,7 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
 #[cfg(test)]
 pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
     let mode_bytes = mode.to_bytes();
-    let tbl = shape_table_mut();
+    let tbl = SHAPE_TABLE.with(std::cell::Cell::get);
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {
             return mode_idx as i32;
@@ -475,7 +490,7 @@ pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
     if opt_vars().p_guicursor.is_empty() {
         return false;
     }
-    let tbl = shape_table_mut();
+    let tbl = SHAPE_TABLE.with(std::cell::Cell::get);
     for entry in tbl.iter() {
         if entry.id == syn_id || entry.id_lm == syn_id {
             return true;

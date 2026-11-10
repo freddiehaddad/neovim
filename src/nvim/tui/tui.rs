@@ -11,7 +11,7 @@ use crate::api::private::validate::{
 use crate::buffer_updates::ARENA_EMPTY;
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{
-    CursorShape, Cursorentry, SHAPE_IDX_COUNT, SHAPE_IDX_N, shape_table_mut,
+    CursorShape, Cursorentry, SHAPE_IDX_COUNT, SHAPE_IDX_N, shape_table_entry,
 };
 use crate::event::r#loop::{
     Loop, VolatileBool, loop_poll_events, loop_purge, loop_queues, loop_size, uv_sleep_safe,
@@ -29,7 +29,7 @@ use crate::file_search::NULL_STRING;
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{Sattr, Schar, schar_cache_clear_if_full, schar_from_ascii, schar_get_ascii};
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
-use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, log_st, logmsg};
+use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, logmsg, min_log_level};
 use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_slice2char};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
@@ -387,7 +387,7 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
     let mut is_set = false;
     match state {
         K_TERM_MODE_NOT_RECOGNIZED | K_TERM_MODE_PERMANENTLY_RESET => {
-            if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
+            if !g_st().nvim_testing && min_log_level() <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
                     None,
@@ -404,7 +404,7 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
             if state == K_TERM_MODE_PERMANENTLY_SET || state == K_TERM_MODE_SET {
                 is_set = true;
             }
-            if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
+            if !g_st().nvim_testing && min_log_level() <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
                     None,
@@ -912,7 +912,7 @@ fn terminfo_start(tui: &mut TUIData) {
     tui.sync_out.init_loop();
     if tui.out_isatty {
         let ret = tui.sync_out.init_tty(tui.out_fd);
-        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+        if ret != 0 && min_log_level() <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -935,7 +935,7 @@ fn terminfo_start(tui: &mut TUIData) {
                     break;
                 }
             }
-            if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+            if ret != 0 && min_log_level() <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
                     None,
@@ -949,7 +949,7 @@ fn terminfo_start(tui: &mut TUIData) {
         }
     } else {
         let ret = tui.sync_out.init_pipe();
-        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+        if ret != 0 && min_log_level() <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -961,7 +961,7 @@ fn terminfo_start(tui: &mut TUIData) {
             );
         }
         let ret = tui.sync_out.open_pipe(tui.out_fd);
-        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+        if ret != 0 && min_log_level() <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -1047,7 +1047,7 @@ fn tui_terminal_after_startup(tui: &mut TUIData) {
 
 pub fn tui_stop(tui: &mut TUIData) {
     if tui.sync_out.is_closing() {
-        if log_st().g_min_log_level <= LOGLVL_ERR {
+        if min_log_level() <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -1085,7 +1085,7 @@ pub fn tui_stop(tui: &mut TUIData) {
     }
     if !tui.stopped.get()
         && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS
-        && log_st().g_min_log_level <= LOGLVL_WRN
+        && min_log_level() <= LOGLVL_WRN
     {
         logmsg!(
             LOGLVL_WRN,
@@ -1646,7 +1646,7 @@ fn tui_cursor_decode_shape(shape_str: NvimString) -> CursorShape {
         b"vertical" => CursorShape::ShapeVer,
         b"horizontal" => CursorShape::ShapeHor,
         _ => {
-            if log_st().g_min_log_level <= LOGLVL_WRN {
+            if min_log_level() <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
                     None,
@@ -1667,7 +1667,7 @@ fn tui_cursor_reset_style(tui: &mut TUIData) {
 }
 
 fn decode_cursor_entry(args: Dict) -> Cursorentry {
-    let mut r = (*shape_table_mut())[0];
+    let mut r = shape_table_entry(0);
     for i in 0..args.size {
         let item = args[i];
         let value = item.value;
@@ -1777,7 +1777,7 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
     #[cfg(unix)]
     if tui.out_isatty && tui.is_starting && !g_st().stdin_isatty {
         let ret = tui.sync_out.set_tty_mode(UV_TTY_MODE_NORMAL);
-        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+        if ret != 0 && min_log_level() <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -1789,7 +1789,7 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
             );
         }
         let ret = tui.sync_out.set_tty_mode(UV_TTY_MODE_IO);
-        if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+        if ret != 0 && min_log_level() <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
                 None,
@@ -1953,7 +1953,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     }
     let buf = [uv_buf_t::from_slice(content.as_bytes())];
     let ret = tui.sync_out.write_bufs(&buf);
-    if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+    if ret != 0 && min_log_level() <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
             None,
@@ -1969,7 +1969,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
 pub fn tui_flush(tui: &mut TUIData) {
     let nrevents = loop_size(tui_loop(tui));
     if nrevents > TOO_MANY_EVENTS {
-        if log_st().g_min_log_level <= LOGLVL_WRN {
+        if min_log_level() <= LOGLVL_WRN {
             logmsg!(
                 LOGLVL_WRN,
                 None,
@@ -2109,7 +2109,7 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
     }
 
     let too_long = title.size > 4096;
-    if too_long && log_st().g_min_log_level <= LOGLVL_ERR {
+    if too_long && min_log_level() <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
             None,
@@ -2206,7 +2206,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
 
 pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
     let err = os_chdir(path.as_cstr());
-    if err != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+    if err != 0 && min_log_level() <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
             None,
@@ -2869,7 +2869,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
         }
         if nbufs > 0 {
             let ret = tui.sync_out.write_bufs(&bufs[..nbufs]);
-            if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
+            if ret != 0 && min_log_level() <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
                     None,
@@ -2890,7 +2890,7 @@ fn tui_init_stty_erase(input: &mut TermInput) {
         let buf = [erase_ch, 0];
         TUI_MOD_STATE.with(|st| st.stty_erase_buf.set(buf));
         #[cfg(unix)]
-        if log_st().g_min_log_level <= LOGLVL_DBG {
+        if min_log_level() <= LOGLVL_DBG {
             let erase_cstr = CStr::from_bytes_until_nul(&buf).unwrap_or(c"");
             logmsg!(
                 LOGLVL_DBG,
@@ -2917,7 +2917,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
     let erase_byte = TUI_MOD_STATE.with(|st| st.stty_erase_buf.get()[0]);
 
     if name == "key_backspace" {
-        if log_st().g_min_log_level <= LOGLVL_DBG {
+        if min_log_level() <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 None,
@@ -2932,7 +2932,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
             return Some(&SINGLE_BYTE_SLICES[erase_byte as usize]);
         }
     } else if name == "key_dc" {
-        if log_st().g_min_log_level <= LOGLVL_DBG {
+        if min_log_level() <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 None,
@@ -2950,7 +2950,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
             return Some(if erase_byte == DEL { b"\x08" } else { b"\x7f" });
         }
     } else if name == "key_mouse" {
-        if log_st().g_min_log_level <= LOGLVL_DBG {
+        if min_log_level() <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 None,

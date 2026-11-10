@@ -6138,7 +6138,7 @@ pub fn f_reltimestr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if list2proftime(&mut argvars[0], &mut tm) {
-        crate::eval::typval::tv_set_string(rettv, Some(profile_msg(tm)));
+        crate::eval::typval::tv_set_string(rettv, Some(&profile_msg(tm)));
     }
 }
 

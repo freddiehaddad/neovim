@@ -243,25 +243,26 @@ impl Default for Mparm {
 }
 
 struct MainInitState {
-    argv0: Option<std::ffi::CString>,
-    really_exiting: bool,
+    argv0: std::cell::RefCell<Option<std::ffi::CString>>,
+    really_exiting: std::cell::Cell<bool>,
 }
 
 impl MainInitState {
     const fn new() -> Self {
         Self {
-            argv0: None,
-            really_exiting: false,
+            argv0: std::cell::RefCell::new(None),
+            really_exiting: std::cell::Cell::new(false),
         }
     }
 }
 
-static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> =
-    crate::globals::GlobalState::new(MainInitState::new());
+std::thread_local! {
+    static MAIN_INIT_STATE: MainInitState = const { MainInitState::new() };
+}
 
 #[inline]
-fn main_init_st() -> crate::globals::GraphPtr<MainInitState> {
-    MAIN_INIT_STATE.handle()
+fn main_init_st<R>(f: impl FnOnce(&MainInitState) -> R) -> R {
+    MAIN_INIT_STATE.with(f)
 }
 
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
@@ -346,7 +347,7 @@ fn early_init(paramp: &mut Mparm) {
     cmdline_init();
     eval_init();
     set_vim_var_nr(VV_STARTTIME, os_realtime() as Varnumber);
-    let argv0_clone = main_init_st().argv0.clone();
+    let argv0_clone = main_init_st(|st| st.argv0.borrow().clone());
     init_path(argv0_clone.as_deref().unwrap_or(c"nvim"));
     init_normal_cmds();
     highlight_init();
@@ -406,9 +407,9 @@ pub fn nvim_main() -> i32 {
 fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if let Some(first) = argv.first_mut() {
         cstring_to_slash_if_needed(first);
-        main_init_st().argv0 = Some(first.clone());
+        main_init_st(|st| *st.argv0.borrow_mut() = Some(first.clone()));
     } else {
-        main_init_st().argv0 = None;
+        main_init_st(|st| *st.argv0.borrow_mut() = None);
     }
 
     if !appname_is_valid() {
@@ -1003,10 +1004,9 @@ pub fn getout(mut exitval: i32) -> ! {
 }
 
 pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
-    if main_init_st().really_exiting {
+    if main_init_st(|st| st.really_exiting.replace(true)) {
         std::process::exit(2);
     }
-    main_init_st().really_exiting = true;
     g_st().exiting = true;
     signal_reject_deadly();
 
@@ -2356,7 +2356,8 @@ fn mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) -> ! {
 }
 
 fn print_mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) {
-    let prgname = path_tail(main_init_st().borrow_mut().argv0.as_deref().unwrap_or(c""));
+    let argv0 = main_init_st(|st| st.argv0.borrow().clone());
+    let prgname = path_tail(argv0.as_deref().unwrap_or(c""));
     signal_stop();
 
     let stderr = log_get_stderr();

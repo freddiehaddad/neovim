@@ -237,28 +237,30 @@ struct Bufinfo {
 }
 
 struct UndoModuleState {
-    u_newcount: i32,
-    u_oldcount: i32,
-    undo_undoes: bool,
-    lastmark: i32,
+    u_newcount: std::cell::Cell<i32>,
+    u_oldcount: std::cell::Cell<i32>,
+    undo_undoes: std::cell::Cell<bool>,
+    lastmark: std::cell::Cell<i32>,
 }
 
 impl UndoModuleState {
     const fn new() -> Self {
         Self {
-            u_newcount: 0,
-            u_oldcount: 0,
-            undo_undoes: false,
-            lastmark: 0,
+            u_newcount: std::cell::Cell::new(0),
+            u_oldcount: std::cell::Cell::new(0),
+            undo_undoes: std::cell::Cell::new(false),
+            lastmark: std::cell::Cell::new(0),
         }
     }
 }
 
-static UNDO_STATE: GlobalState<UndoModuleState> = GlobalState::new(UndoModuleState::new());
+std::thread_local! {
+    static UNDO_STATE: UndoModuleState = const { UndoModuleState::new() };
+}
 
 #[inline]
-fn undo_st() -> crate::globals::GraphPtr<UndoModuleState> {
-    UNDO_STATE.handle()
+fn undo_st<R>(f: impl FnOnce(&UndoModuleState) -> R) -> R {
+    UNDO_STATE.with(f)
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.
@@ -547,7 +549,7 @@ pub fn u_savecommon(
         uhp_mut(buf, newhead).uh_flags |= UH_RELOAD;
     }
     buf.b_u_synced = false;
-    undo_st().undo_undoes = false;
+    undo_st(|st| st.undo_undoes.set(false));
 
     true
 }
@@ -1114,8 +1116,11 @@ pub fn u_write_undo(
                 break 'write_error;
             }
 
-            undo_st().lastmark += 1;
-            let mark = undo_st().lastmark;
+            let mark = undo_st(|st| {
+                let m = st.lastmark.get() + 1;
+                st.lastmark.set(m);
+                m
+            });
             let mut uhp = buf.b_u_oldhead;
             while let Some(uh) = uhp {
                 if uhp_ref(buf, uh).uh_walk != mark {
@@ -1543,9 +1548,9 @@ pub fn u_undo(mut count: i32) {
     }
 
     if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
-        undo_st().undo_undoes = true;
+        undo_st(|st| st.undo_undoes.set(true));
     } else {
-        undo_st().undo_undoes = !undo_st().undo_undoes;
+        undo_st(|st| st.undo_undoes.set(!st.undo_undoes.get()));
     }
     u_doit(count, false, true);
 }
@@ -1553,7 +1558,7 @@ pub fn u_undo(mut count: i32) {
 /// Redo `count` times.
 pub fn u_redo(count: i32) {
     if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
-        undo_st().undo_undoes = false;
+        undo_st(|st| st.undo_undoes.set(false));
     }
 
     u_doit(count, false, true);
@@ -1565,7 +1570,7 @@ pub fn u_undo_and_forget(mut count: i32, do_buf_event: bool) -> bool {
         u_sync(true);
         count = 1;
     }
-    undo_st().undo_undoes = true;
+    undo_st(|st| st.undo_undoes.set(true));
     u_doit(count, true, do_buf_event);
 
     let Some(curhead) = curbuf_mut().b_u_curhead else {
@@ -1582,11 +1587,11 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
     }
     atom_did_global_op();
 
-    undo_st().u_newcount = 0;
-    undo_st().u_oldcount = 0;
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-        undo_st().u_oldcount = -1;
-    }
+    let empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+    undo_st(|st| {
+        st.u_newcount.set(0);
+        st.u_oldcount.set(if empty { -1 } else { 0 });
+    });
 
     msg_ext_set_kind(c"undo");
     let mut count = startcount;
@@ -1597,7 +1602,7 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
     } {
         change_warning(curbuf_mut(), 0);
 
-        if undo_st().undo_undoes {
+        if undo_st(|st| st.undo_undoes.get()) {
             if curbuf_mut().b_u_curhead.is_none() {
                 curbuf_mut().b_u_curhead = curbuf_mut().b_u_newhead;
             } else if get_undolevel(curbuf_mut()) > 0 {
@@ -1639,7 +1644,7 @@ fn u_doit(startcount: i32, quiet: bool, do_buf_event: bool) {
             curbuf_mut().b_u_curhead = prev;
         }
     }
-    u_undo_end(undo_st().undo_undoes, false, quiet);
+    u_undo_end(undo_st(|st| st.undo_undoes.get()), false, quiet);
 }
 
 /// Undo or redo over the timeline.
@@ -1654,11 +1659,11 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
         u_sync(true);
     }
 
-    undo_st().u_newcount = 0;
-    undo_st().u_oldcount = 0;
-    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-        undo_st().u_oldcount = -1;
-    }
+    let empty = (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
+    undo_st(|st| {
+        st.u_newcount.set(0);
+        st.u_oldcount.set(if empty { -1 } else { 0 });
+    });
 
     let mut target: i32;
     let mut closest: i32;
@@ -1717,15 +1722,17 @@ pub fn undo_time(step: i32, sec: bool, file: bool, absolute: bool) {
     }
     let closest_start = closest;
     let mut closest_seq = curbuf_mut().b_u_seq_cur;
-    let mut mark = undo_st().lastmark;
+    let mut mark = undo_st(|st| st.lastmark.get());
     let mut nomark: i32 = 0;
 
     if target != 0 {
         for round in 1..=2 {
-            undo_st().lastmark += 1;
-            mark = undo_st().lastmark;
-            undo_st().lastmark += 1;
-            nomark = undo_st().lastmark;
+            undo_st(|st| {
+                let m = st.lastmark.get() + 1;
+                mark = m;
+                nomark = m + 1;
+                st.lastmark.set(nomark);
+            });
 
             uhp = curbuf_mut().b_u_curhead.or(curbuf_mut().b_u_newhead);
 
@@ -2083,8 +2090,10 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
             curbuf_mut().b_op_end.lnum = top + newsize;
         }
 
-        undo_st().u_newcount += newsize;
-        undo_st().u_oldcount += oldsize;
+        undo_st(|st| {
+            st.u_newcount.set(st.u_newcount.get() + newsize);
+            st.u_oldcount.set(st.u_oldcount.get() + oldsize);
+        });
         uep.ue_array = newarray;
         uep.ue_bot = top + newsize + 1;
     }
@@ -2214,26 +2223,34 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     }
 
     if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-        undo_st().u_newcount -= 1;
+        undo_st(|st| st.u_newcount.set(st.u_newcount.get() - 1));
     }
 
-    undo_st().u_oldcount -= undo_st().u_newcount;
-    let msgstr = if undo_st().u_oldcount == -1 {
-        c"more line"
-    } else if undo_st().u_oldcount < 0 {
-        c"more lines"
-    } else if undo_st().u_oldcount == 1 {
-        c"line less"
-    } else if undo_st().u_oldcount > 1 {
-        c"fewer lines"
-    } else {
-        undo_st().u_oldcount = undo_st().u_newcount;
-        if undo_st().u_newcount == 1 {
-            c"change"
+    let (oldcount_abs, msgstr) = undo_st(|st| {
+        let newcount = st.u_newcount.get();
+        let mut oldcount = st.u_oldcount.get() - newcount;
+        let msgstr = if oldcount == -1 {
+            c"more line"
+        } else if oldcount < 0 {
+            c"more lines"
+        } else if oldcount == 1 {
+            c"line less"
+        } else if oldcount > 1 {
+            c"fewer lines"
         } else {
-            c"changes"
-        }
-    };
+            oldcount = newcount;
+            if newcount == 1 { c"change" } else { c"changes" }
+        };
+        st.u_oldcount.set(oldcount);
+        (
+            if oldcount < 0 {
+                -(oldcount as i64)
+            } else {
+                oldcount as i64
+            },
+            msgstr,
+        )
+    });
 
     let uhp = if let Some(ch) = curbuf_mut().b_u_curhead {
         let next = uhp_ref(curbuf_mut(), ch).uh_next;
@@ -2267,11 +2284,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     smsg_keep!(
         0,
         gettext(c"%lld %s; %s #%lld  %s"),
-        if undo_st().u_oldcount < 0 {
-            -(undo_st().u_oldcount as i64)
-        } else {
-            undo_st().u_oldcount as i64
-        },
+        oldcount_abs,
         gettext(msgstr),
         if did_undo {
             gettext(c"before")
@@ -2330,10 +2343,12 @@ pub fn u_sync(force: bool) {
 pub fn ex_undolist(_eap: &mut Exarg) {
     let mut changes: i32 = 1;
 
-    undo_st().lastmark += 1;
-    let mark = undo_st().lastmark;
-    undo_st().lastmark += 1;
-    let nomark = undo_st().lastmark;
+    let (mark, nomark) = undo_st(|st| {
+        let m = st.lastmark.get() + 1;
+        let nm = m + 1;
+        st.lastmark.set(nm);
+        (m, nm)
+    });
     let mut lines: Vec<std::ffi::CString> = Vec::new();
 
     let mut uhp = curbuf_mut().b_u_oldhead;
