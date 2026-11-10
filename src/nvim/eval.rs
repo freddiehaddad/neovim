@@ -230,6 +230,7 @@ const E_EMPTY_FUNCTION_NAME: &CStr = c"E1192: Empty function name";
 const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
+#[derive(Clone, Copy)]
 pub(crate) struct EvalModuleState {
     pub(crate) eval_lavars_used: Option<bool>,
     echo_hl_id: i32,
@@ -238,8 +239,6 @@ pub(crate) struct EvalModuleState {
     current_copy_id: i32,
     eval7_recurse: i32,
     var_item_copy_recurse: i32,
-    var2_fpos_pos: CursorPos,
-    timers: std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>,
 }
 
 impl EvalModuleState {
@@ -252,21 +251,68 @@ impl EvalModuleState {
             current_copy_id: 0,
             eval7_recurse: 0,
             var_item_copy_recurse: 0,
-            var2_fpos_pos: CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            },
-            timers: std::collections::BTreeMap::new(),
         }
     }
 }
 
-static EVAL_STATE: GlobalState<EvalModuleState> = GlobalState::new(EvalModuleState::new());
+thread_local! {
+    static EVAL_STATE: std::cell::Cell<EvalModuleState> =
+        const { std::cell::Cell::new(EvalModuleState::new()) };
+    static EVAL_TIMERS: std::cell::RefCell<std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>> =
+        const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+}
+
+pub(crate) struct EvalGuard {
+    state: EvalModuleState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for EvalGuard {
+    type Target = EvalModuleState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for EvalGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for EvalGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            EVAL_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-pub(crate) fn eval_st() -> crate::globals::GraphPtr<EvalModuleState> {
-    EVAL_STATE.handle()
+pub(crate) fn eval_st() -> EvalGuard {
+    EvalGuard {
+        state: EVAL_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
+}
+
+#[inline]
+fn with_timers<R>(
+    f: impl FnOnce(&std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>) -> R,
+) -> R {
+    EVAL_TIMERS.with(|t| f(&t.borrow()))
+}
+
+#[inline]
+fn with_timers_mut<R>(
+    f: impl FnOnce(&mut std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>) -> R,
+) -> R {
+    EVAL_TIMERS.with(|t| f(&mut t.borrow_mut()))
 }
 
 enum ForSource {
@@ -4089,8 +4135,9 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 
 /// Get next (unique) copy ID.
 pub fn get_copy_id() -> i32 {
-    eval_st().current_copy_id = eval_st().current_copy_id.wrapping_add(COPYID_INC);
-    eval_st().current_copy_id
+    let next_copy_id = eval_st().current_copy_id.wrapping_add(COPYID_INC);
+    eval_st().current_copy_id = next_copy_id;
+    next_copy_id
 }
 
 /// Do garbage collection for lists and dicts.
@@ -4169,7 +4216,9 @@ pub fn garbage_collect(testing: bool) -> bool {
         }
     }
 
-    for &timer in eval_st().timers.values() {
+    let timers: Vec<crate::globals::GraphPtr<VimTimer>> =
+        with_timers(|t| t.values().copied().collect());
+    for timer in timers {
         set_ref_in_callback(&mut timer.borrow_mut().callback, copy_id, None, None);
     }
 
@@ -5016,11 +5065,7 @@ fn set_ref_in_callback_reader(
 }
 
 pub fn find_timer_by_nr(xx: Varnumber) -> Option<&'static mut VimTimer> {
-    eval_st()
-        .timers
-        .get(&(xx as u64))
-        .copied()
-        .and_then(|p| p.opt_mut())
+    with_timers(|t| t.get(&(xx as u64)).copied()).and_then(|p| p.opt_mut())
 }
 
 pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
@@ -5050,8 +5095,10 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
 }
 
 pub fn add_timer_info_all(rettv: &mut TypVal) {
-    tv_list_alloc_ret(rettv, eval_st().timers.len() as isize);
-    for &timer in eval_st().timers.values() {
+    let all_timers: Vec<crate::globals::GraphPtr<VimTimer>> =
+        with_timers(|t| t.values().copied().collect());
+    tv_list_alloc_ret(rettv, all_timers.len() as isize);
+    for timer in all_timers {
         let timer = timer.borrow_mut();
         if !timer.stopped || timer.refcount > 1 {
             add_timer_info(rettv, timer);
@@ -5137,8 +5184,12 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
         time_watcher_start(&mut timer.watcher, timeout as u64, timeout as u64);
     }
 
-    eval_st().timers.insert(timer.timer_id as u64, timer.into());
-    timer.timer_id as u64
+    let timer_id = timer.timer_id as u64;
+    let timer_gp = timer.into();
+    with_timers_mut(|t| {
+        t.insert(timer_id, timer_gp);
+    });
+    timer_id
 }
 
 pub fn timer_stop(timer: &mut VimTimer) {
@@ -5153,7 +5204,7 @@ pub fn timer_stop(timer: &mut VimTimer) {
 }
 
 pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
-    let _ = eval_st().timers.remove(&(timer.timer_id as u64));
+    let _ = with_timers_mut(|t| t.remove(&(timer.timer_id as u64)));
     timer_decref(timer);
 }
 
@@ -5168,7 +5219,7 @@ fn timer_decref(timer_in: &mut VimTimer) {
 
 pub fn timer_stop_all() {
     let all_timers: Vec<crate::globals::GraphPtr<VimTimer>> =
-        eval_st().timers.values().copied().collect();
+        with_timers(|t| t.values().copied().collect());
     for timer in all_timers {
         timer_stop(timer.borrow_mut());
     }
@@ -5313,8 +5364,13 @@ pub fn var2fpos(
     ret_fnum: &mut i32,
     charcol: bool,
     wp: &mut WinInfoInfo,
-) -> Option<&'static mut CursorPos> {
+) -> Option<CursorPos> {
     let bp = wp.w_buffer;
+    let mut pos = CursorPos {
+        lnum: 0,
+        col: 0,
+        coladd: 0,
+    };
 
     if tv.v_type == VarType::VarList {
         let mut error = false;
@@ -5324,27 +5380,21 @@ pub fn var2fpos(
             return None;
         }
 
-        eval_st().var2_fpos_pos.lnum = tv_list_find_nr(l.opt_mut(), 0, Some(&mut error)) as Linenr;
+        pos.lnum = tv_list_find_nr(l.opt_mut(), 0, Some(&mut error)) as Linenr;
 
-        if error
-            || eval_st().var2_fpos_pos.lnum <= 0
-            || eval_st().var2_fpos_pos.lnum > bp.b_ml.ml_line_count
-        {
+        if error || pos.lnum <= 0 || pos.lnum > bp.b_ml.ml_line_count {
             return None;
         }
 
-        eval_st().var2_fpos_pos.col = tv_list_find_nr(l.opt_mut(), 1, Some(&mut error)) as Colnr;
+        pos.col = tv_list_find_nr(l.opt_mut(), 1, Some(&mut error)) as Colnr;
 
         if error {
             return None;
         }
         let len = if charcol {
-            mb_charlen(crate::memline::ml_get_buf_slice(
-                bp.borrow_mut(),
-                eval_st().var2_fpos_pos.lnum,
-            ))
+            mb_charlen(crate::memline::ml_get_buf_slice(bp.borrow_mut(), pos.lnum))
         } else {
-            ml_get_buf_len(bp.borrow_mut(), eval_st().var2_fpos_pos.lnum)
+            ml_get_buf_len(bp.borrow_mut(), pos.lnum)
         };
 
         if let Some(li) = tv_list_find(l.opt_mut(), 1)
@@ -5352,42 +5402,41 @@ pub fn var2fpos(
             && !tv_list_item_tv(li).vval.v_string_is_null()
             && tv_list_item_tv(li).vval.v_string_bytes() == b"$"
         {
-            eval_st().var2_fpos_pos.col = len + 1;
+            pos.col = len + 1;
         }
 
-        if eval_st().var2_fpos_pos.col == 0 || eval_st().var2_fpos_pos.col > len + 1 {
+        if pos.col == 0 || pos.col > len + 1 {
             return None;
         }
-        eval_st().var2_fpos_pos.col -= 1;
+        pos.col -= 1;
 
-        eval_st().var2_fpos_pos.coladd = tv_list_find_nr(l.opt_mut(), 2, Some(&mut error)) as Colnr;
+        pos.coladd = tv_list_find_nr(l.opt_mut(), 2, Some(&mut error)) as Colnr;
 
         if error {
-            eval_st().var2_fpos_pos.coladd = 0;
+            pos.coladd = 0;
         }
 
-        return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
+        return Some(pos);
     }
 
     let name_cstr = tv_get_string_chk(tv)?;
     let name_bytes = name_cstr.to_bytes();
 
-    eval_st().var2_fpos_pos.lnum = 0;
     if name_bytes.first() == Some(&b'.') {
-        eval_st().var2_fpos_pos = CursorPos {
+        pos = CursorPos {
             lnum: wp.w_cursor.lnum,
             col: wp.w_cursor.col,
             coladd: wp.w_cursor.coladd,
         };
     } else if name_bytes == b"v" {
         if g_st().visual_global.active && wp == curwin_ptr() {
-            eval_st().var2_fpos_pos = CursorPos {
+            pos = CursorPos {
                 lnum: g_st().visual_global.start.lnum,
                 col: g_st().visual_global.start.col,
                 coladd: g_st().visual_global.start.coladd,
             };
         } else {
-            eval_st().var2_fpos_pos = CursorPos {
+            pos = CursorPos {
                 lnum: wp.w_cursor.lnum,
                 col: wp.w_cursor.col,
                 coladd: wp.w_cursor.coladd,
@@ -5401,50 +5450,45 @@ pub fn var2fpos(
             return None;
         }
 
-        eval_st().var2_fpos_pos = fm.mark;
+        pos = fm.mark;
 
         if mname_b.is_ascii_uppercase() || mname_b.is_ascii_digit() {
             *ret_fnum = fm.fnum;
         }
     }
-    if eval_st().var2_fpos_pos.lnum != 0 {
+    if pos.lnum != 0 {
         if charcol {
-            eval_st().var2_fpos_pos.col = buf_byteidx_to_charidx(
-                bp.opt_mut(),
-                eval_st().var2_fpos_pos.lnum,
-                eval_st().var2_fpos_pos.col,
-            );
+            pos.col = buf_byteidx_to_charidx(bp.opt_mut(), pos.lnum, pos.col);
         }
-        return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
+        return Some(pos);
     }
 
-    eval_st().var2_fpos_pos.coladd = 0;
+    pos.coladd = 0;
 
     if name_bytes.first() == Some(&b'w') && dollar_lnum {
         check_cursor_moved(wp);
 
-        eval_st().var2_fpos_pos.col = 0;
+        pos.col = 0;
         if name_bytes.get(1) == Some(&b'0') {
             update_topline(wp);
-            eval_st().var2_fpos_pos.lnum = if wp.w_topline > 0 { wp.w_topline } else { 1 };
-            return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
+            pos.lnum = if wp.w_topline > 0 { wp.w_topline } else { 1 };
+            return Some(pos);
         } else if name_bytes.get(1) == Some(&b'$') {
             validate_botline_win(&mut *wp);
-            eval_st().var2_fpos_pos.lnum = if wp.w_botline > 0 {
+            pos.lnum = if wp.w_botline > 0 {
                 wp.w_botline - 1
             } else {
                 0
             };
-            return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
+            return Some(pos);
         }
     } else if name_bytes.first() == Some(&b'$') {
         if dollar_lnum {
-            eval_st().var2_fpos_pos.lnum = bp.b_ml.ml_line_count;
-
-            eval_st().var2_fpos_pos.col = 0;
+            pos.lnum = bp.b_ml.ml_line_count;
+            pos.col = 0;
         } else {
-            eval_st().var2_fpos_pos.lnum = wp.w_cursor.lnum;
-            eval_st().var2_fpos_pos.col = if charcol {
+            pos.lnum = wp.w_cursor.lnum;
+            pos.col = if charcol {
                 mb_charlen(crate::memline::ml_get_buf_slice(
                     bp.borrow_mut(),
                     wp.w_cursor.lnum,
@@ -5453,7 +5497,7 @@ pub fn var2fpos(
                 ml_get_buf_len(bp.borrow_mut(), wp.w_cursor.lnum)
             };
         }
-        return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
+        return Some(pos);
     }
     None
 }

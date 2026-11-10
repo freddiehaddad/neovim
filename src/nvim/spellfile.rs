@@ -45,7 +45,7 @@ use crate::spell::{
     WF_NEEDCOMP, WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, captype,
     clear_spell_chartab, close_spellbuf, count_common_word, init_spell_chartab, init_syl_tab,
     onecap_copy, open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug,
-    spell_casefold, spell_enc, spell_priv_st, spell_soundfold, spell_toupper,
+    spell_casefold, spell_enc, spell_priv_st, spell_soundfold, spell_toupper, with_spell_ext,
 };
 use crate::spellsuggest::{Fromto, Idx, Salitem, Slang, Spelltab};
 use crate::strings::{format_to_buf, gettext, strerror, vim_strchr};
@@ -707,12 +707,11 @@ pub fn spell_load_file(
         if let Some(boxed_lp) = owned_lp.take()
             && lang.is_some()
         {
-            spell_priv_st()
-                .first_lang
-                .push(crate::spell::OwnedSlang(boxed_lp));
-            lp_ptr = crate::globals::GraphPtr::<Slang>::from_ref(
-                &**spell_priv_st().first_lang.last_mut().unwrap(),
-            );
+            lp_ptr = with_spell_ext(|ext| {
+                let mut fl = ext.first_lang.borrow_mut();
+                fl.push(crate::spell::OwnedSlang(boxed_lp));
+                crate::globals::GraphPtr::<Slang>::from_ref(&**fl.last_mut().unwrap())
+            });
         }
     } else {
         if let Some(lang) = lang
@@ -1584,11 +1583,11 @@ fn read_tree_node(
 fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
     let mut didit = false;
 
-    let len = spell_priv_st().first_lang.len();
+    let len = with_spell_ext(|ext| ext.first_lang.borrow().len());
     for i in (0..len).rev() {
-        let slang_ptr = crate::globals::GraphPtr::<Slang>::from_ref(
-            &*spell_priv_st().first_lang.as_mut_slice()[i],
-        );
+        let slang_ptr = with_spell_ext(|ext| {
+            crate::globals::GraphPtr::<Slang>::from_ref(&*ext.first_lang.borrow_mut()[i])
+        });
         let slang = slang_ptr.borrow_mut();
         if slang
             .sl_fname
@@ -4425,16 +4424,18 @@ pub fn ex_mkspell(eap: &mut Exarg) {
 }
 
 fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
-    let mut slang = spell_priv_st()
-        .first_lang
-        .iter_mut()
-        .rev()
-        .find(|s| {
-            s.sl_fname
-                .as_ref()
-                .is_some_and(|f| path_equal(wfname_cstr, f, K_PATH_CMP_EXPAND))
-        })
-        .map_or(ptr::null_mut(), |s| &raw mut **s);
+    let mut slang = with_spell_ext(|ext| {
+        ext.first_lang
+            .borrow_mut()
+            .iter_mut()
+            .rev()
+            .find(|s| {
+                s.sl_fname
+                    .as_ref()
+                    .is_some_and(|f| path_equal(wfname_cstr, f, K_PATH_CMP_EXPAND))
+            })
+            .map_or(ptr::null_mut(), |s| &raw mut **s)
+    });
     let mut temp_slang: Option<Box<Slang>> = None;
     if slang.is_null() {
         spell_message(&*spin, gettext(c"Reading back spell file..."));
@@ -4971,19 +4972,19 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         return;
     }
 
+    let int_wl_owned: Option<std::ffi::CString>;
     let fname_cstr: &CStr = if idx == 0 {
-        if spell_priv_st().int_wordlist.is_none() {
-            spell_priv_st().int_wordlist = vim_tempname();
-            if spell_priv_st().int_wordlist.is_none() {
-                return;
+        int_wl_owned = with_spell_ext(|ext| {
+            let mut wl = ext.int_wordlist.borrow_mut();
+            if wl.is_none() {
+                *wl = vim_tempname();
             }
-        }
-
-        spell_priv_st()
-            .borrow_mut()
-            .int_wordlist
-            .as_deref()
-            .unwrap()
+            wl.clone()
+        });
+        let Some(ref wl) = int_wl_owned else {
+            return;
+        };
+        wl.as_c_str()
     } else {
         if win_s(curwin_mut()).b_p_spf.is_empty() {
             init_spellfile();

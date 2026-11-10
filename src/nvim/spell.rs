@@ -194,13 +194,10 @@ impl std::ops::DerefMut for OwnedSlang {
 
 pub const E_FORMAT: &std::ffi::CStr = c"E759: Format error in spell file";
 
+#[derive(Clone, Copy)]
 pub(crate) struct SpellPrivateState {
-    pub(crate) first_lang: Vec<OwnedSlang>,
-    pub(crate) int_wordlist: Option<std::ffi::CString>,
     pub(crate) spelltab: Spelltab,
     pub(crate) did_set_spelltab: bool,
-    pub(crate) repl_from: Option<std::ffi::CString>,
-    pub(crate) repl_to: Option<std::ffi::CString>,
     parse_spelllang_recursive: bool,
     spell_expand_need_cap: bool,
 }
@@ -208,8 +205,6 @@ pub(crate) struct SpellPrivateState {
 impl SpellPrivateState {
     const fn new() -> Self {
         Self {
-            first_lang: Vec::new(),
-            int_wordlist: None,
             spelltab: Spelltab {
                 st_isw: [false; 256],
                 st_isu: [false; 256],
@@ -217,20 +212,78 @@ impl SpellPrivateState {
                 st_upper: [0; 256],
             },
             did_set_spelltab: false,
-            repl_from: None,
-            repl_to: None,
             parse_spelllang_recursive: false,
             spell_expand_need_cap: false,
         }
     }
 }
 
-static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> =
-    crate::globals::GlobalState::new(SpellPrivateState::new());
+pub(crate) struct SpellExtState {
+    pub(crate) first_lang: std::cell::RefCell<Vec<OwnedSlang>>,
+    pub(crate) int_wordlist: std::cell::RefCell<Option<std::ffi::CString>>,
+    pub(crate) repl_from: std::cell::RefCell<Option<std::ffi::CString>>,
+    pub(crate) repl_to: std::cell::RefCell<Option<std::ffi::CString>>,
+}
+
+impl SpellExtState {
+    const fn new() -> Self {
+        Self {
+            first_lang: std::cell::RefCell::new(Vec::new()),
+            int_wordlist: std::cell::RefCell::new(None),
+            repl_from: std::cell::RefCell::new(None),
+            repl_to: std::cell::RefCell::new(None),
+        }
+    }
+}
+
+thread_local! {
+    static SPELL_PRIV_STATE: std::cell::Cell<SpellPrivateState> =
+        const { std::cell::Cell::new(SpellPrivateState::new()) };
+    static SPELL_EXT_STATE: SpellExtState = const { SpellExtState::new() };
+}
+
+pub(crate) struct SpellPrivGuard {
+    state: SpellPrivateState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for SpellPrivGuard {
+    type Target = SpellPrivateState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for SpellPrivGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for SpellPrivGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            SPELL_PRIV_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-pub(crate) fn spell_priv_st() -> crate::globals::GraphPtr<SpellPrivateState> {
-    SPELL_PRIV_STATE.handle()
+pub(crate) fn spell_priv_st() -> SpellPrivGuard {
+    SpellPrivGuard {
+        state: SPELL_PRIV_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
+}
+
+#[inline]
+pub(crate) fn with_spell_ext<R>(f: impl FnOnce(&SpellExtState) -> R) -> R {
+    SPELL_EXT_STATE.with(f)
 }
 #[inline]
 pub fn spell_isupper(c: i32) -> bool {
@@ -1372,10 +1425,11 @@ pub fn spell_enc() -> std::ffi::CString {
     c"latin1".to_owned()
 }
 fn int_wordlist_spl(fname: &mut [u8; MAXPATHL]) {
+    let wl = with_spell_ext(|ext| ext.int_wordlist.borrow().clone());
     format_to_buf!(
         &mut fname[..],
         c"%s.%s.spl",
-        spell_priv_st().int_wordlist.as_deref().unwrap_or(c""),
+        wl.as_deref().unwrap_or(c""),
         &spell_enc(),
     );
 }
@@ -1630,16 +1684,18 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     dont_use_region = true;
                 }
                 let lang_cstr = crate::memory::bytes_as_cstr(&lang);
-                let slang = spell_priv_st()
-                    .first_lang
-                    .iter_mut()
-                    .rev()
-                    .find(|s| {
-                        s.sl_fname.as_ref().is_some_and(|f| {
-                            path_equal(lang_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                let slang = with_spell_ext(|ext| {
+                    ext.first_lang
+                        .borrow_mut()
+                        .iter_mut()
+                        .rev()
+                        .find(|s| {
+                            s.sl_fname.as_ref().is_some_and(|f| {
+                                path_equal(lang_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                            })
                         })
-                    })
-                    .map_or(ptr::null_mut(), |s| &raw mut **s);
+                        .map_or(ptr::null_mut(), |s| &raw mut **s)
+                });
                 (true, slang)
             } else {
                 if len > 3 && lang[(len - 3) as usize] == b'_' {
@@ -1649,16 +1705,18 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     dont_use_region = true;
                 }
                 let lang_cstr = crate::memory::bytes_as_cstr(&lang);
-                let slang = spell_priv_st()
-                    .first_lang
-                    .iter_mut()
-                    .rev()
-                    .find(|s| {
-                        s.sl_name
-                            .as_ref()
-                            .is_some_and(|n| mb_stricmp(lang_cstr, n.as_c_str()) == 0)
-                    })
-                    .map_or(ptr::null_mut(), |s| &raw mut **s);
+                let slang = with_spell_ext(|ext| {
+                    ext.first_lang
+                        .borrow_mut()
+                        .iter_mut()
+                        .rev()
+                        .find(|s| {
+                            s.sl_name
+                                .as_ref()
+                                .is_some_and(|n| mb_stricmp(lang_cstr, n.as_c_str()) == 0)
+                        })
+                        .map_or(ptr::null_mut(), |s| &raw mut **s)
+                });
                 (false, slang)
             };
             if let Some(reg) = region {
@@ -1683,49 +1741,57 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
             }
             let lang_cstr = crate::memory::bytes_as_cstr(&lang);
-            for s in spell_priv_st().first_lang.iter_mut().rev() {
-                let slang: &mut Slang = s;
-                let matched = if filename {
-                    slang.sl_fname.as_ref().is_some_and(|f| {
-                        path_equal(lang_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+            let matched_slangs: Vec<*mut Slang> = with_spell_ext(|ext| {
+                ext.first_lang
+                    .borrow_mut()
+                    .iter_mut()
+                    .rev()
+                    .filter(|slang| {
+                        if filename {
+                            slang.sl_fname.as_ref().is_some_and(|f| {
+                                path_equal(lang_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                            })
+                        } else {
+                            slang
+                                .sl_name
+                                .as_ref()
+                                .is_some_and(|n| mb_stricmp(lang_cstr, n.as_c_str()) == 0)
+                        }
                     })
-                } else {
-                    slang
-                        .sl_name
-                        .as_ref()
-                        .is_some_and(|n| mb_stricmp(lang_cstr, n.as_c_str()) == 0)
-                };
-                if matched {
-                    let mut region_mask = REGION_ALL;
-                    if !filename && let Some(ref reg) = region {
-                        let c = find_region(&slang.sl_regions, &reg[..2]);
-                        if c == REGION_ALL {
-                            if slang.sl_add {
-                                if slang.sl_regions[0] != 0 {
-                                    region_mask = 0;
-                                }
-                            } else {
-                                smsg!(
-                                    0,
-                                    gettext(c"Warning: region %s not supported"),
-                                    crate::memory::bytes_as_cstr(reg),
-                                );
+                    .map(|s| &raw mut **s)
+                    .collect()
+            });
+            for slang_ptr in matched_slangs {
+                let slang = crate::globals::GraphPtr::of(slang_ptr).borrow_mut();
+                let mut region_mask = REGION_ALL;
+                if !filename && let Some(ref reg) = region {
+                    let c = find_region(&slang.sl_regions, &reg[..2]);
+                    if c == REGION_ALL {
+                        if slang.sl_add {
+                            if slang.sl_regions[0] != 0 {
+                                region_mask = 0;
                             }
                         } else {
-                            region_mask = 1 << c;
+                            smsg!(
+                                0,
+                                gettext(c"Warning: region %s not supported"),
+                                crate::memory::bytes_as_cstr(reg),
+                            );
                         }
+                    } else {
+                        region_mask = 1 << c;
                     }
-                    if region_mask != 0 {
-                        ga.push(Langp {
-                            lp_slang: crate::globals::GraphPtr::from(&mut *slang),
-                            lp_sallang: crate::globals::GraphPtr::NULL,
-                            lp_replang: crate::globals::GraphPtr::NULL,
-                            lp_region: region_mask,
-                        });
-                        use_midword(slang, wp);
-                        if slang.sl_nobreak {
-                            nobreak = true;
-                        }
+                }
+                if region_mask != 0 {
+                    ga.push(Langp {
+                        lp_slang: crate::globals::GraphPtr::from(&mut *slang),
+                        lp_sallang: crate::globals::GraphPtr::NULL,
+                        lp_replang: crate::globals::GraphPtr::NULL,
+                        lp_region: region_mask,
+                    });
+                    use_midword(slang, wp);
+                    if slang.sl_nobreak {
+                        nobreak = true;
                     }
                 }
             }
@@ -1737,7 +1803,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
             let cur_round = round;
             round += 1;
             if cur_round == 0 {
-                if spell_priv_st().int_wordlist.is_none() {
+                if with_spell_ext(|ext| ext.int_wordlist.borrow().is_none()) {
                     continue;
                 }
                 int_wordlist_spl(&mut spf_name);
@@ -1763,16 +1829,18 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
             }
             let spf_cstr = crate::memory::bytes_as_cstr(&spf_name);
-            let mut slang = spell_priv_st()
-                .first_lang
-                .iter_mut()
-                .rev()
-                .find(|s| {
-                    s.sl_fname
-                        .as_ref()
-                        .is_some_and(|f| path_equal(spf_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags))
-                })
-                .map_or(ptr::null_mut(), |s| &raw mut **s);
+            let mut slang = with_spell_ext(|ext| {
+                ext.first_lang
+                    .borrow_mut()
+                    .iter_mut()
+                    .rev()
+                    .find(|s| {
+                        s.sl_fname.as_ref().is_some_and(|f| {
+                            path_equal(spf_cstr, f, K_PATH_CMP_EXPAND as PathCmpFlags)
+                        })
+                    })
+                    .map_or(ptr::null_mut(), |s| &raw mut **s)
+            });
             if slang.is_null() {
                 if cur_round == 0 {
                     lang[..18].copy_from_slice(b"internal wordlist\0");
@@ -1946,23 +2014,25 @@ pub fn captype(word: &[u8]) -> i32 {
     0
 }
 pub fn spell_delete_wordlist() {
-    let Some(ref wl) = spell_priv_st().int_wordlist else {
+    let Some(wl) = with_spell_ext(|ext| ext.int_wordlist.borrow().clone()) else {
         return;
     };
     let mut fname: [u8; MAXPATHL] = [0; MAXPATHL];
-    let _ = os_remove(wl);
+    let _ = os_remove(&wl);
     int_wordlist_spl(&mut fname);
     let _ = os_remove(crate::memory::bytes_as_cstr(&fname));
-    spell_priv_st().int_wordlist = None;
+    with_spell_ext(|ext| *ext.int_wordlist.borrow_mut() = None);
 }
 pub fn spell_free_all() {
     for buf in for_all_buffers_mut() {
         buf.b_s.b_langp = Vec::new();
     }
-    spell_priv_st().first_lang = Vec::new();
+    with_spell_ext(|ext| *ext.first_lang.borrow_mut() = Vec::new());
     spell_delete_wordlist();
-    spell_priv_st().repl_to = None;
-    spell_priv_st().repl_from = None;
+    with_spell_ext(|ext| {
+        *ext.repl_to.borrow_mut() = None;
+        *ext.repl_from.borrow_mut() = None;
+    });
 }
 pub fn spell_reload() {
     init_spell_chartab();
@@ -2018,16 +2088,17 @@ pub fn clear_spell_chartab(sp: &mut Spelltab) {
     }
 }
 pub fn init_spell_chartab() {
-    spell_priv_st().did_set_spelltab = false;
-    clear_spell_chartab(&mut spell_priv_st().spelltab);
+    let mut st = spell_priv_st();
+    st.did_set_spelltab = false;
+    clear_spell_chartab(&mut st.spelltab);
     for i in 128..256 {
         let f = utf_fold(i as i32);
         let u = mb_toupper(i as i32);
-        spell_priv_st().spelltab.st_isu[i] = mb_isupper(i as i32);
-        spell_priv_st().spelltab.st_isw[i] =
-            spell_priv_st().spelltab.st_isu[i] || mb_islower(i as i32);
-        spell_priv_st().spelltab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
-        spell_priv_st().spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
+        let isu = mb_isupper(i as i32);
+        st.spelltab.st_isu[i] = isu;
+        st.spelltab.st_isw[i] = isu || mb_islower(i as i32);
+        st.spelltab.st_fold[i] = if f < 256 { f as u8 } else { i as u8 };
+        st.spelltab.st_upper[i] = if u < 256 { u as u8 } else { i as u8 };
     }
 }
 pub fn spell_iswordp(bytes: &[u8], wp: &WinInfoInfo) -> bool {
@@ -2191,10 +2262,9 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     let pos = curwin_mut().w_cursor;
     let save_ws = opt_vars().p_ws;
     let mut prev_lnum: Linenr = 0;
-    let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
-        spell_priv_st().borrow_mut().repl_from.clone(),
-        spell_priv_st().borrow_mut().repl_to.clone(),
-    ) else {
+    let (Some(repl_from_cstr), Some(repl_to_cstr)) =
+        with_spell_ext(|ext| (ext.repl_from.borrow().clone(), ext.repl_to.borrow().clone()))
+    else {
         emsg(gettext(c"E752: No previous spell replacement"));
         return;
     };

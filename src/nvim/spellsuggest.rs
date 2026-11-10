@@ -34,7 +34,7 @@ use crate::spell::{
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
     make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
     spell_casefold, spell_check, spell_isupper, spell_iswordp, spell_iswordp_nmw, spell_move_to,
-    spell_priv_st, spell_soundfold, spell_tofold, spell_valid_case, valid_word_prefix,
+    spell_soundfold, spell_tofold, spell_valid_case, valid_word_prefix, with_spell_ext,
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{format_to_buf, gettext};
@@ -730,8 +730,7 @@ pub fn spell_suggest(count: i32) {
             let org_off = (stp.st_orglen as usize).min(badptr_bytes.len());
             if sug.su_badlen > stp.st_orglen {
                 let bad_off = (sug.su_badlen as usize).min(badptr_bytes.len());
-                spell_priv_st().repl_from =
-                    Some(crate::memory::bytes_to_cstring(&badptr_bytes[..bad_off]));
+                let from = Some(crate::memory::bytes_to_cstring(&badptr_bytes[..bad_off]));
                 let tail_cstr = &sug.su_badptr.as_c_str()[org_off..];
                 format_to_buf!(
                     g_st().iobuff_bytes_mut(),
@@ -740,11 +739,18 @@ pub fn spell_suggest(count: i32) {
                     sug.su_badlen - stp.st_orglen,
                     tail_cstr,
                 );
-                spell_priv_st().repl_to = Some(g_st().iobuff_cstr().to_owned());
+                let to = Some(g_st().iobuff_cstr().to_owned());
+                with_spell_ext(|ext| {
+                    *ext.repl_from.borrow_mut() = from;
+                    *ext.repl_to.borrow_mut() = to;
+                });
             } else {
-                spell_priv_st().repl_from =
-                    Some(crate::memory::bytes_to_cstring(&badptr_bytes[..org_off]));
-                spell_priv_st().repl_to = Some((*stp.st_word).to_owned());
+                let from = Some(crate::memory::bytes_to_cstring(&badptr_bytes[..org_off]));
+                let to = Some((*stp.st_word).to_owned());
+                with_spell_ext(|ext| {
+                    *ext.repl_from.borrow_mut() = from;
+                    *ext.repl_to.borrow_mut() = to;
+                });
             }
             let c = (line_len - badptr_bytes.len()) as i32;
             let mut p_vec: Vec<u8> =

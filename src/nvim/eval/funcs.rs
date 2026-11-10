@@ -171,7 +171,7 @@ use crate::os::time::{
     os_time, time_t,
 };
 use crate::path::{ENV_SEPCHAR, concat_fnames_cstr, to_slash_save, vim_full_name};
-use crate::plines::{getvvcol, win_chartabsize};
+use crate::plines::getvvcol;
 use crate::popupmenu::{pum_set_event_info, pum_visible};
 use crate::profile::{
     Proftime, profile_end, profile_msg, profile_setlimit, profile_signed, profile_start,
@@ -310,9 +310,9 @@ pub struct GetListLineCookie {
     li: crate::eval::typval::ListitemId,
 }
 
+#[derive(Clone, Copy)]
 struct EvalFuncsState {
     inputsecret_flag: bool,
-    ga_userinput: Vec<Tasave>,
     has_wsl: TriState,
     rand_gx: u32,
     rand_gy: u32,
@@ -327,7 +327,6 @@ impl EvalFuncsState {
     const fn new() -> Self {
         Self {
             inputsecret_flag: false,
-            ga_userinput: Vec::new(),
             has_wsl: K_NONE,
             rand_gx: 0,
             rand_gy: 0,
@@ -340,11 +339,50 @@ impl EvalFuncsState {
     }
 }
 
-static FUNCS_STATE: GlobalState<EvalFuncsState> = GlobalState::new(EvalFuncsState::new());
+thread_local! {
+    static FUNCS_STATE: std::cell::Cell<EvalFuncsState> =
+        const { std::cell::Cell::new(EvalFuncsState::new()) };
+    static GA_USERINPUT: std::cell::RefCell<Vec<Tasave>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+struct FuncsGuard {
+    state: EvalFuncsState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for FuncsGuard {
+    type Target = EvalFuncsState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for FuncsGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for FuncsGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            FUNCS_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn funcs_st() -> crate::globals::GraphPtr<EvalFuncsState> {
-    FUNCS_STATE.handle()
+fn funcs_st() -> FuncsGuard {
+    FuncsGuard {
+        state: FUNCS_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 const PTY_IGNORED_ENV_VARS: &[&CStr] = &[
@@ -1682,23 +1720,6 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
             }
         } else {
             col = fp_ref.col + 1;
-
-            if virtual_active(wp.borrow_mut()) && ptr::eq(fp_ref, &raw const wp.borrow().w_cursor) {
-                let wp_ref = wp.borrow_mut();
-                let line_cstr = ml_get_buf(&mut *bp, wp_ref.w_cursor.lnum);
-                let line_bytes = line_cstr.to_bytes();
-                let col_idx = (wp_ref.w_cursor.col as usize).min(line_bytes.len());
-                let p_bytes = &line_bytes[col_idx..];
-                if wp_ref.w_cursor.coladd
-                    >= win_chartabsize(wp_ref, p_bytes, wp_ref.w_virtcol - wp_ref.w_cursor.coladd)
-                    && !p_bytes.is_empty()
-                {
-                    let l = crate::mbyte::utfc_slice2len(p_bytes) as i32;
-                    if (l as usize) >= p_bytes.len() {
-                        col += l;
-                    }
-                }
-            }
         }
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(col));
@@ -2825,52 +2846,36 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, charcol: bool) {
-    let mut fp = crate::globals::GraphPtr::<CursorPos>::NULL;
-    let mut pos: CursorPos;
+    let mut fp: Option<CursorPos> = None;
     let mut wp = curwin_ptr();
     let mut fnum: i32 = -1;
 
     if getcurpos {
         if argvars[0].v_type != VarType::VarUnknown {
             if let Some(found) = find_win_by_nr_or_id(&argvars[0]) {
-                fp = crate::globals::GraphPtr::<CursorPos>::of((&raw mut found.w_cursor).cast());
+                fp = Some(found.w_cursor);
                 wp = found.into();
             } else {
                 wp = crate::globals::WinPtr::NULL;
             }
         } else {
-            fp = crate::globals::GraphPtr::<CursorPos>::of((&raw mut curwin_mut().w_cursor).cast());
+            fp = Some(curwin_mut().w_cursor);
         }
-        if !fp.is_null() && charcol {
-            pos = *fp;
-
+        if let Some(ref mut pos) = fp
+            && charcol
+        {
             pos.col = buf_byteidx_to_charidx(wp.w_buffer.opt_mut(), pos.lnum, pos.col);
-
-            fp = crate::globals::GraphPtr::<CursorPos>::from_ref(&pos);
         }
     } else {
-        fp = crate::globals::GraphPtr::from(var2fpos(
-            &argvars[0],
-            true,
-            &mut fnum,
-            charcol,
-            curwin_mut(),
-        ));
+        fp = var2fpos(&argvars[0], true, &mut fnum, charcol, curwin_mut());
     }
 
     let l = tv_list_alloc_ret(&mut *rettv, 4 + isize::from(getcurpos));
     tv_list_append_number(&mut *l, if fnum != -1 { Varnumber::from(fnum) } else { 0 });
+    tv_list_append_number(&mut *l, fp.map_or(0, |p| Varnumber::from(p.lnum)));
     tv_list_append_number(
         &mut *l,
-        if !fp.is_null() {
-            Varnumber::from(fp.lnum)
-        } else {
-            0
-        },
-    );
-    tv_list_append_number(
-        &mut *l,
-        if let Some(fp) = fp.opt_mut() {
+        if let Some(fp) = fp {
             if fp.col == MAXCOL {
                 Varnumber::from(MAXCOL)
             } else {
@@ -2880,14 +2885,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
             0
         },
     );
-    tv_list_append_number(
-        &mut *l,
-        if !fp.is_null() {
-            Varnumber::from(fp.coladd)
-        } else {
-            0
-        },
-    );
+    tv_list_append_number(&mut *l, fp.map_or(0, |p| Varnumber::from(p.coladd)));
     if getcurpos {
         let save_set_curswant = curwin_mut().w_set_curswant;
         let save_curswant = curwin_mut().w_curswant;
@@ -4071,7 +4069,7 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "inputrestore()" function
 pub fn f_inputrestore(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if let Some(mut saved) = funcs_st().ga_userinput.pop() {
+    if let Some(mut saved) = GA_USERINPUT.with(|g| g.borrow_mut().pop()) {
         restore_typeahead(&mut saved);
     } else if opt_vars().p_verbose > 1 {
         verb_msg(gettext(
@@ -4085,7 +4083,7 @@ pub fn f_inputrestore(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 pub fn f_inputsave(_argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut saved = Tasave::new();
     save_typeahead(&mut saved);
-    funcs_st().ga_userinput.push(saved);
+    GA_USERINPUT.with(|g| g.borrow_mut().push(saved));
 }
 
 /// "inputsecret()" function
@@ -4928,7 +4926,7 @@ pub fn f_libcallnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// "line(string, [winid])" function
 pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut lnum: Linenr = 0;
-    let mut fp = crate::globals::GraphPtr::<CursorPos>::NULL;
+    let mut fp: Option<CursorPos> = None;
     let mut fnum: i32 = 0;
 
     if argvars[1].v_type != VarType::VarUnknown {
@@ -4943,26 +4941,14 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 g_st().skip_update_topline = true;
             }
             check_cursor(wp_ref);
-            fp = crate::globals::GraphPtr::from(var2fpos(
-                &argvars[0],
-                true,
-                &mut fnum,
-                false,
-                wp_ref,
-            ));
+            fp = var2fpos(&argvars[0], true, &mut fnum, false, wp_ref);
             g_st().skip_update_topline = false;
         }
     } else {
-        fp = crate::globals::GraphPtr::from(var2fpos(
-            &argvars[0],
-            true,
-            &mut fnum,
-            false,
-            curwin_mut(),
-        ));
+        fp = var2fpos(&argvars[0], true, &mut fnum, false, curwin_mut());
     }
 
-    if let Some(fp_ref) = fp.opt() {
+    if let Some(fp_ref) = fp {
         lnum = fp_ref.lnum;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(lnum));
@@ -5887,12 +5873,13 @@ pub fn f_rand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             funcs_st().rand_gw = splitmix32(&mut x);
             funcs_st().rand_initialized = true;
         }
-        result = shuffle_xoshiro128starstar(
-            &mut funcs_st().rand_gx,
-            &mut funcs_st().rand_gy,
-            &mut funcs_st().rand_gz,
-            &mut funcs_st().rand_gw,
-        );
+        let mut st = funcs_st();
+        let (mut gx, mut gy, mut gz, mut gw) = (st.rand_gx, st.rand_gy, st.rand_gz, st.rand_gw);
+        result = shuffle_xoshiro128starstar(&mut gx, &mut gy, &mut gz, &mut gw);
+        st.rand_gx = gx;
+        st.rand_gy = gy;
+        st.rand_gz = gz;
+        st.rand_gw = gw;
     } else if argvars[0].v_type == VarType::VarList {
         let mut l = argvars[0].vval.v_list_opt();
         if tv_list_len(l.as_deref()) != 4 {
@@ -8444,21 +8431,21 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let bp = wp_ref.buf_mut();
         let mut fnum = bp.b_fnum;
         let fp = var2fpos(&argvars[0], false, &mut fnum, false, wp_ref);
-        if let Some(fp_ref) = fp
-            && fp_ref.lnum <= bp.b_ml.ml_line_count
+        if let Some(mut fp_val) = fp
+            && fp_val.lnum <= bp.b_ml.ml_line_count
             && fnum == bp.b_fnum
         {
-            if fp_ref.col < 0 {
-                fp_ref.col = 0;
+            if fp_val.col < 0 {
+                fp_val.col = 0;
             } else {
-                let len = ml_get_buf_len(bp, fp_ref.lnum);
-                if fp_ref.col > len {
-                    fp_ref.col = len;
+                let len = ml_get_buf_len(bp, fp_val.lnum);
+                if fp_val.col > len {
+                    fp_val.col = len;
                 }
             }
             getvvcol(
                 wp_ref,
-                fp_ref,
+                &mut fp_val,
                 Some(&mut vcol_start),
                 None,
                 Some(&mut vcol_end),
