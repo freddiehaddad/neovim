@@ -462,7 +462,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
     if (flags & K_CTX_REGS) != 0 {
         if (loadflags & K_CTX_MERGE_REG) == 0 {
             for i in 0..NUM_SAVED_REGISTERS {
-                *get_y_register(i) = EMPTY_YANKREG;
+                get_y_register(i).with_mut(|r| *r = EMPTY_YANKREG);
             }
         }
         shada_read_string(

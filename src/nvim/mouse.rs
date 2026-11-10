@@ -51,9 +51,7 @@ use crate::plines::{
     plines_win_nofill, win_charsize, win_chartabsize, win_get_fill,
 };
 use crate::popupmenu::pum_visible;
-use crate::register::{
-    PUT_CURSEND, PUT_FIXINDENT, Yankreg, do_put, insert_reg, yank_register_mline,
-};
+use crate::register::{PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline};
 use crate::search::{BACKWARD, FORWARD, findmatch};
 use crate::state::{MODE_INSERT, MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
@@ -634,15 +632,15 @@ pub fn do_mouse(
                 if regname == 0 && eval_has_provider(b"clipboard", false) {
                     regname = b'*' as i32;
                 }
-                let mut reg: Option<&'static mut Yankreg> = None;
+                let mut reg: Option<crate::register::RegIdx> = None;
                 if (g_st().state_global & REPLACE_FLAG) != 0
                     && !yank_register_mline(regname, &mut reg)
                 {
-                    insert_reg(regname, reg.as_deref(), true);
+                    insert_reg(regname, reg, true);
                 } else {
                     do_put(
                         regname,
-                        reg,
+                        reg.map(crate::register::PutReg::Idx),
                         BACKWARD,
                         1,
                         (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
@@ -991,7 +989,7 @@ pub fn do_mouse(
         if regname == 0 && eval_has_provider(b"clipboard", false) {
             regname = b'*' as i32;
         }
-        let mut reg: Option<&'static mut Yankreg> = None;
+        let mut reg: Option<crate::register::RegIdx> = None;
         if yank_register_mline(regname, &mut reg) {
             if g_st().mouse_past_bottom {
                 dir = FORWARD;
@@ -1036,7 +1034,7 @@ pub fn do_mouse(
         }
         do_put(
             regname,
-            reg,
+            reg.map(crate::register::PutReg::Idx),
             dir,
             count,
             (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,

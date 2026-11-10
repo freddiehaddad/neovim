@@ -36,7 +36,6 @@ use crate::os::fs::{MAXPATHL, NvimStats};
 use crate::popupmenu::PumWant;
 use crate::quickfix::QfInfo;
 use crate::regexp::RegExtmatch;
-use crate::register::{EMPTY_YANKREG, NUM_REGISTERS, Yankreg};
 use crate::runtime::Sctx;
 use crate::state::{MODE_MAX_LENGTH, MODE_NORMAL};
 use crate::textformat::InsState;
@@ -333,8 +332,6 @@ pub struct EditorState {
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,
-    pub y_regs: [Yankreg; NUM_REGISTERS],
-    pub empty_reg: Yankreg,
     pub ql_info_actual: QfInfo,
     pub llist_arena: Vec<Option<Box<QfInfo>>>,
     pub free_llists: Vec<usize>,
@@ -784,8 +781,6 @@ impl EditorState {
             on_print: Callback::NONE,
             ctx_win_vec: Vec::new(),
             decor_state: DecorState::new(),
-            y_regs: [const { EMPTY_YANKREG }; NUM_REGISTERS],
-            empty_reg: EMPTY_YANKREG,
             ql_info_actual: QfInfo::new_stack(),
             llist_arena: Vec::new(),
             free_llists: Vec::new(),

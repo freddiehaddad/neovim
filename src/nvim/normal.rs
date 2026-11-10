@@ -7351,7 +7351,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
     }
     do_put(
         cap.oap_mut().regname,
-        savereg.as_mut(),
+        savereg.as_ref().map(crate::register::PutReg::Ref),
         dir,
         cap.count1,
         flags,

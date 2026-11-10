@@ -77,7 +77,7 @@ use crate::plines::{
     CSType, CharsizeArg, getvcol, getvcols, getvvcol, init_charsize_arg, win_charsize,
 };
 use crate::register::{
-    BlockDef, YankRegMode, Yankreg, do_autocmd_textyankpost, get_y_register, get_yank_register,
+    BlockDef, YankRegMode, do_autocmd_textyankpost, get_y_register, get_yank_register,
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
@@ -854,7 +854,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
     if !only_setmarks {
         if oap.regname != b'_' as i32 {
-            let mut reg: Option<&'static mut Yankreg> = None;
+            let mut reg: Option<crate::register::RegIdx> = None;
             let mut did_yank = false;
             if oap.regname != 0 {
                 if !valid_yank_reg(oap.regname, true) {
@@ -886,7 +886,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 let Some(reg) = reg else {
                     std::process::abort();
                 };
-                set_clipboard(oap.regname, &*reg);
+                set_clipboard(oap.regname, reg);
                 do_autocmd_textyankpost(oap, reg);
             }
         }

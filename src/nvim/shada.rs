@@ -77,8 +77,8 @@ use crate::path::{
 };
 use crate::regexp::{K_MARK_BUF_LOCAL, regtilde};
 use crate::register::{
-    MotionType, NUM_SAVED_REGISTERS, Yankreg, op_global_reg_iter, op_reg_get, op_reg_index,
-    op_reg_set, reg_empty,
+    MotionType, NUM_SAVED_REGISTERS, Yankreg, op_reg_get, op_reg_index, op_reg_set, reg_empty,
+    with_global_reg_iter,
 };
 use crate::search::{
     AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_timestamp,
@@ -1444,7 +1444,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 };
                 if !force {
                     let reg = op_reg_get(r_name);
-                    if reg.is_none_or(|r| r.timestamp >= reg_ts) {
+                    if reg.is_none_or(|r| r.with(|reg| reg.timestamp >= reg_ts)) {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
@@ -2090,8 +2090,7 @@ fn shada_read_when_writing(
                 let u_idx = idx as usize;
                 if wms.registers[u_idx].entry_type == ShadaEntryType::SDItemMissing
                     && let Some(reg) = op_reg_get(reg_name)
-                    && reg_empty(reg)
-                    && reg.timestamp / NS_PER_SEC >= entry.timestamp
+                    && reg.with(|r| reg_empty(r) && r.timestamp / NS_PER_SEC >= entry.timestamp)
                 {
                     shada_free_shada_entry(&mut entry);
                     continue;
@@ -2380,45 +2379,36 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
     let mut reg_iter: Option<usize> = None;
     let limit_reg_lines = max_reg_lines >= 0;
     loop {
-        let mut reg_opt: Option<&'static Yankreg> = None;
-        let mut name: u8 = 0;
-        let mut is_unnamed = false;
-        reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg_opt, &mut is_unnamed);
-        let Some(reg_ref) = reg_opt else {
-            break;
-        };
-        if name == 0 {
-            break;
-        }
-        if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
-            if reg_iter.is_none() {
-                break;
+        let mut got_one = false;
+        reg_iter = with_global_reg_iter(reg_iter, |name, reg_ref, is_unnamed| {
+            got_one = true;
+            if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
+                return;
             }
-            continue;
-        }
-        let idx = op_reg_index(i32::from(name)) as usize;
-        wms.registers[idx] = ShadaEntry {
-            can_free_entry: false,
-            entry_type: ShadaEntryType::SDItemRegister,
-            timestamp: if scale_ts {
-                reg_ref.timestamp / NS_PER_SEC
-            } else {
-                reg_ref.timestamp
-            },
-            data: ShadaEntryData::Reg(ShadaReg {
-                contents: reg_ref.y_array.clone(),
-                reg_type: reg_ref.y_type as u8,
-                width: if reg_ref.y_type == MotionType::MtBlockWise {
-                    reg_ref.y_width as usize
+            let idx = op_reg_index(i32::from(name)) as usize;
+            wms.registers[idx] = ShadaEntry {
+                can_free_entry: false,
+                entry_type: ShadaEntryType::SDItemRegister,
+                timestamp: if scale_ts {
+                    reg_ref.timestamp / NS_PER_SEC
                 } else {
-                    0
+                    reg_ref.timestamp
                 },
-                name,
-                is_unnamed,
-            }),
-            additional_data: reg_ref.additional_data.clone(),
-        };
-        if reg_iter.is_none() {
+                data: ShadaEntryData::Reg(ShadaReg {
+                    contents: reg_ref.y_array.clone(),
+                    reg_type: reg_ref.y_type as u8,
+                    width: if reg_ref.y_type == MotionType::MtBlockWise {
+                        reg_ref.y_width as usize
+                    } else {
+                        0
+                    },
+                    name,
+                    is_unnamed,
+                }),
+                additional_data: reg_ref.additional_data.clone(),
+            };
+        });
+        if !got_one || reg_iter.is_none() {
             break;
         }
     }

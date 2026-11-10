@@ -2672,7 +2672,7 @@ fn ins_reg() {
                     0
                 }) | PUT_CURSEND,
             );
-        } else if reg.y_array.len() > 1 && is_literal_register(regname) {
+        } else if reg.with(|r| r.y_array.len() > 1) && is_literal_register(regname) {
             redo_append_char(CTRL_R_CONST);
             redo_append_char(regname);
             do_put(regname, None, BACKWARD, 1, PUT_CURSEND);

@@ -1811,7 +1811,7 @@ pub fn nvim_put(
     g_st().msg_silent += 1;
     do_put(
         b'_' as i32,
-        Some(&mut reg),
+        Some(crate::register::PutReg::Ref(&reg)),
         if after { FORWARD } else { BACKWARD },
         1,
         if follow { PUT_CURSEND } else { 0 },
