@@ -2005,12 +2005,12 @@ pub fn do_bufdel(
     start_bnr: i32,
     end_bnr: i32,
     forceit: bool,
-) -> Option<&'static std::ffi::CStr> {
+) -> Option<std::borrow::Cow<'static, std::ffi::CStr>> {
     let arg_cstr = crate::memory::bytes_to_cstring(crate::memory::bytes_until_nul(arg_in));
     let mut arg = arg_cstr.as_c_str();
     let mut do_current = 0;
     let mut deleted: i32 = 0;
-    let mut errormsg: Option<&'static std::ffi::CStr> = None;
+    let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
     let mut bnr: i32;
 
     if addr_count == 0 {
@@ -2080,8 +2080,7 @@ pub fn do_bufdel(
             } else {
                 gettext(c"E517: No buffers were wiped out")
             };
-            crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg_cstr.to_bytes());
-            errormsg = Some(g_st().iobuff_cstr());
+            errormsg = Some(std::borrow::Cow::Borrowed(msg_cstr));
         } else if i64::from(deleted) >= opt_vars().p_report {
             if command == DOBUF_UNLOAD {
                 smsg!(

@@ -348,7 +348,7 @@ pub struct Exarg {
     pub force_enc: i32,
     pub bad_char: i32,
     pub useridx: i32,
-    pub errmsg: Option<&'static std::ffi::CStr>,
+    pub errmsg: Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     pub ea_getline: LineGetter,
     pub cstack: crate::globals::GraphPtr<crate::ex_eval::Cstack>,
     pub magic: ExMagic,
@@ -5794,7 +5794,7 @@ pub fn set_cmd_count(eap: &mut Exarg, count: Linenr, validate: bool) {
 
 fn parse_count(
     eap: &mut Exarg,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     validate: bool,
 ) -> bool {
     if (eap.argt & EX_COUNT) != 0 && ascii_isdigit(eap.arg.first_byte()) {
@@ -5822,7 +5822,7 @@ fn parse_count(
             }
 
             if n <= 0 && (eap.argt & EX_ZEROR) == 0 {
-                *errormsg = Some(gettext(E_ZEROCOUNT));
+                *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_ZEROCOUNT)));
                 return false;
             }
             set_cmd_count(eap, n, validate);
@@ -5873,7 +5873,7 @@ pub fn cmd_has_expr_args(cmdidx: Cmdidx) -> bool {
 pub fn parse_cmdline(
     eap: &mut Exarg,
     cmod: &mut Cmdmod,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     skipmods: bool,
 ) -> bool {
     let mut retval = false;
@@ -5903,7 +5903,9 @@ pub fn parse_cmdline(
 
         let mut p = find_excmd_after_range(eap);
         if p.is_null() {
-            *errormsg = Some(gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND));
+            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND,
+            )));
             break 'end;
         }
 
@@ -5945,7 +5947,7 @@ pub fn parse_cmdline(
                 eap.cmdline_ptr()
             };
             append_command((cmdname).as_cstr());
-            *errormsg = Some(g_st().iobuff_cstr());
+            *errormsg = Some(std::borrow::Cow::Borrowed(g_st().iobuff_cstr()));
             break 'end;
         }
 
@@ -5994,11 +5996,11 @@ pub fn parse_cmdline(
         }
 
         if (eap.argt & EX_BANG) == 0 && eap.forceit {
-            *errormsg = Some(gettext(E_NOBANG));
+            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_NOBANG)));
             break 'end;
         }
         if (eap.argt & EX_RANGE) == 0 && eap.addr_count > 0 {
-            *errormsg = Some(gettext(E_NORANGE));
+            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_NORANGE)));
             break 'end;
         }
         if (eap.argt & EX_DFLALL) != 0 && eap.addr_count == 0 {
@@ -6048,7 +6050,7 @@ fn shift_cmd_args(eap: &mut Exarg) {
 fn execute_cmd0(
     retv: &mut i32,
     eap: &mut Exarg,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     preview: bool,
 ) -> bool {
     if (eap.argt & EX_XFILE) != 0 && !expand_filename(eap, errormsg) {
@@ -6118,7 +6120,7 @@ fn execute_cmd0(
             (CMDNAMES[eap.cmdidx as usize].cmd_func)(&mut *eap);
         }
         if eap.errmsg.is_some() {
-            *errormsg = eap.errmsg;
+            *errormsg = eap.errmsg.clone();
         }
     }
 
@@ -6132,7 +6134,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
         return retv;
     }
 
-    let mut errormsg: Option<&'static std::ffi::CStr> = None;
+    let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
     let save_cmdmod = std::mem::replace(&mut g_st().cmdmod, std::mem::take(cmod));
 
     apply_cmdmod(&mut g_st().cmdmod);
@@ -6143,11 +6145,11 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
             && !(!curbuf_mut().terminal.is_null()
                 && (eap.cmdidx == Cmdidx::CmdPut || eap.cmdidx == Cmdidx::CmdIput))
         {
-            errormsg = Some(gettext(E_MODIFIABLE));
+            errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_MODIFIABLE)));
             break 'end;
         }
         if !eap.cmdidx.is_user() && text_locked() && (eap.argt & EX_LOCK_OK) == 0 {
-            errormsg = Some(gettext(get_text_locked_msg()));
+            errormsg = Some(std::borrow::Cow::Borrowed(gettext(get_text_locked_msg())));
             break 'end;
         }
         if (eap.argt & EX_BUFLOCK_OK) == 0
@@ -6187,7 +6189,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
     if let Some(msg) = errormsg
         && !msg.to_bytes().is_empty()
     {
-        let _ = emsg(msg);
+        let _ = emsg(&msg);
     }
 
     undo_cmdmod(&mut g_st().cmdmod);
@@ -6336,7 +6338,7 @@ fn do_one_cmd(
     cstack: &mut Cstack,
     fgetline: LineGetter,
 ) -> bool {
-    let mut errormsg: Option<&'static std::ffi::CStr> = None;
+    let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
     let save_reg_executing = g_st().reg_executing;
     let save_pending_end_reg_executing = g_st().pending_end_reg_executing;
 
@@ -6439,7 +6441,9 @@ fn do_one_cmd(
 
         if p_opt.is_null() {
             if !ea.skip {
-                errormsg = Some(gettext(E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND));
+                errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                    E_AMBIGUOUS_USE_OF_USER_DEFINED_COMMAND,
+                )));
             }
             break 'doend;
         }
@@ -6458,7 +6462,7 @@ fn do_one_cmd(
                 if (flags & DOCMD_VERBOSE) == 0 {
                     append_command(cmdname);
                 }
-                errormsg = Some(g_st().iobuff_cstr());
+                errormsg = Some(std::borrow::Cow::Borrowed(g_st().iobuff_cstr()));
                 g_st().did_emsg_syntax = true;
                 verify_command(cmdname.to_bytes());
             }
@@ -6475,7 +6479,7 @@ fn do_one_cmd(
 
         if !ea.skip {
             if g_st().sandbox != 0 && (ea.argt & EX_SBOXOK) == 0 {
-                errormsg = Some(gettext(E_SANDBOX));
+                errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_SANDBOX)));
                 break 'doend;
             }
             if !curbuf_mut().b_p_ma
@@ -6483,12 +6487,12 @@ fn do_one_cmd(
                 && !(!curbuf_mut().terminal.is_null()
                     && (ea.cmdidx == Cmdidx::CmdPut || ea.cmdidx == Cmdidx::CmdIput))
             {
-                errormsg = Some(gettext(E_MODIFIABLE));
+                errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_MODIFIABLE)));
                 break 'doend;
             }
 
             if !ea.cmdidx.is_user() && text_locked() && (ea.argt & EX_LOCK_OK) == 0 {
-                errormsg = Some(gettext(get_text_locked_msg()));
+                errormsg = Some(std::borrow::Cow::Borrowed(gettext(get_text_locked_msg())));
                 break 'doend;
             }
 
@@ -6503,13 +6507,13 @@ fn do_one_cmd(
             }
 
             if !ni && (ea.argt & EX_RANGE) == 0 && ea.addr_count > 0 {
-                errormsg = Some(gettext(E_NORANGE));
+                errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_NORANGE)));
                 break 'doend;
             }
         }
 
         if !ni && (ea.argt & EX_BANG) == 0 && ea.forceit {
-            errormsg = Some(gettext(E_NOBANG));
+            errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_NOBANG)));
             break 'doend;
         }
 
@@ -6517,7 +6521,9 @@ fn do_one_cmd(
             if g_st().global_busy == 0 && ea.line1 > ea.line2 {
                 if g_st().msg_silent == 0 {
                     if (flags & DOCMD_VERBOSE) != 0 || g_st().silent_mode {
-                        errormsg = Some(gettext(c"E493: Backwards range given"));
+                        errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                            c"E493: Backwards range given",
+                        )));
                         break 'doend;
                     }
                     if ask_yesno(gettext(c"Backwards range given, OK to swap")) != b'y' as i32 {
@@ -6560,7 +6566,7 @@ fn do_one_cmd(
         if (ea.argt & EX_ARGOPT) != 0 {
             while ea.arg.as_bytes().starts_with(b"++") {
                 if !getargopt(&mut ea) && !ni {
-                    errormsg = Some(gettext(E_INVARG));
+                    errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVARG)));
                     break 'doend;
                 }
             }
@@ -6570,7 +6576,7 @@ fn do_one_cmd(
             if ea.arg.first_byte() == b'>' {
                 ea.arg = ea.arg.wrapping_add(1);
                 if ea.arg.first_byte() != b'>' {
-                    errormsg = Some(gettext(c"E494: Use w or w>>"));
+                    errormsg = Some(std::borrow::Cow::Borrowed(gettext(c"E494: Use w or w>>")));
                     break 'doend;
                 }
                 ea.arg = ea.arg.wrapping_add(1).skipwhite();
@@ -6655,7 +6661,7 @@ fn do_one_cmd(
         }
 
         if !ni && (ea.argt & EX_NEEDARG) != 0 && ea.arg.is_empty() {
-            errormsg = Some(gettext(E_ARGREQ));
+            errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_ARGREQ)));
             break 'doend;
         }
 
@@ -6696,9 +6702,9 @@ fn do_one_cmd(
                 crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
             }
             append_command(ea.cmdline_cstr());
-            msg = g_st().iobuff_cstr();
+            msg = std::borrow::Cow::Owned(g_st().iobuff_cstr().to_owned());
         }
-        let _ = emsg(msg);
+        let _ = emsg(&msg);
     }
     do_errthrow(
         Some(&mut *cstack),
@@ -6725,8 +6731,8 @@ fn do_one_cmd(
     }
 }
 
-fn ex_range_without_command(eap: &mut Exarg) -> Option<&'static std::ffi::CStr> {
-    let mut errormsg: Option<&'static std::ffi::CStr> = None;
+fn ex_range_without_command(eap: &mut Exarg) -> Option<std::borrow::Cow<'static, std::ffi::CStr>> {
+    let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
 
     if eap.cmd.first_byte() == b'|' {
         eap.cmdidx = Cmdidx::CmdPrint;
@@ -6740,7 +6746,7 @@ fn ex_range_without_command(eap: &mut Exarg) -> Option<&'static std::ffi::CStr> 
         eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
 
         if eap.line2 < 0 {
-            errormsg = Some(gettext(E_INVRANGE));
+            errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
         } else {
             if eap.line2 == 0 {
                 curwin_mut().w_cursor.lnum = 1;
@@ -6755,7 +6761,7 @@ fn ex_range_without_command(eap: &mut Exarg) -> Option<&'static std::ffi::CStr> 
 
 pub fn parse_command_modifiers(
     eap: &mut Exarg,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     cmod: &mut Cmdmod,
     skip_only: bool,
 ) -> bool {
@@ -7033,7 +7039,7 @@ pub fn parse_command_modifiers(
                             cmod.cmod_tab = tabpage_index(g_st().curtab.opt()) + 1;
                         } else {
                             if tabnr < 0 || tabnr > current_tab_nr(None) {
-                                *errormsg = Some(gettext(E_INVRANGE));
+                                *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                                 return false;
                             }
                             cmod.cmod_tab = tabnr + 1;
@@ -7186,7 +7192,7 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
 
 pub fn parse_cmd_address(
     eap: &mut Exarg,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     silent: bool,
 ) -> bool {
     let mut address_count: i32 = 1;
@@ -7257,12 +7263,12 @@ pub fn parse_cmd_address(
                                     current_tab_nr(None)
                                 };
                             } else {
-                                *errormsg = Some(gettext(E_INVRANGE));
+                                *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                                 break 'theend;
                             }
                         }
                         ADDR_TABS_RELATIVE | ADDR_UNSIGNED | ADDR_QUICKFIX => {
-                            *errormsg = Some(gettext(E_INVRANGE));
+                            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                             break 'theend;
                         }
                         ADDR_ARGUMENTS => {
@@ -7287,7 +7293,7 @@ pub fn parse_cmd_address(
                     eap.addr_count += 1;
                 } else if eap.cmd.first_byte() == b'*' {
                     if eap.addr_type != ADDR_LINES {
-                        *errormsg = Some(gettext(E_INVRANGE));
+                        *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                         break 'theend;
                     }
 
@@ -7731,7 +7737,7 @@ pub fn get_address(
     silent: bool,
     to_other_file: i32,
     address_count: i32,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
 ) -> Linenr {
     let orig_opt = *cmd_opt;
     let mut cmd_cur: Option<&CStr> = orig_opt.map(crate::charset::skipwhite);
@@ -7751,7 +7757,7 @@ pub fn get_address(
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
                         ADDR_TABS => lnum = current_tab_nr(Some(curtab_mut())),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
-                            *errormsg = Some(addr_error(addr_type));
+                            *errormsg = Some(std::borrow::Cow::Borrowed(addr_error(addr_type)));
                             cmd_cur = None;
                             break 'error;
                         }
@@ -7784,7 +7790,7 @@ pub fn get_address(
                         ADDR_BUFFERS => lnum = g_st().lastbuf.b_fnum,
                         ADDR_TABS => lnum = current_tab_nr(None),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
-                            *errormsg = Some(addr_error(addr_type));
+                            *errormsg = Some(std::borrow::Cow::Borrowed(addr_error(addr_type)));
                             cmd_cur = None;
                             break 'error;
                         }
@@ -7811,7 +7817,7 @@ pub fn get_address(
                         break 'error;
                     }
                     if addr_type != ADDR_LINES {
-                        *errormsg = Some(addr_error(addr_type));
+                        *errormsg = Some(std::borrow::Cow::Borrowed(addr_error(addr_type)));
                         cmd_cur = None;
                         break 'error;
                     }
@@ -7847,7 +7853,7 @@ pub fn get_address(
                     let c = i32::from(cmd_b0);
                     let after_delim = crate::memory::CStrSubslice::advance(cmd, 1);
                     if addr_type != ADDR_LINES {
-                        *errormsg = Some(addr_error(addr_type));
+                        *errormsg = Some(std::borrow::Cow::Borrowed(addr_error(addr_type)));
                         cmd_cur = None;
                         break 'error;
                     }
@@ -7902,7 +7908,7 @@ pub fn get_address(
                 b'\\' => {
                     let after_bsl = crate::memory::CStrSubslice::advance(cmd, 1);
                     if addr_type != ADDR_LINES {
-                        *errormsg = Some(addr_error(addr_type));
+                        *errormsg = Some(std::borrow::Cow::Borrowed(addr_error(addr_type)));
                         cmd_cur = None;
                         break 'error;
                     }
@@ -7912,7 +7918,7 @@ pub fn get_address(
                     } else if b_next == b'?' || b_next == b'/' {
                         RE_SEARCH
                     } else {
-                        *errormsg = Some(gettext(E_BACKSLASH));
+                        *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_BACKSLASH)));
                         cmd_cur = None;
                         break 'error;
                     };
@@ -8012,7 +8018,9 @@ pub fn get_address(
                         cmd_bytes.len() - rem.len(),
                     ));
                     if parsed == MAXLNUM {
-                        *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
+                        *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                            E_LINE_NUMBER_OUT_OF_RANGE,
+                        )));
                         cmd_cur = None;
                         break 'error;
                     }
@@ -8020,7 +8028,7 @@ pub fn get_address(
                 };
 
                 if addr_type == ADDR_TABS_RELATIVE {
-                    *errormsg = Some(gettext(E_INVRANGE));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                     cmd_cur = None;
                     break 'error;
                 } else if addr_type == ADDR_LOADED_BUFFERS || addr_type == ADDR_BUFFERS {
@@ -8040,7 +8048,9 @@ pub fn get_address(
                         lnum -= n;
                     } else {
                         if lnum >= 0 && n >= i32::MAX - lnum {
-                            *errormsg = Some(gettext(E_LINE_NUMBER_OUT_OF_RANGE));
+                            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                                E_LINE_NUMBER_OUT_OF_RANGE,
+                            )));
                             cmd_cur = None;
                             break 'error;
                         }
@@ -8084,9 +8094,9 @@ fn get_flags(eap: &mut Exarg) {
 
 pub fn ex_ni(eap: &mut Exarg) {
     if !eap.skip {
-        eap.errmsg = Some(gettext(
+        eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
             c"E319: The command is not available in this version",
-        ));
+        )));
     }
 }
 
@@ -8099,9 +8109,9 @@ fn ex_script_ni(eap: &mut Exarg) {
     }
 }
 
-pub fn invalid_range(eap: &mut Exarg) -> Option<&'static std::ffi::CStr> {
+pub fn invalid_range(eap: &mut Exarg) -> Option<std::borrow::Cow<'static, std::ffi::CStr>> {
     if eap.line1 < 0 || eap.line2 < 0 || eap.line1 > eap.line2 {
-        return Some(gettext(E_INVRANGE));
+        return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
     }
 
     if (eap.argt & EX_RANGE) != 0 {
@@ -8112,60 +8122,60 @@ pub fn invalid_range(eap: &mut Exarg) -> Option<&'static std::ffi::CStr> {
                     eap.cmdidx == Cmdidx::CmdDiffget || eap.cmdidx == Cmdidx::CmdDiffput,
                 );
                 if eap.line2 > curbuf_mut().b_ml.ml_line_count + extra {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_ARGUMENTS => {
                 let ac = argcount();
                 if eap.line2 > ac + i32::from(ac == 0) {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_BUFFERS => {
                 if eap.line1 < 1 || eap.line2 > get_highest_fnum() {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_LOADED_BUFFERS => {
                 let Some(first_loaded) = for_all_buffers_ptr().find(|b| b.b_ml.ml_mfp.is_some())
                 else {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 };
                 if eap.line1 < first_loaded.b_fnum {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
                 let Some(last_loaded) = for_all_buffers_rev_ptr().find(|b| b.b_ml.ml_mfp.is_some())
                 else {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 };
                 if eap.line2 > last_loaded.b_fnum {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_WINDOWS => {
                 if eap.line2 > current_win_nr(None, Some(&*eap)) {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_TABS => {
                 if eap.line2 > current_tab_nr(None) {
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_TABS_RELATIVE | ADDR_OTHER => {}
             ADDR_QUICKFIX => {
                 if eap.line2 <= 0 {
                     if eap.addr_count == 0 {
-                        return Some(gettext(E_NO_ERRORS));
+                        return Some(std::borrow::Cow::Borrowed(gettext(E_NO_ERRORS)));
                     }
-                    return Some(gettext(E_INVRANGE));
+                    return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
             }
             ADDR_QUICKFIX_VALID
                 if (eap.line2 != 1 && (eap.line2 as usize) > qf_get_valid_size(&mut *eap))
                     || eap.line2 < 0 =>
             {
-                return Some(gettext(E_INVRANGE));
+                return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
             }
             _ => {}
         }
@@ -8247,7 +8257,10 @@ pub fn replace_makeprg(
     arg
 }
 
-pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi::CStr>) -> bool {
+pub fn expand_filename(
+    eap: &mut Exarg,
+    errormsgp: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
+) -> bool {
     let mut arg_off = skip_grep_pat(eap);
     let mut has_wildcards = path_has_wildcard(eap.arg.wrapping_add(arg_off).as_bytes(), true);
 
@@ -8815,7 +8828,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
             }
         } else if eap.addr_count > 0 {
             if unaccept_arg0 != 0 && eap.line2 == 0 {
-                eap.errmsg = Some(gettext(E_INVRANGE));
+                eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 tab_number = 0;
             } else {
                 tab_number = eap.line2;
@@ -8830,7 +8843,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     if cmdline.byte_at(cmd_off) == b'-' {
                         tab_number -= 1;
                         if tab_number < unaccept_arg0 {
-                            eap.errmsg = Some(gettext(E_INVRANGE));
+                            eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                         }
                     }
                 }
@@ -8853,7 +8866,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
 fn ex_autocmd(eap: &mut Exarg) {
     if g_st().secure != 0 {
         g_st().secure = 2;
-        eap.errmsg = Some(gettext(E_CURDIR));
+        eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_CURDIR)));
     } else if eap.cmdidx == Cmdidx::CmdAutocmd {
         let arg = eap.arg.to_cstring();
         do_autocmd(eap, &arg, eap.forceit);
@@ -9952,7 +9965,7 @@ fn ex_recover(eap: &mut Exarg) {
 }
 
 fn ex_wrongmodifier(eap: &mut Exarg) {
-    eap.errmsg = Some(gettext(E_INVCMD));
+    eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVCMD)));
 }
 
 fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut TvList> {
@@ -10192,7 +10205,7 @@ fn ex_tabnext(eap: &mut Exarg) {
         } else {
             tab_number = eap.line2;
             if tab_number < 1 {
-                eap.errmsg = Some(gettext(E_INVRANGE));
+                eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 return;
             }
         }
@@ -10650,7 +10663,9 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
 }
 
 fn ex_nogui(eap: &mut Exarg) {
-    eap.errmsg = Some(gettext(c"E25: Nvim does not have a built-in GUI"));
+    eap.errmsg = Some(std::borrow::Cow::Borrowed(gettext(
+        c"E25: Nvim does not have a built-in GUI",
+    )));
 }
 
 fn ex_popup(eap: &mut Exarg) {
@@ -11167,7 +11182,7 @@ fn ex_iput(eap: &mut Exarg) {
 }
 
 fn ex_copymove(eap: &mut Exarg) {
-    let mut errormsg: Option<&'static std::ffi::CStr> = None;
+    let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
     let addr_type = eap.addr_type;
     let base_arg = eap.arg.clone();
     let mut arg_opt = base_arg.as_opt_cstr();
@@ -11184,7 +11199,7 @@ fn ex_copymove(eap: &mut Exarg) {
     eap.arg = base_arg.advance_to_opt_cstr(arg_opt);
     if eap.arg.is_null() {
         if let Some(msg) = errormsg {
-            let _ = emsg(msg);
+            let _ = emsg(&msg);
         }
         eap.nextcmd = crate::strings::OwnedSlice::NULL;
         return;
@@ -12007,7 +12022,7 @@ pub fn eval_vars(
     src_off: usize,
     usedlen: &mut usize,
     lnump: Option<&mut Linenr>,
-    errormsg: &mut Option<&'static std::ffi::CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, std::ffi::CStr>>,
     mut escaped: Option<&mut bool>,
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
@@ -12051,7 +12066,7 @@ pub fn eval_vars(
         };
         let ident = find_ident_under_cursor(find_type, None);
         if ident.is_empty() {
-            *errormsg = Some(c"");
+            *errormsg = Some(std::borrow::Cow::Borrowed(c""));
             return None;
         }
         return Some(bytes_to_cstring(ident));
@@ -12097,7 +12112,7 @@ pub fn eval_vars(
                         }
                         let Some(oldfile) = tv_list_find_str(get_vim_var_list(VV_OLDFILES), i - 1)
                         else {
-                            *errormsg = Some(c"");
+                            *errormsg = Some(std::borrow::Cow::Borrowed(c""));
                             return None;
                         };
                         result_cstr = Some(oldfile);
@@ -12106,9 +12121,9 @@ pub fn eval_vars(
                             *usedlen = 1;
                         }
                         let Some(buf) = buflist_findnr(i) else {
-                            *errormsg = Some(gettext(
+                            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                                 c"E194: No alternate file name to substitute for '#'",
-                            ));
+                            )));
                             return None;
                         };
                         if let Some(lnump) = lnump {
@@ -12126,7 +12141,7 @@ pub fn eval_vars(
             }
             SPEC_CFILE => {
                 let Some(cfile) = file_name_at_cursor(FNAME_MESS | FNAME_HYP, 1, None) else {
-                    *errormsg = Some(c"");
+                    *errormsg = Some(std::borrow::Cow::Borrowed(c""));
                     return None;
                 };
                 resultbuf = Some(cfile.into_bytes_with_nul());
@@ -12143,16 +12158,18 @@ pub fn eval_vars(
                     }
                 }
                 let Some(ref af) = g_st().borrow_mut().autocmd_fname else {
-                    *errormsg = Some(gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                        E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE,
+                    )));
                     return None;
                 };
                 result_cstr = path_try_shorten_fname(Some(af));
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr <= 0 {
-                    *errormsg = Some(gettext(
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                         E_NO_AUTOCOMMAND_BUFFER_NUMBER_TO_SUBSTITUTE_FOR_ABUF,
-                    ));
+                    )));
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"%d", g_st().autocmd_bufnr);
@@ -12160,9 +12177,9 @@ pub fn eval_vars(
             }
             SPEC_AMATCH => {
                 let Some(ref am) = g_st().borrow_mut().autocmd_match else {
-                    *errormsg = Some(gettext(
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                         E_NO_AUTOCOMMAND_MATCH_NAME_TO_SUBSTITUTE_FOR_AMATCH,
-                    ));
+                    )));
                     return None;
                 };
                 result_cstr = Some(am);
@@ -12170,7 +12187,9 @@ pub fn eval_vars(
             SPEC_SFILE => {
                 use_shellslash = true;
                 let Some(sfile) = estack_sfile(ESTACK_SFILE) else {
-                    *errormsg = Some(gettext(E_NO_SOURCE_FILE_NAME_TO_SUBSTITUTE_FOR_SFILE));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                        E_NO_SOURCE_FILE_NAME_TO_SUBSTITUTE_FOR_SFILE,
+                    )));
                     return None;
                 };
                 resultbuf = Some(sfile.into_bytes_with_nul());
@@ -12179,7 +12198,9 @@ pub fn eval_vars(
             SPEC_STACK => {
                 use_shellslash = true;
                 let Some(stack) = estack_sfile(ESTACK_STACK) else {
-                    *errormsg = Some(gettext(E_NO_CALL_STACK_TO_SUBSTITUTE_FOR_STACK));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                        E_NO_CALL_STACK_TO_SUBSTITUTE_FOR_STACK,
+                    )));
                     return None;
                 };
                 resultbuf = Some(stack.into_bytes_with_nul());
@@ -12188,7 +12209,9 @@ pub fn eval_vars(
             SPEC_SCRIPT => {
                 use_shellslash = true;
                 let Some(script) = estack_sfile(ESTACK_SCRIPT) else {
-                    *errormsg = Some(gettext(E_NO_SCRIPT_FILE_NAME_TO_SUBSTITUTE_FOR_SCRIPT));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                        E_NO_SCRIPT_FILE_NAME_TO_SUBSTITUTE_FOR_SCRIPT,
+                    )));
                     return None;
                 };
                 resultbuf = Some(script.into_bytes_with_nul());
@@ -12196,7 +12219,9 @@ pub fn eval_vars(
             }
             SPEC_SLNUM => {
                 if sourcing_name().is_none() || sourcing_lnum() == 0 {
-                    *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                        E_NO_LINE_NUMBER_TO_USE_FOR_SLNUM,
+                    )));
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"%d", sourcing_lnum());
@@ -12205,7 +12230,9 @@ pub fn eval_vars(
             SPEC_SFLNUM => {
                 let sflnum = g_st().current_sctx.sc_lnum + sourcing_lnum();
                 if sflnum == 0 {
-                    *errormsg = Some(gettext(E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                        E_NO_LINE_NUMBER_TO_USE_FOR_SFLNUM,
+                    )));
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"%d", sflnum);
@@ -12213,14 +12240,14 @@ pub fn eval_vars(
             }
             SPEC_SID => {
                 if g_st().current_sctx.sc_sid <= 0 {
-                    *errormsg = Some(gettext(E_USINGSID));
+                    *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_USINGSID)));
                     return None;
                 }
                 let _ = format_to_buf!(&mut strbuf, c"<SNR>%d_", g_st().current_sctx.sc_sid);
                 result_cstr = Some(crate::memory::bytes_as_cstr(&strbuf));
             }
             _ => {
-                *errormsg = Some(c"");
+                *errormsg = Some(std::borrow::Cow::Borrowed(c""));
             }
         }
 
@@ -12255,7 +12282,7 @@ pub fn eval_vars(
                 use_shellslash,
             );
             if mod_res == -1 {
-                *errormsg = Some(c"");
+                *errormsg = Some(std::borrow::Cow::Borrowed(c""));
                 return None;
             }
             valid |= mod_res;
@@ -12269,11 +12296,13 @@ pub fn eval_vars(
 
     if empty_is_error {
         if valid != VALID_HEAD + VALID_PATH {
-            *errormsg = Some(gettext(
+            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
                 c"E499: Empty file name for '%' or '#', only works with \":p:h\"",
-            ));
+            )));
         } else {
-            *errormsg = Some(gettext(c"E500: Evaluates to an empty string"));
+            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(
+                c"E500: Evaluates to an empty string",
+            )));
         }
     }
     None
@@ -12288,7 +12317,7 @@ pub fn expand_sfile(arg: &CStr) -> Option<std::ffi::CString> {
             idx += 1;
         } else {
             let mut srclen: usize = 0;
-            let mut errormsg: Option<&'static std::ffi::CStr> = None;
+            let mut errormsg: Option<std::borrow::Cow<'static, std::ffi::CStr>> = None;
             let repl = eval_vars(
                 &mut result_vec,
                 idx,
@@ -12300,7 +12329,7 @@ pub fn expand_sfile(arg: &CStr) -> Option<std::ffi::CString> {
             );
             if let Some(msg) = errormsg {
                 if !msg.to_bytes().is_empty() {
-                    let _ = emsg(msg);
+                    let _ = emsg(&msg);
                 }
                 return None;
             }
@@ -12422,9 +12451,13 @@ fn ex_filetype(eap: &mut Exarg) {
     }
 }
 
-pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
-    let _ = format_to_buf!(&mut g_st().ex_error_buf, gettext(msg), arg);
-    crate::memory::bytes_as_cstr(&g_st().borrow().ex_error_buf)
+pub fn ex_errmsg(
+    msg: &std::ffi::CStr,
+    arg: &std::ffi::CStr,
+) -> std::borrow::Cow<'static, std::ffi::CStr> {
+    let mut buf = [0u8; crate::eval::userfunc::MSG_BUF_LEN];
+    let _ = format_to_buf!(&mut buf, gettext(msg), arg);
+    std::borrow::Cow::Owned(crate::memory::bytes_as_cstr(&buf).to_owned())
 }
 
 pub fn filetype_plugin_enable() {

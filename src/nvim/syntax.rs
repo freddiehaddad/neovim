@@ -3870,7 +3870,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         source = true;
         if !expand_filename(eap, &mut errormsg) {
             if let Some(msg) = errormsg {
-                emsg(msg);
+                emsg(&msg);
             }
             return;
         }

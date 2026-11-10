@@ -849,7 +849,7 @@ pub fn nvim_cmd(
                 err,
                 ErrorType::ErrorTypeException,
                 c"%s",
-                errormsg.unwrap_or(c"Parsing command-line"),
+                errormsg.as_deref().unwrap_or(c"Parsing command-line"),
             );
             break 'end;
         }

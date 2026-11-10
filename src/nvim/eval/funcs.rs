@@ -2204,7 +2204,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off -= 1;
         } else if let Some(msg) = errormsg {
-            emsg(msg);
+            emsg(&msg);
         }
         if rettv.v_type == VarType::VarList {
             tv_list_alloc_ret(rettv, isize::from(result.is_some()));
@@ -2302,7 +2302,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         && let Some(msg) = errormsg
         && !msg.to_bytes().is_empty()
     {
-        emsg(msg);
+        emsg(&msg);
     }
     if emsgoff {
         g_st().emsg_off -= 1;

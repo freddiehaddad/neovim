@@ -744,10 +744,10 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
 pub fn mark_move_to(fm: Option<&Fmark>, flags: MarkMove) -> MarkMoveRes {
     let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
-    let mut errormsg: Option<&'static CStr> = None;
+    let mut errormsg: Option<std::borrow::Cow<'static, CStr>> = None;
     if !mark_check(fm, &mut errormsg) {
         if let Some(err) = errormsg {
-            emsg(err);
+            emsg(&err);
         }
         return K_MARK_MOVE_FAILED;
     }
@@ -762,7 +762,7 @@ pub fn mark_move_to(fm: Option<&Fmark>, flags: MarkMove) -> MarkMoveRes {
         }
         if !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), fm_ref, &mut errormsg) {
             if let Some(err) = errormsg {
-                emsg(err);
+                emsg(&err);
             }
             res |= K_MARK_MOVE_FAILED;
             return res;
@@ -911,14 +911,17 @@ fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &mut FileBuf) {
 }
 
 /// Check the position in `fm` is valid (`mark_check`).
-pub fn mark_check(fm: Option<&Fmark>, errormsg: &mut Option<&'static CStr>) -> bool {
+pub fn mark_check(
+    fm: Option<&Fmark>,
+    errormsg: &mut Option<std::borrow::Cow<'static, CStr>>,
+) -> bool {
     let Some(fm) = fm else {
-        *errormsg = Some(gettext(E_UMARK));
+        *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_UMARK)));
         return false;
     };
     if fm.mark.lnum <= 0 {
         if fm.mark.lnum == 0 {
-            *errormsg = Some(gettext(E_MARKNOTSET));
+            *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_MARKNOTSET)));
         }
         return false;
     }
@@ -934,12 +937,12 @@ pub fn mark_check(fm: Option<&Fmark>, errormsg: &mut Option<&'static CStr>) -> b
 pub fn mark_check_line_bounds(
     buf: Option<&FileBuf>,
     fm: &Fmark,
-    errormsg: &mut Option<&'static CStr>,
+    errormsg: &mut Option<std::borrow::Cow<'static, CStr>>,
 ) -> bool {
     if let Some(buf) = buf
         && fm.mark.lnum > buf.b_ml.ml_line_count
     {
-        *errormsg = Some(gettext(E_MARKINVAL));
+        *errormsg = Some(std::borrow::Cow::Borrowed(gettext(E_MARKINVAL)));
         return false;
     }
     true

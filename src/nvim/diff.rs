@@ -2194,7 +2194,7 @@ fn parse_diffanchors(
         g_st().curbuf = orig_curbuf;
         set_curwin(orig_curwin);
         if let Some(msg) = errormsg {
-            emsg(msg);
+            emsg(&msg);
         }
         let Some(next_dia) = dia_opt else {
             return false;
