@@ -2432,14 +2432,13 @@ pub fn ex_display(eap: &mut Exarg) {
         i += 1;
     }
 
-    let insert = get_last_insert();
-    if !insert.data.is_null()
+    if let Some(insert) = get_last_insert()
         && (arg.is_null() || crate::strings::vim_haschr(arg.as_cstr(), i32::from(b'.')))
         && !g_st().got_int
-        && !message_filtered(insert.as_cstr())
+        && !message_filtered(&insert)
     {
         msg_puts(c"\n  c  \".   ");
-        dis_msg(insert.as_opt_cstr(), true);
+        dis_msg(Some(&insert), true);
     }
 
     if let Some(last_cmd) = g_st().last_cmdline.as_ref()

@@ -161,27 +161,28 @@ const E_AFFNAME: &std::ffi::CStr = c"Affix name too long in %s line %d: %s";
 const MSG_COMPRESSING: &std::ffi::CStr = c"Compressing word tree...";
 
 struct SpellfileModuleState {
-    compress_start: i32,
-    compress_inc: i32,
-    compress_added: i32,
+    compress_start: std::cell::Cell<i32>,
+    compress_inc: std::cell::Cell<i32>,
+    compress_added: std::cell::Cell<i32>,
 }
 
 impl SpellfileModuleState {
     const fn new() -> Self {
         Self {
-            compress_start: 30000,
-            compress_inc: 100,
-            compress_added: 500000,
+            compress_start: std::cell::Cell::new(30000),
+            compress_inc: std::cell::Cell::new(100),
+            compress_added: std::cell::Cell::new(500000),
         }
     }
 }
 
-static SPELLFILE_STATE: crate::globals::GlobalState<SpellfileModuleState> =
-    crate::globals::GlobalState::new(SpellfileModuleState::new());
+std::thread_local! {
+    static SPELLFILE_STATE: SpellfileModuleState = const { SpellfileModuleState::new() };
+}
 
 #[inline]
-fn spellfile_st() -> crate::globals::GraphPtr<SpellfileModuleState> {
-    SPELLFILE_STATE.handle()
+fn spellfile_st<R>(f: impl FnOnce(&SpellfileModuleState) -> R) -> R {
+    SPELLFILE_STATE.with(f)
 }
 
 #[repr(C)]
@@ -1641,9 +1642,11 @@ pub fn spell_check_msm(value: &[u8], apply: bool) -> bool {
     }
 
     if apply {
-        spellfile_st().compress_start = start;
-        spellfile_st().compress_inc = incr;
-        spellfile_st().compress_added = added;
+        spellfile_st(|st| {
+            st.compress_start.set(start);
+            st.compress_inc.set(incr);
+            st.compress_added.set(added);
+        });
     }
     true
 }
@@ -3756,21 +3759,28 @@ fn tree_add_word(
 
     spin.si_msg_count += 1;
 
+    let (comp_start, comp_inc, comp_added) = spellfile_st(|st| {
+        (
+            st.compress_start.get(),
+            st.compress_inc.get(),
+            st.compress_added.get(),
+        )
+    });
     if spin.si_compress_cnt > 1 {
         spin.si_compress_cnt -= 1;
         if spin.si_compress_cnt == 1 {
-            spin.si_blocks_cnt += spellfile_st().compress_inc;
+            spin.si_blocks_cnt += comp_inc;
         }
     }
 
     let do_compress = if spin.si_compress_cnt == 1 {
         spin.si_free_count < MAXWLEN as i32
     } else {
-        spin.si_blocks_cnt >= spellfile_st().compress_start
+        spin.si_blocks_cnt >= comp_start
     };
     if do_compress {
-        spin.si_blocks_cnt -= spellfile_st().compress_inc;
-        spin.si_compress_cnt = spellfile_st().compress_added;
+        spin.si_blocks_cnt -= comp_inc;
+        spin.si_compress_cnt = comp_added;
 
         if spin.si_verbose {
             msg_start();

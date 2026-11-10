@@ -1,7 +1,6 @@
 //! Functions for Insert mode (`src/nvim/insert.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     AuEvent, EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
     EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
@@ -280,45 +279,42 @@ impl Default for InsertState {
 }
 
 struct InsertModuleState {
-    compl_busy: bool,
-    last_insert: Option<std::ffi::CString>,
-    last_insert_skip: i32,
-    replace_stack: Vec<u8>,
-    pc_status: i32,
-    pc_schar: Schar,
-    pc_attr: i32,
-    pc_row: i32,
-    pc_col: i32,
-    ins_esc_disabled_redraw: bool,
+    compl_busy: std::cell::Cell<bool>,
+    last_insert: std::cell::RefCell<Option<std::ffi::CString>>,
+    last_insert_skip: std::cell::Cell<i32>,
+    replace_stack: std::cell::RefCell<Vec<u8>>,
+    pc_status: std::cell::Cell<i32>,
+    pc_schar: std::cell::Cell<Schar>,
+    pc_attr: std::cell::Cell<i32>,
+    pc_row: std::cell::Cell<i32>,
+    pc_col: std::cell::Cell<i32>,
+    ins_esc_disabled_redraw: std::cell::Cell<bool>,
 }
 
 impl InsertModuleState {
     const fn new() -> Self {
         Self {
-            compl_busy: false,
-            last_insert: None,
-            last_insert_skip: 0,
-            replace_stack: Vec::new(),
-            pc_status: PC_STATUS_UNSET,
-            pc_schar: 0,
-            pc_attr: 0,
-            pc_row: 0,
-            pc_col: 0,
-            ins_esc_disabled_redraw: false,
+            compl_busy: std::cell::Cell::new(false),
+            last_insert: std::cell::RefCell::new(None),
+            last_insert_skip: std::cell::Cell::new(0),
+            replace_stack: std::cell::RefCell::new(Vec::new()),
+            pc_status: std::cell::Cell::new(PC_STATUS_UNSET),
+            pc_schar: std::cell::Cell::new(0),
+            pc_attr: std::cell::Cell::new(0),
+            pc_row: std::cell::Cell::new(0),
+            pc_col: std::cell::Cell::new(0),
+            ins_esc_disabled_redraw: std::cell::Cell::new(false),
         }
     }
 }
 
-static INS_MOD_STATE: GlobalState<InsertModuleState> = GlobalState::new(InsertModuleState::new());
-
-#[inline]
-fn ins_st() -> crate::globals::GraphPtr<InsertModuleState> {
-    INS_MOD_STATE.handle()
+std::thread_local! {
+    static INS_MOD_STATE: InsertModuleState = const { InsertModuleState::new() };
 }
 
 #[inline]
-fn replace_stack_mut() -> &'static mut Vec<u8> {
-    &mut INS_MOD_STATE.handle().borrow_mut().replace_stack
+fn ins_st<R>(f: impl FnOnce(&InsertModuleState) -> R) -> R {
+    INS_MOD_STATE.with(f)
 }
 
 #[inline]
@@ -1307,13 +1303,13 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
 
 fn insert_do_complete(s: &mut InsertState) {
     ins_compl_clear_autocomplete_delay();
-    ins_st().compl_busy = true;
+    ins_st(|st| st.compl_busy.set(true));
     g_st().disable_fold_update += 1;
     if !ins_complete(s.c, true) {
         compl_status_clear();
     }
     g_st().disable_fold_update -= 1;
-    ins_st().compl_busy = false;
+    ins_st(|st| st.compl_busy.set(false));
     g_st().ins_global.can_si = may_do_si();
 }
 
@@ -1359,7 +1355,7 @@ pub fn edit(cmdchar: i32, startln: bool, count: i32) -> bool {
 
     if g_st().textlock != 0
         || ins_compl_active()
-        || ins_st().compl_busy
+        || ins_st(|st| st.compl_busy.get())
         || pum_visible()
         || expr_map_locked()
     {
@@ -1485,36 +1481,43 @@ pub fn edit_putchar(c: i32, highlight: bool) {
     } else {
         0
     };
-    ins_st().pc_row = curwin_mut().w_wrow;
-    ins_st().pc_status = PC_STATUS_UNSET;
-    grid_line_start(&mut curwin_mut().w_grid, ins_st().pc_row);
-    if curwin_mut().w_onebuf_opt.wo_rl {
-        ins_st().pc_col = curwin_mut().w_view_width - 1 - curwin_mut().w_wcol;
-        if grid_line_getchar(ins_st().pc_col, None) == 0 {
-            grid_line_put_schar(ins_st().pc_col - 1, schar_from_ascii(b' '), attr);
+    let pc_row = curwin_mut().w_wrow;
+    let mut pc_status = PC_STATUS_UNSET;
+    grid_line_start(&mut curwin_mut().w_grid, pc_row);
+    let pc_col = if curwin_mut().w_onebuf_opt.wo_rl {
+        let col = curwin_mut().w_view_width - 1 - curwin_mut().w_wcol;
+        if grid_line_getchar(col, None) == 0 {
+            grid_line_put_schar(col - 1, schar_from_ascii(b' '), attr);
             curwin_mut().w_wcol -= 1;
-            ins_st().pc_status = PC_STATUS_RIGHT;
+            pc_status = PC_STATUS_RIGHT;
         }
+        col
     } else {
-        ins_st().pc_col = curwin_mut().w_wcol;
-        if grid_line_getchar(ins_st().pc_col + 1, None) == 0 {
-            ins_st().pc_status = PC_STATUS_LEFT;
+        let col = curwin_mut().w_wcol;
+        if grid_line_getchar(col + 1, None) == 0 {
+            pc_status = PC_STATUS_LEFT;
         }
-    }
+        col
+    };
 
-    if ins_st().pc_status == PC_STATUS_UNSET {
-        ins_st().pc_schar = grid_line_getchar(ins_st().pc_col, Some(&mut ins_st().pc_attr));
-        ins_st().pc_status = PC_STATUS_SET;
+    if pc_status == PC_STATUS_UNSET {
+        let mut pc_attr = ins_st(|st| st.pc_attr.get());
+        let pc_schar = grid_line_getchar(pc_col, Some(&mut pc_attr));
+        pc_status = PC_STATUS_SET;
+        ins_st(|st| {
+            st.pc_schar.set(pc_schar);
+            st.pc_attr.set(pc_attr);
+        });
     }
+    ins_st(|st| {
+        st.pc_row.set(pc_row);
+        st.pc_col.set(pc_col);
+        st.pc_status.set(pc_status);
+    });
 
     let mut buf = [0u8; MB_MAXCHAR + 1];
     let len = utf_char2bytes(c, &mut buf);
-    grid_line_puts(
-        ins_st().pc_col,
-        crate::memory::bytes_as_cstr(&buf),
-        len,
-        attr,
-    );
+    grid_line_puts(pc_col, crate::memory::bytes_as_cstr(&buf), len, attr);
     grid_line_flush();
 }
 
@@ -1617,15 +1620,24 @@ fn set_insstart(lnum: Linenr, col: Colnr) {
 }
 
 pub fn edit_unputchar() {
-    if ins_st().pc_status != PC_STATUS_UNSET && ins_st().pc_row >= 0 {
-        if ins_st().pc_status == PC_STATUS_RIGHT {
+    let (pc_status, pc_row, pc_col, pc_schar, pc_attr) = ins_st(|st| {
+        (
+            st.pc_status.get(),
+            st.pc_row.get(),
+            st.pc_col.get(),
+            st.pc_schar.get(),
+            st.pc_attr.get(),
+        )
+    });
+    if pc_status != PC_STATUS_UNSET && pc_row >= 0 {
+        if pc_status == PC_STATUS_RIGHT {
             curwin_mut().w_wcol += 1;
         }
-        if ins_st().pc_status == PC_STATUS_RIGHT || ins_st().pc_status == PC_STATUS_LEFT {
+        if pc_status == PC_STATUS_RIGHT || pc_status == PC_STATUS_LEFT {
             redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         } else {
-            grid_line_start(&mut curwin_mut().w_grid, ins_st().pc_row);
-            grid_line_put_schar(ins_st().pc_col, ins_st().pc_schar, ins_st().pc_attr);
+            grid_line_start(&mut curwin_mut().w_grid, pc_row);
+            grid_line_put_schar(pc_col, pc_schar, pc_attr);
             grid_line_flush();
         }
     }
@@ -2078,7 +2090,7 @@ pub fn stop_arrow() -> bool {
 
 fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
     stop_redo_ins();
-    ins_st().replace_stack = Vec::new();
+    ins_st(|st| *st.replace_stack.borrow_mut() = Vec::new());
 
     let redo_cstr = redo_keys(None);
     let added = match redo_cstr {
@@ -2086,12 +2098,15 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
         Some(ref s) => (s.as_bytes().len() as i32) - g_st().ins_global.new_insert_skip,
     };
     if g_st().ins_global.did_restart_edit == 0 || added > 0 {
-        ins_st().last_insert = redo_cstr;
-        ins_st().last_insert_skip = if added < 0 {
+        let skip = if added < 0 {
             0
         } else {
             g_st().ins_global.new_insert_skip
         };
+        ins_st(|st| {
+            *st.last_insert.borrow_mut() = redo_cstr;
+            st.last_insert_skip.set(skip);
+        });
     }
 
     if g_st().ins_global.moved == K_INS_NONE
@@ -2204,12 +2219,15 @@ pub fn set_last_insert(c: i32) {
     len += add_char2buf(c, &mut buf[len..]);
     buf[len] = ESC as u8;
     len += 1;
-    ins_st().last_insert = Some(crate::memory::bytes_to_cstring(&buf[..len]));
-    ins_st().last_insert_skip = 0;
+    let cstr = crate::memory::bytes_to_cstring(&buf[..len]);
+    ins_st(|st| {
+        *st.last_insert.borrow_mut() = Some(cstr);
+        st.last_insert_skip.set(0);
+    });
 }
 
 pub fn free_last_insert() {
-    ins_st().last_insert = None;
+    ins_st(|st| *st.last_insert.borrow_mut() = None);
 }
 
 pub fn beginline(flags: i32) {
@@ -2400,35 +2418,30 @@ pub fn cursor_down(n: i32, upd_topline: bool) -> bool {
 /// Stuff the last inserted text in the read buffer.
 pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
     let mut last: u8 = 0;
-    let mut insert = get_last_insert();
-    if insert.data.is_null() {
+    let Some(insert_cstr) = get_last_insert() else {
         emsg(gettext(E_NOINSTEXT));
         return false;
-    }
+    };
+    let mut insert = insert_cstr.to_bytes();
 
     if c != NUL as i32 {
         stuffchar_readbuff(c);
     }
 
-    if insert.size > 0 {
-        let bytes = insert.as_bytes();
-        if let Some(pos) = bytes.iter().rposition(|&b| b == ESC as u8) {
-            insert.size = pos;
-        }
+    if let Some(pos) = insert.iter().rposition(|&b| b == ESC as u8) {
+        insert = &insert[..pos];
     }
 
-    if insert.size > 0 {
-        let b = insert.as_bytes()[insert.size - 1];
-        if (b == b'0' || b == b'^')
-            && (no_esc != 0 || (insert.first_byte() == CTRL_D_CONST as u8 && count > 1))
-        {
-            last = b;
-            insert.size -= 1;
-        }
+    if let Some(&b) = insert.last()
+        && (b == b'0' || b == b'^')
+        && (no_esc != 0 || (insert.first() == Some(&(CTRL_D_CONST as u8)) && count > 1))
+    {
+        last = b;
+        insert = &insert[..insert.len() - 1];
     }
 
     loop {
-        stuff_readbuff_len(insert.as_bytes());
+        stuff_readbuff_len(insert);
         if last == b'0' {
             stuff_readbuff_len(b"\x16048");
         } else if last == b'^' {
@@ -2447,26 +2460,23 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
     true
 }
 
-pub fn get_last_insert() -> NvimString {
-    if let Some(li) = &ins_st().last_insert {
-        let skip = ins_st().last_insert_skip as usize;
-        let bytes = li.as_bytes_with_nul();
-        let skip = skip.min(bytes.len() - 1);
-        NvimString::from_bytes_len(&bytes[skip..], (bytes.len() - 1).saturating_sub(skip))
-    } else {
-        NvimString::new()
-    }
+pub fn get_last_insert() -> Option<std::ffi::CString> {
+    ins_st(|st| {
+        st.last_insert.borrow().as_ref().map(|li| {
+            let skip = st.last_insert_skip.get() as usize;
+            let bytes = li.to_bytes();
+            let skip = skip.min(bytes.len());
+            std::ffi::CString::new(&bytes[skip..]).unwrap_or_default()
+        })
+    })
 }
 
 pub fn get_last_insert_save() -> Option<std::ffi::CString> {
-    let mut insert = get_last_insert();
-    if insert.data.is_null() {
-        return None;
+    let insert = get_last_insert()?;
+    let mut slice = insert.to_bytes();
+    if slice.last() == Some(&(ESC as u8)) {
+        slice = &slice[..slice.len() - 1];
     }
-    if insert.size > 0 && insert.as_bytes()[insert.size - 1] == ESC as u8 {
-        insert.size -= 1;
-    }
-    let slice = insert.as_bytes();
     Some(std::ffi::CString::new(slice).unwrap_or_default())
 }
 
@@ -2488,13 +2498,15 @@ fn echeck_abbr(c: i32) -> bool {
 
 /// Push character that is replaced onto the replace stack.
 pub fn replace_push(slice: &[u8]) {
-    let stack = replace_stack_mut();
     let off = g_st().replace_offset as usize;
-    if stack.len() < off {
-        return;
-    }
-    let pos = stack.len() - off;
-    stack.splice(pos..pos, slice.iter().copied());
+    ins_st(|st| {
+        let mut stack = st.replace_stack.borrow_mut();
+        if stack.len() < off {
+            return;
+        }
+        let pos = stack.len() - off;
+        stack.splice(pos..pos, slice.iter().copied());
+    });
 }
 
 pub fn replace_push_nul() {
@@ -2502,28 +2514,32 @@ pub fn replace_push_nul() {
 }
 
 fn replace_pop_if_nul() -> i32 {
-    let stack = replace_stack_mut();
-    let ch = stack.last().map_or(-1, |&b| i32::from(b));
-    if ch == 0 {
-        stack.pop();
-    }
-    ch
+    ins_st(|st| {
+        let mut stack = st.replace_stack.borrow_mut();
+        let ch = stack.last().map_or(-1, |&b| i32::from(b));
+        if ch == 0 {
+            stack.pop();
+        }
+        ch
+    })
 }
 
 pub fn replace_join(mut off: i32) {
-    let stack = replace_stack_mut();
-    let mut i = stack.len();
-    while i > 0 {
-        i -= 1;
-        if stack[i] == 0 {
-            let cur_off = off;
-            off -= 1;
-            if cur_off <= 0 {
-                stack.remove(i);
-                return;
+    ins_st(|st| {
+        let mut stack = st.replace_stack.borrow_mut();
+        let mut i = stack.len();
+        while i > 0 {
+            i -= 1;
+            if stack[i] == 0 {
+                let cur_off = off;
+                off -= 1;
+                if cur_off <= 0 {
+                    stack.remove(i);
+                    return;
+                }
             }
         }
-    }
+    });
 }
 
 fn replace_pop_ins() {
@@ -2537,11 +2553,14 @@ fn replace_pop_ins() {
 }
 
 fn mb_replace_pop_ins() {
-    let stack = replace_stack_mut();
-    let size = stack.len();
-    let len = (crate::mbyte::utf_head_off(stack, size - 1) + 1) as usize;
-    let new_size = size - len;
-    let popped = stack.split_off(new_size);
+    let popped = ins_st(|st| {
+        let mut stack = st.replace_stack.borrow_mut();
+        let size = stack.len();
+        let len = (crate::mbyte::utf_head_off(&stack, size - 1) + 1) as usize;
+        let new_size = size - len;
+        stack.split_off(new_size)
+    });
+    let len = popped.len();
     ins_bytes_len(&popped, len);
 }
 
@@ -2603,7 +2622,7 @@ fn ins_reg() {
     let mut literally: i32 = 0;
     let vis_active = g_st().visual_global.active;
 
-    ins_st().pc_status = PC_STATUS_UNSET;
+    ins_st(|st| st.pc_status.set(PC_STATUS_UNSET));
     if redrawing() && !char_avail() {
         ins_redraw(false);
         edit_putchar(b'"' as i32, true);
@@ -2728,9 +2747,8 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     check_spell_redraw();
 
     let temp = curwin_mut().w_cursor.col;
-    if ins_st().ins_esc_disabled_redraw {
+    if ins_st(|st| st.ins_esc_disabled_redraw.replace(false)) {
         g_st().redrawing_disabled -= 1;
-        ins_st().ins_esc_disabled_redraw = false;
     }
     if g_st().ins_global.moved == K_INS_NONE {
         if cmdchar != b'r' as i32 && cmdchar != b'v' as i32 {
@@ -2755,7 +2773,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
                 stuff_redo_readbuff(c"\x1b");
             }
             g_st().redrawing_disabled += 1;
-            ins_st().ins_esc_disabled_redraw = true;
+            ins_st(|st| st.ins_esc_disabled_redraw.set(true));
             return false;
         }
         stop_insert(Some(curwin_mut().w_cursor), 1, i32::from(nomove));
@@ -3765,7 +3783,7 @@ pub fn ins_eol(c: i32) -> bool {
 fn ins_digraph() -> i32 {
     let mut did_putchar = false;
 
-    ins_st().pc_status = PC_STATUS_UNSET;
+    ins_st(|st| st.pc_status.set(PC_STATUS_UNSET));
     if redrawing() && !char_avail() {
         ins_redraw(false);
         edit_putchar(b'?' as i32, true);

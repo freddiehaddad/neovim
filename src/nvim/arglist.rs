@@ -99,24 +99,8 @@ struct ArgAllState {
     new_curtab: crate::globals::TabpagePtr,
 }
 
-struct ArglistModuleState {
-    arglist_locked: bool,
-}
-
-impl ArglistModuleState {
-    const fn new() -> Self {
-        Self {
-            arglist_locked: false,
-        }
-    }
-}
-
-static ARGLIST_STATE: crate::globals::GlobalState<ArglistModuleState> =
-    crate::globals::GlobalState::new(ArglistModuleState::new());
-
-#[inline]
-fn arglist_st() -> crate::globals::GraphPtr<ArglistModuleState> {
-    ARGLIST_STATE.handle()
+std::thread_local! {
+    static ARGLIST_LOCKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[inline]
@@ -159,7 +143,7 @@ pub fn gargcount() -> i32 {
 }
 
 fn check_arglist_locked() -> bool {
-    if arglist_st().arglist_locked {
+    if ARGLIST_LOCKED.get() {
         emsg(gettext(E_CANNOT_CHANGE_ARGLIST_RECURSIVELY));
         return false;
     }
@@ -220,7 +204,7 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
     if !check_arglist_locked() {
         return;
     }
-    arglist_st().arglist_locked = true;
+    ARGLIST_LOCKED.set(true);
 
     wp.w_locked += 1;
 
@@ -237,7 +221,7 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
         ae_fnum,
     });
 
-    arglist_st().arglist_locked = false;
+    ARGLIST_LOCKED.set(false);
 
     wp.w_locked -= 1;
 }
@@ -316,7 +300,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
         let mut wp = curwin_ptr();
         let mut al = crate::globals::GraphPtr::<Alist>::of(win_alist(wp.borrow()));
         after = after.clamp(0, old_argcount);
-        arglist_st().arglist_locked = true;
+        ARGLIST_LOCKED.set(true);
 
         wp.w_locked += 1;
 
@@ -332,7 +316,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
 
         al.al_ga.splice(pos..pos, new_entries);
 
-        arglist_st().arglist_locked = false;
+        ARGLIST_LOCKED.set(false);
         {
             wp.w_locked -= 1;
             if old_argcount > 0 && wp.w_arg_idx >= after {
@@ -1066,7 +1050,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 
 /// Open up to `count` windows, one for each argument (`do_arg_all`).
 fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
-    let prev_arglist_locked = arglist_st().arglist_locked;
+    let prev_arglist_locked = ARGLIST_LOCKED.get();
     debug_assert!(!g_st().firstwin.is_null());
 
     let acount = argcount();
@@ -1087,7 +1071,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
         new_curtab: crate::globals::TabpagePtr::NULL,
     };
 
-    arglist_st().arglist_locked = true;
+    ARGLIST_LOCKED.set(true);
 
     let new_lu_tp = g_st().curtab;
 
@@ -1109,7 +1093,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     arg_all_open_windows(&mut aall, count);
 
     drop(aall.local_alist.take());
-    arglist_st().arglist_locked = prev_arglist_locked;
+    ARGLIST_LOCKED.set(prev_arglist_locked);
 
     g_st().autocmd_no_enter -= 1;
 

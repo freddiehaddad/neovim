@@ -403,42 +403,44 @@ struct NvCmd {
 }
 
 struct NormalModuleState {
-    visual_mode_orig: i32,
-    current_oap: crate::globals::GraphPtr<Oparg>,
-    old_showcmd_buf: [u8; SHOWCMD_BUFLEN],
-    showcmd_is_clear: bool,
-    showcmd_visual: bool,
-    do_check_scrollbind_old_curwin: crate::globals::WinPtr,
-    do_check_scrollbind_old_vtopline: Linenr,
-    do_check_scrollbind_old_buf: crate::globals::BufPtr,
-    do_check_scrollbind_old_leftcol: Colnr,
-    nv_cmd_idx: [i16; NV_CMDS_SIZE],
-    nv_max_linear: i32,
+    visual_mode_orig: std::cell::Cell<i32>,
+    current_oap: std::cell::Cell<crate::globals::GraphPtr<Oparg>>,
+    old_showcmd_buf: std::cell::Cell<[u8; SHOWCMD_BUFLEN]>,
+    showcmd_is_clear: std::cell::Cell<bool>,
+    showcmd_visual: std::cell::Cell<bool>,
+    do_check_scrollbind_old_curwin: std::cell::Cell<crate::globals::WinPtr>,
+    do_check_scrollbind_old_vtopline: std::cell::Cell<Linenr>,
+    do_check_scrollbind_old_buf: std::cell::Cell<crate::globals::BufPtr>,
+    do_check_scrollbind_old_leftcol: std::cell::Cell<Colnr>,
+    nv_cmd_idx: std::cell::Cell<[i16; NV_CMDS_SIZE]>,
+    nv_max_linear: std::cell::Cell<i32>,
 }
 
 impl NormalModuleState {
     const fn new() -> Self {
         Self {
-            visual_mode_orig: 0,
-            current_oap: crate::globals::GraphPtr::NULL,
-            old_showcmd_buf: [0; SHOWCMD_BUFLEN],
-            showcmd_is_clear: true,
-            showcmd_visual: false,
-            do_check_scrollbind_old_curwin: crate::globals::WinPtr::NULL,
-            do_check_scrollbind_old_vtopline: 0,
-            do_check_scrollbind_old_buf: crate::globals::BufPtr::NULL,
-            do_check_scrollbind_old_leftcol: 0,
-            nv_cmd_idx: [0; NV_CMDS_SIZE],
-            nv_max_linear: 0,
+            visual_mode_orig: std::cell::Cell::new(0),
+            current_oap: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            old_showcmd_buf: std::cell::Cell::new([0; SHOWCMD_BUFLEN]),
+            showcmd_is_clear: std::cell::Cell::new(true),
+            showcmd_visual: std::cell::Cell::new(false),
+            do_check_scrollbind_old_curwin: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            do_check_scrollbind_old_vtopline: std::cell::Cell::new(0),
+            do_check_scrollbind_old_buf: std::cell::Cell::new(crate::globals::BufPtr::NULL),
+            do_check_scrollbind_old_leftcol: std::cell::Cell::new(0),
+            nv_cmd_idx: std::cell::Cell::new([0; NV_CMDS_SIZE]),
+            nv_max_linear: std::cell::Cell::new(0),
         }
     }
 }
 
-static NORM_STATE: GlobalState<NormalModuleState> = GlobalState::new(NormalModuleState::new());
+std::thread_local! {
+    static NORM_STATE: NormalModuleState = const { NormalModuleState::new() };
+}
 
 #[inline]
-fn norm_st() -> crate::globals::GraphPtr<NormalModuleState> {
-    NORM_STATE.handle()
+fn norm_st<R>(f: impl FnOnce(&NormalModuleState) -> R) -> R {
+    NORM_STATE.with(f)
 }
 
 #[inline]
@@ -1590,25 +1592,28 @@ const NV_CMDS: [NvCmd; NV_CMDS_SIZE] = [
 static E_CHANGELIST_IS_EMPTY: &CStr = c"E664: Changelist is empty";
 static E_CMDLINE_WINDOW_ALREADY_OPEN: &CStr = c"E1292: Command-line window is already open";
 
-/// Initialize the norm_st().nv_cmd_idx[] table.
+/// Initialize the `nv_cmd_idx` table.
 pub fn init_normal_cmds() {
     assert!(NV_CMDS_SIZE <= i16::MAX as usize);
-    let slice = &mut norm_st().nv_cmd_idx[..NV_CMDS_SIZE];
+    let mut table = [0i16; NV_CMDS_SIZE];
 
-    for (i, slot) in slice.iter_mut().enumerate() {
+    for (i, slot) in table.iter_mut().enumerate() {
         *slot = i as i16;
     }
 
-    slice.sort_unstable_by_key(|&s| NV_CMDS[s as usize].cmd_char.abs());
+    table.sort_unstable_by_key(|&s| NV_CMDS[s as usize].cmd_char.abs());
 
     let mut i: usize = 0;
     while i < NV_CMDS_SIZE {
-        if i as i32 != NV_CMDS[slice[i] as usize].cmd_char {
+        if i as i32 != NV_CMDS[table[i] as usize].cmd_char {
             break;
         }
         i += 1;
     }
-    norm_st().nv_max_linear = i as i32 - 1;
+    norm_st(|st| {
+        st.nv_cmd_idx.set(table);
+        st.nv_max_linear.set(i as i32 - 1);
+    });
 }
 
 /// True if command `cmdchar` has any of the given NV_XX `flags`.
@@ -1624,13 +1629,13 @@ fn find_command(mut cmdchar: i32) -> i32 {
     if cmdchar < 0 {
         cmdchar = -cmdchar;
     }
-    assert!(norm_st().nv_max_linear < NV_CMDS_SIZE as i32);
-    let idx_slice = &norm_st().nv_cmd_idx[..NV_CMDS_SIZE];
-    if cmdchar <= norm_st().nv_max_linear {
+    let (idx_slice, max_linear) = norm_st(|st| (st.nv_cmd_idx.get(), st.nv_max_linear.get()));
+    assert!(max_linear < NV_CMDS_SIZE as i32);
+    if cmdchar <= max_linear {
         return i32::from(idx_slice[cmdchar as usize]);
     }
 
-    let mut bot = norm_st().nv_max_linear + 1;
+    let mut bot = max_linear + 1;
     let mut top = NV_CMDS_SIZE as i32 - 1;
     let mut idx = -1;
     while bot <= top {
@@ -1678,7 +1683,7 @@ pub fn check_text_or_curbuf_locked(mut oap: Option<&mut Oparg>) -> bool {
 
 /// Check if an operator was started but not finished yet.
 pub fn op_pending() -> bool {
-    !norm_st().current_oap.opt().is_some_and(|oap| {
+    !norm_st(|st| st.current_oap.get()).opt().is_some_and(|oap| {
         !g_st().finish_op
             && oap.prev_opcount == 0
             && oap.prev_count0 == 0
@@ -1691,11 +1696,11 @@ pub fn op_pending() -> bool {
 pub fn normal_enter() {
     let mut state = NormalState::new();
     normal_state_init(&mut state);
-    let prev_oap = norm_st().current_oap;
-    norm_st().current_oap = crate::globals::GraphPtr::from(&mut state.oa);
+    let oap_ptr = crate::globals::GraphPtr::from(&mut state.oa);
+    let prev_oap = norm_st(|st| st.current_oap.replace(oap_ptr));
     state.toplevel = true;
     state_enter(&mut state);
-    norm_st().current_oap = prev_oap;
+    norm_st(|st| st.current_oap.set(prev_oap));
 }
 
 fn normal_prepare(s: &mut NormalState) {
@@ -2516,9 +2521,9 @@ pub fn reset_visual() {
 }
 
 pub fn restore_visual_mode() {
-    if norm_st().visual_mode_orig != NUL as i32 {
-        curbuf_mut().b_visual.vi_mode = norm_st().visual_mode_orig;
-        norm_st().visual_mode_orig = NUL as i32;
+    let orig = norm_st(|st| st.visual_mode_orig.replace(NUL as i32));
+    if orig != NUL as i32 {
+        curbuf_mut().b_visual.vi_mode = orig;
     }
 }
 
@@ -2827,12 +2832,12 @@ pub fn clear_showcmd() {
             SHOWCMD_COLS
         };
         g_st().showcmd_buf[limit] = 0;
-        norm_st().showcmd_visual = true;
+        norm_st(|st| st.showcmd_visual.set(true));
     } else {
         g_st().showcmd_buf[0] = 0;
-        norm_st().showcmd_visual = false;
+        norm_st(|st| st.showcmd_visual.set(false));
 
-        if norm_st().showcmd_is_clear {
+        if norm_st(|st| st.showcmd_is_clear.get()) {
             return;
         }
     }
@@ -2876,9 +2881,8 @@ pub fn add_to_showcmd(c: i32) -> bool {
         return false;
     }
 
-    if norm_st().showcmd_visual {
+    if norm_st(|st| st.showcmd_visual.replace(false)) {
         g_st().showcmd_buf[0] = 0;
-        norm_st().showcmd_visual = false;
     }
 
     if is_special(c) && IGNORE.contains(&c) {
@@ -2941,7 +2945,8 @@ fn del_from_showcmd(mut len: i32) {
 
 pub fn push_showcmd() {
     if opt_vars().p_sc {
-        norm_st().old_showcmd_buf = g_st().showcmd_buf;
+        let buf = g_st().showcmd_buf;
+        norm_st(|st| st.old_showcmd_buf.set(buf));
     }
 }
 
@@ -2949,12 +2954,13 @@ pub fn pop_showcmd() {
     if !opt_vars().p_sc {
         return;
     }
-    g_st().showcmd_buf = norm_st().old_showcmd_buf;
+    g_st().showcmd_buf = norm_st(|st| st.old_showcmd_buf.get());
     display_showcmd();
 }
 
 pub fn showcmd_update_clear_state() {
-    norm_st().showcmd_is_clear = g_st().showcmd_buf[0] == 0;
+    let is_clear = g_st().showcmd_buf[0] == 0;
+    norm_st(|st| st.showcmd_is_clear.set(is_clear));
 }
 
 pub fn display_showcmd() {
@@ -2963,9 +2969,10 @@ pub fn display_showcmd() {
     }
 
     showcmd_update_clear_state();
+    let is_clear = norm_st(|st| st.showcmd_is_clear.get());
 
     if opt_vars().p_sloc.first_byte() == b's' {
-        if norm_st().showcmd_is_clear && g_st().vgetc_busy == 0 {
+        if is_clear && g_st().vgetc_busy == 0 {
             curwin_mut().w_redr_status = true;
         } else {
             win_redr_status(curwin_mut());
@@ -2974,7 +2981,7 @@ pub fn display_showcmd() {
         return;
     }
     if opt_vars().p_sloc.first_byte() == b't' {
-        if norm_st().showcmd_is_clear && g_st().vgetc_busy == 0 {
+        if is_clear && g_st().vgetc_busy == 0 {
             g_st().redraw_tabline = true;
         } else {
             draw_tabline();
@@ -2995,11 +3002,7 @@ pub fn display_showcmd() {
         ext_buf[..mc_len].copy_from_slice(&mc_buf[..mc_len]);
         crate::memory::copy_bytes_to_c_buf(
             &mut ext_buf[mc_len..],
-            if norm_st().showcmd_is_clear {
-                b""
-            } else {
-                sc_cstr.to_bytes()
-            },
+            if is_clear { b"" } else { sc_cstr.to_bytes() },
         );
         let mut size = 0;
         if ext_buf[0] != 0 {
@@ -3040,7 +3043,7 @@ pub fn display_showcmd() {
     } else {
         0
     };
-    if !norm_st().showcmd_is_clear {
+    if !is_clear {
         len += grid_line_puts(g_st().sc_col + len, sc_cstr, -1, hl_attr(HLF_MSG as i32));
     }
     len = len.min(SHOWCMD_COLS as i32);
@@ -3063,17 +3066,23 @@ pub fn do_check_scrollbind(check: bool) {
     let vtopline = get_vtopline(curwin_mut());
 
     if check && curwin_mut().w_onebuf_opt.wo_scb {
+        let (old_curwin, old_buf, old_vtopline, old_leftcol) = norm_st(|st| {
+            (
+                st.do_check_scrollbind_old_curwin.get(),
+                st.do_check_scrollbind_old_buf.get(),
+                st.do_check_scrollbind_old_vtopline.get(),
+                st.do_check_scrollbind_old_leftcol.get(),
+            )
+        });
         if g_st().did_syncbind {
             g_st().did_syncbind = false;
-        } else if norm_st().do_check_scrollbind_old_curwin == curwin_ptr() {
-            if (norm_st().do_check_scrollbind_old_buf == curwin_mut().w_buffer
-                || curwin_mut().w_onebuf_opt.wo_diff)
-                && (vtopline != norm_st().do_check_scrollbind_old_vtopline
-                    || curwin_mut().w_leftcol != norm_st().do_check_scrollbind_old_leftcol)
+        } else if old_curwin == curwin_ptr() {
+            if (old_buf == curwin_mut().w_buffer || curwin_mut().w_onebuf_opt.wo_diff)
+                && (vtopline != old_vtopline || curwin_mut().w_leftcol != old_leftcol)
             {
                 check_scrollbind(
-                    vtopline - norm_st().do_check_scrollbind_old_vtopline,
-                    curwin_mut().w_leftcol - norm_st().do_check_scrollbind_old_leftcol,
+                    vtopline - old_vtopline,
+                    curwin_mut().w_leftcol - old_leftcol,
                 );
             }
         } else if crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'j' as i32) {
@@ -3082,11 +3091,15 @@ pub fn do_check_scrollbind(check: bool) {
         curwin_mut().w_scbind_pos = vtopline;
     }
 
-    norm_st().do_check_scrollbind_old_curwin = crate::globals::curwin_ptr();
-    norm_st().do_check_scrollbind_old_vtopline = vtopline;
-    norm_st().do_check_scrollbind_old_buf =
-        crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
-    norm_st().do_check_scrollbind_old_leftcol = curwin_mut().w_leftcol;
+    let cwin = crate::globals::curwin_ptr();
+    let cbuf = crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
+    let lcol = curwin_mut().w_leftcol;
+    norm_st(|st| {
+        st.do_check_scrollbind_old_curwin.set(cwin);
+        st.do_check_scrollbind_old_vtopline.set(vtopline);
+        st.do_check_scrollbind_old_buf.set(cbuf);
+        st.do_check_scrollbind_old_leftcol.set(lcol);
+    });
 }
 
 pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
@@ -5626,7 +5639,7 @@ fn nv_replace_fn(cap: &mut Cmdarg) {
     if g_st().visual_global.active {
         cap.cmdchar = b'c' as i32;
         cap.nchar = NUL as i32;
-        norm_st().visual_mode_orig = g_st().visual_global.mode;
+        norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.mode));
         g_st().visual_global.mode = b'V' as i32;
         nv_operator(cap);
         return;
@@ -5771,7 +5784,7 @@ fn v_visop(cap: &mut Cmdarg) {
 
     if (cap.cmdchar as u8).is_ascii_uppercase() {
         if g_st().visual_global.mode != CTRL_V_CONST {
-            norm_st().visual_mode_orig = g_st().visual_global.mode;
+            norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.mode));
             g_st().visual_global.mode = b'V' as i32;
         } else if cap.cmdchar == b'C' as i32 || cap.cmdchar == b'D' as i32 {
             curwin_mut().w_curswant = MAXCOL;
@@ -5789,7 +5802,7 @@ fn nv_subst(cap: &mut Cmdarg) {
     }
     if g_st().visual_global.active {
         if cap.cmdchar == b'S' as i32 {
-            norm_st().visual_mode_orig = g_st().visual_global.mode;
+            norm_st(|st| st.visual_mode_orig.set(g_st().visual_global.mode));
             g_st().visual_global.mode = b'V' as i32;
         }
         cap.cmdchar = b'c' as i32;
