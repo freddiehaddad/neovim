@@ -75,7 +75,7 @@ pub(crate) enum MPConvPartialStage {
     End,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum MPConvStackData {
     Dict {
         dict: crate::eval::typval::DictId,
@@ -101,7 +101,7 @@ pub(crate) enum MPConvStackData {
     },
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct MPConvStackVal {
     pub(crate) saved_copy_id: i32,
     pub(crate) data: MPConvStackData,
@@ -928,13 +928,13 @@ impl EncodeBackend<'_> {
         }
         let find_backref = || -> usize {
             for (idx, mpval) in mpstack.iter().enumerate() {
-                match (container, mpval.data) {
-                    (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. })
+                match (container, &mpval.data) {
+                    (MPContainerRef::Dict(d1), &MPConvStackData::Dict { dict: d2, .. })
                         if d1 == d2 =>
                     {
                         return idx;
                     }
-                    (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. })
+                    (MPContainerRef::List(l1), &MPConvStackData::List { list: l2, .. })
                         if l1 == l2 =>
                     {
                         return idx;
@@ -1038,7 +1038,7 @@ fn convert_one_value(
             let fun = (!pt.is_null()).then(|| partial_name(pt.opt()).to_bytes());
             let prefix: &[u8] = if let Some(fb) = fun
                 && !pt.is_null()
-                && pt.pt_name.is_none()
+                && pt.name_cstr().is_none()
                 && fb.first().is_some_and(u8::is_ascii_uppercase)
             {
                 b"g:"
@@ -1417,13 +1417,14 @@ fn encode_vim_with_backend(
                 }
                 &raw mut last_item.li_tv
             }
-            MPConvStackData::Partial { stage, pt } => {
+            MPConvStackData::Partial { stage, ref pt } => {
+                let pt = pt.clone();
                 match stage {
                     MPConvPartialStage::Args => {
                         let argc = if pt.is_null() {
                             0
                         } else {
-                            pt.pt_argv.len() as i32
+                            pt.pt_argv.borrow().len() as i32
                         };
                         backend.conv_func_before_args(argc);
                         if let MPConvStackData::Partial {
@@ -1457,7 +1458,7 @@ fn encode_vim_with_backend(
                         let dict = if pt.is_null() {
                             crate::eval::typval::DictId::NULL
                         } else {
-                            pt.pt_dict
+                            pt.pt_dict.get()
                         };
                         if let Some(dict) = dict.opt_mut() {
                             backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
@@ -1500,7 +1501,7 @@ fn encode_vim_with_backend(
                 continue;
             }
             MPConvStackData::PartialList {
-                mut pt,
+                ref pt,
                 ref mut idx,
                 ref mut todo,
             } => {
@@ -1514,7 +1515,11 @@ fn encode_vim_with_backend(
                 let cur_idx = *idx;
                 *idx += 1;
                 *todo -= 1;
-                &raw mut pt.pt_argv[cur_idx]
+                let mut arg_tv = pt.pt_argv.borrow()[cur_idx].clone();
+                if !convert_one_value(backend, &mut mpstack, &mut arg_tv, copy_id, objname) {
+                    return false;
+                }
+                continue;
             }
         })
         .as_ptr();

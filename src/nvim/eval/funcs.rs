@@ -1534,7 +1534,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         func_call(
             &func_cstr,
             &mut argvars[1],
-            partial.opt_mut(),
+            partial.rc(),
             selfdict.opt_mut(),
             &mut *rettv,
         );
@@ -2531,59 +2531,63 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             }
             if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
                 let pt = crate::eval::typval::tv_partial_alloc();
-                if arg_idx > 0 || (!arg_pt.is_null() && !&(arg_pt.borrow().pt_argv).is_empty()) {
+                if arg_idx > 0 || (!arg_pt.is_null() && !arg_pt.pt_argv.borrow().is_empty()) {
                     let arg_len = if arg_pt.is_null() {
                         0
                     } else {
-                        arg_pt.pt_argv.len() as i32
+                        arg_pt.pt_argv.borrow().len() as i32
                     };
                     let lv_len = tv_list_len(list.opt());
                     let pt_argc = arg_len + lv_len;
-                    pt.pt_argv.resize(pt_argc as usize, TypVal::new());
+                    let mut dst_argv = pt.pt_argv.borrow_mut();
+                    dst_argv.resize(pt_argc as usize, TypVal::new());
                     let mut i: i32 = 0;
                     while i < arg_len {
                         tv_copy(
-                            &(arg_pt.borrow().pt_argv)[i as usize],
-                            &mut (&mut pt.pt_argv)[i as usize],
+                            &arg_pt.pt_argv.borrow()[i as usize],
+                            &mut dst_argv[i as usize],
                         );
 
                         i += 1;
                     }
                     if lv_len > 0 {
                         for li in crate::eval::typval::list_iter_mut(tv_list_first(list.opt())) {
-                            tv_copy(&li.li_tv, &mut (&mut pt.pt_argv)[i as usize]);
+                            tv_copy(&li.li_tv, &mut dst_argv[i as usize]);
                             i += 1;
                         }
                     }
                 }
 
                 if dict_idx > 0 {
-                    pt.pt_dict = argvars[dict_idx].vval.v_dict();
-                    pt.pt_dict.dv_refcount += 1;
-                } else if let Some(arg_pt_ref) = arg_pt.opt_mut() {
-                    pt.pt_dict = arg_pt_ref.pt_dict;
-                    pt.pt_auto = arg_pt_ref.pt_auto;
-                    if !pt.pt_dict.is_null() {
-                        pt.pt_dict.dv_refcount += 1;
+                    pt.pt_dict.set(argvars[dict_idx].vval.v_dict());
+                    pt.pt_dict.get().dv_refcount += 1;
+                } else if let Some(arg_pt_ref) = arg_pt.opt() {
+                    pt.pt_dict.set(arg_pt_ref.pt_dict.get());
+                    pt.pt_auto.set(arg_pt_ref.pt_auto.get());
+                    if !pt.pt_dict.get().is_null() {
+                        pt.pt_dict.get().dv_refcount += 1;
                     }
                 }
 
-                pt.pt_refcount = 1;
-                if !arg_pt.is_null() && !arg_pt.pt_func.is_null() {
-                    pt.pt_func = arg_pt.pt_func;
+                pt.pt_refcount.set(1);
+                if !arg_pt.is_null() && !arg_pt.pt_func.get().is_null() {
+                    pt.pt_func.set(arg_pt.pt_func.get());
 
-                    func_ptr_ref(pt.pt_func.opt_mut());
+                    func_ptr_ref(pt.pt_func.get().opt_mut());
                 } else if is_funcref {
-                    pt.pt_func = crate::eval::userfunc::UfuncId::from(find_func(trans_name));
+                    pt.pt_func
+                        .set(crate::eval::userfunc::UfuncId::from(find_func(trans_name)));
 
-                    func_ptr_ref(pt.pt_func.opt_mut());
+                    func_ptr_ref(pt.pt_func.get().opt_mut());
                 } else {
                     func_ref(Some(name_cstr.as_c_str()));
-                    pt.pt_name = Some(name_cstr);
+                    pt.set_name(Some(name_cstr));
                 }
 
                 rettv.v_type = VarType::VarPartial;
-                rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
+                rettv.vval = crate::eval::typval::TypvalVval::Partial(
+                    crate::eval::typval::PartialId::from(pt),
+                );
             } else {
                 crate::eval::typval::tv_set_string(&mut *rettv, Some(&name_cstr));
                 rettv.v_type = VarType::VarFunc;
@@ -2655,26 +2659,26 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             tv = crate::globals::GraphPtr::<TypVal>::from_ref(&di.di_tv);
         }
     } else if tv_is_func(&argvars[0]) {
-        let mut fref_pt = std::mem::ManuallyDrop::new(TvPartial::default());
-        let pt_opt: Option<&mut TvPartial> = if argvars[0].v_type == VarType::VarPartial {
-            argvars[0].vval.v_partial().opt_mut()
+        let fref_pt = TvPartial::default();
+        let pt_opt: Option<&TvPartial> = if argvars[0].v_type == VarType::VarPartial {
+            argvars[0].vval.v_partial_opt()
         } else {
-            fref_pt.pt_name = Some(argvars[0].vval.v_string_owned());
-            Some(&mut fref_pt)
+            fref_pt.set_name(Some(argvars[0].vval.v_string_owned()));
+            Some(&fref_pt)
         };
 
         if let Some(pt) = pt_opt {
             let what = tv_get_string(&argvars[1]);
             if what.to_bytes() == b"func" || what.to_bytes() == b"name" {
-                let mut name = partial_name(Some(&*pt));
+                let mut name = partial_name(Some(pt));
                 if what.to_bytes().first().copied().unwrap_or(0) == b'f' {
                     func_ref(Some(name));
                 }
                 if what.to_bytes().first().copied().unwrap_or(0) == b'n'
-                    && pt.pt_name.is_none()
-                    && !pt.pt_func.is_null()
+                    && pt.name_cstr().is_none()
+                    && !pt.pt_func.get().is_null()
                 {
-                    name = printable_func_name(pt.pt_func.borrow_mut());
+                    name = printable_func_name(pt.pt_func.get().borrow_mut());
                 }
                 crate::eval::typval::tv_set_string(rettv, Some(name));
                 rettv.v_type = if what.to_bytes().first().copied().unwrap_or(0) == b'f' {
@@ -2684,25 +2688,25 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 };
             } else if what.to_bytes() == b"dict" {
                 what_is_dict = true;
-                if !pt.pt_dict.is_null() {
-                    tv_dict_set_ret(rettv, pt.pt_dict.opt_mut());
+                if !pt.pt_dict.get().is_null() {
+                    tv_dict_set_ret(rettv, pt.pt_dict.get().opt_mut());
                 }
             } else if what.to_bytes() == b"args" {
                 rettv.v_type = VarType::VarList;
-                tv_list_alloc_ret(rettv, pt.pt_argv.len() as isize);
-                for arg in &mut pt.pt_argv {
+                tv_list_alloc_ret(rettv, pt.pt_argv.borrow().len() as isize);
+                for arg in &mut *pt.pt_argv.borrow_mut() {
                     tv_list_append_tv(rettv.vval.v_list_ref(), &mut *arg);
                 }
             } else if what.to_bytes() == b"arity" {
                 let mut required: i32 = 0;
                 let mut optional: i32 = 0;
                 let mut varargs = false;
-                let name = partial_name(Some(&*pt));
+                let name = partial_name(Some(pt));
                 get_func_arity(name, &mut required, &mut optional, &mut varargs);
 
                 rettv.v_type = VarType::VarDict;
                 let dict = tv_dict_alloc_ret(rettv);
-                let pt_argc = pt.pt_argv.len() as i32;
+                let pt_argc = pt.pt_argv.borrow().len() as i32;
 
                 if pt_argc >= required + optional {
                     required = 0;
@@ -6358,7 +6362,7 @@ pub fn f_reduce(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let func_name_empty = if argvars[1].v_type == VarType::VarFunc {
         argvars[1].vval.v_string_is_empty()
     } else if argvars[1].v_type == VarType::VarPartial {
-        partial_name(argvars[1].vval.v_partial_opt().as_deref()).is_empty()
+        partial_name(argvars[1].vval.v_partial_opt()).is_empty()
     } else {
         tv_get_string(&argvars[1]).is_empty()
     };

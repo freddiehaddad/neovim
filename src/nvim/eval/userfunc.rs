@@ -282,7 +282,7 @@ impl Default for Funcdict {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Funcexe {
     pub fe_fill_submatch: bool,
     pub fe_firstline: Linenr,
@@ -311,8 +311,8 @@ impl Funcexe {
     }
 
     #[inline]
-    pub fn partial_opt(&self) -> Option<&'static mut TvPartial> {
-        self.fe_partial.opt_mut()
+    pub fn partial_opt(&self) -> Option<&TvPartial> {
+        self.fe_partial.opt()
     }
 }
 
@@ -807,9 +807,10 @@ pub fn get_lambda_tv(
         fp.uf_script_ctx = g_st().current_sctx;
         fp.uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
-        pt.pt_func = fp.uf_id;
-        pt.pt_refcount = 1;
-        rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
+        pt.pt_func.set(fp.uf_id);
+        pt.pt_refcount.set(1);
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(pt));
         rettv.v_type = VarType::VarPartial;
         set_eval_lavars_used(old_eval_lavars);
     }
@@ -821,7 +822,7 @@ pub fn get_lambda_tv(
 pub fn deref_func_name<'a>(
     name: &'a CStr,
     lenp: &mut i32,
-    mut partialp: Option<&mut Option<&'static mut TvPartial>>,
+    mut partialp: Option<&mut Option<std::rc::Rc<TvPartial>>>,
     no_autoload: bool,
     found_var: Option<&mut bool>,
 ) -> &'a CStr {
@@ -853,10 +854,9 @@ pub fn deref_func_name<'a>(
             *lenp = 0;
             return c"";
         };
-        let pt_ptr = crate::globals::GraphPtr::<TvPartial>::from_ref(pt);
-        let s = partial_name(Some(pt_ptr.borrow()));
+        let s = partial_name(Some(pt));
         if let Some(partialp) = partialp {
-            *partialp = Some(pt_ptr.borrow_mut());
+            *partialp = tv.vval.v_partial().rc();
         }
         *lenp = s.to_bytes().len() as i32;
         return s;
@@ -946,7 +946,7 @@ pub fn get_func_tv(
     let partial_argc = if funcexe.fe_partial.is_null() {
         0
     } else {
-        funcexe.fe_partial.pt_argv.len() as i32
+        funcexe.fe_partial.pt_argv.borrow().len() as i32
     };
     let mut ret = get_func_arguments(
         &mut argp,
@@ -1899,7 +1899,7 @@ fn builtin_function(bytes: &[u8]) -> bool {
 pub fn func_call(
     name: &CStr,
     args: &mut TypVal,
-    partial: Option<&mut TvPartial>,
+    partial: Option<std::rc::Rc<TvPartial>>,
     selfdict: Option<&mut TvDict>,
     rettv: &mut TypVal,
 ) -> bool {
@@ -1907,8 +1907,10 @@ pub fn func_call(
     let mut argc = 0;
     let mut r = false;
 
-    let max_argc =
-        MAX_FUNC_ARGS as i32 - partial.as_deref().map_or(0, |pt| pt.pt_argv.len() as i32);
+    let max_argc = MAX_FUNC_ARGS as i32
+        - partial
+            .as_deref()
+            .map_or(0, |pt| pt.pt_argv.borrow().len() as i32);
     let mut skip_call = false;
     if let Some(list) = args.vval.v_list_opt() {
         for item in crate::eval::typval::list_iter_mut(list.first_opt()) {
@@ -2008,7 +2010,7 @@ pub fn call_func(
     let mut argv: [TypVal; MAX_FUNC_ARGS + 1] = [const { TypVal::new() }; MAX_FUNC_ARGS + 1];
     let mut argv_clear = 0;
     let mut argv_base = 0;
-    let partial = funcexe.fe_partial;
+    let partial = funcexe.fe_partial.clone();
 
     rettv.v_type = VarType::VarUnknown;
 
@@ -2016,7 +2018,7 @@ pub fn call_func(
         len = funcname.to_bytes().len() as i32;
     }
     if let Some(partial_ref) = funcexe.partial_opt() {
-        fp = partial_ref.pt_func.opt_mut();
+        fp = partial_ref.pt_func.get().opt_mut();
     }
     if fp.is_none() {
         let fn_bytes = funcname.to_bytes();
@@ -2034,10 +2036,10 @@ pub fn call_func(
 
     let mut skip_eval = false;
     if let Some(partial) = funcexe.partial_opt() {
-        if !partial.pt_dict.is_null() && (selfdict.is_null() || !partial.pt_auto) {
-            selfdict = partial.pt_dict;
+        if !partial.pt_dict.get().is_null() && (selfdict.is_null() || !partial.pt_auto.get()) {
+            selfdict = partial.pt_dict.get();
         }
-        let pt_argc = partial.pt_argv.len() as i32;
+        let pt_argc = partial.pt_argv.borrow().len() as i32;
         if error == FCERR_NONE && pt_argc > 0 {
             while argv_clear < pt_argc {
                 if argv_clear + argcount_in >= MAX_FUNC_ARGS as i32 {
@@ -2046,7 +2048,7 @@ pub fn call_func(
                     break;
                 }
                 tv_copy(
-                    &(&partial.pt_argv)[argv_clear as usize],
+                    &partial.pt_argv.borrow()[argv_clear as usize],
                     &mut argv[argv_clear as usize],
                 );
                 argv_clear += 1;
@@ -2335,7 +2337,7 @@ pub fn trans_function_name(
     skip: bool,
     flags: i32,
     mut fdp: Option<&mut Funcdict>,
-    mut partial: Option<&mut Option<&'static mut TvPartial>>,
+    mut partial: Option<&mut Option<std::rc::Rc<TvPartial>>>,
 ) -> Option<std::ffi::CString> {
     let mut name: Option<&CStr> = None;
     let mut len: i32;
@@ -2419,7 +2421,7 @@ pub fn trans_function_name(
                 *pp = end_cstr;
             }
             if let Some(ref mut partial_out) = partial {
-                **partial_out = pt.opt_mut();
+                **partial_out = pt.rc();
             }
         } else if !skip
             && (flags & TFN_QUIET) == 0
@@ -3752,7 +3754,7 @@ fn ex_call_inner<'a>(
 
         *arg = startarg;
 
-        let mut funcexe = *funcexe_init;
+        let mut funcexe = funcexe_init.clone();
         funcexe.fe_doesrange = false;
         let mut rettv: TypVal = TypVal::new();
         rettv.v_type = VarType::VarUnknown;
@@ -3794,14 +3796,17 @@ fn ex_defer_inner(
         return false;
     }
     if let Some(partial) = partial {
-        if !partial.pt_dict.is_null() {
+        if !partial.pt_dict.get().is_null() {
             emsg(gettext(E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER));
             return false;
         }
-        if !partial.pt_argv.is_empty() {
-            partial_argc = partial.pt_argv.len() as i32;
+        if !partial.pt_argv.borrow().is_empty() {
+            partial_argc = partial.pt_argv.borrow().len() as i32;
             for i in 0..partial_argc {
-                tv_copy(&(&partial.pt_argv)[i as usize], &mut argvars[i as usize]);
+                tv_copy(
+                    &partial.pt_argv.borrow()[i as usize],
+                    &mut argvars[i as usize],
+                );
             }
         }
     }
@@ -3953,7 +3958,7 @@ pub fn ex_call(eap: &mut Exarg) {
     let arg_slice = eap.arg.clone();
     let mut arg = arg_slice.as_cstr();
     let mut fudi = Funcdict::new();
-    let mut partial_opt: Option<&'static mut TvPartial> = None;
+    let mut partial_opt: Option<std::rc::Rc<TvPartial>> = None;
     let mut evalarg = Evalarg::new();
 
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
@@ -4174,14 +4179,14 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
 
     if rettv.v_type == VarType::VarPartial
         && let Some(pt_ref) = rettv.vval.v_partial().opt()
-        && !pt_ref.pt_func.is_null()
+        && !pt_ref.pt_func.get().is_null()
     {
-        fp = pt_ref.pt_func.opt_mut();
+        fp = pt_ref.pt_func.get().opt_mut();
     } else {
         let fname_opt = if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
             rettv.vval.v_string_cstr()
-        } else if let Some(pt_ref) = rettv.vval.v_partial().opt() {
-            pt_ref.pt_name.as_deref()
+        } else if let Some(pt_ref) = rettv.vval.v_partial_opt() {
+            pt_ref.name_cstr()
         } else {
             None
         };
@@ -4199,33 +4204,35 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
         && (fp_ref.uf_flags & FC_DICT) != 0
     {
         let pt = crate::eval::typval::tv_partial_alloc();
-        pt.pt_refcount = 1;
-        pt.pt_dict = selfdict.dv_id;
+        pt.pt_refcount.set(1);
+        pt.pt_dict.set(selfdict.dv_id);
         selfdict.dv_refcount += 1;
-        pt.pt_auto = true;
+        pt.pt_auto.set(true);
         if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
-            pt.pt_name = crate::eval::typval::tv_take_string(rettv);
+            pt.set_name(crate::eval::typval::tv_take_string(rettv));
         } else {
-            let ret_pt = rettv.vval.v_partial().borrow_mut();
-            if let Some(ref ret_name) = ret_pt.pt_name {
+            let ret_pt = rettv.vval.v_partial().unwrap_rc();
+            if let Some(ret_name) = ret_pt.pt_name.get() {
                 func_ref(Some(ret_name));
-                pt.pt_name = Some(ret_name.clone());
+                pt.set_name(Some(ret_name.clone()));
             } else {
-                pt.pt_func = ret_pt.pt_func;
+                pt.pt_func.set(ret_pt.pt_func.get());
 
-                func_ptr_ref(pt.pt_func.opt_mut());
+                func_ptr_ref(pt.pt_func.get().opt_mut());
             }
-            if !ret_pt.pt_argv.is_empty() {
-                let pt_argc = ret_pt.pt_argv.len();
-                pt.pt_argv.resize(pt_argc, TypVal::new());
+            if !ret_pt.pt_argv.borrow().is_empty() {
+                let pt_argc = ret_pt.pt_argv.borrow().len();
+                let mut dst_argv = pt.pt_argv.borrow_mut();
+                dst_argv.resize(pt_argc, TypVal::new());
                 for i in 0..pt_argc {
-                    tv_copy(&(&ret_pt.pt_argv)[i], &mut (&mut pt.pt_argv)[i]);
+                    tv_copy(&ret_pt.pt_argv.borrow()[i], &mut dst_argv[i]);
                 }
             }
-            partial_unref(Some(ret_pt));
+            partial_unref(Some(&ret_pt));
         }
         rettv.v_type = VarType::VarPartial;
-        rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
+        rettv.vval =
+            crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(pt));
     }
 }
 

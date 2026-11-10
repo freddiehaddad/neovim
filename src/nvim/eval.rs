@@ -345,12 +345,12 @@ pub struct CallerScope {
 }
 
 #[inline]
-fn tv_partial(tv: &TypVal) -> Option<&'static mut TvPartial> {
+fn tv_partial(tv: &TypVal) -> Option<&TvPartial> {
     tv.vval.v_partial_opt()
 }
 
 #[inline]
-fn tv_set_partial(tv: &mut TypVal, pt: Option<&mut TvPartial>) {
+fn tv_set_partial(tv: &mut TypVal, pt: Option<std::rc::Rc<TvPartial>>) {
     tv.vval = crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(pt));
 }
 
@@ -2006,7 +2006,7 @@ fn eval_func(
         check_vars(&name_bytes[..(len as usize).min(name_bytes.len())]);
     }
 
-    let mut partial_opt: Option<&'static mut TvPartial> = None;
+    let mut partial_opt: Option<std::rc::Rc<TvPartial>> = None;
     let deref = deref_func_name(
         name,
         &mut len,
@@ -2870,7 +2870,7 @@ fn eval7(
                 {
                     rettv.v_type = VarType::VarPartial;
                     let lua_pt = get_vim_var_partial(VV_LUA).unwrap();
-                    lua_pt.pt_refcount += 1;
+                    lua_pt.pt_refcount.set(lua_pt.pt_refcount.get() + (1));
                     tv_set_partial(rettv, Some(lua_pt));
                 }
                 true
@@ -2974,7 +2974,7 @@ fn call_func_rettv(
         functv = std::mem::take(rettv);
 
         if functv.v_type == VarType::VarPartial {
-            pt = crate::eval::typval::PartialId::from(tv_partial(&functv));
+            pt = functv.vval.v_partial();
             is_lua = is_luafunc(pt.opt());
             funcname = if is_lua {
                 lua_funcname.unwrap_or(c"")
@@ -3000,7 +3000,7 @@ fn call_func_rettv(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: evaluate,
-        fe_partial: pt,
+        fe_partial: pt.clone(),
         fe_selfdict: crate::eval::typval::DictId::from(selfdict),
         fe_basetv: basetv.map_or(
             crate::globals::GraphPtr::NULL,
@@ -3150,7 +3150,7 @@ fn eval_method<'a>(
                 } else if ref_tv.v_type == VarType::VarPartial
                     && let Some(ref_pt) = tv_partial(&ref_tv)
                 {
-                    if !ref_pt.pt_argv.is_empty() || !ref_pt.pt_dict.is_null() {
+                    if !ref_pt.pt_argv.borrow().is_empty() || !ref_pt.pt_dict.get().is_null() {
                         if verbose {
                             emsg(gettext(E_CANNOT_USE_PARTIAL_HERE));
                         }
@@ -3188,7 +3188,7 @@ fn eval_method<'a>(
                 if evaluate {
                     rettv.v_type = VarType::VarPartial;
                     let lua_pt = get_vim_var_partial(VV_LUA).unwrap();
-                    lua_pt.pt_refcount += 1;
+                    lua_pt.pt_refcount.set(lua_pt.pt_refcount.get() + (1));
                     tv_set_partial(rettv, Some(lua_pt));
                 }
                 ret = call_func_rettv(
@@ -3951,10 +3951,10 @@ pub fn eval_interp_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool) -
 /// @return  the function name of the partial.
 pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
     if let Some(pt) = pt {
-        if let Some(ref name) = pt.pt_name {
-            return name.as_c_str();
+        if let Some(name) = pt.name_cstr() {
+            return name;
         }
-        if let Some(uf) = pt.pt_func.opt() {
+        if let Some(uf) = pt.pt_func.get().opt() {
             return uf.uf_name.as_c_str();
         }
     }
@@ -3963,12 +3963,12 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
 
 /// Unreference a closure: decrement the reference count and free it when it
 /// becomes zero.
-pub fn partial_unref(pt: Option<&mut TvPartial>) {
+pub fn partial_unref(pt: Option<&TvPartial>) {
     let Some(pt_ref) = pt else {
         return;
     };
-    pt_ref.pt_refcount -= 1;
-    if pt_ref.pt_refcount <= 0 {
+    pt_ref.pt_refcount.set(pt_ref.pt_refcount.get() - (1));
+    if pt_ref.pt_refcount.get() <= 0 {
         crate::eval::typval::tv_partial_free(pt_ref);
     }
 }
@@ -4037,7 +4037,7 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let mut s1 = if tv1.v_type == VarType::VarFunc {
         tv1.vval.v_string_cstr()
     } else {
-        Some(partial_name(pt1.as_deref()))
+        Some(partial_name(pt1))
     };
     if s1.is_some_and(CStr::is_empty) {
         s1 = None;
@@ -4046,7 +4046,7 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let mut s2 = if tv2.v_type == VarType::VarFunc {
         tv2.vval.v_string_cstr()
     } else {
-        Some(partial_name(pt2.as_deref()))
+        Some(partial_name(pt2))
     };
     if s2.is_some_and(CStr::is_empty) {
         s2 = None;
@@ -4056,46 +4056,40 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     }
 
     let d1 = if tv1.v_type == VarType::VarFunc {
-        ptr::null_mut()
+        crate::eval::typval::DictId::NULL
     } else {
-        tv_partial(tv1).map_or(ptr::null_mut(), |pt| pt.pt_dict.as_ptr())
+        tv_partial(tv1).map_or(crate::eval::typval::DictId::NULL, |pt| pt.pt_dict.get())
     };
     let d2 = if tv2.v_type == VarType::VarFunc {
-        ptr::null_mut()
+        crate::eval::typval::DictId::NULL
     } else {
-        tv_partial(tv2).map_or(ptr::null_mut(), |pt| pt.pt_dict.as_ptr())
+        tv_partial(tv2).map_or(crate::eval::typval::DictId::NULL, |pt| pt.pt_dict.get())
     };
     if d1.is_null() || d2.is_null() {
         if d1 != d2 {
             return false;
         }
-    } else if !tv_dict_equal(
-        crate::globals::GraphPtr::of(d1).opt(),
-        crate::globals::GraphPtr::of(d2).opt(),
-        ic,
-    ) {
+    } else if !tv_dict_equal(d1.opt(), d2.opt(), ic) {
         return false;
     }
 
     let a1 = if tv1.v_type == VarType::VarFunc {
         0
     } else {
-        tv_partial(tv1).map_or(0, |pt| pt.pt_argv.len() as i32)
+        tv_partial(tv1).map_or(0, |pt| pt.pt_argv.borrow().len() as i32)
     };
     let a2 = if tv2.v_type == VarType::VarFunc {
         0
     } else {
-        tv_partial(tv2).map_or(0, |pt| pt.pt_argv.len() as i32)
+        tv_partial(tv2).map_or(0, |pt| pt.pt_argv.borrow().len() as i32)
     };
     if a1 != a2 {
         return false;
     }
     for i in 0..(a1 as usize) {
-        if !tv_equal(
-            &(&tv_partial(tv1).unwrap().pt_argv)[i],
-            &(&tv_partial(tv2).unwrap().pt_argv)[i],
-            ic,
-        ) {
+        let arg1 = tv_partial(tv1).unwrap().pt_argv.borrow()[i].clone();
+        let arg2 = tv_partial(tv2).unwrap().pt_argv.borrow()[i].clone();
+        if !tv_equal(&arg1, &arg2, ic) {
             return false;
         }
     }
@@ -4378,7 +4372,7 @@ fn set_ref_in_item_list(
 }
 
 fn set_ref_in_item_partial(
-    pt: Option<&mut TvPartial>,
+    pt: Option<&TvPartial>,
     copy_id: i32,
     mut ht_stack: Option<&mut HtStack>,
     mut list_stack: Option<&mut ListStack>,
@@ -4386,19 +4380,19 @@ fn set_ref_in_item_partial(
     let Some(pt) = pt else {
         return false;
     };
-    if pt.pt_copy_id == copy_id {
+    if pt.pt_copy_id.get() == copy_id {
         return false;
     }
 
-    pt.pt_copy_id = copy_id;
+    pt.pt_copy_id.set(copy_id);
 
-    let mut abort = set_ref_in_func(pt.pt_name.as_deref(), pt.pt_func.opt_mut(), copy_id);
+    let mut abort = set_ref_in_func(pt.name_cstr(), pt.pt_func.get().opt_mut(), copy_id);
 
-    if !pt.pt_dict.is_null() {
+    if !pt.pt_dict.get().is_null() {
         let mut dtv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(pt.pt_dict),
+            vval: TypvalVval::Dict(pt.pt_dict.get()),
         };
         abort = abort
             || set_ref_in_item(
@@ -4409,7 +4403,7 @@ fn set_ref_in_item_partial(
             );
     }
 
-    for arg in &mut pt.pt_argv {
+    for arg in &mut *pt.pt_argv.borrow_mut() {
         abort = abort
             || set_ref_in_item(
                 arg,
@@ -4841,10 +4835,10 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
     let is_lua_tbl = nlua_is_table_from_lua(arg);
 
     if arg.v_type == VarType::VarPartial
-        && let Some(pt) = tv_partial(arg)
+        && let Some(pt) = arg.vval.v_partial().rc()
     {
-        callback.data = crate::eval::typval::CallbackData::partial(&mut *pt);
-        pt.pt_refcount += 1;
+        pt.pt_refcount.set(pt.pt_refcount.get() + (1));
+        callback.data = crate::eval::typval::CallbackData::partial(pt);
     } else if arg.v_type == VarType::VarString
         && !arg.vval.v_string_is_null()
         && ascii_isdigit(arg.vval.v_string_first_byte())
@@ -4977,7 +4971,7 @@ pub fn callback_call(
         fe_lastline: lnum,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: partial,
+        fe_partial: partial.clone(),
         fe_selfdict: crate::eval::typval::DictId::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
@@ -5803,11 +5797,11 @@ pub fn is_luafunc(partial: Option<&TvPartial>) -> bool {
     let Some(partial) = partial else {
         return false;
     };
-    get_vim_var_partial(VV_LUA).is_some_and(|p| ptr::eq(partial, p))
+    get_vim_var_partial(VV_LUA).is_some_and(|p| ptr::eq(partial, &*p))
 }
 
 fn tv_is_luafunc(tv: &mut TypVal) -> bool {
-    tv.v_type == VarType::VarPartial && is_luafunc(tv_partial(tv).as_deref())
+    tv.v_type == VarType::VarPartial && is_luafunc(tv_partial(tv))
 }
 
 #[inline]
@@ -6021,8 +6015,8 @@ pub fn handle_subscript<'a>(
 pub fn set_selfdict(rettv: &mut TypVal, selfdict: &mut TvDict) {
     if rettv.v_type == VarType::VarPartial
         && let Some(pt) = tv_partial(&*rettv)
-        && !pt.pt_auto
-        && !pt.pt_dict.is_null()
+        && !pt.pt_auto.get()
+        && !pt.pt_dict.get().is_null()
     {
         return;
     }
@@ -6853,8 +6847,8 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             tv_clear(typ1);
             return false;
         }
-        let pt1_ptr = crate::globals::GraphPtr::from(tv_partial(&*typ1));
-        let pt2_ptr = crate::globals::GraphPtr::from(tv_partial(&*typ2));
+        let pt1_ptr = typ1.vval.v_partial();
+        let pt2_ptr = typ2.vval.v_partial();
         let mut eq = if (typ1.v_type == VarType::VarPartial && pt1_ptr.is_null())
             || (typ2.v_type == VarType::VarPartial && pt2_ptr.is_null())
         {

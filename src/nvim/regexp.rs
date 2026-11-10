@@ -3377,7 +3377,7 @@ fn vim_regsub_both(
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();
                     let s = partial_name(partial.opt());
-                    funcexe.fe_partial = partial;
+                    funcexe.fe_partial = partial.clone();
                     call_func(s, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
                 if rettv.v_type == VarType::VarUnknown {

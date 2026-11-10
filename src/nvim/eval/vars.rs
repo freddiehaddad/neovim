@@ -664,8 +664,8 @@ pub fn evalvars_init() {
     set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col - 1));
 
     let vvlua_pt = crate::eval::typval::tv_partial_alloc();
-    vvlua_pt.pt_name = Some(std::ffi::CString::default());
-    vvlua_pt.pt_refcount = 1;
+    vvlua_pt.set_name(Some(std::ffi::CString::default()));
+    vvlua_pt.pt_refcount.set(1);
     set_vim_var_partial(VV_LUA, Some(vvlua_pt));
 
     set_reg_var(0);
@@ -692,7 +692,7 @@ pub fn evalvars_clear() {
         di.di_key = Vec::new();
     }
 
-    partial_unref(get_vim_var_partial(VV_LUA));
+    partial_unref(get_vim_var_partial(VV_LUA).as_deref());
     set_vim_var_partial(VV_LUA, None);
     hash_clear(&mut get_vimvar_dict().dv_hashtab);
     hash_clear(get_compat_ht());
@@ -2229,8 +2229,8 @@ pub fn get_vim_var_str(idx: VimVarIndex) -> &'static CStr {
     tv_get_string(get_vim_var_tv(idx))
 }
 
-pub fn get_vim_var_partial(idx: VimVarIndex) -> Option<&'static mut TvPartial> {
-    get_vim_var_tv(idx).vval.v_partial().opt_mut()
+pub fn get_vim_var_partial(idx: VimVarIndex) -> Option<std::rc::Rc<TvPartial>> {
+    get_vim_var_tv(idx).vval.v_partial().rc()
 }
 
 /// Function to concatenate a prefix and a variable name.
@@ -2407,7 +2407,7 @@ pub fn set_vim_var_dict(idx: VimVarIndex, val: Option<&mut TvDict>) {
     tv_dict_set_keys_readonly(val_ref);
 }
 
-pub fn set_vim_var_partial(idx: VimVarIndex, val: Option<&mut TvPartial>) {
+pub fn set_vim_var_partial(idx: VimVarIndex, val: Option<std::rc::Rc<TvPartial>>) {
     let tv = get_vim_var_tv(idx);
     tv.vval = crate::eval::typval::TypvalVval::Partial(crate::eval::typval::PartialId::from(val));
 }

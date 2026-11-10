@@ -540,11 +540,11 @@ fn lua_check_self_reference(
     }
     let mut backref = mpstack.len();
     while backref > 0 {
-        let mpval = mpstack[backref - 1];
-        let matched = match (container, mpval.data) {
-            (MPContainerRef::Dict(d1), MPConvStackData::Dict { dict: d2, .. }) => d1 == d2,
-            (MPContainerRef::List(l1), MPConvStackData::List { list: l2, .. }) => l1 == l2,
-            (MPContainerRef::Pairs(l1), MPConvStackData::Pairs { list: l2, .. }) => l1 == l2,
+        let mpval = &mpstack[backref - 1];
+        let matched = match (container, &mpval.data) {
+            (MPContainerRef::Dict(d1), &MPConvStackData::Dict { dict: d2, .. }) => d1 == d2,
+            (MPContainerRef::List(l1), &MPConvStackData::List { list: l2, .. }) => l1 == l2,
+            (MPContainerRef::Pairs(l1), &MPConvStackData::Pairs { list: l2, .. }) => l1 == l2,
             _ => false,
         };
         if matched {

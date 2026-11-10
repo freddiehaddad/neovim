@@ -145,76 +145,72 @@ pub struct TvBlob {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct PartialId(Option<std::num::NonZeroU32>);
+#[derive(Clone, Default)]
+pub struct PartialId(Option<std::rc::Rc<TvPartial>>);
+
+impl PartialEq for PartialId {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for PartialId {}
+
+impl std::fmt::Debug for PartialId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("PartialId")
+            .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+            .finish()
+    }
+}
 
 impl PartialId {
     pub const NULL: Self = Self(None);
 
     #[inline(always)]
-    pub const fn from_slot(idx: usize) -> Self {
-        Self(std::num::NonZeroU32::new((idx as u32) + 1))
-    }
-
-    #[inline(always)]
-    pub const fn is_null(self) -> bool {
+    pub const fn is_null(&self) -> bool {
         self.0.is_none()
     }
 
     #[inline(always)]
-    pub fn opt(self) -> Option<&'static TvPartial> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas()
-            .partial_arena
-            .get(idx)
-            .and_then(|s| s.as_deref())
+    pub fn opt(&self) -> Option<&TvPartial> {
+        self.0.as_deref()
     }
 
     #[inline(always)]
-    pub fn opt_mut(self) -> Option<&'static mut TvPartial> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas()
-            .partial_arena
-            .get_mut(idx)
-            .and_then(|s| s.as_deref_mut())
+    pub fn rc(&self) -> Option<std::rc::Rc<TvPartial>> {
+        self.0.clone()
     }
 
     #[inline(always)]
-    pub fn borrow(self) -> &'static TvPartial {
-        self.opt().expect("null or freed PartialId")
-    }
-
-    #[inline(always)]
-    pub fn borrow_mut(self) -> &'static mut TvPartial {
-        self.opt_mut().expect("null or freed PartialId")
+    pub fn unwrap_rc(&self) -> std::rc::Rc<TvPartial> {
+        self.0.clone().expect("null PartialId")
     }
 }
 
-impl From<&TvPartial> for PartialId {
+impl From<std::rc::Rc<TvPartial>> for PartialId {
     #[inline(always)]
-    fn from(pt: &TvPartial) -> Self {
-        pt.pt_id
+    fn from(pt: std::rc::Rc<TvPartial>) -> Self {
+        Self(Some(pt))
     }
 }
 
-impl From<&mut TvPartial> for PartialId {
+impl From<&std::rc::Rc<TvPartial>> for PartialId {
     #[inline(always)]
-    fn from(pt: &mut TvPartial) -> Self {
-        pt.pt_id
+    fn from(pt: &std::rc::Rc<TvPartial>) -> Self {
+        Self(Some(pt.clone()))
     }
 }
 
-impl From<Option<&TvPartial>> for PartialId {
+impl From<Option<std::rc::Rc<TvPartial>>> for PartialId {
     #[inline(always)]
-    fn from(opt: Option<&TvPartial>) -> Self {
-        opt.map_or(Self::NULL, |pt| pt.pt_id)
-    }
-}
-
-impl From<Option<&mut TvPartial>> for PartialId {
-    #[inline(always)]
-    fn from(opt: Option<&mut TvPartial>) -> Self {
-        opt.map_or(Self::NULL, |pt| pt.pt_id)
+    fn from(opt: Option<std::rc::Rc<TvPartial>>) -> Self {
+        Self(opt)
     }
 }
 
@@ -223,54 +219,61 @@ impl std::ops::Deref for PartialId {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        self.borrow()
+        self.opt().expect("null PartialId")
     }
 }
 
-impl std::ops::DerefMut for PartialId {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.borrow_mut()
-    }
-}
-
-#[repr(C)]
 pub struct TvPartial {
-    pub pt_refcount: i32,
-    pub pt_copy_id: i32,
-    pub pt_name: Option<std::ffi::CString>,
-    pub pt_func: crate::eval::userfunc::UfuncId,
-    pub pt_auto: bool,
-    pub pt_argv: Vec<TypVal>,
-    pub pt_dict: DictId,
-    pub pt_id: PartialId,
+    pub pt_refcount: std::cell::Cell<i32>,
+    pub pt_copy_id: std::cell::Cell<i32>,
+    pub pt_name: std::cell::OnceCell<std::ffi::CString>,
+    pub pt_func: std::cell::Cell<crate::eval::userfunc::UfuncId>,
+    pub pt_auto: std::cell::Cell<bool>,
+    pub pt_argv: std::cell::RefCell<Vec<TypVal>>,
+    pub pt_dict: std::cell::Cell<DictId>,
+}
+
+impl TvPartial {
+    #[inline]
+    pub fn name_cstr(&self) -> Option<&std::ffi::CStr> {
+        self.pt_name.get().map(std::ffi::CString::as_c_str)
+    }
+
+    #[inline]
+    pub fn set_name(&self, name: Option<std::ffi::CString>) {
+        if let Some(name) = name {
+            let _ = self.pt_name.set(name);
+        }
+    }
 }
 
 impl Default for TvPartial {
     fn default() -> Self {
         Self {
-            pt_refcount: 0,
-            pt_copy_id: 0,
-            pt_name: None,
-            pt_func: crate::eval::userfunc::UfuncId::NULL,
-            pt_auto: false,
-            pt_argv: Vec::new(),
-            pt_dict: DictId::NULL,
-            pt_id: PartialId::NULL,
+            pt_refcount: std::cell::Cell::new(0),
+            pt_copy_id: std::cell::Cell::new(0),
+            pt_name: std::cell::OnceCell::new(),
+            pt_func: std::cell::Cell::new(crate::eval::userfunc::UfuncId::NULL),
+            pt_auto: std::cell::Cell::new(false),
+            pt_argv: std::cell::RefCell::new(Vec::new()),
+            pt_dict: std::cell::Cell::new(DictId::NULL),
         }
     }
 }
 
 impl Drop for TvPartial {
     fn drop(&mut self) {
-        for tv in &mut self.pt_argv {
+        if crate::globals::g_st().exiting {
+            return;
+        }
+        for tv in self.pt_argv.get_mut() {
             tv_clear(tv);
         }
-        tv_dict_unref(self.pt_dict.opt_mut());
-        if let Some(ref name) = self.pt_name {
+        tv_dict_unref(self.pt_dict.get().opt_mut());
+        if let Some(name) = self.pt_name.get() {
             func_unref(Some(name.as_c_str()));
         } else {
-            crate::eval::userfunc::func_ptr_unref(self.pt_func.opt_mut());
+            crate::eval::userfunc::func_ptr_unref(self.pt_func.get().opt_mut());
         }
     }
 }
@@ -316,9 +319,9 @@ impl CallbackData {
     }
 
     #[inline]
-    pub const fn as_partial(&self) -> PartialId {
+    pub fn as_partial(&self) -> PartialId {
         match self {
-            Self::Partial(p) => *p,
+            Self::Partial(p) => p.clone(),
             _ => PartialId::NULL,
         }
     }
@@ -601,17 +604,17 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_partial(&self) -> PartialId {
-        match *self {
-            Self::Partial(p) => p,
+    pub fn v_partial(&self) -> PartialId {
+        match self {
+            Self::Partial(p) => p.clone(),
             _ => PartialId::NULL,
         }
     }
 
     #[inline]
-    pub fn v_partial_opt(&self) -> Option<&'static mut TvPartial> {
-        match *self {
-            Self::Partial(p) => p.opt_mut(),
+    pub fn v_partial_opt(&self) -> Option<&TvPartial> {
+        match self {
+            Self::Partial(p) => p.opt(),
             _ => None,
         }
     }
@@ -1472,8 +1475,6 @@ pub(crate) struct TypvalArenas {
     dict_numbuf: [u8; NUMBUFLEN],
     mybuf_chk: [u8; NUMBUFLEN],
     mybuf: [u8; NUMBUFLEN],
-    partial_arena: Vec<Option<Box<TvPartial>>>,
-    free_partials: Vec<usize>,
     dictitem_arena: Vec<Option<Box<Dictitem>>>,
     free_dictitems: Vec<usize>,
     dict_arena: Vec<Option<Box<TvDict>>>,
@@ -1490,8 +1491,6 @@ impl TypvalArenas {
             dict_numbuf: [0; NUMBUFLEN],
             mybuf_chk: [0; NUMBUFLEN],
             mybuf: [0; NUMBUFLEN],
-            partial_arena: Vec::new(),
-            free_partials: Vec::new(),
             dictitem_arena: Vec::new(),
             free_dictitems: Vec::new(),
             dict_arena: Vec::new(),
@@ -2932,7 +2931,7 @@ fn item_compare2(
         return 0;
     }
 
-    let partial = info.item_compare_partial;
+    let partial = info.item_compare_partial.clone();
     let func_name = if partial.is_null() {
         info.item_compare_func.as_deref().unwrap_or(c"")
     } else {
@@ -2946,7 +2945,7 @@ fn item_compare2(
     let mut rettv = tv_initial_value();
     let mut funcexe: Funcexe = Funcexe::new();
     funcexe.fe_evaluate = true;
-    funcexe.fe_partial = partial;
+    funcexe.fe_partial = partial.clone();
     funcexe.fe_selfdict = info.item_compare_selfdict;
     let ok = call_func(func_name, -1, &mut rettv, 2, &mut argv, &mut funcexe);
     tv_clear(&mut argv[0]);
@@ -3383,7 +3382,7 @@ pub fn callback_free(callback: &mut Callback) {
             func_unref(callback.data.as_funcref());
         }
         K_CALLBACK_PARTIAL => {
-            partial_unref(callback.data.as_partial().opt_mut());
+            partial_unref(callback.data.as_partial().opt());
         }
         K_CALLBACK_LUA => {
             let mut luaref = callback.data.as_luaref();
@@ -3399,10 +3398,9 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
     match cb.cb_type() {
         K_CALLBACK_PARTIAL => {
             let pt = cb.data.as_partial();
+            pt.pt_refcount.set(pt.pt_refcount.get() + 1);
             tv.v_type = VarType::VarPartial;
             tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
-
-            pt.borrow_mut().pt_refcount += 1;
         }
         K_CALLBACK_FUNCREF => {
             let funcref = cb.data.as_funcref();
@@ -3422,9 +3420,8 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
     match src.cb_type() {
         K_CALLBACK_PARTIAL => {
             let pt = src.data.as_partial();
+            pt.pt_refcount.set(pt.pt_refcount.get() + 1);
             dest.data = CallbackData::partial(pt);
-
-            pt.borrow_mut().pt_refcount += 1;
         }
         K_CALLBACK_FUNCREF => {
             let funcref = src.data.as_funcref();
@@ -3467,7 +3464,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
         }
         K_CALLBACK_PARTIAL => {
             let pt = cb.data.as_partial();
-            let s = pt.pt_name.as_ref().map_or(&[][..], |n| n.as_bytes());
+            let s = pt.name_cstr().map_or(&[][..], CStr::to_bytes);
             let prefix = b"<vim partial: ";
             let suffix = b">";
             let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
@@ -4258,32 +4255,18 @@ pub fn tv_blob_unref(b: Option<&TvBlob>) {
     }
 }
 
-/// Allocate a `TvPartial` in the module arena.
-pub fn tv_partial_alloc() -> &'static mut TvPartial {
-    let st = tv_arenas();
-    let mut pt = Box::new(TvPartial::default());
-    let idx = if let Some(idx) = st.free_partials.pop() {
-        pt.pt_id = PartialId::from_slot(idx);
-        st.partial_arena[idx] = Some(pt);
-        idx
-    } else {
-        let idx = st.partial_arena.len();
-        pt.pt_id = PartialId::from_slot(idx);
-        st.partial_arena.push(Some(pt));
-        idx
-    };
-    st.partial_arena[idx].as_deref_mut().unwrap()
+/// Allocate a `TvPartial`.
+pub fn tv_partial_alloc() -> std::rc::Rc<TvPartial> {
+    std::rc::Rc::new(TvPartial::default())
 }
 
-/// Free a `TvPartial` previously allocated by `tv_partial_alloc`.
-pub fn tv_partial_free(pt: &mut TvPartial) {
-    if let Some(nz) = pt.pt_id.0 {
-        let idx = (nz.get() - 1) as usize;
-        let st = tv_arenas();
-        let dropped = st.partial_arena[idx].take();
-        st.free_partials.push(idx);
-        drop(dropped);
+/// Clear and release references inside a `TvPartial` when its refcount reaches zero.
+pub fn tv_partial_free(pt: &TvPartial) {
+    for mut tv in pt.pt_argv.borrow_mut().drain(..) {
+        tv_clear(&mut tv);
     }
+    let dict = pt.pt_dict.replace(DictId::NULL);
+    tv_dict_unref(dict.opt_mut());
 }
 
 /// Check whether two blobs are equal.
@@ -4671,9 +4654,9 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
     tv.v_lock = VAR_UNLOCKED;
     if tv.v_type == VarType::VarPartial {
         if let Some(pt) = tv.vval.v_partial_opt()
-            && pt.pt_refcount > 1
+            && pt.pt_refcount.get() > 1
         {
-            pt.pt_refcount -= 1;
+            pt.pt_refcount.set(pt.pt_refcount.get() - (1));
             tv.vval = crate::eval::typval::TypvalVval::Partial(PartialId::NULL);
             return true;
         }
@@ -4686,14 +4669,14 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
 
 #[inline]
 fn nothing_conv_func_end(pt: PartialId, copy_id: i32) {
-    let Some(pt) = pt.opt_mut() else {
+    let Some(pt) = pt.opt() else {
         return;
     };
-    let dict = pt.pt_dict;
+    let dict = pt.pt_dict.get();
     debug_assert!(dict.is_null() || dict.dv_copy_id == copy_id);
-    pt.pt_dict = DictId::NULL;
-    pt.pt_argv.clear();
-    debug_assert!(pt.pt_refcount <= 1);
+    pt.pt_dict.set(DictId::NULL);
+    pt.pt_argv.borrow_mut().clear();
+    debug_assert!(pt.pt_refcount.get() <= 1);
     partial_unref(Some(pt));
 }
 
@@ -4866,7 +4849,8 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 *li = cur_li.li_next;
                 &raw mut cur_li.li_tv
             }
-            MPConvStackData::Partial { stage, mut pt } => {
+            MPConvStackData::Partial { stage, ref pt } => {
+                let pt = pt.clone();
                 match stage {
                     MPConvPartialStage::Args => {
                         if let MPConvStackData::Partial {
@@ -4876,14 +4860,11 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         {
                             *stage_ref = MPConvPartialStage::SelfDict;
                         }
-                        if !pt.is_null() && !pt.pt_argv.is_empty() {
+                        if !pt.is_null() && !pt.pt_argv.borrow().is_empty() {
+                            let todo = pt.pt_argv.borrow().len();
                             mpstack.push(MPConvStackVal {
                                 saved_copy_id: copy_id - 1,
-                                data: MPConvStackData::PartialList {
-                                    pt,
-                                    idx: 0,
-                                    todo: pt.pt_argv.len(),
-                                },
+                                data: MPConvStackData::PartialList { pt, idx: 0, todo },
                             });
                         }
                     }
@@ -4898,11 +4879,11 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         let mut dict = if pt.is_null() {
                             DictId::NULL
                         } else {
-                            pt.pt_dict
+                            pt.pt_dict.get()
                         };
                         if !dict.is_null() {
                             if dict.dv_hashtab.ht_used == 0 {
-                                pt.pt_dict = DictId::NULL;
+                                pt.pt_dict.set(DictId::NULL);
                                 tv_dict_unref(dict.opt_mut());
                                 continue;
                             }
@@ -4910,7 +4891,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                             if saved_copy_id == copy_id {
                                 continue;
                             }
-                            pt.pt_dict = DictId::NULL;
+                            pt.pt_dict.set(DictId::NULL);
                             if dict.dv_refcount > 1 {
                                 dict.dv_refcount -= 1;
                                 continue;
@@ -4938,7 +4919,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 continue;
             }
             MPConvStackData::PartialList {
-                mut pt,
+                ref pt,
                 ref mut idx,
                 ref mut todo,
             } => {
@@ -4949,7 +4930,11 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 let cur_idx = *idx;
                 *idx += 1;
                 *todo -= 1;
-                &raw mut pt.pt_argv[cur_idx]
+                let mut arg_tv = std::mem::take(&mut pt.pt_argv.borrow_mut()[cur_idx]);
+                if !nothing_convert_one_value(&mut mpstack, &mut arg_tv, copy_id) {
+                    return false;
+                }
+                continue;
             }
             MPConvStackData::Pairs { .. } => unreachable!(),
         })
@@ -4989,7 +4974,7 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
         }
         VarType::VarPartial => {
             if let Some(pt) = to.vval.v_partial_opt() {
-                pt.pt_refcount += 1;
+                pt.pt_refcount.set(pt.pt_refcount.get() + (1));
             }
         }
         VarType::VarBlob => {
