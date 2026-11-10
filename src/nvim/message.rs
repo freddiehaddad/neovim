@@ -48,7 +48,7 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, KS_MODIFIER, KeyChord, MOD_MASK_SHIFT, NL, TAB, get_special_key,
+    K_X2MOUSE, KS_MODIFIER, KeyChord, MOD_MASK_SHIFT, NL, SpecialKeyBuf, TAB, get_special_key,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::main_init::input_unanswerable;
@@ -165,7 +165,6 @@ struct MessageState {
     msg_source_recursive: bool,
     do_clear_hist_temp: bool,
     redir_col: i32,
-    str2_special_buf: [u8; 7],
     msgchunks: Vec<Msgchunk>,
     do_clear_sb_text: SbClear,
     do_more_prompt_entered: bool,
@@ -209,7 +208,6 @@ impl MessageState {
             msg_source_recursive: false,
             do_clear_hist_temp: true,
             redir_col: 0,
-            str2_special_buf: [0; 7],
             msgchunks: Vec::new(),
             do_clear_sb_text: SbClear::SbClearNone,
             do_more_prompt_entered: false,
@@ -2185,7 +2183,7 @@ pub fn msg_outtrans_len(msgstr: &[u8], mut len: i32, hl_id: i32, hist: bool) -> 
                 }
                 plain_start = idx + mb_l as usize;
                 msg_puts_hl(
-                    transchar_buf(None, c),
+                    &transchar_buf(None, c),
                     if hl_id == 0 { HLF_8 } else { hl_id },
                     false,
                 );
@@ -2205,7 +2203,7 @@ pub fn msg_outtrans_len(msgstr: &[u8], mut len: i32, hl_id: i32, hist: bool) -> 
                     );
                 }
                 plain_start = idx + 1;
-                msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
+                msg_puts_hl(&s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
                 retval += s.to_bytes().len() as i32;
             } else {
                 retval += 1;
@@ -2263,20 +2261,21 @@ pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
     while !rem.is_empty() {
         let mut text = if (rem.len() == strstart.len() || rem.len() == 1) && rem[0] == b' ' {
             rem = &rem[1..];
-            c"<Space>"
+            SpecialKeyBuf::from_cstr(c"<Space>")
         } else {
             str2special(&mut rem, from, K_FALSE, None)
         };
         if text.to_bytes().len() == 1 {
-            text = transchar_byte_buf(None, i32::from(text.to_bytes()[0]));
+            text =
+                SpecialKeyBuf::from_cstr(&transchar_byte_buf(None, i32::from(text.to_bytes()[0])));
         }
-        let len = vim_strsize(text);
+        let len = vim_strsize(&text);
         if maxlen > 0 && retval + len >= maxlen {
             break;
         }
         // Highlight special keys
         msg_puts_hl(
-            text,
+            &text,
             if len > 1 && crate::mbyte::utfc_slice2len(text.to_bytes()) <= 1 {
                 hl_id
             } else {
@@ -2338,17 +2337,18 @@ pub fn str2special(
     replace_spaces: bool,
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
-) -> &'static CStr {
+) -> SpecialKeyBuf {
     let str_bytes = crate::memory::bytes_until_nul(sp);
     let mut rem = str_bytes;
     if let Some(p) = mb_unescape(&mut rem) {
         *sp = rem;
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
-            data.key = NvimString::from_cstr(p);
-            data.key_alt = NvimString::new();
+            data.key.clear();
+            data.key.extend_from_slice(p.to_bytes());
+            data.key_alt.clear();
         }
-        return p;
+        return SpecialKeyBuf::from_cstr(&p);
     }
 
     let mut c = str_bytes.first().copied().unwrap_or(0) as i32;
@@ -2395,24 +2395,24 @@ pub fn str2special(
         );
     }
 
-    let buf_slice = NvimString::from_bytes_len(&msg_st().str2_special_buf, 1);
-    if data.is_some() {
-        data.as_deref_mut().unwrap().mods = 0;
+    if let Some(d) = data {
+        d.mods = 0;
         if (b'A' as i32..=b'Z' as i32).contains(&c) {
-            data.as_deref_mut().unwrap().key_mem = (c + 32) as u8;
-            data.as_deref_mut().unwrap().key =
-                NvimString::from_bytes(std::slice::from_ref(&data.as_deref_mut().unwrap().key_mem));
-            data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
-            data.as_deref_mut().unwrap().key_alt = buf_slice;
+            d.key.clear();
+            d.key.push((c + 32) as u8);
+            d.mods |= i32::from(MOD_MASK_SHIFT);
+            d.key_alt.clear();
+            d.key_alt.push(c as u8);
         } else {
-            data.as_deref_mut().unwrap().key = buf_slice;
-            data.unwrap().key_alt = NvimString::new();
+            d.key.clear();
+            d.key.push(c as u8);
+            d.key_alt.clear();
         }
     }
 
-    msg_st().str2_special_buf[0] = c as u8;
-    msg_st().str2_special_buf[1] = 0;
-    CStr::from_bytes_until_nul(&msg_st().borrow_mut().str2_special_buf[..2]).unwrap_or(c"")
+    let mut out = SpecialKeyBuf::new();
+    out.0[0] = c as u8;
+    out
 }
 
 /// print line for :print or :list command
@@ -2424,6 +2424,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
     let mut sc_extra: Schar = 0;
     let mut sc_final: Schar = 0;
     let mut p_extra: &[u8] = &[];
+    let mut tc_buf: crate::charset::TransCharBuf;
     let mut hl_id = 0;
     let mut lead_idx: Option<usize> = None;
     let mut in_multispace: bool;
@@ -2552,7 +2553,8 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                     let n = ascii2cells(c);
                     if n > 1 {
                         n_extra = n - 1;
-                        let tc = transchar_byte_buf(None, i32::from(c as u8)).to_bytes();
+                        tc_buf = transchar_byte_buf(None, i32::from(c as u8));
+                        let tc = tc_buf.to_bytes();
                         sc = schar_from_ascii(tc.first().copied().unwrap_or(0));
                         p_extra = &tc[1.min(tc.len())..];
                         hl_id = HLF_0;

@@ -910,7 +910,7 @@ fn illegal_char<'a>(errbuf: Option<CharBuf>, c: i32) -> Option<&'a CStr> {
     if errbuf.is_none() {
         return Some(c"");
     }
-    opt_error(errbuf, c"E539: Illegal character <%s>", transchar(c))
+    opt_error(errbuf, c"E539: Illegal character <%s>", &transchar(c))
 }
 
 /// Check string options in a buffer for NULL value.
@@ -2484,7 +2484,7 @@ pub fn validate_shada(args: &mut Optset) -> Option<&'static CStr> {
                     return opt_error(
                         errbuf,
                         c"E526: Missing number after <%s>",
-                        transchar_byte(i32::from(b0)),
+                        &transchar_byte(i32::from(b0)),
                     );
                 } else {
                     return Some(c"");

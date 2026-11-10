@@ -849,27 +849,26 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
 ];
 
 struct MbyteModuleState {
-    cw_table: Vec<CwInterval>,
-    mb_unescape_buf: [u8; 6],
-    iconv_working: WorkingStatus,
+    cw_table: std::cell::RefCell<Vec<CwInterval>>,
+    iconv_working: std::cell::Cell<WorkingStatus>,
 }
 
 impl MbyteModuleState {
     const fn new() -> Self {
         Self {
-            cw_table: Vec::new(),
-            mb_unescape_buf: [0; 6],
-            iconv_working: WorkingStatus::KUnknown,
+            cw_table: std::cell::RefCell::new(Vec::new()),
+            iconv_working: std::cell::Cell::new(WorkingStatus::KUnknown),
         }
     }
 }
 
-static MBYTE_STATE: crate::globals::GlobalState<MbyteModuleState> =
-    crate::globals::GlobalState::new(MbyteModuleState::new());
+std::thread_local! {
+    static MBYTE_STATE: MbyteModuleState = const { MbyteModuleState::new() };
+}
 
 #[inline]
-fn mbyte_st() -> crate::globals::GraphPtr<MbyteModuleState> {
-    MBYTE_STATE.handle()
+fn mbyte_st<R>(f: impl FnOnce(&MbyteModuleState) -> R) -> R {
+    MBYTE_STATE.with(f)
 }
 
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -2850,8 +2849,9 @@ pub fn mb_charlen(mut rem: &[u8]) -> i32 {
     count
 }
 
-pub fn mb_unescape(s: &mut &[u8]) -> Option<&'static CStr> {
+pub fn mb_unescape(s: &mut &[u8]) -> Option<crate::strings::InlineCStr<6>> {
     let bytes = *s;
+    let mut buf = crate::strings::InlineCStr::<6>::new();
     let mut buf_idx = 0usize;
     let mut str_idx = 0usize;
 
@@ -2860,23 +2860,23 @@ pub fn mb_unescape(s: &mut &[u8]) -> Option<&'static CStr> {
             && bytes.get(str_idx + 1) == Some(&KS_SPECIAL)
             && bytes.get(str_idx + 2) == Some(&KE_FILLER)
         {
-            mbyte_st().mb_unescape_buf[buf_idx] = K_SPECIAL;
+            buf.0[buf_idx] = K_SPECIAL;
             buf_idx += 1;
             str_idx += 2;
         } else if bytes[str_idx] == K_SPECIAL {
             break;
         } else {
-            mbyte_st().mb_unescape_buf[buf_idx] = bytes[str_idx];
+            buf.0[buf_idx] = bytes[str_idx];
             buf_idx += 1;
         }
-        mbyte_st().mb_unescape_buf[buf_idx] = 0;
+        buf.0[buf_idx] = 0;
 
-        if utf_slice2len(&mbyte_st().mb_unescape_buf[..buf_idx]) > 1 {
+        if utf_slice2len(&buf.0[..buf_idx]) > 1 {
             *s = &bytes[str_idx + 1..];
-            return CStr::from_bytes_until_nul(&mbyte_st().borrow_mut().mb_unescape_buf).ok();
+            return Some(buf);
         }
 
-        if mbyte_st().mb_unescape_buf[0] < 128 {
+        if buf.0[0] < 128 {
             break;
         }
         str_idx += 1;
@@ -3006,15 +3006,15 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
 
 pub fn my_iconv_open(to: &CStr, from: &CStr) -> Option<usize> {
     const ICONV_TESTLEN: usize = 400;
-    if mbyte_st().iconv_working == WorkingStatus::KBroken {
+    if mbyte_st(|st| st.iconv_working.get()) == WorkingStatus::KBroken {
         return None;
     }
     let fd = call_iconv_open(enc_skip(to), enc_skip(from));
-    if fd != -1 && mbyte_st().iconv_working == WorkingStatus::KUnknown {
+    if fd != -1 && mbyte_st(|st| st.iconv_working.get()) == WorkingStatus::KUnknown {
         let mut tobuf = [0u8; ICONV_TESTLEN];
         let mut to_rem: &mut [u8] = &mut tobuf;
         call_iconv(fd, None, &mut to_rem);
-        mbyte_st().iconv_working = WorkingStatus::Working;
+        mbyte_st(|st| st.iconv_working.set(WorkingStatus::Working));
     }
     (fd != -1).then_some(fd as usize)
 }
@@ -3293,19 +3293,21 @@ pub fn string_convert_ext(
 }
 
 fn cw_value(c: i32) -> i32 {
-    let table = mbyte_st().borrow_mut().cw_table.as_slice();
-    let c64 = i64::from(c);
-    table
-        .binary_search_by(|entry| {
-            if entry.last < c64 {
-                std::cmp::Ordering::Less
-            } else if entry.first > c64 {
-                std::cmp::Ordering::Greater
-            } else {
-                std::cmp::Ordering::Equal
-            }
-        })
-        .map_or(0, |idx| i32::from(table[idx].width))
+    mbyte_st(|st| {
+        let table = st.cw_table.borrow();
+        let c64 = i64::from(c);
+        table
+            .binary_search_by(|entry| {
+                if entry.last < c64 {
+                    std::cmp::Ordering::Less
+                } else if entry.first > c64 {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+            .map_or(0, |idx| i32::from(table[idx].width))
+    })
 }
 
 pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -3379,11 +3381,11 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
         }
     }
 
-    let cw_table_save = std::mem::replace(&mut mbyte_st().cw_table, table);
+    let cw_table_save = mbyte_st(|st| std::mem::replace(&mut *st.cw_table.borrow_mut(), table));
 
     if let Some(error) = check_chars_options() {
         emsg(error);
-        mbyte_st().cw_table = cw_table_save;
+        mbyte_st(|st| *st.cw_table.borrow_mut() = cw_table_save);
         return;
     }
 
@@ -3392,9 +3394,9 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 }
 
 pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let table = mbyte_st().borrow_mut().cw_table.as_slice();
+    let table = mbyte_st(|st| st.cw_table.borrow().clone());
     tv_list_alloc_ret(rettv, table.len() as isize);
-    for &entry_data in table {
+    for &entry_data in &table {
         let entry = tv_list_alloc(3);
         tv_list_append_number(&mut *entry, entry_data.first);
         tv_list_append_number(&mut *entry, entry_data.last);

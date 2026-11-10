@@ -35,8 +35,8 @@ use crate::cmdexpand::{
     wildmenu_cleanup, wildmenu_process_key, wildmenu_translate_key,
 };
 use crate::cmdhist::{
-    HIST_INVALID, HIST_SEARCH, add_to_history, get_hisidx, get_hislen, get_histentry,
-    hist_char2type, init_history,
+    HIST_INVALID, HIST_SEARCH, add_to_history, get_hisidx, get_hislen, hist_char2type,
+    init_history, with_histentry,
 };
 use crate::context::{CtxSwitch, K_CTX_KEEP_DIRS, ctx_restore, ctx_switch};
 use crate::cursor::{CursorPos, clearpos, coladvance, equalpos, gchar_cursor, lt};
@@ -2237,54 +2237,56 @@ fn command_line_left_right_mouse(s: &mut CommandLineState) {
 
 fn command_line_next_histidx(s: &mut CommandLineState, next_match: bool) {
     let hisidx = get_hisidx(s.histype);
-    let hist = get_histentry(s.histype);
-    loop {
-        if !next_match {
-            if s.hiscnt == get_hislen() {
-                s.hiscnt = hisidx;
-            } else if s.hiscnt == 0 && hisidx != get_hislen() - 1 {
-                s.hiscnt = get_hislen() - 1;
-            } else if s.hiscnt != hisidx + 1 {
-                s.hiscnt -= 1;
+    let hislen = get_hislen();
+    with_histentry(s.histype, |hist| {
+        loop {
+            if !next_match {
+                if s.hiscnt == hislen {
+                    s.hiscnt = hisidx;
+                } else if s.hiscnt == 0 && hisidx != hislen - 1 {
+                    s.hiscnt = hislen - 1;
+                } else if s.hiscnt != hisidx + 1 {
+                    s.hiscnt -= 1;
+                } else {
+                    s.hiscnt = s.save_hiscnt;
+                    break;
+                }
             } else {
+                if s.hiscnt == hisidx {
+                    s.hiscnt = hislen;
+                    break;
+                }
+
+                if s.hiscnt == hislen {
+                    break;
+                }
+
+                if s.hiscnt == hislen - 1 {
+                    s.hiscnt = 0;
+                } else {
+                    s.hiscnt += 1;
+                }
+            }
+
+            if s.hiscnt < 0 || hist[s.hiscnt as usize].hisstr.is_none() {
                 s.hiscnt = s.save_hiscnt;
                 break;
             }
-        } else {
-            if s.hiscnt == hisidx {
-                s.hiscnt = get_hislen();
+
+            let lookfor_bytes = s.lookfor.as_ref().map_or(&b""[..], |lf| lf.as_bytes());
+            let his_bytes = hist[s.hiscnt as usize]
+                .hisstr_cstr()
+                .map_or(&b""[..], CStr::to_bytes);
+            let lflen = s.lookforlen as usize;
+            if (s.c != K_UP && s.c != K_DOWN)
+                || s.hiscnt == s.save_hiscnt
+                || his_bytes[..lflen.min(his_bytes.len())]
+                    == lookfor_bytes[..lflen.min(lookfor_bytes.len())]
+            {
                 break;
             }
-
-            if s.hiscnt == get_hislen() {
-                break;
-            }
-
-            if s.hiscnt == get_hislen() - 1 {
-                s.hiscnt = 0;
-            } else {
-                s.hiscnt += 1;
-            }
         }
-
-        if s.hiscnt < 0 || hist[s.hiscnt as usize].hisstr.is_none() {
-            s.hiscnt = s.save_hiscnt;
-            break;
-        }
-
-        let lookfor_bytes = s.lookfor.as_ref().map_or(&b""[..], |lf| lf.as_bytes());
-        let his_bytes = hist[s.hiscnt as usize]
-            .hisstr_cstr()
-            .map_or(&b""[..], CStr::to_bytes);
-        let lflen = s.lookforlen as usize;
-        if (s.c != K_UP && s.c != K_DOWN)
-            || s.hiscnt == s.save_hiscnt
-            || his_bytes[..lflen.min(his_bytes.len())]
-                == lookfor_bytes[..lflen.min(lookfor_bytes.len())]
-        {
-            break;
-        }
-    }
+    });
 }
 
 /// Handle the Up, Down, Page Up, Page down, CTRL-N and CTRL-P key in the
@@ -2317,15 +2319,16 @@ fn command_line_browse_history(s: &mut CommandLineState) -> i32 {
         dealloc_cmdbuff();
 
         s.xpc.xp_context = EXPAND_NOTHING;
+        let entry_owned;
         let (p_cstr, plen, is_lookfor, sep) = if s.hiscnt == get_hislen() {
             (s.lookfor.as_deref().unwrap_or(c""), s.lookforlen, true, 0u8)
         } else {
-            let entry = &get_histentry(s.histype)[s.hiscnt as usize];
+            entry_owned = with_histentry(s.histype, |hist| hist[s.hiscnt as usize].clone());
             (
-                entry.hisstr_cstr().unwrap_or(c""),
-                entry.hisstrlen() as i32,
+                entry_owned.hisstr_cstr().unwrap_or(c""),
+                entry_owned.hisstrlen() as i32,
                 false,
-                entry.sep,
+                entry_owned.sep,
             )
         };
 

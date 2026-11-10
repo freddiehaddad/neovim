@@ -1,7 +1,6 @@
 //! Keycode definitions and `<key>` notation translation (`src/nvim/keycodes.c`).
 #![forbid(unsafe_code)]
 
-use crate::api::private::validate::NvimString;
 use crate::charset::{ascii_isalpha, is_special, transchar, vim_isprintc, vim_str2nr};
 use crate::errors::{E_INVARG, E_USINGSID};
 use crate::eval::vars::{Scid, get_var_value};
@@ -387,22 +386,19 @@ pub struct ModMaskTable {
     pub name: u8,
 }
 
-#[repr(C)]
 #[derive(Default)]
 pub struct KeyChord {
     pub mods: i32,
-    pub key_mem: u8,
-    pub key: NvimString,
-    pub key_alt: NvimString,
+    pub key: Vec<u8>,
+    pub key_alt: Vec<u8>,
 }
 
 impl KeyChord {
     pub const fn new() -> Self {
         Self {
             mods: 0,
-            key_mem: 0,
-            key: NvimString::new(),
-            key_alt: NvimString::new(),
+            key: Vec::new(),
+            key_alt: Vec::new(),
         }
     }
 }
@@ -2140,8 +2136,7 @@ pub fn handle_x_keys(key: i32) -> i32 {
     }
 }
 
-static SPECIAL_KEY_STRING: crate::globals::GlobalState<[u8; MAX_KEY_NAME_LEN + 1]> =
-    crate::globals::GlobalState::new([0; MAX_KEY_NAME_LEN + 1]);
+pub type SpecialKeyBuf = crate::strings::InlineCStr<{ MAX_KEY_NAME_LEN + 1 }>;
 
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
 /// (`get_special_key`).
@@ -2149,11 +2144,11 @@ pub fn get_special_key(
     mut c: i32,
     mut modifiers: i32,
     mut data: Option<&mut KeyChord>,
-) -> &'static CStr {
-    let mut string_buf = SPECIAL_KEY_STRING.handle();
+) -> SpecialKeyBuf {
+    let mut string_buf = SpecialKeyBuf::new();
     let mut is_ascii_ctrl = false;
 
-    string_buf[0] = b'<';
+    string_buf.0[0] = b'<';
     let mut idx: usize = 1;
 
     // Key that stands for a normal character.
@@ -2186,9 +2181,9 @@ pub fn get_special_key(
         let mask = i32::from(MOD_MASK_TABLE[i].mod_mask);
         let flag = i32::from(MOD_MASK_TABLE[i].mod_flag);
         if (modifiers & mask) == flag {
-            string_buf[idx] = MOD_MASK_TABLE[i].name;
+            string_buf.0[idx] = MOD_MASK_TABLE[i].name;
             idx += 1;
-            string_buf[idx] = b'-';
+            string_buf.0[idx] = b'-';
             idx += 1;
 
             if let Some(ref mut d) = data {
@@ -2201,55 +2196,55 @@ pub fn get_special_key(
     if table_idx < 0 {
         // unknown special key, may output t_xx
         if is_special(c) {
+            let termcap = [b't', b'_', key2termcap0(c) as u8, key2termcap1(c) as u8];
+            string_buf.0[idx..idx + 4].copy_from_slice(&termcap);
             if let Some(ref mut d) = data {
-                d.key_alt = NvimString::new();
-                d.key = NvimString::from_bytes_len(&string_buf[idx..], 4);
+                d.key_alt.clear();
+                d.key.clear();
+                d.key.extend_from_slice(&termcap);
             }
-
-            string_buf[idx..idx + 4].copy_from_slice(&[
-                b't',
-                b'_',
-                key2termcap0(c) as u8,
-                key2termcap1(c) as u8,
-            ]);
             idx += 4;
         } else {
             // Not a special key, only modifiers, output directly.
             let len = utf_char2len(c);
             if len == 1 && vim_isprintc(c) {
+                string_buf.0[idx] = c as u8;
                 if let Some(ref mut d) = data {
                     if (b'A' as i32..=b'Z' as i32).contains(&c) {
-                        d.key_mem = c as u8 + 32;
-                        d.key = NvimString::from_bytes(std::slice::from_ref(&d.key_mem));
+                        d.key.clear();
+                        d.key.push(c as u8 + 32);
                         if !is_ascii_ctrl {
                             d.mods |= i32::from(MOD_MASK_SHIFT);
                         }
-                        d.key_alt = NvimString::from_bytes_len(&string_buf[idx..], len as usize);
+                        d.key_alt.clear();
+                        d.key_alt.push(c as u8);
                     } else {
-                        d.key_alt = NvimString::new();
-                        d.key = NvimString::from_bytes_len(&string_buf[idx..], len as usize);
+                        d.key_alt.clear();
+                        d.key.clear();
+                        d.key.push(c as u8);
                     }
                 }
-
-                string_buf[idx] = c as u8;
                 idx += 1;
             } else if len > 1 {
+                let n = utf_char2slice(c, &mut string_buf.0[idx..]);
                 if let Some(ref mut d) = data {
-                    d.key = NvimString::from_bytes_len(&string_buf[idx..], len as usize);
-                    d.key_alt = NvimString::new();
+                    d.key.clear();
+                    d.key
+                        .extend_from_slice(&string_buf.0[idx..idx + (len as usize).min(n)]);
+                    d.key_alt.clear();
                 }
-
-                idx += utf_char2slice(c, &mut string_buf[idx..]);
+                idx += n;
             } else {
-                let tc_bytes = transchar(c).to_bytes();
+                let tc = transchar(c);
+                let tc_bytes = tc.to_bytes();
 
+                string_buf.0[idx..idx + tc_bytes.len()].copy_from_slice(tc_bytes);
                 if let Some(ref mut d) = data {
-                    d.key_mem = c as u8;
-                    d.key = NvimString::from_bytes(std::slice::from_ref(&d.key_mem));
-                    d.key_alt = NvimString::from_bytes_len(&string_buf[idx..], tc_bytes.len());
+                    d.key.clear();
+                    d.key.push(c as u8);
+                    d.key_alt.clear();
+                    d.key_alt.extend_from_slice(tc_bytes);
                 }
-
-                string_buf[idx..idx + tc_bytes.len()].copy_from_slice(tc_bytes);
                 idx += tc_bytes.len();
             }
         }
@@ -2257,33 +2252,34 @@ pub fn get_special_key(
         // use name of special key
         let entry = &KEY_NAMES_TABLE[table_idx as usize];
         let s_bytes = entry.name.to_bytes();
-        let s_str = NvimString::from_cstr(entry.name);
 
         if let Some(ref mut d) = data {
             if (0..=0x7f).contains(&c) {
-                d.key_mem = c as u8;
-                d.key = NvimString::from_bytes(std::slice::from_ref(&d.key_mem));
-                d.key_alt = s_str;
+                d.key.clear();
+                d.key.push(c as u8);
+                d.key_alt.clear();
+                d.key_alt.extend_from_slice(s_bytes);
             } else {
-                d.key = s_str;
-                d.key_alt = NvimString::new();
+                d.key.clear();
+                d.key.extend_from_slice(s_bytes);
+                d.key_alt.clear();
             }
         }
 
         if s_bytes.len() + idx + 2 <= MAX_KEY_NAME_LEN {
-            string_buf[idx..idx + s_bytes.len()].copy_from_slice(s_bytes);
+            string_buf.0[idx..idx + s_bytes.len()].copy_from_slice(s_bytes);
             idx += s_bytes.len();
         }
     }
-    string_buf[idx] = b'>';
+    string_buf.0[idx] = b'>';
     idx += 1;
-    string_buf[idx] = 0;
+    string_buf.0[idx] = 0;
 
-    CStr::from_bytes_until_nul(string_buf.borrow()).unwrap_or(c"")
+    string_buf
 }
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
-pub fn get_special_key_name(c: i32, modifiers: i32) -> &'static CStr {
+pub fn get_special_key_name(c: i32, modifiers: i32) -> SpecialKeyBuf {
     get_special_key(c, modifiers, None)
 }
 

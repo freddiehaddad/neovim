@@ -2886,9 +2886,10 @@ pub fn add_to_showcmd(c: i32) -> bool {
     }
 
     let mut mbyte_buf: [u8; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
+    let tc;
     let p_cstr: &CStr = if c <= 0x7f || !vim_isprintc(c) {
-        let tc = transchar(c);
-        if tc.to_bytes() == b" " { c"<20>" } else { tc }
+        tc = transchar(c);
+        if tc.to_bytes() == b" " { c"<20>" } else { &tc }
     } else {
         let len = utf_char2bytes(c, &mut mbyte_buf) as usize;
         mbyte_buf[len] = 0;

@@ -1649,12 +1649,14 @@ pub fn do_put(
         }
 
         if y_size == 0 || !y_allocated {
+            let tc;
             semsg!(
                 gettext(c"E353: Nothing in register %s"),
                 if regname == 0 {
                     c"\""
                 } else {
-                    transchar(regname)
+                    tc = transchar(regname);
+                    &tc
                 },
             );
             break 'end;

@@ -1801,7 +1801,8 @@ fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
         allow_modmask = 1;
     }
     if is_special_fn(c) || (g_st().mod_mask != 0 && allow_modmask != 0) {
-        let p = get_special_key_name(c, g_st().mod_mask).to_bytes();
+        let p_buf = get_special_key_name(c, g_st().mod_mask);
+        let p = p_buf.to_bytes();
         let len = p.len();
         c = i32::from(p[len - 1]);
         if len > 2 {

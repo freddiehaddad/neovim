@@ -716,14 +716,14 @@ extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
         }
         lua_setfield(lstate, -2, c"mod");
 
-        lua_push_bytes(lstate, data.key.as_bytes());
+        lua_push_bytes(lstate, &data.key);
         lua_setfield(lstate, -2, c"key");
 
-        lua_pushstring(lstate, keys);
+        lua_pushstring(lstate, &keys);
         lua_setfield(lstate, -2, c"keys");
 
-        if data.key_alt.size != 0 {
-            lua_push_bytes(lstate, data.key_alt.as_bytes());
+        if !data.key_alt.is_empty() {
+            lua_push_bytes(lstate, &data.key_alt);
             lua_setfield(lstate, -2, c"key_alt");
         }
 

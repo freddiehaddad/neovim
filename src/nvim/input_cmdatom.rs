@@ -622,7 +622,7 @@ fn atom_key_name(c: i32) -> std::ffi::CString {
         return std::ffi::CString::default();
     }
     if is_special(c) || c < b' ' as i32 {
-        return get_special_key_name(c, 0).to_owned();
+        return get_special_key_name(c, 0).as_cstr().to_owned();
     }
     if c == DEL {
         return c"<Del>".to_owned();

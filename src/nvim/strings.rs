@@ -1324,8 +1324,80 @@ impl<'a> FmtVal<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct InlineCStr<const N: usize>(pub [u8; N]);
+
+impl<const N: usize> InlineCStr<N> {
+    #[inline(always)]
+    pub const fn new() -> Self {
+        Self([0; N])
+    }
+
+    #[inline(always)]
+    pub const fn from_cstr(s: &CStr) -> Self {
+        let bytes = s.to_bytes();
+        let mut buf = [0u8; N];
+        let max_len = if bytes.len() < N - 1 {
+            bytes.len()
+        } else {
+            N - 1
+        };
+        let mut i = 0;
+        while i < max_len {
+            buf[i] = bytes[i];
+            i += 1;
+        }
+        Self(buf)
+    }
+
+    #[inline(always)]
+    pub const fn as_cstr(&self) -> &CStr {
+        match CStr::from_bytes_until_nul(&self.0) {
+            Ok(s) => s,
+            Err(_) => c"",
+        }
+    }
+}
+
+impl<const N: usize> Default for InlineCStr<N> {
+    #[inline(always)]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const N: usize> std::ops::Deref for InlineCStr<N> {
+    type Target = CStr;
+
+    #[inline(always)]
+    fn deref(&self) -> &CStr {
+        self.as_cstr()
+    }
+}
+
+impl<const N: usize> AsRef<CStr> for InlineCStr<N> {
+    #[inline(always)]
+    fn as_ref(&self) -> &CStr {
+        self.as_cstr()
+    }
+}
+
 pub trait IntoFmtVal<'a> {
     fn into_fmt_val(self) -> FmtVal<'a>;
+}
+
+impl<'a, const N: usize> IntoFmtVal<'a> for &'a InlineCStr<N> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
+impl<'a, const N: usize> IntoFmtVal<'a> for &&'a InlineCStr<N> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {

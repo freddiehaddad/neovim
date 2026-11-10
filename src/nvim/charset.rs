@@ -166,27 +166,26 @@ pub(crate) const VARNUMBER_MIN: Varnumber = i64::MIN;
 const UVARNUMBER_MAX: Uvarnumber = u64::MAX;
 
 struct CharsetModuleState {
-    isf_chartab: [u64; 4],
-    isi_chartab: [u64; 4],
-    transchar_charbuf: [u8; 11],
+    isf_chartab: std::cell::Cell<[u64; 4]>,
+    isi_chartab: std::cell::Cell<[u64; 4]>,
 }
 
 impl CharsetModuleState {
     const fn new() -> Self {
         Self {
-            isf_chartab: [0; 4],
-            isi_chartab: [0; 4],
-            transchar_charbuf: [0; 11],
+            isf_chartab: std::cell::Cell::new([0; 4]),
+            isi_chartab: std::cell::Cell::new([0; 4]),
         }
     }
 }
 
-static CHARSET_STATE: crate::globals::GlobalState<CharsetModuleState> =
-    crate::globals::GlobalState::new(CharsetModuleState::new());
+std::thread_local! {
+    static CHARSET_STATE: CharsetModuleState = const { CharsetModuleState::new() };
+}
 
 #[inline]
-fn charset_st() -> crate::globals::GraphPtr<CharsetModuleState> {
-    CHARSET_STATE.handle()
+fn charset_st<R>(f: impl FnOnce(&CharsetModuleState) -> R) -> R {
+    CHARSET_STATE.with(f)
 }
 
 #[inline]
@@ -243,28 +242,20 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
 }
 
 pub fn init_isf_chartab() -> bool {
-    let save_chartab = charset_st().isf_chartab;
-    charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-    if !parse_isopt(
-        opt_vars().p_isf.as_bytes(),
-        Some(&mut charset_st().isf_chartab),
-    ) {
-        charset_st().isf_chartab = save_chartab;
+    let mut tab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
+    if !parse_isopt(opt_vars().p_isf.as_bytes(), Some(&mut tab)) {
         return false;
     }
+    charset_st(|st| st.isf_chartab.set(tab));
     true
 }
 
 pub fn init_isi_chartab() -> bool {
-    let save_chartab = charset_st().isi_chartab;
-    charset_st().isi_chartab = [0; 4];
-    if !parse_isopt(
-        opt_vars().p_isi.as_bytes(),
-        Some(&mut charset_st().isi_chartab),
-    ) {
-        charset_st().isi_chartab = save_chartab;
+    let mut tab = [0; 4];
+    if !parse_isopt(opt_vars().p_isi.as_bytes(), Some(&mut tab)) {
         return false;
     }
+    charset_st(|st| st.isi_chartab.set(tab));
     true
 }
 
@@ -441,7 +432,8 @@ pub fn transstr_buf(mut bytes: &[u8], buf_slice: &mut [u8], untab: bool) -> usiz
         } else {
             let c = bytes[0];
             bytes = &bytes[1..];
-            let tb = transchar_byte(i32::from(c)).to_bytes();
+            let tb_buf = transchar_byte(i32::from(c));
+            let tb = tb_buf.to_bytes();
             if out + tb.len() > max_out {
                 break;
             }
@@ -558,42 +550,42 @@ pub fn str_foldcase(src: &[u8], mut buf: Option<&mut [u8]>) -> Option<CString> {
     }
 }
 
-pub fn transchar(c: i32) -> &'static std::ffi::CStr {
+pub type TransCharBuf = crate::strings::InlineCStr<11>;
+
+pub fn transchar(c: i32) -> TransCharBuf {
     transchar_buf(Some(crate::globals::curbuf_mut()), c)
 }
 
-pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> &'static std::ffi::CStr {
-    let charbuf = &mut charset_st().transchar_charbuf;
+pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> TransCharBuf {
+    let mut charbuf = TransCharBuf::new();
     let mut i: usize = 0;
     if is_special(c) {
-        charbuf[0] = b'~';
-        charbuf[1] = b'@';
+        charbuf.0[0] = b'~';
+        charbuf.0[1] = b'@';
         i = 2;
         c = i32::from(k_second(c));
     }
 
     if c <= 0xFF && vim_isprintc(c) {
-        charbuf[i] = c as u8;
-        charbuf[i + 1] = 0;
+        charbuf.0[i] = c as u8;
+        charbuf.0[i + 1] = 0;
     } else if c <= 0xFF {
-        transchar_nonprint(buf, &mut charbuf[i..], c);
+        transchar_nonprint(buf, &mut charbuf.0[i..], c);
     } else {
-        transchar_hex(&mut charbuf[i..], c);
+        transchar_hex(&mut charbuf.0[i..], c);
     }
-    std::ffi::CStr::from_bytes_until_nul(&charset_st().borrow_mut().transchar_charbuf)
-        .unwrap_or(c"")
+    charbuf
 }
 
-pub fn transchar_byte<C: AsciiInt>(c: C) -> &'static std::ffi::CStr {
+pub fn transchar_byte<C: AsciiInt>(c: C) -> TransCharBuf {
     transchar_byte_buf(Some(crate::globals::curbuf_mut()), c.into_ascii_int())
 }
 
-pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> &'static std::ffi::CStr {
+pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> TransCharBuf {
     if c >= 0x80 {
-        let charbuf = &mut charset_st().transchar_charbuf;
-        transchar_nonprint(buf, charbuf, c);
-        return std::ffi::CStr::from_bytes_until_nul(&charset_st().borrow_mut().transchar_charbuf)
-            .unwrap_or(c"");
+        let mut charbuf = TransCharBuf::new();
+        transchar_nonprint(buf, &mut charbuf.0, c);
+        return charbuf;
     }
     transchar_buf(buf, c)
 }
@@ -679,7 +671,7 @@ pub fn vim_strnsize(s: &[u8], mut len: i32) -> i32 {
 }
 
 pub fn vim_is_idc(c: i32) -> bool {
-    c > 0 && c < 0x100 && get_chartab(&charset_st().isi_chartab, c) != 0
+    c > 0 && c < 0x100 && get_chartab(&charset_st(|st| st.isi_chartab.get()), c) != 0
 }
 
 pub fn vim_iswordc(c: i32) -> bool {
@@ -713,7 +705,7 @@ pub fn vim_iswordp_buf(bytes: &[u8], buf: &mut FileBuf) -> bool {
 }
 
 pub fn vim_isfilec(c: i32) -> bool {
-    c >= 0x100 || (c > 0 && get_chartab(&charset_st().isf_chartab, c) != 0)
+    c >= 0x100 || (c > 0 && get_chartab(&charset_st(|st| st.isf_chartab.get()), c) != 0)
 }
 
 pub fn vim_is_fname_char(c: i32) -> bool {

@@ -2341,7 +2341,8 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         let s = show_match(matches, i as usize, showtail);
         let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
         if emenu && menu_is_separator(s.to_bytes()) {
-            let tc = transchar(b'|' as i32).to_bytes();
+            let tc_buf = transchar(b'|' as i32);
+            let tc = tc_buf.to_bytes();
             buf_vec[len..len + tc.len()].copy_from_slice(tc);
             len += tc.len();
             clen += tc.len() as i32;
@@ -2359,7 +2360,8 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
                     buf_vec[len..len + l].copy_from_slice(&rem[..l]);
                     len += l;
                 } else {
-                    let tc = transchar_byte(rem[0]).to_bytes();
+                    let tc_buf = transchar_byte(rem[0]);
+                    let tc = tc_buf.to_bytes();
                     buf_vec[len..len + tc.len()].copy_from_slice(tc);
                     len += tc.len();
                 }

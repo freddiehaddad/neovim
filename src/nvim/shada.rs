@@ -14,7 +14,7 @@ use crate::buffer::{
 };
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, Histentry, clr_history,
-    hist_get_array, hist_iter,
+    hist_iter, hist_with_array_mut,
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{Colnr, CursorPos, Linenr};
@@ -727,25 +727,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
     }
 }
 
-struct ShadaModuleState {
-    default_shada_file: Option<std::ffi::CString>,
-}
-
-impl ShadaModuleState {
-    const fn new() -> Self {
-        Self {
-            default_shada_file: None,
-        }
-    }
-}
-
-static SHADA_STATE: crate::globals::GlobalState<ShadaModuleState> =
-    crate::globals::GlobalState::new(ShadaModuleState::new());
-
-#[inline]
-fn shada_st() -> crate::globals::GraphPtr<ShadaModuleState> {
-    SHADA_STATE.handle()
-}
+static DEFAULT_SHADA_FILE: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
 
 use crate::api::private::dispatch::{
     key_dict_shada_buflist_item_get_field as shada_buflist_item_get_field_cb,
@@ -1634,10 +1616,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
         for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
             hms_insert_whole_neovim_history(hm);
             clr_history(i as i32);
-            let (hist, new_hisidx, new_hisnum) = hist_get_array(i as u8);
-            if !hist.is_empty() {
-                hms_to_he_array(hm, hist, new_hisidx, new_hisnum);
-            }
+            hist_with_array_mut(i as u8, |hist, new_hisidx, new_hisnum| {
+                if !hist.is_empty() {
+                    hms_to_he_array(hm, hist, new_hisidx, new_hisnum);
+                }
+            });
             hms_dealloc(hm);
         }
     }
@@ -1653,15 +1636,10 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
 }
 
 fn shada_get_default_file() -> &'static CStr {
-    if shada_st().default_shada_file.is_none() {
+    DEFAULT_SHADA_FILE.get_or_init(|| {
         let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
-        shada_st().default_shada_file = Some(concat_fnames_cstr(&shada_dir, c"main.shada", true));
-    }
-    shada_st()
-        .borrow_mut()
-        .default_shada_file
-        .as_deref()
-        .unwrap_or(c"")
+        concat_fnames_cstr(&shada_dir, c"main.shada", true)
+    })
 }
 
 fn shada_filename(file_arg: Option<&CStr>) -> Option<std::ffi::CString> {

@@ -6182,7 +6182,7 @@ fn put_set_value(
             let value_num = value.data.integer();
             let mut wc: OptInt = 0;
             if wc_use_keyname(varp, &mut wc) != 0 {
-                if fd.puts(get_special_key_name(wc as i32, 0)) < 0 {
+                if fd.puts(&get_special_key_name(wc as i32, 0)) < 0 {
                     return false;
                 }
             } else {

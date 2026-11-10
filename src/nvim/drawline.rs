@@ -213,42 +213,44 @@ impl Winlinevars<'_> {
 }
 
 struct DrawlineState {
-    extra_buf: Vec<u8>,
-    saved_w_virtcol: i32,
-    margin_prev_wp: crate::globals::WinPtr,
-    prev_width1: i32,
-    prev_width2: i32,
-    prev_left_col: i32,
-    prev_right_col: i32,
-    stc_prev_virtnum: i32,
-    stc_prev_wp: crate::globals::WinPtr,
-    stc_prev_lnum: Linenr,
-    stc_prev_tick: Disptick,
+    extra_buf: std::cell::RefCell<Vec<u8>>,
+    saved_w_virtcol: std::cell::Cell<i32>,
+    margin_prev_wp: std::cell::Cell<crate::globals::WinPtr>,
+    prev_width1: std::cell::Cell<i32>,
+    prev_width2: std::cell::Cell<i32>,
+    prev_left_col: std::cell::Cell<i32>,
+    prev_right_col: std::cell::Cell<i32>,
+    stc_prev_virtnum: std::cell::Cell<i32>,
+    stc_prev_wp: std::cell::Cell<crate::globals::WinPtr>,
+    stc_prev_lnum: std::cell::Cell<Linenr>,
+    stc_prev_tick: std::cell::Cell<Disptick>,
 }
 
 impl DrawlineState {
     const fn new() -> Self {
         Self {
-            extra_buf: Vec::new(),
-            saved_w_virtcol: 0,
-            margin_prev_wp: crate::globals::WinPtr::NULL,
-            prev_width1: 0,
-            prev_width2: 0,
-            prev_left_col: 0,
-            prev_right_col: 0,
-            stc_prev_virtnum: 0,
-            stc_prev_wp: crate::globals::WinPtr::NULL,
-            stc_prev_lnum: 0,
-            stc_prev_tick: 0,
+            extra_buf: std::cell::RefCell::new(Vec::new()),
+            saved_w_virtcol: std::cell::Cell::new(0),
+            margin_prev_wp: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            prev_width1: std::cell::Cell::new(0),
+            prev_width2: std::cell::Cell::new(0),
+            prev_left_col: std::cell::Cell::new(0),
+            prev_right_col: std::cell::Cell::new(0),
+            stc_prev_virtnum: std::cell::Cell::new(0),
+            stc_prev_wp: std::cell::Cell::new(crate::globals::WinPtr::NULL),
+            stc_prev_lnum: std::cell::Cell::new(0),
+            stc_prev_tick: std::cell::Cell::new(0),
         }
     }
 }
 
-static DL_STATE: GlobalState<DrawlineState> = GlobalState::new(DrawlineState::new());
+std::thread_local! {
+    static DL_STATE: DrawlineState = const { DrawlineState::new() };
+}
 
 #[inline]
-fn dl_st() -> crate::globals::GraphPtr<DrawlineState> {
-    DL_STATE.handle()
+fn dl_st<R>(f: impl FnOnce(&DrawlineState) -> R) -> R {
+    DL_STATE.with(f)
 }
 
 #[inline]
@@ -267,17 +269,19 @@ const fn vcol_hlc(wlv: &Winlinevars) -> i32 {
     wlv.vcol - wlv.vcol_off_co
 }
 
-fn get_extra_buf(mut size: usize) -> &'static mut [u8] {
+fn with_extra_buf<R>(mut size: usize, f: impl FnOnce(&mut [u8]) -> R) -> R {
     size = size.max(64);
-    let buf = &mut dl_st().borrow_mut().extra_buf;
-    if buf.len() < size {
-        buf.resize(size, 0);
-    }
-    &mut buf[..size]
+    dl_st(|st| {
+        let mut buf = st.extra_buf.borrow_mut();
+        if buf.len() < size {
+            buf.resize(size, 0);
+        }
+        f(&mut buf[..size])
+    })
 }
 
 pub fn drawline_free_all_mem() {
-    dl_st().extra_buf = Vec::new();
+    dl_st(|st| *st.extra_buf.borrow_mut() = Vec::new());
 }
 
 /// Get the 'listchars' "extends" characters to use for "wp", or NUL if it
@@ -318,13 +322,21 @@ fn margin_columns_win(wp: &mut WinInfoInfo, vcol: Colnr, left_col: &mut i32, rig
     let width1 = wp.w_view_width - cur_col_off;
     let width2 = width1 + win_col_off2(&mut *wp);
 
-    if dl_st().saved_w_virtcol == vcol
-        && dl_st().margin_prev_wp == wp
-        && dl_st().prev_width1 == width1
-        && dl_st().prev_width2 == width2
-    {
-        *right_col = dl_st().prev_right_col;
-        *left_col = dl_st().prev_left_col;
+    let wp_ptr = crate::globals::WinPtr::from(&mut *wp);
+    let cached = dl_st(|st| {
+        if st.saved_w_virtcol.get() == vcol
+            && st.margin_prev_wp.get() == wp_ptr
+            && st.prev_width1.get() == width1
+            && st.prev_width2.get() == width2
+        {
+            Some((st.prev_left_col.get(), st.prev_right_col.get()))
+        } else {
+            None
+        }
+    });
+    if let Some((l, r)) = cached {
+        *left_col = l;
+        *right_col = r;
         return;
     }
 
@@ -338,12 +350,14 @@ fn margin_columns_win(wp: &mut WinInfoInfo, vcol: Colnr, left_col: &mut i32, rig
         *left_col = (vcol - width1) / width2 * width2 + width1;
     }
 
-    dl_st().prev_left_col = *left_col;
-    dl_st().prev_right_col = *right_col;
-    dl_st().margin_prev_wp = crate::globals::WinPtr::from(&mut *wp);
-    dl_st().prev_width1 = width1;
-    dl_st().prev_width2 = width2;
-    dl_st().saved_w_virtcol = vcol;
+    dl_st(|st| {
+        st.prev_left_col.set(*left_col);
+        st.prev_right_col.set(*right_col);
+        st.margin_prev_wp.set(wp_ptr);
+        st.prev_width1.set(width1);
+        st.prev_width2.set(width2);
+        st.saved_w_virtcol.set(vcol);
+    });
 }
 
 /// Put a single char from an UTF-8 buffer into a line buffer.
@@ -900,10 +914,14 @@ fn draw_statuscol(
     stcp: &mut Statuscol,
 ) {
     let lnum = wlv.lnum - i32::from((wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below);
+    let wp_ptr = crate::globals::WinPtr::from(&mut *wp);
+    let tick = display_tick_val();
 
-    let reset = dl_st().stc_prev_wp != wp
-        || dl_st().stc_prev_tick != display_tick_val()
-        || lnum != dl_st().stc_prev_lnum;
+    let reset = dl_st(|st| {
+        st.stc_prev_wp.get() != wp_ptr
+            || st.stc_prev_tick.get() != tick
+            || lnum != st.stc_prev_lnum.get()
+    });
     let mut reset_virt = if lnum == wlv.lnum {
         wlv.filler_lines_skip
     } else {
@@ -916,13 +934,20 @@ fn draw_statuscol(
         let diff_fill_prev = diff_check_fill(&mut *wp, lnum - 1);
         reset_virt += virt_lines_prev + diff_fill_prev - virt_below_prev;
     }
-    dl_st().stc_prev_virtnum = (if reset {
-        -reset_virt
-    } else {
-        dl_st().stc_prev_virtnum
-    }) - i32::from(wlv.filler_todo > 0);
+    let stc_virtnum = dl_st(|st| {
+        let v = (if reset {
+            -reset_virt
+        } else {
+            st.stc_prev_virtnum.get()
+        }) - i32::from(wlv.filler_todo > 0);
+        st.stc_prev_virtnum.set(v);
+        st.stc_prev_tick.set(tick);
+        st.stc_prev_lnum.set(lnum);
+        st.stc_prev_wp.set(wp_ptr);
+        v
+    });
     let virtnum = if wlv.filler_todo > 0 {
-        dl_st().stc_prev_virtnum
+        stc_virtnum
     } else {
         wlv.row - wlv.startrow - wlv.filler_lines
     };
@@ -931,10 +956,6 @@ fn draw_statuscol(
     } else {
         -1
     };
-
-    dl_st().stc_prev_tick = display_tick_val();
-    dl_st().stc_prev_lnum = lnum;
-    dl_st().stc_prev_wp = crate::globals::WinPtr::from(&mut *wp);
 
     let mut buf = [0u8; MAXPATHL];
     if wp.w_statuscol_line_count != wp.w_nrwidth_line_count {
@@ -953,7 +974,7 @@ fn draw_statuscol(
             wp.w_nrwidth_width = wp.w_nrwidth;
             if col_rows > 0 {
                 wp.w_redr_statuscol = true;
-                dl_st().stc_prev_lnum = 0;
+                dl_st(|st| st.stc_prev_lnum.set(0));
                 return;
             }
             stcp.width += addwidth;
@@ -972,7 +993,7 @@ fn draw_statuscol(
             wp.w_nrwidth_width = wp.w_nrwidth;
         }
         wp.w_redr_statuscol = true;
-        dl_st().stc_prev_lnum = 0;
+        dl_st(|st| st.stc_prev_lnum.set(0));
         return;
     }
 
@@ -2992,26 +3013,27 @@ pub fn win_line(
                                 if wlv.n_extra > 0 {
                                     len = len.wrapping_add_signed((wlv.n_extra - tab_len) as isize);
                                 }
-                                let extra_slice = get_extra_buf(len + 1);
-                                extra_slice[..len].fill(b' ');
-                                extra_slice[len] = 0;
-                                let mut p_idx = 0usize;
+                                with_extra_buf(len + 1, |extra_slice| {
+                                    extra_slice[..len].fill(b' ');
+                                    extra_slice[len] = 0;
+                                    let mut p_idx = 0usize;
 
-                                for i in 0..tab_len {
-                                    if extra_slice[p_idx] == 0 {
-                                        tab_len = i;
-                                        break;
+                                    for i in 0..tab_len {
+                                        if extra_slice[p_idx] == 0 {
+                                            tab_len = i;
+                                            break;
+                                        }
+                                        let mut lcs = lcs_tab2;
+                                        if lcs_tab3 != 0 && i == tab_len - 1 {
+                                            lcs = lcs_tab3;
+                                        }
+                                        let slen = schar_get_adv(&mut extra_slice[p_idx..], lcs);
+                                        p_idx += slen;
+                                        wlv.n_extra +=
+                                            slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                     }
-                                    let mut lcs = lcs_tab2;
-                                    if lcs_tab3 != 0 && i == tab_len - 1 {
-                                        lcs = lcs_tab3;
-                                    }
-                                    let slen = schar_get_adv(&mut extra_slice[p_idx..], lcs);
-                                    p_idx += slen;
-                                    wlv.n_extra +=
-                                        slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
-                                }
-                                wlv.set_p_extra(crate::memory::bytes_as_cstr(extra_slice));
+                                    wlv.set_p_extra(crate::memory::bytes_as_cstr(extra_slice));
+                                });
 
                                 if wlv.vcol_off_co + wlv.extconceal_off > 0 {
                                     wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
@@ -3105,16 +3127,17 @@ pub fn win_line(
 
                         mb_schar_width = 1;
                         if wp.w_onebuf_opt.wo_lbr {
-                            let extra_slice = get_extra_buf((wlv.n_extra as usize) + 1);
-                            extra_slice[..wlv.n_extra as usize].fill(b' ');
+                            with_extra_buf((wlv.n_extra as usize) + 1, |extra_slice| {
+                                extra_slice[..wlv.n_extra as usize].fill(b' ');
 
-                            let rem_len = crate::memory::bytes_until_nul(&wlv.extra)
-                                .len()
-                                .saturating_sub(1);
-                            extra_slice[..rem_len].copy_from_slice(&wlv.extra[1..1 + rem_len]);
-                            extra_slice[wlv.n_extra as usize] = 0;
+                                let rem_len = crate::memory::bytes_until_nul(&wlv.extra)
+                                    .len()
+                                    .saturating_sub(1);
+                                extra_slice[..rem_len].copy_from_slice(&wlv.extra[1..1 + rem_len]);
+                                extra_slice[wlv.n_extra as usize] = 0;
 
-                            wlv.set_p_extra(crate::memory::bytes_as_cstr(extra_slice));
+                                wlv.set_p_extra(crate::memory::bytes_as_cstr(extra_slice));
+                            });
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
                             let extra_cstr = &crate::memory::bytes_as_cstr(&wlv.extra)[1..];
