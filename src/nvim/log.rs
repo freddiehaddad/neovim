@@ -9,7 +9,7 @@ use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{loop_print_all_handles, uv_strerror};
 use crate::fileio::{EOF, fprintf};
 use crate::globals::*;
-use crate::memory::mem_st;
+use crate::memory::entered_free_all_mem;
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{CFile, MAXPATHL, os_isdir, os_mkdir_recurse};
@@ -231,7 +231,7 @@ pub fn logmsg_str(
         return false;
     }
 
-    if mem_st().entered_free_all_mem {
+    if entered_free_all_mem() {
         let stderr = log_get_stderr();
         fprintf!(
             &stderr,

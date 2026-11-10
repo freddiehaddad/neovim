@@ -302,69 +302,38 @@ pub struct ExDocmdCookie {
 
 static MAIN_THREAD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-#[derive(Clone, Copy)]
 pub(crate) struct LuaExecutorState {
-    pub(crate) active_lstate: *mut lua_State,
-    in_fast_callback: i32,
-    global_lstate: *mut lua_State,
-    require_ref: LuaRef,
+    pub(crate) active_lstate: std::cell::Cell<*mut lua_State>,
+    in_fast_callback: std::cell::Cell<i32>,
+    global_lstate: std::cell::Cell<*mut lua_State>,
+    require_ref: std::cell::Cell<LuaRef>,
 }
 
 impl LuaExecutorState {
     const fn new() -> Self {
         Self {
-            active_lstate: ptr::null_mut(),
-            in_fast_callback: 0,
-            global_lstate: ptr::null_mut(),
-            require_ref: LUA_REFNIL,
+            active_lstate: std::cell::Cell::new(ptr::null_mut()),
+            in_fast_callback: std::cell::Cell::new(0),
+            global_lstate: std::cell::Cell::new(ptr::null_mut()),
+            require_ref: std::cell::Cell::new(LUA_REFNIL),
         }
     }
 }
 
 thread_local! {
-    static NLUA_STATE: std::cell::Cell<LuaExecutorState> =
-        const { std::cell::Cell::new(LuaExecutorState::new()) };
+    static NLUA_STATE: LuaExecutorState = const { LuaExecutorState::new() };
     static NLUA_EXPAND_RESULTS: std::cell::RefCell<Vec<std::ffi::CString>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
-pub(crate) struct NluaGuard {
-    state: LuaExecutorState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for NluaGuard {
-    type Target = LuaExecutorState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for NluaGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for NluaGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            NLUA_STATE.with(|c| c.set(self.state));
-        }
-    }
+#[inline]
+pub(crate) fn active_lstate() -> *mut lua_State {
+    NLUA_STATE.with(|s| s.active_lstate.get())
 }
 
 #[inline]
-pub(crate) fn nlua_st() -> NluaGuard {
-    NluaGuard {
-        state: NLUA_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
+pub(crate) fn set_active_lstate(lstate: *mut lua_State) {
+    NLUA_STATE.with(|s| s.active_lstate.set(lstate));
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
@@ -542,7 +511,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
 }
 
 pub fn get_global_lstate() -> *mut lua_State {
-    nlua_st().global_lstate
+    NLUA_STATE.with(|s| s.global_lstate.get())
 }
 
 fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
@@ -620,7 +589,7 @@ extern "C-unwind" fn nlua_fast_cfpcall(
     mut nresult: i32,
     flags: i32,
 ) -> i32 {
-    nlua_st().in_fast_callback += 1;
+    NLUA_STATE.with(|s| s.in_fast_callback.set(s.in_fast_callback.get() + (1)));
 
     let top = nlua_gettop(lstate);
     let status = nlua_pcall(lstate, nargs, nresult);
@@ -647,7 +616,7 @@ extern "C-unwind" fn nlua_fast_cfpcall(
         nresult
     };
 
-    nlua_st().in_fast_callback -= 1;
+    NLUA_STATE.with(|s| s.in_fast_callback.set(s.in_fast_callback.get() - (1)));
     retval
 }
 
@@ -759,7 +728,7 @@ fn nlua_init_argv(lstate: *mut lua_State, argv: &[CString], lua_arg0: i32) -> i3
 }
 
 pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
 
     nlua_pushref(lstate, cb);
     nlua_unref_global(lstate, cb);
@@ -843,7 +812,7 @@ pub fn nlua_ex_getline(
     _indent: i32,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     nlua_pushref(lstate, ecd.getline);
     if nlua_pcall(lstate, 0, 1) != 0 {
         nlua_error(
@@ -883,7 +852,7 @@ extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> i32 {
 }
 
 extern "C-unwind" fn nlua_os_exit(lstate: *mut lua_State) -> i32 {
-    if nlua_st().in_fast_callback > 0 {
+    if NLUA_STATE.with(|s| s.in_fast_callback.get()) > 0 {
         return nlua_fast_api_disabled_error(lstate, c"os.exit");
     }
 
@@ -1154,7 +1123,7 @@ fn nlua_state_init(lstate: *mut lua_State) -> bool {
 
     if has_time_fd() {
         lua_getglobal(lstate, c"require");
-        nlua_st().require_ref = nlua_ref_global(lstate, -1);
+        NLUA_STATE.with(|s| s.require_ref.set(nlua_ref_global(lstate, -1)));
         lua_pop(lstate, 1);
         lua_pushcfunction_safe(lstate, nlua_require);
         lua_setglobal(lstate, c"require");
@@ -1190,8 +1159,8 @@ pub fn nlua_init(argv: &[CString], lua_arg0: i32) {
     }
 
     luv_set_thread_cb_safe(nlua_thread_acquire_vm, nlua_common_free_all_mem);
-    nlua_st().global_lstate = lstate;
-    nlua_st().active_lstate = lstate;
+    NLUA_STATE.with(|s| s.global_lstate.set(lstate));
+    NLUA_STATE.with(|s| s.active_lstate.set(lstate));
     MAIN_THREAD.store(uv_thread_self_safe(), std::sync::atomic::Ordering::Relaxed);
     nlua_init_argv(lstate, argv, lua_arg0);
 }
@@ -1242,12 +1211,12 @@ fn nlua_init_state(thread: bool) -> *mut lua_State {
 }
 
 pub fn nlua_free_all_mem() {
-    if nlua_st().global_lstate.is_null() {
+    if NLUA_STATE.with(|s| s.global_lstate.get()).is_null() {
         return;
     }
-    let lstate = nlua_st().global_lstate;
-    nlua_st().global_lstate = ptr::null_mut();
-    nlua_unref_global(lstate, nlua_st().require_ref);
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
+    NLUA_STATE.with(|s| s.global_lstate.set(ptr::null_mut()));
+    nlua_unref_global(lstate, NLUA_STATE.with(|s| s.require_ref.get()));
     nlua_common_free_all_mem(lstate);
 }
 
@@ -1316,7 +1285,7 @@ extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
 
     if is_thread {
         loop_schedule_deferred(&mut g_st().main_loop, Event::NluaPrint(msg_str));
-    } else if nlua_st().in_fast_callback != 0 {
+    } else if NLUA_STATE.with(|s| s.in_fast_callback.get()) != 0 {
         let queues = loop_queues(&mut g_st().main_loop);
         put_event(queues.events.opt_mut(), Event::NluaPrint(msg_str));
     } else {
@@ -1336,7 +1305,7 @@ extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     }
     lua_pop(lstate, 2);
 
-    nlua_pushref(lstate, nlua_st().require_ref);
+    nlua_pushref(lstate, NLUA_STATE.with(|s| s.require_ref.get()));
     lua_insert_safe(lstate, 1);
 
     if !has_time_fd() {
@@ -1418,7 +1387,7 @@ extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
 }
 
 pub extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> i32 {
-    lua_pushboolean_safe(lstate, nlua_st().in_fast_callback > 0);
+    lua_pushboolean_safe(lstate, NLUA_STATE.with(|s| s.in_fast_callback.get()) > 0);
     1
 }
 
@@ -1645,7 +1614,9 @@ pub fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
 }
 
 pub fn api_free_luaref(ref_: LuaRef) {
-    nlua_unref_global(nlua_st().global_lstate, ref_);
+    if let Ok(lstate) = NLUA_STATE.try_with(|s| s.global_lstate.get()) {
+        nlua_unref_global(lstate, ref_);
+    }
 }
 
 pub fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef) {
@@ -1656,7 +1627,7 @@ pub fn api_new_luaref(original_ref: LuaRef) -> LuaRef {
     if original_ref == LUA_NOREF {
         return LUA_NOREF;
     }
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     nlua_pushref(lstate, original_ref);
     let new_ref = nlua_ref_global(lstate, -1);
     lua_pop(lstate, 1);
@@ -1700,7 +1671,7 @@ pub fn nlua_call_vlua(body: &[u8], args: &mut [TypVal], ret_tv: &mut TypVal) {
 }
 
 pub fn nlua_call_user_expand_func(xp: &mut ExpandCtx, ret_tv: &mut TypVal) {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
 
     nlua_pushref(lstate, xp.xp_luaref);
     lua_pushstring_opt(lstate, xp.xp_pattern.as_opt_cstr());
@@ -1730,7 +1701,7 @@ fn nlua_exec_typval(
         return;
     }
 
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     if luaL_loadbuffer(lstate, lcmd, name) != 0 {
         nlua_error(lstate, gettext(c"E5107: Lua: %.*s"));
         return;
@@ -1765,7 +1736,7 @@ pub fn nlua_exec_typval_callable(
     argvars: &mut [TypVal],
     rettv: &mut TypVal,
 ) -> i32 {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     nlua_pushref(lstate, lua_cb);
     let argcount = argvars.len() as i32;
     push_all_typvals(lstate, argvars, false);
@@ -1787,7 +1758,7 @@ pub fn nlua_exec(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     let top = nlua_gettop(lstate);
     let name = match chunkname {
         Some(cn) if !cn.to_bytes().is_empty() => cn,
@@ -1857,7 +1828,7 @@ pub fn nlua_call_excmd(
     cmod: &Cmdmod,
     extra: Option<&mut TypVal>,
 ) -> bool {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     lua_getglobal(lstate, c"require");
     lua_pushstring(lstate, module);
     if lua_pcall_safe(lstate, 1, 1, 0) != 0 {
@@ -1885,7 +1856,7 @@ pub fn nlua_call_excmd(
 }
 
 pub fn nlua_ref_is_function(ref_: LuaRef) -> bool {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     nlua_pushref(lstate, ref_);
     let is_func = lua_type_safe(lstate, -1) == LUA_TFUNCTION;
     lua_pop(lstate, 1);
@@ -1921,7 +1892,7 @@ pub fn nlua_call_ref_ctx(
     arena: Option<&mut Arena>,
     err: Option<&mut Error>,
 ) -> Object {
-    let lstate = nlua_st().active_lstate;
+    let lstate = NLUA_STATE.with(|s| s.active_lstate.get());
     let top = nlua_gettop(lstate);
     nlua_pushref(lstate, ref_);
     let mut nargs = args.size as i32;
@@ -2017,7 +1988,7 @@ fn nlua_call_pop_retval(
 }
 
 pub fn nlua_is_deferred_safe() -> bool {
-    nlua_st().in_fast_callback == 0
+    NLUA_STATE.with(|s| s.in_fast_callback.get()) == 0
 }
 
 pub fn ex_lua(eap: &mut Exarg) {
@@ -2059,7 +2030,7 @@ pub fn ex_luado(eap: &mut Exarg) {
         return;
     }
     let cmd_bytes = eap.arg.as_bytes();
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
 
     const DOSTART: &[u8] = b"return function(line, linenr) ";
     const DOEND: &[u8] = b" end";
@@ -2124,7 +2095,7 @@ pub fn ex_luafile(eap: &mut Exarg) {
 }
 
 pub fn nlua_exec_file(path: &CStr) -> bool {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     if path.to_bytes() != b"-" {
         lua_getglobal(lstate, c"loadfile");
         lua_pushstring(lstate, path);
@@ -2184,7 +2155,7 @@ pub fn nlua_exec_file(path: &CStr) -> bool {
 }
 
 pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     let mut status = false;
 
     lua_getglobal(lstate, c"vim");
@@ -2266,7 +2237,7 @@ pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<&'static CStr> {
         return None;
     }
 
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     let top = nlua_gettop(lstate);
 
     nlua_pushref(lstate, table_ref);
@@ -2302,7 +2273,7 @@ pub fn nlua_exec_on_key(c: i32, typed_buf: &mut [u8]) -> bool {
     let buf_len = special_to_buf(c, g_st().mod_mask, false, &mut buf) as usize;
     vim_unescape_ks(typed_buf);
 
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     let top = nlua_gettop(lstate);
 
     lua_getglobal(lstate, c"vim");
@@ -2345,7 +2316,7 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
     if opt_vars().p_verbose <= 0 {
         return;
     }
-    let lstate = nlua_st().active_lstate;
+    let lstate = NLUA_STATE.with(|s| s.active_lstate.get());
     let mut info = lua_Debug::new();
 
     let mut level: i32 = 1;
@@ -2387,7 +2358,7 @@ pub fn nlua_do_ucmd(
     eap: &mut Exarg,
     preview: bool,
 ) -> i32 {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     nlua_pushref(lstate, luaref);
 
     lua_newtable(lstate);
@@ -2467,7 +2438,7 @@ pub fn nlua_do_ucmd(
 }
 
 pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     if lua_checkstack_safe(lstate, 1) {
         nlua_pushref(lstate, ref_);
         if !lua_isfunction(lstate, -1) {
@@ -2499,7 +2470,7 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
 }
 
 pub fn nlua_init_defaults() {
-    let lstate = nlua_st().global_lstate;
+    let lstate = NLUA_STATE.with(|s| s.global_lstate.get());
     assert!(!lstate.is_null());
 
     lua_getglobal(lstate, c"require");

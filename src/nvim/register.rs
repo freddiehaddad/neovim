@@ -197,74 +197,33 @@ pub const EMPTY_YANKREG: Yankreg = Yankreg {
     additional_data: None,
 };
 
-#[derive(Clone, Copy)]
 struct RegisterCopyState {
-    get_expr_line_nested: i32,
-    execreg_lastc: i32,
-    y_previous: Option<usize>,
-    do_record_regname: i32,
-    textyankpost_recursive: bool,
-    put_autocmd_recursive: bool,
+    get_expr_line_nested: std::cell::Cell<i32>,
+    execreg_lastc: std::cell::Cell<i32>,
+    y_previous: std::cell::Cell<Option<usize>>,
+    do_record_regname: std::cell::Cell<i32>,
+    textyankpost_recursive: std::cell::Cell<bool>,
+    put_autocmd_recursive: std::cell::Cell<bool>,
 }
 
 impl RegisterCopyState {
     const fn new() -> Self {
         Self {
-            get_expr_line_nested: 0,
-            execreg_lastc: 0,
-            y_previous: None,
-            do_record_regname: 0,
-            textyankpost_recursive: false,
-            put_autocmd_recursive: false,
+            get_expr_line_nested: std::cell::Cell::new(0),
+            execreg_lastc: std::cell::Cell::new(0),
+            y_previous: std::cell::Cell::new(None),
+            do_record_regname: std::cell::Cell::new(0),
+            textyankpost_recursive: std::cell::Cell::new(false),
+            put_autocmd_recursive: std::cell::Cell::new(false),
         }
     }
 }
 
 thread_local! {
-    static REG_STATE: std::cell::Cell<RegisterCopyState> = const {
-        std::cell::Cell::new(RegisterCopyState::new())
-    };
+    static REG_STATE: RegisterCopyState = const { RegisterCopyState::new() };
     static EXPR_LINE: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
-}
-
-struct RegGuard {
-    state: RegisterCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for RegGuard {
-    type Target = RegisterCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for RegGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for RegGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            REG_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn reg_st() -> RegGuard {
-    RegGuard {
-        state: REG_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 #[inline]
@@ -336,7 +295,9 @@ fn copy_string_global(s: NvimString) -> NvimString {
 }
 
 pub fn get_unname_register() -> i32 {
-    reg_st().y_previous.map_or(-1, |idx| idx as i32)
+    REG_STATE
+        .with(|s| s.y_previous.get())
+        .map_or(-1, |idx| idx as i32)
 }
 
 pub fn get_y_register(reg: i32) -> &'static mut Yankreg {
@@ -344,7 +305,7 @@ pub fn get_y_register(reg: i32) -> &'static mut Yankreg {
 }
 
 pub fn get_y_previous() -> &'static mut Yankreg {
-    let idx = reg_st().y_previous.unwrap_or(0);
+    let idx = REG_STATE.with(|s| s.y_previous.get()).unwrap_or(0);
     &mut g_st().borrow_mut().y_regs[idx]
 }
 
@@ -364,13 +325,19 @@ pub fn set_expr_line(new_line: Option<std::ffi::CString>) {
 
 pub fn get_expr_line() -> Option<std::ffi::CString> {
     let expr_copy = EXPR_LINE.with(|cell| cell.borrow().clone())?;
-    if reg_st().get_expr_line_nested >= 10 {
+    if REG_STATE.with(|s| s.get_expr_line_nested.get()) >= 10 {
         return Some(expr_copy);
     }
 
-    reg_st().get_expr_line_nested += 1;
+    REG_STATE.with(|s| {
+        s.get_expr_line_nested
+            .set(s.get_expr_line_nested.get() + (1))
+    });
     let rv = eval_to_string(&expr_copy, true, false);
-    reg_st().get_expr_line_nested -= 1;
+    REG_STATE.with(|s| {
+        s.get_expr_line_nested
+            .set(s.get_expr_line_nested.get() - (1))
+    });
     rv
 }
 
@@ -412,8 +379,8 @@ pub fn op_reg_iter<'a>(
     *name = get_register_name(idx as i32) as u8;
     let iter_reg = &regs[idx];
     *reg = Some(iter_reg);
-    *is_unnamed = reg_st()
-        .y_previous
+    *is_unnamed = REG_STATE
+        .with(|s| s.y_previous.get())
         .is_some_and(|prev_idx| ptr::eq(iter_reg, &g_st().y_regs[prev_idx]));
     idx += 1;
     while idx < NUM_SAVED_REGISTERS {
@@ -468,7 +435,7 @@ pub fn op_reg_set(name: u8, reg: Yankreg, is_unnamed: bool) -> bool {
     g_st().y_regs[idx] = reg;
 
     if is_unnamed {
-        reg_st().y_previous = Some(idx);
+        REG_STATE.with(|s| s.y_previous.set(Some(idx)));
     }
     true
 }
@@ -486,7 +453,7 @@ pub fn op_reg_set_previous(name: u8) -> bool {
     if i == -1 {
         return false;
     }
-    reg_st().y_previous = Some(i as usize);
+    REG_STATE.with(|s| s.y_previous.set(Some(i as usize)));
     true
 }
 
@@ -517,7 +484,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
             || regname == i32::from(b'"')
             || regname == i32::from(b'*')
             || regname == i32::from(b'+'))
-        && let Some(prev_idx) = reg_st().y_previous
+        && let Some(prev_idx) = REG_STATE.with(|s| s.y_previous.get())
     {
         return &mut g_st().borrow_mut().y_regs[prev_idx];
     }
@@ -528,7 +495,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
     }
     let idx = i as usize;
     if mode == YankRegMode::Yank {
-        reg_st().y_previous = Some(idx);
+        REG_STATE.with(|s| s.y_previous.set(Some(idx)));
     }
     &mut g_st().borrow_mut().y_regs[idx]
 }
@@ -599,7 +566,7 @@ pub fn do_record(c: i32) -> bool {
         } else {
             g_st().reg_recording = c;
             showmode();
-            reg_st().do_record_regname = c;
+            REG_STATE.with(|s| s.do_record_regname.set(c));
             retval = true;
             apply_autocmds(EVENT_RECORDINGENTER, None, None, false, curbuf_opt_mut());
         }
@@ -616,7 +583,7 @@ pub fn do_record(c: i32) -> bool {
         );
 
         let mut buf = [0u8; NUMBUFLEN + 2];
-        buf[0] = reg_st().do_record_regname as u8;
+        buf[0] = REG_STATE.with(|s| s.do_record_regname.get()) as u8;
         buf[1] = 0;
         tv_dict_add_str(
             &mut *dict,
@@ -634,9 +601,9 @@ pub fn do_record(c: i32) -> bool {
         } else {
             msg(c"", 0);
         }
-        let old_y_previous = reg_st().y_previous;
-        retval = stuff_yank(reg_st().do_record_regname, &p_vec);
-        reg_st().y_previous = old_y_previous;
+        let old_y_previous = REG_STATE.with(|s| s.y_previous.get());
+        retval = stuff_yank(REG_STATE.with(|s| s.do_record_regname.get()), &p_vec);
+        REG_STATE.with(|s| s.y_previous.set(old_y_previous));
     }
     retval
 }
@@ -730,17 +697,17 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
     let mut retval = true;
 
     if regname == i32::from(b'@') {
-        if reg_st().execreg_lastc == 0 {
+        if REG_STATE.with(|s| s.execreg_lastc.get()) == 0 {
             emsg(gettext(c"E748: No previously used register"));
             return false;
         }
-        regname = reg_st().execreg_lastc;
+        regname = REG_STATE.with(|s| s.execreg_lastc.get());
     }
     if regname == i32::from(b'%') || regname == i32::from(b'#') || !valid_yank_reg(regname, false) {
         emsg_invreg(regname);
         return false;
     }
-    reg_st().execreg_lastc = regname;
+    REG_STATE.with(|s| s.execreg_lastc.set(regname));
 
     if regname == i32::from(b'_') {
         return true;
@@ -1011,7 +978,7 @@ pub fn shift_delete_registers(y_append: bool) {
         n -= 1;
     }
     if !y_append {
-        reg_st().y_previous = Some(1);
+        REG_STATE.with(|s| s.y_previous.set(Some(1)));
     }
 }
 
@@ -1270,11 +1237,11 @@ fn add_regtype_to_dict(reg: Option<&Yankreg>, dict: &mut TvDict, buf: &mut [u8])
 }
 
 pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
-    if reg_st().textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
+    if REG_STATE.with(|s| s.textyankpost_recursive.get()) || !has_event(EVENT_TEXTYANKPOST) {
         return;
     }
 
-    reg_st().textyankpost_recursive = true;
+    REG_STATE.with(|s| s.textyankpost_recursive.set(true));
 
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let dict = get_v_event(&mut save_v_event);
@@ -1331,7 +1298,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
     g_st().textlock -= 1;
     restore_v_event(&mut *dict, &mut save_v_event);
 
-    reg_st().textyankpost_recursive = false;
+    REG_STATE.with(|s| s.textyankpost_recursive.set(false));
 }
 
 fn put_do_autocmd(
@@ -1341,7 +1308,9 @@ fn put_do_autocmd(
     post: bool,
     dir: Direction,
 ) {
-    if reg_st().put_autocmd_recursive || (regname == i32::from(b'_') && reg.is_none()) {
+    if REG_STATE.with(|s| s.put_autocmd_recursive.get())
+        || (regname == i32::from(b'_') && reg.is_none())
+    {
         return;
     }
 
@@ -1393,7 +1362,7 @@ fn put_do_autocmd(
 
     tv_dict_set_keys_readonly(&mut *v_event);
 
-    reg_st().put_autocmd_recursive = true;
+    REG_STATE.with(|s| s.put_autocmd_recursive.set(true));
     g_st().textlock += 1;
     if post {
         apply_autocmds(EVENT_TEXTPUTPOST, None, None, false, curbuf_opt_mut());
@@ -1401,7 +1370,7 @@ fn put_do_autocmd(
         apply_autocmds(EVENT_TEXTPUTPRE, None, None, false, curbuf_opt_mut());
     }
     g_st().textlock -= 1;
-    reg_st().put_autocmd_recursive = false;
+    REG_STATE.with(|s| s.put_autocmd_recursive.set(false));
 
     restore_v_event(&mut *v_event, &mut save_v_event);
 }
@@ -2394,7 +2363,7 @@ pub fn ex_display(eap: &mut Exarg) {
         };
 
         let yb_idx = if i == -1 {
-            reg_st().y_previous.unwrap_or(0)
+            REG_STATE.with(|s| s.y_previous.get()).unwrap_or(0)
         } else {
             i as usize
         };
@@ -2409,8 +2378,8 @@ pub fn ex_display(eap: &mut Exarg) {
 
         if name == mb_tolower(g_st().redir_reg)
             || (g_st().redir_reg == i32::from(b'"')
-                && reg_st()
-                    .y_previous
+                && REG_STATE
+                    .with(|s| s.y_previous.get())
                     .is_some_and(|prev_idx| ptr::eq(yb_ref, &g_st().y_regs[prev_idx])))
         {
             i += 1;
@@ -2809,7 +2778,7 @@ pub fn write_reg_contents_lst(
         return;
     }
 
-    let old_y_previous = reg_st().y_previous;
+    let old_y_previous = REG_STATE.with(|s| s.y_previous.get());
     let Some(reg) = init_write_reg(name, must_append) else {
         return;
     };
@@ -2817,7 +2786,7 @@ pub fn write_reg_contents_lst(
     str_to_reg(reg, yank_type, &[], block_len, Some(strings));
     set_clipboard(name, reg);
     if name != i32::from(b'"') {
-        reg_st().y_previous = old_y_previous;
+        REG_STATE.with(|s| s.y_previous.set(old_y_previous));
     }
 }
 
@@ -2888,14 +2857,14 @@ pub fn write_reg_contents_ex(
         return;
     }
 
-    let old_y_previous = reg_st().y_previous;
+    let old_y_previous = REG_STATE.with(|s| s.y_previous.get());
     let Some(reg) = init_write_reg(name, must_append) else {
         return;
     };
     str_to_reg(reg, yank_type, str_slice, block_len, None::<&[&CStr]>);
     set_clipboard(name, reg);
     if name != i32::from(b'"') {
-        reg_st().y_previous = old_y_previous;
+        REG_STATE.with(|s| s.y_previous.set(old_y_previous));
     }
 }
 

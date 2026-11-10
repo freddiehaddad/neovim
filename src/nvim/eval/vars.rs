@@ -35,10 +35,10 @@ use crate::eval::userfunc::{
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{
     AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, K_LIST_LEN_UNKNOWN_CONST,
-    VAR_DEF_SCOPE, callback_call, eval_isnamec1, eval_option, eval_st, eval_to_string, eval0,
-    eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
+    VAR_DEF_SCOPE, callback_call, eval_isnamec1, eval_lavars_used, eval_option, eval_to_string,
+    eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
     get_name_len, handle_subscript, may_call_simple_func, num_divide, num_modulus, partial_unref,
-    set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
+    set_eval_lavars_used, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{Exarg, check_nextcmd, ends_excmd};
@@ -2551,7 +2551,7 @@ pub fn eval_variable(
 
 /// Check if variable `name_slice` is a local variable or an argument.
 pub fn check_vars(name_slice: &[u8]) {
-    if eval_st().eval_lavars_used.is_none() {
+    if eval_lavars_used().is_none() {
         return;
     }
 
@@ -2564,7 +2564,7 @@ pub fn check_vars(name_slice: &[u8]) {
     let args_ht = crate::globals::GraphPtr::from(get_funccal_args_ht());
 
     if (ht == local_ht || ht == args_ht) && find_var(&name_cstr, len, None, 1).is_some() {
-        eval_st().eval_lavars_used = Some(true);
+        set_eval_lavars_used(Some(true));
     }
 }
 

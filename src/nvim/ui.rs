@@ -980,7 +980,7 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
     let _ = funname;
     #[cfg(debug_assertions)]
     {
-        if crate::memory::mem_st().entered_free_all_mem {
+        if crate::memory::entered_free_all_mem() {
             return;
         }
 

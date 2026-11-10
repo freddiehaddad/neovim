@@ -59,67 +59,31 @@ impl Default for Arena {
 const ALLOC_ALIGN: usize = 16;
 const HEADER_SIZE: usize = 16;
 
-#[derive(Clone, Copy)]
 pub(crate) struct MemoryModuleState {
-    pub(crate) entered_free_all_mem: bool,
-    trying_to_free: bool,
-    arena_reuse_head: crate::globals::GraphPtr<ConsumedBlk>,
-    arena_reuse_count: usize,
+    pub(crate) entered_free_all_mem: std::cell::Cell<bool>,
+    trying_to_free: std::cell::Cell<bool>,
+    arena_reuse_head: std::cell::Cell<crate::globals::GraphPtr<ConsumedBlk>>,
+    arena_reuse_count: std::cell::Cell<usize>,
 }
 
 impl MemoryModuleState {
     const fn new() -> Self {
         Self {
-            entered_free_all_mem: false,
-            trying_to_free: false,
-            arena_reuse_head: crate::globals::GraphPtr::NULL,
-            arena_reuse_count: 0,
+            entered_free_all_mem: std::cell::Cell::new(false),
+            trying_to_free: std::cell::Cell::new(false),
+            arena_reuse_head: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            arena_reuse_count: std::cell::Cell::new(0),
         }
     }
 }
 
 thread_local! {
-    static MEM_STATE: std::cell::Cell<MemoryModuleState> = const {
-        std::cell::Cell::new(MemoryModuleState::new())
-    };
-}
-
-pub(crate) struct MemGuard {
-    state: MemoryModuleState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for MemGuard {
-    type Target = MemoryModuleState;
-    #[inline(always)]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for MemGuard {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for MemGuard {
-    #[inline(always)]
-    fn drop(&mut self) {
-        if self.mutated {
-            MEM_STATE.with(|c| c.set(self.state));
-        }
-    }
+    static MEM_STATE: MemoryModuleState = const { MemoryModuleState::new() };
 }
 
 #[inline(always)]
-pub(crate) fn mem_st() -> MemGuard {
-    MemGuard {
-        state: MEM_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
+pub(crate) fn entered_free_all_mem() -> bool {
+    MEM_STATE.with(|s| s.entered_free_all_mem.get())
 }
 
 #[allow(unsafe_code)]
@@ -205,16 +169,16 @@ pub use self::alloc_ffi::raw_dealloc;
 use self::alloc_ffi::{sys_calloc, sys_malloc, sys_realloc};
 
 fn try_to_free_memory() {
-    if mem_st().trying_to_free {
+    if MEM_STATE.with(|s| s.trying_to_free.get()) {
         return;
     }
-    mem_st().trying_to_free = true;
+    MEM_STATE.with(|s| s.trying_to_free.set(true));
 
     clear_sb_text(true);
     mf_release_all();
     arena_free_reuse_blks();
 
-    mem_st().trying_to_free = false;
+    MEM_STATE.with(|s| s.trying_to_free.set(false));
 }
 
 fn out_of_memory_exit() -> ! {
@@ -223,11 +187,11 @@ fn out_of_memory_exit() -> ! {
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
 pub fn arena_free_reuse_blks() {
-    while mem_st().arena_reuse_count > 0 {
-        let blk = mem_st().arena_reuse_head;
-        mem_st().arena_reuse_head = blk.prev;
+    while MEM_STATE.with(|s| s.arena_reuse_count.get()) > 0 {
+        let blk = MEM_STATE.with(|s| s.arena_reuse_head.get());
+        MEM_STATE.with(|s| s.arena_reuse_head.set(blk.prev));
         raw_dealloc(blk.as_ptr().cast::<c_void>());
-        mem_st().arena_reuse_count -= 1;
+        MEM_STATE.with(|s| s.arena_reuse_count.set(s.arena_reuse_count.get() - (1)));
     }
 }
 
@@ -406,10 +370,15 @@ pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
 fn alloc_block() -> crate::globals::GraphPtr<u8> {
-    if mem_st().arena_reuse_count > 0 {
-        let retval = crate::globals::GraphPtr::new(mem_st().arena_reuse_head.as_ptr().cast());
-        mem_st().arena_reuse_head = mem_st().arena_reuse_head.prev;
-        mem_st().arena_reuse_count -= 1;
+    if MEM_STATE.with(|s| s.arena_reuse_count.get()) > 0 {
+        let retval = crate::globals::GraphPtr::new(
+            MEM_STATE.with(|s| s.arena_reuse_head.get()).as_ptr().cast(),
+        );
+        MEM_STATE.with(|s| {
+            s.arena_reuse_head
+                .set(MEM_STATE.with(|s| s.arena_reuse_head.get()).prev)
+        });
+        MEM_STATE.with(|s| s.arena_reuse_count.set(s.arena_reuse_count.get() - (1)));
         retval
     } else {
         g_st().arena_alloc_count += 1;
@@ -492,10 +461,10 @@ fn free_block(mut block: ArenaMem) {
     if block.is_null() {
         return;
     }
-    if mem_st().arena_reuse_count < REUSE_MAX {
-        block.prev = mem_st().arena_reuse_head;
-        mem_st().arena_reuse_head = block;
-        mem_st().arena_reuse_count += 1;
+    if MEM_STATE.with(|s| s.arena_reuse_count.get()) < REUSE_MAX {
+        block.prev = MEM_STATE.with(|s| s.arena_reuse_head.get());
+        MEM_STATE.with(|s| s.arena_reuse_head.set(block));
+        MEM_STATE.with(|s| s.arena_reuse_count.set(s.arena_reuse_count.get() + (1)));
     } else {
         raw_dealloc(block.cast::<c_void>());
     }
@@ -595,11 +564,11 @@ pub fn free_all_mem() {
     use crate::window::{free_tabpage, win_free_all};
 
     {
-        if mem_st().entered_free_all_mem {
+        if MEM_STATE.with(|s| s.entered_free_all_mem.get()) {
             nlua_free_all_mem();
             return;
         }
-        mem_st().entered_free_all_mem = true;
+        MEM_STATE.with(|s| s.entered_free_all_mem.set(true));
         block_autocmds();
 
         opt_vars().p_ea = false;

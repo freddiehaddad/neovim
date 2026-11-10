@@ -29,9 +29,9 @@ use crate::eval::vars::{
 use crate::eval::{
     AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
     TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, eval_isnamec, eval_isnamec1,
-    eval_st, eval0, eval1, fill_evalarg_from_eap, find_name_end, garbage_collect, get_id_len,
-    get_lval, handle_subscript, is_luafunc, last_set_msg, partial_name, partial_unref,
-    set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
+    eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end, garbage_collect,
+    get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg, partial_name, partial_unref,
+    set_eval_lavars_used, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
 };
 use crate::ex_docmd::{Exarg, check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
 use crate::ex_eval::{
@@ -49,7 +49,7 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx,
 };
-use crate::memory::{bytes_to_cstring, mem_st};
+use crate::memory::{bytes_to_cstring, entered_free_all_mem};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
     msg_prt_line, msg_putchar, msg_puts, msg_start, semsg, smsg, swmsg, trunc_string,
@@ -713,7 +713,7 @@ pub fn get_lambda_tv(
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
     let mut newargs: Vec<std::ffi::CString> = Vec::new();
     let mut varargs: i32 = 0;
-    let old_eval_lavars = eval_st().eval_lavars_used;
+    let old_eval_lavars = eval_lavars_used();
 
     let mut s = crate::charset::skipwhite_at(arg, 1);
     let mut ret = get_function_args(&mut s, b'-', None, None, None, true);
@@ -736,7 +736,7 @@ pub fn get_lambda_tv(
     }
 
     if evaluate {
-        eval_st().eval_lavars_used = Some(false);
+        set_eval_lavars_used(Some(false));
     }
 
     let mut arg_cstr = crate::charset::skipwhite_at(arg, 1);
@@ -746,7 +746,7 @@ pub fn get_lambda_tv(
     *arg = arg_cstr;
     if !ret {
         if evaluate {
-            eval_st().eval_lavars_used = old_eval_lavars;
+            set_eval_lavars_used(old_eval_lavars);
         }
         return Some(false);
     }
@@ -757,7 +757,7 @@ pub fn get_lambda_tv(
     if arg_ws.to_bytes().first() != Some(&b'}') {
         semsg!(gettext(c"E451: Expected }: %s"), arg_ws);
         if evaluate {
-            eval_st().eval_lavars_used = old_eval_lavars;
+            set_eval_lavars_used(old_eval_lavars);
         }
         return Some(false);
     }
@@ -787,8 +787,7 @@ pub fn get_lambda_tv(
         fp.uf_args = newargs;
         fp.uf_def_args = Vec::new();
         fp.uf_lines = newlines;
-        if !UF_STATE.with(|s| s.current_funccal.get()).is_null()
-            && eval_st().eval_lavars_used == Some(true)
+        if !UF_STATE.with(|s| s.current_funccal.get()).is_null() && eval_lavars_used() == Some(true)
         {
             flags |= FC_CLOSURE;
             register_closure(&mut *fp);
@@ -812,7 +811,7 @@ pub fn get_lambda_tv(
         pt.pt_refcount = 1;
         rettv.vval = crate::eval::typval::TypvalVval::Partial(pt.pt_id);
         rettv.v_type = VarType::VarPartial;
-        eval_st().eval_lavars_used = old_eval_lavars;
+        set_eval_lavars_used(old_eval_lavars);
     }
 
     Some(true)
@@ -3630,7 +3629,7 @@ pub fn func_unref(name: Option<&CStr>) {
     let fp = fp.and_then(UfuncId::opt_mut);
     if fp.is_none()
         && name.to_bytes().first().is_some_and(u8::is_ascii_digit)
-        && !mem_st().entered_free_all_mem
+        && !entered_free_all_mem()
         && !g_st().exiting
     {
         internal_error(c"func_unref()");

@@ -160,79 +160,38 @@ impl SaveState {
     }
 }
 
-#[derive(Clone, Copy)]
 struct MenuCopyState {
-    menus_locked: i32,
-    expand_modes: i32,
-    expand_emenu: bool,
-    get_menu_name_idx: usize,
-    get_menu_name_advance: bool,
-    get_menu_names_idx: usize,
-    get_menu_names_advance: bool,
+    menus_locked: std::cell::Cell<i32>,
+    expand_modes: std::cell::Cell<i32>,
+    expand_emenu: std::cell::Cell<bool>,
+    get_menu_name_idx: std::cell::Cell<usize>,
+    get_menu_name_advance: std::cell::Cell<bool>,
+    get_menu_names_idx: std::cell::Cell<usize>,
+    get_menu_names_advance: std::cell::Cell<bool>,
 }
 
 impl MenuCopyState {
     const fn new() -> Self {
         Self {
-            menus_locked: 0,
-            expand_modes: 0,
-            expand_emenu: false,
-            get_menu_name_idx: 0,
-            get_menu_name_advance: false,
-            get_menu_names_idx: 0,
-            get_menu_names_advance: false,
+            menus_locked: std::cell::Cell::new(0),
+            expand_modes: std::cell::Cell::new(0),
+            expand_emenu: std::cell::Cell::new(false),
+            get_menu_name_idx: std::cell::Cell::new(0),
+            get_menu_name_advance: std::cell::Cell::new(false),
+            get_menu_names_idx: std::cell::Cell::new(0),
+            get_menu_names_advance: std::cell::Cell::new(false),
         }
     }
 }
 
 thread_local! {
-    static MENU_STATE: std::cell::Cell<MenuCopyState> = const {
-        std::cell::Cell::new(MenuCopyState::new())
-    };
+    static MENU_STATE: MenuCopyState = const { MenuCopyState::new() };
     static EXPAND_MENU_PATH: std::cell::RefCell<Option<Vec<usize>>> = const {
         std::cell::RefCell::new(None)
     };
     static MENUTRANS_GA: std::cell::RefCell<Vec<Menutrans>> = const {
         std::cell::RefCell::new(Vec::new())
     };
-}
-
-struct MenuGuard {
-    state: MenuCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for MenuGuard {
-    type Target = MenuCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for MenuGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for MenuGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            MENU_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn menu_st() -> MenuGuard {
-    MenuGuard {
-        state: MENU_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 fn expand_menu_slice() -> Option<&'static [Vimmenu]> {
@@ -260,7 +219,7 @@ fn get_root_menu() -> &'static mut Vec<Vimmenu> {
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
 fn is_menus_locked() -> bool {
-    if menu_st().menus_locked > 0 {
+    if MENU_STATE.with(|s| s.menus_locked.get()) > 0 {
         emsg(gettext(E_CANNOT_CHANGE_MENUS_WHILE_LISTING));
         return true;
     }
@@ -937,10 +896,10 @@ fn show_menus(path_name: &CStr, modes: i32) -> bool {
         menu = Some(m);
     }
 
-    menu_st().menus_locked += 1;
+    MENU_STATE.with(|s| s.menus_locked.set(s.menus_locked.get() + (1)));
     msg_puts_title(gettext(c"\n--- Menus ---"));
     show_menus_recursive(menu, modes, 0);
-    menu_st().menus_locked -= 1;
+    MENU_STATE.with(|s| s.menus_locked.set(s.menus_locked.get() - (1)));
     true
 }
 
@@ -1076,7 +1035,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
 
     let cmd_bytes = cmd.to_bytes();
     let expand_menus = !(cmd_bytes.starts_with(b"te") || cmd_bytes.first() == Some(&b'p'));
-    menu_st().expand_emenu = cmd_bytes.first() == Some(&b'e');
+    MENU_STATE.with(|s| s.expand_emenu.set(cmd_bytes.first() == Some(&b'e')));
     if expand_menus
         && arg_bytes
             .get(p_idx)
@@ -1085,9 +1044,12 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
         return;
     }
     if p_idx == arg_bytes.len() {
-        menu_st().expand_modes = get_menu_cmd_modes(cmd, forceit, None, Some(&mut unmenu));
+        MENU_STATE.with(|s| {
+            s.expand_modes
+                .set(get_menu_cmd_modes(cmd, forceit, None, Some(&mut unmenu)))
+        });
         if !unmenu {
-            menu_st().expand_modes = MENU_ALL_MODES;
+            MENU_STATE.with(|s| s.expand_modes.set(MENU_ALL_MODES));
         }
 
         let mut menu_list: &[Vimmenu] = &g_st().root_menu;
@@ -1105,7 +1067,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
                 for (idx, menu) in menu_list.iter().enumerate() {
                     if menu_name_equal(cur_bytes, menu) {
                         if (next_non_empty && menu.children.is_empty())
-                            || (menu.modes & menu_st().expand_modes) == 0
+                            || (menu.modes & MENU_STATE.with(|s| s.expand_modes.get())) == 0
                         {
                             return;
                         }
@@ -1139,34 +1101,34 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
 pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if idx == 0 {
-        menu_st().get_menu_name_idx = 0;
-        menu_st().get_menu_name_advance = false;
+        MENU_STATE.with(|s| s.get_menu_name_idx.set(0));
+        MENU_STATE.with(|s| s.get_menu_name_advance.set(false));
     }
 
     let menus = expand_menu_slice()?;
 
-    while menu_st().get_menu_name_idx < menus.len() {
-        let menu = &menus[menu_st().get_menu_name_idx];
+    while MENU_STATE.with(|s| s.get_menu_name_idx.get()) < menus.len() {
+        let menu = &menus[MENU_STATE.with(|s| s.get_menu_name_idx.get())];
         let dname_bytes = menu.dname.as_bytes();
         if menu_is_hidden(dname_bytes) || menu_is_separator(dname_bytes) || menu.children.is_empty()
         {
-            menu_st().get_menu_name_idx += 1;
+            MENU_STATE.with(|s| s.get_menu_name_idx.set(s.get_menu_name_idx.get() + (1)));
         } else {
             break;
         }
     }
 
-    if menu_st().get_menu_name_idx >= menus.len() {
+    if MENU_STATE.with(|s| s.get_menu_name_idx.get()) >= menus.len() {
         return None;
     }
-    let menu = &menus[menu_st().get_menu_name_idx];
+    let menu = &menus[MENU_STATE.with(|s| s.get_menu_name_idx.get())];
 
-    let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
-        if menu_st().get_menu_name_advance {
+    let str_res = if (menu.modes & MENU_STATE.with(|s| s.expand_modes.get())) != 0 {
+        if MENU_STATE.with(|s| s.get_menu_name_advance.get()) {
             menu.en_dname.as_deref()
         } else {
             if menu.en_dname.is_none() {
-                menu_st().get_menu_name_advance = true;
+                MENU_STATE.with(|s| s.get_menu_name_advance.set(true));
             }
             Some(menu.dname.as_c_str())
         }
@@ -1174,11 +1136,14 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         Some(c"")
     };
 
-    if menu_st().get_menu_name_advance {
-        menu_st().get_menu_name_idx += 1;
+    if MENU_STATE.with(|s| s.get_menu_name_advance.get()) {
+        MENU_STATE.with(|s| s.get_menu_name_idx.set(s.get_menu_name_idx.get() + (1)));
     }
 
-    menu_st().get_menu_name_advance = !menu_st().get_menu_name_advance;
+    MENU_STATE.with(|s| {
+        s.get_menu_name_advance
+            .set(!MENU_STATE.with(|s| s.get_menu_name_advance.get()))
+    });
 
     str_res
 }
@@ -1186,30 +1151,32 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
 pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        menu_st().get_menu_names_idx = 0;
-        menu_st().get_menu_names_advance = false;
+        MENU_STATE.with(|s| s.get_menu_names_idx.set(0));
+        MENU_STATE.with(|s| s.get_menu_names_advance.set(false));
     }
 
     let menus = expand_menu_slice()?;
 
-    while menu_st().get_menu_names_idx < menus.len() && {
-        let dname_bytes = menus[menu_st().get_menu_names_idx].dname.as_bytes();
+    while MENU_STATE.with(|s| s.get_menu_names_idx.get()) < menus.len() && {
+        let dname_bytes = menus[MENU_STATE.with(|s| s.get_menu_names_idx.get())]
+            .dname
+            .as_bytes();
         menu_is_hidden(dname_bytes)
-            || (menu_st().expand_emenu && menu_is_separator(dname_bytes))
+            || (MENU_STATE.with(|s| s.expand_emenu.get()) && menu_is_separator(dname_bytes))
             || dname_bytes.last() == Some(&b'.')
     } {
-        menu_st().get_menu_names_idx += 1;
+        MENU_STATE.with(|s| s.get_menu_names_idx.set(s.get_menu_names_idx.get() + (1)));
     }
 
-    if menu_st().get_menu_names_idx >= menus.len() {
+    if MENU_STATE.with(|s| s.get_menu_names_idx.get()) >= menus.len() {
         return None;
     }
-    let menu = &menus[menu_st().get_menu_names_idx];
+    let menu = &menus[MENU_STATE.with(|s| s.get_menu_names_idx.get())];
 
-    let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
+    let str_res = if (menu.modes & MENU_STATE.with(|s| s.expand_modes.get())) != 0 {
         if !menu.children.is_empty() {
             let mut tbuf = [0u8; TBUFFER_LEN];
-            if menu_st().get_menu_names_advance {
+            if MENU_STATE.with(|s| s.get_menu_names_advance.get()) {
                 crate::memory::copy_bytes_to_c_buf(
                     &mut tbuf,
                     menu.en_dname.as_ref().map_or(&b""[..], |s| s.as_bytes()),
@@ -1217,7 +1184,7 @@ pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
             } else {
                 crate::memory::copy_bytes_to_c_buf(&mut tbuf, menu.dname.as_bytes());
                 if menu.en_dname.is_none() {
-                    menu_st().get_menu_names_advance = true;
+                    MENU_STATE.with(|s| s.get_menu_names_advance.set(true));
                 }
             }
             let tlen = crate::memory::bytes_as_cstr(&tbuf).to_bytes().len();
@@ -1227,11 +1194,11 @@ pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
             }
 
             Some(xp.set_item(crate::memory::bytes_as_cstr(&tbuf).to_owned()))
-        } else if menu_st().get_menu_names_advance {
+        } else if MENU_STATE.with(|s| s.get_menu_names_advance.get()) {
             menu.en_dname.as_deref()
         } else {
             if menu.en_dname.is_none() {
-                menu_st().get_menu_names_advance = true;
+                MENU_STATE.with(|s| s.get_menu_names_advance.set(true));
             }
             Some(menu.dname.as_c_str())
         }
@@ -1239,11 +1206,14 @@ pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
         Some(c"")
     };
 
-    if menu_st().get_menu_names_advance {
-        menu_st().get_menu_names_idx += 1;
+    if MENU_STATE.with(|s| s.get_menu_names_advance.get()) {
+        MENU_STATE.with(|s| s.get_menu_names_idx.set(s.get_menu_names_idx.get() + (1)));
     }
 
-    menu_st().get_menu_names_advance = !menu_st().get_menu_names_advance;
+    MENU_STATE.with(|s| {
+        s.get_menu_names_advance
+            .set(!MENU_STATE.with(|s| s.get_menu_names_advance.get()))
+    });
 
     str_res
 }

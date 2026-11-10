@@ -69,7 +69,7 @@ use crate::lua::executor::{
 use crate::mark::setpcmark;
 use crate::mcursor::mc_init;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{free_all_mem, mem_st};
+use crate::memory::{entered_free_all_mem, free_all_mem};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
@@ -949,10 +949,7 @@ pub fn getout(mut exitval: i32) -> ! {
         }
     }
 
-    if !mem_st().entered_free_all_mem
-        && !opt_vars().p_shada.is_null()
-        && !opt_vars().p_shada.is_empty()
-    {
+    if !entered_free_all_mem() && !opt_vars().p_shada.is_null() && !opt_vars().p_shada.is_empty() {
         shada_write_file(None, false);
     }
 

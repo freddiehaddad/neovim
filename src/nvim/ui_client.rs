@@ -48,80 +48,39 @@ use std::ffi::{CStr, CString};
 pub(crate) const UI_CLIENT_STDIN_FD: i32 = 3;
 use crate::highlight::KEYSET_OPTIDX_HIGHLIGHT_URL;
 
-#[derive(Clone, Copy)]
 struct UiClientState {
-    tui: crate::globals::GraphPtr<TUIData>,
-    tui_width: i32,
-    tui_height: i32,
-    tui_rgb: bool,
-    restart_args: Array,
-    restart_pending: bool,
-    restart_args_after_crash_exit: Array,
+    tui: std::cell::Cell<crate::globals::GraphPtr<TUIData>>,
+    tui_width: std::cell::Cell<i32>,
+    tui_height: std::cell::Cell<i32>,
+    tui_rgb: std::cell::Cell<bool>,
+    restart_args: std::cell::Cell<Array>,
+    restart_pending: std::cell::Cell<bool>,
+    restart_args_after_crash_exit: std::cell::Cell<Array>,
 }
 
 impl UiClientState {
     const fn new() -> Self {
         Self {
-            tui: crate::globals::GraphPtr::NULL,
-            tui_width: 0,
-            tui_height: 0,
-            tui_rgb: false,
-            restart_args: ARRAY_INIT,
-            restart_pending: false,
-            restart_args_after_crash_exit: ARRAY_INIT,
+            tui: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            tui_width: std::cell::Cell::new(0),
+            tui_height: std::cell::Cell::new(0),
+            tui_rgb: std::cell::Cell::new(false),
+            restart_args: std::cell::Cell::new(ARRAY_INIT),
+            restart_pending: std::cell::Cell::new(false),
+            restart_args_after_crash_exit: std::cell::Cell::new(ARRAY_INIT),
         }
     }
 }
 
 thread_local! {
-    static UIC_STATE: std::cell::Cell<UiClientState> =
-        const { std::cell::Cell::new(UiClientState::new()) };
+    static UIC_STATE: UiClientState = const { UiClientState::new() };
     static UIC_TUI_TERM: std::cell::RefCell<Option<std::ffi::CString>> =
         const { std::cell::RefCell::new(None) };
 }
 
-struct UicGuard {
-    state: UiClientState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for UicGuard {
-    type Target = UiClientState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for UicGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for UicGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            UIC_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn uic_st() -> UicGuard {
-    UicGuard {
-        state: UIC_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
-}
-
 #[inline]
 fn tui_ptr() -> &'static mut TUIData {
-    uic_st().tui.borrow_mut()
+    UIC_STATE.with(|s| s.tui.get()).borrow_mut()
 }
 
 pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
@@ -328,11 +287,15 @@ pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
     if let Some(addr) = server_addr {
         set_chan_addr(addr);
     }
-    uic_st().tui = crate::globals::GraphPtr::from(Box::leak(Box::new(TUIData::new())));
-    let mut tui_width = uic_st().tui_width;
-    let mut tui_height = uic_st().tui_height;
+    UIC_STATE.with(|s| {
+        s.tui.set(crate::globals::GraphPtr::from(Box::leak(Box::new(
+            TUIData::new(),
+        ))))
+    });
+    let mut tui_width = UIC_STATE.with(|s| s.tui_width.get());
+    let mut tui_height = UIC_STATE.with(|s| s.tui_height.get());
     let mut tui_term = UIC_TUI_TERM.with(|t| t.borrow_mut().take());
-    let mut tui_rgb = uic_st().tui_rgb;
+    let mut tui_rgb = UIC_STATE.with(|s| s.tui_rgb.get());
     tui_start(
         tui_ptr(),
         &mut tui_width,
@@ -340,9 +303,9 @@ pub fn ui_client_run(server_addr: Option<&CStr>) -> ! {
         &mut tui_term,
         &mut tui_rgb,
     );
-    uic_st().tui_width = tui_width;
-    uic_st().tui_height = tui_height;
-    uic_st().tui_rgb = tui_rgb;
+    UIC_STATE.with(|s| s.tui_width.set(tui_width));
+    UIC_STATE.with(|s| s.tui_height.set(tui_height));
+    UIC_STATE.with(|s| s.tui_rgb.set(tui_rgb));
     ui_client_attach(tui_width, tui_height, tui_term.as_deref(), tui_rgb);
     UIC_TUI_TERM.with(|t| *t.borrow_mut() = tui_term);
 
@@ -391,8 +354,8 @@ pub fn ui_client_set_size(width: i32, height: i32) {
         };
         rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize", args);
     }
-    uic_st().tui_width = width;
-    uic_st().tui_height = height;
+    UIC_STATE.with(|s| s.tui_width.set(width));
+    UIC_STATE.with(|s| s.tui_height.set(height));
 }
 
 pub fn handle_ui_client_redraw(
@@ -532,10 +495,10 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
     set_chan_addr(&server_addr);
     let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
     ui_client_attach(
-        uic_st().tui_width,
-        uic_st().tui_height,
+        UIC_STATE.with(|s| s.tui_width.get()),
+        UIC_STATE.with(|s| s.tui_height.get()),
         term.as_deref(),
-        uic_st().tui_rgb,
+        UIC_STATE.with(|s| s.tui_rgb.get()),
     );
 
     logmsg!(
@@ -551,38 +514,41 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
 }
 
 pub fn ui_client_event_restart(args: Array) {
-    api_free_array(uic_st().restart_args);
-    uic_st().restart_args = copy_array(args, None);
-    uic_st().restart_pending = true;
+    api_free_array(UIC_STATE.with(|s| s.restart_args.get()));
+    UIC_STATE.with(|s| s.restart_args.set(copy_array(args, None)));
+    UIC_STATE.with(|s| s.restart_pending.set(true));
 }
 
 pub fn ui_client_event_set_restart_on_crash_exit(args: Array) {
-    api_free_array(uic_st().restart_args_after_crash_exit);
-    uic_st().restart_args_after_crash_exit = copy_array(args, None);
+    api_free_array(UIC_STATE.with(|s| s.restart_args_after_crash_exit.get()));
+    UIC_STATE.with(|s| s.restart_args_after_crash_exit.set(copy_array(args, None)));
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
-    let mut args = uic_st().restart_args;
+    let mut args = UIC_STATE.with(|s| s.restart_args.get());
     let mut start_server = false;
-    if !uic_st().restart_pending {
+    if !UIC_STATE.with(|s| s.restart_pending.get()) {
         if error_restart
             && g_st().ui_client_error_exit == -1
-            && uic_st().restart_args_after_crash_exit.size > 0
+            && UIC_STATE
+                .with(|s| s.restart_args_after_crash_exit.get())
+                .size
+                > 0
         {
             start_server = true;
-            args = uic_st().restart_args_after_crash_exit;
+            args = UIC_STATE.with(|s| s.restart_args_after_crash_exit.get());
         } else {
             return;
         }
     }
 
-    uic_st().restart_pending = false;
+    UIC_STATE.with(|s| s.restart_pending.set(false));
 
     let cleanup = || {
-        api_free_array(uic_st().restart_args);
-        uic_st().restart_args = ARRAY_INIT;
-        api_free_array(uic_st().restart_args_after_crash_exit);
-        uic_st().restart_args_after_crash_exit = ARRAY_INIT;
+        api_free_array(UIC_STATE.with(|s| s.restart_args.get()));
+        UIC_STATE.with(|s| s.restart_args.set(ARRAY_INIT));
+        api_free_array(UIC_STATE.with(|s| s.restart_args_after_crash_exit.get()));
+        UIC_STATE.with(|s| s.restart_args_after_crash_exit.set(ARRAY_INIT));
     };
 
     if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
@@ -662,10 +628,10 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
     g_st().ui_client_channel_id = chan_id;
     let term = UIC_TUI_TERM.with(|t| t.borrow().clone());
     ui_client_attach(
-        uic_st().tui_width,
-        uic_st().tui_height,
+        UIC_STATE.with(|s| s.tui_width.get()),
+        UIC_STATE.with(|s| s.tui_height.get()),
         term.as_deref(),
-        uic_st().tui_rgb,
+        UIC_STATE.with(|s| s.tui_rgb.get()),
     );
 
     logmsg!(
@@ -697,8 +663,8 @@ pub fn ui_client_event_error_exit(args: Array) {
 }
 
 pub fn ui_client_free_all_mem() {
-    let tui = uic_st().tui;
-    uic_st().tui = crate::globals::GraphPtr::NULL;
+    let tui = UIC_STATE.with(|s| s.tui.get());
+    UIC_STATE.with(|s| s.tui.set(crate::globals::GraphPtr::NULL));
     tui.drop_box();
     tui_free_all_mem(None);
     g_st().grid_line_buf_char = Vec::new();

@@ -230,75 +230,44 @@ const E_EMPTY_FUNCTION_NAME: &CStr = c"E1192: Empty function name";
 const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
-#[derive(Clone, Copy)]
 pub(crate) struct EvalModuleState {
-    pub(crate) eval_lavars_used: Option<bool>,
-    echo_hl_id: i32,
-    last_timer_id: u64,
-    callback_depth: i32,
-    current_copy_id: i32,
-    eval7_recurse: i32,
-    var_item_copy_recurse: i32,
+    pub(crate) eval_lavars_used: std::cell::Cell<Option<bool>>,
+    echo_hl_id: std::cell::Cell<i32>,
+    last_timer_id: std::cell::Cell<u64>,
+    callback_depth: std::cell::Cell<i32>,
+    current_copy_id: std::cell::Cell<i32>,
+    eval7_recurse: std::cell::Cell<i32>,
+    var_item_copy_recurse: std::cell::Cell<i32>,
 }
 
 impl EvalModuleState {
     const fn new() -> Self {
         Self {
-            eval_lavars_used: None,
-            echo_hl_id: 0,
-            last_timer_id: 1,
-            callback_depth: 0,
-            current_copy_id: 0,
-            eval7_recurse: 0,
-            var_item_copy_recurse: 0,
-        }
-    }
-}
-
-thread_local! {
-    static EVAL_STATE: std::cell::Cell<EvalModuleState> =
-        const { std::cell::Cell::new(EvalModuleState::new()) };
-    static EVAL_TIMERS: std::cell::RefCell<std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>> =
-        const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
-}
-
-pub(crate) struct EvalGuard {
-    state: EvalModuleState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for EvalGuard {
-    type Target = EvalModuleState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for EvalGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for EvalGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            EVAL_STATE.with(|c| c.set(self.state));
+            eval_lavars_used: std::cell::Cell::new(None),
+            echo_hl_id: std::cell::Cell::new(0),
+            last_timer_id: std::cell::Cell::new(1),
+            callback_depth: std::cell::Cell::new(0),
+            current_copy_id: std::cell::Cell::new(0),
+            eval7_recurse: std::cell::Cell::new(0),
+            var_item_copy_recurse: std::cell::Cell::new(0),
         }
     }
 }
 
 #[inline]
-pub(crate) fn eval_st() -> EvalGuard {
-    EvalGuard {
-        state: EVAL_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
+pub(crate) fn eval_lavars_used() -> Option<bool> {
+    EVAL_STATE.with(|s| s.eval_lavars_used.get())
+}
+
+#[inline]
+pub(crate) fn set_eval_lavars_used(val: Option<bool>) {
+    EVAL_STATE.with(|s| s.eval_lavars_used.set(val));
+}
+
+thread_local! {
+    static EVAL_STATE: EvalModuleState = const { EvalModuleState::new() };
+    static EVAL_TIMERS: std::cell::RefCell<std::collections::BTreeMap<u64, crate::globals::GraphPtr<VimTimer>>> =
+        const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
 }
 
 #[inline]
@@ -2797,11 +2766,11 @@ fn eval7(
     let mut leader_len = (arg.as_ptr() as usize).wrapping_sub(start_leader as usize);
     let leader_slice = &start_arg.to_bytes()[..leader_len];
 
-    if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
+    if EVAL_STATE.with(|s| s.eval7_recurse.get()) == MAX_EVAL7_RECURSE {
         semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), *arg);
         return false;
     }
-    eval_st().eval7_recurse += 1;
+    EVAL_STATE.with(|s| s.eval7_recurse.set(s.eval7_recurse.get() + (1)));
 
     let ret: Option<bool> = match arg.to_bytes_with_nul()[0] {
         b'0'..=b'9' => {
@@ -2921,7 +2890,7 @@ fn eval7(
         ok = eval7_leader(&mut *rettv, false, leader_slice, &mut leader_len);
     }
 
-    eval_st().eval7_recurse -= 1;
+    EVAL_STATE.with(|s| s.eval7_recurse.set(s.eval7_recurse.get() - (1)));
     ok
 }
 
@@ -4135,8 +4104,10 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
 
 /// Get next (unique) copy ID.
 pub fn get_copy_id() -> i32 {
-    let next_copy_id = eval_st().current_copy_id.wrapping_add(COPYID_INC);
-    eval_st().current_copy_id = next_copy_id;
+    let next_copy_id = EVAL_STATE
+        .with(|s| s.current_copy_id.get())
+        .wrapping_add(COPYID_INC);
+    EVAL_STATE.with(|s| s.current_copy_id.set(next_copy_id));
     next_copy_id
 }
 
@@ -4919,7 +4890,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
 }
 
 pub fn get_callback_depth() -> i32 {
-    eval_st().callback_depth
+    EVAL_STATE.with(|s| s.callback_depth.get())
 }
 
 /// @return  whether the callback could be called.
@@ -4929,7 +4900,7 @@ pub fn callback_call(
     argvars_in: &mut [TypVal],
     rettv: &mut TypVal,
 ) -> bool {
-    if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
+    if i64::from(EVAL_STATE.with(|s| s.callback_depth.get())) > opt_vars().p_mfd {
         emsg(gettext(E_COMMAND_TOO_RECURSIVE));
         return false;
     }
@@ -4963,7 +4934,7 @@ pub fn callback_call(
             }
             let mut err = Error::new();
             let luaref = callback.data.as_luaref();
-            eval_st().callback_depth += 1;
+            EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
             let result = nlua_call_ref(
                 luaref,
                 None,
@@ -4972,7 +4943,7 @@ pub fn callback_call(
                 Some(&mut arena),
                 Some(&mut err),
             );
-            eval_st().callback_depth -= 1;
+            EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
             let ok = err.err_type == ErrorType::ErrorTypeNone;
             if !ok {
                 semsg_multiline!(c"emsg", c"E5108: %s", err.msg_cstr());
@@ -4988,10 +4959,10 @@ pub fn callback_call(
             return ok;
         }
         K_CALLBACK_EXPR => {
-            eval_st().callback_depth += 1;
+            EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
             let expr = crate::charset::skipwhite(callback.data.as_funcref().unwrap_or(c""));
             let r = eval0_simple_funccal(expr, rettv, None, &mut g_st().evalarg_evaluate);
-            eval_st().callback_depth -= 1;
+            EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
             return r;
         }
         _ => {
@@ -5012,9 +4983,9 @@ pub fn callback_call(
         fe_found_var: false,
     };
 
-    eval_st().callback_depth += 1;
+    EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() + (1)));
     let ret = call_func(name, -1, rettv, argcount_in, argvars_in, &mut funcexe);
-    eval_st().callback_depth -= 1;
+    EVAL_STATE.with(|s| s.callback_depth.set(s.callback_depth.get() - (1)));
     ret
 }
 
@@ -5153,8 +5124,8 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
     timer_decref(timer.borrow_mut());
 }
 pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
-    let id = eval_st().last_timer_id;
-    eval_st().last_timer_id += 1;
+    let id = EVAL_STATE.with(|s| s.last_timer_id.get());
+    EVAL_STATE.with(|s| s.last_timer_id.set(s.last_timer_id.get() + (1)));
     let timer = Box::leak(Box::new(VimTimer {
         watcher: TimeWatcher::new(),
         timer_id: id as i32,
@@ -6068,11 +6039,14 @@ pub fn var_item_copy(
 ) -> bool {
     let mut ret = true;
 
-    if eval_st().var_item_copy_recurse >= DICT_MAXNEST {
+    if EVAL_STATE.with(|s| s.var_item_copy_recurse.get()) >= DICT_MAXNEST {
         emsg(gettext(E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY));
         return false;
     }
-    eval_st().var_item_copy_recurse += 1;
+    EVAL_STATE.with(|s| {
+        s.var_item_copy_recurse
+            .set(s.var_item_copy_recurse.get() + (1))
+    });
 
     match from.v_type {
         VarType::VarNumber
@@ -6086,7 +6060,10 @@ pub fn var_item_copy(
         VarType::VarString => {
             let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) else {
                 tv_copy(&*from, &mut *to);
-                eval_st().var_item_copy_recurse -= 1;
+                EVAL_STATE.with(|s| {
+                    s.var_item_copy_recurse
+                        .set(s.var_item_copy_recurse.get() - (1))
+                });
                 return ret;
             };
             if from.vval.v_string_is_null() {
@@ -6108,7 +6085,10 @@ pub fn var_item_copy(
             to.v_lock = VAR_UNLOCKED;
             let Some(from_list) = from.vval.v_list_opt() else {
                 to.vval = crate::eval::typval::TypvalVval::List(crate::eval::typval::ListId::NULL);
-                eval_st().var_item_copy_recurse -= 1;
+                EVAL_STATE.with(|s| {
+                    s.var_item_copy_recurse
+                        .set(s.var_item_copy_recurse.get() - (1))
+                });
                 return ret;
             };
             if copy_id != 0 && tv_list_copyid(from_list) == copy_id {
@@ -6132,7 +6112,10 @@ pub fn var_item_copy(
             to.v_lock = VAR_UNLOCKED;
             let Some(from_dict) = from.vval.v_dict_opt() else {
                 to.vval = crate::eval::typval::TypvalVval::Dict(crate::eval::typval::DictId::NULL);
-                eval_st().var_item_copy_recurse -= 1;
+                EVAL_STATE.with(|s| {
+                    s.var_item_copy_recurse
+                        .set(s.var_item_copy_recurse.get() - (1))
+                });
                 return ret;
             };
             if copy_id != 0 && from_dict.dv_copy_id == copy_id {
@@ -6152,7 +6135,10 @@ pub fn var_item_copy(
             ret = false;
         }
     }
-    eval_st().var_item_copy_recurse -= 1;
+    EVAL_STATE.with(|s| {
+        s.var_item_copy_recurse
+            .set(s.var_item_copy_recurse.get() - (1))
+    });
     ret
 }
 
@@ -6207,12 +6193,12 @@ pub fn ex_echo(eap: &mut Exarg) {
                     msg_start();
                 }
             } else if eap.cmdidx == Cmdidx::CmdEcho {
-                msg_puts_hl(c" ", eval_st().echo_hl_id, false);
+                msg_puts_hl(c" ", EVAL_STATE.with(|s| s.echo_hl_id.get()), false);
             }
             let tofree = encode_tv2echo(&mut rettv, None);
             msg_multiline(
                 cstr_as_string(Some(&*tofree)),
-                eval_st().echo_hl_id,
+                EVAL_STATE.with(|s| s.echo_hl_id.get()),
                 true,
                 false,
                 &mut need_clear,
@@ -6242,12 +6228,12 @@ pub fn ex_echo(eap: &mut Exarg) {
 
 /// ":echohl {name}".
 pub fn ex_echohl(eap: &mut Exarg) {
-    eval_st().echo_hl_id = syn_name2id(eap.arg.as_cstr());
+    EVAL_STATE.with(|s| s.echo_hl_id.set(syn_name2id(eap.arg.as_cstr())));
 }
 
 /// Returns the :echo highlight id.
 pub fn get_echo_hl_id() -> i32 {
-    eval_st().echo_hl_id
+    EVAL_STATE.with(|s| s.echo_hl_id.get())
 }
 
 /// ":execute", ":echomsg", ":echoerr"
@@ -6303,7 +6289,10 @@ pub fn ex_execute(eap: &mut Exarg) {
         if eap.cmdidx == Cmdidx::CmdEchomsg {
             msg_ext_no_fast();
             msg_ext_set_kind(c"echomsg");
-            msg(crate::memory::bytes_as_cstr(&buf), eval_st().echo_hl_id);
+            msg(
+                crate::memory::bytes_as_cstr(&buf),
+                EVAL_STATE.with(|s| s.echo_hl_id.get()),
+            );
         } else if eap.cmdidx == Cmdidx::CmdEchoerr {
             let save_did_emsg = g_st().did_emsg;
             msg_ext_no_fast();

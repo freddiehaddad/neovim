@@ -638,49 +638,46 @@ const FMT_PAT: [FmtPattern; FMT_PATTERNS] = [
     },
 ];
 
-#[derive(Clone, Copy)]
 struct QuickfixCopyState {
-    last_qf_id: u32,
-    qf_last_bufref: Bufref,
-    quickfix_busy: i32,
-    fmt_start_idx: Option<usize>,
-    qf_file_hl_id: i32,
-    qf_sep_hl_id: i32,
-    qf_line_hl_id: i32,
-    qftf_recursive: bool,
-    mef_start: i32,
-    mef_off: i32,
-    did_bufnr_emsg: bool,
-    set_qf_ll_recursive: i32,
+    last_qf_id: std::cell::Cell<u32>,
+    qf_last_bufref: std::cell::Cell<Bufref>,
+    quickfix_busy: std::cell::Cell<i32>,
+    fmt_start_idx: std::cell::Cell<Option<usize>>,
+    qf_file_hl_id: std::cell::Cell<i32>,
+    qf_sep_hl_id: std::cell::Cell<i32>,
+    qf_line_hl_id: std::cell::Cell<i32>,
+    qftf_recursive: std::cell::Cell<bool>,
+    mef_start: std::cell::Cell<i32>,
+    mef_off: std::cell::Cell<i32>,
+    did_bufnr_emsg: std::cell::Cell<bool>,
+    set_qf_ll_recursive: std::cell::Cell<i32>,
 }
 
 impl QuickfixCopyState {
     const fn new() -> Self {
         Self {
-            last_qf_id: 0,
-            qf_last_bufref: Bufref {
+            last_qf_id: std::cell::Cell::new(0),
+            qf_last_bufref: std::cell::Cell::new(Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
-            },
-            quickfix_busy: 0,
-            fmt_start_idx: None,
-            qf_file_hl_id: 0,
-            qf_sep_hl_id: 0,
-            qf_line_hl_id: 0,
-            qftf_recursive: false,
-            mef_start: -1,
-            mef_off: 0,
-            did_bufnr_emsg: false,
-            set_qf_ll_recursive: 0,
+            }),
+            quickfix_busy: std::cell::Cell::new(0),
+            fmt_start_idx: std::cell::Cell::new(None),
+            qf_file_hl_id: std::cell::Cell::new(0),
+            qf_sep_hl_id: std::cell::Cell::new(0),
+            qf_line_hl_id: std::cell::Cell::new(0),
+            qftf_recursive: std::cell::Cell::new(false),
+            mef_start: std::cell::Cell::new(-1),
+            mef_off: std::cell::Cell::new(0),
+            did_bufnr_emsg: std::cell::Cell::new(false),
+            set_qf_ll_recursive: std::cell::Cell::new(0),
         }
     }
 }
 
 thread_local! {
-    static QF_STATE: std::cell::Cell<QuickfixCopyState> = const {
-        std::cell::Cell::new(QuickfixCopyState::new())
-    };
+    static QF_STATE: QuickfixCopyState = const { QuickfixCopyState::new() };
     static QF_LAST_BUFNAME: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
@@ -692,44 +689,6 @@ thread_local! {
     static LAST_EFM_CACHE: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
-}
-
-struct QfGuard {
-    state: QuickfixCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for QfGuard {
-    type Target = QuickfixCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for QfGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for QfGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            QF_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn qf_st() -> QfGuard {
-    QfGuard {
-        state: QF_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 #[inline]
@@ -1071,7 +1030,7 @@ fn parse_efm_option(efm: &[u8]) -> Vec<Efm> {
 
     if errored {
         fmt_list.clear();
-        qf_st().fmt_start_idx = None;
+        QF_STATE.with(|s| s.fmt_start_idx.set(None));
     } else if fmt_list.is_empty() {
         emsg(gettext(c"E378: 'errorformat' contains no pattern"));
     }
@@ -1338,8 +1297,8 @@ fn qf_parse_line(
 ) -> QfStatus {
     let fmt_len = fmt_first.len();
     loop {
-        let start_idx = qf_st().fmt_start_idx;
-        qf_st().fmt_start_idx = None;
+        let start_idx = QF_STATE.with(|s| s.fmt_start_idx.get());
+        QF_STATE.with(|s| s.fmt_start_idx.set(None));
         let mut fmt_idx = start_idx.unwrap_or(0);
         let mut fmt_opt: Option<&Efm> = None;
 
@@ -1388,7 +1347,7 @@ fn qf_parse_line(
             }
         } else if let Some(fmt_ptr) = fmt_opt {
             if fmt_ptr.conthere != 0 {
-                qf_st().fmt_start_idx = Some(fmt_idx);
+                QF_STATE.with(|s| s.fmt_start_idx.set(Some(fmt_idx)));
             }
 
             if crate::strings::vim_haschr(c"AEWIN", idx) {
@@ -1537,7 +1496,7 @@ fn qf_init_ext(
     });
     if efm_changed {
         LAST_EFM_CACHE.with(|cell| *cell.borrow_mut() = None);
-        qf_st().fmt_start_idx = None;
+        QF_STATE.with(|s| s.fmt_start_idx.set(None));
 
         let parsed = parse_efm_option(efm.to_bytes());
         if !parsed.is_empty() {
@@ -1648,8 +1607,8 @@ fn qf_new_list(qi: &mut QfInfo, qf_title: Option<&CStr>) {
     *qfl = QfList::default();
     qf_store_title(qfl, qf_title);
     qfl.qfl_type = qi.qfl_type;
-    qf_st().last_qf_id += 1;
-    qfl.qf_id = qf_st().last_qf_id;
+    QF_STATE.with(|s| s.last_qf_id.set(s.last_qf_id.get() + (1)));
+    qfl.qf_id = QF_STATE.with(|s| s.last_qf_id.get());
     qfl.qf_has_user_data = false;
 }
 
@@ -2072,7 +2031,7 @@ fn ll_free_all(qi: Option<&mut QfInfo>) {
         return;
     };
 
-    if qf_st().quickfix_busy > 0 {
+    if QF_STATE.with(|s| s.quickfix_busy.get()) > 0 {
         locstack_queue_delreq(qi);
         return;
     }
@@ -2106,12 +2065,12 @@ pub fn qf_free_all(wp: Option<&mut WinInfoInfo>) {
 }
 
 fn incr_quickfix_busy() {
-    qf_st().quickfix_busy += 1;
+    QF_STATE.with(|s| s.quickfix_busy.set(s.quickfix_busy.get() + (1)));
 }
 
 fn decr_quickfix_busy() {
-    qf_st().quickfix_busy -= 1;
-    if qf_st().quickfix_busy == 0 {
+    QF_STATE.with(|s| s.quickfix_busy.set(s.quickfix_busy.get() - (1)));
+    if QF_STATE.with(|s| s.quickfix_busy.get()) == 0 {
         while let Some(qi) = QF_DELQ.with(|cell| cell.borrow_mut().pop()) {
             ll_free_all(qi.opt_mut());
         }
@@ -2119,10 +2078,10 @@ fn decr_quickfix_busy() {
 }
 
 pub fn check_quickfix_busy() {
-    if qf_st().quickfix_busy != 0 {
+    if QF_STATE.with(|s| s.quickfix_busy.get()) != 0 {
         semsg!(
             c"quickfix_busy not zero on exit: %lld",
-            i64::from(qf_st().quickfix_busy),
+            i64::from(QF_STATE.with(|s| s.quickfix_busy.get())),
         );
     }
 }
@@ -2405,8 +2364,8 @@ fn copy_loclist(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
     }
 
     to_qfl.qf_index = from_qfl.qf_index;
-    qf_st().last_qf_id += 1;
-    to_qfl.qf_id = qf_st().last_qf_id;
+    QF_STATE.with(|s| s.last_qf_id.set(s.last_qf_id.get() + (1)));
+    to_qfl.qf_id = QF_STATE.with(|s| s.last_qf_id.get());
     to_qfl.qf_changedtick = 0;
 
     if to_qfl.qf_nonevalid {
@@ -2472,8 +2431,8 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
             .as_ref()
             .is_some_and(|last| bufname_cstr.as_bytes() == last.to_bytes())
     });
-    let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
-        qf_st().qf_last_bufref.br_buf
+    let buf = if same_as_last && bufref_valid(Some(&QF_STATE.with(|s| s.qf_last_bufref.get()))) {
+        QF_STATE.with(|s| s.qf_last_bufref.get()).br_buf
     } else {
         let b = crate::globals::GraphPtr::from(buflist_new(
             Some(bufname_cstr.as_c_str()),
@@ -2482,7 +2441,11 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
             BLN_NOOPT,
         ));
         QF_LAST_BUFNAME.with(|cell| *cell.borrow_mut() = Some(bufname_cstr));
-        set_bufref(&mut qf_st().qf_last_bufref, b.opt_mut());
+        QF_STATE.with(|s| {
+            let mut br = s.qf_last_bufref.get();
+            set_bufref(&mut br, b.opt_mut());
+            s.qf_last_bufref.set(br);
+        });
         b
     };
     let Some(buf) = buf.opt_mut() else {
@@ -3378,13 +3341,13 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         if cursel {
             HLF_QFL
         } else {
-            qf_st().qf_file_hl_id
+            QF_STATE.with(|s| s.qf_file_hl_id.get())
         },
         false,
     );
 
     if qfp.qf_lnum != 0 {
-        msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
+        msg_puts_hl(c":", QF_STATE.with(|s| s.qf_sep_hl_id.get()), false);
     }
     let mut gap_vec = Vec::with_capacity(256);
     let gap = &mut gap_vec;
@@ -3396,17 +3359,17 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     if !crate::memory::bytes_until_nul(gap).is_empty() {
         msg_puts_hl(
             crate::memory::bytes_as_cstr(gap),
-            qf_st().qf_line_hl_id,
+            QF_STATE.with(|s| s.qf_line_hl_id.get()),
             false,
         );
     }
-    msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
+    msg_puts_hl(c":", QF_STATE.with(|s| s.qf_sep_hl_id.get()), false);
     if let Some(ref pat) = qfp.qf_pattern {
         gap.clear();
         qf_fmt_text(gap, pat.as_bytes());
         gap.push(0);
         msg_puts(crate::memory::bytes_as_cstr(gap));
-        msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
+        msg_puts_hl(c":", QF_STATE.with(|s| s.qf_sep_hl_id.get()), false);
     }
     msg_puts(c" ");
 
@@ -3467,17 +3430,17 @@ pub fn qf_list(eap: &mut Exarg) {
 
     shorten_fnames(false);
 
-    qf_st().qf_file_hl_id = syn_name2id(c"qfFileName");
-    if qf_st().qf_file_hl_id == 0 {
-        qf_st().qf_file_hl_id = HLF_D;
+    QF_STATE.with(|s| s.qf_file_hl_id.set(syn_name2id(c"qfFileName")));
+    if QF_STATE.with(|s| s.qf_file_hl_id.get()) == 0 {
+        QF_STATE.with(|s| s.qf_file_hl_id.set(HLF_D));
     }
-    qf_st().qf_sep_hl_id = syn_name2id(c"qfSeparator");
-    if qf_st().qf_sep_hl_id == 0 {
-        qf_st().qf_sep_hl_id = HLF_D;
+    QF_STATE.with(|s| s.qf_sep_hl_id.set(syn_name2id(c"qfSeparator")));
+    if QF_STATE.with(|s| s.qf_sep_hl_id.get()) == 0 {
+        QF_STATE.with(|s| s.qf_sep_hl_id.set(HLF_D));
     }
-    qf_st().qf_line_hl_id = syn_name2id(c"qfLineNr");
-    if qf_st().qf_line_hl_id == 0 {
-        qf_st().qf_line_hl_id = HLF_N;
+    QF_STATE.with(|s| s.qf_line_hl_id.set(syn_name2id(c"qfLineNr")));
+    if QF_STATE.with(|s| s.qf_line_hl_id.get()) == 0 {
+        QF_STATE.with(|s| s.qf_line_hl_id.set(HLF_N));
     }
 
     if qfl.qf_nonevalid {
@@ -4222,10 +4185,10 @@ fn call_qftf_func(
 ) -> Option<&'static mut TvList> {
     let mut qftf_list: Option<&'static mut TvList> = None;
 
-    if qf_st().qftf_recursive {
+    if QF_STATE.with(|s| s.qftf_recursive.get()) {
         return None;
     }
-    qf_st().qftf_recursive = true;
+    QF_STATE.with(|s| s.qftf_recursive.set(true));
 
     let is_qf = is_qf_list(qfl);
     let qf_id = qfl.qf_id;
@@ -4260,7 +4223,7 @@ fn call_qftf_func(
         tv_dict_unref(Some(dict));
     }
 
-    qf_st().qftf_recursive = false;
+    QF_STATE.with(|s| s.qftf_recursive.set(false));
     qftf_list
 }
 
@@ -4589,14 +4552,21 @@ fn get_mef_name() -> Option<std::ffi::CString> {
     };
 
     loop {
-        if qf_st().mef_start == -1 {
-            qf_st().mef_start = os_get_pid() as i32;
+        if QF_STATE.with(|s| s.mef_start.get()) == -1 {
+            QF_STATE.with(|s| s.mef_start.set(os_get_pid() as i32));
         } else {
-            qf_st().mef_off += 19;
+            QF_STATE.with(|s| s.mef_off.set(s.mef_off.get() + (19)));
         }
         let mut name_vec: Vec<u8> = Vec::with_capacity(mef_bytes.len() + 30);
         name_vec.extend_from_slice(&mef_bytes[..off_idx]);
-        name_vec.extend_from_slice(format!("{}{}", qf_st().mef_start, qf_st().mef_off).as_bytes());
+        name_vec.extend_from_slice(
+            format!(
+                "{}{}",
+                QF_STATE.with(|s| s.mef_start.get()),
+                QF_STATE.with(|s| s.mef_off.get())
+            )
+            .as_bytes(),
+        );
         name_vec.extend_from_slice(&mef_bytes[off_idx + 2..]);
         name_vec.push(0);
         let name_cstr = crate::memory::bytes_as_cstr(&name_vec);
@@ -6244,7 +6214,7 @@ fn qf_add_entry_from_dict(
     valid_entry: &mut bool,
 ) -> QfStatus {
     if first_entry {
-        qf_st().did_bufnr_emsg = false;
+        QF_STATE.with(|s| s.did_bufnr_emsg.set(false));
     }
 
     let filename = crate::eval::typval::tv_dict_get_cstring(Some(d), c"filename");
@@ -6269,8 +6239,8 @@ fn qf_add_entry_from_dict(
     }
 
     if bufnum != 0 && buflist_findnr(bufnum).is_none() {
-        if !qf_st().did_bufnr_emsg {
-            qf_st().did_bufnr_emsg = true;
+        if !QF_STATE.with(|s| s.did_bufnr_emsg.get()) {
+            QF_STATE.with(|s| s.did_bufnr_emsg.set(true));
             semsg!(gettext(E_BUFFER_NR_NOT_FOUND), bufnum);
         }
         valid = false;
@@ -7347,7 +7317,7 @@ fn set_qf_ll_list(wp: Option<&mut WinInfoInfo>, args: &mut [TypVal], rettv: &mut
     if args[0].v_type != VarType::VarList {
         emsg(gettext(E_LISTREQ));
         return;
-    } else if qf_st().set_qf_ll_recursive != 0 {
+    } else if QF_STATE.with(|s| s.set_qf_ll_recursive.get()) != 0 {
         emsg(gettext(E_AU_RECURSIVE));
         return;
     }
@@ -7393,12 +7363,12 @@ fn set_qf_ll_list(wp: Option<&mut WinInfoInfo>, args: &mut [TypVal], rettv: &mut
         });
     }
 
-    qf_st().set_qf_ll_recursive += 1;
+    QF_STATE.with(|s| s.set_qf_ll_recursive.set(s.set_qf_ll_recursive.get() + (1)));
     let l = args[0].vval.v_list_opt().map(|r| &*r);
     if set_errorlist(wp, l, i32::from(action), title, what) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     }
-    qf_st().set_qf_ll_recursive -= 1;
+    QF_STATE.with(|s| s.set_qf_ll_recursive.set(s.set_qf_ll_recursive.get() - (1)));
 }
 
 pub fn f_setloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {

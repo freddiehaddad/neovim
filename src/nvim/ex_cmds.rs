@@ -276,34 +276,33 @@ struct LineData {
     lnum_after: Linenr,
 }
 
-#[derive(Clone, Copy)]
 struct ExCmdsState {
-    sort_lc: bool,
-    sort_ic: bool,
-    sort_nr: i32,
-    sort_rx: bool,
-    sort_flt: bool,
-    sort_abort: bool,
-    global_need_msg_kind: bool,
-    append_indent: i32,
-    global_need_beginline: bool,
-    subflags: Subflags,
-    pre_hl_id: i32,
+    sort_lc: std::cell::Cell<bool>,
+    sort_ic: std::cell::Cell<bool>,
+    sort_nr: std::cell::Cell<i32>,
+    sort_rx: std::cell::Cell<bool>,
+    sort_flt: std::cell::Cell<bool>,
+    sort_abort: std::cell::Cell<bool>,
+    global_need_msg_kind: std::cell::Cell<bool>,
+    append_indent: std::cell::Cell<i32>,
+    global_need_beginline: std::cell::Cell<bool>,
+    subflags: std::cell::Cell<Subflags>,
+    pre_hl_id: std::cell::Cell<i32>,
 }
 
 impl ExCmdsState {
     const fn new() -> Self {
         Self {
-            sort_lc: false,
-            sort_ic: false,
-            sort_nr: 0,
-            sort_rx: false,
-            sort_flt: false,
-            sort_abort: false,
-            global_need_msg_kind: false,
-            append_indent: 0,
-            global_need_beginline: false,
-            subflags: Subflags {
+            sort_lc: std::cell::Cell::new(false),
+            sort_ic: std::cell::Cell::new(false),
+            sort_nr: std::cell::Cell::new(0),
+            sort_rx: std::cell::Cell::new(false),
+            sort_flt: std::cell::Cell::new(false),
+            sort_abort: std::cell::Cell::new(false),
+            global_need_msg_kind: std::cell::Cell::new(false),
+            append_indent: std::cell::Cell::new(0),
+            global_need_beginline: std::cell::Cell::new(false),
+            subflags: std::cell::Cell::new(Subflags {
                 do_all: false,
                 do_ask: false,
                 do_count: false,
@@ -312,15 +311,14 @@ impl ExCmdsState {
                 do_list: false,
                 do_number: false,
                 do_ic: SubIgnoreType::SubHonorOptions,
-            },
-            pre_hl_id: 0,
+            }),
+            pre_hl_id: std::cell::Cell::new(0),
         }
     }
 }
 
 thread_local! {
-    static EXCMDS_STATE: std::cell::Cell<ExCmdsState> =
-        const { std::cell::Cell::new(ExCmdsState::new()) };
+    static EXCMDS_STATE: ExCmdsState = const { ExCmdsState::new() };
     static EXCMDS_PREVCMD: std::cell::RefCell<Option<std::ffi::CString>> =
         const { std::cell::RefCell::new(None) };
     static EXCMDS_OLD_SUB: std::cell::RefCell<SubReplacementString> =
@@ -331,45 +329,6 @@ thread_local! {
                 additional_data: None,
             })
         };
-}
-
-struct ExCmdsGuard {
-    state: ExCmdsState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for ExCmdsGuard {
-    type Target = ExCmdsState;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for ExCmdsGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for ExCmdsGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            EXCMDS_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn excmds_st() -> ExCmdsGuard {
-    ExCmdsGuard {
-        state: EXCMDS_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 use crate::buffer::bt_dontwrite_msg;
@@ -621,10 +580,10 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
 }
 
 fn string_compare(s1: &CStr, s2: &CStr) -> i32 {
-    if excmds_st().sort_lc {
+    if EXCMDS_STATE.with(|s| s.sort_lc.get()) {
         return strcoll(s1, s2);
     }
-    if excmds_st().sort_ic {
+    if EXCMDS_STATE.with(|s| s.sort_ic.get()) {
         s1.to_bytes()
             .iter()
             .map(u8::to_ascii_lowercase)
@@ -639,12 +598,12 @@ fn sort_compare(l1: &Sorti, l2: &Sorti, sortbuf1: &mut [u8], sortbuf2: &mut [u8]
     let l2 = *l2;
     let result: i32;
 
-    if excmds_st().sort_abort {
+    if EXCMDS_STATE.with(|s| s.sort_abort.get()) {
         return 0;
     }
     fast_breakcheck();
     if g_st().got_int {
-        excmds_st().sort_abort = true;
+        EXCMDS_STATE.with(|s| s.sort_abort.set(true));
     }
 
     match (l1.st_u, l2.st_u) {
@@ -730,12 +689,12 @@ pub fn ex_sort(eap: &mut Exarg) {
     regmatch.free_prog();
     let mut nrs_vec: Vec<Sorti> = Vec::with_capacity(count);
 
-    excmds_st().sort_abort = false;
-    excmds_st().sort_ic = false;
-    excmds_st().sort_lc = false;
-    excmds_st().sort_rx = false;
-    excmds_st().sort_nr = 0;
-    excmds_st().sort_flt = false;
+    EXCMDS_STATE.with(|s| s.sort_abort.set(false));
+    EXCMDS_STATE.with(|s| s.sort_ic.set(false));
+    EXCMDS_STATE.with(|s| s.sort_lc.set(false));
+    EXCMDS_STATE.with(|s| s.sort_rx.set(false));
+    EXCMDS_STATE.with(|s| s.sort_nr.set(0));
+    EXCMDS_STATE.with(|s| s.sort_flt.set(false));
     let mut format_found: usize = 0;
     let mut change_occurred = false;
 
@@ -749,16 +708,16 @@ pub fn ex_sort(eap: &mut Exarg) {
             if ascii_iswhite(pb) {
                 // Skip
             } else if pb == b'i' {
-                excmds_st().sort_ic = true;
+                EXCMDS_STATE.with(|s| s.sort_ic.set(true));
             } else if pb == b'l' {
-                excmds_st().sort_lc = true;
+                EXCMDS_STATE.with(|s| s.sort_lc.set(true));
             } else if pb == b'r' {
-                excmds_st().sort_rx = true;
+                EXCMDS_STATE.with(|s| s.sort_rx.set(true));
             } else if pb == b'n' {
-                excmds_st().sort_nr = 1;
+                EXCMDS_STATE.with(|s| s.sort_nr.set(1));
                 format_found += 1;
             } else if pb == b'f' {
-                excmds_st().sort_flt = true;
+                EXCMDS_STATE.with(|s| s.sort_flt.set(true));
                 format_found += 1;
             } else if pb == b'b' {
                 sort_what = STR2NR_BIN + STR2NR_FORCE;
@@ -819,7 +778,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             break 'sortend;
         }
 
-        excmds_st().sort_nr |= sort_what;
+        EXCMDS_STATE.with(|s| s.sort_nr.set(s.sort_nr.get() | sort_what));
 
         for lnum in eap.line1..=eap.line2 {
             let s_cstr = ml_get(lnum);
@@ -829,7 +788,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
             if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_cstr, 0) {
-                if excmds_st().sort_rx {
+                if EXCMDS_STATE.with(|s| s.sort_rx.get()) {
                     start_col = regmatch.start_offset(0, s_cstr) as Colnr;
                     end_col = regmatch.end_offset(0, s_cstr) as Colnr;
                 } else {
@@ -839,11 +798,13 @@ pub fn ex_sort(eap: &mut Exarg) {
                 end_col = 0;
             }
 
-            let st_u = if excmds_st().sort_nr != 0 || excmds_st().sort_flt {
+            let st_u = if EXCMDS_STATE.with(|s| s.sort_nr.get()) != 0
+                || EXCMDS_STATE.with(|s| s.sort_flt.get())
+            {
                 let line_slice = crate::memline::ml_get_slice(lnum);
                 let sub_slice = &line_slice[(start_col.max(0) as usize).min(line_slice.len())
                     ..(end_col.max(0) as usize).min(line_slice.len())];
-                if excmds_st().sort_nr != 0 {
+                if EXCMDS_STATE.with(|s| s.sort_nr.get()) != 0 {
                     let rem = if (sort_what & STR2NR_HEX) != 0 {
                         crate::charset::skiptohex_slice(sub_slice)
                     } else if (sort_what & STR2NR_BIN) != 0 {
@@ -914,7 +875,7 @@ pub fn ex_sort(eap: &mut Exarg) {
 
         nrs_vec.sort_by(|a, b| sort_compare(a, b, &mut sortbuf1_vec, &mut sortbuf2_vec).cmp(&0));
 
-        if excmds_st().sort_abort {
+        if EXCMDS_STATE.with(|s| s.sort_abort.get()) {
             break 'sortend;
         }
 
@@ -1023,12 +984,12 @@ pub fn ex_uniq(eap: &mut Exarg) {
     }
     regmatch.free_prog();
 
-    excmds_st().sort_abort = false;
-    excmds_st().sort_ic = false;
-    excmds_st().sort_lc = false;
-    excmds_st().sort_rx = false;
-    excmds_st().sort_nr = 0;
-    excmds_st().sort_flt = false;
+    EXCMDS_STATE.with(|s| s.sort_abort.set(false));
+    EXCMDS_STATE.with(|s| s.sort_ic.set(false));
+    EXCMDS_STATE.with(|s| s.sort_lc.set(false));
+    EXCMDS_STATE.with(|s| s.sort_rx.set(false));
+    EXCMDS_STATE.with(|s| s.sort_nr.set(0));
+    EXCMDS_STATE.with(|s| s.sort_flt.set(false));
     let mut change_occurred = false;
 
     'uniqend: {
@@ -1041,11 +1002,11 @@ pub fn ex_uniq(eap: &mut Exarg) {
             if ascii_iswhite(b0 as i32) {
                 // Skip
             } else if b0 == b'i' {
-                excmds_st().sort_ic = true;
+                EXCMDS_STATE.with(|s| s.sort_ic.set(true));
             } else if b0 == b'l' {
-                excmds_st().sort_lc = true;
+                EXCMDS_STATE.with(|s| s.sort_lc.set(true));
             } else if b0 == b'r' {
-                excmds_st().sort_rx = true;
+                EXCMDS_STATE.with(|s| s.sort_rx.set(true));
             } else if b0 == b'u' {
                 if !keep_only_not_unique {
                     keep_only_unique = true;
@@ -1123,7 +1084,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
             if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_cstr, 0) {
-                if excmds_st().sort_rx {
+                if EXCMDS_STATE.with(|s| s.sort_rx.get()) {
                     start_col = regmatch.start_offset(0, s_cstr) as Colnr;
                     end_col = regmatch.end_offset(0, s_cstr) as Colnr;
                 } else {
@@ -2006,10 +1967,10 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 
     g_st().silent_mode = false;
     g_st().info_message = true;
-    if (g_st().global_busy == 0 || excmds_st().global_need_msg_kind) && first {
+    if (g_st().global_busy == 0 || EXCMDS_STATE.with(|s| s.global_need_msg_kind.get())) && first {
         msg_start();
         msg_ext_set_kind(c"list_cmd");
-        excmds_st().global_need_msg_kind = false;
+        EXCMDS_STATE.with(|s| s.global_need_msg_kind.set(false));
     } else if !save_silent {
         msg_putchar(b'\n' as i32);
     }
@@ -3247,7 +3208,7 @@ pub fn ex_append(eap: &mut Exarg) {
     }
 
     if eap.cmdidx != Cmdidx::CmdChange && curbuf_mut().b_p_ai && lnum > 0 {
-        excmds_st().append_indent = get_indent_lnum(lnum);
+        EXCMDS_STATE.with(|s| s.append_indent.set(get_indent_lnum(lnum)));
     }
 
     if eap.cmdidx != Cmdidx::CmdAppend {
@@ -3268,9 +3229,9 @@ pub fn ex_append(eap: &mut Exarg) {
         g_st().msg_scroll = 1;
         g_st().need_wait_return = false;
         if curbuf_mut().b_p_ai {
-            if excmds_st().append_indent >= 0 {
-                indent = excmds_st().append_indent;
-                excmds_st().append_indent = -1;
+            if EXCMDS_STATE.with(|s| s.append_indent.get()) >= 0 {
+                indent = EXCMDS_STATE.with(|s| s.append_indent.get());
+                EXCMDS_STATE.with(|s| s.append_indent.set(-1));
             } else if lnum > 0 {
                 indent = get_indent_lnum(lnum);
             }
@@ -3366,7 +3327,7 @@ pub fn ex_change(eap: &mut Exarg) {
     } else {
         curbuf_mut().b_p_ai
     } {
-        excmds_st().append_indent = get_indent_lnum(eap.line1);
+        EXCMDS_STATE.with(|s| s.append_indent.set(get_indent_lnum(eap.line1)));
     }
 
     let mut lnum = eap.line2;
@@ -3910,14 +3871,14 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
     }
 
-    let mut subflags = excmds_st().subflags;
+    let mut subflags = EXCMDS_STATE.with(|s| s.subflags.get());
     cmd = sub_parse_flags(ptr_cstr!(cmd, eap), &mut subflags, &mut which_pat)
         .as_ptr()
         .cast_mut();
-    excmds_st().subflags = subflags;
+    EXCMDS_STATE.with(|s| s.subflags.set(subflags));
 
-    let save_do_all = excmds_st().subflags.do_all;
-    let save_do_ask = excmds_st().subflags.do_ask;
+    let save_do_all = EXCMDS_STATE.with(|s| s.subflags.get()).do_all;
+    let save_do_ask = EXCMDS_STATE.with(|s| s.subflags.get()).do_ask;
 
     cmd = cmd.wrapping_add(crate::charset::skipwhite_len(
         ptr_cstr!(cmd, eap).to_bytes(),
@@ -3928,7 +3889,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         let mut rem = cmd_bytes;
         i = getdigits_int(&mut rem, false, i32::MAX);
         cmd = cmd.wrapping_add(cmd_bytes.len() - rem.len());
-        if i <= 0 && !eap.skip && excmds_st().subflags.do_error {
+        if i <= 0 && !eap.skip && EXCMDS_STATE.with(|s| s.subflags.get()).do_error {
             emsg(gettext(E_ZEROCOUNT));
             return 0;
         } else if i == i32::MAX {
@@ -3961,7 +3922,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         return 0;
     }
 
-    if !excmds_st().subflags.do_count && !modifiable(curbuf_mut()) {
+    if !EXCMDS_STATE.with(|s| s.subflags.get()).do_count && !modifiable(curbuf_mut()) {
         emsg(gettext(E_MODIFIABLE));
         return 0;
     }
@@ -3983,15 +3944,15 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         magic,
         &mut regmatch,
     ) {
-        if excmds_st().subflags.do_error {
+        if EXCMDS_STATE.with(|s| s.subflags.get()).do_error {
             emsg(gettext(E_INVCMD));
         }
         return 0;
     }
 
-    if excmds_st().subflags.do_ic == SubIgnoreType::SubIgnoreCase {
+    if EXCMDS_STATE.with(|s| s.subflags.get()).do_ic == SubIgnoreType::SubIgnoreCase {
         regmatch.rmm_ic = true;
-    } else if excmds_st().subflags.do_ic == SubIgnoreType::SubMatchCase {
+    } else if EXCMDS_STATE.with(|s| s.subflags.get()).do_ic == SubIgnoreType::SubMatchCase {
         regmatch.rmm_ic = false;
     }
 
@@ -4103,7 +4064,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     matchcol = regmatch.endpos[0].col;
                     prev_matchcol = matchcol;
 
-                    if excmds_st().subflags.do_count {
+                    if EXCMDS_STATE.with(|s| s.subflags.get()).do_count {
                         if nmatch > 1 {
                             matchcol = sub_firstline.size as Colnr;
                             nmatch = 1;
@@ -4121,7 +4082,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                     }
 
-                    if excmds_st().subflags.do_ask && cmdpreview_ns <= 0 {
+                    if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask && cmdpreview_ns <= 0 {
                         let mut typed: i32 = 0;
                         let save_state = g_st().state_global;
                         curwin_mut().w_cursor.col = regmatch.startpos[0].col;
@@ -4134,7 +4095,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             g_st().no_u_sync += 1;
                         }
 
-                        while excmds_st().subflags.do_ask {
+                        while EXCMDS_STATE.with(|s| s.subflags.get()).do_ask {
                             let mut orig_line = SubBuf::new();
                             let mut len_change: i32 = 0;
                             let save_p_lz = opt_vars().p_lz;
@@ -4228,12 +4189,20 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 break;
                             }
                             if typed == b'l' as i32 {
-                                excmds_st().subflags.do_all = false;
+                                EXCMDS_STATE.with(|s| {
+                                    let mut f = s.subflags.get();
+                                    f.do_all = false;
+                                    s.subflags.set(f);
+                                });
                                 line2 = lnum;
                                 break;
                             }
                             if typed == b'a' as i32 {
-                                excmds_st().subflags.do_ask = false;
+                                EXCMDS_STATE.with(|s| {
+                                    let mut f = s.subflags.get();
+                                    f.do_ask = false;
+                                    s.subflags.set(f);
+                                });
                                 break;
                             }
                             if typed == CTRL_E {
@@ -4285,7 +4254,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
-                                excmds_st().subflags.do_all = false;
+                                EXCMDS_STATE.with(|s| {
+                                    let mut f = s.subflags.get();
+                                    f.do_all = false;
+                                    s.subflags.set(f);
+                                });
                             }
                         }
                         if skip_match {
@@ -4301,11 +4274,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         lnum_start = lnum;
                         let save_ma = curbuf_mut().b_p_ma;
                         let save_sandbox = g_st().sandbox;
-                        if excmds_st().subflags.do_count {
+                        if EXCMDS_STATE.with(|s| s.subflags.get()).do_count {
                             curbuf_mut().b_p_ma = false;
                             g_st().sandbox += 1;
                         }
-                        let subflags_save = excmds_st().subflags;
+                        let subflags_save = EXCMDS_STATE.with(|s| s.subflags.get());
 
                         g_st().textlock += 1;
                         let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
@@ -4320,8 +4293,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let mut sublen = sublen_i as usize;
                         g_st().textlock -= 1;
 
-                        excmds_st().subflags = subflags_save;
-                        if sublen == 0 || aborting() || excmds_st().subflags.do_count {
+                        EXCMDS_STATE.with(|s| s.subflags.set(subflags_save));
+                        if sublen == 0
+                            || aborting()
+                            || EXCMDS_STATE.with(|s| s.subflags.get()).do_count
+                        {
                             curbuf_mut().b_p_ma = save_ma;
                             g_st().sandbox = save_sandbox;
                             break 'skip;
@@ -4387,7 +4363,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
-                                excmds_st().subflags.do_all = false;
+                                EXCMDS_STATE.with(|s| {
+                                    let mut f = s.subflags.get();
+                                    f.do_all = false;
+                                    s.subflags.set(f);
+                                });
                             }
                         }
                         if skip_match {
@@ -4432,7 +4412,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     );
                                     mark_adjust(lnum + 1, MAXLNUM, 1, 0, K_EXTMARK_NOOP);
 
-                                    if excmds_st().subflags.do_ask {
+                                    if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask {
                                         appended_lines(lnum - 1, 1);
                                     } else {
                                         if first_line == 0 {
@@ -4491,7 +4471,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || g_st().got_int
                     || got_quit
                     || lnum > line2
-                    || !(excmds_st().subflags.do_all || do_again)
+                    || !(EXCMDS_STATE.with(|s| s.subflags.get()).do_all || do_again)
                     || (sub_firstline.as_slice()[matchcol as usize] == 0
                         && nmatch <= 1
                         && re_multiline(&regmatch.regprog) == 0);
@@ -4568,7 +4548,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 -nmatch_tl,
                                 K_EXTMARK_NOOP,
                             );
-                            if excmds_st().subflags.do_ask {
+                            if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask {
                                 deleted_lines(lnum, nmatch_tl);
                             }
                             lnum -= 1;
@@ -4576,7 +4556,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             nmatch_tl = 0;
                         }
 
-                        if excmds_st().subflags.do_ask {
+                        if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask {
                             changed_bytes(lnum, 0);
                         } else {
                             if first_line == 0 {
@@ -4644,7 +4624,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     drop(sub_firstline);
 
-    if excmds_st().subflags.do_count {
+    if EXCMDS_STATE.with(|s| s.subflags.get()).do_count {
         curwin_mut().w_cursor = old_cursor;
     }
 
@@ -4657,7 +4637,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
 
         if g_st().global_busy == 0 {
-            if !excmds_st().subflags.do_ask {
+            if !EXCMDS_STATE.with(|s| s.subflags.get()).do_ask {
                 if endcolumn {
                     coladvance(curwin_mut(), MAXCOL);
                 } else {
@@ -4665,20 +4645,20 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 }
             }
             if cmdpreview_ns <= 0
-                && !do_sub_msg(excmds_st().subflags.do_count)
-                && excmds_st().subflags.do_ask
+                && !do_sub_msg(EXCMDS_STATE.with(|s| s.subflags.get()).do_count)
+                && EXCMDS_STATE.with(|s| s.subflags.get()).do_ask
                 && opt_vars().p_ch > 0
             {
                 msg(c"", 0);
             }
         } else {
-            excmds_st().global_need_beginline = true;
+            EXCMDS_STATE.with(|s| s.global_need_beginline.set(true));
         }
-        if excmds_st().subflags.do_print {
+        if EXCMDS_STATE.with(|s| s.subflags.get()).do_print {
             print_line(
                 curwin_mut().w_cursor.lnum,
-                excmds_st().subflags.do_number,
-                excmds_st().subflags.do_list,
+                EXCMDS_STATE.with(|s| s.subflags.get()).do_number,
+                EXCMDS_STATE.with(|s| s.subflags.get()).do_list,
                 true,
             );
         }
@@ -4689,20 +4669,28 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             if opt_vars().p_ch > 0 && !ui_has(K_UIMESSAGES) {
                 msg(c"", 0);
             }
-        } else if excmds_st().subflags.do_error {
+        } else if EXCMDS_STATE.with(|s| s.subflags.get()).do_error {
             semsg!(gettext(E_PATNOTF2), get_search_pat());
         }
     }
 
-    if excmds_st().subflags.do_ask && has_any_folding(curwin_mut()) != 0 {
+    if EXCMDS_STATE.with(|s| s.subflags.get()).do_ask && has_any_folding(curwin_mut()) != 0 {
         changed_window_setting(curwin_mut());
     }
 
     regmatch.free_prog();
     drop(sub_owned);
 
-    excmds_st().subflags.do_all = save_do_all;
-    excmds_st().subflags.do_ask = save_do_ask;
+    EXCMDS_STATE.with(|s| {
+        let mut f = s.subflags.get();
+        f.do_all = save_do_all;
+        s.subflags.set(f);
+    });
+    EXCMDS_STATE.with(|s| {
+        let mut f = s.subflags.get();
+        f.do_ask = save_do_ask;
+        s.subflags.set(f);
+    });
 
     let mut retv: i32 = 0;
 
@@ -4710,14 +4698,14 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         if got_quit || profile_passed_limit(tm) {
             set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(Some(c"")), 0, SID_NONE);
         } else if !opt_vars().p_icm.is_empty() && !pat.data.is_null() {
-            if excmds_st().pre_hl_id == 0 {
-                excmds_st().pre_hl_id = syn_check_group(b"Substitute");
+            if EXCMDS_STATE.with(|s| s.pre_hl_id.get()) == 0 {
+                EXCMDS_STATE.with(|s| s.pre_hl_id.set(syn_check_group(b"Substitute")));
             }
             retv = show_sub(
                 eap,
                 old_cursor,
                 &mut preview_lines,
-                excmds_st().pre_hl_id,
+                EXCMDS_STATE.with(|s| s.pre_hl_id.get()),
                 cmdpreview_ns,
                 cmdpreview_bufnr,
             );
@@ -4951,8 +4939,8 @@ pub fn global_exe(cmd: &CStr) {
 
     g_st().sub_nsubs = 0;
     g_st().sub_nlines = 0;
-    excmds_st().global_need_msg_kind = true;
-    excmds_st().global_need_beginline = false;
+    EXCMDS_STATE.with(|s| s.global_need_msg_kind.set(true));
+    EXCMDS_STATE.with(|s| s.global_need_beginline.set(false));
     g_st().global_busy = 1;
     let old_lcount = curbuf_mut().b_ml.ml_line_count;
 
@@ -4966,7 +4954,7 @@ pub fn global_exe(cmd: &CStr) {
     }
 
     g_st().global_busy = 0;
-    if excmds_st().global_need_beginline {
+    if EXCMDS_STATE.with(|s| s.global_need_beginline.get()) {
         beginline(BL_WHITE | BL_FIX);
     } else {
         check_cursor(curwin_mut());

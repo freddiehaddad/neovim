@@ -488,61 +488,58 @@ const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: &CStr =
     c"E1543: Cannot have more than a hundred quickfix/location lists";
 const W_ARABIC: &CStr = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'";
 
-#[derive(Clone, Copy)]
 struct OptionModuleState {
-    p_et_nobin: bool,
-    p_ml_nobin: bool,
-    p_tw_nobin: OptInt,
-    p_wm_nobin: OptInt,
-    p_ai_nopaste: bool,
-    p_et_nopaste: bool,
-    p_sts_nopaste: OptInt,
-    p_tw_nopaste: OptInt,
-    p_wm_nopaste: OptInt,
-    old_p_paste: bool,
-    save_sm: bool,
-    save_sta: bool,
-    save_ru: bool,
-    save_ri: bool,
-    syn_recursive: i32,
-    expand_option_idx: OptIndex,
-    expand_option_start_col: i32,
-    expand_option_name: [u8; 5],
-    expand_option_flags: i32,
-    expand_option_append: bool,
+    p_et_nobin: std::cell::Cell<bool>,
+    p_ml_nobin: std::cell::Cell<bool>,
+    p_tw_nobin: std::cell::Cell<OptInt>,
+    p_wm_nobin: std::cell::Cell<OptInt>,
+    p_ai_nopaste: std::cell::Cell<bool>,
+    p_et_nopaste: std::cell::Cell<bool>,
+    p_sts_nopaste: std::cell::Cell<OptInt>,
+    p_tw_nopaste: std::cell::Cell<OptInt>,
+    p_wm_nopaste: std::cell::Cell<OptInt>,
+    old_p_paste: std::cell::Cell<bool>,
+    save_sm: std::cell::Cell<bool>,
+    save_sta: std::cell::Cell<bool>,
+    save_ru: std::cell::Cell<bool>,
+    save_ri: std::cell::Cell<bool>,
+    syn_recursive: std::cell::Cell<i32>,
+    expand_option_idx: std::cell::Cell<OptIndex>,
+    expand_option_start_col: std::cell::Cell<i32>,
+    expand_option_name: std::cell::Cell<[u8; 5]>,
+    expand_option_flags: std::cell::Cell<i32>,
+    expand_option_append: std::cell::Cell<bool>,
 }
 
 impl OptionModuleState {
     const fn new() -> Self {
         Self {
-            p_et_nobin: false,
-            p_ml_nobin: false,
-            p_tw_nobin: 0,
-            p_wm_nobin: 0,
-            p_ai_nopaste: false,
-            p_et_nopaste: false,
-            p_sts_nopaste: 0,
-            p_tw_nopaste: 0,
-            p_wm_nopaste: 0,
-            old_p_paste: false,
-            save_sm: false,
-            save_sta: false,
-            save_ru: false,
-            save_ri: false,
-            syn_recursive: 0,
-            expand_option_idx: K_OPT_INVALID,
-            expand_option_start_col: 0,
-            expand_option_name: [b't', b'_', 0, 0, 0],
-            expand_option_flags: 0,
-            expand_option_append: false,
+            p_et_nobin: std::cell::Cell::new(false),
+            p_ml_nobin: std::cell::Cell::new(false),
+            p_tw_nobin: std::cell::Cell::new(0),
+            p_wm_nobin: std::cell::Cell::new(0),
+            p_ai_nopaste: std::cell::Cell::new(false),
+            p_et_nopaste: std::cell::Cell::new(false),
+            p_sts_nopaste: std::cell::Cell::new(0),
+            p_tw_nopaste: std::cell::Cell::new(0),
+            p_wm_nopaste: std::cell::Cell::new(0),
+            old_p_paste: std::cell::Cell::new(false),
+            save_sm: std::cell::Cell::new(false),
+            save_sta: std::cell::Cell::new(false),
+            save_ru: std::cell::Cell::new(false),
+            save_ri: std::cell::Cell::new(false),
+            syn_recursive: std::cell::Cell::new(0),
+            expand_option_idx: std::cell::Cell::new(K_OPT_INVALID),
+            expand_option_start_col: std::cell::Cell::new(0),
+            expand_option_name: std::cell::Cell::new([b't', b'_', 0, 0, 0]),
+            expand_option_flags: std::cell::Cell::new(0),
+            expand_option_append: std::cell::Cell::new(false),
         }
     }
 }
 
 thread_local! {
-    static OPT_STATE: std::cell::Cell<OptionModuleState> = const {
-        std::cell::Cell::new(OptionModuleState::new())
-    };
+    static OPT_STATE: OptionModuleState = const { OptionModuleState::new() };
     static P_TERM: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
@@ -552,44 +549,6 @@ thread_local! {
     static P_VSTS_NOPASTE: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
-}
-
-struct OptGuard {
-    state: OptionModuleState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for OptGuard {
-    type Target = OptionModuleState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for OptGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for OptGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            OPT_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn opt_st() -> OptGuard {
-    OptGuard {
-        state: OPT_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 const P_BIN_DEP_OPTS: &[i32] = &[
@@ -2147,10 +2106,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
                 curbuf_mut().b_p_et_nobin = curbuf_mut().b_p_et;
             }
             if (opt_flags & OPT_LOCAL) == 0 {
-                opt_st().p_tw_nobin = opt_vars().p_tw;
-                opt_st().p_wm_nobin = opt_vars().p_wm;
-                opt_st().p_ml_nobin = opt_vars().p_ml;
-                opt_st().p_et_nobin = opt_vars().p_et;
+                OPT_STATE.with(|s| s.p_tw_nobin.set(opt_vars().p_tw));
+                OPT_STATE.with(|s| s.p_wm_nobin.set(opt_vars().p_wm));
+                OPT_STATE.with(|s| s.p_ml_nobin.set(opt_vars().p_ml));
+                OPT_STATE.with(|s| s.p_et_nobin.set(opt_vars().p_et));
             }
         }
 
@@ -2175,10 +2134,10 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
             curbuf_mut().b_p_et = curbuf_mut().b_p_et_nobin;
         }
         if (opt_flags & OPT_LOCAL) == 0 {
-            opt_vars().p_tw = opt_st().p_tw_nobin;
-            opt_vars().p_wm = opt_st().p_wm_nobin;
-            opt_vars().p_ml = opt_st().p_ml_nobin;
-            opt_vars().p_et = opt_st().p_et_nobin;
+            opt_vars().p_tw = OPT_STATE.with(|s| s.p_tw_nobin.get());
+            opt_vars().p_wm = OPT_STATE.with(|s| s.p_wm_nobin.get());
+            opt_vars().p_ml = OPT_STATE.with(|s| s.p_ml_nobin.get());
+            opt_vars().p_et = OPT_STATE.with(|s| s.p_et_nobin.get());
         }
     }
 
@@ -2878,7 +2837,7 @@ pub fn did_set_numberwidth(args: &mut Optset) -> Option<&'static CStr> {
 /// Process the updated 'paste' option value.
 pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
     if opt_vars().p_paste {
-        if !opt_st().old_p_paste {
+        if !OPT_STATE.with(|s| s.old_p_paste.get()) {
             for buf in for_all_buffers_mut() {
                 buf.b_p_tw_nopaste = buf.b_p_tw;
                 buf.b_p_wm_nopaste = buf.b_p_wm;
@@ -2888,15 +2847,15 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
                 buf.b_p_vsts_nopaste = (!buf.b_p_vsts.is_empty()).then(|| buf.b_p_vsts.to_owned());
             }
 
-            opt_st().save_sm = opt_vars().p_sm;
-            opt_st().save_sta = opt_vars().p_sta;
-            opt_st().save_ru = opt_vars().p_ru;
-            opt_st().save_ri = opt_vars().p_ri;
-            opt_st().p_ai_nopaste = opt_vars().p_ai;
-            opt_st().p_et_nopaste = opt_vars().p_et;
-            opt_st().p_sts_nopaste = opt_vars().p_sts;
-            opt_st().p_tw_nopaste = opt_vars().p_tw;
-            opt_st().p_wm_nopaste = opt_vars().p_wm;
+            OPT_STATE.with(|s| s.save_sm.set(opt_vars().p_sm));
+            OPT_STATE.with(|s| s.save_sta.set(opt_vars().p_sta));
+            OPT_STATE.with(|s| s.save_ru.set(opt_vars().p_ru));
+            OPT_STATE.with(|s| s.save_ri.set(opt_vars().p_ri));
+            OPT_STATE.with(|s| s.p_ai_nopaste.set(opt_vars().p_ai));
+            OPT_STATE.with(|s| s.p_et_nopaste.set(opt_vars().p_et));
+            OPT_STATE.with(|s| s.p_sts_nopaste.set(opt_vars().p_sts));
+            OPT_STATE.with(|s| s.p_tw_nopaste.set(opt_vars().p_tw));
+            OPT_STATE.with(|s| s.p_wm_nopaste.set(opt_vars().p_wm));
             P_VSTS_NOPASTE.with(|cell| {
                 *cell.borrow_mut() =
                     (!opt_vars().p_vsts.is_empty()).then(|| opt_vars().p_vsts.to_owned());
@@ -2926,7 +2885,7 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
         opt_vars().p_ai = false;
         opt_vars().p_et = false;
         opt_vars().p_vsts.clear_option_str();
-    } else if opt_st().old_p_paste {
+    } else if OPT_STATE.with(|s| s.old_p_paste.get()) {
         for buf in for_all_buffers_mut() {
             buf.b_p_tw = buf.b_p_tw_nopaste;
             buf.b_p_wm = buf.b_p_wm_nopaste;
@@ -2944,18 +2903,18 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
             }
         }
 
-        opt_vars().p_sm = opt_st().save_sm;
-        opt_vars().p_sta = opt_st().save_sta;
-        if opt_vars().p_ru != opt_st().save_ru {
+        opt_vars().p_sm = OPT_STATE.with(|s| s.save_sm.get());
+        opt_vars().p_sta = OPT_STATE.with(|s| s.save_sta.get());
+        if opt_vars().p_ru != OPT_STATE.with(|s| s.save_ru.get()) {
             status_redraw_all();
         }
-        opt_vars().p_ru = opt_st().save_ru;
-        opt_vars().p_ri = opt_st().save_ri;
-        opt_vars().p_ai = opt_st().p_ai_nopaste;
-        opt_vars().p_et = opt_st().p_et_nopaste;
-        opt_vars().p_sts = opt_st().p_sts_nopaste;
-        opt_vars().p_tw = opt_st().p_tw_nopaste;
-        opt_vars().p_wm = opt_st().p_wm_nopaste;
+        opt_vars().p_ru = OPT_STATE.with(|s| s.save_ru.get());
+        opt_vars().p_ri = OPT_STATE.with(|s| s.save_ri.get());
+        opt_vars().p_ai = OPT_STATE.with(|s| s.p_ai_nopaste.get());
+        opt_vars().p_et = OPT_STATE.with(|s| s.p_et_nopaste.get());
+        opt_vars().p_sts = OPT_STATE.with(|s| s.p_sts_nopaste.get());
+        opt_vars().p_tw = OPT_STATE.with(|s| s.p_tw_nopaste.get());
+        opt_vars().p_wm = OPT_STATE.with(|s| s.p_wm_nopaste.get());
         opt_vars().p_vsts = P_VSTS_NOPASTE.with(|cell| {
             cell.borrow()
                 .as_deref()
@@ -2963,7 +2922,7 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&'static CStr> {
         });
     }
 
-    opt_st().old_p_paste = opt_vars().p_paste;
+    OPT_STATE.with(|s| s.old_p_paste.set(opt_vars().p_paste));
 
     didset_options_sctx(OPT_LOCAL | OPT_GLOBAL, P_PASTE_DEP_OPTS);
 
@@ -3261,7 +3220,7 @@ pub fn did_set_xhistory(args: &mut Optset) -> Option<&'static CStr> {
 }
 
 fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
-    opt_st().syn_recursive += 1;
+    OPT_STATE.with(|s| s.syn_recursive.set(s.syn_recursive.get() + (1)));
     buf.b_flags |= BF_SYN_SET;
     let syn_name = buf.b_p_syn.to_owned();
     let buf_fname = buf.fname_opt().map(CStr::to_owned);
@@ -3269,10 +3228,10 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
         EVENT_SYNTAX,
         Some(&syn_name),
         buf_fname.as_deref(),
-        value_changed || opt_st().syn_recursive == 1,
+        value_changed || OPT_STATE.with(|s| s.syn_recursive.get()) == 1,
         Some(buf),
     );
-    opt_st().syn_recursive -= 1;
+    OPT_STATE.with(|s| s.syn_recursive.set(s.syn_recursive.get() - (1)));
 }
 
 fn do_spelllang_source(win: &mut WinInfoInfo) {
@@ -7039,19 +6998,19 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
 
             buf.b_p_ai = opt_vars().p_ai;
             copy_opt_sctx(buf, K_BUF_OPT_AUTOINDENT);
-            buf.b_p_ai_nopaste = opt_st().p_ai_nopaste;
+            buf.b_p_ai_nopaste = OPT_STATE.with(|s| s.p_ai_nopaste.get());
             buf.b_p_sw = opt_vars().p_sw;
             copy_opt_sctx(buf, K_BUF_OPT_SHIFTWIDTH);
             buf.b_p_scbk = opt_vars().p_scbk;
             copy_opt_sctx(buf, K_BUF_OPT_SCROLLBACK);
             buf.b_p_tw = opt_vars().p_tw;
             copy_opt_sctx(buf, K_BUF_OPT_TEXTWIDTH);
-            buf.b_p_tw_nopaste = opt_st().p_tw_nopaste;
-            buf.b_p_tw_nobin = opt_st().p_tw_nobin;
+            buf.b_p_tw_nopaste = OPT_STATE.with(|s| s.p_tw_nopaste.get());
+            buf.b_p_tw_nobin = OPT_STATE.with(|s| s.p_tw_nobin.get());
             buf.b_p_wm = opt_vars().p_wm;
             copy_opt_sctx(buf, K_BUF_OPT_WRAPMARGIN);
-            buf.b_p_wm_nopaste = opt_st().p_wm_nopaste;
-            buf.b_p_wm_nobin = opt_st().p_wm_nobin;
+            buf.b_p_wm_nopaste = OPT_STATE.with(|s| s.p_wm_nopaste.get());
+            buf.b_p_wm_nobin = OPT_STATE.with(|s| s.p_wm_nobin.get());
             buf.b_p_bin = opt_vars().p_bin;
             copy_opt_sctx(buf, K_BUF_OPT_BINARY);
             buf.b_p_bomb = opt_vars().p_bomb;
@@ -7062,11 +7021,11 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_FIXENDOFLINE);
             buf.b_p_follow = opt_vars().p_follow;
             copy_opt_sctx(buf, K_BUF_OPT_FOLLOW);
-            buf.b_p_et_nobin = opt_st().p_et_nobin;
-            buf.b_p_et_nopaste = opt_st().p_et_nopaste;
+            buf.b_p_et_nobin = OPT_STATE.with(|s| s.p_et_nobin.get());
+            buf.b_p_et_nopaste = OPT_STATE.with(|s| s.p_et_nopaste.get());
             buf.b_p_ml = opt_vars().p_ml;
             copy_opt_sctx(buf, K_BUF_OPT_MODELINE);
-            buf.b_p_ml_nobin = opt_st().p_ml_nobin;
+            buf.b_p_ml_nobin = OPT_STATE.with(|s| s.p_ml_nobin.get());
             buf.b_p_inf = opt_vars().p_inf;
             copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
             if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
@@ -7092,7 +7051,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
             buf.b_p_sts = opt_vars().p_sts;
             copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
-            buf.b_p_sts_nopaste = opt_st().p_sts_nopaste;
+            buf.b_p_sts_nopaste = OPT_STATE.with(|s| s.p_sts_nopaste.get());
             buf.b_p_vsts = CStrOptionSlot::from_option_cstr(opt_vars().p_vsts.as_cstr());
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_empty() {
@@ -7269,7 +7228,7 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
     let mut arg = arg_cstr;
-    opt_st().expand_option_flags = opt_flags;
+    OPT_STATE.with(|s| s.expand_option_flags.set(opt_flags));
 
     xp.xp_context = EXPAND_SETTINGS;
     let arg_bytes = arg_cstr.to_bytes();
@@ -7329,8 +7288,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         }
         nextchar = p_bytes.get(gt_off + 1).copied().unwrap_or(0);
         is_term_option = true;
-        opt_st().expand_option_name[2] = key2termcap0(key) as u8;
-        opt_st().expand_option_name[3] = key2termcap1(key) as u8;
+        OPT_STATE.with(|s| s.expand_option_name.get())[2] = key2termcap0(key) as u8;
+        OPT_STATE.with(|s| s.expand_option_name.get())[3] = key2termcap1(key) as u8;
     } else if p_bytes.starts_with(b"t_") {
         if p_bytes.len() < 4 {
             return;
@@ -7338,8 +7297,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         p = crate::memory::CStrSubslice::advance(p, 4);
         nextchar = p_bytes.get(4).copied().unwrap_or(0);
         is_term_option = true;
-        opt_st().expand_option_name[2] = p_bytes[2];
-        opt_st().expand_option_name[3] = p_bytes[3];
+        OPT_STATE.with(|s| s.expand_option_name.get())[2] = p_bytes[2];
+        OPT_STATE.with(|s| s.expand_option_name.get())[3] = p_bytes[3];
     } else {
         let name_len = p_bytes
             .iter()
@@ -7362,14 +7321,14 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         }
     }
 
-    opt_st().expand_option_append = false;
+    OPT_STATE.with(|s| s.expand_option_append.set(false));
     let mut expand_option_subtract = false;
     if matches!(nextchar, b'-' | b'+' | b'^') && p.to_bytes().get(1) == Some(&b'=') {
         if nextchar == b'-' {
             expand_option_subtract = true;
         }
         if nextchar == b'+' || nextchar == b'^' {
-            opt_st().expand_option_append = true;
+            OPT_STATE.with(|s| s.expand_option_append.set(true));
         }
         p = crate::memory::CStrSubslice::advance(p, 1);
         nextchar = b'=';
@@ -7380,15 +7339,17 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     }
 
     if is_term_option {
-        opt_st().expand_option_idx = K_OPT_INVALID;
+        OPT_STATE.with(|s| s.expand_option_idx.set(K_OPT_INVALID));
     } else {
-        opt_st().expand_option_idx = opt_idx;
+        OPT_STATE.with(|s| s.expand_option_idx.set(opt_idx));
     }
 
     let p_after_eq = crate::memory::CStrSubslice::advance(p, 1);
     xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(p_after_eq);
-    opt_st().expand_option_start_col =
-        ((p_after_eq.as_ptr() as usize).saturating_sub(xp.xp_line.addr()) as isize) as i32;
+    OPT_STATE.with(|s| {
+        s.expand_option_start_col
+            .set(((p_after_eq.as_ptr() as usize).saturating_sub(xp.xp_line.addr()) as isize) as i32)
+    });
 
     let opt_var = get_option(opt_idx).var();
     if opt_var.ptr_eq(&opt_vars().p_syn) {
@@ -7407,8 +7368,8 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     if expand_option_subtract {
         xp.xp_context = EXPAND_SETTING_SUBTRACT;
         return;
-    } else if opt_st().expand_option_idx != K_OPT_INVALID
-        && get_option(opt_st().expand_option_idx)
+    } else if OPT_STATE.with(|s| s.expand_option_idx.get()) != K_OPT_INVALID
+        && get_option(OPT_STATE.with(|s| s.expand_option_idx.get()))
             .opt_expand_cb
             .is_some()
     {
@@ -7491,7 +7452,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     if get_option(opt_idx).var().ptr_eq(&opt_vars().p_sps) {
         if xp.xp_pattern.as_bytes().starts_with(b"file:") {
             xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
-        } else if get_option(opt_st().expand_option_idx)
+        } else if get_option(OPT_STATE.with(|s| s.expand_option_idx.get()))
             .opt_expand_cb
             .is_some()
         {
@@ -7591,8 +7552,10 @@ pub fn escape_option_str_cmdline(var_arg: &[u8]) -> std::ffi::CString {
     {
         let src = buf_cstr.to_bytes();
         let mut out = Vec::with_capacity(src.len());
-        let expand_ok = opt_st().expand_option_idx != K_OPT_INVALID
-            && (get_option(opt_st().expand_option_idx).flags & K_OPT_FLAG_EXPAND) != 0;
+        let expand_ok = OPT_STATE.with(|s| s.expand_option_idx.get()) != K_OPT_INVALID
+            && (get_option(OPT_STATE.with(|s| s.expand_option_idx.get())).flags
+                & K_OPT_FLAG_EXPAND)
+                != 0;
         let mut idx = 0usize;
         while idx < src.len() {
             if expand_ok
@@ -7620,24 +7583,30 @@ pub fn escape_option_str_cmdline(var_arg: &[u8]) -> std::ffi::CString {
 pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
-    if opt_st().expand_option_idx == K_OPT_INVALID {
-        opt_st().expand_option_idx = find_option(&opt_st().expand_option_name);
+    if OPT_STATE.with(|s| s.expand_option_idx.get()) == K_OPT_INVALID {
+        OPT_STATE.with(|s| {
+            s.expand_option_idx
+                .set(find_option(&OPT_STATE.with(|s| s.expand_option_name.get())))
+        });
     }
 
-    let var = if opt_st().expand_option_idx != K_OPT_INVALID {
+    let var = if OPT_STATE.with(|s| s.expand_option_idx.get()) != K_OPT_INVALID {
         let o = opt_from_varp(
-            opt_st().expand_option_idx,
+            OPT_STATE.with(|s| s.expand_option_idx.get()),
             get_varp_scope(
-                get_option(opt_st().expand_option_idx),
-                opt_st().expand_option_flags,
+                get_option(OPT_STATE.with(|s| s.expand_option_idx.get())),
+                OPT_STATE.with(|s| s.expand_option_flags.get()),
             ),
         );
         let is_luafn = o.obj_type == ObjectType::ObjectTypeLuaRef;
-        optval_free_read(opt_st().expand_option_idx, o);
+        optval_free_read(OPT_STATE.with(|s| s.expand_option_idx.get()), o);
         if is_luafn {
             return true;
         }
-        optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
+        optval_fmt(
+            OPT_STATE.with(|s| s.expand_option_idx.get()),
+            OPT_STATE.with(|s| s.expand_option_flags.get()),
+        );
         crate::memory::bytes_until_nul(g_st().borrow_mut().name_buff_bytes_mut())
     } else {
         b""
@@ -7653,24 +7622,28 @@ pub fn expand_string_setting(
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    if opt_st().expand_option_idx == K_OPT_INVALID {
+    if OPT_STATE.with(|s| s.expand_option_idx.get()) == K_OPT_INVALID {
         return false;
     }
-    let opt = get_option(opt_st().expand_option_idx);
+    let opt = get_option(OPT_STATE.with(|s| s.expand_option_idx.get()));
     let Some(expand_cb) = opt.opt_expand_cb else {
         return false;
     };
 
     let set_arg = xp
         .xp_line
-        .wrapping_add(opt_st().expand_option_start_col as usize);
-    optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
+        .wrapping_add(OPT_STATE.with(|s| s.expand_option_start_col.get()) as usize);
+    optval_fmt(
+        OPT_STATE.with(|s| s.expand_option_idx.get()),
+        OPT_STATE.with(|s| s.expand_option_flags.get()),
+    );
     let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
     let mut args = Optexpand {
-        oe_idx: opt_st().expand_option_idx,
+        oe_idx: OPT_STATE.with(|s| s.expand_option_idx.get()),
         oe_opt_value: buf.as_c_str(),
-        oe_append: opt_st().expand_option_append,
-        oe_include_orig_val: !opt_st().expand_option_append && set_arg.is_empty(),
+        oe_append: OPT_STATE.with(|s| s.expand_option_append.get()),
+        oe_include_orig_val: !OPT_STATE.with(|s| s.expand_option_append.get())
+            && set_arg.is_empty(),
         oe_regmatch: regmatch,
         oe_xp: xp,
         oe_set_arg: set_arg,
@@ -7685,23 +7658,26 @@ pub fn expand_setting_subtract(
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    if opt_st().expand_option_idx == K_OPT_INVALID
-        || option_has_type(opt_st().expand_option_idx, ObjectType::ObjectTypeInteger)
-        || is_callback_option(opt_st().expand_option_idx)
-        || is_option_hidden(opt_st().expand_option_idx)
+    if OPT_STATE.with(|s| s.expand_option_idx.get()) == K_OPT_INVALID
+        || option_has_type(
+            OPT_STATE.with(|s| s.expand_option_idx.get()),
+            ObjectType::ObjectTypeInteger,
+        )
+        || is_callback_option(OPT_STATE.with(|s| s.expand_option_idx.get()))
+        || is_option_hidden(OPT_STATE.with(|s| s.expand_option_idx.get()))
     {
         return expand_old_setting(matches);
     }
 
     let option_val_cstr = get_option_varp_scope_from(
-        opt_st().expand_option_idx,
-        opt_st().expand_option_flags,
+        OPT_STATE.with(|s| s.expand_option_idx.get()),
+        OPT_STATE.with(|s| s.expand_option_flags.get()),
         curbuf_mut(),
         Some(curwin_mut()),
     )
     .as_cstr();
 
-    let option_flags = get_option(opt_st().expand_option_idx).flags;
+    let option_flags = get_option(OPT_STATE.with(|s| s.expand_option_idx.get())).flags;
 
     if (option_flags & K_OPT_FLAG_COMMA) != 0 {
         if option_val_cstr.is_empty() {

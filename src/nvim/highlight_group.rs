@@ -168,69 +168,28 @@ impl Default for HlGroup {
     }
 }
 
-#[derive(Clone, Copy)]
 struct HighlightGroupCopyState {
-    had_both: bool,
-    load_colors_recursive: bool,
+    had_both: std::cell::Cell<bool>,
+    load_colors_recursive: std::cell::Cell<bool>,
 }
 
 impl HighlightGroupCopyState {
     const fn new() -> Self {
         Self {
-            had_both: false,
-            load_colors_recursive: false,
+            had_both: std::cell::Cell::new(false),
+            load_colors_recursive: std::cell::Cell::new(false),
         }
     }
 }
 
 thread_local! {
-    static HLG_STATE: std::cell::Cell<HighlightGroupCopyState> = const {
-        std::cell::Cell::new(HighlightGroupCopyState::new())
-    };
+    static HLG_STATE: HighlightGroupCopyState = const { HighlightGroupCopyState::new() };
     static HIGHLIGHT_GA: std::cell::RefCell<Vec<HlGroup>> = const {
         std::cell::RefCell::new(Vec::new())
     };
     static HIGHLIGHT_UNAMES: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, i32>> = const {
         std::cell::RefCell::new(std::collections::BTreeMap::new())
     };
-}
-
-struct HlgGuard {
-    state: HighlightGroupCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for HlgGuard {
-    type Target = HighlightGroupCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for HlgGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for HlgGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            HLG_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn hlg_st() -> HlgGuard {
-    HlgGuard {
-        state: HLG_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 #[inline]
@@ -908,11 +867,11 @@ pub fn init_highlight(both: bool, reset: bool) {
     }
 
     if both {
-        hlg_st().had_both = true;
+        HLG_STATE.with(|s| s.had_both.set(true));
         for &cmd in &HIGHLIGHT_INIT_BOTH {
             do_highlight(cmd, reset, true);
         }
-    } else if !hlg_st().had_both {
+    } else if !HLG_STATE.with(|s| s.had_both.get()) {
         return;
     }
 
@@ -929,11 +888,11 @@ pub fn init_highlight(both: bool, reset: bool) {
 }
 
 pub fn load_colors(name: &CStr) -> bool {
-    if hlg_st().load_colors_recursive {
+    if HLG_STATE.with(|s| s.load_colors_recursive.get()) {
         return true;
     }
 
-    hlg_st().load_colors_recursive = true;
+    HLG_STATE.with(|s| s.load_colors_recursive.set(true));
     let name_bytes = name.to_bytes();
     let mut buf = Vec::with_capacity(name_bytes.len() + 12);
     apply_autocmds(
@@ -957,7 +916,7 @@ pub fn load_colors(name: &CStr) -> bool {
         );
     }
 
-    hlg_st().load_colors_recursive = false;
+    HLG_STATE.with(|s| s.load_colors_recursive.set(false));
 
     retval
 }

@@ -833,66 +833,25 @@ const E_CONFLICTS_WITH_VALUE_OF_FILLCHARS: &CStr = c"E835: Conflicts with value 
 
 const SHM_ALL: &CStr = c"rmlwaWtToOsAIcCqFSunfxi";
 
-#[derive(Clone, Copy)]
 struct OptionStrState {
-    set_opt_callback_func: CompleteListItemGetter,
-    expand_eiw: bool,
+    set_opt_callback_func: std::cell::Cell<CompleteListItemGetter>,
+    expand_eiw: std::cell::Cell<bool>,
 }
 
 impl OptionStrState {
     const fn new() -> Self {
         Self {
-            set_opt_callback_func: None,
-            expand_eiw: false,
+            set_opt_callback_func: std::cell::Cell::new(None),
+            expand_eiw: std::cell::Cell::new(false),
         }
     }
 }
 
 thread_local! {
-    static OPTSTR_STATE: std::cell::Cell<OptionStrState> = const {
-        std::cell::Cell::new(OptionStrState::new())
-    };
+    static OPTSTR_STATE: OptionStrState = const { OptionStrState::new() };
     static SET_OPT_CALLBACK_ORIG: std::cell::RefCell<Option<std::ffi::CString>> = const {
         std::cell::RefCell::new(None)
     };
-}
-
-struct OptStrGuard {
-    state: OptionStrState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for OptStrGuard {
-    type Target = OptionStrState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for OptStrGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for OptStrGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            OPTSTR_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn optstr_st() -> OptStrGuard {
-    OptStrGuard {
-        state: OPTSTR_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 use crate::mbyte::ptr2cells;
@@ -1350,7 +1309,7 @@ fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
             None => c"",
         });
     }
-    let func = optstr_st().set_opt_callback_func;
+    let func = OPTSTR_STATE.with(|s| s.set_opt_callback_func.get());
     func?(xp, idx - 1)
 }
 
@@ -1365,7 +1324,7 @@ fn expand_set_opt_generic(
             .oe_include_orig_val
             .then(|| args.oe_opt_value.to_owned());
     });
-    optstr_st().set_opt_callback_func = func;
+    OPTSTR_STATE.with(|s| s.set_opt_callback_func.set(func));
 
     expand_generic(
         c"",
@@ -1379,7 +1338,7 @@ fn expand_set_opt_generic(
     SET_OPT_CALLBACK_ORIG.with(|cell| {
         *cell.borrow_mut() = None;
     });
-    optstr_st().set_opt_callback_func = None;
+    OPTSTR_STATE.with(|s| s.set_opt_callback_func.set(None));
     true
 }
 
@@ -2110,7 +2069,11 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         return Some(c"all");
     }
 
-    let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw)?;
+    let name = get_event_name_no_group(
+        xp,
+        idx - 1 + i32::from(subtract),
+        OPTSTR_STATE.with(|s| s.expand_eiw.get()),
+    )?;
 
     format_to_buf!(
         &mut g_st().iobuff,
@@ -2122,7 +2085,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    optstr_st().expand_eiw = args.oe_idx == K_OPT_EVENTIGNOREWIN;
+    OPTSTR_STATE.with(|s| s.expand_eiw.set(args.oe_idx == K_OPT_EVENTIGNOREWIN));
     expand_set_opt_generic(args, Some(get_eventignore_name), matches)
 }
 

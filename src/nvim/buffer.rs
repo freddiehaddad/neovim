@@ -76,7 +76,7 @@ use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
     ml_close, ml_delete, ml_get_buf_slice, ml_open, ml_recover, ml_setname, ml_timestamp,
 };
-use crate::memory::mem_st;
+use crate::memory::entered_free_all_mem;
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -1517,7 +1517,7 @@ pub fn close_buffer(
         && buf.borrow().b_nwindows <= 0
         && (!buf.borrow().b_prev.is_null()
             || !buf.borrow().b_next.is_null()
-            || mem_st().entered_free_all_mem)
+            || entered_free_all_mem())
     {
         if clear_w_buf {
             win.borrow_mut().w_buffer = crate::globals::BufPtr::NULL;
@@ -1655,7 +1655,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     if (&raw mut *buf) == g_st().curbuf.as_ptr()
         && g_st().visual_global.active
-        && !mem_st().entered_free_all_mem
+        && !entered_free_all_mem()
     {
         end_visual_mode();
     }
@@ -2722,7 +2722,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
 /// Enter a new current buffer.
 fn enter_buffer(buf_in: &mut FileBuf) {
     let buf = crate::globals::GraphPtr::from(buf_in);
-    if g_st().visual_global.active && !mem_st().entered_free_all_mem {
+    if g_st().visual_global.active && !entered_free_all_mem() {
         end_visual_mode();
     }
 

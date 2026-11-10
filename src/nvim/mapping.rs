@@ -259,21 +259,20 @@ impl MapArguments {
     }
 }
 
-#[derive(Clone, Copy)]
 struct MappingCopyState {
-    map_luaid: i32,
-    expand_mapmodes: i32,
-    expand_isabbrev: bool,
-    expand_buffer: bool,
+    map_luaid: std::cell::Cell<i32>,
+    expand_mapmodes: std::cell::Cell<i32>,
+    expand_isabbrev: std::cell::Cell<bool>,
+    expand_buffer: std::cell::Cell<bool>,
 }
 
 impl MappingCopyState {
     const fn new() -> Self {
         Self {
-            map_luaid: 0,
-            expand_mapmodes: 0,
-            expand_isabbrev: false,
-            expand_buffer: false,
+            map_luaid: std::cell::Cell::new(0),
+            expand_mapmodes: std::cell::Cell::new(0),
+            expand_isabbrev: std::cell::Cell::new(false),
+            expand_buffer: std::cell::Cell::new(false),
         }
     }
 }
@@ -293,53 +292,13 @@ impl MappingTables {
 }
 
 thread_local! {
-    static MAP_STATE: std::cell::Cell<MappingCopyState> = const {
-        std::cell::Cell::new(MappingCopyState::new())
-    };
+    static MAP_STATE: MappingCopyState = const { MappingCopyState::new() };
     static MAP_TABLES: std::cell::RefCell<MappingTables> = const {
         std::cell::RefCell::new(MappingTables::new())
     };
     static LANGMAP_MAPGA: std::cell::RefCell<Vec<LangmapEntry>> = const {
         std::cell::RefCell::new(Vec::new())
     };
-}
-
-struct MapGuard {
-    state: MappingCopyState,
-    mutated: bool,
-}
-
-impl std::ops::Deref for MapGuard {
-    type Target = MappingCopyState;
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.state
-    }
-}
-
-impl std::ops::DerefMut for MapGuard {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        &mut self.state
-    }
-}
-
-impl Drop for MapGuard {
-    #[inline]
-    fn drop(&mut self) {
-        if self.mutated {
-            MAP_STATE.with(|c| c.set(self.state));
-        }
-    }
-}
-
-#[inline]
-fn map_st() -> MapGuard {
-    MapGuard {
-        state: MAP_STATE.with(std::cell::Cell::get),
-        mutated: false,
-    }
 }
 
 static E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR: &CStr =
@@ -637,14 +596,14 @@ fn set_maparg_rhs(
         let mut tmp_buf = [0u8; 64];
         mapargs.orig_rhs = Some(CString::default());
         mapargs.orig_rhs_len = 0;
-        map_st().map_luaid += 1;
+        MAP_STATE.with(|s| s.map_luaid.set(s.map_luaid.get() + (1)));
         mapargs.rhs_len = format_to_buf!(
             &mut tmp_buf,
             c"%c%c%c%d\r",
             K_SPECIAL as i32,
             KS_EXTRA as i32,
             KE_LUA as i32,
-            map_st().map_luaid,
+            MAP_STATE.with(|s| s.map_luaid.get()),
         ) as usize;
         mapargs.rhs = Some(crate::memory::cstring_until_nul(&tmp_buf));
     }
@@ -1420,21 +1379,28 @@ pub fn set_context_in_map_cmd(
         xp.xp_context = EXPAND_NOTHING;
     } else {
         if isunmap {
-            map_st().expand_mapmodes = get_map_mode(&mut cmd_bytes, forceit || isabbrev);
+            MAP_STATE.with(|s| {
+                s.expand_mapmodes
+                    .set(get_map_mode(&mut cmd_bytes, forceit || isabbrev))
+            });
         } else {
-            map_st().expand_mapmodes = MODE_INSERT | MODE_CMDLINE;
+            MAP_STATE.with(|s| s.expand_mapmodes.set(MODE_INSERT | MODE_CMDLINE));
             if !isabbrev {
-                map_st().expand_mapmodes |=
-                    MODE_VISUAL | MODE_SELECT | MODE_NORMAL | MODE_OP_PENDING;
+                MAP_STATE.with(|s| {
+                    s.expand_mapmodes.set(
+                        s.expand_mapmodes.get()
+                            | (MODE_VISUAL | MODE_SELECT | MODE_NORMAL | MODE_OP_PENDING),
+                    )
+                });
             }
         }
-        map_st().expand_isabbrev = isabbrev;
+        MAP_STATE.with(|s| s.expand_isabbrev.set(isabbrev));
         xp.xp_context = EXPAND_MAPPINGS;
-        map_st().expand_buffer = false;
+        MAP_STATE.with(|s| s.expand_buffer.set(false));
         loop {
             let bytes = arg.to_bytes();
             if bytes.starts_with(b"<buffer>") {
-                map_st().expand_buffer = true;
+                MAP_STATE.with(|s| s.expand_buffer.set(true));
                 arg = &arg[8 + crate::charset::skipwhite_len(&bytes[8..])..];
                 continue;
             }
@@ -1485,7 +1451,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
             1 => c"<unique>",
             2 => c"<script>",
             3 => c"<expr>",
-            4 if !map_st().expand_buffer => c"<buffer>",
+            4 if !MAP_STATE.with(|s| s.expand_buffer.get()) => c"<buffer>",
             5 => c"<nowait>",
             6 => c"<special>",
             _ => continue,
@@ -1514,13 +1480,15 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
         }
     }
 
-    let exp_buf = if !map_st().expand_isabbrev && map_st().expand_buffer {
+    let exp_buf = if !MAP_STATE.with(|s| s.expand_isabbrev.get())
+        && MAP_STATE.with(|s| s.expand_buffer.get())
+    {
         g_st().curbuf.opt()
     } else {
         None
     };
-    let is_abbrev = map_st().expand_isabbrev;
-    let mapmodes = map_st().expand_mapmodes;
+    let is_abbrev = MAP_STATE.with(|s| s.expand_isabbrev.get());
+    let mapmodes = MAP_STATE.with(|s| s.expand_mapmodes.get());
     with_map_buckets(exp_buf, is_abbrev, |buckets| {
         for bucket in buckets {
             for mp in bucket {
