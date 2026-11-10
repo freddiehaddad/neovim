@@ -67,6 +67,7 @@ const EXP_SIGN_NAMES: i32 = 5;
 const EXP_SIGN_GROUPS: i32 = 6;
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct Sign {
     pub sn_name: std::ffi::CString,
     pub sn_icon: Option<std::ffi::CString>,
@@ -87,27 +88,23 @@ use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::os::env::ExpandCtx;
 
 struct SignModuleState {
-    sign_map: Vec<Sign>,
-    sign_ns: Vec<Integer>,
-    expand_what: i32,
+    sign_map: std::cell::RefCell<Vec<Sign>>,
+    sign_ns: std::cell::RefCell<Vec<Integer>>,
+    expand_what: std::cell::Cell<i32>,
 }
 
 impl SignModuleState {
     const fn new() -> Self {
         Self {
-            sign_map: Vec::new(),
-            sign_ns: Vec::new(),
-            expand_what: EXP_SUBCMD,
+            sign_map: std::cell::RefCell::new(Vec::new()),
+            sign_ns: std::cell::RefCell::new(Vec::new()),
+            expand_what: std::cell::Cell::new(EXP_SUBCMD),
         }
     }
 }
 
-static SIGN_STATE: crate::globals::GlobalState<SignModuleState> =
-    crate::globals::GlobalState::new(SignModuleState::new());
-
-#[inline]
-fn sign_st() -> crate::globals::GraphPtr<SignModuleState> {
-    SIGN_STATE.handle()
+std::thread_local! {
+    static SIGN_STATE: SignModuleState = const { SignModuleState::new() };
 }
 
 const CMDS: [&CStr; 6] = [
@@ -120,16 +117,18 @@ const CMDS: [&CStr; 6] = [
 ];
 
 #[inline]
-fn pmap_get_sign(name: &[u8]) -> Option<&'static mut Sign> {
+fn pmap_get_sign(name: &[u8]) -> Option<Sign> {
     let name_bytes = crate::memory::bytes_until_nul(name);
     if name_bytes.is_empty() {
         return None;
     }
-    sign_st()
-        .borrow_mut()
-        .sign_map
-        .iter_mut()
-        .find(|sp| sp.sn_name.as_bytes() == name_bytes)
+    SIGN_STATE.with(|st| {
+        st.sign_map
+            .borrow()
+            .iter()
+            .find(|sp| sp.sn_name.as_bytes() == name_bytes)
+            .cloned()
+    })
 }
 
 #[inline]
@@ -172,11 +171,11 @@ fn buf_set_sign(
     group: Option<&CStr>,
     prio: i32,
     lnum: Linenr,
-    sp: &mut Sign,
+    sp: &Sign,
 ) {
     if group.is_some() && find_ns_by_name(group) == 0 {
-        let ns_vec = &mut sign_st().sign_ns;
-        ns_vec.push(nvim_create_namespace(cstr_as_string(group)));
+        let ns_id = nvim_create_namespace(cstr_as_string(group));
+        SIGN_STATE.with(|st| st.sign_ns.borrow_mut().push(ns_id));
     }
 
     let ns = if group.is_some() {
@@ -230,7 +229,7 @@ fn buf_mod_sign(
     id: &mut u32,
     group: Option<&CStr>,
     prio: i32,
-    sp: &mut Sign,
+    sp: &Sign,
 ) -> Linenr {
     let ns = group_get_ns(group);
     if ns < 0 || (group.is_some() && ns == 0) {
@@ -496,21 +495,16 @@ fn sign_define_by_name(
 ) -> bool {
     let existing = pmap_get_sign(name.to_bytes());
     let new_sign = existing.is_none();
-    let sp = if let Some(sp) = existing {
-        sp
-    } else {
-        sign_st().sign_map.push(Sign {
-            sn_name: name.to_owned(),
-            sn_icon: None,
-            sn_text: [0; SIGN_WIDTH],
-            sn_line_hl: 0,
-            sn_text_hl: 0,
-            sn_cul_hl: 0,
-            sn_num_hl: 0,
-            sn_priority: 0,
-        });
-        sign_st().borrow_mut().sign_map.last_mut().unwrap()
-    };
+    let mut sp = existing.unwrap_or_else(|| Sign {
+        sn_name: name.to_owned(),
+        sn_icon: None,
+        sn_text: [0; SIGN_WIDTH],
+        sn_line_hl: 0,
+        sn_text_hl: 0,
+        sn_cul_hl: 0,
+        sn_num_hl: 0,
+        sn_priority: 0,
+    });
 
     if let Some(icon_cstr) = icon {
         let mut icon_vec = icon_cstr.to_bytes_with_nul().to_vec();
@@ -525,8 +519,16 @@ fn sign_define_by_name(
 
     if let Some(text_cstr) = text {
         let mut sn_text = sp.sn_text;
-        if !init_sign_text(Some(&*sp), &mut sn_text, text_cstr.to_bytes()) {
+        if !init_sign_text(Some(&sp), &mut sn_text, text_cstr.to_bytes()) {
             sp.sn_text = sn_text;
+            SIGN_STATE.with(|st| {
+                let mut map = st.sign_map.borrow_mut();
+                if let Some(slot) = map.iter_mut().find(|item| item.sn_name.as_c_str() == name) {
+                    *slot = sp;
+                } else {
+                    map.push(sp);
+                }
+            });
             return false;
         }
         sp.sn_text = sn_text;
@@ -574,23 +576,33 @@ fn sign_define_by_name(
         }
     }
 
+    SIGN_STATE.with(|st| {
+        let mut map = st.sign_map.borrow_mut();
+        if let Some(slot) = map.iter_mut().find(|item| item.sn_name.as_c_str() == name) {
+            *slot = sp;
+        } else {
+            map.push(sp);
+        }
+    });
+
     true
 }
 
 fn sign_undefine_by_name(name: &CStr) -> bool {
-    let Some(pos) = sign_st()
-        .sign_map
-        .iter()
-        .position(|sp| sp.sn_name.as_c_str() == name)
-    else {
+    let removed = SIGN_STATE.with(|st| {
+        let mut map = st.sign_map.borrow_mut();
+        let pos = map.iter().position(|sp| sp.sn_name.as_c_str() == name)?;
+        map.swap_remove(pos);
+        Some(())
+    });
+    if removed.is_none() {
         semsg!(gettext(c"E155: Unknown sign: %s"), name);
         return false;
-    };
-    sign_st().sign_map.swap_remove(pos);
+    }
     true
 }
 
-fn sign_list_defined(sp: &mut Sign) {
+fn sign_list_defined(sp: &Sign) {
     smsg!(0, c"sign %s", &sp.sn_name);
     if let Some(ref icon) = sp.sn_icon {
         msg_puts(c" icon=");
@@ -622,7 +634,7 @@ fn sign_list_defined(sp: &mut Sign) {
 
 fn sign_list_by_name(name: &CStr) {
     if let Some(sp) = pmap_get_sign(name.to_bytes()) {
-        sign_list_defined(sp);
+        sign_list_defined(&sp);
     } else {
         semsg!(gettext(c"E155: Unknown sign: %s"), name);
     }
@@ -656,9 +668,9 @@ fn sign_place(
     }
 
     if lnum > 0 {
-        buf_set_sign(buf, id, group, prio, lnum, sp);
+        buf_set_sign(buf, id, group, prio, lnum, &sp);
     } else {
-        lnum = buf_mod_sign(buf, &mut *id, group, prio, sp);
+        lnum = buf_mod_sign(buf, &mut *id, group, prio, &sp);
     }
     if lnum <= 0 {
         semsg!(gettext(c"E885: Not possible to change sign %s"), name);
@@ -1005,7 +1017,8 @@ pub fn ex_sign(eap: &mut Exarg) {
     if idx <= SIGNCMD_LIST {
         let first_b = arg_buf.get(arg_off).copied().unwrap_or(0);
         if idx == SIGNCMD_LIST && first_b == 0 {
-            for sp in &mut sign_st().sign_map {
+            let signs = SIGN_STATE.with(|st| st.sign_map.borrow().clone());
+            for sp in &signs {
                 sign_list_defined(sp);
             }
         } else if first_b == 0 {
@@ -1065,7 +1078,7 @@ pub fn ex_sign(eap: &mut Exarg) {
     }
 }
 
-fn sign_get_info_dict(sp: &mut Sign) -> &'static mut TvDict {
+fn sign_get_info_dict(sp: &Sign) -> &'static mut TvDict {
     let d = tv_dict_alloc();
 
     tv_dict_add_str(&mut *d, c"name", Some(sp.sn_name.as_c_str()));
@@ -1200,30 +1213,28 @@ fn sign_get_placed(
 }
 
 pub fn free_signs() {
-    sign_st().sign_map = Vec::new();
+    SIGN_STATE.with(|st| st.sign_map.borrow_mut().clear());
 }
 
-fn get_nth_sign_name(idx: i32) -> Option<&'static CStr> {
+fn get_nth_sign_name(idx: i32) -> Option<std::ffi::CString> {
     let idx_usize = usize::try_from(idx).ok()?;
-    sign_st()
-        .borrow_mut()
-        .sign_map
-        .as_slice()
-        .get(idx_usize)
-        .map(|sp| sp.sn_name.as_c_str())
+    SIGN_STATE.with(|st| {
+        st.sign_map
+            .borrow()
+            .get(idx_usize)
+            .map(|sp| sp.sn_name.clone())
+    })
 }
 
 fn get_nth_sign_group_name(idx: i32) -> Option<&'static CStr> {
     let idx_usize = usize::try_from(idx).ok()?;
-    let ns_slice = sign_st().borrow_mut().sign_ns.as_slice();
-    ns_slice
-        .get(idx_usize)
-        .map(|&ns| describe_ns(ns as NS, c""))
+    let ns = SIGN_STATE.with(|st| st.sign_ns.borrow().get(idx_usize).copied())?;
+    Some(describe_ns(ns as NS, c""))
 }
 
-pub fn get_sign_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_sign_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     let i = usize::try_from(idx).ok()?;
-    match sign_st().expand_what {
+    match SIGN_STATE.with(|st| st.expand_what.get()) {
         EXP_SUBCMD => CMDS.get(i).copied(),
         EXP_DEFINE => {
             const DEFINE_ARG: [&CStr; 7] = [
@@ -1252,7 +1263,7 @@ pub fn get_sign_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
             const LIST_ARG: [&CStr; 3] = [c"group=", c"file=", c"buffer="];
             LIST_ARG.get(i).copied()
         }
-        EXP_SIGN_NAMES => get_nth_sign_name(idx),
+        EXP_SIGN_NAMES => get_nth_sign_name(idx).map(|s| xp.set_item(s)),
         EXP_SIGN_GROUPS => get_nth_sign_group_name(idx),
         _ => None,
     }
@@ -1261,7 +1272,7 @@ pub fn get_sign_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
     let arg = crate::strings::OwnedSlice::from_cstr(arg_cstr);
     xp.xp_context = EXPAND_SIGN;
-    sign_st().expand_what = EXP_SUBCMD;
+    SIGN_STATE.with(|st| st.expand_what.set(EXP_SUBCMD));
     xp.xp_pattern = arg.clone();
 
     let end_subcmd = arg.skiptowhite();
@@ -1286,16 +1297,18 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
     let Some(eq_cstr) = vim_strchr(last.as_cstr(), b'=' as i32) else {
         xp.xp_pattern = last;
         match cmd_idx {
-            SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
+            SIGNCMD_DEFINE => SIGN_STATE.with(|st| st.expand_what.set(EXP_DEFINE)),
             SIGNCMD_PLACE => {
                 if ascii_isdigit(begin_subcmd_args.first_byte()) {
-                    sign_st().expand_what = EXP_PLACE;
+                    SIGN_STATE.with(|st| st.expand_what.set(EXP_PLACE));
                 } else {
-                    sign_st().expand_what = EXP_LIST;
+                    SIGN_STATE.with(|st| st.expand_what.set(EXP_LIST));
                 }
             }
-            SIGNCMD_LIST | SIGNCMD_UNDEFINE => sign_st().expand_what = EXP_SIGN_NAMES,
-            SIGNCMD_JUMP | SIGNCMD_UNPLACE => sign_st().expand_what = EXP_UNPLACE,
+            SIGNCMD_LIST | SIGNCMD_UNDEFINE => {
+                SIGN_STATE.with(|st| st.expand_what.set(EXP_SIGN_NAMES))
+            }
+            SIGNCMD_JUMP | SIGNCMD_UNPLACE => SIGN_STATE.with(|st| st.expand_what.set(EXP_UNPLACE)),
             _ => xp.xp_context = EXPAND_NOTHING,
         }
         return;
@@ -1319,9 +1332,9 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
             }
             SIGNCMD_PLACE => {
                 if last_bytes.starts_with(b"name") {
-                    sign_st().expand_what = EXP_SIGN_NAMES;
+                    SIGN_STATE.with(|st| st.expand_what.set(EXP_SIGN_NAMES));
                 } else if last_bytes.starts_with(b"group") {
-                    sign_st().expand_what = EXP_SIGN_GROUPS;
+                    SIGN_STATE.with(|st| st.expand_what.set(EXP_SIGN_GROUPS));
                 } else if last_bytes.starts_with(b"file") {
                     xp.xp_context = EXPAND_BUFFERS;
                 } else {
@@ -1330,7 +1343,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
             }
             SIGNCMD_UNPLACE | SIGNCMD_JUMP => {
                 if last_bytes.starts_with(b"group") {
-                    sign_st().expand_what = EXP_SIGN_GROUPS;
+                    SIGN_STATE.with(|st| st.expand_what.set(EXP_SIGN_GROUPS));
                 } else if last_bytes.starts_with(b"file") {
                     xp.xp_context = EXPAND_BUFFERS;
                 } else {
@@ -1439,11 +1452,12 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
     tv_list_alloc_ret(rettv, 0);
 
     if argvars[0].v_type == VarType::VarUnknown {
-        for sp in &mut sign_st().sign_map {
+        let signs = SIGN_STATE.with(|st| st.sign_map.borrow().clone());
+        for sp in &signs {
             tv_list_append_dict(rettv.vval.v_list_ref(), Some(sign_get_info_dict(sp)));
         }
     } else if let Some(sp) = pmap_get_sign(tv_get_string(&argvars[0]).to_bytes()) {
-        tv_list_append_dict(rettv.vval.v_list_ref(), Some(sign_get_info_dict(sp)));
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(sign_get_info_dict(&sp)));
     }
 }
 

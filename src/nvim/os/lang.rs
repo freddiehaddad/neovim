@@ -246,7 +246,7 @@ pub fn utf16_to_utf8(utf16: &[u16], utf16len: i32, utf8: &mut Option<CString>) -
 
 struct MoEntry {
     msgid: Box<[u8]>,
-    forms: Box<[CString]>,
+    forms: Box<[&'static CStr]>,
 }
 
 struct MoCatalog {
@@ -256,37 +256,33 @@ struct MoCatalog {
 }
 
 struct LangModuleState {
-    locales: Vec<CString>,
+    locales: std::cell::RefCell<Vec<CString>>,
     #[cfg(not(windows))]
-    did_init_locales: bool,
-    locale_dir: [u8; MAXPATHL],
-    locale_dir_len: usize,
-    catalogs: Vec<MoCatalog>,
-    active_catalog: Option<usize>,
-    catalog_valid: bool,
+    did_init_locales: std::cell::Cell<bool>,
+    locale_dir: std::cell::RefCell<[u8; MAXPATHL]>,
+    locale_dir_len: std::cell::Cell<usize>,
+    catalogs: std::cell::RefCell<Vec<std::rc::Rc<MoCatalog>>>,
+    active_catalog: std::cell::Cell<Option<usize>>,
+    catalog_valid: std::cell::Cell<bool>,
 }
 
 impl LangModuleState {
     const fn new() -> Self {
         Self {
-            locales: Vec::new(),
+            locales: std::cell::RefCell::new(Vec::new()),
             #[cfg(not(windows))]
-            did_init_locales: false,
-            locale_dir: [0; MAXPATHL],
-            locale_dir_len: 0,
-            catalogs: Vec::new(),
-            active_catalog: None,
-            catalog_valid: false,
+            did_init_locales: std::cell::Cell::new(false),
+            locale_dir: std::cell::RefCell::new([0; MAXPATHL]),
+            locale_dir_len: std::cell::Cell::new(0),
+            catalogs: std::cell::RefCell::new(Vec::new()),
+            active_catalog: std::cell::Cell::new(None),
+            catalog_valid: std::cell::Cell::new(false),
         }
     }
 }
 
-static LANG_STATE: crate::globals::GlobalState<LangModuleState> =
-    crate::globals::GlobalState::new(LangModuleState::new());
-
-#[inline]
-fn lang_st() -> crate::globals::GraphPtr<LangModuleState> {
-    LANG_STATE.handle()
+std::thread_local! {
+    static LANG_STATE: LangModuleState = const { LangModuleState::new() };
 }
 
 fn eval_plural_expr(expr: &[u8], n: u64) -> usize {
@@ -567,7 +563,7 @@ fn parse_mo_catalog(path: PathBuf, data: &[u8]) -> Option<MoCatalog> {
         for form_bytes in trans.split(|&b| b == 0) {
             let utf8 = convert_mo_bytes_to_utf8(form_bytes, charset.as_deref());
             if let Ok(cstr) = CString::new(utf8) {
-                forms.push(cstr);
+                forms.push(&*Box::leak(cstr.into_boxed_c_str()));
             }
         }
         if !forms.is_empty() {
@@ -642,38 +638,41 @@ fn current_message_locale() -> Option<String> {
     None
 }
 
-fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
-    let catalogs = &mut lang_st().borrow_mut().catalogs;
-    if !lang_st().catalog_valid {
-        lang_st().catalog_valid = true;
-        lang_st().active_catalog = None;
-        if lang_st().locale_dir_len == 0 {
-            return None;
-        }
-        let dir_slice = &lang_st().locale_dir[..lang_st().locale_dir_len];
-        let dir_str = std::str::from_utf8(dir_slice).ok()?;
-        let base_dir = Path::new(dir_str);
-        let locale = current_message_locale()?;
-        for cand in locale_candidates(&locale) {
-            let mo_path = base_dir.join(&cand).join("LC_MESSAGES").join("nvim.mo");
-            if let Some(idx) = catalogs.iter().position(|c| c.path == mo_path) {
-                lang_st().active_catalog = Some(idx);
-                break;
+fn ensure_catalog_loaded() -> Option<std::rc::Rc<MoCatalog>> {
+    LANG_STATE.with(|st| {
+        let mut catalogs = st.catalogs.borrow_mut();
+        if !st.catalog_valid.get() {
+            st.catalog_valid.set(true);
+            st.active_catalog.set(None);
+            let dir_len = st.locale_dir_len.get();
+            if dir_len == 0 {
+                return None;
             }
-            if let Ok(bytes) = std::fs::read(&mo_path)
-                && let Some(cat) = parse_mo_catalog(mo_path, &bytes)
-            {
-                let idx = catalogs.len();
-                catalogs.push(cat);
-                lang_st().active_catalog = Some(idx);
-                break;
+            let locale_dir = st.locale_dir.borrow();
+            let dir_slice = &locale_dir[..dir_len];
+            let dir_str = std::str::from_utf8(dir_slice).ok()?;
+            let base_dir = Path::new(dir_str);
+            let locale = current_message_locale()?;
+            for cand in locale_candidates(&locale) {
+                let mo_path = base_dir.join(&cand).join("LC_MESSAGES").join("nvim.mo");
+                if let Some(idx) = catalogs.iter().position(|c| c.path == mo_path) {
+                    st.active_catalog.set(Some(idx));
+                    break;
+                }
+                if let Ok(bytes) = std::fs::read(&mo_path)
+                    && let Some(cat) = parse_mo_catalog(mo_path, &bytes)
+                {
+                    let idx = catalogs.len();
+                    catalogs.push(std::rc::Rc::new(cat));
+                    st.active_catalog.set(Some(idx));
+                    break;
+                }
             }
         }
-    }
-    lang_st()
-        .borrow_mut()
-        .active_catalog
-        .and_then(|idx| catalogs.get(idx))
+        st.active_catalog
+            .get()
+            .and_then(|idx| catalogs.get(idx).cloned())
+    })
 }
 
 pub(crate) fn c_gettext(msgid: Option<&CStr>) -> Option<&'static CStr> {
@@ -687,7 +686,7 @@ pub(crate) fn c_gettext(msgid: Option<&CStr>) -> Option<&'static CStr> {
         .entries
         .binary_search_by(|e| e.msgid.as_ref().cmp(key))
         .ok()?;
-    cat.entries[idx].forms.first().map(CString::as_c_str)
+    cat.entries[idx].forms.first().copied()
 }
 
 pub(crate) fn c_ngettext(msgid1: Option<&CStr>, n: u64) -> Option<&'static CStr> {
@@ -703,10 +702,7 @@ pub(crate) fn c_ngettext(msgid1: Option<&CStr>, n: u64) -> Option<&'static CStr>
         .ok()?;
     let forms = &cat.entries[idx].forms;
     let form_idx = eval_plural_expr(&cat.plural_expr, n);
-    forms
-        .get(form_idx)
-        .or_else(|| forms.first())
-        .map(CString::as_c_str)
+    forms.get(form_idx).or_else(|| forms.first()).copied()
 }
 
 #[inline]
@@ -807,9 +803,11 @@ pub fn init_locale() {
     if HAVE_LIBINTL {
         let bytes = crate::memory::bytes_until_nul(&localepath);
         let len = bytes.len().min(MAXPATHL);
-        lang_st().locale_dir[..len].copy_from_slice(&bytes[..len]);
-        lang_st().locale_dir_len = len;
-        lang_st().catalog_valid = false;
+        LANG_STATE.with(|st| {
+            st.locale_dir.borrow_mut()[..len].copy_from_slice(&bytes[..len]);
+            st.locale_dir_len.set(len);
+            st.catalog_valid.set(false);
+        });
     }
 
     if has_time_fd() {
@@ -874,7 +872,7 @@ pub fn ex_language(eap: &mut Exarg) {
         if loc.is_null() {
             let _ = semsg!(gettext(c"E197: Cannot set language to \"%s\""), name,);
         } else {
-            lang_st().catalog_valid = false;
+            LANG_STATE.with(|st| st.catalog_valid.set(false));
             let _ = os_setenv(c"LC_ALL", c"", 1);
 
             if what != LC_TIME && what != LC_COLLATE {
@@ -914,34 +912,38 @@ fn find_locales() -> Vec<CString> {
 fn init_locales() {
     #[cfg(not(windows))]
     {
-        if lang_st().did_init_locales {
+        if LANG_STATE.with(|st| st.did_init_locales.get()) {
             return;
         }
-        lang_st().did_init_locales = true;
-        lang_st().locales = find_locales();
+        let found = find_locales();
+        LANG_STATE.with(|st| {
+            st.did_init_locales.set(true);
+            *st.locales.borrow_mut() = found;
+        });
     }
 }
 
 pub fn free_locales() {
-    lang_st().locales = Vec::new();
+    LANG_STATE.with(|st| st.locales.borrow_mut().clear());
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.
-pub fn get_lang_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_lang_arg(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     match idx {
         0 => Some(c"messages"),
         1 => Some(c"ctype"),
         2 => Some(c"time"),
         3 => Some(c"collate"),
-        _ => get_locales(_xp, idx - 4),
+        _ => get_locales(xp, idx - 4),
     }
 }
 
 /// Function given to `ExpandGeneric()` to obtain the available locales.
-pub fn get_locales(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_locales(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     let i = usize::try_from(idx).ok()?;
     init_locales();
-    lang_st().borrow_mut().locales.get(i).map(CString::as_c_str)
+    let loc = LANG_STATE.with(|st| st.locales.borrow().get(i).cloned())?;
+    Some(xp.set_item(loc))
 }
 
 pub fn lang_init() {

@@ -37,53 +37,41 @@ const CMD_UP: i32 = 9;
 const CMD_DOWN: i32 = 10;
 
 struct DebuggerState {
-    debug_greedy: bool,
-    last_cmd: i32,
-    last_breakp: i32,
-    has_expr_breakpoint: bool,
-    debug_skipped: bool,
-    debug_breakpoint_lnum: i32,
-    debug_oldval: Option<CString>,
-    debug_newval: Option<CString>,
-    debug_breakpoint_name: Option<CString>,
-    debug_skipped_name: Option<CString>,
-    dbg_breakp: Vec<Debuggy>,
-    prof_ga: Vec<Debuggy>,
+    debug_greedy: std::cell::Cell<bool>,
+    last_cmd: std::cell::Cell<i32>,
+    last_breakp: std::cell::Cell<i32>,
+    has_expr_breakpoint: std::cell::Cell<bool>,
+    debug_skipped: std::cell::Cell<bool>,
+    debug_breakpoint_lnum: std::cell::Cell<i32>,
+    debug_oldval: std::cell::RefCell<Option<CString>>,
+    debug_newval: std::cell::RefCell<Option<CString>>,
+    debug_breakpoint_name: std::cell::RefCell<Option<CString>>,
+    debug_skipped_name: std::cell::RefCell<Option<CString>>,
+    dbg_breakp: std::cell::RefCell<Vec<Debuggy>>,
+    prof_ga: std::cell::RefCell<Vec<Debuggy>>,
 }
 
 impl DebuggerState {
     const fn new() -> Self {
         Self {
-            debug_greedy: false,
-            last_cmd: 0,
-            last_breakp: 0,
-            has_expr_breakpoint: false,
-            debug_skipped: false,
-            debug_breakpoint_lnum: 0,
-            debug_oldval: None,
-            debug_newval: None,
-            debug_breakpoint_name: None,
-            debug_skipped_name: None,
-            dbg_breakp: Vec::new(),
-            prof_ga: Vec::new(),
+            debug_greedy: std::cell::Cell::new(false),
+            last_cmd: std::cell::Cell::new(0),
+            last_breakp: std::cell::Cell::new(0),
+            has_expr_breakpoint: std::cell::Cell::new(false),
+            debug_skipped: std::cell::Cell::new(false),
+            debug_breakpoint_lnum: std::cell::Cell::new(0),
+            debug_oldval: std::cell::RefCell::new(None),
+            debug_newval: std::cell::RefCell::new(None),
+            debug_breakpoint_name: std::cell::RefCell::new(None),
+            debug_skipped_name: std::cell::RefCell::new(None),
+            dbg_breakp: std::cell::RefCell::new(Vec::new()),
+            prof_ga: std::cell::RefCell::new(Vec::new()),
         }
     }
 }
 
-static DBG_STATE: GlobalState<DebuggerState> = GlobalState::new(DebuggerState::new());
-
-#[inline]
-fn dbg_st() -> crate::globals::GraphPtr<DebuggerState> {
-    DBG_STATE.handle()
-}
-
-#[inline]
-fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<Debuggy> {
-    if is_prof {
-        &mut dbg_st().borrow_mut().prof_ga
-    } else {
-        &mut dbg_st().borrow_mut().dbg_breakp
-    }
+std::thread_local! {
+    static DBG_STATE: DebuggerState = const { DebuggerState::new() };
 }
 
 #[repr(C)]
@@ -221,10 +209,10 @@ pub fn do_debug(cmd: &CStr) {
         if !g_st().debug_did_msg {
             msg(c"Entering Debug mode.  Type \"cont\" to continue.", 0);
         }
-        if let Some(oldval) = dbg_st().debug_oldval.take() {
+        if let Some(oldval) = DBG_STATE.with(|st| st.debug_oldval.borrow_mut().take()) {
             smsg!(0, c"Oldval = \"%s\"", &oldval);
         }
-        if let Some(newval) = dbg_st().debug_newval.take() {
+        if let Some(newval) = DBG_STATE.with(|st| st.debug_newval.borrow_mut().take()) {
             smsg!(0, c"Newval = \"%s\"", &newval);
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {
@@ -243,7 +231,7 @@ pub fn do_debug(cmd: &CStr) {
 
             let save_ex_normal_busy = g_st().ex_normal_busy;
             g_st().ex_normal_busy = 0;
-            if !dbg_st().debug_greedy {
+            if !DBG_STATE.with(|st| st.debug_greedy.get()) {
                 save_typeahead(&mut typeaheadbuf);
                 typeahead_saved = true;
                 save_ignore_script = g_st().ignore_script;
@@ -317,10 +305,10 @@ pub fn do_debug(cmd: &CStr) {
                             lcmd = 0;
                         }
                     }
-                    dbg_st().last_cmd = lcmd;
+                    DBG_STATE.with(|st| st.last_cmd.set(lcmd));
                 }
 
-                let cur_last = dbg_st().last_cmd;
+                let cur_last = DBG_STATE.with(|st| st.last_cmd.get());
                 if cur_last != 0 {
                     match cur_last {
                         CMD_CONT => {
@@ -342,7 +330,7 @@ pub fn do_debug(cmd: &CStr) {
                         CMD_INTERRUPT => {
                             g_st().got_int = true;
                             g_st().debug_break_level = 9999;
-                            dbg_st().last_cmd = CMD_STEP;
+                            DBG_STATE.with(|st| st.last_cmd.set(CMD_STEP));
                         }
                         CMD_BACKTRACE => {
                             do_showbacktrace(cmd);
@@ -413,8 +401,9 @@ pub fn ex_debug(eap: &mut Exarg) {
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 pub fn dbg_check_breakpoint(eap: &mut Exarg) {
-    dbg_st().debug_skipped = false;
-    if let Some(bp_name_cstr) = dbg_st().debug_breakpoint_name.take() {
+    DBG_STATE.with(|st| st.debug_skipped.set(false));
+    let bp_name_opt = DBG_STATE.with(|st| st.debug_breakpoint_name.borrow_mut().take());
+    if let Some(bp_name_cstr) = bp_name_opt {
         if !eap.skip {
             let bp_bytes = bp_name_cstr.to_bytes();
             let is_snr = bp_bytes.starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
@@ -426,7 +415,7 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
             } else {
                 (c"", bp_name_cstr.as_c_str())
             };
-            let lnum = dbg_st().debug_breakpoint_lnum;
+            let lnum = DBG_STATE.with(|st| st.debug_breakpoint_lnum.get());
             smsg!(
                 0,
                 c"Breakpoint in \"%s%s\" line %ld",
@@ -436,27 +425,34 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
             );
             do_debug(eap.cmd.as_cstr());
         } else {
-            dbg_st().debug_skipped = true;
-            dbg_st().debug_skipped_name = Some(bp_name_cstr);
+            DBG_STATE.with(|st| {
+                st.debug_skipped.set(true);
+                *st.debug_skipped_name.borrow_mut() = Some(bp_name_cstr);
+            });
         }
     } else if g_st().ex_nesting_level <= g_st().debug_break_level {
         if !eap.skip {
             do_debug(eap.cmd.as_cstr());
         } else {
-            dbg_st().debug_skipped = true;
-            dbg_st().debug_skipped_name = None;
+            DBG_STATE.with(|st| {
+                st.debug_skipped.set(true);
+                *st.debug_skipped_name.borrow_mut() = None;
+            });
         }
     }
 }
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
 pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
-    if !dbg_st().debug_skipped {
+    if !DBG_STATE.with(|st| st.debug_skipped.get()) {
         return false;
     }
     let prev_got_int = g_st().got_int;
     g_st().got_int = false;
-    dbg_st().debug_breakpoint_name = dbg_st().debug_skipped_name.take();
+    DBG_STATE.with(|st| {
+        let skipped = st.debug_skipped_name.borrow_mut().take();
+        *st.debug_breakpoint_name.borrow_mut() = skipped;
+    });
     eap.skip = false;
     dbg_check_breakpoint(eap);
     eap.skip = true;
@@ -557,7 +553,6 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
 pub fn ex_breakadd(eap: &mut Exarg) {
     let is_prof = eap.cmdidx == Cmdidx::CmdProfile;
-    let gap = dbg_vec_mut(is_prof);
 
     let Some(mut bp) = dbg_parsearg(eap.arg.as_cstr(), is_prof) else {
         return;
@@ -575,32 +570,56 @@ pub fn ex_breakadd(eap: &mut Exarg) {
                 bp.dbg_lnum = 1;
             }
             if eap.cmdidx != Cmdidx::CmdProfile {
-                dbg_st().last_breakp += 1;
-                bp.dbg_nr = dbg_st().last_breakp;
+                let nr = DBG_STATE.with(|st| {
+                    let n = st.last_breakp.get() + 1;
+                    st.last_breakp.set(n);
+                    n
+                });
+                bp.dbg_nr = nr;
                 g_st().debug_tick += 1;
             }
-            gap.push(bp);
+            DBG_STATE.with(|st| {
+                if is_prof {
+                    st.prof_ga.borrow_mut().push(bp);
+                } else {
+                    st.dbg_breakp.borrow_mut().push(bp);
+                }
+            });
         }
     } else {
-        dbg_st().last_breakp += 1;
-        bp.dbg_nr = dbg_st().last_breakp;
-        gap.push(bp);
+        let nr = DBG_STATE.with(|st| {
+            let n = st.last_breakp.get() + 1;
+            st.last_breakp.set(n);
+            n
+        });
+        bp.dbg_nr = nr;
+        DBG_STATE.with(|st| {
+            if is_prof {
+                st.prof_ga.borrow_mut().push(bp);
+            } else {
+                st.dbg_breakp.borrow_mut().push(bp);
+                st.has_expr_breakpoint.set(true);
+            }
+        });
         g_st().debug_tick += 1;
-        if !is_prof {
-            dbg_st().has_expr_breakpoint = true;
-        }
     }
 }
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
 pub fn ex_debuggreedy(eap: &mut Exarg) {
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
-    dbg_st().debug_greedy = greedy;
+    DBG_STATE.with(|st| st.debug_greedy.set(greedy));
 }
 
 fn update_has_expr_breakpoint() {
-    let bps = dbg_vec_mut(false);
-    dbg_st().has_expr_breakpoint = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
+    DBG_STATE.with(|st| {
+        let has = st
+            .dbg_breakp
+            .borrow()
+            .iter()
+            .any(|bp| bp.dbg_type == DBG_EXPR);
+        st.has_expr_breakpoint.set(has);
+    });
 }
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
@@ -609,14 +628,20 @@ pub fn ex_breakdel(eap: &mut Exarg) {
     let mut del_all = false;
     let mut best_lnum: i32 = 0;
     let is_prof = eap.cmdidx == Cmdidx::CmdProfdel;
-    let gap = dbg_vec_mut(is_prof);
 
     let first_byte = eap.arg.first_byte();
     if first_byte.is_ascii_digit() {
         let nr = crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32;
-        if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
-            todel = idx as isize;
-        }
+        todel = DBG_STATE.with(|st| {
+            let gap = if is_prof {
+                st.prof_ga.borrow()
+            } else {
+                st.dbg_breakp.borrow()
+            };
+            gap.iter()
+                .position(|bp| bp.dbg_nr == nr)
+                .map_or(-1, |idx| idx as isize)
+        });
     } else if first_byte == b'*' {
         todel = 0;
         del_all = true;
@@ -624,26 +649,55 @@ pub fn ex_breakdel(eap: &mut Exarg) {
         let Some(bp) = dbg_parsearg(eap.arg.as_cstr(), is_prof) else {
             return;
         };
-        for (i, bpi) in gap.iter().enumerate() {
-            if bp.dbg_type == bpi.dbg_type
-                && bpi.dbg_name == bp.dbg_name
-                && (bp.dbg_lnum == bpi.dbg_lnum
-                    || (bp.dbg_lnum == 0 && (best_lnum == 0 || bpi.dbg_lnum < best_lnum)))
-            {
-                todel = i as isize;
-                best_lnum = bpi.dbg_lnum;
+        DBG_STATE.with(|st| {
+            let gap = if is_prof {
+                st.prof_ga.borrow()
+            } else {
+                st.dbg_breakp.borrow()
+            };
+            for (i, bpi) in gap.iter().enumerate() {
+                if bp.dbg_type == bpi.dbg_type
+                    && bpi.dbg_name == bp.dbg_name
+                    && (bp.dbg_lnum == bpi.dbg_lnum
+                        || (bp.dbg_lnum == 0 && (best_lnum == 0 || bpi.dbg_lnum < best_lnum)))
+                {
+                    todel = i as isize;
+                    best_lnum = bpi.dbg_lnum;
+                }
             }
-        }
+        });
     }
 
-    if todel < 0 || (todel as usize) >= gap.len() {
+    let gap_len = DBG_STATE.with(|st| {
+        if is_prof {
+            st.prof_ga.borrow().len()
+        } else {
+            st.dbg_breakp.borrow().len()
+        }
+    });
+    if todel < 0 || (todel as usize) >= gap_len {
         semsg!(c"E161: Breakpoint not found: %s", eap.arg);
         return;
     }
 
     let idx = todel as usize;
-    while idx < gap.len() {
-        let _ = gap.remove(idx);
+    loop {
+        let removed_opt = DBG_STATE.with(|st| {
+            let mut gap = if is_prof {
+                st.prof_ga.borrow_mut()
+            } else {
+                st.dbg_breakp.borrow_mut()
+            };
+            if idx < gap.len() {
+                Some(gap.remove(idx))
+            } else {
+                None
+            }
+        });
+        let Some(removed) = removed_opt else {
+            break;
+        };
+        drop(removed);
         if eap.cmdidx == Cmdidx::CmdBreakdel {
             g_st().debug_tick += 1;
         }
@@ -659,39 +713,44 @@ pub fn ex_breakdel(eap: &mut Exarg) {
 
 /// `:breaklist` command (`ex_breaklist`).
 pub fn ex_breaklist(_eap: &mut Exarg) {
-    let gap = dbg_vec_mut(false);
-    if gap.is_empty() {
+    let entries: Vec<(i32, i32, CString, i32)> = DBG_STATE.with(|st| {
+        st.dbg_breakp
+            .borrow()
+            .iter()
+            .map(|bp| (bp.dbg_nr, bp.dbg_type, bp.dbg_name.clone(), bp.dbg_lnum))
+            .collect()
+    });
+    if entries.is_empty() {
         msg(c"No breakpoints defined", 0);
         return;
     }
 
     let mut namebuf = [0u8; MAXPATHL];
-    for bp in gap {
-        if bp.dbg_type == DBG_FILE {
-            home_replace(None, Some(bp.dbg_name.as_c_str()), &mut namebuf, true);
+    for (dbg_nr, dbg_type, dbg_name, lnum) in &entries {
+        if *dbg_type == DBG_FILE {
+            home_replace(None, Some(dbg_name.as_c_str()), &mut namebuf, true);
         }
-        if bp.dbg_type != DBG_EXPR {
-            let kind = if bp.dbg_type == DBG_FUNC {
+        if *dbg_type != DBG_EXPR {
+            let kind = if *dbg_type == DBG_FUNC {
                 c"func"
             } else {
                 c"file"
             };
-            let name = if bp.dbg_type == DBG_FUNC {
-                bp.dbg_name.as_c_str()
+            let name = if *dbg_type == DBG_FUNC {
+                dbg_name.as_c_str()
             } else {
                 crate::memory::bytes_as_cstr(&namebuf)
             };
-            let lnum = bp.dbg_lnum;
             smsg!(
                 0,
                 c"%3d  %s %s  line %ld",
-                bp.dbg_nr,
+                *dbg_nr,
                 kind,
                 name,
-                i64::from(lnum)
+                i64::from(*lnum)
             );
         } else {
-            smsg!(0, c"%3d  expr %s", bp.dbg_nr, &bp.dbg_name);
+            smsg!(0, c"%3d  expr %s", *dbg_nr, dbg_name);
         }
     }
 }
@@ -700,11 +759,17 @@ fn debuggy_find(
     file: bool,
     fname: &CStr,
     after: i32,
-    gap: &mut [Debuggy],
     is_prof: bool,
     mut fp: Option<&mut bool>,
 ) -> i32 {
-    if gap.is_empty() {
+    let len = DBG_STATE.with(|st| {
+        if is_prof {
+            st.prof_ga.borrow().len()
+        } else {
+            st.dbg_breakp.borrow().len()
+        }
+    });
+    if len == 0 {
         return 0;
     }
 
@@ -722,48 +787,93 @@ fn debuggy_find(
         fname
     };
 
-    for bp in gap.iter_mut() {
-        if ((bp.dbg_type == DBG_FILE) == file)
-            && bp.dbg_type != DBG_EXPR
-            && (is_prof || (bp.dbg_lnum > after && (lnum == 0 || bp.dbg_lnum < lnum)))
-        {
-            let prev_got_int = g_st().got_int;
-            g_st().got_int = false;
-            if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
-                lnum = bp.dbg_lnum;
-                if let Some(ref mut p) = fp {
-                    **p = bp.dbg_forceit;
+    for i in 0..len {
+        let expr_name_opt = DBG_STATE.with(|st| {
+            let gap = if is_prof {
+                st.prof_ga.borrow()
+            } else {
+                st.dbg_breakp.borrow()
+            };
+            let bp = gap.get(i)?;
+            if ((bp.dbg_type == DBG_FILE) == file)
+                && bp.dbg_type != DBG_EXPR
+                && (is_prof || (bp.dbg_lnum > after && (lnum == 0 || bp.dbg_lnum < lnum)))
+            {
+                let prev_got_int = g_st().got_int;
+                g_st().got_int = false;
+                if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
+                    lnum = bp.dbg_lnum;
+                    if let Some(ref mut p) = fp {
+                        **p = bp.dbg_forceit;
+                    }
                 }
+                g_st().got_int |= prev_got_int;
+                None
+            } else if bp.dbg_type == DBG_EXPR {
+                Some(bp.dbg_name.clone())
+            } else {
+                None
             }
-            g_st().got_int |= prev_got_int;
-        } else if bp.dbg_type == DBG_EXPR {
+        });
+
+        if let Some(dbg_name) = expr_name_opt {
             let mut line = false;
-            if let Some(mut tv) = eval_expr_no_emsg(&bp.dbg_name) {
-                if let Some(ref mut old_val) = bp.dbg_val {
+            let mut old_val_opt = DBG_STATE.with(|st| {
+                let mut gap = if is_prof {
+                    st.prof_ga.borrow_mut()
+                } else {
+                    st.dbg_breakp.borrow_mut()
+                };
+                gap.get_mut(i).and_then(|bp| bp.dbg_val.take())
+            });
+            if let Some(mut tv) = eval_expr_no_emsg(&dbg_name) {
+                if let Some(ref mut old_val) = old_val_opt {
                     if typval_compare(&mut tv, &mut *old_val, EXPR_IS, false)
                         && tv.vval.v_number() == 0
                     {
                         line = true;
-                        dbg_st().debug_oldval = Some(typval_tostring(Some(old_val), true));
-                        let mut v = eval_expr_no_emsg(&bp.dbg_name);
-                        dbg_st().debug_newval = Some(typval_tostring(v.as_mut(), true));
+                        let old_s = typval_tostring(Some(old_val), true);
+                        let mut v = eval_expr_no_emsg(&dbg_name);
+                        let new_s = typval_tostring(v.as_mut(), true);
+                        DBG_STATE.with(|st| {
+                            *st.debug_oldval.borrow_mut() = Some(old_s);
+                            *st.debug_newval.borrow_mut() = Some(new_s);
+                        });
                         tv_clear(old_val);
-                        bp.dbg_val = v;
+                        old_val_opt = v;
                     }
                     tv_clear(&mut tv);
                 } else {
-                    dbg_st().debug_oldval = Some(typval_tostring(None, true));
-                    bp.dbg_val = Some(tv);
-                    dbg_st().debug_newval = Some(typval_tostring(bp.dbg_val.as_mut(), true));
+                    let old_s = typval_tostring(None, true);
+                    let new_s = typval_tostring(Some(&mut tv), true);
+                    DBG_STATE.with(|st| {
+                        *st.debug_oldval.borrow_mut() = Some(old_s);
+                        *st.debug_newval.borrow_mut() = Some(new_s);
+                    });
+                    old_val_opt = Some(tv);
                     line = true;
                 }
-            } else if let Some(ref mut old_val) = bp.dbg_val {
-                dbg_st().debug_oldval = Some(typval_tostring(Some(old_val), true));
-                dbg_st().debug_newval = Some(typval_tostring(None, true));
+            } else if let Some(ref mut old_val) = old_val_opt {
+                let old_s = typval_tostring(Some(old_val), true);
+                let new_s = typval_tostring(None, true);
+                DBG_STATE.with(|st| {
+                    *st.debug_oldval.borrow_mut() = Some(old_s);
+                    *st.debug_newval.borrow_mut() = Some(new_s);
+                });
                 tv_clear(old_val);
-                bp.dbg_val = None;
+                old_val_opt = None;
                 line = true;
             }
+            DBG_STATE.with(|st| {
+                let mut gap = if is_prof {
+                    st.prof_ga.borrow_mut()
+                } else {
+                    st.dbg_breakp.borrow_mut()
+                };
+                if let Some(bp) = gap.get_mut(i) {
+                    bp.dbg_val = old_val_opt;
+                }
+            });
 
             if line {
                 lnum = if after > 0 { after } else { 1 };
@@ -777,20 +887,20 @@ fn debuggy_find(
 
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
 pub fn dbg_find_breakpoint(file: bool, fname: &CStr, after: i32) -> i32 {
-    let gap = dbg_vec_mut(false);
-    debuggy_find(file, fname, after, gap, false, None)
+    debuggy_find(file, fname, after, false, None)
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
 pub fn has_profiling(file: bool, fname: &CStr, fp: Option<&mut bool>) -> bool {
-    let gap = dbg_vec_mut(true);
-    debuggy_find(file, fname, 0, gap, true, fp) != 0
+    debuggy_find(file, fname, 0, true, fp) != 0
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
 pub fn dbg_breakpoint(name: Option<&CStr>, lnum: i32) {
-    dbg_st().debug_breakpoint_name = name.map(CStr::to_owned);
-    dbg_st().debug_breakpoint_lnum = lnum;
+    DBG_STATE.with(|st| {
+        *st.debug_breakpoint_name.borrow_mut() = name.map(CStr::to_owned);
+        st.debug_breakpoint_lnum.set(lnum);
+    });
 }
 
 #[cfg(test)]

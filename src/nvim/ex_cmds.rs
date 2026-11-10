@@ -382,7 +382,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
                 cval,
                 cval,
                 cval,
-                dig,
+                &dig,
             );
         } else {
             format_to_buf!(
@@ -433,7 +433,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
             } else {
                 gettext(c"> %d, Hex %08x, Oct %o, Digr %s")
             };
-            format_to_buf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c, dig,);
+            format_to_buf!(&mut g_st().iobuff[iobuff_len..], fmt, c, c, c, &dig,);
         } else {
             let fmt = if c < 0x10000 {
                 gettext(c"> %d, Hex %04x, Octal %o")

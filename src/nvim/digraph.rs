@@ -92,28 +92,23 @@ const E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS: &CStr =
     c"E1216: digraph_setlist() argument must be a list of lists with two items";
 
 struct DigraphModuleState {
-    user_digraphs: Vec<DigraphEntry>,
-    backspaced: i32,
-    lastchar: i32,
-    digraph_for_char_buf: [u8; 3],
+    user_digraphs: std::cell::RefCell<Vec<DigraphEntry>>,
+    backspaced: std::cell::Cell<i32>,
+    lastchar: std::cell::Cell<i32>,
 }
 
 impl DigraphModuleState {
     const fn new() -> Self {
         Self {
-            user_digraphs: Vec::new(),
-            backspaced: 0,
-            lastchar: 0,
-            digraph_for_char_buf: [0; 3],
+            user_digraphs: std::cell::RefCell::new(Vec::new()),
+            backspaced: std::cell::Cell::new(0),
+            lastchar: std::cell::Cell::new(0),
         }
     }
 }
 
-static DIGR_STATE: GlobalState<DigraphModuleState> = GlobalState::new(DigraphModuleState::new());
-
-#[inline]
-fn digr_st() -> crate::globals::GraphPtr<DigraphModuleState> {
-    DIGR_STATE.handle()
+std::thread_local! {
+    static DIGR_STATE: DigraphModuleState = const { DigraphModuleState::new() };
 }
 
 const fn dg(c1: u8, c2: u8, res: DigrResult) -> DigraphEntry {
@@ -1612,32 +1607,35 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 /// Handle digraphs after typing a character (`do_digraph`).
 pub fn do_digraph(mut c: i32) -> i32 {
     if c == -1 {
-        digr_st().backspaced = -1;
+        DIGR_STATE.with(|st| st.backspaced.set(-1));
     } else if opt_vars().p_dg {
-        if digr_st().backspaced >= 0 {
-            c = digraph_get(digr_st().backspaced, c, false);
+        let bs = DIGR_STATE.with(|st| st.backspaced.get());
+        if bs >= 0 {
+            c = digraph_get(bs, c, false);
         }
-        digr_st().backspaced = -1;
-
-        if (c == K_BS || c == CTRL_H_CONST) && digr_st().lastchar >= 0 {
-            digr_st().backspaced = digr_st().lastchar;
-        }
+        DIGR_STATE.with(|st| {
+            st.backspaced.set(-1);
+            let lc = st.lastchar.get();
+            if (c == K_BS || c == CTRL_H_CONST) && lc >= 0 {
+                st.backspaced.set(lc);
+            }
+        });
     }
-    digr_st().lastchar = c;
+    DIGR_STATE.with(|st| st.lastchar.set(c));
     c
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
-pub fn get_digraph_for_char(val: i32) -> Option<&'static CStr> {
-    for dp in digr_st().user_digraphs.iter().chain(DIGRAPHDEFAULT.iter()) {
-        if dp.result == val {
-            digr_st().digraph_for_char_buf[0] = dp.char1;
-            digr_st().digraph_for_char_buf[1] = dp.char2;
-            digr_st().digraph_for_char_buf[2] = 0;
-            return CStr::from_bytes_until_nul(&digr_st().borrow_mut().digraph_for_char_buf).ok();
+pub fn get_digraph_for_char(val: i32) -> Option<[u8; 3]> {
+    DIGR_STATE.with(|st| {
+        let user = st.user_digraphs.borrow();
+        for dp in user.iter().chain(DIGRAPHDEFAULT.iter()) {
+            if dp.result == val {
+                return Some([dp.char1, dp.char2, 0]);
+            }
         }
-    }
-    None
+        None
+    })
 }
 
 /// Get a digraph (`get_digraph`).
@@ -1681,14 +1679,19 @@ fn getexactdigraph(char1: i32, char2: i32, meta_char: bool) -> i32 {
         return char2;
     }
 
-    let user_slice = digr_st().borrow_mut().user_digraphs.as_slice();
-    for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
-        if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
-            if dp.result != 0 {
-                return dp.result;
+    let found = DIGR_STATE.with(|st| {
+        let user_slice = st.user_digraphs.borrow();
+        for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
+            if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
+                return Some(dp.result);
             }
-            break;
         }
+        None
+    });
+    if let Some(res) = found
+        && res != 0
+    {
+        return res;
     }
 
     if char1 == b' ' as i32 && meta_char {
@@ -1712,18 +1715,20 @@ pub fn digraph_get(char1: i32, char2: i32, meta_char: bool) -> i32 {
 
 /// Add a digraph to the digraph table (`registerdigraph`).
 fn registerdigraph(char1: i32, char2: i32, n: i32) {
-    let user_vec = &mut digr_st().user_digraphs;
-    for dp in user_vec.iter_mut() {
-        if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
-            dp.result = n;
-            return;
+    DIGR_STATE.with(|st| {
+        let mut user_vec = st.user_digraphs.borrow_mut();
+        for dp in user_vec.iter_mut() {
+            if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
+                dp.result = n;
+                return;
+            }
         }
-    }
 
-    user_vec.push(DigraphEntry {
-        char1: char1 as u8,
-        char2: char2 as u8,
-        result: n,
+        user_vec.push(DigraphEntry {
+            char1: char1 as u8,
+            char2: char2 as u8,
+            result: n,
+        });
     });
 }
 
@@ -1808,7 +1813,8 @@ pub fn listdigraphs(use_headers: bool) {
         fast_breakcheck();
     }
 
-    for dp in digr_st().user_digraphs.as_slice() {
+    let user_digraphs = DIGR_STATE.with(|st| st.user_digraphs.borrow().clone());
+    for dp in &user_digraphs {
         if g_st().got_int {
             break;
         }
@@ -1833,8 +1839,8 @@ fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
 }
 
 pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
-    let user_slice = digr_st().borrow_mut().user_digraphs.as_slice();
-    let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
+    let user_digraphs = DIGR_STATE.with(|st| st.user_digraphs.borrow().clone());
+    let cap = (DIGRAPHDEFAULT.len() + user_digraphs.len()) as isize;
     tv_list_alloc_ret(&mut *rettv, cap);
 
     if list_all {
@@ -1853,7 +1859,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
         }
     }
 
-    for dp in user_slice {
+    for dp in &user_digraphs {
         if g_st().got_int {
             break;
         }
