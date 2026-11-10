@@ -45,8 +45,8 @@ use crate::keycodes::{
 };
 use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_exec_on_key};
 use crate::mapping::{
-    MAXMAPLEN, Mapblock, REMAP_NONE, REMAP_YES, Typebuf, eval_map_expr, get_buf_maphash_list,
-    get_maphash_list, langmap_adjust_mb, map_luaid_get,
+    MAXMAPLEN, MatchedMap, REMAP_NONE, REMAP_YES, Typebuf, eval_map_expr, get_buf_maphash_list,
+    langmap_adjust_mb, map_luaid_get, with_maphash_list,
 };
 use crate::mbyte::{
     mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info,
@@ -2137,8 +2137,8 @@ fn char_iter(itp: &mut &[u8], nomap: i32) -> i32 {
 }
 
 fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advance: bool) -> i32 {
-    let mut mp: Option<&Mapblock> = None;
-    let mut mp_match: Option<&Mapblock> = None;
+    let mut mp: Option<MatchedMap> = None;
+    let mut mp_match: Option<MatchedMap> = None;
     let mut mp_match_len: i32 = 0;
     let mut tb_match_len: i32 = 0;
     let mut max_mlen: i32 = 0;
@@ -2199,94 +2199,99 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         }
 
         mp = None;
-        for cand in get_buf_maphash_list(local_state, tb_b1)
-            .iter()
-            .chain(get_maphash_list(local_state, tb_b1))
-        {
-            let m_keys_slice = cand.m_keys.as_bytes();
-            let mut key_iter: &[u8] = m_keys_slice;
-
-            if char_iter(&mut key_iter, 0) == tb_c1
-                && (cand.m_mode & local_state) != 0
-                && ((cand.m_mode & MODE_LANGMAP) == 0 || g_st().typebuf.tb_maplen == 0)
+        with_maphash_list(local_state, tb_b1, |global_list| {
+            for cand in get_buf_maphash_list(local_state, tb_b1)
+                .iter()
+                .chain(global_list)
             {
-                let mut nomap = nolmaplen;
-                let mut modifiers: i32 = 0;
-                let mut tmp_tb_iter = tb_iter;
-                let mut mlen = (m_keys_slice.len() - key_iter.len()) as i32;
-                let mut tb_mlen = (tb_full_slice.len() - tmp_tb_iter.len()) as i32;
+                let m_keys_slice = cand.m_keys.as_bytes();
+                let mut key_iter: &[u8] = m_keys_slice;
 
-                loop {
-                    let mut c2 = char_iter(&mut tmp_tb_iter, nomap);
-                    if c2 == 0 {
-                        break;
-                    }
-                    let tb_nomap = nomap;
-                    if nomap > 0 {
-                        if nomap == 2 && c2 == KS_MODIFIER as i32 {
-                            modifiers = 1;
-                        } else if nomap == 1 && modifiers == 1 {
-                            modifiers = c2;
-                        }
-                        nomap -= 1;
-                    } else {
-                        if c2 == K_SPECIAL as i32 {
-                            nomap = 2;
-                        } else if merge_modifiers(c2, &mut modifiers) == c2 {
-                            langmap_adjust(&mut c2, true);
-                        }
-                        modifiers = 0;
-                    }
-
-                    let key_char = char_iter(&mut key_iter, tb_nomap);
-                    if key_char != c2 {
-                        break;
-                    }
-
-                    mlen = (m_keys_slice.len() - key_iter.len()) as i32;
-                    tb_mlen = (tb_full_slice.len() - tmp_tb_iter.len()) as i32;
-                }
-
-                keylen = cand.m_keylen;
-                if mlen == keylen
-                    || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen)
+                if char_iter(&mut key_iter, 0) == tb_c1
+                    && (cand.m_mode & local_state) != 0
+                    && ((cand.m_mode & MODE_LANGMAP) == 0 || g_st().typebuf.tb_maplen == 0)
                 {
-                    let noremap_slice = &g_st().typebuf.tb_noremap[tb_off..tb_off + mlen as usize];
-                    let m_keys_bytes = cand.m_keys.as_bytes();
-                    if noremap_slice[0] == RM_SCRIPT
-                        && !m_keys_bytes.starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR])
-                    {
-                        continue;
-                    }
+                    let mut nomap = nolmaplen;
+                    let mut modifiers: i32 = 0;
+                    let mut tmp_tb_iter = tb_iter;
+                    let mut mlen = (m_keys_slice.len() - key_iter.len()) as i32;
+                    let mut tb_mlen = (tb_full_slice.len() - tmp_tb_iter.len()) as i32;
 
-                    if !is_plug_map
-                        && noremap_slice
-                            .iter()
-                            .any(|&b| (b & (RM_NONE | RM_ABBR)) != 0)
-                    {
-                        continue;
-                    }
-
-                    if keylen > g_st().typebuf.tb_len {
-                        if !*timedout && !mp_match.is_some_and(|m| m.m_nowait != 0) {
-                            keylen = KEYLEN_PART_MAP;
-                            mp = Some(cand);
+                    loop {
+                        let mut c2 = char_iter(&mut tmp_tb_iter, nomap);
+                        if c2 == 0 {
                             break;
                         }
-                    } else if keylen > mp_match_len
-                        || (keylen == mp_match_len
-                            && mp_match.is_some_and(|m| (m.m_mode & MODE_LANGMAP) == 0)
-                            && (cand.m_mode & MODE_LANGMAP) != 0)
-                    {
-                        mp_match = Some(cand);
-                        mp_match_len = keylen;
-                        tb_match_len = tb_mlen;
+                        let tb_nomap = nomap;
+                        if nomap > 0 {
+                            if nomap == 2 && c2 == KS_MODIFIER as i32 {
+                                modifiers = 1;
+                            } else if nomap == 1 && modifiers == 1 {
+                                modifiers = c2;
+                            }
+                            nomap -= 1;
+                        } else {
+                            if c2 == K_SPECIAL as i32 {
+                                nomap = 2;
+                            } else if merge_modifiers(c2, &mut modifiers) == c2 {
+                                langmap_adjust(&mut c2, true);
+                            }
+                            modifiers = 0;
+                        }
+
+                        let key_char = char_iter(&mut key_iter, tb_nomap);
+                        if key_char != c2 {
+                            break;
+                        }
+
+                        mlen = (m_keys_slice.len() - key_iter.len()) as i32;
+                        tb_mlen = (tb_full_slice.len() - tmp_tb_iter.len()) as i32;
                     }
-                } else {
-                    max_mlen = max_mlen.max(mlen);
+
+                    keylen = cand.m_keylen;
+                    if mlen == keylen
+                        || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen)
+                    {
+                        let noremap_slice =
+                            &g_st().typebuf.tb_noremap[tb_off..tb_off + mlen as usize];
+                        let m_keys_bytes = cand.m_keys.as_bytes();
+                        if noremap_slice[0] == RM_SCRIPT
+                            && !m_keys_bytes.starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR])
+                        {
+                            continue;
+                        }
+
+                        if !is_plug_map
+                            && noremap_slice
+                                .iter()
+                                .any(|&b| (b & (RM_NONE | RM_ABBR)) != 0)
+                        {
+                            continue;
+                        }
+
+                        if keylen > g_st().typebuf.tb_len {
+                            if !*timedout && !mp_match.as_ref().is_some_and(|m| m.m_nowait != 0) {
+                                keylen = KEYLEN_PART_MAP;
+                                mp = Some(cand.to_matched());
+                                break;
+                            }
+                        } else if keylen > mp_match_len
+                            || (keylen == mp_match_len
+                                && mp_match
+                                    .as_ref()
+                                    .is_some_and(|m| (m.m_mode & MODE_LANGMAP) == 0)
+                                && (cand.m_mode & MODE_LANGMAP) != 0)
+                        {
+                            mp_match = Some(cand.to_matched());
+                            mp_match_len = keylen;
+                            tb_match_len = tb_mlen;
+                        }
+                    } else {
+                        max_mlen = max_mlen.max(mlen);
+                    }
                 }
             }
-        }
+        });
 
         if keylen != KEYLEN_PART_MAP && mp_match.is_some() {
             mp = mp_match;
@@ -2328,7 +2333,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     }
 
     if keylen >= 0 && keylen <= g_st().typebuf.tb_len {
-        let mp = mp.unwrap();
+        let mp = mp.as_ref().unwrap();
         if keylen > g_st().typebuf.tb_maplen && (mp.m_mode & MODE_LANGMAP) == 0 {
             let start = (g_st().typebuf.tb_off + g_st().typebuf.tb_maplen) as usize;
             let count = (keylen - g_st().typebuf.tb_maplen) as usize;
@@ -2373,7 +2378,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         let save_m_silent = mp.m_silent != 0;
         let save_m_mode = mp.m_mode;
         let save_m_keys = mp.m_keys.clone();
-        let save_alt_m_keys = mp.alt_keys();
+        let save_alt_m_keys = mp.m_alt_keys.clone();
         let save_alt_m_keylen = save_alt_m_keys
             .as_ref()
             .map_or(0, |k| k.as_bytes().len() as i32);

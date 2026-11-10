@@ -272,7 +272,7 @@ pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: &mut Arena
         while i < j {
             let hl_id = vt[i].hl_id;
             if hl_id >= 0 {
-                add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
+                add_c(&mut hl_array, hl_group_name(hl_id, hl_name, arena));
             }
             i += 1;
         }
@@ -285,11 +285,11 @@ pub fn virt_text_to_array(vt: &[VirtTextChunk], hl_name: bool, arena: &mut Arena
         );
         if hl_array.size > 0 {
             if hl_id >= 0 {
-                add_c(&mut hl_array, hl_group_name(hl_id, hl_name));
+                add_c(&mut hl_array, hl_group_name(hl_id, hl_name, arena));
             }
             add_c(&mut chunk, array_obj(hl_array));
         } else if hl_id >= 0 {
-            add_c(&mut chunk, hl_group_name(hl_id, hl_name));
+            add_c(&mut chunk, hl_group_name(hl_id, hl_name, arena));
         }
         add_c(&mut chunks, array_obj(chunk));
         i += 1;

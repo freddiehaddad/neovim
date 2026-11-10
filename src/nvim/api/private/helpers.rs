@@ -1471,19 +1471,23 @@ pub fn get_default_stl_hl(
     wp: Option<&WinInfoInfo>,
     use_winbar: bool,
     stc_hl_id: i32,
-) -> &'static CStr {
+) -> std::ffi::CString {
     let Some(wp) = wp else {
-        return c"TabLineFill";
+        return c"TabLineFill".to_owned();
     };
     let is_curwin = wp == curwin_ptr();
     if use_winbar {
-        if is_curwin { c"WinBar" } else { c"WinBarNC" }
+        if is_curwin {
+            c"WinBar".to_owned()
+        } else {
+            c"WinBarNC".to_owned()
+        }
     } else if stc_hl_id > 0 {
         syn_id2name(stc_hl_id)
     } else if is_curwin {
-        c"StatusLine"
+        c"StatusLine".to_owned()
     } else {
-        c"StatusLineNC"
+        c"StatusLineNC".to_owned()
     }
 }
 

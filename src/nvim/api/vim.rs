@@ -10,8 +10,8 @@ use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
     api_typename, arena_array, arena_dict, arena_take_arraybuilder, array_obj, boolean_obj,
-    buffer_obj, cbuf_to_string, copy_array, copy_dict, copy_object, copy_string, cstr_as_obj,
-    cstr_to_arena_obj, dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
+    buffer_obj, cbuf_to_string, copy_array, copy_dict, copy_object, copy_string, cstr_to_arena_obj,
+    dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
     find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark,
     static_cstr_as_string, string_obj, string_to_array, tabpage_obj, try_enter, try_leave,
     window_obj,
@@ -2888,9 +2888,13 @@ pub fn nvim_eval_statusline(
         if crate::globals::GraphPtr::of(hltab).borrow().start_off != Some(0) {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
-            put_c(&mut hl_info, c"group", cstr_as_obj(Some(dfltname)));
+            put_c(
+                &mut hl_info,
+                c"group",
+                cstr_to_arena_obj(arena, Some(&dfltname)),
+            );
             let mut groups = arena_array(arena, 1);
-            add_c(&mut groups, cstr_as_obj(Some(dfltname)));
+            add_c(&mut groups, cstr_to_arena_obj(arena, Some(&dfltname)));
             put_c(&mut hl_info, c"groups", array_obj(groups));
             add_c(&mut hl_values, dict_obj(hl_info));
         }
@@ -2902,7 +2906,7 @@ pub fn nvim_eval_statusline(
                 c"User9",
             ];
             let sp_ref = crate::globals::GraphPtr::of(sp).borrow();
-            let grpname: &'static CStr = if sp_ref.userhl == 0 {
+            let grpname_owned = if sp_ref.userhl == 0 {
                 get_default_stl_hl(
                     (!opts.use_tabline).then_some(&*wp),
                     opts.use_winbar,
@@ -2911,27 +2915,34 @@ pub fn nvim_eval_statusline(
             } else if sp_ref.userhl < 0 {
                 syn_id2name(-sp_ref.userhl)
             } else {
-                USER_HLS[(sp_ref.userhl - 1) as usize]
+                USER_HLS[(sp_ref.userhl - 1) as usize].to_owned()
             };
+            let grpname = grpname_owned.as_c_str();
 
-            let combine: &'static CStr = if sp_ref.item == i32::from(STL_SIGNCOL) {
-                syn_id2name(scl_hl_id)
+            let scl_name_owned =
+                (sp_ref.item == i32::from(STL_SIGNCOL)).then(|| syn_id2name(scl_hl_id));
+            let combine: &CStr = if let Some(ref scl_name) = scl_name_owned {
+                scl_name.as_c_str()
             } else if sp_ref.item == i32::from(STL_FOLDCOL) {
                 grpname
             } else {
-                dfltname
+                dfltname.as_c_str()
             };
             let mut hl_info = arena_dict(arena, 3);
 
             put_c(&mut hl_info, c"start", integer_obj(sp_off as Integer));
 
-            put_c(&mut hl_info, c"group", cstr_as_obj(Some(grpname)));
+            put_c(
+                &mut hl_info,
+                c"group",
+                cstr_to_arena_obj(arena, Some(grpname)),
+            );
             let diff_group = combine != grpname;
             let mut groups = arena_array(arena, 1 + usize::from(diff_group));
             if diff_group {
-                add_c(&mut groups, cstr_as_obj(Some(combine)));
+                add_c(&mut groups, cstr_to_arena_obj(arena, Some(combine)));
             }
-            add_c(&mut groups, cstr_as_obj(Some(grpname)));
+            add_c(&mut groups, cstr_to_arena_obj(arena, Some(grpname)));
             put_c(&mut hl_info, c"groups", array_obj(groups));
             add_c(&mut hl_values, dict_obj(hl_info));
 

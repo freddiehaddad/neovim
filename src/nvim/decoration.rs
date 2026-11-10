@@ -3,7 +3,8 @@
 
 use crate::api::extmark::{ns_in_win, virt_text_to_array};
 use crate::api::private::helpers::{
-    arena_array, arena_bytes, array_obj, boolean_obj, cstr_as_obj, integer_obj, put_c, string_obj,
+    arena_array, arena_bytes, array_obj, boolean_obj, cstr_as_obj, cstr_to_arena_obj, integer_obj,
+    put_c, string_obj,
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -1901,7 +1902,11 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     }
 
     if sh_hl.hl_id != 0 {
-        put_c(dict, c"hl_group", hl_group_name(sh_hl.hl_id, hl_name));
+        put_c(
+            dict,
+            c"hl_group",
+            hl_group_name(sh_hl.hl_id, hl_name, arena),
+        );
         put_c(
             dict,
             c"hl_eol",
@@ -2026,7 +2031,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         ];
         for (name, val) in hls {
             if val != 0 {
-                put_c(dict, name, hl_group_name(val, hl_name));
+                put_c(dict, name, hl_group_name(val, hl_name, arena));
             }
         }
         priority = i32::from(sh_sign.priority);
@@ -2065,9 +2070,10 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
     }
 }
 
-pub fn hl_group_name(hl_id: i32, hl_name: bool) -> Object {
+pub fn hl_group_name(hl_id: i32, hl_name: bool, arena: &mut Arena) -> Object {
     if hl_name {
-        cstr_as_obj(Some(syn_id2name(hl_id)))
+        let name = syn_id2name(hl_id);
+        cstr_to_arena_obj(arena, Some(&name))
     } else {
         integer_obj(Integer::from(hl_id))
     }

@@ -3348,7 +3348,7 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
                 let sync_id = syn_items(&mut *win_s(curwin_mut()), spp.sp_sync_idx as isize)
                     .sp_syn
                     .id as i32;
-                msg_outtrans(highlight_group_name(sync_id - 1), 0, false);
+                msg_outtrans(&highlight_group_name(sync_id - 1), 0, false);
             } else {
                 msg_puts(c"NONE");
             }
@@ -3362,7 +3362,7 @@ fn syn_list_one(id: i32, syncing: bool, link_only: bool) {
         msg_puts_hl(c"links to", hl_id, false);
         msg_putchar(b' ' as i32);
         msg_outtrans(
-            highlight_group_name(highlight_link_id(id - 1) - 1),
+            &highlight_group_name(highlight_link_id(id - 1) - 1),
             0,
             false,
         );
@@ -3425,7 +3425,7 @@ fn put_id_list(name: &std::ffi::CStr, list: &[i16], hl_id: i32) {
             msg_putchar(b'@' as i32);
             msg_outtrans(&syn_clstr(win_s(curwin_mut()), scl_id).scl_name, 0, false);
         } else {
-            msg_outtrans(highlight_group_name(item as i32 - 1), 0, false);
+            msg_outtrans(&highlight_group_name(item as i32 - 1), 0, false);
         }
         if next_non_zero {
             msg_putchar(b',' as i32);
@@ -3445,7 +3445,11 @@ fn put_pattern(s: &std::ffi::CStr, c: i32, spp: &Synpat, hl_id: i32) {
         if syn_st().last_matchgroup == 0 {
             msg_outtrans(c"NONE", 0, false);
         } else {
-            msg_outtrans(highlight_group_name(syn_st().last_matchgroup - 1), 0, false);
+            msg_outtrans(
+                &highlight_group_name(syn_st().last_matchgroup - 1),
+                0,
+                false,
+            );
         }
         msg_putchar(b' ' as i32);
     }
@@ -4755,7 +4759,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     id = 0;
                     let mut i = highlight_num_groups() - 1;
                     while i >= 0 {
-                        if vim_regexec(&mut regmatch, highlight_group_name(i), 0) {
+                        if vim_regexec(&mut regmatch, &highlight_group_name(i), 0) {
                             if round == 2 {
                                 if count >= total_count {
                                     retval.clear();
@@ -5397,7 +5401,7 @@ fn syntime_report() {
         msg_puts(&profile_msg(p.average));
         msg_puts(c" ");
         msg_advance(50);
-        msg_outtrans(highlight_group_name(p.id - 1), 0, false);
+        msg_outtrans(&highlight_group_name(p.id - 1), 0, false);
         msg_puts(c" ");
 
         msg_advance(69);

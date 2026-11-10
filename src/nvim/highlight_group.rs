@@ -3,7 +3,8 @@
 
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
-    api_set_error, arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
+    api_set_error, arena_dict, boolean_obj, cbuf_to_arena_str, cstr_as_obj, cstr_as_string,
+    cstr_to_arena_obj, dict_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
@@ -167,31 +168,79 @@ impl Default for HlGroup {
     }
 }
 
-struct HighlightGroupState {
-    highlight_ga: Vec<HlGroup>,
-    highlight_unames: std::collections::BTreeMap<Vec<u8>, i32>,
+#[derive(Clone, Copy)]
+struct HighlightGroupCopyState {
     had_both: bool,
     load_colors_recursive: bool,
-    highlight_color_name: [u8; 20],
 }
 
-impl HighlightGroupState {
+impl HighlightGroupCopyState {
     const fn new() -> Self {
         Self {
-            highlight_ga: Vec::new(),
-            highlight_unames: std::collections::BTreeMap::new(),
             had_both: false,
             load_colors_recursive: false,
-            highlight_color_name: [0; 20],
         }
     }
 }
 
-static HLG_STATE: GlobalState<HighlightGroupState> = GlobalState::new(HighlightGroupState::new());
+thread_local! {
+    static HLG_STATE: std::cell::Cell<HighlightGroupCopyState> = const {
+        std::cell::Cell::new(HighlightGroupCopyState::new())
+    };
+    static HIGHLIGHT_GA: std::cell::RefCell<Vec<HlGroup>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static HIGHLIGHT_UNAMES: std::cell::RefCell<std::collections::BTreeMap<Vec<u8>, i32>> = const {
+        std::cell::RefCell::new(std::collections::BTreeMap::new())
+    };
+}
+
+struct HlgGuard {
+    state: HighlightGroupCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for HlgGuard {
+    type Target = HighlightGroupCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for HlgGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for HlgGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            HLG_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn hlg_st() -> crate::globals::GraphPtr<HighlightGroupState> {
-    HLG_STATE.handle()
+fn hlg_st() -> HlgGuard {
+    HlgGuard {
+        state: HLG_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
+}
+
+#[inline]
+fn with_hl_group<R>(idx: usize, f: impl FnOnce(&HlGroup) -> R) -> R {
+    HIGHLIGHT_GA.with(|cell| f(&cell.borrow()[idx]))
+}
+
+#[inline]
+fn with_hl_group_mut<R>(idx: usize, f: impl FnOnce(&mut HlGroup) -> R) -> R {
+    HIGHLIGHT_GA.with(|cell| f(&mut cell.borrow_mut()[idx]))
 }
 
 const HL_NAME_TABLE: [&CStr; 18] = [
@@ -333,13 +382,8 @@ fn write_dec(buf: &mut [u8], val: i32) {
 }
 
 #[inline]
-fn hl_table_at(idx: usize) -> &'static mut HlGroup {
-    &mut hlg_st().borrow_mut().highlight_ga[idx]
-}
-
-#[inline]
 fn hl_len() -> i32 {
-    hlg_st().highlight_ga.len() as i32
+    HIGHLIGHT_GA.with(|cell| cell.borrow().len() as i32)
 }
 
 #[inline]
@@ -840,12 +884,12 @@ pub fn highlight_num_groups() -> i32 {
     hl_len()
 }
 
-pub fn highlight_group_name(id: i32) -> &'static CStr {
-    hl_table_at(id as usize).sg_name.as_c_str()
+pub fn highlight_group_name(id: i32) -> std::ffi::CString {
+    with_hl_group(id as usize, |g| g.sg_name.clone())
 }
 
 pub fn highlight_link_id(id: i32) -> i32 {
-    hl_table_at(id as usize).sg_link
+    with_hl_group(id as usize, |g| g.sg_link)
 }
 
 pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
@@ -953,125 +997,143 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
         return;
     }
 
-    let g = &mut *hl_table_at(idx);
-    g.sg_cleared = false;
-    let old_link = g.sg_link;
-
-    if link_id > 0 {
-        g.sg_link = link_id;
-        g.sg_script_ctx = g_st().current_sctx;
-        g.sg_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&mut g.sg_script_ctx);
-        g.sg_set |= SG_LINK;
-        if is_default {
-            g.sg_deflink = link_id;
-            g.sg_deflink_sctx = g_st().current_sctx;
-            g.sg_deflink_sctx.sc_lnum += sourcing_lnum();
-            nlua_set_sctx(&mut g.sg_deflink_sctx);
-        }
+    let old_link = with_hl_group(idx, |g| g.sg_link);
+    let linked_indices = if old_link > 0 {
+        with_hl_group((old_link - 1) as usize, |linked| {
+            [
+                linked.sg_rgb_fg_idx,
+                linked.sg_rgb_bg_idx,
+                linked.sg_rgb_sp_idx,
+            ]
+        })
     } else {
-        g.sg_link = 0;
-    }
+        [K_COLOR_IDX_NONE; 3]
+    };
 
     let update = has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_UPDATE) && dict.update;
-    g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
+    let font_opt = if attrs.font >= 0 {
+        hl_get_font(attrs.font)
+    } else {
+        None
+    };
+    let syn_attr = hl_get_syn_attr(0, id, attrs);
+    let mut sctx = g_st().current_sctx;
+    sctx.sc_lnum += sourcing_lnum();
+    nlua_set_sctx(&mut sctx);
 
-    g.sg_rgb_fg = attrs.rgb_fg_color;
-    g.sg_rgb_bg = attrs.rgb_bg_color;
-    g.sg_rgb_sp = attrs.rgb_sp_color;
-
-    let cattrs: [(*mut i32, RgbValue, Object); 3] = [
-        (
-            &raw mut g.sg_rgb_fg_idx,
-            g.sg_rgb_fg,
-            if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FG) {
-                dict.fg
+    let (is_normal, sg_cterm_fg, sg_cterm_bg, sg_rgb_fg, sg_rgb_bg, sg_rgb_sp) =
+        with_hl_group_mut(idx, |g| {
+            g.sg_cleared = false;
+            if link_id > 0 {
+                g.sg_link = link_id;
+                g.sg_script_ctx = sctx;
+                g.sg_set |= SG_LINK;
+                if is_default {
+                    g.sg_deflink = link_id;
+                    g.sg_deflink_sctx = sctx;
+                }
             } else {
-                dict.foreground
-            },
-        ),
-        (
-            &raw mut g.sg_rgb_bg_idx,
-            g.sg_rgb_bg,
-            if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_BG) {
-                dict.bg
-            } else {
-                dict.background
-            },
-        ),
-        (
-            &raw mut g.sg_rgb_sp_idx,
-            g.sg_rgb_sp,
-            if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_SP) {
-                dict.sp
-            } else {
-                dict.special
-            },
-        ),
-    ];
-
-    for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
-        let dest_ref = crate::globals::GraphPtr::of(dest).borrow_mut();
-        if name.obj_type != ObjectType::ObjectTypeNil {
-            if val < 0 {
-                *dest_ref = K_COLOR_IDX_NONE;
-            } else if name.obj_type == ObjectType::ObjectTypeString && name.data.string().size > 0 {
-                name_to_color(name.data.string().as_cstr(), dest_ref);
-            } else {
-                *dest_ref = K_COLOR_IDX_HEX;
+                g.sg_link = 0;
             }
-        } else if !update {
-            *dest_ref = K_COLOR_IDX_NONE;
-        } else if old_link > 0 && val >= 0 {
-            let linked = &*hl_table_at((old_link - 1) as usize);
-            let linked_idx = if j == 0 {
-                linked.sg_rgb_fg_idx
-            } else if j == 1 {
-                linked.sg_rgb_bg_idx
-            } else {
-                linked.sg_rgb_sp_idx
-            };
 
-            *dest_ref = if linked_idx != K_COLOR_IDX_NONE {
-                linked_idx
-            } else {
-                K_COLOR_IDX_HEX
-            };
-        }
-    }
+            g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
+            g.sg_rgb_fg = attrs.rgb_fg_color;
+            g.sg_rgb_bg = attrs.rgb_bg_color;
+            g.sg_rgb_sp = attrs.rgb_sp_color;
 
-    g.sg_cterm = attrs.cterm_ae_attr & !HL_DEFAULT;
-    g.sg_cterm_bg = i32::from(attrs.cterm_bg_color);
-    g.sg_cterm_fg = i32::from(attrs.cterm_fg_color);
+            let cinputs: [(RgbValue, Object); 3] = [
+                (
+                    g.sg_rgb_fg,
+                    if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FG) {
+                        dict.fg
+                    } else {
+                        dict.foreground
+                    },
+                ),
+                (
+                    g.sg_rgb_bg,
+                    if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_BG) {
+                        dict.bg
+                    } else {
+                        dict.background
+                    },
+                ),
+                (
+                    g.sg_rgb_sp,
+                    if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_SP) {
+                        dict.sp
+                    } else {
+                        dict.special
+                    },
+                ),
+            ];
+            let mut new_indices = [g.sg_rgb_fg_idx, g.sg_rgb_bg_idx, g.sg_rgb_sp_idx];
+            for (j, &(val, name)) in cinputs.iter().enumerate() {
+                let dest_ref = &mut new_indices[j];
+                if name.obj_type != ObjectType::ObjectTypeNil {
+                    if val < 0 {
+                        *dest_ref = K_COLOR_IDX_NONE;
+                    } else if name.obj_type == ObjectType::ObjectTypeString
+                        && name.data.string().size > 0
+                    {
+                        name_to_color(name.data.string().as_cstr(), dest_ref);
+                    } else {
+                        *dest_ref = K_COLOR_IDX_HEX;
+                    }
+                } else if !update {
+                    *dest_ref = K_COLOR_IDX_NONE;
+                } else if old_link > 0 && val >= 0 {
+                    let linked_idx = linked_indices[j];
+                    *dest_ref = if linked_idx != K_COLOR_IDX_NONE {
+                        linked_idx
+                    } else {
+                        K_COLOR_IDX_HEX
+                    };
+                }
+            }
+            g.sg_rgb_fg_idx = new_indices[0];
+            g.sg_rgb_bg_idx = new_indices[1];
+            g.sg_rgb_sp_idx = new_indices[2];
 
-    g.sg_cterm_bold = (g.sg_cterm & HL_BOLD) != 0;
-    if attrs.hl_blend != -1 {
-        g.sg_blend = attrs.hl_blend;
-    } else if !update {
-        g.sg_blend = -1;
-    }
+            g.sg_cterm = attrs.cterm_ae_attr & !HL_DEFAULT;
+            g.sg_cterm_bg = i32::from(attrs.cterm_bg_color);
+            g.sg_cterm_fg = i32::from(attrs.cterm_fg_color);
 
-    if attrs.font >= 0 {
-        g.sg_font = hl_get_font(attrs.font);
-    } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
-        g.sg_font = None;
-    }
+            g.sg_cterm_bold = (g.sg_cterm & HL_BOLD) != 0;
+            if attrs.hl_blend != -1 {
+                g.sg_blend = attrs.hl_blend;
+            } else if !update {
+                g.sg_blend = -1;
+            }
 
-    g.sg_script_ctx = g_st().current_sctx;
-    g.sg_script_ctx.sc_lnum += sourcing_lnum();
-    nlua_set_sctx(&mut g.sg_script_ctx);
+            if attrs.font >= 0 {
+                g.sg_font = font_opt;
+            } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
+                g.sg_font = None;
+            }
 
-    g.sg_attr = hl_get_syn_attr(0, id, attrs);
+            g.sg_script_ctx = sctx;
+            g.sg_attr = syn_attr;
 
-    if g.sg_name.to_bytes().eq_ignore_ascii_case(b"NORMAL") {
-        g_st().cterm_normal_fg_color = g.sg_cterm_fg;
-        g_st().cterm_normal_bg_color = g.sg_cterm_bg;
-        let did_changed = g_st().normal_bg != g.sg_rgb_bg
-            || g_st().normal_fg != g.sg_rgb_fg
-            || g_st().normal_sp != g.sg_rgb_sp;
-        g_st().normal_fg = g.sg_rgb_fg;
-        g_st().normal_bg = g.sg_rgb_bg;
-        g_st().normal_sp = g.sg_rgb_sp;
+            (
+                g.sg_name.to_bytes().eq_ignore_ascii_case(b"NORMAL"),
+                g.sg_cterm_fg,
+                g.sg_cterm_bg,
+                g.sg_rgb_fg,
+                g.sg_rgb_bg,
+                g.sg_rgb_sp,
+            )
+        });
+
+    if is_normal {
+        g_st().cterm_normal_fg_color = sg_cterm_fg;
+        g_st().cterm_normal_bg_color = sg_cterm_bg;
+        let did_changed = g_st().normal_bg != sg_rgb_bg
+            || g_st().normal_fg != sg_rgb_fg
+            || g_st().normal_sp != sg_rgb_sp;
+        g_st().normal_fg = sg_rgb_fg;
+        g_st().normal_bg = sg_rgb_bg;
+        g_st().normal_sp = sg_rgb_sp;
 
         if did_changed {
             highlight_attr_set_all();
@@ -1087,28 +1149,29 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
     g_st().need_highlight_changed = true;
 }
 
-fn set_gui_color(
-    idx: i32,
-    init: bool,
-    arg: &CStr,
-    color: &mut RgbValue,
-    color_idx: &mut i32,
-) -> bool {
-    if init && (hl_table_at(idx as usize).sg_set & SG_GUI) != 0 {
-        return false;
-    }
-    if !init {
-        hl_table_at(idx as usize).sg_set |= SG_GUI;
-    }
-    let old_color = *color;
-    let old_idx = *color_idx;
-    if arg.to_bytes() != b"NONE" {
-        *color = name_to_color(arg, color_idx);
-    } else {
-        *color = -1;
-        *color_idx = K_COLOR_IDX_NONE;
-    }
-    *color != old_color || *color_idx != old_idx
+fn set_gui_color(idx: i32, init: bool, arg: &CStr, which: u8) -> bool {
+    with_hl_group_mut(idx as usize, |g| {
+        if init && (g.sg_set & SG_GUI) != 0 {
+            return false;
+        }
+        if !init {
+            g.sg_set |= SG_GUI;
+        }
+        let (color, color_idx) = match which {
+            b'F' => (&mut g.sg_rgb_fg, &mut g.sg_rgb_fg_idx),
+            b'B' => (&mut g.sg_rgb_bg, &mut g.sg_rgb_bg_idx),
+            _ => (&mut g.sg_rgb_sp, &mut g.sg_rgb_sp_idx),
+        };
+        let old_color = *color;
+        let old_idx = *color_idx;
+        if arg.to_bytes() != b"NONE" {
+            *color = name_to_color(arg, color_idx);
+        } else {
+            *color = -1;
+            *color_idx = K_COLOR_IDX_NONE;
+        }
+        *color != old_color || *color_idx != old_idx
+    })
 }
 
 pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
@@ -1190,41 +1253,40 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 syn_check_group(to_start.slice(to_end.offset_from(&to_start)))
             };
 
-            let mut hlgroup: Option<&mut HlGroup> = None;
             if from_id > 0 {
-                let hlg = hl_table_at((from_id - 1) as usize);
-                if dodefault && (forceit || hlg.sg_deflink == 0) {
-                    hlg.sg_deflink = to_id;
-                    hlg.sg_deflink_sctx = g_st().current_sctx;
-                    hlg.sg_deflink_sctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&mut hlg.sg_deflink_sctx);
-                }
-                hlgroup = Some(hlg);
-            }
-
-            if let Some(hlg) = hlgroup
-                && (!init || hlg.sg_set == 0)
-            {
-                if to_id > 0 && !forceit && !init && hl_has_settings(from_id - 1, dodefault) {
-                    if sourcing_name().is_none() && !dodefault {
-                        emsg(gettext(E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED));
+                let sg_set = with_hl_group_mut((from_id - 1) as usize, |hlg| {
+                    if dodefault && (forceit || hlg.sg_deflink == 0) {
+                        hlg.sg_deflink = to_id;
+                        hlg.sg_deflink_sctx = g_st().current_sctx;
+                        hlg.sg_deflink_sctx.sc_lnum += sourcing_lnum();
+                        nlua_set_sctx(&mut hlg.sg_deflink_sctx);
                     }
-                } else {
-                    let hlg = hl_table_at((from_id - 1) as usize);
-                    if hlg.sg_link != to_id
-                        || hlg.sg_script_ctx.sc_sid != g_st().current_sctx.sc_sid
-                        || hlg.sg_cleared
-                    {
-                        if !init {
-                            hlg.sg_set |= SG_LINK;
+                    hlg.sg_set
+                });
+
+                if !init || sg_set == 0 {
+                    if to_id > 0 && !forceit && !init && hl_has_settings(from_id - 1, dodefault) {
+                        if sourcing_name().is_none() && !dodefault {
+                            emsg(gettext(E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED));
                         }
-                        hlg.sg_link = to_id;
-                        hlg.sg_script_ctx = g_st().current_sctx;
-                        hlg.sg_script_ctx.sc_lnum += sourcing_lnum();
-                        nlua_set_sctx(&mut hlg.sg_script_ctx);
-                        hlg.sg_cleared = false;
-                        redraw_all_later(UPD_SOME_VALID);
-                        g_st().need_highlight_changed = true;
+                    } else {
+                        with_hl_group_mut((from_id - 1) as usize, |hlg| {
+                            if hlg.sg_link != to_id
+                                || hlg.sg_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                                || hlg.sg_cleared
+                            {
+                                if !init {
+                                    hlg.sg_set |= SG_LINK;
+                                }
+                                hlg.sg_link = to_id;
+                                hlg.sg_script_ctx = g_st().current_sctx;
+                                hlg.sg_script_ctx.sc_lnum += sourcing_lnum();
+                                nlua_set_sctx(&mut hlg.sg_script_ctx);
+                                hlg.sg_cleared = false;
+                                redraw_all_later(UPD_SOME_VALID);
+                                g_st().need_highlight_changed = true;
+                            }
+                        });
                     }
                 }
             }
@@ -1260,16 +1322,17 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
             return;
         }
 
-        let item_before = (*hl_table_at(idx as usize)).clone();
-        let is_normal_group = hl_table_at(idx as usize)
-            .sg_name
-            .to_bytes()
-            .eq_ignore_ascii_case(b"NORMAL");
+        let (item_before, is_normal_group) = with_hl_group(idx as usize, |g| {
+            (
+                g.clone(),
+                g.sg_name.to_bytes().eq_ignore_ascii_case(b"NORMAL"),
+            )
+        });
 
         if doclear || (forceit && init) {
             highlight_clear(idx);
             if !doclear {
-                hl_table_at(idx as usize).sg_set = 0;
+                with_hl_group_mut(idx as usize, |g| g.sg_set = 0);
             }
         }
 
@@ -1306,10 +1369,17 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
 
                 let key_bytes = &key[..key_len];
                 if key_bytes == b"NONE" {
-                    if !init || hl_table_at(idx as usize).sg_set == 0 {
-                        if !init {
-                            hl_table_at(idx as usize).sg_set |= SG_CTERM + SG_GUI;
+                    let do_clear = with_hl_group_mut(idx as usize, |g| {
+                        if !init || g.sg_set == 0 {
+                            if !init {
+                                g.sg_set |= SG_CTERM + SG_GUI;
+                            }
+                            true
+                        } else {
+                            false
                         }
+                    });
+                    if do_clear {
                         highlight_clear(idx);
                     }
                     continue;
@@ -1393,42 +1463,46 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         break;
                     }
                     if key_bytes[0] == b'C' {
-                        if !init || (hl_table_at(idx as usize).sg_set & SG_CTERM) == 0 {
-                            if !init {
-                                hl_table_at(idx as usize).sg_set |= SG_CTERM;
+                        with_hl_group_mut(idx as usize, |g| {
+                            if !init || (g.sg_set & SG_CTERM) == 0 {
+                                if !init {
+                                    g.sg_set |= SG_CTERM;
+                                }
+                                g.sg_cterm = attr;
+                                g.sg_cterm_bold = false;
                             }
-                            hl_table_at(idx as usize).sg_cterm = attr;
-                            hl_table_at(idx as usize).sg_cterm_bold = false;
-                        }
-                    } else if key_bytes[0] == b'G'
-                        && (!init || (hl_table_at(idx as usize).sg_set & SG_GUI) == 0)
-                    {
-                        if !init {
-                            hl_table_at(idx as usize).sg_set |= SG_GUI;
-                        }
-                        hl_table_at(idx as usize).sg_gui = attr;
+                        });
+                    } else if key_bytes[0] == b'G' {
+                        with_hl_group_mut(idx as usize, |g| {
+                            if !init || (g.sg_set & SG_GUI) == 0 {
+                                if !init {
+                                    g.sg_set |= SG_GUI;
+                                }
+                                g.sg_gui = attr;
+                            }
+                        });
                     }
                 } else if key_bytes == b"FONT"
-                    && (!init || (hl_table_at(idx as usize).sg_set & SG_GUI) == 0)
+                    && (!init || with_hl_group(idx as usize, |g| (g.sg_set & SG_GUI) == 0))
                 {
-                    if !init {
-                        hl_table_at(idx as usize).sg_set |= SG_GUI;
-                    }
-                    hl_table_at(idx as usize).sg_font = None;
-                    if &arg[..arg_len] != b"NONE" {
-                        hl_table_at(idx as usize).sg_font =
-                            Some(crate::memory::cstring_until_nul(&arg));
-                    }
-                } else if key_bytes == b"CTERMFG" || key_bytes == b"CTERMBG" {
-                    if !init || (hl_table_at(idx as usize).sg_set & SG_CTERM) == 0 {
+                    with_hl_group_mut(idx as usize, |g| {
                         if !init {
-                            hl_table_at(idx as usize).sg_set |= SG_CTERM;
+                            g.sg_set |= SG_GUI;
                         }
-
-                        if key_bytes[5] == b'F' && hl_table_at(idx as usize).sg_cterm_bold {
-                            hl_table_at(idx as usize).sg_cterm &= !HL_BOLD;
-                            hl_table_at(idx as usize).sg_cterm_bold = false;
-                        }
+                        g.sg_font = (&arg[..arg_len] != b"NONE")
+                            .then(|| crate::memory::cstring_until_nul(&arg));
+                    });
+                } else if key_bytes == b"CTERMFG" || key_bytes == b"CTERMBG" {
+                    if !init || with_hl_group(idx as usize, |g| (g.sg_set & SG_CTERM) == 0) {
+                        with_hl_group_mut(idx as usize, |g| {
+                            if !init {
+                                g.sg_set |= SG_CTERM;
+                            }
+                            if key_bytes[5] == b'F' && g.sg_cterm_bold {
+                                g.sg_cterm &= !HL_BOLD;
+                                g.sg_cterm_bold = false;
+                            }
+                        });
 
                         let color: i32;
                         if arg[0].is_ascii_digit() {
@@ -1476,21 +1550,23 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                             let mut bold = K_NONE;
                             color = lookup_color(i as i32, key_bytes[5] == b'F', &mut bold);
 
-                            if bold == K_TRUE {
-                                hl_table_at(idx as usize).sg_cterm |= HL_BOLD;
-                                hl_table_at(idx as usize).sg_cterm_bold = true;
-                            } else if bold == K_FALSE {
-                                hl_table_at(idx as usize).sg_cterm &= !HL_BOLD;
-                            }
+                            with_hl_group_mut(idx as usize, |g| {
+                                if bold == K_TRUE {
+                                    g.sg_cterm |= HL_BOLD;
+                                    g.sg_cterm_bold = true;
+                                } else if bold == K_FALSE {
+                                    g.sg_cterm &= !HL_BOLD;
+                                }
+                            });
                         }
 
                         if key_bytes[5] == b'F' {
-                            hl_table_at(idx as usize).sg_cterm_fg = color + 1;
+                            with_hl_group_mut(idx as usize, |g| g.sg_cterm_fg = color + 1);
                             if is_normal_group {
                                 g_st().cterm_normal_fg_color = color + 1;
                             }
                         } else {
-                            hl_table_at(idx as usize).sg_cterm_bg = color + 1;
+                            with_hl_group_mut(idx as usize, |g| g.sg_cterm_bg = color + 1);
                             if is_normal_group {
                                 g_st().cterm_normal_bg_color = color + 1;
                                 if !ui_rgb_attached() && color >= 0 {
@@ -1521,60 +1597,41 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                         }
                     }
                 } else if key_bytes == b"GUIFG" {
-                    let g = hl_table_at(idx as usize);
-                    did_change = set_gui_color(
-                        idx,
-                        init,
-                        crate::memory::bytes_as_cstr(&arg),
-                        &mut g.sg_rgb_fg,
-                        &mut g.sg_rgb_fg_idx,
-                    );
+                    did_change = set_gui_color(idx, init, crate::memory::bytes_as_cstr(&arg), b'F');
                     if is_normal_group {
-                        g_st().normal_fg = hl_table_at(idx as usize).sg_rgb_fg;
+                        g_st().normal_fg = with_hl_group(idx as usize, |g| g.sg_rgb_fg);
                     }
                 } else if key_bytes == b"GUIBG" {
-                    let g = hl_table_at(idx as usize);
-                    did_change = set_gui_color(
-                        idx,
-                        init,
-                        crate::memory::bytes_as_cstr(&arg),
-                        &mut g.sg_rgb_bg,
-                        &mut g.sg_rgb_bg_idx,
-                    );
+                    did_change = set_gui_color(idx, init, crate::memory::bytes_as_cstr(&arg), b'B');
                     if is_normal_group {
-                        g_st().normal_bg = hl_table_at(idx as usize).sg_rgb_bg;
+                        g_st().normal_bg = with_hl_group(idx as usize, |g| g.sg_rgb_bg);
                     }
                 } else if key_bytes == b"GUISP" {
-                    let g = hl_table_at(idx as usize);
-                    did_change = set_gui_color(
-                        idx,
-                        init,
-                        crate::memory::bytes_as_cstr(&arg),
-                        &mut g.sg_rgb_sp,
-                        &mut g.sg_rgb_sp_idx,
-                    );
+                    did_change = set_gui_color(idx, init, crate::memory::bytes_as_cstr(&arg), b'S');
                     if is_normal_group {
-                        g_st().normal_sp = hl_table_at(idx as usize).sg_rgb_sp;
+                        g_st().normal_sp = with_hl_group(idx as usize, |g| g.sg_rgb_sp);
                     }
                 } else if key_bytes == b"START" || key_bytes == b"STOP" {
                     // Ignored for now
                 } else if key_bytes == b"BLEND" {
-                    if &arg[..arg_len] != b"NONE" {
+                    let blend = if &arg[..arg_len] != b"NONE" {
                         let mut rem = &arg[..arg_len];
-                        hl_table_at(idx as usize).sg_blend = getdigits_int(&mut rem, false, 0);
+                        getdigits_int(&mut rem, false, 0)
                     } else {
-                        hl_table_at(idx as usize).sg_blend = -1;
-                    }
+                        -1
+                    };
+                    with_hl_group_mut(idx as usize, |g| g.sg_blend = blend);
                 } else {
                     semsg!(gettext(c"E423: Illegal argument: %s"), key_start);
                     error = true;
                     break;
                 }
-                hl_table_at(idx as usize).sg_cleared = false;
-
-                if !init || (hl_table_at(idx as usize).sg_set & SG_LINK) == 0 {
-                    hl_table_at(idx as usize).sg_link = 0;
-                }
+                with_hl_group_mut(idx as usize, |g| {
+                    g.sg_cleared = false;
+                    if !init || (g.sg_set & SG_LINK) == 0 {
+                        g.sg_link = 0;
+                    }
+                });
 
                 linep = linep.skipwhite();
             }
@@ -1595,12 +1652,15 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
         } else {
             set_hl_attr(idx);
         }
-        let g = &mut *hl_table_at(idx as usize);
-        g.sg_script_ctx = g_st().current_sctx;
-        g.sg_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&mut g.sg_script_ctx);
+        let mut sctx = g_st().current_sctx;
+        sctx.sc_lnum += sourcing_lnum();
+        nlua_set_sctx(&mut sctx);
+        let item_changed = with_hl_group_mut(idx as usize, |g| {
+            g.sg_script_ctx = sctx;
+            *g != item_before
+        });
 
-        if (did_change || *hl_table_at(idx as usize) != item_before) && !did_highlight_changed {
+        if (did_change || item_changed) && !did_highlight_changed {
             if !g_st().updating_screen {
                 redraw_all_later(UPD_NOT_VALID);
             }
@@ -1610,8 +1670,8 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
 }
 
 pub fn free_highlight() {
-    hlg_st().highlight_ga = Vec::new();
-    hlg_st().highlight_unames = std::collections::BTreeMap::new();
+    HIGHLIGHT_GA.with(|cell| cell.borrow_mut().clear());
+    HIGHLIGHT_UNAMES.with(|cell| cell.borrow_mut().clear());
 }
 
 pub fn restore_cterm_colors() {
@@ -1623,40 +1683,42 @@ pub fn restore_cterm_colors() {
 }
 
 fn hl_has_settings(idx: i32, check_link: bool) -> bool {
-    let g = &*hl_table_at(idx as usize);
-    !g.sg_cleared
-        && (g.sg_attr != 0
-            || g.sg_cterm_fg != 0
-            || g.sg_cterm_bg != 0
-            || g.sg_rgb_fg_idx != K_COLOR_IDX_NONE
-            || g.sg_rgb_bg_idx != K_COLOR_IDX_NONE
-            || g.sg_rgb_sp_idx != K_COLOR_IDX_NONE
-            || (check_link && (g.sg_set & SG_LINK) != 0))
+    with_hl_group(idx as usize, |g| {
+        !g.sg_cleared
+            && (g.sg_attr != 0
+                || g.sg_cterm_fg != 0
+                || g.sg_cterm_bg != 0
+                || g.sg_rgb_fg_idx != K_COLOR_IDX_NONE
+                || g.sg_rgb_bg_idx != K_COLOR_IDX_NONE
+                || g.sg_rgb_sp_idx != K_COLOR_IDX_NONE
+                || (check_link && (g.sg_set & SG_LINK) != 0))
+    })
 }
 
 fn highlight_clear(idx: i32) {
-    let g = &mut *hl_table_at(idx as usize);
-    g.sg_cleared = true;
-    g.sg_attr = 0;
-    g.sg_cterm = 0;
-    g.sg_cterm_bold = false;
-    g.sg_cterm_fg = 0;
-    g.sg_cterm_bg = 0;
-    g.sg_gui = 0;
-    g.sg_rgb_fg = -1;
-    g.sg_rgb_bg = -1;
-    g.sg_rgb_sp = -1;
-    g.sg_rgb_fg_idx = K_COLOR_IDX_NONE;
-    g.sg_rgb_bg_idx = K_COLOR_IDX_NONE;
-    g.sg_rgb_sp_idx = K_COLOR_IDX_NONE;
-    g.sg_blend = -1;
-    g.sg_font = None;
-    g.sg_link = g.sg_deflink;
-    g.sg_script_ctx = g.sg_deflink_sctx;
+    with_hl_group_mut(idx as usize, |g| {
+        g.sg_cleared = true;
+        g.sg_attr = 0;
+        g.sg_cterm = 0;
+        g.sg_cterm_bold = false;
+        g.sg_cterm_fg = 0;
+        g.sg_cterm_bg = 0;
+        g.sg_gui = 0;
+        g.sg_rgb_fg = -1;
+        g.sg_rgb_bg = -1;
+        g.sg_rgb_sp = -1;
+        g.sg_rgb_fg_idx = K_COLOR_IDX_NONE;
+        g.sg_rgb_bg_idx = K_COLOR_IDX_NONE;
+        g.sg_rgb_sp_idx = K_COLOR_IDX_NONE;
+        g.sg_blend = -1;
+        g.sg_font = None;
+        g.sg_link = g.sg_deflink;
+        g.sg_script_ctx = g.sg_deflink_sctx;
+    });
 }
 
 fn highlight_list_one(id: i32) {
-    let sgp = &*hl_table_at((id - 1) as usize);
+    let sgp = with_hl_group((id - 1) as usize, HlGroup::clone);
     let mut didh = false;
 
     if message_filtered(&sgp.sg_name) {
@@ -1707,8 +1769,9 @@ fn highlight_list_one(id: i32) {
         didh = true;
         msg_puts_hl(c"links to", HLF_D, false);
         msg_putchar(i32::from(b' '));
-        let link_id = hl_table_at((id - 1) as usize).sg_link;
-        msg_outtrans(&hl_table_at((link_id - 1) as usize).sg_name, 0, false);
+        let link_id = with_hl_group((id - 1) as usize, |g| g.sg_link);
+        let link_name = with_hl_group((link_id - 1) as usize, |g| g.sg_name.clone());
+        msg_outtrans(&link_name, 0, false);
     }
 
     if !didh {
@@ -1720,24 +1783,26 @@ fn highlight_list_one(id: i32) {
 }
 
 fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool {
-    let sgp = &*hl_table_at((hl_id - 1) as usize);
+    let (sg_link, sg_set, sg_cleared, sg_attr) = with_hl_group((hl_id - 1) as usize, |sgp| {
+        (sgp.sg_link, sgp.sg_set, sgp.sg_cleared, sgp.sg_attr)
+    });
     let mut ns = ns_id;
     let link = if ns_id == 0 {
-        sgp.sg_link
+        sg_link
     } else {
-        ns_get_hl(&mut ns, hl_id, true, sgp.sg_set != 0)
+        ns_get_hl(&mut ns, hl_id, true, sg_set != 0)
     };
     if link == -1 {
         return false;
     }
-    if ns_id == 0 && sgp.sg_cleared && sgp.sg_set == 0 {
+    if ns_id == 0 && sg_cleared && sg_set == 0 {
         return false;
     }
     ns = ns_id;
     let attr_id = if ns_id == 0 {
-        sgp.sg_attr
+        sg_attr
     } else {
-        ns_get_hl(&mut ns, hl_id, false, sgp.sg_set != 0)
+        ns_get_hl(&mut ns, hl_id, false, sg_set != 0)
     };
     let attr = syn_attr2entry(attr_id);
     *hl = arena_dict(arena, HLATTRS_DICT_SIZE + 1);
@@ -1746,11 +1811,8 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool
     }
     if link > 0 {
         assert!(1 <= link && link <= hl_len());
-        put_c(
-            hl,
-            c"link",
-            cstr_as_obj(Some(hl_table_at((link - 1) as usize).sg_name.as_c_str())),
-        );
+        let link_name = with_hl_group((link - 1) as usize, |g| g.sg_name.clone());
+        put_c(hl, c"link", cstr_to_arena_obj(arena, Some(&link_name)));
     }
     let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
     hlattrs2dict(hl, None, attr, true, true, Some(arena));
@@ -1822,11 +1884,10 @@ pub fn ns_get_hl_defs(
             continue;
         }
         let target_id = if link { i } else { syn_get_final_id(i) };
-        put_c(
-            &mut rv,
-            &*hl_table_at((target_id - 1) as usize).sg_name,
-            dict_obj(attrs),
-        );
+        let target_name = with_hl_group((target_id - 1) as usize, |g| {
+            cbuf_to_arena_str(arena, g.sg_name.as_bytes())
+        });
+        put_c(&mut rv, target_name, dict_obj(attrs));
     }
 
     rv
@@ -1902,11 +1963,13 @@ pub fn highlight_has_attr(id: i32, flag: i32, modec: i32) -> Option<&'static CSt
         return None;
     }
 
-    let attr = if modec == i32::from(b'g') {
-        hl_table_at((id - 1) as usize).sg_gui
-    } else {
-        hl_table_at((id - 1) as usize).sg_cterm
-    };
+    let attr = with_hl_group((id - 1) as usize, |g| {
+        if modec == i32::from(b'g') {
+            g.sg_gui
+        } else {
+            g.sg_cterm
+        }
+    });
 
     if (flag & HL_UNDERLINE_MASK) != 0 {
         let ul = attr & HL_UNDERLINE_MASK;
@@ -1916,7 +1979,7 @@ pub fn highlight_has_attr(id: i32, flag: i32, modec: i32) -> Option<&'static CSt
     }
 }
 
-pub fn highlight_color(id: i32, what_bytes: &[u8], modec: i32) -> Option<&'static CStr> {
+pub fn highlight_color(id: i32, what_bytes: &[u8], modec: i32) -> Option<std::ffi::CString> {
     let mut fg = false;
     let mut sp = false;
     let mut font = false;
@@ -1941,51 +2004,69 @@ pub fn highlight_color(id: i32, what_bytes: &[u8], modec: i32) -> Option<&'stati
         return None;
     }
 
-    let g = &*hl_table_at((id - 1) as usize);
+    let (
+        sg_rgb_fg,
+        sg_rgb_bg,
+        sg_rgb_sp,
+        sg_rgb_fg_idx,
+        sg_rgb_bg_idx,
+        sg_rgb_sp_idx,
+        sg_cterm_fg,
+        sg_cterm_bg,
+    ) = with_hl_group((id - 1) as usize, |g| {
+        (
+            g.sg_rgb_fg,
+            g.sg_rgb_bg,
+            g.sg_rgb_sp,
+            g.sg_rgb_fg_idx,
+            g.sg_rgb_bg_idx,
+            g.sg_rgb_sp_idx,
+            g.sg_cterm_fg,
+            g.sg_cterm_bg,
+        )
+    });
 
+    let mut color_name = [0u8; 20];
     if modec == i32::from(b'g') {
         if what_bytes.get(2) == Some(&b'#') && ui_rgb_attached() {
             let n = if fg {
-                g.sg_rgb_fg
+                sg_rgb_fg
             } else if sp {
-                g.sg_rgb_sp
+                sg_rgb_sp
             } else {
-                g.sg_rgb_bg
+                sg_rgb_bg
             };
             if !(0..=0xffffff).contains(&n) {
                 return None;
             }
-            let hex_arr: &mut [u8; 8] = (&mut hlg_st().borrow_mut().highlight_color_name[..8])
-                .try_into()
-                .unwrap();
+            let hex_arr: &mut [u8; 8] = (&mut color_name[..8]).try_into().unwrap();
             write_hex6(hex_arr, n);
-            return CStr::from_bytes_until_nul(&hlg_st().borrow_mut().highlight_color_name).ok();
+            return CStr::from_bytes_until_nul(&color_name)
+                .ok()
+                .map(CStr::to_owned);
         }
-        let hex_arr: &mut [u8; 8] = (&mut hlg_st().borrow_mut().highlight_color_name[..8])
-            .try_into()
-            .unwrap();
-        if fg {
-            return coloridx_to_name(g.sg_rgb_fg_idx, g.sg_rgb_fg, hex_arr);
+        let hex_arr: &mut [u8; 8] = (&mut color_name[..8]).try_into().unwrap();
+        let res = if fg {
+            coloridx_to_name(sg_rgb_fg_idx, sg_rgb_fg, hex_arr)
         } else if sp {
-            return coloridx_to_name(g.sg_rgb_sp_idx, g.sg_rgb_sp, hex_arr);
+            coloridx_to_name(sg_rgb_sp_idx, sg_rgb_sp, hex_arr)
         } else {
-            return coloridx_to_name(g.sg_rgb_bg_idx, g.sg_rgb_bg, hex_arr);
-        }
+            coloridx_to_name(sg_rgb_bg_idx, sg_rgb_bg, hex_arr)
+        };
+        return res.map(CStr::to_owned);
     }
     if font || sp {
         return None;
     }
     if modec == i32::from(b'c') {
-        let n = if fg {
-            g.sg_cterm_fg - 1
-        } else {
-            g.sg_cterm_bg - 1
-        };
+        let n = if fg { sg_cterm_fg - 1 } else { sg_cterm_bg - 1 };
         if n < 0 {
             return None;
         }
-        write_dec(&mut hlg_st().highlight_color_name, n);
-        return CStr::from_bytes_until_nul(&hlg_st().borrow_mut().highlight_color_name).ok();
+        write_dec(&mut color_name, n);
+        return CStr::from_bytes_until_nul(&color_name)
+            .ok()
+            .map(CStr::to_owned);
     }
     None
 }
@@ -2003,7 +2084,8 @@ pub fn syn_list_header(did_header: bool, outlen: i32, id: i32, force_newline: bo
         if g_st().got_int {
             return true;
         }
-        name_col = msg_outtrans(&hl_table_at((id - 1) as usize).sg_name, 0, false);
+        let name = with_hl_group((id - 1) as usize, |g| g.sg_name.clone());
+        name_col = msg_outtrans(&name, 0, false);
         g_st().msg_col = name_col;
         endcol = 15;
     } else if (ui_has(K_UIMESSAGES) || g_st().msg_silent != 0) && !force_newline {
@@ -2038,33 +2120,35 @@ pub fn syn_list_header(did_header: bool, outlen: i32, id: i32, force_newline: bo
 
 fn set_hl_attr(idx: i32) {
     let mut at_en = HLATTRS_INIT;
-    let sgp = &mut *hl_table_at(idx as usize);
-
-    at_en.cterm_ae_attr = sgp.sg_cterm;
-    at_en.cterm_fg_color = sgp.sg_cterm_fg as i16;
-    at_en.cterm_bg_color = sgp.sg_cterm_bg as i16;
-    at_en.rgb_ae_attr = sgp.sg_gui;
-    at_en.rgb_fg_color = if sgp.sg_rgb_fg_idx != K_COLOR_IDX_NONE {
-        sgp.sg_rgb_fg
-    } else {
-        -1
-    };
-    at_en.rgb_bg_color = if sgp.sg_rgb_bg_idx != K_COLOR_IDX_NONE {
-        sgp.sg_rgb_bg
-    } else {
-        -1
-    };
-    at_en.rgb_sp_color = if sgp.sg_rgb_sp_idx != K_COLOR_IDX_NONE {
-        sgp.sg_rgb_sp
-    } else {
-        -1
-    };
-    at_en.hl_blend = sgp.sg_blend;
-    if let Some(ref font) = sgp.sg_font {
-        at_en.font = hl_add_font_idx(Some(font.as_bytes()));
+    let font_bytes = with_hl_group(idx as usize, |sgp| {
+        at_en.cterm_ae_attr = sgp.sg_cterm;
+        at_en.cterm_fg_color = sgp.sg_cterm_fg as i16;
+        at_en.cterm_bg_color = sgp.sg_cterm_bg as i16;
+        at_en.rgb_ae_attr = sgp.sg_gui;
+        at_en.rgb_fg_color = if sgp.sg_rgb_fg_idx != K_COLOR_IDX_NONE {
+            sgp.sg_rgb_fg
+        } else {
+            -1
+        };
+        at_en.rgb_bg_color = if sgp.sg_rgb_bg_idx != K_COLOR_IDX_NONE {
+            sgp.sg_rgb_bg
+        } else {
+            -1
+        };
+        at_en.rgb_sp_color = if sgp.sg_rgb_sp_idx != K_COLOR_IDX_NONE {
+            sgp.sg_rgb_sp
+        } else {
+            -1
+        };
+        at_en.hl_blend = sgp.sg_blend;
+        sgp.sg_font.as_ref().map(|f| f.as_bytes().to_vec())
+    });
+    if let Some(ref font) = font_bytes {
+        at_en.font = hl_add_font_idx(Some(font));
     }
 
-    sgp.sg_attr = hl_get_syn_attr(0, idx + 1, at_en);
+    let syn_attr = hl_get_syn_attr(0, idx + 1, at_en);
+    with_hl_group_mut(idx as usize, |sgp| sgp.sg_attr = syn_attr);
 
     if cursor_mode_uses_syn_id(idx + 1) {
         ui_mode_info_set();
@@ -2091,11 +2175,7 @@ pub fn syn_name2id_len(name_slice: &[u8]) -> i32 {
     }
     name_u[len] = 0;
 
-    hlg_st()
-        .highlight_unames
-        .get(&name_u[..len])
-        .copied()
-        .unwrap_or(0)
+    HIGHLIGHT_UNAMES.with(|cell| cell.borrow().get(&name_u[..len]).copied().unwrap_or(0))
 }
 
 pub fn syn_name2attr(name: &CStr) -> i32 {
@@ -2110,11 +2190,11 @@ pub fn highlight_exists(name: &CStr) -> i32 {
     i32::from(syn_name2id(name) > 0)
 }
 
-pub fn syn_id2name(id: i32) -> &'static CStr {
+pub fn syn_id2name(id: i32) -> std::ffi::CString {
     if id <= 0 || id > hl_len() {
-        return c"";
+        return std::ffi::CString::default();
     }
-    hl_table_at((id - 1) as usize).sg_name.as_c_str()
+    with_hl_group((id - 1) as usize, |g| g.sg_name.clone())
 }
 
 pub fn syn_check_group(name: &[u8]) -> i32 {
@@ -2150,9 +2230,12 @@ fn syn_add_group(name_slice: &[u8]) -> i32 {
         scoped_parent = syn_check_group(&name_slice[..delim_idx]);
     }
 
-    if hlg_st().highlight_ga.capacity() == 0 {
-        hlg_st().highlight_ga.reserve(300);
-    }
+    HIGHLIGHT_GA.with(|cell| {
+        let mut ga = cell.borrow_mut();
+        if ga.capacity() == 0 {
+            ga.reserve(300);
+        }
+    });
 
     if hl_len() >= MAX_HL_ID {
         emsg(gettext(c"E849: Too many highlight and syntax groups"));
@@ -2171,10 +2254,12 @@ fn syn_add_group(name_slice: &[u8]) -> i32 {
     hlg.sg_blend = -1;
     hlg.sg_parent = scoped_parent;
     hlg.sg_cleared = true;
-    hlg_st().highlight_ga.push(hlg);
+    HIGHLIGHT_GA.with(|cell| cell.borrow_mut().push(hlg));
 
     let id = hl_len();
-    hlg_st().highlight_unames.insert(name_u_bytes, id);
+    HIGHLIGHT_UNAMES.with(|cell| {
+        cell.borrow_mut().insert(name_u_bytes, id);
+    });
 
     id
 }
@@ -2188,14 +2273,14 @@ pub fn syn_ns_id2attr(mut ns_id: i32, mut hl_id: i32, optional: &mut bool) -> i3
     if syn_ns_get_final_id(&mut ns_id, &mut hl_id) {
         *optional = false;
     }
-    let sgp = &*hl_table_at((hl_id - 1) as usize);
+    let (sg_set, sg_attr) = with_hl_group((hl_id - 1) as usize, |sgp| (sgp.sg_set, sgp.sg_attr));
 
-    let attr = ns_get_hl(&mut ns_id, hl_id, false, sgp.sg_set != 0);
+    let attr = ns_get_hl(&mut ns_id, hl_id, false, sg_set != 0);
 
     if attr >= 0 || (*optional && ns_id > 0) {
         return attr;
     }
-    sgp.sg_attr
+    sg_attr
 }
 
 pub fn syn_get_final_id(mut hl_id: i32) -> i32 {
@@ -2216,9 +2301,9 @@ pub fn syn_ns_get_final_id(ns_id: &mut i32, hl_idp: &mut i32) -> bool {
     let mut count = 100;
     while count > 0 {
         count -= 1;
-        let sgp = &*hl_table_at((hl_id - 1) as usize);
+        let sg_set = with_hl_group((hl_id - 1) as usize, |sgp| sgp.sg_set);
 
-        let check = ns_get_hl(ns_id, hl_id, true, sgp.sg_set != 0);
+        let check = ns_get_hl(ns_id, hl_id, true, sg_set != 0);
         if check == 0 {
             *hl_idp = hl_id;
             return true;
@@ -2228,10 +2313,13 @@ pub fn syn_ns_get_final_id(ns_id: &mut i32, hl_idp: &mut i32) -> bool {
             continue;
         }
 
-        if sgp.sg_link > 0 && sgp.sg_link <= hl_len() {
-            hl_id = sgp.sg_link;
-        } else if sgp.sg_cleared && sgp.sg_parent > 0 {
-            hl_id = sgp.sg_parent;
+        let (sg_link, sg_cleared, sg_parent) = with_hl_group((hl_id - 1) as usize, |sgp| {
+            (sgp.sg_link, sgp.sg_cleared, sgp.sg_parent)
+        });
+        if sg_link > 0 && sg_link <= hl_len() {
+            hl_id = sg_link;
+        } else if sg_cleared && sg_parent > 0 {
+            hl_id = sg_parent;
         } else {
             break;
         }
@@ -2243,22 +2331,23 @@ pub fn syn_ns_get_final_id(ns_id: &mut i32, hl_idp: &mut i32) -> bool {
 
 pub fn highlight_attr_set_all() {
     for idx in 0..hl_len() {
-        let sgp = &mut *hl_table_at(idx as usize);
-        if sgp.sg_rgb_bg_idx == K_COLOR_IDX_FG {
-            sgp.sg_rgb_bg = g_st().normal_fg;
-        } else if sgp.sg_rgb_bg_idx == K_COLOR_IDX_BG {
-            sgp.sg_rgb_bg = g_st().normal_bg;
-        }
-        if sgp.sg_rgb_fg_idx == K_COLOR_IDX_FG {
-            sgp.sg_rgb_fg = g_st().normal_fg;
-        } else if sgp.sg_rgb_fg_idx == K_COLOR_IDX_BG {
-            sgp.sg_rgb_fg = g_st().normal_bg;
-        }
-        if sgp.sg_rgb_sp_idx == K_COLOR_IDX_FG {
-            sgp.sg_rgb_sp = g_st().normal_fg;
-        } else if sgp.sg_rgb_sp_idx == K_COLOR_IDX_BG {
-            sgp.sg_rgb_sp = g_st().normal_bg;
-        }
+        with_hl_group_mut(idx as usize, |sgp| {
+            if sgp.sg_rgb_bg_idx == K_COLOR_IDX_FG {
+                sgp.sg_rgb_bg = g_st().normal_fg;
+            } else if sgp.sg_rgb_bg_idx == K_COLOR_IDX_BG {
+                sgp.sg_rgb_bg = g_st().normal_bg;
+            }
+            if sgp.sg_rgb_fg_idx == K_COLOR_IDX_FG {
+                sgp.sg_rgb_fg = g_st().normal_fg;
+            } else if sgp.sg_rgb_fg_idx == K_COLOR_IDX_BG {
+                sgp.sg_rgb_fg = g_st().normal_bg;
+            }
+            if sgp.sg_rgb_sp_idx == K_COLOR_IDX_FG {
+                sgp.sg_rgb_sp = g_st().normal_fg;
+            } else if sgp.sg_rgb_sp_idx == K_COLOR_IDX_BG {
+                sgp.sg_rgb_sp = g_st().normal_bg;
+            }
+        });
         set_hl_attr(idx);
     }
 }
@@ -2276,32 +2365,35 @@ fn combine_stl_hlt(
     let u_idx = (id - 1) as usize;
     let s_idx = (id_s - 1) as usize;
 
-    if id_alt == 0 {
-        *hl_table_at(dst) = HlGroup::new();
-        hl_table_at(dst).sg_cterm = g_st().highlight_attr[hlf];
-        hl_table_at(dst).sg_gui = g_st().highlight_attr[hlf];
-    } else {
-        *hl_table_at(dst) = hl_table_at((id_alt - 1) as usize).clone();
-    }
-    hl_table_at(dst).sg_link = 0;
+    HIGHLIGHT_GA.with(|cell| {
+        let mut ga = cell.borrow_mut();
+        if id_alt == 0 {
+            ga[dst] = HlGroup::new();
+            ga[dst].sg_cterm = g_st().highlight_attr[hlf];
+            ga[dst].sg_gui = g_st().highlight_attr[hlf];
+        } else {
+            ga[dst] = ga[(id_alt - 1) as usize].clone();
+        }
+        ga[dst].sg_link = 0;
 
-    hl_table_at(dst).sg_cterm ^= hl_table_at(u_idx).sg_cterm ^ hl_table_at(s_idx).sg_cterm;
-    if hl_table_at(u_idx).sg_cterm_fg != hl_table_at(s_idx).sg_cterm_fg {
-        hl_table_at(dst).sg_cterm_fg = hl_table_at(u_idx).sg_cterm_fg;
-    }
-    if hl_table_at(u_idx).sg_cterm_bg != hl_table_at(s_idx).sg_cterm_bg {
-        hl_table_at(dst).sg_cterm_bg = hl_table_at(u_idx).sg_cterm_bg;
-    }
-    hl_table_at(dst).sg_gui ^= hl_table_at(u_idx).sg_gui ^ hl_table_at(s_idx).sg_gui;
-    if hl_table_at(u_idx).sg_rgb_fg != hl_table_at(s_idx).sg_rgb_fg {
-        hl_table_at(dst).sg_rgb_fg = hl_table_at(u_idx).sg_rgb_fg;
-    }
-    if hl_table_at(u_idx).sg_rgb_bg != hl_table_at(s_idx).sg_rgb_bg {
-        hl_table_at(dst).sg_rgb_bg = hl_table_at(u_idx).sg_rgb_bg;
-    }
-    if hl_table_at(u_idx).sg_rgb_sp != hl_table_at(s_idx).sg_rgb_sp {
-        hl_table_at(dst).sg_rgb_sp = hl_table_at(u_idx).sg_rgb_sp;
-    }
+        ga[dst].sg_cterm ^= ga[u_idx].sg_cterm ^ ga[s_idx].sg_cterm;
+        if ga[u_idx].sg_cterm_fg != ga[s_idx].sg_cterm_fg {
+            ga[dst].sg_cterm_fg = ga[u_idx].sg_cterm_fg;
+        }
+        if ga[u_idx].sg_cterm_bg != ga[s_idx].sg_cterm_bg {
+            ga[dst].sg_cterm_bg = ga[u_idx].sg_cterm_bg;
+        }
+        ga[dst].sg_gui ^= ga[u_idx].sg_gui ^ ga[s_idx].sg_gui;
+        if ga[u_idx].sg_rgb_fg != ga[s_idx].sg_rgb_fg {
+            ga[dst].sg_rgb_fg = ga[u_idx].sg_rgb_fg;
+        }
+        if ga[u_idx].sg_rgb_bg != ga[s_idx].sg_rgb_bg {
+            ga[dst].sg_rgb_bg = ga[u_idx].sg_rgb_bg;
+        }
+        if ga[u_idx].sg_rgb_sp != ga[s_idx].sg_rgb_sp {
+            ga[dst].sg_rgb_sp = ga[u_idx].sg_rgb_sp;
+        }
+    });
     set_hl_attr(hlcnt + i);
 
     table[i as usize] = syn_id2attr(hlcnt + i + 1);
@@ -2349,11 +2441,14 @@ pub fn highlight_changed() {
     }
 
     let hlcnt = hl_len();
-    hlg_st()
-        .highlight_ga
-        .resize((hlcnt + 10) as usize, HlGroup::new());
+    HIGHLIGHT_GA.with(|cell| {
+        let mut ga = cell.borrow_mut();
+        ga.resize((hlcnt + 10) as usize, HlGroup::new());
+        if id_s == -1 {
+            ga[(hlcnt + 9) as usize] = HlGroup::new();
+        }
+    });
     if id_s == -1 {
-        *hl_table_at((hlcnt + 9) as usize) = HlGroup::new();
         id_s = hlcnt + 10;
     }
     for i in 0..9 {
@@ -2380,7 +2475,7 @@ pub fn highlight_changed() {
             );
         }
     }
-    hlg_st().highlight_ga.truncate(hlcnt as usize);
+    HIGHLIGHT_GA.with(|cell| cell.borrow_mut().truncate(hlcnt as usize));
 
     decor_provider_invalidate_hl();
 }
@@ -2458,39 +2553,36 @@ fn highlight_list_two(cnt: i32, id: i32) {
     os_delay(if cnt == 99 { 40 } else { (cnt as u64) * 50 }, false);
 }
 
-pub fn get_highlight_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
-    get_highlight_name_ext(xp, idx, true)
+pub fn get_highlight_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
+    let name = get_highlight_name_ext(idx, true)?;
+    Some(xp.set_item(name))
 }
 
-pub fn get_highlight_name_ext(
-    _xp: &mut ExpandCtx,
-    idx: i32,
-    skip_cleared: bool,
-) -> Option<&'static CStr> {
+pub fn get_highlight_name_ext(idx: i32, skip_cleared: bool) -> Option<std::ffi::CString> {
     if idx < 0 {
         return None;
     }
 
     let len = hl_len();
-    if skip_cleared && idx < len && hl_table_at(idx as usize).sg_cleared {
-        return Some(c"");
+    if skip_cleared && idx < len && with_hl_group(idx as usize, |g| g.sg_cleared) {
+        return Some(std::ffi::CString::default());
     }
 
     if idx == len && g_st().include_none != 0 {
-        return Some(c"none");
+        return Some(c"none".to_owned());
     } else if idx == len + g_st().include_none && g_st().include_default != 0 {
-        return Some(c"default");
+        return Some(c"default".to_owned());
     } else if idx == len + g_st().include_none + g_st().include_default && g_st().include_link != 0
     {
-        return Some(c"link");
+        return Some(c"link".to_owned());
     } else if idx == len + g_st().include_none + g_st().include_default + 1
         && g_st().include_link != 0
     {
-        return Some(c"clear");
+        return Some(c"clear".to_owned());
     } else if idx >= len {
         return None;
     }
-    Some(hl_table_at(idx as usize).sg_name.as_c_str())
+    Some(with_hl_group(idx as usize, |g| g.sg_name.clone()))
 }
 
 pub fn name_to_color(name: &CStr, idx: &mut i32) -> RgbValue {

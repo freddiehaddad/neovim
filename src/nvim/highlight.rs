@@ -3,7 +3,7 @@
 
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
-    cstr_as_string, dict_obj, integer_obj, put_c, string_obj,
+    cstr_as_string, cstr_to_arena_obj, dict_obj, integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_exp,
@@ -494,7 +494,8 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
         };
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
-        add_c(&mut args, cstr_as_obj(Some(syn_id2name(hl_id))));
+        let hl_name = syn_id2name(hl_id);
+        add_c(&mut args, cstr_as_obj(Some(&hl_name)));
         add_c(&mut args, boolean_obj(link));
 
         let mut err = Error::new();
@@ -1795,7 +1796,12 @@ fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
         K_HL_SYNTAX => {
             item = arena_dict(arena, 3);
             put_c(&mut item, c"kind", cstr_as_obj(Some(c"syntax")));
-            put_c(&mut item, c"hi_name", cstr_as_obj(Some(syn_id2name(e.id1))));
+            let hi_name = syn_id2name(e.id1);
+            put_c(
+                &mut item,
+                c"hi_name",
+                cstr_to_arena_obj(arena, Some(&hi_name)),
+            );
         }
         K_HL_UI => {
             item = arena_dict(arena, 4);
@@ -1806,7 +1812,12 @@ fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
                 hlf_name_ptr(e.id1 as usize)
             };
             put_c(&mut item, c"ui_name", cstr_as_obj(ui_name));
-            put_c(&mut item, c"hi_name", cstr_as_obj(Some(syn_id2name(e.id2))));
+            let hi_name = syn_id2name(e.id2);
+            put_c(
+                &mut item,
+                c"hi_name",
+                cstr_to_arena_obj(arena, Some(&hi_name)),
+            );
         }
         K_HL_TERMINAL => {
             item = arena_dict(arena, 2);

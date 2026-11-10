@@ -968,7 +968,8 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         } else {
             tv_dict_add_str(&mut *dict, c"pattern", cur.mit_pattern.as_deref());
         }
-        tv_dict_add_str(&mut *dict, c"group", Some(syn_id2name(cur.mit_hlg_id)));
+        let group_name = syn_id2name(cur.mit_hlg_id);
+        tv_dict_add_str(&mut *dict, c"group", Some(&group_name));
         tv_dict_add_nr(&mut *dict, c"priority", cur.mit_priority as Varnumber);
         tv_dict_add_nr(&mut *dict, c"id", cur.mit_id as Varnumber);
 
@@ -1194,7 +1195,8 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     if (1..=3).contains(&id) {
         if let Some(m) = get_match(curwin_mut(), id) {
-            tv_list_append_string(rettv.vval.v_list_ref(), Some(syn_id2name(m.mit_hlg_id)), -1);
+            let group_name = syn_id2name(m.mit_hlg_id);
+            tv_list_append_string(rettv.vval.v_list_ref(), Some(&group_name), -1);
             tv_list_append_string(rettv.vval.v_list_ref(), m.mit_pattern.as_deref(), -1);
         } else {
             tv_list_append_string(rettv.vval.v_list_ref(), None, 0);

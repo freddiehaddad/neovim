@@ -8098,6 +8098,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     };
     let _ = &mut modec;
 
+    let mut p_owned: Option<std::ffi::CString> = None;
     let mut p: Option<&CStr> = None;
     let what_bytes = what.to_bytes();
     let w = |i: usize| {
@@ -8108,7 +8109,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     match w(0) {
         b'b' => {
             if w(1) == b'g' {
-                p = highlight_color(id, what.to_bytes(), modec);
+                p_owned = highlight_color(id, what.to_bytes(), modec);
             } else if w(1) == b'l' {
                 p = highlight_has_attr(id, HL_BLINK, modec);
             } else {
@@ -8118,7 +8119,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         b'c' => p = highlight_has_attr(id, HL_CONCEALED, modec),
         b'd' => p = highlight_has_attr(id, HL_DIM, modec),
         b'o' => p = highlight_has_attr(id, HL_OVERLINE, modec),
-        b'f' => p = highlight_color(id, what.to_bytes(), modec),
+        b'f' => p_owned = highlight_color(id, what.to_bytes(), modec),
         b'i' => {
             if w(1) == b'n' {
                 p = highlight_has_attr(id, HL_INVERSE, modec);
@@ -8130,13 +8131,13 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             if w(1) == b'o' {
                 p = highlight_has_attr(id, HL_NOCOMBINE, modec);
             } else {
-                p = get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), id - 1, false);
+                p_owned = get_highlight_name_ext(id - 1, false);
             }
         }
         b'r' => p = highlight_has_attr(id, HL_INVERSE, modec),
         b's' => {
             if w(1) == b'p' {
-                p = highlight_color(id, what.to_bytes(), modec);
+                p_owned = highlight_color(id, what.to_bytes(), modec);
             } else if w(1) == b't' && w(2) == b'r' {
                 p = highlight_has_attr(id, HL_STRIKETHROUGH, modec);
             } else {
@@ -8157,10 +8158,13 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     p = highlight_has_attr(id, HL_UNDERDOTTED, modec);
                 }
             } else {
-                p = highlight_color(id, what.to_bytes(), modec);
+                p_owned = highlight_color(id, what.to_bytes(), modec);
             }
         }
         _ => {}
+    }
+    if let Some(ref cstr) = p_owned {
+        p = Some(cstr.as_c_str());
     }
 
     crate::eval::typval::tv_set_string(rettv, Some(p.unwrap_or(c"")));

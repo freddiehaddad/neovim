@@ -3605,16 +3605,10 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool)
     );
     tv_dict_add_str(di, c"kind", match_.cp_text[CPT_KIND].as_deref());
     tv_dict_add_str(di, c"info", match_.cp_text[CPT_INFO].as_deref());
-    tv_dict_add_str(
-        di,
-        c"abbr_hlgroup",
-        Some(syn_id2name(match_.cp_user_abbr_hl_id)),
-    );
-    tv_dict_add_str(
-        di,
-        c"kind_hlgroup",
-        Some(syn_id2name(match_.cp_user_kind_hl_id)),
-    );
+    let abbr_hl = syn_id2name(match_.cp_user_abbr_hl_id);
+    tv_dict_add_str(di, c"abbr_hlgroup", Some(&abbr_hl));
+    let kind_hl = syn_id2name(match_.cp_user_kind_hl_id);
+    tv_dict_add_str(di, c"kind_hlgroup", Some(&kind_hl));
     if add_match {
         tv_dict_add_bool(di, c"match", if match_.cp_in_match_array { 1 } else { 0 });
     }

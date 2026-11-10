@@ -6,8 +6,8 @@ use crate::api::buffer::KeyDict_keymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
     ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
-    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, has_key, integer_obj,
-    luaref_obj, put_c, string_obj, string_to_cstr,
+    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, cstr_to_arena_obj, dict_obj, has_key,
+    integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::tabpage::Buffer;
@@ -106,6 +106,21 @@ pub struct Mapblock {
     pub m_replace_keycodes: bool,
 }
 
+#[derive(Clone)]
+pub struct MatchedMap {
+    pub m_keys: CString,
+    pub m_str: CString,
+    pub m_alt_keys: Option<CString>,
+    pub m_luaref: LuaRef,
+    pub m_keylen: i32,
+    pub m_mode: i32,
+    pub m_noremap: i32,
+    pub m_silent: u8,
+    pub m_nowait: u8,
+    pub m_expr: u8,
+    pub m_replace_keycodes: bool,
+}
+
 impl Mapblock {
     #[inline]
     pub fn alt_keys(&self) -> Option<CString> {
@@ -114,6 +129,23 @@ impl Mapblock {
         let v = slot.take();
         slot.set(v.clone());
         v
+    }
+
+    #[inline]
+    pub fn to_matched(&self) -> MatchedMap {
+        MatchedMap {
+            m_keys: self.m_keys.clone(),
+            m_str: self.m_str.clone(),
+            m_alt_keys: self.alt_keys(),
+            m_luaref: self.m_luaref,
+            m_keylen: self.m_keylen,
+            m_mode: self.m_mode,
+            m_noremap: self.m_noremap,
+            m_silent: self.m_silent,
+            m_nowait: self.m_nowait,
+            m_expr: self.m_expr,
+            m_replace_keycodes: self.m_replace_keycodes,
+        }
     }
 
     #[inline]
@@ -227,35 +259,87 @@ impl MapArguments {
     }
 }
 
-struct MappingModuleState {
-    first_abbr: Vec<Mapblock>,
-    maphash: [Vec<Mapblock>; MAX_MAPHASH],
+#[derive(Clone, Copy)]
+struct MappingCopyState {
     map_luaid: i32,
     expand_mapmodes: i32,
     expand_isabbrev: bool,
     expand_buffer: bool,
-    langmap_mapga: Vec<LangmapEntry>,
 }
 
-impl MappingModuleState {
+impl MappingCopyState {
     const fn new() -> Self {
         Self {
-            first_abbr: Vec::new(),
-            maphash: [const { Vec::new() }; MAX_MAPHASH],
             map_luaid: 0,
             expand_mapmodes: 0,
             expand_isabbrev: false,
             expand_buffer: false,
-            langmap_mapga: Vec::new(),
         }
     }
 }
 
-static MAP_STATE: GlobalState<MappingModuleState> = GlobalState::new(MappingModuleState::new());
+struct MappingTables {
+    first_abbr: Vec<Mapblock>,
+    maphash: [Vec<Mapblock>; MAX_MAPHASH],
+}
+
+impl MappingTables {
+    const fn new() -> Self {
+        Self {
+            first_abbr: Vec::new(),
+            maphash: [const { Vec::new() }; MAX_MAPHASH],
+        }
+    }
+}
+
+thread_local! {
+    static MAP_STATE: std::cell::Cell<MappingCopyState> = const {
+        std::cell::Cell::new(MappingCopyState::new())
+    };
+    static MAP_TABLES: std::cell::RefCell<MappingTables> = const {
+        std::cell::RefCell::new(MappingTables::new())
+    };
+    static LANGMAP_MAPGA: std::cell::RefCell<Vec<LangmapEntry>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+struct MapGuard {
+    state: MappingCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for MapGuard {
+    type Target = MappingCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for MapGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for MapGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            MAP_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn map_st() -> crate::globals::GraphPtr<MappingModuleState> {
-    MAP_STATE.handle()
+fn map_st() -> MapGuard {
+    MapGuard {
+        state: MAP_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 static E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR: &CStr =
@@ -279,9 +363,11 @@ const fn map_hash(mode: i32, c1: u8) -> usize {
 
 use crate::keycodes::{k_second, k_third};
 
-/// Get the start of the hashed map list for "state" and first character "c".
-pub fn get_maphash_list(state: i32, c: i32) -> &'static [Mapblock] {
-    map_st().borrow_mut().maphash[map_hash(state, c as u8)].as_slice()
+/// Run `f` with the global hashed map list for `state` and first character `c`.
+#[inline]
+pub fn with_maphash_list<R>(state: i32, c: i32, f: impl FnOnce(&[Mapblock]) -> R) -> R {
+    let idx = map_hash(state, c as u8);
+    MAP_TABLES.with(|cell| f(cell.borrow().maphash[idx].as_slice()))
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
@@ -290,49 +376,53 @@ pub fn get_buf_maphash_list(state: i32, c: i32) -> &'static [Mapblock] {
 }
 
 #[inline]
-fn map_bucket_mut(
+fn with_map_tables_mut<R>(
     buf: &mut FileBuf,
     local: bool,
     is_abbrev: bool,
-    hash: usize,
-) -> &mut Vec<Mapblock> {
+    f: impl FnOnce(&mut [Vec<Mapblock>]) -> R,
+) -> R {
     if is_abbrev {
         if local {
-            &mut buf.b_first_abbr
+            f(std::slice::from_mut(&mut buf.b_first_abbr))
         } else {
-            &mut map_st().borrow_mut().first_abbr
+            MAP_TABLES.with(|cell| f(std::slice::from_mut(&mut cell.borrow_mut().first_abbr)))
         }
     } else if local {
-        &mut buf.b_maphash[hash]
+        f(&mut buf.b_maphash)
     } else {
-        &mut map_st().borrow_mut().maphash[hash]
+        MAP_TABLES.with(|cell| f(&mut cell.borrow_mut().maphash))
     }
 }
 
 #[inline]
-fn get_map_buckets(buf: Option<&FileBuf>, is_abbrev: bool) -> &[Vec<Mapblock>] {
+fn with_map_buckets<R>(
+    buf: Option<&FileBuf>,
+    is_abbrev: bool,
+    f: impl FnOnce(&[Vec<Mapblock>]) -> R,
+) -> R {
     if is_abbrev {
         if let Some(buf) = buf {
-            std::slice::from_ref(&buf.b_first_abbr)
+            f(std::slice::from_ref(&buf.b_first_abbr))
         } else {
-            std::slice::from_ref(&map_st().borrow_mut().first_abbr)
+            MAP_TABLES.with(|cell| f(std::slice::from_ref(&cell.borrow().first_abbr)))
         }
     } else if let Some(buf) = buf {
-        &buf.b_maphash
+        f(&buf.b_maphash)
     } else {
-        &map_st().borrow_mut().maphash
+        MAP_TABLES.with(|cell| f(&cell.borrow().maphash))
     }
 }
 
 /// Finds the Lua mapping whose `m_str` embeds `id`.
-fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: i32) -> Option<&Mapblock> {
+fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: i32) -> Option<LuaRef> {
     for bucket in mappings {
         for mp in bucket {
             let s_bytes = mp.m_str.as_bytes();
             if mp.m_luaref != LUA_NOREF
                 && crate::charset::parse_i64_prefix(s_bytes.get(3..).unwrap_or(&[])) as i32 == id
             {
-                return Some(mp);
+                return Some(mp.m_luaref);
             }
         }
     }
@@ -341,21 +431,20 @@ fn map_luaid_scan(mappings: &[Vec<Mapblock>], id: i32) -> Option<&Mapblock> {
 
 /// Resolves a Lua-mapping id to its callback.
 pub fn map_luaid_get(n: i32) -> LuaRef {
-    let maphash_ref = &map_st().maphash;
-    let first_abbr_ref = &map_st().first_abbr;
-    let mut mp = map_luaid_scan(maphash_ref, n);
-    if mp.is_none() {
-        mp = map_luaid_scan(std::slice::from_ref(first_abbr_ref), n);
-    }
+    let mut luaref = MAP_TABLES.with(|cell| {
+        let t = cell.borrow();
+        map_luaid_scan(&t.maphash, n)
+            .or_else(|| map_luaid_scan(std::slice::from_ref(&t.first_abbr), n))
+    });
     for fb in for_all_buffers_mut() {
-        if mp.is_none() {
-            mp = map_luaid_scan(&fb.b_maphash, n);
+        if luaref.is_none() {
+            luaref = map_luaid_scan(&fb.b_maphash, n);
         }
-        if mp.is_none() {
-            mp = map_luaid_scan(std::slice::from_ref(&fb.b_first_abbr), n);
+        if luaref.is_none() {
+            luaref = map_luaid_scan(std::slice::from_ref(&fb.b_first_abbr), n);
         }
     }
-    mp.map_or(LUA_NOREF, |m| m.m_luaref)
+    luaref.unwrap_or(LUA_NOREF)
 }
 
 /// Put characters to represent the map mode in a string buffer.
@@ -714,7 +803,7 @@ fn map_add(
             if local {
                 buf.b_first_abbr.insert(0, mp);
             } else {
-                map_st().first_abbr.insert(0, mp);
+                MAP_TABLES.with(|cell| cell.borrow_mut().first_abbr.insert(0, mp));
             }
         } else {
             let n = map_hash(
@@ -724,7 +813,7 @@ fn map_add(
             if local {
                 (&mut buf.b_maphash)[n].insert(0, mp);
             } else {
-                map_st().maphash[n].insert(0, mp);
+                MAP_TABLES.with(|cell| cell.borrow_mut().maphash[n].insert(0, mp));
             }
         }
     }
@@ -846,51 +935,59 @@ fn buf_do_map(
 
             if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
                 let lhs_slice = &lhs_bytes[..(len as usize).min(lhs_bytes.len())];
-                for bucket in get_map_buckets(None, is_abbrev) {
-                    if g_st().got_int {
-                        break;
-                    }
-                    for mp in bucket {
+                let dup_found = with_map_buckets(None, is_abbrev, |buckets| {
+                    for bucket in buckets {
                         if g_st().got_int {
                             break;
                         }
-                        if (mp.m_mode & mode) != 0 && mp.m_keylen == len {
-                            let mp_slice = mp.m_keys.as_bytes();
-                            if mp_slice == lhs_slice {
-                                retval = 6;
-                                break 'outer;
+                        for mp in bucket {
+                            if g_st().got_int {
+                                break;
                             }
-                        }
-                    }
-                }
-            }
-
-            if !local && !has_rhs && maptype != MAPTYPE_UNMAP {
-                for bucket in get_map_buckets(Some(&*buf), is_abbrev) {
-                    if g_st().got_int {
-                        break;
-                    }
-                    for mp in bucket {
-                        if g_st().got_int {
-                            break;
-                        }
-                        if mp.m_simplified == 0 && (mp.m_mode & mode) != 0 {
-                            if !has_lhs {
-                                showmap(mp, true);
-                                did_local = true;
-                            } else {
-                                let n = mp.m_keylen;
-                                let cmp_len = n.min(len) as usize;
-                                let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
-                                let lhs_slice = &lhs_bytes[..cmp_len.min(lhs_bytes.len())];
+                            if (mp.m_mode & mode) != 0 && mp.m_keylen == len {
+                                let mp_slice = mp.m_keys.as_bytes();
                                 if mp_slice == lhs_slice {
-                                    showmap(mp, true);
-                                    did_local = true;
+                                    return true;
                                 }
                             }
                         }
                     }
+                    false
+                });
+                if dup_found {
+                    retval = 6;
+                    break 'outer;
                 }
+            }
+
+            if !local && !has_rhs && maptype != MAPTYPE_UNMAP {
+                with_map_buckets(Some(&*buf), is_abbrev, |buckets| {
+                    for bucket in buckets {
+                        if g_st().got_int {
+                            break;
+                        }
+                        for mp in bucket {
+                            if g_st().got_int {
+                                break;
+                            }
+                            if mp.m_simplified == 0 && (mp.m_mode & mode) != 0 {
+                                if !has_lhs {
+                                    showmap(mp, true);
+                                    did_local = true;
+                                } else {
+                                    let n = mp.m_keylen;
+                                    let cmp_len = n.min(len) as usize;
+                                    let mp_slice = &mp.m_keys.as_bytes()[..cmp_len];
+                                    let lhs_slice = &lhs_bytes[..cmp_len.min(lhs_bytes.len())];
+                                    if mp_slice == lhs_slice {
+                                        showmap(mp, true);
+                                        did_local = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             }
 
             let num_rounds = if maptype == MAPTYPE_UNMAP && !unmap_lhs_only {
@@ -898,126 +995,129 @@ fn buf_do_map(
             } else {
                 1
             };
-            for round in 0..num_rounds {
-                if did_it || g_st().got_int {
-                    break;
-                }
-                let (hash_start, hash_end) = if (round == 0 && has_lhs) || is_abbrev {
-                    let start = if is_abbrev {
-                        0
-                    } else {
-                        map_hash(mode, lhs_arr[0])
-                    };
-                    (start, start + 1)
-                } else {
-                    (0, 256)
-                };
-                for hash in hash_start..hash_end {
-                    if g_st().got_int {
+            let unique_conflict = with_map_tables_mut(buf, local, is_abbrev, |tables| {
+                for round in 0..num_rounds {
+                    if did_it || g_st().got_int {
                         break;
                     }
-                    let mut idx: usize = 0;
-                    while idx < map_bucket_mut(buf, local, is_abbrev, hash).len() && !g_st().got_int
-                    {
-                        let mpp = map_bucket_mut(buf, local, is_abbrev, hash);
-                        let mp: &mut Mapblock = &mut mpp[idx];
-                        if (mp.m_mode & mode) == 0 {
-                            idx += 1;
-                            continue;
-                        }
-                        if !has_lhs {
-                            if mp.m_simplified == 0 {
-                                showmap(mp, local);
-                                did_it = true;
-                            }
+                    let (hash_start, hash_end) = if (round == 0 && has_lhs) || is_abbrev {
+                        let start = if is_abbrev {
+                            0
                         } else {
-                            let (n, p_bytes) = if round != 0 {
-                                (mp.m_str.as_bytes().len() as i32, mp.m_str.as_bytes())
+                            map_hash(mode, lhs_arr[0])
+                        };
+                        (start, start + 1)
+                    } else {
+                        (0, 256)
+                    };
+                    for hash in hash_start..hash_end {
+                        if g_st().got_int {
+                            break;
+                        }
+                        let mut idx: usize = 0;
+                        while idx < tables[hash].len() && !g_st().got_int {
+                            let mp: &mut Mapblock = &mut tables[hash][idx];
+                            if (mp.m_mode & mode) == 0 {
+                                idx += 1;
+                                continue;
+                            }
+                            if !has_lhs {
+                                if mp.m_simplified == 0 {
+                                    showmap(mp, local);
+                                    did_it = true;
+                                }
                             } else {
-                                (mp.m_keylen, mp.m_keys.as_bytes())
-                            };
-                            let cmp_len = n.min(len) as usize;
-                            let p_slice = &p_bytes[..cmp_len.min(p_bytes.len())];
-                            let lhs_slice = &lhs_bytes[..cmp_len.min(lhs_bytes.len())];
-                            if p_slice == lhs_slice {
-                                if maptype == MAPTYPE_UNMAP {
-                                    if n != len
-                                        && (!is_abbrev
-                                            || round != 0
-                                            || n > len
-                                            || !crate::charset::skipwhite_slice(
-                                                &lhs_bytes[(n as usize).min(lhs_bytes.len())..],
-                                            )
-                                            .is_empty())
-                                    {
+                                let (n, p_bytes) = if round != 0 {
+                                    (mp.m_str.as_bytes().len() as i32, mp.m_str.as_bytes())
+                                } else {
+                                    (mp.m_keylen, mp.m_keys.as_bytes())
+                                };
+                                let cmp_len = n.min(len) as usize;
+                                let p_slice = &p_bytes[..cmp_len.min(p_bytes.len())];
+                                let lhs_slice = &lhs_bytes[..cmp_len.min(lhs_bytes.len())];
+                                if p_slice == lhs_slice {
+                                    if maptype == MAPTYPE_UNMAP {
+                                        if n != len
+                                            && (!is_abbrev
+                                                || round != 0
+                                                || n > len
+                                                || !crate::charset::skipwhite_slice(
+                                                    &lhs_bytes[(n as usize).min(lhs_bytes.len())..],
+                                                )
+                                                .is_empty())
+                                        {
+                                            idx += 1;
+                                            continue;
+                                        }
+                                        if keyround1_simplified && mp.m_simplified == 0 {
+                                            break;
+                                        }
+                                        mp.m_mode &= !mode;
+                                        did_it = true;
+                                    } else if !has_rhs {
+                                        if mp.m_simplified == 0 {
+                                            showmap(mp, local);
+                                            did_it = true;
+                                        }
+                                    } else if n != len {
                                         idx += 1;
                                         continue;
-                                    }
-                                    if keyround1_simplified && mp.m_simplified == 0 {
+                                    } else if keyround1_simplified && mp.m_simplified == 0 {
+                                        did_it = true;
                                         break;
+                                    } else if args.unique {
+                                        return true;
+                                    } else {
+                                        mp.m_mode &= !mode;
+                                        if mp.m_mode == 0 && !did_it {
+                                            mp.clear_alt_or_luaref();
+                                            mp.m_str = args.rhs.clone().unwrap_or_default();
+                                            mp.m_orig_str =
+                                                args.orig_rhs.clone().unwrap_or_default();
+                                            mp.m_luaref = args.rhs_lua;
+                                            mp.m_noremap = noremap;
+                                            mp.m_nowait = u8::from(args.nowait);
+                                            mp.m_silent = u8::from(args.silent);
+                                            mp.m_mode = mode;
+                                            mp.m_simplified = i32::from(keyround1_simplified);
+                                            mp.m_expr = u8::from(args.expr);
+                                            mp.m_replace_keycodes = args.replace_keycodes;
+                                            mp.m_script_ctx = g_st().current_sctx;
+                                            mp.m_script_ctx.sc_lnum += sourcing_lnum();
+                                            nlua_set_sctx(&mut mp.m_script_ctx);
+                                            mp.m_desc = args.desc.clone();
+                                            alt_link.keys[usize::from(keyround1_simplified)]
+                                                .set(Some(mp.m_keys.clone()));
+                                            mp.m_alt = Some(alt_link.clone());
+                                            created_any = true;
+                                            did_it = true;
+                                        }
                                     }
-                                    mp.m_mode &= !mode;
-                                    did_it = true;
-                                } else if !has_rhs {
-                                    if mp.m_simplified == 0 {
-                                        showmap(mp, local);
-                                        did_it = true;
+                                    if mp.m_mode == 0 {
+                                        tables[hash].remove(idx);
+                                        continue;
                                     }
-                                } else if n != len {
-                                    idx += 1;
-                                    continue;
-                                } else if keyround1_simplified && mp.m_simplified == 0 {
-                                    did_it = true;
-                                    break;
-                                } else if args.unique {
-                                    retval = 5;
-                                    break 'outer;
-                                } else {
-                                    mp.m_mode &= !mode;
-                                    if mp.m_mode == 0 && !did_it {
-                                        mp.clear_alt_or_luaref();
-                                        mp.m_str = args.rhs.clone().unwrap_or_default();
-                                        mp.m_orig_str = args.orig_rhs.clone().unwrap_or_default();
-                                        mp.m_luaref = args.rhs_lua;
-                                        mp.m_noremap = noremap;
-                                        mp.m_nowait = u8::from(args.nowait);
-                                        mp.m_silent = u8::from(args.silent);
-                                        mp.m_mode = mode;
-                                        mp.m_simplified = i32::from(keyround1_simplified);
-                                        mp.m_expr = u8::from(args.expr);
-                                        mp.m_replace_keycodes = args.replace_keycodes;
-                                        mp.m_script_ctx = g_st().current_sctx;
-                                        mp.m_script_ctx.sc_lnum += sourcing_lnum();
-                                        nlua_set_sctx(&mut mp.m_script_ctx);
-                                        mp.m_desc = args.desc.clone();
-                                        alt_link.keys[usize::from(keyround1_simplified)]
-                                            .set(Some(mp.m_keys.clone()));
-                                        mp.m_alt = Some(alt_link.clone());
-                                        created_any = true;
-                                        did_it = true;
-                                    }
-                                }
-                                if mp.m_mode == 0 {
-                                    map_bucket_mut(buf, local, is_abbrev, hash).remove(idx);
-                                    continue;
-                                }
 
-                                let new_hash = map_hash(
-                                    mp.m_mode,
-                                    mp.m_keys.to_bytes().first().copied().unwrap_or(0),
-                                );
-                                if !is_abbrev && new_hash != hash {
-                                    let moved =
-                                        map_bucket_mut(buf, local, is_abbrev, hash).remove(idx);
-                                    map_bucket_mut(buf, local, is_abbrev, new_hash)
-                                        .insert(0, moved);
-                                    continue;
+                                    let new_hash = map_hash(
+                                        mp.m_mode,
+                                        mp.m_keys.to_bytes().first().copied().unwrap_or(0),
+                                    );
+                                    if !is_abbrev && new_hash != hash {
+                                        let moved = tables[hash].remove(idx);
+                                        tables[new_hash].insert(0, moved);
+                                        continue;
+                                    }
                                 }
                             }
+                            idx += 1;
                         }
-                        idx += 1;
                     }
                 }
+                false
+            });
+            if unique_conflict {
+                retval = 5;
+                break 'outer;
             }
 
             if maptype == MAPTYPE_UNMAP {
@@ -1149,33 +1249,31 @@ fn do_mapclear(cmdp: &CStr, arg: &CStr, forceit: bool, abbr: bool) {
 
 /// Clear all mappings in "mode".
 pub fn map_clear_mode(buf: &mut FileBuf, mode: i32, local: bool, abbr: bool) {
-    for hash in 0..256 {
-        if abbr && hash > 0 {
-            break;
-        }
-        let mut idx: usize = 0;
-        while idx < map_bucket_mut(buf, local, abbr, hash).len() {
-            let mpp = map_bucket_mut(buf, local, abbr, hash);
-            let mp: &mut Mapblock = &mut mpp[idx];
-            if (mp.m_mode & mode) != 0 {
-                mp.m_mode &= !mode;
-                if mp.m_mode == 0 {
-                    mpp.remove(idx);
-                    continue;
+    with_map_tables_mut(buf, local, abbr, |tables| {
+        for hash in 0..tables.len() {
+            let mut idx: usize = 0;
+            while idx < tables[hash].len() {
+                let mp: &mut Mapblock = &mut tables[hash][idx];
+                if (mp.m_mode & mode) != 0 {
+                    mp.m_mode &= !mode;
+                    if mp.m_mode == 0 {
+                        tables[hash].remove(idx);
+                        continue;
+                    }
+                    let new_hash = map_hash(
+                        mp.m_mode,
+                        mp.m_keys.to_bytes().first().copied().unwrap_or(0),
+                    );
+                    if !abbr && new_hash != hash {
+                        let moved = tables[hash].remove(idx);
+                        tables[new_hash].insert(0, moved);
+                        continue;
+                    }
                 }
-                let new_hash = map_hash(
-                    mp.m_mode,
-                    mp.m_keys.to_bytes().first().copied().unwrap_or(0),
-                );
-                if !abbr && new_hash != hash {
-                    let moved = mpp.remove(idx);
-                    map_bucket_mut(buf, local, abbr, new_hash).insert(0, moved);
-                    continue;
-                }
+                idx += 1;
             }
-            idx += 1;
         }
-    }
+    });
 }
 
 /// Check if a map exists that has given string in the rhs.
@@ -1229,15 +1327,21 @@ pub fn map_to_exists_mode(rhs: &CStr, mode: i32, abbr: bool) -> bool {
         } else {
             None
         };
-        for bucket in get_map_buckets(b, abbr) {
-            for mp in bucket {
-                if (mp.m_mode & mode) != 0
-                    && (rhs_b.is_empty()
-                        || mp.m_str.as_bytes().windows(rhs_b.len()).any(|w| w == rhs_b))
-                {
-                    return true;
+        let found = with_map_buckets(b, abbr, |buckets| {
+            for bucket in buckets {
+                for mp in bucket {
+                    if (mp.m_mode & mode) != 0
+                        && (rhs_b.is_empty()
+                            || mp.m_str.as_bytes().windows(rhs_b.len()).any(|w| w == rhs_b))
+                    {
+                        return true;
+                    }
                 }
             }
+            false
+        });
+        if found {
+            return true;
         }
     }
 
@@ -1415,38 +1519,42 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
     } else {
         None
     };
-    for bucket in get_map_buckets(exp_buf, map_st().expand_isabbrev) {
-        for mp in bucket {
-            if mp.m_simplified != 0 || (mp.m_mode & map_st().expand_mapmodes) == 0 {
-                continue;
-            }
+    let is_abbrev = map_st().expand_isabbrev;
+    let mapmodes = map_st().expand_mapmodes;
+    with_map_buckets(exp_buf, is_abbrev, |buckets| {
+        for bucket in buckets {
+            for mp in bucket {
+                if mp.m_simplified != 0 || (mp.m_mode & mapmodes) == 0 {
+                    continue;
+                }
 
-            let p_cstr = translate_mapping(mp.m_keys.as_bytes(), opt_vars().p_cpo.as_cstr());
+                let p_cstr = translate_mapping(mp.m_keys.as_bytes(), opt_vars().p_cpo.as_cstr());
 
-            let mut score: i32 = 0;
-            let match_found = if !fuzzy {
-                vim_regexec(regmatch, &p_cstr, 0)
-            } else {
-                score = fuzzy_match_str(Some(p_cstr.to_bytes()), Some(pat.to_bytes()));
-                score != FUZZY_SCORE_NONE
-            };
+                let mut score: i32 = 0;
+                let match_found = if !fuzzy {
+                    vim_regexec(regmatch, &p_cstr, 0)
+                } else {
+                    score = fuzzy_match_str(Some(p_cstr.to_bytes()), Some(pat.to_bytes()));
+                    score != FUZZY_SCORE_NONE
+                };
 
-            if !match_found {
-                continue;
-            }
+                if !match_found {
+                    continue;
+                }
 
-            if fuzzy {
-                let idx = fuz_matches.len() as i32;
-                fuz_matches.push(FuzmatchStr {
-                    idx,
-                    str_cstr: p_cstr,
-                    score,
-                });
-            } else {
-                str_matches.push(p_cstr);
+                if fuzzy {
+                    let idx = fuz_matches.len() as i32;
+                    fuz_matches.push(FuzmatchStr {
+                        idx,
+                        str_cstr: p_cstr,
+                        score,
+                    });
+                } else {
+                    str_matches.push(p_cstr);
+                }
             }
         }
-    }
+    });
 
     if if fuzzy {
         fuz_matches.is_empty()
@@ -1532,29 +1640,31 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
     if scol < col {
         let scol_u = (scol.max(0) as usize).min(line_bytes.len());
         let mut len = col - scol;
-        let mut mp_opt: Option<&Mapblock> = None;
-        let first_abbr_slice = map_st().borrow_mut().first_abbr.as_slice();
-        for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
-            let mut qlen = cand.m_keylen;
-            let mut q_vec: Vec<u8>;
-            let mut q_bytes = cand.m_keys.as_bytes_with_nul();
+        let mp_opt: Option<MatchedMap> = MAP_TABLES.with(|cell| {
+            let tables = cell.borrow();
+            let first_abbr_slice = tables.first_abbr.as_slice();
+            for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
+                let mut qlen = cand.m_keylen;
+                let mut q_vec: Vec<u8>;
+                let mut q_bytes = cand.m_keys.as_bytes_with_nul();
 
-            if cand.m_keys.as_bytes().contains(&K_SPECIAL) {
-                q_vec = cand.m_keys.as_bytes_with_nul().to_vec();
-                qlen = vim_unescape_ks(&mut q_vec) as i32;
-                q_bytes = &q_vec;
+                if cand.m_keys.as_bytes().contains(&K_SPECIAL) {
+                    q_vec = cand.m_keys.as_bytes_with_nul().to_vec();
+                    qlen = vim_unescape_ks(&mut q_vec) as i32;
+                    q_bytes = &q_vec;
+                }
+                let len_u = len as usize;
+                let abbr_slice = &line_bytes[scol_u..(scol_u + len_u).min(line_bytes.len())];
+                let match_found = (cand.m_mode & g_st().state_global) != 0
+                    && qlen == len
+                    && &q_bytes[..len_u.min(q_bytes.len())] == abbr_slice;
+                if match_found {
+                    return Some(cand.to_matched());
+                }
             }
-            let len_u = len as usize;
-            let abbr_slice = &line_bytes[scol_u..(scol_u + len_u).min(line_bytes.len())];
-            let match_found = (cand.m_mode & g_st().state_global) != 0
-                && qlen == len
-                && &q_bytes[..len_u.min(q_bytes.len())] == abbr_slice;
-            if match_found {
-                mp_opt = Some(cand);
-                break;
-            }
-        }
-        if let Some(mp) = mp_opt {
+            None
+        });
+        if let Some(ref mp) = mp_opt {
             let mut j: usize = 0;
             if c != CTRL_RSB_CONST {
                 if is_special(c) || c == K_SPECIAL as i32 {
@@ -1620,7 +1730,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
 
 /// Evaluate the RHS of a mapping or abbreviations and take care of escaping
 /// special characters.
-pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
+pub fn eval_map_expr(mp: &MatchedMap, c: i32) -> Option<CString> {
     let mut p: Option<CString> = None;
     let mut expr_bytes: Vec<u8> = Vec::new();
     let luaref = mp.m_luaref;
@@ -1681,159 +1791,168 @@ pub fn makemap(fd: &CFile, buf: Option<&FileBuf>) -> bool {
     let mut did_cpo = false;
 
     for abbr in 0..2 {
-        for bucket in get_map_buckets(buf, abbr != 0) {
-            for mp in bucket {
-                if mp.m_simplified != 0 || mp.m_noremap == REMAP_SCRIPT || mp.m_luaref != LUA_NOREF
-                {
-                    continue;
-                }
+        let ok = with_map_buckets(buf, abbr != 0, |buckets| {
+            for bucket in buckets {
+                for mp in bucket {
+                    if mp.m_simplified != 0
+                        || mp.m_noremap == REMAP_SCRIPT
+                        || mp.m_luaref != LUA_NOREF
+                    {
+                        continue;
+                    }
 
-                if mp
-                    .m_str
-                    .as_bytes()
-                    .windows(3)
-                    .any(|w| w == [K_SPECIAL, KS_EXTRA, KE_SNR])
-                {
-                    continue;
-                }
+                    if mp
+                        .m_str
+                        .as_bytes()
+                        .windows(3)
+                        .any(|w| w == [K_SPECIAL, KS_EXTRA, KE_SNR])
+                    {
+                        continue;
+                    }
 
-                let mut c1: u8 = 0;
-                let mut c2: u8 = 0;
-                let mut c3: u8 = 0;
-                let mut cmd: &CStr = if abbr != 0 { c"abbr" } else { c"map" };
+                    let mut c1: u8 = 0;
+                    let mut c2: u8 = 0;
+                    let mut c3: u8 = 0;
+                    let mut cmd: &CStr = if abbr != 0 { c"abbr" } else { c"map" };
 
-                const MODE_NVSO: i32 = MODE_NORMAL | MODE_VISUAL | MODE_SELECT | MODE_OP_PENDING;
-                const MODE_NV: i32 = MODE_NORMAL | MODE_VISUAL;
-                const MODE_NS: i32 = MODE_NORMAL | MODE_SELECT;
-                const MODE_NO: i32 = MODE_NORMAL | MODE_OP_PENDING;
-                const MODE_VS: i32 = MODE_VISUAL | MODE_SELECT;
-                const MODE_VO: i32 = MODE_VISUAL | MODE_OP_PENDING;
-                const MODE_SO: i32 = MODE_SELECT | MODE_OP_PENDING;
-                const MODE_NVS: i32 = MODE_NORMAL | MODE_VISUAL | MODE_SELECT;
-                const MODE_NVO: i32 = MODE_NORMAL | MODE_VISUAL | MODE_OP_PENDING;
-                const MODE_NSO: i32 = MODE_NORMAL | MODE_SELECT | MODE_OP_PENDING;
-                const MODE_VSO: i32 = MODE_VISUAL | MODE_SELECT | MODE_OP_PENDING;
-                const MODE_CI: i32 = MODE_CMDLINE | MODE_INSERT;
+                    const MODE_NVSO: i32 =
+                        MODE_NORMAL | MODE_VISUAL | MODE_SELECT | MODE_OP_PENDING;
+                    const MODE_NV: i32 = MODE_NORMAL | MODE_VISUAL;
+                    const MODE_NS: i32 = MODE_NORMAL | MODE_SELECT;
+                    const MODE_NO: i32 = MODE_NORMAL | MODE_OP_PENDING;
+                    const MODE_VS: i32 = MODE_VISUAL | MODE_SELECT;
+                    const MODE_VO: i32 = MODE_VISUAL | MODE_OP_PENDING;
+                    const MODE_SO: i32 = MODE_SELECT | MODE_OP_PENDING;
+                    const MODE_NVS: i32 = MODE_NORMAL | MODE_VISUAL | MODE_SELECT;
+                    const MODE_NVO: i32 = MODE_NORMAL | MODE_VISUAL | MODE_OP_PENDING;
+                    const MODE_NSO: i32 = MODE_NORMAL | MODE_SELECT | MODE_OP_PENDING;
+                    const MODE_VSO: i32 = MODE_VISUAL | MODE_SELECT | MODE_OP_PENDING;
+                    const MODE_CI: i32 = MODE_CMDLINE | MODE_INSERT;
 
-                match mp.m_mode {
-                    MODE_NVSO => {}
-                    MODE_NORMAL => c1 = b'n',
-                    MODE_VISUAL => c1 = b'x',
-                    MODE_SELECT => c1 = b's',
-                    MODE_OP_PENDING => c1 = b'o',
-                    MODE_NV => {
-                        c1 = b'n';
-                        c2 = b'x';
-                    }
-                    MODE_NS => {
-                        c1 = b'n';
-                        c2 = b's';
-                    }
-                    MODE_NO => {
-                        c1 = b'n';
-                        c2 = b'o';
-                    }
-                    MODE_VS => c1 = b'v',
-                    MODE_VO => {
-                        c1 = b'x';
-                        c2 = b'o';
-                    }
-                    MODE_SO => {
-                        c1 = b's';
-                        c2 = b'o';
-                    }
-                    MODE_NVS => {
-                        c1 = b'n';
-                        c2 = b'v';
-                    }
-                    MODE_NVO => {
-                        c1 = b'n';
-                        c2 = b'x';
-                        c3 = b'o';
-                    }
-                    MODE_NSO => {
-                        c1 = b'n';
-                        c2 = b's';
-                        c3 = b'o';
-                    }
-                    MODE_VSO => {
-                        c1 = b'v';
-                        c2 = b'o';
-                    }
-                    MODE_CI => {
-                        if abbr == 0 {
-                            cmd = c"map!";
+                    match mp.m_mode {
+                        MODE_NVSO => {}
+                        MODE_NORMAL => c1 = b'n',
+                        MODE_VISUAL => c1 = b'x',
+                        MODE_SELECT => c1 = b's',
+                        MODE_OP_PENDING => c1 = b'o',
+                        MODE_NV => {
+                            c1 = b'n';
+                            c2 = b'x';
                         }
-                    }
-                    MODE_CMDLINE => c1 = b'c',
-                    MODE_INSERT => c1 = b'i',
-                    MODE_LANGMAP => c1 = b'l',
-                    MODE_TERMINAL => c1 = b't',
-                    _ => {
-                        iemsg(gettext(c"E228: makemap: Illegal mode"));
-                        return false;
-                    }
-                }
-
-                loop {
-                    if !did_cpo {
-                        if mp.m_str.as_bytes().is_empty() {
-                            did_cpo = true;
-                        } else {
-                            let specials = [K_SPECIAL, NL as u8];
-                            if mp.m_str.as_bytes().iter().any(|b| specials.contains(b))
-                                || mp.m_keys.as_bytes().iter().any(|b| specials.contains(b))
-                            {
-                                did_cpo = true;
+                        MODE_NS => {
+                            c1 = b'n';
+                            c2 = b's';
+                        }
+                        MODE_NO => {
+                            c1 = b'n';
+                            c2 = b'o';
+                        }
+                        MODE_VS => c1 = b'v',
+                        MODE_VO => {
+                            c1 = b'x';
+                            c2 = b'o';
+                        }
+                        MODE_SO => {
+                            c1 = b's';
+                            c2 = b'o';
+                        }
+                        MODE_NVS => {
+                            c1 = b'n';
+                            c2 = b'v';
+                        }
+                        MODE_NVO => {
+                            c1 = b'n';
+                            c2 = b'x';
+                            c3 = b'o';
+                        }
+                        MODE_NSO => {
+                            c1 = b'n';
+                            c2 = b's';
+                            c3 = b'o';
+                        }
+                        MODE_VSO => {
+                            c1 = b'v';
+                            c2 = b'o';
+                        }
+                        MODE_CI => {
+                            if abbr == 0 {
+                                cmd = c"map!";
                             }
                         }
-                        if did_cpo
-                            && (fd.puts(c"let s:cpo_save=&cpo") < 0
-                                || !put_eol(fd)
-                                || fd.puts(c"set cpo&vim") < 0
-                                || !put_eol(fd))
-                        {
+                        MODE_CMDLINE => c1 = b'c',
+                        MODE_INSERT => c1 = b'i',
+                        MODE_LANGMAP => c1 = b'l',
+                        MODE_TERMINAL => c1 = b't',
+                        _ => {
+                            iemsg(gettext(c"E228: makemap: Illegal mode"));
                             return false;
                         }
                     }
-                    if c1 != 0 && fd.putc(c1 as i32) < 0 {
-                        return false;
-                    }
-                    if mp.m_noremap != REMAP_YES && fd.puts(c"nore") < 0 {
-                        return false;
-                    }
-                    if fd.puts(cmd) < 0 {
-                        return false;
-                    }
-                    if buf.is_some() && fd.puts(c" <buffer>") < 0 {
-                        return false;
-                    }
-                    if mp.m_nowait != 0 && fd.puts(c" <nowait>") < 0 {
-                        return false;
-                    }
-                    if mp.m_silent != 0 && fd.puts(c" <silent>") < 0 {
-                        return false;
-                    }
-                    if mp.m_expr != 0 && fd.puts(c" <expr>") < 0 {
-                        return false;
-                    }
 
-                    if fd.putc(b' ' as i32) < 0
-                        || !put_escstr(fd, mp.m_keys.as_c_str(), 0)
-                        || fd.putc(b' ' as i32) < 0
-                        || !put_escstr(fd, mp.m_str.as_c_str(), 1)
-                        || !put_eol(fd)
-                    {
-                        return false;
-                    }
-                    c1 = c2;
-                    c2 = c3;
-                    c3 = 0;
-                    if c1 == 0 {
-                        break;
+                    loop {
+                        if !did_cpo {
+                            if mp.m_str.as_bytes().is_empty() {
+                                did_cpo = true;
+                            } else {
+                                let specials = [K_SPECIAL, NL as u8];
+                                if mp.m_str.as_bytes().iter().any(|b| specials.contains(b))
+                                    || mp.m_keys.as_bytes().iter().any(|b| specials.contains(b))
+                                {
+                                    did_cpo = true;
+                                }
+                            }
+                            if did_cpo
+                                && (fd.puts(c"let s:cpo_save=&cpo") < 0
+                                    || !put_eol(fd)
+                                    || fd.puts(c"set cpo&vim") < 0
+                                    || !put_eol(fd))
+                            {
+                                return false;
+                            }
+                        }
+                        if c1 != 0 && fd.putc(c1 as i32) < 0 {
+                            return false;
+                        }
+                        if mp.m_noremap != REMAP_YES && fd.puts(c"nore") < 0 {
+                            return false;
+                        }
+                        if fd.puts(cmd) < 0 {
+                            return false;
+                        }
+                        if buf.is_some() && fd.puts(c" <buffer>") < 0 {
+                            return false;
+                        }
+                        if mp.m_nowait != 0 && fd.puts(c" <nowait>") < 0 {
+                            return false;
+                        }
+                        if mp.m_silent != 0 && fd.puts(c" <silent>") < 0 {
+                            return false;
+                        }
+                        if mp.m_expr != 0 && fd.puts(c" <expr>") < 0 {
+                            return false;
+                        }
+
+                        if fd.putc(b' ' as i32) < 0
+                            || !put_escstr(fd, mp.m_keys.as_c_str(), 0)
+                            || fd.putc(b' ' as i32) < 0
+                            || !put_escstr(fd, mp.m_str.as_c_str(), 1)
+                            || !put_eol(fd)
+                        {
+                            return false;
+                        }
+                        c1 = c2;
+                        c2 = c3;
+                        c3 = 0;
+                        if c1 == 0 {
+                            break;
+                        }
                     }
                 }
             }
+            true
+        });
+        if !ok {
+            return false;
         }
     }
     if did_cpo
@@ -1939,6 +2058,14 @@ pub fn put_escstr(fd: &CFile, strstart: &CStr, what: i32) -> bool {
     true
 }
 
+#[derive(Clone, Copy)]
+pub struct MapLoc {
+    pub local: bool,
+    pub abbr: bool,
+    pub bucket: usize,
+    pub idx: usize,
+}
+
 /// Check the string "keys" against the lhs of all mappings.
 pub fn check_map(
     keys: &CStr,
@@ -1946,10 +2073,10 @@ pub fn check_map(
     exact: i32,
     ign_mod: i32,
     abbr: i32,
-    mut mp_out: Option<&mut Option<&'static Mapblock>>,
+    mut mp_out: Option<&mut Option<MapLoc>>,
     local_ptr: &mut i32,
     rhs_lua: &mut i32,
-) -> Option<&'static CStr> {
+) -> Option<CString> {
     let keys_bytes = keys.to_bytes();
     let len = keys_bytes.len() as i32;
     *rhs_lua = LUA_NOREF;
@@ -1960,35 +2087,42 @@ pub fn check_map(
         } else {
             None
         };
-        for bucket in get_map_buckets(b, abbr != 0) {
-            for mp in bucket {
-                if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
-                    let mp: &'static Mapblock =
-                        crate::globals::GraphPtr::of(std::ptr::from_ref(mp)).borrow();
-                    let mut s_bytes = mp.m_keys.as_bytes_with_nul();
-                    let mut keylen = mp.m_keylen;
-                    if ign_mod != 0 && keylen >= 3 && s_bytes.starts_with(&[K_SPECIAL, KS_MODIFIER])
-                    {
-                        s_bytes = &s_bytes[3..];
-                        keylen -= 3;
-                    }
-                    let minlen = keylen.min(len).max(0) as usize;
-                    if s_bytes[..minlen.min(s_bytes.len())] == keys_bytes[..minlen] {
-                        if let Some(ref mut out) = mp_out {
-                            **out = Some(mp);
-                        }
+        let found = with_map_buckets(b, abbr != 0, |buckets| {
+            for (b_idx, bucket) in buckets.iter().enumerate() {
+                for (i_idx, mp) in bucket.iter().enumerate() {
+                    if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
+                        let mut s_bytes = mp.m_keys.as_bytes_with_nul();
+                        let mut keylen = mp.m_keylen;
+                        if ign_mod != 0
+                            && keylen >= 3
+                            && s_bytes.starts_with(&[K_SPECIAL, KS_MODIFIER])
                         {
-                            *local_ptr = local;
+                            s_bytes = &s_bytes[3..];
+                            keylen -= 3;
                         }
-                        *rhs_lua = mp.m_luaref;
-                        return if mp.m_luaref == LUA_NOREF {
-                            Some(mp.m_str.as_c_str())
-                        } else {
-                            None
-                        };
+                        let minlen = keylen.min(len).max(0) as usize;
+                        if s_bytes[..minlen.min(s_bytes.len())] == keys_bytes[..minlen] {
+                            let loc = MapLoc {
+                                local: local != 0,
+                                abbr: abbr != 0,
+                                bucket: b_idx,
+                                idx: i_idx,
+                            };
+                            let rhs = (mp.m_luaref == LUA_NOREF).then(|| mp.m_str.clone());
+                            return Some((loc, mp.m_luaref, rhs));
+                        }
                     }
                 }
             }
+            None
+        });
+        if let Some((loc, luaref, rhs)) = found {
+            if let Some(ref mut out) = mp_out {
+                **out = Some(loc);
+            }
+            *local_ptr = local;
+            *rhs_lua = luaref;
+            return rhs;
         }
     }
 
@@ -2045,20 +2179,26 @@ fn mapblock_fill_dict(
             c"callback",
             luaref_obj(api_new_luaref(mp.m_luaref)),
         );
+    } else if compatible {
+        put_c(
+            &mut dict,
+            c"rhs",
+            cstr_to_arena_obj(arena, Some(mp.m_orig_str.as_c_str())),
+        );
     } else {
-        let rhs_cstr = if compatible {
-            mp.m_orig_str.as_c_str()
-        } else {
-            str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)
-        };
+        let rhs_cstr = str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena);
         let rhs = cstr_as_string(Some(rhs_cstr));
         put_c(&mut dict, c"rhs", string_obj(rhs));
     }
     if let Some(ref desc) = mp.m_desc {
-        put_c(&mut dict, c"desc", cstr_as_obj(Some(desc)));
+        put_c(&mut dict, c"desc", cstr_to_arena_obj(arena, Some(desc)));
     }
     put_c(&mut dict, c"lhs", cstr_as_obj(Some(lhs)));
-    put_c(&mut dict, c"lhsraw", cstr_as_obj(Some(&*mp.m_keys)));
+    put_c(
+        &mut dict,
+        c"lhsraw",
+        cstr_to_arena_obj(arena, Some(&*mp.m_keys)),
+    );
     if let Some(lhsrawalt) = lhsrawalt {
         let alt_s = crate::api::private::helpers::arena_bytes(arena, lhsrawalt.to_bytes());
         put_c(&mut dict, c"lhsrawalt", string_obj(alt_s));
@@ -2159,7 +2299,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
         cpo_bytes,
     )
     .unwrap_or_default();
-    let mut mp_opt: Option<&'static Mapblock> = None;
+    let mut mp_opt: Option<MapLoc> = None;
     let mut buffer_local: i32 = 0;
     let mut rhs_lua: LuaRef = LUA_NOREF;
     let mut rhs = check_map(
@@ -2203,24 +2343,26 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
                 let special = str2special_save(rhs.to_bytes(), false, K_FALSE);
                 crate::eval::typval::tv_set_string(&mut *rettv, Some(special.as_c_str()));
             }
-        } else if rhs_lua != LUA_NOREF
-            && let Some(mp) = mp_opt
-        {
-            let s = nlua_funcref_str(mp.m_luaref, true);
+        } else if rhs_lua != LUA_NOREF && mp_opt.is_some() {
+            let s = nlua_funcref_str(rhs_lua, true);
             crate::eval::typval::tv_set_string_len(&mut *rettv, Some(s.as_bytes()));
         }
-    } else if let Some(mp) = mp_opt
+    } else if let Some(loc) = mp_opt
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
     {
         let mut arena = Arena::new();
-        let dict = mapblock_fill_dict(
-            mp,
-            did_simplify.then_some(keys_simplified.as_c_str()),
-            buffer_local,
-            abbr,
-            true,
-            &mut arena,
-        );
+        let b = if loc.local { g_st().curbuf.opt() } else { None };
+        let dict = with_map_buckets(b, loc.abbr, |buckets| {
+            let mp = &buckets[loc.bucket][loc.idx];
+            mapblock_fill_dict(
+                mp,
+                did_simplify.then_some(keys_simplified.as_c_str()),
+                buffer_local,
+                abbr,
+                true,
+                &mut arena,
+            )
+        });
         let mut dobj = dict_obj(dict);
         object_to_vim_take_luaref(
             &mut dobj,
@@ -2426,51 +2568,53 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         } else {
             None
         };
-        for bucket in get_map_buckets(b, abbr) {
-            for mp in bucket {
-                if mp.m_simplified != 0 {
-                    continue;
+        with_map_buckets(b, abbr, |buckets| {
+            for bucket in buckets {
+                for mp in bucket {
+                    if mp.m_simplified != 0 {
+                        continue;
+                    }
+
+                    let mut did_simplify = false;
+
+                    let mut arena = Arena::new();
+                    let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
+                    let keys_buf = replace_termcodes(
+                        lhs.to_bytes(),
+                        false,
+                        0,
+                        flags,
+                        Some(&mut did_simplify),
+                        opt_vars().p_cpo.as_bytes(),
+                    )
+                    .unwrap_or_default();
+
+                    let dict = mapblock_fill_dict(
+                        mp,
+                        did_simplify.then_some(keys_buf.as_c_str()),
+                        buffer_local,
+                        abbr,
+                        true,
+                        &mut arena,
+                    );
+                    let mut d = TypVal {
+                        v_type: VarType::VarUnknown,
+                        v_lock: VAR_UNLOCKED,
+                        vval: TypvalVval::Number(0),
+                    };
+                    let mut dobj = dict_obj(dict);
+                    object_to_vim_take_luaref(
+                        &mut dobj,
+                        &mut d,
+                        true,
+                        &mut crate::api::private::validate::Error::new(),
+                    );
+                    debug_assert!(d.v_type == VarType::VarDict);
+                    tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict_opt());
+                    arena_mem_free(arena_finish(&mut arena));
                 }
-
-                let mut did_simplify = false;
-
-                let mut arena = Arena::new();
-                let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
-                let keys_buf = replace_termcodes(
-                    lhs.to_bytes(),
-                    false,
-                    0,
-                    flags,
-                    Some(&mut did_simplify),
-                    opt_vars().p_cpo.as_bytes(),
-                )
-                .unwrap_or_default();
-
-                let dict = mapblock_fill_dict(
-                    mp,
-                    did_simplify.then_some(keys_buf.as_c_str()),
-                    buffer_local,
-                    abbr,
-                    true,
-                    &mut arena,
-                );
-                let mut d = TypVal {
-                    v_type: VarType::VarUnknown,
-                    v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(0),
-                };
-                let mut dobj = dict_obj(dict);
-                object_to_vim_take_luaref(
-                    &mut dobj,
-                    &mut d,
-                    true,
-                    &mut crate::api::private::validate::Error::new(),
-                );
-                debug_assert!(d.v_type == VarType::VarDict);
-                tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict_opt());
-                arena_mem_free(arena_finish(&mut arena));
             }
-        }
+        });
     }
 }
 
@@ -2500,26 +2644,30 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: i32, buffer: bo
 }
 
 fn langmap_set_entry(from: i32, to: i32) {
-    let entries = &mut map_st().langmap_mapga;
-    match entries.binary_search_by_key(&from, |e| e.from) {
-        Ok(idx) => entries[idx].to = to,
-        Err(idx) => entries.insert(idx, LangmapEntry { from, to }),
-    }
+    LANGMAP_MAPGA.with(|cell| {
+        let mut entries = cell.borrow_mut();
+        match entries.binary_search_by_key(&from, |e| e.from) {
+            Ok(idx) => entries[idx].to = to,
+            Err(idx) => entries.insert(idx, LangmapEntry { from, to }),
+        }
+    });
 }
 
 /// Apply 'langmap' to multi-byte character "c" and return the result.
 pub fn langmap_adjust_mb(c: i32) -> i32 {
-    let entries = map_st().borrow_mut().langmap_mapga.as_slice();
-    entries
-        .binary_search_by_key(&c, |e| e.from)
-        .map_or(c, |idx| entries[idx].to)
+    LANGMAP_MAPGA.with(|cell| {
+        let entries = cell.borrow();
+        entries
+            .binary_search_by_key(&c, |e| e.from)
+            .map_or(c, |idx| entries[idx].to)
+    })
 }
 
 pub fn langmap_init() {
     for (i, slot) in g_st().langmap_mapchar.iter_mut().enumerate() {
         *slot = i as u8;
     }
-    map_st().langmap_mapga = Vec::new();
+    LANGMAP_MAPGA.with(|cell| cell.borrow_mut().clear());
 }
 
 /// Called when langmap option is set; the language map can be
@@ -2911,21 +3059,23 @@ pub fn keymap_array(mode: NvimString, buf: Option<&FileBuf>, arena: &mut Arena) 
 
     let buffer_value = buf.map_or(0, |b| b.b_fnum);
 
-    for bucket in get_map_buckets(buf, is_abbrev) {
-        for current_maphash in bucket {
-            if current_maphash.m_simplified == 0 && (int_mode & current_maphash.m_mode) != 0 {
-                let alt_cstr = current_maphash.alt_keys();
-                mappings.push(dict_obj(mapblock_fill_dict(
-                    current_maphash,
-                    alt_cstr.as_deref(),
-                    buffer_value,
-                    is_abbrev,
-                    false,
-                    arena,
-                )));
+    with_map_buckets(buf, is_abbrev, |buckets| {
+        for bucket in buckets {
+            for current_maphash in bucket {
+                if current_maphash.m_simplified == 0 && (int_mode & current_maphash.m_mode) != 0 {
+                    let alt_cstr = current_maphash.alt_keys();
+                    mappings.push(dict_obj(mapblock_fill_dict(
+                        current_maphash,
+                        alt_cstr.as_deref(),
+                        buffer_value,
+                        is_abbrev,
+                        false,
+                        arena,
+                    )));
+                }
             }
         }
-    }
+    });
 
     arena_take_arraybuilder(arena, &mut mappings)
 }
