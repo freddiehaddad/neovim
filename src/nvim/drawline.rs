@@ -177,7 +177,7 @@ struct Winlinevars<'a> {
     virt_below_skip: i32,
     filler_lines_skip: i32,
     sattrs: [SignTextAttrs; SIGN_SHOW_MAX],
-    virt_inline: &'a [VirtTextChunk],
+    virt_inline: Vec<VirtTextChunk>,
     virt_inline_i: usize,
     virt_inline_hl_mode: HlMode,
     reset_extra_attr: bool,
@@ -386,7 +386,6 @@ fn draw_virt_text(
             continue;
         }
 
-        let mut vt_opt = item.data.vt_opt();
         if decor_virt_pos(&*item) && item.draw_col == -1 {
             let mut updated = true;
             let pos = decor_virt_pos_kind(&*item);
@@ -407,9 +406,9 @@ fn draw_virt_text(
                         }
 
                         if decor_virt_pos_kind(lookahead_item) == K_VPOS_END_OF_LINE_RIGHT_ALIGN
-                            && let Some(lookahead_vt) = lookahead_item.data.vt_opt()
+                            && let Some(w) = lookahead_item.data.with_vt(|vt| vt.width)
                         {
-                            total_width_of_eol_right_aligned_virt_text += lookahead_vt.width + 1;
+                            total_width_of_eol_right_aligned_virt_text += w + 1;
                         }
                     }
 
@@ -426,12 +425,12 @@ fn draw_virt_text(
 
                 item.draw_col = g_st().decor_state.eol_col + eol_offset;
             } else if pos == K_VPOS_RIGHT_ALIGN {
-                right_pos -= vt_opt.as_ref().unwrap().width;
+                right_pos -= item.data.with_vt(|vt| vt.width).unwrap();
                 item.draw_col = right_pos;
             } else if pos == K_VPOS_END_OF_LINE && do_eol {
                 item.draw_col = g_st().decor_state.eol_col;
             } else if pos == K_VPOS_WIN_COL {
-                item.draw_col = (col_off + vt_opt.as_ref().unwrap().col).max(0);
+                item.draw_col = (col_off + item.data.with_vt(|vt| vt.col).unwrap()).max(0);
             } else {
                 updated = false;
             }
@@ -452,25 +451,30 @@ fn draw_virt_text(
             };
             g_st().win_extmark_arr.push(m);
         }
-        if let Some(ref mut vt) = vt_opt {
-            let vcol = item.draw_col - col_off;
-            let col = draw_virt_text_item(
-                buf,
-                item.draw_col,
-                vt.data.virt_text(),
-                vt.hl_mode,
-                max_col,
-                vcol,
-                0,
-                false,
-            );
-            if do_eol && (vt.pos == K_VPOS_END_OF_LINE || vt.pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN)
-            {
-                g_st().decor_state.eol_col = col + 1;
-            }
-            *end_col = (*end_col).max(col);
-        }
-        if vt_opt.is_none_or(|vt| (vt.flags & K_VTREPEAT_LINEBREAK) == 0) {
+        let repeat_linebreak = item
+            .data
+            .with_vt(|vt| {
+                let vcol = item.draw_col - col_off;
+                let col = draw_virt_text_item(
+                    buf,
+                    item.draw_col,
+                    vt.data.virt_text(),
+                    vt.hl_mode,
+                    max_col,
+                    vcol,
+                    0,
+                    false,
+                );
+                if do_eol
+                    && (vt.pos == K_VPOS_END_OF_LINE || vt.pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN)
+                {
+                    g_st().decor_state.eol_col = col + 1;
+                }
+                *end_col = (*end_col).max(col);
+                (vt.flags & K_VTREPEAT_LINEBREAK) != 0
+            })
+            .unwrap_or(false);
+        if !repeat_linebreak {
             item.draw_col = i32::MIN;
         }
     }
@@ -1182,8 +1186,8 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
                 || !item.data.is_vt()
                 || item
                     .data
-                    .vt_opt()
-                    .is_none_or(|vt| vt.pos != K_VPOS_INLINE || vt.width == 0)
+                    .with_vt(|vt| vt.pos != K_VPOS_INLINE || vt.width == 0)
+                    .unwrap_or(true)
             {
                 continue;
             }
@@ -1198,7 +1202,7 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
 fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
     while wlv.n_extra == 0 {
         if wlv.virt_inline_i >= wlv.virt_inline.len() {
-            wlv.virt_inline = &[];
+            wlv.virt_inline.clear();
             wlv.virt_inline_i = 0;
             let end = g_st().decor_state.current_end;
 
@@ -1210,15 +1214,18 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
                 }
                 if item.start_row != g_st().decor_state.row
                     || !item.data.is_vt()
-                    || item.data.vt_opt().unwrap().pos != K_VPOS_INLINE
-                    || item.data.vt_opt().unwrap().width == 0
+                    || item
+                        .data
+                        .with_vt(|vt| vt.pos != K_VPOS_INLINE || vt.width == 0)
+                        .unwrap_or(true)
                 {
                     continue;
                 }
                 if item.draw_col >= -1 && isize::try_from(item.start_col).unwrap_or(-1) == v {
-                    wlv.virt_inline = item.data.vt_opt().unwrap().data.virt_text().as_slice();
-
-                    wlv.virt_inline_hl_mode = item.data.vt_opt().unwrap().hl_mode;
+                    item.data.with_vt(|vt| {
+                        wlv.virt_inline = vt.data.virt_text().to_vec();
+                        wlv.virt_inline_hl_mode = vt.hl_mode;
+                    });
 
                     item.draw_col = i32::MIN;
                     break;
@@ -1230,19 +1237,21 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
         } else {
             let mut attr: i32 = 0;
             let Some(text) =
-                next_virt_text_chunk(wlv.virt_inline, &mut wlv.virt_inline_i, &mut attr)
+                next_virt_text_chunk(&wlv.virt_inline, &mut wlv.virt_inline_i, &mut attr)
+                    .map(std::ffi::CStr::to_owned)
             else {
                 continue;
             };
-            wlv.set_p_extra(text);
-            wlv.n_extra = text.to_bytes().len() as i32;
+            wlv.n_extra = text.as_bytes().len() as i32;
+            let n_attr = mb_charlen(text.as_bytes());
+            wlv.set_p_extra_owned(text);
             if wlv.n_extra == 0 {
                 continue;
             }
             wlv.sc_extra = 0;
             wlv.sc_final = 0;
             wlv.extra_attr = attr;
-            wlv.n_attr = mb_charlen(text.to_bytes());
+            wlv.n_attr = n_attr;
             if wlv.skip_cells > 0 {
                 let virt_text_width =
                     mb_string2cells(wlv.p_extra().map_or(&[][..], std::ffi::CStr::to_bytes)) as i32;
@@ -1568,7 +1577,7 @@ pub fn win_line(
             text: [0, 0],
             hl_id: 0,
         }; SIGN_SHOW_MAX],
-        virt_inline: &[],
+        virt_inline: Vec::new(),
         virt_inline_i: 0,
         virt_inline_hl_mode: 0,
         reset_extra_attr: false,

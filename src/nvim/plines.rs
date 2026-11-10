@@ -304,15 +304,18 @@ fn inline_virt_text_width(
             break;
         } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
             let decor = mt_decor(mark);
-            for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
-                decor.data.ext().vt
-            } else {
-                crate::decoration::DecorVirtId::NULL
-            }) {
-                if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
-                    width += vt.width;
-                }
-            }
+            crate::decoration::for_each_virt_text(
+                if decor.is_ext() {
+                    decor.data.ext().vt
+                } else {
+                    crate::decoration::DecorVirtId::NULL
+                },
+                |_, vt| {
+                    if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
+                        width += vt.width;
+                    }
+                },
+            );
         }
         marktree_itr_next_filter(&wp.buf_mut().b_marktree, iter, row + 1, 0, &INLINE_FILTER);
     }
@@ -473,26 +476,32 @@ pub fn charsize_regular(
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
                     let decor = mt_decor(mark);
-                    for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
-                        decor.data.ext().vt
-                    } else {
-                        crate::decoration::DecorVirtId::NULL
-                    }) {
-                        if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
-                            if mt_right(mark) {
-                                csarg.cur_text_width_right += vt.width;
-                            } else {
-                                csarg.cur_text_width_left += vt.width;
+                    crate::decoration::for_each_virt_text(
+                        if decor.is_ext() {
+                            decor.data.ext().vt
+                        } else {
+                            crate::decoration::DecorVirtId::NULL
+                        },
+                        |_, vt| {
+                            if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
+                                if mt_right(mark) {
+                                    csarg.cur_text_width_right += vt.width;
+                                } else {
+                                    csarg.cur_text_width_left += vt.width;
+                                }
+                                size += vt.width;
+                                if use_tabstop {
+                                    size -= tab_size;
+                                    tab_size = tabstop_padding(
+                                        vcol + size,
+                                        buf.b_p_ts,
+                                        &buf.b_p_vts_array,
+                                    );
+                                    size += tab_size;
+                                }
                             }
-                            size += vt.width;
-                            if use_tabstop {
-                                size -= tab_size;
-                                tab_size =
-                                    tabstop_padding(vcol + size, buf.b_p_ts, &buf.b_p_vts_array);
-                                size += tab_size;
-                            }
-                        }
-                    }
+                        },
+                    );
                 }
                 marktree_itr_next_filter(
                     &(*wp).buf_mut().b_marktree,

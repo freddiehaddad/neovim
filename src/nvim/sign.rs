@@ -386,7 +386,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
 
                     let sh = decor_find_sign(mt_decor(mark)).unwrap();
                     if sh.sign_name.is_some() {
-                        format_to_buf!(&mut namebuf[..], gettext(c"  name=%s"), sign_get_name(sh));
+                        format_to_buf!(&mut namebuf[..], gettext(c"  name=%s"), sign_get_name(&sh));
                     }
                     if mark.ns != 0 {
                         format_to_buf!(
@@ -553,27 +553,29 @@ fn sign_define_by_name(
 
     if !new_sign {
         let mut did_redraw = false;
-        for sh in g_st().decor_items.iter_mut() {
-            if sh
-                .sign_name
-                .as_ref()
-                .is_some_and(|sn| sn.to_bytes() == name.to_bytes())
-            {
-                sh.text = sp.sn_text;
-                sh.hl_id = sp.sn_text_hl;
-                sh.line_hl_id = sp.sn_line_hl;
-                sh.number_hl_id = sp.sn_num_hl;
-                sh.cursorline_hl_id = sp.sn_cul_hl;
-                if !did_redraw {
-                    for wp in for_all_windows_mut() {
-                        if buf_has_signs(wp.buf_mut()) {
-                            redraw_buf_later(wp.buf_mut(), UPD_NOT_VALID);
+        crate::decoration::with_decor_items_mut(|items| {
+            for sh in items.iter_mut() {
+                if sh
+                    .sign_name
+                    .as_ref()
+                    .is_some_and(|sn| sn.to_bytes() == name.to_bytes())
+                {
+                    sh.text = sp.sn_text;
+                    sh.hl_id = sp.sn_text_hl;
+                    sh.line_hl_id = sp.sn_line_hl;
+                    sh.number_hl_id = sp.sn_num_hl;
+                    sh.cursorline_hl_id = sp.sn_cul_hl;
+                    if !did_redraw {
+                        for wp in for_all_windows_mut() {
+                            if buf_has_signs(wp.buf_mut()) {
+                                redraw_buf_later(wp.buf_mut(), UPD_NOT_VALID);
+                            }
                         }
+                        did_redraw = true;
                     }
-                    did_redraw = true;
                 }
             }
-        }
+        });
     }
 
     SIGN_STATE.with(|st| {
@@ -1115,7 +1117,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> &'static mut TvDict {
     let d = tv_dict_alloc();
     let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
-    tv_dict_add_str(&mut *d, c"name", Some(sign_get_name(sh)));
+    tv_dict_add_str(&mut *d, c"name", Some(sign_get_name(&sh)));
     tv_dict_add_nr(&mut *d, c"id", i64::from(mark.id as i32));
     tv_dict_add_str(&mut *d, c"group", Some(describe_ns(mark.ns as i32, c"")));
     tv_dict_add_nr(&mut *d, c"lnum", i64::from(mark.pos.row + 1));

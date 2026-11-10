@@ -4,7 +4,7 @@ use crate::highlight::{HLF_COUNT, RgbValue};
 
 use std::ptr;
 
-use crate::decoration::{DecorSignHighlight, DecorState, DecorVirtText, NS};
+use crate::decoration::{DecorState, NS};
 use crate::ex_docmd::Cmdmod;
 
 use crate::api::ui::NO_SCREEN;
@@ -333,8 +333,6 @@ pub struct EditorState {
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,
-    pub decor_items: Vec<DecorSignHighlight>,
-    pub virt_items: Vec<DecorVirtText>,
     pub ex_error_buf: [u8; MSG_BUF_LEN],
     pub y_regs: [Yankreg; NUM_REGISTERS],
     pub empty_reg: Yankreg,
@@ -787,8 +785,6 @@ impl EditorState {
             on_print: Callback::NONE,
             ctx_win_vec: Vec::new(),
             decor_state: DecorState::new(),
-            decor_items: Vec::new(),
-            virt_items: Vec::new(),
             ex_error_buf: [0; MSG_BUF_LEN],
             y_regs: [const { EMPTY_YANKREG }; NUM_REGISTERS],
             empty_reg: EMPTY_YANKREG,

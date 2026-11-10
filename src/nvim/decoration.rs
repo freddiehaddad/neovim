@@ -132,8 +132,19 @@ impl DecorVirtId {
     }
 
     #[inline]
-    pub fn opt_mut(self) -> Option<&'static mut DecorVirtText> {
-        (!self.is_null()).then(|| &mut g_st().borrow_mut().virt_items[self.0 as usize])
+    pub fn with_vt<R>(self, f: impl FnOnce(&DecorVirtText) -> R) -> Option<R> {
+        if self.is_null() {
+            return None;
+        }
+        VIRT_ITEMS.with(|cell| cell.borrow().get(self.0 as usize).map(f))
+    }
+
+    #[inline]
+    pub fn with_vt_mut<R>(self, f: impl FnOnce(&mut DecorVirtText) -> R) -> Option<R> {
+        if self.is_null() {
+            return None;
+        }
+        VIRT_ITEMS.with(|cell| cell.borrow_mut().get_mut(self.0 as usize).map(f))
     }
 }
 
@@ -177,9 +188,9 @@ impl DecorRangeData {
     }
 
     #[inline]
-    pub fn vt_opt(&self) -> Option<&'static mut DecorVirtText> {
+    pub fn with_vt<R>(&self, f: impl FnOnce(&DecorVirtText) -> R) -> Option<R> {
         match *self {
-            Self::Vt(vt) | Self::VirtLines(vt) => vt.opt_mut(),
+            Self::Vt(vt) | Self::VirtLines(vt) => vt.with_vt(f),
             _ => None,
         }
     }
@@ -402,48 +413,24 @@ pub struct DecorVirtText {
     pub next: DecorVirtId,
 }
 
-impl DecorVirtText {
-    #[inline]
-    pub fn next_opt(&mut self) -> Option<&'static mut DecorVirtText> {
-        self.next.opt_mut()
-    }
-}
-
-pub struct VirtTextMutIter(DecorVirtId);
-
-impl Iterator for VirtTextMutIter {
-    type Item = &'static mut DecorVirtText;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0.opt_mut()?;
-        self.0 = cur.next;
-        Some(cur)
-    }
-}
-
-pub struct VirtTextPtrIter(DecorVirtId);
-
-impl Iterator for VirtTextPtrIter {
-    type Item = (DecorVirtId, &'static mut DecorVirtText);
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let id = self.0;
-        let cur = id.opt_mut()?;
-        self.0 = cur.next;
-        Some((id, cur))
+#[inline]
+pub fn for_each_virt_text(start: DecorVirtId, mut f: impl FnMut(DecorVirtId, &DecorVirtText)) {
+    let mut cur = start;
+    while !cur.is_null() {
+        let next = VIRT_ITEMS.with(|cell| {
+            let items = cell.borrow();
+            let vt = &items[cur.0 as usize];
+            let next = vt.next;
+            f(cur, vt);
+            next
+        });
+        cur = next;
     }
 }
 
 #[inline]
-pub fn virt_text_iter_mut(start: DecorVirtId) -> VirtTextMutIter {
-    VirtTextMutIter(start)
-}
-
-#[inline]
-pub fn virt_text_iter_ptr(start: DecorVirtId) -> VirtTextPtrIter {
-    VirtTextPtrIter(start)
+pub(crate) fn with_decor_items_mut<R>(f: impl FnOnce(&mut [DecorSignHighlight]) -> R) -> R {
+    DECOR_ITEMS.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 use crate::extmark::{
@@ -467,9 +454,9 @@ pub struct SignTextAttrs {
     pub hl_id: i32,
 }
 
-#[derive(Clone, Copy)]
-pub struct SignItem<'a> {
-    pub sh: &'a DecorSignHighlight,
+#[derive(Clone)]
+pub struct SignItem {
+    pub sh: DecorSignHighlight,
     pub id: u32,
 }
 
@@ -493,17 +480,23 @@ impl DecorationState {
 
 thread_local! {
     static DECOR_MOD_STATE: DecorationState = const { DecorationState::new() };
+    static DECOR_ITEMS: std::cell::RefCell<Vec<DecorSignHighlight>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static VIRT_ITEMS: std::cell::RefCell<Vec<DecorVirtText>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
     static TO_FREE_VIRT: std::cell::RefCell<Vec<DecorVirtId>> = const {
         std::cell::RefCell::new(Vec::new())
     };
 }
 
 #[inline]
-fn mt_decor_virt(mark: MTKey) -> Option<&'static mut DecorVirtText> {
+fn mt_decor_virt_id(mark: MTKey) -> DecorVirtId {
     if (mark.flags & MT_FLAG_DECOR_EXT) != 0 {
-        mark.decor_data.ext().vt.opt_mut()
+        mark.decor_data.ext().vt
     } else {
-        None
+        DecorVirtId::NULL
     }
 }
 
@@ -562,7 +555,7 @@ pub fn bufhl_add_hl_pos_offset(
 
 pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: DecorInline) {
     if decor.is_ext() {
-        for vt in virt_text_iter_mut(decor.data.ext().vt) {
+        for_each_virt_text(decor.data.ext().vt, |_, vt| {
             let below = (vt.flags & K_VTIS_LINES) != 0 && (vt.flags & K_VTLINES_ABOVE) == 0;
             let vt_lnum = row1 + 1 + i32::from(below);
             redraw_buf_line_later(buf, vt_lnum, true);
@@ -574,13 +567,13 @@ pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: D
                 };
                 changed_lines_invalidate_buf(buf, vt_lnum, vt_col, vt_lnum + 1, 0);
             }
-        }
+        });
 
         let mut idx = decor.data.ext().sh_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = &g_st().borrow_mut().decor_items.as_slice()[idx as usize];
+            let sh = DECOR_ITEMS.with(|cell| cell.borrow()[idx as usize].clone());
             let next = sh.next;
-            decor_redraw_sh(buf, row1, row2, sh.clone());
+            decor_redraw_sh(buf, row1, row2, sh);
             idx = next;
         }
     } else {
@@ -614,54 +607,57 @@ pub fn decor_redraw_sh(buf: &mut FileBuf, row1: i32, row2: i32, sh: DecorSignHig
 }
 
 pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
-    if DECOR_MOD_STATE.with(|s| s.decor_freelist.get()) != u32::MAX {
+    DECOR_ITEMS.with(|cell| {
+        let mut items = cell.borrow_mut();
         let pos = DECOR_MOD_STATE.with(|s| s.decor_freelist.get());
-        DECOR_MOD_STATE.with(|s| {
-            s.decor_freelist.set(
-                g_st().decor_items.as_slice()
-                    [DECOR_MOD_STATE.with(|s| s.decor_freelist.get()) as usize]
-                    .next,
-            )
-        });
-        g_st().decor_items.as_mut_slice()[pos as usize] = item;
-        pos
-    } else {
-        let pos = g_st().decor_items.len() as u32;
-        g_st().decor_items.push(item);
-        pos
-    }
+        if pos != u32::MAX {
+            let next_free = items[pos as usize].next;
+            DECOR_MOD_STATE.with(|s| s.decor_freelist.set(next_free));
+            items[pos as usize] = item;
+            pos
+        } else {
+            let pos = items.len() as u32;
+            items.push(item);
+            pos
+        }
+    })
 }
 
 pub fn decor_put_vt(mut vt: DecorVirtText, next: DecorVirtId) -> DecorVirtId {
     vt.next = next;
-    let fl = DECOR_MOD_STATE.with(|s| s.virt_freelist.get());
-    if !fl.is_null() {
-        DECOR_MOD_STATE.with(|s| {
-            s.virt_freelist
-                .set(g_st().virt_items.as_slice()[fl.0 as usize].next)
-        });
-        g_st().virt_items.as_mut_slice()[fl.0 as usize] = vt;
-        fl
-    } else {
-        let pos = g_st().virt_items.len() as u32;
-        g_st().virt_items.push(vt);
-        DecorVirtId(pos)
-    }
+    VIRT_ITEMS.with(|cell| {
+        let mut items = cell.borrow_mut();
+        let fl = DECOR_MOD_STATE.with(|s| s.virt_freelist.get());
+        if !fl.is_null() {
+            let next_free = items[fl.0 as usize].next;
+            DECOR_MOD_STATE.with(|s| s.virt_freelist.set(next_free));
+            items[fl.0 as usize] = vt;
+            fl
+        } else {
+            let pos = items.len() as u32;
+            items.push(vt);
+            DecorVirtId(pos)
+        }
+    })
 }
 
 fn decor_free_vt(first: DecorVirtId) {
-    let mut cur = first;
-    while let Some(vt) = cur.opt_mut() {
-        let next = vt.next;
-        vt.data = DecorVirtTextData::empty();
-        vt.flags = 0;
-        if next.is_null() {
-            vt.next = DECOR_MOD_STATE.with(|s| s.virt_freelist.get());
-            DECOR_MOD_STATE.with(|s| s.virt_freelist.set(first));
-            break;
+    VIRT_ITEMS.with(|cell| {
+        let mut items = cell.borrow_mut();
+        let mut cur = first;
+        while !cur.is_null() {
+            let vt = &mut items[cur.0 as usize];
+            let next = vt.next;
+            vt.data = DecorVirtTextData::empty();
+            vt.flags = 0;
+            if next.is_null() {
+                vt.next = DECOR_MOD_STATE.with(|s| s.virt_freelist.get());
+                DECOR_MOD_STATE.with(|s| s.virt_freelist.set(first));
+                break;
+            }
+            cur = next;
         }
-        cur = next;
-    }
+    });
 }
 
 pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
@@ -686,9 +682,14 @@ pub fn buf_put_decor(buf: &mut FileBuf, decor: DecorInline, row: i32, mut row2: 
         let mut idx = decor.data.ext().sh_idx;
         row2 = row2.min(buf.b_ml.ml_line_count - 1);
         while idx != DECOR_ID_INVALID {
-            let sh = &mut (&mut g_st().decor_items)[idx as usize];
-            let next = sh.next;
-            buf_put_decor_sh(buf, sh, row, row2);
+            let (mut sh, next) = DECOR_ITEMS.with(|cell| {
+                let items = cell.borrow();
+                let sh = items[idx as usize].clone();
+                let next = sh.next;
+                (sh, next)
+            });
+            buf_put_decor_sh(buf, &mut sh, row, row2);
+            DECOR_ITEMS.with(|cell| cell.borrow_mut()[idx as usize].sign_add_id = sh.sign_add_id);
             idx = next;
         }
     }
@@ -736,9 +737,9 @@ pub fn buf_decor_remove(
         let mut idx = decor.data.ext().sh_idx;
         row2 = row2.min(buf.b_ml.ml_line_count - 1);
         while idx != DECOR_ID_INVALID {
-            let sh = &(&g_st().decor_items)[idx as usize];
+            let sh = DECOR_ITEMS.with(|cell| cell.borrow()[idx as usize].clone());
             let next = sh.next;
-            buf_remove_decor_sh(buf, row1, row2, sh);
+            buf_remove_decor_sh(buf, row1, row2, &sh);
             idx = next;
         }
     }
@@ -771,15 +772,18 @@ pub fn decor_free(decor: DecorInline) {
         if !vt.is_null() {
             TO_FREE_VIRT.with(|cell| cell.borrow_mut().push(vt));
         }
-        while idx != DECOR_ID_INVALID {
-            let sh = &mut (&mut g_st().decor_items)[idx as usize];
-            if sh.next == DECOR_ID_INVALID {
-                sh.next = DECOR_MOD_STATE.with(|s| s.to_free_sh.get());
-                DECOR_MOD_STATE.with(|s| s.to_free_sh.set(ext.sh_idx));
-                break;
+        DECOR_ITEMS.with(|cell| {
+            let mut items = cell.borrow_mut();
+            while idx != DECOR_ID_INVALID {
+                let sh = &mut items[idx as usize];
+                if sh.next == DECOR_ID_INVALID {
+                    sh.next = DECOR_MOD_STATE.with(|s| s.to_free_sh.get());
+                    DECOR_MOD_STATE.with(|s| s.to_free_sh.set(ext.sh_idx));
+                    break;
+                }
+                idx = sh.next;
             }
-            idx = sh.next;
-        }
+        });
     } else {
         decor_free_vt(vt);
         decor_free_sh(idx);
@@ -787,19 +791,22 @@ pub fn decor_free(decor: DecorInline) {
 }
 
 fn decor_free_sh(first_idx: u32) {
-    let mut idx = first_idx;
-    while idx != DECOR_ID_INVALID {
-        let sh = &mut (&mut g_st().decor_items)[idx as usize];
-        sh.sign_name = None;
-        sh.flags = 0;
-        sh.url = None;
-        if sh.next == DECOR_ID_INVALID {
-            sh.next = DECOR_MOD_STATE.with(|s| s.decor_freelist.get());
-            DECOR_MOD_STATE.with(|s| s.decor_freelist.set(first_idx));
-            break;
+    DECOR_ITEMS.with(|cell| {
+        let mut items = cell.borrow_mut();
+        let mut idx = first_idx;
+        while idx != DECOR_ID_INVALID {
+            let sh = &mut items[idx as usize];
+            sh.sign_name = None;
+            sh.flags = 0;
+            sh.url = None;
+            if sh.next == DECOR_ID_INVALID {
+                sh.next = DECOR_MOD_STATE.with(|s| s.decor_freelist.get());
+                DECOR_MOD_STATE.with(|s| s.decor_freelist.set(first_idx));
+                break;
+            }
+            idx = sh.next;
         }
-        idx = sh.next;
-    }
+    });
 }
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
@@ -865,20 +872,22 @@ pub fn decor_check_to_be_deleted() {
 }
 
 pub fn decor_check_invalid_glyphs() {
-    for it in g_st().decor_items.iter_mut() {
-        let width = if (it.flags & K_SHIS_SIGN) != 0 {
-            SIGN_WIDTH
-        } else if (it.flags & K_SHCONCEAL) != 0 {
-            1
-        } else {
-            0
-        };
-        for j in 0..width {
-            if schar_high(it.text[j]) {
-                it.text[j] = schar_from_char(schar_get_first_codepoint(it.text[j]));
+    DECOR_ITEMS.with(|cell| {
+        for it in cell.borrow_mut().iter_mut() {
+            let width = if (it.flags & K_SHIS_SIGN) != 0 {
+                SIGN_WIDTH
+            } else if (it.flags & K_SHCONCEAL) != 0 {
+                1
+            } else {
+                0
+            };
+            for j in 0..width {
+                if schar_high(it.text[j]) {
+                    it.text[j] = schar_from_char(schar_get_first_codepoint(it.text[j]));
+                }
             }
         }
-    }
+    });
 }
 
 pub fn next_virt_text_chunk<'a>(
@@ -902,11 +911,7 @@ pub fn next_virt_text_chunk<'a>(
     text
 }
 
-pub fn decor_find_virttext(
-    buf: &mut FileBuf,
-    row: i32,
-    ns_id: u64,
-) -> Option<&'static mut DecorVirtText> {
+pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> Option<DecorVirtId> {
     let mut itr = MarkTreeIter::new();
     marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
     loop {
@@ -914,18 +919,16 @@ pub fn decor_find_virttext(
         if mark.pos.row < 0 || mark.pos.row > row {
             break;
         } else if !mt_invalid(mark) {
-            let mut decor = mt_decor_virt(mark);
-            while let Some(d) = decor {
-                if (d.flags & K_VTIS_LINES) == 0 {
-                    decor = Some(d);
-                    break;
+            let mut found = None;
+            for_each_virt_text(mt_decor_virt_id(mark), |id, d| {
+                if found.is_none() && (d.flags & K_VTIS_LINES) == 0 {
+                    found = Some(id);
                 }
-                decor = d.next_opt();
-            }
+            });
             if (ns_id == 0 || ns_id == u64::from(mark.ns))
-                && let Some(d) = decor
+                && let Some(id) = found
             {
-                return Some(d);
+                return Some(id);
             }
         }
         marktree_itr_next(&buf.b_marktree, &mut itr);
@@ -953,7 +956,7 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
 
 pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     match decor.data {
-        DecorRangeData::Vt(vt) => vt.opt_mut().unwrap().pos,
+        DecorRangeData::Vt(vt) => vt.with_vt(|v| v.pos).unwrap(),
         DecorRangeData::Ui(ui) => ui.pos,
         _ => K_VPOS_END_OF_LINE,
     }
@@ -1055,15 +1058,15 @@ fn decor_range_add_from_inline(
         } else {
             decor.data.ext().vt
         };
-        for (vt_id, _) in virt_text_iter_ptr(vt_start) {
+        for_each_virt_text(vt_start, |vt_id, _| {
             decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt_id, owned);
-        }
+        });
         let mut idx = decor.data.ext().sh_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = &(&g_st().decor_items)[idx as usize];
+            let sh = DECOR_ITEMS.with(|cell| cell.borrow()[idx as usize].clone());
             let next = sh.next;
             decor_range_add_sh(
-                state, start_row, start_col, end_row, end_col, sh, owned, ns, mark_id, 0,
+                state, start_row, start_col, end_row, end_col, &sh, owned, ns, mark_id, 0,
             );
             idx = next;
         }
@@ -1125,9 +1128,9 @@ pub fn decor_range_add_virt(
     vt_id: DecorVirtId,
     owned: bool,
 ) {
-    let vt = vt_id.opt_mut().unwrap();
-    let is_lines = (vt.flags & K_VTIS_LINES) != 0;
-    let priority = vt.priority;
+    let (is_lines, priority) = vt_id
+        .with_vt(|vt| ((vt.flags & K_VTIS_LINES) != 0, vt.priority))
+        .unwrap();
     let range = DecorRange {
         start_row,
         start_col,
@@ -1222,16 +1225,16 @@ pub fn decor_range_add_sh(
 }
 
 pub fn decor_init_draw_col(win_col: i32, hidden: bool, item: &mut DecorRange) {
-    let vt = if item.data.is_vt() {
-        item.data.vt_opt()
-    } else {
-        None
-    };
+    let is_hidden = item.data.is_vt()
+        && item
+            .data
+            .with_vt(|v| (v.flags & K_VTHIDE) != 0)
+            .unwrap_or(false);
     let pos = decor_virt_pos_kind(item);
     if win_col < 0 && pos != K_VPOS_INLINE {
         item.draw_col = win_col;
     } else if pos == K_VPOS_OVERLAY {
-        item.draw_col = if vt.is_some_and(|v| (v.flags & K_VTHIDE) != 0) && hidden {
+        item.draw_col = if is_hidden && hidden {
             i32::MIN
         } else {
             win_col
@@ -1507,7 +1510,7 @@ pub fn win_lines_concealed(wp: &mut WinInfoInfo) -> bool {
     has_any_folding(wp) != 0 || wp.w_onebuf_opt.wo_cole >= 2
 }
 
-pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
+pub fn sign_item_cmp(s1: &SignItem, s2: &SignItem) -> Ordering {
     let p1 = s1.sh.priority;
     let p2 = s2.sh.priority;
     if p1 != p2 {
@@ -1552,7 +1555,7 @@ pub fn decor_redraw_signs(
     let mut pair: MTPair = MTPair::new();
     let mut num_text: i32 = 0;
     let mut itr = MarkTreeIter::new();
-    let mut signs: Vec<SignItem<'_>> = Vec::new();
+    let mut signs: Vec<SignItem> = Vec::new();
     let b = &buf.b_marktree;
 
     marktree_itr_get_overlap(b, row, 0, &mut itr);
@@ -1595,10 +1598,10 @@ pub fn decor_redraw_signs(
         };
         let len = width.min(num_text);
         let mut idx: usize = 0;
-        signs.sort_by(|a, b| sign_item_cmp(a, b));
+        signs.sort_by(sign_item_cmp);
 
         for item in &signs {
-            let sh = item.sh;
+            let sh = &item.sh;
             if let Some(ref mut sattrs) = sattrs
                 && (idx as i32) < len
                 && sh.text[0] != 0
@@ -1620,21 +1623,24 @@ pub fn decor_redraw_signs(
     }
 }
 
-pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight> {
+pub fn decor_find_sign(decor: DecorInline) -> Option<DecorSignHighlight> {
     if !decor.is_ext() {
         return None;
     }
-    let mut decor_id = decor.data.ext().sh_idx;
-    loop {
-        if decor_id == DECOR_ID_INVALID {
-            return None;
+    DECOR_ITEMS.with(|cell| {
+        let items = cell.borrow();
+        let mut decor_id = decor.data.ext().sh_idx;
+        loop {
+            if decor_id == DECOR_ID_INVALID {
+                return None;
+            }
+            let sh = &items[decor_id as usize];
+            if (sh.flags & K_SHIS_SIGN) != 0 {
+                return Some(sh.clone());
+            }
+            decor_id = sh.next;
         }
-        let sh = &(&g_st().borrow_mut().decor_items)[decor_id as usize];
-        if (sh.flags & K_SHIS_SIGN) != 0 {
-            return Some(sh);
-        }
-        decor_id = sh.next;
-    }
+    })
 }
 
 pub fn buf_signcols_count_range(
@@ -1825,9 +1831,8 @@ pub fn decor_virt_lines(
     let mut n_virt_lines: i32 = 0;
     loop {
         let mark = marktree_itr_current(b, &itr);
-        let mut vt = mt_decor_virt(mark);
         if !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
-            while let Some(vt_ref) = vt {
+            for_each_virt_text(mt_decor_virt_id(mark), |_, vt_ref| {
                 let virt_lines = vt_ref.data.virt_lines();
                 if (vt_ref.flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
                     let above = (vt_ref.flags & K_VTLINES_ABOVE) != 0;
@@ -1858,9 +1863,7 @@ pub fn decor_virt_lines(
                         }
                     }
                 }
-
-                vt = vt_ref.next_opt();
-            }
+            });
         }
 
         if !marktree_itr_next_filter(b, &mut itr, end_row, 0, &LINES_FILTER) {
@@ -1872,36 +1875,37 @@ pub fn decor_virt_lines(
 }
 
 pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, arena: &mut Arena) {
-    let inline_sh;
-    let mut sh_hl = &DECOR_SIGN_HIGHLIGHT_INIT;
-    let mut sh_sign = &DECOR_SIGN_HIGHLIGHT_INIT;
-    let mut virt_text: Option<&mut DecorVirtText> = None;
-    let mut virt_lines: Option<&mut DecorVirtText> = None;
+    let mut sh_hl = DECOR_SIGN_HIGHLIGHT_INIT;
+    let mut sh_sign = DECOR_SIGN_HIGHLIGHT_INIT;
+    let mut virt_text: Option<DecorVirtText> = None;
+    let mut virt_lines: Option<DecorVirtText> = None;
     let mut priority: i32 = -1;
 
     if decor.is_ext() {
-        for (_, vt) in virt_text_iter_ptr(decor.data.ext().vt) {
+        for_each_virt_text(decor.data.ext().vt, |_, vt| {
             if (vt.flags & K_VTIS_LINES) != 0 {
-                virt_lines = Some(vt);
+                virt_lines = Some(vt.clone());
             } else {
-                virt_text = Some(vt);
+                virt_text = Some(vt.clone());
             }
-        }
+        });
 
         let mut idx = decor.data.ext().sh_idx;
-        while idx != DECOR_ID_INVALID {
-            let sh = &g_st().borrow_mut().decor_items.as_slice()[idx as usize];
-            let next = sh.next;
-            if (sh.flags & K_SHIS_SIGN) != 0 {
-                sh_sign = sh;
-            } else {
-                sh_hl = sh;
+        DECOR_ITEMS.with(|cell| {
+            let items = cell.borrow();
+            while idx != DECOR_ID_INVALID {
+                let sh = &items[idx as usize];
+                let next = sh.next;
+                if (sh.flags & K_SHIS_SIGN) != 0 {
+                    sh_sign = sh.clone();
+                } else {
+                    sh_hl = sh.clone();
+                }
+                idx = next;
             }
-            idx = next;
-        }
+        });
     } else {
-        inline_sh = decor_sh_from_inline(decor.data.hl());
-        sh_hl = &inline_sh;
+        sh_hl = decor_sh_from_inline(decor.data.hl());
     }
 
     if sh_hl.hl_id != 0 {
@@ -2048,23 +2052,26 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 pub fn decor_type_flags(decor: DecorInline) -> u16 {
     if decor.is_ext() {
         let mut type_flags: u16 = K_EXTMARK_NONE;
-        for vt in virt_text_iter_mut(decor.data.ext().vt) {
+        for_each_virt_text(decor.data.ext().vt, |_, vt| {
             type_flags |= if (vt.flags & K_VTIS_LINES) != 0 {
                 K_EXTMARK_VIRT_LINES
             } else {
                 K_EXTMARK_VIRT_TEXT
             };
-        }
+        });
         let mut idx = decor.data.ext().sh_idx;
-        while idx != DECOR_ID_INVALID {
-            let sh = &g_st().borrow_mut().decor_items.as_slice()[idx as usize];
-            type_flags |= if (sh.flags & K_SHIS_SIGN) != 0 {
-                K_EXTMARK_SIGN
-            } else {
-                K_EXTMARK_HIGHLIGHT
-            };
-            idx = sh.next;
-        }
+        DECOR_ITEMS.with(|cell| {
+            let items = cell.borrow();
+            while idx != DECOR_ID_INVALID {
+                let sh = &items[idx as usize];
+                type_flags |= if (sh.flags & K_SHIS_SIGN) != 0 {
+                    K_EXTMARK_SIGN
+                } else {
+                    K_EXTMARK_HIGHLIGHT
+                };
+                idx = sh.next;
+            }
+        });
         type_flags
     } else if (decor.data.hl().flags & K_SHIS_SIGN) != 0 {
         K_EXTMARK_SIGN

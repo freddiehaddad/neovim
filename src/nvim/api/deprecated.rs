@@ -285,8 +285,10 @@ pub fn nvim_buf_set_virtual_text(
     }
 
     if let Some(existing) = decor_find_virttext(buf, line as i32, u64::from(ns_id)) {
-        existing.data = DecorVirtTextData::VirtText(virt_text);
-        existing.width = width;
+        existing.with_vt_mut(|vt| {
+            vt.data = DecorVirtTextData::VirtText(virt_text);
+            vt.width = width;
+        });
         return src_id;
     }
 
