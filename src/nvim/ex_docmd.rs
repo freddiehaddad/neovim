@@ -208,8 +208,8 @@ use crate::register::{
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, SID_NONE, do_finish,
     estack_pop, estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall,
-    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, rt_st, source_breakpoint,
-    source_dbg_tick, source_finished, source_level, source_runtime, sourcing_name,
+    ex_runtime, ex_scriptencoding, ex_scriptnames, ex_source, source_breakpoint, source_dbg_tick,
+    source_finished, source_level, source_runtime, sourcing_name,
 };
 use crate::search::{
     do_search, find_pattern_in_path, restore_last_search_pattern, save_last_search_pattern,
@@ -4911,7 +4911,7 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 
 #[inline]
 fn sourcing_lnum_ptr() -> &'static mut Linenr {
-    &mut rt_st().borrow_mut().exestack.last_mut().unwrap().es_lnum
+    &mut g_st().borrow_mut().exestack.last_mut().unwrap().es_lnum
 }
 
 fn save_dbg_stuff(dsp: &mut DbgStuff) {

@@ -68,7 +68,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_delay;
 use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
-use crate::runtime::{ESTACK_NONE, estack_sfile, rt_st, sourcing_lnum, sourcing_name};
+use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum, sourcing_name};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
 use crate::strings::{format_to_buf, format_to_buf_safelen, gettext, ngettext};
 use crate::ui::{
@@ -441,7 +441,7 @@ use crate::keycodes::{k_second, k_third};
 
 #[inline]
 fn have_sourcing_info() -> bool {
-    !rt_st().exestack.is_empty()
+    !g_st().exestack.is_empty()
 }
 
 /// Returns true if the given integer message-id was previously generated.

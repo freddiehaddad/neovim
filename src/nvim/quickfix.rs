@@ -323,9 +323,9 @@ impl QfInfoId {
     pub fn opt(self) -> Option<&'static QfInfo> {
         let raw = self.0?.get();
         if raw == u32::MAX {
-            Some(&qf_st().borrow().ql_info_actual)
+            Some(&g_st().borrow().ql_info_actual)
         } else {
-            qf_st()
+            g_st()
                 .borrow()
                 .llist_arena
                 .get((raw - 1) as usize)
@@ -337,9 +337,9 @@ impl QfInfoId {
     pub fn opt_mut(self) -> Option<&'static mut QfInfo> {
         let raw = self.0?.get();
         if raw == u32::MAX {
-            Some(&mut qf_st().borrow_mut().ql_info_actual)
+            Some(&mut g_st().borrow_mut().ql_info_actual)
         } else {
-            qf_st()
+            g_st()
                 .borrow_mut()
                 .llist_arena
                 .get_mut((raw - 1) as usize)
@@ -419,6 +419,21 @@ pub struct QfInfo {
     pub qfl_type: Qfltype,
     pub qf_bufnr: i32,
     pub qf_id_handle: QfInfoId,
+}
+
+impl QfInfo {
+    pub const fn new_stack() -> Self {
+        Self {
+            qf_refcount: 0,
+            qf_listcount: 0,
+            qf_curlist: 0,
+            qf_maxcount: 0,
+            qf_lists: Vec::new(),
+            qfl_type: QFLT_QUICKFIX,
+            qf_bufnr: INVALID_QFBUFNR,
+            qf_id_handle: QfInfoId::QF_STACK,
+        }
+    }
 }
 
 #[repr(C)]
@@ -623,17 +638,12 @@ const FMT_PAT: [FmtPattern; FMT_PATTERNS] = [
     },
 ];
 
-struct QuickfixState {
-    ql_info_actual: QfInfo,
+#[derive(Clone, Copy)]
+struct QuickfixCopyState {
     last_qf_id: u32,
-    qf_last_bufname: Option<std::ffi::CString>,
     qf_last_bufref: Bufref,
-    qfga: Vec<u8>,
     quickfix_busy: i32,
-    qf_delq: Vec<QfInfoId>,
     fmt_start_idx: Option<usize>,
-    fmt_cache: Vec<Efm>,
-    last_efm_cache: Option<std::ffi::CString>,
     qf_file_hl_id: i32,
     qf_sep_hl_id: i32,
     qf_line_hl_id: i32,
@@ -642,36 +652,19 @@ struct QuickfixState {
     mef_off: i32,
     did_bufnr_emsg: bool,
     set_qf_ll_recursive: i32,
-    llist_arena: Vec<Option<Box<QfInfo>>>,
-    free_llists: Vec<usize>,
 }
 
-impl QuickfixState {
+impl QuickfixCopyState {
     const fn new() -> Self {
         Self {
-            ql_info_actual: QfInfo {
-                qf_refcount: 0,
-                qf_listcount: 0,
-                qf_curlist: 0,
-                qf_maxcount: 0,
-                qf_lists: Vec::new(),
-                qfl_type: QFLT_QUICKFIX,
-                qf_bufnr: INVALID_QFBUFNR,
-                qf_id_handle: QfInfoId::QF_STACK,
-            },
             last_qf_id: 0,
-            qf_last_bufname: None,
             qf_last_bufref: Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             },
-            qfga: Vec::new(),
             quickfix_busy: 0,
-            qf_delq: Vec::new(),
             fmt_start_idx: None,
-            fmt_cache: Vec::new(),
-            last_efm_cache: None,
             qf_file_hl_id: 0,
             qf_sep_hl_id: 0,
             qf_line_hl_id: 0,
@@ -680,22 +673,68 @@ impl QuickfixState {
             mef_off: 0,
             did_bufnr_emsg: false,
             set_qf_ll_recursive: 0,
-            llist_arena: Vec::new(),
-            free_llists: Vec::new(),
         }
     }
 }
 
-static QF_STATE: GlobalState<QuickfixState> = GlobalState::new(QuickfixState::new());
+thread_local! {
+    static QF_STATE: std::cell::Cell<QuickfixCopyState> = const {
+        std::cell::Cell::new(QuickfixCopyState::new())
+    };
+    static QF_LAST_BUFNAME: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static QF_DELQ: std::cell::RefCell<Vec<QfInfoId>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static FMT_CACHE: std::cell::RefCell<std::rc::Rc<Vec<Efm>>> =
+        std::cell::RefCell::new(std::rc::Rc::new(Vec::new()));
+    static LAST_EFM_CACHE: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+struct QfGuard {
+    state: QuickfixCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for QfGuard {
+    type Target = QuickfixCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for QfGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for QfGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            QF_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn qf_st() -> crate::globals::GraphPtr<QuickfixState> {
-    QF_STATE.handle()
+fn qf_st() -> QfGuard {
+    QfGuard {
+        state: QF_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 #[inline]
 fn ql_info_mut() -> &'static mut QfInfo {
-    &mut qf_st().borrow_mut().ql_info_actual
+    &mut g_st().borrow_mut().ql_info_actual
 }
 
 #[inline]
@@ -739,22 +778,6 @@ fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
         g_st().firstwin.borrow_mut()
     } else {
         tp.tp_firstwin.borrow_mut()
-    }
-}
-
-fn qfga_get() -> &'static mut Vec<u8> {
-    if qf_st().qfga.capacity() == 0 {
-        qf_st().qfga.reserve(256);
-    }
-    qf_st().qfga.clear();
-    &mut qf_st().borrow_mut().qfga
-}
-
-fn qfga_clear() {
-    if qf_st().qfga.capacity() > 1000 {
-        qf_st().qfga = Vec::new();
-    } else {
-        qf_st().qfga.clear();
     }
 }
 
@@ -1466,7 +1489,7 @@ fn qf_init_ext(
     let mut old_count: usize = 0;
     let mut retval: i32 = -1;
 
-    qf_st().qf_last_bufname = None;
+    QF_LAST_BUFNAME.with(|cell| *cell.borrow_mut() = None);
 
     if !qf_setup_state(
         &mut state,
@@ -1507,31 +1530,29 @@ fn qf_init_ext(
         errorformat
     };
 
-    let efm_changed = qf_st()
-        .last_efm_cache
-        .as_ref()
-        .is_none_or(|c| c.as_bytes() != efm.to_bytes());
+    let efm_changed = LAST_EFM_CACHE.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .is_none_or(|c| c.as_bytes() != efm.to_bytes())
+    });
     if efm_changed {
-        qf_st().last_efm_cache = None;
-        qf_st().fmt_cache.clear();
+        LAST_EFM_CACHE.with(|cell| *cell.borrow_mut() = None);
         qf_st().fmt_start_idx = None;
 
-        qf_st().fmt_cache = parse_efm_option(efm.to_bytes());
-        if !qf_st().fmt_cache.is_empty() {
-            qf_st().last_efm_cache = Some(efm.to_owned());
+        let parsed = parse_efm_option(efm.to_bytes());
+        if !parsed.is_empty() {
+            LAST_EFM_CACHE.with(|cell| *cell.borrow_mut() = Some(efm.to_owned()));
         }
+        FMT_CACHE.with(|cell| *cell.borrow_mut() = std::rc::Rc::new(parsed));
     }
 
-    let mut ok = !qf_st().fmt_cache.is_empty();
+    let fmt_cache = FMT_CACHE.with(|cell| cell.borrow().clone());
+    let mut ok = !fmt_cache.is_empty();
     if ok {
         g_st().got_int = false;
         while !g_st().got_int {
-            let status = qf_init_process_nextline(
-                qfl,
-                qf_st().fmt_cache.as_slice(),
-                &mut state,
-                &mut fields,
-            );
+            let status =
+                qf_init_process_nextline(qfl, fmt_cache.as_slice(), &mut state, &mut fields);
             if status == QfStatus::EndOfInput {
                 break;
             }
@@ -2011,11 +2032,11 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
 }
 
 fn locstack_queue_delreq(qi: &mut QfInfo) {
-    qf_st().qf_delq.push(qi.qf_id_handle);
+    QF_DELQ.with(|cell| cell.borrow_mut().push(qi.qf_id_handle));
 }
 
 pub fn qf_stack_get_bufnr() -> i32 {
-    qf_st().ql_info_actual.qf_bufnr
+    g_st().ql_info_actual.qf_bufnr
 }
 
 fn wipe_qf_buffer(qi: &mut QfInfo) {
@@ -2065,7 +2086,7 @@ fn ll_free_all(qi: Option<&mut QfInfo>) {
             && nz.get() != u32::MAX
         {
             let idx = (nz.get() - 1) as usize;
-            let st = qf_st().borrow_mut();
+            let st = g_st().borrow_mut();
             let dropped = st.llist_arena[idx].take();
             st.free_llists.push(idx);
             drop(dropped);
@@ -2091,7 +2112,7 @@ fn incr_quickfix_busy() {
 fn decr_quickfix_busy() {
     qf_st().quickfix_busy -= 1;
     if qf_st().quickfix_busy == 0 {
-        while let Some(qi) = qf_st().qf_delq.pop() {
+        while let Some(qi) = QF_DELQ.with(|cell| cell.borrow_mut().pop()) {
             ll_free_all(qi.opt_mut());
         }
     }
@@ -2248,7 +2269,7 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
     let qi = if qfltype == QFLT_QUICKFIX {
         ql_info_mut()
     } else {
-        let st = qf_st().borrow_mut();
+        let st = g_st().borrow_mut();
         let idx = if let Some(idx) = st.free_llists.pop() {
             let id = QfInfoId::from_slot(idx);
             st.llist_arena[idx] = Some(Box::new(QfInfo {
@@ -2446,10 +2467,11 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         bufname_cstr = std::ffi::CString::from_vec_with_nul(bytes).unwrap_or_default();
     }
 
-    let same_as_last = qf_st()
-        .qf_last_bufname
-        .as_ref()
-        .is_some_and(|last| bufname_cstr.as_bytes() == last.to_bytes());
+    let same_as_last = QF_LAST_BUFNAME.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .is_some_and(|last| bufname_cstr.as_bytes() == last.to_bytes())
+    });
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
         qf_st().qf_last_bufref.br_buf
     } else {
@@ -2459,7 +2481,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
             0,
             BLN_NOOPT,
         ));
-        qf_st().qf_last_bufname = Some(bufname_cstr);
+        QF_LAST_BUFNAME.with(|cell| *cell.borrow_mut() = Some(bufname_cstr));
         set_bufref(&mut qf_st().qf_last_bufref, b.opt_mut());
         b
     };
@@ -3069,7 +3091,8 @@ fn qf_jump_print_msg(
     same_curbuf: bool,
     old_lnum: Linenr,
 ) {
-    let gap = qfga_get();
+    let mut gap_vec = Vec::with_capacity(256);
+    let gap = &mut gap_vec;
 
     if g_st().msg_scrolled == 0 {
         update_topline(curwin_mut());
@@ -3108,8 +3131,6 @@ fn qf_jump_print_msg(
     msg_ext_set_kind(c"quickfix");
     msg_keep(crate::memory::bytes_as_cstr(gap), 0, true, false);
     g_st().msg_scroll = i;
-
-    qfga_clear();
 }
 
 fn qf_jump_open_window(
@@ -3365,7 +3386,8 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     if qfp.qf_lnum != 0 {
         msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
     }
-    let mut gap = qfga_get();
+    let mut gap_vec = Vec::with_capacity(256);
+    let gap = &mut gap_vec;
     if qfp.qf_lnum != 0 {
         qf_range_text(gap, qfp);
     }
@@ -3380,7 +3402,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     }
     msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
     if let Some(ref pat) = qfp.qf_pattern {
-        gap = qfga_get();
+        gap.clear();
         qf_fmt_text(gap, pat.as_bytes());
         gap.push(0);
         msg_puts(crate::memory::bytes_as_cstr(gap));
@@ -3388,7 +3410,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     }
     msg_puts(c" ");
 
-    gap = qfga_get();
+    gap.clear();
     let text = if fname.is_some() || qfp.qf_lnum != 0 {
         crate::charset::skipwhite_slice(qfp.qf_text.as_bytes())
     } else {
@@ -3472,7 +3494,6 @@ pub fn qf_list(eap: &mut Exarg) {
         }
         os_breakcheck();
     }
-    qfga_clear();
 }
 
 fn qf_fmt_text(gap: &mut Vec<u8>, text: &[u8]) {
@@ -4133,7 +4154,8 @@ fn qf_buf_add_line(
     qftf_str: Option<&CStr>,
     first_bufline: bool,
 ) -> bool {
-    let gap = qfga_get();
+    let mut gap_vec = Vec::with_capacity(256);
+    let gap = &mut gap_vec;
 
     if let Some(qftf_str) = qftf_str.filter(|s| !s.to_bytes().is_empty()) {
         qfga_concat(gap, qftf_str.to_bytes());
@@ -4322,7 +4344,6 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
         }
 
         tv_list_unref(crate::globals::GraphPtr::of(qftf_list_ptr).opt_mut());
-        qfga_clear();
     }
 
     check_lnums(true);
@@ -7281,7 +7302,6 @@ pub fn free_quickfix() {
     }
 
     callback_free(&mut opt_vars().p_qftf);
-    qf_st().qfga = Vec::new();
 }
 
 fn get_qf_loc_list(

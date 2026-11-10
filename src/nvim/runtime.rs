@@ -3,7 +3,7 @@
 
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_array_opt, arena_dict,
-    arena_string_opt, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, put_c,
+    arena_string_opt, boolean_obj, cstr_as_string, cstr_to_arena_obj, dict_obj, integer_obj, put_c,
     static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
@@ -283,63 +283,82 @@ struct SearchPathItem {
     path: std::ffi::CString,
     after: bool,
     pack_inserted: bool,
-    has_lua: TriState,
+    has_lua: std::cell::Cell<TriState>,
     pos_in_rtp: usize,
 }
 
 type RuntimeSearchPath = Vec<SearchPathItem>;
 
-static RUNTIME_SEARCH_PATH_MUTEX: Mutex<()> = Mutex::new(());
+static RUNTIME_SEARCH_PATH_THREAD: Mutex<RuntimeSearchPath> = Mutex::new(Vec::new());
 
-pub(crate) struct RuntimeModuleState {
-    pub(crate) exestack: Vec<Estack>,
-    pub(crate) script_items: Vec<Scriptitem>,
-    ga_loaded: Vec<std::ffi::CString>,
+#[derive(Clone, Copy)]
+struct RuntimeCopyState {
     last_current_sid_seq: i32,
     last_current_sid: Scid,
     runtime_search_path_valid: bool,
     runtime_search_path_valid_thread: bool,
-    runtime_search_path_refcount: usize,
-    runtime_search_path_old: Vec<RuntimeSearchPath>,
-    runtime_search_path: RuntimeSearchPath,
-    runtime_search_path_thread: RuntimeSearchPath,
     runtime_expand_flags: i32,
-    get_named_buf: [u8; MAXPATHL],
-    get_named_thread_buf: [u8; MAXPATHL],
-    pack_entry_buf: [u8; MAXPATHL],
-    build_rtp_buf: [u8; MAXPATHL],
-    pack_start_buf: [u8; MAXPATHL],
 }
 
-impl RuntimeModuleState {
+impl RuntimeCopyState {
     const fn new() -> Self {
         Self {
-            exestack: Vec::new(),
-            script_items: Vec::new(),
-            ga_loaded: Vec::new(),
             last_current_sid_seq: 0,
             last_current_sid: 0,
             runtime_search_path_valid: false,
             runtime_search_path_valid_thread: false,
-            runtime_search_path_refcount: 0,
-            runtime_search_path_old: Vec::new(),
-            runtime_search_path: Vec::new(),
-            runtime_search_path_thread: Vec::new(),
             runtime_expand_flags: 0,
-            get_named_buf: [0; MAXPATHL],
-            get_named_thread_buf: [0; MAXPATHL],
-            pack_entry_buf: [0; MAXPATHL],
-            build_rtp_buf: [0; MAXPATHL],
-            pack_start_buf: [0; MAXPATHL],
         }
     }
 }
 
-static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModuleState::new());
+thread_local! {
+    static RT_STATE: std::cell::Cell<RuntimeCopyState> = const {
+        std::cell::Cell::new(RuntimeCopyState::new())
+    };
+    static GA_LOADED: std::cell::RefCell<Vec<std::ffi::CString>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+    static RUNTIME_SEARCH_PATH: std::cell::RefCell<std::rc::Rc<RuntimeSearchPath>> =
+        std::cell::RefCell::new(std::rc::Rc::new(Vec::new()));
+}
+
+struct RtGuard {
+    state: RuntimeCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for RtGuard {
+    type Target = RuntimeCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for RtGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for RtGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            RT_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-pub(crate) fn rt_st() -> crate::globals::GraphPtr<RuntimeModuleState> {
-    RT_STATE.handle()
+fn rt_st() -> RtGuard {
+    RtGuard {
+        state: RT_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
@@ -350,12 +369,12 @@ use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
 pub fn script_item(id: Scid) -> &'static mut Scriptitem {
-    &mut rt_st().borrow_mut().script_items[(id - 1) as usize]
+    &mut g_st().borrow_mut().script_items[(id - 1) as usize]
 }
 
 #[inline]
 pub fn script_items_len() -> Scid {
-    rt_st().script_items.len() as Scid
+    g_st().script_items.len() as Scid
 }
 
 #[inline]
@@ -365,23 +384,23 @@ pub fn script_id_valid(id: Scid) -> bool {
 
 #[inline]
 pub fn sourcing_name() -> Option<&'static CStr> {
-    rt_st().borrow_mut().exestack.last().unwrap().name_cstr()
+    g_st().borrow_mut().exestack.last().unwrap().name_cstr()
 }
 
 #[inline]
 pub fn sourcing_lnum() -> Linenr {
-    rt_st().exestack.last().unwrap().es_lnum
+    g_st().exestack.last().unwrap().es_lnum
 }
 
 #[inline]
 pub fn set_sourcing_lnum(lnum: Linenr) {
-    rt_st().exestack.last_mut().unwrap().es_lnum = lnum;
+    g_st().exestack.last_mut().unwrap().es_lnum = lnum;
 }
 
 /// Initialize the execution stack.
 pub fn estack_init() {
-    rt_st().exestack.reserve(10);
-    rt_st().exestack.push(Estack {
+    g_st().exestack.reserve(10);
+    g_st().exestack.push(Estack {
         es_type: ETYPE_TOP,
         es_name: None,
         es_lnum: 0,
@@ -391,13 +410,13 @@ pub fn estack_init() {
 
 /// Add an item to the execution stack.
 pub fn estack_push(type_: Etype, name: Option<&CStr>, lnum: Linenr) -> &'static mut Estack {
-    rt_st().exestack.push(Estack {
+    g_st().exestack.push(Estack {
         es_type: type_,
         es_name: name.map(CStr::to_owned),
         es_lnum: lnum,
         es_info: crate::profile::EStackInfo::None,
     });
-    rt_st().borrow_mut().exestack.last_mut().unwrap()
+    g_st().borrow_mut().exestack.last_mut().unwrap()
 }
 
 /// Add a user function to the execution stack.
@@ -413,20 +432,20 @@ pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
 
 /// Take an item off of the execution stack.
 pub fn estack_pop() {
-    if rt_st().exestack.len() > 1 {
-        rt_st().exestack.pop();
+    if g_st().exestack.len() > 1 {
+        g_st().exestack.pop();
     }
 }
 
 /// Get the current value for <sfile> as an owned `CString`.
 pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
-    let last_entry = rt_st().borrow_mut().exestack.last().unwrap();
+    let last_entry = g_st().borrow_mut().exestack.last().unwrap();
     if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
         return last_entry.es_name.clone();
     }
 
     if which == ESTACK_SCRIPT {
-        for entry in rt_st().exestack.iter().rev() {
+        for entry in g_st().exestack.iter().rev() {
             if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                 let def_ctx = if entry.es_type == ETYPE_UFUNC {
                     entry.es_info.ufunc().unwrap().uf_script_ctx
@@ -447,8 +466,8 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
 
     let mut buf: Vec<u8> = Vec::new();
     let mut last_type = ETYPE_SCRIPT;
-    let es_len = rt_st().exestack.len();
-    for (idx, entry) in rt_st().exestack.iter().enumerate() {
+    let es_len = g_st().exestack.len();
+    for (idx, entry) in g_st().exestack.iter().enumerate() {
         if let Some(ref entry_name) = entry.es_name {
             let mut type_name = static_cstr_as_string(c"");
             let es_name = cstr_as_string(Some(entry_name));
@@ -520,11 +539,11 @@ fn stacktrace_push_item(
     tv_list_append_tv(l, &mut tv);
 }
 
-/// Create the stacktrace from rt_st().exestack.
+/// Create the stacktrace from `exestack`.
 pub fn stacktrace_create() -> &'static mut TvList {
-    let l = tv_list_alloc(rt_st().exestack.len() as isize);
+    let l = tv_list_alloc(g_st().exestack.len() as isize);
 
-    for entry in &rt_st().exestack {
+    for entry in &g_st().exestack {
         let mut lnum = entry.es_lnum;
 
         if entry.es_type == ETYPE_SCRIPT {
@@ -789,21 +808,13 @@ pub fn do_in_path(
     did_one
 }
 
-fn runtime_search_path_get_cached() -> &'static mut [SearchPathItem] {
+fn runtime_search_path_get_cached() -> std::rc::Rc<RuntimeSearchPath> {
     runtime_search_path_validate();
-    rt_st().runtime_search_path_refcount += 1;
-    rt_st().borrow_mut().runtime_search_path.as_mut_slice()
+    RUNTIME_SEARCH_PATH.with(|cell| cell.borrow().clone())
 }
 
 fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
     src.to_vec()
-}
-
-fn runtime_search_path_unref() {
-    rt_st().runtime_search_path_refcount -= 1;
-    if rt_st().runtime_search_path_refcount == 0 {
-        rt_st().runtime_search_path_old.clear();
-    }
 }
 
 fn do_in_cached_path(
@@ -822,11 +833,11 @@ fn do_in_cached_path(
         verbose_leave();
     }
 
-    let path: &[SearchPathItem] = runtime_search_path_get_cached();
+    let path = runtime_search_path_get_cached();
 
     let do_all = (flags & DIP_ALL) != 0;
 
-    for item in path {
+    for item in path.iter() {
         let buflen = item.path.as_bytes().len();
 
         if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
@@ -886,73 +897,76 @@ fn do_in_cached_path(
         }
     }
 
-    runtime_search_path_unref();
-
     did_one
 }
 
 pub fn runtime_inspect(arena: &mut Arena) -> Array {
-    let rsp = &rt_st().runtime_search_path;
-    let mut rv = arena_array(arena, rsp.len());
+    RUNTIME_SEARCH_PATH.with(|cell| {
+        let rsp = cell.borrow();
+        let mut rv = arena_array(arena, rsp.len());
 
-    for item in rsp {
-        let mut entry = arena_dict(arena, 5);
-        put_c(&mut entry, c"path", cstr_as_obj(Some(&*item.path)));
-        if item.after {
-            put_c(&mut entry, c"after", boolean_obj(true));
-        }
-        if item.pack_inserted {
-            put_c(&mut entry, c"pack_inserted", boolean_obj(true));
-        }
-        if item.has_lua != K_NONE {
-            put_c(&mut entry, c"has_lua", boolean_obj(item.has_lua == K_TRUE));
-        }
-        put_c(
-            &mut entry,
-            c"pos_in_rtp",
-            integer_obj(item.pos_in_rtp as Integer),
-        );
+        for item in rsp.iter() {
+            let mut entry = arena_dict(arena, 5);
+            put_c(
+                &mut entry,
+                c"path",
+                cstr_to_arena_obj(arena, Some(&item.path)),
+            );
+            if item.after {
+                put_c(&mut entry, c"after", boolean_obj(true));
+            }
+            if item.pack_inserted {
+                put_c(&mut entry, c"pack_inserted", boolean_obj(true));
+            }
+            let has_lua = item.has_lua.get();
+            if has_lua != K_NONE {
+                put_c(&mut entry, c"has_lua", boolean_obj(has_lua == K_TRUE));
+            }
+            put_c(
+                &mut entry,
+                c"pos_in_rtp",
+                integer_obj(item.pos_in_rtp as Integer),
+            );
 
-        add_c(&mut rv, dict_obj(entry));
-    }
-    rv
+            add_c(&mut rv, dict_obj(entry));
+        }
+        rv
+    })
 }
 
 pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) -> Array {
     let path = runtime_search_path_get_cached();
-    let rv = runtime_get_named_common(lua, pat, all, path, &mut rt_st().get_named_buf, Some(arena));
-    runtime_search_path_unref();
-    rv
+    let mut buf = [0u8; MAXPATHL];
+    runtime_get_named_common(lua, pat, all, &path, &mut buf, Some(arena))
 }
 
 pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
-    let _guard = RUNTIME_SEARCH_PATH_MUTEX
+    let path = RUNTIME_SEARCH_PATH_THREAD
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    let path = &mut rt_st().runtime_search_path_thread;
-    let buf: &mut [u8] = &mut rt_st().get_named_thread_buf;
-    runtime_get_named_common(lua, pat, all, path, buf, None)
+    let mut buf = [0u8; MAXPATHL];
+    runtime_get_named_common(lua, pat, all, &path, &mut buf, None)
 }
 
 fn runtime_get_named_common(
     lua: bool,
     pat: Array,
     all: bool,
-    path: &mut [SearchPathItem],
+    path: &[SearchPathItem],
     buf_slice: &mut [u8],
     mut arena: Option<&mut Arena>,
 ) -> Array {
     let buf_len = buf_slice.len();
     let mut rv = arena_array_opt(arena.as_deref_mut(), path.len() * pat.size);
-    for item in path.iter_mut() {
+    for item in path {
         if lua {
-            if item.has_lua == K_NONE {
+            if item.has_lua.get() == K_NONE {
                 let size = format_to_buf!(&mut *buf_slice, c"%s/lua/", &item.path) as usize;
-                item.has_lua = TriState::from(
+                item.has_lua.set(TriState::from(
                     size < buf_len && os_isdir(crate::memory::bytes_as_cstr(buf_slice)),
-                );
+                ));
             }
-            if item.has_lua == K_FALSE {
+            if item.has_lua.get() == K_FALSE {
                 continue;
             }
         }
@@ -1040,7 +1054,7 @@ fn push_path(
             path: entry.to_owned(),
             after,
             pack_inserted: false,
-            has_lua: K_NONE,
+            has_lua: std::cell::Cell::new(K_NONE),
             pos_in_rtp,
         });
         return true;
@@ -1080,17 +1094,15 @@ fn expand_pack_entry(
 ) {
     let pack_entry_len = pack_entry_bytes.len();
     let start_pats = [c"/pack/*/start/*", c"/start/*"];
+    let mut pack_entry_buf = [0u8; MAXPATHL];
     for pat in &start_pats {
         let pat_len = pat.to_bytes().len();
         if pack_entry_len + pat_len + 1 > MAXPATHL {
             continue;
         }
-        crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_entry_buf, pack_entry_bytes);
-        crate::memory::copy_bytes_to_c_buf(
-            &mut rt_st().pack_entry_buf[pack_entry_len..],
-            pat.to_bytes(),
-        );
-        let entry_cstr = crate::memory::bytes_as_cstr(&rt_st().borrow_mut().pack_entry_buf);
+        crate::memory::copy_bytes_to_c_buf(&mut pack_entry_buf, pack_entry_bytes);
+        crate::memory::copy_bytes_to_c_buf(&mut pack_entry_buf[pack_entry_len..], pat.to_bytes());
+        let entry_cstr = crate::memory::bytes_as_cstr(&pack_entry_buf);
         expand_rtp_entry(search_path, rtp_used, entry_cstr, false, pos_in_rtp);
         let mut after_bytes = Vec::from(entry_cstr.to_bytes());
         after_bytes.extend_from_slice(b"/after");
@@ -1111,12 +1123,13 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     let mut rtp_used: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     let mut search_path = RuntimeSearchPath::new();
     let mut after_path: Vec<std::ffi::CString> = Vec::new();
+    let mut build_rtp_buf = [0u8; MAXPATHL];
 
     let p_pp = opt_vars().p_pp.to_owned();
     let mut entry = p_pp.as_bytes();
     while !entry.is_empty() {
         let cur_entry_slice = entry;
-        let buflen = copy_option_part(&mut entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
+        let buflen = copy_option_part(&mut entry, &mut build_rtp_buf[..MAXPATHL], c",");
 
         let the_entry = NvimString::from_bytes(&cur_entry_slice[..buflen]);
 
@@ -1128,8 +1141,8 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     let mut rtp_entry = p_rtp.as_bytes();
     while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
-        let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
-        let buf_slice = &rt_st().build_rtp_buf[..buflen];
+        let buflen = copy_option_part(&mut rtp_entry, &mut build_rtp_buf[..MAXPATHL], c",");
+        let buf_slice = &build_rtp_buf[..buflen];
 
         if path_is_after(buf_slice) {
             rtp_entry = cur_entry;
@@ -1141,12 +1154,12 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            crate::memory::bytes_as_cstr(&rt_st().build_rtp_buf),
+            crate::memory::bytes_as_cstr(&build_rtp_buf),
             false,
             pos_in_rtp,
         );
 
-        let buf_slice = &rt_st().build_rtp_buf[..buflen];
+        let buf_slice = &build_rtp_buf[..buflen];
         if let Some(h) = pack_used.get_mut(buf_slice) {
             *h += 1;
             expand_pack_entry(
@@ -1187,13 +1200,13 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
 
     while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
-        let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
+        let buflen = copy_option_part(&mut rtp_entry, &mut build_rtp_buf[..MAXPATHL], c",");
         let pos_in_rtp = p_rtp.as_bytes().len() - cur_entry.len();
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            crate::memory::bytes_as_cstr(&rt_st().build_rtp_buf),
-            path_is_after(&rt_st().build_rtp_buf[..buflen]),
+            crate::memory::bytes_as_cstr(&build_rtp_buf),
+            path_is_after(&build_rtp_buf[..buflen]),
             pos_in_rtp,
         );
     }
@@ -1211,14 +1224,13 @@ pub fn runtime_search_path_validate() {
         return;
     }
     if !rt_st().runtime_search_path_valid {
-        let new_path = runtime_search_path_build();
-        let old_path = std::mem::replace(&mut rt_st().runtime_search_path, new_path);
-        if rt_st().runtime_search_path_refcount == 0 {
+        let new_path = std::rc::Rc::new(runtime_search_path_build());
+        let old_path =
+            RUNTIME_SEARCH_PATH.with(|cell| std::mem::replace(&mut *cell.borrow_mut(), new_path));
+        if std::rc::Rc::strong_count(&old_path) == 1 {
             msg_ext_ui_flush();
-            drop(old_path);
-        } else {
-            rt_st().runtime_search_path_old.push(old_path);
         }
+        drop(old_path);
         rt_st().runtime_search_path_valid = true;
         update_runtime_search_path_thread(true);
     }
@@ -1229,11 +1241,12 @@ pub fn update_runtime_search_path_thread(force: bool) {
         return;
     }
 
-    let _guard = RUNTIME_SEARCH_PATH_MUTEX
+    let cloned = RUNTIME_SEARCH_PATH.with(|cell| copy_runtime_search_path(&cell.borrow()));
+    let mut thread_path = RUNTIME_SEARCH_PATH_THREAD
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    rt_st().runtime_search_path_thread = copy_runtime_search_path(&rt_st().runtime_search_path);
-    drop(_guard);
+    *thread_path = cloned;
+    drop(thread_path);
     rt_st().runtime_search_path_valid_thread = true;
 }
 
@@ -1449,59 +1462,63 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         set_option_value_give_err(K_OPT_RUNTIMEPATH, string_obj(new_rtp), 0);
 
         debug_assert!(!rt_st().runtime_search_path_valid);
-        if was_valid && !is_pack && rt_st().runtime_search_path_refcount == 0 {
-            rt_st().runtime_search_path_valid = true;
-            rt_st().runtime_search_path_valid_thread = false;
-            let rsp = &mut rt_st().runtime_search_path;
+        if was_valid && !is_pack {
+            RUNTIME_SEARCH_PATH.with(|cell| {
+                let mut rc = cell.borrow_mut();
+                if let Some(rsp) = std::rc::Rc::get_mut(&mut *rc) {
+                    rt_st().runtime_search_path_valid = true;
+                    rt_st().runtime_search_path_valid_thread = false;
 
-            let idx1 = rsp
-                .iter()
-                .position(|item| item.pos_in_rtp >= first_pos)
-                .unwrap_or(rsp.len());
-            for item in &mut rsp[idx1..] {
-                item.pos_in_rtp += fname_len + 1;
-            }
-            let fname_bytes = &fname_cstr.to_bytes()[..fname_len];
-            let fname_end = fname_bytes
-                .iter()
-                .position(|&b| b == 0)
-                .unwrap_or(fname_bytes.len());
-            rsp.insert(
-                idx1,
-                SearchPathItem {
-                    path: std::ffi::CString::new(&fname_bytes[..fname_end]).unwrap(),
-                    after: false,
-                    pack_inserted: true,
-                    has_lua: K_NONE,
-                    pos_in_rtp: first_pos,
-                },
-            );
+                    let idx1 = rsp
+                        .iter()
+                        .position(|item| item.pos_in_rtp >= first_pos)
+                        .unwrap_or(rsp.len());
+                    for item in &mut rsp[idx1..] {
+                        item.pos_in_rtp += fname_len + 1;
+                    }
+                    let fname_bytes = &fname_cstr.to_bytes()[..fname_len];
+                    let fname_end = fname_bytes
+                        .iter()
+                        .position(|&b| b == 0)
+                        .unwrap_or(fname_bytes.len());
+                    rsp.insert(
+                        idx1,
+                        SearchPathItem {
+                            path: std::ffi::CString::new(&fname_bytes[..fname_end]).unwrap(),
+                            after: false,
+                            pack_inserted: true,
+                            has_lua: std::cell::Cell::new(K_NONE),
+                            pos_in_rtp: first_pos,
+                        },
+                    );
 
-            if afterdir.size > 0 {
-                let target_after_pos = after_pos + fname_len + 1;
-                let idx2 = rsp
-                    .iter()
-                    .position(|item| item.pos_in_rtp >= target_after_pos)
-                    .unwrap_or(rsp.len());
-                for item in &mut rsp[idx2..] {
-                    item.pos_in_rtp += afterdir.size + 1;
+                    if afterdir.size > 0 {
+                        let target_after_pos = after_pos + fname_len + 1;
+                        let idx2 = rsp
+                            .iter()
+                            .position(|item| item.pos_in_rtp >= target_after_pos)
+                            .unwrap_or(rsp.len());
+                        for item in &mut rsp[idx2..] {
+                            item.pos_in_rtp += afterdir.size + 1;
+                        }
+                        let after_bytes = afterdir.as_bytes();
+                        let after_end = after_bytes
+                            .iter()
+                            .position(|&b| b == 0)
+                            .unwrap_or(after_bytes.len());
+                        rsp.insert(
+                            idx2,
+                            SearchPathItem {
+                                path: std::ffi::CString::new(&after_bytes[..after_end]).unwrap(),
+                                after: true,
+                                pack_inserted: true,
+                                has_lua: std::cell::Cell::new(K_NONE),
+                                pos_in_rtp: target_after_pos,
+                            },
+                        );
+                    }
                 }
-                let after_bytes = afterdir.as_bytes();
-                let after_end = after_bytes
-                    .iter()
-                    .position(|&b| b == 0)
-                    .unwrap_or(after_bytes.len());
-                rsp.insert(
-                    idx2,
-                    SearchPathItem {
-                        path: std::ffi::CString::new(&after_bytes[..after_end]).unwrap(),
-                        after: true,
-                        pack_inserted: true,
-                        has_lua: K_NONE,
-                        pos_in_rtp: target_after_pos,
-                    },
-                );
-            }
+            });
         }
         drop(new_rtp_vec);
         retval = true;
@@ -1602,15 +1619,16 @@ fn pack_has_entries(buf: &std::ffi::CStr) -> bool {
 
 fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
     let start_pats = [c"/start/*", c"/pack/*/start/*"];
+    let mut pack_start_buf = [0u8; MAXPATHL];
     for fname_cstr in fnames {
         let fname_len = fname_cstr.as_bytes().len();
         for pat in &start_pats {
             if fname_len + pat.to_bytes().len() + 1 > MAXPATHL {
                 continue;
             }
-            crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_start_buf, fname_cstr.as_bytes());
-            crate::memory::append_bytes_to_c_buf(&mut rt_st().pack_start_buf, pat.to_bytes());
-            let buf_cstr = crate::memory::bytes_as_cstr(&rt_st().borrow_mut().pack_start_buf);
+            crate::memory::copy_bytes_to_c_buf(&mut pack_start_buf, fname_cstr.as_bytes());
+            crate::memory::append_bytes_to_c_buf(&mut pack_start_buf, pat.to_bytes());
+            let buf_cstr = crate::memory::bytes_as_cstr(&pack_start_buf);
             if pack_has_entries(buf_cstr) {
                 add_pack_dir_to_rtp(buf_cstr, true);
             }
@@ -2387,8 +2405,8 @@ pub fn new_script_item(
     {
         *sid_out = sid;
     }
-    while (rt_st().script_items.len() as Scid) < sid {
-        rt_st().script_items.push(Scriptitem {
+    while (g_st().script_items.len() as Scid) < sid {
+        g_st().script_items.push(Scriptitem {
             sn_vars: new_script_vars(),
             sn_name: None,
             sn_lua: false,
@@ -3003,11 +3021,11 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
 
 pub fn free_scriptnames() {
     profile_reset();
-    rt_st().script_items = Vec::new();
+    g_st().script_items = Vec::new();
 }
 
 pub fn free_autoload_scriptnames() {
-    rt_st().ga_loaded = Vec::new();
+    GA_LOADED.with(|cell| cell.borrow_mut().clear());
 }
 
 pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
@@ -3389,13 +3407,14 @@ pub fn script_autoload(slice: &[u8], reload: bool) -> bool {
     let scriptname_cstr = autoload_name(slice);
 
     let target_tail = &scriptname_cstr.as_bytes()[9..];
-    let already_loaded = rt_st()
-        .ga_loaded
-        .iter()
-        .any(|entry| &entry.as_bytes()[9..] == target_tail);
+    let already_loaded = GA_LOADED.with(|cell| {
+        cell.borrow()
+            .iter()
+            .any(|entry| &entry.as_bytes()[9..] == target_tail)
+    });
     if reload || !already_loaded {
         if !already_loaded {
-            rt_st().ga_loaded.push(scriptname_cstr.clone());
+            GA_LOADED.with(|cell| cell.borrow_mut().push(scriptname_cstr.clone()));
         }
 
         if do_in_runtimepath(

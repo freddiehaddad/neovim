@@ -18,7 +18,7 @@ use crate::globals::*;
 use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free};
 use crate::message::{emsg, semsg, semsg_multiline};
 use crate::msgpack_rpc::channel::{find_channel, get_client_info, rpc_send_call, rpc_send_event};
-use crate::runtime::{Sctx, rt_st};
+use crate::runtime::Sctx;
 use crate::strings::gettext;
 
 const K_CHANNEL_PART_RPC: i32 = 3;
@@ -138,7 +138,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         g_st().current_sctx = g_st().provider_caller_scope.script_ctx;
         let es_entry = g_st().provider_caller_scope.es_entry.clone();
-        rt_st().exestack.push(es_entry);
+        g_st().exestack.push(es_entry);
         g_st().autocmd_fname = g_st().provider_caller_scope.autocmd_fname.clone();
         g_st().autocmd_match = g_st().provider_caller_scope.autocmd_match.clone();
         g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
@@ -157,7 +157,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     if l_provider_call_nesting != 0 {
         g_st().current_sctx = save_current_sctx;
-        rt_st().exestack.pop();
+        g_st().exestack.pop();
         g_st().autocmd_fname = save_autocmd_fname;
         g_st().autocmd_match = save_autocmd_match;
         g_st().autocmd_fname_full = save_autocmd_fname_full;

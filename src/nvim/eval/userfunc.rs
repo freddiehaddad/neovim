@@ -67,7 +67,7 @@ use crate::profile::{
 };
 use crate::regexp::{NUMBUFLEN, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec};
 use crate::runtime::{
-    autoload_name, estack_pop, estack_push_ufunc, get_sourced_lnum, rt_st, script_autoload,
+    autoload_name, estack_pop, estack_push_ufunc, get_sourced_lnum, script_autoload,
     set_sourcing_lnum, sourcing_lnum, sourcing_name,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
@@ -1524,7 +1524,7 @@ pub fn call_user_func(
     }
 
     estack_push_ufunc(&mut *fp, 1);
-    let estack_len_before = rt_st().exestack.len() as i32;
+    let estack_len_before = g_st().exestack.len() as i32;
     if opt_vars().p_verbose >= 12 {
         g_st().no_wait_return += 1;
         verbose_enter_scroll();

@@ -92,7 +92,7 @@ use crate::regexp::{
 };
 use crate::register::{K_GREG_EXPR_SRC, get_reg_contents_str};
 use crate::runtime::{
-    Sctx, free_autoload_scriptnames, free_scriptnames, get_scriptname, rt_st, script_autoload,
+    Sctx, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
     script_is_lua,
 };
 use crate::ui::ui_has;
@@ -4150,9 +4150,9 @@ pub fn garbage_collect(testing: bool) -> bool {
         g_st().garbage_collect_at_exit = false;
     }
 
-    if rt_st().exestack.capacity() - rt_st().exestack.len() > 500 {
-        let keep = rt_st().exestack.len() + (rt_st().exestack.len() / 2).max(50);
-        rt_st().exestack.shrink_to(keep);
+    if g_st().exestack.capacity() - g_st().exestack.len() > 500 {
+        let keep = g_st().exestack.len() + (g_st().exestack.len() / 2).max(50);
+        g_st().exestack.shrink_to(keep);
     }
 
     let copy_id = get_copy_id();
@@ -6595,7 +6595,7 @@ pub fn eval_call_provider(
 
     let new_scope = CallerScope {
         script_ctx: g_st().current_sctx,
-        es_entry: rt_st().exestack.last().unwrap().clone(),
+        es_entry: g_st().exestack.last().unwrap().clone(),
         autocmd_fname: g_st().autocmd_fname.clone(),
         autocmd_match: g_st().autocmd_match.clone(),
         autocmd_fname_full: g_st().autocmd_fname_full,

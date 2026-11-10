@@ -33,6 +33,8 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::VisualState;
 use crate::os::fs::{MAXPATHL, NvimStats};
 use crate::popupmenu::PumWant;
+use crate::profile::{Estack, Scriptitem};
+use crate::quickfix::QfInfo;
 use crate::regexp::RegExtmatch;
 use crate::register::{EMPTY_YANKREG, NUM_REGISTERS, Yankreg};
 use crate::runtime::Sctx;
@@ -357,6 +359,11 @@ pub struct EditorState {
     pub ex_error_buf: [u8; MSG_BUF_LEN],
     pub y_regs: [Yankreg; NUM_REGISTERS],
     pub empty_reg: Yankreg,
+    pub exestack: Vec<Estack>,
+    pub script_items: Vec<Scriptitem>,
+    pub ql_info_actual: QfInfo,
+    pub llist_arena: Vec<Option<Box<QfInfo>>>,
+    pub free_llists: Vec<usize>,
     pub diff_context: i32,
     pub diff_foldcolumn: i32,
     pub diff_need_scrollbind: bool,
@@ -803,6 +810,11 @@ impl EditorState {
             ex_error_buf: [0; MSG_BUF_LEN],
             y_regs: [const { EMPTY_YANKREG }; NUM_REGISTERS],
             empty_reg: EMPTY_YANKREG,
+            exestack: Vec::new(),
+            script_items: Vec::new(),
+            ql_info_actual: QfInfo::new_stack(),
+            llist_arena: Vec::new(),
+            free_llists: Vec::new(),
             diff_context: 6,
             diff_foldcolumn: 2,
             diff_need_scrollbind: false,
