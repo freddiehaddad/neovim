@@ -3681,8 +3681,8 @@ pub fn tv_dict_item_copy(di: &mut Dictitem) -> &'static mut Dictitem {
 
 /// Remove item from dictionary and free it.
 pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
-    if let Some(hi) = dict.dv_hashtab.find_hi_mut(item.key_cstr()) {
-        hash_remove(&mut dict.dv_hashtab, hi);
+    if let Some(idx) = dict.dv_hashtab.find_hi_idx(item.key_cstr()) {
+        hash_remove(&mut dict.dv_hashtab, idx);
     } else {
         semsg!(tr(E_INTERN2), c"tv_dict_item_remove()");
     }
@@ -3796,11 +3796,11 @@ pub fn tv_dict_unref(d: Option<&mut TvDict>) {
 pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'static mut Dictitem> {
     let d = d?;
     let hi = if len < 0 {
-        d.dv_hashtab.find_hi_mut(key)
+        d.dv_hashtab.find_hi(key)
     } else {
         let bytes = key.to_bytes();
         d.dv_hashtab
-            .find_hi_len_mut(&bytes[..(len as usize).min(bytes.len())])
+            .find_hi_len(&bytes[..(len as usize).min(bytes.len())])
     };
     hi.and_then(|hi| hi.hi_di.opt_mut())
 }
@@ -4685,44 +4685,16 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
 }
 
 #[inline]
-fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
-    if tv.v_type == VarType::VarPartial {
-        let Some(pt) = tv.vval.v_partial_opt() else {
-            return;
-        };
-        let dict = pt.pt_dict;
-        debug_assert!(dict.is_null() || dict.dv_copy_id == copy_id);
-        pt.pt_dict = DictId::NULL;
-        pt.pt_argv.clear();
-        debug_assert!(pt.pt_refcount <= 1);
-        partial_unref(Some(pt));
-        tv.vval = crate::eval::typval::TypvalVval::Partial(PartialId::NULL);
-        debug_assert_eq!(tv.v_lock, VAR_UNLOCKED);
-    }
-}
-
-#[inline]
-fn nothing_conv_real_list_after_start(tv: &mut TypVal, mpsv: &mut MPConvStackVal) {
-    tv.v_lock = VAR_UNLOCKED;
-    let list = tv.vval.v_list_ref();
-    if list.lv_refcount > 1 {
-        list.lv_refcount -= 1;
-        tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
-        if let MPConvStackData::List { ref mut li, .. } = mpsv.data {
-            *li = ListitemId::NULL;
-        }
-    }
-}
-
-#[inline]
-fn nothing_conv_list_end(mut tv: Option<&mut TypVal>) {
-    if tv.is_none() {
+fn nothing_conv_func_end(pt: PartialId, copy_id: i32) {
+    let Some(pt) = pt.opt_mut() else {
         return;
-    }
-    debug_assert_eq!(tv.as_deref_mut().unwrap().v_type, VarType::VarList);
-    let list = tv.as_deref_mut().unwrap().vval.v_list_opt();
-    tv_list_unref(list);
-    tv.unwrap().vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
+    };
+    let dict = pt.pt_dict;
+    debug_assert!(dict.is_null() || dict.dv_copy_id == copy_id);
+    pt.pt_dict = DictId::NULL;
+    pt.pt_argv.clear();
+    debug_assert!(pt.pt_refcount <= 1);
+    partial_unref(Some(pt));
 }
 
 fn nothing_convert_one_value(
@@ -4756,8 +4728,8 @@ fn nothing_convert_one_value(
             if nothing_conv_func_start(tv) {
                 return true;
             }
+            tv.vval = crate::eval::typval::TypvalVval::Partial(PartialId::NULL);
             mpstack.push(MPConvStackVal {
-                tv: crate::globals::GraphPtr::from(&mut *tv),
                 saved_copy_id: copy_id - 1,
                 data: MPConvStackData::Partial {
                     stage: MPConvPartialStage::Args,
@@ -4778,19 +4750,22 @@ fn nothing_convert_one_value(
                 return true;
             }
 
-            {
-                list.lv_copy_id = copy_id;
+            tv.v_lock = VAR_UNLOCKED;
+            tv.vval = crate::eval::typval::TypvalVval::List(ListId::NULL);
+            if list.lv_refcount > 1 {
+                list.lv_refcount -= 1;
+                return true;
             }
 
-            let mut mpsv = MPConvStackVal {
-                tv: crate::globals::GraphPtr::from(&mut *tv),
+            list.lv_copy_id = copy_id;
+
+            let mpsv = MPConvStackVal {
                 saved_copy_id,
                 data: MPConvStackData::List {
                     list,
                     li: list.lv_first,
                 },
             };
-            nothing_conv_real_list_after_start(tv, &mut mpsv);
             mpstack.push(mpsv);
         }
         VarType::VarBool => {
@@ -4802,7 +4777,6 @@ fn nothing_convert_one_value(
             tv.v_lock = VAR_UNLOCKED;
         }
         VarType::VarDict => {
-            let tv_ptr = &raw mut *tv;
             let mut dict = tv.vval.v_dict();
             if dict.is_null() || dict.dv_hashtab.ht_used == 0 {
                 tv_dict_unref(dict.opt_mut());
@@ -4816,24 +4790,19 @@ fn nothing_convert_one_value(
             }
 
             tv.v_lock = VAR_UNLOCKED;
+            tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
             if dict.dv_refcount > 1 {
-                {
-                    dict.dv_refcount -= 1;
-                }
-                tv.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
+                dict.dv_refcount -= 1;
                 return true;
             }
 
-            {
-                dict.dv_copy_id = copy_id;
-            }
+            dict.dv_copy_id = copy_id;
 
             let mpsv = MPConvStackVal {
-                tv: crate::globals::GraphPtr::new(tv_ptr),
                 saved_copy_id,
                 data: MPConvStackData::Dict {
                     dict,
-                    hi: dict.dv_hashtab.array_ptr().into(),
+                    hi_idx: 0,
                     todo: dict.dv_hashtab.ht_used,
                 },
             };
@@ -4858,29 +4827,26 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
     while !mpstack.is_empty() {
         let last_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[last_idx].saved_copy_id;
-        let cur_tv = mpstack[last_idx].tv;
         let tv = crate::globals::GraphPtr::<TypVal>::of(match mpstack[last_idx].data {
             MPConvStackData::Dict {
                 mut dict,
-                ref mut hi,
+                ref mut hi_idx,
                 ref mut todo,
             } => {
                 if *todo == 0 {
                     mpstack.pop();
 
                     dict.dv_copy_id = saved_copy_id;
-                    if let Some(tv_ref) = cur_tv.opt_mut() {
-                        tv_ref.vval = crate::eval::typval::TypvalVval::Dict(DictId::NULL);
-                    }
                     tv_dict_unref(dict.opt_mut());
                     continue;
                 }
-                while hashitem_empty(hi.borrow()) {
-                    *hi = (*hi).wrapping_add(1);
+                while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
+                    *hi_idx += 1;
                 }
-                let di = tv_dict_hi2di(hi.borrow());
+                let hi = dict.dv_hashtab.as_slice()[*hi_idx];
+                let di = tv_dict_hi2di(&hi);
                 *todo -= 1;
-                *hi = (*hi).wrapping_add(1);
+                *hi_idx += 1;
                 &raw mut di.di_tv
             }
             MPConvStackData::List {
@@ -4892,8 +4858,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                     mpstack.pop();
 
                     list.lv_copy_id = saved_copy_id;
-
-                    nothing_conv_list_end(cur_tv.opt_mut());
+                    tv_list_unref(list.opt_mut());
 
                     continue;
                 }
@@ -4913,11 +4878,10 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         }
                         if !pt.is_null() && !pt.pt_argv.is_empty() {
                             mpstack.push(MPConvStackVal {
-                                tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id: copy_id - 1,
                                 data: MPConvStackData::PartialList {
-                                    arg: pt.pt_argv.as_mut_ptr().into(),
-                                    argv: pt.pt_argv.as_mut_ptr().into(),
+                                    pt,
+                                    idx: 0,
                                     todo: pt.pt_argv.len(),
                                 },
                             });
@@ -4955,11 +4919,10 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                             dict.dv_copy_id = copy_id;
 
                             let mpsv = MPConvStackVal {
-                                tv: crate::globals::GraphPtr::NULL,
                                 saved_copy_id,
                                 data: MPConvStackData::Dict {
                                     dict,
-                                    hi: dict.dv_hashtab.array_ptr().into(),
+                                    hi_idx: 0,
                                     todo: dict.dv_hashtab.ht_used,
                                 },
                             };
@@ -4967,7 +4930,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         }
                     }
                     MPConvPartialStage::End => {
-                        nothing_conv_func_end(cur_tv.borrow_mut(), copy_id);
+                        nothing_conv_func_end(pt, copy_id);
 
                         mpstack.pop();
                     }
@@ -4975,21 +4938,18 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 continue;
             }
             MPConvStackData::PartialList {
-                ref mut arg,
-                argv: _argv,
+                mut pt,
+                ref mut idx,
                 ref mut todo,
             } => {
-                let cur_arg = *arg;
                 if *todo == 0 {
                     mpstack.pop();
-
-                    nothing_conv_list_end(cur_tv.opt_mut());
-
                     continue;
                 }
-                *arg = cur_arg.wrapping_add(1);
+                let cur_idx = *idx;
+                *idx += 1;
                 *todo -= 1;
-                cur_arg.as_ptr()
+                &raw mut pt.pt_argv[cur_idx]
             }
             MPConvStackData::Pairs { .. } => unreachable!(),
         })

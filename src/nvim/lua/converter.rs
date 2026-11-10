@@ -563,7 +563,6 @@ fn lua_convert_one_value(
     tv: &mut TypVal,
     copy_id: i32,
 ) -> bool {
-    let tv_ptr = crate::globals::GraphPtr::<TypVal>::from_ref(&*tv);
     if !lua_checkstack_safe(lstate, 3) {
         semsg!(
             c"E5102: Lua failed to grow stack to %i",
@@ -639,7 +638,6 @@ fn lua_convert_one_value(
                 }
                 lua_conv_list_start(lstate, tv_list_len(list.opt()));
                 mpstack.push(MPConvStackVal {
-                    tv: tv_ptr,
                     saved_copy_id,
                     data: MPConvStackData::List {
                         list,
@@ -753,7 +751,6 @@ fn lua_convert_one_value(
                                 }
                                 lua_conv_list_start(lstate, tv_list_len(val_list.opt()));
                                 mpstack.push(MPConvStackVal {
-                                    tv: tv_ptr,
                                     saved_copy_id,
                                     data: MPConvStackData::List {
                                         list: val_list,
@@ -799,7 +796,6 @@ fn lua_convert_one_value(
                                             tv_list_len(val_list.opt()) as usize,
                                         );
                                         mpstack.push(MPConvStackVal {
-                                            tv: tv_ptr,
                                             saved_copy_id,
                                             data: MPConvStackData::Pairs {
                                                 list: val_list,
@@ -845,11 +841,10 @@ fn lua_convert_one_value(
                 }
                 lua_conv_dict_start(lstate, dict.dv_hashtab.ht_used);
                 mpstack.push(MPConvStackVal {
-                    tv: tv_ptr,
                     saved_copy_id,
                     data: MPConvStackData::Dict {
                         dict,
-                        hi: dict.dv_hashtab.array_ptr().into(),
+                        hi_idx: 0,
                         todo: dict.dv_hashtab.ht_used,
                     },
                 });
@@ -877,7 +872,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
         let next_tv = crate::globals::GraphPtr::<TypVal>::from_ref(match mpstack[cur_idx].data {
             MPConvStackData::Dict {
                 mut dict,
-                ref mut hi,
+                ref mut hi_idx,
                 ref mut todo,
                 ..
             } => {
@@ -889,12 +884,13 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 } else if *todo != dict.dv_hashtab.ht_used {
                     lua_rawset_safe(lstate, -3);
                 }
-                while hashitem_empty(hi.borrow()) {
-                    *hi = (*hi).wrapping_add(1);
+                while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
+                    *hi_idx += 1;
                 }
-                let di = crate::eval::typval::tv_dict_hi2di(hi.borrow());
+                let hi = dict.dv_hashtab.as_slice()[*hi_idx];
+                let di = crate::eval::typval::tv_dict_hi2di(&hi);
                 *todo -= 1;
-                *hi = (*hi).wrapping_add(1);
+                *hi_idx += 1;
                 lua_push_bytes(lstate, di.key_bytes());
                 &di.di_tv
             }

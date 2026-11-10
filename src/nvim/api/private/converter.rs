@@ -12,7 +12,7 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::{get_copy_id, partial_name};
-use crate::hashtab::{Hashitem, hashitem_empty};
+use crate::hashtab::hashitem_empty;
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::api_new_luaref;
 use crate::memory::Arena;
@@ -47,7 +47,7 @@ enum ConvStackEntry {
     },
     Dict {
         dict: crate::eval::typval::DictId,
-        hi: crate::globals::GraphPtr<Hashitem>,
+        hi_idx: usize,
         todo: usize,
         saved_copy_id: i32,
         first: bool,
@@ -195,7 +195,7 @@ fn convert_one_value(
             });
             mpstack.push(ConvStackEntry::Dict {
                 dict: dict_ptr,
-                hi: dict.dv_hashtab.array_ptr().into(),
+                hi_idx: 0,
                 todo: used,
                 saved_copy_id,
                 first: true,
@@ -280,7 +280,7 @@ pub fn vim_to_object(
             }
             ConvStackEntry::Dict {
                 dict,
-                hi,
+                hi_idx,
                 todo,
                 saved_copy_id,
                 first,
@@ -299,14 +299,14 @@ pub fn vim_to_object(
                     pop_into_parent_dict(&mut stack);
                 }
                 *first = false;
-                while hashitem_empty(hi.borrow()) {
-                    *hi = (*hi).wrapping_add(1);
+                while hashitem_empty(&dict.dv_hashtab.as_slice()[*hi_idx]) {
+                    *hi_idx += 1;
                 }
-                let cur_hi = *hi;
-                *hi = (*hi).wrapping_add(1);
+                let cur_hi = dict.dv_hashtab.as_slice()[*hi_idx];
+                *hi_idx += 1;
                 *todo -= 1;
 
-                let di = crate::eval::typval::tv_dict_hi2di(cur_hi.borrow());
+                let di = crate::eval::typval::tv_dict_hi2di(&cur_hi);
                 let key_bytes = di.key_bytes();
                 let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 

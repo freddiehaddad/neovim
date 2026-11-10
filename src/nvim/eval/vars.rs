@@ -47,7 +47,7 @@ use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
-    Hashitem, Hashtab, hash_add, hash_clear, hash_find, hash_find_len, hash_lock, hash_remove,
+    Hashtab, hash_add, hash_clear, hash_find_idx, hash_find_len, hash_lock, hash_remove,
     hash_unlock, hashitem_empty,
 };
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
@@ -880,8 +880,8 @@ pub fn restore_vimvar(idx: i32, save_tv: &mut TypVal) {
         return;
     }
 
-    if let Some(hi) = get_vimvar_dict().dv_hashtab.find_hi_mut(di.key_cstr()) {
-        hash_remove(&mut get_vimvar_dict().dv_hashtab, hi);
+    if let Some(idx) = get_vimvar_dict().dv_hashtab.find_hi_idx(di.key_cstr()) {
+        hash_remove(&mut get_vimvar_dict().dv_hashtab, idx);
     } else {
         internal_error(c"restore_vimvar()");
     }
@@ -2055,18 +2055,19 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             }
         }
 
-        let mut hi =
-            crate::globals::GraphPtr::<Hashitem>::of(hash_find(ht.borrow(), varname_cstr)).as_ptr();
-        if hashitem_empty(crate::globals::GraphPtr::of(hi).borrow()) {
+        let mut hi_idx = Some(hash_find_idx(ht.borrow(), varname_cstr));
+        if hashitem_empty(&ht.borrow().as_slice()[hi_idx.unwrap()]) {
             let mut ht_opt: Option<&'static mut Hashtab> = Some(ht.borrow_mut());
-            hi = find_hi_in_scoped_ht(&name_cstr, &mut ht_opt)
-                .map_or(ptr::null_mut(), ptr::from_mut);
+            hi_idx = find_hi_in_scoped_ht(&name_cstr, &mut ht_opt);
             if let Some(h) = ht_opt {
                 ht = crate::globals::GraphPtr::<Hashtab>::of(h);
             }
         }
-        if !hi.is_null() && !hashitem_empty(crate::globals::GraphPtr::of(hi).borrow()) {
-            let di = tv_dict_hi2di(crate::globals::GraphPtr::of(hi).borrow());
+        if let Some(idx) = hi_idx
+            && !hashitem_empty(&ht.borrow().as_slice()[idx])
+        {
+            let hi = ht.borrow().as_slice()[idx];
+            let di = tv_dict_hi2di(&hi);
             let d_lock = d.dv_lock;
             if var_check_fixed(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
                 || var_check_ro(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
@@ -2086,10 +2087,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
                 tv_copy(&di.di_tv, &mut oldtv);
             }
 
-            delete_var(
-                ht.borrow_mut(),
-                crate::globals::GraphPtr::of(hi).borrow_mut(),
-            );
+            delete_var(ht.borrow_mut(), idx);
 
             if watched {
                 tv_dict_watcher_notify(dict_opt.unwrap(), varname_cstr, None, Some(&oldtv));
@@ -2639,19 +2637,19 @@ pub fn find_var_in_ht(
 
     let varname_bytes = varname.to_bytes();
     let varname_slice = &varname_bytes[..varname_len.min(varname_bytes.len())];
-    let mut hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(ht, varname_slice));
-    if hashitem_empty(hi.borrow()) {
+    let mut hi = hash_find_len(ht, varname_slice);
+    if hashitem_empty(&hi) {
         if (&raw mut *ht) == get_globvar_ht() && no_autoload == 0 {
             if !script_autoload(varname_slice, false) || aborting() {
                 return None;
             }
-            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(ht, varname_slice));
+            hi = hash_find_len(ht, varname_slice);
         }
-        if hashitem_empty(hi.borrow()) {
+        if hashitem_empty(&hi) {
             return None;
         }
     }
-    Some(tv_dict_hi2di(hi.borrow()))
+    Some(tv_dict_hi2di(&hi))
 }
 
 /// Finds the dict (g:, l:, s:, …) and hashtable used for a variable.
@@ -2675,7 +2673,7 @@ fn find_var_ht_dict<'a>(
         *varname = Some(name_in);
 
         let hi = hash_find_len(get_compat_ht(), name_slice);
-        if !hashitem_empty(hi) {
+        if !hashitem_empty(&hi) {
             return Some(get_compat_ht());
         }
 
@@ -2800,10 +2798,11 @@ pub fn vars_clear_ext(ht: &mut Hashtab, free_val: bool) {
     hash_clear(ht);
 }
 
-/// Delete a variable from hashtab "ht" at item "hi".
-fn delete_var(ht: &mut Hashtab, hi: &mut Hashitem) {
-    let di = tv_dict_hi2di(&*hi);
-    hash_remove(ht, hi);
+/// Delete a variable from hashtab "ht" at slot "hi_idx".
+fn delete_var(ht: &mut Hashtab, hi_idx: usize) {
+    let hi = ht.as_slice()[hi_idx];
+    let di = tv_dict_hi2di(&hi);
+    hash_remove(ht, hi_idx);
     crate::eval::typval::tv_dict_item_free(di);
 }
 

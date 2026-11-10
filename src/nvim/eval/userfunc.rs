@@ -41,7 +41,7 @@ use crate::ex_eval::{
 };
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::globals::*;
-use crate::hashtab::{Hashitem, Hashtab, hash_add, hash_find_len, hashitem_empty};
+use crate::hashtab::{Hashtab, hash_add, hash_find_len_idx, hashitem_empty};
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
@@ -4358,10 +4358,7 @@ pub fn get_current_funccal_dict(ht: &Hashtab) -> Option<&'static mut TvDict> {
     None
 }
 
-pub fn find_hi_in_scoped_ht(
-    name: &CStr,
-    pht: &mut Option<&'static mut Hashtab>,
-) -> Option<&'static mut Hashitem> {
+pub fn find_hi_in_scoped_ht(name: &CStr, pht: &mut Option<&'static mut Hashtab>) -> Option<usize> {
     if UF_STATE.with(|s| s.current_funccal.get()).is_null()
         || cur_funccal_mut().fc_func.uf_scoped.is_null()
     {
@@ -4369,7 +4366,7 @@ pub fn find_hi_in_scoped_ht(
     }
 
     let old_current_funccal = UF_STATE.with(|s| s.current_funccal.get());
-    let mut hi = crate::globals::GraphPtr::<Hashitem>::NULL;
+    let mut found_idx: Option<usize> = None;
     let namelen = name.to_bytes().len();
     let mut varname_opt: Option<&CStr> = None;
 
@@ -4383,12 +4380,13 @@ pub fn find_hi_in_scoped_ht(
             let len = namelen
                 .saturating_sub((varname.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize));
             let varname_bytes = varname.to_bytes();
-            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(
+            let idx = hash_find_len_idx(
                 ht_ptr.borrow(),
                 &varname_bytes[..len.min(varname_bytes.len())],
-            ));
-            if !hashitem_empty(hi.borrow()) {
+            );
+            if !hashitem_empty(&ht_ptr.borrow().as_slice()[idx]) {
                 *pht = Some(ht_ptr.borrow_mut());
+                found_idx = Some(idx);
                 break;
             }
         }
@@ -4403,7 +4401,7 @@ pub fn find_hi_in_scoped_ht(
     }
     UF_STATE.with(|s| s.current_funccal.set(old_current_funccal));
 
-    hi.opt_mut()
+    found_idx
 }
 
 pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'static mut Dictitem> {

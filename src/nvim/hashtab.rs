@@ -60,13 +60,12 @@ impl Hashtab {
     }
 
     #[inline]
-    pub fn array_ptr(&self) -> &'static mut Hashitem {
-        let ptr = if self.ht_array.is_empty() {
-            EMPTY_HASHARRAY.as_ptr().cast_mut()
+    pub fn as_slice(&self) -> &[Hashitem] {
+        if self.ht_array.is_empty() {
+            &EMPTY_HASHARRAY
         } else {
-            self.ht_array.as_ptr().cast_mut()
-        };
-        crate::globals::GraphPtr::of(ptr).borrow_mut()
+            &self.ht_array
+        }
     }
 
     #[inline]
@@ -88,15 +87,21 @@ impl Hashtab {
     }
 
     #[inline]
-    pub fn find_hi_mut(&self, key: &CStr) -> Option<&'static mut Hashitem> {
+    pub fn find_hi(&self, key: &CStr) -> Option<Hashitem> {
         let hi = hash_find(self, key);
-        (!hashitem_empty(hi)).then_some(hi)
+        (!hashitem_empty(&hi)).then_some(hi)
     }
 
     #[inline]
-    pub fn find_hi_len_mut(&self, key: &[u8]) -> Option<&'static mut Hashitem> {
+    pub fn find_hi_len(&self, key: &[u8]) -> Option<Hashitem> {
         let hi = hash_find_len(self, key);
-        (!hashitem_empty(hi)).then_some(hi)
+        (!hashitem_empty(&hi)).then_some(hi)
+    }
+
+    #[inline]
+    pub fn find_hi_idx(&self, key: &CStr) -> Option<usize> {
+        let idx = hash_find_idx(self, key);
+        (!hashitem_empty(&self.as_slice()[idx])).then_some(idx)
     }
 
     #[inline]
@@ -137,40 +142,42 @@ pub fn hash_clear(ht: &mut Hashtab) {
     *ht = Hashtab::new();
 }
 
-/// Find item for NUL-terminated `key` in `ht` (`hash_find`).
-pub fn hash_find(ht: &Hashtab, key: &CStr) -> &'static mut Hashitem {
+/// Find slot index for NUL-terminated `key` in `ht`.
+pub fn hash_find_idx(ht: &Hashtab, key: &CStr) -> usize {
     let hash = hash_hash(key);
-    hash_lookup(ht, key.to_bytes(), hash)
+    hash_lookup_idx(ht, key.to_bytes(), hash)
+}
+
+/// Find slot index for `key` slice in `ht`.
+pub fn hash_find_len_idx(ht: &Hashtab, key: &[u8]) -> usize {
+    let hash = hash_hash_len(key);
+    hash_lookup_idx(ht, key, hash)
+}
+
+/// Find item for NUL-terminated `key` in `ht` (`hash_find`).
+pub fn hash_find(ht: &Hashtab, key: &CStr) -> Hashitem {
+    ht.as_slice()[hash_find_idx(ht, key)]
 }
 
 /// Find item for `key` slice in `ht` (`hash_find_len`).
-pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> &'static mut Hashitem {
-    let hash = hash_hash_len(key);
-    hash_lookup(ht, key, hash)
+pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> Hashitem {
+    ht.as_slice()[hash_find_len_idx(ht, key)]
 }
 
-/// Find item for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
-pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hashitem {
-    let arr = if ht.ht_array.is_empty() {
-        crate::globals::GraphPtr::from_ref(&EMPTY_HASHARRAY)
-            .borrow_mut()
-            .as_mut_slice()
-    } else {
-        crate::globals::GraphPtr::from_ref(&ht.ht_array)
-            .borrow_mut()
-            .as_mut_slice()
-    };
+/// Find slot index for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
+pub fn hash_lookup_idx(ht: &Hashtab, key: &[u8], hash: HashVal) -> usize {
+    let arr = ht.as_slice();
 
     let mut idx = hash & ht.ht_mask;
     if arr[idx].is_null_slot() {
-        return &mut arr[idx];
+        return idx;
     }
 
     let mut free_idx: Option<usize> = None;
     if arr[idx].hi_removed {
         free_idx = Some(idx);
     } else if arr[idx].hi_hash == hash && key_matches(arr[idx].key_cstr(), key) {
-        return &mut arr[idx];
+        return idx;
     }
 
     let mut perturb = hash;
@@ -180,11 +187,11 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
         let item = &arr[slot_idx];
 
         if item.is_null_slot() {
-            return &mut arr[free_idx.unwrap_or(slot_idx)];
+            return free_idx.unwrap_or(slot_idx);
         }
 
         if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key) {
-            return &mut arr[slot_idx];
+            return slot_idx;
         }
 
         if item.hi_removed && free_idx.is_none() {
@@ -199,33 +206,29 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
 pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> bool {
     let key = di.key_cstr();
     let hash = hash_hash(key);
-    let hi = hash_lookup(ht, key.to_bytes(), hash);
-    if !hashitem_empty(hi) {
+    let idx = hash_lookup_idx(ht, key.to_bytes(), hash);
+    if !hashitem_empty(&ht.as_slice()[idx]) {
         siemsg!(
             c"E685: Internal error: hash_add(): duplicate key \"%s\"",
             key,
         );
         return false;
     }
-    hash_add_item(ht, hi, &mut *di, hash);
+    hash_add_item(ht, idx, &mut *di, hash);
     true
 }
 
-/// Add item `hi` with precomputed `hash` to `ht` (`hash_add_item`).
+/// Add item at `idx` with precomputed `hash` to `ht` (`hash_add_item`).
 pub fn hash_add_item(
     ht: &mut Hashtab,
-    hi_in: &mut Hashitem,
+    idx: usize,
     di: &mut crate::eval::typval::Dictitem,
     hash: HashVal,
 ) {
-    let mut hi = crate::globals::GraphPtr::from(hi_in);
     if ht.ht_array.is_empty() {
-        let base = EMPTY_HASHARRAY.as_ptr() as usize;
-        let offset = (hi.as_ptr() as usize - base) / std::mem::size_of::<Hashitem>();
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
-        hi = crate::globals::GraphPtr::new(&raw mut ht.ht_array[offset]);
     }
-    let hi_ref = hi.borrow_mut();
+    let hi_ref = &mut ht.ht_array[idx];
     ht.ht_used += 1;
     ht.ht_changed += 1;
     if hi_ref.is_null_slot() {
@@ -238,14 +241,9 @@ pub fn hash_add_item(
     hash_may_resize(ht, 0);
 }
 
-/// Remove item `hi` from `ht` (`hash_remove`).
-pub fn hash_remove(ht: &mut Hashtab, hi: &mut Hashitem) {
-    let hi_ref = hi;
-    ht.ht_used -= 1;
-    ht.ht_changed += 1;
-    hi_ref.hi_removed = true;
-    hi_ref.hi_di = crate::eval::typval::DictitemId::NULL;
-    hash_may_resize(ht, 0);
+/// Remove item at `idx` from `ht` (`hash_remove`).
+pub fn hash_remove(ht: &mut Hashtab, idx: usize) {
+    ht.remove_at(idx);
 }
 
 /// Lock hashtable to prevent `ht_array` reallocation (`hash_lock`).
@@ -390,22 +388,22 @@ mod tests {
 
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_c_str());
-                assert!(!hashitem_empty(hi));
+                assert!(!hashitem_empty(&hi));
                 assert_eq!(hi.key_cstr(), Some(k.as_c_str()));
                 assert_eq!(hi.hi_di, di);
             }
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
-                let hi = hash_find(ht, k.as_c_str());
-                hash_remove(ht, hi);
+                let idx = hash_find_idx(ht, k.as_c_str());
+                hash_remove(ht, idx);
             }
             assert_eq!(ht.ht_used, 0);
             assert_eq!(ht.ht_mask, HT_INIT_SIZE - 1);
             hash_clear(ht);
             assert!(std::ptr::eq(
-                ht.array_ptr(),
-                EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>()
+                ht.as_slice().as_ptr(),
+                EMPTY_HASHARRAY.as_ptr()
             ));
 
             for di in items {

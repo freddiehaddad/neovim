@@ -58,7 +58,7 @@ use crate::fuzzy::{
 };
 use crate::globals::IOSIZE;
 use crate::globals::*;
-use crate::hashtab::{hash_find, hash_remove};
+use crate::hashtab::{hash_find_idx, hash_remove};
 use crate::help::get_local_additions;
 use crate::indent::inindent;
 use crate::indent_c::parse_cino;
@@ -1882,8 +1882,8 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
         buf.b_s.b_langp = Vec::new();
     }
     {
-        let changedtick_hi = hash_find(&buf.b_vars().dv_hashtab, c"changedtick");
-        hash_remove(&mut buf.b_vars().dv_hashtab, changedtick_hi);
+        let changedtick_idx = hash_find_idx(&buf.b_vars().dv_hashtab, c"changedtick");
+        hash_remove(&mut buf.b_vars().dv_hashtab, changedtick_idx);
     }
     vars_clear(&mut buf.b_vars().dv_hashtab);
     if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
