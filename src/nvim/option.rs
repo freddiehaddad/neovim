@@ -34,7 +34,7 @@ use crate::cmdexpand::{
 };
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
-use crate::decoration_provider::get_decor_provider;
+use crate::decoration_provider::with_decor_provider_mut;
 use crate::diff::{K_OPT_DIFF, K_OPT_FOLDMETHOD, diff_buf_adjust};
 use crate::drawscreen::{
     UPD_CLEAR, UPD_NOT_VALID, UPD_SOME_VALID, check_screensize, comp_col, redraw_all_later,
@@ -2338,8 +2338,7 @@ pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -
         if w.w_ns_hl_winhl == 0 {
             w.w_ns_hl_winhl = nvim_create_namespace(NvimString::new()) as i32;
         } else {
-            let dp = get_decor_provider(w.w_ns_hl_winhl, true).unwrap();
-            dp.hl_valid += 1;
+            with_decor_provider_mut(w.w_ns_hl_winhl, true, |dp| dp.hl_valid += 1);
         }
         ns_hl = w.w_ns_hl_winhl;
         if w.w_ns_hl <= 0 {

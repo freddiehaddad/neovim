@@ -25,7 +25,7 @@ use crate::decoration::{
     decor_to_dict_legacy, hl_group_name,
 };
 use crate::decoration_provider::{
-    K_DECOR_PROVIDER_ACTIVE, decor_provider_clear, get_decor_provider,
+    K_DECOR_PROVIDER_ACTIVE, decor_provider_clear, with_decor_provider_mut,
 };
 use crate::drawline::K_HL_MODE_BLEND;
 use crate::drawline::K_HL_MODE_COMBINE;
@@ -1453,34 +1453,34 @@ pub fn nvim_set_decoration_provider(
     opts: &mut KeyDict_set_decoration_provider,
     _err: &mut Error,
 ) {
-    let p = get_decor_provider(ns_id as NS, true).unwrap();
-    decor_provider_clear(Some(&mut *p));
+    with_decor_provider_mut(ns_id as NS, true, |p| {
+        decor_provider_clear(Some(&mut *p));
 
-    redraw_all_later(UPD_NOT_VALID);
+        let pairs: [(&mut LuaRef, &mut LuaRef); 10] = [
+            (&mut opts.on_start, &mut p.redraw_start),
+            (&mut opts.on_buf, &mut p.redraw_buf),
+            (&mut opts.on_win, &mut p.redraw_win),
+            (&mut opts.on_line, &mut p.redraw_line),
+            (&mut opts.on_range, &mut p.redraw_range),
+            (&mut opts.on_end, &mut p.redraw_end),
+            (&mut opts._on_hl_def, &mut p.hl_def),
+            (&mut opts._on_spell_nav, &mut p.spell_nav),
+            (&mut opts._on_conceal_line, &mut p.conceal_line),
+            (&mut opts._on_conceal, &mut p.conceal),
+        ];
 
-    let pairs: [(&mut LuaRef, &mut LuaRef); 10] = [
-        (&mut opts.on_start, &mut p.redraw_start),
-        (&mut opts.on_buf, &mut p.redraw_buf),
-        (&mut opts.on_win, &mut p.redraw_win),
-        (&mut opts.on_line, &mut p.redraw_line),
-        (&mut opts.on_range, &mut p.redraw_range),
-        (&mut opts.on_end, &mut p.redraw_end),
-        (&mut opts._on_hl_def, &mut p.hl_def),
-        (&mut opts._on_spell_nav, &mut p.spell_nav),
-        (&mut opts._on_conceal_line, &mut p.conceal_line),
-        (&mut opts._on_conceal, &mut p.conceal),
-    ];
-
-    for (src, dst) in pairs {
-        if *src > 0 {
-            *dst = *src;
-            *src = LUA_NOREF;
+        for (src, dst) in pairs {
+            if *src > 0 {
+                *dst = *src;
+                *src = LUA_NOREF;
+            }
         }
-    }
 
-    p.state = K_DECOR_PROVIDER_ACTIVE;
-    p.hl_valid += 1;
-    p.hl_cached = false;
+        p.state = K_DECOR_PROVIDER_ACTIVE;
+        p.hl_valid += 1;
+        p.hl_cached = false;
+    });
+    redraw_all_later(UPD_NOT_VALID);
 }
 
 /// @nodoc

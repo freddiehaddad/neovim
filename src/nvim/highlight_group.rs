@@ -1052,7 +1052,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
     }
 
     if attrs.font >= 0 {
-        g.sg_font = hl_get_font(attrs.font).map(ToOwned::to_owned);
+        g.sg_font = hl_get_font(attrs.font);
     } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
         g.sg_font = None;
     }
@@ -1753,8 +1753,8 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool
         );
     }
     let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
-    hlattrs2dict(hl, None, attr, true, true);
-    hlattrs2dict(hl, Some(&mut hl_cterm), attr, false, true);
+    hlattrs2dict(hl, None, attr, true, true, Some(arena));
+    hlattrs2dict(hl, Some(&mut hl_cterm), attr, false, true, None);
     if hl_cterm.size > 0 {
         put_c(hl, c"cterm", dict_obj(hl_cterm));
     }

@@ -47,29 +47,20 @@ pub struct DecorProvider {
     pub error_count: u8,
 }
 
-struct DecorProviderState {
-    decor_providers: Vec<DecorProvider>,
-}
-
-impl DecorProviderState {
-    const fn new() -> Self {
-        Self {
-            decor_providers: Vec::new(),
-        }
-    }
-}
-
-static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> =
-    crate::globals::GlobalState::new(DecorProviderState::new());
-
-#[inline]
-fn decor_prov_st() -> crate::globals::GraphPtr<DecorProviderState> {
-    DECOR_PROV_STATE.handle()
+std::thread_local! {
+    static DECOR_PROVIDERS: std::cell::RefCell<Vec<DecorProvider>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
 }
 
 #[inline]
-fn providers_mut() -> &'static mut Vec<DecorProvider> {
-    &mut decor_prov_st().borrow_mut().decor_providers
+fn with_providers_mut<R>(f: impl FnOnce(&mut Vec<DecorProvider>) -> R) -> R {
+    DECOR_PROVIDERS.with(|p| f(&mut p.borrow_mut()))
+}
+
+#[inline]
+fn providers_len() -> usize {
+    DECOR_PROVIDERS.with(|p| p.borrow().len())
 }
 
 #[inline]
@@ -150,25 +141,31 @@ fn decor_provider_invoke(
     );
     g_st().textlock -= 1;
 
-    let provider = &mut providers_mut()[provider_idx as usize];
-    if !error_set(&err) {
-        provider.error_count = 0;
-        if let Some(res) = res {
-            debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
-            *res = ret.data.array();
-            return true;
-        } else if api_object_to_bool(ret, c"provider %s retval", default_true, &mut err) {
-            return true;
+    let ret_ok = with_providers_mut(|providers| {
+        let provider = &mut providers[provider_idx as usize];
+        if !error_set(&err) {
+            provider.error_count = 0;
+            if let Some(res) = res {
+                debug_assert!(matches!(ret.obj_type, ObjectType::ObjectTypeArray));
+                *res = ret.data.array();
+                return true;
+            } else if api_object_to_bool(ret, c"provider %s retval", default_true, &mut err) {
+                return true;
+            }
         }
-    }
 
-    if error_set(&err) && provider.error_count < CB_MAX_ERROR {
-        decor_provider_error(&mut *provider, name, err.msg.as_deref());
-        provider.error_count += 1;
+        if error_set(&err) && provider.error_count < CB_MAX_ERROR {
+            decor_provider_error(&mut *provider, name, err.msg.as_deref());
+            provider.error_count += 1;
 
-        if provider.error_count >= CB_MAX_ERROR {
-            provider.state = K_DECOR_PROVIDER_DISABLED;
+            if provider.error_count >= CB_MAX_ERROR {
+                provider.state = K_DECOR_PROVIDER_DISABLED;
+            }
         }
+        false
+    });
+    if ret_ok {
+        return true;
     }
 
     api_clear_error(&mut err);
@@ -184,10 +181,16 @@ pub fn decor_providers_invoke_spell(
     end_col: i32,
 ) {
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        if p.state != K_DECOR_PROVIDER_DISABLED && p.spell_nav != LUA_NOREF {
-            let spell_nav = p.spell_nav;
+    while i < providers_len() {
+        let spell_nav = with_providers_mut(|providers| {
+            let p = &providers[i];
+            if p.state != K_DECOR_PROVIDER_DISABLED && p.spell_nav != LUA_NOREF {
+                Some(p.spell_nav)
+            } else {
+                None
+            }
+        });
+        if let Some(spell_nav) = spell_nav {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
                 integer_obj(wp.buf_mut().b_fnum as Integer),
@@ -220,10 +223,17 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
     let running = g_st().decor_state.running_decor_provider;
     g_st().decor_state.running_decor_provider = running || g_st().updating_screen;
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        let ref_ = if lines { p.conceal_line } else { p.conceal };
-        if p.state != K_DECOR_PROVIDER_DISABLED && ref_ != LUA_NOREF {
+    while i < providers_len() {
+        let ref_opt = with_providers_mut(|providers| {
+            let p = &providers[i];
+            let ref_ = if lines { p.conceal_line } else { p.conceal };
+            if p.state != K_DECOR_PROVIDER_DISABLED && ref_ != LUA_NOREF {
+                Some(ref_)
+            } else {
+                None
+            }
+        });
+        if let Some(ref_) = ref_opt {
             let mut args_buf = [
                 integer_obj(wp.handle as Integer),
                 integer_obj(wp.buf_mut().b_fnum as Integer),
@@ -251,10 +261,19 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
 /// For each provider invoke the 'start' callback (`decor_providers_start`).
 pub fn decor_providers_start() {
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        if p.state != K_DECOR_PROVIDER_DISABLED && p.redraw_start != LUA_NOREF {
-            let redraw_start = p.redraw_start;
+    while i < providers_len() {
+        let redraw_start = with_providers_mut(|providers| {
+            let p = &mut providers[i];
+            if p.state != K_DECOR_PROVIDER_DISABLED && p.redraw_start != LUA_NOREF {
+                Some(p.redraw_start)
+            } else {
+                if p.state != K_DECOR_PROVIDER_DISABLED {
+                    p.state = K_DECOR_PROVIDER_ACTIVE;
+                }
+                None
+            }
+        });
+        if let Some(redraw_start) = redraw_start {
             let mut args_buf = [integer_obj((display_tick_val() as i32) as Integer)];
             let args = Array {
                 items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
@@ -262,13 +281,13 @@ pub fn decor_providers_start() {
                 capacity: 0,
             };
             let active = decor_provider_invoke(i as i32, c"start", redraw_start, args, true, None);
-            providers_mut()[i].state = if active {
-                K_DECOR_PROVIDER_ACTIVE
-            } else {
-                K_DECOR_PROVIDER_REDRAW_DISABLED
-            };
-        } else if p.state != K_DECOR_PROVIDER_DISABLED {
-            providers_mut()[i].state = K_DECOR_PROVIDER_ACTIVE;
+            with_providers_mut(|providers| {
+                providers[i].state = if active {
+                    K_DECOR_PROVIDER_ACTIVE
+                } else {
+                    K_DECOR_PROVIDER_REDRAW_DISABLED
+                };
+            });
         }
         i += 1;
     }
@@ -281,23 +300,27 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
             && g_st().decor_state.future_begin == g_st().decor_state.ranges_i.len() as i32
     );
 
-    if !providers_mut().is_empty() {
+    if providers_len() > 0 {
         validate_botline_win(&mut *wp);
     }
     let botline: Linenr = wp.w_botline.min(wp.buf_mut().b_ml.ml_line_count);
 
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &mut providers_mut()[i];
-        if p.state == K_DECOR_PROVIDER_WIN_DISABLED {
-            p.state = K_DECOR_PROVIDER_ACTIVE;
-        }
-
-        p.win_skip_row = 0;
-        p.win_skip_col = 0;
-
-        if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_win != LUA_NOREF {
-            let redraw_win = p.redraw_win;
+    while i < providers_len() {
+        let redraw_win = with_providers_mut(|providers| {
+            let p = &mut providers[i];
+            if p.state == K_DECOR_PROVIDER_WIN_DISABLED {
+                p.state = K_DECOR_PROVIDER_ACTIVE;
+            }
+            p.win_skip_row = 0;
+            p.win_skip_col = 0;
+            if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_win != LUA_NOREF {
+                Some(p.redraw_win)
+            } else {
+                None
+            }
+        });
+        if let Some(redraw_win) = redraw_win {
             let mut args_buf = [
                 window_obj(wp.handle),
                 buffer_obj(wp.buf_mut().b_fnum),
@@ -310,7 +333,9 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
                 capacity: 0,
             };
             if !decor_provider_invoke(i as i32, c"win", redraw_win, args, true, None) {
-                providers_mut()[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
+                with_providers_mut(|providers| {
+                    providers[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
+                });
             }
         }
         i += 1;
@@ -321,10 +346,16 @@ pub fn decor_providers_invoke_win(wp: &mut WinInfoInfo) {
 pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
     g_st().decor_state.running_decor_provider = true;
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_line != LUA_NOREF {
-            let redraw_line = p.redraw_line;
+    while i < providers_len() {
+        let redraw_line = with_providers_mut(|providers| {
+            let p = &providers[i];
+            if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_line != LUA_NOREF {
+                Some(p.redraw_line)
+            } else {
+                None
+            }
+        });
+        if let Some(redraw_line) = redraw_line {
             let mut args_buf = [
                 window_obj(wp.handle),
                 buffer_obj(wp.buf_mut().b_fnum),
@@ -336,7 +367,9 @@ pub fn decor_providers_invoke_line(wp: &mut WinInfoInfo, row: i32) {
                 capacity: 0,
             };
             if !decor_provider_invoke(i as i32, c"line", redraw_line, args, true, None) {
-                providers_mut()[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
+                with_providers_mut(|providers| {
+                    providers[i].state = K_DECOR_PROVIDER_WIN_DISABLED;
+                });
             }
 
             hl_check_ns();
@@ -355,16 +388,22 @@ pub fn decor_providers_invoke_range(
 ) {
     g_st().decor_state.running_decor_provider = true;
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_range != LUA_NOREF {
-            if p.win_skip_row > end_row || (p.win_skip_row == end_row && p.win_skip_col >= end_col)
-            {
-                i += 1;
-                continue;
+    while i < providers_len() {
+        let redraw_range = with_providers_mut(|providers| {
+            let p = &providers[i];
+            if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_range != LUA_NOREF {
+                if p.win_skip_row > end_row
+                    || (p.win_skip_row == end_row && p.win_skip_col >= end_col)
+                {
+                    None
+                } else {
+                    Some(p.redraw_range)
+                }
+            } else {
+                None
             }
-
-            let redraw_range = p.redraw_range;
+        });
+        if let Some(redraw_range) = redraw_range {
             let mut args_buf = [
                 window_obj(wp.handle),
                 buffer_obj(wp.buf_mut().b_fnum),
@@ -381,29 +420,30 @@ pub fn decor_providers_invoke_range(
             let mut res = Array::new();
             let status =
                 decor_provider_invoke(i as i32, c"range", redraw_range, args, true, Some(&mut res));
-            let p = &mut providers_mut()[i];
-
-            if !status {
-                p.state = K_DECOR_PROVIDER_WIN_DISABLED;
-            } else if res.size >= 1 {
-                let first = res[0];
-                if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
-                    if !first.data.boolean() {
-                        p.state = K_DECOR_PROVIDER_WIN_DISABLED;
-                    }
-                } else if matches!(first.obj_type, ObjectType::ObjectTypeInteger) {
-                    let row = first.data.integer();
-                    let mut col: Integer = 0;
-                    if res.size >= 2 {
-                        let second = res[1];
-                        if matches!(second.obj_type, ObjectType::ObjectTypeInteger) {
-                            col = second.data.integer();
+            with_providers_mut(|providers| {
+                let p = &mut providers[i];
+                if !status {
+                    p.state = K_DECOR_PROVIDER_WIN_DISABLED;
+                } else if res.size >= 1 {
+                    let first = res[0];
+                    if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
+                        if !first.data.boolean() {
+                            p.state = K_DECOR_PROVIDER_WIN_DISABLED;
                         }
+                    } else if matches!(first.obj_type, ObjectType::ObjectTypeInteger) {
+                        let row = first.data.integer();
+                        let mut col: Integer = 0;
+                        if res.size >= 2 {
+                            let second = res[1];
+                            if matches!(second.obj_type, ObjectType::ObjectTypeInteger) {
+                                col = second.data.integer();
+                            }
+                        }
+                        p.win_skip_row = row as i32;
+                        p.win_skip_col = col as i32;
                     }
-                    p.win_skip_row = row as i32;
-                    p.win_skip_col = col as i32;
                 }
-            }
+            });
 
             api_free_array(res);
 
@@ -417,10 +457,16 @@ pub fn decor_providers_invoke_range(
 /// For each provider invoke the 'buf' callback for a given buffer (`decor_providers_invoke_buf`).
 pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_buf != LUA_NOREF {
-            let redraw_buf = p.redraw_buf;
+    while i < providers_len() {
+        let redraw_buf = with_providers_mut(|providers| {
+            let p = &providers[i];
+            if p.state == K_DECOR_PROVIDER_ACTIVE && p.redraw_buf != LUA_NOREF {
+                Some(p.redraw_buf)
+            } else {
+                None
+            }
+        });
+        if let Some(redraw_buf) = redraw_buf {
             let mut args_buf = [
                 buffer_obj(buf.b_fnum),
                 integer_obj(display_tick_val() as Integer),
@@ -439,10 +485,16 @@ pub fn decor_providers_invoke_buf(buf: &mut FileBuf) {
 /// For each provider invoke the 'end' callback (`decor_providers_invoke_end`).
 pub fn decor_providers_invoke_end() {
     let mut i = 0usize;
-    while i < providers_mut().len() {
-        let p = &providers_mut()[i];
-        if p.state != K_DECOR_PROVIDER_DISABLED && p.redraw_end != LUA_NOREF {
-            let redraw_end = p.redraw_end;
+    while i < providers_len() {
+        let redraw_end = with_providers_mut(|providers| {
+            let p = &providers[i];
+            if p.state != K_DECOR_PROVIDER_DISABLED && p.redraw_end != LUA_NOREF {
+                Some(p.redraw_end)
+            } else {
+                None
+            }
+        });
+        if let Some(redraw_end) = redraw_end {
             let mut args_buf = [integer_obj((display_tick_val() as i32) as Integer)];
             let args = Array {
                 items: crate::globals::GraphPtr::new(args_buf.as_mut_ptr()),
@@ -458,9 +510,11 @@ pub fn decor_providers_invoke_end() {
 
 /// Mark all cached state of per-namespace highlights as invalid (`decor_provider_invalidate_hl`).
 pub fn decor_provider_invalidate_hl() {
-    for p in providers_mut().iter_mut() {
-        p.hl_cached = false;
-    }
+    with_providers_mut(|providers| {
+        for p in providers.iter_mut() {
+            p.hl_cached = false;
+        }
+    });
 
     if g_st().ns_hl_active != 0 {
         g_st().ns_hl_active = -1;
@@ -468,24 +522,24 @@ pub fn decor_provider_invalidate_hl() {
     }
 }
 
-pub fn get_decor_provider(ns_id: NS, force: bool) -> Option<&'static mut DecorProvider> {
+pub fn with_decor_provider_mut<R>(
+    ns_id: NS,
+    force: bool,
+    f: impl FnOnce(&mut DecorProvider) -> R,
+) -> Option<R> {
     debug_assert!(ns_id > 0);
-    let p_vec = providers_mut();
-    if let Some(idx) = p_vec.iter().position(|p| p.ns_id == ns_id) {
-        return Some(&mut p_vec[idx]);
-    }
+    with_providers_mut(|p_vec| {
+        if let Some(idx) = p_vec.iter().position(|p| p.ns_id == ns_id) {
+            return Some(f(&mut p_vec[idx]));
+        }
 
-    if !force {
-        return None;
-    }
+        if !force {
+            return None;
+        }
 
-    p_vec.push(decor_provider_init(ns_id));
-    p_vec.last_mut()
-}
-
-#[inline]
-pub fn get_decor_provider_opt(ns_id: NS, force: bool) -> Option<&'static mut DecorProvider> {
-    get_decor_provider(ns_id, force)
+        p_vec.push(decor_provider_init(ns_id));
+        p_vec.last_mut().map(f)
+    })
 }
 
 pub fn decor_provider_clear(mut p: Option<&mut DecorProvider>) {
@@ -511,5 +565,5 @@ impl Drop for DecorProvider {
 }
 
 pub fn decor_free_all_mem() {
-    decor_prov_st().decor_providers = Vec::new();
+    with_providers_mut(|providers| *providers = Vec::new());
 }

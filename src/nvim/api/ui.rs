@@ -1075,14 +1075,16 @@ pub fn remote_ui_hl_attr_define(
         size: 0,
         capacity: HLATTRS_DICT_SIZE,
     };
-    hlattrs2dict(&mut rgb, None, rgb_attrs, true, false);
-    hlattrs2dict(&mut cterm, None, rgb_attrs, false, false);
+    let mut arena = Arena::new();
+    hlattrs2dict(&mut rgb, None, rgb_attrs, true, false, Some(&mut arena));
+    hlattrs2dict(&mut cterm, None, rgb_attrs, false, false, None);
 
+    let url_owned;
     if rgb_attrs.url >= 0 {
-        let url = hl_get_url(rgb_attrs.url as u32);
+        url_owned = hl_get_url(rgb_attrs.url as u32);
         *rgb.next_slot_mut() = KeyValuePair {
             key: cstr_as_string(Some(c"url")),
-            value: string_obj(cstr_as_string(Some(url))),
+            value: string_obj(cstr_as_string(Some(&url_owned))),
         };
         rgb.size += 1;
     }
@@ -1103,6 +1105,7 @@ pub fn remote_ui_hl_attr_define(
         capacity: 4,
     };
     push_call(ui, c"hl_attr_define", args);
+    arena_mem_free(arena_finish(&mut arena));
 }
 
 // DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
@@ -1111,13 +1114,21 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
         return;
     }
     ui.hl_id = id;
+    let mut arena = Arena::new();
     let mut dict_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
     let mut dict = Dict {
         items: crate::globals::GraphPtr::new(dict_items.as_mut_ptr()),
         size: 0,
         capacity: HLATTRS_DICT_SIZE,
     };
-    hlattrs2dict(&mut dict, None, syn_attr2entry(id), ui.rgb, false);
+    hlattrs2dict(
+        &mut dict,
+        None,
+        syn_attr2entry(id),
+        ui.rgb,
+        false,
+        Some(&mut arena),
+    );
     let mut args_items: [Object; 1] = [dict_obj(dict)];
     let args = Array {
         items: crate::globals::GraphPtr::new(args_items.as_mut_ptr()),
@@ -1125,6 +1136,7 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: i32) {
         capacity: 1,
     };
     push_call(ui, c"highlight_set", args);
+    arena_mem_free(arena_finish(&mut arena));
 }
 
 /// "true" cursor used only for input focus
@@ -1384,7 +1396,14 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> 
         let attr = item[0].data.integer() as i32;
         if attr != 0 {
             let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
-            hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);
+            hlattrs2dict(
+                &mut rgb_attrs,
+                None,
+                syn_attr2entry(attr),
+                ui.rgb,
+                false,
+                Some(arena),
+            );
             new_item[0] = dict_obj(rgb_attrs);
         } else {
             new_item[0] = dict_obj(DICT_INIT);

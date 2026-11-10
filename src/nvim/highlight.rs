@@ -11,7 +11,7 @@ use crate::api::private::validate::{
 };
 use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
 use crate::decoration::{HLGroupID, NS};
-use crate::decoration_provider::get_decor_provider_opt;
+use crate::decoration_provider::with_decor_provider_mut;
 use crate::drawscreen::screen_invalidate_highlights;
 use crate::globals::*;
 use crate::highlight_group::{
@@ -220,44 +220,46 @@ pub type NSHlAttr = [std::cell::Cell<i32>; HLF_COUNT];
 use crate::api::private::helpers::has_key;
 
 struct HighlightModuleState {
-    hlstate_active: bool,
-    attr_entries: Vec<HlEntry>,
-    attr_entry_ids: std::collections::BTreeMap<HlEntry, u32>,
-    combine_attr_entries: std::collections::BTreeMap<u64, i32>,
-    blend_attr_entries: std::collections::BTreeMap<u64, i32>,
-    blendthrough_attr_entries: std::collections::BTreeMap<u64, i32>,
-    urls: Vec<std::ffi::CString>,
-    fonts: Vec<std::ffi::CString>,
-    ns_hls: std::collections::BTreeMap<ColorKey, ColorItem>,
-    ns_hl_attr: std::collections::BTreeMap<i32, std::rc::Rc<NSHlAttr>>,
-    get_attr_entry_recursive: bool,
-    ns_get_hl_recursive: i32,
+    hlstate_active: std::cell::Cell<bool>,
+    attr_entries: std::cell::RefCell<Vec<HlEntry>>,
+    attr_entry_ids: std::cell::RefCell<std::collections::BTreeMap<HlEntry, u32>>,
+    combine_attr_entries: std::cell::RefCell<std::collections::BTreeMap<u64, i32>>,
+    blend_attr_entries: std::cell::RefCell<std::collections::BTreeMap<u64, i32>>,
+    blendthrough_attr_entries: std::cell::RefCell<std::collections::BTreeMap<u64, i32>>,
+    urls: std::cell::RefCell<Vec<std::ffi::CString>>,
+    fonts: std::cell::RefCell<Vec<std::ffi::CString>>,
+    ns_hls: std::cell::RefCell<std::collections::BTreeMap<ColorKey, ColorItem>>,
+    ns_hl_attr: std::cell::RefCell<std::collections::BTreeMap<i32, std::rc::Rc<NSHlAttr>>>,
+    get_attr_entry_recursive: std::cell::Cell<bool>,
+    ns_get_hl_recursive: std::cell::Cell<i32>,
 }
 
 impl HighlightModuleState {
     const fn new() -> Self {
         Self {
-            hlstate_active: false,
-            attr_entries: Vec::new(),
-            attr_entry_ids: std::collections::BTreeMap::new(),
-            combine_attr_entries: std::collections::BTreeMap::new(),
-            blend_attr_entries: std::collections::BTreeMap::new(),
-            blendthrough_attr_entries: std::collections::BTreeMap::new(),
-            urls: Vec::new(),
-            fonts: Vec::new(),
-            ns_hls: std::collections::BTreeMap::new(),
-            ns_hl_attr: std::collections::BTreeMap::new(),
-            get_attr_entry_recursive: false,
-            ns_get_hl_recursive: 0,
+            hlstate_active: std::cell::Cell::new(false),
+            attr_entries: std::cell::RefCell::new(Vec::new()),
+            attr_entry_ids: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            combine_attr_entries: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            blend_attr_entries: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            blendthrough_attr_entries: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            urls: std::cell::RefCell::new(Vec::new()),
+            fonts: std::cell::RefCell::new(Vec::new()),
+            ns_hls: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            ns_hl_attr: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+            get_attr_entry_recursive: std::cell::Cell::new(false),
+            ns_get_hl_recursive: std::cell::Cell::new(0),
         }
     }
 }
 
-static HL_STATE: GlobalState<HighlightModuleState> = GlobalState::new(HighlightModuleState::new());
+std::thread_local! {
+    static HL_STATE: HighlightModuleState = const { HighlightModuleState::new() };
+}
 
 #[inline]
-fn hl_st() -> crate::globals::GraphPtr<HighlightModuleState> {
-    HL_STATE.handle()
+fn hl_st<R>(f: impl FnOnce(&HighlightModuleState) -> R) -> R {
+    HL_STATE.with(f)
 }
 
 #[inline]
@@ -302,51 +304,52 @@ const fn hl_attr_key(a: i32, b: i32) -> u64 {
 }
 
 pub fn highlight_init() {
-    if hl_st().attr_entries.is_empty() {
-        let entry = HlEntry {
-            attr: HLATTRS_INIT,
-            kind: K_HL_INVALID,
-            id1: 0,
-            id2: 0,
-            winid: 0,
-        };
-        hl_st().attr_entries.push(entry);
-        hl_st().attr_entry_ids.insert(entry, 0);
-    }
+    hl_st(|st| {
+        if st.attr_entries.borrow().is_empty() {
+            let entry = HlEntry {
+                attr: HLATTRS_INIT,
+                kind: K_HL_INVALID,
+                id1: 0,
+                id2: 0,
+                winid: 0,
+            };
+            st.attr_entries.borrow_mut().push(entry);
+            st.attr_entry_ids.borrow_mut().insert(entry, 0);
+        }
+    });
 }
 
 pub fn highlight_use_hlstate() -> bool {
-    if hl_st().hlstate_active {
+    if hl_st(|st| st.hlstate_active.replace(true)) {
         return false;
     }
-    hl_st().hlstate_active = true;
     clear_hl_tables(true);
     true
 }
 
 fn get_attr_entry(mut entry: HlEntry) -> i32 {
     let mut retried = false;
-    if !hl_st().hlstate_active {
+    if !hl_st(|st| st.hlstate_active.get()) {
         entry.kind = K_HL_UNKNOWN;
         entry.id1 = 0;
         entry.id2 = 0;
     }
 
     loop {
-        if let Some(&k) = hl_st().attr_entry_ids.get(&entry) {
+        if let Some(k) = hl_st(|st| st.attr_entry_ids.borrow().get(&entry).copied()) {
             return k as i32;
         }
 
-        if hl_st().attr_entries.len() as u32 >= MAX_TYPENR {
-            if hl_st().get_attr_entry_recursive || retried {
+        if hl_st(|st| st.attr_entries.borrow().len() as u32) >= MAX_TYPENR {
+            if hl_st(|st| st.get_attr_entry_recursive.get()) || retried {
                 emsg(gettext(
                     c"E424: Too many different highlighting attributes in use",
                 ));
                 return 0;
             }
-            hl_st().get_attr_entry_recursive = true;
+            hl_st(|st| st.get_attr_entry_recursive.set(true));
             clear_hl_tables(true);
-            hl_st().get_attr_entry_recursive = false;
+            hl_st(|st| st.get_attr_entry_recursive.set(false));
 
             if entry.kind == K_HL_COMBINE {
                 return 0;
@@ -355,9 +358,13 @@ fn get_attr_entry(mut entry: HlEntry) -> i32 {
             continue;
         }
 
-        let k = hl_st().attr_entries.len() as u32;
-        hl_st().attr_entries.push(entry);
-        hl_st().attr_entry_ids.insert(entry, k);
+        let k = hl_st(|st| {
+            let mut entries = st.attr_entries.borrow_mut();
+            let k = entries.len() as u32;
+            entries.push(entry);
+            st.attr_entry_ids.borrow_mut().insert(entry, k);
+            k
+        });
 
         let id = k as i32;
         let mut arena = Arena::new();
@@ -369,11 +376,11 @@ fn get_attr_entry(mut entry: HlEntry) -> i32 {
 }
 
 pub fn ui_send_all_hls(ui: &mut RemoteUI) {
-    let len = hl_st().attr_entries.len();
+    let len = hl_st(|st| st.attr_entries.borrow().len());
     for i in 1..len {
         let mut arena = Arena::new();
         let inspect = hl_inspect(i as i32, &mut arena);
-        let attr = hl_st().attr_entries.as_slice()[i].attr;
+        let attr = hl_st(|st| st.attr_entries.borrow()[i].attr);
         remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
         arena_mem_free(arena_finish(&mut arena));
     }
@@ -424,24 +431,28 @@ pub fn ns_hl_def(
         ns_id,
         syn_id: hl_id,
     };
-    if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && hl_st().ns_hls.contains_key(&key) {
+    if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && hl_st(|st| st.ns_hls.borrow().contains_key(&key)) {
         return;
     }
-    let p = get_decor_provider_opt(ns_id, true).unwrap();
+    let _ = with_decor_provider_mut(ns_id, true, |_| ());
     let attr_id = if link_id > 0 {
         -1
     } else {
         hl_get_syn_attr(ns_id, hl_id, attrs)
     };
+    let version = with_decor_provider_mut(ns_id, true, |p| {
+        p.hl_cached = false;
+        p.hl_valid
+    })
+    .unwrap();
     let it = ColorItem {
         attr_id,
         link_id,
-        version: p.hl_valid,
+        version,
         is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
         link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
     };
-    hl_st().ns_hls.insert(key, it);
-    p.hl_cached = false;
+    hl_st(|st| st.ns_hls.borrow_mut().insert(key, it));
 }
 
 pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32 {
@@ -457,21 +468,22 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
     }
 
     let ns_id = *ns_hl;
-    let p = get_decor_provider_opt(ns_id, true).unwrap();
+    let (hl_valid, hl_def) =
+        with_decor_provider_mut(ns_id, true, |p| (p.hl_valid, p.hl_def)).unwrap();
     let key = ColorKey {
         ns_id,
         syn_id: hl_id,
     };
-    let mut it = hl_st().ns_hls.get(&key).copied().unwrap_or(ColorItem {
+    let mut it = hl_st(|st| st.ns_hls.borrow().get(&key).copied()).unwrap_or(ColorItem {
         attr_id: -1,
         link_id: -1,
         version: -1,
         is_default: false,
         link_global: false,
     });
-    let mut valid_item = it.version >= p.hl_valid;
+    let mut valid_item = it.version >= hl_valid;
 
-    if !valid_item && p.hl_def != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
+    if !valid_item && hl_def != LUA_NOREF && hl_st(|st| st.ns_get_hl_recursive.get()) == 0 {
         let mut args_storage = [Object {
             obj_type: ObjectType::ObjectTypeNil,
             data: ObjectData::Integer(0),
@@ -486,16 +498,16 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         add_c(&mut args, boolean_obj(link));
 
         let mut err = Error::new();
-        hl_st().ns_get_hl_recursive += 1;
+        hl_st(|st| st.ns_get_hl_recursive.set(st.ns_get_hl_recursive.get() + 1));
         let ret = nlua_call_ref(
-            p.hl_def,
+            hl_def,
             Some(c"hl_def"),
             args,
             K_RET_OBJECT,
             None,
             Some(&mut err),
         );
-        hl_st().ns_get_hl_recursive -= 1;
+        hl_st(|st| st.ns_get_hl_recursive.set(st.ns_get_hl_recursive.get() - 1));
 
         let mut fallback = true;
         let mut tmp = false;
@@ -527,10 +539,11 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         } else {
             hl_get_syn_attr(ns_id, hl_id, attrs)
         };
-        it.version = p.hl_valid - i32::from(tmp);
+        let cur_hl_valid = with_decor_provider_mut(ns_id, true, |p| p.hl_valid).unwrap();
+        it.version = cur_hl_valid - i32::from(tmp);
         it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
         it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
-        hl_st().ns_hls.insert(key, it);
+        hl_st(|st| st.ns_hls.borrow_mut().insert(key, it));
         valid_item = true;
     }
 
@@ -567,8 +580,8 @@ pub fn hl_check_ns() -> bool {
     g_st().hl_attr_active = None;
     if ns > 0 {
         update_ns_hl(ns);
-        if let Some(hl_def) = hl_st().ns_hl_attr.get(&ns) {
-            g_st().hl_attr_active = Some(hl_def.clone());
+        if let Some(hl_def) = hl_st(|st| st.ns_hl_attr.borrow().get(&ns).cloned()) {
+            g_st().hl_attr_active = Some(hl_def);
         }
     }
     true
@@ -631,7 +644,7 @@ pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -
 }
 
 pub fn hl_apply_winblend(winbl: i32, mut attr: i32) -> i32 {
-    let mut entry = hl_st().attr_entries.as_slice()[attr as usize];
+    let mut entry = hl_st(|st| st.attr_entries.borrow()[attr as usize]);
     if entry.attr.hl_blend == -1 && winbl > 0 {
         entry.attr.hl_blend = winbl;
         attr = get_attr_entry(entry);
@@ -646,7 +659,7 @@ pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
     if ns_id != wp.w_ns_hl_active {
         wp.w_ns_hl_active = ns_id;
 
-        wp.w_ns_hl_attr = hl_st().ns_hl_attr.get(&ns_id).cloned();
+        wp.w_ns_hl_attr = hl_st(|st| st.ns_hl_attr.borrow().get(&ns_id).cloned());
     }
 
     let w_ns_hl_attr = wp.w_ns_hl_attr.clone();
@@ -721,15 +734,17 @@ pub fn update_ns_hl(ns_id: i32) {
     if ns_id <= 0 {
         return;
     }
-    if get_decor_provider_opt(ns_id, true).unwrap().hl_cached {
+    if with_decor_provider_mut(ns_id, true, |p| p.hl_cached).unwrap() {
         return;
     }
 
-    let alloc = hl_st()
-        .ns_hl_attr
-        .entry(ns_id)
-        .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
-        .clone();
+    let alloc = hl_st(|st| {
+        st.ns_hl_attr
+            .borrow_mut()
+            .entry(ns_id)
+            .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
+            .clone()
+    });
 
     for hlf in 1..HLF_COUNT {
         let name_cstr = HLF_NAMES[hlf].unwrap();
@@ -741,7 +756,7 @@ pub fn update_ns_hl(ns_id: i32) {
     let normality = syn_check_group(b"Normal");
     alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
-    get_decor_provider_opt(ns_id, true).unwrap().hl_cached = true;
+    with_decor_provider_mut(ns_id, true, |p| p.hl_cached = true);
 }
 
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
@@ -778,13 +793,16 @@ pub fn hl_get_underline() -> i32 {
 
 pub fn hl_add_url(attr: i32, url: &CStr) -> i32 {
     let mut attrs = HLATTRS_INIT;
-    let k = if let Some(pos) = hl_st().urls.iter().position(|u| u.as_c_str() == url) {
-        pos
-    } else {
-        let idx = hl_st().urls.len();
-        hl_st().urls.push(url.to_owned());
-        idx
-    };
+    let k = hl_st(|st| {
+        let mut urls = st.urls.borrow_mut();
+        if let Some(pos) = urls.iter().position(|u| u.as_c_str() == url) {
+            pos
+        } else {
+            let idx = urls.len();
+            urls.push(url.to_owned());
+            idx
+        }
+    });
     attrs.url = k as i32;
 
     let new = get_attr_entry(HlEntry {
@@ -797,8 +815,8 @@ pub fn hl_add_url(attr: i32, url: &CStr) -> i32 {
     hl_combine_attr(attr, new)
 }
 
-pub fn hl_get_url(index: u32) -> &'static CStr {
-    hl_st().borrow_mut().urls.as_slice()[index as usize].as_c_str()
+pub fn hl_get_url(index: u32) -> std::ffi::CString {
+    hl_st(|st| st.urls.borrow()[index as usize].clone())
 }
 
 pub fn hl_add_font_idx(font_name: Option<&[u8]>) -> i32 {
@@ -808,25 +826,22 @@ pub fn hl_add_font_idx(font_name: Option<&[u8]>) -> i32 {
     if font_bytes.is_empty() {
         return -1;
     }
-    if let Some(pos) = hl_st()
-        .fonts
-        .iter()
-        .position(|f| f.as_bytes() == font_bytes)
-    {
-        return pos as i32;
-    }
-    let idx = hl_st().fonts.len() as i32;
-    hl_st()
-        .fonts
-        .push(crate::memory::bytes_to_cstring(font_bytes));
-    idx
+    hl_st(|st| {
+        let mut fonts = st.fonts.borrow_mut();
+        if let Some(pos) = fonts.iter().position(|f| f.as_bytes() == font_bytes) {
+            return pos as i32;
+        }
+        let idx = fonts.len() as i32;
+        fonts.push(crate::memory::bytes_to_cstring(font_bytes));
+        idx
+    })
 }
 
-pub fn hl_get_font(index: i32) -> Option<&'static CStr> {
-    if index < 0 || (index as usize) >= hl_st().fonts.len() {
+pub fn hl_get_font(index: i32) -> Option<std::ffi::CString> {
+    if index < 0 {
         return None;
     }
-    Some(hl_st().borrow_mut().fonts.as_slice()[index as usize].as_c_str())
+    hl_st(|st| st.fonts.borrow().get(index as usize).cloned())
 }
 
 pub fn hl_get_term_attr(aep: &mut HlAttrs) -> i32 {
@@ -841,33 +856,39 @@ pub fn hl_get_term_attr(aep: &mut HlAttrs) -> i32 {
 
 pub fn clear_hl_tables(reinit: bool) {
     if reinit {
-        hl_st().attr_entries.clear();
-        hl_st().attr_entry_ids.clear();
+        hl_st(|st| {
+            st.attr_entries.borrow_mut().clear();
+            st.attr_entry_ids.borrow_mut().clear();
+            st.combine_attr_entries.borrow_mut().clear();
+            st.blend_attr_entries.borrow_mut().clear();
+            st.blendthrough_attr_entries.borrow_mut().clear();
+            st.urls.borrow_mut().clear();
+        });
         highlight_init();
-        hl_st().combine_attr_entries.clear();
-        hl_st().blend_attr_entries.clear();
-        hl_st().blendthrough_attr_entries.clear();
-        hl_st().urls.clear();
         g_st().highlight_attr_last = [-1; HLF_COUNT];
         highlight_attr_set_all();
         highlight_changed();
         screen_invalidate_highlights();
     } else {
-        hl_st().attr_entries = Vec::new();
-        hl_st().attr_entry_ids = std::collections::BTreeMap::new();
-        hl_st().combine_attr_entries = std::collections::BTreeMap::new();
-        hl_st().blend_attr_entries = std::collections::BTreeMap::new();
-        hl_st().blendthrough_attr_entries = std::collections::BTreeMap::new();
-        hl_st().ns_hls = std::collections::BTreeMap::new();
-        hl_st().ns_hl_attr = std::collections::BTreeMap::new();
-        hl_st().urls = Vec::new();
-        hl_st().fonts = Vec::new();
+        hl_st(|st| {
+            *st.attr_entries.borrow_mut() = Vec::new();
+            *st.attr_entry_ids.borrow_mut() = std::collections::BTreeMap::new();
+            *st.combine_attr_entries.borrow_mut() = std::collections::BTreeMap::new();
+            *st.blend_attr_entries.borrow_mut() = std::collections::BTreeMap::new();
+            *st.blendthrough_attr_entries.borrow_mut() = std::collections::BTreeMap::new();
+            *st.ns_hls.borrow_mut() = std::collections::BTreeMap::new();
+            *st.ns_hl_attr.borrow_mut() = std::collections::BTreeMap::new();
+            *st.urls.borrow_mut() = Vec::new();
+            *st.fonts.borrow_mut() = Vec::new();
+        });
     }
 }
 
 pub fn hl_invalidate_blends() {
-    hl_st().blend_attr_entries.clear();
-    hl_st().blendthrough_attr_entries.clear();
+    hl_st(|st| {
+        st.blend_attr_entries.borrow_mut().clear();
+        st.blendthrough_attr_entries.borrow_mut().clear();
+    });
     highlight_changed();
     update_window_hl(curwin_mut(), true);
 }
@@ -888,11 +909,13 @@ pub fn hl_combine_attr(char_attr: i32, prim_attr: i32) -> i32 {
     }
 
     let combine_tag = hl_attr_key(char_attr, prim_attr);
-    let mut id = hl_st()
-        .combine_attr_entries
-        .get(&combine_tag)
-        .copied()
-        .unwrap_or(0);
+    let mut id = hl_st(|st| {
+        st.combine_attr_entries
+            .borrow()
+            .get(&combine_tag)
+            .copied()
+            .unwrap_or(0)
+    });
     if id > 0 {
         return id;
     }
@@ -957,7 +980,7 @@ pub fn hl_combine_attr(char_attr: i32, prim_attr: i32) -> i32 {
         winid: 0,
     });
     if id > 0 {
-        hl_st().combine_attr_entries.insert(combine_tag, id);
+        hl_st(|st| st.combine_attr_entries.borrow_mut().insert(combine_tag, id));
     }
 
     id
@@ -1006,12 +1029,22 @@ pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i3
     }
 
     let combine_tag = hl_attr_key(back_attr, front_attr);
-    let map = if *through {
-        &mut hl_st().blendthrough_attr_entries
-    } else {
-        &mut hl_st().blend_attr_entries
-    };
-    let mut id = map.get(&combine_tag).copied().unwrap_or(0);
+    let is_through = *through;
+    let mut id = hl_st(|st| {
+        if is_through {
+            st.blendthrough_attr_entries
+                .borrow()
+                .get(&combine_tag)
+                .copied()
+                .unwrap_or(0)
+        } else {
+            st.blend_attr_entries
+                .borrow()
+                .get(&combine_tag)
+                .copied()
+                .unwrap_or(0)
+        }
+    });
     if id > 0 {
         return id;
     }
@@ -1068,7 +1101,15 @@ pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i3
         winid: 0,
     });
     if id > 0 {
-        map.insert(combine_tag, id);
+        hl_st(|st| {
+            if is_through {
+                st.blendthrough_attr_entries
+                    .borrow_mut()
+                    .insert(combine_tag, id);
+            } else {
+                st.blend_attr_entries.borrow_mut().insert(combine_tag, id);
+            }
+        });
     }
     id
 }
@@ -1151,10 +1192,15 @@ const fn hl_cterm2rgb_color(nr: i32) -> i32 {
 }
 
 pub fn syn_attr2entry(attr: i32) -> HlAttrs {
-    if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+    if attr <= 0 {
         return HLATTRS_INIT;
     }
-    hl_st().attr_entries.as_slice()[attr as usize].attr
+    hl_st(|st| {
+        st.attr_entries
+            .borrow()
+            .get(attr as usize)
+            .map_or(HLATTRS_INIT, |e| e.attr)
+    })
 }
 
 pub fn hl_get_attr_by_id(
@@ -1169,7 +1215,7 @@ pub fn hl_get_attr_by_id(
         return dic;
     }
 
-    if attr_id < 0 || (attr_id as usize) >= hl_st().attr_entries.len() {
+    if attr_id < 0 || (attr_id as usize) >= hl_st(|st| st.attr_entries.borrow().len()) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -1185,6 +1231,7 @@ pub fn hl_get_attr_by_id(
         syn_attr2entry(attr_id as i32),
         rgb,
         false,
+        Some(arena),
     );
     retval
 }
@@ -1195,6 +1242,7 @@ pub fn hlattrs2dict(
     ae: HlAttrs,
     use_rgb: bool,
     short_keys: bool,
+    arena: Option<&mut Arena>,
 ) {
     assert!(hl.capacity >= HLATTRS_DICT_SIZE);
     let hl_attrs: &mut Dict = match hl_attrs {
@@ -1282,7 +1330,14 @@ pub fn hlattrs2dict(
             put_c(&mut *hl, c"bg_indexed", boolean_obj(true));
         }
         if let Some(font) = hl_get_font(ae.font) {
-            put_c(&mut *hl, c"font", string_obj(cstr_as_string(Some(font))));
+            put_c(
+                &mut *hl,
+                c"font",
+                string_obj(crate::api::private::helpers::arena_bytes_opt(
+                    arena,
+                    font.to_bytes(),
+                )),
+            );
         }
     } else {
         if ae.cterm_fg_color != 0 {
@@ -1707,7 +1762,7 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
 }
 
 pub fn hl_inspect(attr: i32, arena: &mut Arena) -> Array {
-    if !hl_st().hlstate_active {
+    if !hl_st(|st| st.hlstate_active.get()) {
         return Array::new();
     }
     let mut ret = arena_array(arena, hl_inspect_size(attr));
@@ -1716,11 +1771,12 @@ pub fn hl_inspect(attr: i32, arena: &mut Arena) -> Array {
 }
 
 fn hl_inspect_size(attr: i32) -> usize {
-    if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+    if attr <= 0 {
         return 0;
     }
-
-    let e = hl_st().attr_entries.as_slice()[attr as usize];
+    let Some(e) = hl_st(|st| st.attr_entries.borrow().get(attr as usize).copied()) else {
+        return 0;
+    };
     if e.kind == K_HL_COMBINE || e.kind == K_HL_BLEND || e.kind == K_HL_BLEND_THROUGH {
         return hl_inspect_size(e.id1) + hl_inspect_size(e.id2);
     }
@@ -1728,11 +1784,12 @@ fn hl_inspect_size(attr: i32) -> usize {
 }
 
 fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
-    if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+    if attr <= 0 {
         return;
     }
-
-    let e = hl_st().attr_entries.as_slice()[attr as usize];
+    let Some(e) = hl_st(|st| st.attr_entries.borrow().get(attr as usize).copied()) else {
+        return;
+    };
     let mut item: Dict;
     match e.kind {
         K_HL_SYNTAX => {
