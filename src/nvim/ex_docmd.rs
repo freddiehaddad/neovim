@@ -9992,7 +9992,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut T
     g_st().textlock += 1;
 
     let ctx = get_option_sctx(K_OPT_FINDFUNC);
-    g_st().current_sctx = *ctx;
+    g_st().current_sctx = ctx;
 
     let cb = get_findfunc();
     let mut rettv: TypVal = TypVal::new();

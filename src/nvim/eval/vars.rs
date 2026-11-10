@@ -746,7 +746,7 @@ pub fn eval_charconvert(
     set_vim_var_string(VV_FNAME_IN, Some(fname_from), -1);
     set_vim_var_string(VV_FNAME_OUT, Some(fname_to), -1);
     let ctx = get_option_sctx(K_OPT_CHARCONVERT);
-    g_st().current_sctx = *ctx;
+    g_st().current_sctx = ctx;
 
     let mut err = false;
     let mut tv: TypVal = TypVal::new();
@@ -776,7 +776,7 @@ pub fn eval_diff(origfile: &CStr, newfile: &CStr, outfile: &CStr) {
     set_vim_var_string(VV_FNAME_OUT, Some(outfile), -1);
 
     let ctx = get_option_sctx(K_OPT_DIFFEXPR);
-    g_st().current_sctx = *ctx;
+    g_st().current_sctx = ctx;
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -797,7 +797,7 @@ pub fn eval_patch(origfile: &CStr, difffile: &CStr, outfile: &CStr) {
     set_vim_var_string(VV_FNAME_OUT, Some(outfile), -1);
 
     let ctx = get_option_sctx(K_OPT_PATCHEXPR);
-    g_st().current_sctx = *ctx;
+    g_st().current_sctx = ctx;
 
     let mut tv: TypVal = TypVal::new();
     let mut argv: [TypVal; 1] = [TypVal::new()];
@@ -825,7 +825,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
         g_st().emsg_off += 1;
     }
     let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
-    g_st().current_sctx = *ctx;
+    g_st().current_sctx = ctx;
 
     let r = may_call_simple_func(p, &mut rettv)
         .unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)));

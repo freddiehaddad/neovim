@@ -695,13 +695,12 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
 }
 
 #[inline]
-fn get_opt_idx(opt: &Vimoption) -> OptIndex {
-    ((ptr::from_ref(opt) as usize - ptr::from_ref(get_option(0)) as usize)
-        / std::mem::size_of::<Vimoption>()) as OptIndex
+fn get_opt_idx(opt: Vimoption) -> OptIndex {
+    find_option(opt.fullname.to_bytes())
 }
 
 #[inline]
-fn get_varp(p: &mut Vimoption) -> OptVar {
+fn get_varp(p: Vimoption) -> OptVar {
     get_varp_from(p, curbuf_mut(), Some(curwin_mut()))
 }
 
@@ -966,16 +965,17 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
 /// Allocate the default values for all options by copying them from the stack.
 fn alloc_options_default() {
     for opt_idx in 0..K_OPT_COUNT {
-        let opt = get_option(opt_idx);
-        opt.def_val = copy_object(opt.def_val, None);
+        let def_val = get_option(opt_idx).def_val;
+        let copied = copy_object(def_val, None);
+        OPTIONS.with(|opts| opts.borrow_mut()[opt_idx as usize].def_val = copied);
     }
 }
 
 /// Change the default value for an option.
 fn change_option_default(opt_idx: OptIndex, value: Object) {
-    let opt = get_option(opt_idx);
-    optval_free(opt.def_val);
-    opt.def_val = value;
+    let old_def_val = get_option(opt_idx).def_val;
+    optval_free(old_def_val);
+    OPTIONS.with(|opts| opts.borrow_mut()[opt_idx as usize].def_val = value);
 }
 
 /// Set an option to its default value.
@@ -989,11 +989,19 @@ fn set_option_default(opt_idx: OptIndex, opt_flags: i32) {
         win_comp_scroll(curwin_mut());
     }
 
-    let mut flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
-    *flagsp &= !K_OPT_FLAG_INSECURE;
+    set_insecure_flag(
+        Some(crate::globals::curwin_mut()),
+        opt_idx,
+        opt_flags,
+        false,
+    );
     if both {
-        flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL);
-        *flagsp &= !K_OPT_FLAG_INSECURE;
+        set_insecure_flag(
+            Some(crate::globals::curwin_mut()),
+            opt_idx,
+            OPT_LOCAL,
+            false,
+        );
     }
 }
 
@@ -1707,7 +1715,7 @@ pub fn get_option_newval(
             opt_from_varp(
                 opt_idx,
                 if oldval_is_global {
-                    get_varp(&mut *opt)
+                    get_varp(opt)
                 } else {
                     varp
                 },
@@ -1892,7 +1900,7 @@ fn do_one_set_option<'a>(
             gotocmdline(true);
             *did_show = true;
         }
-        showoneopt(&mut *opt, opt_flags);
+        showoneopt(opt, opt_flags);
 
         if opt_vars().p_verbose > 0 {
             if varp.is_some() && varp == opt.var() {
@@ -2243,7 +2251,7 @@ pub fn check_options() {
             && !is_callback_option(opt_idx)
             && !opt.immutable
         {
-            let varp = get_varp(&mut *opt);
+            let varp = get_varp(opt);
             varp.check_str();
         }
     }
@@ -2252,42 +2260,72 @@ pub fn check_options() {
 /// Check if option was set insecurely.
 pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> i32 {
     assert!(opt_idx != K_OPT_INVALID);
-    let flagp = insecure_flag(wp, opt_idx, opt_flags);
-    i32::from((*flagp & K_OPT_FLAG_INSECURE) != 0)
+    let flags = if (opt_flags & OPT_LOCAL) != 0 {
+        let wp = wp.unwrap();
+        match opt_idx {
+            K_OPT_WRAP => Some(wp.w_onebuf_opt.wo_wrap_flags),
+            K_OPT_STATUSLINE => Some(wp.w_onebuf_opt.wo_stl_flags),
+            K_OPT_WINBAR => Some(wp.w_onebuf_opt.wo_wbr_flags),
+            K_OPT_FOLDEXPR => Some(wp.w_onebuf_opt.wo_fde_flags),
+            K_OPT_FOLDTEXT => Some(wp.w_onebuf_opt.wo_fdt_flags),
+            K_OPT_INDENTEXPR => Some(wp.buf_mut().b_p_inde_flags),
+            K_OPT_FORMATEXPR => Some(wp.buf_mut().b_p_fex_flags),
+            K_OPT_INCLUDEEXPR => Some(wp.buf_mut().b_p_inex_flags),
+            K_OPT_COMPLETE => Some(wp.buf_mut().b_p_cpt_flags),
+            _ => None,
+        }
+    } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
+        let wp = wp.unwrap();
+        match opt_idx {
+            K_OPT_WRAP => Some(wp.w_allbuf_opt.wo_wrap_flags),
+            K_OPT_FOLDEXPR => Some(wp.w_allbuf_opt.wo_fde_flags),
+            K_OPT_FOLDTEXT => Some(wp.w_allbuf_opt.wo_fdt_flags),
+            _ => None,
+        }
+    } else {
+        None
+    }
+    .unwrap_or_else(|| get_option(opt_idx).flags);
+    i32::from((flags & K_OPT_FLAG_INSECURE) != 0)
 }
 
-/// Get a pointer to the flags used for the K_OPT_FLAG_INSECURE flag of option "opt_idx".
-pub fn insecure_flag(
+fn set_insecure_flag(
     wp: Option<&mut WinInfoInfo>,
     opt_idx: OptIndex,
     opt_flags: i32,
-) -> &'static mut u32 {
+    insecure: bool,
+) {
+    let update = |f: &mut u32| {
+        if insecure {
+            *f |= K_OPT_FLAG_INSECURE;
+        } else {
+            *f &= !K_OPT_FLAG_INSECURE;
+        }
+    };
     if (opt_flags & OPT_LOCAL) != 0 {
-        let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp.unwrap()).as_ptr();
-        let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
+        let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
-            K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
-            K_OPT_WINBAR => return &mut wp.w_onebuf_opt.wo_wbr_flags,
-            K_OPT_FOLDEXPR => return &mut wp.w_onebuf_opt.wo_fde_flags,
-            K_OPT_FOLDTEXT => return &mut wp.w_onebuf_opt.wo_fdt_flags,
-            K_OPT_INDENTEXPR => return &mut wp.buf_mut().b_p_inde_flags,
-            K_OPT_FORMATEXPR => return &mut wp.buf_mut().b_p_fex_flags,
-            K_OPT_INCLUDEEXPR => return &mut wp.buf_mut().b_p_inex_flags,
-            K_OPT_COMPLETE => return &mut wp.buf_mut().b_p_cpt_flags,
+            K_OPT_WRAP => return update(&mut wp.w_onebuf_opt.wo_wrap_flags),
+            K_OPT_STATUSLINE => return update(&mut wp.w_onebuf_opt.wo_stl_flags),
+            K_OPT_WINBAR => return update(&mut wp.w_onebuf_opt.wo_wbr_flags),
+            K_OPT_FOLDEXPR => return update(&mut wp.w_onebuf_opt.wo_fde_flags),
+            K_OPT_FOLDTEXT => return update(&mut wp.w_onebuf_opt.wo_fdt_flags),
+            K_OPT_INDENTEXPR => return update(&mut wp.buf_mut().b_p_inde_flags),
+            K_OPT_FORMATEXPR => return update(&mut wp.buf_mut().b_p_fex_flags),
+            K_OPT_INCLUDEEXPR => return update(&mut wp.buf_mut().b_p_inex_flags),
+            K_OPT_COMPLETE => return update(&mut wp.buf_mut().b_p_cpt_flags),
             _ => {}
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
-        let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(wp.unwrap()).as_ptr();
-        let wp = crate::globals::GraphPtr::of(wp).borrow_mut();
+        let wp = wp.unwrap();
         match opt_idx {
-            K_OPT_WRAP => return &mut wp.w_allbuf_opt.wo_wrap_flags,
-            K_OPT_FOLDEXPR => return &mut wp.w_allbuf_opt.wo_fde_flags,
-            K_OPT_FOLDTEXT => return &mut wp.w_allbuf_opt.wo_fdt_flags,
+            K_OPT_WRAP => return update(&mut wp.w_allbuf_opt.wo_wrap_flags),
+            K_OPT_FOLDEXPR => return update(&mut wp.w_allbuf_opt.wo_fde_flags),
+            K_OPT_FOLDTEXT => return update(&mut wp.w_allbuf_opt.wo_fdt_flags),
             _ => {}
         }
     }
-    &mut get_option(opt_idx).flags
+    OPTIONS.with(|opts| update(&mut opts.borrow_mut()[opt_idx as usize].flags));
 }
 
 /// Redraw the window title and/or tab page text later.
@@ -2392,9 +2430,9 @@ pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -
 }
 
 /// Get the script context of global option at index opt_idx.
-pub fn get_option_sctx(opt_idx: OptIndex) -> &'static mut Sctx {
+pub fn get_option_sctx(opt_idx: OptIndex) -> Sctx {
     assert!(opt_idx != K_OPT_INVALID);
-    &mut get_option(opt_idx).script_ctx
+    get_option(opt_idx).script_ctx
 }
 
 /// Set the script_ctx for an option.
@@ -2407,7 +2445,7 @@ pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: i32, mut script_ctx: Sctx) 
     nlua_set_sctx(&mut script_ctx);
 
     if both || (opt_flags & OPT_GLOBAL) != 0 || option_is_global_only(opt_idx) {
-        get_option(opt_idx).script_ctx = script_ctx;
+        OPTIONS.with(|opts| opts.borrow_mut()[opt_idx as usize].script_ctx = script_ctx);
     }
     if both || (opt_flags & OPT_LOCAL) != 0 {
         if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
@@ -3577,11 +3615,7 @@ macro_rules! opt_flags {
 
 macro_rules! opt_def_var {
     ($idx:literal) => {
-        Some(|| {
-            OptVar::DefVal(crate::globals::GraphPtr::from(
-                &mut g_st().borrow_mut().options[$idx].def_val,
-            ))
-        })
+        Some(|| OptVar::DefVal($idx))
     };
 }
 
@@ -4008,10 +4042,16 @@ pub(crate) const fn init_options() -> [Vimoption; 379] {
     ]
 }
 
+thread_local! {
+    static OPTIONS: std::cell::RefCell<[Vimoption; 379]> = const {
+        std::cell::RefCell::new(init_options())
+    };
+}
+
 /// Return information for option at `opt_idx` (`get_option`).
-pub fn get_option(opt_idx: OptIndex) -> &'static mut Vimoption {
+pub fn get_option(opt_idx: OptIndex) -> Vimoption {
     assert!(opt_idx != K_OPT_INVALID);
-    &mut g_st().borrow_mut().options[opt_idx as usize]
+    OPTIONS.with(|opts| opts.borrow()[opt_idx as usize])
 }
 
 const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
@@ -5330,20 +5370,27 @@ fn did_set_option<'a>(
     check_redraw(opt.flags);
 
     if errmsg.is_none() {
-        opt.flags |= K_OPT_FLAG_WAS_SET;
+        OPTIONS.with(|opts| opts.borrow_mut()[opt_idx as usize].flags |= K_OPT_FLAG_WAS_SET);
 
-        let flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
-        let flagsp_local = scope_both
-            .then(|| insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL));
         if !args.os_value_checked && value_untrusted {
-            *flagsp |= K_OPT_FLAG_INSECURE;
-            if let Some(fl) = flagsp_local {
-                *fl |= K_OPT_FLAG_INSECURE;
+            set_insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags, true);
+            if scope_both {
+                set_insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL, true);
             }
         } else if value_replaced {
-            *flagsp &= !K_OPT_FLAG_INSECURE;
-            if let Some(fl) = flagsp_local {
-                *fl &= !K_OPT_FLAG_INSECURE;
+            set_insecure_flag(
+                Some(crate::globals::curwin_mut()),
+                opt_idx,
+                opt_flags,
+                false,
+            );
+            if scope_both {
+                set_insecure_flag(
+                    Some(crate::globals::curwin_mut()),
+                    opt_idx,
+                    OPT_LOCAL,
+                    false,
+                );
             }
         }
     }
@@ -5560,7 +5607,7 @@ fn set_option<'a>(
             optval_snapshot_varp(opt_idx, varp_local)
         };
         saved_used_value = if scope_local && is_opt_local_unset {
-            optval_snapshot_varp(opt_idx, get_varp(&mut *opt))
+            optval_snapshot_varp(opt_idx, get_varp(opt))
         } else {
             optval_snapshot(old_value)
         };
@@ -5875,7 +5922,7 @@ fn showoptions(all: bool, opt_flags: i32) {
     const INC: i32 = 20;
     const GAP: i32 = 3;
 
-    let mut items: Vec<&'static mut Vimoption> = Vec::with_capacity(K_OPT_COUNT as usize);
+    let mut items: Vec<Vimoption> = Vec::with_capacity(K_OPT_COUNT as usize);
 
     msg_ext_set_kind(c"list_cmd");
     if (opt_flags & OPT_GLOBAL) != 0 {
@@ -5901,7 +5948,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                     varp = get_varp_scope(opt, opt_flags);
                 }
             } else {
-                varp = get_varp(&mut *opt);
+                varp = get_varp(opt);
             }
             if varp.is_some() && (all || optval_default(opt_idx, varp) == 0) {
                 let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
@@ -5981,7 +6028,7 @@ pub fn ui_refresh_options() {
     }
 }
 
-fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
+fn showoneopt(opt: Vimoption, opt_flags: i32) {
     let save_silent = g_st().silent_mode;
 
     g_st().silent_mode = false;
@@ -6313,7 +6360,7 @@ fn get_winopt_var(wop: &mut Winopt, opt_idx: OptIndex) -> OptVar {
 }
 
 pub fn get_varp_scope_from(
-    p: &mut Vimoption,
+    p: Vimoption,
     opt_flags: i32,
     buf: &mut FileBuf,
     mut win: Option<&mut WinInfoInfo>,
@@ -6376,7 +6423,7 @@ pub fn get_varp_scope_from(
 }
 
 /// Get pointer to option variable, depending on local or global scope.
-pub fn get_varp_scope(p: &mut Vimoption, opt_flags: i32) -> OptVar {
+pub fn get_varp_scope(p: Vimoption, opt_flags: i32) -> OptVar {
     get_varp_scope_from(p, opt_flags, curbuf_mut(), Some(curwin_mut()))
 }
 
@@ -6390,11 +6437,7 @@ pub fn get_option_varp_scope_from(
     get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win)
 }
 
-pub fn get_varp_from(
-    p: &mut Vimoption,
-    buf: &mut FileBuf,
-    mut win: Option<&mut WinInfoInfo>,
-) -> OptVar {
+pub fn get_varp_from(p: Vimoption, buf: &mut FileBuf, mut win: Option<&mut WinInfoInfo>) -> OptVar {
     let opt_idx = get_opt_idx(p);
 
     if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
@@ -7814,7 +7857,7 @@ pub fn option_was_set(opt_idx: OptIndex) -> bool {
 /// Reset the flag indicating option "name" was set.
 pub fn reset_option_was_set(opt_idx: OptIndex) {
     assert!(opt_idx != K_OPT_INVALID);
-    get_option(opt_idx).flags &= !K_OPT_FLAG_WAS_SET;
+    OPTIONS.with(|opts| opts.borrow_mut()[opt_idx as usize].flags &= !K_OPT_FLAG_WAS_SET);
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
@@ -8130,7 +8173,7 @@ pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
         if (bufopt != 0 && option_has_scope(opt_idx, K_OPT_SCOPE_BUF))
             || (bufopt == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_WIN))
         {
-            let varp = get_varp(&mut *opt);
+            let varp = get_varp(opt);
             if varp.is_some() {
                 let ov = opt_from_varp(opt_idx, varp);
                 let mut opt_tv = opt_to_tv(ov, true);
@@ -8194,7 +8237,7 @@ pub fn get_option_info(
         return Dict::new();
     }
 
-    option_info_dict(&mut *get_option(opt_idx), opt_flags, buf, win, arena)
+    option_info_dict(get_option(opt_idx), opt_flags, buf, win, arena)
 }
 
 /// Metadata Dict for every option, keyed by full name.
@@ -8202,14 +8245,14 @@ pub fn get_all_options_info(arena: &mut Arena) -> Dict {
     let mut retval = arena_dict(arena, K_OPT_COUNT as usize);
     for opt_idx in 0..K_OPT_COUNT {
         let opt = get_option(opt_idx);
-        let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
+        let opt_dict = option_info_dict(opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
         put_c(&mut retval, opt.fullname, dict_obj(opt_dict));
     }
     retval
 }
 
 fn option_info_dict(
-    opt: &mut Vimoption,
+    opt: Vimoption,
     opt_flags: i32,
     buf: &mut FileBuf,
     win: &mut WinInfoInfo,

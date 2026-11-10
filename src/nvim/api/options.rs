@@ -597,7 +597,7 @@ pub fn nvim_set_option_value(
     } else {
         crate::globals::curwin_handle()
     };
-    let varp = get_varp_from(&mut *option, buf.borrow_mut(), win.opt_mut());
+    let varp = get_varp_from(option, buf.borrow_mut(), win.opt_mut());
 
     let nitems = if is_array {
         value.data.array().size

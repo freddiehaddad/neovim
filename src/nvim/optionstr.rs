@@ -196,7 +196,7 @@ pub enum OptVar {
     Int(crate::globals::GraphPtr<crate::option::OptInt>),
     Str(crate::globals::GraphPtr<OptString>),
     Callback(crate::globals::GraphPtr<crate::eval::typval::Callback>),
-    DefVal(crate::globals::GraphPtr<Object>),
+    DefVal(OptIndex),
 }
 
 impl OptVar {
@@ -221,7 +221,7 @@ impl OptVar {
             Self::Int(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
             Self::Str(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
             Self::Callback(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
-            Self::DefVal(g) => std::ptr::eq(g.as_ptr().cast::<()>(), p),
+            Self::DefVal(_) => false,
         }
     }
 
@@ -440,6 +440,7 @@ pub type OptDidSetCb = Option<fn(&mut Optset) -> Option<&'static CStr>>;
 pub type OptExpandCb = Option<fn(&mut Optexpand, &mut Vec<std::ffi::CString>) -> bool>;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct Vimoption {
     pub fullname: &'static std::ffi::CStr,
     pub shortname: Option<&'static std::ffi::CStr>,
