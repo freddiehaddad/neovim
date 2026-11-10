@@ -59,6 +59,7 @@ impl Default for Arena {
 const ALLOC_ALIGN: usize = 16;
 const HEADER_SIZE: usize = 16;
 
+#[derive(Clone, Copy)]
 pub(crate) struct MemoryModuleState {
     pub(crate) entered_free_all_mem: bool,
     trying_to_free: bool,
@@ -77,12 +78,48 @@ impl MemoryModuleState {
     }
 }
 
-static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> =
-    crate::globals::GlobalState::new(MemoryModuleState::new());
+thread_local! {
+    static MEM_STATE: std::cell::Cell<MemoryModuleState> = const {
+        std::cell::Cell::new(MemoryModuleState::new())
+    };
+}
+
+pub(crate) struct MemGuard {
+    state: MemoryModuleState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for MemGuard {
+    type Target = MemoryModuleState;
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for MemGuard {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for MemGuard {
+    #[inline(always)]
+    fn drop(&mut self) {
+        if self.mutated {
+            MEM_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline(always)]
-pub(crate) fn mem_st() -> crate::globals::GraphPtr<MemoryModuleState> {
-    MEM_STATE.handle()
+pub(crate) fn mem_st() -> MemGuard {
+    MemGuard {
+        state: MEM_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 #[allow(unsafe_code)]

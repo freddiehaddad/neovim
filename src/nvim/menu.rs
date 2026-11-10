@@ -160,41 +160,91 @@ impl SaveState {
     }
 }
 
-struct MenuModuleState {
+#[derive(Clone, Copy)]
+struct MenuCopyState {
     menus_locked: i32,
-    expand_menu: crate::globals::GraphPtr<Vec<Vimmenu>>,
     expand_modes: i32,
     expand_emenu: bool,
     get_menu_name_idx: usize,
     get_menu_name_advance: bool,
     get_menu_names_idx: usize,
     get_menu_names_advance: bool,
-    get_menu_names_tbuffer: [u8; TBUFFER_LEN],
-    menutrans_ga: Vec<Menutrans>,
 }
 
-impl MenuModuleState {
+impl MenuCopyState {
     const fn new() -> Self {
         Self {
             menus_locked: 0,
-            expand_menu: crate::globals::GraphPtr::NULL,
             expand_modes: 0,
             expand_emenu: false,
             get_menu_name_idx: 0,
             get_menu_name_advance: false,
             get_menu_names_idx: 0,
             get_menu_names_advance: false,
-            get_menu_names_tbuffer: [0; TBUFFER_LEN],
-            menutrans_ga: Vec::new(),
         }
     }
 }
 
-static MENU_STATE: GlobalState<MenuModuleState> = GlobalState::new(MenuModuleState::new());
+thread_local! {
+    static MENU_STATE: std::cell::Cell<MenuCopyState> = const {
+        std::cell::Cell::new(MenuCopyState::new())
+    };
+    static EXPAND_MENU_PATH: std::cell::RefCell<Option<Vec<usize>>> = const {
+        std::cell::RefCell::new(None)
+    };
+    static MENUTRANS_GA: std::cell::RefCell<Vec<Menutrans>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+struct MenuGuard {
+    state: MenuCopyState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for MenuGuard {
+    type Target = MenuCopyState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for MenuGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for MenuGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            MENU_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn menu_st() -> crate::globals::GraphPtr<MenuModuleState> {
-    MENU_STATE.handle()
+fn menu_st() -> MenuGuard {
+    MenuGuard {
+        state: MENU_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
+}
+
+fn expand_menu_slice() -> Option<&'static [Vimmenu]> {
+    EXPAND_MENU_PATH.with(|cell| {
+        let path = cell.borrow();
+        let path = path.as_ref()?;
+        let mut list: &[Vimmenu] = &g_st().borrow_mut().root_menu;
+        for &idx in path {
+            list = &list.get(idx)?.children;
+        }
+        Some(list)
+    })
 }
 
 use crate::eval::typval::tv_dict_len;
@@ -460,8 +510,8 @@ fn add_menu_path(
         let next_off = name_off + next_rel;
         let orig_name_cstr = crate::memory::bytes_as_cstr(&path_name_vec[name_off..]);
         let map_to = menutrans_lookup(orig_name_cstr.to_bytes());
-        let (name_cstr, en_name_cstr) = if let Some(mapped) = map_to {
-            (mapped, Some(orig_name_cstr))
+        let (name_cstr, en_name_cstr) = if let Some(ref mapped) = map_to {
+            (mapped.as_c_str(), Some(orig_name_cstr))
         } else {
             (orig_name_cstr, None)
         };
@@ -1040,10 +1090,8 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
             menu_st().expand_modes = MENU_ALL_MODES;
         }
 
-        let mut menu_list =
-            crate::globals::GraphPtr::<Vec<Vimmenu>>::of(&raw const g_st().root_menu)
-                .as_ptr()
-                .cast_const();
+        let mut menu_list: &[Vimmenu] = &g_st().root_menu;
+        let mut menu_path: Vec<usize> = Vec::new();
         if after_dot_idx > arg_start_idx {
             let path_len = after_dot_idx - arg_start_idx;
             let mut path_name_vec = vec![0; path_len];
@@ -1053,25 +1101,24 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
                 let next_off = name_off + menu_name_skip(&mut path_name_vec[name_off..]);
                 let cur_bytes = crate::memory::bytes_until_nul(&path_name_vec[name_off..]);
                 let next_non_empty = path_name_vec.get(next_off).is_some_and(|&b| b != 0);
-                let mut found = crate::globals::GraphPtr::<Vimmenu>::NULL
-                    .as_ptr()
-                    .cast_const();
-                for menu in crate::globals::GraphPtr::of(menu_list).borrow() {
+                let mut found_idx: Option<usize> = None;
+                for (idx, menu) in menu_list.iter().enumerate() {
                     if menu_name_equal(cur_bytes, menu) {
                         if (next_non_empty && menu.children.is_empty())
                             || (menu.modes & menu_st().expand_modes) == 0
                         {
                             return;
                         }
-                        found = menu;
+                        found_idx = Some(idx);
                         break;
                     }
                 }
-                if found.is_null() {
+                let Some(idx) = found_idx else {
                     return;
-                }
+                };
                 name_off = next_off;
-                menu_list = &raw const crate::globals::GraphPtr::of(found).borrow().children;
+                menu_path.push(idx);
+                menu_list = &menu_list[idx].children;
             }
         }
 
@@ -1081,7 +1128,9 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
             EXPAND_MENUS
         };
         xp.xp_pattern = crate::strings::OwnedSlice::from_cstr(arg_in).wrapping_add(after_dot_idx);
-        menu_st().expand_menu = crate::globals::GraphPtr::new(menu_list.cast_mut());
+        EXPAND_MENU_PATH.with(|cell| {
+            *cell.borrow_mut() = Some(menu_path);
+        });
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }
@@ -1094,10 +1143,7 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         menu_st().get_menu_name_advance = false;
     }
 
-    if menu_st().expand_menu.is_null() {
-        return None;
-    }
-    let menus = menu_st().borrow_mut().expand_menu.as_slice();
+    let menus = expand_menu_slice()?;
 
     while menu_st().get_menu_name_idx < menus.len() {
         let menu = &menus[menu_st().get_menu_name_idx];
@@ -1138,16 +1184,13 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
-pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_menu_names(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
         menu_st().get_menu_names_idx = 0;
         menu_st().get_menu_names_advance = false;
     }
 
-    if menu_st().expand_menu.is_null() {
-        return None;
-    }
-    let menus = menu_st().borrow_mut().expand_menu.as_slice();
+    let menus = expand_menu_slice()?;
 
     while menu_st().get_menu_names_idx < menus.len() && {
         let dname_bytes = menus[menu_st().get_menu_names_idx].dname.as_bytes();
@@ -1165,31 +1208,25 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
         if !menu.children.is_empty() {
+            let mut tbuf = [0u8; TBUFFER_LEN];
             if menu_st().get_menu_names_advance {
                 crate::memory::copy_bytes_to_c_buf(
-                    &mut menu_st().get_menu_names_tbuffer,
+                    &mut tbuf,
                     menu.en_dname.as_ref().map_or(&b""[..], |s| s.as_bytes()),
                 );
             } else {
-                crate::memory::copy_bytes_to_c_buf(
-                    &mut menu_st().get_menu_names_tbuffer,
-                    menu.dname.as_bytes(),
-                );
+                crate::memory::copy_bytes_to_c_buf(&mut tbuf, menu.dname.as_bytes());
                 if menu.en_dname.is_none() {
                     menu_st().get_menu_names_advance = true;
                 }
             }
-            let tlen = crate::memory::bytes_as_cstr(&menu_st().get_menu_names_tbuffer)
-                .to_bytes()
-                .len();
+            let tlen = crate::memory::bytes_as_cstr(&tbuf).to_bytes().len();
             if tlen + 1 < TBUFFER_LEN {
-                menu_st().get_menu_names_tbuffer[tlen] = 1;
-                menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
+                tbuf[tlen] = 1;
+                tbuf[tlen + 1] = 0;
             }
 
-            Some(crate::memory::bytes_as_cstr(
-                &menu_st().borrow().get_menu_names_tbuffer,
-            ))
+            Some(xp.set_item(crate::memory::bytes_as_cstr(&tbuf).to_owned()))
         } else if menu_st().get_menu_names_advance {
             menu.en_dname.as_deref()
         } else {
@@ -1709,12 +1746,10 @@ pub fn menu_find(path_name: &CStr) -> Option<&'static mut Vimmenu> {
 
 /// `:menutranslate` (`ex_menutranslate`).
 pub fn ex_menutranslate(eap: &mut Exarg) {
-    let menutrans = &mut menu_st().menutrans_ga;
-
     if eap.arg.as_bytes().starts_with(b"clear")
         && ends_excmd(i32::from(eap.arg.wrapping_add(5).skipwhite().first_byte())) != 0
     {
-        menutrans.clear();
+        MENUTRANS_GA.with(|cell| cell.borrow_mut().clear());
         del_menutrans_vars();
     } else {
         let arg_bytes = eap.arg.as_bytes();
@@ -1737,10 +1772,12 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
             menu_unescape_name(&mut to_vec);
             let from_cstr = crate::memory::bytes_as_cstr(&from_vec).to_owned();
             let to_cstr = crate::memory::bytes_as_cstr(&to_vec).to_owned();
-            menutrans.push(Menutrans {
-                from: from_cstr,
-                from_noamp: from_noamp_cstr,
-                to: to_cstr,
+            MENUTRANS_GA.with(|cell| {
+                cell.borrow_mut().push(Menutrans {
+                    from: from_cstr,
+                    from_noamp: from_noamp_cstr,
+                    to: to_cstr,
+                });
             });
         }
     }
@@ -1760,28 +1797,30 @@ fn menu_skip_part(p: &[u8]) -> usize {
 }
 
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
-fn menutrans_lookup(name_slice: &[u8]) -> Option<&'static CStr> {
-    let menutrans = &menu_st().borrow_mut().menutrans_ga;
+fn menutrans_lookup(name_slice: &[u8]) -> Option<std::ffi::CString> {
     let u_len = name_slice.len();
-
-    for entry in menutrans {
-        let from_bytes = entry.from.as_bytes();
-        if from_bytes.len() == u_len && name_slice.eq_ignore_ascii_case(from_bytes) {
-            return Some(entry.to.as_c_str());
-        }
-    }
-
     let dname = menu_text(name_slice, None, None);
-    for entry in menutrans {
-        if dname
-            .as_bytes()
-            .eq_ignore_ascii_case(entry.from_noamp.as_bytes())
-        {
-            return Some(entry.to.as_c_str());
-        }
-    }
 
-    None
+    MENUTRANS_GA.with(|cell| {
+        let menutrans = cell.borrow();
+        for entry in menutrans.iter() {
+            let from_bytes = entry.from.as_bytes();
+            if from_bytes.len() == u_len && name_slice.eq_ignore_ascii_case(from_bytes) {
+                return Some(entry.to.clone());
+            }
+        }
+
+        for entry in menutrans.iter() {
+            if dname
+                .as_bytes()
+                .eq_ignore_ascii_case(entry.from_noamp.as_bytes())
+            {
+                return Some(entry.to.clone());
+            }
+        }
+
+        None
+    })
 }
 
 /// Unescape the name in the translate dictionary table (`menu_unescape_name`).

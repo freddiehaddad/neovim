@@ -42,7 +42,8 @@ use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
 use crate::usercmd::{
     UC_BUFFER, commands_array, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
-    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds_mut,
+    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, with_ucmds,
+    with_ucmds_mut,
 };
 use std::ffi::CStr;
 
@@ -345,25 +346,32 @@ pub fn nvim_parse_cmd(
         }
     }
 
-    let cmd = if ea.cmdidx == Cmdidx::CmdUser {
-        let u = ucmds_mut();
-        Some(&(u)[ea.useridx as usize])
+    let cmd_info = if ea.cmdidx == Cmdidx::CmdUser {
+        with_ucmds(|u| {
+            let c = &u[ea.useridx as usize];
+            Some((c.uc_name.clone(), c.uc_def))
+        })
     } else if ea.cmdidx == Cmdidx::CmdUserBuf {
-        Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
+        let c = &curbuf_mut().b_ucmds[ea.useridx as usize];
+        Some((c.uc_name.clone(), c.uc_def))
     } else {
         None
     };
 
+    let mut xp = crate::os::env::ExpandCtx::new();
     let name = if ea.cmdidx == Cmdidx::CmdSize {
         Some(c"")
-    } else if let Some(cmd) = cmd {
-        Some(cmd.uc_name.as_c_str())
+    } else if let Some((ref uc_name, _)) = cmd_info {
+        Some(uc_name.as_c_str())
     } else {
-        get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
+        get_command_name(&mut xp, ea.cmdidx as i32)
     };
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
-    result.cmd = cstr_as_string(name);
+    result.cmd = match name {
+        Some(n) => cbuf_to_arena_str(arena, n.to_bytes()),
+        None => NvimString::default(),
+    };
 
     if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
         let mut range = arena_array(arena, 2);
@@ -378,12 +386,12 @@ pub fn nvim_parse_cmd(
     if (ea.argt & EX_COUNT) != 0 {
         let count = if ea.addr_count > 0 {
             i64::from(ea.line2)
-        } else if let Some(cmd) = cmd {
-            cmd.uc_def
+        } else if let Some((_, uc_def)) = cmd_info {
+            uc_def
         } else {
             0
         };
-        if ea.addr_count > 0 || cmd.is_some_and(|c| c.uc_def != 0) || count != 0 {
+        if ea.addr_count > 0 || cmd_info.is_some_and(|(_, uc_def)| uc_def != 0) || count != 0 {
             result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_COUNT;
             result.count = count;
         }
@@ -688,10 +696,14 @@ pub fn nvim_cmd(
         }
 
         if !range_only {
+            let mut xp = crate::os::env::ExpandCtx::new();
+            let user_fullname = is_user_cmdidx(ea.cmdidx)
+                .then(|| get_user_command_name(ea.useridx, ea.cmdidx))
+                .flatten();
             let fullname = if is_user_cmdidx(ea.cmdidx) {
-                get_user_command_name(ea.useridx, ea.cmdidx)
+                user_fullname.as_deref()
             } else {
-                get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx as i32)
+                get_command_name(&mut xp, ea.cmdidx as i32)
             };
             let cmdname_bytes = cmdname.as_bytes();
             let fullname_bytes = fullname.map_or(&b""[..], CStr::to_bytes);
@@ -1293,21 +1305,35 @@ pub fn nvim_buf_create_user_command(
 // DLLEXPORT void nvim_buf_del_user_command(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(9);
 pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error) {
-    let gap = if buf == -1 {
-        ucmds_mut()
+    let name_bytes = name.cstr_bytes();
+    let removed = if buf == -1 {
+        with_ucmds_mut(|gap| {
+            if let Some(i) = gap
+                .iter()
+                .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
+            {
+                let _ = gap.remove(i);
+                true
+            } else {
+                false
+            }
+        })
     } else {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
         };
-        &mut b.b_ucmds
+        if let Some(i) = b
+            .b_ucmds
+            .iter()
+            .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
+        {
+            let _ = b.b_ucmds.remove(i);
+            true
+        } else {
+            false
+        }
     };
-
-    let name_bytes = name.cstr_bytes();
-    if let Some(i) = gap
-        .iter()
-        .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
-    {
-        let _ = gap.remove(i);
+    if removed {
         return;
     }
 

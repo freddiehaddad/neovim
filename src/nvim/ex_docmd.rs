@@ -7631,10 +7631,15 @@ pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
+    let user_name = ea
+        .cmdidx
+        .is_user()
+        .then(|| get_user_command_name(ea.useridx, ea.cmdidx))
+        .flatten();
     crate::eval::typval::tv_set_string(
         rettv,
         if ea.cmdidx.is_user() {
-            get_user_command_name(ea.useridx, ea.cmdidx)
+            user_name.as_deref()
         } else {
             Some(CMDNAMES[ea.cmdidx as usize].cmd_name)
         },
@@ -9015,9 +9020,9 @@ fn check_more(message: bool, forceit: bool) -> bool {
     true
 }
 
-pub fn get_command_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
+pub fn get_command_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx >= Cmdidx::CmdSize as i32 {
-        return expand_user_command_name(idx);
+        return expand_user_command_name(xp, idx);
     }
     (idx >= 0).then(|| CMDNAMES[idx as usize].cmd_name)
 }

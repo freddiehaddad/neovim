@@ -833,8 +833,8 @@ const E_CONFLICTS_WITH_VALUE_OF_FILLCHARS: &CStr = c"E835: Conflicts with value 
 
 const SHM_ALL: &CStr = c"rmlwaWtToOsAIcCqFSunfxi";
 
+#[derive(Clone, Copy)]
 struct OptionStrState {
-    set_opt_callback_orig_option: Option<std::ffi::CString>,
     set_opt_callback_func: CompleteListItemGetter,
     expand_eiw: bool,
 }
@@ -842,18 +842,57 @@ struct OptionStrState {
 impl OptionStrState {
     const fn new() -> Self {
         Self {
-            set_opt_callback_orig_option: None,
             set_opt_callback_func: None,
             expand_eiw: false,
         }
     }
 }
 
-static OPTSTR_STATE: GlobalState<OptionStrState> = GlobalState::new(OptionStrState::new());
+thread_local! {
+    static OPTSTR_STATE: std::cell::Cell<OptionStrState> = const {
+        std::cell::Cell::new(OptionStrState::new())
+    };
+    static SET_OPT_CALLBACK_ORIG: std::cell::RefCell<Option<std::ffi::CString>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+struct OptStrGuard {
+    state: OptionStrState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for OptStrGuard {
+    type Target = OptionStrState;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for OptStrGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for OptStrGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            OPTSTR_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn optstr_st() -> crate::globals::GraphPtr<OptionStrState> {
-    OPTSTR_STATE.handle()
+fn optstr_st() -> OptStrGuard {
+    OptStrGuard {
+        state: OPTSTR_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 use crate::mbyte::ptr2cells;
@@ -1305,15 +1344,14 @@ fn expand_set_opt_string(
 /// Callback used by expand_set_opt_generic to also include the original value.
 fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        return Some(
-            optstr_st()
-                .borrow()
-                .set_opt_callback_orig_option
-                .as_deref()
-                .unwrap_or(c""),
-        );
+        let orig = SET_OPT_CALLBACK_ORIG.with(|cell| cell.borrow().clone());
+        return Some(match orig {
+            Some(cstr) => xp.set_item(cstr),
+            None => c"",
+        });
     }
-    optstr_st().set_opt_callback_func?(xp, idx - 1)
+    let func = optstr_st().set_opt_callback_func;
+    func?(xp, idx - 1)
 }
 
 /// Expand an option with a callback that iterates through a list of possible names.
@@ -1322,9 +1360,11 @@ fn expand_set_opt_generic(
     func: CompleteListItemGetter,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    optstr_st().set_opt_callback_orig_option = args
-        .oe_include_orig_val
-        .then(|| args.oe_opt_value.to_owned());
+    SET_OPT_CALLBACK_ORIG.with(|cell| {
+        *cell.borrow_mut() = args
+            .oe_include_orig_val
+            .then(|| args.oe_opt_value.to_owned());
+    });
     optstr_st().set_opt_callback_func = func;
 
     expand_generic(
@@ -1336,7 +1376,9 @@ fn expand_set_opt_generic(
         false,
     );
 
-    optstr_st().set_opt_callback_orig_option = None;
+    SET_OPT_CALLBACK_ORIG.with(|cell| {
+        *cell.borrow_mut() = None;
+    });
     optstr_st().set_opt_callback_func = None;
     true
 }

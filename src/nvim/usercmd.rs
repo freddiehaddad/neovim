@@ -114,11 +114,20 @@ const E_COMPLETE_USED_WITHOUT_ALLOWING_ARGUMENTS: &CStr =
 const E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR: &CStr =
     c"E1237: No such user-defined command in current buffer: %s";
 
-static UCMDS_STATE: GlobalState<Vec<Ucmd>> = GlobalState::new(Vec::new());
+thread_local! {
+    static UCMDS_STATE: std::cell::RefCell<Vec<Ucmd>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
 
 #[inline]
-pub(crate) fn ucmds_mut() -> &'static mut Vec<Ucmd> {
-    UCMDS_STATE.handle().borrow_mut()
+pub(crate) fn with_ucmds<R>(f: impl FnOnce(&[Ucmd]) -> R) -> R {
+    UCMDS_STATE.with(|cell| f(&cell.borrow()))
+}
+
+#[inline]
+pub(crate) fn with_ucmds_mut<R>(f: impl FnOnce(&mut Vec<Ucmd>) -> R) -> R {
+    UCMDS_STATE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 const COMMAND_COMPLETE_LEN: usize = 64;
@@ -244,85 +253,87 @@ pub fn find_ucmd(
     let mut amb_local = false;
 
     let mut is_global = false;
-    let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds;
     let cmd_all = eap.cmd.as_bytes();
     let cmd_bytes = &cmd_all[..(len.max(0) as usize).min(cmd_all.len())];
-    loop {
-        let mut j: i32 = 0;
-        while (j as usize) < gap.len() {
-            let uc = &gap[j as usize];
-            let name_bytes = uc.uc_name.as_bytes();
-            let k = cmd_bytes
-                .iter()
-                .zip(name_bytes)
-                .take_while(|(a, b)| a == b)
-                .count() as i32;
-            let np_empty = (k as usize) >= name_bytes.len();
-            if k == len || (np_empty && cmd_all.get(k as usize).is_some_and(u8::is_ascii_digit)) {
-                if k == len && found && !np_empty {
-                    if is_global {
-                        return None;
-                    }
-                    amb_local = true;
-                }
-
-                if !found || (k == len && np_empty) {
-                    if k == len {
-                        found = true;
-                    } else {
-                        possible = true;
-                    }
-
-                    if is_global {
-                        eap.cmdidx = Cmdidx::CmdUser;
-                    } else {
-                        eap.cmdidx = Cmdidx::CmdUserBuf;
-                    }
-                    eap.argt = uc.uc_argt;
-                    eap.useridx = j;
-                    eap.addr_type = uc.uc_addr_type;
-
-                    if let Some(ref mut p) = complp {
-                        **p = uc.uc_compl;
-                    }
-                    if xp.is_some() {
-                        xp.as_deref_mut().unwrap().xp_luaref = uc.uc_compl_luaref;
-                        xp.as_deref_mut().unwrap().xp_arg = uc.uc_compl_arg.clone();
-                        xp.as_deref_mut().unwrap().xp_script_ctx = uc.uc_script_ctx;
-                        xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
-                    }
-                    matchlen = k;
-                    if k == len && np_empty {
-                        if let Some(ref mut p) = full {
-                            **p = true;
+    with_ucmds(|global_ucmds| {
+        let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds;
+        loop {
+            let mut j: i32 = 0;
+            while (j as usize) < gap.len() {
+                let uc = &gap[j as usize];
+                let name_bytes = uc.uc_name.as_bytes();
+                let k = cmd_bytes
+                    .iter()
+                    .zip(name_bytes)
+                    .take_while(|(a, b)| a == b)
+                    .count() as i32;
+                let np_empty = (k as usize) >= name_bytes.len();
+                if k == len || (np_empty && cmd_all.get(k as usize).is_some_and(u8::is_ascii_digit))
+                {
+                    if k == len && found && !np_empty {
+                        if is_global {
+                            return None;
                         }
-                        amb_local = false;
-                        break;
+                        amb_local = true;
+                    }
+
+                    if !found || (k == len && np_empty) {
+                        if k == len {
+                            found = true;
+                        } else {
+                            possible = true;
+                        }
+
+                        if is_global {
+                            eap.cmdidx = Cmdidx::CmdUser;
+                        } else {
+                            eap.cmdidx = Cmdidx::CmdUserBuf;
+                        }
+                        eap.argt = uc.uc_argt;
+                        eap.useridx = j;
+                        eap.addr_type = uc.uc_addr_type;
+
+                        if let Some(ref mut p) = complp {
+                            **p = uc.uc_compl;
+                        }
+                        if xp.is_some() {
+                            xp.as_deref_mut().unwrap().xp_luaref = uc.uc_compl_luaref;
+                            xp.as_deref_mut().unwrap().xp_arg = uc.uc_compl_arg.clone();
+                            xp.as_deref_mut().unwrap().xp_script_ctx = uc.uc_script_ctx;
+                            xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
+                        }
+                        matchlen = k;
+                        if k == len && np_empty {
+                            if let Some(ref mut p) = full {
+                                **p = true;
+                            }
+                            amb_local = false;
+                            break;
+                        }
                     }
                 }
+                j += 1;
             }
-            j += 1;
+
+            if (j as usize) < gap.len() || is_global {
+                break;
+            }
+            is_global = true;
+            gap = global_ucmds;
         }
 
-        if (j as usize) < gap.len() || is_global {
-            break;
+        if amb_local {
+            if let Some(xp) = xp {
+                xp.xp_context = EXPAND_UNSUCCESSFUL;
+            }
+            return None;
         }
-        is_global = true;
-        let u = ucmds_mut();
-        gap = u;
-    }
 
-    if amb_local {
-        if let Some(xp) = xp {
-            xp.xp_context = EXPAND_UNSUCCESSFUL;
+        if found || possible {
+            return Some(matchlen as usize);
         }
-        return None;
-    }
-
-    if found || possible {
-        return Some(matchlen as usize);
-    }
-    Some(len as usize)
+        Some(len as usize)
+    })
 }
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
@@ -426,15 +437,12 @@ pub fn set_context_in_user_cmdarg<'a>(
     None
 }
 
-pub fn expand_user_command_name(idx: i32) -> Option<&'static CStr> {
-    get_user_commands(
-        &mut crate::os::env::ExpandCtx::new(),
-        idx - Cmdidx::CmdSize as i32,
-    )
+pub fn expand_user_command_name(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
+    get_user_commands(xp, idx - Cmdidx::CmdSize as i32)
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command names (`get_user_commands`).
-pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: i32) -> Option<&'static CStr> {
+pub fn get_user_commands(xp: &mut ExpandCtx, mut idx: i32) -> Option<&CStr> {
     let buf = prevwin_curwin().buf_mut();
     let b_len = buf.b_ucmds.len() as i32;
 
@@ -443,31 +451,31 @@ pub fn get_user_commands(_xp: &mut ExpandCtx, mut idx: i32) -> Option<&'static C
     }
 
     idx -= b_len;
-    let u = ucmds_mut();
-    let u_len = u.len() as i32;
-    if idx < u_len {
-        let name = u[idx as usize].uc_name.as_c_str();
+    with_ucmds(|u| {
+        let u_len = u.len() as i32;
+        if idx < u_len {
+            let name = &u[idx as usize].uc_name;
 
-        for cmd in &buf.b_ucmds {
-            if name.to_bytes() == cmd.uc_name.as_bytes() {
-                return Some(c"");
+            for cmd in &buf.b_ucmds {
+                if name.as_bytes() == cmd.uc_name.as_bytes() {
+                    return Some(c"");
+                }
             }
+            return Some(xp.set_item(name.clone()));
         }
-        return Some(name);
-    }
-    None
+        None
+    })
 }
 
 /// Get the name of user command `idx` (`get_user_command_name`).
-pub fn get_user_command_name(idx: i32, cmdidx: Cmdidx) -> Option<&'static CStr> {
-    let u = ucmds_mut();
-    if cmdidx == Cmdidx::CmdUser && idx >= 0 && (idx as usize) < u.len() {
-        return Some(u[idx as usize].uc_name.as_c_str());
+pub fn get_user_command_name(idx: i32, cmdidx: Cmdidx) -> Option<CString> {
+    if cmdidx == Cmdidx::CmdUser && idx >= 0 {
+        return with_ucmds(|u| u.get(idx as usize).map(|c| c.uc_name.clone()));
     }
     if cmdidx == Cmdidx::CmdUserBuf {
         let buf = prevwin_curwin().buf_mut();
         if idx >= 0 && (idx as usize) < buf.b_ucmds.len() {
-            return Some(buf.b_ucmds[idx as usize].uc_name.as_c_str());
+            return Some(buf.b_ucmds[idx as usize].uc_name.clone());
         }
     }
     None
@@ -570,7 +578,7 @@ pub fn cmdcomplete_str_to_type(complete_bytes: &[u8]) -> i32 {
 
 fn uc_list(name_prefix: &[u8]) {
     let name_len = name_prefix.len();
-    {
+    with_ucmds(|global_ucmds| {
         let mut found = false;
 
         msg_ext_set_kind(c"list_cmd");
@@ -778,14 +786,13 @@ fn uc_list(name_prefix: &[u8]) {
                 break;
             }
             is_global = true;
-            let u = ucmds_mut();
-            gap = u;
+            gap = global_ucmds;
         }
 
         if !found {
             msg(gettext(c"No user-defined commands found"), 0);
         }
-    }
+    });
 }
 
 /// Parse address type argument (`parse_addr_type_arg`).
@@ -1043,80 +1050,81 @@ pub fn uc_add_command(
     let rep_cstr = replace_termcodes(rep, false, 0, 0, None, opt_vars().p_cpo.as_bytes())
         .unwrap_or_else(|| CString::new(rep).unwrap_or_default());
 
-    let u = ucmds_mut();
-    let gap: &mut Vec<Ucmd> = if (flags & UC_BUFFER) != 0 {
-        &mut curbuf_mut().b_ucmds
-    } else {
-        u
+    let insert_into = |gap: &mut Vec<Ucmd>| -> bool {
+        let mut i: usize = 0;
+        while i < gap.len() {
+            let cmd_b = gap[i].uc_name.as_bytes();
+            let len = cmd_b.len();
+            cmp = name_prefix.cmp(&cmd_b[..name_len.min(len)]) as i32;
+            if cmp == 0 {
+                if name_len < len {
+                    cmp = -1;
+                } else if name_len > len {
+                    cmp = 1;
+                }
+            }
+
+            if cmp == 0 {
+                if !force
+                    && (gap[i].uc_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                        || gap[i].uc_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
+                {
+                    let name_cstr = CString::new(name_prefix).unwrap_or_default();
+                    semsg!(
+                        gettext(c"E174: Command already exists: add ! to replace it: %s"),
+                        &name_cstr,
+                    );
+                    nlua_clear_ref(&mut luaref);
+                    nlua_clear_ref(&mut compl_luaref);
+                    nlua_clear_ref(&mut preview_luaref);
+                    return false;
+                }
+
+                let cmd = &mut gap[i];
+                cmd.uc_rep = CString::default();
+                cmd.uc_compl_arg = None;
+                cmd.uc_desc = None;
+                nlua_clear_ref(&mut cmd.uc_luaref);
+                nlua_clear_ref(&mut cmd.uc_compl_luaref);
+                nlua_clear_ref(&mut cmd.uc_preview_luaref);
+                break;
+            }
+
+            if cmp < 0 {
+                break;
+            }
+            i += 1;
+        }
+
+        if cmp != 0 {
+            let mut empty_ucmd = Ucmd::new();
+            empty_ucmd.uc_name = CString::new(name_prefix).unwrap();
+            gap.insert(i, empty_ucmd);
+        }
+        let cmd = &mut gap[i];
+
+        cmd.uc_rep = rep_cstr;
+        cmd.uc_desc = desc.filter(|d| !d.is_empty()).map(CStr::to_owned);
+        cmd.uc_argt = argt;
+        cmd.uc_def = def;
+        cmd.uc_compl = context;
+        cmd.uc_script_ctx = g_st().current_sctx;
+        cmd.uc_script_ctx.sc_lnum += sourcing_lnum();
+        nlua_set_sctx(&mut cmd.uc_script_ctx);
+        cmd.uc_compl_arg = compl_arg;
+        cmd.uc_compl_luaref = compl_luaref;
+        cmd.uc_preview_luaref = preview_luaref;
+        cmd.uc_addr_type = addr_type;
+        cmd.uc_luaref = luaref;
+
+        true
     };
 
-    let mut i: usize = 0;
-    while i < gap.len() {
-        let cmd_b = gap[i].uc_name.as_bytes();
-        let len = cmd_b.len();
-        cmp = name_prefix.cmp(&cmd_b[..name_len.min(len)]) as i32;
-        if cmp == 0 {
-            if name_len < len {
-                cmp = -1;
-            } else if name_len > len {
-                cmp = 1;
-            }
-        }
-
-        if cmp == 0 {
-            if !force
-                && (gap[i].uc_script_ctx.sc_sid != g_st().current_sctx.sc_sid
-                    || gap[i].uc_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
-            {
-                let name_cstr = CString::new(name_prefix).unwrap_or_default();
-                semsg!(
-                    gettext(c"E174: Command already exists: add ! to replace it: %s"),
-                    &name_cstr,
-                );
-                nlua_clear_ref(&mut luaref);
-                nlua_clear_ref(&mut compl_luaref);
-                nlua_clear_ref(&mut preview_luaref);
-                return false;
-            }
-
-            let cmd = &mut gap[i];
-            cmd.uc_rep = CString::default();
-            cmd.uc_compl_arg = None;
-            cmd.uc_desc = None;
-            nlua_clear_ref(&mut cmd.uc_luaref);
-            nlua_clear_ref(&mut cmd.uc_compl_luaref);
-            nlua_clear_ref(&mut cmd.uc_preview_luaref);
-            break;
-        }
-
-        if cmp < 0 {
-            break;
-        }
-        i += 1;
+    if (flags & UC_BUFFER) != 0 {
+        insert_into(&mut curbuf_mut().b_ucmds)
+    } else {
+        with_ucmds_mut(insert_into)
     }
-
-    if cmp != 0 {
-        let mut empty_ucmd = Ucmd::new();
-        empty_ucmd.uc_name = CString::new(name_prefix).unwrap();
-        gap.insert(i, empty_ucmd);
-    }
-    let cmd = &mut gap[i];
-
-    cmd.uc_rep = rep_cstr;
-    cmd.uc_desc = desc.filter(|d| !d.is_empty()).map(CStr::to_owned);
-    cmd.uc_argt = argt;
-    cmd.uc_def = def;
-    cmd.uc_compl = context;
-    cmd.uc_script_ctx = g_st().current_sctx;
-    cmd.uc_script_ctx.sc_lnum += sourcing_lnum();
-    nlua_set_sctx(&mut cmd.uc_script_ctx);
-    cmd.uc_compl_arg = compl_arg;
-    cmd.uc_compl_luaref = compl_luaref;
-    cmd.uc_preview_luaref = preview_luaref;
-    cmd.uc_addr_type = addr_type;
-    cmd.uc_luaref = luaref;
-
-    true
 }
 
 /// `:command ...` (`ex_command`).
@@ -1191,16 +1199,13 @@ pub fn ex_command(eap: &mut Exarg) {
 
 /// `:comclear` (`ex_comclear`).
 pub fn ex_comclear(_eap: &mut Exarg) {
-    let u = ucmds_mut();
-    u.clear();
+    with_ucmds_mut(Vec::clear);
     if !g_st().curbuf.is_null() {
         curbuf_mut().b_ucmds.clear();
     }
 }
 
 pub fn ex_delcommand(eap: &mut Exarg) {
-    let mut i: i32;
-    let mut res: i32 = -1;
     let mut arg = eap.arg.as_cstr();
     let mut buffer_only = false;
 
@@ -1214,39 +1219,33 @@ pub fn ex_delcommand(eap: &mut Exarg) {
         arg = crate::charset::skipwhite(crate::memory::CStrSubslice::advance(arg, 7));
     }
 
-    let mut is_global = false;
-    let mut gap: &mut Vec<Ucmd> = &mut curbuf_mut().b_ucmds;
-    loop {
-        i = 0;
-        while (i as usize) < gap.len() {
-            res = arg.to_bytes().cmp(gap[i as usize].uc_name.as_bytes()) as i32;
-            if res <= 0 {
-                break;
-            }
-            i += 1;
+    let find_and_remove = |gap: &mut Vec<Ucmd>| -> bool {
+        if let Some(pos) = gap
+            .iter()
+            .position(|c| c.uc_name.as_bytes() == arg.to_bytes())
+        {
+            gap.remove(pos);
+            true
+        } else {
+            false
         }
-        if is_global || res == 0 || buffer_only {
-            break;
-        }
-        is_global = true;
-        let u = ucmds_mut();
-        gap = u;
-    }
+    };
 
-    if res != 0 {
-        let _ = &mut i;
-        semsg!(
-            gettext(if buffer_only {
-                E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR
-            } else {
-                E_NO_SUCH_USER_DEFINED_COMMAND_STR
-            }),
-            arg,
-        );
+    if find_and_remove(&mut curbuf_mut().b_ucmds) {
+        return;
+    }
+    if !buffer_only && with_ucmds_mut(find_and_remove) {
         return;
     }
 
-    let _ = gap.remove(i as usize);
+    semsg!(
+        gettext(if buffer_only {
+            E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR
+        } else {
+            E_NO_SUCH_USER_DEFINED_COMMAND_STR
+        }),
+        arg,
+    );
 }
 
 /// Split a string by unescaped whitespace (space & tab) (`uc_split_args_iter`).
@@ -1491,7 +1490,7 @@ enum CodeType {
 fn uc_check_code(
     code: &[u8],
     out: &mut Vec<u8>,
-    cmd: &mut Ucmd,
+    uc_def: i64,
     eap: &mut Exarg,
     split_buf: &mut Option<CString>,
     split_len: &mut usize,
@@ -1599,7 +1598,7 @@ fn uc_check_code(
                     if eap.addr_count > 0 {
                         i64::from(eap.line2)
                     } else {
-                        cmd.uc_def
+                        uc_def
                     }
                 }
             };
@@ -1648,24 +1647,44 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
     let mut split_len: usize = 0;
     let mut split_buf: Option<CString> = None;
 
-    let cmd = if eap.cmdidx == Cmdidx::CmdUser {
-        let u = ucmds_mut();
-        &mut u[eap.useridx as usize]
-    } else {
-        &mut prevwin_curwin().buf_mut().b_ucmds[eap.useridx as usize]
-    };
+    let (uc_name, uc_rep, uc_argt, uc_def, uc_script_ctx, uc_luaref, uc_preview_luaref) =
+        if eap.cmdidx == Cmdidx::CmdUser {
+            with_ucmds(|u| {
+                let c = &u[eap.useridx as usize];
+                (
+                    c.uc_name.clone(),
+                    c.uc_rep.as_bytes().to_vec(),
+                    c.uc_argt,
+                    c.uc_def,
+                    c.uc_script_ctx,
+                    c.uc_luaref,
+                    c.uc_preview_luaref,
+                )
+            })
+        } else {
+            let c = &prevwin_curwin().buf_mut().b_ucmds[eap.useridx as usize];
+            (
+                c.uc_name.clone(),
+                c.uc_rep.as_bytes().to_vec(),
+                c.uc_argt,
+                c.uc_def,
+                c.uc_script_ctx,
+                c.uc_luaref,
+                c.uc_preview_luaref,
+            )
+        };
 
     if preview {
-        debug_assert!(cmd.uc_preview_luaref > 0);
-        return nlua_do_ucmd(cmd, eap, true);
+        debug_assert!(uc_preview_luaref > 0);
+        return nlua_do_ucmd(&uc_name, uc_preview_luaref, uc_argt, uc_def, eap, true);
     }
 
-    if cmd.uc_luaref > 0 {
-        nlua_do_ucmd(cmd, eap, false);
+    if uc_luaref > 0 {
+        nlua_do_ucmd(&uc_name, uc_luaref, uc_argt, uc_def, eap, false);
         return 0;
     }
 
-    let rep_bytes = cmd.uc_rep.as_bytes().to_vec();
+    let rep_bytes = uc_rep;
     let mut buf_vec: Vec<u8> = Vec::with_capacity(rep_bytes.len() + 32);
     let mut rem: &[u8] = &rep_bytes;
 
@@ -1703,7 +1722,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
         let code_len = uc_check_code(
             code_slice,
             &mut buf_vec,
-            cmd,
+            uc_def,
             eap,
             &mut split_buf,
             &mut split_len,
@@ -1719,10 +1738,10 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
 
     let mut save_current_sctx = g_st().current_sctx;
     let mut restore_current_sctx = false;
-    if (cmd.uc_argt & EX_KEEPSCRIPT) == 0 {
+    if (uc_argt & EX_KEEPSCRIPT) == 0 {
         restore_current_sctx = true;
         save_current_sctx = g_st().current_sctx;
-        g_st().current_sctx.sc_sid = cmd.uc_script_ctx.sc_sid;
+        g_st().current_sctx.sc_sid = uc_script_ctx.sc_sid;
     }
     do_cmdline(
         Some(crate::memory::bytes_as_cstr(&buf_vec)),
@@ -1749,132 +1768,153 @@ fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
 pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
-    let u = ucmds_mut();
-    let gap: &[Ucmd] = buf.map_or(u, |buf| &buf.b_ucmds);
+    with_ucmds(|u| {
+        let gap: &[Ucmd] = buf.map_or(u, |buf| &buf.b_ucmds);
 
-    let mut rv = arena_dict(arena, gap.len());
-    for cmd in gap {
-        let mut arg_ch: u8 = 0;
-        let mut d = arena_dict(arena, 16);
+        let mut rv = arena_dict(arena, gap.len());
+        for cmd in gap {
+            let mut arg_ch: u8 = 0;
+            let mut d = arena_dict(arena, 16);
 
-        put_c(&mut d, c"name", cstr_as_obj(Some(&*cmd.uc_name)));
-        put_c(&mut d, c"definition", cstr_as_obj(Some(&*cmd.uc_rep)));
-        put_c(&mut d, c"desc", cstr_as_obj(cmd.uc_desc.as_deref()));
-        put_c(
-            &mut d,
-            c"script_id",
-            integer_obj(i64::from(cmd.uc_script_ctx.sc_sid)),
-        );
-        put_c(&mut d, c"bang", boolean_obj((cmd.uc_argt & EX_BANG) != 0));
-        put_c(&mut d, c"bar", boolean_obj((cmd.uc_argt & EX_TRLBAR) != 0));
-        put_c(
-            &mut d,
-            c"register",
-            boolean_obj((cmd.uc_argt & EX_REGSTR) != 0),
-        );
-        put_c(
-            &mut d,
-            c"keepscript",
-            boolean_obj((cmd.uc_argt & EX_KEEPSCRIPT) != 0),
-        );
-
-        if cmd.uc_preview_luaref != LUA_NOREF {
             put_c(
                 &mut d,
-                c"preview",
-                luaref_obj(api_new_luaref(cmd.uc_preview_luaref)),
+                c"name",
+                arena_str_obj(arena, cmd.uc_name.as_bytes()),
             );
-        }
-
-        if cmd.uc_luaref != LUA_NOREF {
             put_c(
                 &mut d,
-                c"callback",
-                luaref_obj(api_new_luaref(cmd.uc_luaref)),
+                c"definition",
+                arena_str_obj(arena, cmd.uc_rep.as_bytes()),
             );
-        }
-
-        match cmd.uc_argt & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
-            0 => arg_ch = b'0',
-            EX_EXTRA => arg_ch = b'*',
-            x if x == (EX_EXTRA | EX_NOSPC) => arg_ch = b'?',
-            x if x == (EX_EXTRA | EX_NEEDARG) => arg_ch = b'+',
-            x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => arg_ch = b'1',
-            x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) => arg_ch = b'_',
-            _ => {}
-        }
-        let arg_slice: &[u8] = if arg_ch == 0 {
-            &[]
-        } else {
-            std::slice::from_ref(&arg_ch)
-        };
-        put_c(&mut d, c"nargs", arena_str_obj(arena, arg_slice));
-
-        if cmd.uc_compl_luaref != LUA_NOREF {
             put_c(
                 &mut d,
-                c"complete",
-                luaref_obj(api_new_luaref(cmd.uc_compl_luaref)),
+                c"desc",
+                cmd.uc_desc
+                    .as_ref()
+                    .map_or(string_obj(NvimString::default()), |desc| {
+                        arena_str_obj(arena, desc.as_bytes())
+                    }),
             );
-        } else {
             put_c(
                 &mut d,
-                c"complete",
-                match get_command_complete(cmd.uc_compl) {
-                    Some(cmd_compl) => cstr_as_obj(Some(cmd_compl)),
+                c"script_id",
+                integer_obj(i64::from(cmd.uc_script_ctx.sc_sid)),
+            );
+            put_c(&mut d, c"bang", boolean_obj((cmd.uc_argt & EX_BANG) != 0));
+            put_c(&mut d, c"bar", boolean_obj((cmd.uc_argt & EX_TRLBAR) != 0));
+            put_c(
+                &mut d,
+                c"register",
+                boolean_obj((cmd.uc_argt & EX_REGSTR) != 0),
+            );
+            put_c(
+                &mut d,
+                c"keepscript",
+                boolean_obj((cmd.uc_argt & EX_KEEPSCRIPT) != 0),
+            );
+
+            if cmd.uc_preview_luaref != LUA_NOREF {
+                put_c(
+                    &mut d,
+                    c"preview",
+                    luaref_obj(api_new_luaref(cmd.uc_preview_luaref)),
+                );
+            }
+
+            if cmd.uc_luaref != LUA_NOREF {
+                put_c(
+                    &mut d,
+                    c"callback",
+                    luaref_obj(api_new_luaref(cmd.uc_luaref)),
+                );
+            }
+
+            match cmd.uc_argt & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
+                0 => arg_ch = b'0',
+                EX_EXTRA => arg_ch = b'*',
+                x if x == (EX_EXTRA | EX_NOSPC) => arg_ch = b'?',
+                x if x == (EX_EXTRA | EX_NEEDARG) => arg_ch = b'+',
+                x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => arg_ch = b'1',
+                x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) => arg_ch = b'_',
+                _ => {}
+            }
+            let arg_slice: &[u8] = if arg_ch == 0 {
+                &[]
+            } else {
+                std::slice::from_ref(&arg_ch)
+            };
+            put_c(&mut d, c"nargs", arena_str_obj(arena, arg_slice));
+
+            if cmd.uc_compl_luaref != LUA_NOREF {
+                put_c(
+                    &mut d,
+                    c"complete",
+                    luaref_obj(api_new_luaref(cmd.uc_compl_luaref)),
+                );
+            } else {
+                put_c(
+                    &mut d,
+                    c"complete",
+                    match get_command_complete(cmd.uc_compl) {
+                        Some(cmd_compl) => cstr_as_obj(Some(cmd_compl)),
+                        None => nil_obj(),
+                    },
+                );
+            }
+            put_c(
+                &mut d,
+                c"complete_arg",
+                match &cmd.uc_compl_arg {
+                    Some(arg) => arena_str_obj(arena, arg.as_bytes()),
                     None => nil_obj(),
                 },
             );
-        }
-        put_c(
-            &mut d,
-            c"complete_arg",
-            match &cmd.uc_compl_arg {
-                Some(arg) => cstr_as_obj(Some(arg.as_c_str())),
-                None => nil_obj(),
-            },
-        );
 
-        let mut obj = nil_obj();
-        if (cmd.uc_argt & EX_COUNT) != 0 {
-            if cmd.uc_def >= 0 {
-                let s = format!("{}", cmd.uc_def);
-                obj = arena_str_obj(arena, s.as_bytes());
-            } else {
-                obj = cstr_as_obj(Some(c"0"));
-            }
-        }
-        put_c(&mut d, c"count", obj);
-
-        obj = nil_obj();
-        if (cmd.uc_argt & EX_RANGE) != 0 {
-            if (cmd.uc_argt & EX_DFLALL) != 0 {
-                obj = cstr_as_obj(Some(c"%"));
-            } else if cmd.uc_def >= 0 {
-                let s = format!("{}", cmd.uc_def);
-                obj = arena_str_obj(arena, s.as_bytes());
-            } else {
-                obj = cstr_as_obj(Some(c"."));
-            }
-        }
-        put_c(&mut d, c"range", obj);
-
-        obj = nil_obj();
-        for entry in &ADDR_TYPE_COMPLETE {
-            if entry.expand == ADDR_NONE {
-                break;
-            }
-            if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
-                if let Some(name) = entry.name {
-                    obj = cstr_as_obj(Some(name));
+            let mut obj = nil_obj();
+            if (cmd.uc_argt & EX_COUNT) != 0 {
+                if cmd.uc_def >= 0 {
+                    let s = format!("{}", cmd.uc_def);
+                    obj = arena_str_obj(arena, s.as_bytes());
+                } else {
+                    obj = cstr_as_obj(Some(c"0"));
                 }
-                break;
             }
-        }
-        put_c(&mut d, c"addr", obj);
+            put_c(&mut d, c"count", obj);
 
-        put_c(&mut rv, &*cmd.uc_name, dict_obj(d));
-    }
-    let _ = size_of::<KeyValuePair>();
-    rv
+            obj = nil_obj();
+            if (cmd.uc_argt & EX_RANGE) != 0 {
+                if (cmd.uc_argt & EX_DFLALL) != 0 {
+                    obj = cstr_as_obj(Some(c"%"));
+                } else if cmd.uc_def >= 0 {
+                    let s = format!("{}", cmd.uc_def);
+                    obj = arena_str_obj(arena, s.as_bytes());
+                } else {
+                    obj = cstr_as_obj(Some(c"."));
+                }
+            }
+            put_c(&mut d, c"range", obj);
+
+            obj = nil_obj();
+            for entry in &ADDR_TYPE_COMPLETE {
+                if entry.expand == ADDR_NONE {
+                    break;
+                }
+                if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
+                    if let Some(name) = entry.name {
+                        obj = cstr_as_obj(Some(name));
+                    }
+                    break;
+                }
+            }
+            put_c(&mut d, c"addr", obj);
+
+            let cmd_key = NvimString {
+                data: arena_memdupz(arena, cmd.uc_name.as_bytes()),
+                size: cmd.uc_name.as_bytes().len(),
+            };
+            put_c(&mut rv, cmd_key, dict_obj(d));
+        }
+        let _ = size_of::<KeyValuePair>();
+        rv
+    })
 }

@@ -83,7 +83,7 @@ use crate::strings::{format_to_buf, gettext};
 use crate::ui::K_UIGLOBAL_COUNT;
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
-use crate::usercmd::{Ucmd, uc_mods, uc_split_args_iter};
+use crate::usercmd::{uc_mods, uc_split_args_iter};
 use std::ffi::{CStr, CString};
 use std::io::Write;
 use std::ptr;
@@ -2382,47 +2382,47 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
     }
 }
 
-pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
+pub fn nlua_do_ucmd(
+    uc_name: &CStr,
+    luaref: LuaRef,
+    uc_argt: u32,
+    uc_def: i64,
+    eap: &mut Exarg,
+    preview: bool,
+) -> i32 {
     let lstate = nlua_st().global_lstate;
-    nlua_pushref(
-        lstate,
-        if preview {
-            cmd.uc_preview_luaref
-        } else {
-            cmd.uc_luaref
-        },
-    );
+    nlua_pushref(lstate, luaref);
 
     lua_newtable(lstate);
     nlua_push_eap(lstate, &*eap, &g_st().cmdmod);
 
-    lua_pushstring(lstate, cmd.uc_name.as_c_str());
+    lua_pushstring(lstate, uc_name);
     lua_setfield(lstate, -2, c"name");
 
     if eap.addr_count == 0 {
-        lua_pushinteger_safe(lstate, cmd.uc_def as lua_Integer);
+        lua_pushinteger_safe(lstate, uc_def as lua_Integer);
         lua_setfield(lstate, -2, c"count");
     }
 
-    if (cmd.uc_argt & EX_NOSPC) != 0 {
+    if (uc_argt & EX_NOSPC) != 0 {
         lua_createtable_safe(lstate, 1, 0);
-        if (cmd.uc_argt & EX_NEEDARG) != 0 || !eap.arg.is_empty() {
+        if (uc_argt & EX_NEEDARG) != 0 || !eap.arg.is_empty() {
             lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
             lua_rawseti_safe(lstate, -2, 1);
         }
         lua_setfield(lstate, -2, c"fargs");
     }
 
-    let narg_ch = if (cmd.uc_argt & EX_EXTRA) != 0 {
-        if (cmd.uc_argt & EX_NOSPC) != 0 {
-            if (cmd.uc_argt & EX_ARGSPACE) != 0 {
+    let narg_ch = if (uc_argt & EX_EXTRA) != 0 {
+        if (uc_argt & EX_NOSPC) != 0 {
+            if (uc_argt & EX_ARGSPACE) != 0 {
                 b'_'
-            } else if (cmd.uc_argt & EX_NEEDARG) != 0 {
+            } else if (uc_argt & EX_NEEDARG) != 0 {
                 b'1'
             } else {
                 b'?'
             }
-        } else if (cmd.uc_argt & EX_NEEDARG) != 0 {
+        } else if (uc_argt & EX_NEEDARG) != 0 {
             b'+'
         } else {
             b'*'
