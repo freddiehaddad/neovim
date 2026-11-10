@@ -276,6 +276,7 @@ struct LineData {
     lnum_after: Linenr,
 }
 
+#[derive(Clone, Copy)]
 struct ExCmdsState {
     sort_lc: bool,
     sort_ic: bool,
@@ -283,10 +284,8 @@ struct ExCmdsState {
     sort_rx: bool,
     sort_flt: bool,
     sort_abort: bool,
-    prevcmd: Option<std::ffi::CString>,
     global_need_msg_kind: bool,
     append_indent: i32,
-    old_sub: SubReplacementString,
     global_need_beginline: bool,
     subflags: Subflags,
     pre_hl_id: i32,
@@ -301,14 +300,8 @@ impl ExCmdsState {
             sort_rx: false,
             sort_flt: false,
             sort_abort: false,
-            prevcmd: None,
             global_need_msg_kind: false,
             append_indent: 0,
-            old_sub: SubReplacementString {
-                sub: None,
-                timestamp: 0,
-                additional_data: None,
-            },
             global_need_beginline: false,
             subflags: Subflags {
                 do_all: false,
@@ -325,11 +318,58 @@ impl ExCmdsState {
     }
 }
 
-static EXCMDS_STATE: GlobalState<ExCmdsState> = GlobalState::new(ExCmdsState::new());
+thread_local! {
+    static EXCMDS_STATE: std::cell::Cell<ExCmdsState> =
+        const { std::cell::Cell::new(ExCmdsState::new()) };
+    static EXCMDS_PREVCMD: std::cell::RefCell<Option<std::ffi::CString>> =
+        const { std::cell::RefCell::new(None) };
+    static EXCMDS_OLD_SUB: std::cell::RefCell<SubReplacementString> =
+        const {
+            std::cell::RefCell::new(SubReplacementString {
+                sub: None,
+                timestamp: 0,
+                additional_data: None,
+            })
+        };
+}
+
+struct ExCmdsGuard {
+    state: ExCmdsState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for ExCmdsGuard {
+    type Target = ExCmdsState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for ExCmdsGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for ExCmdsGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            EXCMDS_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn excmds_st() -> crate::globals::GraphPtr<ExCmdsState> {
-    EXCMDS_STATE.handle()
+fn excmds_st() -> ExCmdsGuard {
+    ExCmdsGuard {
+        state: EXCMDS_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
 }
 
 use crate::buffer::bt_dontwrite_msg;
@@ -1388,12 +1428,12 @@ pub fn ex_copy(mut line1: Linenr, mut line2: Linenr, n: Linenr) {
 }
 
 pub fn free_prev_shellcmd() {
-    excmds_st().prevcmd = None;
+    EXCMDS_PREVCMD.with(|p| *p.borrow_mut() = None);
 }
 
-/// Check that `excmds_st().prevcmd` is not NULL.
+/// Check that `prevcmd` is not NULL.
 fn prevcmd_is_set() -> bool {
-    if excmds_st().prevcmd.is_none() {
+    if EXCMDS_PREVCMD.with(|p| p.borrow().is_none()) {
         emsg(gettext(E_NOPREV));
         return false;
     }
@@ -1431,7 +1471,9 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             if !prevcmd_is_set() {
                 return;
             }
-            t.extend_from_slice(excmds_st().prevcmd.as_ref().unwrap().to_bytes());
+            EXCMDS_PREVCMD.with(|p| {
+                t.extend_from_slice(p.borrow().as_ref().unwrap().to_bytes());
+            });
         }
         let mut p_idx = t.len();
         t.extend_from_slice(crate::memory::bytes_as_cstr(&trailarg_vec).to_bytes_with_nul());
@@ -1461,7 +1503,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
     }
 
     if !crate::memory::bytes_until_nul(&newcmd).is_empty() {
-        excmds_st().prevcmd = Some(crate::memory::cstring_until_nul(&newcmd));
+        EXCMDS_PREVCMD.with(|p| *p.borrow_mut() = Some(crate::memory::cstring_until_nul(&newcmd)));
     }
 
     'theend: {
@@ -1470,30 +1512,24 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 break 'theend;
             }
 
-            let prev_bytes = excmds_st()
-                .borrow_mut()
-                .prevcmd
-                .as_ref()
-                .unwrap()
-                .as_bytes();
-            let cmd = vim_strsave_escaped(prev_bytes, b"%#");
+            let cmd = EXCMDS_PREVCMD
+                .with(|p| vim_strsave_escaped(p.borrow().as_ref().unwrap().as_bytes(), b"%#"));
             redo_append_lit(cmd.to_bytes());
             redo_append_str(b"\n");
             g_st().bangredo = false;
         }
         if !opt_vars().p_shq.is_empty() {
-            let prev_bytes = excmds_st()
-                .borrow_mut()
-                .prevcmd
-                .as_ref()
-                .map_or(&[][..], |s| s.to_bytes());
             let shq_owned = opt_vars().p_shq.to_owned();
             let shq_bytes = shq_owned.as_bytes();
-            newcmd = Vec::with_capacity(prev_bytes.len() + 2 * shq_bytes.len() + 1);
-            newcmd.extend_from_slice(shq_bytes);
-            newcmd.extend_from_slice(prev_bytes);
-            newcmd.extend_from_slice(shq_bytes);
-            newcmd.push(0);
+            EXCMDS_PREVCMD.with(|p| {
+                let borrow = p.borrow();
+                let prev_bytes = borrow.as_ref().map_or(&[][..], |s| s.to_bytes());
+                newcmd = Vec::with_capacity(prev_bytes.len() + 2 * shq_bytes.len() + 1);
+                newcmd.extend_from_slice(shq_bytes);
+                newcmd.extend_from_slice(prev_bytes);
+                newcmd.extend_from_slice(shq_bytes);
+                newcmd.push(0);
+            });
         }
         if addr_count == 0 {
             msg_start();
@@ -3487,12 +3523,12 @@ pub fn check_secure() -> bool {
 
 /// Get old substitute replacement string.
 pub fn sub_get_replacement(ret_sub: &mut SubReplacementString) {
-    *ret_sub = excmds_st().old_sub.clone();
+    *ret_sub = EXCMDS_OLD_SUB.with(|s| s.borrow().clone());
 }
 
 /// Set substitute string and timestamp.
 pub fn sub_set_replacement(sub: SubReplacementString) {
-    excmds_st().old_sub = sub;
+    EXCMDS_OLD_SUB.with(|s| *s.borrow_mut() = sub);
 }
 
 /// Recognize `":%s/\n//"` and turn it into a join command.
@@ -3850,12 +3886,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             });
         }
     } else if !eap.skip {
-        let Some(ref old_sub_cstr) = excmds_st().old_sub.sub else {
+        let Some(sub_cstr) = EXCMDS_OLD_SUB.with(|s| s.borrow().sub.clone()) else {
             emsg(gettext(E_NOPRESUB));
             return 0;
         };
         pat = NvimString::new();
-        let sub_cstr = old_sub_cstr.clone();
         sub = sub_cstr.as_ptr().cast_mut();
         sub_owned = Some(sub_cstr);
         endcolumn = curwin_mut().w_curswant == MAXCOL;
@@ -3875,13 +3910,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
     }
 
-    cmd = sub_parse_flags(
-        ptr_cstr!(cmd, eap),
-        &mut excmds_st().subflags,
-        &mut which_pat,
-    )
-    .as_ptr()
-    .cast_mut();
+    let mut subflags = excmds_st().subflags;
+    cmd = sub_parse_flags(ptr_cstr!(cmd, eap), &mut subflags, &mut which_pat)
+        .as_ptr()
+        .cast_mut();
+    excmds_st().subflags = subflags;
 
     let save_do_all = excmds_st().subflags.do_all;
     let save_do_ask = excmds_st().subflags.do_ask;

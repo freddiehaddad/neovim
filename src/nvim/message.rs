@@ -134,23 +134,19 @@ enum SbClear {
     SbClearCmdlineDone = 3,
 }
 
+#[derive(Clone, Copy)]
 struct MessageState {
     confirm_msg_used: i32,
-    msg_hist: std::collections::VecDeque<MessageHistoryEntry>,
     msg_hist_temp_idx: Option<usize>,
     msg_hist_len: i32,
     msg_hist_max: i32,
     msg_hit_enter: bool,
     msg_wait: i32,
     progress_msg_target: i32,
-    verbose_fd: Option<crate::os::fs::CFile>,
     verbose_did_open: bool,
     keep_msg_more: bool,
-    msg_ext_kind: Option<std::ffi::CString>,
-    msg_ext_trigger: Option<std::ffi::CString>,
     msg_ext_id: MsgID,
     msg_ext_chunks: Array,
-    msg_ext_last_chunk: Vec<u8>,
     msg_ext_last_attr: Sattr,
     msg_ext_last_hl_id: i32,
     msg_ext_history: bool,
@@ -161,39 +157,31 @@ struct MessageState {
     is_multihl: i32,
     msg_keep_entered: i32,
     last_sourcing_lnum: i32,
-    last_sourcing_name: Option<std::ffi::CString>,
     msg_source_recursive: bool,
     do_clear_hist_temp: bool,
     redir_col: i32,
-    msgchunks: Vec<Msgchunk>,
     do_clear_sb_text: SbClear,
     do_more_prompt_entered: bool,
     showmode_clear: bool,
-    pre_verbose_kind: Option<std::ffi::CString>,
 }
 
 impl MessageState {
     const fn new() -> Self {
         Self {
             confirm_msg_used: 0,
-            msg_hist: std::collections::VecDeque::new(),
             msg_hist_temp_idx: None,
             msg_hist_len: 0,
             msg_hist_max: 500,
             msg_hit_enter: true,
             msg_wait: 0,
             progress_msg_target: PROGRESS_TARGET_CMD,
-            verbose_fd: None,
             verbose_did_open: false,
             keep_msg_more: false,
-            msg_ext_kind: None,
-            msg_ext_trigger: None,
             msg_ext_id: Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(1),
             },
             msg_ext_chunks: Array::new(),
-            msg_ext_last_chunk: Vec::new(),
             msg_ext_last_attr: -1,
             msg_ext_last_hl_id: 0,
             msg_ext_history: false,
@@ -204,24 +192,90 @@ impl MessageState {
             is_multihl: 0,
             msg_keep_entered: 0,
             last_sourcing_lnum: 0,
-            last_sourcing_name: None,
             msg_source_recursive: false,
             do_clear_hist_temp: true,
             redir_col: 0,
-            msgchunks: Vec::new(),
             do_clear_sb_text: SbClear::SbClearNone,
             do_more_prompt_entered: false,
             showmode_clear: false,
-            pre_verbose_kind: None,
         }
     }
 }
 
-static MSG_STATE: GlobalState<MessageState> = GlobalState::new(MessageState::new());
+struct MessageExtState {
+    msg_hist: std::cell::RefCell<std::collections::VecDeque<MessageHistoryEntry>>,
+    verbose_fd: std::cell::RefCell<Option<crate::os::fs::CFile>>,
+    msg_ext_kind: std::cell::RefCell<Option<std::ffi::CString>>,
+    msg_ext_trigger: std::cell::RefCell<Option<std::ffi::CString>>,
+    msg_ext_last_chunk: std::cell::RefCell<Vec<u8>>,
+    last_sourcing_name: std::cell::RefCell<Option<std::ffi::CString>>,
+    msgchunks: std::cell::RefCell<Vec<Msgchunk>>,
+    pre_verbose_kind: std::cell::RefCell<Option<std::ffi::CString>>,
+}
+
+impl MessageExtState {
+    const fn new() -> Self {
+        Self {
+            msg_hist: std::cell::RefCell::new(std::collections::VecDeque::new()),
+            verbose_fd: std::cell::RefCell::new(None),
+            msg_ext_kind: std::cell::RefCell::new(None),
+            msg_ext_trigger: std::cell::RefCell::new(None),
+            msg_ext_last_chunk: std::cell::RefCell::new(Vec::new()),
+            last_sourcing_name: std::cell::RefCell::new(None),
+            msgchunks: std::cell::RefCell::new(Vec::new()),
+            pre_verbose_kind: std::cell::RefCell::new(None),
+        }
+    }
+}
+
+thread_local! {
+    static MSG_STATE: std::cell::Cell<MessageState> =
+        const { std::cell::Cell::new(MessageState::new()) };
+    static MSG_EXT: MessageExtState = const { MessageExtState::new() };
+}
+
+struct MsgGuard {
+    state: MessageState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for MsgGuard {
+    type Target = MessageState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for MsgGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for MsgGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            MSG_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn msg_st() -> crate::globals::GraphPtr<MessageState> {
-    MSG_STATE.handle()
+fn msg_st() -> MsgGuard {
+    MsgGuard {
+        state: MSG_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
+}
+
+#[inline]
+fn with_msg_ext<R>(f: impl FnOnce(&MessageExtState) -> R) -> R {
+    MSG_EXT.with(f)
 }
 
 #[macro_export]
@@ -679,7 +733,9 @@ pub fn msg_multihl(
         }
         assert!(
             !ui_has(K_UIMESSAGES)
-                || kind.is_none_or(|k| msg_st().msg_ext_kind.as_deref() == Some(k))
+                || kind.is_none_or(|k| {
+                    with_msg_ext(|ext| ext.msg_ext_kind.borrow().as_deref() == Some(k))
+                })
         );
     }
 
@@ -699,9 +755,10 @@ pub fn msg_multihl(
 
     // Release the id: it belongs to this message, and a String id only borrows the caller's storage
     // (often a stack buffer). Redundant unless nothing was emitted (e.g. 'msg_silent').
+    let next_id = msg_st().msg_id_next;
     msg_st().msg_ext_id = Object {
         obj_type: ObjectType::ObjectTypeInteger,
-        data: ObjectData::Integer(msg_st().msg_id_next),
+        data: ObjectData::Integer(next_id),
     };
     id
 }
@@ -737,8 +794,10 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
         if msg_st().is_multihl == 0
             && (s.as_ptr() != keep_msg_ptr
                 || (s.to_bytes().first().copied().unwrap_or(0) != b'<'
-                    && msg_st().msg_hist.back().is_some_and(|last| {
-                        s.to_bytes() != last.msg.as_slice()[0].text.cstr_bytes()
+                    && with_msg_ext(|ext| {
+                        ext.msg_hist.borrow().back().is_some_and(|last| {
+                            s.to_bytes() != last.msg.as_slice()[0].text.cstr_bytes()
+                        })
                     })))
         {
             msg_hist_add(s.to_bytes(), -1, hl_id);
@@ -956,7 +1015,7 @@ pub fn trunc_string(s: Option<&[u8]>, out: &mut [u8], room_in: i32) {
 /// Reset the last used sourcing name/lnum.  Makes sure it is displayed again
 /// for the next error message;
 pub fn reset_last_sourcing() {
-    msg_st().last_sourcing_name = None;
+    with_msg_ext(|ext| *ext.last_sourcing_name.borrow_mut() = None);
     msg_st().last_sourcing_lnum = 0;
 }
 
@@ -965,7 +1024,7 @@ fn other_sourcing_name() -> bool {
     if have_sourcing_info()
         && let Some(sname) = sourcing_name()
     {
-        if let Some(ref last) = msg_st().last_sourcing_name {
+        if let Some(last) = with_msg_ext(|ext| ext.last_sourcing_name.borrow().clone()) {
             return sname.to_bytes() != last.as_bytes();
         }
         return true;
@@ -1031,9 +1090,9 @@ pub fn msg_source(hl_id: i32) {
 
     let sname = sourcing_name();
     if sname.is_none() || other_sourcing_name() {
-        msg_st().last_sourcing_name = None;
+        with_msg_ext(|ext| *ext.last_sourcing_name.borrow_mut() = None);
         if let Some(sname) = sname {
-            msg_st().last_sourcing_name = Some(sname.to_owned());
+            with_msg_ext(|ext| *ext.last_sourcing_name.borrow_mut() = Some(sname.to_owned()));
             if redirecting() == 0 {
                 msg_putchar_hl(NL, hl_id);
             }
@@ -1524,13 +1583,18 @@ fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
 
     let temp_idx = msg_st().msg_hist_temp_idx;
     if temp_idx.is_none() {
-        msg_st().msg_hist_temp_idx = Some(msg_st().msg_hist.len());
+        let len = with_msg_ext(|ext| ext.msg_hist.borrow().len());
+        msg_st().msg_hist_temp_idx = Some(len);
     }
-    msg_st().msg_hist.push_back(MessageHistoryEntry {
-        msg,
-        kind: msg_st().msg_ext_kind.clone(),
-        temp,
-        append: msg_st().msg_ext_append,
+    let append = msg_st().msg_ext_append;
+    with_msg_ext(|ext| {
+        let kind = ext.msg_ext_kind.borrow().clone();
+        ext.msg_hist.borrow_mut().push_back(MessageHistoryEntry {
+            msg,
+            kind,
+            temp,
+            append,
+        });
     });
 
     msg_st().msg_hist_len += i32::from(!temp);
@@ -1541,15 +1605,17 @@ fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
 
 /// Delete oldest messages from the history until there are "keep" messages.
 pub fn msg_hist_clear(keep: i32) {
-    while msg_st().msg_hist_len > keep || (keep == 0 && !msg_st().msg_hist.is_empty()) {
-        if let Some(entry) = msg_st().msg_hist.pop_front() {
+    while msg_st().msg_hist_len > keep
+        || (keep == 0 && with_msg_ext(|ext| !ext.msg_hist.borrow().is_empty()))
+    {
+        if let Some(entry) = with_msg_ext(|ext| ext.msg_hist.borrow_mut().pop_front()) {
             msg_st().msg_hist_len -= i32::from(!entry.temp);
             if let Some(idx) = msg_st().msg_hist_temp_idx {
                 msg_st().msg_hist_temp_idx = Some(idx.saturating_sub(1));
             }
         }
     }
-    if msg_st().msg_hist.is_empty() {
+    if with_msg_ext(|ext| ext.msg_hist.borrow().is_empty()) {
         msg_st().msg_hist_temp_idx = None;
     }
 }
@@ -1558,14 +1624,17 @@ pub fn msg_hist_clear_temp() {
     let temp_idx = msg_st().msg_hist_temp_idx;
     msg_st().msg_hist_temp_idx = None;
     if let Some(start_idx) = temp_idx {
-        let mut i = start_idx;
-        while i < msg_st().msg_hist.len() {
-            if (&msg_st().msg_hist)[i].temp {
-                msg_st().msg_hist.remove(i);
-            } else {
-                i += 1;
+        with_msg_ext(|ext| {
+            let mut hist = ext.msg_hist.borrow_mut();
+            let mut i = start_idx;
+            while i < hist.len() {
+                if hist[i].temp {
+                    hist.remove(i);
+                } else {
+                    i += 1;
+                }
             }
-        }
+        });
     }
 }
 
@@ -1617,10 +1686,9 @@ pub fn ex_messages(eap: &mut Exarg) {
     }
 
     let mut entries = Array::new();
+    let hist_len = with_msg_ext(|ext| ext.msg_hist.borrow().len());
     let mut idx = if eap.skip {
-        msg_st()
-            .msg_hist_temp_idx
-            .unwrap_or(msg_st().msg_hist.len())
+        msg_st().msg_hist_temp_idx.unwrap_or(hist_len)
     } else {
         0
     };
@@ -1629,52 +1697,58 @@ pub fn ex_messages(eap: &mut Exarg) {
     } else {
         0
     };
-    while idx < msg_st().msg_hist.len() {
-        let p = &mut (&mut msg_st().msg_hist)[idx];
+    while idx < with_msg_ext(|ext| ext.msg_hist.borrow().len()) {
+        let cur_idx = idx;
         idx += 1;
-        // Skip over count or temporary "g<" messages.
         let prev_skip = skip;
         skip -= 1;
-        if (p.temp && !eap.skip) || prev_skip > 0 {
+        let (is_temp, kind, append) = with_msg_ext(|ext| {
+            let p = &ext.msg_hist.borrow()[cur_idx];
+            (p.temp, p.kind.clone(), p.append)
+        });
+        if (is_temp && !eap.skip) || prev_skip > 0 {
             continue;
         }
         if ui_has(K_UIMESSAGES) && g_st().msg_silent == 0 {
             let mut entry = Array::new();
             entry.push(Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_to_string(p.kind.as_deref())),
+                data: ObjectData::String(cstr_to_string(kind.as_deref())),
             });
             let mut content = Array::new();
-            for chunk in &p.msg {
-                let mut content_entry = Array::new();
-                content_entry.push(Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(if chunk.hl_id != 0 {
-                        syn_id2attr(chunk.hl_id) as Integer
-                    } else {
-                        0
-                    }),
-                });
-                content_entry.push(Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(copy_string(chunk.text, None)),
-                });
-                content_entry.push(Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(chunk.hl_id as Integer),
-                });
-                content.push(Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(content_entry),
-                });
-            }
+            with_msg_ext(|ext| {
+                let p = &ext.msg_hist.borrow()[cur_idx];
+                for chunk in &p.msg {
+                    let mut content_entry = Array::new();
+                    content_entry.push(Object {
+                        obj_type: ObjectType::ObjectTypeInteger,
+                        data: ObjectData::Integer(if chunk.hl_id != 0 {
+                            syn_id2attr(chunk.hl_id) as Integer
+                        } else {
+                            0
+                        }),
+                    });
+                    content_entry.push(Object {
+                        obj_type: ObjectType::ObjectTypeString,
+                        data: ObjectData::String(copy_string(chunk.text, None)),
+                    });
+                    content_entry.push(Object {
+                        obj_type: ObjectType::ObjectTypeInteger,
+                        data: ObjectData::Integer(chunk.hl_id as Integer),
+                    });
+                    content.push(Object {
+                        obj_type: ObjectType::ObjectTypeArray,
+                        data: ObjectData::Array(content_entry),
+                    });
+                }
+            });
             entry.push(Object {
                 obj_type: ObjectType::ObjectTypeArray,
                 data: ObjectData::Array(content),
             });
             entry.push(Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(p.append),
+                data: ObjectData::Boolean(append),
             });
             entries.push(Object {
                 obj_type: ObjectType::ObjectTypeArray,
@@ -1684,16 +1758,19 @@ pub fn ex_messages(eap: &mut Exarg) {
         if redirecting() != 0 || !ui_has(K_UIMESSAGES) {
             g_st().msg_silent += i32::from(ui_has(K_UIMESSAGES));
             let mut needs_clear = false;
+            let mut msg_vec =
+                with_msg_ext(|ext| std::mem::take(&mut ext.msg_hist.borrow_mut()[cur_idx].msg));
             msg_multihl(
                 NIL_OBJ,
-                &mut p.msg,
-                p.kind.as_deref(),
+                &mut msg_vec,
+                kind.as_deref(),
                 false,
                 false,
                 None,
                 &mut needs_clear,
                 false,
             );
+            with_msg_ext(|ext| ext.msg_hist.borrow_mut()[cur_idx].msg = msg_vec);
             g_st().msg_silent -= i32::from(ui_has(K_UIMESSAGES));
         }
     }
@@ -1994,12 +2071,10 @@ pub fn msgmore(n: i32) {
 
 pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_kind = Some(msg_kind.to_owned());
-    msg_st().redir_col = if msg_st().msg_ext_append {
-        msg_st().redir_col
-    } else {
-        0
-    };
+    with_msg_ext(|ext| *ext.msg_ext_kind.borrow_mut() = Some(msg_kind.to_owned()));
+    if !msg_st().msg_ext_append {
+        msg_st().redir_col = 0;
+    }
 
     if msg_kind.to_bytes() == b"list_cmd" {
         msg_ext_no_fast();
@@ -2013,7 +2088,7 @@ pub fn msg_ext_set_append(append: bool) {
 
 pub fn msg_ext_set_trigger(trigger: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_trigger = Some(trigger.to_owned());
+    with_msg_ext(|ext| *ext.msg_ext_trigger.borrow_mut() = Some(trigger.to_owned()));
 }
 
 // Should be executed at all callsites emitting non-internal messages.
@@ -2724,8 +2799,11 @@ fn msg_ext_emit_chunk() {
         data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
     });
     msg_st().msg_ext_last_attr = -1;
-    let text = crate::api::private::helpers::cbuf_to_string(&msg_st().msg_ext_last_chunk);
-    msg_st().msg_ext_last_chunk = Vec::new();
+    let text = with_msg_ext(|ext| {
+        let s = crate::api::private::helpers::cbuf_to_string(&ext.msg_ext_last_chunk.borrow());
+        *ext.msg_ext_last_chunk.borrow_mut() = Vec::new();
+        s
+    });
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeString,
         data: ObjectData::String(text),
@@ -2765,7 +2843,11 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                 msg_st().msg_ext_last_hl_id = hl_id;
             }
             if !str_slice.is_empty() {
-                msg_st().msg_ext_last_chunk.extend_from_slice(str_slice);
+                with_msg_ext(|ext| {
+                    ext.msg_ext_last_chunk
+                        .borrow_mut()
+                        .extend_from_slice(str_slice);
+                });
             }
 
             let lastline_idx = str_slice.iter().rposition(|&b| b == b'\n');
@@ -3154,16 +3236,20 @@ fn store_sb_text<'a>(
         let mut text = Vec::with_capacity(text_len + 1);
         text.extend_from_slice(&sb_str[..text_len]);
         text.push(0);
-        msg_st().msgchunks.push(Msgchunk {
-            sb_eol: finish != 0,
-            sb_msg_col: *sb_col,
-            sb_hl_id: hl_id,
-            sb_text: text,
+        with_msg_ext(|ext| {
+            ext.msgchunks.borrow_mut().push(Msgchunk {
+                sb_eol: finish != 0,
+                sb_msg_col: *sb_col,
+                sb_hl_id: hl_id,
+                sb_text: text,
+            });
         });
-    } else if finish != 0
-        && let Some(last) = msg_st().msgchunks.last_mut()
-    {
-        last.sb_eol = true;
+    } else if finish != 0 {
+        with_msg_ext(|ext| {
+            if let Some(last) = ext.msgchunks.borrow_mut().last_mut() {
+                last.sb_eol = true;
+            }
+        });
     }
 
     *sb_str = s;
@@ -3191,15 +3277,20 @@ pub fn sb_text_start_cmdline() {
 pub fn sb_text_restart_cmdline() {
     msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
 
-    let Some(last) = msg_st().borrow_mut().msgchunks.last() else {
+    let len = with_msg_ext(|ext| {
+        let chunks = ext.msgchunks.borrow();
+        let last = chunks.last()?;
+        if last.sb_eol {
+            return None;
+        }
+        Some(chunks.len())
+    });
+    let Some(len) = len else {
         return;
     };
-    if last.sb_eol {
-        return;
-    }
 
-    if let Some(start_idx) = msg_sb_start(Some(msg_st().msgchunks.len() - 1)) {
-        msg_st().msgchunks.truncate(start_idx);
+    if let Some(start_idx) = msg_sb_start(Some(len - 1)) {
+        with_msg_ext(|ext| ext.msgchunks.borrow_mut().truncate(start_idx));
     }
 }
 
@@ -3211,11 +3302,16 @@ pub fn sb_text_end_cmdline() {
 /// Clear any text remembered for scrolling back.
 pub fn clear_sb_text(all: bool) {
     if all {
-        msg_st().msgchunks.clear();
-    } else if !msg_st().msgchunks.is_empty()
-        && let Some(start_idx) = msg_sb_start(Some(msg_st().msgchunks.len() - 1))
-    {
-        msg_st().msgchunks.drain(0..start_idx);
+        with_msg_ext(|ext| ext.msgchunks.borrow_mut().clear());
+    } else {
+        let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
+        if len > 0
+            && let Some(start_idx) = msg_sb_start(Some(len - 1))
+        {
+            with_msg_ext(|ext| {
+                ext.msgchunks.borrow_mut().drain(0..start_idx);
+            });
+        }
     }
 }
 
@@ -3228,7 +3324,8 @@ pub fn show_sb_text() {
         ex_messages(&mut ea);
         return;
     }
-    let mp = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
+    let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
+    let mp = msg_sb_start(len.checked_sub(1));
     if mp.is_none_or(|idx| idx == 0) {
         vim_beep(K_OPT_BO_FLAG_MESS);
     } else {
@@ -3240,17 +3337,22 @@ pub fn show_sb_text() {
 /// Move to the start of screen line in already displayed text.
 fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
     let mut idx = mps?;
-    while idx > 0 && !msg_st().msgchunks.as_slice()[idx - 1].sb_eol {
-        idx -= 1;
-    }
+    with_msg_ext(|ext| {
+        let chunks = ext.msgchunks.borrow();
+        while idx > 0 && !chunks[idx - 1].sb_eol {
+            idx -= 1;
+        }
+    });
     Some(idx)
 }
 
 /// Mark the last message chunk as finishing the line.
 pub fn msg_sb_eol() {
-    if let Some(last) = msg_st().msgchunks.last_mut() {
-        last.sb_eol = true;
-    }
+    with_msg_ext(|ext| {
+        if let Some(last) = ext.msgchunks.borrow_mut().last_mut() {
+            last.sb_eol = true;
+        }
+    });
 }
 
 /// Display a screen line from previously displayed text at row "row".
@@ -3258,23 +3360,24 @@ fn disp_sb_line(row: i32, smp: usize) -> Option<usize> {
     let mut idx = smp;
     loop {
         g_st().msg_row = row;
-        let (sb_msg_col, hl_id, eol, text) = {
-            let chunk = &msg_st().borrow_mut().msgchunks.as_slice()[idx];
+        let (sb_msg_col, hl_id, eol, text) = with_msg_ext(|ext| {
+            let chunk = &ext.msgchunks.borrow()[idx];
             (
                 chunk.sb_msg_col,
                 chunk.sb_hl_id,
                 chunk.sb_eol,
                 chunk.sb_text.clone(),
             )
-        };
+        });
         g_st().msg_col = sb_msg_col;
         msg_puts_display(&text, -1, hl_id, 1);
-        if eol || idx + 1 >= msg_st().msgchunks.len() {
+        let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
+        if eol || idx + 1 >= len {
             break;
         }
         idx += 1;
     }
-    if idx + 1 < msg_st().msgchunks.len() {
+    if idx + 1 < with_msg_ext(|ext| ext.msgchunks.borrow().len()) {
         Some(idx + 1)
     } else {
         None
@@ -3370,7 +3473,8 @@ fn do_more_prompt(typed_char: i32) -> bool {
     msg_st().do_more_prompt_entered = true;
 
     if typed_char == b'G' as i32 {
-        mp_last = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
+        let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
+        mp_last = msg_sb_start(len.checked_sub(1));
         let mut i = 0;
         while i < g_st().rows_global - 2
             && let Some(idx) = mp_last
@@ -3467,7 +3571,8 @@ fn do_more_prompt(typed_char: i32) -> bool {
                         None
                     }
                 } else {
-                    msg_sb_start(msg_st().msgchunks.len().checked_sub(1))
+                    let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
+                    msg_sb_start(len.checked_sub(1))
                 };
 
                 let mut i = 0;
@@ -3494,7 +3599,8 @@ fn do_more_prompt(typed_char: i32) -> bool {
                         if let Some(last_idx) = mp_last {
                             mp_last = msg_sb_start(last_idx.checked_sub(1));
                         } else {
-                            mp_last = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
+                            let len = with_msg_ext(|ext| ext.msgchunks.borrow().len());
+                            mp_last = msg_sb_start(len.checked_sub(1));
                         }
                         i -= 1;
                     }
@@ -3735,7 +3841,7 @@ fn msg_ext_init_chunks() -> Array {
 
 pub fn msg_ext_ui_flush() {
     if !ui_has(K_UIMESSAGES) {
-        msg_st().msg_ext_kind = None;
+        with_msg_ext(|ext| *ext.msg_ext_kind.borrow_mut() = None);
         return;
     } else if g_st().msg_ext_skip_flush {
         return;
@@ -3744,8 +3850,14 @@ pub fn msg_ext_ui_flush() {
     msg_ext_emit_chunk();
     if msg_st().msg_ext_chunks.size > 0 {
         let tofree = msg_ext_init_chunks();
-        let kind_str = cstr_as_string(msg_st().msg_ext_kind.as_deref());
-        let trigger_str = cstr_as_string(msg_st().msg_ext_trigger.as_deref());
+        let (kind_cstr, trigger_cstr) = with_msg_ext(|ext| {
+            (
+                ext.msg_ext_kind.borrow().clone(),
+                ext.msg_ext_trigger.borrow().clone(),
+            )
+        });
+        let kind_str = cstr_as_string(kind_cstr.as_deref());
+        let trigger_str = cstr_as_string(trigger_cstr.as_deref());
 
         ui_call_msg_show(
             kind_str,
@@ -3778,22 +3890,27 @@ pub fn msg_ext_ui_flush() {
         msg_st().msg_ext_history = false;
         msg_st().msg_ext_append = false;
         g_st().msg_ext_fast = true;
-        msg_st().msg_ext_kind = None;
-        if msg_st().msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
-            && msg_st().msg_ext_id.data.integer() == msg_st().msg_id_next
-        {
-            msg_st().msg_id_next += 1;
-        }
+        with_msg_ext(|ext| *ext.msg_ext_kind.borrow_mut() = None);
+        let next_id = {
+            let mut st = msg_st();
+            if st.msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
+                && st.msg_ext_id.data.integer() == st.msg_id_next
+            {
+                st.msg_id_next += 1;
+            }
+            st.msg_id_next
+        };
         msg_st().msg_ext_id = Object {
             obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(msg_st().msg_id_next),
+            data: ObjectData::Integer(next_id),
         };
     }
 }
 
 pub fn msg_ext_flush_showmode() {
-    if ui_has(K_UIMESSAGES) && (msg_st().msg_ext_last_attr != -1 || msg_st().showmode_clear) {
-        msg_st().showmode_clear = msg_st().msg_ext_last_attr != -1;
+    let has_last_attr = msg_st().msg_ext_last_attr != -1;
+    if ui_has(K_UIMESSAGES) && (has_last_attr || msg_st().showmode_clear) {
+        msg_st().showmode_clear = has_last_attr;
         msg_ext_emit_chunk();
         let tofree = msg_ext_init_chunks();
         ui_call_msg_showmode(tofree);
@@ -3830,7 +3947,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             return;
         }
 
-        if !opt_vars().p_vfile.is_empty() && msg_st().verbose_fd.is_none() {
+        if !opt_vars().p_vfile.is_empty() && with_msg_ext(|ext| ext.verbose_fd.borrow().is_none()) {
             verbose_open();
         }
 
@@ -3847,9 +3964,11 @@ fn redir_write(str_: &[u8], maxlen: isize) {
                     } else if let Some(ref rf) = g_st().redir_fd {
                         rf.puts(c" ");
                     }
-                    if let Some(ref vf) = msg_st().verbose_fd {
-                        vf.puts(c" ");
-                    }
+                    with_msg_ext(|ext| {
+                        if let Some(ref vf) = *ext.verbose_fd.borrow() {
+                            vf.puts(c" ");
+                        }
+                    });
                     msg_st().redir_col += 1;
                 }
             }
@@ -3873,13 +3992,16 @@ fn redir_write(str_: &[u8], maxlen: isize) {
                 {
                     rf.putc(i32::from(b));
                 }
-                if let Some(ref vf) = msg_st().verbose_fd {
-                    vf.putc(i32::from(b));
-                }
+                with_msg_ext(|ext| {
+                    if let Some(ref vf) = *ext.verbose_fd.borrow() {
+                        vf.putc(i32::from(b));
+                    }
+                });
                 if matches!(b, b'\r' | b'\n') {
                     msg_st().redir_col = 0;
                 } else if i32::from(b) == TAB {
-                    msg_st().redir_col += 8 - msg_st().redir_col % 8;
+                    let rc = msg_st().redir_col;
+                    msg_st().redir_col = rc + 8 - rc % 8;
                 } else {
                     msg_st().redir_col += 1;
                 }
@@ -3909,9 +4031,11 @@ pub fn verbose_enter() {
         g_st().msg_silent += 1;
     }
     if !g_st().msg_ext_skip_verbose {
-        if msg_st().msg_ext_kind.as_deref() != Some(VERBOSE_KIND) {
-            msg_st().pre_verbose_kind = msg_st().msg_ext_kind.clone();
-        }
+        with_msg_ext(|ext| {
+            if ext.msg_ext_kind.borrow().as_deref() != Some(VERBOSE_KIND) {
+                *ext.pre_verbose_kind.borrow_mut() = ext.msg_ext_kind.borrow().clone();
+            }
+        });
         msg_ext_set_kind(VERBOSE_KIND);
     }
     g_st().msg_ext_skip_verbose = false;
@@ -3926,7 +4050,7 @@ pub fn verbose_leave() {
             g_st().msg_silent = 0;
         }
     }
-    if let Some(prev_kind) = msg_st().pre_verbose_kind.take() {
+    if let Some(prev_kind) = with_msg_ext(|ext| ext.pre_verbose_kind.borrow_mut().take()) {
         msg_ext_set_kind(&prev_kind);
     }
 }
@@ -3949,7 +4073,7 @@ pub fn verbose_leave_scroll() {
 
 /// Called when 'verbosefile' is set: stop writing to the file.
 pub fn verbose_stop() {
-    msg_st().verbose_fd = None;
+    with_msg_ext(|ext| *ext.verbose_fd.borrow_mut() = None);
     msg_st().verbose_did_open = false;
 }
 
@@ -3957,11 +4081,13 @@ pub fn verbose_stop() {
 ///
 /// @return  FAIL or OK.
 pub fn verbose_open() -> bool {
-    if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
+    if with_msg_ext(|ext| ext.verbose_fd.borrow().is_none()) && !msg_st().verbose_did_open {
         msg_st().verbose_did_open = true;
 
-        msg_st().verbose_fd = CFile::open(opt_vars().p_vfile.as_cstr(), c"a");
-        if msg_st().verbose_fd.is_none() {
+        let opened = CFile::open(opt_vars().p_vfile.as_cstr(), c"a");
+        let is_none = opened.is_none();
+        with_msg_ext(|ext| *ext.verbose_fd.borrow_mut() = opened);
+        if is_none {
             semsg!(gettext(E_NOTOPEN), &opt_vars().p_vfile);
             return false;
         }
@@ -3989,7 +4115,7 @@ pub fn give_warning(message: &std::ffi::CStr, hl: bool, hist: bool) {
         g_st().keep_msg_hl_id = 0;
     }
 
-    if msg_st().msg_ext_kind.is_none() {
+    if with_msg_ext(|ext| ext.msg_ext_kind.borrow().is_none()) {
         msg_ext_set_kind(c"wmsg");
     }
 

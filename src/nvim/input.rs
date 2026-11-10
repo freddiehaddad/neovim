@@ -236,22 +236,16 @@ enum MapResult {
     MapResultNomatch = 3,
 }
 
+#[derive(Clone, Copy)]
 struct InputModuleState {
     curscript: i32,
-    scriptin: [FileDescriptor; NSCRIPT],
-    redobuff: RedoState,
-    recordbuff: Vec<u8>,
-    readbuf1: StuffBuf,
-    readbuf2: StuffBuf,
     ungot: UngotKey,
-    on_key_buf: Vec<u8>,
     on_key_ignore_len: usize,
     on_key_blocked: i32,
     typeahead_char: i32,
     block_redo: bool,
     key_noremap: i32,
     last_recorded_len: usize,
-    saved_typebuf: [Typebuf; NSCRIPT],
     no_reduce_keys: i32,
     gotchars_state: GotcharsState,
     updatescript_count: i32,
@@ -264,11 +258,6 @@ impl InputModuleState {
     const fn new() -> Self {
         Self {
             curscript: -1,
-            scriptin: [const { FileDescriptor::new() }; NSCRIPT],
-            redobuff: RedoState::new(),
-            recordbuff: Vec::new(),
-            readbuf1: StuffBuf::new(),
-            readbuf2: StuffBuf::new(),
             ungot: UngotKey {
                 c: -1,
                 mod_mask: 0,
@@ -277,14 +266,12 @@ impl InputModuleState {
                 mouse_col: 0,
                 stuffed: false,
             },
-            on_key_buf: Vec::new(),
             on_key_ignore_len: 0,
             on_key_blocked: 0,
             typeahead_char: 0,
             block_redo: false,
             key_noremap: 0,
             last_recorded_len: 0,
-            saved_typebuf: [const { Typebuf::ZERO }; NSCRIPT],
             no_reduce_keys: 0,
             gotchars_state: GotcharsState::new(),
             updatescript_count: 0,
@@ -295,11 +282,78 @@ impl InputModuleState {
     }
 }
 
-static INP_STATE: GlobalState<InputModuleState> = GlobalState::new(InputModuleState::new());
+struct InputExtState {
+    scriptin: std::cell::RefCell<[FileDescriptor; NSCRIPT]>,
+    redobuff: std::cell::RefCell<RedoState>,
+    recordbuff: std::cell::RefCell<Vec<u8>>,
+    readbuf1: std::cell::RefCell<StuffBuf>,
+    readbuf2: std::cell::RefCell<StuffBuf>,
+    on_key_buf: std::cell::RefCell<Vec<u8>>,
+    saved_typebuf: std::cell::RefCell<[Typebuf; NSCRIPT]>,
+}
+
+impl InputExtState {
+    const fn new() -> Self {
+        Self {
+            scriptin: std::cell::RefCell::new([const { FileDescriptor::new() }; NSCRIPT]),
+            redobuff: std::cell::RefCell::new(RedoState::new()),
+            recordbuff: std::cell::RefCell::new(Vec::new()),
+            readbuf1: std::cell::RefCell::new(StuffBuf::new()),
+            readbuf2: std::cell::RefCell::new(StuffBuf::new()),
+            on_key_buf: std::cell::RefCell::new(Vec::new()),
+            saved_typebuf: std::cell::RefCell::new([const { Typebuf::ZERO }; NSCRIPT]),
+        }
+    }
+}
+
+thread_local! {
+    static INP_STATE: std::cell::Cell<InputModuleState> =
+        const { std::cell::Cell::new(InputModuleState::new()) };
+    static INP_EXT: InputExtState = const { InputExtState::new() };
+}
+
+struct InpGuard {
+    state: InputModuleState,
+    mutated: bool,
+}
+
+impl std::ops::Deref for InpGuard {
+    type Target = InputModuleState;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for InpGuard {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated = true;
+        &mut self.state
+    }
+}
+
+impl Drop for InpGuard {
+    #[inline]
+    fn drop(&mut self) {
+        if self.mutated {
+            INP_STATE.with(|c| c.set(self.state));
+        }
+    }
+}
 
 #[inline]
-fn inp_st() -> crate::globals::GraphPtr<InputModuleState> {
-    INP_STATE.handle()
+fn inp_st() -> InpGuard {
+    InpGuard {
+        state: INP_STATE.with(std::cell::Cell::get),
+        mutated: false,
+    }
+}
+
+#[inline]
+fn with_inp_ext<R>(f: impl FnOnce(&InputExtState) -> R) -> R {
+    INP_EXT.with(f)
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
@@ -340,7 +394,7 @@ pub(crate) fn langmap_adjust(c: &mut i32, condition: bool) {
 
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
 pub fn get_recorded() -> std::ffi::CString {
-    let mut bytes: Vec<u8> = std::mem::take(&mut inp_st().recordbuff);
+    let mut bytes: Vec<u8> = with_inp_ext(|ext| std::mem::take(&mut *ext.recordbuff.borrow_mut()));
     let mut len = bytes.len();
 
     if len >= inp_st().last_recorded_len {
@@ -393,12 +447,7 @@ fn redo_chars(spec: &CmdSpec, buf: &mut Vec<u8>, arg_meta: bool) {
     }
 }
 
-/// Gets `spec` (or current pending change, if `spec` is `None`), composed into a "redo" keyseq.
-pub fn redo_keys(spec: Option<&CmdSpec>) -> Option<std::ffi::CString> {
-    let cur_ptr =
-        crate::globals::GraphPtr::<CmdSpec>::of(&raw const inp_st().redobuff.cur).as_ptr();
-    let spec = spec.unwrap_or(crate::globals::GraphPtr::of(cur_ptr).borrow());
-
+fn format_redo_keys(spec: &CmdSpec) -> Option<std::ffi::CString> {
     let mut buf: Vec<u8> = Vec::new();
 
     redo_prefix(spec, &mut buf, false);
@@ -415,9 +464,18 @@ pub fn redo_keys(spec: Option<&CmdSpec>) -> Option<std::ffi::CString> {
     }
 }
 
+/// Gets `spec` (or current pending change, if `spec` is `None`), composed into a "redo" keyseq.
+pub fn redo_keys(spec: Option<&CmdSpec>) -> Option<std::ffi::CString> {
+    if let Some(spec) = spec {
+        format_redo_keys(spec)
+    } else {
+        with_inp_ext(|ext| format_redo_keys(&ext.redobuff.borrow().cur))
+    }
+}
+
 /// Gets the pending change's `CmdSpec` (without `body`).
 pub fn redo_spec() -> CmdSpec {
-    inp_st().redobuff.cur.without_body()
+    with_inp_ext(|ext| ext.redobuff.borrow().cur.without_body())
 }
 
 fn add_buff(buf: &mut StuffBuf, slice: &[u8]) {
@@ -486,11 +544,13 @@ pub fn sb_add_char(sb: &mut Vec<u8>, c: i32) {
 }
 
 fn read_readbuffers(advance: bool) -> i32 {
-    let mut c = read_readbuf(&mut inp_st().readbuf1, advance);
-    if c == NUL {
-        c = read_readbuf(&mut inp_st().readbuf2, advance);
-    }
-    c
+    with_inp_ext(|ext| {
+        let mut c = read_readbuf(&mut ext.readbuf1.borrow_mut(), advance);
+        if c == NUL {
+            c = read_readbuf(&mut ext.readbuf2.borrow_mut(), advance);
+        }
+        c
+    })
 }
 
 fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> i32 {
@@ -514,18 +574,24 @@ fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> i32 {
 }
 
 fn start_stuff() {
-    inp_st().readbuf1.insert = inp_st().readbuf1.read;
-    inp_st().readbuf2.insert = inp_st().readbuf2.read;
+    with_inp_ext(|ext| {
+        let mut rb1 = ext.readbuf1.borrow_mut();
+        rb1.insert = rb1.read;
+        let mut rb2 = ext.readbuf2.borrow_mut();
+        rb2.insert = rb2.read;
+    });
 }
 
 /// Returns true if the readahead ("stuff") buffer is empty.
 pub fn stuff_empty() -> bool {
-    inp_st().readbuf1.keys.is_empty() && inp_st().readbuf2.keys.is_empty()
+    with_inp_ext(|ext| {
+        ext.readbuf1.borrow().keys.is_empty() && ext.readbuf2.borrow().keys.is_empty()
+    })
 }
 
 /// Returns true if `inp_st().readbuf1` is empty.
 pub fn readbuf1_empty() -> bool {
-    inp_st().readbuf1.keys.is_empty()
+    with_inp_ext(|ext| ext.readbuf1.borrow().keys.is_empty())
 }
 
 /// Set a typeahead character that won't be flushed.
@@ -541,11 +607,13 @@ pub fn flush_buffers(flush_typeahead: FlushBuffers) {
         atom_composite_abort();
     }
 
-    if !inp_st().readbuf2.keys.is_empty() && g_st().visual_global.active {
+    if with_inp_ext(|ext| !ext.readbuf2.borrow().keys.is_empty()) && g_st().visual_global.active {
         g_st().visual_global.need_end = true;
     }
-    inp_st().readbuf1 = StuffBuf::new();
-    inp_st().readbuf2 = StuffBuf::new();
+    with_inp_ext(|ext| {
+        *ext.readbuf1.borrow_mut() = StuffBuf::new();
+        *ext.readbuf2.borrow_mut() = StuffBuf::new();
+    });
 
     if flush_typeahead == FLUSH_MINIMAL {
         if g_st().typebuf.tb_off + g_st().typebuf.tb_maplen >= g_st().typebuf.tb_buflen {
@@ -601,12 +669,15 @@ pub fn redo_new(spec: CmdSpec) {
         return;
     }
 
-    inp_st().redobuff.old = std::mem::replace(&mut inp_st().redobuff.cur, spec);
+    with_inp_ext(|ext| {
+        let mut rb = ext.redobuff.borrow_mut();
+        rb.old = std::mem::replace(&mut rb.cur, spec);
+    });
 }
 
 /// Frees both redo buffers.
 pub fn redo_free_all() {
-    inp_st().redobuff = RedoState::new();
+    with_inp_ext(|ext| *ext.redobuff.borrow_mut() = RedoState::new());
 }
 
 /// Prepare for redo of any command.
@@ -618,7 +689,7 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
     if inp_st().block_redo {
         return;
     }
-    redo_chars(&spec, &mut inp_st().redobuff.cur.body, arg_meta);
+    with_inp_ext(|ext| redo_chars(&spec, &mut ext.redobuff.borrow_mut().cur.body, arg_meta));
 }
 
 /// Prepare for redo of a Visual-mode command.
@@ -631,11 +702,14 @@ pub fn prep_redo_visual(keys: &[u8], spec: CmdSpec) {
     if inp_st().block_redo {
         return;
     }
-    if !keys.is_empty() {
-        inp_st().redobuff.cur.body.extend_from_slice(keys);
-    }
-    redo_prefix(&spec, &mut inp_st().redobuff.cur.body, false);
-    redo_chars(&spec, &mut inp_st().redobuff.cur.body, false);
+    with_inp_ext(|ext| {
+        let mut rb = ext.redobuff.borrow_mut();
+        if !keys.is_empty() {
+            rb.cur.body.extend_from_slice(keys);
+        }
+        redo_prefix(&spec, &mut rb.cur.body, false);
+        redo_chars(&spec, &mut rb.cur.body, false);
+    });
 }
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
@@ -645,26 +719,32 @@ pub fn redo_cancel() {
     }
 
     atom_redo_cancel();
-    inp_st().redobuff.cur = std::mem::take(&mut inp_st().redobuff.old);
-    inp_st().readbuf1 = StuffBuf::new();
-    inp_st().readbuf2 = StuffBuf::new();
+    with_inp_ext(|ext| {
+        let mut rb = ext.redobuff.borrow_mut();
+        rb.cur = std::mem::take(&mut rb.old);
+        *ext.readbuf1.borrow_mut() = StuffBuf::new();
+        *ext.readbuf2.borrow_mut() = StuffBuf::new();
+    });
 }
 
 /// Saves the redo state to `save_redo` and detaches it.
 pub fn save_redobuff(save_redo: &mut RedoState) {
-    save_redo.cur = inp_st().redobuff.cur.clone();
-    save_redo.old = std::mem::take(&mut inp_st().redobuff.old);
+    with_inp_ext(|ext| {
+        let mut rb = ext.redobuff.borrow_mut();
+        save_redo.cur = rb.cur.clone();
+        save_redo.old = std::mem::take(&mut rb.old);
+    });
 }
 
 /// Restores the redo state from `save_redo`.
 pub fn restore_redobuff(save_redo: &mut RedoState) {
-    inp_st().redobuff = std::mem::take(&mut *save_redo);
+    with_inp_ext(|ext| *ext.redobuff.borrow_mut() = std::mem::take(&mut *save_redo));
 }
 
 /// Append `s` to the redo buffer.
 pub fn redo_append_str(s: &[u8]) {
     if !inp_st().block_redo && !s.is_empty() {
-        inp_st().redobuff.cur.body.extend_from_slice(s);
+        with_inp_ext(|ext| ext.redobuff.borrow_mut().cur.body.extend_from_slice(s));
     }
 }
 
@@ -710,7 +790,7 @@ pub fn redo_append_lit(s: &[u8]) {
     if inp_st().block_redo {
         return;
     }
-    sb_add_lit(&mut inp_st().redobuff.cur.body, s);
+    with_inp_ext(|ext| sb_add_lit(&mut ext.redobuff.borrow_mut().cur.body, s));
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
@@ -732,31 +812,31 @@ pub fn redo_append_spec(s: &[u8]) {
     if inp_st().block_redo {
         return;
     }
-    sb_add_spec(&mut inp_st().redobuff.cur.body, s);
+    with_inp_ext(|ext| sb_add_spec(&mut ext.redobuff.borrow_mut().cur.body, s));
 }
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
 pub fn redo_append_char(c: i32) {
     if !inp_st().block_redo {
-        sb_add_char(&mut inp_st().redobuff.cur.body, c);
+        with_inp_ext(|ext| sb_add_char(&mut ext.redobuff.borrow_mut().cur.body, c));
     }
 }
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
 pub fn stuff_readbuff(s: &CStr) {
-    add_buff(&mut inp_st().readbuf1, s.to_bytes());
+    with_inp_ext(|ext| add_buff(&mut ext.readbuf1.borrow_mut(), s.to_bytes()));
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
 pub fn stuff_redo_readbuff(s: &std::ffi::CStr) {
-    add_buff(&mut inp_st().readbuf2, s.to_bytes());
+    with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), s.to_bytes()));
 }
 
 pub fn stuff_readbuff_len(s: &[u8]) {
     if g_st().add_last_insert == 1 && !s.is_empty() {
         g_st().last_insert_ga.extend_from_slice(s);
     }
-    add_buff(&mut inp_st().readbuf1, s);
+    with_inp_ext(|ext| add_buff(&mut ext.readbuf1.borrow_mut(), s));
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
@@ -778,12 +858,12 @@ pub fn stuff_readbuff_special(s: &CStr) {
 
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
 pub fn stuffchar_readbuff(c: i32) {
-    add_char_buff(&mut inp_st().readbuf1, c);
+    with_inp_ext(|ext| add_char_buff(&mut ext.readbuf1.borrow_mut(), c));
 }
 
 /// Append a number to the stuff buffer.
 pub fn stuffnum_readbuff(n: i32) {
-    add_num_buff(&mut inp_st().readbuf1, n);
+    with_inp_ext(|ext| add_num_buff(&mut ext.readbuf1.borrow_mut(), n));
 }
 
 /// Stuff a string into the typeahead buffer.
@@ -811,66 +891,71 @@ pub fn stuffescaped(rem: &[u8], literally: bool) {
 
 /// Dot-repeat `"."` command.
 pub fn start_redo(count: i32, old_redo: bool) -> bool {
-    let rd = if old_redo {
-        &mut inp_st().redobuff.old
-    } else {
-        &mut inp_st().redobuff.cur
-    };
-    if rd.body.is_empty() && rd.regname == 0 && rd.count == 0 {
+    let Some((mut spec, body)) = with_inp_ext(|ext| {
+        let mut rb = ext.redobuff.borrow_mut();
+        let rd = if old_redo { &mut rb.old } else { &mut rb.cur };
+        if rd.body.is_empty() && rd.regname == 0 && rd.count == 0 {
+            return None;
+        }
+        let mut spec = rd.without_body();
+        if spec.regname >= b'1' as i32 && spec.regname < b'9' as i32 {
+            spec.regname += 1;
+            rd.regname = spec.regname;
+        }
+        Some((spec, rd.body.clone()))
+    }) else {
         return false;
-    }
+    };
 
-    let mut spec = rd.without_body();
-    if spec.regname >= b'1' as i32 && spec.regname < b'9' as i32 {
-        spec.regname += 1;
-    }
     if count != 0 {
         spec.count = i64::from(count);
     }
     let mut prefix: Vec<u8> = Vec::new();
     redo_prefix(&spec, &mut prefix, true);
-    add_buff(&mut inp_st().readbuf2, &prefix);
+    with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), &prefix));
     drop(prefix);
     if spec.regname == b'=' as i32 {
         g_st().cmd_silent = true;
     }
 
-    let body = rd.body.clone();
-    add_buff(&mut inp_st().readbuf2, &body);
+    with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), &body));
     true
 }
 
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
 pub fn start_redo_ins() -> bool {
-    if inp_st().redobuff.cur.body.is_empty() {
+    if with_inp_ext(|ext| ext.redobuff.borrow().cur.body.is_empty()) {
         return false;
     }
     start_stuff();
 
-    let len = inp_st().redobuff.cur.body.len();
-    let mut pos = 0usize;
-    let mut add_nl = false;
-    while pos < len {
-        let b = inp_st().redobuff.cur.body[pos];
-        if b == K_SPECIAL && len - pos >= 3 {
-            pos += 3;
-            continue;
-        }
-        if crate::strings::vim_haschr(c"AaIiRrOo", i32::from(b)) {
-            if b == b'O' || b == b'o' {
-                add_nl = true;
+    let (add_nl, rem) = with_inp_ext(|ext| {
+        let body = &ext.redobuff.borrow().cur.body;
+        let len = body.len();
+        let mut pos = 0usize;
+        let mut add_nl = false;
+        while pos < len {
+            let b = body[pos];
+            if b == K_SPECIAL && len - pos >= 3 {
+                pos += 3;
+                continue;
+            }
+            if crate::strings::vim_haschr(c"AaIiRrOo", i32::from(b)) {
+                if b == b'O' || b == b'o' {
+                    add_nl = true;
+                }
+                pos += 1;
+                break;
             }
             pos += 1;
-            break;
         }
-        pos += 1;
-    }
+        (add_nl, body[pos..].to_vec())
+    });
     if add_nl {
-        add_buff(&mut inp_st().readbuf2, NL_STR.to_bytes());
+        with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), NL_STR.to_bytes()));
     }
 
-    let rem = inp_st().redobuff.cur.body[pos..].to_vec();
-    add_buff(&mut inp_st().readbuf2, &rem);
+    with_inp_ext(|ext| add_buff(&mut ext.readbuf2.borrow_mut(), &rem));
     inp_st().block_redo = true;
     true
 }
@@ -1159,20 +1244,24 @@ fn gotchars(chars: &[u8]) {
 
         if buflen > inp_st().on_key_ignore_len {
             let ignore_len = inp_st().on_key_ignore_len;
-            let chunk = &inp_st().gotchars_state.buf[ignore_len..buflen];
-            inp_st().on_key_buf.extend_from_slice(chunk);
+            let gotchars_buf = inp_st().gotchars_state.buf;
+            let chunk = &gotchars_buf[ignore_len..buflen];
+            with_inp_ext(|ext| ext.on_key_buf.borrow_mut().extend_from_slice(chunk));
             inp_st().on_key_ignore_len = 0;
         } else {
             inp_st().on_key_ignore_len -= buflen;
         }
 
         if g_st().reg_recording != 0 {
-            let chunk = &inp_st().gotchars_state.buf[..buflen];
-            inp_st().recordbuff.extend_from_slice(chunk);
-            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
+            let gotchars_buf = inp_st().gotchars_state.buf;
+            let chunk = &gotchars_buf[..buflen];
+            with_inp_ext(|ext| ext.recordbuff.borrow_mut().extend_from_slice(chunk));
+            let rec_len = inp_st().last_recorded_len.wrapping_add(buflen);
+            inp_st().last_recorded_len = rec_len;
         }
 
-        atom_typed_add(&inp_st().gotchars_state.buf[..buflen]);
+        let gotchars_buf = inp_st().gotchars_state.buf;
+        atom_typed_add(&gotchars_buf[..buflen]);
 
         inp_st().gotchars_state.buflen = 0;
     }
@@ -1194,17 +1283,26 @@ fn ungetchars(len: i32, recorded: bool) {
         return;
     }
     let len_u = len as usize;
-    if recorded && g_st().reg_recording != 0 && inp_st().recordbuff.len() >= len_u {
-        inp_st()
-            .recordbuff
-            .truncate(inp_st().recordbuff.len() - len_u);
-        inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(len_u);
+    if recorded
+        && g_st().reg_recording != 0
+        && with_inp_ext(|ext| ext.recordbuff.borrow().len() >= len_u)
+    {
+        with_inp_ext(|ext| {
+            let mut rb = ext.recordbuff.borrow_mut();
+            let new_len = rb.len() - len_u;
+            rb.truncate(new_len);
+        });
+        let rec_len = inp_st().last_recorded_len.wrapping_sub(len_u);
+        inp_st().last_recorded_len = rec_len;
     }
     atom_typed_del(len_u);
-    let trim = len_u.min(inp_st().on_key_buf.len());
-    inp_st()
-        .on_key_buf
-        .truncate(inp_st().on_key_buf.len() - trim);
+    let trim = with_inp_ext(|ext| {
+        let mut okb = ext.on_key_buf.borrow_mut();
+        let trim = len_u.min(okb.len());
+        let new_len = okb.len() - trim;
+        okb.truncate(new_len);
+        trim
+    });
     inp_st().on_key_ignore_len += len_u - trim;
 }
 
@@ -1240,17 +1338,21 @@ fn free_typebuf() {
 }
 
 fn save_typebuf() {
-    assert!(inp_st().curscript >= 0);
+    let cur_idx = inp_st().curscript;
+    assert!(cur_idx >= 0);
     init_typebuf();
     let prev_cnt = g_st().typebuf.tb_change_cnt;
-    inp_st().saved_typebuf[inp_st().curscript as usize] =
-        std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
+    with_inp_ext(|ext| {
+        ext.saved_typebuf.borrow_mut()[cur_idx as usize] =
+            std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
+    });
     g_st().typebuf.tb_change_cnt = prev_cnt;
     alloc_typebuf();
 }
 
 fn can_get_ungot() -> bool {
-    inp_st().ungot.c != -1 && (inp_st().ungot.stuffed || stuff_empty())
+    let ungot = inp_st().ungot;
+    ungot.c != -1 && (ungot.stuffed || stuff_empty())
 }
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
@@ -1262,8 +1364,10 @@ pub fn save_typeahead(tp: &mut Tasave) {
     tp.ungot = inp_st().ungot;
     inp_st().ungot.c = -1;
 
-    tp.save_readbuf1 = std::mem::replace(&mut inp_st().readbuf1, StuffBuf::new());
-    tp.save_readbuf2 = std::mem::replace(&mut inp_st().readbuf2, StuffBuf::new());
+    with_inp_ext(|ext| {
+        tp.save_readbuf1 = std::mem::replace(&mut *ext.readbuf1.borrow_mut(), StuffBuf::new());
+        tp.save_readbuf2 = std::mem::replace(&mut *ext.readbuf2.borrow_mut(), StuffBuf::new());
+    });
 }
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
@@ -1272,8 +1376,10 @@ pub fn restore_typeahead(tp: &mut Tasave) {
     g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, Typebuf::ZERO);
     inp_st().ungot = tp.ungot;
 
-    inp_st().readbuf1 = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
-    inp_st().readbuf2 = std::mem::replace(&mut tp.save_readbuf2, StuffBuf::new());
+    with_inp_ext(|ext| {
+        *ext.readbuf1.borrow_mut() = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
+        *ext.readbuf2.borrow_mut() = std::mem::replace(&mut tp.save_readbuf2, StuffBuf::new());
+    });
 }
 
 /// Open a new script file for the `":source!"` command.
@@ -1295,12 +1401,14 @@ pub fn openscript(name: &CStr, directly: bool) {
         inp_st().curscript += 1;
         expand_env(name, g_st().name_buff_bytes_mut());
         let cur_idx = inp_st().curscript as usize;
-        let error = file_open(
-            &mut inp_st().scriptin[cur_idx],
-            Some(g_st().name_buff_cstr()),
-            K_FILE_READ_ONLY,
-            0,
-        );
+        let error = with_inp_ext(|ext| {
+            file_open(
+                &mut ext.scriptin.borrow_mut()[cur_idx],
+                Some(g_st().name_buff_cstr()),
+                K_FILE_READ_ONLY,
+                0,
+            )
+        });
         if error != 0 {
             semsg!(gettext(E_NOTOPEN_2), name, uv_strerror(error));
             inp_st().curscript -= 1;
@@ -1339,15 +1447,16 @@ pub fn openscript(name: &CStr, directly: bool) {
 }
 
 fn closescript() {
-    assert!(inp_st().curscript >= 0);
+    let cur_idx = inp_st().curscript;
+    assert!(cur_idx >= 0);
     free_typebuf();
-    g_st().typebuf = std::mem::replace(
-        &mut inp_st().saved_typebuf[inp_st().curscript as usize],
-        Typebuf::ZERO,
-    );
-
-    let cur_idx = inp_st().curscript as usize;
-    file_close(&mut inp_st().scriptin[cur_idx], false);
+    with_inp_ext(|ext| {
+        g_st().typebuf = std::mem::replace(
+            &mut ext.saved_typebuf.borrow_mut()[cur_idx as usize],
+            Typebuf::ZERO,
+        );
+        file_close(&mut ext.scriptin.borrow_mut()[cur_idx as usize], false);
+    });
     inp_st().curscript -= 1;
 }
 
@@ -1361,16 +1470,19 @@ pub fn open_scriptin(scriptin_name: &CStr) -> bool {
     assert!(inp_st().curscript == -1);
     inp_st().curscript += 1;
 
-    let error = if scriptin_name.to_bytes() == b"-" {
-        file_open_stdin(&mut inp_st().scriptin[0])
-    } else {
-        file_open(
-            &mut inp_st().scriptin[0],
-            Some(scriptin_name),
-            K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
-            0,
-        )
-    };
+    let error = with_inp_ext(|ext| {
+        let mut scriptin = ext.scriptin.borrow_mut();
+        if scriptin_name.to_bytes() == b"-" {
+            file_open_stdin(&mut scriptin[0])
+        } else {
+            file_open(
+                &mut scriptin[0],
+                Some(scriptin_name),
+                K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
+                0,
+            )
+        }
+    });
     if error != 0 {
         let mut errbuf = [0u8; 1024];
         let n = format_to_buf!(
@@ -1516,9 +1628,12 @@ pub fn vgetc() -> i32 {
         g_st().vgetc_mod_mask = 0;
         g_st().vgetc_char = 0;
 
-        inp_st().last_recorded_len = inp_st()
-            .last_recorded_len
-            .wrapping_sub(inp_st().last_vgetc_recorded_len);
+        let rec_len = {
+            let st = inp_st();
+            st.last_recorded_len
+                .wrapping_sub(st.last_vgetc_recorded_len)
+        };
+        inp_st().last_recorded_len = rec_len;
 
         loop {
             let mut did_inc = false;
@@ -1637,13 +1752,18 @@ pub fn vgetc() -> i32 {
             break;
         }
 
-        inp_st().last_vgetc_recorded_len = inp_st().last_recorded_len;
+        let rec_len = inp_st().last_recorded_len;
+        inp_st().last_vgetc_recorded_len = rec_len;
     }
 
     g_st().may_garbage_collect = false;
 
-    inp_st().on_key_buf.push(0);
-    if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, &mut inp_st().on_key_buf) {
+    let mut on_key_buf = with_inp_ext(|ext| {
+        let mut b = std::mem::take(&mut *ext.on_key_buf.borrow_mut());
+        b.push(0);
+        b
+    });
+    if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, &mut on_key_buf) {
         if c == K_COMMAND {
             let _ = getcmdkeycmd(NUL, 0, false);
         } else if c == K_LUA {
@@ -1653,7 +1773,6 @@ pub fn vgetc() -> i32 {
         }
         c = K_IGNORE;
     }
-    inp_st().on_key_buf = Vec::new();
 
     if c != K_IGNORE {
         state_no_longer_safe(Some(c"key typed"));
@@ -2772,7 +2891,9 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
         let mut script_char = [0u8; 1];
         let cur_idx = inp_st().curscript as usize;
         if g_st().got_int || {
-            read_size = file_read(&mut inp_st().scriptin[cur_idx], &mut script_char);
+            read_size = with_inp_ext(|ext| {
+                file_read(&mut ext.scriptin.borrow_mut()[cur_idx], &mut script_char)
+            });
             read_size != 1
         } {
             closescript();
@@ -3067,10 +3188,10 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
             if state == K_FALSE && (g_st().state_global & MODE_INSERT) == 0 {
                 redo_new(CmdSpec::default());
             }
-            sb_add_char(&mut inp_st().redobuff.cur.body, c);
+            with_inp_ext(|ext| sb_add_char(&mut ext.redobuff.borrow_mut().cur.body, c));
         }
         if need_record {
-            sb_add_char(&mut inp_st().recordbuff, c);
+            with_inp_ext(|ext| sb_add_char(&mut ext.recordbuff.borrow_mut(), c));
         }
         return;
     }
@@ -3092,10 +3213,12 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
         if pos > start {
             let slice = &str_bytes[start..pos];
             if need_redo {
-                inp_st().redobuff.cur.body.extend_from_slice(slice);
+                with_inp_ext(|ext| {
+                    ext.redobuff.borrow_mut().cur.body.extend_from_slice(slice);
+                });
             }
             if need_record {
-                inp_st().recordbuff.extend_from_slice(slice);
+                with_inp_ext(|ext| ext.recordbuff.borrow_mut().extend_from_slice(slice));
             }
         }
 
@@ -3109,10 +3232,10 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
                 c = NL;
             }
             if need_redo {
-                sb_add_byte(&mut inp_st().redobuff.cur.body, c);
+                with_inp_ext(|ext| sb_add_byte(&mut ext.redobuff.borrow_mut().cur.body, c));
             }
             if need_record {
-                sb_add_byte(&mut inp_st().recordbuff, c);
+                with_inp_ext(|ext| sb_add_byte(&mut ext.recordbuff.borrow_mut(), c));
             }
         }
     }

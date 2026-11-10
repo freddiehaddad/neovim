@@ -208,30 +208,32 @@ static E_AUCHANGEDBUF: &CStr = c"E812: Autocommands changed buffer or buffer nam
 static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
 
 struct FileioModuleState {
-    already_warned: bool,
-    vim_tempdir: Option<std::ffi::CString>,
+    already_warned: std::cell::Cell<bool>,
+    vim_tempdir: std::cell::RefCell<Option<std::ffi::CString>>,
     #[cfg(unix)]
-    vim_tempdir_dp: Option<crate::os::fs::OsLockedDir>,
-    notfound: i32,
+    vim_tempdir_dp: std::cell::RefCell<Option<crate::os::fs::OsLockedDir>>,
+    notfound: std::cell::Cell<i32>,
 }
 
 impl FileioModuleState {
     const fn new() -> Self {
         Self {
-            already_warned: false,
-            vim_tempdir: None,
+            already_warned: std::cell::Cell::new(false),
+            vim_tempdir: std::cell::RefCell::new(None),
             #[cfg(unix)]
-            vim_tempdir_dp: None,
-            notfound: 0,
+            vim_tempdir_dp: std::cell::RefCell::new(None),
+            notfound: std::cell::Cell::new(0),
         }
     }
 }
 
-static FIO_STATE: GlobalState<FileioModuleState> = GlobalState::new(FileioModuleState::new());
+thread_local! {
+    static FIO_STATE: FileioModuleState = const { FileioModuleState::new() };
+}
 
 #[inline]
-fn fio_st() -> crate::globals::GraphPtr<FileioModuleState> {
-    FIO_STATE.handle()
+fn with_fio<R>(f: impl FnOnce(&FileioModuleState) -> R) -> R {
+    FIO_STATE.with(f)
 }
 
 use crate::arglist::ML_EMPTY;
@@ -3058,7 +3060,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
     } else {
         g_st().no_wait_return += 1;
         g_st().did_check_timestamps = true;
-        fio_st().already_warned = false;
+        with_fio(|st| st.already_warned.set(false));
         let mut buf_opt = g_st().firstbuf.opt_mut();
         while let Some(buf) = buf_opt {
             let next_ptr = buf.b_next;
@@ -3289,7 +3291,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             }
         } else if g_st().state_global > MODE_NORMAL_BUSY
             || (g_st().state_global & MODE_CMDLINE) != 0
-            || fio_st().already_warned
+            || with_fio(|st| st.already_warned.get())
         {
             if !mesg2.to_bytes().is_empty() {
                 format_to_buf!(&mut tbuf_vec[tbuflen as usize..], c"; %s", mesg2);
@@ -3310,7 +3312,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     g_st().redraw_cmdline = false;
                 }
             }
-            fio_st().already_warned = true;
+            with_fio(|st| st.already_warned.set(true));
         }
 
         drop(tbuf_vec);
@@ -3689,24 +3691,25 @@ pub fn delete_recursive(name: &CStr) -> i32 {
 
 #[cfg(unix)]
 fn vim_opentempdir() {
-    if fio_st().vim_tempdir_dp.is_some() {
-        return;
-    }
-
-    let Some(ref td) = fio_st().vim_tempdir else {
-        return;
-    };
-    fio_st().vim_tempdir_dp = crate::os::fs::OsLockedDir::open_shared(td);
+    with_fio(|st| {
+        if st.vim_tempdir_dp.borrow().is_some() {
+            return;
+        }
+        let Some(ref td) = *st.vim_tempdir.borrow() else {
+            return;
+        };
+        *st.vim_tempdir_dp.borrow_mut() = crate::os::fs::OsLockedDir::open_shared(td);
+    });
 }
 
 #[cfg(unix)]
 fn vim_closetempdir() {
-    fio_st().vim_tempdir_dp = None;
+    with_fio(|st| *st.vim_tempdir_dp.borrow_mut() = None);
 }
 
 /// Delete the temp directory and all files it contains.
 pub fn vim_deltempdir() {
-    let Some(td) = fio_st().vim_tempdir.take() else {
+    let Some(td) = with_fio(|st| st.vim_tempdir.borrow_mut().take()) else {
         return;
     };
 
@@ -3723,11 +3726,20 @@ pub fn vim_deltempdir() {
 }
 
 /// Gets path to Nvim's own temp dir (ending with slash).
-pub fn vim_gettempdir() -> Option<&'static CStr> {
-    if fio_st().vim_tempdir.as_ref().is_none_or(|td| !os_isdir(td)) {
-        if let Some(current_td) = fio_st().vim_tempdir.take() {
-            fio_st().notfound += 1;
-            if fio_st().notfound == 1 {
+pub fn vim_gettempdir() -> Option<std::ffi::CString> {
+    if with_fio(|st| {
+        st.vim_tempdir
+            .borrow()
+            .as_ref()
+            .is_none_or(|td| !os_isdir(td))
+    }) {
+        if let Some(current_td) = with_fio(|st| st.vim_tempdir.borrow_mut().take()) {
+            let notfound = with_fio(|st| {
+                let n = st.notfound.get() + 1;
+                st.notfound.set(n);
+                n
+            });
+            if notfound == 1 {
                 logmsg!(
                     LOG_ERR,
                     None,
@@ -3738,13 +3750,13 @@ pub fn vim_gettempdir() -> Option<&'static CStr> {
                     &current_td,
                 );
             }
-            if fio_st().notfound > 1 {
-                msg_schedule_semsg!(c"E5431: tempdir disappeared (%d times)", fio_st().notfound);
+            if notfound > 1 {
+                msg_schedule_semsg!(c"E5431: tempdir disappeared (%d times)", notfound);
             }
         }
         vim_mktempdir();
     }
-    fio_st().borrow_mut().vim_tempdir.as_deref()
+    with_fio(|st| st.vim_tempdir.borrow().clone())
 }
 
 /// Sets Nvim's own temporary directory name to `tempdir`.
@@ -3759,7 +3771,10 @@ fn vim_settempdir(tempdir: &CStr) -> bool {
         buf_vec[buflen..(buflen + sep_bytes.len())].copy_from_slice(sep_bytes);
         buflen += sep_bytes.len() - 1;
     }
-    fio_st().vim_tempdir = Some(std::ffi::CString::new(&buf_vec[..buflen]).unwrap_or_default());
+    with_fio(|st| {
+        *st.vim_tempdir.borrow_mut() =
+            Some(std::ffi::CString::new(&buf_vec[..buflen]).unwrap_or_default());
+    });
     #[cfg(unix)]
     vim_opentempdir();
     true

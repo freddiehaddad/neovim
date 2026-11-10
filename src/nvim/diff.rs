@@ -1221,8 +1221,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             {
                 dirbuf[0] = 0;
             } else {
-                let tempdir = vim_gettempdir().unwrap_or(c"/tmp");
-                let _ = crate::os::fs::os_chdir(tempdir);
+                let tempdir = vim_gettempdir();
+                let _ = crate::os::fs::os_chdir(tempdir.as_deref().unwrap_or(c"/tmp"));
                 shorten_fnames(true);
             }
         }

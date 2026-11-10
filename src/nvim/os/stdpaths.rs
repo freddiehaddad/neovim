@@ -184,7 +184,8 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     } else if let Some(fb) = fallback {
         Some(expand_env_save(fb))
     } else if idx == XDGVarType::XDGRuntimeDir {
-        let raw = vim_gettempdir().map_or(b"/tmp/" as &[u8], |s| s.to_bytes());
+        let tempdir = vim_gettempdir();
+        let raw = tempdir.as_deref().map_or(b"/tmp/" as &[u8], CStr::to_bytes);
         let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
         Some(bytes_to_cstring(&raw[..trimmed_len]))
     } else {
