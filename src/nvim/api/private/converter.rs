@@ -83,8 +83,11 @@ fn convert_one_value(
         }
         VarType::VarBlob => {
             let blob = tv.vval.v_blob_opt();
-            let bytes: &[u8] = blob.map_or(&[], |b| &b.bv_ga);
-            stack.push(cbuf_to_string_obj(arena, reuse_strdata, bytes));
+            let obj = match blob {
+                Some(b) => cbuf_to_string_obj(arena, reuse_strdata, &b.bv_ga.borrow()),
+                None => cbuf_to_string_obj(arena, reuse_strdata, &[]),
+            };
+            stack.push(obj);
         }
         VarType::VarFunc => {
             let obj = if let Some(fun) = tv.vval.v_string_cstr()

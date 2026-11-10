@@ -1621,7 +1621,7 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if input_len == 0 {
             return;
         }
-        b.bv_ga[..input_len].to_vec()
+        b.bv_ga.borrow()[..input_len].to_vec()
     } else {
         let Some(vec) = save_tv_as_string(&mut argvars[1], false, crlf) else {
             return;
@@ -1991,7 +1991,7 @@ pub fn f_empty(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             n = argvars[0].vval.v_special() == K_SPECIAL_VAR_NULL_CONST;
         }
         VarType::VarBlob => {
-            n = tv_blob_len(argvars[0].vval.v_blob_opt().as_deref()) == 0;
+            n = tv_blob_len(argvars[0].vval.v_blob_opt()) == 0;
         }
         VarType::VarUnknown => {
             internal_error(c"f_empty(UNKNOWN)");
@@ -2629,8 +2629,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
             } else {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_blob_get(
-                    blob.borrow(),
-                    idx,
+                    &blob, idx,
                 )));
 
                 tv = crate::globals::GraphPtr::<TypVal>::from_ref(rettv);
@@ -3978,7 +3977,7 @@ pub fn f_indexof(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     if argvars[0].v_type == VarType::VarBlob {
         rettv.vval = crate::eval::typval::TypvalVval::Number(indexof_blob(
-            argvars[0].vval.v_blob_opt().as_deref(),
+            argvars[0].vval.v_blob().opt(),
             startidx,
             &mut argvars[1],
         ));
@@ -4817,7 +4816,7 @@ pub fn f_len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
         VarType::VarBlob => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_blob_len(
-                argvars[0].vval.v_blob_opt().as_deref(),
+                argvars[0].vval.v_blob_opt(),
             )));
         }
         VarType::VarList => {
@@ -5567,9 +5566,9 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
     let data = packer_take_string(&mut packer);
     if argvars[1].v_type != VarType::VarUnknown && tv_get_string(&argvars[1]).to_bytes() == b"B" {
-        let b = &mut *tv_blob_alloc_ret(rettv);
+        let b = tv_blob_alloc_ret(rettv);
         if !data.is_empty() {
-            b.bv_ga.extend_from_slice(&data);
+            b.bv_ga.borrow_mut().extend_from_slice(&data);
         }
     } else {
         encode_list_write(
@@ -5664,7 +5663,8 @@ fn msgpackparse_unpack_blob(blob: Option<&TvBlob>, ret_list: &mut TvList) {
         return;
     }
 
-    let mut parse_slice = &blob.unwrap().bv_ga[..len as usize];
+    let bv = blob.unwrap().bv_ga.borrow().clone();
+    let mut parse_slice = &bv[..len as usize];
     while !parse_slice.is_empty() {
         let mut tv = tv_initial_value();
         let status = unpack_typval(&mut parse_slice, &mut tv);
@@ -5686,7 +5686,7 @@ pub fn f_msgpackparse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     if argvars[0].v_type == VarType::VarList {
         msgpackparse_unpack_list(argvars[0].vval.v_list_opt().as_deref(), &mut *ret_list);
     } else {
-        msgpackparse_unpack_blob(argvars[0].vval.v_blob_opt().as_deref(), &mut *ret_list);
+        msgpackparse_unpack_blob(argvars[0].vval.v_blob_opt(), &mut *ret_list);
     }
 }
 
@@ -6133,7 +6133,7 @@ fn repeat_list(l: Option<&TvList>, mut n: Varnumber, rettv: &mut TypVal) {
 }
 
 fn repeat_blob(blob_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
-    let blob = blob_tv.vval.v_blob_opt();
+    let blob = blob_tv.vval.v_blob().rc();
     let ret_blob = tv_blob_alloc_ret(rettv);
     let Some(blob) = blob else {
         return;
@@ -6141,7 +6141,7 @@ fn repeat_blob(blob_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
     if n <= 0 {
         return;
     }
-    let slen = blob.bv_ga.len() as i32;
+    let slen = blob.bv_ga.borrow().len() as i32;
     if slen <= 0 {
         return;
     }
@@ -6149,14 +6149,14 @@ fn repeat_blob(blob_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
         return;
     }
     let len = slen * (n as i32);
-    ret_blob.bv_ga.resize(len as usize, 0);
+    ret_blob.bv_ga.borrow_mut().resize(len as usize, 0);
 
-    if blob.bv_ga.iter().all(|&b| b == 0) {
+    if blob.bv_ga.borrow().iter().all(|&b| b == 0) {
         return;
     }
     for idx in 0..(n as i32) {
         tv_blob_set_range(
-            ret_blob,
+            &ret_blob,
             Varnumber::from(idx * slen),
             Varnumber::from((idx + 1) * slen - 1),
             &mut *blob_tv,
@@ -6304,7 +6304,7 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
         let initial: TypVal;
         let mut i: i32;
         if argvars[2].v_type == VarType::VarUnknown {
-            if tv_blob_len(b.as_deref()) == 0 {
+            if tv_blob_len(b) == 0 {
                 semsg!(
                     gettext(E_REDUCE_OF_AN_EMPTY_STR_WITH_NO_INITIAL_VALUE),
                     c"Blob",
@@ -6314,7 +6314,7 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
             initial = TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(Varnumber::from(tv_blob_get(b.as_deref().unwrap(), 0))),
+                vval: TypvalVval::Number(Varnumber::from(tv_blob_get(b.unwrap(), 0))),
             };
             i = 1;
         } else if !tv_check_for_number_arg(argvars, 2) {
@@ -6325,16 +6325,13 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
         }
 
         tv_copy(&initial, &mut *rettv);
-        while i < tv_blob_len(b.as_deref()) {
+        while i < tv_blob_len(b) {
             let mut argv = [
                 std::mem::replace(&mut *rettv, tv_initial_value()),
                 TypVal {
                     v_type: VarType::VarNumber,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(Varnumber::from(tv_blob_get(
-                        b.as_deref().unwrap(),
-                        i,
-                    ))),
+                    vval: TypvalVval::Number(Varnumber::from(tv_blob_get(b.unwrap(), i))),
                 },
                 tv_initial_value(),
             ];
@@ -7441,8 +7438,10 @@ pub fn f_sha256(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     if argvars[0].v_type == VarType::VarBlob {
         let blob = argvars[0].vval.v_blob_opt();
-        let slice: &[u8] = blob.map_or(&[], |b| &b.bv_ga);
-        let hex = sha256_hex(slice, None);
+        let hex = match blob {
+            Some(b) => sha256_hex(&b.bv_ga.borrow(), None),
+            None => sha256_hex(&[], None),
+        };
         crate::eval::typval::tv_set_string_len(rettv, Some(&hex));
     } else {
         let p = tv_get_string(&argvars[0]);

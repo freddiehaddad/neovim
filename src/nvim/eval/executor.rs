@@ -18,22 +18,25 @@ fn tv_op_blob(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
         return false;
     }
 
-    let Some(b2) = tv2.vval.v_blob_opt() else {
+    let Some(b2) = tv2.vval.v_blob().rc() else {
         return true;
     };
 
-    let Some(b1_ref) = tv1.vval.v_blob_opt() else {
-        tv1.vval = crate::eval::typval::TypvalVval::Blob(b2.bv_id);
-        b2.bv_refcount += 1;
+    let Some(b1_ref) = tv1.vval.v_blob().rc() else {
+        b2.bv_refcount.set(b2.bv_refcount.get() + 1);
+        tv1.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::from(b2));
         return true;
     };
 
-    if !b2.bv_ga.is_empty() {
-        if std::ptr::eq(b1_ref, b2) {
-            let copy = b1_ref.bv_ga.clone();
-            b1_ref.bv_ga.extend_from_slice(&copy);
+    if !b2.bv_ga.borrow().is_empty() {
+        if std::rc::Rc::ptr_eq(&b1_ref, &b2) {
+            let copy = b1_ref.bv_ga.borrow().clone();
+            b1_ref.bv_ga.borrow_mut().extend_from_slice(&copy);
         } else {
-            b1_ref.bv_ga.extend_from_slice(&b2.bv_ga);
+            b1_ref
+                .bv_ga
+                .borrow_mut()
+                .extend_from_slice(&b2.bv_ga.borrow());
         }
     }
 

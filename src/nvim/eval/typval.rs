@@ -67,73 +67,65 @@ pub const K_CALLBACK_LUA: i32 = 3;
 pub const K_CALLBACK_EXPR: i32 = 4;
 
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct BlobId(Option<std::num::NonZeroU32>);
+#[derive(Clone, Default)]
+pub struct BlobId(Option<std::rc::Rc<TvBlob>>);
+
+impl PartialEq for BlobId {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => std::rc::Rc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for BlobId {}
+
+impl std::fmt::Debug for BlobId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BlobId")
+            .field(&self.0.as_ref().map(std::rc::Rc::as_ptr))
+            .finish()
+    }
+}
 
 impl BlobId {
     pub const NULL: Self = Self(None);
 
     #[inline(always)]
-    pub const fn from_slot(idx: usize) -> Self {
-        Self(std::num::NonZeroU32::new((idx as u32) + 1))
-    }
-
-    #[inline(always)]
-    pub const fn is_null(self) -> bool {
+    pub const fn is_null(&self) -> bool {
         self.0.is_none()
     }
 
     #[inline(always)]
-    pub fn opt(self) -> Option<&'static TvBlob> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas().blob_arena.get(idx).and_then(|s| s.as_deref())
+    pub fn opt(&self) -> Option<&TvBlob> {
+        self.0.as_deref()
     }
 
     #[inline(always)]
-    pub fn opt_mut(self) -> Option<&'static mut TvBlob> {
-        let idx = (self.0?.get() - 1) as usize;
-        tv_arenas()
-            .blob_arena
-            .get_mut(idx)
-            .and_then(|s| s.as_deref_mut())
+    pub fn rc(&self) -> Option<std::rc::Rc<TvBlob>> {
+        self.0.clone()
     }
 
     #[inline(always)]
-    pub fn borrow(self) -> &'static TvBlob {
-        self.opt().expect("null or freed BlobId")
-    }
-
-    #[inline(always)]
-    pub fn borrow_mut(self) -> &'static mut TvBlob {
-        self.opt_mut().expect("null or freed BlobId")
+    pub fn unwrap_rc(&self) -> std::rc::Rc<TvBlob> {
+        self.0.clone().expect("null BlobId")
     }
 }
 
-impl From<&TvBlob> for BlobId {
+impl From<std::rc::Rc<TvBlob>> for BlobId {
     #[inline(always)]
-    fn from(b: &TvBlob) -> Self {
-        b.bv_id
+    fn from(b: std::rc::Rc<TvBlob>) -> Self {
+        Self(Some(b))
     }
 }
 
-impl From<&mut TvBlob> for BlobId {
+impl From<Option<std::rc::Rc<TvBlob>>> for BlobId {
     #[inline(always)]
-    fn from(b: &mut TvBlob) -> Self {
-        b.bv_id
-    }
-}
-
-impl From<Option<&TvBlob>> for BlobId {
-    #[inline(always)]
-    fn from(opt: Option<&TvBlob>) -> Self {
-        opt.map_or(Self::NULL, |b| b.bv_id)
-    }
-}
-
-impl From<Option<&mut TvBlob>> for BlobId {
-    #[inline(always)]
-    fn from(opt: Option<&mut TvBlob>) -> Self {
-        opt.map_or(Self::NULL, |b| b.bv_id)
+    fn from(opt: Option<std::rc::Rc<TvBlob>>) -> Self {
+        Self(opt)
     }
 }
 
@@ -142,23 +134,14 @@ impl std::ops::Deref for BlobId {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        self.borrow()
+        self.opt().expect("null BlobId")
     }
 }
 
-impl std::ops::DerefMut for BlobId {
-    #[inline(always)]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.borrow_mut()
-    }
-}
-
-#[repr(C)]
 pub struct TvBlob {
-    pub bv_ga: Vec<u8>,
-    pub bv_refcount: i32,
-    pub bv_lock: i32,
-    pub bv_id: BlobId,
+    pub bv_ga: std::cell::RefCell<Vec<u8>>,
+    pub bv_refcount: std::cell::Cell<i32>,
+    pub bv_lock: std::cell::Cell<i32>,
 }
 
 #[repr(transparent)]
@@ -594,25 +577,25 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_blob(&self) -> BlobId {
-        match *self {
-            Self::Blob(p) => p,
+    pub fn v_blob(&self) -> BlobId {
+        match self {
+            Self::Blob(p) => p.clone(),
             _ => BlobId::NULL,
         }
     }
 
     #[inline]
-    pub fn v_blob_ref(&self) -> &'static mut TvBlob {
-        match *self {
-            Self::Blob(p) => p.borrow_mut(),
+    pub fn v_blob_ref(&self) -> &TvBlob {
+        match self {
+            Self::Blob(p) => p.opt().expect("null blob"),
             _ => panic!("null blob"),
         }
     }
 
     #[inline]
-    pub fn v_blob_opt(&self) -> Option<&'static mut TvBlob> {
-        match *self {
-            Self::Blob(p) => p.opt_mut(),
+    pub fn v_blob_opt(&self) -> Option<&TvBlob> {
+        match self {
+            Self::Blob(p) => p.opt(),
             _ => None,
         }
     }
@@ -1489,8 +1472,6 @@ pub(crate) struct TypvalArenas {
     dict_numbuf: [u8; NUMBUFLEN],
     mybuf_chk: [u8; NUMBUFLEN],
     mybuf: [u8; NUMBUFLEN],
-    blob_arena: Vec<Option<Box<TvBlob>>>,
-    free_blobs: Vec<usize>,
     partial_arena: Vec<Option<Box<TvPartial>>>,
     free_partials: Vec<usize>,
     dictitem_arena: Vec<Option<Box<Dictitem>>>,
@@ -1509,8 +1490,6 @@ impl TypvalArenas {
             dict_numbuf: [0; NUMBUFLEN],
             mybuf_chk: [0; NUMBUFLEN],
             mybuf: [0; NUMBUFLEN],
-            blob_arena: Vec::new(),
-            free_blobs: Vec::new(),
             partial_arena: Vec::new(),
             free_partials: Vec::new(),
             dictitem_arena: Vec::new(),
@@ -1711,7 +1690,7 @@ pub fn tv_list_set_lock(l: Option<&mut TvList>, lock: VarLockStatus) {
 
 #[inline]
 pub fn tv_blob_len(b: Option<&TvBlob>) -> i32 {
-    b.map_or(0, |b| b.bv_ga.len() as i32)
+    b.map_or(0, |b| b.bv_ga.borrow().len() as i32)
 }
 
 #[inline]
@@ -1817,25 +1796,25 @@ fn tv_dict_is_watched_inline(d: Option<&TvDict>) -> bool {
 }
 
 #[inline]
-fn tv_blob_set_ret_inline(tv: &mut TypVal, b: &mut TvBlob) {
-    b.bv_refcount += 1;
+fn tv_blob_set_ret_inline(tv: &mut TypVal, b: std::rc::Rc<TvBlob>) {
+    b.bv_refcount.set(b.bv_refcount.get() + 1);
     tv.v_type = VarType::VarBlob;
-    tv.vval = crate::eval::typval::TypvalVval::Blob(b.bv_id);
+    tv.vval = crate::eval::typval::TypvalVval::Blob(BlobId::from(b));
 }
 
 #[inline]
 fn tv_blob_len_inline(b: Option<&TvBlob>) -> i32 {
-    b.map_or(0, |b| b.bv_ga.len() as i32)
+    b.map_or(0, |b| b.bv_ga.borrow().len() as i32)
 }
 
 #[inline]
 fn tv_blob_get_inline(b: &TvBlob, idx: i32) -> u8 {
-    (&b.bv_ga)[idx as usize]
+    b.bv_ga.borrow()[idx as usize]
 }
 
 #[inline]
-fn tv_blob_set_inline(blob: &mut TvBlob, idx: i32, c: u8) {
-    (&mut blob.bv_ga)[idx as usize] = c;
+fn tv_blob_set_inline(blob: &TvBlob, idx: i32, c: u8) {
+    blob.bv_ga.borrow_mut()[idx as usize] = c;
 }
 
 #[inline]
@@ -2475,7 +2454,7 @@ pub fn tv_list_flatten(
 fn tv_blob2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
     let blob = argvars[0].vval.v_blob_opt();
 
-    tv_list_alloc_ret(&mut *rettv, tv_blob_len_inline(blob.as_deref()) as isize);
+    tv_list_alloc_ret(&mut *rettv, tv_blob_len_inline(blob) as isize);
     let Some(blob) = blob else {
         return;
     };
@@ -4264,44 +4243,18 @@ pub fn tv_dict_set_keys_readonly(dict: &mut TvDict) {
 }
 
 /// Allocate an empty blob.
-pub fn tv_blob_alloc() -> &'static mut TvBlob {
-    let st = tv_arenas();
-    let idx = if let Some(idx) = st.free_blobs.pop() {
-        let id = BlobId::from_slot(idx);
-        st.blob_arena[idx] = Some(Box::new(TvBlob {
-            bv_ga: Vec::new(),
-            bv_refcount: 0,
-            bv_lock: 0,
-            bv_id: id,
-        }));
-        idx
-    } else {
-        let idx = st.blob_arena.len();
-        let id = BlobId::from_slot(idx);
-        st.blob_arena.push(Some(Box::new(TvBlob {
-            bv_ga: Vec::new(),
-            bv_refcount: 0,
-            bv_lock: 0,
-            bv_id: id,
-        })));
-        idx
-    };
-    st.blob_arena[idx].as_deref_mut().unwrap()
+pub fn tv_blob_alloc() -> std::rc::Rc<TvBlob> {
+    std::rc::Rc::new(TvBlob {
+        bv_ga: std::cell::RefCell::new(Vec::new()),
+        bv_refcount: std::cell::Cell::new(0),
+        bv_lock: std::cell::Cell::new(0),
+    })
 }
 
 /// Unreference a blob.
-pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
+pub fn tv_blob_unref(b: Option<&TvBlob>) {
     if let Some(b_ref) = b {
-        b_ref.bv_refcount -= 1;
-        if b_ref.bv_refcount <= 0
-            && let Some(nz) = b_ref.bv_id.0
-        {
-            let idx = (nz.get() - 1) as usize;
-            let st = tv_arenas();
-            let dropped = st.blob_arena[idx].take();
-            st.free_blobs.push(idx);
-            drop(dropped);
-        }
+        b_ref.bv_refcount.set(b_ref.bv_refcount.get() - 1);
     }
 }
 
@@ -4344,7 +4297,7 @@ pub fn tv_blob_equal(b1: Option<&TvBlob>, b2: Option<&TvBlob>) -> bool {
         return false;
     }
     match (b1, b2) {
-        (Some(b1), Some(b2)) => ptr::eq(b1, b2) || b1.bv_ga == b2.bv_ga,
+        (Some(b1), Some(b2)) => ptr::eq(b1, b2) || *b1.bv_ga.borrow() == *b2.bv_ga.borrow(),
         _ => false,
     }
 }
@@ -4377,9 +4330,13 @@ fn tv_blob_slice(
         rettv.vval = crate::eval::typval::TypvalVval::Blob(BlobId::NULL);
     } else {
         let new_blob = tv_blob_alloc();
-        let src_blob = rettv.vval.v_blob_ref();
-        let new_bv = &mut new_blob.bv_ga;
-        new_bv.extend_from_slice(&src_blob.bv_ga[(n1 as usize)..=(n2 as usize)]);
+        {
+            let src_blob = rettv.vval.v_blob_ref();
+            new_blob
+                .bv_ga
+                .borrow_mut()
+                .extend_from_slice(&src_blob.bv_ga.borrow()[(n1 as usize)..=(n2 as usize)]);
+        }
         tv_clear(&mut *rettv);
         tv_blob_set_ret_inline(rettv, new_blob);
     }
@@ -4412,7 +4369,7 @@ pub fn tv_blob_slice_or_index(
     exclusive: bool,
     rettv: &mut TypVal,
 ) -> bool {
-    let len = tv_blob_len_inline(rettv.vval.v_blob_opt().as_deref());
+    let len = tv_blob_len_inline(rettv.vval.v_blob_opt());
     if is_range {
         tv_blob_slice(len, n1, n2, exclusive, rettv)
     } else {
@@ -4443,13 +4400,8 @@ pub fn tv_blob_check_range(bloblen: i32, n1: Varnumber, n2: Varnumber, quiet: bo
 }
 
 /// Set bytes "n1" to "n2" (inclusive) in "dest" to the value of "src".
-pub fn tv_blob_set_range(
-    dest: &mut TvBlob,
-    n1: Varnumber,
-    n2: Varnumber,
-    src: &mut TypVal,
-) -> bool {
-    if n2 - n1 + 1 != i64::from(tv_blob_len_inline(src.vval.v_blob_opt().as_deref())) {
+pub fn tv_blob_set_range(dest: &TvBlob, n1: Varnumber, n2: Varnumber, src: &mut TypVal) -> bool {
+    if n2 - n1 + 1 != i64::from(tv_blob_len_inline(src.vval.v_blob_opt())) {
         emsg(tr(
             c"E972: Blob value does not have the right number of bytes",
         ));
@@ -4464,8 +4416,9 @@ pub fn tv_blob_set_range(
 }
 
 /// Store one byte "byte" in blob "blob" at "idx".
-pub fn tv_blob_set_append(blob: &mut TvBlob, idx: i32, byte: u8) {
-    let bv = &mut blob.bv_ga;
+pub fn tv_blob_set_append(blob: &TvBlob, idx: i32, byte: u8) {
+    let mut bv_guard = blob.bv_ga.borrow_mut();
+    let bv = &mut *bv_guard;
     let len = bv.len() as i32;
     if idx < len {
         bv[idx as usize] = byte;
@@ -4476,9 +4429,9 @@ pub fn tv_blob_set_append(blob: &mut TvBlob, idx: i32, byte: u8) {
 
 /// "remove({blob})" function.
 pub fn tv_blob_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &CStr) {
-    let b = argvars[0].vval.v_blob_opt();
+    let b = argvars[0].vval.v_blob().rc();
     if let Some(ref b_ref) = b
-        && value_check_lock(b_ref.bv_lock, Some(arg_errmsg), TV_TRANSLATE)
+        && value_check_lock(b_ref.bv_lock.get(), Some(arg_errmsg), TV_TRANSLATE)
     {
         return;
     }
@@ -4497,7 +4450,7 @@ pub fn tv_blob_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         }
         let b_ref = b.unwrap();
         if argvars[2].v_type == VarType::VarUnknown {
-            let removed = b_ref.bv_ga.remove(idx as usize);
+            let removed = b_ref.bv_ga.borrow_mut().remove(idx as usize);
             rettv.vval = crate::eval::typval::TypvalVval::Number(i64::from(removed));
         } else {
             let mut end = tv_get_number_chk(&argvars[2], Some(&mut error));
@@ -4512,8 +4465,12 @@ pub fn tv_blob_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
                 return;
             }
             let blob = tv_blob_alloc();
-            let dst_bv = &mut blob.bv_ga;
-            dst_bv.extend(b_ref.bv_ga.drain((idx as usize)..=(end as usize)));
+            blob.bv_ga.borrow_mut().extend(
+                b_ref
+                    .bv_ga
+                    .borrow_mut()
+                    .drain((idx as usize)..=(end as usize)),
+            );
             tv_blob_set_ret_inline(rettv, blob);
         }
     }
@@ -4548,10 +4505,9 @@ pub fn f_list2blob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     };
 
-    let bv = &mut blob.bv_ga;
     let list_len = tv_list_len_inline(Some(l));
     if list_len > 0 {
-        bv.reserve(list_len as usize);
+        blob.bv_ga.borrow_mut().reserve(list_len as usize);
     }
 
     for li in crate::eval::typval::list_iter_mut(l.first_opt()) {
@@ -4561,10 +4517,10 @@ pub fn f_list2blob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             if !error {
                 semsg!(tr(E_INVALID_VALUE_FOR_BLOB_NR), n as i32);
             }
-            bv.clear();
+            blob.bv_ga.borrow_mut().clear();
             return;
         }
-        bv.push(n as u8);
+        blob.bv_ga.borrow_mut().push(n as u8);
     }
 }
 
@@ -4689,9 +4645,9 @@ pub fn tv_dict_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
 }
 
 /// Allocate an empty blob for a return value.
-pub fn tv_blob_alloc_ret(ret_tv: &mut TypVal) -> &'static mut TvBlob {
+pub fn tv_blob_alloc_ret(ret_tv: &mut TypVal) -> std::rc::Rc<TvBlob> {
     let b = tv_blob_alloc();
-    tv_blob_set_ret_inline(ret_tv, b);
+    tv_blob_set_ret_inline(ret_tv, b.clone());
     b
 }
 
@@ -4700,8 +4656,11 @@ pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
     to.v_type = VarType::VarBlob;
     to.v_lock = VAR_UNLOCKED;
     if let Some(from) = from {
-        let dst_blob = &mut *tv_blob_alloc_ret(to);
-        dst_blob.bv_ga.extend_from_slice(&from.bv_ga);
+        let dst_blob = tv_blob_alloc_ret(to);
+        dst_blob
+            .bv_ga
+            .borrow_mut()
+            .extend_from_slice(&from.bv_ga.borrow());
     } else {
         to.vval = crate::eval::typval::TypvalVval::Blob(BlobId::NULL);
     }
@@ -5075,7 +5034,7 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
         }
         VarType::VarBlob => {
             if let Some(b) = from.vval.v_blob_opt() {
-                b.bv_refcount += 1;
+                b.bv_refcount.set(b.bv_refcount.get() + 1);
             }
         }
         VarType::VarList => {
@@ -5121,9 +5080,9 @@ pub fn tv_item_lock(tv: &mut TypVal, deep: i32, lock: bool, check_refcount: bool
     match tv.v_type {
         VarType::VarBlob => {
             if let Some(b) = tv.vval.v_blob_opt()
-                && !(check_refcount && b.bv_refcount > 1)
+                && !(check_refcount && b.bv_refcount.get() > 1)
             {
-                b.bv_lock = change_lock(lock, b.bv_lock);
+                b.bv_lock.set(change_lock(lock, b.bv_lock.get()));
             }
         }
         VarType::VarList => {
@@ -5181,7 +5140,7 @@ pub fn tv_check_lock(tv: &TypVal, name: Option<&CStr>, name_len: usize) -> bool 
     match tv.v_type {
         VarType::VarBlob => {
             if let Some(b) = tv.vval.v_blob_opt() {
-                lock = b.bv_lock;
+                lock = b.bv_lock.get();
             }
         }
         VarType::VarList => {
@@ -5290,10 +5249,7 @@ pub fn tv_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
             RECURSIVE_CNT.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
             r
         }
-        VarType::VarBlob => tv_blob_equal(
-            tv1.vval.v_blob_opt().as_deref(),
-            tv2.vval.v_blob_opt().as_deref(),
-        ),
+        VarType::VarBlob => tv_blob_equal(tv1.vval.v_blob_opt(), tv2.vval.v_blob_opt()),
         VarType::VarNumber => tv1.vval.v_number() == tv2.vval.v_number(),
         VarType::VarFloat => tv1.vval.v_float() == tv2.vval.v_float(),
         VarType::VarString => {
@@ -5783,7 +5739,10 @@ pub fn tv2bool(tv: &TypVal) -> bool {
             .is_some_and(|d| d.dv_hashtab.ht_used > 0),
         VarType::VarBool => tv.vval.v_bool() == K_BOOL_VAR_TRUE_CONST,
         VarType::VarSpecial => tv.vval.v_special() != K_SPECIAL_VAR_NULL_CONST,
-        VarType::VarBlob => tv.vval.v_blob_opt().is_some_and(|b| !b.bv_ga.is_empty()),
+        VarType::VarBlob => tv
+            .vval
+            .v_blob_opt()
+            .is_some_and(|b| !b.bv_ga.borrow().is_empty()),
         VarType::VarUnknown => false,
     }
 }

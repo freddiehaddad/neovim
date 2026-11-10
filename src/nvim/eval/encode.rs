@@ -759,13 +759,13 @@ impl EncodeBackend<'_> {
                     gap.push(b']');
                 }
             }
-            Self::Msgpack { packer } => {
-                let slice: &[u8] = match blob {
-                    Some(b) if !b.bv_ga.is_empty() => &b.bv_ga[..len as usize],
-                    _ => &[],
-                };
-                mpack_bin(NvimString::from_bytes(slice), packer);
-            }
+            Self::Msgpack { packer } => match blob {
+                Some(b) if !b.bv_ga.borrow().is_empty() => {
+                    let bv = b.bv_ga.borrow();
+                    mpack_bin(NvimString::from_bytes(&bv[..len as usize]), packer);
+                }
+                _ => mpack_bin(NvimString::from_bytes(&[]), packer),
+            },
         }
     }
 

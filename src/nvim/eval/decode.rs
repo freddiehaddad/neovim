@@ -113,9 +113,9 @@ pub fn decode_string(s: &[u8], force_blob: bool) -> TypVal {
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
         };
-        let b = &mut *tv_blob_alloc_ret(&mut tv);
+        let b = tv_blob_alloc_ret(&mut tv);
         if !s.is_empty() {
-            b.bv_ga.extend_from_slice(s);
+            b.bv_ga.borrow_mut().extend_from_slice(s);
         }
         return tv;
     }

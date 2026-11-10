@@ -586,12 +586,13 @@ fn lua_convert_one_value(
         VarType::VarBlob => {
             let blob = tv_ref.vval.v_blob();
             let len = tv_blob_len(blob.opt()) as usize;
-            let slice = if !blob.is_null() && !blob.bv_ga.is_empty() {
-                &blob.bv_ga.as_slice()[..len]
+            if let Some(b) = blob.opt()
+                && !b.bv_ga.borrow().is_empty()
+            {
+                lua_push_bytes(lstate, &b.bv_ga.borrow()[..len]);
             } else {
-                &[]
-            };
-            lua_push_bytes(lstate, slice);
+                lua_push_bytes(lstate, &[]);
+            }
         }
         VarType::VarFunc => {
             if let Some(fun) = tv_ref.vval.v_string_cstr() {

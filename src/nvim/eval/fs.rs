@@ -1425,9 +1425,13 @@ fn read_blob(fd: &CFile, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> 
         return true;
     }
 
-    let bv = &mut rettv.vval.v_blob_ref().bv_ga;
-    bv.resize(size as usize, 0);
-    if fd.read_bytes(bv) < bv.len() {
+    let read_ok = {
+        let mut bv = rettv.vval.v_blob_ref().bv_ga.borrow_mut();
+        bv.resize(size as usize, 0);
+        let len = bv.len();
+        fd.read_bytes(&mut bv) >= len
+    };
+    if !read_ok {
         // An empty blob is returned on error.
         crate::eval::typval::tv_blob_unref(rettv.vval.v_blob_opt());
         rettv.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::NULL);
@@ -1942,7 +1946,7 @@ fn write_data(fp: &mut FileDescriptor, data: &[u8]) -> bool {
 
 fn write_blob(fp: &mut FileDescriptor, blob: &TvBlob) -> bool {
     let len = tv_blob_len(Some(blob)) as usize;
-    write_data(fp, &blob.bv_ga[..len])
+    write_data(fp, &blob.bv_ga.borrow()[..len])
 }
 
 fn write_string(fp: &mut FileDescriptor, data: &[u8]) -> bool {

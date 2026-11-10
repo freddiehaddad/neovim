@@ -355,12 +355,12 @@ fn tv_set_partial(tv: &mut TypVal, pt: Option<&mut TvPartial>) {
 }
 
 #[inline]
-pub fn tv_blob_set_ret(tv: &mut TypVal, b: Option<&mut TvBlob>) {
+pub fn tv_blob_set_ret(tv: &mut TypVal, b: Option<std::rc::Rc<TvBlob>>) {
     tv.v_type = VarType::VarBlob;
-    tv.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::from(b));
-    if let Some(b_ref) = tv.vval.v_blob_opt() {
-        b_ref.bv_refcount += 1;
+    if let Some(ref b_ref) = b {
+        b_ref.bv_refcount.set(b_ref.bv_refcount.get() + 1);
     }
+    tv.vval = crate::eval::typval::TypvalVval::Blob(crate::eval::typval::BlobId::from(b));
 }
 
 #[inline]
@@ -1154,7 +1154,7 @@ fn get_lval_blob(
     empty1: bool,
     quiet: bool,
 ) -> bool {
-    let bloblen = tv_blob_len(lp.tv_mut().vval.v_blob_opt().as_deref());
+    let bloblen = tv_blob_len(lp.tv_mut().vval.v_blob_opt());
 
     if empty1 {
         lp.ll_n1 = 0;
@@ -1530,7 +1530,7 @@ pub fn set_var_lval(
                 .saturating_sub(endp_cstr.to_bytes().len());
             bytes_to_cstring(&ll_name.to_bytes()[..full_len])
         };
-        if let Some(blob) = lp.ll_blob.opt_mut() {
+        if let Some(blob) = lp.ll_blob.rc() {
             if let Some(op) = op_opt
                 && !op.is_empty()
                 && op.to_bytes().first() != Some(&b'=')
@@ -1538,17 +1538,17 @@ pub fn set_var_lval(
                 semsg!(gettext(E_LETWRONG), op);
                 return;
             }
-            if value_check_lock(blob.bv_lock, Some(&name_cstr), TV_CSTRING) {
+            if value_check_lock(blob.bv_lock.get(), Some(&name_cstr), TV_CSTRING) {
                 return;
             }
 
             if lp.ll_range && rettv.v_type == VarType::VarBlob {
                 if lp.ll_empty2 {
-                    lp.ll_n2 = tv_blob_len(Some(&*blob)) - 1;
+                    lp.ll_n2 = tv_blob_len(Some(&blob)) - 1;
                 }
 
                 let _ = tv_blob_set_range(
-                    blob,
+                    &blob,
                     Varnumber::from(lp.ll_n1),
                     Varnumber::from(lp.ll_n2),
                     rettv,
@@ -1560,7 +1560,7 @@ pub fn set_var_lval(
                     if !(0..=255).contains(&val) {
                         semsg!(gettext(E_INVALID_VALUE_FOR_BLOB_NR), val,);
                     } else {
-                        tv_blob_set_append(blob, lp.ll_n1, val as u8);
+                        tv_blob_set_append(&blob, lp.ll_n1, val as u8);
                     }
                 }
             }
@@ -1754,7 +1754,7 @@ pub fn eval_for_line(
                 let bytes = tv
                     .vval
                     .v_blob_opt()
-                    .map_or_else(Vec::new, |b| b.bv_ga.clone());
+                    .map_or_else(Vec::new, |b| b.bv_ga.borrow().clone());
                 fi.fi_source = ForSource::Blob { bytes, idx: 0 };
                 tv_clear(&mut tv);
             } else if tv.v_type == VarType::VarString {
@@ -2443,21 +2443,21 @@ fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
 /// Make a copy of blob "tv1" and append blob "tv2".
 fn eval_addblob(tv1: &mut TypVal, tv2: &mut TypVal) {
     let b = tv_blob_alloc();
-    let b1 = tv1.vval.v_blob().opt();
-    let b2 = tv2.vval.v_blob().opt();
+    let b1 = tv1.vval.v_blob();
+    let b2 = tv2.vval.v_blob();
 
-    let len1 = i64::from(tv_blob_len(b1));
-    let len2 = i64::from(tv_blob_len(b2));
+    let len1 = i64::from(tv_blob_len(b1.opt()));
+    let len2 = i64::from(tv_blob_len(b2.opt()));
     let totallen = len1 + len2;
 
     if totallen >= 0 && totallen <= i64::from(i32::MAX) {
-        let bv = &mut b.bv_ga;
+        let mut bv = b.bv_ga.borrow_mut();
         bv.reserve(totallen as usize);
-        if let Some(b1) = b1 {
-            bv.extend_from_slice(&b1.bv_ga);
+        if let Some(b1) = b1.opt() {
+            bv.extend_from_slice(&b1.bv_ga.borrow());
         }
-        if let Some(b2) = b2 {
-            bv.extend_from_slice(&b2.bv_ga);
+        if let Some(b2) = b2.opt() {
+            bv.extend_from_slice(&b2.bv_ga.borrow());
         }
     }
 
@@ -3632,7 +3632,7 @@ fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string:
         }
         if evaluate {
             let blob = tv_blob_alloc();
-            blob.bv_ga = bytes;
+            *blob.bv_ga.borrow_mut() = bytes;
             tv_blob_set_ret(rettv, Some(blob));
         }
         *arg = &arg_cstr[arg_bytes.len() - rem.len()..];
@@ -6105,7 +6105,7 @@ pub fn var_item_copy(
             }
         }
         VarType::VarBlob => {
-            tv_blob_copy(from.vval.v_blob_opt().as_deref(), to);
+            tv_blob_copy(from.vval.v_blob_opt(), to);
         }
         VarType::VarDict => {
             to.v_type = VarType::VarDict;
@@ -6779,10 +6779,7 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             tv_clear(typ1);
             return false;
         } else {
-            let mut eq = tv_blob_equal(
-                typ1.vval.v_blob_opt().as_deref(),
-                typ2.vval.v_blob_opt().as_deref(),
-            );
+            let mut eq = tv_blob_equal(typ1.vval.v_blob_opt(), typ2.vval.v_blob_opt());
             if expr_type == EXPR_NEQUAL {
                 eq = !eq;
             }
