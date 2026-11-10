@@ -214,7 +214,7 @@ pub fn get_mode(buf: &mut [u8; MODE_MAX_LENGTH]) -> usize {
     if g_st().state_global == MODE_HITRETURN
         || g_st().state_global == MODE_ASKMORE
         || g_st().state_global == MODE_SETWSIZE
-        || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
+        || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key.get())
     {
         buf[i] = b'r';
         i += 1;

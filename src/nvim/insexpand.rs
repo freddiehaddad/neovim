@@ -4553,7 +4553,7 @@ fn get_next_cmdline_completion() {
     let mut xp = COMPL_XP.with(|c| std::mem::take(&mut *c.borrow_mut()));
     let exp_res = expand_cmdline(
         &mut xp,
-        pat.as_deref().unwrap_or(c""),
+        pat.as_deref().unwrap_or(c"").as_ptr() as usize,
         compl_pattern_len() as i32,
         &mut matches,
     );

@@ -11,7 +11,6 @@ use crate::api::ui::NO_SCREEN;
 use crate::arglist::Alist;
 use crate::buffer::{Bufref, FileBuf, MAXLNUM, SEA_NONE};
 use crate::channel::Channel;
-use crate::cmdexpand::CmdlineInfo;
 use crate::context::CtxWin;
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::drawscreen::WinExtmark;
@@ -331,7 +330,6 @@ pub struct EditorState {
     pub on_print: Callback,
     pub ctx_win_vec: Vec<CtxWin>,
     pub decor_state: DecorState,
-    pub ccline: CmdlineInfo,
     pub(crate) tv_arenas: crate::eval::typval::TypvalArenas,
     pub(crate) uf_arenas: crate::eval::userfunc::UserfuncArenas,
     pub(crate) opt_vars: crate::option_vars::OptionVars,
@@ -777,7 +775,6 @@ impl EditorState {
             on_print: Callback::NONE,
             ctx_win_vec: Vec::new(),
             decor_state: DecorState::new(),
-            ccline: CmdlineInfo::new(),
             tv_arenas: crate::eval::typval::TypvalArenas::new(),
             uf_arenas: crate::eval::userfunc::UserfuncArenas::new(),
             opt_vars: crate::option_vars::OptionVars::new(),

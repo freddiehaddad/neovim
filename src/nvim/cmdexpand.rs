@@ -1518,73 +1518,72 @@ impl ColoredCmdline {
     }
 }
 
-#[repr(C)]
-#[derive(Clone)]
 pub struct CmdlineInfo {
-    pub cmdbuff_vec: Vec<u8>,
-    pub cmdbufflen: i32,
-    pub cmdlen: i32,
-    pub cmdpos: i32,
-    pub cmdspos: i32,
-    pub cmdfirstc: i32,
-    pub cmdindent: i32,
-    pub cmdprompt: Option<CString>,
-    pub hl_id: i32,
-    pub overstrike: i32,
-    pub xpc: crate::globals::GraphPtr<ExpandCtx>,
-    pub xp_context: i32,
-    pub xp_arg: Option<CString>,
-    pub input_fn: i32,
-    pub cmdbuff_replaced: bool,
-    pub prompt_id: u32,
-    pub highlight_callback: Callback,
-    pub last_colors: ColoredCmdline,
-    pub level: i32,
-    pub prev_ccline: Option<Box<CmdlineInfo>>,
-    pub special_char: u8,
-    pub special_shift: bool,
-    pub redraw_state: i32,
-    pub one_key: bool,
-    pub mouse_used: Option<bool>,
+    pub cmdbuff_vec: std::cell::RefCell<Vec<u8>>,
+    pub cmdbufflen: std::cell::Cell<i32>,
+    pub cmdlen: std::cell::Cell<i32>,
+    pub cmdpos: std::cell::Cell<i32>,
+    pub cmdspos: std::cell::Cell<i32>,
+    pub cmdfirstc: std::cell::Cell<i32>,
+    pub cmdindent: std::cell::Cell<i32>,
+    pub cmdprompt: std::cell::RefCell<Option<CString>>,
+    pub hl_id: std::cell::Cell<i32>,
+    pub overstrike: std::cell::Cell<i32>,
+    pub xpc: std::cell::Cell<crate::globals::GraphPtr<ExpandCtx>>,
+    pub xp_context: std::cell::Cell<i32>,
+    pub xp_arg: std::cell::RefCell<Option<CString>>,
+    pub input_fn: std::cell::Cell<i32>,
+    pub cmdbuff_replaced: std::cell::Cell<bool>,
+    pub prompt_id: std::cell::Cell<u32>,
+    pub highlight_callback: std::cell::RefCell<Callback>,
+    pub last_colors: std::cell::RefCell<ColoredCmdline>,
+    pub level: std::cell::Cell<i32>,
+    pub prev_ccline: std::cell::RefCell<Option<std::rc::Rc<CmdlineInfo>>>,
+    pub special_char: std::cell::Cell<u8>,
+    pub special_shift: std::cell::Cell<bool>,
+    pub redraw_state: std::cell::Cell<i32>,
+    pub one_key: std::cell::Cell<bool>,
+    pub mouse_used: std::cell::Cell<Option<bool>>,
 }
 
 impl CmdlineInfo {
     pub const fn new() -> Self {
         Self {
-            cmdbuff_vec: Vec::new(),
-            cmdbufflen: 0,
-            cmdlen: 0,
-            cmdpos: 0,
-            cmdspos: 0,
-            cmdfirstc: 0,
-            cmdindent: 0,
-            cmdprompt: None,
-            hl_id: 0,
-            overstrike: 0,
-            xpc: crate::globals::GraphPtr::NULL,
-            xp_context: 0,
-            xp_arg: None,
-            input_fn: 0,
-            cmdbuff_replaced: false,
-            prompt_id: 0,
-            highlight_callback: Callback::NONE,
-            last_colors: ColoredCmdline::new(),
-            level: 0,
-            prev_ccline: None,
-            special_char: 0,
-            special_shift: false,
-            redraw_state: 0,
-            one_key: false,
-            mouse_used: None,
+            cmdbuff_vec: std::cell::RefCell::new(Vec::new()),
+            cmdbufflen: std::cell::Cell::new(0),
+            cmdlen: std::cell::Cell::new(0),
+            cmdpos: std::cell::Cell::new(0),
+            cmdspos: std::cell::Cell::new(0),
+            cmdfirstc: std::cell::Cell::new(0),
+            cmdindent: std::cell::Cell::new(0),
+            cmdprompt: std::cell::RefCell::new(None),
+            hl_id: std::cell::Cell::new(0),
+            overstrike: std::cell::Cell::new(0),
+            xpc: std::cell::Cell::new(crate::globals::GraphPtr::NULL),
+            xp_context: std::cell::Cell::new(0),
+            xp_arg: std::cell::RefCell::new(None),
+            input_fn: std::cell::Cell::new(0),
+            cmdbuff_replaced: std::cell::Cell::new(false),
+            prompt_id: std::cell::Cell::new(0),
+            highlight_callback: std::cell::RefCell::new(Callback::NONE),
+            last_colors: std::cell::RefCell::new(ColoredCmdline::new()),
+            level: std::cell::Cell::new(0),
+            prev_ccline: std::cell::RefCell::new(None),
+            special_char: std::cell::Cell::new(0),
+            special_shift: std::cell::Cell::new(false),
+            redraw_state: std::cell::Cell::new(0),
+            one_key: std::cell::Cell::new(false),
+            mouse_used: std::cell::Cell::new(None),
         }
     }
 
     #[inline]
     pub fn cmdbuff(&self) -> crate::strings::OwnedSlice {
-        if self.cmdbuff_vec.is_empty() {
+        let vec = self.cmdbuff_vec.borrow();
+        if vec.is_empty() {
             crate::strings::OwnedSlice::NULL
         } else {
-            crate::strings::OwnedSlice::from_bytes(&self.cmdbuff_vec)
+            crate::strings::OwnedSlice::from_bytes(&vec)
         }
     }
 }
@@ -1964,7 +1963,8 @@ fn expand_escape(xp: &mut ExpandCtx, str_arg: &[u8], files: &mut [CString], opti
 /// Return FAIL if this is not an appropriate context in which to do
 /// completion of anything, return OK if it is (even if there are no matches).
 pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -> bool {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
     let mut p: Option<CString>;
     let from_wildtrigger_func = (options & WILD_FUNC_TRIGGER) != 0;
     let wild_navigate = type_arg == WILD_NEXT
@@ -1975,8 +1975,14 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
 
     if xp.xp_numfiles == -1 {
         CMDEXP_STATE.with(|s| s.pre_incsearch_pos.set(xp.xp_pre_incsearch_pos));
-        if ccline.input_fn != 0 && ccline.xp_context == EXPAND_COMMANDS {
-            set_cmd_context(xp, &ccline.cmdbuff_vec, ccline.cmdlen, ccline.cmdpos, false);
+        if ccline.input_fn.get() != 0 && ccline.xp_context.get() == EXPAND_COMMANDS {
+            set_cmd_context(
+                xp,
+                &ccline.cmdbuff_vec.borrow(),
+                ccline.cmdlen.get(),
+                ccline.cmdpos.get(),
+                false,
+            );
         } else {
             CMDEXP_STATE.with(|s| {
                 s.may_expand_pattern
@@ -2000,8 +2006,8 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     }
 
     let i = ((xp.xp_pattern).offset_from(ccline.cmdbuff()) as isize) as i32;
-    debug_assert!(ccline.cmdpos >= i);
-    xp.xp_pattern_len = (ccline.cmdpos as usize) - (i as usize);
+    debug_assert!(ccline.cmdpos.get() >= i);
+    xp.xp_pattern_len = (ccline.cmdpos.get() as usize) - (i as usize);
 
     if from_wildtrigger_func && xp.xp_context == EXPAND_COMMANDS && xp.xp_pattern_len == 0 {
         return false;
@@ -2040,7 +2046,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
         {
             let mut j: usize = 0;
             while j < xp.xp_pattern_len {
-                let c = ccline.cmdbuff_vec[(i as usize) + j];
+                let c = ccline.cmdbuff_vec.borrow()[(i as usize) + j];
                 if c == b'*' || c == b'?' {
                     break;
                 }
@@ -2054,7 +2060,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
 
     if !wild_navigate && !ccline.cmdbuff().is_null() {
         let cmdbuff = ccline.cmdbuff();
-        let slice = cmdbuff.slice(ccline.cmdlen as usize);
+        let slice = cmdbuff.slice(ccline.cmdlen.get() as usize);
         let len = slice.iter().position(|&b| b == 0).unwrap_or(slice.len());
         CMDLINE_ORIG.with(|cell| *cell.borrow_mut() = Some(slice[..len].to_vec()));
     }
@@ -2065,19 +2071,19 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
     {
         let plen = p_str.to_bytes().len();
         let difflen = (plen as i32) - (xp.xp_pattern_len as i32);
-        if ccline.cmdlen + difflen + 4 > ccline.cmdbufflen {
-            realloc_cmdbuff(ccline.cmdlen + difflen + 4);
+        if ccline.cmdlen.get() + difflen + 4 > ccline.cmdbufflen.get() {
+            realloc_cmdbuff(ccline.cmdlen.get() + difflen + 4);
         }
-        debug_assert!(ccline.cmdpos <= ccline.cmdlen);
+        debug_assert!(ccline.cmdpos.get() <= ccline.cmdlen.get());
 
-        ccline.cmdbuff_vec.copy_within(
-            ccline.cmdpos as usize..=ccline.cmdlen as usize,
-            (ccline.cmdpos + difflen) as usize,
+        ccline.cmdbuff_vec.borrow_mut().copy_within(
+            ccline.cmdpos.get() as usize..=ccline.cmdlen.get() as usize,
+            (ccline.cmdpos.get() + difflen) as usize,
         );
-        ccline.cmdbuff_vec[i as usize..i as usize + plen]
+        ccline.cmdbuff_vec.borrow_mut()[i as usize..i as usize + plen]
             .copy_from_slice(&p_str.to_bytes_with_nul()[..plen]);
-        ccline.cmdlen += difflen;
-        ccline.cmdpos += difflen;
+        ccline.cmdlen.set(ccline.cmdlen.get() + (difflen));
+        ccline.cmdpos.set(ccline.cmdpos.get() + (difflen));
         xp.xp_pattern = ccline.cmdbuff().wrapping_add(i as usize);
     }
 
@@ -2188,20 +2194,20 @@ pub fn cmdline_pum_remove(defer_redraw: bool) {
     COMPL_MATCH_ARRAY.with(|cell| *cell.borrow_mut() = std::rc::Rc::from([]));
 }
 
-pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
+pub fn cmdline_pum_cleanup(cclp: &CmdlineInfo) {
     cmdline_pum_remove(false);
     wildmenu_cleanup(cclp);
 }
 
 /// Returns the current cmdline completion pattern.
 pub fn cmdline_compl_pattern() -> Option<&'static CStr> {
-    let xp = get_cmdline_info().xpc;
+    let xp = get_cmdline_info().xpc.get();
     xp.opt()?.xp_orig.as_deref()
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
 pub fn cmdline_compl_is_fuzzy() -> bool {
-    let xp = get_cmdline_info().xpc;
+    let xp = get_cmdline_info().xpc.get();
     xp.opt().is_some_and(cmdline_fuzzy_completion_supported)
 }
 
@@ -2513,7 +2519,7 @@ fn get_next_or_prev_match(mode: i32, xp: &mut ExpandCtx) -> Option<CString> {
             cmdline_pum_display(false);
         } else if cmdline_compl_use_pum(true) {
             cmdline_pum_create(
-                &*get_cmdline_info(),
+                &get_cmdline_info(),
                 xp,
                 &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
                 CMDEXP_STATE.with(|s| s.cmd_showtail.get()),
@@ -2839,7 +2845,7 @@ fn showmatches_oneline(
 
 #[inline]
 fn show_pum_matches(
-    ccline: &mut CmdlineInfo,
+    ccline: &CmdlineInfo,
     xp: &ExpandCtx,
     matches: &[CString],
     showtail: bool,
@@ -2859,7 +2865,8 @@ pub fn showmatches(
     display_list: bool,
     wim_flags_arg: i32,
 ) -> i32 {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
     let mut temp_matches: Vec<CString> = Vec::new();
     let showtail: bool;
     let noselect = (wim_flags_arg & i32::from(K_OPT_WIM_FLAG_NOSELECT)) != 0;
@@ -2873,8 +2880,8 @@ pub fn showmatches(
         }
         let retval = expand_cmdline(
             xp,
-            crate::memory::bytes_as_cstr(&ccline.cmdbuff_vec),
-            ccline.cmdpos,
+            ccline.cmdbuff().addr(),
+            ccline.cmdpos.get(),
             &mut temp_matches,
         );
         if retval != EXPAND_OK {
@@ -2888,14 +2895,7 @@ pub fn showmatches(
     };
 
     if cmdline_compl_use_pum(display_wildmenu && !display_list) {
-        show_pum_matches(
-            &mut *ccline,
-            xp,
-            matches,
-            showtail,
-            noselect,
-            cmdline_unchanged,
-        );
+        show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
         if xp.xp_numfiles == -1 {
             free_xp_files_extra(xp);
         }
@@ -2972,14 +2972,7 @@ pub fn showmatches(
 
     if display_wildmenu && display_list {
         if cmdline_compl_use_pum(true) {
-            show_pum_matches(
-                &mut *ccline,
-                xp,
-                matches,
-                showtail,
-                noselect,
-                cmdline_unchanged,
-            );
+            show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
         } else {
             redraw_wildmenu(xp, matches, if noselect { -1 } else { 0 }, showtail);
         }
@@ -3180,33 +3173,40 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
 
 /// Must parse the command line so far to work out what context we are in.
 pub fn set_expand_context(xp: &mut ExpandCtx) {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
 
-    if (ccline.cmdfirstc == b'/' as i32 || ccline.cmdfirstc == b'?' as i32)
+    if (ccline.cmdfirstc.get() == b'/' as i32 || ccline.cmdfirstc.get() == b'?' as i32)
         && CMDEXP_STATE.with(|s| s.may_expand_pattern.get())
     {
         xp.xp_context = EXPAND_PATTERN_IN_BUF;
-        xp.xp_search_dir = if ccline.cmdfirstc == b'/' as i32 {
+        xp.xp_search_dir = if ccline.cmdfirstc.get() == b'/' as i32 {
             FORWARD
         } else {
             BACKWARD
         };
         xp.xp_pattern = ccline.cmdbuff();
-        xp.xp_pattern_len = ccline.cmdpos as usize;
+        xp.xp_pattern_len = ccline.cmdpos.get() as usize;
         g_st().search_global.first_line = 0;
         return;
     }
 
-    if ccline.cmdfirstc != b':' as i32
-        && ccline.cmdfirstc != b'>' as i32
-        && ccline.cmdfirstc != b'=' as i32
-        && ccline.input_fn == 0
+    if ccline.cmdfirstc.get() != b':' as i32
+        && ccline.cmdfirstc.get() != b'>' as i32
+        && ccline.cmdfirstc.get() != b'=' as i32
+        && ccline.input_fn.get() == 0
     {
         xp.xp_context = EXPAND_NOTHING;
         return;
     }
 
-    set_cmd_context(xp, &ccline.cmdbuff_vec, ccline.cmdlen, ccline.cmdpos, true);
+    set_cmd_context(
+        xp,
+        &ccline.cmdbuff_vec.borrow(),
+        ccline.cmdlen.get(),
+        ccline.cmdpos.get(),
+        true,
+    );
 }
 
 /// Sets the index of a built-in or user defined command "cmd" in eap->cmdidx.
@@ -3665,7 +3665,8 @@ fn set_context_in_filetype_cmd(xp: &mut ExpandCtx, arg: &CStr) {
 
 /// Sets the completion context for commands that involve a search pattern and a line range.
 fn set_context_with_pattern(xp: &mut ExpandCtx) {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
 
     g_st().emsg_off += 1;
     let mut skiplen: i32 = 0;
@@ -3678,12 +3679,12 @@ fn set_context_with_pattern(xp: &mut ExpandCtx) {
     CMDEXP_STATE.with(|s| s.pre_incsearch_pos.set(pos));
     g_st().emsg_off -= 1;
 
-    if !retval || ccline.cmdpos <= skiplen || ccline.cmdpos > skiplen + patlen {
+    if !retval || ccline.cmdpos.get() <= skiplen || ccline.cmdpos.get() > skiplen + patlen {
         return;
     }
 
     xp.xp_pattern = ccline.cmdbuff().wrapping_add(skiplen as usize);
-    xp.xp_pattern_len = (ccline.cmdpos - skiplen) as usize;
+    xp.xp_pattern_len = (ccline.cmdpos.get() - skiplen) as usize;
     xp.xp_context = EXPAND_PATTERN_IN_BUF;
     xp.xp_search_dir = FORWARD;
 }
@@ -4247,7 +4248,8 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
 
 /// Set the completion context in "xp" for command "str".
 pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, use_ccline: bool) {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
     let truncated_buf: Option<Vec<u8>> = if col < len && (col as usize) < str_buf.len() {
         let mut v = str_buf[..col as usize].to_vec();
         v.push(0);
@@ -4260,16 +4262,16 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, u
     CMDEXP_STATE.with(|s| s.filetype_expand_what.set(FiletypeExpandWhat::All));
     CMDEXP_STATE.with(|s| s.breakpt_expand_what.set(BreakptExpandWhat::Add));
 
-    if use_ccline && ccline.cmdfirstc == b'=' as i32 {
+    if use_ccline && ccline.cmdfirstc.get() == b'=' as i32 {
         set_context_for_expression(
             xp,
             crate::memory::bytes_as_cstr(work_slice),
             Cmdidx::CmdSize,
         );
-    } else if use_ccline && ccline.input_fn != 0 {
-        xp.xp_context = ccline.xp_context;
+    } else if use_ccline && ccline.input_fn.get() != 0 {
+        xp.xp_context = ccline.xp_context.get();
         xp.xp_pattern = ccline.cmdbuff();
-        xp.xp_arg = ccline.xp_arg.clone();
+        xp.xp_arg = ccline.xp_arg.borrow().clone();
         if xp.xp_context == EXPAND_SHELLCMDLINE {
             let mut context = xp.xp_context;
             set_context_for_wildcard_arg(
@@ -4302,7 +4304,7 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_buf: &[u8], len: i32, col: i32, u
 /// Expand the command line "str" from context "xp".
 pub fn expand_cmdline(
     xp: &mut ExpandCtx,
-    str_arg: &CStr,
+    str_addr: usize,
     col: i32,
     matches: &mut Vec<CString>,
 ) -> i32 {
@@ -4316,7 +4318,7 @@ pub fn expand_cmdline(
         return EXPAND_NOTHING;
     }
 
-    xp.xp_pattern_len = (str_arg.as_ptr() as usize)
+    xp.xp_pattern_len = str_addr
         .wrapping_add(col as usize)
         .saturating_sub(xp.xp_pattern.addr());
     let file_str = if cmdline_fuzzy_completion_supported(xp) {
@@ -5282,7 +5284,8 @@ fn call_user_expand_func<F, R>(user_expand_func: F, xp: &mut ExpandCtx, default:
 where
     F: FnOnce(&CStr, i32, &mut [TypVal; 4]) -> R,
 {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
     let mut keep: u8 = 0;
     let mut args: [TypVal; 4] = [const { TypVal::new() }; 4];
     let save_current_sctx = g_st().current_sctx;
@@ -5294,9 +5297,9 @@ where
         return default;
     }
 
-    if !ccline.cmdbuff_vec.is_empty() {
-        keep = ccline.cmdbuff_vec[ccline.cmdlen as usize];
-        ccline.cmdbuff_vec[ccline.cmdlen as usize] = 0;
+    if !ccline.cmdbuff_vec.borrow().is_empty() {
+        keep = ccline.cmdbuff_vec.borrow()[ccline.cmdlen.get() as usize];
+        ccline.cmdbuff_vec.borrow_mut()[ccline.cmdlen.get() as usize] = 0;
     }
 
     let pat = bytes_to_cstring(xp.xp_pattern.slice(xp.xp_pattern_len));
@@ -5313,8 +5316,8 @@ where
     let ret = user_expand_func(arg_cstr, 3, &mut args);
 
     g_st().current_sctx = save_current_sctx;
-    if !ccline.cmdbuff_vec.is_empty() {
-        ccline.cmdbuff_vec[ccline.cmdlen as usize] = keep;
+    if !ccline.cmdbuff_vec.borrow().is_empty() {
+        ccline.cmdbuff_vec.borrow_mut()[ccline.cmdlen.get() as usize] = keep;
     }
 
     ret
@@ -5531,7 +5534,7 @@ pub fn globpath(
 
 /// Translate some keys pressed when 'wildmenu' is used.
 pub fn wildmenu_translate_key(
-    cclp: &mut CmdlineInfo,
+    cclp: &CmdlineInfo,
     key: i32,
     xp: &mut ExpandCtx,
     did_wild_list: bool,
@@ -5547,9 +5550,9 @@ pub fn wildmenu_translate_key(
     }
 
     if xp.xp_context == EXPAND_MENUNAMES
-        && cclp.cmdpos > 1
-        && cclp.cmdbuff_vec[(cclp.cmdpos - 1) as usize] == b'.'
-        && cclp.cmdbuff_vec[(cclp.cmdpos - 2) as usize] != b'\\'
+        && cclp.cmdpos.get() > 1
+        && cclp.cmdbuff_vec.borrow()[(cclp.cmdpos.get() - 1) as usize] == b'.'
+        && cclp.cmdbuff_vec.borrow()[(cclp.cmdpos.get() - 2) as usize] != b'\\'
         && (c == b'\n' as i32 || c == b'\r' as i32 || c == K_KENTER)
     {
         c = K_DOWN;
@@ -5559,19 +5562,25 @@ pub fn wildmenu_translate_key(
 }
 
 /// Delete characters on the command line, from "from" to the current position.
-fn cmdline_del(cclp: &mut CmdlineInfo, from: i32) {
-    debug_assert!(cclp.cmdpos <= cclp.cmdlen);
+fn cmdline_del(cclp: &CmdlineInfo, from: i32) {
+    debug_assert!(cclp.cmdpos.get() <= cclp.cmdlen.get());
 
-    cclp.cmdbuff_vec
-        .copy_within(cclp.cmdpos as usize..=cclp.cmdlen as usize, from as usize);
-    cclp.cmdlen -= cclp.cmdpos - from;
-    cclp.cmdpos = from;
+    cclp.cmdbuff_vec.borrow_mut().copy_within(
+        cclp.cmdpos.get() as usize..=cclp.cmdlen.get() as usize,
+        from as usize,
+    );
+    cclp.cmdlen
+        .set(cclp.cmdlen.get() - (cclp.cmdpos.get() - from));
+    cclp.cmdpos.set(from);
 }
 
 /// Handle a key pressed when the wild menu for the menu names (EXPAND_MENUNAMES) is displayed.
-fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
-    let cmd_slice = &cclp.cmdbuff_vec[..cclp.cmdlen as usize];
-    if key == K_DOWN && cclp.cmdpos > 0 && cmd_slice.get((cclp.cmdpos - 1) as usize) == Some(&b'.')
+fn wildmenu_process_key_menunames(cclp: &CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
+    let cmd_vec = cclp.cmdbuff_vec.borrow();
+    let cmd_slice = &cmd_vec[..cclp.cmdlen.get() as usize];
+    if key == K_DOWN
+        && cclp.cmdpos.get() > 0
+        && cmd_slice.get((cclp.cmdpos.get() - 1) as usize) == Some(&b'.')
     {
         key = opt_vars().p_wc as i32;
         g_st().key_typed = true;
@@ -5597,6 +5606,7 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
                 }
             }
         }
+        drop(cmd_vec);
         if i > 0 {
             cmdline_del(cclp, i);
         }
@@ -5609,29 +5619,30 @@ fn wildmenu_process_key_menunames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 }
 
 /// Handle a key pressed when the wild menu for file/dir/shellcmd names is displayed.
-fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
+fn wildmenu_process_key_filenames(cclp: &CmdlineInfo, mut key: i32, xp: &mut ExpandCtx) -> i32 {
     let upseg: [u8; 5] = [PATHSEP, b'.', b'.', PATHSEP, 0];
-    let cmd_slice = &cclp.cmdbuff_vec[..=cclp.cmdlen as usize];
+    let cmd_vec = cclp.cmdbuff_vec.borrow();
+    let cmd_slice = &cmd_vec[..=cclp.cmdlen.get() as usize];
 
     if key == K_DOWN
-        && cclp.cmdpos > 0
-        && cmd_slice[(cclp.cmdpos - 1) as usize] == PATHSEP
-        && (cclp.cmdpos < 3
-            || cmd_slice[(cclp.cmdpos - 2) as usize] != b'.'
-            || cmd_slice[(cclp.cmdpos - 3) as usize] != b'.')
+        && cclp.cmdpos.get() > 0
+        && cmd_slice[(cclp.cmdpos.get() - 1) as usize] == PATHSEP
+        && (cclp.cmdpos.get() < 3
+            || cmd_slice[(cclp.cmdpos.get() - 2) as usize] != b'.'
+            || cmd_slice[(cclp.cmdpos.get() - 3) as usize] != b'.')
     {
         key = opt_vars().p_wc as i32;
         g_st().key_typed = true;
     } else if xp.xp_pattern.as_bytes().starts_with(&upseg[1..4]) && key == K_DOWN {
         let mut found = false;
 
-        let mut j = cclp.cmdpos;
+        let mut j = cclp.cmdpos.get();
         let i = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
         while {
             j -= 1;
             j > i
         } {
-            j -= crate::mbyte::utf_head_off(&cclp.cmdbuff_vec, j as usize);
+            j -= crate::mbyte::utf_head_off(&cmd_vec, j as usize);
             if vim_ispathsep(cmd_slice[j as usize]) {
                 found = true;
                 break;
@@ -5642,6 +5653,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             && cmd_slice[(j - 2) as usize] == b'.'
             && (vim_ispathsep(cmd_slice[(j - 3) as usize]) || j == i + 2)
         {
+            drop(cmd_vec);
             cmdline_del(cclp, j - 2);
             key = opt_vars().p_wc as i32;
             g_st().key_typed = true;
@@ -5649,13 +5661,13 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
     } else if key == K_UP {
         let mut found = false;
 
-        let mut j = cclp.cmdpos - 1;
+        let mut j = cclp.cmdpos.get() - 1;
         let mut i = ((xp.xp_pattern).offset_from(cclp.cmdbuff()) as isize) as i32;
         while {
             j -= 1;
             j > i
         } {
-            j -= crate::mbyte::utf_head_off(&cclp.cmdbuff_vec, j as usize);
+            j -= crate::mbyte::utf_head_off(&cmd_vec, j as usize);
             #[cfg(windows)]
             let is_sep = vim_ispathsep(cmd_slice[j as usize])
                 && !b" *?[{`$%#".contains(&cmd_slice[(j + 1) as usize]);
@@ -5689,10 +5701,11 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             j = 0;
         }
 
+        drop(cmd_vec);
         if j > 0 {
             cmdline_del(cclp, j);
             put_on_cmdline(&upseg[1..], 3, false);
-        } else if cclp.cmdpos > i {
+        } else if cclp.cmdpos.get() > i {
             cmdline_del(cclp, i);
         }
 
@@ -5704,7 +5717,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 }
 
 /// Handle a key pressed when wild menu is displayed.
-pub fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: i32, xp: &mut ExpandCtx) -> i32 {
+pub fn wildmenu_process_key(cclp: &CmdlineInfo, key: i32, xp: &mut ExpandCtx) -> i32 {
     if xp.xp_context == EXPAND_MENUNAMES {
         return wildmenu_process_key_menunames(cclp, key, xp);
     }
@@ -5719,7 +5732,7 @@ pub fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: i32, xp: &mut ExpandCtx
 }
 
 /// Free expanded names when finished walking through the matches.
-pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
+pub fn wildmenu_cleanup(cclp: &CmdlineInfo) {
     if !opt_vars().p_wmnu || g_st().wild_menu_showing == 0 {
         return;
     }
@@ -5727,7 +5740,7 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
     let skt = g_st().key_typed;
     let old_redrawing_disabled = g_st().redrawing_disabled;
 
-    if cclp.input_fn != 0 {
+    if cclp.input_fn.get() != 0 {
         g_st().redrawing_disabled = 0;
     }
 
@@ -5751,7 +5764,7 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
         redraw_statuslines();
     }
     g_st().key_typed = skt;
-    if cclp.input_fn != 0 {
+    if cclp.input_fn.get() != 0 {
         g_st().redrawing_disabled = old_redrawing_disabled;
     }
 }
@@ -5904,10 +5917,11 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
 
 /// "cmdcomplete_info()" function.
 pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let ccline = get_cmdline_info();
+    let ccline_rc = get_cmdline_info();
+    let ccline = &*ccline_rc;
 
     tv_dict_alloc_ret(rettv);
-    let Some(xpc) = ccline.xpc.opt() else {
+    let Some(xpc) = ccline.xpc.get().opt() else {
         return;
     };
     if xpc.xp_files.capacity() == 0 {
