@@ -37,7 +37,7 @@ use crate::window::close_windows;
 use std::ffi::CStr;
 
 use crate::highlight::OptionalKeys;
-use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, OptVar, Optset};
+use crate::optionstr::{OptIndex, OptSetPrep, OptVar, Optset};
 use crate::runtime::SID_NONE;
 
 const KEYSET_OPTIDX_OPTION_BUF: u64 = 1;
@@ -704,7 +704,6 @@ pub fn nvim_set_option_value(
 
     if dry_run {
         let mut raw_buf = [0u8; IOSIZE];
-        let errbuf = CharBuf::from_slice(&mut raw_buf);
         let mut args = Optset {
             os_varp: OptVar::None,
             os_idx: opt_idx,
@@ -715,7 +714,7 @@ pub fn nvim_set_option_value(
             os_value_checked: false,
             os_value_changed: false,
             os_restore_chartab: false,
-            os_errbuf: Some(errbuf),
+            os_errbuf: Some(&mut raw_buf),
             os_win: win,
             os_buf: buf,
         };

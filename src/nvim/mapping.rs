@@ -2640,7 +2640,7 @@ pub fn langmap_init() {
 
 /// Called when langmap option is set; the language map can be
 /// changed at any time!
-pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
+pub fn did_set_langmap<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     langmap_init();
 
     let p_langmap = opt_vars().p_langmap.to_owned();
@@ -2692,7 +2692,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
             }
             if to == NUL as i32 {
                 return opt_error(
-                    args.os_errbuf,
+                    args.os_errbuf.take(),
                     c"E357: 'langmap': Matching character missing for %s",
                     &transchar(from),
                 );
@@ -2723,7 +2723,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                     if p_idx < bytes.len() {
                         if bytes[p_idx] != b',' {
                             return opt_error(
-                                args.os_errbuf,
+                                args.os_errbuf.take(),
                                 c"E358: 'langmap': Extra characters after semicolon: %s",
                                 &base_cstr[p_idx..],
                             );

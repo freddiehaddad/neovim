@@ -97,7 +97,7 @@ use crate::option::{
     K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, OPT_LOCAL, OptTarget, buf_copy_options, set_option_direct_for,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CharBuf, check_stl_option};
+use crate::optionstr::check_stl_option;
 use crate::os::input::{input_blocking, input_enqueue, input_enqueue_mouse, input_enqueue_raw};
 use crate::os::proc::os_proc_children;
 use crate::popupmenu::{pum_ext_select_item, pum_set_info};
@@ -111,8 +111,8 @@ use crate::runtime::{
 use crate::search::{BACKWARD, FORWARD};
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
-    Foldinfo, Statuscol, StlHlrec, build_stl_str_hl, draw_tabline, fillchar_status,
-    win_redr_status, win_redr_winbar,
+    Foldinfo, Statuscol, build_stl_str_hl_slice, draw_tabline, fillchar_status, win_redr_status,
+    win_redr_winbar, with_stl_hltab,
 };
 use crate::terminal::{
     terminal_alloc, terminal_check_size, terminal_open, terminal_running,
@@ -123,7 +123,6 @@ use crate::window::{
     WinInfoInfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_find_tabpage,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 #[cfg(windows)]
 use crate::os::proc::os_proc_info;
@@ -2725,8 +2724,7 @@ pub fn nvim_eval_statusline(
     let str_bytes = str_.as_bytes();
     if !str_bytes.starts_with(b"%!") {
         let mut raw_errbuf = [0u8; ERR_BUFLEN];
-        let errbuf = CharBuf::from_slice(&mut raw_errbuf);
-        if let Some(errmsg) = check_stl_option(str_bytes, Some(errbuf)) {
+        if let Some(errmsg) = check_stl_option(str_bytes, Some(&mut raw_errbuf)) {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
             return result;
         }
@@ -2845,33 +2843,23 @@ pub fn nvim_eval_statusline(
 
     result = arena_dict(arena, 3);
     let mut buf_vec = [0u8; MAXPATHL];
-    let buf = CharBuf::from_slice(&mut buf_vec);
-    let mut hltab = crate::globals::GraphPtr::<StlHlrec>::NULL.as_ptr();
     let mut hltab_len: usize = 0;
 
     let p_crb_save = wp.w_onebuf_opt.wo_crb;
     wp.w_onebuf_opt.wo_crb = false;
 
-    let width = build_stl_str_hl(
+    let width = build_stl_str_hl_slice(
         wp,
-        buf,
-        str_.data.cast(),
+        &mut buf_vec,
+        str_.as_opt_cstr(),
         -1,
         0,
         fillchar,
         maxwidth,
-        if opts.highlights {
-            &mut hltab
-        } else {
-            ptr::null_mut()
-        },
-        &mut hltab_len,
-        ptr::null_mut(),
-        if statuscol_lnum != 0 {
-            &mut statuscol
-        } else {
-            ptr::null_mut()
-        },
+        opts.highlights,
+        Some(&mut hltab_len),
+        false,
+        (statuscol_lnum != 0).then_some(&mut statuscol),
     );
 
     put_c(&mut result, c"width", integer_obj(Integer::from(width)));
@@ -2885,69 +2873,70 @@ pub fn nvim_eval_statusline(
             opts.use_winbar,
             stc_hl_id,
         );
-        if crate::globals::GraphPtr::of(hltab).borrow().start_off != Some(0) {
-            let mut hl_info = arena_dict(arena, 3);
-            put_c(&mut hl_info, c"start", integer_obj(0));
-            put_c(
-                &mut hl_info,
-                c"group",
-                cstr_to_arena_obj(arena, Some(&dfltname)),
-            );
-            let mut groups = arena_array(arena, 1);
-            add_c(&mut groups, cstr_to_arena_obj(arena, Some(&dfltname)));
-            put_c(&mut hl_info, c"groups", array_obj(groups));
-            add_c(&mut hl_values, dict_obj(hl_info));
-        }
-
-        let mut sp = hltab;
-        while let Some(sp_off) = crate::globals::GraphPtr::of(sp).borrow().start_off {
-            const USER_HLS: [&CStr; 9] = [
-                c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
-                c"User9",
-            ];
-            let sp_ref = crate::globals::GraphPtr::of(sp).borrow();
-            let grpname_owned = if sp_ref.userhl == 0 {
-                get_default_stl_hl(
-                    (!opts.use_tabline).then_some(&*wp),
-                    opts.use_winbar,
-                    stc_hl_id,
-                )
-            } else if sp_ref.userhl < 0 {
-                syn_id2name(-sp_ref.userhl)
-            } else {
-                USER_HLS[(sp_ref.userhl - 1) as usize].to_owned()
-            };
-            let grpname = grpname_owned.as_c_str();
-
-            let scl_name_owned =
-                (sp_ref.item == i32::from(STL_SIGNCOL)).then(|| syn_id2name(scl_hl_id));
-            let combine: &CStr = if let Some(ref scl_name) = scl_name_owned {
-                scl_name.as_c_str()
-            } else if sp_ref.item == i32::from(STL_FOLDCOL) {
-                grpname
-            } else {
-                dfltname.as_c_str()
-            };
-            let mut hl_info = arena_dict(arena, 3);
-
-            put_c(&mut hl_info, c"start", integer_obj(sp_off as Integer));
-
-            put_c(
-                &mut hl_info,
-                c"group",
-                cstr_to_arena_obj(arena, Some(grpname)),
-            );
-            let diff_group = combine != grpname;
-            let mut groups = arena_array(arena, 1 + usize::from(diff_group));
-            if diff_group {
-                add_c(&mut groups, cstr_to_arena_obj(arena, Some(combine)));
+        with_stl_hltab(|hltab_slice| {
+            if hltab_slice.first().is_none_or(|r| r.start_off != Some(0)) {
+                let mut hl_info = arena_dict(arena, 3);
+                put_c(&mut hl_info, c"start", integer_obj(0));
+                put_c(
+                    &mut hl_info,
+                    c"group",
+                    cstr_to_arena_obj(arena, Some(&dfltname)),
+                );
+                let mut groups = arena_array(arena, 1);
+                add_c(&mut groups, cstr_to_arena_obj(arena, Some(&dfltname)));
+                put_c(&mut hl_info, c"groups", array_obj(groups));
+                add_c(&mut hl_values, dict_obj(hl_info));
             }
-            add_c(&mut groups, cstr_to_arena_obj(arena, Some(grpname)));
-            put_c(&mut hl_info, c"groups", array_obj(groups));
-            add_c(&mut hl_values, dict_obj(hl_info));
 
-            sp = sp.wrapping_add(1);
-        }
+            for sp_ref in hltab_slice {
+                let Some(sp_off) = sp_ref.start_off else {
+                    break;
+                };
+                const USER_HLS: [&CStr; 9] = [
+                    c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
+                    c"User9",
+                ];
+                let grpname_owned = if sp_ref.userhl == 0 {
+                    get_default_stl_hl(
+                        (!opts.use_tabline).then_some(&*wp),
+                        opts.use_winbar,
+                        stc_hl_id,
+                    )
+                } else if sp_ref.userhl < 0 {
+                    syn_id2name(-sp_ref.userhl)
+                } else {
+                    USER_HLS[(sp_ref.userhl - 1) as usize].to_owned()
+                };
+                let grpname = grpname_owned.as_c_str();
+
+                let scl_name_owned =
+                    (sp_ref.item == i32::from(STL_SIGNCOL)).then(|| syn_id2name(scl_hl_id));
+                let combine: &CStr = if let Some(ref scl_name) = scl_name_owned {
+                    scl_name.as_c_str()
+                } else if sp_ref.item == i32::from(STL_FOLDCOL) {
+                    grpname
+                } else {
+                    dfltname.as_c_str()
+                };
+                let mut hl_info = arena_dict(arena, 3);
+
+                put_c(&mut hl_info, c"start", integer_obj(sp_off as Integer));
+
+                put_c(
+                    &mut hl_info,
+                    c"group",
+                    cstr_to_arena_obj(arena, Some(grpname)),
+                );
+                let diff_group = combine != grpname;
+                let mut groups = arena_array(arena, 1 + usize::from(diff_group));
+                if diff_group {
+                    add_c(&mut groups, cstr_to_arena_obj(arena, Some(combine)));
+                }
+                add_c(&mut groups, cstr_to_arena_obj(arena, Some(grpname)));
+                put_c(&mut hl_info, c"groups", array_obj(groups));
+                add_c(&mut hl_values, dict_obj(hl_info));
+            }
+        });
         put_c(&mut result, c"highlights", array_obj(hl_values));
     }
     put_c(

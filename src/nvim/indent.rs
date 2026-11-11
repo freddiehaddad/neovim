@@ -37,7 +37,7 @@ use crate::option::{
     set_option_value, was_set_insecurely,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CharBuf, OptIndex, OptKeyDict_briopt, opt_keyset};
+use crate::optionstr::{OptIndex, OptKeyDict_briopt, opt_keyset};
 use crate::os::input::line_breakcheck;
 use crate::plines::{
     CSType, CharInfo, CharsizeArg, ClusterInfo, StrCharInfo, getvcol, getvcol_nolist,
@@ -126,11 +126,11 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 }
 
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
-pub fn tabstop_set(
+pub fn tabstop_set<'a>(
     var_bytes: &[u8],
     array: &mut Vec<Colnr>,
-    errbuf: Option<CharBuf>,
-) -> Option<&'static CStr> {
+    errbuf: Option<&'a mut [u8]>,
+) -> Option<&'a CStr> {
     let mut valcount: usize = 1;
 
     if var_bytes.is_empty() || var_bytes == b"0" {
@@ -138,7 +138,7 @@ pub fn tabstop_set(
         return None;
     }
 
-    let err_at = |idx: usize| -> Option<&'static CStr> {
+    let err_at = |errbuf: Option<&'a mut [u8]>, idx: usize| -> Option<&'a CStr> {
         let cstr = std::ffi::CString::new(&var_bytes[idx..]).unwrap_or_default();
         opt_error(errbuf, E_INVARG2, cstr.as_c_str())
     };
@@ -152,7 +152,7 @@ pub fn tabstop_set(
                 if rem.len() != cp_bytes.len() {
                     return Some(E_POSITIVE);
                 }
-                return err_at(idx);
+                return err_at(errbuf, idx);
             }
         }
 
@@ -169,7 +169,7 @@ pub fn tabstop_set(
             idx += 1;
             continue;
         }
-        return err_at(0);
+        return err_at(errbuf, 0);
     }
 
     let mut out = Vec::with_capacity(valcount);
@@ -178,7 +178,7 @@ pub fn tabstop_set(
         let n = crate::charset::parse_i64_prefix(&var_bytes[idx..]) as i32;
         if n <= 0 || n > TABSTOP_MAX {
             array.clear();
-            return err_at(idx);
+            return err_at(errbuf, idx);
         }
         out.push(n);
         idx += var_bytes[idx..].iter().take_while(|&&b| b != b',').count();
@@ -1342,8 +1342,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let ts_start = arg_bytes;
     let mut errbuf_storage = [0u8; IOSIZE];
-    let errbuf = CharBuf::from_slice(&mut errbuf_storage);
-    if let Some(errmsg) = tabstop_set(arg_bytes, &mut new_vts_array, Some(errbuf)) {
+    if let Some(errmsg) = tabstop_set(arg_bytes, &mut new_vts_array, Some(&mut errbuf_storage)) {
         emsg(gettext(errmsg));
         return;
     }

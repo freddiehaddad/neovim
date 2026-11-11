@@ -88,7 +88,7 @@ use crate::option::{
     shortmess,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CStrOptionSlot, CharBuf, OptIndex};
+use crate::optionstr::{CStrOptionSlot, OptIndex};
 use crate::os::env::{home_replace, home_replace_save};
 #[cfg(unix)]
 use crate::os::fs::os_getperm;
@@ -107,7 +107,7 @@ use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec};
 use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
-use crate::statusline::build_stl_str_hl;
+use crate::statusline::build_stl_str_hl_slice;
 use crate::strings::{format_to_buf, format_to_buf_safelen, gettext, ngettext};
 use crate::syntax::{Synblock, reset_synblock, syntax_clear};
 use crate::terminal::{Terminal, terminal_check_size, terminal_close, terminal_running};
@@ -4214,7 +4214,6 @@ pub fn maketitle() {
     let mut title_cstr: Option<std::ffi::CString> = None;
     let mut icon_cstr: Option<std::ffi::CString> = None;
     let mut buf = [0u8; IOSIZE];
-    let outbuf = CharBuf::from_slice(&mut buf);
 
     if !redrawing() {
         g_st().need_maketitle = true;
@@ -4240,18 +4239,19 @@ pub fn maketitle() {
 
         if !opt_vars().p_titlestring.is_empty() {
             if (g_st().stl_syntax & STL_IN_TITLE) != 0 {
-                build_stl_str_hl(
+                let titlestr = opt_vars().p_titlestring.as_cstr().to_owned();
+                build_stl_str_hl_slice(
                     curwin_ptr(),
-                    outbuf,
-                    opt_vars().p_titlestring.as_ptr().cast_mut().cast(),
+                    &mut buf,
+                    Some(&titlestr),
                     K_OPT_TITLESTRING,
                     0,
                     0,
                     maxlen,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    false,
+                    None,
+                    false,
+                    None,
                 );
                 title_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
             } else {
@@ -4264,22 +4264,19 @@ pub fn maketitle() {
             {
                 opt_vars().p_ssl = true;
             }
-            let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim"
-                .as_ptr()
-                .cast_mut()
-                .cast();
-            build_stl_str_hl(
+            let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim";
+            build_stl_str_hl_slice(
                 curwin_ptr(),
-                outbuf,
-                default_titlestring,
+                &mut buf,
+                Some(default_titlestring),
                 K_OPT_TITLESTRING,
                 0,
                 0,
                 maxlen,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
+                false,
+                None,
+                false,
+                None,
             );
             title_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
             #[cfg(windows)]
@@ -4293,18 +4290,19 @@ pub fn maketitle() {
     if opt_vars().p_icon {
         if !opt_vars().p_iconstring.is_empty() {
             if (g_st().stl_syntax & STL_IN_ICON) != 0 {
-                build_stl_str_hl(
+                let iconstr = opt_vars().p_iconstring.as_cstr().to_owned();
+                build_stl_str_hl_slice(
                     curwin_ptr(),
-                    outbuf,
-                    opt_vars().p_iconstring.as_ptr().cast_mut().cast(),
+                    &mut buf,
+                    Some(&iconstr),
                     K_OPT_ICONSTRING,
                     0,
                     0,
                     0,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    false,
+                    None,
+                    false,
+                    None,
                 );
                 icon_cstr = Some(crate::memory::bytes_as_cstr(&buf).to_owned());
             } else {

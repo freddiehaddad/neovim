@@ -63,7 +63,7 @@ use crate::option::{
     option_has_type, optval_free, set_option_value, set_option_value_give_err,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CharBuf, OptIndex};
+use crate::optionstr::OptIndex;
 use crate::os::env::{
     ExpandCtx, os_env_exists, os_getenv_buf, os_unsetenv, vim_getenv, vim_setenv_ext,
     vim_unsetenv_ext,
@@ -3437,8 +3437,7 @@ fn set_option_from_tv(varname: &CStr, varp: &mut TypVal) {
 
     if !error {
         let mut errbuf_storage = [0u8; IOSIZE];
-        let errbuf = CharBuf::from_slice(&mut errbuf_storage);
-        let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(errbuf));
+        let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(&mut errbuf_storage));
         if let Some(errmsg) = errmsg {
             emsg(errmsg);
         }

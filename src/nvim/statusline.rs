@@ -26,9 +26,8 @@ use crate::eval::vars::{
 };
 use crate::globals::*;
 use crate::grid::{
-    Schar, ScreenGrid, grid_adjust, grid_line_fill, grid_line_flush, grid_line_put_schar,
-    grid_line_puts, grid_line_start, schar_from_ascii, schar_get, schar_get_adv, schar_len,
-    screengrid_line_start,
+    Schar, grid_adjust, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts,
+    grid_line_start, schar_from_ascii, schar_get, schar_get_adv, schar_len, screengrid_line_start,
 };
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
@@ -49,7 +48,7 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::optionstr::{
-    CharBuf, OptIndex, STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL,
+    OptIndex, STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL,
 };
 use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
@@ -60,7 +59,7 @@ use crate::undo::buf_is_changed_fn;
 use crate::window::{
     WinInfoInfo, global_stl_height, lastwin_nofloating, tabline_height, win_is_focusable,
 };
-use std::ptr;
+use std::ffi::CStr;
 
 use crate::ex_getln::Hlf;
 pub type StlFlag = i32;
@@ -333,6 +332,11 @@ fn with_stl_state<R>(f: impl FnOnce(&StatuslineState) -> R) -> R {
     STL_STATE.with(f)
 }
 
+#[inline]
+pub fn with_stl_hltab<R>(f: impl FnOnce(&[StlHlrec]) -> R) -> R {
+    STL_STATE.with(|st| f(&st.stl_hltab_vec.borrow()))
+}
+
 /// Redraw the status line of window `wp`.
 pub fn win_redr_status(wp: &mut WinInfoInfo) {
     let is_stl_global = global_stl_height() > 0;
@@ -487,7 +491,15 @@ fn win_redr_stl_expr(
     draw_ruler: bool,
     ui_event: bool,
 ) {
-    let mut wp = crate::globals::GraphPtr::from(wp_arg);
+    #[derive(Clone, Copy)]
+    enum StlGridTarget {
+        Default,
+        MsgAdj,
+        WinGrid(crate::globals::WinPtr),
+        WinAlloc(crate::globals::WinPtr),
+    }
+
+    let wp = crate::globals::WinPtr::from(wp_arg);
     let mut col: i32 = 0;
     let attr: i32;
     let mut row: i32 = 0;
@@ -499,18 +511,14 @@ fn win_redr_stl_expr(
     let stl_cstr: std::ffi::CString;
     let opt_idx: OptIndex;
     let mut opt_scope: i32 = 0;
-    let mut hltab = crate::globals::GraphPtr::<StlHlrec>::NULL.as_ptr();
     let click_defs_target: ClickDefsTarget;
     let is_stl_global = global_stl_height() > 0;
 
-    let mut grid = crate::globals::GraphPtr::<ScreenGrid>::of(
-        if !wp.is_null() && wp.w_floating && !is_stl_global {
-            &raw mut wp.w_grid_alloc
-        } else {
-            &raw mut g_st().default_grid
-        },
-    )
-    .as_ptr();
+    let mut grid_target = if !wp.is_null() && wp.w_floating && !is_stl_global {
+        StlGridTarget::WinAlloc(wp)
+    } else {
+        StlGridTarget::Default
+    };
 
     if !is_stl_global && !wp.is_null() && wp.w_config.hide {
         return;
@@ -541,24 +549,27 @@ fn win_redr_stl_expr(
         opt_idx = K_OPT_TABLINE;
         click_defs_target = ClickDefsTarget::Tabline;
     } else if draw_winbar {
-        let wp = wp.borrow_mut();
+        let wp_ref = wp.borrow_mut();
         opt_idx = K_OPT_WINBAR;
-        stl_cstr = if !wp.w_onebuf_opt.wo_wbr.is_empty() {
-            wp.w_onebuf_opt.wo_wbr.as_cstr().to_owned()
+        stl_cstr = if !wp_ref.w_onebuf_opt.wo_wbr.is_empty() {
+            wp_ref.w_onebuf_opt.wo_wbr.as_cstr().to_owned()
         } else {
             opt_vars().p_wbr.as_cstr().to_owned()
         };
-        opt_scope = if !wp.w_onebuf_opt.wo_wbr.is_empty() {
+        opt_scope = if !wp_ref.w_onebuf_opt.wo_wbr.is_empty() {
             OPT_LOCAL
         } else {
             0
         };
         row = -1;
         col = 0;
-        grid = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut row, &mut col)
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        let has_grid =
+            crate::grid::grid_adjust_opt(&mut wp_ref.w_grid, &mut row, &mut col).is_some();
+        if has_grid {
+            grid_target = StlGridTarget::WinGrid(wp);
+        }
 
-        if row < 0 {
+        if row < 0 || !has_grid {
             with_stl_state(|st| st.stl_expr_entered.set(false));
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
@@ -567,16 +578,16 @@ fn win_redr_stl_expr(
             return;
         }
 
-        fillchar = wp.w_p_fcs_chars.wbr;
+        fillchar = wp_ref.w_p_fcs_chars.wbr;
         group = if wp == curwin_ptr() {
             HLF_WBR
         } else {
             HLF_WBRNC
         };
-        attr = win_hl_attr(&mut *wp, group);
-        maxwidth = wp.w_view_width;
-        stl_clear_click_defs(&mut wp.w_winbar_click_defs);
-        stl_alloc_click_defs(&mut wp.w_winbar_click_defs, maxwidth);
+        attr = win_hl_attr(&mut *wp_ref, group);
+        maxwidth = wp_ref.w_view_width;
+        stl_clear_click_defs(&mut wp_ref.w_winbar_click_defs);
+        stl_alloc_click_defs(&mut wp_ref.w_winbar_click_defs, maxwidth);
         click_defs_target = ClickDefsTarget::Winbar;
     } else if draw_ruler && ui_event {
         stl_cstr = opt_vars().p_ruf.as_cstr().to_owned();
@@ -614,7 +625,8 @@ fn win_redr_stl_expr(
         stl_cstr = stl.to_owned();
         row = g_st().rows_global - 1;
         col = g_st().ru_col.max(g_st().columns_global / 2);
-        grid = ptr::from_mut(grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col));
+        let _ = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
+        grid_target = StlGridTarget::MsgAdj;
         maxwidth = g_st().columns_global - col;
         fillchar = schar_from_ascii(b' ');
         group = HLF_MSG;
@@ -662,32 +674,22 @@ fn win_redr_stl_expr(
     }
 
     if maxwidth > 0 {
-        let ewp = if wp.is_null() {
-            curwin_ptr().as_ptr()
-        } else {
-            wp.as_ptr()
-        };
-        let ewp = crate::globals::GraphPtr::of(ewp).borrow_mut();
+        let mut ewp = if wp.is_null() { curwin_ptr() } else { wp };
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
         ewp.w_onebuf_opt.wo_crb = false;
 
-        let mut tabtab = crate::globals::GraphPtr::<StlClickRecord>::NULL.as_ptr();
-        build_stl_str_hl(
-            ewp.into(),
-            CharBuf::from_slice(&mut buf),
-            stl_cstr.as_ptr().cast_mut().cast(),
+        build_stl_str_hl_slice(
+            ewp,
+            &mut buf,
+            Some(&stl_cstr),
             opt_idx,
             opt_scope,
             fillchar,
             maxwidth,
-            &raw mut hltab,
-            ptr::null_mut(),
-            if click_defs_target != ClickDefsTarget::None {
-                &raw mut tabtab
-            } else {
-                ptr::null_mut()
-            },
-            ptr::null_mut(),
+            true,
+            None,
+            click_defs_target != ClickDefsTarget::None,
+            None,
         );
         let maxwidth_u = maxwidth as usize;
         let click_defs_slice = match click_defs_target {
@@ -716,7 +718,13 @@ fn win_redr_stl_expr(
         let start_col = col;
 
         if !ui_event {
-            screengrid_line_start(crate::globals::GraphPtr::of(grid).borrow_mut(), row, 0);
+            let grid_ref = match grid_target {
+                StlGridTarget::Default => &mut g_st().default_grid,
+                StlGridTarget::MsgAdj => g_st().msg_grid_adj.target.borrow_mut(),
+                StlGridTarget::WinGrid(w) => w.w_grid.target.borrow_mut(),
+                StlGridTarget::WinAlloc(w) => &mut w.borrow_mut().w_grid_alloc,
+            };
+            screengrid_line_start(grid_ref, row, 0);
         }
 
         let mut p_off = 0usize;
@@ -885,7 +893,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut tabs = arena_array(&mut arena, n_tabs);
-    tp = crate::globals::GraphPtr::of(g_st().first_tabpage);
+    tp = g_st().first_tabpage;
     while !tp.is_null() {
         let tp_ref = tp.borrow();
         let mut tab_info = arena_dict(&mut arena, 2);
@@ -900,12 +908,12 @@ fn ui_ext_tabline_update() {
         );
 
         let cwp = if g_st().curtab == tp {
-            curwin_ptr().as_ptr()
+            curwin_ptr()
         } else {
-            tp_ref.tp_curwin.as_ptr()
+            tp_ref.tp_curwin
         };
 
-        get_trans_bufname(crate::globals::GraphPtr::of(cwp).borrow_mut().buf_mut());
+        get_trans_bufname(cwp.borrow_mut().buf_mut());
 
         put_c(
             &mut tab_info,
@@ -927,7 +935,7 @@ fn ui_ext_tabline_update() {
             },
         );
 
-        tp = crate::globals::GraphPtr::of(tp_ref.tp_next);
+        tp = tp_ref.tp_next;
     }
 
     let mut n_buffers: usize = 0;
@@ -940,7 +948,7 @@ fn ui_ext_tabline_update() {
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
-    buf = crate::globals::GraphPtr::of(g_st().firstbuf);
+    buf = g_st().firstbuf;
     while !buf.is_null() {
         let b = buf.borrow_mut();
         if b.b_p_bl {
@@ -978,7 +986,7 @@ fn ui_ext_tabline_update() {
             );
         }
 
-        buf = crate::globals::GraphPtr::of(b.b_next);
+        buf = b.b_next;
     }
 
     ui_call_tabline_update(curtab_mut().handle, tabs, curbuf_mut().b_fnum, buffers);
@@ -1030,7 +1038,7 @@ pub fn draw_tabline() {
         let mut attr = attr_nosel;
         tabcount = 0;
 
-        tp = crate::globals::GraphPtr::of(g_st().first_tabpage);
+        tp = g_st().first_tabpage;
         while !tp.is_null() {
             if col >= g_st().columns_global - 4 {
                 break;
@@ -1039,16 +1047,13 @@ pub fn draw_tabline() {
             let tp_ref = tp.borrow();
             let mut scol = col;
             let (cwp, mut wp) = if g_st().curtab == tp {
-                (curwin_ptr().as_ptr(), g_st().firstwin.as_ptr())
+                (curwin_ptr(), g_st().firstwin)
             } else {
-                (tp_ref.tp_curwin.as_ptr(), tp_ref.tp_firstwin.as_ptr())
+                (tp_ref.tp_curwin, tp_ref.tp_firstwin)
             };
 
             if tp_ref.tp_topframe == g_st().topframe {
-                attr = hl_combine_attr(
-                    attr_fill,
-                    win_hl_attr(crate::globals::GraphPtr::of(cwp).borrow_mut(), HLF_TPS),
-                );
+                attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TPS));
             }
             if use_sep_chars && col > 0 {
                 grid_line_put_schar(col, schar_from_ascii(b'|'), attr);
@@ -1056,10 +1061,7 @@ pub fn draw_tabline() {
             }
 
             if tp_ref.tp_topframe != g_st().topframe {
-                attr = hl_combine_attr(
-                    attr_fill,
-                    win_hl_attr(crate::globals::GraphPtr::of(cwp).borrow_mut(), HLF_TP),
-                );
+                attr = hl_combine_attr(attr_fill, win_hl_attr(cwp.borrow_mut(), HLF_TP));
             }
 
             grid_line_put_schar(col, schar_from_ascii(b' '), attr);
@@ -1068,14 +1070,14 @@ pub fn draw_tabline() {
             let mut modified = false;
             let mut wincount: i32 = 0;
             while !wp.is_null() {
-                let wp_ref = crate::globals::GraphPtr::of(wp).borrow_mut();
+                let wp_ref = wp.borrow_mut();
                 if !win_is_focusable(wp_ref) {
                     wincount -= 1;
                 } else if buf_is_changed_fn(wp_ref.buf_mut()) {
                     modified = true;
                 }
 
-                wp = wp_ref.w_next.as_ptr();
+                wp = wp_ref.w_next;
                 wincount += 1;
             }
 
@@ -1090,10 +1092,7 @@ pub fn draw_tabline() {
                         col,
                         g_st().name_buff_cstr(),
                         len,
-                        hl_combine_attr(
-                            attr,
-                            win_hl_attr(crate::globals::GraphPtr::of(cwp).borrow_mut(), HLF_T),
-                        ),
+                        hl_combine_attr(attr, win_hl_attr(cwp.borrow_mut(), HLF_T)),
                     );
 
                     col += len;
@@ -1108,7 +1107,7 @@ pub fn draw_tabline() {
 
             let room = scol - col + tabwidth - 1;
             if room > 0 {
-                get_trans_bufname(crate::globals::GraphPtr::of(cwp).borrow_mut().buf_mut());
+                get_trans_bufname(cwp.borrow_mut().buf_mut());
 
                 shorten_dir(g_st().name_buff_bytes_mut());
                 let name_cstr = g_st().name_buff_cstr();
@@ -1139,7 +1138,7 @@ pub fn draw_tabline() {
                 scol += 1;
             }
 
-            tp = crate::globals::GraphPtr::of(tp_ref.tp_next);
+            tp = tp_ref.tp_next;
         }
 
         for scol in col..g_st().columns_global {
@@ -1203,33 +1202,30 @@ pub fn build_statuscol_str(
     }
     set_vim_var_nr(VV_VIRTNUM, Varnumber::from(virtnum));
 
-    let mut clickrec = crate::globals::GraphPtr::<StlClickRecord>::NULL.as_ptr();
-    let mut hlrec_ptr = crate::globals::GraphPtr::<StlHlrec>::NULL.as_ptr();
     let stc = wp.w_onebuf_opt.wo_stc.to_owned();
-    let width = build_stl_str_hl(
+    let stcp_width = stcp.width;
+    let width = build_stl_str_hl_slice(
         wp.into(),
-        CharBuf::from_slice(buf),
-        stc.as_ptr().cast_mut().cast(),
+        buf,
+        Some(&stc),
         K_OPT_STATUSCOLUMN,
         OPT_LOCAL,
         0,
-        stcp.width,
-        &raw mut hlrec_ptr,
-        ptr::null_mut(),
-        &raw mut clickrec,
-        stcp,
+        stcp_width,
+        true,
+        None,
+        true,
+        Some(stcp),
     );
     drop(stc);
 
     stcp.hlrec.clear();
     with_stl_state(|st| {
-        if !hlrec_ptr.is_null() {
-            for rec in st.stl_hltab_vec.borrow().iter() {
-                if rec.start_off.is_none() {
-                    break;
-                }
-                stcp.hlrec.push(*rec);
+        for rec in st.stl_hltab_vec.borrow().iter() {
+            if rec.start_off.is_none() {
+                break;
             }
+            stcp.hlrec.push(*rec);
         }
 
         let tabtab = st.stl_tabtab_vec.borrow();
@@ -1447,32 +1443,95 @@ fn stl_expand(
     }
 }
 
-/// Build a string from the status line items in `fmt`.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct CharBuf {
+    pub addr: usize,
+    pub size: usize,
+}
+
+/// Build a string from the status line items in `fmt` (FFI shim).
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
-pub extern "C" fn build_stl_str_hl(
-    mut wp: crate::globals::WinPtr,
+pub unsafe extern "C" fn build_stl_str_hl(
+    wp: crate::globals::WinPtr,
     out: CharBuf,
     fmt: *mut u8,
     opt_idx: OptIndex,
     opt_scope: i32,
-    mut fillchar: Schar,
+    fillchar: Schar,
     maxwidth: i32,
     hltab: *mut *mut StlHlrec,
     hltab_len: *mut usize,
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
 ) -> i32 {
-    let mut buf_tmp: [u8; TMPLEN] = [0; TMPLEN];
-    let mut usefmt_vec: Vec<u8> = Vec::new();
-    if !fmt.is_null() {
-        let mut p = fmt;
-        while *crate::globals::GraphPtr::of(p).borrow() != 0 {
-            usefmt_vec.push(*crate::globals::GraphPtr::of(p).borrow());
-            p = p.wrapping_add(1);
-        }
+    let out_buf = if out.addr == 0 || out.size == 0 {
+        &mut [][..]
+    } else {
+        // SAFETY: FFI caller passes a valid buffer of `out.size` bytes.
+        unsafe { std::slice::from_raw_parts_mut(out.addr as *mut u8, out.size) }
+    };
+    let fmt_cstr = if fmt.is_null() {
+        None
+    } else {
+        // SAFETY: FFI caller passes a NUL-terminated C string.
+        Some(unsafe { CStr::from_ptr(fmt.cast()) })
+    };
+    // SAFETY: FFI caller passes null or a valid Statuscol pointer.
+    let stcp_opt = unsafe { stcp.as_mut() };
+    let mut calc_hltab_len = 0usize;
+    let width = build_stl_str_hl_slice(
+        wp,
+        out_buf,
+        fmt_cstr,
+        opt_idx,
+        opt_scope,
+        fillchar,
+        maxwidth,
+        !hltab.is_null(),
+        (!hltab_len.is_null()).then_some(&mut calc_hltab_len),
+        !tabtab.is_null(),
+        stcp_opt,
+    );
+    if !hltab.is_null() {
+        with_stl_state(|st| {
+            // SAFETY: FFI caller passes a valid out-pointer.
+            unsafe { *hltab = st.stl_hltab_vec.borrow_mut().as_mut_ptr() };
+        });
     }
-    usefmt_vec.push(0);
+    if !hltab_len.is_null() {
+        // SAFETY: FFI caller passes a valid out-pointer.
+        unsafe { *hltab_len = calc_hltab_len };
+    }
+    if !tabtab.is_null() {
+        with_stl_state(|st| {
+            // SAFETY: FFI caller passes a valid out-pointer.
+            unsafe { *tabtab = st.stl_tabtab_vec.borrow_mut().as_mut_ptr() };
+        });
+    }
+    width
+}
+
+/// Build a string from the status line items in `fmt`.
+pub fn build_stl_str_hl_slice(
+    mut wp: crate::globals::WinPtr,
+    out_buf: &mut [u8],
+    fmt: Option<&CStr>,
+    opt_idx: OptIndex,
+    opt_scope: i32,
+    mut fillchar: Schar,
+    maxwidth: i32,
+    need_hltab: bool,
+    hltab_len: Option<&mut usize>,
+    need_tabtab: bool,
+    mut stcp: Option<&mut Statuscol>,
+) -> i32 {
+    let mut buf_tmp: [u8; TMPLEN] = [0; TMPLEN];
+    let mut usefmt_vec: Vec<u8> = match fmt {
+        Some(f) => f.to_bytes_with_nul().to_vec(),
+        None => vec![0],
+    };
     let save_redraw_not_allowed = g_st().redraw_not_allowed;
     #[allow(non_snake_case)]
     let save_KeyTyped = g_st().key_typed;
@@ -1504,7 +1563,7 @@ pub extern "C" fn build_stl_str_hl(
         false
     };
 
-    if !fmt.is_null() && usefmt_vec.starts_with(b"%!") {
+    if fmt.is_some() && usefmt_vec.starts_with(b"%!") {
         let mut tv = TypVal {
             v_type: VarType::VarNumber,
             v_lock: 0,
@@ -1553,7 +1612,6 @@ pub extern "C" fn build_stl_str_hl(
     let mut prevchar_isflag = true;
     let mut prevchar_isitem = false;
 
-    let out_buf = out.as_mut_slice();
     let out_size = out_buf.len();
     let mut out_idx: usize = 0;
     let out_end = out_size.saturating_sub(1);
@@ -1792,7 +1850,7 @@ pub extern "C" fn build_stl_str_hl(
             }
             stl_items!()[curitem as usize].type_ = StlItemType::ClickFunc;
             stl_items!()[curitem as usize].start_off = out_idx;
-            stl_items!()[curitem as usize].cmd = if !tabtab.is_null() {
+            stl_items!()[curitem as usize].cmd = if need_tabtab {
                 let slice = &usefmt_vec[t_idx..fmt_idx];
                 Some(std::ffi::CString::new(slice).unwrap())
             } else {
@@ -2049,13 +2107,11 @@ pub extern "C" fn build_stl_str_hl(
                 }
             }
             STL_LINE => {
-                if !stcp.is_null()
+                if let Some(ref stcp_ref) = stcp
                     && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
                     && get_vim_var_nr(VV_VIRTNUM) == 0
                 {
-                    if wp.w_maxscwidth == SCL_NUM
-                        && (crate::globals::GraphPtr::of(stcp).borrow().sattrs[0].text[0] != 0)
-                    {
+                    if wp.w_maxscwidth == SCL_NUM && stcp_ref.sattrs[0].text[0] != 0 {
                         handle_stcsign = true;
                     } else {
                         let relnum = get_vim_var_nr(VV_RELNUM) as i32;
@@ -2073,7 +2129,7 @@ pub extern "C" fn build_stl_str_hl(
                             may_grow_stl_items_len!();
                         }
                     }
-                } else if stcp.is_null() {
+                } else if stcp.is_none() {
                     num = if ((*wp).buf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
                         0
                     } else {
@@ -2267,8 +2323,7 @@ pub extern "C" fn build_stl_str_hl(
             _ => {}
         }
 
-        if handle_stcsign && !stcp.is_null() {
-            let stcp_ref = crate::globals::GraphPtr::of(stcp).borrow_mut();
+        if handle_stcsign && let Some(stcp_ref) = stcp.as_deref_mut() {
             let fdc = if opt == STL_FOLDCOL {
                 compute_foldcolumn(wp.borrow_mut(), 0)
             } else {
@@ -2528,7 +2583,7 @@ pub extern "C" fn build_stl_str_hl(
     out_buf[out_idx] = 0;
 
     let mut width = vim_strsize(crate::memory::bytes_as_cstr(out_buf));
-    if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {
+    if maxwidth > 0 && width > maxwidth && (stcp.is_none() || width > MAX_STCWIDTH) {
         stl_truncate(
             &mut width,
             0,
@@ -2557,14 +2612,13 @@ pub extern "C" fn build_stl_str_hl(
         );
     }
 
-    if !hltab.is_null() {
+    if need_hltab {
         with_stl_state(|st| {
             let mut hltab_vec = st.stl_hltab_vec.borrow_mut();
             let needed = (curitem as usize) + 1;
             if hltab_vec.len() < needed {
                 hltab_vec.resize(needed, StlHlrec::new());
             }
-            *crate::globals::GraphPtr::of(hltab).borrow_mut() = hltab_vec.as_mut_ptr();
 
             let mut sp_idx: usize = 0;
             for item in &stl_items!()[(evalstart as usize)..(curitem as usize)] {
@@ -2590,18 +2644,17 @@ pub extern "C" fn build_stl_str_hl(
             hltab_vec[sp_idx].userhl = 0;
         });
     }
-    if !hltab_len.is_null() {
-        *crate::globals::GraphPtr::of(hltab_len).borrow_mut() = (curitem - evalstart) as usize;
+    if let Some(hltab_len) = hltab_len {
+        *hltab_len = (curitem - evalstart) as usize;
     }
 
-    if !tabtab.is_null() {
+    if need_tabtab {
         with_stl_state(|st| {
             let mut tabtab_vec = st.stl_tabtab_vec.borrow_mut();
             let needed = (curitem as usize) + 1;
             if tabtab_vec.len() < needed {
                 tabtab_vec.resize(needed, StlClickRecord::new());
             }
-            *crate::globals::GraphPtr::of(tabtab).borrow_mut() = tabtab_vec.as_mut_ptr();
 
             let mut tab_idx: usize = 0;
             for item in &mut stl_items!()[(evalstart as usize)..(curitem as usize)] {
@@ -2704,19 +2757,19 @@ mod tests {
                 };
 
                 let mut out_buf = [b' '; 120];
-                let mut pat_c = CString::new(pat).unwrap().into_bytes_with_nul();
-                let cells = build_stl_str_hl(
+                let pat_c = CString::new(pat).unwrap();
+                let cells = build_stl_str_hl_slice(
                     curwin_ptr(),
-                    CharBuf::from_slice(&mut out_buf),
-                    pat_c.as_mut_ptr(),
+                    &mut out_buf,
+                    Some(&pat_c),
                     K_OPT_INVALID,
                     0,
                     fillchar,
                     max_cells,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    false,
+                    None,
+                    false,
+                    None,
                 );
                 let got = crate::memory::bytes_as_cstr(&out_buf).to_str().unwrap();
                 assert_eq!(got, expected, "pat={pat:?}");
