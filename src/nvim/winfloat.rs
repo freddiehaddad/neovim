@@ -47,12 +47,13 @@ use crate::ex_cmds::K_WIN_PREVIEW;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
 pub fn win_new_float(
-    wp_opt: Option<&'static mut WinInfoInfo>,
+    wp_opt: Option<&mut WinInfoInfo>,
     last: bool,
     fconfig: WinConfig,
     err: &mut Error,
 ) -> Option<&'static mut WinInfoInfo> {
     let wp = if let Some(wp) = wp_opt {
+        let wp = crate::globals::WinPtr::from(&*wp).borrow_mut();
         debug_assert!(!last);
         debug_assert!(!wp.w_floating);
 

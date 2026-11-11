@@ -5572,40 +5572,28 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
     }
     while count != 0 {
         count += if count < 0 { 1 } else { -1 };
-        let mut nextbuf = if offset < 0 {
-            buf.b_prev.as_ptr()
-        } else {
-            buf.b_next.as_ptr()
-        };
+        let mut nextbuf = if offset < 0 { buf.b_prev } else { buf.b_next };
         if nextbuf.is_null() {
             break;
         }
-        buf = crate::globals::GraphPtr::of(nextbuf);
+        buf = nextbuf;
         if addr_type == ADDR_LOADED_BUFFERS {
             while buf.b_ml.ml_mfp.is_none() {
-                nextbuf = if offset < 0 {
-                    buf.b_prev.as_ptr()
-                } else {
-                    buf.b_next.as_ptr()
-                };
+                nextbuf = if offset < 0 { buf.b_prev } else { buf.b_next };
                 if nextbuf.is_null() {
                     break;
                 }
-                buf = crate::globals::GraphPtr::of(nextbuf);
+                buf = nextbuf;
             }
         }
     }
     if addr_type == ADDR_LOADED_BUFFERS {
         while buf.b_ml.ml_mfp.is_none() {
-            let nextbuf = if offset >= 0 {
-                buf.b_prev.as_ptr()
-            } else {
-                buf.b_next.as_ptr()
-            };
+            let nextbuf = if offset >= 0 { buf.b_prev } else { buf.b_next };
             if nextbuf.is_null() {
                 break;
             }
-            buf = crate::globals::GraphPtr::of(nextbuf);
+            buf = nextbuf;
         }
     }
     buf.b_fnum
@@ -5729,7 +5717,7 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
 
             eap.line1 = buf.b_fnum;
 
-            buf = crate::globals::GraphPtr::of(g_st().lastbuf);
+            buf = g_st().lastbuf;
             while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
                 buf = buf.b_prev;
             }
@@ -7273,7 +7261,7 @@ pub fn parse_cmd_address(
 
                             eap.line1 = buf.b_fnum;
 
-                            buf = crate::globals::GraphPtr::of(g_st().lastbuf);
+                            buf = g_st().lastbuf;
                             while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
                                 buf = buf.b_prev;
                             }
@@ -9091,7 +9079,7 @@ pub fn not_exiting(save_exiting: bool) {
 }
 
 pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
-    let wp = crate::globals::GraphPtr::from(wp_in);
+    let wp = crate::globals::WinPtr::from(wp_in);
     if get_vim_var_str(VV_EXITREASON).is_empty() {
         set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
@@ -9280,52 +9268,37 @@ fn ex_restart(eap: &mut Exarg) {
     let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
     let mut listen_arg: Option<std::ffi::CString> = None;
 
-    let mut li = l.map_or(ptr::null_mut(), |l| l.lv_first.as_ptr());
+    let mut li = l.map_or(crate::eval::typval::ListitemId::NULL, |l| l.lv_first);
     while !li.is_null() {
-        let arg = tv_get_string(&crate::globals::GraphPtr::of(li).borrow().li_tv);
+        let arg = tv_get_string(&li.li_tv);
         let i = argv_vec.len();
         if i > 0 && (Some(arg.to_bytes()) == Some(b"--")) {
             break;
         }
         if i > 0 && (Some(arg.to_bytes()) == Some(b"-S")) {
-            let next_li = crate::globals::GraphPtr::of(li)
-                .borrow_mut()
-                .li_next
-                .as_ptr();
+            let next_li = li.li_next;
             if !next_li.is_null() {
-                let next_arg = tv_get_string(&crate::globals::GraphPtr::of(next_li).borrow().li_tv);
+                let next_arg = tv_get_string(&next_li.li_tv);
                 if next_arg.to_bytes().first().copied().unwrap_or(0) != b'-' {
                     li = next_li;
                 }
             }
 
-            li = crate::globals::GraphPtr::of(li)
-                .borrow_mut()
-                .li_next
-                .as_ptr();
+            li = li.li_next;
 
             continue;
         }
         if i > 0 && (Some(arg.to_bytes()) == Some(b"-s")) {
-            li = crate::globals::GraphPtr::of(li)
-                .borrow_mut()
-                .li_next
-                .as_ptr();
+            li = li.li_next;
 
             if !li.is_null() {
-                li = crate::globals::GraphPtr::of(li)
-                    .borrow_mut()
-                    .li_next
-                    .as_ptr();
+                li = li.li_next;
             }
             continue;
         }
         if i > 0 && (Some(arg.to_bytes()) == Some(b"--listen")) {
-            let next_li = crate::globals::GraphPtr::of(li)
-                .borrow_mut()
-                .li_next
-                .as_ptr();
-            if let Some(next_li) = crate::globals::GraphPtr::of(next_li).opt_mut() {
+            let next_li = li.li_next;
+            if let Some(next_li) = next_li.opt_mut() {
                 let addr = tv_get_string(&next_li.li_tv);
                 if addr
                     .to_bytes()
@@ -9335,7 +9308,7 @@ fn ex_restart(eap: &mut Exarg) {
                     listen_arg = to_slash_save(Some(&addr));
                     #[cfg(windows)]
                     {
-                        li = next_li.li_next.as_ptr();
+                        li = next_li.li_next;
                         continue;
                     }
                 }
@@ -9355,10 +9328,7 @@ fn ex_restart(eap: &mut Exarg) {
             }
         }
 
-        li = crate::globals::GraphPtr::of(li)
-            .borrow_mut()
-            .li_next
-            .as_ptr();
+        li = li.li_next;
     }
 
     #[cfg(windows)]
@@ -9437,8 +9407,7 @@ fn ex_restart(eap: &mut Exarg) {
         }
         return;
     };
-    let mut channel = crate::globals::GraphPtr::<crate::channel::Channel>::from_ref(channel_ref);
-    let chan_id = channel.id;
+    let chan_id = channel_ref.id;
     let mut result_mem = ArenaMem::NULL;
 
     'fail_2: {
@@ -9610,15 +9579,11 @@ fn ex_restart(eap: &mut Exarg) {
         arena_mem_free(result_mem);
     }
 
-    let proc_ptr = &raw mut channel.uv.proc_;
-    proc_stop(crate::globals::GraphPtr::of(proc_ptr).borrow_mut());
-    if proc_wait(
-        crate::globals::GraphPtr::of(proc_ptr).borrow_mut(),
-        -1,
-        None,
-    ) < 0
-    {
-        let _ = emsg(c"killing new nvim server failed");
+    if let Some(chan) = crate::msgpack_rpc::channel::find_channel_opt(chan_id) {
+        proc_stop(&mut chan.uv.proc_);
+        if proc_wait(&mut chan.uv.proc_, -1, None) < 0 {
+            let _ = emsg(c"killing new nvim server failed");
+        }
     }
 
     if server_stopped && server_start(listen_arg.as_deref()) != 0 {
@@ -9652,7 +9617,7 @@ fn ex_pclose(eap: &mut Exarg) {
 }
 
 pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&mut TabPageInfo>) {
-    let tp = crate::globals::GraphPtr::from(tp_in);
+    let tp = crate::globals::TabpagePtr::from(tp_in);
     debug_assert!(tp.is_null() || tp != g_st().curtab.as_ptr());
 
     if is_ctx_win(win) {
@@ -9738,7 +9703,7 @@ fn ex_tabonly(eap: &mut Exarg) {
     while done < 1000 {
         for tp in for_all_tabpages_ptr() {
             if tp.tp_topframe != g_st().topframe {
-                let tp_ptr = crate::globals::GraphPtr::<TabPageInfo>::from_ref(tp);
+                let tp_ptr = crate::globals::TabpagePtr::from(&*tp);
                 tabpage_close_other(tp_ptr.borrow_mut(), eap.forceit);
                 if valid_tabpage(tp_ptr.opt()) {
                     done = 1000;
@@ -9786,7 +9751,7 @@ pub fn tabpage_close(forceit: bool) {
 }
 
 pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
-    let mut tp = crate::globals::GraphPtr::from(tp_in);
+    let mut tp = crate::globals::TabpagePtr::from(tp_in);
     let mut done: i32 = 0;
     let mut prev_idx = [0u8; NUMBUFLEN];
 
@@ -9857,24 +9822,18 @@ fn ex_hide(eap: &mut Exarg) {
         return;
     }
 
-    let win = crate::globals::GraphPtr::<WinInfoInfo>::of(if eap.addr_count == 0 {
-        curwin_ptr().as_ptr()
+    let mut win = if eap.addr_count == 0 {
+        curwin_ptr()
     } else {
-        win_find_nr(eap.line2, Some(curtab_mut())).map_or(g_st().lastwin.as_ptr(), |w| w)
-    })
-    .as_ptr();
+        win_find_nr(eap.line2, Some(curtab_mut()))
+            .map_or(g_st().lastwin, crate::globals::WinPtr::from)
+    };
 
-    if (!crate::globals::GraphPtr::of(win).borrow().w_floating)
-        && window_layout_locked(Cmdidx::CmdHide)
-    {
+    if !win.w_floating && window_layout_locked(Cmdidx::CmdHide) {
         return;
     }
 
-    win_close(
-        crate::globals::GraphPtr::of(win).borrow_mut(),
-        false,
-        eap.forceit,
-    );
+    win_close(&mut win, false, eap.forceit);
 }
 
 fn ex_stop(eap: &mut Exarg) {
@@ -10556,7 +10515,7 @@ fn ex_edit(eap: &mut Exarg) {
 }
 
 pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
-    let mut old_curwin = crate::globals::GraphPtr::from(old_curwin_in);
+    let mut old_curwin = crate::globals::WinPtr::from(old_curwin_in);
     if (eap.cmdidx == Cmdidx::CmdNew
         || eap.cmdidx == Cmdidx::CmdTabnew
         || eap.cmdidx == Cmdidx::CmdTabedit
@@ -11026,8 +10985,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
     }
 
     ui_flush();
-    let main_loop_ptr = (&raw mut g_st().main_loop).cast::<crate::event::r#loop::Loop>();
-    let events = loop_queues(crate::globals::GraphPtr::of(main_loop_ptr).borrow_mut()).events;
+    let events = loop_queues(&mut g_st().main_loop).events;
     let timeout_ms = msec;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
@@ -11036,10 +10994,7 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
         if !events.is_null() && !multiqueue_empty(events.borrow()) {
             multiqueue_process_events(events.borrow_mut());
         } else {
-            loop_poll_events(
-                crate::globals::GraphPtr::of(main_loop_ptr).borrow_mut(),
-                remaining,
-            );
+            loop_poll_events(&mut g_st().main_loop, remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -11914,7 +11869,7 @@ fn prepare_preview_window() {
 }
 
 fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
-    let curwin_save = crate::globals::GraphPtr::from(curwin_save);
+    let curwin_save = crate::globals::WinPtr::from(curwin_save);
     if curwin_ptr() != curwin_save && win_valid(curwin_save.opt()) {
         validate_cursor(curwin_mut());
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
