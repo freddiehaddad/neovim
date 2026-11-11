@@ -5029,7 +5029,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
 
         let fnamebuf_cstr = crate::memory::bytes_as_cstr(&fnamebuf_arr);
         buf = crate::globals::BufPtr::from(buflist_findname_exp(Some(fnamebuf_cstr)));
-        if !buf.is_null() && buf.b_ml.ml_mfp.is_none() {
+        if !buf.is_null() && buf.b_ml.ml_mfp.borrow().is_none() {
             buf = crate::globals::BufPtr::NULL;
         }
         if !buf.is_null() && buf_is_changed_fn(buf.borrow_mut()) {

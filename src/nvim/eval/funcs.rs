@@ -3090,7 +3090,7 @@ fn getregionpos(
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return false;
     };
-    if findbuf_ref.b_ml.ml_mfp.is_none() {
+    if findbuf_ref.b_ml.ml_mfp.borrow().is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return false;
     }
@@ -4522,7 +4522,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let buf = g_st().curbuf.get().borrow_mut();
 
         buf.b_p_swf.set(false);
-        if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
+        if buf.b_ml.ml_mfp.borrow().is_none() && !ml_open(&mut *buf) {
             proc_stop(&mut chan_ref.uv.proc_);
 
             channel_decref(chan_ref);
@@ -5278,7 +5278,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     };
     let buf = crate::globals::BufPtr::from(&*buf_ref);
-    if buf.b_ml.ml_mfp.is_none() {
+    if buf.b_ml.ml_mfp.borrow().is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return;
     }
@@ -8017,7 +8017,8 @@ pub fn f_swapname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
-    if let Some(mf_fname) = buf.b_ml.mfp_opt().and_then(|mfp| mfp.mf_fname.as_ref()) {
+    let mf_fname = buf.b_ml.mfp_ref().and_then(|mfp| mfp.mf_fname.clone());
+    if let Some(mf_fname) = mf_fname {
         crate::eval::typval::tv_set_string(rettv, Some(mf_fname.as_c_str()));
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;

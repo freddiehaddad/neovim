@@ -2131,7 +2131,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 alt_buf = crate::globals::BufPtr::from(buflist_findname(ffname));
             }
             if let Some(ab) = alt_buf.opt()
-                && ab.b_ml.ml_mfp.is_some()
+                && ab.b_ml.ml_mfp.borrow().is_some()
             {
                 emsg(gettext(E_BUFLOADED));
                 break 'theend;
@@ -2754,7 +2754,7 @@ pub fn do_ecmd(
             if curwin_mut().w_alt_fnum.get() == buf.b_fnum.get() && prev_alt_fnum != 0 {
                 curwin_mut().w_alt_fnum.set(prev_alt_fnum);
             }
-            if buf.b_ml.ml_mfp.is_none() {
+            if buf.b_ml.ml_mfp.borrow().is_none() {
                 oldbuf = false;
             } else {
                 oldbuf = true;

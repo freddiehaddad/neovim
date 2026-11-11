@@ -1120,16 +1120,17 @@ fn mb_adjust_opend(oap: &mut Oparg) {
 
 fn pbyte(mut lp: CursorPos, c: i32) {
     debug_assert!(c <= u8::MAX as i32);
-    let slice = crate::memline::ml_get_buf_mut_slice(curbuf_mut(), lp.lnum);
-    let len = curbuf_mut().b_ml.ml_line_textlen.get();
+    crate::memline::with_ml_get_buf_mut_slice(curbuf_mut(), lp.lnum, |slice| {
+        let len = curbuf_mut().b_ml.ml_line_textlen.get();
 
-    if lp.col >= len {
-        lp.col = if len > 1 { len - 2 } else { 0 };
-    }
+        if lp.col >= len {
+            lp.col = if len > 1 { len - 2 } else { 0 };
+        }
 
-    if let Some(slot) = slice.get_mut(lp.col as usize) {
-        *slot = c as u8;
-    }
+        if let Some(slot) = slice.get_mut(lp.col as usize) {
+            *slot = c as u8;
+        }
+    });
 
     if g_st().curbuf_splice_pending.get() == 0 {
         extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);

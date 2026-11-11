@@ -5433,7 +5433,7 @@ fn vgr_jump_to_match(
 }
 
 fn existing_swapfile(buf: &FileBuf) -> bool {
-    if let Some(ref mfp) = buf.b_ml.ml_mfp
+    if let Some(ref mfp) = *buf.b_ml.ml_mfp.borrow()
         && let Some(ref mf_fname) = mfp.mf_fname
     {
         let bytes = mf_fname.as_bytes();
@@ -5519,7 +5519,7 @@ fn vgr_process_files(
 
         let mut buf = crate::globals::BufPtr::from(buflist_findname_exp(fname_exp_opt));
         let using_dummy: bool;
-        if buf.is_null() || buf.b_ml.ml_mfp.is_none() {
+        if buf.is_null() || buf.b_ml.ml_mfp.borrow().is_none() {
             duplicate_name = !buf.is_null();
             using_dummy = true;
             *redraw_for_dummy = true;
@@ -6957,7 +6957,7 @@ fn cbuffer_process_args(
         return None;
     };
 
-    if buf_ref.b_ml.ml_mfp.is_none() {
+    if buf_ref.b_ml.ml_mfp.borrow().is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return None;
     }

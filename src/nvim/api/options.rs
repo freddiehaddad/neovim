@@ -290,7 +290,7 @@ fn do_ft_buf(
         SID_NONE,
     );
 
-    assert!(ftbuf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
+    assert!(ftbuf.b_ml.ml_mfp.borrow().as_ref().unwrap().mf_fd < 0);
 
     ftbuf.b_p_swf.set(false);
     ftbuf.b_p_ml.set(false);

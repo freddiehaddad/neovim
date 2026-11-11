@@ -971,7 +971,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         if curwin_mut().handle == cs.cs_new_curwin
             && g_st().curbuf.get() != saved_buf
             && bufref_valid(Some(&cs.cs_new_curbuf))
-            && saved_buf.b_ml.ml_mfp.is_some()
+            && saved_buf.b_ml.ml_mfp.borrow().is_some()
         {
             curbuf_mut()
                 .b_nwindows

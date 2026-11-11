@@ -1037,7 +1037,7 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
 
 /// Ensure buffer `buf` is loaded.
 pub fn buf_ensure_loaded(buf: &mut FileBuf) -> bool {
-    if buf.b_ml.ml_mfp.is_some() {
+    if buf.b_ml.ml_mfp.borrow().is_some() {
         return true;
     }
 
@@ -1053,7 +1053,7 @@ pub fn buf_ensure_loaded(buf: &mut FileBuf) -> bool {
     );
     let status = open_buffer(false, None, 0);
     ctx_restore(&mut aco);
-    status && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.is_some()
+    status && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.borrow().is_some()
 }
 
 /// Open current buffer, that is: open the memfile and read the file into
@@ -1088,7 +1088,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
         g_st().curbuf.set(crate::globals::BufPtr::NULL);
         for buf in for_all_buffers_ptr() {
-            if buf.b_ml.ml_mfp.is_some() {
+            if buf.b_ml.ml_mfp.borrow().is_some() {
                 g_st().curbuf.set((buf).into());
                 break;
             }
@@ -1108,7 +1108,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         return false;
     }
 
-    if let Some(mfp) = curbuf_mut().b_ml.ml_mfp.as_deref_mut() {
+    if let Some(mfp) = curbuf_mut().b_ml.ml_mfp.borrow_mut().as_deref_mut() {
         mfp.mf_dirty = MF_DIRTY_YES_NOSYNC;
     }
 
@@ -1203,7 +1203,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
         }
     }
 
-    if let Some(mfp) = curbuf_mut().b_ml.ml_mfp.as_deref_mut()
+    if let Some(mfp) = curbuf_mut().b_ml.ml_mfp.borrow_mut().as_deref_mut()
         && mfp.mf_dirty == MF_DIRTY_YES_NOSYNC
     {
         mfp.mf_dirty = MF_DIRTY_YES;
@@ -1273,7 +1273,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
     if bufref_valid(Some(&old_curbuf))
         && old_curbuf
             .buf_opt()
-            .is_some_and(|b| b.b_ml.ml_mfp.is_some())
+            .is_some_and(|b| b.b_ml.ml_mfp.borrow().is_some())
     {
         let mut aco: CtxSwitch = CtxSwitch::new();
 
@@ -1607,7 +1607,7 @@ pub fn buf_clear_file(buf: &mut FileBuf) {
     buf.b_start_eol.set(true);
     buf.b_p_bomb.set(false);
     buf.b_start_bomb.set(false);
-    buf.b_ml.ml_mfp = None;
+    *buf.b_ml.ml_mfp.borrow_mut() = None;
     buf.b_ml.ml_flags.set(ML_EMPTY);
 }
 
@@ -1642,7 +1642,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     buf_updates_unload(buf, false);
 
     let buf_ptr = crate::globals::BufPtr::from(&mut *buf);
-    if buf_ptr.b_ml.ml_mfp.is_some() {
+    if buf_ptr.b_ml.ml_mfp.borrow().is_some() {
         let b_fname = buf_ptr.borrow().fname_opt();
         if apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, buf_ptr.opt_mut())
             && !bufref_valid(Some(&bufref))
@@ -2327,7 +2327,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
         set_bufref(&mut bufref, buf.opt_mut());
 
-        if action != DOBUF_WIPE && buf.b_ml.ml_mfp.is_none() && !buf.b_p_bl.get() {
+        if action != DOBUF_WIPE && buf.b_ml.ml_mfp.borrow().is_none() && !buf.b_p_bl.get() {
             return false;
         }
 
@@ -2477,7 +2477,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                             || buf.b_locked_split.get() != 0
                         {
                             buf = crate::globals::BufPtr::NULL;
-                        } else if buf.b_ml.ml_mfp.is_none() {
+                        } else if buf.b_ml.ml_mfp.borrow().is_none() {
                             if bp.is_null() {
                                 bp = buf;
                             }
@@ -2524,7 +2524,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     && !bt_quickfix(buf.opt())
                     && buf.b_locked_split.get() == 0
                 {
-                    if buf.b_ml.ml_mfp.is_some() {
+                    if buf.b_ml.ml_mfp.borrow().is_some() {
                         break;
                     }
                     if bp.is_null() {
@@ -2747,7 +2747,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
 
     curwin_mut().w_valid.set(0);
 
-    if curbuf_mut().b_ml.ml_mfp.is_none() {
+    if curbuf_mut().b_ml.ml_mfp.borrow().is_none() {
         if curbuf_mut().b_p_ft.is_empty() {
             curbuf_mut().b_did_filetype.set(false);
         }
@@ -3032,7 +3032,7 @@ pub fn curbuf_reusable() -> bool {
         && curbuf_mut().b_ffname.get().is_none()
         && curbuf_mut().b_nwindows.get() <= 1
         && curbuf_mut().terminal.get().is_null()
-        && (curbuf_mut().b_ml.ml_mfp.is_none() || buf_is_empty(curbuf_mut()))
+        && (curbuf_mut().b_ml.ml_mfp.borrow().is_none() || buf_is_empty(curbuf_mut()))
         && !bt_quickfix(Some(crate::globals::curbuf_mut()))
         && !curbuf_is_changed()
 }
@@ -3742,9 +3742,9 @@ pub fn buflist_list(eap: &mut Exarg) {
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'+' as i32)
                 && ((buf.b_flags.get() & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'a' as i32)
-                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows.get() == 0))
+                && (buf.b_ml.ml_mfp.borrow().is_none() || buf.b_nwindows.get() == 0))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'h' as i32)
-                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows.get() != 0))
+                && (buf.b_ml.ml_mfp.borrow().is_none() || buf.b_nwindows.get() != 0))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'R' as i32)
                 && (!is_terminal || !job_running))
             || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'F' as i32)
@@ -3818,7 +3818,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             } else {
                 b' ' as i32
             },
-            if buf.b_ml.ml_mfp.is_none() {
+            if buf.b_ml.ml_mfp.borrow().is_none() {
                 b' ' as i32
             } else if buf.b_nwindows.get() == 0 {
                 b'h' as i32
@@ -3920,7 +3920,7 @@ pub fn setfname(
                 }
             }
 
-            if obuf.b_ml.ml_mfp.is_some() || in_use {
+            if obuf.b_ml.ml_mfp.borrow().is_some() || in_use {
                 if message {
                     emsg(gettext(c"E95: Buffer with this name already exists"));
                 }
@@ -3967,7 +3967,7 @@ pub fn buf_set_name(fnum: i32, name: &std::ffi::CStr) {
 
 /// Take care of what needs to be done when the name of buffer `buf` has changed.
 pub fn buf_name_changed(buf: &mut FileBuf) {
-    if buf.b_ml.ml_mfp.is_some() {
+    if buf.b_ml.ml_mfp.borrow().is_some() {
         ml_setname(buf);
     }
 
@@ -4575,7 +4575,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         .set(g_st().autocmd_no_leave.get() + (1));
     let mut buf = g_st().firstbuf.get();
     while !buf.is_null() && open_wins < count {
-        if (!all && buf.borrow().b_ml.ml_mfp.is_none()) || !buf.borrow().b_p_bl.get() {
+        if (!all && buf.borrow().b_ml.ml_mfp.borrow().is_none()) || !buf.borrow().b_p_bl.get() {
             buf = buf.borrow().b_next.get();
             continue;
         }

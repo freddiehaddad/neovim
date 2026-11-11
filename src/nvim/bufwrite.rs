@@ -378,7 +378,7 @@ fn buf_write_do_autocmds(
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut did_cmd = false;
     let mut nofile_err = false;
-    let empty_memline = buf.b_ml.ml_mfp.is_none();
+    let empty_memline = buf.b_ml.ml_mfp.borrow().is_none();
 
     let _ = ctx_switch(&mut aco, None, None, buf.opt_mut(), 0);
     set_bufref(bufref, buf.opt_mut());
@@ -475,7 +475,7 @@ fn buf_write_do_autocmds(
         bufref.br_buf = crate::globals::BufPtr::NULL;
     }
     if buf.is_null()
-        || (buf.b_ml.ml_mfp.is_none() && !empty_memline)
+        || (buf.b_ml.ml_mfp.borrow().is_none() && !empty_memline)
         || did_cmd
         || nofile_err
         || aborting()
@@ -1108,7 +1108,7 @@ pub fn buf_write(
     if fname_arg.is_none_or(CStr::is_empty) {
         return false;
     }
-    if buf.b_ml.ml_mfp.is_none() {
+    if buf.b_ml.ml_mfp.borrow().is_none() {
         emsg(gettext(E_EMPTY_BUFFER));
         return false;
     }

@@ -124,7 +124,7 @@ use crate::state::MODE_INSERT;
 pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
     let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err)?;
 
-    if b.b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
+    if b.b_ml.ml_mfp.borrow().is_none() && !buf_ensure_loaded(b) {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to load buffer",);
         return None;
     }
@@ -143,7 +143,7 @@ pub fn nvim_buf_line_count(buf: Buffer, err: &mut Error) -> Integer {
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return 0;
     };
-    if b.b_ml.ml_mfp.is_none() {
+    if b.b_ml.ml_mfp.borrow().is_none() {
         return 0;
     }
     i64::from(b.b_ml.ml_line_count.get())
@@ -331,7 +331,7 @@ pub fn nvim_buf_get_lines(
         return rv;
     };
 
-    if b.b_ml.ml_mfp.is_none() {
+    if b.b_ml.ml_mfp.borrow().is_none() {
         init_line_array(lstate, &mut rv, 0, arena);
         return rv;
     }
@@ -972,7 +972,7 @@ pub fn nvim_buf_get_text(
         return rv;
     };
 
-    if b.b_ml.ml_mfp.is_none() {
+    if b.b_ml.ml_mfp.borrow().is_none() {
         init_line_array(lstate, &mut rv, 0, arena);
         return rv;
     }
@@ -1077,7 +1077,7 @@ pub fn nvim_buf_get_offset(buf: Buffer, index: Integer, err: &mut Error) -> Inte
         return 0;
     };
 
-    if b.b_ml.ml_mfp.is_none() {
+    if b.b_ml.ml_mfp.borrow().is_none() {
         return -1;
     }
 
@@ -1319,7 +1319,7 @@ pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
     let mut stub = Error::new();
     let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, &mut stub);
     api_clear_error(&mut stub);
-    b.is_some_and(|b| b.b_ml.ml_mfp.is_some())
+    b.is_some_and(|b| b.b_ml.ml_mfp.borrow().is_some())
 }
 
 /// Deletes a buffer and its metadata (like |:bwipeout|).

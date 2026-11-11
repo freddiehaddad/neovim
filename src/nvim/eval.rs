@@ -5254,7 +5254,7 @@ pub fn buf_byteidx_to_charidx(
     mut lnum: Linenr,
     byteidx: i32,
 ) -> i32 {
-    if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() {
+    if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.borrow().is_none() {
         return -1;
     }
 
@@ -5289,7 +5289,7 @@ pub fn buf_charidx_to_byteidx(
     mut lnum: Linenr,
     mut charidx: i32,
 ) -> i32 {
-    if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none() {
+    if buf.is_none() || buf.as_deref_mut().unwrap().b_ml.ml_mfp.borrow().is_none() {
         return -1;
     }
 
@@ -5516,7 +5516,7 @@ pub fn list2fpos(
         }) else {
             return false;
         };
-        if buf.b_ml.ml_mfp.is_none() {
+        if buf.b_ml.ml_mfp.borrow().is_none() {
             return false;
         }
         let cur_lnum = curwin_mut().w_cursor.get().lnum;

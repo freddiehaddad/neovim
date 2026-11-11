@@ -42,7 +42,7 @@ pub fn buf_updates_register(
     cb: BufUpdateCallbacks,
     send_buffer: bool,
 ) -> bool {
-    if buf.b_ml.ml_mfp.is_none() {
+    if buf.b_ml.ml_mfp.borrow().is_none() {
         return false;
     }
 

@@ -149,7 +149,7 @@ fn set_buffer_lines(
     };
     let buf_ptr = crate::globals::BufPtr::from(&*buf);
     let is_curbuf = buf_ptr == g_st().curbuf.get().as_ptr();
-    if (!is_curbuf && buf.b_ml.ml_mfp.is_none()) || lnum < 1 {
+    if (!is_curbuf && buf.b_ml.ml_mfp.borrow().is_none()) || lnum < 1 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         return;
     }
@@ -527,7 +527,7 @@ pub fn f_bufload(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_bufloaded(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let buf = find_buffer(&mut argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        buf.is_some_and(|b| b.b_ml.ml_mfp.is_some()),
+        buf.is_some_and(|b| b.b_ml.ml_mfp.borrow().is_some()),
     ));
 }
 
@@ -631,7 +631,7 @@ pub fn f_deletebufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         first
     };
 
-    if buf.b_ml.ml_mfp.is_none()
+    if buf.b_ml.ml_mfp.borrow().is_none()
         || first < 1
         || first > buf.b_ml.ml_line_count.get()
         || last < first
@@ -702,14 +702,18 @@ fn get_buffer_info(buf: &mut FileBuf) -> crate::eval::typval::DictId {
         c"linecount",
         buf.b_ml.ml_line_count.get() as Varnumber,
     );
-    tv_dict_add_nr(&dict, c"loaded", Varnumber::from(buf.b_ml.ml_mfp.is_some()));
+    tv_dict_add_nr(
+        &dict,
+        c"loaded",
+        Varnumber::from(buf.b_ml.ml_mfp.borrow().is_some()),
+    );
     tv_dict_add_nr(&dict, c"listed", buf.b_p_bl.get() as Varnumber);
     tv_dict_add_nr(&dict, c"changed", Varnumber::from(buf_is_changed_fn(buf)));
     tv_dict_add_nr(&dict, c"changedtick", buf_get_changedtick(&*buf));
     tv_dict_add_nr(
         &dict,
         c"hidden",
-        Varnumber::from(buf.b_ml.ml_mfp.is_some() && buf.b_nwindows.get() == 0),
+        Varnumber::from(buf.b_ml.ml_mfp.borrow().is_some() && buf.b_nwindows.get() == 0),
     );
     tv_dict_add_nr(&dict, c"command", Varnumber::from(bt_cmdwin(Some(&*buf))));
 
@@ -763,7 +767,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             continue;
         }
         if filtered
-            && ((sel_bufloaded && buf.b_ml.ml_mfp.is_none())
+            && ((sel_bufloaded && buf.b_ml.ml_mfp.borrow().is_none())
                 || (sel_buflisted && !buf.b_p_bl.get())
                 || (sel_bufmodified && buf.b_changed.get() == 0))
         {
@@ -794,7 +798,7 @@ fn get_buffer_lines(
     rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if buf.is_none()
-        || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none()
+        || buf.as_deref_mut().unwrap().b_ml.ml_mfp.borrow().is_none()
         || start < 0
         || end < start
     {
@@ -976,7 +980,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
     let new_prompt = tv_get_string(&argvars[1]);
     let new_prompt_len = new_prompt.to_bytes().len() as i32;
 
-    if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.is_some() {
+    if bt_prompt(Some(&*buf)) && buf.b_ml.ml_mfp.borrow().is_some() {
         if buf.b_prompt_start.borrow().mark.lnum < 1
             || buf.b_prompt_start.borrow().mark.lnum > curbuf_mut().b_ml.ml_line_count.get()
         {

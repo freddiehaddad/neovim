@@ -2329,7 +2329,7 @@ pub fn readfile(
             }
         }
 
-        if let Some(mfp) = curbuf_mut().b_ml.mfp_opt()
+        if let Some(mut mfp) = curbuf_mut().b_ml.mfp_opt()
             && mfp.mf_dirty == MF_DIRTY_YES_NOSYNC
         {
             mfp.mf_dirty = MF_DIRTY_YES;
@@ -2758,7 +2758,7 @@ pub fn shorten_fnames(force: bool) {
     let dirname_cstr = crate::memory::bytes_as_cstr(&dirname);
     for buf in for_all_buffers_mut() {
         changed |= shorten_buf_fname(buf, dirname_cstr, i32::from(force));
-        mf_fullname(buf.b_ml.mfp_opt());
+        mf_fullname(buf.b_ml.mfp_opt().as_deref_mut());
     }
     if changed {
         status_redraw_all();
@@ -3197,7 +3197,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 
     if !buf.terminal.get().is_null()
         || buf.b_ffname.get().is_none()
-        || buf.b_ml.ml_mfp.is_none()
+        || buf.b_ml.ml_mfp.borrow().is_none()
         || !bt_normal(Some(&*buf))
         || buf.b_saving.get()
         || BUSY.load(std::sync::atomic::Ordering::Relaxed)

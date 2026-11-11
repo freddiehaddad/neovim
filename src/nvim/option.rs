@@ -3191,7 +3191,7 @@ pub fn did_set_undofile<'a>(args: &mut Optset<'a>) -> Option<&'a CStr> {
     for bp in for_all_buffers_ptr() {
         if (ptr::eq(buf, bp) || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
             && !buf_is_changed_fn(&mut *bp)
-            && bp.b_ml.ml_mfp.is_some()
+            && bp.b_ml.ml_mfp.borrow().is_some()
         {
             u_compute_hash(&mut *bp, &mut hash);
             u_read_undo(None, &hash, bp.fname_opt());

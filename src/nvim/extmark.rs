@@ -926,7 +926,7 @@ pub fn extmark_splice(
     undo: ExtmarkOp,
 ) {
     let mut offset = ml_find_line_or_offset(buf, start_row + 1, None, true);
-    if offset < 0 && buf.b_ml.ml_chunksize.is_empty() {
+    if offset < 0 && buf.b_ml.ml_chunksize.borrow().is_empty() {
         offset = 0;
     }
     extmark_splice_impl(

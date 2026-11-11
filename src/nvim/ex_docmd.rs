@@ -5600,7 +5600,7 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
         }
         buf = nextbuf;
         if addr_type == ADDR_LOADED_BUFFERS {
-            while buf.b_ml.ml_mfp.is_none() {
+            while buf.b_ml.ml_mfp.borrow().is_none() {
                 nextbuf = if offset < 0 {
                     buf.b_prev.get()
                 } else {
@@ -5614,7 +5614,7 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
         }
     }
     if addr_type == ADDR_LOADED_BUFFERS {
-        while buf.b_ml.ml_mfp.is_none() {
+        while buf.b_ml.ml_mfp.borrow().is_none() {
             let nextbuf = if offset >= 0 {
                 buf.b_prev.get()
             } else {
@@ -5742,14 +5742,14 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
         }
         ADDR_LOADED_BUFFERS => {
             let mut buf = g_st().firstbuf.get();
-            while !buf.b_next.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+            while !buf.b_next.get().is_null() && buf.b_ml.ml_mfp.borrow().is_none() {
                 buf = buf.b_next.get();
             }
 
             eap.line1 = buf.b_fnum.get();
 
             buf = g_st().lastbuf.get();
-            while !buf.b_prev.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+            while !buf.b_prev.get().is_null() && buf.b_ml.ml_mfp.borrow().is_none() {
                 buf = buf.b_prev.get();
             }
 
@@ -7307,14 +7307,16 @@ pub fn parse_cmd_address(
                         }
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().firstbuf.get();
-                            while !buf.b_next.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+                            while !buf.b_next.get().is_null() && buf.b_ml.ml_mfp.borrow().is_none()
+                            {
                                 buf = buf.b_next.get();
                             }
 
                             eap.line1 = buf.b_fnum.get();
 
                             buf = g_st().lastbuf.get();
-                            while !buf.b_prev.get().is_null() && buf.b_ml.ml_mfp.is_none() {
+                            while !buf.b_prev.get().is_null() && buf.b_ml.ml_mfp.borrow().is_none()
+                            {
                                 buf = buf.b_prev.get();
                             }
 
@@ -7847,7 +7849,7 @@ pub fn get_address(
                         ADDR_ARGUMENTS => lnum = argcount(),
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().lastbuf.get();
-                            while buf.b_ml.ml_mfp.is_none() {
+                            while buf.b_ml.ml_mfp.borrow().is_none() {
                                 if buf.b_prev.get().is_null() {
                                     break;
                                 }
@@ -8213,14 +8215,16 @@ pub fn invalid_range(eap: &mut Exarg) -> Option<std::borrow::Cow<'static, std::f
                 }
             }
             ADDR_LOADED_BUFFERS => {
-                let Some(first_loaded) = for_all_buffers_ptr().find(|b| b.b_ml.ml_mfp.is_some())
+                let Some(first_loaded) =
+                    for_all_buffers_ptr().find(|b| b.b_ml.ml_mfp.borrow().is_some())
                 else {
                     return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 };
                 if eap.line1 < first_loaded.b_fnum.get() {
                     return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 }
-                let Some(last_loaded) = for_all_buffers_rev_ptr().find(|b| b.b_ml.ml_mfp.is_some())
+                let Some(last_loaded) =
+                    for_all_buffers_rev_ptr().find(|b| b.b_ml.ml_mfp.borrow().is_some())
                 else {
                     return Some(std::borrow::Cow::Borrowed(gettext(E_INVRANGE)));
                 };
@@ -10690,12 +10694,9 @@ fn ex_popup(eap: &mut Exarg) {
 }
 
 fn ex_swapname(_eap: &mut Exarg) {
-    if let Some(mf_fname) = curbuf_mut()
-        .b_ml
-        .mfp_opt()
-        .and_then(|m| m.mf_fname.as_ref())
-    {
-        let _ = msg(mf_fname, 0);
+    let mf_fname = curbuf_mut().b_ml.mfp_ref().and_then(|m| m.mf_fname.clone());
+    if let Some(mf_fname) = mf_fname {
+        let _ = msg(&mf_fname, 0);
     } else {
         let _ = msg(gettext(c"No swap file"), 0);
     }

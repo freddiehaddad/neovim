@@ -2818,14 +2818,14 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     && line_slice.get(col_usize - 1) == Some(&b':')
                     && line_slice.get(col_usize - 2) == Some(&b':')
                 {
-                    crate::cursor::get_cursor_line_mut_slice()[col_usize - 1] = b' ';
+                    crate::cursor::with_cursor_line_mut_slice(|s| s[col_usize - 1] = b' ');
 
                     let line_slice = crate::cursor::get_cursor_line_slice();
                     let i = cin_iscase_slice(line_slice, false)
                         || cin_isscopedecl_slice(line_slice)
                         || cin_islabel();
 
-                    crate::cursor::get_cursor_line_mut_slice()[col_usize - 1] = b':';
+                    crate::cursor::with_cursor_line_mut_slice(|s| s[col_usize - 1] = b':');
 
                     if i {
                         return true;

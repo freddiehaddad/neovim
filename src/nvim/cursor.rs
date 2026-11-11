@@ -595,7 +595,8 @@ pub fn char_before_cursor() -> i32 {
 
 /// Write a character at the current cursor position (`pchar_cursor`).
 pub fn pchar_cursor(c: u8) {
-    get_cursor_line_mut_slice()[curwin_mut().w_cursor.get().col as usize] = c;
+    let col = curwin_mut().w_cursor.get().col as usize;
+    with_cursor_line_mut_slice(|s| s[col] = c);
 }
 
 /// Return the cursor line as a CStr (`get_cursor_line_ptr`).
@@ -621,12 +622,13 @@ pub fn get_cursor_line_slice() -> &'static [u8] {
     )
 }
 
-/// Return the mutable bytes (excluding the NUL) of the cursor line.
+/// Mutate the bytes (excluding the NUL) of the cursor line.
 #[inline]
-pub fn get_cursor_line_mut_slice() -> &'static mut [u8] {
-    crate::memline::ml_get_buf_mut_slice(
+pub fn with_cursor_line_mut_slice<R>(f: impl FnOnce(&mut [u8]) -> R) -> R {
+    crate::memline::with_ml_get_buf_mut_slice(
         crate::globals::curbuf_mut(),
         curwin_mut().w_cursor.get().lnum,
+        f,
     )
 }
 

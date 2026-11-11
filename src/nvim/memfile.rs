@@ -235,10 +235,7 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
 pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
-    let Some(mfp_ref) = buf.b_ml.mfp_opt() else {
-        return;
-    };
-    if mfp_ref.mf_fd < 0 {
+    if buf.b_ml.mfp_opt().is_none_or(|m| m.mf_fd < 0) {
         return;
     }
 
@@ -248,7 +245,7 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
         }
     }
 
-    let Some(mfp_ref) = buf.b_ml.mfp_opt() else {
+    let Some(mut mfp_ref) = buf.b_ml.mfp_opt() else {
         return;
     };
     if close(mfp_ref.mf_fd) < 0 {
@@ -260,7 +257,7 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
     if let Some(fname) = mfp_ref.mf_fname.clone() {
         os_remove(fname.as_c_str());
 
-        mf_free_fnames(mfp_ref);
+        mf_free_fnames(&mut mfp_ref);
     }
 }
 
@@ -445,14 +442,14 @@ pub fn mf_release_all() -> bool {
         if buf.b_ml.mfp_opt().is_some_and(|mfp| mfp.mf_fd < 0) && buf.b_may_swap.get() {
             ml_open_file(buf);
         }
-        if let Some(mfp_ref) = buf.b_ml.mfp_opt()
+        if let Some(mut mfp_ref) = buf.b_ml.mfp_opt()
             && mfp_ref.mf_fd >= 0
         {
             let blocks: Vec<BhdrId> = mfp_ref.mf_hash.values().copied().collect();
             for hp_id in blocks {
                 let bh_flags = mfp_ref.bhdr(hp_id).bh_flags;
                 if (bh_flags & BH_LOCKED) == 0
-                    && ((bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_id))
+                    && ((bh_flags & BH_DIRTY) == 0 || mf_write(&mut mfp_ref, hp_id))
                 {
                     let _ = mfp_ref.remove_bhdr(hp_id);
                     retval = true;

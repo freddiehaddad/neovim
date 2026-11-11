@@ -48,7 +48,7 @@ use crate::mbyte::{
     Vimconv, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
     mb_utflen, string_convert, utf_cp_bounds, utf_ptr2len_len,
 };
-use crate::memline::{ml_get_buf, ml_get_buf_len, ml_get_buf_mut_slice};
+use crate::memline::{ml_get_buf, ml_get_buf_len, with_ml_get_buf_mut_slice};
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::path::path_with_url;
@@ -134,7 +134,7 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     let Some(buf_ref) = buf.opt_mut() else {
         return luaL_error_cstr(lstate, c"invalid buffer");
     };
-    if buf_ref.b_ml.ml_mfp.is_none() {
+    if buf_ref.b_ml.ml_mfp.borrow().is_none() {
         return luaL_error_cstr(lstate, c"invalid buffer");
     }
 
@@ -154,9 +154,10 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
             return luaL_error_cstr(lstate, c"invalid end");
         }
         if end < len {
-            let line_slice = ml_get_buf_mut_slice(buf_ref, rownr + 1);
-            save = line_slice[end as usize];
-            line_slice[end as usize] = 0;
+            with_ml_get_buf_mut_slice(buf_ref, rownr + 1, |line_slice| {
+                save = line_slice[end as usize];
+                line_slice[end as usize] = 0;
+            });
         }
     }
 
@@ -164,8 +165,9 @@ extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     let nret = regex_match(lstate, regex, &line_cstr[start as usize..]);
 
     if end >= 0 && end < len {
-        let line_restore = ml_get_buf_mut_slice(buf_ref, rownr + 1);
-        line_restore[end as usize] = save;
+        with_ml_get_buf_mut_slice(buf_ref, rownr + 1, |line_restore| {
+            line_restore[end as usize] = save;
+        });
     }
 
     if regex.prog.is_null() {

@@ -919,7 +919,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                 let Some(buf) = curtab_mut().diffbuf_opt(idx_new) else {
                     continue;
                 };
-                if buf.b_ml.ml_mfp.is_none() {
+                if buf.b_ml.ml_mfp.borrow().is_none() {
                     continue;
                 }
                 lnum_start = if anchor_i == 0 {
@@ -2789,7 +2789,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
             let Some(buf) = curtab_mut().diffbuf_opt(i) else {
                 continue;
             };
-            if buf.b_ml.ml_mfp.is_none() {
+            if buf.b_ml.ml_mfp.borrow().is_none() {
                 continue;
             }
             if dp_count[i] == 0 {

@@ -3797,8 +3797,9 @@ fn ins_tab() -> bool {
                 if is_vreplace {
                     saved_line_vec[fpos.col as usize] = b'\t';
                 } else {
-                    crate::memline::ml_get_buf_mut_slice(curbuf_mut(), fpos.lnum)
-                        [fpos.col as usize] = b'\t';
+                    crate::memline::with_ml_get_buf_mut_slice(curbuf_mut(), fpos.lnum, |s| {
+                        s[fpos.col as usize] = b'\t';
+                    });
                 }
 
                 if change_col < 0 {
@@ -4047,7 +4048,7 @@ fn ins_ctrl_ey(tc: i32) -> i32 {
 /// Get the value that `w_virtcol` would have when `'list'` is off.
 pub fn get_nolist_virtcol() -> Colnr {
     if curwin_mut().w_buffer.get().is_null()
-        || curwin_mut().buf_mut().b_ml.ml_mfp.is_none()
+        || curwin_mut().buf_mut().b_ml.ml_mfp.borrow().is_none()
         || curwin_mut().w_cursor.get().lnum > curwin_mut().buf_mut().b_ml.ml_line_count.get()
     {
         return 0;

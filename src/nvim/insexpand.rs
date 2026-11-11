@@ -3310,7 +3310,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             let skip_buffer = if flag == b'U' as i32 {
                 buf.b_p_bl.get()
             } else {
-                !buf.b_p_bl.get() || buf.b_ml.ml_mfp.is_none() != (flag == b'u' as i32)
+                !buf.b_p_bl.get() || buf.b_ml.ml_mfp.borrow().is_none() != (flag == b'u' as i32)
             };
 
             if !skip_buffer && !buf.b_scanned.get() {
@@ -4143,7 +4143,7 @@ fn process_next_cpt_value(
         }
     {
         let ins_buf = st.ins_buf.borrow();
-        if ins_buf.b_ml.ml_mfp.is_some() {
+        if ins_buf.b_ml.ml_mfp.borrow().is_some() {
             INSEXPAND.with(|s| s.compl_started.set(true));
             st.first_match_pos.col = 0;
             st.last_match_pos.col = 0;

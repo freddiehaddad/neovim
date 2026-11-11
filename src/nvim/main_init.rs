@@ -938,7 +938,7 @@ pub fn getout(mut exitval: i32) -> ! {
         }
 
         for buf in for_all_buffers_ptr() {
-            if buf.b_ml.ml_mfp.is_some() {
+            if buf.b_ml.ml_mfp.borrow().is_some() {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf));
                 let b_fname = buf.fname_opt().map(CStr::to_owned);
@@ -1042,7 +1042,7 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
     ml_close_notmod();
 
     for buf in for_all_buffers_mut() {
-        if let Some(mfp) = buf.b_ml.ml_mfp.as_ref()
+        if let Some(mfp) = buf.b_ml.ml_mfp.borrow().as_ref()
             && mfp.mf_fname.is_some()
         {
             if errmsg.is_some() {
@@ -1941,7 +1941,7 @@ fn create_windows(parmp: &mut Mparm) {
     if g_st().recoverymode.get() {
         g_st().msg_scroll.set(1);
         ml_recover(true);
-        if curbuf_mut().b_ml.ml_mfp.is_none() {
+        if curbuf_mut().b_ml.ml_mfp.borrow().is_none() {
             getout(1);
         }
         do_modelines(0);
@@ -1976,7 +1976,7 @@ fn create_windows(parmp: &mut Mparm) {
             }
             dorewind = false;
             g_st().curbuf.set(curwin_mut().w_buffer.get());
-            if curbuf_mut().b_ml.ml_mfp.is_none() {
+            if curbuf_mut().b_ml.ml_mfp.borrow().is_none() {
                 if opt_vars().p_fdls.get() >= 0 {
                     curwin_mut()
                         .w_onebuf_opt

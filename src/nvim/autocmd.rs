@@ -2480,7 +2480,7 @@ pub fn ex_doautoall(eap: &mut Exarg) {
     let mut did_aucmd = false;
 
     for buf in for_all_buffers_ptr() {
-        if buf.b_ml.ml_mfp.is_none() || g_st().curbuf.get() == buf {
+        if buf.b_ml.ml_mfp.borrow().is_none() || g_st().curbuf.get() == buf {
             continue;
         }
 
