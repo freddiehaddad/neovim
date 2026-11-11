@@ -8,8 +8,8 @@ use crate::errors::{E_INVARG_NVAL, E_INVARG2, E_INVARGVAL, E_LISTARG};
 use crate::eval::callback_call;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
-    Callback, EvalFuncData, Listitem, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType,
-    callback_free, tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find_opt, tv_dict_get_callback,
+    Callback, EvalFuncData, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, callback_free,
+    tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find_opt, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
     tv_list_append_tv, tv_list_len,
@@ -53,7 +53,7 @@ pub struct FuzmatchStr {
 
 struct FuzzyItem {
     idx: i32,
-    item: &'static mut Listitem,
+    item: crate::eval::typval::ListitemId,
     score: i32,
     matchpos: Vec<i64>,
     itemstr: CString,
@@ -456,7 +456,7 @@ fn fuzzy_match_in_list(
             vval: TypvalVval::Number(0),
         };
 
-        let tv = &li.li_tv;
+        let tv = li.tv().clone();
         if tv.v_type == VarType::VarString {
             itemstr = tv.vval.v_string_cstr();
         } else if tv.v_type == VarType::VarDict
@@ -539,7 +539,7 @@ fn fuzzy_match_in_list(
             let score_list = tv_list_alloc(K_LIST_LEN_UNKNOWN);
 
             for cur in &mut items {
-                tv_list_append_tv(&match_list, &mut cur.item.li_tv);
+                tv_list_append_tv(&match_list, &cur.item.tv());
 
                 let match_positions_list = tv_list_alloc(cur.matchpos.len() as isize);
                 for &pos in &cur.matchpos {
@@ -555,7 +555,7 @@ fn fuzzy_match_in_list(
             tv_list_append_list(fmatchlist, Some(&score_list));
         } else {
             for cur in &mut items {
-                tv_list_append_tv(fmatchlist, &mut cur.item.li_tv);
+                tv_list_append_tv(fmatchlist, &cur.item.tv());
             }
         }
     } else if retmatchpos {

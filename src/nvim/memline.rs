@@ -1059,7 +1059,7 @@ pub fn ml_recover(checkext: bool) {
         }
         fname_used = tv_list_first(items_tv.vval.v_list().opt())
             .unwrap()
-            .li_tv
+            .tv()
             .vval
             .v_string_cstr()
             .map(CStr::to_owned);

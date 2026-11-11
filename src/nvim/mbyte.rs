@@ -3319,7 +3319,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
     let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
     if table_size != 0 {
         for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(l.first_opt())) {
-            let li_tv = &li.li_tv;
+            let li_tv = li.tv();
             if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
                 semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
                 return;
@@ -3331,7 +3331,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
             let mut n2: Varnumber = 0;
             let mut n3: Varnumber = 0;
             for lili in crate::eval::typval::list_iter_ptr(tv_list_first(Some(li_l))) {
-                let lili_tv = &lili.li_tv;
+                let lili_tv = lili.tv();
                 if lili_tv.v_type != VarType::VarNumber {
                     break;
                 }

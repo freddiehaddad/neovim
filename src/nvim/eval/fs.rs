@@ -1546,7 +1546,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                         debug_assert_eq!(i64::from(tv_list_len(Some(l))), 1 + (-maxline));
 
                         let first_li = tv_list_first(Some(l)).unwrap();
-                        tv_list_item_remove(l, first_li);
+                        tv_list_item_remove(l, &first_li);
                     }
                 } else if i64::from(tv_list_len(Some(l))) >= maxline {
                     debug_assert_eq!(i64::from(tv_list_len(Some(l))), maxline);
@@ -1879,7 +1879,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
     let mut error: i32 = 0;
     let mut li = tv_list_first(list);
     'outer: while let Some(cur_li) = li {
-        let Some(s_cstr) = tv_get_string_chk(&cur_li.li_tv) else {
+        let Some(s_cstr) = tv_get_string_chk(&cur_li.tv()).map(std::borrow::Cow::into_owned) else {
             return false;
         };
         let s_bytes = s_cstr.to_bytes();
@@ -1907,7 +1907,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
                 }
             }
         }
-        if !binary || !cur_li.li_next.is_null() {
+        if !binary || !cur_li.li_next.get().is_null() {
             let written = file_write(fp, b"\n");
             if written < 0 {
                 error = written as i32;
@@ -1966,7 +1966,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
     if argvars[0].v_type == VarType::VarList {
         for li in crate::eval::typval::list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
-            if !tv_check_str_or_nr(&li.li_tv) {
+            if !tv_check_str_or_nr(&li.tv()) {
                 return;
             }
         }

@@ -2033,7 +2033,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
     };
 
     for li in crate::eval::typval::tv_list_iter(Some(pl)) {
-        let tv = &li.li_tv;
+        let tv = li.tv();
         if tv.v_type != VarType::VarList {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
@@ -2057,7 +2057,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
         let mut inner = crate::eval::typval::tv_list_iter(Some(l));
         let first = inner.next().unwrap();
         let second = inner.next().unwrap();
-        if !digraph_set_common(&first.li_tv, &second.li_tv) {
+        if !digraph_set_common(&first.tv(), &second.tv()) {
             return;
         }
     }

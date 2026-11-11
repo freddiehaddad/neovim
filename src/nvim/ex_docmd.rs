@@ -9270,36 +9270,39 @@ fn ex_restart(eap: &mut Exarg) {
 
     let mut li = l.map_or(crate::eval::typval::ListitemId::NULL, |l| l.lv_first.get());
     while !li.is_null() {
-        let arg = tv_get_string(&li.li_tv);
+        let arg = tv_get_string(&li.tv()).into_owned();
         let i = argv_vec.len();
-        if i > 0 && (Some(arg.to_bytes()) == Some(b"--")) {
+        if i > 0 && (Some(arg.as_bytes()) == Some(b"--")) {
             break;
         }
-        if i > 0 && (Some(arg.to_bytes()) == Some(b"-S")) {
-            let next_li = li.li_next;
+        if i > 0 && (Some(arg.as_bytes()) == Some(b"-S")) {
+            let next_li = li.li_next.get();
             if !next_li.is_null() {
-                let next_arg = tv_get_string(&next_li.li_tv);
+                let next_tv = next_li.tv();
+                let next_arg = tv_get_string(&next_tv);
                 if next_arg.to_bytes().first().copied().unwrap_or(0) != b'-' {
+                    drop(next_tv);
                     li = next_li;
                 }
             }
 
-            li = li.li_next;
+            li = li.li_next.get();
 
             continue;
         }
-        if i > 0 && (Some(arg.to_bytes()) == Some(b"-s")) {
-            li = li.li_next;
+        if i > 0 && (Some(arg.as_bytes()) == Some(b"-s")) {
+            li = li.li_next.get();
 
             if !li.is_null() {
-                li = li.li_next;
+                li = li.li_next.get();
             }
             continue;
         }
-        if i > 0 && (Some(arg.to_bytes()) == Some(b"--listen")) {
-            let next_li = li.li_next;
-            if let Some(next_li) = next_li.opt_mut() {
-                let addr = tv_get_string(&next_li.li_tv);
+        if i > 0 && (Some(arg.as_bytes()) == Some(b"--listen")) {
+            let next_li = li.li_next.get();
+            if let Some(next_li) = next_li.opt() {
+                let next_tv = next_li.tv();
+                let addr = tv_get_string(&next_tv);
                 if addr
                     .to_bytes()
                     .iter()
@@ -9308,18 +9311,19 @@ fn ex_restart(eap: &mut Exarg) {
                     listen_arg = to_slash_save(Some(&addr));
                     #[cfg(windows)]
                     {
-                        li = next_li.li_next;
+                        drop(next_tv);
+                        li = next_li.li_next.get();
                         continue;
                     }
                 }
             }
         }
         if i == 0
-            || (!(Some(arg.to_bytes()) == Some(b"--embed"))
-                && !(Some(arg.to_bytes()) == Some(b"--headless"))
-                && !(Some(arg.to_bytes()) == Some(b"-")))
+            || (!(Some(arg.as_bytes()) == Some(b"--embed"))
+                && !(Some(arg.as_bytes()) == Some(b"--headless"))
+                && !(Some(arg.as_bytes()) == Some(b"-")))
         {
-            argv_vec.push((*arg).to_owned());
+            argv_vec.push(arg);
             if argv_vec.len() == 1 {
                 argv_vec.push(c"--embed".to_owned());
                 if no_ui {
@@ -9328,7 +9332,7 @@ fn ex_restart(eap: &mut Exarg) {
             }
         }
 
-        li = li.li_next;
+        li = li.li_next.get();
     }
 
     #[cfg(windows)]
@@ -9997,7 +10001,7 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
         let _ = semsg!(gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH), &findarg_cstr);
     } else if let Some(li) = crate::eval::typval::tv_list_find_opt(fname_list.as_deref(), count - 1)
     {
-        let tv = &li.li_tv;
+        let tv = li.tv();
         if tv.v_type == VarType::VarString && !tv.vval.v_string_is_null() {
             ret_fname = Some(tv.vval.v_string_owned());
         } else if tv.v_type == VarType::VarDict

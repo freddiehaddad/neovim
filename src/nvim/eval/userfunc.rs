@@ -1245,7 +1245,7 @@ fn cleanup_function_call(fc: &Funccall) {
 
     if may_free_fc && fc.fc_l_varlist.get().lv_refcount.get() == DO_NOT_FREE_CNT {
         for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.get().first_opt()) {
-            li.li_tv = TypVal::new();
+            li.set_tv(TypVal::new());
         }
         tv_list_free_contents(&fc.fc_l_varlist.get());
     } else {
@@ -1253,8 +1253,8 @@ fn cleanup_function_call(fc: &Funccall) {
 
         {
             for li in crate::eval::typval::list_iter_mut(fc.fc_l_varlist.get().first_opt()) {
-                let src_tv = li.li_tv.clone();
-                tv_copy(&src_tv, &mut li.li_tv);
+                let src_tv = li.tv().clone();
+                tv_copy(&src_tv, &mut li.tv_mut());
             }
         }
     }
@@ -1601,9 +1601,10 @@ pub fn call_user_func(
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
             let li = tv_list_item_alloc();
-            li.li_tv = argvars[i as usize].clone();
-            li.li_tv.v_lock = VAR_FIXED;
-            tv_list_append(&fc.fc_l_varlist.get(), li);
+            let mut tv = argvars[i as usize].clone();
+            tv.v_lock = VAR_FIXED;
+            li.set_tv(tv);
+            tv_list_append(&fc.fc_l_varlist.get(), &li);
         }
     }
 
@@ -2006,7 +2007,7 @@ pub fn func_call(
                 skip_call = true;
                 break;
             }
-            tv_copy(&item.li_tv, &mut argv[argc as usize]);
+            tv_copy(&item.tv(), &mut argv[argc as usize]);
             argc += 1;
         }
     }

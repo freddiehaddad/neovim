@@ -535,7 +535,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     } else if argvars[1].v_type != VarType::VarUnknown {
         let mut buf = [0u8; NUMBUFLEN];
         let mut buf2 = [0u8; NUMBUFLEN];
-        let mut expected_str: Option<&CStr> = None;
+        let mut expected_str: Option<std::ffi::CString> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
         let actual_owned = g_st().emsg_assert_fails_msg.clone();
@@ -566,20 +566,25 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 valid_args = false;
             } else {
                 let list_ref = list.unwrap();
-                let first_tv = &list_ref.first_opt().unwrap().li_tv;
-                let expected = tv_get_string_buf_chk(first_tv, &mut buf);
+                let first_li = list_ref.first_opt().unwrap();
+                let first_tv = first_li.tv();
+                let expected = tv_get_string_buf_chk(&first_tv, &mut buf).map(CStr::to_owned);
+                drop(first_tv);
                 if let Some(expected) = expected {
-                    if pattern_match(expected, Some(actual_cstr), false) == 0 {
+                    if pattern_match(&expected, Some(actual_cstr), false) == 0 {
                         error_found = true;
                         expected_str = Some(expected);
                     } else if list_len == 2 {
                         let s = get_vim_var_str(VV_ERRMSG).into_owned();
                         tofree = Some(s);
                         actual_cstr = tofree.as_deref().unwrap_or(c"");
-                        let last_tv = &list_ref.last_opt().unwrap().li_tv;
-                        let expected2 = tv_get_string_buf_chk(last_tv, &mut buf2);
+                        let last_li = list_ref.last_opt().unwrap();
+                        let last_tv = last_li.tv();
+                        let expected2 =
+                            tv_get_string_buf_chk(&last_tv, &mut buf2).map(CStr::to_owned);
+                        drop(last_tv);
                         if let Some(expected2) = expected2 {
-                            if pattern_match(expected2, Some(actual_cstr), false) == 0 {
+                            if pattern_match(&expected2, Some(actual_cstr), false) == 0 {
                                 error_found = true;
                                 expected_str = Some(expected2);
                             }
@@ -662,7 +667,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 fill_assert_error(
                     &mut ga,
                     &mut mid[0],
-                    expected_str,
+                    expected_str.as_deref(),
                     Some(&mut head[error_found_index]),
                     &mut actual_tv,
                     AssertType::Fails,
@@ -675,7 +680,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 fill_assert_error(
                     &mut ga,
                     &mut first[2],
-                    expected_str,
+                    expected_str.as_deref(),
                     Some(exp_ref),
                     &mut actual_tv,
                     AssertType::Fails,

@@ -47,7 +47,7 @@ std::thread_local! {
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ListReaderState {
     pub li: crate::eval::typval::ListitemId,
     pub offset: usize,
@@ -56,7 +56,7 @@ pub struct ListReaderState {
 
 impl ListReaderState {
     #[inline]
-    pub fn li_opt(&self) -> Option<&'static Listitem> {
+    pub fn li_opt(&self) -> Option<&Listitem> {
         self.li.opt()
     }
 }
@@ -119,14 +119,18 @@ pub fn encode_list_write(list: Option<&TvList>, buf: &[u8]) {
         line_end_idx = buf.iter().position(|&b| b == b'\n').unwrap_or(len);
         if line_end_idx != 0 {
             let line_length = line_end_idx;
-            let str_slice = li.li_tv.vval.v_string_bytes();
-            let li_len = str_slice.len();
-            let mut combined = vec![0u8; li_len + line_length];
-            combined[..li_len].copy_from_slice(str_slice);
-            for (dst_b, &src_b) in combined[li_len..].iter_mut().zip(&buf[..line_length]) {
-                *dst_b = if src_b == 0 { b'\n' } else { src_b };
-            }
-            crate::eval::typval::tv_set_bytes(&mut li.li_tv, &combined);
+            let combined = {
+                let li_tv = li.tv();
+                let str_slice = li_tv.vval.v_string_bytes();
+                let li_len = str_slice.len();
+                let mut combined = vec![0u8; li_len + line_length];
+                combined[..li_len].copy_from_slice(str_slice);
+                for (dst_b, &src_b) in combined[li_len..].iter_mut().zip(&buf[..line_length]) {
+                    *dst_b = if src_b == 0 { b'\n' } else { src_b };
+                }
+                combined
+            };
+            crate::eval::typval::tv_set_bytes(&mut li.tv_mut(), &combined);
         }
         line_end_idx += 1;
     }
@@ -167,7 +171,8 @@ pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
         li_length: 0,
     };
     if let Some(first_li) = state.li_opt() {
-        state.li_length = first_li.li_tv.vval.v_string_bytes().len();
+        let len = first_li.tv().vval.v_string_bytes().len();
+        state.li_length = len;
     }
     state
 }
@@ -181,10 +186,12 @@ pub fn encode_read_from_list(
     let nbuf = buf.len();
     let mut p = 0usize;
     while p < nbuf {
+        let cur_li = state.li.clone();
         if state.offset < state.li_length
-            && let Some(cur_li) = state.li_opt()
+            && let Some(cur_li) = cur_li.opt()
         {
-            let s_bytes = cur_li.li_tv.vval.v_string_bytes();
+            let cur_tv = cur_li.tv();
+            let s_bytes = cur_tv.vval.v_string_bytes();
             let s = &s_bytes[..state.li_length.min(s_bytes.len())];
             while state.offset < state.li_length && p < nbuf {
                 let ch = s[state.offset];
@@ -194,27 +201,32 @@ pub fn encode_read_from_list(
             }
         }
         if p < nbuf {
-            let Some(cur_li) = state.li_opt() else {
+            let cur_li = state.li.clone();
+            let Some(cur_li) = cur_li.opt() else {
                 *read_bytes = p;
                 return Some(true);
             };
-            state.li = cur_li.li_next;
-            let Some(next_li) = state.li_opt() else {
+            state.li = cur_li.li_next.get();
+            let next_li = state.li.clone();
+            let Some(next_li) = next_li.opt() else {
                 *read_bytes = p;
                 return Some(true);
             };
             buf[p] = b'\n';
             p += 1;
-            if next_li.li_tv.v_type != VarType::VarString {
+            let next_tv = next_li.tv();
+            if next_tv.v_type != VarType::VarString {
                 *read_bytes = p;
                 return Some(false);
             }
             state.offset = 0;
-            state.li_length = next_li.li_tv.vval.v_string_bytes().len();
+            state.li_length = next_tv.vval.v_string_bytes().len();
         }
     }
     *read_bytes = nbuf;
-    if state.offset < state.li_length || state.li_opt().is_some_and(|li| !li.li_next.is_null()) {
+    if state.offset < state.li_length
+        || state.li_opt().is_some_and(|li| !li.li_next.get().is_null())
+    {
         None
     } else {
         Some(true)
@@ -225,7 +237,7 @@ pub fn encode_read_from_list(
 pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
     let mut len = 0usize;
     for li in crate::eval::typval::list_iter_mut(tv_list_first(list)) {
-        let tv = &li.li_tv;
+        let tv = li.tv();
         if tv.v_type != VarType::VarString {
             return None;
         }
@@ -277,7 +289,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
         return true;
     };
     for li in crate::eval::typval::list_iter_mut(val_list.first_opt()) {
-        if li.li_tv.v_type != VarType::VarString {
+        if li.tv().v_type != VarType::VarString {
             return false;
         }
     }
@@ -304,31 +316,31 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 let key_bytes = key.as_bytes();
                 msg_ga.extend_from_slice(&key_bytes[..key_bytes.len().min(1020)]);
             }
-            MPConvStackData::List { ref list, li } | MPConvStackData::Pairs { ref list, li } => {
+            MPConvStackData::List { ref list, ref li }
+            | MPConvStackData::Pairs { ref list, ref li } => {
                 let is_list = matches!(v.data, MPConvStackData::List { .. });
                 let first = crate::eval::typval::ListitemId::from(tv_list_first(list.opt()));
-                let idx = if li == first {
+                let idx = if *li == first {
                     0
                 } else if li.is_null() {
                     tv_list_len(list.opt()) - 1
                 } else {
-                    tv_list_idx_of_item(list.opt(), li.li_prev.opt())
+                    tv_list_idx_of_item(list.opt(), li.li_prev.get().opt())
                 };
                 let prev_li = if li.is_null() {
                     crate::eval::typval::ListitemId::from(tv_list_last(list.opt()))
                 } else {
-                    li.li_prev
+                    li.li_prev.get()
                 };
                 if is_list
                     || prev_li.is_null()
-                    || (prev_li.borrow().li_tv.v_type != VarType::VarList
-                        && tv_list_len(prev_li.borrow_mut().li_tv.vval.v_list().opt()) <= 0)
+                    || (prev_li.tv().v_type != VarType::VarList
+                        && tv_list_len(prev_li.tv().vval.v_list().opt()) <= 0)
                 {
                     let _ = write!(&mut msg_ga, "index {idx}");
                 } else {
-                    let first_item =
-                        tv_list_first(prev_li.borrow_mut().li_tv.vval.v_list().opt()).unwrap();
-                    let mut key_tv = first_item.li_tv.clone();
+                    let first_item = tv_list_first(prev_li.tv().vval.v_list().opt()).unwrap();
+                    let mut key_tv = first_item.tv().clone();
                     let key = encode_tv2echo(&mut key_tv, None);
                     let mut item_buf: Vec<u8> = Vec::new();
                     item_buf.extend_from_slice(b"key ");
@@ -1132,22 +1144,26 @@ fn convert_one_value(
                                 let val_list = val_di.di_tv.vval.v_list();
                                 if tv_list_len(val_list.opt()) == 4 {
                                     let sign_li = tv_list_first(val_list.opt()).unwrap();
-                                    let highest_li = sign_li.li_next.borrow_mut();
-                                    let high_li = highest_li.li_next.borrow_mut();
+                                    let highest_li = sign_li.li_next.get();
+                                    let high_li = highest_li.li_next.get();
                                     let low_li = tv_list_last(val_list.opt()).unwrap();
-                                    if sign_li.li_tv.v_type == VarType::VarNumber
-                                        && sign_li.li_tv.vval.v_number() != 0
-                                        && highest_li.li_tv.v_type == VarType::VarNumber
-                                        && highest_li.li_tv.vval.v_number() >= 0
-                                        && high_li.li_tv.v_type == VarType::VarNumber
-                                        && high_li.li_tv.vval.v_number() >= 0
-                                        && low_li.li_tv.v_type == VarType::VarNumber
-                                        && low_li.li_tv.vval.v_number() >= 0
+                                    let sign_tv = sign_li.tv();
+                                    let highest_tv = highest_li.tv();
+                                    let high_tv = high_li.tv();
+                                    let low_tv = low_li.tv();
+                                    if sign_tv.v_type == VarType::VarNumber
+                                        && sign_tv.vval.v_number() != 0
+                                        && highest_tv.v_type == VarType::VarNumber
+                                        && highest_tv.vval.v_number() >= 0
+                                        && high_tv.v_type == VarType::VarNumber
+                                        && high_tv.vval.v_number() >= 0
+                                        && low_tv.v_type == VarType::VarNumber
+                                        && low_tv.vval.v_number() >= 0
                                     {
-                                        let sign = sign_li.li_tv.vval.v_number();
-                                        let highest = highest_li.li_tv.vval.v_number() as u64;
-                                        let high = high_li.li_tv.vval.v_number() as u64;
-                                        let low = low_li.li_tv.vval.v_number() as u64;
+                                        let sign = sign_tv.vval.v_number();
+                                        let highest = highest_tv.vval.v_number() as u64;
+                                        let high = high_tv.vval.v_number() as u64;
+                                        let low = low_tv.vval.v_number() as u64;
                                         let number = (highest << 62) | (high << 31) | low;
                                         if sign > 0 {
                                             backend.conv_unsigned_number(number);
@@ -1220,14 +1236,14 @@ fn convert_one_value(
                                         tv_list_first(val_list.opt()),
                                     );
                                     while !li.is_null() {
-                                        if li.li_tv.v_type != VarType::VarList
-                                            || tv_list_len(li.li_tv.vval.v_list().opt()) != 2
+                                        if li.tv().v_type != VarType::VarList
+                                            || tv_list_len(li.tv().vval.v_list().opt()) != 2
                                         {
                                             all_pairs = false;
                                             break;
                                         }
 
-                                        li = li.li_next;
+                                        li = li.li_next.get();
                                     }
                                     if all_pairs {
                                         let saved_copy_id = val_list.lv_copy_id.get();
@@ -1265,14 +1281,16 @@ fn convert_one_value(
                             if tv_list_len(val_list.opt()) == 2 {
                                 let first = tv_list_first(val_list.opt()).unwrap();
                                 let last = tv_list_last(val_list.opt()).unwrap();
-                                if first.li_tv.v_type == VarType::VarNumber
+                                let first_tv = first.tv();
+                                let last_tv = last.tv();
+                                if first_tv.v_type == VarType::VarNumber
                                     && (i8::MIN as i64..=i8::MAX as i64)
-                                        .contains(&first.li_tv.vval.v_number())
-                                    && last.li_tv.v_type == VarType::VarList
+                                        .contains(&first_tv.vval.v_number())
+                                    && last_tv.v_type == VarType::VarList
                                     && let Some(buf) =
-                                        encode_vim_list_to_buf(last.li_tv.vval.v_list().opt())
+                                        encode_vim_list_to_buf(last_tv.vval.v_list().opt())
                                 {
-                                    let ext_type = first.li_tv.vval.v_number() as i8;
+                                    let ext_type = first_tv.vval.v_number() as i8;
                                     if !backend.conv_ext_string(&buf, ext_type) {
                                         return false;
                                     }
@@ -1331,7 +1349,7 @@ fn encode_vim_with_backend(
     while !mpstack.is_empty() {
         let cur_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-        let next_tv: &mut TypVal = match mpstack[cur_idx].data {
+        let next_tv: TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 mut hi_idx,
@@ -1366,13 +1384,13 @@ fn encode_vim_with_backend(
                     return false;
                 }
                 backend.conv_dict_after_key();
-                &mut di.di_tv
+                di.di_tv.clone()
             }
             MPConvStackData::List {
                 ref list,
                 ref mut li,
             } => {
-                let cur_li = *li;
+                let cur_li = li.clone();
                 if cur_li.is_null() {
                     let list = list.clone();
                     mpstack.pop();
@@ -1386,12 +1404,12 @@ fn encode_vim_with_backend(
                     backend.conv_list_between_items();
                 }
 
-                let cur_li = cur_li.borrow_mut();
-                *li = cur_li.li_next;
+                *li = cur_li.li_next.get();
 
-                &mut cur_li.li_tv
+                cur_li.tv().clone()
             }
-            MPConvStackData::Pairs { ref list, li } => {
+            MPConvStackData::Pairs { ref list, ref li } => {
+                let li = li.clone();
                 if li.is_null() {
                     let list = list.clone();
                     mpstack.pop();
@@ -1403,30 +1421,25 @@ fn encode_vim_with_backend(
                 } else if li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt())) {
                     backend.conv_dict_between_items();
                 }
-                let kv_pair = li.li_tv.vval.v_list();
+                let kv_pair = li.tv().vval.v_list();
                 let first_item = tv_list_first(kv_pair.opt()).unwrap();
-                if !backend.special_dict_key_check(&first_item.li_tv) {
+                let mut first_tv = first_item.tv().clone();
+                if !backend.special_dict_key_check(&first_tv) {
                     return false;
                 }
-                if !convert_one_value(
-                    backend,
-                    &mut mpstack,
-                    &mut first_item.li_tv,
-                    copy_id,
-                    objname,
-                ) {
+                if !convert_one_value(backend, &mut mpstack, &mut first_tv, copy_id, objname) {
                     return false;
                 }
                 backend.conv_dict_after_key();
                 let last_item = tv_list_last(kv_pair.opt()).unwrap();
-                let next_li = li.li_next;
+                let next_li = li.li_next.get();
                 if let MPConvStackData::Pairs {
                     li: ref mut li_ref, ..
                 } = mpstack[cur_idx].data
                 {
                     *li_ref = next_li;
                 }
-                &mut last_item.li_tv
+                last_item.tv().clone()
             }
             MPConvStackData::Partial { stage, ref pt } => {
                 let pt = pt.clone();
@@ -1534,7 +1547,8 @@ fn encode_vim_with_backend(
             }
         };
 
-        if !convert_one_value(backend, &mut mpstack, next_tv, copy_id, objname) {
+        let mut next_tv = next_tv;
+        if !convert_one_value(backend, &mut mpstack, &mut next_tv, copy_id, objname) {
             return false;
         }
     }
@@ -1645,10 +1659,11 @@ mod tests {
                 let mut li = l.lv_first.get();
                 for &exp in expected {
                     assert!(!li.is_null());
-                    let li_ref = li.borrow();
-                    assert_eq!(li_ref.li_tv.v_type, VarType::VarString);
-                    assert_eq!(li_ref.li_tv.vval.v_string_opt_bytes(), exp);
-                    li = li_ref.li_next;
+                    let li_tv = li.tv();
+                    assert_eq!(li_tv.v_type, VarType::VarString);
+                    assert_eq!(li_tv.vval.v_string_opt_bytes(), exp);
+                    drop(li_tv);
+                    li = li.li_next.get();
                 }
                 tv_list_free(Some(&l));
             };

@@ -3607,7 +3607,8 @@ fn ins_compl_add_list(list: Option<&TvList>) {
         return;
     }
     for li in crate::eval::typval::list_iter_mut(list.unwrap().first_opt()) {
-        if ins_compl_add_tv(&mut li.li_tv, dir, true) != Some(false) {
+        let mut item_tv = li.tv().clone();
+        if ins_compl_add_tv(&mut item_tv, dir, true) != Some(false) {
             dir = FORWARD;
         } else if g_st().did_emsg != 0 {
             break;
@@ -3896,7 +3897,8 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
     if let Some(what_list) = what_list {
         what_flag = 0;
         for item in crate::eval::typval::list_iter_mut(what_list.first_opt()) {
-            let what = tv_get_string(&item.li_tv);
+            let item_tv = item.tv();
+            let what = tv_get_string(&item_tv);
             if what.to_bytes() == b"mode" {
                 what_flag |= CI_WHAT_MODE;
             } else if what.to_bytes() == b"pum_visible" {

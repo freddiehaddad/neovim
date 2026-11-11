@@ -253,7 +253,7 @@ pub fn vim_to_object(
     );
 
     while let Some(top) = mpstack.last_mut() {
-        let next_tv: &mut TypVal = match top {
+        let next_tv: TypVal = match top {
             ConvStackEntry::List {
                 list,
                 li,
@@ -274,9 +274,9 @@ pub fn vim_to_object(
                     pop_into_parent_list(&mut stack);
                 }
                 *first = false;
-                let cur_li = li.borrow_mut();
-                *li = cur_li.li_next;
-                &mut cur_li.li_tv
+                let cur_li = li.clone();
+                *li = cur_li.li_next.get();
+                cur_li.tv().clone()
             }
             ConvStackEntry::Dict {
                 dict,
@@ -315,16 +315,17 @@ pub fn vim_to_object(
                 let d = dict_obj.data.dict_mut();
                 d.next_slot_mut().key = key_obj.data.string();
 
-                &mut di.di_tv
+                di.di_tv.clone()
             }
         };
 
+        let mut next_tv = next_tv;
         convert_one_value(
             &mut stack,
             &mut mpstack,
             arena.as_deref_mut(),
             reuse_strdata,
-            next_tv,
+            &mut next_tv,
             copy_id,
         );
     }
@@ -483,7 +484,7 @@ mod tests {
             assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);
             crate::api::private::helpers::api_free_object(cyc_obj);
 
-            list.lv_first.get().borrow_mut().li_tv.v_type = VarType::VarUnknown;
+            list.lv_first.get().tv_mut().v_type = VarType::VarUnknown;
 
             crate::eval::typval::tv_list_free(Some(&list));
         }

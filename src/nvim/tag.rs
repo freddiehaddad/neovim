@@ -967,12 +967,12 @@ fn select_tag_match(
                 },
             );
 
-            let mut item = TypVal {
+            let item = TypVal {
                 v_type: VarType::VarDict,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict(d.dv_id),
             };
-            tv_list_append_tv(items_tv.vval.v_list_ref(), &mut item);
+            tv_list_append_tv(items_tv.vval.v_list_ref(), &item);
         }
 
         let extra_d = tv_dict_alloc();
@@ -1334,13 +1334,15 @@ fn find_tagfunc_tags(
         let mut has_extra = false;
         let name_only = (flags & TAG_NAMES) != 0;
 
-        if li.li_tv.v_type != VarType::VarDict {
+        let li_tv = li.tv();
+        if li_tv.v_type != VarType::VarDict {
             emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
             break;
         }
 
         let mut len: usize = 2;
-        let item_dict = li.li_tv.vval.v_dict_opt();
+        let item_dict = li_tv.vval.v_dict_opt();
+        drop(li_tv);
         if let Some(ref item_dict) = item_dict {
             for (hi, di) in item_dict.dv_hashtab.iter_items() {
                 let dict_key = hi.key_cstr();
@@ -3298,10 +3300,12 @@ fn tagstack_push_item(
 
 fn tagstack_push_items(wp: &mut WinInfoInfo, l: Option<&TvList>) {
     for li in tv_list_iter(l) {
-        if li.li_tv.v_type == VarType::VarDict
-            && let Some(itemdict) = li.li_tv.vval.v_dict_opt()
+        let li_tv = li.tv();
+        if li_tv.v_type == VarType::VarDict
+            && let Some(itemdict) = li_tv.vval.v_dict_opt()
             && let Some(di) = tv_dict_find_opt(Some(itemdict), c"from", -1)
         {
+            drop(li_tv);
             let mut mark = CursorPos {
                 lnum: 0,
                 col: 0,

@@ -1404,8 +1404,9 @@ fn sign_define_from_dict(name: Option<&CStr>, dict: Option<&TvDict>) -> i32 {
 fn sign_define_multiple(l: Option<&TvList>, retlist: &TvList) {
     for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
-        if li.li_tv.v_type == VarType::VarDict {
-            retval = sign_define_from_dict(None, li.li_tv.vval.v_dict_opt().as_deref());
+        let li_tv = li.tv();
+        if li_tv.v_type == VarType::VarDict {
+            retval = sign_define_from_dict(None, li_tv.vval.v_dict_opt().as_deref());
         } else {
             emsg(gettext(E_DICTREQ));
         }
@@ -1658,14 +1659,10 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     let l = argvars[0].vval.v_list_opt();
     for li in tv_list_iter(l) {
         let mut sign_id: i32 = -1;
-        if li.li_tv.v_type == VarType::VarDict {
-            sign_id = sign_place_from_dict(
-                None,
-                None,
-                None,
-                None,
-                li.li_tv.vval.v_dict_opt().as_deref(),
-            );
+        let li_tv = li.tv();
+        if li_tv.v_type == VarType::VarDict {
+            sign_id =
+                sign_place_from_dict(None, None, None, None, li_tv.vval.v_dict_opt().as_deref());
         } else {
             emsg(gettext(E_DICTREQ));
         }
@@ -1676,7 +1673,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 fn sign_undefine_multiple(l: Option<&TvList>, retlist: &TvList) {
     for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
-        if let Some(name) = tv_get_string_chk(&li.li_tv)
+        if let Some(name) = tv_get_string_chk(&li.tv())
             && sign_undefine_by_name(&name)
         {
             retval = 0;
@@ -1770,8 +1767,9 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     let l = argvars[0].vval.v_list_opt();
     for li in tv_list_iter(l) {
         let mut retval: i32 = -1;
-        if li.li_tv.v_type == VarType::VarDict {
-            retval = sign_unplace_from_dict(None, li.li_tv.vval.v_dict_opt().as_deref());
+        let li_tv = li.tv();
+        if li_tv.v_type == VarType::VarDict {
+            retval = sign_unplace_from_dict(None, li_tv.vval.v_dict_opt().as_deref());
         } else {
             emsg(gettext(E_DICTREQ));
         }

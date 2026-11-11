@@ -5459,7 +5459,7 @@ pub fn expand_process_user_list(
 
     if let Some(retlist) = retlist {
         for li in crate::eval::typval::list_iter_ptr(retlist.first_opt()) {
-            let tv = &li.li_tv;
+            let tv = li.tv();
             let p: CString;
             let mut abbr: Option<std::ffi::CString> = None;
             let mut kind: Option<std::ffi::CString> = None;

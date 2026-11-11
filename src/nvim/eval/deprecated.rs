@@ -217,7 +217,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(
             args.and_then(|a| a.first_opt()),
         )) {
-            if li.li_tv.v_type != VarType::VarString {
+            if li.tv().v_type != VarType::VarString {
                 semsg!(
                     c"E5010: List item %d of the second argument is not a string",
                     i,
@@ -239,7 +239,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && let Some(args) = args
     {
         for li in crate::eval::typval::list_iter_mut(args.first_opt()) {
-            argv.push(tv_get_string(&li.li_tv).into_owned());
+            argv.push(tv_get_string(&li.tv()).into_owned());
         }
     }
 

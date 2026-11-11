@@ -3101,19 +3101,19 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                 return;
             }
             if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 0) {
-                pos.lnum = tv_get_number_chk(&li.li_tv, Some(&mut error)) as Linenr;
+                pos.lnum = tv_get_number_chk(&li.tv(), Some(&mut error)) as Linenr;
                 if error {
                     return;
                 }
             }
             if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 1) {
-                pos.col = tv_get_number_chk(&li.li_tv, Some(&mut error)) as Colnr - 1;
+                pos.col = tv_get_number_chk(&li.tv(), Some(&mut error)) as Colnr - 1;
                 if error {
                     return;
                 }
             }
             if let Some(li) = tv_list_find_opt(di.di_tv.vval.v_list_opt(), 2) {
-                pos.coladd = tv_get_number_chk(&li.li_tv, Some(&mut error)) as Colnr;
+                pos.coladd = tv_get_number_chk(&li.tv(), Some(&mut error)) as Colnr;
                 if error {
                     return;
                 }

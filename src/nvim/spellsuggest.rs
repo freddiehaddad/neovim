@@ -637,12 +637,12 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
                 },
             );
         }
-        let mut item = TypVal {
+        let item = TypVal {
             v_type: VarType::VarDict,
             v_lock: 0,
             vval: TypvalVval::Dict(d.dv_id),
         };
-        tv_list_append_tv(items_tv.vval.v_list_ref(), &mut item);
+        tv_list_append_tv(items_tv.vval.v_list_ref(), &item);
     }
     let badptr_bytes = sug.su_badptr.as_bytes();
     let bad_cstr = crate::memory::bytes_to_cstring(
@@ -944,8 +944,9 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     let list_opt = eval_spell_expr(crate::memory::bytes_as_cstr(&su.su_badword), expr);
     if let Some(list) = list_opt {
         for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
-            if li.li_tv.v_type == VarType::VarList
-                && let Some(sublist) = li.li_tv.vval.v_list_opt()
+            let li_tv = li.tv();
+            if li_tv.v_type == VarType::VarList
+                && let Some(sublist) = li_tv.vval.v_list_opt()
             {
                 let score = get_spellword(sublist, &mut p);
                 if score >= 0 && score <= su.su_maxscore {

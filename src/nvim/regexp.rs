@@ -3281,16 +3281,15 @@ pub(crate) fn fill_submatch_list(
     for i in 0..10 {
         let s = RE_STATE.with(|s| s.rsm.get()).sm_startp[i];
         let e = RE_STATE.with(|s| s.rsm.get()).sm_endp[i];
-        let li_mut = li.borrow_mut();
         if s.is_null() || e.is_null() {
-            tv_set_string(&mut li_mut.li_tv, None);
+            tv_set_string(&mut li.tv_mut(), None);
         } else {
             let cs = s.span_to_cstring(e).unwrap_or_default();
 
-            tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
+            tv_set_string(&mut li.tv_mut(), Some(cs.as_c_str()));
         }
 
-        li = li_mut.li_next;
+        li = li.li_next.get();
     }
     argskip + 1
 }

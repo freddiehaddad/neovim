@@ -3792,7 +3792,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
             };
             let mut prev_end: Varnumber = 0;
             for (i, li) in (0_i32..).zip(crate::eval::typval::tv_list_iter(Some(v_list))) {
-                let li_tv = &li.li_tv;
+                let li_tv = li.tv();
                 if li_tv.v_type != VarType::VarList {
                     g_st().msg_scroll = 1;
                     msg_putchar(b'\n' as i32);
@@ -3818,7 +3818,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                 let second_li = inner.next().unwrap();
                 let last_li = inner.next().unwrap();
                 let mut error = false;
-                let start = tv_get_number_chk(&first_li.li_tv, Some(&mut error));
+                let start = tv_get_number_chk(&first_li.tv(), Some(&mut error));
                 if error {
                     break 'color_cmdline_error;
                 } else if !(prev_end <= start && start < colored_ccline.cmdlen.get() as Varnumber) {
@@ -3856,7 +3856,7 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                         hl_id: 0,
                     });
                 }
-                let end = tv_get_number_chk(&second_li.li_tv, Some(&mut error));
+                let end = tv_get_number_chk(&second_li.tv(), Some(&mut error));
                 if error {
                     break 'color_cmdline_error;
                 } else if !(start < end && end <= colored_ccline.cmdlen.get() as Varnumber) {
@@ -3888,7 +3888,9 @@ fn color_cmdline(colored_ccline: &CmdlineInfo) -> bool {
                     break 'color_cmdline_error;
                 }
                 prev_end = end;
-                let Some(group) = tv_get_string_chk(&last_li.li_tv) else {
+                let Some(group) =
+                    tv_get_string_chk(&last_li.tv()).map(std::borrow::Cow::into_owned)
+                else {
                     break 'color_cmdline_error;
                 };
                 ccline_colors.colors.push(CmdlineColorChunk {
@@ -5104,7 +5106,8 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
 
     for li in crate::eval::typval::tv_list_iter(Some(&*l)) {
         if !eap.skip {
-            let s = tv_get_string(&li.li_tv);
+            let li_tv = li.tv();
+            let s = tv_get_string(&li_tv);
             buf.extend_from_slice(s.to_bytes());
             buf.push(b'\n');
         }

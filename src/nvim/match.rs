@@ -215,18 +215,18 @@ fn match_add(
             let mut len: i32 = 1;
             let mut error = false;
 
-            if li.li_tv.v_type == VarType::VarList {
-                let subl = li.li_tv.vval.v_list_opt();
-                let mut sub_iter = tv_list_iter(subl);
+            if li.tv().v_type == VarType::VarList {
+                let subl = li.tv().vval.v_list();
+                let mut sub_iter = tv_list_iter(subl.opt());
                 let Some(subli1) = sub_iter.next() else {
                     semsg!(
                         gettext(c"E5030: Empty list at position %d"),
-                        tv_list_idx_of_item(pos_list, Some(li)),
+                        tv_list_idx_of_item(pos_list, Some(&li)),
                     );
                     failed = true;
                     break;
                 };
-                lnum = tv_get_number_chk(&subli1.li_tv, Some(&mut error)) as Linenr;
+                lnum = tv_get_number_chk(&subli1.tv(), Some(&mut error)) as Linenr;
                 if error {
                     failed = true;
                     break;
@@ -236,7 +236,7 @@ fn match_add(
                 }
                 m.mit_pos[i].lnum = lnum;
                 if let Some(subli2) = sub_iter.next() {
-                    col = tv_get_number_chk(&subli2.li_tv, Some(&mut error)) as Colnr;
+                    col = tv_get_number_chk(&subli2.tv(), Some(&mut error)) as Colnr;
                     if error {
                         failed = true;
                         break;
@@ -245,7 +245,7 @@ fn match_add(
                         continue;
                     }
                     if let Some(subli3) = sub_iter.next() {
-                        len = tv_get_number_chk(&subli3.li_tv, Some(&mut error)) as Colnr;
+                        len = tv_get_number_chk(&subli3.tv(), Some(&mut error)) as Colnr;
                         if len < 0 {
                             continue;
                         }
@@ -257,17 +257,17 @@ fn match_add(
                 }
                 m.mit_pos[i].col = col;
                 m.mit_pos[i].len = len;
-            } else if li.li_tv.v_type == VarType::VarNumber {
-                if li.li_tv.vval.v_number() <= 0 {
+            } else if li.tv().v_type == VarType::VarNumber {
+                if li.tv().vval.v_number() <= 0 {
                     continue;
                 }
-                m.mit_pos[i].lnum = li.li_tv.vval.v_number() as Linenr;
+                m.mit_pos[i].lnum = li.tv().vval.v_number() as Linenr;
                 m.mit_pos[i].col = 0;
                 m.mit_pos[i].len = 0;
             } else {
                 semsg!(
                     gettext(c"E5031: List or number required at position %d"),
-                    tv_list_idx_of_item(pos_list, Some(li)),
+                    tv_list_idx_of_item(pos_list, Some(&li)),
                 );
                 failed = true;
                 break;
@@ -1006,11 +1006,11 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     };
 
     for (li_idx, li) in (0_i32..).zip(list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt()))) {
-        let Some(d) = li
-            .li_tv
+        let li_tv = li.tv();
+        let Some(d) = li_tv
             .vval
             .v_dict_opt()
-            .filter(|_| li.li_tv.v_type == VarType::VarDict)
+            .filter(|_| li_tv.v_type == VarType::VarDict)
         else {
             semsg!(
                 gettext(c"E474: List item %d is either not a dictionary or an empty one",),
@@ -1036,7 +1036,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut match_add_failed = false;
     for li in list_iter_mut(tv_list_first(argvars[0].vval.v_list_opt())) {
         let mut i: i32 = 0;
-        let d = li.li_tv.vval.v_dict_ref();
+        let d = li.tv().vval.v_dict_ref();
         if tv_dict_find_opt(Some(d), c"pattern", 7).is_none() {
             if s.is_null() {
                 let list = tv_list_alloc(9);
@@ -1057,7 +1057,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                         tv_list_unref(s.opt());
                         return;
                     }
-                    tv_list_append_tv(&s, &mut pos_di.di_tv);
+                    tv_list_append_tv(&s, &pos_di.di_tv);
                 } else {
                     break;
                 }

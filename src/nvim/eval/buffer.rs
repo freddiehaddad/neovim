@@ -185,9 +185,10 @@ fn set_buffer_lines(
                 break;
             }
 
-            line = Some(typval_tostring(Some(&mut (li.borrow_mut().li_tv)), false));
+            let mut item_tv = li.tv().clone();
+            line = Some(typval_tostring(Some(&mut item_tv), false));
 
-            li = li.li_next;
+            li = li.li_next.get();
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
@@ -417,10 +418,13 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
-                let mut li = l.lv_first.get();
-                let str_ = tv_get_string(&li.li_tv);
-                let new_str = concat_str(text.to_bytes(), str_.to_bytes());
-                crate::eval::typval::tv_set_string(&mut li.li_tv, Some(new_str.as_c_str()));
+                let li = l.lv_first.get();
+                let new_str = {
+                    let li_tv = li.tv();
+                    let str_ = tv_get_string(&li_tv);
+                    concat_str(text.to_bytes(), str_.to_bytes())
+                };
+                crate::eval::typval::tv_set_string(&mut li.tv_mut(), Some(new_str.as_c_str()));
                 did_concat = true;
             }
         } else if lines.v_type == VarType::VarString {
@@ -434,17 +438,12 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if did_concat && tv_list_len(lines.vval.v_list().opt()) > 1 {
             let l = lines.vval.v_list();
             let li = l.lv_first.get();
+            let mut first_tv = li.tv().clone();
 
-            set_buffer_lines(
-                buf.opt_mut(),
-                lnum,
-                false,
-                &mut (li.borrow_mut().li_tv),
-                &mut *rettv,
-            );
+            set_buffer_lines(buf.opt_mut(), lnum, false, &mut first_tv, &mut *rettv);
 
             if rettv.vval.v_number() == 0 {
-                tv_list_item_remove(&l, li.borrow_mut());
+                tv_list_item_remove(&l, &li);
 
                 set_buffer_lines(buf.opt_mut(), lnum, true, &mut *lines, &mut *rettv);
             }
@@ -461,7 +460,8 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
                 let li = l.lv_last.get();
-                let str_ = tv_get_string(&li.li_tv);
+                let li_tv = li.tv();
+                let str_ = tv_get_string(&li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {
                     buf.b_prompt_append_new_line = true;

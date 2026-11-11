@@ -106,7 +106,7 @@ impl Default for Evalarg {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub enum LvalTv {
     #[default]
     None,
@@ -114,37 +114,81 @@ pub enum LvalTv {
     ListItem(crate::eval::typval::ListitemId),
 }
 
+pub enum LvalTvRef<'a> {
+    Dict(&'a TypVal),
+    List(std::cell::Ref<'a, TypVal>),
+}
+
+impl std::ops::Deref for LvalTvRef<'_> {
+    type Target = TypVal;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Dict(tv) => tv,
+            Self::List(tv) => tv,
+        }
+    }
+}
+
+pub enum LvalTvMut<'a> {
+    Dict(&'a mut TypVal),
+    List(std::cell::RefMut<'a, TypVal>),
+}
+
+impl std::ops::Deref for LvalTvMut<'_> {
+    type Target = TypVal;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Dict(tv) => tv,
+            Self::List(tv) => tv,
+        }
+    }
+}
+
+impl std::ops::DerefMut for LvalTvMut<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Dict(tv) => tv,
+            Self::List(tv) => tv,
+        }
+    }
+}
+
 impl LvalTv {
     #[inline]
-    pub const fn is_null(self) -> bool {
+    pub const fn is_null(&self) -> bool {
         matches!(self, Self::None)
     }
 
     #[inline]
-    pub fn opt(self) -> Option<&'static TypVal> {
+    pub fn opt(&self) -> Option<LvalTvRef<'_>> {
         match self {
             Self::None => None,
-            Self::DictItem(di) => di.opt().map(|d| &d.di_tv),
-            Self::ListItem(li) => li.opt().map(|l| &l.li_tv),
+            Self::DictItem(di) => di.opt().map(|d| LvalTvRef::Dict(&d.di_tv)),
+            Self::ListItem(li) => li.opt().map(|l| LvalTvRef::List(l.tv())),
         }
     }
 
     #[inline]
-    pub fn opt_mut(self) -> Option<&'static mut TypVal> {
+    pub fn opt_mut(&self) -> Option<LvalTvMut<'_>> {
         match self {
             Self::None => None,
-            Self::DictItem(di) => di.opt_mut().map(|d| &mut d.di_tv),
-            Self::ListItem(li) => li.opt_mut().map(|l| &mut l.li_tv),
+            Self::DictItem(di) => di.opt_mut().map(|d| LvalTvMut::Dict(&mut d.di_tv)),
+            Self::ListItem(li) => li.opt().map(|l| LvalTvMut::List(l.tv_mut())),
         }
     }
 
     #[inline]
-    pub fn borrow(self) -> &'static TypVal {
+    pub fn borrow(&self) -> LvalTvRef<'_> {
         self.opt().expect("null LvalTv")
     }
 
     #[inline]
-    pub fn borrow_mut(self) -> &'static mut TypVal {
+    pub fn borrow_mut(&self) -> LvalTvMut<'_> {
         self.opt_mut().expect("null LvalTv")
     }
 }
@@ -886,10 +930,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<crate::eval::typva
 }
 
 /// Get spell word from an entry from spellsuggest=expr:
-pub fn get_spellword<'a>(
-    list: &'a TvList,
-    ret_word: &mut Option<std::borrow::Cow<'a, CStr>>,
-) -> i32 {
+pub fn get_spellword(list: &TvList, ret_word: &mut Option<std::borrow::Cow<'static, CStr>>) -> i32 {
     if tv_list_len(Some(list)) != 2 {
         emsg(gettext(
             c"E5700: Expression from 'spellsuggest' must yield lists with exactly two values",
@@ -1346,14 +1387,10 @@ pub fn ex_let_vars(
     while arg.to_bytes().first() != Some(&b']') {
         let cur = item.unwrap();
         let next_arg = crate::charset::skipwhite_at(arg, 1);
-        let Some(after_one) = ex_let_one(
-            next_arg,
-            &mut cur.li_tv,
-            true,
-            is_const != 0,
-            Some(c",;]"),
-            op,
-        ) else {
+        let mut cur_tv = cur.tv().clone();
+        let Some(after_one) =
+            ex_let_one(next_arg, &mut cur_tv, true, is_const != 0, Some(c",;]"), op)
+        else {
             return false;
         };
         rest_len -= 1;
@@ -1363,7 +1400,7 @@ pub fn ex_let_vars(
         if arg.to_bytes().first() == Some(&b';') {
             let rest_list = tv_list_alloc(rest_len as isize);
             while let Some(rem) = item {
-                tv_list_append_tv(&rest_list, &mut rem.li_tv);
+                tv_list_append_tv(&rest_list, &rem.tv());
                 item = rem.next_opt();
             }
 
@@ -2012,13 +2049,13 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     {
         return false;
     } else if lp.ll_range {
-        let li_first = lp.ll_li.borrow_mut();
+        let li_first = lp.ll_li.clone();
         let n1 = lp.ll_n1;
         let has_n2 = !lp.ll_empty2;
         let n2 = lp.ll_n2;
-        tv_list_unlet_range(lp.list_opt(), li_first, n1, has_n2, n2);
+        tv_list_unlet_range(lp.list_opt(), &li_first, n1, has_n2, n2);
     } else if let Some(l) = lp.list_opt() {
-        tv_list_item_remove(l, lp.ll_li.borrow_mut());
+        tv_list_item_remove(l, &lp.ll_li);
     } else {
         let d = lp.dict_opt().unwrap();
         let di = lp.di_mut();
@@ -2045,7 +2082,7 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
 /// Unlet one item or a range of items from a list.
 fn tv_list_unlet_range(
     l: Option<&TvList>,
-    li_first: &mut Listitem,
+    li_first: &Listitem,
     n1_arg: i32,
     has_n2: bool,
     n2: i32,
@@ -2054,14 +2091,14 @@ fn tv_list_unlet_range(
     let mut li_last = crate::eval::typval::ListitemId::from_ref(li_first);
     let mut n1 = n1_arg;
     loop {
-        let li = li_last.li_next;
+        let li = li_last.li_next.get();
         n1 += 1;
         if li.is_null() || (has_n2 && n2 < n1) {
             break;
         }
         li_last = li;
     }
-    tv_list_remove_items(l.unwrap(), li_first, li_last.borrow_mut());
+    tv_list_remove_items(l.unwrap(), li_first, &li_last);
 }
 
 /// unlet a variable.
@@ -2181,15 +2218,19 @@ fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
     } else if deep == 0 {
         // nothing to do
     } else if lp.ll_range {
-        for li in crate::eval::typval::list_iter_ptr(lp.ll_li.opt_mut()) {
+        for li in crate::eval::typval::list_iter_ptr(lp.ll_li.clone()) {
             if !lp.ll_empty2 && lp.ll_n2 < lp.ll_n1 {
                 break;
             }
-            tv_item_lock(&mut li.li_tv, deep, lock, false);
+            let mut item_tv = li.tv().clone();
+            tv_item_lock(&mut item_tv, deep, lock, false);
+            li.tv_mut().v_lock = item_tv.v_lock;
             lp.ll_n1 += 1;
         }
     } else if !lp.ll_list.is_null() {
-        tv_item_lock(&mut lp.li_mut().li_tv, deep, lock, false);
+        let mut item_tv = lp.li_mut().tv().clone();
+        tv_item_lock(&mut item_tv, deep, lock, false);
+        lp.li_mut().tv_mut().v_lock = item_tv.v_lock;
     } else {
         tv_item_lock(&mut lp.di_mut().di_tv, deep, lock, false);
     }

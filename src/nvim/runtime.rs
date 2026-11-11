@@ -568,7 +568,7 @@ fn stacktrace_push_item(
     filepath: Option<&CStr>,
 ) {
     let d = tv_dict_alloc_lock(VAR_FIXED);
-    let mut tv = TypVal {
+    let tv = TypVal {
         v_type: VarType::VarDict,
         v_lock: VAR_LOCKED,
         vval: TypvalVval::Dict(d.dv_id),
@@ -583,7 +583,7 @@ fn stacktrace_push_item(
     tv_dict_add_nr(&mut *d, c"lnum", Varnumber::from(lnum));
     tv_dict_add_str(&mut *d, c"filepath", filepath);
 
-    tv_list_append_tv(l, &mut tv);
+    tv_list_append_tv(l, &tv);
 }
 
 /// Create the stacktrace from `exestack`.

@@ -346,7 +346,7 @@ fn filter_map_list(
         let mut li = tv_list_first(l);
         while let Some(cur_li) = li {
             if filtermap == FilterMap::Map
-                && value_check_lock(cur_li.li_tv.v_lock, Some(arg_errmsg), TV_TRANSLATE)
+                && value_check_lock(cur_li.tv().v_lock, Some(arg_errmsg), TV_TRANSLATE)
             {
                 break;
             }
@@ -357,7 +357,8 @@ fn filter_map_list(
                 vval: TypvalVval::Number(0),
             };
             let mut rem = false;
-            if !filter_map_one(&mut cur_li.li_tv, expr, filtermap, &mut newtv, &mut rem) {
+            let mut cur_tv = cur_li.tv().clone();
+            if !filter_map_one(&mut cur_tv, expr, filtermap, &mut newtv, &mut rem) {
                 break;
             }
             if g_st().did_emsg != 0 {
@@ -365,14 +366,14 @@ fn filter_map_list(
                 break;
             }
             if filtermap == FilterMap::Map {
-                tv_clear(&mut cur_li.li_tv);
+                cur_li.clear_tv();
                 newtv.v_lock = VAR_UNLOCKED;
-                cur_li.li_tv = newtv;
+                cur_li.set_tv(newtv);
             } else if filtermap == FilterMap::MapNew {
                 tv_list_append_owned_tv(&l_ret, newtv);
             }
             if filtermap == FilterMap::Filter && rem {
-                li = tv_list_item_remove(l.unwrap(), cur_li);
+                li = tv_list_item_remove(l.unwrap(), &cur_li);
             } else {
                 li = cur_li.next_opt();
             }
@@ -481,7 +482,7 @@ pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             Some(c"add() argument"),
             TV_TRANSLATE,
         ) {
-            tv_list_append_tv(&l, &mut argvars[1]);
+            tv_list_append_tv(&l, &argvars[1]);
             tv_copy(&argvars[0], rettv);
         }
     } else if argvars[0].v_type == VarType::VarBlob {
@@ -551,7 +552,7 @@ fn count_list(l: Option<&TvList>, needle: &TypVal, idx: i64, ic: bool) -> i64 {
     }
     let mut n: i64 = 0;
     for cur in crate::eval::typval::list_iter_ptr(li) {
-        if tv_equal(&cur.li_tv, needle, ic) {
+        if tv_equal(&cur.tv(), needle, ic) {
             n += 1;
         }
     }
@@ -721,7 +722,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     }
                 }
             }
-            tv_list_extend(l1_ref, Some(l2), item.opt_mut());
+            tv_list_extend(l1_ref, Some(l2), item.opt());
         }
 
         if is_new {
@@ -832,7 +833,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             }
         }
         if let Some(l) = l {
-            tv_list_insert_tv(l, arg1, item.opt_mut());
+            tv_list_insert_tv(l, arg1, item.opt());
             tv_copy(arg0, rettv);
         }
     }

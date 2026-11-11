@@ -25,8 +25,8 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    Callback, Dictitem, EvalFuncData, K_CALLBACK_NONE_CONST, Listitem, TvDict, TvList, TypVal,
-    VarType, Varnumber, callback_copy, callback_free, callback_put, tv_clear, tv_copy, tv_dict_add,
+    Callback, Dictitem, EvalFuncData, K_CALLBACK_NONE_CONST, TvDict, TvList, TypVal, VarType,
+    Varnumber, callback_copy, callback_free, callback_put, tv_clear, tv_copy, tv_dict_add,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_find_opt,
     tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv,
@@ -1066,12 +1066,16 @@ fn qf_get_next_str_line(state: &mut Qfstate) -> QfStatus {
     QfStatus::Ok
 }
 
-fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> QfStatus {
-    while let Some(li) = p_li {
-        if li.li_tv.v_type == VarType::VarString && !li.li_tv.vval.v_string_is_null() {
+fn qf_get_next_list_line(
+    state: &mut Qfstate,
+    mut p_li: Option<crate::eval::typval::ListitemId>,
+) -> QfStatus {
+    while let Some(ref li) = p_li {
+        if li.tv().v_type == VarType::VarString && !li.tv().vval.v_string_is_null() {
             break;
         }
-        p_li = li.li_next.opt();
+        let next = li.next_opt();
+        p_li = next;
     }
 
     let Some(li) = p_li else {
@@ -1079,18 +1083,21 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> Qf
         return QfStatus::EndOfInput;
     };
 
-    let s = li.li_tv.vval.v_string_bytes();
-    let len = s.len();
-    if len > IOSIZE - 2 {
-        qf_grow_linebuf(state, len);
-    } else {
-        state.use_growbuf = false;
-        state.linelen = len;
+    {
+        let li_tv = li.tv();
+        let s = li_tv.vval.v_string_bytes();
+        let len = s.len();
+        if len > IOSIZE - 2 {
+            qf_grow_linebuf(state, len);
+        } else {
+            state.use_growbuf = false;
+            state.linelen = len;
+        }
+
+        crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), s);
     }
 
-    crate::memory::copy_bytes_to_c_buf(state.linebuf_slice_mut(), s);
-
-    state.source = QfInputSource::List(li.li_next);
+    state.source = QfInputSource::List(li.li_next.get());
 
     QfStatus::Ok
 }
@@ -1228,7 +1235,14 @@ fn qf_get_nextline(state: &mut Qfstate) -> QfStatus {
         QfInputSource::None => QfStatus::Fail,
         QfInputSource::File(_) => qf_get_next_file_line(state),
         QfInputSource::Str(..) => qf_get_next_str_line(state),
-        QfInputSource::List(p_li) => qf_get_next_list_line(state, p_li.opt()),
+        QfInputSource::List(ref p_li) => {
+            let p_li = if p_li.is_null() {
+                None
+            } else {
+                Some(p_li.clone())
+            };
+            qf_get_next_list_line(state, p_li)
+        }
         QfInputSource::Buf {
             buf,
             buflnum,
@@ -4302,7 +4316,8 @@ fn qf_fill_buffer(qfl: Option<QfListRc>, buf: &mut FileBuf, old_count: usize, qf
             if let Some(qftf_li) = qftf_iter.next()
                 && !invalid_val
             {
-                if let Some(s) = tv_get_string_chk(&qftf_li.li_tv) {
+                if let Some(s) = tv_get_string_chk(&qftf_li.tv()).map(std::borrow::Cow::into_owned)
+                {
                     qftf_cow = s;
                     qftf_str = Some(&qftf_cow);
                 } else {
@@ -6428,9 +6443,11 @@ fn qf_add_entries(
     let mut entry_to_select_index: i32 = 0;
 
     for (i, li) in tv_list_iter(list).enumerate() {
-        if li.li_tv.v_type == VarType::VarDict
-            && let Some(d) = li.li_tv.vval.v_dict_opt()
+        let li_tv = li.tv();
+        if li_tv.v_type == VarType::VarDict
+            && let Some(d) = li_tv.vval.v_dict_opt()
         {
+            drop(li_tv);
             retval = qf_add_entry_from_dict(qfl, d, i == 0, &mut valid_entry);
             if retval == QfStatus::Fail {
                 break;

@@ -963,7 +963,7 @@ fn write_target_tv(
 ) {
     match *target {
         MpackData::RootTypval => *root_tv = val,
-        MpackData::ListItem(li_id) => li_id.borrow_mut().li_tv = val,
+        MpackData::ListItem(ref li_id) => li_id.set_tv(val),
         MpackData::MapSlot(pos, kv) => {
             parser.items[node_idx - 1].data[1].map_pairs_mut()[pos][kv] = val;
         }
@@ -979,9 +979,8 @@ fn typval_parse_enter(parser: &mut MpackParser, root_tv: &mut TypVal, node_idx: 
             MpackTokenType::MpackTokenArray => {
                 let list = parent.data[1].list();
                 let li = crate::eval::typval::tv_list_item_alloc();
-                let li_id = li.li_id;
-                crate::eval::typval::tv_list_append(list, li);
-                target = MpackData::ListItem(li_id);
+                crate::eval::typval::tv_list_append(list, &li);
+                target = MpackData::ListItem(li);
             }
             MpackTokenType::MpackTokenMap => {
                 let pos = parent.pos;

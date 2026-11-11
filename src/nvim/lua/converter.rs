@@ -65,14 +65,14 @@ struct LuaTableProps {
     has_type_key: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum TVPopTarget {
     Root,
     ListItem(crate::eval::typval::ListitemId),
     DictItem(crate::eval::typval::DictitemId),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct TVPopStackItem {
     tv: TVPopTarget,
     list_len: usize,
@@ -279,11 +279,11 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                 vval: TypvalVval::Number(0),
                             },
                         );
-                        stack.push(cur);
                         tv_list_append_list(&cur.tv_mut(ret_tv).vval.v_list(), Some(&kv_pair));
+                        stack.push(cur);
                         let last = tv_list_last(Some(&kv_pair)).unwrap();
                         cur = TVPopStackItem {
-                            tv: TVPopTarget::ListItem(last.li_id),
+                            tv: TVPopTarget::ListItem(last),
                             list_len: 0,
                             container: false,
                             special: false,
@@ -326,7 +326,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                 stack.push(cur);
                 let last = tv_list_last(list.opt()).unwrap();
                 cur = TVPopStackItem {
-                    tv: TVPopTarget::ListItem(last.li_id),
+                    tv: TVPopTarget::ListItem(last),
                     list_len: 0,
                     container: false,
                     special: false,
@@ -386,7 +386,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                 for item in &stack {
                     if item.container && lua_rawequal_safe(lstate, -1, item.idx) {
                         let src_tv = item.tv_ref(ret_tv).clone();
-                        tv_copy(&src_tv, cur.tv_mut(ret_tv));
+                        tv_copy(&src_tv, &mut cur.tv_mut(ret_tv));
                         cur.container = false;
                         found_self_ref = true;
                         break;
@@ -405,7 +405,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                             if table_props.maxidx != 0 {
                                 cur.container = true;
                                 cur.idx = nlua_gettop(lstate);
-                                stack.push(cur);
+                                stack.push(cur.clone());
                             }
                         }
                         ObjectType::ObjectTypeDict => {
@@ -420,7 +420,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                 cur.special = table_props.has_string_with_nul;
                                 if table_props.has_string_with_nul {
                                     decode_create_map_special_dict(
-                                        cur.tv_mut(ret_tv),
+                                        &mut cur.tv_mut(ret_tv),
                                         table_props.string_keys_num as isize,
                                     );
                                     let val_di = tv_dict_find(
@@ -446,7 +446,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                 }
                                 cur.container = true;
                                 cur.idx = nlua_gettop(lstate);
-                                stack.push(cur);
+                                stack.push(cur.clone());
                                 lua_pushnil_safe(lstate);
                             }
                         }
@@ -468,7 +468,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
             LUA_TFUNCTION => {
                 let func = nlua_ref_global(lstate, -1);
                 let name = register_luafunc(func);
-                crate::eval::typval::tv_set_string(cur.tv_mut(ret_tv), Some(&name));
+                crate::eval::typval::tv_set_string(&mut cur.tv_mut(ret_tv), Some(&name));
                 cur.tv_mut(ret_tv).v_type = VarType::VarFunc;
             }
             LUA_TUSERDATA => {
@@ -704,22 +704,26 @@ fn lua_convert_one_value(
                                 let val_list = val_di.di_tv.vval.v_list();
                                 if tv_list_len(val_list.opt()) == 4 {
                                     let sign_li = tv_list_first(val_list.opt()).unwrap();
-                                    let highest_li = sign_li.li_next.borrow_mut();
-                                    let high_li = highest_li.li_next.borrow_mut();
+                                    let highest_li = sign_li.li_next.get();
+                                    let high_li = highest_li.li_next.get();
                                     let low_li = tv_list_last(val_list.opt()).unwrap();
-                                    if sign_li.li_tv.v_type == VarType::VarNumber
-                                        && sign_li.li_tv.vval.v_number() != 0
-                                        && highest_li.li_tv.v_type == VarType::VarNumber
-                                        && highest_li.li_tv.vval.v_number() >= 0
-                                        && high_li.li_tv.v_type == VarType::VarNumber
-                                        && high_li.li_tv.vval.v_number() >= 0
-                                        && low_li.li_tv.v_type == VarType::VarNumber
-                                        && low_li.li_tv.vval.v_number() >= 0
+                                    let sign_tv = sign_li.tv();
+                                    let highest_tv = highest_li.tv();
+                                    let high_tv = high_li.tv();
+                                    let low_tv = low_li.tv();
+                                    if sign_tv.v_type == VarType::VarNumber
+                                        && sign_tv.vval.v_number() != 0
+                                        && highest_tv.v_type == VarType::VarNumber
+                                        && highest_tv.vval.v_number() >= 0
+                                        && high_tv.v_type == VarType::VarNumber
+                                        && high_tv.vval.v_number() >= 0
+                                        && low_tv.v_type == VarType::VarNumber
+                                        && low_tv.vval.v_number() >= 0
                                     {
-                                        let sign = sign_li.li_tv.vval.v_number();
-                                        let highest = highest_li.li_tv.vval.v_number() as u64;
-                                        let high = high_li.li_tv.vval.v_number() as u64;
-                                        let low = low_li.li_tv.vval.v_number() as u64;
+                                        let sign = sign_tv.vval.v_number();
+                                        let highest = highest_tv.vval.v_number() as u64;
+                                        let high = high_tv.vval.v_number() as u64;
+                                        let low = low_tv.vval.v_number() as u64;
                                         let number = (highest << 62) | (high << 31) | low;
                                         if sign > 0 {
                                             lua_pushnumber_safe(lstate, number as lua_Number);
@@ -788,13 +792,13 @@ fn lua_convert_one_value(
                                         tv_list_first(val_list.opt()),
                                     );
                                     while !li.is_null() {
-                                        if li.li_tv.v_type != VarType::VarList
-                                            || tv_list_len((li.li_tv.vval.v_list()).opt()) != 2
+                                        if li.tv().v_type != VarType::VarList
+                                            || tv_list_len((li.tv().vval.v_list()).opt()) != 2
                                         {
                                             all_pairs = false;
                                             break;
                                         }
-                                        li = li.li_next;
+                                        li = li.li_next.get();
                                     }
                                     if all_pairs {
                                         let saved_copy_id = val_list.lv_copy_id.get();
@@ -831,12 +835,13 @@ fn lua_convert_one_value(
                             if tv_list_len(val_list.opt()) == 2 {
                                 let first = tv_list_first(val_list.opt()).unwrap();
                                 let last = tv_list_last(val_list.opt()).unwrap();
-                                if first.li_tv.v_type == VarType::VarNumber
+                                let first_tv = first.tv();
+                                let last_tv = last.tv();
+                                if first_tv.v_type == VarType::VarNumber
                                     && (i8::MIN as i64..=i8::MAX as i64)
-                                        .contains(&first.li_tv.vval.v_number())
-                                    && last.li_tv.v_type == VarType::VarList
-                                    && encode_vim_list_to_buf(last.li_tv.vval.v_list().opt())
-                                        .is_some()
+                                        .contains(&first_tv.vval.v_number())
+                                    && last_tv.v_type == VarType::VarList
+                                    && encode_vim_list_to_buf(last_tv.vval.v_list().opt()).is_some()
                                 {
                                     lua_conv_nil(lstate);
                                     handled_special = true;
@@ -888,7 +893,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
     while !mpstack.is_empty() {
         let cur_idx = mpstack.len() - 1;
         let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-        let next_tv: &mut TypVal = match mpstack[cur_idx].data {
+        let next_tv: TypVal = match mpstack[cur_idx].data {
             MPConvStackData::Dict {
                 mut dict,
                 ref mut hi_idx,
@@ -911,13 +916,13 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 *todo -= 1;
                 *hi_idx += 1;
                 lua_push_bytes(lstate, di.key_bytes());
-                &mut di.di_tv
+                di.di_tv.clone()
             }
             MPConvStackData::List {
                 ref list,
                 ref mut li,
             } => {
-                let cur_li = *li;
+                let cur_li = li.clone();
                 if cur_li.is_null() {
                     let list = list.clone();
                     mpstack.pop();
@@ -930,11 +935,11 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                     lua_rawset_safe(lstate, -3);
                     lua_pushnumber_safe(lstate, idx + 1.0);
                 }
-                let cur_li = cur_li.borrow_mut();
-                *li = cur_li.li_next;
-                &mut cur_li.li_tv
+                *li = cur_li.li_next.get();
+                cur_li.tv().clone()
             }
-            MPConvStackData::Pairs { ref list, li } => {
+            MPConvStackData::Pairs { ref list, ref li } => {
+                let li = li.clone();
                 if li.is_null() {
                     let list = list.clone();
                     mpstack.pop();
@@ -944,27 +949,29 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 } else if li != crate::eval::typval::ListitemId::from(tv_list_first(list.opt())) {
                     lua_rawset_safe(lstate, -3);
                 }
-                let kv_pair = li.li_tv.vval.v_list();
+                let kv_pair = li.tv().vval.v_list();
                 let first_item = tv_list_first(kv_pair.opt()).unwrap();
-                if !lua_convert_one_value(lstate, &mut mpstack, &mut first_item.li_tv, copy_id) {
+                let mut first_tv = first_item.tv().clone();
+                if !lua_convert_one_value(lstate, &mut mpstack, &mut first_tv, copy_id) {
                     return false;
                 }
                 let last_item = tv_list_last(kv_pair.opt()).unwrap();
-                let next_li = li.li_next;
+                let next_li = li.li_next.get();
                 if let MPConvStackData::Pairs {
                     li: ref mut li_ref, ..
                 } = mpstack[cur_idx].data
                 {
                     *li_ref = next_li;
                 }
-                &mut last_item.li_tv
+                last_item.tv().clone()
             }
             MPConvStackData::Partial { .. } | MPConvStackData::PartialList { .. } => {
                 unreachable!()
             }
         };
 
-        if !lua_convert_one_value(lstate, &mut mpstack, next_tv, copy_id) {
+        let mut next_tv = next_tv;
+        if !lua_convert_one_value(lstate, &mut mpstack, &mut next_tv, copy_id) {
             return false;
         }
     }
@@ -1750,20 +1757,22 @@ pub fn nlua_push_keydict<T: KeyDict>(lstate: *mut lua_State, value: &T, table: &
 
 impl TVPopStackItem {
     #[inline]
-    fn tv_ref<'a>(&self, root: &'a TypVal) -> &'a TypVal {
-        match self.tv {
-            TVPopTarget::Root => root,
-            TVPopTarget::ListItem(li) => &li.borrow().li_tv,
-            TVPopTarget::DictItem(di) => &di.borrow().di_tv,
+    fn tv_ref<'a>(&'a self, root: &'a TypVal) -> crate::eval::vars::LvalTvRef<'a> {
+        match &self.tv {
+            TVPopTarget::Root => crate::eval::vars::LvalTvRef::Dict(root),
+            TVPopTarget::ListItem(li) => crate::eval::vars::LvalTvRef::List(li.tv()),
+            TVPopTarget::DictItem(di) => crate::eval::vars::LvalTvRef::Dict(&di.borrow().di_tv),
         }
     }
 
     #[inline]
-    fn tv_mut<'a>(&self, root: &'a mut TypVal) -> &'a mut TypVal {
-        match self.tv {
-            TVPopTarget::Root => root,
-            TVPopTarget::ListItem(li) => &mut li.borrow_mut().li_tv,
-            TVPopTarget::DictItem(di) => &mut di.borrow_mut().di_tv,
+    fn tv_mut<'a>(&'a self, root: &'a mut TypVal) -> crate::eval::vars::LvalTvMut<'a> {
+        match &self.tv {
+            TVPopTarget::Root => crate::eval::vars::LvalTvMut::Dict(root),
+            TVPopTarget::ListItem(li) => crate::eval::vars::LvalTvMut::List(li.tv_mut()),
+            TVPopTarget::DictItem(di) => {
+                crate::eval::vars::LvalTvMut::Dict(&mut di.borrow_mut().di_tv)
+            }
         }
     }
 }
